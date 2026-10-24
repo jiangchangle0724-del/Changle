@@ -147,7 +147,7 @@ function Legs({ x, top, gap = 10 }: { x: number; top: number; gap?: number }) {
   );
 }
 
-function body(kind: number, color: string, mood: Mood): JSX.Element {
+function body(kind: number, color: string, mood: Mood, mini = false): JSX.Element {
   switch (kind) {
     case 0: // Click: a box camera, the lens as its nose
       return (
@@ -172,11 +172,7 @@ function body(kind: number, color: string, mood: Mood): JSX.Element {
           <path d="M24 46q0-16 18-16q8 0 9 12q1 22 9 22t9-22q1-12 9-12q18 0 18 16q0 46-36 46T24 46z" fill={color} {...LINE} />
           <path d="M34 50q2 32 26 34q24-2 26-34" fill="none" stroke="#e4d4f4" stroke-width="2" stroke-dasharray="3 4" />
           <Face x={60} y={74} s={0.72} mood={mood === "idle" ? "smug" : mood} />
-          {mood === "idle" && (
-            <text x="92" y="30" font-size="12" font-weight="800" font-family="ui-monospace,monospace" fill={INK}>
-              z
-            </text>
-          )}
+          {mood === "idle" && !mini && <path d="M90 22h8l-8 9h8" fill="none" stroke={INK} stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />}
         </g>
       );
     case 2: // Flaggy: a tour guide's flag on a pogo pole
@@ -241,9 +237,9 @@ function body(kind: number, color: string, mood: Mood): JSX.Element {
 }
 
 /** A character as an SVG group in a 120 × 120 box (feet at y = 110), to place inside another drawing. */
-export function CharacterArt({ kind, mood = "idle" }: { kind: number; mood?: Mood }) {
+export function CharacterArt({ kind, mood = "idle", mini }: { kind: number; mood?: Mood; mini?: boolean }) {
   const k = ((kind % CHARACTERS.length) + CHARACTERS.length) % CHARACTERS.length;
-  return body(k, CHARACTERS[k].color, mood);
+  return body(k, CHARACTERS[k].color, mood, mini);
 }
 
 /** One token character. */

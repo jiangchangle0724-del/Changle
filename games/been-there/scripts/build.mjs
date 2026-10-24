@@ -21,7 +21,20 @@ const common = {
 
 const client = await esbuild.context({ ...common, entryPoints: { app: "src/client/main.tsx" }, outdir: out, format: "iife" });
 await copyFile("src/client/index.html", `${out}/index.html`);
-await copyFile("src/client/styles.css", `${out}/app.css`);
+
+// One stylesheet: the fonts (made by scripts/fonts.mjs), the art, then the screens.
+const FONT_FILES = ["zcool.woff2", "bigshoulders.woff2", "spacemono-400.woff2", "spacemono-700.woff2"];
+const appCss = async () =>
+  (await readFile("src/client/fonts/fonts.css", "utf8")) + (await readFile("src/client/art/art.css", "utf8")) + (await readFile("src/client/styles.css", "utf8"));
+await mkdir(`${out}/fonts`, { recursive: true });
+for (const f of FONT_FILES) await copyFile(`src/client/fonts/${f}`, `${out}/fonts/${f}`);
+await writeFile(`${out}/app.css`, await appCss());
+/** The same stylesheet with the fonts inside it, for the single-file pages. */
+async function inlineCss() {
+  let css = await appCss();
+  for (const f of FONT_FILES) css = css.replace(`url(fonts/${f})`, `url(data:font/woff2;base64,${(await readFile(`src/client/fonts/${f}`)).toString("base64")})`);
+  return css;
+}
 
 // Inside a claude.ai artifact the page is wrapped for us and :root already clears the phone's
 // notch and home bar, so the screens drop their own top inset there.
@@ -35,7 +48,7 @@ async function demo() {
   // One self-contained page: the same client, with the room running inside the page.
   const res = await esbuild.build({ ...common, entryPoints: ["src/local/demo.tsx"], write: false, format: "iife" });
   const js = res.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
-  const css = await readFile("src/client/styles.css", "utf8");
+  const css = await inlineCss();
   const body = `<div id="app"></div><script>${js}</script>`;
   // Standalone file you can open from disk.
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>到此一游试玩版</title><style>${css}</style></head><body>${body}</body></html>`;

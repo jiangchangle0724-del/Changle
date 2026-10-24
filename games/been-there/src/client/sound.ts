@@ -1,4 +1,6 @@
-// Placeholder sounds, synthesised (no files to license). Real city sounds come in steps 5-6.
+// Sounds in the golden-age-of-travel style, synthesised in the browser (no files to download or
+// license): the airport chime, a rubber stamp, a till, an auctioneer's gavel, a propeller plane.
+// Recorded city sounds come with the city content in step 6.
 // Phones (and WeChat) only allow sound after a tap, so the first tap unlocks it.
 let ctx: AudioContext | null = null;
 let muted = false;
@@ -46,43 +48,67 @@ function tone(freq: number, dur: number, opts: { type?: OscillatorType; vol?: nu
   osc.stop(t0 + dur + 0.02);
 }
 
-function noise(dur: number, vol = 0.08) {
+/** A burst of filtered noise: paper, wood, wind. */
+function burst(dur: number, o: { vol?: number; at?: number; type?: BiquadFilterType; freq?: number; q?: number; sweep?: number } = {}) {
   if (muted || !ctx || ctx.state !== "running") return;
-  const len = Math.floor(ctx.sampleRate * dur);
+  const t0 = ctx.currentTime + (o.at ?? 0);
+  const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
   const src = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
   const gain = ctx.createGain();
-  gain.gain.value = vol;
+  filter.type = o.type ?? "bandpass";
+  filter.frequency.setValueAtTime(o.freq ?? 1200, t0);
+  if (o.sweep) filter.frequency.exponentialRampToValueAtTime(o.sweep, t0 + dur);
+  filter.Q.value = o.q ?? 0.8;
+  gain.gain.value = o.vol ?? 0.1;
   src.buffer = buf;
-  src.connect(gain).connect(ctx.destination);
-  src.start();
+  src.connect(filter).connect(gain).connect(ctx.destination);
+  src.start(t0);
 }
 
 export const sfx = {
+  /** The airport announcement chime: your turn. */
   turn: () => {
-    tone(660, 0.12);
-    tone(880, 0.18, { at: 0.12 });
+    tone(784, 0.5, { vol: 0.1 });
+    tone(659, 0.5, { vol: 0.1, at: 0.28 });
+    tone(523, 0.7, { vol: 0.1, at: 0.56 });
   },
+  /** Two dice rattling in a wooden cup. */
   dice: () => {
-    noise(0.08);
-    tone(300, 0.05, { type: "square", vol: 0.04, at: 0.09 });
-    tone(360, 0.05, { type: "square", vol: 0.04, at: 0.16 });
+    [0, 0.06, 0.11, 0.19].forEach((at, i) => burst(0.04, { at, freq: 1800 + i * 300, q: 4, vol: 0.12 }));
   },
+  /** The till: a bell and the drawer. */
   coin: () => {
-    tone(988, 0.08, { type: "triangle" });
-    tone(1319, 0.14, { type: "triangle", at: 0.07 });
+    burst(0.05, { freq: 2500, q: 1.5, vol: 0.08 });
+    tone(1568, 0.25, { type: "triangle", vol: 0.07, at: 0.04 });
+    tone(2093, 0.35, { type: "triangle", vol: 0.06, at: 0.09 });
   },
-  pay: () => tone(440, 0.18, { type: "triangle", slide: 300 }),
-  bid: () => tone(740, 0.07, { type: "square", vol: 0.05 }),
+  pay: () => tone(392, 0.28, { type: "triangle", slide: 262, vol: 0.1 }),
+  /** The auctioneer's gavel. */
+  bid: () => {
+    burst(0.05, { type: "lowpass", freq: 900, vol: 0.25 });
+    tone(150, 0.08, { vol: 0.16 });
+  },
+  /** A rubber stamp on a passport page. */
   stamp: () => {
-    noise(0.05, 0.15);
-    tone(120, 0.1, { vol: 0.2 });
+    tone(110, 0.12, { vol: 0.22, slide: 70 });
+    burst(0.07, { freq: 900, q: 0.7, vol: 0.18, at: 0.01 });
   },
+  /** A ship's horn: time's up, or a party forfeit. */
   alert: () => {
-    tone(523, 0.1);
-    tone(523, 0.1, { at: 0.16 });
+    tone(196, 0.5, { type: "sawtooth", vol: 0.05 });
+    tone(247, 0.5, { type: "sawtooth", vol: 0.04 });
   },
-  win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, { at: i * 0.13, type: "triangle" })),
+  /** A propeller plane passing over: a token flies to another region (big screen). */
+  flight: () => {
+    burst(1.4, { type: "bandpass", freq: 300, sweep: 1400, q: 1.2, vol: 0.16 });
+    tone(55, 1.2, { type: "sawtooth", vol: 0.025, slide: 70 });
+  },
+  win: () => {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.26, { at: i * 0.13, type: "triangle" }));
+    tone(1319, 0.6, { at: 0.55, type: "triangle", vol: 0.08 });
+  },
 };

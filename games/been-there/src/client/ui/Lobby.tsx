@@ -5,7 +5,7 @@ import type { Mode, StyleId } from "../../engine";
 import { colon, t, type Key } from "../i18n";
 import { prefs } from "../prefs";
 import { send } from "../store";
-import { Btn, TEAM_COLORS, TEAM_LETTERS, styleName, teamLabel } from "./common";
+import { Btn, TEAM_COLORS, TEAM_LETTERS, TeamFace, styleName, teamLabel } from "./common";
 
 export const joinUrl = (code: string) => `${location.origin}/r/${code}`;
 
@@ -80,6 +80,7 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
           const mineTeam = v.you.team === team.id;
           return (
             <li key={team.id} class={mineTeam ? "mine" : ""} style={{ "--team": TEAM_COLORS[team.color] }}>
+              <TeamFace color={team.color} size={40} />
               <span class="letter">{TEAM_LETTERS[team.color]}</span>
               <div class="grow">
                 {mineTeam || (host && !team.bot) ? <TeamName team={team} /> : <b>{teamLabel(team)}</b>}

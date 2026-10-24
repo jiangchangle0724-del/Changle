@@ -11,7 +11,9 @@
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
     "sim": "tsx scripts/sim.ts",
-    "deploy": "node scripts/build.mjs && wrangler deploy"
+    "deploy": "node scripts/build.mjs && wrangler deploy",
+    "fonts": "node scripts/fonts.mjs",
+    "world": "node scripts/gen-world.mjs"
   },
   "dependencies": {
     "preact": "10.29.8",

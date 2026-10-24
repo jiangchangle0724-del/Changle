@@ -87,9 +87,9 @@ function Houses({ at, n }: { at: number; n: number }) {
 const ease = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
 
 /** Something that stays upright while the table turns. */
-function Up({ x, y, rot, children }: { x: number; y: number; rot: number; children: ComponentChildren }) {
+function Up({ x, y, rot, children, extra }: { x: number; y: number; rot: number; children: ComponentChildren; extra?: Record<string, string | number> }) {
   return (
-    <g data-up="" data-x={x.toFixed(1)} data-y={y.toFixed(1)} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${-rot})`}>
+    <g data-up="" data-x={x.toFixed(1)} data-y={y.toFixed(1)} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${-rot})`} {...extra}>
       {children}
     </g>
   );
@@ -152,6 +152,42 @@ export function RoundBoard({
     return () => cancelAnimationFrame(raf);
   }, [focus, reduced]);
 
+  // Tokens walk around the ring to their new space, with a little hop on each one.
+  const shown = useRef(new Map<number, number>());
+  const posKey = tokens.map((t) => `${t.seat}:${t.at}`).join(",");
+  useLayoutEffect(() => {
+    const g = ref.current;
+    const moves: { seat: number; from: number; delta: number; el: SVGGElement; fan: number; ring: number }[] = [];
+    for (const tk of tokens) {
+      const from = shown.current.get(tk.seat);
+      shown.current.set(tk.seat, tk.at);
+      if (from === undefined || from === tk.at || reduced || !g) continue;
+      let delta = (tk.at - from + BOARD.length) % BOARD.length;
+      if (delta > BOARD.length / 2) delta -= BOARD.length;
+      const el = g.querySelector<SVGGElement>(`[data-seat="${tk.seat}"]`);
+      if (!el) continue;
+      moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT) });
+    }
+    if (!moves.length) return;
+    const t0 = performance.now();
+    const dur = Math.min(1800, 220 + Math.max(...moves.map((m) => Math.abs(m.delta))) * 120);
+    let raf = 0;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - t0) / dur);
+      for (const m of moves) {
+        const at = m.from + m.delta * p;
+        const hop = Math.abs(Math.sin(Math.PI * (at - Math.floor(at)))) * 16 * (p < 1 ? 1 : 0);
+        const [x, y] = xy(angleOf(at) + m.fan, m.ring);
+        m.el.dataset.x = x.toFixed(1);
+        m.el.dataset.y = y.toFixed(1);
+        m.el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(-rot.current).toFixed(2)}) translate(0 ${(-hop).toFixed(1)})`);
+      }
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [posKey, reduced]);
+
   const r = rot.current;
   const bySpace = new Map<number, TokenMark[]>();
   for (const t of tokens) bySpace.set(t.at, [...(bySpace.get(t.at) ?? []), t]);
@@ -209,10 +245,11 @@ export function RoundBoard({
         {[...bySpace.entries()].map(([at, list]) =>
           list.map((tk, i) => {
             const n = list.length;
-            const deg = angleOf(at) + (i - (n - 1) / 2) * 5.2 * (n > 3 ? 0.8 : 1);
-            const [x, y] = xy(deg, RT - (n > 3 && i % 2 ? 46 : 0));
+            const fan = (i - (n - 1) / 2) * 5.2 * (n > 3 ? 0.8 : 1);
+            const ring = RT - (n > 3 && i % 2 ? 46 : 0);
+            const [x, y] = xy(angleOf(at) + fan, ring);
             return (
-              <Up key={tk.seat} x={x} y={y} rot={r}>
+              <Up key={tk.seat} x={x} y={y} rot={r} extra={{ "data-seat": tk.seat, "data-fan": fan.toFixed(2), "data-ring": ring }}>
                 <g class={`token${at === active && tk.mood !== "sad" ? " now" : ""}`}>
                   <ellipse cx="0" cy="26" rx="22" ry="7" fill="rgba(0,0,0,.18)" />
                   <g transform="translate(-34 -40) scale(0.57)">

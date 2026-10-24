@@ -5,6 +5,9 @@
 // (and trademarks such as Singapore's Merlion) are left out.
 import type { JSX } from "preact";
 import { arches, circle, decoSun, hatch, palm, path, person, pointed, poly, rect, ripples, windows } from "./kit";
+import { buenosaires, cairo, istanbul, mexicocity, mumbai, rio } from "./posters-1";
+import { beijing, dubai, lasvegas, newyork, shanghai, vancouver } from "./posters-2";
+import { bangkok, london, paris, seoul, singapore, sydney } from "./posters-3";
 
 export const POSTER_W = 300;
 export const POSTER_H = 375;
@@ -276,7 +279,30 @@ function hongkong() {
   );
 }
 
-const POSTERS: Record<string, () => JSX.Element> = { venice, tokyo, capetown, hongkong };
+const POSTERS: Record<string, () => JSX.Element> = {
+  cairo,
+  capetown,
+  buenosaires,
+  mexicocity,
+  rio,
+  istanbul,
+  mumbai,
+  dubai,
+  lasvegas,
+  vancouver,
+  newyork,
+  tokyo,
+  beijing,
+  shanghai,
+  bangkok,
+  sydney,
+  singapore,
+  venice,
+  paris,
+  london,
+  seoul,
+  hongkong,
+};
 
 export const hasPoster = (id: string) => id in POSTERS;
 

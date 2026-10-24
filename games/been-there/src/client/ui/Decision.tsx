@@ -17,6 +17,7 @@ import {
 import type { RoomView } from "../../room/protocol";
 import { cardTitle, colon, money, spaceName, t, tx, type Key } from "../i18n";
 import { send } from "../store";
+import { CODE } from "../art/stamps";
 import { Assets } from "./Assets";
 import { Btn, Countdown, GroupIcon, Money, SeatChip, seatName, useCountdown } from "./common";
 import { quizItemText } from "./feedText";
@@ -75,6 +76,7 @@ export function Decision({ v }: { v: RoomView }) {
   if (acting === undefined) return <Waiting v={v} />;
   return (
     <div class="decide" data-kind={pd.k}>
+      <Strip label={t("boardingPass")} at={s.ps[acting]?.pos} />
       {mine.length > 1 && (
         <p class="acting">
           <SeatChip v={v} seat={acting} />
@@ -83,6 +85,17 @@ export function Decision({ v }: { v: RoomView }) {
       <Ask v={v} pd={pd} seat={acting} act={act} />
       {SIMULTANEOUS.includes(pd.k) && <Votes v={v} />}
     </div>
+  );
+}
+
+/** The dark strip across the top of a decision, like the top of a boarding pass. */
+function Strip({ label, at }: { label: string; at?: number }) {
+  const city = at !== undefined ? CITY_AT[at] : undefined;
+  return (
+    <p class="pass-strip">
+      <span>{label}</span>
+      {at !== undefined && <span>{city ? CODE[city.id] : spaceName(at)}</span>}
+    </p>
   );
 }
 
@@ -573,6 +586,7 @@ function AuctionPanel({ v }: { v: RoomView }) {
   const min = a.price === 0 ? 10 : a.price + 10;
   return (
     <div class="decide auction" aria-live="polite">
+      <Strip label={t("stripAuction")} at={a.at} />
       <p class="ask">{t("auction", { space: spaceName(a.at) })}</p>
       <CityBrief v={v} at={a.at} />
       <p class="big num">
@@ -610,6 +624,7 @@ function QuizPanel({ v }: { v: RoomView }) {
   const mine = v.you.seats.includes(q.visitor);
   return (
     <div class="decide quiz" aria-live="polite">
+      <Strip label={t("stripQuiz")} />
       <p class="ask">{mine ? t("quizAsk", { item: quizItemText(q.item) }) : t("quizWatch", { team: seatName(v, q.visitor), item: quizItemText(q.item) })}</p>
       <p>
         <Countdown until={q.endsAt} />
@@ -642,6 +657,7 @@ function SilencePanel({ v, acting, act, pd }: { v: RoomView; acting: number | un
   if (acting !== pd.who) return <Waiting v={v} />;
   return (
     <div class="decide silence">
+      <Strip label={t("stripSilence")} />
       <p class="ask">{t("silenceAsk")}</p>
       <Choices items={[-1, ...others]} label={(q) => (q < 0 ? t("nobody") : seatName(v, q))} pick={(q) => act({ sound: q < 0 ? null : q })} />
     </div>

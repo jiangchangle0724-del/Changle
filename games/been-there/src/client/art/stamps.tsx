@@ -157,8 +157,10 @@ export function StampArt({ id, lang = "zh" }: { id: string; lang?: "zh" | "en" }
 /** A stamp as it sits on a page: slightly turned, with worn ink. */
 export function Stamp({ id, size = 96, turn = 0, lang = "zh", fresh }: { id: string; size?: number; turn?: number; lang?: "zh" | "en"; fresh?: boolean }) {
   return (
-    <svg class={`stamp${fresh ? " fresh" : ""}`} width={size} height={size} viewBox="-60 -60 120 120" style={{ transform: `rotate(${turn}deg)` }} aria-hidden="true">
-      <StampArt id={id} lang={lang} />
-    </svg>
+    <span class="stamp-turn" style={{ transform: `rotate(${turn.toFixed(1)}deg)` }}>
+      <svg class={`stamp${fresh ? " fresh" : ""}`} width={size} height={size} viewBox="-60 -60 120 120" aria-hidden="true">
+        <StampArt id={id} lang={lang} />
+      </svg>
+    </span>
   );
 }

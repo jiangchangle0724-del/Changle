@@ -126,3 +126,49 @@ export function palm(x: number, y: number, h: number, trunk: string, leaf: strin
     </g>
   );
 }
+
+/** A fuller standing figure: head, optional cap, a tapered body, two legs. */
+export function figure(x: number, y: number, s: number, o: { body: string; skin?: string; legs?: string; cap?: string; lean?: number }) {
+  const skin = o.skin ?? "#c98f62";
+  const legs = o.legs ?? "#1d2340";
+  const lean = o.lean ?? 0;
+  return (
+    <g transform={lean ? `rotate(${lean} ${x} ${y})` : undefined}>
+      <path d={`M${x - 3 * s} ${y}l${0.8 * s} ${-9 * s}h${1.6 * s}l${-0.4 * s} ${9 * s}zM${x + 3 * s} ${y}l${-0.8 * s} ${-9 * s}h${-1.6 * s}l${0.4 * s} ${9 * s}z`} fill={legs} />
+      <path d={`M${x - 4.4 * s} ${y - 8 * s}l${1.2 * s} ${-9 * s}q${3.2 * s} ${-2 * s} ${6.4 * s} 0l${1.2 * s} ${9 * s}z`} fill={o.body} />
+      <circle cx={x} cy={y - 20 * s} r={2.6 * s} fill={skin} />
+      {o.cap && <path d={`M${x - 2.7 * s} ${y - 21 * s}h${5.4 * s}v${-2.2 * s}q${-2.7 * s} ${-1.4 * s} ${-5.4 * s} 0z`} fill={o.cap} />}
+    </g>
+  );
+}
+
+/** A small car seen from the side, with a number plate. */
+export function car(x: number, y: number, w: number, color: string, plate?: string) {
+  const h = w * 0.42;
+  return (
+    <g>
+      <path d={`M${x} ${y - h * 0.35}q0 ${-h * 0.3} ${w * 0.12} ${-h * 0.32}l${w * 0.14} ${-h * 0.33}q${w * 0.04} ${-h * 0.06} ${w * 0.12} ${-h * 0.06}h${w * 0.3}q${w * 0.07} 0 ${w * 0.12} ${h * 0.06}l${w * 0.12} ${h * 0.33}q${w * 0.08} ${h * 0.02} ${w * 0.08} ${h * 0.32}v${h * 0.35}h${-w}z`} fill={color} />
+      <path d={`M${x + w * 0.29} ${y - h * 0.68}l${w * 0.08} ${-h * 0.22}h${w * 0.2}v${h * 0.22}zM${x + w * 0.6} ${y - h * 0.68}v${-h * 0.22}h${w * 0.12}l${w * 0.09} ${h * 0.22}z`} fill="#cfe3ea" />
+      <circle cx={x + w * 0.22} cy={y} r={h * 0.2} fill="#1d2340" />
+      <circle cx={x + w * 0.78} cy={y} r={h * 0.2} fill="#1d2340" />
+      {plate && (
+        <g>
+          <rect x={x + w * 0.4} y={y - h * 0.3} width={w * 0.22} height={h * 0.2} fill="#f4ead5" stroke="#1d2340" stroke-width="0.8" />
+          <text x={x + w * 0.51} y={y - h * 0.14} font-size={h * 0.18} font-family="ui-monospace,Menlo,monospace" font-weight="700" text-anchor="middle" fill="#1d2340">
+            {plate}
+          </text>
+        </g>
+      )}
+    </g>
+  );
+}
+
+/** A mosque skyline unit: a main dome with half domes and two minarets. */
+export function mosque(x: number, y: number, s: number, fill: string) {
+  const d =
+    `M${x - 30 * s} ${y}v${-14 * s}h${8 * s}a${7 * s} ${6 * s} 0 0 1 ${12 * s} 0h${2 * s}v${-6 * s}a${8 * s} ${10 * s} 0 0 1 ${16 * s} 0v${6 * s}h${2 * s}a${7 * s} ${6 * s} 0 0 1 ${12 * s} 0h${8 * s}v${14 * s}z` +
+    `M${x - 1 * s} ${y - 30 * s}h${2 * s}v${-4 * s}h${-2 * s}z` +
+    `M${x - 37 * s} ${y}v${-34 * s}l${2 * s} ${-6 * s}l${2 * s} ${6 * s}v${34 * s}z` +
+    `M${x + 33 * s} ${y}v${-34 * s}l${2 * s} ${-6 * s}l${2 * s} ${6 * s}v${34 * s}z`;
+  return <path d={d} fill={fill} />;
+}
