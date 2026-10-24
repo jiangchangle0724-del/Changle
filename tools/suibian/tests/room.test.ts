@@ -19,7 +19,7 @@ function setup() {
 
 test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   const { room, ids, places } = setup();
-  room.handle(ids[1], { t: "limits", limits: { allergies: { peanut: "severe" }, halal: false, vegetarian: false, budget: 0 } });
+  room.handle(ids[1], { t: "limits", limits: { allergies: { peanut: "severe" }, custom: [], halal: false, vegetarian: false, budget: 0 } });
   room.handle(ids[1], { t: "start" }); // not the host: ignored
   assert.equal(room.st.phase, "lobby");
   room.handle(ids[0], { t: "start" });
@@ -84,7 +84,7 @@ test("someone who joins late with a severe allergy knocks unsafe cards out", () 
   const before = room.view(ids[0]).cards.map((c) => c.place.cuisine);
   assert.ok(before.some((c) => SEVERE_RULES_OUT.shellfish!.includes(c)), `cards: ${before}`);
   room.join("eeeeeeee", "eeeeeeee-key-long-enough", { lang: "en" });
-  room.handle("eeeeeeee", { t: "limits", limits: { allergies: { shellfish: "severe" }, halal: false, vegetarian: false, budget: 0 } });
+  room.handle("eeeeeeee", { t: "limits", limits: { allergies: { shellfish: "severe" }, custom: [], halal: false, vegetarian: false, budget: 0 } });
   const after = room.view(ids[0]).cards.map((c) => c.place.cuisine);
   assert.ok(!after.some((c) => SEVERE_RULES_OUT.shellfish!.includes(c)), `cards: ${after}`);
 });

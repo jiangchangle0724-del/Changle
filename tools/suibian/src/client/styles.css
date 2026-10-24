@@ -239,6 +239,8 @@ select {
 }
 .joinrow input {
   flex: 1;
+}
+.joinrow input[inputmode="numeric"] {
   letter-spacing: 0.2em;
   font-variant-numeric: tabular-nums;
 }
@@ -332,6 +334,10 @@ select {
   border-color: var(--ban);
   color: var(--ban);
   font-weight: 700;
+}
+.chip.suggest {
+  color: var(--muted);
+  border-style: dashed;
 }
 .toggles {
   display: flex;

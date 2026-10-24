@@ -83,7 +83,9 @@ export default {
     if (parts[1] === "me") {
       if (parts.length === 2 && req.method === "GET") {
         const data = me ? await user(env, me.sub).me() : { card: null, last: null };
-        return json({ user: me ? { name: me.name } : null, loginEnabled: loginEnabled(env), demo: !usesGoogle(env), ...data });
+        // Cards saved before a field existed (e.g. typed items) come back filled in.
+        const card = data.card ? cleanLimits(data.card) : null;
+        return json({ user: me ? { name: me.name } : null, loginEnabled: loginEnabled(env), demo: !usesGoogle(env), ...data, card });
       }
       if (!me) return json({ error: "login" }, 401);
       if (parts.length === 2 && req.method === "DELETE") {

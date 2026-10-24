@@ -61,6 +61,9 @@ export function Table({ home }: { home: () => void }) {
   );
 }
 
+/** Allergies and typed "don't eat"s are listed once above the cards, not on every card. */
+const needsServer = (v: RoomView) => Object.keys(v.table.allergies).length > 0 || v.table.custom.length > 0;
+
 const joinUrl = (code: string) => `${location.origin}/r/${code}`;
 
 function Lobby({ v }: { v: RoomView }) {
@@ -266,7 +269,7 @@ function PlaceCard({ c, children }: { c: CardView; children?: preact.ComponentCh
           {p.reservable && <span>{t("reservable")}</span>}
         </p>
         {c.relaxed && <p class="warn small">{t("relaxed")}</p>}
-        {c.warnings.filter((w) => w.k !== "allergy").map((w, i) => (
+        {c.warnings.filter((w) => w.k !== "allergy" && w.k !== "custom").map((w, i) => (
           <p key={i} class="warn small">
             {t(`warn_${w.k}` as Key)}
           </p>
@@ -295,7 +298,7 @@ function Cards({ v }: { v: RoomView }) {
       <h2>{t("round2")}</h2>
       <p class="muted small">{t("round2Hint")}</p>
       <TableLimits l={v.table} />
-      {Object.keys(v.table.allergies).length > 0 && <p class="warn small">{t("tellServer")}</p>}
+      {needsServer(v) && <p class="warn small">{t("tellServer")}</p>}
       <div class="places">
         {v.cards.map((c) => {
           const id = c.place.id;
@@ -397,7 +400,7 @@ function Result({ v }: { v: RoomView }) {
       <PlaceCard c={win}>
         <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
       </PlaceCard>
-      {Object.keys(v.table.allergies).length > 0 && <p class="warn">{t("tellServer")}</p>}
+      {needsServer(v) && <p class="warn">{t("tellServer")}</p>}
       <Btn kind="primary" wide onClick={() => void share()}>
         {t("share")}
       </Btn>

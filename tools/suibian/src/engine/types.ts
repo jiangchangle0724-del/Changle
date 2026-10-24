@@ -26,7 +26,7 @@ export type CuisineId =
   | "brunch"
   | "other";
 
-export type AllergenId = "peanut" | "treenut" | "shellfish" | "fish" | "sesame" | "soy" | "egg" | "dairy" | "gluten";
+export type AllergenId = "peanut" | "treenut" | "shellfish" | "fish" | "sesame" | "soy" | "chili" | "egg" | "dairy" | "gluten";
 
 /** "avoid": I don't eat it (warn when ordering). "severe": rule out places where it is everywhere. */
 export type AllergyLevel = "avoid" | "severe";
@@ -34,15 +34,23 @@ export type AllergyLevel = "avoid" | "severe";
 /** Per-person budget ceiling in CAD; 0 means no limit. */
 export type Budget = 0 | 20 | 35 | 60;
 
+/** Something not on the list, typed by the person (香菜, pork, mushrooms…). */
+export interface CustomItem {
+  name: string;
+  level: AllergyLevel;
+}
+
 /** One person's hard limits. Never shown to others with their name on it. */
 export interface Limits {
   allergies: Partial<Record<AllergenId, AllergyLevel>>;
+  /** Can't be matched to cuisines, so these only warn, never rule a place out. */
+  custom: CustomItem[];
   halal: boolean;
   vegetarian: boolean;
   budget: Budget;
 }
 
-export const NO_LIMITS: Limits = { allergies: {}, halal: false, vegetarian: false, budget: 0 };
+export const NO_LIMITS: Limits = { allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 };
 
 /** A restaurant as the rules see it, made from Google Places (or demo data) plus our own numbers. */
 export interface Place {

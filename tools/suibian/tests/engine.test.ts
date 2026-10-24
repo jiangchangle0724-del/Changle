@@ -45,7 +45,7 @@ test("a severe allergy never lets a ruled-out cuisine through, whatever else the
     const people: Limits[] = Array.from({ length: 1 + Math.floor(r() * 6) }, () => {
       const allergies: Limits["allergies"] = {};
       for (const a of allergens) if (r() < 0.15) allergies[a] = r() < 0.5 ? "severe" : "avoid";
-      return { allergies, halal: r() < 0.1, vegetarian: r() < 0.15, budget: ([0, 20, 35, 60] as const)[Math.floor(r() * 4)] };
+      return { allergies, custom: [], halal: r() < 0.1, vegetarian: r() < 0.15, budget: ([0, 20, 35, 60] as const)[Math.floor(r() * 4)] };
     });
     const table = mergeLimits(people);
     const ok = eligible(places, table, NOW);
@@ -65,15 +65,15 @@ test("a severe allergy never lets a ruled-out cuisine through, whatever else the
 
 test("merging limits keeps the strictest of each", () => {
   const t = mergeLimits([
-    { allergies: { peanut: "avoid" }, halal: false, vegetarian: false, budget: 60 },
-    { allergies: { peanut: "severe", egg: "avoid" }, halal: true, vegetarian: false, budget: 35 },
-    { allergies: { peanut: "avoid" }, halal: false, vegetarian: true, budget: 0 },
+    { allergies: { peanut: "avoid" }, custom: [], halal: false, vegetarian: false, budget: 60 },
+    { allergies: { peanut: "severe", egg: "avoid" }, custom: [], halal: true, vegetarian: false, budget: 35 },
+    { allergies: { peanut: "avoid" }, custom: [], halal: false, vegetarian: true, budget: 0 },
   ]);
-  assert.deepEqual(t, { allergies: { peanut: "severe", egg: "avoid" }, halal: true, vegetarian: true, budget: 35 });
+  assert.deepEqual(t, { allergies: { peanut: "severe", egg: "avoid" }, custom: [], halal: true, vegetarian: true, budget: 35 });
 });
 
 test("halal keeps halal places, and likely-halal cuisines with a 'check' warning", () => {
-  const l = { allergies: {}, halal: true, vegetarian: false, budget: 0 } as const;
+  const l = { allergies: {}, custom: [], halal: true, vegetarian: false, budget: 0 as const };
   assert.equal(check(place({ cuisine: "sichuan", halal: "yes" }), l).ok, true);
   const me = check(place({ cuisine: "middle_eastern" }), l);
   assert.equal(me.ok, true);
@@ -82,7 +82,7 @@ test("halal keeps halal places, and likely-halal cuisines with a 'check' warning
 });
 
 test("vegetarian: Google's 'no' rules out, unknown warns", () => {
-  const l = { allergies: {}, halal: false, vegetarian: true, budget: 0 } as const;
+  const l = { allergies: {}, custom: [], halal: false, vegetarian: true, budget: 0 as const };
   assert.equal(check(place({ veg: false }), l).ok, false);
   assert.deepEqual(check(place({ cuisine: "korean" }), l).warnings, [{ k: "vegCheck" }]);
   assert.deepEqual(check(place({ cuisine: "indian" }), l).warnings, []);
@@ -193,8 +193,37 @@ test("ballots from phones are cleaned: unknown cards dropped, a vetoed card isn'
 test("limits from phones are cleaned", () => {
   assert.deepEqual(cleanLimits({ allergies: { peanut: "severe", rocks: "severe", egg: "maybe" }, halal: "yes", budget: 999 }), {
     allergies: { peanut: "severe" },
+    custom: [],
     halal: false,
     vegetarian: false,
     budget: 0,
   });
+});
+
+test("severe chili rules out the spicy cuisines; 'don't eat chili' only warns", () => {
+  const severe = { ...cleanLimits({}), allergies: { chili: "severe" as const } };
+  assert.equal(check(place({ cuisine: "sichuan" }), severe).ok, false);
+  assert.equal(check(place({ cuisine: "hotpot" }), severe).ok, false);
+  assert.equal(check(place({ cuisine: "cantonese" }), severe).ok, true);
+  const avoid = { ...cleanLimits({}), allergies: { chili: "avoid" as const } };
+  assert.deepEqual(check(place({ cuisine: "sichuan" }), avoid), { ok: true, warnings: [{ k: "allergy", allergen: "chili", level: "avoid" }] });
+});
+
+test("typed items: cleaned, merged without duplicates, and only ever warn", () => {
+  const a = cleanLimits({ custom: [{ name: "  香菜 ", level: "avoid" }, { name: "Pork", level: "severe" }, { name: "" }, { name: "香菜" }, 42] });
+  assert.deepEqual(a.custom, [
+    { name: "香菜", level: "avoid" },
+    { name: "Pork", level: "severe" },
+  ]);
+  const b = cleanLimits({ custom: [{ name: "香菜", level: "severe" }, { name: "pork" }, { name: "x".repeat(40) }] });
+  assert.equal(b.custom[2].name.length, 16);
+  assert.equal(cleanLimits({ custom: Array.from({ length: 20 }, (_, i) => ({ name: `item ${i}` })) }).custom.length, 6);
+  const table = mergeLimits([a, b]);
+  assert.deepEqual(table.custom.slice(0, 2), [
+    { name: "香菜", level: "severe" },
+    { name: "Pork", level: "severe" },
+  ]);
+  const v = check(place({ cuisine: "sichuan" }), table);
+  assert.equal(v.ok, true);
+  assert.deepEqual(v.warnings[0], { k: "custom", name: "香菜", level: "severe" });
 });

@@ -1,6 +1,6 @@
 // Hard limits: allergies, halal, vegetarian, budget. They only filter; they are never traded off
 // against taste. The table's limits are the union of everyone's, and nobody's name is attached.
-import type { AllergenId, AllergyLevel, Budget, CuisineId, Limits, Place, Text } from "./types";
+import type { AllergenId, AllergyLevel, Budget, CuisineId, CustomItem, Limits, Place, Text } from "./types";
 
 export const ALLERGENS: Record<AllergenId, Text> = {
   peanut: { zh: "花生", en: "Peanut" },
@@ -9,6 +9,7 @@ export const ALLERGENS: Record<AllergenId, Text> = {
   fish: { zh: "鱼", en: "Fish" },
   sesame: { zh: "芝麻", en: "Sesame" },
   soy: { zh: "大豆", en: "Soy" },
+  chili: { zh: "辣椒", en: "Chili" },
   egg: { zh: "鸡蛋", en: "Egg" },
   dairy: { zh: "奶制品", en: "Dairy" },
   gluten: { zh: "麸质（小麦）", en: "Gluten (wheat)" },
@@ -28,7 +29,12 @@ export const SEVERE_RULES_OUT: Partial<Record<AllergenId, CuisineId[]>> = {
   fish: ["seafood", "japanese", "thai", "vietnamese", "sea", "korean"],
   sesame: ["korean", "middle_eastern", "japanese", "sichuan", "cantonese", "chinese", "taiwanese", "hotpot", "hk_cafe"],
   soy: ["cantonese", "hk_cafe", "sichuan", "hotpot", "taiwanese", "chinese", "japanese", "ramen", "korean"],
+  chili: ["sichuan", "hotpot", "thai", "korean", "indian", "mexican", "sea"],
 };
+
+/** Typed items: at most this many per person, each this long. */
+export const MAX_CUSTOM = 6;
+export const MAX_CUSTOM_LENGTH = 16;
 
 /** Cuisines that often have halal options; kept for a halal table with "please check". */
 const HALAL_LIKELY: CuisineId[] = ["middle_eastern", "indian", "sea"];
@@ -39,10 +45,16 @@ export const BUDGETS: Budget[] = [0, 20, 35, 60];
 
 /** Everyone's limits merged: the strictest of each. */
 export function mergeLimits(all: Limits[]): Limits {
-  const out: Limits = { allergies: {}, halal: false, vegetarian: false, budget: 0 };
+  const out: Limits = { allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 };
   for (const l of all) {
     for (const [a, level] of Object.entries(l.allergies) as [AllergenId, AllergyLevel][]) {
       if (level === "severe" || !out.allergies[a]) out.allergies[a] = level;
+    }
+    for (const c of l.custom) {
+      // "香菜" and "香菜 " or "Pork" and "pork" are the same thing.
+      const same = out.custom.find((x) => x.name.toLowerCase() === c.name.toLowerCase());
+      if (!same) out.custom.push({ ...c });
+      else if (c.level === "severe") same.level = "severe";
     }
     out.halal ||= l.halal;
     out.vegetarian ||= l.vegetarian;
@@ -53,6 +65,7 @@ export function mergeLimits(all: Limits[]): Limits {
 
 export type Warning =
   | { k: "allergy"; allergen: AllergenId; level: AllergyLevel }
+  | { k: "custom"; name: string; level: AllergyLevel }
   | { k: "unknownCuisine" }
   | { k: "halalCheck" }
   | { k: "vegCheck" }
@@ -72,6 +85,7 @@ export function check(place: Place, l: Limits): Verdict {
     if (level === "severe" && SEVERE_RULES_OUT[a]?.includes(place.cuisine)) return { ok: false, why: "allergy", warnings };
     warnings.push({ k: "allergy", allergen: a, level });
   }
+  for (const c of l.custom) warnings.push({ k: "custom", name: c.name, level: c.level });
   if (place.cuisine === "other" && Object.values(l.allergies).includes("severe")) warnings.push({ k: "unknownCuisine" });
   if (l.halal && place.halal !== "yes") {
     if (!HALAL_LIKELY.includes(place.cuisine)) return { ok: false, why: "halal", warnings };
@@ -94,6 +108,14 @@ export function cleanLimits(x: unknown): Limits {
   const allergies: Limits["allergies"] = {};
   const a = (o.allergies && typeof o.allergies === "object" ? o.allergies : {}) as Record<string, unknown>;
   for (const id of Object.keys(ALLERGENS) as AllergenId[]) if (a[id] === "avoid" || a[id] === "severe") allergies[id] = a[id] as AllergyLevel;
+  const custom: CustomItem[] = [];
+  for (const c of Array.isArray(o.custom) ? o.custom : []) {
+    const x = (c && typeof c === "object" ? c : {}) as Record<string, unknown>;
+    const name = typeof x.name === "string" ? x.name.replace(/\s+/g, " ").trim().slice(0, MAX_CUSTOM_LENGTH) : "";
+    if (!name || custom.some((y) => y.name.toLowerCase() === name.toLowerCase())) continue;
+    custom.push({ name, level: x.level === "severe" ? "severe" : "avoid" });
+    if (custom.length >= MAX_CUSTOM) break;
+  }
   const budget = BUDGETS.includes(o.budget as Budget) ? (o.budget as Budget) : 0;
-  return { allergies, halal: o.halal === true, vegetarian: o.vegetarian === true, budget };
+  return { allergies, custom, halal: o.halal === true, vegetarian: o.vegetarian === true, budget };
 }

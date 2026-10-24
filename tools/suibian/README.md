@@ -11,7 +11,8 @@ How a table goes:
 
 1. The host signs in with Google, picks where they are (GPS or an area) and how far, and gets a
    QR code. Friends scan it; they don't need to sign in.
-2. Everyone fills in a **diet card**: allergies (don't eat / severe), halal, vegetarian, budget.
+2. Everyone fills in a **diet card**: allergies incl. chili (don't eat / severe), anything else
+   they type in (香菜, pork…; these only warn), halal, vegetarian, budget.
    The table sees only "someone here doesn't eat peanuts", never who. Signed-in people's cards
    are saved.
 3. **Round 1, today's mood**: 👍 or 🚫 on the cuisines actually open nearby. One 🚫 removes it.

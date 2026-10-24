@@ -40,6 +40,10 @@ const S = {
   levelNone: ["可以吃", "fine"],
   levelAvoid: ["不吃", "don't eat"],
   levelSevere: ["严重过敏", "severe allergy"],
+  custom: ["其他不吃的（自己加）", "Anything else (type it in)"],
+  customPlaceholder: ["比如：香菜、猪肉", "e.g. cilantro, pork"],
+  customAdd: ["加上", "Add"],
+  customHint: ["这些没法用来排除餐厅，只会提醒全桌点菜时注意", "These can't rule restaurants out; the table is reminded when ordering"],
   levelHint: ["点一下「不吃」，再点一下「严重过敏」（会直接排除很多用它的菜系）", "Tap once for “don't eat”, twice for “severe allergy” (rules out cuisines that use it everywhere)"],
   halal: ["只吃清真", "Halal only"],
   vegetarian: ["吃素", "Vegetarian"],
@@ -118,7 +122,7 @@ const S = {
   votes: ["{yes} 票想去 · {veto} 张否决", "{yes} yes · {veto} vetoes"],
   share: ["发到群里", "Send to the group"],
   shareText: ["今天吃「{name}」！🗺️ {map}\n吃完点这里评分：{rate}", "We're eating at {name}! 🗺️ {map}\nRate it after: {rate}"],
-  tellServer: ["点菜时记得把过敏告诉店员。", "Remember to tell your server about allergies."],
+  tellServer: ["点菜时记得把过敏和忌口告诉店员。", "Remember to tell your server about allergies and what people don't eat."],
   again: ["重新来一轮", "Start over"],
   rateAfter: ["吃完回来评分 ⭐", "Rate it after you eat ⭐"],
   // rating
@@ -138,6 +142,12 @@ const S = {
 } satisfies Record<string, [string, string]>;
 
 export type Key = keyof typeof S;
+
+/** One-tap suggestions for the typed list: common "don't eat"s at Vancouver tables. */
+export const CUSTOM_SUGGESTIONS: Record<Lang, string[]> = {
+  zh: ["香菜", "猪肉", "牛肉", "羊肉", "内脏", "葱蒜"],
+  en: ["Cilantro", "Pork", "Beef", "Lamb", "Offal", "Onion & garlic"],
+};
 
 let lang: Lang = "zh";
 export const setLang = (l: Lang) => {

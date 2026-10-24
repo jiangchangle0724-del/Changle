@@ -10,12 +10,22 @@ async function phone(browser: Browser, name: string) {
   return { name, ctx, page, errors };
 }
 
-async function dietCard(page: Page, allergen?: string) {
+async function dietCard(page: Page, allergen?: string, typed: string[] = []) {
   await expect(page.locator(".diet")).toBeVisible();
   if (allergen) {
     // Twice: "don't eat" → "severe allergy".
     await page.locator(`[data-allergen=${allergen}]`).click();
     await page.locator(`[data-allergen=${allergen}]`).click();
+  }
+  for (const item of typed) {
+    // A suggestion chip if there is one, otherwise type it in.
+    const chip = page.locator(".chip.suggest", { hasText: item });
+    if (await chip.count()) await chip.click();
+    else {
+      await page.getByPlaceholder("比如：香菜、猪肉").fill(item);
+      await page.getByRole("button", { name: "加上" }).click();
+    }
+    await expect(page.locator(`[data-custom="${item}"]`)).toBeVisible();
   }
   await page.locator(".diet .btn.primary").click();
   await expect(page.locator(".people")).toBeVisible();
@@ -43,9 +53,9 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await dietCard(host.page);
   for (const p of [a, b]) await p.page.goto(`/r/${code}`);
   await dietCard(a.page, "peanut");
-  await dietCard(b.page);
+  await dietCard(b.page, undefined, ["香菜", "蘑菇"]);
   await expect(host.page.locator(".people li")).toHaveCount(3);
-  await expect(host.page.getByText("有人对花生严重过敏")).toBeVisible();
+  await expect(host.page.locator(".tablelimits")).toHaveText("本桌 有人对花生严重过敏 · 有人不吃香菜 · 有人不吃蘑菇");
   await expect(a.page.getByText("等房主开始…")).toBeVisible();
 
   // Round 1.
@@ -75,7 +85,7 @@ test("three phones pick a restaurant", async ({ browser }) => {
     await expect(p.page.getByText("今天就吃这家！")).toBeVisible();
     await expect(p.page.locator(".place h3")).toHaveText("Demo · Ramen Hinoki");
   }
-  await expect(a.page.getByText("点菜时记得把过敏告诉店员。")).toBeVisible();
+  await expect(a.page.getByText("点菜时记得把过敏和忌口告诉店员。")).toBeVisible();
 
   // a rates it; the table score shows up for the host.
   await a.page.getByRole("link", { name: "吃完回来评分 ⭐" }).click();
@@ -92,7 +102,7 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await expect(host.page.getByText("上次的「Demo · Ramen Hinoki」好吃吗？")).toBeVisible();
   // Read through the page, as the phone would.
   const me = (await host.page.evaluate(() => fetch("/api/me").then((r) => r.json()))) as { card: unknown };
-  expect(me.card).toEqual({ allergies: {}, halal: false, vegetarian: false, budget: 0 });
+  expect(me.card).toEqual({ allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 });
 
   for (const p of [host, a, b]) expect(p.errors).toEqual([]);
 });

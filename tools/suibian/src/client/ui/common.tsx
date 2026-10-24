@@ -82,6 +82,7 @@ export function memberName(v: RoomView, m: MemberView): string {
 export function TableLimits({ l }: { l: Limits }) {
   const items: string[] = [];
   for (const [a, level] of Object.entries(l.allergies) as [AllergenId, string][]) items.push(t(level === "severe" ? "someoneSevere" : "someoneAvoids", { what: tx(ALLERGENS[a]) }));
+  for (const c of l.custom) items.push(t(c.level === "severe" ? "someoneSevere" : "someoneAvoids", { what: c.name }));
   if (l.halal) items.push(t("halal"));
   if (l.vegetarian) items.push(t("vegetarian"));
   if (l.budget) items.push(t("budgetUpTo", { n: l.budget }));

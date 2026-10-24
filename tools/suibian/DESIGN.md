@@ -88,8 +88,12 @@ inspection and Michelin tags.
 ## Still open
 
 * **Severe allergy → which restaurants are ruled out.** No source lists allergens per menu, so v1
-  needs a hand-made map (e.g. severe peanut → Thai, Indonesian, some Sichuan; severe shellfish →
-  seafood, sushi) plus a "tell your server" reminder on every result. The map needs review.
+  uses a hand-made map (e.g. severe peanut → Thai, Southeast Asian, Vietnamese, Sichuan; severe
+  chili → Sichuan, hot pot, Thai, Korean, Indian, Mexican, Southeast Asian) plus a "tell your
+  server" reminder on every result. The map needs review.
+* **Typed "don't eat"s.** Besides the fixed list (incl. chili), people can type up to 6 items of
+  their own (香菜, pork…), each "don't eat" or "severe". They can't be matched to cuisines, so
+  they never rule a place out; they are listed anonymously for the table and in the reminder.
 * Budget ceiling ↔ Google `priceLevel` mapping, in CAD per person.
 * What the host sees if location permission is denied (pick a neighbourhood instead).
 * Exact default weights for the score in decision 10.
