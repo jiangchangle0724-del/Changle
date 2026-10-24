@@ -1,0 +1,102 @@
+/* Copied from games/been-there/src/client/styles.css — will move to shared/design later. Do not change values here. */
+:root {
+  --bg: var(--table);
+  --surface: var(--board-paper);
+  --surface-2: var(--board-paper-2);
+  --ink: var(--board-ink);
+  --muted: var(--board-ink-2);
+  --line: var(--board-line);
+  --accent: #c8432b;
+  --on-accent: #ffffff;
+  --warn: #9a5a00;
+  --danger: #a8231c;
+  --me: #f6dfba;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 8px 22px rgba(10, 14, 30, 0.14);
+  --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: #ff8a6b;
+    --on-accent: #1c2238;
+    --warn: #ffb36b;
+    --danger: #ff8a7f;
+    --me: #2c2f52;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --accent: #ff8a6b;
+  --on-accent: #1c2238;
+  --warn: #ffb36b;
+  --danger: #ff8a7f;
+  --me: #2c2f52;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+/* Existing base palette copied from been-there/src/client/art/art.css to resolve the semantic tokens above. */
+:root {
+  --table: #efe4cc;
+  --board-paper: #fbf4e4;
+  --board-paper-2: #efe2c4;
+  --board-ink: #1d2340;
+  --board-ink-2: #6b6658;
+  --board-line: #d9c8a3;
+  --board-rim: #1d2340;
+  --map-sea: #d3e3da;
+  --map-land: #e4c690;
+  --map-line: #b7cabd;
+  --flight: #c8432b;
+  --corner-disc: #1d2340;
+  --corner-ink: #f4ead5;
+  --house: #2f7d4f;
+  --hotel: #c8432b;
+  --active: #c8432b;
+  --passport: #f3e8cf;
+  --passport-cover: #1f3b5c;
+  --display: "Big Shoulders Display", "ZCOOL QingKe HuangYou", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  --display-zh: "ZCOOL QingKe HuangYou", "Big Shoulders Display", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  --mono: "Space Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --table: #121628;
+    --board-paper: #1c2238;
+    --board-paper-2: #242b47;
+    --board-ink: #f1e6cf;
+    --board-ink-2: #b4ad9b;
+    --board-line: #303a5a;
+    --board-rim: #0a0d19;
+    --map-sea: #16203a;
+    --map-land: #3c4669;
+    --map-line: #27314f;
+    --flight: #ff8a6b;
+    --corner-disc: #f1e6cf;
+    --corner-ink: #1c2238;
+    --house: #5fc48a;
+    --hotel: #ff8a6b;
+    --active: #ff8a6b;
+    --passport-cover: #13263d;
+  }
+}
+:root[data-theme="dark"] {
+  --table: #121628;
+  --board-paper: #1c2238;
+  --board-paper-2: #242b47;
+  --board-ink: #f1e6cf;
+  --board-ink-2: #b4ad9b;
+  --board-line: #303a5a;
+  --board-rim: #0a0d19;
+  --map-sea: #16203a;
+  --map-land: #3c4669;
+  --map-line: #27314f;
+  --flight: #ff8a6b;
+  --corner-disc: #f1e6cf;
+  --corner-ink: #1c2238;
+  --house: #5fc48a;
+  --hotel: #ff8a6b;
+  --active: #ff8a6b;
+  --passport-cover: #13263d;
+}

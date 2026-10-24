@@ -1,0 +1,26 @@
+name: unspottable
+
+on:
+  push:
+    paths: ["games/unspottable/**", ".github/workflows/unspottable.yml"]
+  pull_request:
+    paths: ["games/unspottable/**", ".github/workflows/unspottable.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: games/unspottable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/unspottable/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

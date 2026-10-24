@@ -5,6 +5,7 @@ Code for [changle.ca](https://changle.ca) (开席 Lazy Susan), a bilingual party
 | Game | Folder |
 | --- | --- |
 | 到此一游 · Been There, Bought That | [`games/been-there`](games/been-there) |
+| 藏在人群里 · Unspottable | [`games/unspottable`](games/unspottable) |
 
 | Tool | Folder |
 | --- | --- |
