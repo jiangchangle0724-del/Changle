@@ -398,19 +398,16 @@ export function runBots(s: GameState, brains: Brain[], onDecision?: (s: GameStat
 }
 
 /**
- * Should bot `p` accept a trade that seat `other` offered? `give` is what the bot hands over, `get`
- * what it receives. Like bots trading with each other, it wants about `style.accept` times what it
- * gives up (1.5× for balanced), counting set pieces at more than face value.
+ * Should bot `p` accept a trade a person offered? `give` is what the bot hands over, `get` what it
+ * receives. As between bots in the simulation, a city sells for `style.accept` times its price
+ * (1.5× for balanced); breaking up one of its own sets costs double; what it receives is valued
+ * the way it values cities when buying (more if it completes a set).
  */
-export function botAcceptsTrade(s: GameState, p: number, other: number, give: Offer, get: Offer, style: Style): boolean {
+export function botAcceptsTrade(s: GameState, p: number, give: Offer, get: Offer, style: Style): boolean {
   if (give.cash > 0 && s.ps[p].cash - give.cash < style.reserve * 0.5) return false;
   const lose = give.deeds.reduce((sum, at) => {
     const g = groupAt(at);
-    let value = valuation(s, p, at, style);
-    // Breaking up its own set, or handing the other side the last piece of theirs, costs extra.
-    if (g !== null && ownsSet(s, p, g)) value *= 2;
-    if (g !== null && GROUP_SPACES[g].every((x) => x === at || s.deeds[x]!.owner === other)) value *= 1.5;
-    return sum + value;
+    return sum + priceOf(s, at) * (g !== null && ownsSet(s, p, g) ? 2 : 1);
   }, give.cash + give.cards.length * 50);
   const gain = get.deeds.reduce((sum, at) => sum + valuation(s, p, at, style), get.cash + get.cards.length * 50);
   return gain > 0 && gain >= lose * style.accept;
