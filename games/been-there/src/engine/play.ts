@@ -1051,6 +1051,14 @@ export function settleLiveAuction(s: GameState, winner: number | null, price: nu
   return true;
 }
 
+/** A small prize from outside the rules (the waiting players' quiz): money from the bank, no decision changes. */
+export function bonus(s: GameState, p: number, amount: number, why: string): boolean {
+  if (s.over || !s.ps[p] || s.ps[p].out || amount <= 0) return false;
+  s.ps[p].cash += Math.round(amount);
+  ev(s, { t: "bonus", p, amount: Math.round(amount), why });
+  return true;
+}
+
 /** Time's up in a timed game: finish the round in progress, then the richest team wins. */
 export function endAfterThisRound(s: GameState) {
   if (s.over) return;

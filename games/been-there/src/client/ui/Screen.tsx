@@ -1,14 +1,15 @@
 // The big screen (TV or laptop): the board, everyone's standing, and how to join. No controls.
 import { useEffect, useRef } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
-import { money, spaceName, t } from "../i18n";
+import { money, spaceName, t, type Key } from "../i18n";
 import { sfx } from "../sound";
 import { Board, latestFlight } from "./Board";
 import { CityPoster } from "../art/posters";
-import { Countdown, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
-import { quizItemText } from "./feedText";
+import { Countdown, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
+import { dareText, quizItemText, recentParty } from "./feedText";
 import { Arrival, Clock, Feed, Over, Standings, lastId } from "./Game";
 import { Qr, joinUrl } from "./Lobby";
+import { Trivia } from "./Trivia";
 
 export function Screen({ v }: { v: RoomView }) {
   useScreenSounds(v);
@@ -55,7 +56,7 @@ export function Screen({ v }: { v: RoomView }) {
       <div class="tv-board">
         <Board v={v} big center={TvCenter({ v })} />
       </div>
-      <aside class="tv-side">
+      <aside class={`tv-side${g.trivia ? " quiz-up" : ""}`}>
         <div class="tv-head">
           <Clock v={v} />
           <span class="code num">
@@ -65,6 +66,7 @@ export function Screen({ v }: { v: RoomView }) {
         </div>
         {g.paused && <p class="banner">{t("paused")}</p>}
         <Arrival v={v} big />
+        <Trivia v={v} big />
         <h2 class="departures">{t("departures")}</h2>
         <Standings v={v} big />
         {g.bets && (
@@ -104,12 +106,30 @@ function TvCenter({ v }: { v: RoomView }) {
         <small class="muted">{t("silencePull")}</small>
       </div>
     );
+  const party = recentParty(v);
+  if (party)
+    return (
+      <div class="boardcenter big party-card" key={party.id}>
+        <p class="pass-strip">
+          <span>{t("partyTitle")}</span>
+          <span>{t(`party_${party.why}` as Key)}</span>
+        </p>
+        <SeatChip v={v} seat={party.seat} />
+        <p class="party-dare">{dareText(party)}</p>
+      </div>
+    );
   return null;
 }
 
 function useScreenSounds(v: RoomView) {
   const last = useRef(lastId(v));
+  const asked = useRef(v.game?.trivia?.id ?? 0);
   useEffect(() => {
+    const tv = v.game?.trivia;
+    if (tv && tv.id !== asked.current) {
+      asked.current = tv.id;
+      sfx.ask();
+    }
     const fresh = v.feed.filter((f) => f.id > last.current);
     last.current = lastId(v) || last.current;
     if (!fresh.length) return;
@@ -117,7 +137,7 @@ function useScreenSounds(v: RoomView) {
     if (flight && fresh.some((f) => f.id === flight.key)) sfx.flight();
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
-    else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction"))) sfx.coin();
+    else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction" || f.e.t === "bonus"))) sfx.coin();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "stamp")) sfx.stamp();
   });
 }

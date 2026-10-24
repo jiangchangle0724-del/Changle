@@ -4,6 +4,7 @@ import { t } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
 import { Btn } from "./common";
+import { Credits } from "./Credits";
 import { LangToggle } from "./Settings";
 
 export function Home({ go }: { go: (path: string) => void }) {
@@ -103,6 +104,10 @@ export function Home({ go }: { go: (path: string) => void }) {
             {t("joinGo")}
           </Btn>
         </form>
+      </details>
+      <details>
+        <summary>{t("credits")}</summary>
+        <Credits />
       </details>
     </main>
   );

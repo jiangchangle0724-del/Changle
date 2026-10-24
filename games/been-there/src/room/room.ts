@@ -7,6 +7,7 @@ import {
   MAX_TEAMS,
   MAX_TEAM_SIZE,
   TIMING,
+  TRIVIA_PRIZE,
   type ClientMsg,
   type FeedItem,
   type GameView,
@@ -15,8 +16,12 @@ import {
   type RoomView,
   type ServerMsg,
   type Settings,
+  type PartyWhy,
   type TeamView,
+  type TriviaView,
 } from "./protocol";
+import { FORFEITS } from "./party";
+import { TRIVIA } from "./trivia";
 
 export interface RoomEnv {
   now(): number;
@@ -66,6 +71,25 @@ interface Quiz {
   botAt: number;
 }
 
+/** The waiting players' quiz in progress (see trivia.ts). */
+interface Trivia {
+  id: number;
+  /** Index into TRIVIA. */
+  q: number;
+  /** Option order shown; TRIVIA options[0] is the right one. */
+  order: number[];
+  /** Seats that may answer: everyone in the game except the team whose turn it is. */
+  eligible: number[];
+  /** Seat → the option it picked (as shown). */
+  answers: Record<number, number>;
+  /** Seat → when a computer team answers. */
+  botAt: Record<number, number>;
+  endsAt: number;
+  winner: number | null;
+  closed: boolean;
+  revealUntil: number;
+}
+
 interface Trade {
   id: number;
   from: number;
@@ -102,6 +126,11 @@ interface Game {
   silenceUntil: number | null;
   auction: LiveAuction | null;
   quiz: Quiz | null;
+  trivia: Trivia | null;
+  /** Questions already dealt from the current deck (see openTrivia). */
+  triviaUsed: number[];
+  /** Turn number of the last quiz opened (one at most per turn). */
+  triviaTurn: number;
   trades: Trade[];
   bets: Bets | null;
   /** When each human seat's last phone went away. */
@@ -122,6 +151,8 @@ export interface RoomState {
   game: Game | null;
   nextId: number;
   feed: FeedItem[];
+  /** The last few party forfeits dealt (FORFEITS indices), so they don't come round again soon. */
+  dares?: number[];
 }
 
 export interface SaveFile {
@@ -185,6 +216,13 @@ export class Room {
     this.env = env;
     // Bot styles hold Infinity, which JSON turns into null: always restore them by id.
     if (st.game) for (const b of st.game.brains) b.style = E.STYLES[b.style.id] ?? E.STYLES.balanced;
+    // Rooms and saves from before the waiting players' quiz.
+    if (st.game) {
+      st.game.triviaUsed ??= [];
+      st.game.triviaTurn ??= -1;
+      // A question from an older list of questions: drop it rather than show the wrong one.
+      if (!st.game.trivia || !TRIVIA[st.game.trivia.q]) st.game.trivia = null;
+    }
   }
 
   static create(code: string, env: RoomEnv, settings: Partial<Settings> = {}): Room {
@@ -223,6 +261,10 @@ export class Room {
         trades: [],
         awaySince: {},
         covered: {},
+        // A question that was up when the game was saved has long timed out; saves from before the quiz lack these.
+        trivia: null,
+        triviaUsed: g.triviaUsed ?? [],
+        triviaTurn: g.triviaTurn ?? -1,
       };
       room.refreshAway();
     }
@@ -484,6 +526,15 @@ export class Room {
         if (this.now > q.endsAt + 1500) return this.toast(id, "tooLate");
         return this.answerQuiz(isInt(msg.choice) ? msg.choice : -1);
       }
+      case "trivia": {
+        const tv = g.trivia;
+        if (!tv || tv.id !== msg.id || tv.closed) return this.toast(id, "tooLate");
+        if (!isInt(msg.choice) || msg.choice < 0 || msg.choice >= tv.order.length) return;
+        const can = (x: number) => tv.eligible.includes(x) && !(x in tv.answers) && !g.s.ps[x].out;
+        const seat = pickSeat(msg.seat, mine.filter(can));
+        if (seat < 0 || !can(seat)) return;
+        return this.answerTrivia(seat, msg.choice);
+      }
       case "offer": {
         const seat = pickSeat(msg.seat, mine);
         if (seat < 0) return this.toast(id, "notYours");
@@ -608,6 +659,9 @@ export class Room {
       silenceUntil: null,
       auction: null,
       quiz: null,
+      trivia: null,
+      triviaUsed: [],
+      triviaTurn: -1,
       trades: [],
       bets: null,
       awaySince: {},
@@ -641,6 +695,11 @@ export class Room {
       g.quiz.endsAt += shift;
       g.quiz.botAt += shift;
     }
+    if (g.trivia) {
+      g.trivia.endsAt += shift;
+      g.trivia.revealUntil += shift;
+      for (const k of Object.keys(g.trivia.botAt)) g.trivia.botAt[Number(k)] += shift;
+    }
     for (const t of g.trades) t.createdAt += shift;
     for (const k of Object.keys(g.awaySince)) g.awaySince[Number(k)] += shift;
     g.paused = false;
@@ -669,7 +728,8 @@ export class Room {
     const now = this.now;
     for (const e of s.events ?? []) {
       this.push({ t: "game", e });
-      if (e.t !== "manage" && e.t !== "trade") g.progress += 1;
+      // Side events don't make anyone's pending decision stale.
+      if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus") g.progress += 1;
       this.watch(e);
     }
     if (s.events) s.events = [];
@@ -711,12 +771,18 @@ export class Room {
       this.settleBets();
       g.bets = { turns: s.turns, seat: s.turn, open: true, bets: {}, paidRent: false };
     }
+    // …and deal the waiting teams a quiz question, unless the last one is still up.
+    if (!s.over && g.triviaTurn !== s.turns) {
+      g.triviaTurn = s.turns;
+      if (!g.trivia) this.openTrivia();
+    }
     if (s.over) {
       this.settleBets();
       g.bets = null;
       g.trades = [];
       g.auction = null;
       g.quiz = null;
+      g.trivia = null;
     }
     // Drop trade offers that can no longer happen.
     g.trades = g.trades.filter((t) => {
@@ -735,12 +801,24 @@ export class Room {
       if (e.t === "rent" && e.p === g.bets.seat) g.bets.paidRent = true;
     }
     if (!this.st.settings.party) return;
-    if (e.t === "rent" && e.amount >= 500) this.push({ t: "party", seat: e.p, why: "rent" });
-    else if (e.t === "jail") this.push({ t: "party", seat: e.p, why: "jail" });
-    else if (e.t === "bankrupt") this.push({ t: "party", seat: e.p, why: "broke" });
-    else if (e.t === "rule" && e.city === "seoul" && typeof e.sound === "number" && e.sound >= 0)
-      this.push({ t: "party", seat: e.sound, why: "sound" });
-    else if (e.t === "rule" && e.city === "shanghai" && e.right === false) this.push({ t: "party", seat: e.p, why: "quiz" });
+    if (e.t === "rent" && e.amount >= 500) this.party(e.p, "rent");
+    else if (e.t === "jail") this.party(e.p, "jail");
+    else if (e.t === "bankrupt") this.party(e.p, "broke");
+    else if (e.t === "rule" && e.city === "seoul" && typeof e.sound === "number" && e.sound >= 0) this.party(e.sound, "sound");
+    else if (e.t === "rule" && e.city === "shanghai" && e.right === false) this.party(e.p, "quiz");
+  }
+
+  /** A party forfeit, not one of the last few: half the time one about what just happened. */
+  private party(seat: number, why: PartyWhy) {
+    const recent = this.st.dares ?? [];
+    const all = FORFEITS.map((_, i) => i);
+    const own = all.filter((i) => FORFEITS[i].why === why && !recent.includes(i));
+    const any = all.filter((i) => !FORFEITS[i].why);
+    const fresh = any.filter((i) => !recent.includes(i));
+    const pool = own.length && this.env.random() < 0.5 ? own : fresh.length ? fresh : any;
+    const dare = pool[Math.floor(this.env.random() * pool.length)];
+    this.st.dares = [...recent, dare].slice(-8);
+    this.push({ t: "party", seat, why, dare });
   }
 
   private bet(m: Member, yes: boolean) {
@@ -806,6 +884,64 @@ export class Room {
     void item;
     E.act(g.s, q.owner, { yes: right });
     this.afterMove();
+  }
+
+  /** Ask the teams whose turn it isn't a question, dealt from a shuffled deck. */
+  private openTrivia() {
+    const g = this.st.game!;
+    const s = g.s;
+    const eligible = E.activePlayers(s).filter((seat) => seat !== s.turn);
+    if (!eligible.length || !TRIVIA.length) return;
+    // No question comes round again until every one has been asked; then the deck starts over,
+    // without the question just asked.
+    const all = TRIVIA.map((_, i) => i);
+    if (all.every((i) => g.triviaUsed.includes(i))) g.triviaUsed = g.triviaUsed.slice(-1);
+    const unused = all.filter((i) => !g.triviaUsed.includes(i));
+    // Not about a city the team on turn could land on with this roll: its arrival card (the rule,
+    // the fact behind it) would give the answer away.
+    const near = new Set<string>();
+    for (let k = 0; k <= 12; k++) {
+      const sp = E.BOARD[(((s.ps[s.turn].pos + k * s.dir) % E.BOARD_SIZE) + E.BOARD_SIZE) % E.BOARD_SIZE];
+      if (sp.k === "city") near.add(sp.id);
+    }
+    const far = unused.filter((i) => !near.has(TRIVIA[i].city));
+    const pool = far.length ? far : unused.length ? unused : all;
+    const q = pool[Math.floor(this.env.random() * pool.length)];
+    g.triviaUsed.push(q);
+    const order = [0, 1, 2];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(this.env.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const now = this.now;
+    const botAt: Record<number, number> = {};
+    // Only real computer teams answer; the computer covering for absent people doesn't win them money.
+    for (const seat of eligible) if (this.teamAt(seat)?.bot) botAt[seat] = now + (2500 + this.env.random() * 5000) * this.speed();
+    g.trivia = { id: this.st.nextId++, q, order, eligible, answers: {}, botAt, endsAt: now + this.ms("trivia"), winner: null, closed: false, revealUntil: 0 };
+    this.dirty = true;
+  }
+
+  /** A team answers the quiz; the first right answer wins the prize and closes it. */
+  private answerTrivia(seat: number, choice: number) {
+    const g = this.st.game!;
+    const tv = g.trivia!;
+    tv.answers[seat] = choice;
+    if (tv.order[choice] === 0 && tv.winner === null) {
+      tv.winner = seat;
+      E.bonus(g.s, seat, TRIVIA_PRIZE, "trivia");
+      this.closeTrivia();
+      this.afterMove();
+      return;
+    }
+    if (tv.eligible.every((x) => x in tv.answers)) this.closeTrivia();
+    this.dirty = true;
+  }
+
+  private closeTrivia() {
+    const tv = this.st.game!.trivia!;
+    tv.closed = true;
+    tv.revealUntil = this.now + this.ms("triviaReveal");
+    this.dirty = true;
   }
 
   private offer(id: string, from: number, to: unknown, give: unknown, get: unknown) {
@@ -898,6 +1034,11 @@ export class Room {
       }
       if (g.quiz) times.push(this.botControlled(g.quiz.visitor) ? Math.min(g.quiz.botAt, g.quiz.endsAt) : g.quiz.endsAt + 1500);
       if (g.deadline !== null) times.push(g.deadline);
+      const tv = g.trivia;
+      if (tv && !tv.closed) {
+        times.push(tv.endsAt);
+        for (const [seat, at] of Object.entries(tv.botAt)) if (!(Number(seat) in tv.answers) && !s.ps[Number(seat)].out) times.push(at);
+      } else if (tv) times.push(tv.revealUntil);
       const pd = s.pending;
       if (pd && pd.k !== "auction" && pd.k !== "quiz") {
         const after = Math.max(g.pendingSince + this.ms("bot"), g.silenceUntil ?? 0);
@@ -953,6 +1094,26 @@ export class Room {
       return keep;
     });
     if (g.trades.length !== before) this.dirty = true;
+    const tv = g.trivia;
+    if (tv && !tv.closed) {
+      for (const [k, at] of Object.entries(tv.botAt)) {
+        const seat = Number(k);
+        if (now < at || seat in tv.answers || s.ps[seat].out) continue;
+        // Computer teams know the answer about as often as they sort Shanghai's trash right (55%).
+        const right = this.env.random() < 0.55;
+        const wrongs = tv.order.map((_, i) => i).filter((i) => tv.order[i] !== 0);
+        this.answerTrivia(seat, right ? tv.order.indexOf(0) : wrongs[Math.floor(this.env.random() * wrongs.length)]);
+        return true;
+      }
+      if (now >= tv.endsAt) {
+        this.closeTrivia();
+        return true;
+      }
+    } else if (tv && now >= tv.revealUntil) {
+      g.trivia = null;
+      this.dirty = true;
+      return true;
+    }
     const pd = s.pending;
     if (!pd) return false;
     if (pd.k === "auction" && g.auction) {
@@ -1096,6 +1257,29 @@ export class Room {
       pending,
     };
     const q = g.quiz;
+    const tv = g.trivia;
+    let trivia: TriviaView | null = null;
+    if (tv) {
+      const Q = TRIVIA[tv.q];
+      const city = E.CITIES.find((c) => c.id === Q.city)!;
+      const mineAnswered = mine.find((x) => x in tv.answers);
+      const answerFor = tv.closed ? undefined : mine.find((x) => tv.eligible.includes(x) && !(x in tv.answers) && !s.ps[x].out);
+      trivia = {
+        id: tv.id,
+        city: Q.city,
+        q: Q.q,
+        options: tv.order.map((i) => Q.options[i]),
+        endsAt: tv.endsAt,
+        open: !tv.closed,
+        answerFor: answerFor ?? null,
+        mine: mineAnswered === undefined ? null : tv.answers[mineAnswered],
+        answered: Object.keys(tv.answers).map(Number),
+        winner: tv.winner,
+        correct: tv.closed ? tv.order.indexOf(0) : null,
+        fact: tv.closed ? city.basis : null,
+        source: tv.closed ? city.source : null,
+      };
+    }
     return {
       s: pub,
       seats: g.seats,
@@ -1109,6 +1293,7 @@ export class Room {
       silenceUntil: g.silenceUntil,
       auction: g.auction && { id: g.auction.id, at: g.auction.at, price: g.auction.price, leader: g.auction.leader, endsAt: g.auction.endsAt, bids: g.auction.bids },
       quiz: q && { id: q.id, visitor: q.visitor, owner: q.owner, item: q.item, endsAt: q.endsAt },
+      trivia,
       trades: g.trades.map((t) => ({ id: t.id, from: t.from, to: t.to, give: t.give, get: t.get, expiresAt: t.createdAt + this.ms("offer"), byBot: t.byBot })),
       answered,
       peek,

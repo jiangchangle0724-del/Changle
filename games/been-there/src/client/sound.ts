@@ -87,6 +87,11 @@ export const sfx = {
     tone(2093, 0.35, { type: "triangle", vol: 0.06, at: 0.09 });
   },
   pay: () => tone(392, 0.28, { type: "triangle", slide: 262, vol: 0.1 }),
+  /** A quiz-show buzzer, but polite: a question the waiting teams can answer. */
+  ask: () => {
+    tone(988, 0.12, { type: "square", vol: 0.035 });
+    tone(1319, 0.2, { type: "square", vol: 0.035, at: 0.11 });
+  },
   /** The auctioneer's gavel. */
   bid: () => {
     burst(0.05, { type: "lowpass", freq: 900, vol: 0.25 });

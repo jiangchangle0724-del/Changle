@@ -1,9 +1,11 @@
+import { useState } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { getLang, setLang, t } from "../i18n";
 import { prefs } from "../prefs";
 import { setMuted } from "../sound";
 import { getState, send, update } from "../store";
 import { Btn, Sheet } from "./common";
+import { Credits } from "./Credits";
 
 /** Re-render everything after a language or preference change. */
 export const refresh = () => update({});
@@ -47,6 +49,18 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
   const g = v?.game;
   const mySeat = v?.you.seats[0];
   const myTeam = v && mySeat !== undefined ? v.teams.find((x) => x.seat === mySeat) : undefined;
+  const [credits, setCredits] = useState(false);
+  if (credits)
+    return (
+      <Sheet title={t("credits")} onClose={onClose}>
+        <div class="sheet-back">
+          <Btn kind="quiet" onClick={() => setCredits(false)}>
+            ← {t("back")}
+          </Btn>
+        </div>
+        <Credits />
+      </Sheet>
+    );
   return (
     <Sheet title={t("menu")} onClose={onClose}>
       <div class="settings">
@@ -81,6 +95,9 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
           </div>
         )}
         {getState().saved && <p class="saved">{t("savedAs", { code: getState().saved! })}</p>}
+        <Btn kind="quiet" onClick={() => setCredits(true)}>
+          {t("credits")} →
+        </Btn>
       </div>
     </Sheet>
   );

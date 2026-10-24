@@ -46,10 +46,10 @@ export function setConn(c: Conn | null) {
 
 export const send = (msg: ClientMsg) => conn?.send(msg);
 
-export function toast(text: string) {
+export function toast(text: string, ms = 3500) {
   const id = ++toastId;
   update({ toasts: [...state.toasts, { id, text }].slice(-3) });
-  setTimeout(() => update({ toasts: state.toasts.filter((x) => x.id !== id) }), 3500);
+  setTimeout(() => update({ toasts: state.toasts.filter((x) => x.id !== id) }), ms);
 }
 
 export function onServer(msg: ServerMsg) {
