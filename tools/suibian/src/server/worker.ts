@@ -67,7 +67,7 @@ export default {
       if (session) await user(env, session.sub).setName(session.name);
       return res;
     }
-    if (path === "/auth/logout" && req.method === "POST") return logout();
+    if (path === "/auth/logout" && req.method === "POST") return logout(req);
 
     const parts = path.split("/").filter(Boolean);
     if (parts[0] !== "api") return env.ASSETS.fetch(req);
@@ -77,7 +77,7 @@ export default {
       const body = (await req.json().catch(() => ({}))) as { sub?: string; name?: string };
       const sub = body.sub ?? "test";
       await user(env, sub).setName(body.name ?? "Test");
-      return new Response(null, { status: 204, headers: { "set-cookie": await testSession(env, sub, body.name ?? "Test") } });
+      return new Response(null, { status: 204, headers: { "set-cookie": await testSession(req, env, sub, body.name ?? "Test") } });
     }
 
     if (parts[1] === "me") {
@@ -88,7 +88,7 @@ export default {
       if (!me) return json({ error: "login" }, 401);
       if (parts.length === 2 && req.method === "DELETE") {
         await user(env, me.sub).wipe();
-        return logout();
+        return logout(req);
       }
       if (parts[2] === "card" && req.method === "PUT") {
         await user(env, me.sub).setCard(cleanLimits(await req.json().catch(() => ({}))));

@@ -50,7 +50,9 @@ export function cookie(req: Request, name: string): string | undefined {
   return m?.[1];
 }
 
-const setCookie = (name: string, value: string, maxAge: number) => `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+/** Secure on https (always, once deployed); plain http only for local tests, where WebKit won't send Secure cookies. */
+const setCookie = (req: Request, name: string, value: string, maxAge: number) =>
+  `${name}=${value}; Path=/; HttpOnly;${new URL(req.url).protocol === "https:" ? " Secure;" : ""} SameSite=Lax; Max-Age=${maxAge}`;
 
 export interface AuthEnv {
   GOOGLE_CLIENT_ID?: string;
@@ -82,7 +84,7 @@ export function startLogin(req: Request, env: AuthEnv): Response {
   const safeBack = back.startsWith("/") && !back.startsWith("//") ? back : "/";
   return new Response(null, {
     status: 302,
-    headers: { location: go.toString(), "set-cookie": setCookie(STATE_COOKIE, `${state}|${encodeURIComponent(safeBack)}`, 600) },
+    headers: { location: go.toString(), "set-cookie": setCookie(req, STATE_COOKIE, `${state}|${encodeURIComponent(safeBack)}`, 600) },
   });
 }
 
@@ -117,16 +119,16 @@ export async function finishLogin(req: Request, env: AuthEnv): Promise<{ res: Re
   if (!claims.sub || claims.aud !== env.GOOGLE_CLIENT_ID) return { res: home("/?login=failed") };
   const session: Session = { sub: claims.sub, name: (claims.given_name ?? claims.name ?? "").slice(0, 16), exp: Date.now() + SESSION_DAYS * 24 * 3600_000 };
   const res = home(back);
-  res.headers.append("set-cookie", setCookie(COOKIE, await sign(env.SESSION_SECRET!, session), SESSION_DAYS * 24 * 3600));
-  res.headers.append("set-cookie", setCookie(STATE_COOKIE, "", 0));
+  res.headers.append("set-cookie", setCookie(req, COOKIE, await sign(env.SESSION_SECRET!, session), SESSION_DAYS * 24 * 3600));
+  res.headers.append("set-cookie", setCookie(req, STATE_COOKIE, "", 0));
   return { res, session };
 }
 
-export function logout(): Response {
-  return new Response(null, { status: 204, headers: { "set-cookie": setCookie(COOKIE, "", 0) } });
+export function logout(req: Request): Response {
+  return new Response(null, { status: 204, headers: { "set-cookie": setCookie(req, COOKIE, "", 0) } });
 }
 
 /** Tests only: log in without Google. */
-export async function testSession(env: AuthEnv, sub: string, name: string): Promise<string> {
-  return setCookie(COOKIE, await sign(env.SESSION_SECRET!, { sub, name, exp: Date.now() + 3600_000 }), 3600);
+export async function testSession(req: Request, env: AuthEnv, sub: string, name: string): Promise<string> {
+  return setCookie(req, COOKIE, await sign(env.SESSION_SECRET!, { sub, name, exp: Date.now() + 3600_000 }), 3600);
 }

@@ -90,7 +90,7 @@ test("three phones pick a restaurant", async ({ browser }) => {
   // Next visit, the host is asked how it was, and the diet card was remembered.
   await host.page.goto("/");
   await expect(host.page.getByText("上次的「Demo · Ramen Hinoki」好吃吗？")).toBeVisible();
-  // Through the page: the browser sends the Secure session cookie to 127.0.0.1, Playwright's request helper doesn't.
+  // Read through the page, as the phone would.
   const me = (await host.page.evaluate(() => fetch("/api/me").then((r) => r.json()))) as { card: unknown };
   expect(me.card).toEqual({ allergies: {}, halal: false, vegetarian: false, budget: 0 });
 
