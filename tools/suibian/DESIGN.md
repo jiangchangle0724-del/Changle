@@ -5,7 +5,7 @@ should we eat?" / "随便" to a restaurant everyone can eat at, in under 3 minut
 deciding part fun.
 
 This document records the decisions made before any code (a 14-question grilling, October 2026).
-Nothing here is built yet.
+v1 is built (see [README.md](README.md)); v2 and v3 are not.
 
 ## The problem, restated
 
