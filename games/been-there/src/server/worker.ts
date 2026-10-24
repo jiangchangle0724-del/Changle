@@ -59,7 +59,8 @@ export default {
       const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
       if (parts.length === 3 && req.method === "GET") return json(await stub.info());
       if (parts[3] === "ws") {
-        if (req.headers.get("Upgrade") !== "websocket") return new Response("expected websocket", { status: 426 });
+        // Header values are case-insensitive ("websocket" / "WebSocket" both appear in the wild).
+        if (req.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("expected websocket", { status: 426 });
         return stub.fetch(req);
       }
     }

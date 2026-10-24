@@ -382,6 +382,7 @@ export class Room {
     const m = this.st.members[id];
     if (!m || !msg || typeof msg !== "object") return;
     m.lastSeen = this.now;
+    this.claimHost();
     const host = this.st.hostId === id;
     const g = this.st.game;
     switch (msg.t) {
@@ -815,10 +816,10 @@ export class Room {
     if (this.inDebt(from) || this.inDebt(to)) return this.toast(id, "noTradeInDebt");
     if (!E.canTrade(s, from, to, give, get)) return this.toast(id, "cantDoThat");
     if (g.trades.filter((t) => t.from === from).length >= 3) return this.toast(id, "tooManyOffers");
-    if (this.botControlled(to)) {
-      // Computer teams answer straight away.
-      const team = this.teamAt(to)!;
-      const style = E.STYLES[team.bot ?? "balanced"];
+    const target = this.teamAt(to)!;
+    if (target.bot) {
+      // Computer teams answer straight away. (A person's team that dropped off decides when it's back.)
+      const style = E.STYLES[target.bot];
       const yes = E.botAcceptsTrade(s, to, get, give, style);
       this.push({ t: "offer", from, to, give, get });
       if (yes && E.trade(s, from, to, give, get)) {
@@ -854,10 +855,16 @@ export class Room {
     return !!pd && pd.k === "debt" && pd.who === seat;
   }
 
-  private tradeHooks(): E.TradeHooks {
+  /**
+   * How a computer move may trade. A computer team trades directly with other computer teams and
+   * sends offers to people's teams (even ones that dropped off: they answer when back). When the
+   * computer is only covering for a person's team, it never starts trades for them.
+   */
+  private tradeHooks(seat: number): E.TradeHooks {
     const g = this.st.game!;
+    if (!this.teamAt(seat)?.bot) return { isHuman: () => true, propose: () => {} };
     return {
-      isHuman: (seat) => !this.botControlled(seat),
+      isHuman: (other) => !this.teamAt(other)?.bot,
       propose: (from, to, give, get) => {
         if (g.trades.some((t) => t.byBot && t.to === to)) return;
         g.trades.push({ id: this.st.nextId++, from, to, give, get, createdAt: this.now, byBot: true });
@@ -871,7 +878,7 @@ export class Room {
     const g = this.st.game!;
     const s = g.s;
     const pd = s.pending!;
-    const a = E.decide(s, seat, g.brains, this.tradeHooks());
+    const a = E.decide(s, seat, g.brains, this.tradeHooks(seat));
     if (s.pending === pd && !E.act(s, seat, a)) E.act(s, seat, E.fallbackAction(s, seat, pd.k));
     this.afterMove();
   }

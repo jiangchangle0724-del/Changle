@@ -309,3 +309,24 @@ test("spectators bet on whether the player on turn pays rent", () => {
   t.playUntil(() => t.seen.some((f) => f.t === "bets") || t.game.s.over);
   assert.ok(t.seen.some((f) => f.t === "bets"));
 });
+
+test("a computer team can't take a city from a team whose phones dropped: it sends an offer instead", () => {
+  const t = new Table({}, 21);
+  const ps = lobby(t, 2, 1);
+  t.send(ps[0], { t: "start" });
+  const g = t.game;
+  const seatOf = (teamId: string) => g.seats.indexOf(teamId);
+  const bot = seatOf(t.room.st.teams.find((x) => x.bot)!.id);
+  const away = seatOf(t.room.st.members[ps[1].id].team!);
+  // Cairo (1) belongs to the computer team, Cape Town (3) to the team that is about to drop.
+  g.s.deeds[1]!.owner = bot;
+  g.s.deeds[3]!.owner = away;
+  t.room.leave(ps[1].id);
+  t.phones = t.phones.filter((p) => p !== ps[1]);
+  t.settle();
+  t.playUntil(() => g.trades.some((x) => x.from === bot && x.to === away) || g.s.turns > 40);
+  const offer = g.trades.find((x) => x.from === bot && x.to === away);
+  assert.ok(offer, "the computer team made an offer");
+  assert.deepEqual(offer!.get.deeds, [3]);
+  assert.equal(g.s.deeds[3]!.owner, away, "Cape Town still belongs to the absent team");
+});
