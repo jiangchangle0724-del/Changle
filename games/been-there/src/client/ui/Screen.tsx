@@ -3,10 +3,11 @@ import { useEffect, useRef } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { money, spaceName, t } from "../i18n";
 import { sfx } from "../sound";
-import { Board } from "./Board";
-import { Countdown, TEAM_COLORS, TEAM_LETTERS, seatName, teamLabel } from "./common";
+import { Board, latestFlight } from "./Board";
+import { CityPoster } from "../art/posters";
+import { Countdown, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
 import { quizItemText } from "./feedText";
-import { BoardCenter, Clock, Feed, Over, Standings, lastId } from "./Game";
+import { Arrival, Clock, Feed, Over, Standings, lastId } from "./Game";
 import { Qr, joinUrl } from "./Lobby";
 
 export function Screen({ v }: { v: RoomView }) {
@@ -14,6 +15,13 @@ export function Screen({ v }: { v: RoomView }) {
   if (v.phase === "lobby")
     return (
       <main class="screen lobby-tv">
+        <div class="tv-posters" aria-hidden="true">
+          {["venice", "tokyo", "rio", "capetown", "hongkong"].map((id) => (
+            <div key={id} class="poster">
+              <CityPoster id={id} />
+            </div>
+          ))}
+        </div>
         <h1>{t("title")}</h1>
         <div class="join-tv">
           <Qr text={joinUrl(v.code)} size={260} />
@@ -26,6 +34,7 @@ export function Screen({ v }: { v: RoomView }) {
         <ul class="teams tv">
           {v.teams.map((team) => (
             <li key={team.id} style={{ "--team": TEAM_COLORS[team.color] }}>
+              <TeamFace color={team.color} size={56} mood="happy" />
               <span class="letter">{TEAM_LETTERS[team.color]}</span>
               <b>{teamLabel(team)}</b>
               <small class="muted">
@@ -44,7 +53,7 @@ export function Screen({ v }: { v: RoomView }) {
   return (
     <main class="screen">
       <div class="tv-board">
-        <Board v={v} big center={<TvCenter v={v} />} />
+        <Board v={v} big center={TvCenter({ v })} />
       </div>
       <aside class="tv-side">
         <div class="tv-head">
@@ -55,6 +64,8 @@ export function Screen({ v }: { v: RoomView }) {
           <Qr text={joinUrl(v.code)} size={84} />
         </div>
         {g.paused && <p class="banner">{t("paused")}</p>}
+        <Arrival v={v} big />
+        <h2 class="departures">{t("departures")}</h2>
         <Standings v={v} big />
         {g.bets && (
           <p class="muted">
@@ -93,7 +104,7 @@ function TvCenter({ v }: { v: RoomView }) {
         <small class="muted">{t("silencePull")}</small>
       </div>
     );
-  return <BoardCenter v={v} big />;
+  return null;
 }
 
 function useScreenSounds(v: RoomView) {
@@ -102,6 +113,8 @@ function useScreenSounds(v: RoomView) {
     const fresh = v.feed.filter((f) => f.id > last.current);
     last.current = lastId(v) || last.current;
     if (!fresh.length) return;
+    const flight = latestFlight(v);
+    if (flight && fresh.some((f) => f.id === flight.key)) sfx.flight();
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
     else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction"))) sfx.coin();

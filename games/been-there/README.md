@@ -4,8 +4,10 @@ An online city-property party game for [changle.ca](https://changle.ca): 22 real
 a rule drawn from a real fact. Up to 6 teams of 1–3 people; phones join by QR code or a 4-digit
 room code, no sign-up; an optional big screen (TV or laptop) shows the board.
 
-This folder is **step 4, the online graybox**: the full game, playable online, without art.
-Art direction is step 5, city content (photos, sounds, quiz questions) step 6.
+Step 4 made the full game playable online; step 5 gave it its look: the golden age of travel
+(1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
+an air-age route map, and six token characters. City content (fun facts, recorded sounds, quiz
+questions) is step 6.
 
 ## What's where
 
@@ -15,8 +17,11 @@ Art direction is step 5, city content (photos, sounds, quiz questions) step 6.
 | `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, trades, spectator bets, the computer covering for phones that drop off, saves. No networking inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker. Each room is one Durable Object that keeps the game and saves it after every move. |
 | `src/client` | The web pages: phone screens, the big screen, Chinese/English. |
+| `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |
+| `src/client/fonts` | Font subsets made by `npm run fonts` (SIL Open Font License; licences alongside). |
 | `src/local` | The single-device demo (`dist/demo.html`): the same client with the room running in the page. |
-| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner. |
+| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the map. |
+| `src/samples` | The step-5 style sheet (three art directions side by side), built to `dist/styles.html`. |
 | `tests` | Engine and room tests (Node), and phone-in-a-browser tests (`tests/e2e`, Playwright). |
 
 ## Run it on a computer
@@ -36,6 +41,7 @@ npm run typecheck
 npm test             # rules reproduce the step-3 report (17,000 games) + room scenarios
 npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its seat back; two simultaneous bids
 npm run sim          # print the step-3 report numbers again
+npm run fonts        # after adding Chinese text: rebuild the font subsets (a test reminds you)
 ```
 
 GitHub runs the first three on every push, in Chromium and WebKit (`.github/workflows/been-there.yml`).

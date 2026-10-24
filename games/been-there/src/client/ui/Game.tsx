@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, type GameEvent } from "../../engine";
 import type { RoomView } from "../../room/protocol";
-import { colon, money, spaceName, t, tx, type Key } from "../i18n";
+import { CityPoster } from "../art/posters";
+import { Stamp } from "../art/stamps";
+import { colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
 import { sfx } from "../sound";
 import { getState, send } from "../store";
 import { Assets } from "./Assets";
-import { Board } from "./Board";
+import { Board, moodOf } from "./Board";
 import { Btn, Countdown, Money, SeatChip, TeamChip, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { feedText } from "./feedText";
@@ -61,13 +63,15 @@ export function Game({ v }: { v: RoomView }) {
       <Banner v={v} />
       <div class="panes" data-tab={tab}>
         <section class="pane p-play">
-          <Standings v={v} />
+          <Arrival v={v} />
           <Decision v={v} />
+          <Standings v={v} />
           {mySeat === undefined && <Bets v={v} />}
           <Feed v={v} n={5} />
         </section>
         <section class="pane p-board">
-          <Board v={v} center={<BoardCenter v={v} />} />
+          <Board v={v} />
+          <BoardNote v={v} />
         </section>
         <section class="pane p-mine">{mySeat !== undefined ? <Assets v={v} seat={mySeat} /> : <Bets v={v} />}</section>
         <section class="pane p-trade">
@@ -129,7 +133,7 @@ export function Standings({ v, big }: { v: RoomView; big?: boolean }) {
         const team = teamOf(v, seat);
         return (
           <li key={seat} class={`${seat === s.turn ? "turn" : ""}${p.out ? " out" : ""}`}>
-            <TeamChip team={team} small={!big} />
+            <TeamChip team={team} small={!big} mood={moodOf(v, seat)} />
             {!big && <span class="name">{seatName(v, seat)}</span>}
             <span class="num">{money(g.worth[seat])}</span>
             {big && (
@@ -173,40 +177,65 @@ export function Feed({ v, n }: { v: RoomView; n?: number }) {
   );
 }
 
-/** The middle of the board: last dice, and the city just reached with its greeting and currency. */
-export function BoardCenter({ v, big }: { v: RoomView; big?: boolean }) {
-  const g = v.game!;
-  const s = g.s;
-  const lastLand = [...v.feed].reverse().find((f) => f.t === "game" && f.e.t === "land") as { e: Extract<GameEvent, { t: "land" }> } | undefined;
-  const city = lastLand ? CITY_AT[lastLand.e.at] : null;
+const die = (n: number) => "⚀⚁⚂⚃⚄⚅"[n - 1] ?? "";
+
+/** Under the phone board: the last dice and what the table is waiting for. */
+function BoardNote({ v }: { v: RoomView }) {
+  const s = v.game!.s;
   return (
-    <div class={`boardcenter${big ? " big" : ""}`}>
-      <p class="dice num" aria-label="dice">
-        {s.dice[0] ? `${die(s.dice[0])} ${die(s.dice[1])}` : ""}
-      </p>
-      {lastLand && (
-        <div class="arrived" key={lastLand.e.at}>
-          <SeatChip v={v} seat={lastLand.e.p} small />
-          <b>{spaceName(lastLand.e.at)}</b>
-          {city && (
-            <>
-              <span lang="und">
-                {city.greeting.text}
-                {city.greeting.roman ? ` · ${city.greeting.roman}` : ""}
-              </span>
-              <small class="muted">{tx(city.currency)}</small>
-              {big && <small class="muted">{tx(city.rule.title)}{colon()}{tx(city.rule.text)}</small>}
-            </>
-          )}
-          {!city && BOARD[lastLand.e.at].k !== "city" && null}
-        </div>
-      )}
-      {big && <p class="pending">{pendingSummary(v)}</p>}
-    </div>
+    <p class="boardnote">
+      {s.dice[0] ? <span class="dice num">{`${die(s.dice[0])} ${die(s.dice[1])}`}</span> : null}
+      <span>{pendingSummary(v)}</span>
+    </p>
   );
 }
 
-const die = (n: number) => "⚀⚁⚂⚃⚄⚅"[n - 1] ?? "";
+/** "You've arrived": the city the player whose turn it is has just reached. */
+export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
+  const s = v.game!.s;
+  const seat = s.turn;
+  const pos = s.ps[seat]?.pos ?? -1;
+  const city = CITY_AT[pos];
+  if (!city) return null;
+  let land: { id: number; at: number } | null = null;
+  for (let i = v.feed.length - 1; i >= 0 && !land; i--) {
+    const f = v.feed[i];
+    if (f.t === "game" && f.e.t === "land" && f.e.p === seat) land = { id: f.id, at: f.e.at };
+  }
+  if (!land || land.at !== pos) return null;
+  const landId = land.id;
+  const stamped = v.feed.some((f) => f.id >= landId && f.t === "game" && f.e.t === "stamp" && f.e.p === seat);
+  const lang = getLang();
+  return (
+    <article class={`arrival${big ? " big" : ""}`} key={landId}>
+      <div class="poster arrival-poster">
+        <CityPoster id={city.id} />
+      </div>
+      <div class="arrival-text">
+        <p class="arrival-who">
+          <SeatChip v={v} seat={seat} small /> {t("arrivedIn")}
+        </p>
+        <h3>
+          {tx(city.name)} <small>{lang === "zh" ? city.name.en : city.name.zh}</small>
+        </h3>
+        <p class="arrival-hello">
+          <span lang="und">{city.greeting.text}</span>
+          {city.greeting.roman && <i>{city.greeting.roman}</i>} · {tx(city.currency)}
+        </p>
+        <p class="arrival-rule">
+          <b>{tx(city.rule.title)}</b>
+          {colon()}
+          {tx(city.rule.text)}
+        </p>
+      </div>
+      {stamped && (
+        <div class="arrival-stamp">
+          <Stamp id={city.id} size={big ? 120 : 76} turn={-10} lang={lang} fresh />
+        </div>
+      )}
+    </article>
+  );
+}
 
 export function Bets({ v }: { v: RoomView }) {
   const g = v.game!;

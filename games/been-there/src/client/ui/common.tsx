@@ -2,6 +2,7 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { GROUPS, STYLES, type Shape } from "../../engine";
 import type { RoomView, TeamView } from "../../room/protocol";
+import { CharacterArt, type Mood } from "../art/characters";
 import { money, t, type Key } from "../i18n";
 import { serverNow } from "../store";
 
@@ -84,10 +85,20 @@ export function teamLabel(team: TeamView | undefined): string {
 
 export const seatName = (v: RoomView, seat: number) => teamLabel(teamOf(v, seat));
 
-export function TeamChip({ team, small }: { team: TeamView | undefined; small?: boolean }) {
+/** A team's token character, small, for chips and lists. */
+export function TeamFace({ color, size = 26, mood }: { color: number; size?: number; mood?: Mood }) {
+  return (
+    <svg class="face" width={size} height={size} viewBox="14 18 92 92" aria-hidden="true">
+      <CharacterArt kind={color} mood={mood} mini />
+    </svg>
+  );
+}
+
+export function TeamChip({ team, small, mood }: { team: TeamView | undefined; small?: boolean; mood?: Mood }) {
   if (!team) return null;
   return (
     <span class={`chip${small ? " small" : ""}`} style={{ "--team": TEAM_COLORS[team.color] }}>
+      <TeamFace color={team.color} size={small ? 24 : 28} mood={mood} />
       <b>{TEAM_LETTERS[team.color]}</b>
       {!small && <span>{teamLabel(team)}</span>}
     </span>

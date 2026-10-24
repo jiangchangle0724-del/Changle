@@ -1,119 +1,101 @@
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt } from "../../engine";
 import type { RoomView } from "../../room/protocol";
+import type { Mood } from "../art/characters";
+import { CityPoster } from "../art/posters";
+import { RoundBoard, type SpaceMark, type TokenMark } from "../art/RoundBoard";
+import type { Flight } from "../art/RouteMap";
 import { colon, groupName, money, spaceName, t, tx } from "../i18n";
-import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, seatName, teamOf } from "./common";
+import { prefs } from "../prefs";
+import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 
-/** Airport city codes as compact board labels (they read the same in both languages). */
-export const CODES: Record<string, string> = {
-  cairo: "CAI",
-  capetown: "CPT",
-  buenosaires: "BUE",
-  mexicocity: "MEX",
-  rio: "RIO",
-  istanbul: "IST",
-  mumbai: "BOM",
-  dubai: "DXB",
-  lasvegas: "LAS",
-  vancouver: "YVR",
-  newyork: "NYC",
-  tokyo: "TYO",
-  beijing: "BJS",
-  shanghai: "SHA",
-  bangkok: "BKK",
-  sydney: "SYD",
-  singapore: "SIN",
-  venice: "VCE",
-  paris: "PAR",
-  london: "LON",
-  seoul: "SEL",
-  hongkong: "HKG",
-};
+export const reducedMotion = () => prefs.reduced || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-/** Grid cell (row, column) of each space on an 11 × 11 board, Departure bottom-right, moving clockwise. */
-export function cellOf(at: number): [number, number] {
-  if (at <= 10) return [11, 11 - at];
-  if (at <= 20) return [11 - (at - 10), 1];
-  if (at <= 30) return [1, 1 + (at - 20)];
-  return [1 + (at - 30), 11];
+/** How a token looks right now, from the latest thing that happened to its team. */
+export function moodOf(v: RoomView, seat: number): Mood {
+  const s = v.game!.s;
+  if (s.ps[seat]?.out) return "sad";
+  const recent = v.feed.slice(-10);
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const f = recent[i];
+    if (f.t !== "game") continue;
+    const e = f.e;
+    switch (e.t) {
+      case "rent":
+        if (e.p === seat) return "shock";
+        if (e.to === seat) return "smug";
+        break;
+      case "pay":
+      case "debt":
+        if (e.p === seat) return "shock";
+        break;
+      case "buy":
+      case "passport":
+        if (e.p === seat) return "happy";
+        break;
+      case "auction":
+        if (e.winner === seat) return "happy";
+        break;
+      case "card":
+        if (e.p === seat) return "curious";
+        break;
+      case "jail":
+      case "bankrupt":
+        if (e.p === seat) return "sad";
+        break;
+      case "manage":
+        if (e.p === seat && e.k === "build") return "happy";
+        break;
+    }
+  }
+  return "idle";
 }
 
-const SPACE_GLYPH: Record<string, string> = {
-  go: "✈︎",
-  route: "✈︎",
-  service: "◎",
-  journey: "?",
-  postcard: "✉︎",
-  tax: "$",
-  immigration: "▣",
-  lounge: "☕︎",
-  expired: "⛔︎",
-};
+/** The latest flight: a token reaching a city in a different region from the last city it visited. */
+export function latestFlight(v: RoomView): Flight | null {
+  const lands = v.feed.filter((f) => f.t === "game" && f.e.t === "land" && CITY_AT[(f.e as { at: number }).at]) as {
+    id: number;
+    e: { t: "land"; p: number; at: number };
+  }[];
+  const last = lands[lands.length - 1];
+  if (!last) return null;
+  const to = CITY_AT[last.e.at]!;
+  for (let i = lands.length - 2; i >= 0; i--) {
+    if (lands[i].e.p !== last.e.p) continue;
+    const from = CITY_AT[lands[i].e.at]!;
+    return from.group !== to.group ? { from: from.id, to: to.id, key: last.id } : null;
+  }
+  return null;
+}
 
-export function Board({ v, big, center }: { v: RoomView; big?: boolean; center?: ComponentChildren }) {
+/** The table turns when the turn passes, not while a token is walking. */
+function useTurnFocus(v: RoomView) {
+  const s = v.game!.s;
+  const ref = useRef<{ turn: number; pos: number } | null>(null);
+  if (!ref.current || ref.current.turn !== s.turn) ref.current = { turn: s.turn, pos: s.ps[s.turn]?.pos ?? 0 };
+  return ref.current.pos;
+}
+
+export function Board({ v, center }: { v: RoomView; big?: boolean; center?: ComponentChildren }) {
   const g = v.game!;
   const s = g.s;
   const [open, setOpen] = useState<number | null>(null);
+  const focus = useTurnFocus(v);
+  const marks: (SpaceMark | null)[] = s.deeds.map((d) => {
+    if (!d) return null;
+    const team = d.owner >= 0 ? teamOf(v, d.owner) : undefined;
+    return { owner: team ? { color: TEAM_COLORS[team.color], letter: TEAM_LETTERS[team.color] } : null, houses: d.houses, mortgaged: d.mort };
+  });
+  const tokens: TokenMark[] = s.ps.flatMap((p, seat) => (p.out ? [] : [{ seat, at: p.pos, kind: teamOf(v, seat)?.color ?? 0, mood: moodOf(v, seat) }]));
   return (
-    <div class={`board${big ? " big" : ""}`}>
-      {BOARD.map((sp, at) => {
-        const [r, c] = cellOf(at);
-        const deed = s.deeds[at];
-        const city = CITY_AT[at];
-        const here = s.ps.map((p, seat) => (!p.out && p.pos === at ? seat : -1)).filter((x) => x >= 0);
-        const owner = deed && deed.owner >= 0 ? teamOf(v, deed.owner) : undefined;
-        const label = city ? (big ? tx(city.name) : CODES[city.id]) : big ? spaceName(at) : "";
-        return (
-          <button
-            type="button"
-            key={at}
-            class={`cell k-${sp.k}${deed?.mort ? " mort" : ""}${at === s.ps[s.turn]?.pos ? " active" : ""}`}
-            style={{ gridRow: r, gridColumn: c }}
-            onClick={() => setOpen(at)}
-            aria-label={spaceName(at)}
-          >
-            {city ? (
-              <span class="band" style={{ background: groupColor(city.group) }}>
-                <GroupIcon group={city.group} size={big ? 14 : 9} />
-              </span>
-            ) : (
-              <span class="glyph" aria-hidden="true">
-                {SPACE_GLYPH[sp.k] ?? ""}
-              </span>
-            )}
-            <span class="label">{label}</span>
-            {owner ? (
-              <span class="owner" style={{ background: TEAM_COLORS[owner.color] }} title={seatName(v, deed!.owner)}>
-                {TEAM_LETTERS[owner.color]}
-                {deed!.houses > 0 && <i>{deed!.houses === 5 ? "H" : "•".repeat(deed!.houses)}</i>}
-              </span>
-            ) : deed ? (
-              <span class="price num">{money(priceOf(s, at))}</span>
-            ) : null}
-            {here.length > 0 && (
-              <span class="tokens">
-                {here.map((seat) => {
-                  const team = teamOf(v, seat);
-                  return (
-                    <span key={seat} class="token" style={{ background: TEAM_COLORS[team?.color ?? 0] }}>
-                      {TEAM_LETTERS[team?.color ?? 0]}
-                    </span>
-                  );
-                })}
-              </span>
-            )}
-          </button>
-        );
-      })}
-      <div class="center">{center}</div>
+    <div class="boardwrap">
+      <RoundBoard marks={marks} tokens={tokens} focus={focus} active={s.ps[s.turn]?.pos} flight={latestFlight(v)} onPick={setOpen} reduced={reducedMotion()} />
+      {center && <div class="center-disc">{center}</div>}
       {open !== null && <SpaceSheet v={v} at={open} onClose={() => setOpen(null)} />}
     </div>
   );
 }
-
-export const groupColor = (group: number) =>
-  ({ 1: "#9c6b3c", 2: "#56b4e9", 3: "#cc79a7", 4: "#e69f00", 5: "#d55e00", 6: "#e8d33f", 7: "#009e73", 8: "#0072b2" })[group] ?? "#999";
 
 /** Everything about one space: the city card (rule, the real fact behind it, greeting, currency, rents). */
 export function SpaceSheet({ v, at, onClose }: { v: RoomView; at: number; onClose: () => void }) {
@@ -125,6 +107,9 @@ export function SpaceSheet({ v, at, onClose }: { v: RoomView; at: number; onClos
     <Sheet title={spaceName(at)} onClose={onClose}>
       {city && (
         <div class="citycard">
+          <div class="poster sheet-poster">
+            <CityPoster id={city.id} />
+          </div>
           <p class="group">
             <GroupIcon group={city.group} size={14} /> {groupName(city.group)}
           </p>

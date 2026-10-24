@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { CityPoster } from "../art/posters";
 import { t } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
@@ -41,6 +42,13 @@ export function Home({ go }: { go: (path: string) => void }) {
 
   return (
     <main class="home">
+      <div class="home-posters" aria-hidden="true">
+        {["venice", "tokyo", "rio"].map((id) => (
+          <div key={id} class="poster">
+            <CityPoster id={id} />
+          </div>
+        ))}
+      </div>
       <header>
         <h1>{t("title")}</h1>
         <p class="muted">{t("tagline")}</p>

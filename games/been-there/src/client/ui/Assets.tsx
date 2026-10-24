@@ -1,6 +1,7 @@
 import {
   BOARD,
   CITIES,
+  CITY_AT,
   GROUPS,
   buildCost,
   canBuild,
@@ -14,7 +15,9 @@ import {
   unmortgageCost,
 } from "../../engine";
 import type { RoomView } from "../../room/protocol";
-import { cardById, money, spaceName, t, tx } from "../i18n";
+import { PassportBook } from "../art/Passport";
+import { CityPoster } from "../art/posters";
+import { cardById, getLang, money, spaceName, t, tx } from "../i18n";
 import { send } from "../store";
 import { Btn, GroupIcon } from "./common";
 
@@ -62,8 +65,13 @@ export function Assets({ v, seat, compact }: { v: RoomView; seat: number; compac
           ].filter(Boolean);
           if (compact && !buttons.length) return null;
           return (
-            <li key={at} class={d!.mort ? "mort" : ""}>
+            <li key={at} class={d!.mort ? "mort" : ""} style={grp !== null ? { "--g": GROUPS.find((x) => x.id === grp)!.color } : undefined}>
               <div class="row">
+                {CITY_AT[at] && !compact && (
+                  <div class="poster thumb">
+                    <CityPoster id={CITY_AT[at].id} />
+                  </div>
+                )}
                 {grp !== null ? <GroupIcon group={grp} size={14} /> : <span class="glyph">{BOARD[at].k === "route" ? "✈︎" : "◎"}</span>}
                 <b>{spaceName(at)}</b>
                 <span class="muted">
@@ -101,6 +109,7 @@ export function Assets({ v, seat, compact }: { v: RoomView; seat: number; compac
             </>
           )}
           <h3>{t("passport")}</h3>
+          <PassportBook ids={me.stamps} lang={getLang()} empty={t("passportEmpty")} />
           <p class="stamps">
             {GROUPS.map((grp) => {
               const got = me.stamps.some((id) => CITIES.find((c) => c.id === id)?.group === grp.id);

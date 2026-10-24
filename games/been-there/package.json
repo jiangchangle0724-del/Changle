@@ -11,7 +11,9 @@
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
     "sim": "tsx scripts/sim.ts",
-    "deploy": "node scripts/build.mjs && wrangler deploy"
+    "deploy": "node scripts/build.mjs && wrangler deploy",
+    "fonts": "node scripts/fonts.mjs",
+    "world": "node scripts/gen-world.mjs"
   },
   "dependencies": {
     "preact": "10.29.8",
@@ -22,8 +24,11 @@
     "@playwright/test": "1.63.0",
     "@types/node": "22.20.5",
     "esbuild": "0.28.2",
+    "subset-font": "^2.9.0",
+    "topojson-client": "^3.1.0",
     "tsx": "4.23.15",
     "typescript": "6.0.2",
+    "world-atlas": "^2.0.2",
     "wrangler": "4.151.2"
   }
 }
