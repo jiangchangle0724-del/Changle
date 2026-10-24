@@ -22,8 +22,11 @@
     "@playwright/test": "1.63.0",
     "@types/node": "22.20.5",
     "esbuild": "0.28.2",
+    "subset-font": "^2.9.0",
+    "topojson-client": "^3.1.0",
     "tsx": "4.23.15",
     "typescript": "6.0.2",
+    "world-atlas": "^2.0.2",
     "wrangler": "4.151.2"
   }
 }

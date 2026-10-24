@@ -46,6 +46,20 @@ async function demo() {
   console.log(`dist/demo.html ${(html.length / 1024).toFixed(0)} KB, dist/demo.artifact.html ${(artifact.length / 1024).toFixed(0)} KB`);
 }
 
+// Step 5 style sheet: the three art directions side by side (dist/styles.html + an artifact copy).
+const SAMPLE_FONTS =
+  "https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&family=ZCOOL+QingKe+HuangYou&family=Space+Mono:wght@400;700&family=Baloo+2:wght@800&family=ZCOOL+KuaiLe&family=Outfit:wght@600;800&display=swap";
+async function samples() {
+  const res = await esbuild.build({ ...common, entryPoints: ["src/samples/styles.tsx"], write: false, format: "iife", logLevel: "warning" });
+  const js = res.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
+  const css = (await readFile("src/client/art/art.css", "utf8")) + (await readFile("src/samples/styles.css", "utf8"));
+  const head = `<title>到此一游美术样张</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<link rel="stylesheet" href="${SAMPLE_FONTS}">\n<style>${css}</style>`;
+  const body = `<div id="app"></div><script>${js}</script>`;
+  await writeFile("dist/styles.html", `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">${head}</head><body>${body}</body></html>`);
+  await writeFile("dist/styles.artifact.html", `${head}\n${body}\n`);
+  console.log(`dist/styles.html ${((head.length + body.length) / 1024).toFixed(0)} KB`);
+}
+
 if (watch) {
   await client.watch();
   console.log("watching…");
@@ -53,4 +67,5 @@ if (watch) {
   await client.rebuild();
   await client.dispose();
   await demo();
+  await samples();
 }
