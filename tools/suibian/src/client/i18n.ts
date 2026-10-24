@@ -1,0 +1,167 @@
+// Every word on screen, written separately in Chinese and English.
+import type { Lang, Text } from "../engine";
+
+const S = {
+  title: ["随便", "Whatever's Fine"],
+  tagline: ["「吃什么？」「随便。」——那就让大家的手机来定。", "“Where should we eat?” “Whatever's fine.” Let everyone's phones decide."],
+  login: ["用 Google 登录", "Sign in with Google"],
+  loginWhy: ["登录后才能开一桌，饮食卡也会记住。加入别人的桌不用登录。", "Sign in to start a table and keep your diet card. Joining someone's table needs no sign-in."],
+  wechatLogin: ["微信里不能用 Google 登录：点右上角 ··· → 在浏览器打开", "Google sign-in doesn't work inside WeChat: tap ··· → Open in browser"],
+  loginFailed: ["登录没成功，再试一次", "Sign-in didn't work. Try again"],
+  hi: ["你好，{name}", "Hi, {name}"],
+  logout: ["退出登录", "Sign out"],
+  forgetMe: ["删除我的所有数据", "Delete all my data"],
+  forgetSure: ["确定删除？饮食卡和记录都会清掉", "Delete? Your diet card and history will be erased"],
+  yourName: ["你的名字", "Your name"],
+  startTable: ["开一桌", "Start a table"],
+  where: ["从哪里出发", "Starting from"],
+  myLocation: ["📍 我现在的位置", "📍 Where I am now"],
+  locating: ["正在定位…", "Finding you…"],
+  noLocation: ["拿不到定位，请从列表里选一个区", "Couldn't get your location. Pick an area from the list"],
+  outsideVancouver: ["你好像不在大温哥华，先从列表里选一个区吧", "You seem to be outside Greater Vancouver. Pick an area from the list"],
+  range: ["多远以内", "How far"],
+  join: ["加入一桌", "Join a table"],
+  roomCode: ["4 位桌号", "4-digit table code"],
+  go: ["进去", "Go in"],
+  noRoom: ["没有这一桌，检查一下桌号", "No table with that code. Check the number"],
+  offline: ["没连上服务器", "Can't reach the server"],
+  quota: ["今天开桌已经 10 次了，明天再来", "That's 10 tables today. Come back tomorrow"],
+  identity: ["这台手机的身份对不上，请刷新页面", "This phone's ID doesn't match. Please reload"],
+  connecting: ["连接中…", "Connecting…"],
+  reconnecting: ["网络断了，正在重新连接…", "Connection lost. Reconnecting…"],
+  lastMeal: ["上次的「{name}」好吃吗？", "How was {name}?"],
+  rateIt: ["去评分", "Rate it"],
+  demo: ["示例数据：餐厅是编的，Google 还没接上", "Sample data: these restaurants are made up; Google isn't connected yet"],
+  // diet card
+  dietCard: ["我的饮食卡", "My diet card"],
+  dietPrivate: ["只有「本桌有人不吃 X」会给大家看，不会显示是谁", "The table only sees “someone here doesn't eat X”, never who"],
+  dietSaved: ["已保存，下次自动带入", "Saved for next time"],
+  allergies: ["过敏 / 不吃", "Allergies / don't eat"],
+  levelNone: ["可以吃", "fine"],
+  levelAvoid: ["不吃", "don't eat"],
+  levelSevere: ["严重过敏", "severe allergy"],
+  custom: ["其他不吃的（自己加）", "Anything else (type it in)"],
+  customPlaceholder: ["比如：香菜、猪肉", "e.g. cilantro, pork"],
+  customAdd: ["加上", "Add"],
+  customHint: ["这些没法用来排除餐厅，只会提醒全桌点菜时注意", "These can't rule restaurants out; the table is reminded when ordering"],
+  levelHint: ["点一下「不吃」，再点一下「严重过敏」（会直接排除很多用它的菜系）", "Tap once for “don't eat”, twice for “severe allergy” (rules out cuisines that use it everywhere)"],
+  halal: ["只吃清真", "Halal only"],
+  vegetarian: ["吃素", "Vegetarian"],
+  budget: ["人均预算", "Budget per person"],
+  budgetAny: ["不限", "Any"],
+  budgetUpTo: ["${n} 以内", "Up to ${n}"],
+  nothingToAvoid: ["我都能吃", "I eat everything"],
+  saveCard: ["好了", "Done"],
+  editCard: ["改饮食卡", "Edit diet card"],
+  // lobby
+  table: ["第 {code} 桌", "Table {code}"],
+  scan: ["扫码加入，或在 {host} 输入桌号", "Scan to join, or enter the code at {host}"],
+  copyLink: ["复制邀请链接", "Copy invite link"],
+  copied: ["已复制", "Copied"],
+  people: ["在座", "At the table"],
+  ready: ["饮食卡 ✓", "diet card ✓"],
+  notReady: ["还没填饮食卡", "no diet card yet"],
+  host: ["房主", "host"],
+  you: ["你", "you"],
+  friend: ["朋友 {n}", "Friend {n}"],
+  away: ["离开了", "away"],
+  tableLimits: ["本桌", "This table"],
+  noLimits: ["没有忌口", "No restrictions"],
+  someoneAvoids: ["有人不吃{what}", "someone doesn't eat {what}"],
+  someoneSevere: ["有人对{what}严重过敏", "someone is severely allergic to {what}"],
+  start: ["开始！", "Let's go!"],
+  readyCount: ["{n}/{m} 人填好了饮食卡", "{n}/{m} diet cards in"],
+  waitHost: ["等房主开始…", "Waiting for the host…"],
+  finding: ["正在找附近开着的店…", "Finding places open nearby…"],
+  nothingNearby: ["附近没找到餐厅，换大一点的范围试试", "No restaurants found nearby. Try a wider range"],
+  nothingFits: ["附近开着的店里，没有一家适合全桌（忌口或预算）。换大一点的范围？", "Nothing open nearby suits the whole table (diet or budget). Try a wider range?"],
+  searchFailed: ["搜索出错了，再试一次", "The search failed. Try again"],
+  wider: ["换范围再找", "Search again"],
+  // round 1
+  round1: ["第 1 轮 · 今天的心情", "Round 1 · Today's mood"],
+  round1Hint: ["想吃点 👍，不想吃点两下 🚫。有一个人 🚫 就淘汰。", "Tap 👍 for yes, twice for 🚫 no. One 🚫 knocks it out."],
+  places: ["{n} 家", "{n} places"],
+  done: ["好了", "Done"],
+  waitingOthers: ["{n}/{m} 人好了", "{n}/{m} done"],
+  skipAhead: ["不等了，下一步", "Don't wait, next"],
+  secondsLeft: ["还剩 {s} 秒", "{s}s left"],
+  // round 2
+  round2: ["第 2 轮 · 抢卡", "Round 2 · Pick your cards"],
+  round2Hint: ["想去的都点 ✓，每人一张 🚫 否决卡，否决谁都不知道是你。", "Tick ✓ every place you'd go. One 🚫 veto each; nobody will know it was you."],
+  approve: ["想去", "I'd go"],
+  veto: ["否决", "Veto"],
+  vetoUsed: ["否决卡已用", "Veto used"],
+  min: ["{n} 分钟", "{n} min"],
+  walk: ["🚶", "🚶"],
+  drive: ["🚗", "🚗"],
+  ratings: ["{n} 条评价", "{n} reviews"],
+  lastOrder: ["约 {n} 分钟后停止点餐", "Last orders in about {n} min"],
+  closesLate: ["今晚开到很晚", "Open late"],
+  wait0: ["🟢 估计不用等", "🟢 Probably no wait"],
+  wait1: ["🟡 估计等 15–30 分钟", "🟡 Maybe 15–30 min wait"],
+  wait2: ["🔴 估计要排队", "🔴 Likely a queue"],
+  waitOurs: ["（我们这边报告过约 {n} 分钟）", "(our tables reported about {n} min)"],
+  waitWhy_peak: ["饭点", "peak hour"],
+  waitWhy_popular: ["人气高", "popular"],
+  waitWhy_veryPopular: ["非常火", "very popular"],
+  waitWhy_reviews: ["评论里有人说排队", "reviews mention queues"],
+  waitWhy_reservable: ["可以订位", "takes bookings"],
+  waitWhy_ours: ["我们的饭后记录", "our post-meal reports"],
+  reservable: ["可订位", "Takes bookings"],
+  call: ["📞 打电话", "📞 Call"],
+  map: ["🗺️ 地图", "🗺️ Map"],
+  relaxed: ["有人第 1 轮不太想吃这个，但附近选择不多", "Someone wasn't keen on this in round 1, but there isn't much else nearby"],
+  warn_unknownCuisine: ["不确定这家是什么菜，过敏的人请先确认", "Cuisine unclear: check before ordering if you have an allergy"],
+  warn_halalCheck: ["清真需要跟店家确认", "Check with the restaurant that it's halal"],
+  warn_vegCheck: ["Google 没说有没有素食，最好问一下", "Google doesn't say if there are vegetarian dishes"],
+  warn_priceUnknown: ["价格未知", "Price unknown"],
+  google: ["数据来自 Google Maps", "Data from Google Maps"],
+  // result
+  spinning: ["打平了！转一下…", "It's a tie! Spinning…"],
+  winner: ["今天就吃这家！", "Tonight it's…"],
+  votes: ["{yes} 票想去 · {veto} 张否决", "{yes} yes · {veto} vetoes"],
+  share: ["发到群里", "Send to the group"],
+  shareText: ["今天吃「{name}」！🗺️ {map}\n吃完点这里评分：{rate}", "We're eating at {name}! 🗺️ {map}\nRate it after: {rate}"],
+  tellServer: ["点菜时记得把过敏和忌口告诉店员。", "Remember to tell your server about allergies and what people don't eat."],
+  again: ["重新来一轮", "Start over"],
+  rateAfter: ["吃完回来评分 ⭐", "Rate it after you eat ⭐"],
+  // rating
+  rateTitle: ["「{name}」怎么样？", "How was {name}?"],
+  overall: ["整体", "Overall"],
+  likedQ: ["我吃到喜欢的东西了吗？", "Did I get something I liked?"],
+  yes: ["是", "Yes"],
+  no: ["没有", "No"],
+  waitedQ: ["等了多久？", "How long did we wait?"],
+  waited45: ["45+", "45+"],
+  submit: ["提交", "Send"],
+  thanks: ["谢谢！", "Thanks!"],
+  tableScore: ["本桌满意度：{n}/{m} 人吃到了喜欢的", "{n} of {m} got something they liked"],
+  rateNotYet: ["这一桌还没选好餐厅", "This table hasn't picked a place yet"],
+  home: ["回首页", "Home"],
+  lang: ["English", "中文"],
+} satisfies Record<string, [string, string]>;
+
+export type Key = keyof typeof S;
+
+/** One-tap suggestions for the typed list: common "don't eat"s at Vancouver tables. */
+export const CUSTOM_SUGGESTIONS: Record<Lang, string[]> = {
+  zh: ["香菜", "猪肉", "牛肉", "羊肉", "内脏", "葱蒜"],
+  en: ["Cilantro", "Pork", "Beef", "Lamb", "Offal", "Onion & garlic"],
+};
+
+let lang: Lang = "zh";
+export const setLang = (l: Lang) => {
+  lang = l;
+  document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
+};
+export const getLang = () => lang;
+
+/** A UI string with {placeholders} filled in. */
+export function t(key: Key, vars: Record<string, string | number> = {}): string {
+  const s = S[key]?.[lang === "zh" ? 0 : 1] ?? key;
+  return s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
+}
+
+export const has = (key: string): key is Key => key in S;
+
+export const tx = (text: Text) => text[lang];

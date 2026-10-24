@@ -1,0 +1,27 @@
+// Cloudflare settings for 随便 · Whatever's Fine — its own Worker, separate from 到此一游.
+// Secrets (Cloudflare dashboard → this Worker → Settings → Variables and Secrets, type "Secret"):
+//   GOOGLE_PLACES_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET
+// Without them it runs on made-up demo restaurants and nobody needs to log in.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "suibian",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/auth/*", "/r/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "RoomDO" },
+      { "name": "USERS", "class_name": "UserDO" },
+      { "name": "PLACES", "class_name": "PlaceDO" }
+    ]
+  },
+  // SQLite-backed Durable Objects work on Cloudflare's free plan.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDO", "UserDO", "PlaceDO"] }],
+  "build": { "command": "node scripts/build.mjs" },
+  "observability": { "enabled": true }
+}
