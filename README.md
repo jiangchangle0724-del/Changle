@@ -5,3 +5,7 @@ Code for [changle.ca](https://changle.ca) (开席 Lazy Susan), a bilingual party
 | Game | Folder |
 | --- | --- |
 | 到此一游 · Been There, Bought That | [`games/been-there`](games/been-there) |
+
+| Tool | Folder |
+| --- | --- |
+| 随便 · Whatever's Fine (where should we eat?) — design only so far | [`tools/suibian`](tools/suibian/DESIGN.md) |
