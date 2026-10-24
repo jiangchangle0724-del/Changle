@@ -33,6 +33,9 @@ const saveCode = () => Array.from({ length: 6 }, () => SAVE_ALPHABET[Math.floor(
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    // Room and big-screen links are app pages. Serve the app for them directly rather than relying
+    // on the browser sending Sec-Fetch-Mode (older iPhones don't), so a scanned QR code always opens.
+    if (/^\/(r\/\d{4}|tv(\/\d{4})?)\/?$/.test(url.pathname)) return env.ASSETS.fetch(new Request(new URL("/", url), req));
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts[0] !== "api") return env.ASSETS.fetch(req);
 

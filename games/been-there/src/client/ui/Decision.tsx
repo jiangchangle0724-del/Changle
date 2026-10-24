@@ -145,6 +145,7 @@ export function CityBrief({ v, at }: { v: RoomView; at: number }) {
 }
 
 function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act: (a: Action) => void }) {
+  const [sure, setSure] = useState(false);
   const g = v.game!;
   const s = g.s;
   const me = s.ps[seat];
@@ -229,10 +230,23 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
             <Btn kind="primary" disabled={me.cash < pd.amount} onClick={() => act({ pay: true })}>
               {t("pay", { amount: money(pd.amount) })}
             </Btn>
-            <Btn kind="danger" onClick={() => confirm(t("confirmBroke")) && act({ bankrupt: true })}>
-              {t("goBroke")}
-            </Btn>
+            {!sure && (
+              <Btn kind="danger" onClick={() => setSure(true)}>
+                {t("goBroke")}
+              </Btn>
+            )}
           </div>
+          {sure && (
+            <div class="confirm" role="alertdialog" aria-label={t("confirmBroke")}>
+              <p>{t("confirmBroke")}</p>
+              <div class="choices">
+                <Btn kind="danger" onClick={() => act({ bankrupt: true })}>
+                  {t("confirmBrokeYes")}
+                </Btn>
+                <Btn onClick={() => setSure(false)}>{t("keepPlaying")}</Btn>
+              </div>
+            </div>
+          )}
           <Assets v={v} seat={seat} compact />
         </>
       );
@@ -461,7 +475,7 @@ function Mumbai({ v, seat, act }: { v: RoomView; seat: number; act: (a: Action) 
           .map((d, at) => ({ d, at }))
           .filter(({ d, at }) => {
             if (!d || d.owner !== seat || at === from) return false;
-            const copy = structuredClone(s);
+            const copy: typeof s = JSON.parse(JSON.stringify(s));
             copy.deeds[from]!.houses -= 1;
             return canBuildFree(copy, seat, at);
           })

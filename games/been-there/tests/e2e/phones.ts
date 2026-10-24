@@ -6,19 +6,34 @@ export interface Phone {
   ctx: BrowserContext;
   page: Page;
   errors: string[];
+  /** Console errors and connection events, printed if something fails. */
+  log: string[];
   taps: number;
 }
 
 export async function newPhone(browser: Browser, name: string, contextOptions: Parameters<Browser["newContext"]>[0]): Promise<Phone> {
   const ctx = await browser.newContext(contextOptions);
   const page = await ctx.newPage();
-  const phone: Phone = { name, ctx, page, errors: [], taps: 0 };
+  const phone: Phone = { name, ctx, page, errors: [], log: [], taps: 0 };
   watch(phone, page);
   return phone;
 }
 
 export function watch(phone: Phone, page: Page) {
   page.on("pageerror", (e) => phone.errors.push(`${phone.name}: ${e.message}`));
+  page.on("console", (m) => (m.type() === "error" || m.type() === "warning") && phone.log.push(`console.${m.type()}: ${m.text()}`));
+  page.on("requestfailed", (r) => phone.log.push(`request failed: ${r.url()} ${r.failure()?.errorText ?? ""}`));
+  page.on("websocket", (ws) => {
+    phone.log.push(`websocket open ${ws.url().replace(/key=[^&]+/, "key=…")}`);
+    ws.on("socketerror", (e) => phone.log.push(`websocket error: ${e}`));
+    ws.on("close", () => phone.log.push("websocket closed"));
+  });
+}
+
+/** Print what this phone saw, to make a failure on CI readable from the log alone. */
+export async function explain(p: Phone, what: string) {
+  const body = await p.page.locator("body").innerText().catch(() => "(no page)");
+  console.log(`--- ${p.name}: ${what}\nscreen: ${body.slice(0, 400)}\nerrors: ${JSON.stringify(p.errors)}\nlog: ${JSON.stringify(p.log.slice(-20))}`);
 }
 
 /** Make a room through the API; tests may speed up the room's timers. */
@@ -31,7 +46,12 @@ export async function createRoom(request: APIRequestContext, body: object): Prom
 /** Open the room link, set a name, start a team of one. */
 export async function joinWithTeam(p: Phone, code: string) {
   await p.page.goto(`/r/${code}`);
-  await expect(p.page.locator(".lobby")).toBeVisible();
+  try {
+    await expect(p.page.locator(".lobby")).toBeVisible({ timeout: 20_000 });
+  } catch (e) {
+    await explain(p, "no lobby");
+    throw e;
+  }
   const name = p.page.locator(".lobby .field input");
   await name.fill(p.name);
   await name.blur();
@@ -75,11 +95,9 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       if (kind === "debt" && !panel.querySelector(".btn.primary:not([disabled])")) {
         // Can't pay yet: sell or mortgage something first (the debt panel lists them), else go broke.
         const sellable = panel.querySelector<HTMLButtonElement>(".assets .btn:not([disabled])");
+        // Going broke takes two taps: the button, then "确定破产".
         if (sellable) pick = sellable;
-        else {
-          window.confirm = () => true;
-          pick = panel.querySelector<HTMLButtonElement>(".btn.danger") ?? pick;
-        }
+        else pick = panel.querySelector<HTMLButtonElement>(".btn.danger") ?? pick;
       }
       pick.click();
       return kind;

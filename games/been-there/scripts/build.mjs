@@ -23,14 +23,27 @@ const client = await esbuild.context({ ...common, entryPoints: { app: "src/clien
 await copyFile("src/client/index.html", `${out}/index.html`);
 await copyFile("src/client/styles.css", `${out}/app.css`);
 
+// Inside a claude.ai artifact the page is wrapped for us and :root already clears the phone's
+// notch and home bar, so the screens drop their own top inset there.
+const ARTIFACT_CSS = `
+.home, .lobby, .over { padding-top: 24px; }
+.top { top: env(safe-area-inset-top, 0px); padding-top: 8px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+`;
+
 async function demo() {
-  // One self-contained HTML file: the same client, with the room running inside the page.
+  // One self-contained page: the same client, with the room running inside the page.
   const res = await esbuild.build({ ...common, entryPoints: ["src/local/demo.tsx"], write: false, format: "iife" });
   const js = res.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
   const css = await readFile("src/client/styles.css", "utf8");
-  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>到此一游 · 单机试玩</title><style>${css}</style></head><body><div id="app"></div><script>${js}</script></body></html>`;
+  const body = `<div id="app"></div><script>${js}</script>`;
+  // Standalone file you can open from disk.
+  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>到此一游试玩版</title><style>${css}</style></head><body>${body}</body></html>`;
   await writeFile("dist/demo.html", html);
-  console.log(`dist/demo.html ${(html.length / 1024).toFixed(0)} KB`);
+  // Artifact page (the artifact service adds the document skeleton).
+  const artifact = `<title>到此一游试玩版</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<style>${css}${ARTIFACT_CSS}</style>\n${body}\n`;
+  await writeFile("dist/demo.artifact.html", artifact);
+  console.log(`dist/demo.html ${(html.length / 1024).toFixed(0)} KB, dist/demo.artifact.html ${(artifact.length / 1024).toFixed(0)} KB`);
 }
 
 if (watch) {

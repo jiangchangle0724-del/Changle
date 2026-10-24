@@ -5,7 +5,8 @@ import type { RoomView, TeamView } from "../../room/protocol";
 import { money, t, type Key } from "../i18n";
 import { serverNow } from "../store";
 
-export const TEAM_COLORS = ["#2d3a4a", "#7a3fb8", "#b4234a", "#0f7468", "#a65a00", "#2457c5"];
+/** Mid-tone team colours that hold up on light and dark backgrounds; the letter is the real identifier. */
+export const TEAM_COLORS = ["#4a6683", "#8a4fc4", "#c23a5e", "#178a7a", "#b8670a", "#3b6fd6"];
 export const TEAM_LETTERS = "ABCDEF";
 
 /** Group shapes, so colour is never the only cue (colour-blind friendly). */

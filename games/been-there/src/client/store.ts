@@ -28,9 +28,12 @@ export function update(patch: Partial<AppState>) {
 
 export function useApp(): AppState {
   const [, force] = useState(0);
+  const rendered = state;
   useEffect(() => {
     const fn = () => force((n) => n + 1);
     subs.add(fn);
+    // Anything that changed between the first render and now (the demo's first view arrives at once).
+    if (state !== rendered) fn();
     return () => void subs.delete(fn);
   }, []);
   return state;

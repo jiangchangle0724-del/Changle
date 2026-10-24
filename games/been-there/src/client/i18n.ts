@@ -120,6 +120,8 @@ const S = {
   pay: ["付 {amount}", "Pay {amount}"],
   goBroke: ["宣布破产", "Go broke"],
   confirmBroke: ["确定破产？你们会变成观众", "Go broke? Your team becomes spectators"],
+  confirmBrokeYes: ["确定破产", "Yes, go broke"],
+  keepPlaying: ["再想想", "Not yet"],
   endTurn: ["结束回合", "End turn"],
   rolledDoubles: ["双数！结束后再掷一次", "Doubles! You roll again after this"],
   pickRoute: ["里程兑换：飞到哪个航线格？", "Air Miles: fly to which route?"],

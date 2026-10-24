@@ -53,7 +53,12 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
           <Qr text={joinUrl(v.code)} />
         </details>
       )}
-      {demo && <p class="hint">{t("localDemo")}</p>}
+      {demo && (
+        <header class="demohead">
+          <h1>{t("title")}</h1>
+          <p class="hint">{t("localDemo")}</p>
+        </header>
+      )}
       {!demo && (
         <label class="field">
           <span>{t("yourName")}</span>

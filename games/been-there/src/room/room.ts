@@ -150,6 +150,8 @@ const clampName = (x: unknown, fallback: string) => {
   const s = typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 16) : "";
   return s || fallback;
 };
+/** Deep copy of plain data (JSON is enough, and works in every browser). */
+const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 const isInt = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x);
 
 function validOffer(o: unknown): o is E.Offer {
@@ -651,9 +653,9 @@ export class Room {
     if (g) {
       const { awaySince: _a, covered: _c, trades: _t, ...rest } = g;
       const now = g.paused && g.pausedAt ? g.pausedAt : this.now;
-      game = { ...structuredClone(rest), remaining: g.endsAt === null ? null : Math.max(0, g.endsAt - now) };
+      game = { ...clone(rest), remaining: g.endsAt === null ? null : Math.max(0, g.endsAt - now) };
     }
-    return { v: 1, savedAt: this.now, settings: { ...this.st.settings }, teams: structuredClone(this.st.teams), game };
+    return { v: 1, savedAt: this.now, settings: { ...this.st.settings }, teams: clone(this.st.teams), game };
   }
 
   // ---------- the running game ----------

@@ -1,12 +1,12 @@
 // The big screen (TV or laptop): the board, everyone's standing, and how to join. No controls.
 import { useEffect, useRef } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
-import { money, spaceName, t, tx } from "../i18n";
+import { money, spaceName, t } from "../i18n";
 import { sfx } from "../sound";
 import { Board } from "./Board";
 import { Countdown, TEAM_COLORS, TEAM_LETTERS, seatName, teamLabel } from "./common";
 import { quizItemText } from "./feedText";
-import { BoardCenter, Clock, Feed, Over, Standings } from "./Game";
+import { BoardCenter, Clock, Feed, Over, Standings, lastId } from "./Game";
 import { Qr, joinUrl } from "./Lobby";
 
 export function Screen({ v }: { v: RoomView }) {
@@ -97,15 +97,14 @@ function TvCenter({ v }: { v: RoomView }) {
 }
 
 function useScreenSounds(v: RoomView) {
-  const last = useRef(v.feed.at(-1)?.id ?? 0);
+  const last = useRef(lastId(v));
   useEffect(() => {
     const fresh = v.feed.filter((f) => f.id > last.current);
-    last.current = v.feed.at(-1)?.id ?? last.current;
+    last.current = lastId(v) || last.current;
     if (!fresh.length) return;
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
     else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction"))) sfx.coin();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "stamp")) sfx.stamp();
   });
-  void tx;
 }

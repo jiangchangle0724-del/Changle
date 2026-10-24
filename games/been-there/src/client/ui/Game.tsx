@@ -234,10 +234,13 @@ export function Bets({ v }: { v: RoomView }) {
   );
 }
 
+/** Id of the newest feed item (0 if none). */
+export const lastId = (v: RoomView) => (v.feed.length ? v.feed[v.feed.length - 1].id : 0);
+
 /** Sounds on a phone: my turn, dice, money in and out. */
 function usePhoneSounds(v: RoomView, myMove: boolean) {
   const g = v.game!;
-  const prev = useRef({ myMove, feed: v.feed.at(-1)?.id ?? 0, cash: v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0) });
+  const prev = useRef({ myMove, feed: lastId(v), cash: v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0) });
   useEffect(() => {
     const p = prev.current;
     if (myMove && !p.myMove) sfx.turn();
@@ -248,7 +251,7 @@ function usePhoneSounds(v: RoomView, myMove: boolean) {
     const delta = cash.reduce((a, b) => a + b, 0) - p.cash.reduce((a, b) => a + b, 0);
     if (delta > 0) sfx.coin();
     else if (delta < 0) sfx.pay();
-    prev.current = { myMove, feed: v.feed.at(-1)?.id ?? p.feed, cash };
+    prev.current = { myMove, feed: lastId(v) || p.feed, cash };
   });
 }
 
