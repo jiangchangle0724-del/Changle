@@ -26,7 +26,8 @@ npm install
 npm run dev          # builds, then serves the game at http://localhost:8787
 ```
 
-Open http://localhost:8787 in two browser windows (or a phone on the same network) and start a room.
+Open http://localhost:8787 in two browser windows and start a room. To try it from a phone on the
+same Wi-Fi, run `npm run dev -- --ip 0.0.0.0` and open the computer's address on port 8787.
 
 ## Check it
 
@@ -37,14 +38,15 @@ npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its 
 npm run sim          # print the step-3 report numbers again
 ```
 
-GitHub runs all of these on every push (`.github/workflows/been-there.yml`).
+GitHub runs the first three on every push, in Chromium and WebKit (`.github/workflows/been-there.yml`).
 
 ## Put it online
 
 Cloudflare builds and publishes the game on every push once the repo is connected:
 Cloudflare dashboard → Workers & Pages → Create → Import a repository → this repo, with
-**root directory** `games/been-there`, build command `npm run build`, deploy command
-`npx wrangler deploy`. Durable Objects with SQLite storage work on the free plan.
+**project name** `been-there` (it must match `name` in `wrangler.jsonc`), **root directory**
+`games/been-there`, build command `npm run build`, deploy command `npx wrangler deploy`.
+Durable Objects with SQLite storage work on the free plan.
 
 From a computer instead: `npx wrangler login`, then `npm run deploy`.
 
