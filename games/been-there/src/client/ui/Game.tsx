@@ -5,14 +5,15 @@ import { CityPoster } from "../art/posters";
 import { Stamp } from "../art/stamps";
 import { colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
 import { sfx } from "../sound";
-import { getState, send } from "../store";
+import { getState, send, toast } from "../store";
 import { Assets } from "./Assets";
 import { Board, moodOf } from "./Board";
-import { Btn, Countdown, Money, SeatChip, TeamChip, seatName, teamOf, useCountdown } from "./common";
+import { Btn, Countdown, Money, SeatChip, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
-import { feedText } from "./feedText";
+import { dareText, feedText } from "./feedText";
 import { SettingsSheet } from "./Settings";
 import { Trade } from "./Trade";
+import { Trivia } from "./Trivia";
 
 type Tab = "play" | "board" | "mine" | "trade" | "log";
 
@@ -29,6 +30,7 @@ export function Game({ v }: { v: RoomView }) {
     (!!g.quiz && v.you.seats.includes(g.quiz.visitor));
   const incoming = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
   usePhoneSounds(v, myMove);
+  usePartyToasts(v);
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
   const tabs: [Tab, Key, number][] = [
     ["play", "tab_play", myMove ? 1 : 0],
@@ -47,7 +49,7 @@ export function Game({ v }: { v: RoomView }) {
               <small>{t("cash")}</small>
               <Money n={me.cash} />
             </span>
-            <span class="stat">
+            <span class="stat worth">
               <small>{t("worth")}</small>
               <Money n={g.worth[mySeat]} />
             </span>
@@ -65,6 +67,7 @@ export function Game({ v }: { v: RoomView }) {
         <section class="pane p-play">
           <Arrival v={v} />
           <Decision v={v} />
+          <Trivia v={v} />
           <Standings v={v} />
           {mySeat === undefined && <Bets v={v} />}
           <Feed v={v} n={5} />
@@ -192,7 +195,8 @@ function BoardNote({ v }: { v: RoomView }) {
 
 /** "You've arrived": the city the player whose turn it is has just reached. */
 export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
-  const s = v.game!.s;
+  const g = v.game!;
+  const s = g.s;
   const seat = s.turn;
   const pos = s.ps[seat]?.pos ?? -1;
   const city = CITY_AT[pos];
@@ -227,6 +231,14 @@ export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
           {colon()}
           {tx(city.rule.text)}
         </p>
+        {/* The real fact behind the rule, for the room to read. Not while the quiz is asking about this very city. */}
+        {big && !(g.trivia?.open && g.trivia.city === city.id) && (
+          <p class="arrival-fact">
+            <b>{t("realBasis")}</b>
+            {colon()}
+            {tx(city.basis)} <small>{hostOf(city.source)}</small>
+          </p>
+        )}
       </div>
       {stamped && (
         <div class="arrival-stamp">
@@ -263,16 +275,31 @@ export function Bets({ v }: { v: RoomView }) {
   );
 }
 
+/** A party forfeit pops up on every phone for a few seconds (the toast never blocks a tap). */
+function usePartyToasts(v: RoomView) {
+  const last = useRef(lastId(v));
+  useEffect(() => {
+    for (const f of v.feed) {
+      if (f.id <= last.current || f.t !== "party") continue;
+      toast(`${t("partyTitle")} · ${seatName(v, f.seat)}${colon()}${dareText(f)}`, 9000);
+      if (v.you.seats.includes(f.seat)) sfx.alert();
+    }
+    last.current = lastId(v) || last.current;
+  });
+}
+
 /** Id of the newest feed item (0 if none). */
 export const lastId = (v: RoomView) => (v.feed.length ? v.feed[v.feed.length - 1].id : 0);
 
 /** Sounds on a phone: my turn, dice, money in and out. */
 function usePhoneSounds(v: RoomView, myMove: boolean) {
   const g = v.game!;
-  const prev = useRef({ myMove, feed: lastId(v), cash: v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0) });
+  const ask = g.trivia?.open && g.trivia.answerFor !== null ? g.trivia.id : 0;
+  const prev = useRef({ myMove, feed: lastId(v), cash: v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0), ask });
   useEffect(() => {
     const p = prev.current;
     if (myMove && !p.myMove) sfx.turn();
+    else if (ask && ask !== p.ask) sfx.ask();
     const fresh = v.feed.filter((f) => f.id > p.feed);
     if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
     if (fresh.some((f) => f.t === "game" && f.e.t === "stamp" && v.you.seats.includes(f.e.p))) sfx.stamp();
@@ -280,7 +307,7 @@ function usePhoneSounds(v: RoomView, myMove: boolean) {
     const delta = cash.reduce((a, b) => a + b, 0) - p.cash.reduce((a, b) => a + b, 0);
     if (delta > 0) sfx.coin();
     else if (delta < 0) sfx.pay();
-    prev.current = { myMove, feed: lastId(v) || p.feed, cash };
+    prev.current = { myMove, feed: lastId(v) || p.feed, cash, ask };
   });
 }
 

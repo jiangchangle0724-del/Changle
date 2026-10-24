@@ -133,6 +133,7 @@ export type GameEvent =
   | { t: "manage"; p: number; k: "build" | "sell" | "mortgage" | "unmortgage"; at: number }
   | { t: "trade"; a: number; b: number; give: Offer; get: Offer }
   | { t: "bankrupt"; p: number; to: number }
+  | { t: "bonus"; p: number; amount: number; why: string }
   | { t: "over"; reason: string; winner: number | null };
 
 export interface GameState {

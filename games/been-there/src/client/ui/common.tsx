@@ -105,6 +105,15 @@ export function TeamChip({ team, small, mood }: { team: TeamView | undefined; sm
   );
 }
 
+/** "whc.unesco.org" from a source link: short enough to print under a fact. */
+export function hostOf(url: string) {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 export function SeatChip({ v, seat, small }: { v: RoomView; seat: number; small?: boolean }) {
   return <TeamChip team={teamOf(v, seat)} small={small} />;
 }

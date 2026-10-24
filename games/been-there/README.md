@@ -6,15 +6,17 @@ room code, no sign-up; an optional big screen (TV or laptop) shows the board.
 
 Step 4 made the full game playable online; step 5 gave it its look: the golden age of travel
 (1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
-an air-age route map, and six token characters. City content (fun facts, recorded sounds, quiz
-questions) is step 6.
+an air-age route map, and six token characters. Step 6 adds the city content: a quiz for the teams
+waiting their turn (one question per city, from the same sourced fact as its rule), the real fact
+on the big screen's arrival card, a drink-free set of party forfeits, and a credits page listing
+every source and licence. More facts per city and recorded city sounds are still to come.
 
 ## What's where
 
 | Folder | What it is |
 | --- | --- |
 | `src/engine` | The rules, one copy shared by the simulator, the server and the browser. Recovered from the step-3 bundle; `tests/engine.test.ts` proves it still gives the step-3 report's numbers exactly. |
-| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, trades, spectator bets, the computer covering for phones that drop off, saves. No networking inside, so it's easy to test. |
+| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`trivia.ts`, answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off, saves. No networking inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker. Each room is one Durable Object that keeps the game and saves it after every move. |
 | `src/client` | The web pages: phone screens, the big screen, Chinese/English. |
 | `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |

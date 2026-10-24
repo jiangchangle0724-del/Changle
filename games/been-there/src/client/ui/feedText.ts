@@ -1,5 +1,6 @@
 // Turn feed items (game and room events) into one line of plain language.
 import { BOARD, CITIES, TRASH_QUIZ, type GameEvent, type Offer } from "../../engine";
+import { FORFEITS } from "../../room/party";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import { cardById, cardTitle, money, spaceName, t, tx, type Key } from "../i18n";
 import { seatName } from "./common";
@@ -65,6 +66,8 @@ export function gameEventText(v: RoomView, e: GameEvent): string | null {
       return e.winner === null ? t("log_overNobody") : t("log_over", { team: seatName(v, e.winner) });
     case "rule":
       return ruleText(v, e, team);
+    case "bonus":
+      return t("log_bonus", { team, amount: money(e.amount) });
   }
 }
 
@@ -151,7 +154,7 @@ export function feedText(v: RoomView, f: FeedItem): string | null {
     case "bets":
       return t("log_bets", { team: seatName(v, f.seat), paid: t(f.paidRent ? "paidRent" : "noRent"), right: f.right, wrong: f.wrong });
     case "party":
-      return t("log_party", { team: seatName(v, f.seat), why: t(`party_${f.why}` as Key) });
+      return t("log_party", { team: seatName(v, f.seat), why: t(`party_${f.why}` as Key), dare: dareText(f) });
     case "quiz": {
       const q = QUIZ[f.item];
       const bin = (i: number) => tx(TRASH_QUIZ[i].bin);
@@ -166,3 +169,18 @@ export function feedText(v: RoomView, f: FeedItem): string | null {
 }
 
 export const quizItemText = (i: number) => tx(QUIZ[i].item);
+
+/** The forfeit itself (rooms from before step 6 didn't pick one: the table decides). */
+export const dareText = (f: Extract<FeedItem, { t: "party" }>) => {
+  const d = f.dare === undefined ? undefined : FORFEITS[f.dare];
+  return d ? tx(d.text) : t("partyOwnRules");
+};
+
+/** The newest party forfeit, while it's still news (12 seconds). */
+export function recentParty(v: RoomView) {
+  for (let i = v.feed.length - 1; i >= 0; i--) {
+    const f = v.feed[i];
+    if (f.t === "party") return v.now - f.at < 12_000 ? f : null;
+  }
+  return null;
+}

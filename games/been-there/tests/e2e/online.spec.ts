@@ -110,3 +110,30 @@ test("两人同时出价不出错", async ({ browser, request, contextOptions })
   await expect(x.page.locator(".p-log .feed")).toContainText("以 $10 拍得");
   expect(errorsOf(phones)).toEqual([]);
 });
+
+test("窄屏手机、英文界面、长队名：顶栏和页面都不超出屏幕", async ({ browser, request, playwright, contextOptions }) => {
+  const { defaultBrowserType: _ignored, ...se } = playwright.devices["iPhone SE"];
+  const code = await createRoom(request, {});
+  const en = await newPhone(browser, "Alexandra the Great", { ...contextOptions, ...se, locale: "en-US" });
+  await en.page.goto(`/r/${code}`);
+  await expect(en.page.locator(".lobby")).toBeVisible({ timeout: 20_000 });
+  await en.page.locator(".lobby .field input").fill(en.name);
+  await en.page.locator(".lobby .field input").blur();
+  await en.page.getByRole("button", { name: "New team" }).click();
+  const zh = await newPhone(browser, "小明同学好朋友", { ...contextOptions, ...se, locale: "zh-CN" });
+  await joinWithTeam(zh, code);
+  // The first phone in is the host.
+  await en.page.getByRole("button", { name: "Start", exact: true }).click();
+  for (const p of [en, zh]) {
+    await expect(p.page.locator(".game")).toBeVisible();
+    const [page, top] = await p.page.evaluate(() => {
+      const d = document.documentElement;
+      const bar = document.querySelector(".top")!;
+      return [d.scrollWidth - d.clientWidth, bar.scrollWidth - bar.clientWidth];
+    });
+    expect(page, `${p.name}: page wider than the screen`).toBeLessThanOrEqual(1);
+    expect(top, `${p.name}: top bar wider than the screen`).toBeLessThanOrEqual(1);
+    await expect(p.page.locator(".menu-btn")).toBeInViewport({ ratio: 1 });
+  }
+  expect(errorsOf([en, zh])).toEqual([]);
+});

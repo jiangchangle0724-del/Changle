@@ -1,5 +1,5 @@
 // What phones, the big screen and the server say to each other.
-import type { Action, GameState, ManageKind, Mode, Offer, StyleId } from "../engine";
+import type { Action, GameState, ManageKind, Mode, Offer, StyleId, Text } from "../engine";
 
 export type Lang = "zh" | "en";
 export type Role = "player" | "screen";
@@ -18,6 +18,10 @@ export const TIMING = {
   quiz: 5_000,
   /** Seoul: the silent ten seconds. */
   silence: 10_000,
+  /** Waiting players' quiz: time to answer. */
+  trivia: 12_000,
+  /** …then the answer and its source stay up this long. */
+  triviaReveal: 6_000,
   /** A team whose phones have all dropped off is played by the computer after this. */
   takeover: 15_000,
   /** Open trade offers expire. */
@@ -25,6 +29,12 @@ export const TIMING = {
   /** Rooms are deleted after this long with nobody around. */
   roomTtl: 3 * 24 * 3600_000,
 };
+
+/** What set off a party forfeit: a huge rent, Immigration, going broke, Seoul's silence broken, Shanghai's trash sorted wrong. */
+export type PartyWhy = "rent" | "jail" | "broke" | "sound" | "quiz";
+
+/** First right answer in the waiting players' quiz wins this. */
+export const TRIVIA_PRIZE = 20;
 
 export const MAX_TEAMS = 6;
 export const MAX_TEAM_SIZE = 3;
@@ -57,6 +67,7 @@ export type ClientMsg =
   | { t: "manage"; k: ManageKind; at: number; seat?: number }
   | { t: "bid"; aid: number; amount: number; seat?: number }
   | { t: "quiz"; qid: number; choice: number }
+  | { t: "trivia"; id: number; choice: number; seat?: number }
   | { t: "offer"; to: number; give: Offer; get: Offer; seat?: number }
   | { t: "offer-reply"; id: number; accept: boolean }
   | { t: "offer-cancel"; id: number }
@@ -84,7 +95,7 @@ export type FeedItem = { id: number; at: number } & (
   | { t: "offer"; from: number; to: number; give: Offer; get: Offer; byBot?: boolean }
   | { t: "offer-done"; from: number; to: number; accepted: boolean; why?: "invalid" | "expired" | "cancelled" }
   | { t: "bets"; seat: number; paidRent: boolean; right: number; wrong: number }
-  | { t: "party"; seat: number; why: "rent" | "jail" | "broke" | "sound" | "quiz" }
+  | { t: "party"; seat: number; why: PartyWhy; /** Index into FORFEITS (party.ts); missing in rooms from before step 6. */ dare?: number }
   | { t: "quiz"; seat: number; item: number; bin: number; choice: number | null; right: boolean }
 );
 
@@ -139,6 +150,28 @@ export interface QuizView {
   answer?: { choice: number | null; bin: number; right: boolean };
 }
 
+/** The waiting players' quiz: a question about one of the cities, for the teams whose turn it isn't. */
+export interface TriviaView {
+  id: number;
+  city: string;
+  q: Text;
+  /** In the order shown. */
+  options: Text[];
+  endsAt: number;
+  open: boolean;
+  /** The team this phone answers for (in the game, not on turn, hasn't answered), or null if it can't answer. */
+  answerFor: number | null;
+  /** What this phone's team picked. */
+  mine: number | null;
+  /** Teams that have answered. While the question is still open, every one of them got it wrong. */
+  answered: number[];
+  winner: number | null;
+  /** Shown once the question closes, with the fact it comes from. */
+  correct: number | null;
+  fact: Text | null;
+  source: string | null;
+}
+
 export interface GameView {
   /** The engine state with the secret parts removed (seed, card order, sealed votes and bids). */
   s: GameState;
@@ -153,6 +186,7 @@ export interface GameView {
   silenceUntil: number | null;
   auction: AuctionView | null;
   quiz: QuizView | null;
+  trivia: TriviaView | null;
   trades: TradeView[];
   /** Seats that have answered the current whole-table decision. */
   answered: number[];

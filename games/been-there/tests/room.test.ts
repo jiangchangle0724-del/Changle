@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as E from "../src/engine";
 import { random } from "../src/engine/rng";
-import type { ClientMsg, RoomView, ServerMsg } from "../src/room/protocol";
+import { TRIVIA_PRIZE, type ClientMsg, type RoomView, type ServerMsg } from "../src/room/protocol";
 import { Room, type RoomEnv } from "../src/room/room";
+import { FORFEITS } from "../src/room/party";
+import { TRIVIA } from "../src/room/trivia";
 
 class Clock {
   t = 1_700_000_000_000;
@@ -330,3 +332,192 @@ test("a computer team can't take a city from a team whose phones dropped: it sen
   assert.deepEqual(offer!.get.deeds, [3]);
   assert.equal(g.s.deeds[3]!.owner, away, "Cape Town still belongs to the absent team");
 });
+
+// ---------- the waiting players' quiz (抢答) ----------
+
+test("every quiz question is about a city in the game, with three different answers in both languages", () => {
+  const ids = E.CITIES.map((c) => c.id);
+  for (const q of TRIVIA) {
+    assert.ok(ids.includes(q.city), q.city);
+    for (const lang of ["zh", "en"] as const) {
+      assert.ok(q.q[lang].trim(), `${q.city}: question in ${lang}`);
+      assert.equal(new Set(q.options.map((o) => o[lang].trim()).filter(Boolean)).size, 3, `${q.city}: answers in ${lang}`);
+    }
+  }
+  assert.deepEqual([...new Set(TRIVIA.map((q) => q.city))].sort(), [...ids].sort(), "every city has a question");
+});
+
+test("waiting teams race to answer: a wrong answer locks you out, the first right one wins", () => {
+  const t = new Table({}, 5);
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  const g = t.game;
+  const tv = g.trivia!;
+  assert.ok(tv, "a question opens with the first turn");
+  const seatOf = (p: Phone) => t.view(p).you.seats[0];
+  const onTurn = ps.find((p) => seatOf(p) === g.s.turn)!;
+  const [slow, quick] = ps.filter((p) => p !== onTurn);
+  const shown = t.view(slow).game!.trivia!;
+  assert.equal(shown.city, TRIVIA[tv.q].city);
+  assert.equal(shown.answerFor, seatOf(slow));
+  assert.equal(t.view(onTurn).game!.trivia!.answerFor, null, "the team on turn doesn't answer");
+  assert.equal(shown.correct, null, "phones never hold the answer while the question is open");
+  assert.equal(shown.fact, null);
+  const right = tv.order.indexOf(0);
+  const wrong = (right + 1) % 3;
+  const decision = g.decision;
+  const cash = g.s.ps.map((p) => p.cash);
+
+  t.send(onTurn, { t: "trivia", id: tv.id, choice: right });
+  assert.deepEqual(g.trivia!.answers, {}, "the team on turn can't answer");
+  t.send(slow, { t: "trivia", id: tv.id, choice: wrong });
+  assert.equal(g.trivia!.closed, false);
+  assert.deepEqual(t.view(quick).game!.trivia!.answered, [seatOf(slow)]);
+  assert.equal(t.view(slow).game!.trivia!.answerFor, null);
+  t.send(slow, { t: "trivia", id: tv.id, choice: right });
+  assert.equal(g.trivia!.winner, null, "a wrong answer locks the team out");
+  t.send(quick, { t: "trivia", id: tv.id, choice: right });
+
+  assert.equal(g.trivia!.winner, seatOf(quick));
+  assert.equal(g.s.ps[seatOf(quick)].cash, cash[seatOf(quick)] + TRIVIA_PRIZE);
+  assert.equal(g.s.ps[seatOf(slow)].cash, cash[seatOf(slow)]);
+  assert.equal(g.decision, decision, "the quiz doesn't make the decision on the table stale");
+  assert.ok(t.seen.some((f) => f.t === "game" && f.e.t === "bonus" && f.e.p === seatOf(quick)));
+  const after = t.view(onTurn).game!.trivia!;
+  assert.equal(after.open, false);
+  assert.equal(after.correct, right);
+  assert.ok(after.fact?.zh && after.source?.startsWith("https://"), "the reveal shows the fact and its source");
+  t.send(quick, { t: "trivia", id: tv.id, choice: right });
+  assert.equal(g.s.ps[seatOf(quick)].cash, cash[seatOf(quick)] + TRIVIA_PRIZE, "one prize per question");
+
+  t.playUntil(() => g.trivia?.id !== tv.id);
+  assert.deepEqual(t.refusals, []);
+});
+
+test("nobody right: the question times out, shows the answer, then the next turn asks another", () => {
+  const t = new Table({}, 8);
+  const ps = lobby(t, 2);
+  t.send(ps[0], { t: "start" });
+  const g = t.game;
+  const first = g.trivia!;
+  const firstTurn = g.s.turns;
+  t.playUntil(() => !!g.trivia?.closed);
+  assert.equal(g.trivia!.winner, null);
+  const shown = t.view(ps[1]).game!.trivia!;
+  assert.equal(shown.correct, first.order.indexOf(0), "the answer is shown when time runs out");
+  t.playUntil(() => !!g.trivia && g.trivia.id !== first.id);
+  assert.ok(g.s.turns > firstTurn, "a later turn asks a new question");
+});
+
+test("no question comes round again until all of them have been asked", () => {
+  const t = new Table({ testRounds: 40 }, 9);
+  lobby(t, 1, 3);
+  t.send(t.phones[0], { t: "start" });
+  const asked: number[] = [];
+  t.playUntil(() => {
+    const tv = t.game.trivia;
+    if (tv && asked.at(-1) !== tv.q) asked.push(tv.q);
+    return asked.length > TRIVIA.length || t.game.s.over;
+  });
+  assert.ok(asked.length > TRIVIA.length, `only ${asked.length} questions before the game ended`);
+  assert.equal(new Set(asked.slice(0, TRIVIA.length)).size, TRIVIA.length);
+  assert.notEqual(asked[TRIVIA.length], asked[TRIVIA.length - 1], "the new deck doesn't start with the last question");
+});
+
+test("the quiz never asks about a city the team on turn could land on with this roll", () => {
+  const t = new Table({}, 12);
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  const g = t.game;
+  const room = t.room as unknown as { openTrivia(): void };
+  for (let pos = 0; pos < E.BOARD_SIZE; pos++) {
+    const s = g.s;
+    s.ps[s.turn].pos = pos;
+    const near = new Set<string>();
+    for (let k = 0; k <= 12; k++) {
+      const sp = E.BOARD[(((pos + k * s.dir) % E.BOARD_SIZE) + E.BOARD_SIZE) % E.BOARD_SIZE];
+      if (sp.k === "city") near.add(sp.id);
+    }
+    for (let n = 0; n < 5; n++) {
+      g.trivia = null;
+      g.triviaUsed = [];
+      room.openTrivia();
+      assert.ok(!near.has(TRIVIA[g.trivia!.q].city), `asked about ${TRIVIA[g.trivia!.q].city} from space ${pos}`);
+    }
+  }
+});
+
+test("computer teams answer the quiz, but the computer covering for absent people doesn't", () => {
+  const t = new Table({}, 6);
+  const ps = lobby(t, 2, 2);
+  t.send(ps[0], { t: "start" });
+  const away = t.game.seats.indexOf(t.room.st.members[ps[1].id].team!);
+  t.room.leave(ps[1].id);
+  t.phones = t.phones.filter((p) => p !== ps[1]);
+  t.settle();
+  const bonuses = () => t.seen.filter((f) => f.t === "game" && f.e.t === "bonus");
+  t.playUntil(() => bonuses().length >= 4 || t.game.s.over);
+  assert.ok(bonuses().length >= 4, "computer teams win questions");
+  assert.ok(
+    bonuses().every((f) => f.t === "game" && f.e.t === "bonus" && f.e.p !== away),
+    "a team whose phones dropped doesn't win money it didn't answer for",
+  );
+});
+
+test("pausing holds the quiz clock, and a saved game comes back without a stale question", () => {
+  const t = new Table({}, 7);
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  const tv = t.game.trivia!;
+  const left = tv.endsAt - t.clock.t;
+  t.send(ps[0], { t: "pause", on: true });
+  t.clock.t += 60_000;
+  t.room.tick();
+  t.settle();
+  assert.equal(t.game.trivia!.closed, false);
+  t.send(ps[0], { t: "pause", on: false });
+  assert.equal(t.game.trivia!.endsAt - t.clock.t, left);
+
+  t.room.handle(ps[0].id, { t: "save" });
+  const file = JSON.parse(JSON.stringify(t.settle().save!.file));
+  assert.ok(file.game.trivia, "the save was made with a question up");
+  // Saves from before the quiz have none of its fields.
+  delete file.game.triviaUsed;
+  delete file.game.triviaTurn;
+  const t2 = new Table();
+  t2.room = Room.fromSave("5678", file, makeEnv(t2.clock, 3));
+  assert.equal(t2.game.trivia, null);
+  for (const p of ps) t2.join(p, "again");
+  const teams = t2.view(ps[0]).teams.filter((x) => !x.bot);
+  ps.forEach((p, i) => t2.send(p, { t: "team", op: "join", team: teams[i].id }));
+  t2.send(ps[0], { t: "pause", on: false });
+  t2.playUntil(() => t2.game.s.turns >= t.game.s.turns + 3 && !!t2.game.trivia);
+});
+
+// ---------- party forfeits (派对惩罚) ----------
+
+test("party mode deals a forfeit that fits what happened, and doesn't repeat one soon", () => {
+  for (const f of FORFEITS) assert.ok(f.text.zh.trim() && f.text.en.trim());
+  const t = new Table({ party: true }, 11);
+  const ps = lobby(t, 4);
+  t.send(ps[0], { t: "start" });
+  t.playUntil(() => t.game.s.over);
+  const dares = t.seen.flatMap((f) => (f.t === "party" ? [f] : []));
+  assert.ok(dares.length >= 3, `only ${dares.length} forfeits in a whole game`);
+  for (const d of dares) {
+    const f = FORFEITS[d.dare!];
+    assert.ok(f, "every forfeit is a real one");
+    assert.ok(!f.why || f.why === d.why, `"${f.text.en}" was dealt for ${d.why}`);
+  }
+  for (let i = 0; i < dares.length; i++)
+    for (let j = Math.max(0, i - 8); j < i; j++) assert.notEqual(dares[i].dare, dares[j].dare, "no repeat within nine forfeits");
+});
+
+test("party mode is off unless the host turns it on", () => {
+  const t = new Table({}, 11);
+  const ps = lobby(t, 4);
+  t.send(ps[0], { t: "start" });
+  t.playUntil(() => t.game.s.over);
+  assert.equal(t.seen.filter((f) => f.t === "party").length, 0);
+});
+
