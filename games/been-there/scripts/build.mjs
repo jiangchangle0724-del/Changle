@@ -41,7 +41,7 @@ async function inlineCss() {
 const ARTIFACT_CSS = `
 .home, .lobby, .over { padding-top: 24px; }
 .top { top: env(safe-area-inset-top, 0px); padding-top: 8px; }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.top::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--ink); }
 `;
 
 async function demo() {
