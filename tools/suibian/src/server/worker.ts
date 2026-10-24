@@ -105,7 +105,7 @@ export default {
     }
 
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
-      const body = (await req.json().catch(() => ({}))) as { cid?: string; center?: unknown; range?: string };
+      const body = (await req.json().catch(() => ({}))) as { cid?: string; center?: unknown; range?: string; lang?: string };
       const center = cleanCenter(body.center);
       const range = (body.range && body.range in RANGES ? body.range : "walk20") as RangeId;
       if (!center) return json({ error: "badPlace" }, 400);
@@ -117,7 +117,7 @@ export default {
       }
       for (let i = 0; i < 40; i++) {
         const code = roomCode();
-        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, { host: body.cid!, center, range, demo: !usesGoogle(env) })) return json({ code });
+        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, { host: body.cid!, center, range, demo: !usesGoogle(env), lang: body.lang === "en" ? "en" : "zh" })) return json({ code });
       }
       return json({ error: "busy" }, 503);
     }
@@ -158,7 +158,7 @@ export class RoomDO extends DurableObject<Env> {
       this.room = new Room(st, this.roomEnv);
       this.room.presence(ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() as Attachment).id));
       // Restarted in the middle of a search: start it again.
-      if (st.phase === "finding") void this.work({ k: "search", center: st.center, range: st.range });
+      if (st.phase === "finding") void this.work({ k: "search", center: st.center, range: st.range, lang: st.lang ?? "zh" });
     });
   }
 
@@ -257,12 +257,12 @@ export class RoomDO extends DurableObject<Env> {
     const key = room.st.demo ? undefined : this.env.GOOGLE_PLACES_KEY;
     try {
       if (want.k === "search") {
-        const places = key ? await searchGoogle(key, want.center, want.range) : demoPlaces(want.center, want.range, Date.now());
+        const places = key ? await searchGoogle(key, want.center, want.range, want.lang) : demoPlaces(want.center, want.range, Date.now());
         // Our own numbers, for real places only (demo ones are made up).
         if (key) await Promise.all(places.map(async (p: Place) => (p.ours = (await this.env.PLACES.get(this.env.PLACES.idFromName(p.id)).get()) ?? undefined)));
         if (this.room === room) room.found(places);
       } else if (key) {
-        const got = await Promise.allSettled(want.ids.map(async (id) => [id, await detailsGoogle(key, id)] as const));
+        const got = await Promise.allSettled(want.ids.map(async (id) => [id, await detailsGoogle(key, id, want.lang)] as const));
         const details: Record<string, Partial<Place>> = {};
         for (const g of got) if (g.status === "fulfilled") details[g.value[0]] = g.value[1];
         if (this.room === room) room.enrich(details);

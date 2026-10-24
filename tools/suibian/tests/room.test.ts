@@ -40,7 +40,7 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   room.handle(ids[1], { t: "mood", picks: { ramen: "like" }, done: true });
   room.handle(ids[2], { t: "mood", picks: {}, done: true });
   assert.equal(room.st.phase, "cards");
-  assert.deepEqual(room.flush().want, { k: "details", ids: room.st.cards });
+  assert.deepEqual(room.flush().want, { k: "details", ids: room.st.cards, lang: "zh" });
 
   const cards = room.view(ids[0]).cards;
   assert.ok(cards.length >= 3);

@@ -53,7 +53,7 @@ export function Home({ go }: { go: (path: string) => void }) {
     if (!c) return setErr(t("noLocation"));
     setBusy(true);
     prefs.start = { center: c, range };
-    const res = await api<{ code?: string; error?: string }>("/api/rooms", { method: "POST", body: JSON.stringify({ cid: identity().cid, center: c, range }) });
+    const res = await api<{ code?: string; error?: string }>("/api/rooms", { method: "POST", body: JSON.stringify({ cid: identity().cid, center: c, range, lang: prefs.lang }) });
     setBusy(false);
     if (res.ok && res.data.code) return go(`/r/${res.data.code}`);
     setErr(res.data.error === "quota" ? t("quota") : res.data.error === "login" ? t("loginWhy") : t("offline"));

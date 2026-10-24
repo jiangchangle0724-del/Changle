@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, guessCuisine, mentionsQueue, type Center, type Place, type RangeId } from "../engine";
+import { RANGES, guessCuisine, mentionsQueue, type Center, type Lang, type Place, type RangeId } from "../engine";
 
 const SEARCH_FIELDS = [
   "places.id",
@@ -23,6 +23,9 @@ const SEARCH_FIELDS = [
 ].join(",");
 
 const DETAIL_FIELDS = ["nationalPhoneNumber", "googleMapsUri", "photos", "reviews"].join(",");
+
+/** Names and reviews in the host's language where Google has them. */
+const languageCode = (lang: Lang) => (lang === "zh" ? "zh-CN" : "en");
 
 /** Rough lowest price per person (CAD) for each Google price level. */
 const LEVEL_PRICE: Record<string, [number, string]> = {
@@ -86,13 +89,13 @@ async function google(key: string, url: string, init: RequestInit & { fields: st
 }
 
 /** Up to 40 restaurants: the 20 most popular and the 20 nearest (Google returns 20 per call). */
-export async function searchGoogle(key: string, center: Center, range: RangeId): Promise<Place[]> {
+export async function searchGoogle(key: string, center: Center, range: RangeId, lang: Lang): Promise<Place[]> {
   const body = (rank: "POPULARITY" | "DISTANCE") =>
     JSON.stringify({
       includedTypes: ["restaurant"],
       maxResultCount: 20,
       rankPreference: rank,
-      languageCode: "zh-CN",
+      languageCode: languageCode(lang),
       regionCode: "CA",
       locationRestriction: { circle: { center: { latitude: center.lat, longitude: center.lng }, radius: RANGES[range].meters } },
     });
@@ -111,13 +114,13 @@ export async function searchGoogle(key: string, center: Center, range: RangeId):
 interface GDetails {
   nationalPhoneNumber?: string;
   googleMapsUri?: string;
-  photos?: { name: string }[];
+  photos?: { name: string; authorAttributions?: { displayName?: string; uri?: string }[] }[];
   reviews?: { text?: { text?: string }; originalText?: { text?: string }; authorAttribution?: { displayName?: string } }[];
 }
 
 /** Phone, map link, one photo and any review that mentions queueing, for one card. */
-export async function detailsGoogle(key: string, id: string): Promise<Partial<Place>> {
-  const d = (await google(key, `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=zh-CN`, { fields: DETAIL_FIELDS })) as GDetails;
+export async function detailsGoogle(key: string, id: string, lang: Lang): Promise<Partial<Place>> {
+  const d = (await google(key, `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=${languageCode(lang)}`, { fields: DETAIL_FIELDS })) as GDetails;
   const out: Partial<Place> = { phone: d.nationalPhoneNumber, mapsUrl: d.googleMapsUri };
   for (const r of d.reviews ?? []) {
     const text = r.originalText?.text ?? r.text?.text ?? "";
@@ -126,11 +129,17 @@ export async function detailsGoogle(key: string, id: string): Promise<Partial<Pl
       break;
     }
   }
-  const photo = d.photos?.[0]?.name;
-  if (photo) {
+  const photo = d.photos?.[0];
+  if (photo?.name) {
     // skipHttpRedirect gives a photo URL without our key in it, safe to hand to phones.
-    const res = await fetch(`https://places.googleapis.com/v1/${photo}/media?maxWidthPx=480&skipHttpRedirect=true&key=${encodeURIComponent(key)}`);
-    if (res.ok) out.photo = ((await res.json()) as { photoUri?: string }).photoUri;
+    const res = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=480&skipHttpRedirect=true&key=${encodeURIComponent(key)}`);
+    const uri = res.ok ? ((await res.json()) as { photoUri?: string }).photoUri : undefined;
+    const by = photo.authorAttributions?.[0];
+    // No photo without its author: Google's terms require showing who took it.
+    if (uri && by?.displayName) {
+      out.photo = uri;
+      out.photoBy = { name: by.displayName, uri: by.uri };
+    }
   }
   return out;
 }

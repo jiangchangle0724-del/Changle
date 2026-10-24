@@ -237,7 +237,23 @@ function PlaceCard({ c, children }: { c: CardView; children?: preact.ComponentCh
   const p = c.place;
   return (
     <article class="place" data-id={p.id}>
-      {p.photo && <img src={p.photo} alt="" loading="lazy" referrerpolicy="no-referrer" />}
+      {p.photo && (
+        <figure class="photo">
+          <img src={p.photo} alt="" loading="lazy" referrerpolicy="no-referrer" />
+          {p.photoBy && (
+            <figcaption>
+              📷{" "}
+              {p.photoBy.uri ? (
+                <a href={p.photoBy.uri} target="_blank" rel="noopener">
+                  {p.photoBy.name}
+                </a>
+              ) : (
+                p.photoBy.name
+              )}
+            </figcaption>
+          )}
+        </figure>
+      )}
       <div class="body">
         <h3>{p.name}</h3>
         <p class="meta">

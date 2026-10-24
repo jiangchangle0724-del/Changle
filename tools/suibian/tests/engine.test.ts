@@ -12,6 +12,7 @@ import {
   eligible,
   estimateWait,
   guessCuisine,
+  mentionsQueue,
   mergeLimits,
   pick,
   tally,
@@ -226,4 +227,9 @@ test("typed items: cleaned, merged without duplicates, and only ever warn", () =
   const v = check(place({ cuisine: "sichuan" }), table);
   assert.equal(v.ok, true);
   assert.deepEqual(v.warnings[0], { k: "custom", name: "香菜", level: "severe" });
+});
+
+test("queue mentions in Chinese and English reviews", () => {
+  for (const yes of ["周末排了40分钟", "要排很久", "排長隊", "等位一小时", "等了半天", "We waited 45 minutes", "long line out the door", "expect a lineup", "wait about 30 min"]) assert.ok(mentionsQueue(yes), yes);
+  for (const no of ["服务很好，菜很好吃", "Great food, friendly staff", "排骨很好吃"]) assert.ok(!mentionsQueue(no), no);
 });

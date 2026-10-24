@@ -78,6 +78,8 @@ export interface Place {
   phone?: string;
   mapsUrl?: string;
   photo?: string;
+  /** Who took the photo; Google requires showing this with it. */
+  photoBy?: { name: string; uri?: string };
   /** A Google review that mentions queueing, with its author (shown with attribution). */
   waitQuote?: { text: string; author: string };
   /** Our own post-meal numbers for this place. */

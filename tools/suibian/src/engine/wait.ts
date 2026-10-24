@@ -12,7 +12,7 @@ export interface WaitEstimate {
   ours?: number;
 }
 
-const QUEUE_WORDS = /排队|排隊|等位|等了|line ?up|lineup|long line|queue|wait(ed)? (for )?(over |about |around )?\d+|waited/i;
+const QUEUE_WORDS = /排队|排隊|排了|排长队|排長隊|要排|等位|等了|等很久|等太久|line ?up|lineup|long line|queue|wait(ed)? (for )?(over |about |around )?\d+|waited/i;
 
 /** Does a review talk about queueing? */
 export const mentionsQueue = (text: string) => QUEUE_WORDS.test(text);

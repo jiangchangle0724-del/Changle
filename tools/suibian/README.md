@@ -63,26 +63,50 @@ Create → Import a repository → this repo, with **project name** `suibian` (m
 command `npx wrangler deploy`. Then the Worker → Settings → Domains & Routes → Add → Custom
 domain, e.g. `eat.changle.ca`. Anyone can start a table; restaurants are made up and say so.
 
-**2. Google sign-in.** In [Google Cloud console](https://console.cloud.google.com/):
-* APIs & Services → OAuth consent screen: External; app name 随便; scopes `openid` and `profile`.
-* Credentials → Create credentials → OAuth client ID → Web application. Authorized redirect URI:
-  `https://eat.changle.ca/auth/callback` (your domain).
-* In Cloudflare (the Worker → Settings → Variables and Secrets), add as **Secret**:
-  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `SESSION_SECRET` (any long random text, e.g.
-  from `openssl rand -base64 32`).
+**2. Google sign-in.** In [Google Cloud console](https://console.cloud.google.com/), create a
+project (e.g. "changle-ca"), then:
+1. APIs & Services → OAuth consent screen (also called "Google Auth Platform"): user type
+   **External**; app name 随便; support email yours. Scopes: only `openid` and `profile` (no
+   email needed). Then **Publish app** ("In production"). While it stays in "Testing", only the
+   test users you list can sign in; with just these basic scopes Google doesn't need to review it.
+2. Credentials → Create credentials → OAuth client ID → **Web application**. Under Authorized
+   redirect URIs add exactly `https://eat.changle.ca/auth/callback` (your domain; a missing
+   `https`, a trailing slash or the workers.dev address instead gives Google's
+   `redirect_uri_mismatch` error). Copy the client ID and secret.
+3. Cloudflare → Workers & Pages → `suibian` → Settings → Variables and Secrets → Add, type
+   **Secret**, three times: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `SESSION_SECRET`
+   (any long random text, e.g. from `openssl rand -base64 32`; changing it later signs everyone
+   out). Cloudflare redeploys by itself.
 
-From now on starting a table needs sign-in (10 tables per account per day); joining doesn't.
+Check: open the site. The home page now says "用 Google 登录" under 开一桌; sign in and you land
+back on the home page with "你好，<name>". Restaurants are still the demo ones (step 3 adds the
+real ones). From now on starting a table needs sign-in (10 tables per account per day); joining
+doesn't. In WeChat's built-in browser Google blocks sign-in, so the page tells people to open it
+in the browser; joining a table works in WeChat as before.
 
 **3. Real restaurants.** In the same Google Cloud project:
-* APIs & Services → Library → enable **Places API (New)**.
-* Credentials → Create credentials → API key; restrict it to Places API (New).
-* Billing → Budgets & alerts: set a monthly budget with email alerts. APIs & Services → Places
-  API (New) → Quotas: cap requests per day.
-* Add it in Cloudflare as Secret `GOOGLE_PLACES_KEY`.
+1. Billing: link a billing account (Places needs one even inside the free allowance).
+2. APIs & Services → Library → enable **Places API (New)** (not the old "Places API").
+3. Credentials → Create credentials → API key → Edit: API restrictions → Restrict key →
+   **Places API (New)** only. Leave application restrictions at "None" (the key is used by the
+   server, never sent to phones).
+4. Billing → Budgets & alerts: a monthly budget (e.g. CA$20) with email alerts at 50% and 90%.
+5. APIs & Services → Places API (New) → Quotas: cap requests per day, e.g. Nearby Search 200,
+   Place Details 600, Place Photos 600. That is about 100 tables a day; past it, searches fail
+   until tomorrow instead of costing more.
+6. Cloudflare: add Secret `GOOGLE_PLACES_KEY`.
+
+Check: open the site; the yellow "示例数据" banner is gone. Start a table where you are: round 1
+shows the cuisines open nearby and round 2 real restaurants with photos (credited to whoever took
+them), opening hours and phone numbers. If the table says "搜索出错了", open Cloudflare →
+`suibian` → Logs: a line `places Error: google 403 …` means the key is wrong, restricted to the
+wrong API, or Places API (New) isn't enabled; `google 429` means today's quota is used up.
 
 Real Google data is used only when both sign-in and the Places key are set, so strangers can't
-spend your API money. Each table costs about 2 searches, plus details and one photo for each of
-the 6 cards.
+spend your API money. Each table makes 2 searches, plus details and one photo for each of its
+6 cards. Google gives every kind of request a monthly free allowance; a group of friends eating
+out a few times a week should stay well inside it, but look at Billing after the first week to
+be sure.
 
 ## Numbers you might want to change
 

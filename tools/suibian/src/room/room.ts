@@ -31,6 +31,8 @@ export interface RoomState {
   hostId: string;
   center: E.Center;
   range: E.RangeId;
+  /** The host's language: restaurant names and reviews come in it where Google has them. */
+  lang?: Lang;
   demo: boolean;
   phase: Phase;
   phaseEnds: number | null;
@@ -46,7 +48,7 @@ export interface RoomState {
 }
 
 /** Work the room needs from outside: a Google search, or details for the cards. */
-export type Want = { k: "search"; center: E.Center; range: E.RangeId } | { k: "details"; ids: string[] };
+export type Want = { k: "search"; center: E.Center; range: E.RangeId; lang: Lang } | { k: "details"; ids: string[]; lang: Lang };
 
 export interface Flush {
   changed: boolean;
@@ -64,7 +66,7 @@ export class Room {
     private env: RoomEnv,
   ) {}
 
-  static create(code: string, env: RoomEnv, o: { host: string; center: E.Center; range: E.RangeId; demo: boolean }): Room {
+  static create(code: string, env: RoomEnv, o: { host: string; center: E.Center; range: E.RangeId; demo: boolean; lang?: Lang }): Room {
     const now = env.now();
     return new Room(
       {
@@ -75,6 +77,7 @@ export class Room {
         hostId: o.host,
         center: o.center,
         range: o.range,
+        lang: o.lang ?? "zh",
         demo: o.demo,
         phase: "lobby",
         phaseEnds: null,
@@ -241,7 +244,7 @@ export class Room {
     this.st.phase = "finding";
     this.st.phaseEnds = null;
     this.st.error = null;
-    this.want = { k: "search", center: this.st.center, range: this.st.range };
+    this.want = { k: "search", center: this.st.center, range: this.st.range, lang: this.st.lang ?? "zh" };
     this.changed = true;
   }
 
@@ -288,7 +291,7 @@ export class Room {
     this.st.phase = "cards";
     this.st.phaseEnds = this.env.now() + TIMING.cards;
     for (const m of Object.values(this.st.members)) m.moodDone = true;
-    this.want = { k: "details", ids };
+    this.want = { k: "details", ids, lang: this.st.lang ?? "zh" };
     this.changed = true;
   }
 
