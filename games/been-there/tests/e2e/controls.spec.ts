@@ -71,9 +71,12 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动�
     if (await hint.count()) {
       const before = await throws();
       await p.page.waitForTimeout(150);
+      // (Each reading is made by hand: WebKit, iPhone's engine, won't let a page build a DeviceMotionEvent.)
       await p.page.evaluate(async () => {
         for (let i = 0; i < 4; i++) {
-          window.dispatchEvent(new DeviceMotionEvent("devicemotion", { acceleration: { x: 22, y: 4, z: 0 }, accelerationIncludingGravity: { x: 22, y: 13, z: 0 }, interval: 16 }));
+          const e = new Event("devicemotion");
+          Object.defineProperties(e, { acceleration: { value: { x: 22, y: 4, z: 0 } }, accelerationIncludingGravity: { value: { x: 22, y: 13, z: 0 } } });
+          window.dispatchEvent(e);
           await new Promise((r) => setTimeout(r, 80));
         }
       });
