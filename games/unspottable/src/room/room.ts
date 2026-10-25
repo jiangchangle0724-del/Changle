@@ -1,6 +1,8 @@
 import {
   BLEND_COOLDOWN_MS,
   SCORE_TO_WIN,
+  characterMaxSpeed,
+  environmentalDrift,
   advanceMatch,
   characterForOwner,
   createMatch,
@@ -44,7 +46,10 @@ export class Room {
     this.st.arenaVotes ??= {};
     if (this.st.game) {
       this.st.game.arena ??= "plaza";
-      for (const character of this.st.game.characters) character.recoil ??= { x: 0, y: 0 };
+      for (const character of this.st.game.characters) {
+        character.recoil ??= { x: 0, y: 0 };
+        character.velocity ??= { x: 0, y: 0 };
+      }
     }
   }
 
@@ -188,6 +193,7 @@ export class Room {
       gameView = {
         phase: game.phase,
         arena: game.arena,
+        environmentalDrift: environmentalDrift(game.arena, game.startedAt, now),
         endsAt: game.endsAt,
         remainingMs: Math.max(0, game.endsAt - now),
         scoreToWin: SCORE_TO_WIN,
@@ -197,6 +203,8 @@ export class Room {
           x: character.x,
           y: character.y,
           facing: character.facing,
+          velocity: character.velocity ?? { x: 0, y: 0 },
+          maxSpeed: characterMaxSpeed(character, game.arena, now),
           pose: character.pose,
           isMine: character.id === mine?.id && role === "player"
         })),
@@ -237,3 +245,4 @@ export function createRoomView(state: RoomState, id: string, role: Role, now = D
 
 export const ROOM_MAX_PLAYERS = MAX_PLAYERS;
 export const ROOM_BLEND_COOLDOWN_MS = BLEND_COOLDOWN_MS;
+
