@@ -104,6 +104,7 @@ export class ArenaRoom extends DurableObject<Env> {
     }
     if (!message || typeof message !== "object" || typeof message.t !== "string") return;
     this.room.handle(attachment.id, message, Date.now());
+    if (message.t === "move") return;
     await this.saveAndBroadcast();
   }
 
