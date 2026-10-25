@@ -27,9 +27,11 @@ const PARTS: [Key, Item[]][] = [
     "creditsCode",
     [
       ["Preact", "MIT", "https://preactjs.com/"],
+      ["three.js", "MIT", "https://threejs.org/"],
       ["qrcode-generator · Kazuhiko Arase", "MIT", "https://github.com/kazuhikoarase/qrcode-generator"],
     ],
   ],
+  ["creditsWeather", [["Open-Meteo.com", "CC BY 4.0", "https://open-meteo.com/"]]],
 ];
 
 export function Credits() {

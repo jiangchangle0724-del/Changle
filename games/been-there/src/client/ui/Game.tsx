@@ -6,6 +6,7 @@ import { Stamp } from "../art/stamps";
 import { colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
 import { sfx } from "../sound";
 import { getState, send, toast } from "../store";
+import { useWeather, weatherLabel } from "../weather";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion } from "./Board";
 import { Btn, Countdown, Money, SeatChip, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
@@ -234,6 +235,7 @@ export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
   const seat = s.turn;
   const pos = s.ps[seat]?.pos ?? -1;
   const city = CITY_AT[pos];
+  const wx = useWeather(city?.id);
   if (!city) return null;
   let land: { id: number; at: number } | null = null;
   for (let i = v.feed.length - 1; i >= 0 && !land; i--) {
@@ -260,6 +262,7 @@ export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
         <p class="arrival-hello">
           <span lang="und">{city.greeting.text}</span>
           {city.greeting.roman && <i>{city.greeting.roman}</i>} · {tx(city.currency)}
+          {wx && <span class="arrival-wx"> · {t("wxNow", { wx: weatherLabel(wx) })}</span>}
         </p>
         <p class="arrival-rule">
           <b>{tx(city.rule.title)}</b>

@@ -4,13 +4,16 @@
 //   GET  /api/rooms/:code         → { exists, ... } check a code before joining
 //   GET  /api/rooms/:code/ws      → WebSocket       play (cid, key, name, lang, role in the query)
 //   POST /api/saves/:save/load    → { code }        continue a saved game in a new room
+//   GET  /api/weather             → { at, cities }  the weather right now in each city (15-minute cache)
 //   anything else                 → the game's web pages (static assets)
 //
 // Each room is one Durable Object: the single source of truth for that game. It saves itself after
 // every change, so a phone that drops (or a server restart) never loses the game.
 import { DurableObject } from "cloudflare:workers";
+import { COORDS } from "../client/art/coords";
 import type { ClientMsg, Settings } from "../room/protocol";
 import { Room, type RoomEnv, type RoomState, type SaveFile } from "../room/room";
+import { WEATHER_TTL, parseWeather, weatherUrl, type WeatherReport } from "../room/weather";
 
 export interface Env {
   ROOMS: DurableObjectNamespace<RoomDO>;
@@ -30,8 +33,39 @@ const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
 const roomCode = () => String(1000 + Math.floor(randomUnit() * 9000));
 const saveCode = () => Array.from({ length: 6 }, () => SAVE_ALPHABET[Math.floor(randomUnit() * SAVE_ALPHABET.length)]).join("");
 
+// The weather: kept in this isolate's memory and in Cloudflare's cache (which only works on a custom
+// domain, not on workers.dev), so Open-Meteo hears from the game about once every 15 minutes.
+let weatherMemo: { report: WeatherReport; until: number } | null = null;
+const WEATHER_CACHE_KEY = "https://been-there.cache/weather-v1";
+// (The DOM types, which the pages share, don't know Cloudflare's default cache.)
+const edgeCache = () => (caches as unknown as { default: Cache }).default;
+
+async function weather(ctx: ExecutionContext): Promise<Response> {
+  const now = Date.now();
+  const reply = (report: WeatherReport, ttl: number) =>
+    new Response(JSON.stringify(report), {
+      headers: { "content-type": "application/json", "cache-control": `public, max-age=${Math.max(1, Math.round(ttl / 1000))}` },
+    });
+  if (weatherMemo && now < weatherMemo.until) return reply(weatherMemo.report, weatherMemo.until - now);
+  const hit = await edgeCache().match(WEATHER_CACHE_KEY).catch(() => undefined);
+  if (hit) return hit;
+  let report: WeatherReport = { at: now, cities: {} };
+  try {
+    const res = await fetch(weatherUrl(COORDS), { signal: AbortSignal.timeout(5000) });
+    if (res.ok) report = parseWeather(await res.json(), Object.keys(COORDS), now);
+  } catch {
+    // No weather this time; the pages simply don't show it.
+  }
+  // An empty answer is asked again in a minute rather than kept for 15.
+  const ttl = Object.keys(report.cities).length ? WEATHER_TTL : 60_000;
+  weatherMemo = { report, until: now + ttl };
+  const res = reply(report, ttl);
+  ctx.waitUntil(edgeCache().put(WEATHER_CACHE_KEY, res.clone()).catch(() => {}));
+  return res;
+}
+
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     // Room and big-screen links are app pages. Serve the app for them directly rather than relying
     // on the browser sending Sec-Fetch-Mode (older iPhones don't), so a scanned QR code always opens.
@@ -64,6 +98,8 @@ export default {
         return stub.fetch(req);
       }
     }
+
+    if (parts[1] === "weather" && parts.length === 2 && req.method === "GET") return weather(ctx);
 
     if (parts[1] === "saves" && parts[3] === "load" && req.method === "POST") {
       const save = (parts[2] ?? "").toUpperCase();

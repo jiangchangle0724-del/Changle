@@ -8,12 +8,14 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { CITIES } from "../../engine";
 import type { RoomView } from "../../room/protocol";
+import { weatherKind } from "../../room/weather";
 import { localClock } from "../art/places";
 import { CityPoster } from "../art/posters";
 import { Stamp } from "../art/stamps";
 import { getLang, t, tx } from "../i18n";
 import { sfx } from "../sound";
 import { serverNow } from "../store";
+import { useWeather, weatherLabel } from "../weather";
 import { latestFlight, reducedMotion } from "./Board";
 import { SeatChip } from "./common";
 
@@ -53,6 +55,10 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
   const latest = useRef(v);
   latest.current = v;
   const clocked = onClock(v);
+  // The real weather there right now (live, from Open-Meteo through the game's server), if known.
+  const wx = useWeather(show?.city ?? land?.city);
+  const wxNow = useRef(wx);
+  wxNow.current = wx;
   const stop = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
@@ -80,6 +86,7 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     });
     if (loud) {
       later(lead + 1350 * k, () => sfx.descent());
+      later(lead + 1500 * k, () => wxNow.current && sfx.weather(weatherKind(wxNow.current.code)));
       later(lead + 2100 * k, () => sfx.city(land.city));
     }
     later(lead + 3000 * k, () => sfx.stamp());
@@ -95,9 +102,16 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
   const city = CITIES.find((c) => c.id === show.city);
   if (!city) return null;
   const clock = localClock(city.id, serverNow());
+  const kind = wx ? weatherKind(wx.code) : null;
   const lang = getLang();
   return (
-    <div class={`touchdown${big ? " big" : ""} sky-${clock?.sky ?? "day"}`} key={show.id} role="dialog" aria-label={tx(city.name)} onClick={stop}>
+    <div
+      class={`touchdown${big ? " big" : ""} sky-${clock?.sky ?? "day"}${kind ? ` wx-${kind}` : ""}`}
+      key={show.id}
+      role="dialog"
+      aria-label={tx(city.name)}
+      onClick={stop}
+    >
       <div class="td-view">
         <div class="td-sky" />
         <div class="td-city">
@@ -117,6 +131,7 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
           <i />
           <i />
         </div>
+        {kind && kind !== "clear" && kind !== "cloudy" && kind !== "overcast" && <div class={`td-weather ${kind}`} />}
       </div>
       <div class="td-wall">
         <div class="td-frame" />
@@ -134,6 +149,7 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
         </p>
         <p class="td-meta">
           {clock && `${t("localTime", { time: clock.time })} · `}
+          {wx && `${weatherLabel(wx)} · `}
           {tx(city.currency)}
         </p>
       </div>
