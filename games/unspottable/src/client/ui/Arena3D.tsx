@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { PLAYER_SPEED } from "../../engine";
 import type { ArenaId, Pose } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
+import { t } from "../i18n";
 
 interface Props {
   avatars: AvatarView[];
@@ -293,6 +294,8 @@ export function Arena3D(props: Props) {
   const impactType = useRef(props.impactType);
   const youLabel = useRef(props.youLabel);
   const [supported, setSupported] = useState(true);
+  const [frameMetrics, setFrameMetrics] = useState<{ fps: number; avg: number; slow: number } | null>(null);
+  const showFps = new URLSearchParams(window.location.search).get("fps") === "1";
   targets.current = props.avatars;
   vector.current = props.localVector;
   receivedAt.current = props.receivedAt;
@@ -490,14 +493,45 @@ export function Arena3D(props: Props) {
     });
 
     let previous = 0;
+    let fpsStartedAt = 0;
+    let fpsSamples = 0;
+    let fpsTotalMs = 0;
+    let fpsSlowestMs = 0;
     let lastPaletteCheck = 0;
     let shakeAt = 0;
     let lastImpact = props.impactId;
     const animate = (time: number) => {
       frame = requestAnimationFrame(animate);
-      if (lost || document.hidden) return;
-      const delta = previous ? Math.min(50, time - previous) : 16;
+      if (lost) return;
+      if (document.hidden) {
+        previous = 0;
+        fpsStartedAt = 0;
+        fpsSamples = 0;
+        fpsTotalMs = 0;
+        fpsSlowestMs = 0;
+        return;
+      }
+      const frameMs = previous ? time - previous : 16;
+      const delta = Math.min(50, frameMs);
       previous = time;
+      if (showFps) {
+        if (fpsStartedAt === 0) fpsStartedAt = time;
+        fpsSamples++;
+        fpsTotalMs += frameMs;
+        fpsSlowestMs = Math.max(fpsSlowestMs, frameMs);
+        const elapsed = time - fpsStartedAt;
+        if (elapsed >= 1_000 && fpsSamples > 0) {
+          setFrameMetrics({
+            fps: Math.round(fpsSamples * 1_000 / elapsed),
+            avg: Math.round(fpsTotalMs / fpsSamples * 10) / 10,
+            slow: Math.round(fpsSlowestMs * 10) / 10
+          });
+          fpsStartedAt = time;
+          fpsSamples = 0;
+          fpsTotalMs = 0;
+          fpsSlowestMs = 0;
+        }
+      }
       if (time - lastPaletteCheck > 1_000) { lastPaletteCheck = time; updatePalette(); }
       if (impact.current !== lastImpact && impactType.current === "tag") { shakeAt = time; lastImpact = impact.current; }
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
@@ -622,9 +656,11 @@ export function Arena3D(props: Props) {
     };
   }, [props.arena]);
 
-  if (!supported) return <>{props.fallback}</>;
-  return <div class={"arena arena--" + props.arena + " arena--3d"} role="img" aria-label={props.label}>
+  const fpsBadge = showFps && frameMetrics && <output class="arena__fps" aria-live="off">{t("fpsStats", frameMetrics)}</output>;
+  if (!supported) return <div class={"arena arena--" + props.arena} role={showFps ? "group" : "img"} aria-label={props.label}>{props.fallback}{fpsBadge}</div>;
+  return <div class={"arena arena--" + props.arena + " arena--3d"} role={showFps ? "group" : "img"} aria-label={props.label}>
     <canvas class="arena__canvas" ref={canvasRef} aria-hidden="true"></canvas>
+    {fpsBadge}
   </div>;
 }
 
