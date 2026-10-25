@@ -579,6 +579,8 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
   const [vector, setVector] = useState({ x: 0, y: 0 });
   const vectorRef = useRef(vector);
   const heldKeys = useRef(new Set<string>());
+  const gamepadButtons = useRef({ punch: false, blend: false });
+  const gamepadDriving = useRef(false);
   vectorRef.current = vector;
 
   useEffect(() => {
@@ -609,28 +611,88 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
     props.send({ t: "move", x: 0, y: 0 });
   };
 
-  const keyVector = () => {
-    const keys = heldKeys.current;
-    const x = (keys.has("ArrowRight") || keys.has("d") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("a") ? 1 : 0);
-    const y = (keys.has("ArrowDown") || keys.has("s") ? 1 : 0) - (keys.has("ArrowUp") || keys.has("w") ? 1 : 0);
-    const next = { x, y };
-    setVector(next);
-    props.onVector(next);
-  };
+  useEffect(() => {
+    const updateKeyboardVector = () => {
+      const keys = heldKeys.current;
+      const x = (keys.has("ArrowRight") || keys.has("d") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("a") ? 1 : 0);
+      const y = (keys.has("ArrowDown") || keys.has("s") ? 1 : 0) - (keys.has("ArrowUp") || keys.has("w") ? 1 : 0);
+      const next = { x, y };
+      setVector(next);
+      props.onVector(next);
+    };
+    const isTyping = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+    const keyDown = (event: KeyboardEvent) => {
+      if (isTyping(event.target)) return;
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const movement = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "w", "a", "s", "d"].includes(key);
+      if (movement) {
+        event.preventDefault();
+        heldKeys.current.add(key);
+        updateKeyboardVector();
+      } else if (!event.repeat && (key === "Shift" || key === " ") && !(event.target instanceof HTMLButtonElement)) {
+        event.preventDefault();
+        if (key === "Shift") props.send({ t: "blend" });
+        else props.send({ t: "punch" });
+      }
+    };
+    const keyUp = (event: KeyboardEvent) => {
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      heldKeys.current.delete(key);
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "w", "a", "s", "d"].includes(key)) updateKeyboardVector();
+    };
+    const blur = () => {
+      heldKeys.current.clear();
+      const zero = { x: 0, y: 0 };
+      setVector(zero);
+      props.onVector(zero);
+      props.send({ t: "move", x: 0, y: 0 });
+    };
+    window.addEventListener("keydown", keyDown, { passive: false });
+    window.addEventListener("keyup", keyUp);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keyup", keyUp);
+      window.removeEventListener("blur", blur);
+    };
+  }, [props.onVector, props.send]);
 
-  const keyDown = (event: KeyboardEvent) => {
-    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "w", "a", "s", "d"].includes(key)) {
-      event.preventDefault();
-      heldKeys.current.add(key);
-      keyVector();
-    }
-  };
-  const keyUp = (event: KeyboardEvent) => {
-    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-    heldKeys.current.delete(key);
-    keyVector();
-  };
+  useEffect(() => {
+    if (!navigator.getGamepads) return;
+    const deadzone = 0.18;
+    const axis = (value: number) => Math.abs(value) < deadzone ? 0 : Math.sign(value) * (Math.abs(value) - deadzone) / (1 - deadzone);
+    const timer = window.setInterval(() => {
+      const pad = Array.from(navigator.getGamepads()).find((candidate) => candidate?.connected);
+      if (!pad) {
+        gamepadButtons.current = { punch: false, blend: false };
+        if (gamepadDriving.current) {
+          gamepadDriving.current = false;
+          const zero = { x: 0, y: 0 };
+          setVector(zero);
+          props.onVector(zero);
+          props.send({ t: "move", x: 0, y: 0 });
+        }
+        return;
+      }
+      const dpadX = (pad.buttons[15]?.pressed ? 1 : 0) - (pad.buttons[14]?.pressed ? 1 : 0);
+      const dpadY = (pad.buttons[13]?.pressed ? 1 : 0) - (pad.buttons[12]?.pressed ? 1 : 0);
+      const x = Math.max(-1, Math.min(1, axis(pad.axes[0] ?? 0) + dpadX));
+      const y = Math.max(-1, Math.min(1, axis(pad.axes[1] ?? 0) + dpadY));
+      const punch = Boolean(pad.buttons[0]?.pressed);
+      const blend = Boolean(pad.buttons[2]?.pressed);
+      const active = Math.hypot(x, y) > 0 || punch || blend;
+      if (active || gamepadDriving.current) {
+        gamepadDriving.current = active;
+        const next = { x, y };
+        setVector(next);
+        props.onVector(next);
+      }
+      if (punch && !gamepadButtons.current.punch) props.send({ t: "punch" });
+      if (blend && !gamepadButtons.current.blend) props.send({ t: "blend" });
+      gamepadButtons.current = { punch, blend };
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [props.onVector, props.send]);
 
   const ready = Date.now() >= props.game.blendReadyAt;
   return <div class="controls-row">
@@ -643,20 +705,19 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
       onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updatePointer(event); }}
       onPointerUp={release}
       onPointerCancel={release}
-      onKeyDown={keyDown}
-      onKeyUp={keyUp}
-      onBlur={() => { heldKeys.current.clear(); setVector({ x: 0, y: 0 }); props.onVector({ x: 0, y: 0 }); props.send({ t: "move", x: 0, y: 0 }); }}
+
     >
       <span class="stick-ring"></span>
       <span class="stick-knob" style={{ transform: "translate(" + vector.x * 35 + "px, " + vector.y * 35 + "px)" }}></span>
     </div>
     <div class="action-buttons">
-      <button class="btn punch-button" aria-label={t("punch")} onPointerDown={(event) => event.preventDefault()} onClick={() => props.send({ t: "punch" })}>
+      <button class="btn punch-button" aria-label={t("punch")} onPointerDown={(event) => { event.preventDefault(); props.send({ t: "punch" }); navigator.vibrate?.(24); }} onClick={(event) => { if (event.detail === 0) props.send({ t: "punch" }); }}>
         <span class="punch-mark" aria-hidden="true"></span>{t("punch")}
       </button>
-      <button class="btn blend-button" disabled={!ready} onClick={() => props.send({ t: "blend" })}>
+      <button class="btn blend-button" disabled={!ready} onPointerDown={(event) => { event.preventDefault(); props.send({ t: "blend" }); }} onClick={(event) => { if (event.detail === 0) props.send({ t: "blend" }); }}>
         {t(ready ? "blendReady" : "cooldown")}
       </button>
+      <p class="controls-hint">{t("controls")}</p>
     </div>
   </div>;
 }
