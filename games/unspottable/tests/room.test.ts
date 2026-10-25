@@ -33,6 +33,17 @@ test("only the host starts and the server requires at least two online players",
   assert.equal(room.view(first, "player", 6).game?.phase, "playing");
 });
 
+
+test("players vote for an arena and the winning rule starts for every screen", () => {
+  const room = twoPlayerRoom();
+  room.handle(first, { t: "vote", arena: "metro" }, 3);
+  room.handle(second, { t: "vote", arena: "metro" }, 4);
+  room.handle(first, { t: "vote", arena: "gallery" }, 5);
+  assert.deepEqual(room.view(first, "player", 6).arenaVotes, { plaza: 0, metro: 1, gallery: 1 });
+  assert.equal(room.view(first, "player", 6).you.vote, "gallery");
+  room.handle(first, { t: "start" }, 7);
+  assert.equal(room.view(second, "player", 8).game?.arena, "metro");
+});
 test("TV views reveal scores and movement but never mark a real player", () => {
   const room = twoPlayerRoom();
   room.join(screen, "TV", "en", "screen", 3);
