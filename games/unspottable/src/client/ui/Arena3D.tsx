@@ -184,13 +184,13 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
     for (const x of [-8.2, 8.2]) {
       for (const z of [-4.1, 4.1]) {
         makeBox(scene, [1.45, 0.38, 1.2], [x, 0.18, z], detail);
-        makeCylinder(scene, 0.12, 0.58, [x, 0.62, z], muted, 7);
-        for (const [dx, dy, dz, scale] of [[0, 1.2, 0, 0.7], [-0.3, 1.45, 0.12, 0.48], [0.3, 1.38, -0.12, 0.48]] as const) {
-          const tree = new THREE.Mesh(new THREE.IcosahedronGeometry(0.68, 1), warm);
-          tree.position.set(x + dx, dy, z + dz);
-          tree.scale.set(scale, scale * 1.18, scale);
-          scene.add(tree);
-        }
+        makeCylinder(scene, 0.1, 0.66, [x, 0.55, z], muted, 7);
+        const lowerCrown = new THREE.Mesh(new THREE.ConeGeometry(0.56, 1, 7), warm);
+        lowerCrown.position.set(x, 1.02, z);
+        scene.add(lowerCrown);
+        const upperCrown = new THREE.Mesh(new THREE.ConeGeometry(0.39, 0.78, 7), warm);
+        upperCrown.position.set(x, 1.66, z);
+        scene.add(upperCrown);
       }
     }
     for (const x of [-4.8, 4.8]) {
@@ -377,7 +377,7 @@ export function Arena3D(props: Props) {
       ambient.groundColor.set(palette.bg);
       key.color.set(lightTint(palette));
       paintMarker();
-      tones.splice(0, tones.length, palette.accent, palette.warn, palette.danger, palette.muted);
+      tones.splice(0, tones.length, palette.accent, palette.warn, palette.danger, palette.muted, palette.me, palette.surface2, palette.onAccent);
       applyTones();
     };
     const themeObserver = new MutationObserver(updatePalette);
