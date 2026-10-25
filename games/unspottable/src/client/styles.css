@@ -1520,6 +1520,8 @@ input {
   box-shadow: var(--shadow);
   font: 600 11px/1.25 var(--mono);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: right;
+  overflow-wrap: anywhere;
   pointer-events: none;
 }
