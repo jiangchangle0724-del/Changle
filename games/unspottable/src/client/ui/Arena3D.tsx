@@ -20,7 +20,7 @@ interface Props {
   fallback: ComponentChildren;
 }
 
-interface Visual { x: number; z: number; facing: number; stridePhase: number; speed: number }
+interface Visual { x: number; z: number; facing: number; stridePhase: number; speed: number; pose: Pose; poseStartedAt: number }
 interface Palette {
   bg: string;
   sky: string;
@@ -287,6 +287,34 @@ function writeInstance(mesh: THREE.InstancedMesh, index: number, dummy: THREE.Ob
   mesh.setMatrixAt(index, dummy.matrix);
 }
 
+const BONE_AXIS = new THREE.Vector3(0, 1, 0);
+const BONE_DIRECTION = new THREE.Vector3();
+
+function writeBone(
+  mesh: THREE.InstancedMesh,
+  index: number,
+  dummy: THREE.Object3D,
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+  radiusScale = 1,
+  baseLength = 0.52
+): void {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const dz = bz - az;
+  const length = Math.max(0.001, Math.hypot(dx, dy, dz));
+  BONE_DIRECTION.set(dx / length, dy / length, dz / length);
+  dummy.position.set((ax + bx) * 0.5, (ay + by) * 0.5, (az + bz) * 0.5);
+  dummy.quaternion.setFromUnitVectors(BONE_AXIS, BONE_DIRECTION);
+  dummy.scale.set(radiusScale, length / baseLength, radiusScale);
+  dummy.updateMatrix();
+  mesh.setMatrixAt(index, dummy.matrix);
+}
+
 export function Arena3D(props: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targets = useRef(props.avatars);
@@ -350,7 +378,7 @@ export function Arena3D(props: Props) {
     const impactRingGeometry = new THREE.RingGeometry(0.42, 0.51, 24);
     impactRingGeometry.rotateX(-Math.PI / 2);
     const capGeometry = new THREE.SphereGeometry(0.26, 12, 7, 0, Math.PI * 2, 0, Math.PI / 2);
-    const shirtGeometry = new THREE.CylinderGeometry(0.29, 0.39, 0.68, 10);
+    const shirtGeometry = new THREE.CapsuleGeometry(0.31, 0.36, 4, 10);
     const shoulderGeometry = new THREE.SphereGeometry(0.16, 9, 7);
     const handGeometry = new THREE.SphereGeometry(0.125, 9, 7);
     const backpackGeometry = new THREE.BoxGeometry(0.36, 0.42, 0.2);
@@ -358,6 +386,7 @@ export function Arena3D(props: Props) {
     const armGeometry = new THREE.CylinderGeometry(0.105, 0.135, 0.52, 8);
     const legGeometry = new THREE.CylinderGeometry(0.11, 0.125, 0.49, 8);
     const shoeGeometry = new THREE.SphereGeometry(0.14, 10, 8);
+    const jointGeometry = new THREE.SphereGeometry(0.105, 8, 6);
     const shadowGeometry = new THREE.CircleGeometry(0.34, 16);
     shadowGeometry.rotateX(-Math.PI / 2);
     const bodyMat = makeMaterial(lightTint(palette), 0.66);
@@ -392,9 +421,13 @@ export function Arena3D(props: Props) {
     const arms = new THREE.InstancedMesh(armGeometry, limbMat, MAX_CHARACTERS * 2);
     const legs = new THREE.InstancedMesh(legGeometry, legMat, MAX_CHARACTERS * 2);
     const shoes = new THREE.InstancedMesh(shoeGeometry, shoeMat, MAX_CHARACTERS * 2);
+    const forearms = new THREE.InstancedMesh(armGeometry, limbMat, MAX_CHARACTERS * 2);
+    const calves = new THREE.InstancedMesh(legGeometry, legMat, MAX_CHARACTERS * 2);
+    const elbows = new THREE.InstancedMesh(jointGeometry, shirtMat, MAX_CHARACTERS * 2);
+    const knees = new THREE.InstancedMesh(jointGeometry, legMat, MAX_CHARACTERS * 2);
     const shadows = new THREE.InstancedMesh(shadowGeometry, shadowMat, MAX_CHARACTERS);
     shadows.position.y = 0.025;
-    for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, legs, shoes, shadows]) {
+    for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, forearms, legs, calves, elbows, knees, shoes, shadows]) {
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false;
       scene.add(mesh);
@@ -439,8 +472,12 @@ export function Arena3D(props: Props) {
         shirts.setColorAt(index, new THREE.Color(tones[(index + 1) % tones.length]));
         arms.setColorAt(index * 2, color);
         arms.setColorAt(index * 2 + 1, color);
+        forearms.setColorAt(index * 2, color);
+        forearms.setColorAt(index * 2 + 1, color);
         shoulders.setColorAt(index * 2, new THREE.Color(tones[(index + 1) % tones.length]));
         shoulders.setColorAt(index * 2 + 1, new THREE.Color(tones[(index + 1) % tones.length]));
+        elbows.setColorAt(index * 2, new THREE.Color(tones[(index + 1) % tones.length]));
+        elbows.setColorAt(index * 2 + 1, new THREE.Color(tones[(index + 1) % tones.length]));
         hands.setColorAt(index * 2, new THREE.Color(palette.surface));
         hands.setColorAt(index * 2 + 1, new THREE.Color(palette.surface));
         head.setColorAt(index, new THREE.Color(headTones[index % headTones.length]));
@@ -448,12 +485,16 @@ export function Arena3D(props: Props) {
         backpacks.setColorAt(index, new THREE.Color(tones[(index + 3) % tones.length]));
         legs.setColorAt(index * 2, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
         legs.setColorAt(index * 2 + 1, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
+        calves.setColorAt(index * 2, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
+        calves.setColorAt(index * 2 + 1, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
+        knees.setColorAt(index * 2, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
+        knees.setColorAt(index * 2 + 1, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
         badges.setColorAt(index, new THREE.Color(index % 2 === 0 ? palette.onAccent : palette.surface));
         const shoeColor = new THREE.Color(index % 3 === 0 ? palette.danger : palette.ink);
         shoes.setColorAt(index * 2, shoeColor);
         shoes.setColorAt(index * 2 + 1, shoeColor);
       }
-      for (const mesh of [body, shirts, head, caps, shoulders, hands, backpacks, badges, arms, legs, shoes]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      for (const mesh of [body, shirts, head, caps, shoulders, hands, backpacks, badges, arms, forearms, legs, calves, elbows, knees, shoes]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     };
     applyTones();
     const updatePalette = () => {
@@ -526,6 +567,7 @@ export function Arena3D(props: Props) {
     let fpsSlowestMs = 0;
     let lastPaletteCheck = 0;
     let shakeAt = 0;
+    let shakeStrength = 0;
     let lastImpact = props.impactId;
     const animate = (time: number) => {
       frame = requestAnimationFrame(animate);
@@ -560,7 +602,11 @@ export function Arena3D(props: Props) {
         }
       }
       if (time - lastPaletteCheck > 1_000) { lastPaletteCheck = time; updatePalette(); }
-      if (impact.current !== lastImpact && impactType.current === "tag") { shakeAt = time; lastImpact = impact.current; }
+      if (impact.current !== lastImpact) {
+        lastImpact = impact.current;
+        shakeAt = time;
+        shakeStrength = impactType.current === "tag" ? 0.28 : impactType.current === "foul" ? 0.16 : impactType.current === "swing" ? 0.08 : 0.12;
+      }
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
       const reduced = document.documentElement.dataset.reduced === "1" || (document.documentElement.dataset.reduced !== "0" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       const ease = reduced ? 1 : 1 - Math.exp(-delta / 46);
@@ -570,6 +616,8 @@ export function Arena3D(props: Props) {
       neck.count = snapshot.length;
       shirts.count = snapshot.length;
       shoulders.count = snapshot.length * 2;
+      elbows.count = snapshot.length * 2;
+      knees.count = snapshot.length * 2;
       hands.count = snapshot.length * 2;
       backpacks.count = snapshot.length;
       eyes.count = snapshot.length * 2;
@@ -580,7 +628,9 @@ export function Arena3D(props: Props) {
       badges.count = snapshot.length;
       shadows.count = snapshot.length;
       arms.count = snapshot.length * 2;
+      forearms.count = snapshot.length * 2;
       legs.count = snapshot.length * 2;
+      calves.count = snapshot.length * 2;
       shoes.count = snapshot.length * 2;
       const input = vector.current;
       const prediction = Math.min(125, Math.max(0, Date.now() - receivedAt.current));
@@ -616,10 +666,19 @@ export function Arena3D(props: Props) {
           z: targetZ,
           facing: Math.PI / 2 - avatar.facing,
           stridePhase: index * 1.71,
-          speed: targetSpeed
+          speed: targetSpeed,
+          pose: avatar.pose,
+          poseStartedAt: time
         });
         visual.x += (targetX - visual.x) * ease;
         visual.z += (targetZ - visual.z) * ease;
+        if (visual.pose !== avatar.pose) {
+          visual.pose = avatar.pose;
+          visual.poseStartedAt = time;
+        }
+        const poseElapsed = Math.max(0, time - visual.poseStartedAt);
+        const loading = !reduced && avatar.pose === "windup" ? Math.min(1, poseElapsed / 150) : 0;
+        const strike = !reduced && avatar.pose === "punch" ? Math.sin(Math.min(1, poseElapsed / 210) * Math.PI) : 0;
         const yaw = Math.PI / 2 - avatar.facing;
         if (!reduced) {
           const angularDelta = Math.atan2(Math.sin(yaw - visual.facing), Math.cos(yaw - visual.facing));
@@ -630,7 +689,6 @@ export function Arena3D(props: Props) {
         const gait = !reduced && avatar.pose !== "stunned" ? Math.min(1, targetSpeed / 7) : 0;
         const stride = Math.sin(visual.stridePhase) * 0.46 * gait;
         const staggered = avatar.pose === "stunned";
-        const swinging = avatar.pose === "punch" || avatar.pose === "windup";
         const recoil = staggered ? Math.sin(clock * 27 + index) * 0.48 : 0;
         const tumble = staggered && !reduced ? Math.sin(clock * 19 + index) * 0.64 : 0;
         const bounce = gait > 0.05
@@ -641,7 +699,7 @@ export function Arena3D(props: Props) {
           : 0;
         visual.speed += (targetSpeed - visual.speed) * (reduced ? 1 : 1 - Math.exp(-delta / 90));
         const yawNow = visual.facing;
-        const bodyTilt = staggered ? tumble : recoil + (swinging ? -0.22 : 0) + gait * 0.075 + accelerationLean;
+        const bodyTilt = staggered ? tumble : recoil + loading * 0.08 - strike * 0.16 + gait * 0.075 + accelerationLean;
         writeInstance(body, index, dummy, visual.x, (staggered ? 0.9 : 0.96) + bounce, visual.z, yawNow, 0.84, staggered ? 1.2 : 1.32, 0.74, bodyTilt, staggered ? Math.cos(clock * 19 + index) * 0.26 : 0);
         writeInstance(shirts, index, dummy, visual.x, 1.02 + bounce, visual.z, yawNow, 0.94, staggered ? 1.12 : 1, 0.92, bodyTilt * 0.82, staggered ? Math.cos(clock * 19 + index) * 0.18 : 0);
         const headTurn = avatar.pose === "glance" && !reduced ? Math.sin(clock * 5 + index) * 0.22 : 0;
@@ -674,35 +732,67 @@ export function Arena3D(props: Props) {
         writeInstance(backpacks, index, dummy, visual.x - forwardX * 0.31, 1.02 + bounce, visual.z - forwardZ * 0.31, yawNow, packScale, packScale, packScale, bodyTilt * 0.4);
         writeInstance(badges, index, dummy, visual.x + Math.sin(yawNow) * 0.31, 1.02 + bounce, visual.z + Math.cos(yawNow) * 0.31, yawNow, index % 4 === 0 ? 1.15 : 0.72, 1, 1, bodyTilt * 0.35);
         writeInstance(shadows, index, dummy, visual.x, 0.03, visual.z, 0, staggered ? 1.28 : 1, 1, staggered ? 0.72 : 0.8);
+        const cycleRate = (4 + targetSpeed * 0.72) / (Math.PI * 2);
+        const halfStride = gait > 0.05 ? Math.min(2.35, targetSpeed / Math.max(0.5, cycleRate) * 0.5) : 0;
         for (let side = 0; side < 2; side++) {
           const sign = side === 0 ? -1 : 1;
-          const armSwing = stride * (side === 0 ? -1 : 1) + (swinging && side === 1 ? -1.16 : 0) + recoil * sign;
-          const legSwing = stride * (side === 0 ? 1 : -1) + recoil * sign;
-          const localX = sign * 0.32;
-          const rotatedX = visual.x + localX * Math.cos(yawNow);
-          const rotatedZ = visual.z - localX * Math.sin(yawNow);
-          const footLift = Math.max(0, Math.sin(visual.stridePhase + (side === 0 ? 0 : Math.PI))) * 0.11 * gait;
-          const legX = visual.x + sign * 0.14 * Math.cos(yawNow);
-          const legZ = visual.z - sign * 0.14 * Math.sin(yawNow);
-          const shoulderY = 1.36 + bounce;
-          const handX = rotatedX + Math.sin(yawNow) * armSwing * 0.08;
-          const handZ = rotatedZ + Math.cos(yawNow) * armSwing * 0.08;
-          writeInstance(shoulders, index * 2 + side, dummy, rotatedX, shoulderY, rotatedZ, yawNow, 1, 1, 1, bodyTilt * 0.3);
-          writeInstance(arms, index * 2 + side, dummy, rotatedX, 1.14 + bounce, rotatedZ, yawNow, 1, 0.96, 1, armSwing);
-          writeInstance(hands, index * 2 + side, dummy, handX, 0.87 + bounce, handZ, yawNow, 1, 0.96, 1, armSwing);
-          writeInstance(legs, index * 2 + side, dummy, legX, 0.43 + footLift, legZ, yawNow, 0.82, 0.92, 0.82, legSwing);
-          writeInstance(shoes, index * 2 + side, dummy, legX + Math.sin(yawNow) * 0.12, 0.18 + footLift, legZ + Math.cos(yawNow) * 0.12, yawNow, 1.05, 0.56, 1.5);
+          const slot = index * 2 + side;
+          const phase = ((visual.stridePhase / (Math.PI * 2) + (side === 0 ? 0 : 0.5)) % 1 + 1) % 1;
+          let footTravel = 0;
+          let footLift = 0;
+          if (gait > 0.05) {
+            if (phase < 0.62) footTravel = halfStride * (1 - phase / 0.31);
+            else {
+              const swingPhase = (phase - 0.62) / 0.38;
+              const easedSwing = swingPhase * swingPhase * (3 - 2 * swingPhase);
+              footTravel = halfStride * (-1 + 2 * easedSwing);
+              footLift = Math.sin(swingPhase * Math.PI) * 0.2 * gait;
+            }
+          }
+          const hipX = visual.x + sideX * sign * 0.16;
+          const hipY = 0.68 + bounce;
+          const hipZ = visual.z + sideZ * sign * 0.16;
+          const footX = visual.x + forwardX * footTravel + sideX * sign * 0.16;
+          const footY = 0.14 + footLift;
+          const footZ = visual.z + forwardZ * footTravel + sideZ * sign * 0.16;
+          const kneeX = (hipX + footX) * 0.5 + forwardX * (footLift > 0.01 ? 0.12 : 0.035);
+          const kneeY = 0.41 + bounce * 0.4 + footLift * 0.52;
+          const kneeZ = (hipZ + footZ) * 0.5 + forwardZ * (footLift > 0.01 ? 0.12 : 0.035);
+          writeBone(legs, slot, dummy, hipX, hipY, hipZ, kneeX, kneeY, kneeZ, 0.88, 0.49);
+          writeBone(calves, slot, dummy, kneeX, kneeY, kneeZ, footX, footY + 0.08, footZ, 0.78, 0.49);
+          writeInstance(knees, slot, dummy, kneeX, kneeY, kneeZ, yawNow, 0.82, 0.82, 0.82);
+          writeInstance(shoes, slot, dummy, footX + forwardX * 0.12, footY, footZ + forwardZ * 0.12, yawNow, 1.08, 0.5, 1.55, footLift > 0.01 ? -0.12 : 0);
+          const shoulderX = visual.x + sideX * sign * 0.31;
+          const shoulderY = 1.38 + bounce;
+          const shoulderZ = visual.z + sideZ * sign * 0.31;
+          const armSwing = Math.sin(visual.stridePhase + (side === 0 ? 0 : Math.PI)) * 0.16 * gait;
+          const reach = side === 1
+            ? avatar.pose === "windup" ? -loading * 0.34 : strike * 0.94
+            : -strike * 0.12;
+          const elbowX = shoulderX + forwardX * (armSwing * 0.45 + reach * 0.42) + sideX * sign * 0.065;
+          const elbowY = 1.11 + bounce - loading * 0.025;
+          const elbowZ = shoulderZ + forwardZ * (armSwing * 0.45 + reach * 0.42) + sideZ * sign * 0.065;
+          const handX = shoulderX + forwardX * (armSwing + reach) + sideX * sign * 0.08;
+          const handY = 0.88 + bounce + strike * 0.035;
+          const handZ = shoulderZ + forwardZ * (armSwing + reach) + sideZ * sign * 0.08;
+          writeInstance(shoulders, slot, dummy, shoulderX, shoulderY, shoulderZ, yawNow, 1, 1, 1, bodyTilt * 0.3);
+          writeBone(arms, slot, dummy, shoulderX, shoulderY, shoulderZ, elbowX, elbowY, elbowZ, 0.9, 0.52);
+          writeInstance(elbows, slot, dummy, elbowX, elbowY, elbowZ, yawNow, 0.78, 0.78, 0.78);
+          writeBone(forearms, slot, dummy, elbowX, elbowY, elbowZ, handX, handY, handZ, 0.82, 0.52);
+          writeInstance(hands, slot, dummy, handX, handY, handZ, yawNow, 1, 0.96, 1, strike * -0.25);
         }
         if (avatar.isMine) localVisual = visual;
       }
-      for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, legs, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
+      for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, forearms, legs, calves, elbows, knees, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
       if (localVisual) {
         marker.position.set(localVisual.x, 2.68, localVisual.z);
         marker.visible = true;
       } else marker.visible = false;
-      const shake = shakeAt && time - shakeAt < 280 && !reduced ? Math.sin((time - shakeAt) * 0.095) * (1 - (time - shakeAt) / 280) * 0.28 : 0;
+      const impactAge = time - shakeAt;
+      const shake = shakeAt && impactAge < 280 && !reduced ? Math.sin(impactAge * 0.095) * (1 - impactAge / 280) * shakeStrength : 0;
       camera.position.x = shake;
-      camera.lookAt(shake, 0, 0);
+      camera.position.y = 11 + Math.abs(shake) * 0.34;
+      camera.lookAt(shake, -shake * 0.22, 0);
       renderer.render(scene, camera);
     };
     frame = requestAnimationFrame(animate);
