@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
+import { BUZZ, allowShake, buzz, canBuzz, canShake } from "../controls";
 import { getLang, setLang, t } from "../i18n";
 import { prefs } from "../prefs";
 import { setMuted } from "../sound";
@@ -80,6 +81,40 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
             <b>{t("reduceMotion")}</b>
           </span>
         </label>
+        {canBuzz && (
+          <label class="radio">
+            <input
+              type="checkbox"
+              checked={prefs.haptics}
+              onChange={(e) => {
+                prefs.haptics = (e.target as HTMLInputElement).checked;
+                buzz(BUZZ.tap);
+                refresh();
+              }}
+            />
+            <span>
+              <b>{t("vibration")}</b>
+              <small>{t("vibrationHint")}</small>
+            </span>
+          </label>
+        )}
+        {canShake && (
+          <label class="radio">
+            <input
+              type="checkbox"
+              checked={prefs.shake}
+              onChange={(e) => {
+                prefs.shake = (e.target as HTMLInputElement).checked;
+                // On an iPhone the yes to motion has to come from this tap.
+                if (prefs.shake) void allowShake().then(refresh);
+                refresh();
+              }}
+            />
+            <span>
+              <b>{t("shakeSetting")}</b>
+            </span>
+          </label>
+        )}
         {g && !g.s.over && myTeam && !v.settings.hotseat && (
           <label class="radio">
             <input type="checkbox" checked={myTeam.autoplay} onChange={(e) => send({ t: "autoplay", on: (e.target as HTMLInputElement).checked })} />

@@ -3,6 +3,7 @@ import { BOARD, CITY_AT, type GameEvent } from "../../engine";
 import type { RoomView } from "../../room/protocol";
 import { CityPoster } from "../art/posters";
 import { Stamp } from "../art/stamps";
+import { BUZZ, buzz } from "../controls";
 import { colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
 import { sfx } from "../sound";
 import { getState, send, toast } from "../store";
@@ -48,6 +49,7 @@ export function Game({ v }: { v: RoomView }) {
     ["trade", "tab_trade", incoming],
     ["log", "tab_log", 0],
   ];
+  const swipe = useSwipe(tabs.map(([id]) => id), tab, setTab, !wide);
   return (
     <div class={`game${myMove ? " my-move" : ""}`}>
       <header class="top">
@@ -72,7 +74,7 @@ export function Game({ v }: { v: RoomView }) {
         </button>
       </header>
       <Banner v={v} />
-      <div class="panes" data-tab={tab}>
+      <div class="panes" data-tab={tab} {...swipe}>
         <section class="pane p-play">
           <Arrival v={v} />
           <TurnCard v={v} />
@@ -117,6 +119,31 @@ function TurnCard({ v }: { v: RoomView }) {
   const card = cardThisTurn(v);
   if (!card || (v.you.seats.length > 0 && !v.you.seats.includes(card.x.p))) return null;
   return <CardFace v={v} card={card} />;
+}
+
+/** On a phone, a sideways swipe goes to the next or previous tab (the tab bar still works). */
+function useSwipe(tabs: Tab[], tab: Tab, setTab: (t: Tab) => void, on: boolean) {
+  const start = useRef<{ x: number; y: number; t: number } | null>(null);
+  if (!on) return {};
+  return {
+    onTouchStart: (e: TouchEvent) => {
+      const p = e.touches[0];
+      const field = (e.target as Element | null)?.closest?.("input, select, textarea");
+      start.current = e.touches.length === 1 && p && !field ? { x: p.clientX, y: p.clientY, t: performance.now() } : null;
+    },
+    onTouchEnd: (e: TouchEvent) => {
+      const from = start.current;
+      start.current = null;
+      const p = e.changedTouches[0];
+      if (!from || !p) return;
+      const dx = p.clientX - from.x;
+      const dy = p.clientY - from.y;
+      // Clearly sideways, far enough and quick: a flick, not a scroll that wandered.
+      if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy) || performance.now() - from.t > 600) return;
+      const next = tabs[tabs.indexOf(tab) + (dx < 0 ? 1 : -1)];
+      if (next) setTab(next);
+    },
+  };
 }
 
 /** True on screens wide enough to show every pane side by side (see the 960px layout in styles.css). */
@@ -340,17 +367,25 @@ function usePhoneSounds(v: RoomView, myMove: boolean) {
   const prev = useRef({ myMove, feed: lastId(v), cash: v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0), ask });
   useEffect(() => {
     const p = prev.current;
-    if (myMove && !p.myMove) sfx.turn();
-    else if (ask && ask !== p.ask) sfx.ask();
+    if (myMove && !p.myMove) {
+      sfx.turn();
+      buzz(BUZZ.turn);
+    } else if (ask && ask !== p.ask) sfx.ask();
     const fresh = v.feed.filter((f) => f.id > p.feed);
     if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
+    if (fresh.some((f) => f.t === "game" && f.e.t === "roll" && v.you.seats.includes(f.e.p))) buzz(BUZZ.dice);
     if (fresh.some((f) => f.t === "game" && f.e.t === "news" && f.e.on)) sfx.news();
     // (with motion on, the touchdown plays the stamp in time with its own)
     if (reducedMotion() && fresh.some((f) => f.t === "game" && f.e.t === "stamp" && v.you.seats.includes(f.e.p))) sfx.stamp();
     const cash = v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0);
     const delta = cash.reduce((a, b) => a + b, 0) - p.cash.reduce((a, b) => a + b, 0);
-    if (delta > 0) sfx.coin();
-    else if (delta < 0) sfx.pay();
+    if (delta > 0) {
+      sfx.coin();
+      buzz(BUZZ.paid);
+    } else if (delta < 0) {
+      sfx.pay();
+      buzz(BUZZ.pay);
+    }
     prev.current = { myMove, feed: lastId(v) || p.feed, cash, ask };
   });
 }

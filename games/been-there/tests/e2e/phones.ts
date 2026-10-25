@@ -76,6 +76,8 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       // The page must never be wider than the phone (it would push the tab bar off screen).
       const wide = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const kind = ((): string | null => {
+      // A question that has just come up takes no taps for a moment, from a person or from us.
+      if (document.querySelector(".settling")) return null;
       const auction = document.querySelector(".decide.auction");
       if (auction) {
         const b = auction.querySelector<HTMLButtonElement>(".btn.primary:not([disabled])");

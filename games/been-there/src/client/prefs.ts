@@ -68,4 +68,18 @@ export const prefs = {
   set reduced(v: boolean) {
     set("bt.reduced", v ? "1" : "0");
   },
+  /** Buzz on your turn, the dice and money (where the phone can vibrate). On unless turned off. */
+  get haptics() {
+    return get("bt.haptics") !== "0";
+  },
+  set haptics(v: boolean) {
+    set("bt.haptics", v ? "1" : "0");
+  },
+  /** Shake the phone to roll (where it can feel motion). On unless turned off. */
+  get shake() {
+    return get("bt.shake") !== "0";
+  },
+  set shake(v: boolean) {
+    set("bt.shake", v ? "1" : "0");
+  },
 };
