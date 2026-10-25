@@ -4,12 +4,14 @@ import {
   ARENA,
   MATCH_MS,
   NPC_COUNT,
+  PLAYER_SPEED,
   SCORE_TO_WIN,
   advanceMatch,
   createMatch,
   normalizeVector,
   startBlend,
-  startPunch
+  startPunch,
+  type MatchState
 } from "../src/engine";
 
 const players = [{ id: "player-one", name: "One" }, { id: "player-two", name: "Two" }];
@@ -23,20 +25,50 @@ test("match setup puts two to eight players into a deterministic crowd", () => {
   assert.throws(() => createMatch([{ id: "solo", name: "Solo" }]), RangeError);
 });
 
+test("a full lobby fits the expanded crowd grid", () => {
+  const full = Array.from({ length: 8 }, (_, index) => ({ id: "p" + index, name: "Player " + index }));
+  const match = createMatch(full, 0, 22);
+  assert.equal(match.characters.length, 8 + NPC_COUNT);
+  for (const character of match.characters) {
+    assert.ok(character.x >= ARENA.marginX && character.x <= ARENA.width - ARENA.marginX);
+    assert.ok(character.y >= ARENA.marginY && character.y <= ARENA.height - ARENA.marginY);
+  }
+});
+
 test("movement input is finite, normalized, and stays inside the arena", () => {
   assert.deepEqual(normalizeVector({ x: 8, y: 8 }), { x: 0.7071067811865475, y: 0.7071067811865475 });
   assert.deepEqual(normalizeVector({ x: Number.NaN, y: -Infinity }), { x: 0, y: 0 });
   const match = createMatch(players, 0, 3);
   const before = match.characters.find((character) => character.ownerId === "player-one")!;
-  before.x = 94;
+  before.x = ARENA.width - ARENA.marginX;
   const next = advanceMatch(match, 100, { "player-one": { x: 1, y: 0 } });
   const moved = next.characters.find((character) => character.ownerId === "player-one")!;
   assert.equal(moved.x, ARENA.width - ARENA.marginX);
   assert.equal(moved.y, before.y);
-  assert.equal(before.x, 94);
+  assert.equal(before.x, ARENA.width - ARENA.marginX);
 });
 
 
+
+test("player movement accelerates, brakes, and turns without snapping", () => {
+  let match: MatchState = createMatch(players, 0, 18);
+  const playerId = "player-one";
+  const startX = match.characters.find((character) => character.ownerId === playerId)!.x;
+  for (let now = 65; now <= 650; now += 65) match = advanceMatch(match, now, { [playerId]: { x: 1, y: 0 } });
+  const cruising = match.characters.find((character) => character.ownerId === playerId)!;
+  assert.ok(cruising.x - startX > PLAYER_SPEED * 0.45, "a held input should build speed over several server ticks");
+  assert.ok(cruising.velocity.x > PLAYER_SPEED * 0.9, "the player should settle near the speed cap");
+  assert.equal(cruising.velocity.y, 0);
+  const stopped = advanceMatch(match, 715, {});
+  const braking = stopped.characters.find((character) => character.ownerId === playerId)!;
+  assert.ok(braking.velocity.x < cruising.velocity.x, "releasing the stick should apply braking");
+  assert.ok(braking.x > cruising.x, "momentum should carry the player a short distance");
+  assert.ok(cruising.velocity.x > PLAYER_SPEED * 0.9, "advancing a snapshot must not mutate the previous state");
+
+  const turning = createMatch(players, 0, 19);
+  const faced = advanceMatch(turning, 65, { [playerId]: { x: 0, y: 1 } }).characters.find((character) => character.ownerId === playerId)!;
+  assert.ok(faced.facing > 0 && faced.facing < Math.PI / 2, "facing should rotate toward movement rather than snap");
+});
 
 test("metro walkways carry idle players and the gallery spotlight boosts movement", () => {
   const players = [{ id: "one", name: "One" }, { id: "two", name: "Two" }];
@@ -54,8 +86,12 @@ test("metro walkways carry idle players and the gallery spotlight boosts movemen
   const basePlayer = base.characters.find((character) => character.ownerId === "one")!;
   basePlayer.x = 50;
   basePlayer.y = 29;
-  const galleryMoved = advanceMatch(gallery, 100, { one: { x: 1, y: 0 } });
-  const plazaMoved = advanceMatch(base, 100, { one: { x: 1, y: 0 } });
+  let galleryMoved = gallery;
+  let plazaMoved = base;
+  for (let now = 100; now <= 1_000; now += 100) {
+    galleryMoved = advanceMatch(galleryMoved, now, { one: { x: 1, y: 0 } });
+    plazaMoved = advanceMatch(plazaMoved, now, { one: { x: 1, y: 0 } });
+  }
   assert.ok(galleryMoved.characters.find((character) => character.ownerId === "one")!.x > plazaMoved.characters.find((character) => character.ownerId === "one")!.x);
 });
 test("ambient crowd follows varied, deterministic walking routes", () => {
