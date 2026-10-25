@@ -79,6 +79,8 @@ setLang(prefs.lang);
 setMuted(prefs.muted);
 setReduced(prefs.reduced);
 installAudioUnlock();
+// iPhone Safari only shows a button pressed (:active) when the page listens for touches.
+document.addEventListener("touchstart", () => {}, { passive: true });
 document.addEventListener("keydown", (e) => {
   const el = e.target as HTMLElement;
   if (e.key.toLowerCase() === "m" && !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) toggleMute();

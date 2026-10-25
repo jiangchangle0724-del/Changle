@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
   BOARD_SIZE,
   CAIRO,
@@ -16,6 +16,7 @@ import {
 } from "../../engine";
 import type { RoomView } from "../../room/protocol";
 import { cardTitle, colon, money, spaceName, t, tx, type Key } from "../i18n";
+import { BUZZ, allowShake, buzz, onShake, shakeState } from "../controls";
 import { send } from "../store";
 import { CODE } from "../art/stamps";
 import { Assets } from "./Assets";
@@ -61,13 +62,47 @@ export function pendingSummary(v: RoomView): string {
 
 const SIMULTANEOUS = ["water", "scores", "freeze", "splash", "coe"];
 
+/**
+ * Whether `key` has stayed the same for a moment. A question that has just come up takes no taps until
+ * then, so the second half of a quick double tap on the button before it can't answer it.
+ */
+function useSettled(key: unknown, ms = 350) {
+  const [settled, setSettled] = useState<unknown>(undefined);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(key), ms);
+    return () => clearTimeout(t);
+  }, [key]);
+  return settled === key;
+}
+
 export function Decision({ v }: { v: RoomView }) {
+  const g = v.game!;
+  const acting = v.you.seats.find((x) => g.mustAct.includes(x));
+  // Each question of ours comes in fresh (its own state, its slide-in) and settles before it takes a
+  // tap. While we only watch, the panel stays put, so its live updates are read out.
+  const key = acting === undefined ? "watch" : `${g.decision}:${acting}`;
+  const settled = useSettled(key);
+  // One answer per decision and team: a quick second tap would only come back as "too late". (A
+  // refused answer can be tried again after a moment.)
+  const sent = useRef({ key: "", at: 0 });
+  const act = (a: Action) => {
+    if (sent.current.key === key && performance.now() - sent.current.at < 1500) return;
+    sent.current = { key, at: performance.now() };
+    buzz(BUZZ.tap);
+    send({ t: "act", d: g.decision, a, seat: acting });
+  };
+  return (
+    <div key={key} class={settled ? "settle" : "settle settling"}>
+      <Panel v={v} acting={acting} act={act} />
+    </div>
+  );
+}
+
+function Panel({ v, acting, act }: { v: RoomView; acting: number | undefined; act: (a: Action) => void }) {
   const g = v.game!;
   const s = g.s;
   const pd = s.pending;
   const mine = v.you.seats;
-  const acting = mine.find((x) => g.mustAct.includes(x));
-  const act = (a: Action) => send({ t: "act", d: g.decision, a, seat: acting });
   if (g.paused) return <div class="decide waiting">{t("paused")}</div>;
   if (!pd) return null;
   if (pd.k === "auction" && g.auction) return <AuctionPanel v={v} />;
@@ -86,6 +121,23 @@ export function Decision({ v }: { v: RoomView }) {
       {SIMULTANEOUS.includes(pd.k) && <Votes v={v} />}
     </div>
   );
+}
+
+/** Shake the phone to roll: listening while the roll is up, or a tap to turn it on (iPhone asks once). */
+function ShakeToRoll({ roll }: { roll: () => void }) {
+  const [, setTick] = useState(0);
+  const state = shakeState();
+  const latest = useRef(roll);
+  latest.current = roll;
+  useEffect(() => onShake(() => latest.current()), [state]);
+  if (state === "off") return null;
+  if (state === "ask")
+    return (
+      <Btn kind="quiet" wide onClick={() => void allowShake().then(() => setTick((n) => n + 1))}>
+        📳 {t("shakeEnable")}
+      </Btn>
+    );
+  return <p class="hint shake-hint">📳 {t("shakeHint")}</p>;
 }
 
 /** The dark strip across the top of a decision, like the top of a boarding pass. */
@@ -159,6 +211,7 @@ export function CityBrief({ v, at }: { v: RoomView; at: number }) {
 
 function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act: (a: Action) => void }) {
   const [sure, setSure] = useState(false);
+  const sureSettled = useSettled(sure);
   const g = v.game!;
   const s = g.s;
   const me = s.ps[seat];
@@ -190,6 +243,7 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
               🎲 {t("roll")}
             </Btn>
           )}
+          <ShakeToRoll roll={() => act(pd.jail ? { how: "roll" } : {})} />
           {me.jetlag && <p class="muted">{t("jetlag")}</p>}
           <p class="hint">{t("manageFirst")}</p>
         </>
@@ -250,7 +304,7 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
             )}
           </div>
           {sure && (
-            <div class="confirm" role="alertdialog" aria-label={t("confirmBroke")}>
+            <div class={sureSettled ? "confirm" : "confirm settling"} role="alertdialog" aria-label={t("confirmBroke")}>
               <p>{t("confirmBroke")}</p>
               <div class="choices">
                 <Btn kind="danger" onClick={() => act({ bankrupt: true })}>

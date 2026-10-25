@@ -63,6 +63,8 @@ export interface TapOptions {
   declineBuys?: boolean;
   /** Chance of bidding when an auction is open (0 = never). */
   bid?: number;
+  /** Kinds of question to leave alone (the test answers them itself). */
+  skip?: string[];
 }
 
 /**
@@ -76,6 +78,8 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       // The page must never be wider than the phone (it would push the tab bar off screen).
       const wide = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const kind = ((): string | null => {
+      // A question that has just come up takes no taps for a moment, from a person or from us.
+      if (document.querySelector(".settling")) return null;
       const auction = document.querySelector(".decide.auction");
       if (auction) {
         const b = auction.querySelector<HTMLButtonElement>(".btn.primary:not([disabled])");
@@ -88,6 +92,7 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       const panel = document.querySelector<HTMLElement>(".decide:not(.waiting)");
       if (!panel) return null;
       const kind = panel.dataset.kind ?? panel.className;
+      if (o.skip?.includes(kind)) return null;
       const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>(".btn:not([disabled]):not(.danger)"));
       if (!buttons.length) return null;
       let pick =
