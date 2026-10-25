@@ -8,4 +8,4 @@ Code for [changle.ca](https://changle.ca) (开席 Lazy Susan), a bilingual party
 
 | Tool | Folder |
 | --- | --- |
-| 随便 · Whatever's Fine (where should we eat?) | [`tools/suibian`](tools/suibian) |
+| 随便 · Whatever's Fine (where should we eat?), at [changle.ca/tools/suibian](https://changle.ca/tools/suibian/) | [`tools/suibian`](tools/suibian) |

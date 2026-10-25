@@ -1,5 +1,6 @@
 // Google sign-in (OpenID Connect, authorization-code flow) and a signed session cookie.
 // No session table: the cookie carries the Google user id and name, signed with SESSION_SECRET.
+import { BASE } from "../room/protocol";
 
 export interface Session {
   /** Google's stable user id ("sub"). */
@@ -50,9 +51,12 @@ export function cookie(req: Request, name: string): string | undefined {
   return m?.[1];
 }
 
-/** Secure on https (always, once deployed); plain http only for local tests, where WebKit won't send Secure cookies. */
+/**
+ * Only sent to this app, not the rest of changle.ca. Secure on https (always, once deployed);
+ * plain http only for local tests, where WebKit won't send Secure cookies.
+ */
 const setCookie = (req: Request, name: string, value: string, maxAge: number) =>
-  `${name}=${value}; Path=/; HttpOnly;${new URL(req.url).protocol === "https:" ? " Secure;" : ""} SameSite=Lax; Max-Age=${maxAge}`;
+  `${name}=${value}; Path=${BASE}; HttpOnly;${new URL(req.url).protocol === "https:" ? " Secure;" : ""} SameSite=Lax; Max-Age=${maxAge}`;
 
 export interface AuthEnv {
   GOOGLE_CLIENT_ID?: string;
@@ -61,6 +65,11 @@ export interface AuthEnv {
 }
 
 export const loginEnabled = (env: AuthEnv) => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.SESSION_SECRET);
+
+const HOME = `${BASE}/`;
+/** Where to land after signing in: a page of this app, never another site. */
+const safeBack = (back: string) => (back.startsWith(HOME) ? back : HOME);
+const redirectUri = (url: URL) => `${url.origin}${BASE}/auth/callback`;
 
 export async function currentUser(req: Request, env: AuthEnv): Promise<Session | null> {
   if (!env.SESSION_SECRET) return null;
@@ -71,20 +80,19 @@ export async function currentUser(req: Request, env: AuthEnv): Promise<Session |
 export function startLogin(req: Request, env: AuthEnv): Response {
   const url = new URL(req.url);
   const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
-  const back = url.searchParams.get("back") ?? "/";
   const go = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   go.search = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID!,
-    redirect_uri: `${url.origin}/auth/callback`,
+    redirect_uri: redirectUri(url),
     response_type: "code",
     scope: "openid profile",
     state,
     prompt: "select_account",
   }).toString();
-  const safeBack = back.startsWith("/") && !back.startsWith("//") ? back : "/";
+  const back = safeBack(url.searchParams.get("back") ?? HOME);
   return new Response(null, {
     status: 302,
-    headers: { location: go.toString(), "set-cookie": setCookie(req, STATE_COOKIE, `${state}|${encodeURIComponent(safeBack)}`, 600) },
+    headers: { location: go.toString(), "set-cookie": setCookie(req, STATE_COOKIE, `${state}|${encodeURIComponent(back)}`, 600) },
   });
 }
 
@@ -92,15 +100,15 @@ export function startLogin(req: Request, env: AuthEnv): Response {
 export async function finishLogin(req: Request, env: AuthEnv): Promise<{ res: Response; session?: Session }> {
   const url = new URL(req.url);
   const [state, rawBack] = (cookie(req, STATE_COOKIE) ?? "").split("|");
-  let back = "/";
+  let back = HOME;
   try {
-    back = decodeURIComponent(rawBack ?? "%2F");
+    back = safeBack(decodeURIComponent(rawBack ?? ""));
   } catch {
-    // keep "/"
+    // keep HOME
   }
-  if (!back.startsWith("/") || back.startsWith("//")) back = "/";
   const home = (path: string) => new Response(null, { status: 302, headers: { location: path } });
-  if (!state || url.searchParams.get("state") !== state || !url.searchParams.get("code")) return { res: home("/?login=failed") };
+  const failed = `${HOME}?login=failed`;
+  if (!state || url.searchParams.get("state") !== state || !url.searchParams.get("code")) return { res: home(failed) };
   const token = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -108,15 +116,15 @@ export async function finishLogin(req: Request, env: AuthEnv): Promise<{ res: Re
       code: url.searchParams.get("code")!,
       client_id: env.GOOGLE_CLIENT_ID!,
       client_secret: env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: `${url.origin}/auth/callback`,
+      redirect_uri: redirectUri(url),
       grant_type: "authorization_code",
     }),
   });
-  if (!token.ok) return { res: home("/?login=failed") };
+  if (!token.ok) return { res: home(failed) };
   const { id_token } = (await token.json()) as { id_token?: string };
   // Straight from Google's token endpoint over TLS, so the claims can be read without re-checking the signature.
   const claims = id_token ? (JSON.parse(new TextDecoder().decode(fromB64url(id_token.split(".")[1] ?? ""))) as { sub?: string; name?: string; given_name?: string; aud?: string }) : {};
-  if (!claims.sub || claims.aud !== env.GOOGLE_CLIENT_ID) return { res: home("/?login=failed") };
+  if (!claims.sub || claims.aud !== env.GOOGLE_CLIENT_ID) return { res: home(failed) };
   const session: Session = { sub: claims.sub, name: (claims.given_name ?? claims.name ?? "").slice(0, 16), exp: Date.now() + SESSION_DAYS * 24 * 3600_000 };
   const res = home(back);
   res.headers.append("set-cookie", setCookie(req, COOKIE, await sign(env.SESSION_SECRET!, session), SESSION_DAYS * 24 * 3600));

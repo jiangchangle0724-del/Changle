@@ -7,11 +7,15 @@
   "name": "suibian",
   "main": "src/server/worker.ts",
   "compatibility_date": "2026-10-01",
+  // At changle.ca/tools/suibian (BASE in src/room/protocol.ts). The rest of changle.ca is a
+  // separate site; this route takes just this path. No workers.dev address.
+  "routes": [{ "pattern": "changle.ca/tools/suibian*", "zone_name": "changle.ca" }],
+  "workers_dev": false,
+  // The page files sit under tools/suibian/ to match their address; anything that isn't a file
+  // (API, sign-in, /r/ room links) goes to the Worker.
   "assets": {
     "directory": "./dist/client",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*", "/r/*"]
+    "binding": "ASSETS"
   },
   "durable_objects": {
     "bindings": [

@@ -161,11 +161,11 @@ test("session cookie: signed, tamper-proof, expires", async () => {
 
 /** Start a login, then come back from Google with `code` and the state Google echoes. */
 async function roundTrip(o: { claims?: object; tokenStatus?: number; echoState?: (s: string) => string; back?: string }) {
-  const start = startLogin(new Request(`https://eat.changle.ca/auth/google?back=${encodeURIComponent(o.back ?? "/r/1234")}`), env);
+  const start = startLogin(new Request(`https://changle.ca/tools/suibian/auth/google?back=${encodeURIComponent(o.back ?? "/tools/suibian/r/1234")}`), env);
   assert.equal(start.status, 302);
   const go = new URL(start.headers.get("location")!);
   assert.equal(go.origin, "https://accounts.google.com");
-  assert.equal(go.searchParams.get("redirect_uri"), "https://eat.changle.ca/auth/callback");
+  assert.equal(go.searchParams.get("redirect_uri"), "https://changle.ca/tools/suibian/auth/callback");
   assert.equal(go.searchParams.get("scope"), "openid profile");
   const stateCookie = start.headers.get("set-cookie")!;
   assert.match(stateCookie, /Secure/);
@@ -177,31 +177,34 @@ async function roundTrip(o: { claims?: object; tokenStatus?: number; echoState?:
       (c) => {
         const form = new URLSearchParams(String(c.init?.body));
         assert.equal(form.get("code"), "the-code");
-        assert.equal(form.get("redirect_uri"), "https://eat.changle.ca/auth/callback");
+        assert.equal(form.get("redirect_uri"), "https://changle.ca/tools/suibian/auth/callback");
         return json({ id_token: idToken(o.claims ?? {}) }, o.tokenStatus ?? 200);
       },
     ],
   ]);
-  const cb = new Request(`https://eat.changle.ca/auth/callback?code=the-code&state=${(o.echoState ?? ((s) => s))(state)}`, { headers: { cookie } });
+  const cb = new Request(`https://changle.ca/tools/suibian/auth/callback?code=the-code&state=${(o.echoState ?? ((s) => s))(state)}`, { headers: { cookie } });
   return finishLogin(cb, env);
 }
 
 test("sign-in: Google's answer becomes our session, and you land back where you were", async () => {
   const { res, session } = await roundTrip({ claims: { sub: "g-42", aud: env.GOOGLE_CLIENT_ID, given_name: "Changle", name: "Changle Jiang" } });
-  assert.equal(res.headers.get("location"), "/r/1234");
+  assert.equal(res.headers.get("location"), "/tools/suibian/r/1234");
   assert.equal(session?.sub, "g-42");
   assert.equal(session?.name, "Changle");
   const set = res.headers.get("set-cookie")!;
-  assert.match(set, /sb_session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax/);
+  // Only for this app, not the rest of changle.ca.
+  assert.match(set, /sb_session=[^;]+; Path=\/tools\/suibian; HttpOnly; Secure; SameSite=Lax/);
 });
 
 test("sign-in: wrong state, wrong audience, or a failed token call all refuse", async () => {
-  assert.equal((await roundTrip({ claims: { sub: "g", aud: env.GOOGLE_CLIENT_ID }, echoState: () => "forged" })).res.headers.get("location"), "/?login=failed");
-  assert.equal((await roundTrip({ claims: { sub: "g", aud: "someone-else" } })).res.headers.get("location"), "/?login=failed");
-  assert.equal((await roundTrip({ claims: { sub: "g", aud: env.GOOGLE_CLIENT_ID }, tokenStatus: 400 })).res.headers.get("location"), "/?login=failed");
+  assert.equal((await roundTrip({ claims: { sub: "g", aud: env.GOOGLE_CLIENT_ID }, echoState: () => "forged" })).res.headers.get("location"), "/tools/suibian/?login=failed");
+  assert.equal((await roundTrip({ claims: { sub: "g", aud: "someone-else" } })).res.headers.get("location"), "/tools/suibian/?login=failed");
+  assert.equal((await roundTrip({ claims: { sub: "g", aud: env.GOOGLE_CLIENT_ID }, tokenStatus: 400 })).res.headers.get("location"), "/tools/suibian/?login=failed");
 });
 
-test("sign-in: 'back' can't send you to another site", async () => {
-  const { res } = await roundTrip({ claims: { sub: "g", aud: env.GOOGLE_CLIENT_ID }, back: "//evil.example/x" });
-  assert.equal(res.headers.get("location"), "/");
+test("sign-in: 'back' can't send you to another site, or elsewhere on changle.ca", async () => {
+  for (const back of ["//evil.example/x", "https://evil.example/", "/games/x"]) {
+    const { res } = await roundTrip({ claims: { sub: "g", aud: env.GOOGLE_CLIENT_ID }, back });
+    assert.equal(res.headers.get("location"), "/tools/suibian/");
+  }
 });

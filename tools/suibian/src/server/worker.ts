@@ -1,4 +1,5 @@
-// Cloudflare Worker: the server for 随便 · Whatever's Fine.
+// Cloudflare Worker: the server for 随便 · Whatever's Fine. Everything is under BASE
+// (/tools/suibian); the paths below are after it.
 //
 //   GET  /api/me                 → { user, loginEnabled, card, last }
 //   PUT  /api/me/card            ← Limits           save my diet card (logged in)
@@ -9,13 +10,14 @@
 //   GET  /api/rooms/:code        → { exists, phase }
 //   GET  /api/rooms/:code/ws     → WebSocket (cid, key, name, lang in the query)
 //   POST /api/rooms/:code/rate   ← { cid, overall, liked, wait }
-//   anything else                → the web pages
+//   anything else                → the web pages (files in dist/client/tools/suibian)
+//   outside BASE                 → redirected into it (e.g. the bare address in local dev)
 //
 // Real Google data needs both the Places key and Google login set up (so only logged-in people
 // can spend API money). Without them the server runs on made-up demo restaurants.
 import { DurableObject } from "cloudflare:workers";
 import { NEIGHBOURHOODS, RANGES, cleanLimits, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating } from "../engine";
-import type { ClientMsg } from "../room/protocol";
+import { BASE, type ClientMsg } from "../room/protocol";
 import { Room, cleanRating, type RoomEnv, type RoomState, type Want } from "../room/room";
 import { currentUser, finishLogin, loginEnabled, logout, startLogin, testSession } from "./auth";
 import { demoPlaces, detailsGoogle, searchGoogle } from "./places";
@@ -56,9 +58,10 @@ function cleanCenter(x: unknown): Center | null {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    const path = url.pathname;
-    // Room and rating links are app pages; serve the app for them directly (old phones don't send Sec-Fetch-Mode).
-    if (/^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL("/", url), req));
+    if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return Response.redirect(new URL(BASE + url.pathname + url.search, url).toString(), 302);
+    const path = url.pathname.slice(BASE.length) || "/";
+    // Room and rating links are app pages: serve the app's page for them.
+    if (/^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
 
     if (path === "/auth/google") return loginEnabled(env) ? startLogin(req, env) : json({ error: "loginOff" }, 404);
     if (path === "/auth/callback") {

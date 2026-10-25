@@ -4,8 +4,9 @@
 group of friends in Vancouver pick a restaurant together in a few minutes, each on their own phone.
 Why it works the way it does: [DESIGN.md](DESIGN.md).
 
-This folder is **v1**: "now" tables (everyone together, deciding live). It is its own Cloudflare
-Worker (`suibian`), separate from 到此一游, and shares no code or storage with it.
+This folder is **v1**: "now" tables (everyone together, deciding live). It lives at
+[changle.ca/tools/suibian](https://changle.ca/tools/suibian/) and is its own Cloudflare Worker
+(`suibian`), separate from 到此一游, and shares no code or storage with it.
 
 How a table goes:
 
@@ -36,11 +37,11 @@ How a table goes:
 
 ```sh
 npm install
-npm run dev          # http://localhost:8787, with made-up demo restaurants and no sign-in
+npm run dev          # http://localhost:8787/tools/suibian/, with made-up demo restaurants and no sign-in
 ```
 
 To try it from a phone on the same Wi-Fi: `npm run dev -- --ip 0.0.0.0`, then open the computer's
-address on port 8787.
+address on port 8787. Every address outside `/tools/suibian/` leads there, as on changle.ca.
 
 ## Check it
 
@@ -57,11 +58,12 @@ GitHub runs all three on every push that touches this folder, in Chromium and We
 
 It works in three stages; each one is usable.
 
-**1. Online with demo restaurants (about 5 minutes).** Cloudflare dashboard → Workers & Pages →
-Create → Import a repository → this repo, with **project name** `suibian` (must match `name` in
-`wrangler.jsonc`), **root directory** `tools/suibian`, build command `npm run build`, deploy
-command `npx wrangler deploy`. Then the Worker → Settings → Domains & Routes → Add → Custom
-domain, e.g. `eat.changle.ca`. Anyone can start a table; restaurants are made up and say so.
+**1. Online with demo restaurants.** `npm run deploy` (with a Cloudflare API token in
+`CLOUDFLARE_API_TOKEN`). The route in `wrangler.jsonc` puts it at `changle.ca/tools/suibian`; the
+rest of changle.ca stays the separate site it is, and there's no domain to add. Anyone can start a
+table; restaurants are made up and say so. To deploy on every push instead: Cloudflare dashboard →
+Workers & Pages → `suibian` → Settings → Build → connect this repo, with **root directory**
+`tools/suibian`, build command `npm run build`, deploy command `npx wrangler deploy`.
 
 **2. Google sign-in.** In [Google Cloud console](https://console.cloud.google.com/), create a
 project (e.g. "changle-ca"), then:
@@ -70,15 +72,15 @@ project (e.g. "changle-ca"), then:
    email needed). Then **Publish app** ("In production"). While it stays in "Testing", only the
    test users you list can sign in; with just these basic scopes Google doesn't need to review it.
 2. Credentials → Create credentials → OAuth client ID → **Web application**. Under Authorized
-   redirect URIs add exactly `https://eat.changle.ca/auth/callback` (your domain; a missing
-   `https`, a trailing slash or the workers.dev address instead gives Google's
-   `redirect_uri_mismatch` error). Copy the client ID and secret.
+   redirect URIs add exactly `https://changle.ca/tools/suibian/auth/callback` (a missing
+   `https`, an added `www.` or a trailing slash gives Google's `redirect_uri_mismatch` error).
+   Copy the client ID and secret.
 3. Cloudflare → Workers & Pages → `suibian` → Settings → Variables and Secrets → Add, type
    **Secret**, three times: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `SESSION_SECRET`
    (any long random text, e.g. from `openssl rand -base64 32`; changing it later signs everyone
    out). Cloudflare redeploys by itself.
 
-Check: open the site. The home page now says "用 Google 登录" under 开一桌; sign in and you land
+Check: open changle.ca/tools/suibian. The home page now says "用 Google 登录" under 开一桌; sign in and you land
 back on the home page with "你好，<name>". Restaurants are still the demo ones (step 3 adds the
 real ones). From now on starting a table needs sign-in (10 tables per account per day); joining
 doesn't. In WeChat's built-in browser Google blocks sign-in, so the page tells people to open it
@@ -96,7 +98,7 @@ in the browser; joining a table works in WeChat as before.
    until tomorrow instead of costing more.
 6. Cloudflare: add Secret `GOOGLE_PLACES_KEY`.
 
-Check: open the site; the yellow "示例数据" banner is gone. Start a table where you are: round 1
+Check: open changle.ca/tools/suibian; the yellow "示例数据" banner is gone. Start a table where you are: round 1
 shows the cuisines open nearby and round 2 real restaurants with photos (credited to whoever took
 them), opening hours and phone numbers. If the table says "搜索出错了", open Cloudflare →
 `suibian` → Logs: a line `places Error: google 403 …` means the key is wrong, restricted to the
@@ -116,3 +118,5 @@ be sure.
 * Wait-estimate rules (peak hours, popularity): `src/engine/wait.ts`.
 * Tables per account per day: `ROOMS_PER_DAY` in `src/server/worker.ts`.
 * Areas offered when GPS is off: `NEIGHBOURHOODS` in `src/engine/clock.ts`.
+* The address on changle.ca: `BASE` in `src/room/protocol.ts`, plus the route in `wrangler.jsonc`,
+  the two file links in `src/client/index.html` and the output folder in `scripts/build.mjs`.

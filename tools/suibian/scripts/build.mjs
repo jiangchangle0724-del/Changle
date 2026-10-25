@@ -1,11 +1,12 @@
-// Build the web pages into dist/client.
+// Build the web pages into dist/client/tools/suibian, the path they're served at on changle.ca
+// (BASE in src/room/protocol.ts).
 //   node scripts/build.mjs           build once
 //   node scripts/build.mjs --watch   rebuild on change
 import * as esbuild from "esbuild";
 import { copyFile, mkdir } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
-const out = "dist/client";
+const out = "dist/client/tools/suibian";
 await mkdir(out, { recursive: true });
 
 const ctx = await esbuild.context({

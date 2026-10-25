@@ -37,21 +37,23 @@ test("three phones pick a restaurant", async ({ browser }) => {
   const b = await phone(browser, "b");
 
   // Starting a table needs Google login; joining doesn't.
-  await host.page.goto("/");
+  await host.page.goto("./");
   await expect(host.page.getByRole("link", { name: "用 Google 登录" })).toBeVisible();
-  const login = await host.page.request.post("/api/test/login", { data: { sub: "host-1", name: "小明" } });
+  const login = await host.page.request.post("api/test/login", { data: { sub: "host-1", name: "小明" } });
   expect(login.ok()).toBeTruthy();
   await host.page.reload();
   await expect(host.page.getByText("你好，小明")).toBeVisible();
   await expect(host.page.locator(".demo")).toBeVisible();
   await host.page.locator("select").selectOption("Richmond Centre / Aberdeen");
   await host.page.getByRole("button", { name: "开一桌" }).click();
-  await expect(host.page).toHaveURL(/\/r\/\d{4}$/);
+  await expect(host.page).toHaveURL(/\/tools\/suibian\/r\/\d{4}$/);
   const code = host.page.url().match(/(\d{4})$/)![1];
 
   // Host's diet card is saved to the account; friends fill theirs in the room.
   await dietCard(host.page);
-  for (const p of [a, b]) await p.page.goto(`/r/${code}`);
+  // The invite points at this app's own address.
+  await expect(host.page.locator(".invite")).toContainText("127.0.0.1:8788/tools/suibian");
+  for (const p of [a, b]) await p.page.goto(`r/${code}`);
   await dietCard(a.page, "peanut");
   await dietCard(b.page, undefined, ["香菜", "蘑菇"]);
   await expect(host.page.locator(".people li")).toHaveCount(3);
@@ -98,16 +100,24 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await expect(host.page.getByText("本桌满意度：1/1 人吃到了喜欢的")).toBeVisible();
 
   // Next visit, the host is asked how it was, and the diet card was remembered.
-  await host.page.goto("/");
+  await host.page.goto("./");
   await expect(host.page.getByText("上次的「Demo · Ramen Hinoki」好吃吗？")).toBeVisible();
   // Read through the page, as the phone would.
-  const me = (await host.page.evaluate(() => fetch("/api/me").then((r) => r.json()))) as { card: unknown };
+  const me = (await host.page.evaluate(() => fetch("/tools/suibian/api/me").then((r) => r.json()))) as { card: unknown };
   expect(me.card).toEqual({ allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 });
 
   for (const p of [host, a, b]) expect(p.errors).toEqual([]);
 });
 
 test("guests can't start a table when login is on", async ({ request }) => {
-  const res = await request.post("/api/rooms", { data: { cid: "abcdef0123456789", center: { lat: 49.28, lng: -123.12 }, range: "walk10" } });
+  const res = await request.post("api/rooms", { data: { cid: "abcdef0123456789", center: { lat: 49.28, lng: -123.12 }, range: "walk10" } });
   expect(res.status()).toBe(401);
+});
+
+test("the app is at /tools/suibian; other addresses lead there", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveURL("http://127.0.0.1:8788/tools/suibian/");
+  await expect(page.getByRole("heading", { name: "随便" })).toBeVisible();
+  await page.goto("/tools/suibian");
+  await expect(page).toHaveURL("http://127.0.0.1:8788/tools/suibian/");
 });

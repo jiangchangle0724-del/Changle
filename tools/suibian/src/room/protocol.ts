@@ -3,6 +3,13 @@ import type { Ballot, Center, CuisineId, Lang, Limits, MoodPick, Place, RangeId,
 
 export type { Lang };
 
+/**
+ * Where the app lives: changle.ca/tools/suibian (a Worker route; the rest of changle.ca is a
+ * separate site). Every page, API and sign-in path starts with it. Also in wrangler.jsonc,
+ * src/client/index.html and scripts/build.mjs.
+ */
+export const BASE = "/tools/suibian";
+
 /** Room timings in milliseconds. */
 export const TIMING = {
   /** Round 1: people who haven't finished by then keep what they tapped. */
