@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import * as THREE from "three";
+import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
 import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
 import type { ArenaId, Pose } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
@@ -21,6 +22,7 @@ interface Props {
 }
 
 interface Visual { x: number; z: number; facing: number; stridePhase: number; speed: number; pose: Pose; poseStartedAt: number }
+type FrameMetrics = { fps: number; avg: number; p95: number; slow: number; quality: RenderQuality; dpr: number };
 interface Palette {
   bg: string;
   sky: string;
@@ -325,7 +327,7 @@ export function Arena3D(props: Props) {
   const impactType = useRef(props.impactType);
   const youLabel = useRef(props.youLabel);
   const [supported, setSupported] = useState(true);
-  const [frameMetrics, setFrameMetrics] = useState<{ fps: number; avg: number; slow: number } | null>(null);
+  const [frameMetrics, setFrameMetrics] = useState<FrameMetrics | null>(null);
   const showFps = new URLSearchParams(window.location.search).get("fps") === "1";
   targets.current = props.avatars;
   vector.current = props.localVector;
@@ -348,7 +350,8 @@ export function Arena3D(props: Props) {
       setSupported(false);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    let qualityState = { ...INITIAL_RENDER_QUALITY };
+    renderer.setPixelRatio(pixelRatioForQuality(window.devicePixelRatio || 1, qualityState.level));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
@@ -565,6 +568,7 @@ export function Arena3D(props: Props) {
     let fpsSamples = 0;
     let fpsTotalMs = 0;
     let fpsSlowestMs = 0;
+    let frameTimes: number[] = [];
     let lastPaletteCheck = 0;
     let shakeAt = 0;
     let shakeStrength = 0;
@@ -578,28 +582,41 @@ export function Arena3D(props: Props) {
         fpsSamples = 0;
         fpsTotalMs = 0;
         fpsSlowestMs = 0;
+        frameTimes = [];
         return;
       }
       const frameMs = previous ? time - previous : 16;
       const delta = Math.min(50, frameMs);
       previous = time;
-      if (showFps) {
-        if (fpsStartedAt === 0) fpsStartedAt = time;
-        fpsSamples++;
-        fpsTotalMs += frameMs;
-        fpsSlowestMs = Math.max(fpsSlowestMs, frameMs);
-        const elapsed = time - fpsStartedAt;
-        if (elapsed >= 1_000 && fpsSamples > 0) {
+      if (fpsStartedAt === 0) fpsStartedAt = time;
+      fpsSamples++;
+      fpsTotalMs += frameMs;
+      fpsSlowestMs = Math.max(fpsSlowestMs, frameMs);
+      frameTimes.push(frameMs);
+      const elapsed = time - fpsStartedAt;
+      if (elapsed >= 1_000 && fpsSamples > 0) {
+        const p95 = percentile95(frameTimes);
+        const previousQuality = qualityState.level;
+        qualityState = observeRenderQuality(qualityState, p95);
+        if (qualityState.level !== previousQuality) {
+          renderer.setPixelRatio(pixelRatioForQuality(window.devicePixelRatio || 1, qualityState.level));
+          resize();
+        }
+        if (showFps) {
           setFrameMetrics({
             fps: Math.round(fpsSamples * 1_000 / elapsed),
             avg: Math.round(fpsTotalMs / fpsSamples * 10) / 10,
-            slow: Math.round(fpsSlowestMs * 10) / 10
+            p95: Math.round(p95 * 10) / 10,
+            slow: Math.round(fpsSlowestMs * 10) / 10,
+            quality: qualityState.level,
+            dpr: Math.round(renderer.getPixelRatio() * 100) / 100
           });
-          fpsStartedAt = time;
-          fpsSamples = 0;
-          fpsTotalMs = 0;
-          fpsSlowestMs = 0;
         }
+        fpsStartedAt = time;
+        fpsSamples = 0;
+        fpsTotalMs = 0;
+        fpsSlowestMs = 0;
+        frameTimes = [];
       }
       if (time - lastPaletteCheck > 1_000) { lastPaletteCheck = time; updatePalette(); }
       if (impact.current !== lastImpact) {
@@ -815,7 +832,8 @@ export function Arena3D(props: Props) {
     };
   }, [props.arena]);
 
-  const fpsBadge = showFps && frameMetrics && <output class="arena__fps" aria-live="off">{t("fpsStats", frameMetrics)}</output>;
+  const qualityLabel = frameMetrics?.quality === "high" ? t("qualityHigh") : frameMetrics?.quality === "balanced" ? t("qualityBalanced") : t("qualityEfficient");
+  const fpsBadge = showFps && frameMetrics && <output class="arena__fps" aria-live="off">{t("fpsStats", { ...frameMetrics, quality: qualityLabel })}</output>;
   if (!supported) return <div class={"arena arena--" + props.arena} role={showFps ? "group" : "img"} aria-label={props.label}>{props.fallback}{fpsBadge}</div>;
   return <div class={"arena arena--" + props.arena + " arena--3d"} role={showFps ? "group" : "img"} aria-label={props.label}>
     <canvas class="arena__canvas" ref={canvasRef} aria-hidden="true"></canvas>
