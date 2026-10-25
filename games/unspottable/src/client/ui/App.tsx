@@ -3,6 +3,7 @@ import { BLEND_COOLDOWN_MS, PLAYER_SPEED, type ArenaId } from "../../engine";
 import { getLang, setLang, t, type Key, type Lang } from "../i18n";
 import { createRoom, openRoomClient, roomExists, type ConnectionState, type RoomConnection } from "../net";
 import type { AvatarView, ClientMsg, GameView, PlayerView, RoomView, Role, ServerMsg } from "../../room/protocol";
+import { Arena3D } from "./Arena3D";
 
 type Route = { kind: "home" } | { kind: "room"; code: string; role: Role };
 type Theme = "system" | "light" | "dark";
@@ -442,13 +443,23 @@ function GameScreen(props: {
       </div>
     </header>
     <p class="orientation-hint">{t("rotateTip")}</p>
-    <Arena
+    <Arena3D
       avatars={props.game.avatars}
       arena={props.game.arena}
       localVector={props.role === "player" ? localVector : { x: 0, y: 0 }}
       receivedAt={props.receivedAt}
       impactId={latest?.id ?? 0}
       impactType={latest?.t ?? "swing"}
+      label={t("arena")}
+      youLabel={t("player")}
+      fallback={<ArenaFallback
+        avatars={props.game.avatars}
+        arena={props.game.arena}
+        localVector={props.role === "player" ? localVector : { x: 0, y: 0 }}
+        receivedAt={props.receivedAt}
+        impactId={latest?.id ?? 0}
+        impactType={latest?.t ?? "swing"}
+      />}
     />
     <div class="score-strip" aria-label={t("score")}>
       {props.view.players.map((player, index) => <div class="score-card" key={index}>
@@ -474,7 +485,7 @@ function GameScreen(props: {
 
 interface VisualAvatar { x: number; y: number }
 
-function Arena(props: {
+function ArenaFallback(props: {
   avatars: AvatarView[];
   arena: ArenaId;
   localVector: { x: number; y: number };
