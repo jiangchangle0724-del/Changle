@@ -3,12 +3,13 @@ import { useEffect, useRef } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { money, spaceName, t, type Key } from "../i18n";
 import { sfx } from "../sound";
-import { Board, latestFlight } from "./Board";
+import { Board, latestFlight, reducedMotion } from "./Board";
 import { CityPoster } from "../art/posters";
 import { Countdown, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
 import { dareText, quizItemText, recentParty } from "./feedText";
 import { Arrival, Clock, Feed, Over, Standings, lastId } from "./Game";
 import { Qr, joinUrl } from "./Lobby";
+import { Touchdown } from "./Touchdown";
 import { Trivia } from "./Trivia";
 
 export function Screen({ v }: { v: RoomView }) {
@@ -76,6 +77,7 @@ export function Screen({ v }: { v: RoomView }) {
         )}
         <Feed v={v} n={8} />
       </aside>
+      <Touchdown v={v} big />
     </main>
   );
 }
@@ -138,6 +140,6 @@ function useScreenSounds(v: RoomView) {
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
     else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction" || f.e.t === "bonus"))) sfx.coin();
-    else if (fresh.some((f) => f.t === "game" && f.e.t === "stamp")) sfx.stamp();
+    else if (reducedMotion() && fresh.some((f) => f.t === "game" && f.e.t === "stamp")) sfx.stamp();
   });
 }

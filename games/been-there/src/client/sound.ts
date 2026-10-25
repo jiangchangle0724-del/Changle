@@ -1,6 +1,6 @@
 // Sounds in the golden-age-of-travel style, synthesised in the browser (no files to download or
 // license): the airport chime, a rubber stamp, a till, an auctioneer's gavel, a propeller plane.
-// Recorded city sounds come with the city content in step 6.
+// Each city has a sound sketch for the first arrival; recorded city sounds will replace them.
 // Phones (and WeChat) only allow sound after a tap, so the first tap unlocks it.
 let ctx: AudioContext | null = null;
 let muted = false;
@@ -69,6 +69,170 @@ function burst(dur: number, o: { vol?: number; at?: number; type?: BiquadFilterT
   src.start(t0);
 }
 
+/** A bell: a few out-of-tune partials that ring on. */
+function bell(freq: number, o: { at?: number; vol?: number; dur?: number } = {}) {
+  for (const [m, g] of [[1, 1], [2, 0.5], [2.76, 0.32], [5.4, 0.12]])
+    tone(freq * m, (o.dur ?? 1.6) / Math.pow(m, 0.3), { at: o.at, vol: (o.vol ?? 0.08) * g });
+}
+
+/** Noise that rises and falls: water, waves, wind, a crowd. */
+function swell(dur: number, o: { at?: number; vol?: number; type?: BiquadFilterType; freq?: number; q?: number; sweep?: number } = {}) {
+  if (muted || !ctx || ctx.state !== "running") return;
+  const t0 = ctx.currentTime + (o.at ?? 0);
+  const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  filter.type = o.type ?? "lowpass";
+  filter.frequency.setValueAtTime(o.freq ?? 600, t0);
+  if (o.sweep) filter.frequency.exponentialRampToValueAtTime(o.sweep, t0 + dur);
+  filter.Q.value = o.q ?? 0.7;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(o.vol ?? 0.08, t0 + dur * 0.4);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.buffer = buf;
+  src.connect(filter).connect(gain).connect(ctx.destination);
+  src.start(t0);
+}
+
+/** Notes held together, swelling in: a bandoneón's bellows, a street organ, a ship's horn. */
+function chord(freqs: number[], dur: number, o: { at?: number; vol?: number; type?: OscillatorType; detune?: number } = {}) {
+  if (muted || !ctx || ctx.state !== "running") return;
+  const t0 = ctx.currentTime + (o.at ?? 0);
+  const voices = freqs.length * (o.detune ? 2 : 1);
+  const peak = (o.vol ?? 0.05) / Math.sqrt(voices);
+  const out = ctx.createGain();
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 2400;
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(peak, t0 + Math.min(0.35, dur / 3));
+  out.gain.setValueAtTime(peak, t0 + dur * 0.7);
+  out.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  out.connect(lp).connect(ctx.destination);
+  for (const f of freqs)
+    for (const d of o.detune ? [-o.detune, o.detune] : [0]) {
+      const osc = ctx.createOscillator();
+      osc.type = o.type ?? "sawtooth";
+      osc.frequency.value = f;
+      osc.detune.value = d;
+      osc.connect(out);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.05);
+    }
+}
+
+const horn = (at: number, dur: number, f = 110) => chord([f, f * 1.5], dur, { type: "sawtooth", vol: 0.09, at });
+const honk = (at: number, f: number, dur = 0.3) => chord([f, f * 1.26], dur, { type: "square", vol: 0.05, at });
+const gulls = (at: number) => {
+  tone(1900, 0.35, { at, vol: 0.03, slide: 1300 });
+  tone(2100, 0.3, { at: at + 0.42, vol: 0.025, slide: 1500 });
+};
+
+/**
+ * A sound sketch for each city, played when a team first arrives. Made in the browser, like the
+ * other sounds; real field recordings (Freesound, CC0) will replace them once they can be fetched.
+ */
+const CITY_SOUND: Record<string, () => void> = {
+  // bells over the Thames
+  london: () => [415.3, 370, 329.6, 246.9].forEach((f, i) => bell(f, { at: i * 0.55, vol: 0.09, dur: 2.2 })),
+  // station chimes as a train pulls in
+  tokyo: () => [1046.5, 784, 1318.5, 1174.7, 1046.5].forEach((f, i) => tone(f, 0.45, { type: "triangle", at: i * 0.2, vol: 0.06 })),
+  seoul: () => [659.3, 784, 880, 1046.5].forEach((f, i) => tone(f, 0.5, { at: i * 0.24, vol: 0.07 })),
+  singapore: () => [1318.5, 1046.5, 784].forEach((f, i) => tone(f, 0.6, { at: i * 0.3, vol: 0.07 })),
+  // the tram's ding-ding
+  hongkong: () => {
+    bell(1250, { vol: 0.07, dur: 0.9 });
+    bell(1250, { at: 0.28, vol: 0.07, dur: 1.2 });
+    swell(2.4, { freq: 500, vol: 0.03 });
+  },
+  // bicycle bells down a hutong
+  beijing: () => {
+    for (let i = 0; i < 6; i++) bell(2100 + (i % 2) * 90, { at: i * 0.07, vol: 0.035, dur: 0.5 });
+    swell(2.2, { freq: 700, vol: 0.025, at: 0.2 });
+  },
+  // ferries, horns and gulls on the water
+  istanbul: () => {
+    horn(0, 1.4);
+    gulls(1.0);
+    swell(3, { freq: 400, vol: 0.04 });
+  },
+  shanghai: () => {
+    horn(0, 1.6, 98);
+    swell(3, { freq: 350, vol: 0.05 });
+  },
+  sydney: () => {
+    swell(1.6, { freq: 900, sweep: 300, vol: 0.06 });
+    swell(1.6, { at: 1.3, freq: 900, sweep: 300, vol: 0.06 });
+    gulls(0.6);
+  },
+  capetown: () => {
+    swell(2.2, { freq: 1200, sweep: 250, vol: 0.07 });
+    swell(2.2, { at: 1.6, freq: 1100, sweep: 250, vol: 0.06 });
+  },
+  // water lapping in a canal, a church bell beyond
+  venice: () => {
+    for (const at of [0, 0.7, 1.4, 2.1]) swell(0.9, { at, freq: 420, vol: 0.05, q: 2 });
+    bell(330, { at: 1.1, vol: 0.05, dur: 2.4 });
+  },
+  // horns in traffic
+  newyork: () => {
+    honk(0, 349.2);
+    honk(0.35, 349.2);
+    tone(700, 0.8, { type: "sawtooth", vol: 0.02, at: 0.9, slide: 1100 });
+    tone(1100, 0.8, { type: "sawtooth", vol: 0.02, at: 1.7, slide: 700 });
+  },
+  mumbai: () => {
+    [0, 0.18, 0.36, 0.9, 1.05].forEach((at, i) => honk(at, i % 2 ? 622 : 587, 0.12));
+    swell(2.6, { freq: 300, vol: 0.05 });
+  },
+  // a tuk-tuk putters past a temple bell
+  bangkok: () => {
+    for (let i = 0; i < 20; i++) burst(0.05, { at: i * 0.083, type: "lowpass", freq: 300, vol: 0.07 });
+    honk(1.0, 660, 0.14);
+    bell(880, { at: 1.6, vol: 0.04, dur: 1.6 });
+  },
+  // samba on the beach
+  rio: () => {
+    for (let i = 0; i < 8; i++) {
+      const at = i * 0.3;
+      if (i % 2 === 0) tone(62, 0.3, { at, vol: 0.2, slide: 48 });
+      burst(0.04, { at: at + 0.15, freq: 3500, q: 6, vol: 0.06 });
+      if (i % 4 === 3) burst(0.04, { at: at + 0.075, freq: 3500, q: 6, vol: 0.05 });
+    }
+  },
+  // a bandoneón breathing in
+  buenosaires: () => chord([220, 261.6, 329.6], 2.4, { vol: 0.07, detune: 9 }),
+  // an accordion on a café terrace
+  paris: () => chord([293.7, 349.2, 440], 2.2, { type: "square", vol: 0.05, detune: 12 }),
+  // a street organ's waltz
+  mexicocity: () => [392, 493.9, 587.3, 493.9, 392, 493.9, 587.3, 784].forEach((f, i) => tone(f, 0.28, { type: "square", at: i * 0.22, vol: 0.035 })),
+  // slot machines paying out
+  lasvegas: () => {
+    for (let i = 0; i < 10; i++) tone(880 * Math.pow(2, ((i % 5) * 3) / 12), 0.1, { type: "square", at: i * 0.08, vol: 0.03 });
+    for (let i = 0; i < 6; i++) tone(2600 + (i % 3) * 300, 0.12, { type: "triangle", at: 0.9 + i * 0.09, vol: 0.04 });
+  },
+  // the Gastown steam clock's whistles
+  vancouver: () => {
+    chord([523.3, 659.3, 784], 1.6, { type: "sine", vol: 0.07 });
+    swell(1.8, { type: "highpass", freq: 3000, vol: 0.03 });
+  },
+  // wind at the top of the tower, and the lift arriving
+  dubai: () => {
+    swell(2.8, { type: "bandpass", freq: 500, sweep: 1400, q: 1.5, vol: 0.05 });
+    tone(659.3, 0.6, { at: 1.6, vol: 0.06 });
+    tone(523.3, 0.9, { at: 1.85, vol: 0.06 });
+  },
+  // a market: voices and tea glasses
+  cairo: () => {
+    for (let i = 0; i < 14; i++) burst(0.18, { at: i * 0.17, freq: 500 + ((i * 337) % 900), q: 3, vol: 0.035 });
+    for (const at of [0.6, 1.3, 1.9]) tone(3200, 0.15, { type: "triangle", at, vol: 0.035 });
+  },
+};
+
 export const sfx = {
   /** The airport announcement chime: your turn. */
   turn: () => {
@@ -112,6 +276,15 @@ export const sfx = {
     burst(1.4, { type: "bandpass", freq: 300, sweep: 1400, q: 1.2, vol: 0.16 });
     tone(55, 1.2, { type: "sawtooth", vol: 0.025, slide: 70 });
   },
+  /** The seat-belt chime: the plane is coming in to land. */
+  cabin: () => {
+    tone(1174.7, 0.9, { vol: 0.07 });
+    tone(880, 1.2, { vol: 0.07, at: 0.32 });
+  },
+  /** Air rushing past the window on the way down. */
+  descent: () => swell(1.4, { type: "bandpass", freq: 300, sweep: 1400, q: 0.8, vol: 0.07 }),
+  /** The city's own sound (see CITY_SOUND). */
+  city: (id: string) => CITY_SOUND[id]?.(),
   win: () => {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.26, { at: i * 0.13, type: "triangle" }));
     tone(1319, 0.6, { at: 0.55, type: "triangle", vol: 0.08 });

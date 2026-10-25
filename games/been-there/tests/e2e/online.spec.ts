@@ -98,8 +98,11 @@ test("两人同时出价不出错", async ({ browser, request, contextOptions })
   const pressed = await Promise.all([press(x), press(y)]);
   expect(pressed).toEqual(["出 $10", "出 $10"]);
   // Exactly one leads at $10, every phone agrees, and the other is told it was a moment too late.
+  // (Wait for the leader's line: the no-bids line says "最低 $10" too.)
   const leads = phones.map((p) => p.page.locator(".decide.auction .big"));
-  for (const l of leads) await expect(l).toContainText("$10");
+  for (const l of leads) await expect(l).toContainText("出价最高：$10");
+  // The first-arrival scene never covers an auction.
+  for (const p of phones) expect(await p.page.locator(".touchdown").count()).toBe(0);
   const texts = await Promise.all(leads.map((l) => l.innerText()));
   expect(texts.filter((s) => s.includes("你们出价最高"))).toHaveLength(1);
   const loser = texts[0].includes("你们出价最高") ? y : x;
