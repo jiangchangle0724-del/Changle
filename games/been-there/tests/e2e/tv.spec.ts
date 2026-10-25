@@ -32,9 +32,19 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   });
   if (webgl) {
     await expect(tv.page.locator("canvas.globe.on")).toBeVisible({ timeout: 20_000 });
-    await playUntil([p], async () => (await tv.page.locator("canvas.globe[data-flying]").count()) > 0, 120_000);
-    // …and lands.
-    await expect(tv.page.locator("canvas.globe[data-flying]")).toHaveCount(0, { timeout: 10_000 });
+    // A plane takes off and lands. Landings are counted as they happen: a flight can start before the
+    // last one has landed, so there may be no quiet moment to look for.
+    await tv.page.evaluate(() => {
+      const w = window as unknown as { landed: number };
+      w.landed = 0;
+      let flying = false;
+      new MutationObserver(() => {
+        const now = !!document.querySelector("canvas.globe[data-flying]");
+        if (flying && !now) w.landed += 1;
+        flying = now;
+      }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["data-flying"] });
+    });
+    await playUntil([p], async () => (await tv.page.evaluate(() => (window as unknown as { landed: number }).landed)) > 0, 120_000);
   } else {
     await expect(tv.page.locator("canvas.globe.on")).toHaveCount(0);
     await playUntil([p], async () => (await tv.page.locator(".tv-dice").count()) > 0, 60_000);
