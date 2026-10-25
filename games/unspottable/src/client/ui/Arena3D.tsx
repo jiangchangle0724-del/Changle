@@ -20,6 +20,9 @@ interface Props {
 interface Visual { x: number; z: number; facing: number }
 interface Palette {
   bg: string;
+  sky: string;
+  land: string;
+  foliage: string;
   surface: string;
   surface2: string;
   ink: string;
@@ -40,6 +43,9 @@ function readPalette(): Palette {
   const read = (name: string) => style.getPropertyValue(name).trim();
   return {
     bg: read("--bg"),
+    sky: read("--map-sea"),
+    land: read("--map-land"),
+    foliage: read("--house"),
     surface: read("--surface"),
     surface2: read("--surface-2"),
     ink: read("--ink"),
@@ -57,6 +63,11 @@ function readPalette(): Palette {
 function lightTint(palette: Palette): string {
   const surface = new THREE.Color(palette.surface);
   return surface.r + surface.g + surface.b < 1.2 ? palette.ink : palette.surface;
+}
+
+function darkTint(palette: Palette): string {
+  const ink = new THREE.Color(palette.ink);
+  return ink.r + ink.g + ink.b > 1.35 ? palette.surface : palette.ink;
 }
 
 function makeMaterial(color: string, roughness = 0.82, token?: keyof Palette): THREE.MeshStandardMaterial {
@@ -80,128 +91,191 @@ function makeCylinder(scene: THREE.Scene, radius: number, height: number, positi
 }
 
 function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
-  const floor = makeMaterial(palette.surface, 0.82, "surface");
-  const detail = makeMaterial(palette.surface2, 0.82, "surface2");
-  const accent = makeMaterial(palette.accent, 0.82, "accent");
-  const muted = makeMaterial(palette.muted, 0.82, "muted");
-  const warm = makeMaterial(palette.warn, 0.82, "warn");
-  const trim = makeMaterial(palette.line, 0.82, "line");
-  const ground = new THREE.Mesh(new THREE.BoxGeometry(20, 0.35, 12), floor);
+  const floor = makeMaterial(palette.surface, 0.9, "surface");
+  const detail = makeMaterial(palette.surface2, 0.86, "surface2");
+  const accent = makeMaterial(palette.accent, 0.78, "accent");
+  const muted = makeMaterial(palette.muted, 0.86, "muted");
+  const warm = makeMaterial(palette.warn, 0.75, "warn");
+  const trim = makeMaterial(palette.line, 0.86, "line");
+  const grass = makeMaterial(palette.foliage, 1, "foliage");
+  const water = makeMaterial(palette.sky, 0.52, "sky");
+  const wood = makeMaterial(palette.land, 0.9, "land");
+  const dark = makeMaterial(darkTint(palette), 0.9);
+  const groundMaterial = arena === "plaza" ? grass : arena === "gallery" ? wood : floor;
+  const ground = new THREE.Mesh(new THREE.BoxGeometry(20, 0.35, 12), groundMaterial);
   ground.position.y = -0.19;
   scene.add(ground);
-  const rail = 0.055;
-  makeBox(scene, [18, 0.025, rail], [0, 0.012, -4.9], muted);
-  makeBox(scene, [18, 0.025, rail], [0, 0.012, 4.9], muted);
-  makeBox(scene, [rail, 0.025, 9.8], [-9, 0.012, 0], muted);
-  makeBox(scene, [rail, 0.025, 9.8], [9, 0.012, 0], muted);
-  makeBox(scene, [0.035, 0.02, 9.8], [0, 0.015, 0], detail);
-  for (let x = -8; x <= 8; x += 4) makeBox(scene, [0.018, 0.012, 9.6], [x, 0.013, 0], detail);
-  for (let z = -4; z <= 4; z += 2) makeBox(scene, [17.8, 0.012, 0.018], [0, 0.013, z], detail);
 
-  // An open stage frame adds depth while leaving the whole crowd visible.
-  makeBox(scene, [18.4, 0.12, 0.18], [0, 2.95, -5.48], accent);
-  makeBox(scene, [18.4, 0.09, 0.18], [0, 0.16, -5.48], trim);
-  for (const x of [-8.7, -4.35, 0, 4.35, 8.7]) {
-    makeBox(scene, [0.12, 2.72, 0.16], [x, 1.52, -5.48], detail);
-    makeBox(scene, [0.2, 0.12, 0.24], [x, 2.92, -5.48], warm);
-  }
-
-  const center = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.28, 36), makeMaterial(palette.line, 0.82, "line"));
-  center.rotation.x = -Math.PI / 2;
-  center.position.y = 0.02;
-  scene.add(center);
-  for (const side of [-1, 1]) {
-    const circle = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.52, 36), makeMaterial(palette.line, 0.82, "line"));
-    circle.rotation.x = -Math.PI / 2;
-    circle.position.set(side * 6.7, 0.02, 0);
-    scene.add(circle);
+  if (arena === "plaza") {
+    // Vancouver seawall park: lawn, water, a mountain horizon, cedar-like trees and a boardwalk.
+    makeBox(scene, [18.6, 0.025, 1.35], [0, 0.012, -5.48], water);
+    makeBox(scene, [18.6, 0.025, 0.82], [0, 0.014, 4.5], wood);
+    for (let x = -9; x <= 9; x += 2.25) {
+      makeBox(scene, [0.1, 0.9, 0.12], [x, 0.47, -4.82], wood);
+      makeBox(scene, [0.1, 0.9, 0.12], [x, 0.47, 4.82], wood);
+    }
+    makeBox(scene, [18.3, 0.12, 0.14], [0, 0.88, -4.82], wood);
+    makeBox(scene, [18.3, 0.12, 0.14], [0, 0.88, 4.82], wood);
+    for (const x of [-8.8, 8.8]) {
+      makeBox(scene, [0.12, 0.9, 9.5], [x, 0.47, 0], wood);
+      makeBox(scene, [0.12, 0.12, 9.5], [x, 0.88, 0], wood);
+    }
+    for (const [x, height, width] of [[-7.4, 2.2, 2.2], [-4.6, 1.55, 2.8], [0, 2.7, 3.3], [4.8, 1.8, 2.7], [7.4, 2.4, 2.2]] as const) {
+      const peak = new THREE.Mesh(new THREE.ConeGeometry(width, height, 5), detail);
+      peak.position.set(x, height * 0.5 - 0.08, -6.55);
+      peak.rotation.y = Math.PI / 5;
+      scene.add(peak);
+    }
+    const treeTrunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.18, 1.1, 7), wood, 8);
+    const treeCrowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.72, 1), grass, 16);
+    const dummy = new THREE.Object3D();
+    let trunkIndex = 0;
+    let crownIndex = 0;
+    for (const x of [-8.0, -6.0, 6.0, 8.0]) {
+      for (const z of [-3.7, 3.75]) {
+        dummy.position.set(x, 0.66, z);
+        dummy.scale.set(1, 1 + (trunkIndex % 2) * 0.16, 1);
+        dummy.updateMatrix();
+        treeTrunks.setMatrixAt(trunkIndex++, dummy.matrix);
+        for (const [dx, dy, dz, size] of [[0, 1.62, 0, 1], [-0.34, 1.84, 0.08, 0.72], [0.34, 1.78, -0.08, 0.74]] as const) {
+          dummy.position.set(x + dx, dy, z + dz);
+          dummy.scale.set(size, size * 0.88, size);
+          dummy.updateMatrix();
+          treeCrowns.setMatrixAt(crownIndex++, dummy.matrix);
+        }
+      }
+    }
+    scene.add(treeTrunks, treeCrowns);
+    const grassGeometry = new THREE.ConeGeometry(0.028, 0.12, 3);
+    const grassFlecks = new THREE.InstancedMesh(grassGeometry, water, 420);
+    for (let index = 0; index < 420; index++) {
+      const x = ((index * 73) % 1760) / 100 - 8.8;
+      const z = ((index * 137) % 900) / 100 - 4.5;
+      dummy.position.set(x, 0.035, z);
+      dummy.rotation.set(0, (index % 17) * 0.37, (index % 5) * 0.025);
+      const size = 0.55 + (index % 6) * 0.1;
+      dummy.scale.set(size, size, size);
+      dummy.updateMatrix();
+      grassFlecks.setMatrixAt(index, dummy.matrix);
+    }
+    grassFlecks.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    scene.add(grassFlecks);
+    const flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.055, 0), warm, 28);
+    for (let index = 0; index < 28; index++) {
+      const x = ((index * 89) % 1600) / 100 - 8;
+      const z = ((index * 151) % 760) / 100 - 3.8;
+      dummy.position.set(x, 0.06, z);
+      dummy.scale.set(1.25, 0.42, 1.25);
+      dummy.updateMatrix();
+      flowers.setMatrixAt(index, dummy.matrix);
+    }
+    scene.add(flowers);
+    const cloud = new THREE.InstancedMesh(new THREE.SphereGeometry(0.72, 9, 7), makeMaterial(lightTint(palette), 0.95), 18);
+    let cloudIndex = 0;
+    for (let group = 0; group < 6; group++) {
+      const x = -9 + group * 3.6;
+      for (const [dx, dy, scale] of [[-0.72, 0, 0.82], [0, 0.3, 1.06], [0.76, 0.02, 0.78]] as const) {
+        dummy.position.set(x + dx, 4.35 + dy + (group % 2) * 0.2, -6.65);
+        dummy.scale.set(scale * 1.15, scale * 0.64, scale * 0.56);
+        dummy.updateMatrix();
+        cloud.setMatrixAt(cloudIndex++, dummy.matrix);
+      }
+    }
+    scene.add(cloud);
+    for (const x of [-4.8, 4.8]) {
+      makeBox(scene, [1.35, 0.24, 0.34], [x, 0.34, 4.12], wood);
+      makeBox(scene, [0.1, 0.4, 0.12], [x - 0.5, 0.2, 4.12], muted);
+      makeBox(scene, [0.1, 0.4, 0.12], [x + 0.5, 0.2, 4.12], muted);
+    }
+    const center = new THREE.Mesh(new THREE.RingGeometry(1.22, 1.29, 40), makeMaterial(lightTint(palette), 0.9));
+    center.rotation.x = -Math.PI / 2;
+    center.position.y = 0.015;
+    scene.add(center);
+    return;
   }
 
   if (arena === "metro") {
-    makeBox(scene, [17.5, 0.22, 0.34], [0, 3.38, -4.95], detail);
-    makeBox(scene, [8.4, 0.48, 0.15], [0, 3.03, -5.34], warm);
-    for (const x of [-6.2, -3.1, 3.1, 6.2]) {
-      makeBox(scene, [0.22, 3.2, 0.3], [x, 1.65, -4.72], muted);
-      makeBox(scene, [0.52, 0.12, 0.42], [x, 3.25, -4.72], accent);
+    // Vancouver-style transit concourse: glass, tiled floor, columns and a platform edge.
+    makeBox(scene, [18.5, 4.8, 0.25], [0, 2.2, -5.7], detail);
+    makeBox(scene, [19, 0.28, 0.5], [0, 4.55, -5.38], dark);
+    makeBox(scene, [17.6, 0.76, 0.18], [0, 3.9, -5.42], accent);
+    makeBox(scene, [5.6, 0.12, 0.2], [0, 3.9, -5.28], warm);
+    for (const x of [-8.4, -5.6, -2.8, 0, 2.8, 5.6, 8.4]) {
+      makeBox(scene, [0.23, 4.45, 0.32], [x, 2.2, -5.2], muted);
+      makeBox(scene, [0.48, 0.12, 0.45], [x, 4.42, -5.2], accent);
+    }
+    for (const x of [-7.0, -3.5, 0, 3.5, 7.0]) {
+      const window = makeBox(scene, [2.45, 1.55, 0.07], [x, 2.15, -5.53], water);
+      window.material = water;
+      makeBox(scene, [2.46, 0.05, 0.11], [x, 2.15, -5.44], trim);
+      makeBox(scene, [0.05, 1.57, 0.11], [x, 2.15, -5.44], trim);
     }
     for (const z of [-2.85, 2.85]) {
-      makeBox(scene, [17.5, 0.06, 0.84], [0, 0.05, z], detail);
-      for (let x = -8; x <= 8; x += 1.3) {
-        makeBox(scene, [0.075, 0.025, 0.86], [x, 0.09, z], accent);
-      }
-      for (let x = -8; x <= 8; x += 2.6) {
-        makeBox(scene, [0.025, 0.012, 0.68], [x + 0.06, 0.105, z], warm);
-      }
+      makeBox(scene, [17.5, 0.08, 0.92], [0, 0.04, z], detail);
+      makeBox(scene, [17.5, 0.035, 0.1], [0, 0.105, z - 0.42], warm);
+      for (let x = -8; x <= 8; x += 1.8) makeBox(scene, [0.06, 0.025, 0.92], [x, 0.1, z], accent);
     }
-    for (const x of [-7.9, 7.9]) {
-      makeBox(scene, [1.1, 0.54, 2.0], [x, 0.31, 0], detail);
-      makeBox(scene, [1.12, 0.08, 2.02], [x, 0.61, 0], warm);
+    for (const x of [-7.6, -5.2, 5.2, 7.6]) {
+      makeBox(scene, [1.1, 0.56, 1.6], [x, 0.3, 0], detail);
+      makeBox(scene, [1.12, 0.1, 1.66], [x, 0.62, 0], accent);
     }
-    for (const z of [-4.2, 4.2]) {
-      makeBox(scene, [0.62, 1.1, 0.48], [0, 0.55, z], accent);
-      makeBox(scene, [0.72, 0.08, 0.58], [0, 1.12, z], warm);
+    for (const x of [-6, -2, 2, 6]) makeBox(scene, [0.85, 0.06, 0.52], [x, 3.48, -5.22], warm);
+    return;
+  }
+
+  // Chinese courtyard theatre: tiled timber stage, lattice panels, lanterns and red curtains.
+  for (let z = -5; z <= 5; z += 1) makeBox(scene, [19.2, 0.018, 0.026], [0, 0.012, z], detail);
+  makeBox(scene, [18.5, 4.7, 0.22], [0, 2.15, -5.72], dark);
+  makeBox(scene, [15.7, 2.5, 0.12], [0, 2.3, -5.55], muted);
+  makeBox(scene, [9.6, 1.4, 0.16], [0, 2.25, -5.42], dark);
+  makeBox(scene, [18.7, 0.74, 0.75], [0, 4.7, -5.18], accent);
+  makeBox(scene, [18.3, 0.16, 0.83], [0, 5.1, -5.12], warm);
+  for (const side of [-1, 1]) {
+    makeBox(scene, [2.05, 4.6, 0.66], [side * 8.25, 2.25, -5.12], accent);
+    for (let fold = 0; fold < 5; fold++) {
+      const x = side * (7.48 + fold * 0.38);
+      makeBox(scene, [0.17, 4.15, 0.72], [x, 2.22, -4.86], fold % 2 === 0 ? accent : muted);
     }
-  } else if (arena === "gallery") {
-    for (const x of [-6.4, -2.15, 2.15, 6.4]) {
-      makeBox(scene, [2.2, 1.52, 0.12], [x, 1.68, -5.37], detail);
-      makeBox(scene, [2.32, 0.09, 0.18], [x, 2.5, -5.31], accent);
-      makeBox(scene, [2.32, 0.09, 0.18], [x, 0.86, -5.31], warm);
-      makeBox(scene, [0.09, 1.72, 0.18], [x - 1.15, 1.68, -5.31], muted);
-      makeBox(scene, [0.09, 1.72, 0.18], [x + 1.15, 1.68, -5.31], muted);
-      const art = new THREE.Mesh(new THREE.IcosahedronGeometry(0.48 + (Math.abs(x) % 3) * 0.08, 1), x < 0 ? warm : accent);
-      art.position.set(x, 1.66, -5.18);
-      art.scale.set(1, 1.18, 0.32);
-      scene.add(art);
-    }
-    for (const x of [-8.2, -5.4, 5.4, 8.2]) {
-      for (const z of [-4.2, 4.2]) {
-        makeCylinder(scene, 0.24, 2.45, [x, 1.22, z], detail, 10);
-        makeCylinder(scene, 0.39, 0.14, [x, 0.12, z], accent, 10);
-        makeCylinder(scene, 0.32, 0.12, [x, 2.46, z], warm, 10);
-      }
-    }
-    const spotlight = new THREE.Mesh(new THREE.CircleGeometry(2.5, 40), Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.15, depthWrite: false, userData: { paletteToken: "warn" } }), { userData: { paletteToken: "warn" } }));
-    spotlight.rotation.x = -Math.PI / 2;
-    spotlight.position.y = 0.035;
-    scene.add(spotlight);
-    const beam = new THREE.Mesh(new THREE.ConeGeometry(2.6, 5.4, 20, 1, true), Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.055, side: THREE.DoubleSide, depthWrite: false, userData: { paletteToken: "warn" } }), { userData: { paletteToken: "warn" } }));
-    beam.position.set(0, 3.3, 0);
-    scene.add(beam);
-    const plinth = makeBox(scene, [1.3, 0.7, 1.3], [0, 0.36, 0], detail);
-    plinth.rotation.y = Math.PI / 4;
-    const sculpture = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), makeMaterial(palette.warn, 0.35, "warn"));
-    sculpture.position.set(0, 1.2, 0);
-    scene.add(sculpture);
-  } else {
-    makeBox(scene, [4.4, 0.16, 0.5], [0, 2.55, -5.2], warm);
-    const fountain = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 1.12, 0.34, 12), detail);
-    fountain.position.set(0, 0.18, -3.65);
-    scene.add(fountain);
-    const water = new THREE.Mesh(new THREE.CircleGeometry(0.84, 20), Object.assign(new THREE.MeshBasicMaterial({ color: palette.me, transparent: true, opacity: 0.42, depthWrite: false, userData: { paletteToken: "me" } }), { userData: { paletteToken: "me" } }));
-    water.rotation.x = -Math.PI / 2;
-    water.position.set(0, 0.36, -3.65);
-    scene.add(water);
-    for (const x of [-8.2, 8.2]) {
-      for (const z of [-4.1, 4.1]) {
-        makeBox(scene, [1.45, 0.38, 1.2], [x, 0.18, z], detail);
-        makeCylinder(scene, 0.1, 0.66, [x, 0.55, z], muted, 7);
-        const lowerCrown = new THREE.Mesh(new THREE.ConeGeometry(0.56, 1, 7), warm);
-        lowerCrown.position.set(x, 1.02, z);
-        scene.add(lowerCrown);
-        const upperCrown = new THREE.Mesh(new THREE.ConeGeometry(0.39, 0.78, 7), warm);
-        upperCrown.position.set(x, 1.66, z);
-        scene.add(upperCrown);
-      }
-    }
-    for (const x of [-4.8, 4.8]) {
-      makeBox(scene, [1.3, 0.32, 0.42], [x, 0.18, -4.15], detail);
-      makeBox(scene, [1.3, 0.32, 0.42], [x, 0.18, 4.15], detail);
-      makeBox(scene, [1.36, 0.1, 0.48], [x, 0.38, -4.15], accent);
-      makeBox(scene, [1.36, 0.1, 0.48], [x, 0.38, 4.15], accent);
+    makeBox(scene, [0.22, 2.3, 0.26], [side * 9.15, 1.15, -4.62], wood);
+    const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), warm);
+    lantern.position.set(side * 7.15, 3.65, -4.85);
+    lantern.scale.set(0.82, 1.1, 0.82);
+    scene.add(lantern);
+    makeCylinder(scene, 0.045, 0.42, [side * 7.15, 4.05, -4.85], wood, 6);
+  }
+  for (const x of [-5.9, -3.0, 3.0, 5.9]) {
+    makeBox(scene, [0.09, 1.85, 0.13], [x, 2.15, -5.26], warm);
+    makeBox(scene, [1.55, 0.09, 0.13], [x, 2.15, -5.26], warm);
+  }
+  const platform = makeBox(scene, [17.5, 0.34, 1.0], [0, 0.18, -4.35], detail);
+  platform.position.z = -4.35;
+  const sun = new THREE.Mesh(new THREE.IcosahedronGeometry(0.86, 1), warm);
+  sun.position.set(0, 3.25, -5.05);
+  scene.add(sun);
+  const rays = new THREE.InstancedMesh(new THREE.ConeGeometry(0.17, 0.58, 5), warm, 10);
+  const rayDummy = new THREE.Object3D();
+  for (let i = 0; i < 10; i++) {
+    const angle = i * Math.PI / 5;
+    rayDummy.position.set(Math.cos(angle) * 1.08, 3.25 + Math.sin(angle) * 1.08, -5.04);
+    rayDummy.rotation.set(0, 0, -angle);
+    rayDummy.updateMatrix();
+    rays.setMatrixAt(i, rayDummy.matrix);
+  }
+  scene.add(rays);
+  const spotlight = new THREE.Mesh(new THREE.CircleGeometry(2.45, 40), Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.24, depthWrite: false, userData: { paletteToken: "warn" } }), { userData: { paletteToken: "warn" } }));
+  spotlight.rotation.x = -Math.PI / 2;
+  spotlight.position.set(0, 0.04, 0);
+  scene.add(spotlight);
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(2.6, 5.4, 20, 1, true), Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, userData: { paletteToken: "warn" } }), { userData: { paletteToken: "warn" } }));
+  beam.position.set(0, 3.25, -1.3);
+  scene.add(beam);
+  for (const z of [5.05, 5.7]) {
+    for (let x = -7.8; x <= 7.8; x += 2.6) {
+      makeBox(scene, [1.6, 0.48, 0.46], [x, 0.25, z], dark);
+      makeBox(scene, [1.64, 0.08, 0.5], [x, 0.5, z], accent);
     }
   }
 }
-
 function writeInstance(mesh: THREE.InstancedMesh, index: number, dummy: THREE.Object3D, position: THREE.Vector3, yaw: number, scale: THREE.Vector3, tilt = 0, roll = 0): void {
   dummy.position.copy(position);
   dummy.rotation.set(tilt, yaw, roll, "YXZ");
@@ -260,10 +334,13 @@ export function Arena3D(props: Props) {
 
     addVenue(scene, props.arena, palette);
     const bodyGeometry = new THREE.SphereGeometry(0.34, 14, 12);
-    const headGeometry = new THREE.SphereGeometry(0.235, 14, 12);
+    const headGeometry = new THREE.SphereGeometry(0.305, 18, 14);
     const neckGeometry = new THREE.CylinderGeometry(0.1, 0.12, 0.18, 8);
-    const visorGeometry = new THREE.BoxGeometry(0.29, 0.1, 0.055);
-    const eyeGeometry = new THREE.SphereGeometry(0.032, 7, 6);
+    const eyeGeometry = new THREE.SphereGeometry(0.095, 11, 9);
+    const pupilGeometry = new THREE.SphereGeometry(0.044, 9, 7);
+    const mouthGeometry = new THREE.SphereGeometry(0.07, 10, 8);
+    const impactRingGeometry = new THREE.RingGeometry(0.42, 0.51, 24);
+    impactRingGeometry.rotateX(-Math.PI / 2);
     const capGeometry = new THREE.ConeGeometry(0.22, 0.23, 7);
     const badgeGeometry = new THREE.BoxGeometry(0.15, 0.16, 0.045);
     const armGeometry = new THREE.CylinderGeometry(0.105, 0.135, 0.52, 8);
@@ -275,8 +352,10 @@ export function Arena3D(props: Props) {
     const headMat = makeMaterial(lightTint(palette), 0.42);
     const limbMat = makeMaterial(lightTint(palette), 0.72);
     const neckMat = makeMaterial(palette.surface2, 0.72, "surface2");
-    const visorMat = makeMaterial(palette.ink, 0.48, "ink");
-    const eyeMat = makeMaterial(palette.onAccent, 0.4, "onAccent");
+    const eyeMat = makeMaterial(lightTint(palette), 0.38);
+    const pupilMat = makeMaterial(darkTint(palette), 0.42);
+    const mouthMat = makeMaterial(darkTint(palette), 0.54);
+    const impactRingMat = Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.82, depthWrite: false }), { userData: { paletteToken: "warn" } });
     const capMat = makeMaterial(lightTint(palette), 0.62);
     const badgeMat = makeMaterial(palette.onAccent, 0.52, "onAccent");
     const legMat = makeMaterial(palette.ink, 0.82, "ink");
@@ -285,8 +364,10 @@ export function Arena3D(props: Props) {
     const body = new THREE.InstancedMesh(bodyGeometry, bodyMat, MAX_CHARACTERS);
     const head = new THREE.InstancedMesh(headGeometry, headMat, MAX_CHARACTERS);
     const neck = new THREE.InstancedMesh(neckGeometry, neckMat, MAX_CHARACTERS);
-    const visors = new THREE.InstancedMesh(visorGeometry, visorMat, MAX_CHARACTERS);
     const eyes = new THREE.InstancedMesh(eyeGeometry, eyeMat, MAX_CHARACTERS * 2);
+    const pupils = new THREE.InstancedMesh(pupilGeometry, pupilMat, MAX_CHARACTERS * 2);
+    const mouths = new THREE.InstancedMesh(mouthGeometry, mouthMat, MAX_CHARACTERS);
+    const impactRings = new THREE.InstancedMesh(impactRingGeometry, impactRingMat, MAX_CHARACTERS);
     const caps = new THREE.InstancedMesh(capGeometry, capMat, MAX_CHARACTERS);
     const badges = new THREE.InstancedMesh(badgeGeometry, badgeMat, MAX_CHARACTERS);
     const arms = new THREE.InstancedMesh(armGeometry, limbMat, MAX_CHARACTERS * 2);
@@ -294,7 +375,7 @@ export function Arena3D(props: Props) {
     const shoes = new THREE.InstancedMesh(shoeGeometry, shoeMat, MAX_CHARACTERS * 2);
     const shadows = new THREE.InstancedMesh(shadowGeometry, shadowMat, MAX_CHARACTERS);
     shadows.position.y = 0.025;
-    for (const mesh of [body, head, neck, visors, eyes, caps, badges, arms, legs, shoes, shadows]) {
+    for (const mesh of [body, head, neck, eyes, pupils, mouths, impactRings, caps, badges, arms, legs, shoes, shadows]) {
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false;
       scene.add(mesh);
@@ -366,8 +447,9 @@ export function Arena3D(props: Props) {
       headMat.color.set(lightTint(palette));
       limbMat.color.set(lightTint(palette));
       neckMat.color.set(palette.surface2);
-      visorMat.color.set(palette.ink);
-      eyeMat.color.set(palette.onAccent);
+      eyeMat.color.set(lightTint(palette));
+      pupilMat.color.set(darkTint(palette));
+      mouthMat.color.set(darkTint(palette));
       capMat.color.set(lightTint(palette));
       badgeMat.color.set(palette.onAccent);
       legMat.color.set(palette.ink);
@@ -425,8 +507,10 @@ export function Arena3D(props: Props) {
       body.count = snapshot.length;
       head.count = snapshot.length;
       neck.count = snapshot.length;
-      visors.count = snapshot.length;
       eyes.count = snapshot.length * 2;
+      pupils.count = snapshot.length * 2;
+      mouths.count = snapshot.length;
+      impactRings.count = snapshot.length;
       caps.count = snapshot.length;
       badges.count = snapshot.length;
       shadows.count = snapshot.length;
@@ -464,7 +548,7 @@ export function Arena3D(props: Props) {
         const tumble = staggered && !reduced ? Math.sin(clock * 19 + index) * 0.64 : 0;
         const bounce = walking ? Math.abs(Math.sin(phase)) * 0.055 : reduced ? 0 : Math.sin(clock * 2.4 + index) * 0.018;
         const yawNow = visual.facing;
-        const bodyTilt = staggered ? tumble : recoil + (swinging ? -0.13 : 0);
+        const bodyTilt = staggered ? tumble : recoil + (swinging ? -0.22 : 0);
         const center = new THREE.Vector3(visual.x, (staggered ? 0.9 : 0.96) + bounce, visual.z);
         writeInstance(body, index, dummy, center, yawNow, new THREE.Vector3(0.84, staggered ? 1.2 : 1.32, 0.74), bodyTilt, staggered ? Math.cos(clock * 19 + index) * 0.26 : 0);
         const headTurn = avatar.pose === "glance" && !reduced ? Math.sin(clock * 5 + index) * 0.22 : 0;
@@ -476,20 +560,25 @@ export function Arena3D(props: Props) {
         const forwardZ = Math.cos(headYaw);
         const sideX = Math.cos(headYaw);
         const sideZ = -Math.sin(headYaw);
-        writeInstance(visors, index, dummy, new THREE.Vector3(visual.x + forwardX * 0.204, 1.8 + bounce, visual.z + forwardZ * 0.204), headYaw, new THREE.Vector3(1, 1, 1), recoil * 0.3);
         for (let eyeSide = 0; eyeSide < 2; eyeSide++) {
           const side = eyeSide === 0 ? -1 : 1;
-          const eyePosition = new THREE.Vector3(visual.x + forwardX * 0.239 + sideX * side * 0.071, 1.8 + bounce, visual.z + forwardZ * 0.239 + sideZ * side * 0.071);
+          const eyePosition = new THREE.Vector3(visual.x + forwardX * 0.264 + sideX * side * 0.105, 1.84 + bounce, visual.z + forwardZ * 0.264 + sideZ * side * 0.105);
+          const pupilPosition = new THREE.Vector3(visual.x + forwardX * 0.337 + sideX * side * 0.105, 1.84 + bounce, visual.z + forwardZ * 0.337 + sideZ * side * 0.105);
           writeInstance(eyes, index * 2 + eyeSide, dummy, eyePosition, headYaw, new THREE.Vector3(1, 1, 1), recoil * 0.3);
+          writeInstance(pupils, index * 2 + eyeSide, dummy, pupilPosition, headYaw, new THREE.Vector3(1, 1, 1), recoil * 0.3);
         }
+        const mouthPosition = new THREE.Vector3(visual.x + forwardX * 0.286, 1.68 + bounce, visual.z + forwardZ * 0.286);
+        writeInstance(mouths, index, dummy, mouthPosition, headYaw, new THREE.Vector3(0.82, 0.48, 0.34), recoil * 0.3);
+        const ringPulse = staggered && !reduced ? 1 + Math.abs(Math.sin(clock * 12 + index)) * 0.55 : 0;
+        writeInstance(impactRings, index, dummy, new THREE.Vector3(visual.x, 0.055, visual.z), 0, new THREE.Vector3(ringPulse, ringPulse, ringPulse));
         const wearingCap = index % 3 === 0 || index % 7 === 0;
-        writeInstance(caps, index, dummy, new THREE.Vector3(visual.x, 2.02 + bounce, visual.z), yawNow, new THREE.Vector3(wearingCap ? 1 : 0, wearingCap ? 1 : 0, wearingCap ? 1 : 0));
+        writeInstance(caps, index, dummy, new THREE.Vector3(visual.x, 2.12 + bounce, visual.z), yawNow, new THREE.Vector3(wearingCap ? 1 : 0, wearingCap ? 1 : 0, wearingCap ? 1 : 0));
         const badgePosition = new THREE.Vector3(visual.x + Math.sin(yawNow) * 0.31, 1.02 + bounce, visual.z + Math.cos(yawNow) * 0.31);
         writeInstance(badges, index, dummy, badgePosition, yawNow, new THREE.Vector3(index % 4 === 0 ? 1.15 : 0.72, 1, 1), bodyTilt * 0.35);
         writeInstance(shadows, index, dummy, new THREE.Vector3(visual.x, 0.03, visual.z), 0, new THREE.Vector3(staggered ? 1.28 : 1, 1, staggered ? 0.72 : 0.8));
         for (let side = 0; side < 2; side++) {
           const sign = side === 0 ? -1 : 1;
-          const armSwing = stride * (side === 0 ? -1 : 1) + (swinging && side === 1 ? -0.82 : 0) + recoil * sign;
+          const armSwing = stride * (side === 0 ? -1 : 1) + (swinging && side === 1 ? -1.16 : 0) + recoil * sign;
           const legSwing = stride * (side === 0 ? 1 : -1) + recoil * sign;
           const localX = sign * 0.32;
           const rotatedX = visual.x + localX * Math.cos(yawNow);
@@ -502,7 +591,7 @@ export function Arena3D(props: Props) {
           writeInstance(shoes, index * 2 + side, dummy, shoePos, yawNow, new THREE.Vector3(1.05, 0.56, 1.5), 0);
         }
       }
-      for (const mesh of [body, head, neck, visors, eyes, caps, badges, arms, legs, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
+      for (const mesh of [body, head, neck, eyes, pupils, mouths, impactRings, caps, badges, arms, legs, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
       if (local) {
         const localVisual = visuals[snapshot.indexOf(local)];
         marker.position.set(localVisual.x, 2.68, localVisual.z);
