@@ -11,6 +11,7 @@ import { Board, moodOf, reducedMotion } from "./Board";
 import { Btn, Countdown, Money, SeatChip, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { dareText, feedText } from "./feedText";
+import { CardFace, Cash, MiniDice, RollMoment, cardThisTurn, rollBefore } from "./Moments";
 import { SettingsSheet } from "./Settings";
 import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
@@ -53,7 +54,7 @@ export function Game({ v }: { v: RoomView }) {
             <TeamChip team={myTeam} />
             <span class="stat">
               <small>{t("cash")}</small>
-              <Money n={me.cash} />
+              <Cash n={me.cash} />
             </span>
             <span class="stat worth">
               <small>{t("worth")}</small>
@@ -72,6 +73,7 @@ export function Game({ v }: { v: RoomView }) {
       <div class="panes" data-tab={tab}>
         <section class="pane p-play">
           <Arrival v={v} />
+          <TurnCard v={v} />
           <Decision v={v} />
           <Trivia v={v} />
           <Standings v={v} />
@@ -101,9 +103,17 @@ export function Game({ v }: { v: RoomView }) {
         ))}
       </nav>
       {menu && <SettingsSheet v={v} onClose={() => setMenu(false)} />}
+      <RollMoment v={v} />
       <Touchdown v={v} />
     </div>
   );
+}
+
+/** The card your team drew this turn, until the turn passes (spectators see the team on turn's). */
+function TurnCard({ v }: { v: RoomView }) {
+  const card = cardThisTurn(v);
+  if (!card || (v.you.seats.length > 0 && !v.you.seats.includes(card.x.p))) return null;
+  return <CardFace v={v} card={card} />;
 }
 
 /** True on screens wide enough to show every pane side by side (see the 960px layout in styles.css). */
@@ -233,6 +243,7 @@ export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
   if (!land || land.at !== pos) return null;
   const landId = land.id;
   const stamped = v.feed.some((f) => f.id >= landId && f.t === "game" && f.e.t === "stamp" && f.e.p === seat);
+  const roll = rollBefore(v, seat, landId);
   const lang = getLang();
   return (
     <article class={`arrival${big ? " big" : ""}`} key={landId}>
@@ -241,7 +252,7 @@ export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
       </div>
       <div class="arrival-text">
         <p class="arrival-who">
-          <SeatChip v={v} seat={seat} small /> {t("arrivedIn")}
+          <SeatChip v={v} seat={seat} small /> {roll && <MiniDice roll={roll} size={big ? 30 : 20} />} {t("arrivedIn")}
         </p>
         <h3>
           {tx(city.name)} <small>{lang === "zh" ? city.name.en : city.name.zh}</small>

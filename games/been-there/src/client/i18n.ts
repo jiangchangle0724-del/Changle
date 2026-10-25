@@ -124,6 +124,7 @@ const S = {
   keepPlaying: ["再想想", "Not yet"],
   endTurn: ["结束回合", "End turn"],
   rolledDoubles: ["双数！结束后再掷一次", "Doubles! You roll again after this"],
+  doubles: ["双数！", "Doubles!"],
   pickRoute: ["里程兑换：飞到哪个航线格？", "Air Miles: fly to which route?"],
   pickPlayer: ["选一队，你们各从银行领 $50", "Pick a team: you each collect $50"],
   pickReview: ["五星好评：在哪座城免费加一栋？", "Five-star Review: add a free house where?"],

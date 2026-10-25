@@ -9,11 +9,13 @@ import { Countdown, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, tea
 import { dareText, quizItemText, recentParty } from "./feedText";
 import { Arrival, Clock, Feed, Over, Standings, lastId } from "./Game";
 import { Qr, joinUrl } from "./Lobby";
+import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
 import { Touchdown } from "./Touchdown";
 import { Trivia } from "./Trivia";
 
 export function Screen({ v }: { v: RoomView }) {
   useScreenSounds(v);
+  const card = useFreshCard(v);
   if (v.phase === "lobby")
     return (
       <main class="screen lobby-tv">
@@ -55,7 +57,7 @@ export function Screen({ v }: { v: RoomView }) {
   return (
     <main class="screen">
       <div class="tv-board">
-        <Board v={v} big globe center={TvCenter({ v })} />
+        <Board v={v} big globe center={TvCenter({ v, card })} over={<TvDice v={v} />} />
       </div>
       <aside class={`tv-side${g.trivia ? " quiz-up" : ""}`}>
         <div class="tv-head">
@@ -77,12 +79,13 @@ export function Screen({ v }: { v: RoomView }) {
         )}
         <Feed v={v} n={8} />
       </aside>
+      <CoinFx v={v} />
       <Touchdown v={v} big />
     </main>
   );
 }
 
-function TvCenter({ v }: { v: RoomView }) {
+function TvCenter({ v, card }: { v: RoomView; card: ReturnType<typeof useFreshCard> }) {
   const g = v.game!;
   if (g.auction)
     return (
@@ -120,6 +123,7 @@ function TvCenter({ v }: { v: RoomView }) {
         <p class="party-dare">{dareText(party)}</p>
       </div>
     );
+  if (card) return <CardFace v={v} card={card} big />;
   return null;
 }
 
