@@ -35,6 +35,7 @@ const S = {
   timeLeft: ["剩 {n} 秒", "{n}s left"],
   targetScore: ["先拿到 {n} 分", "First to {n} tags"],
   controls: ["摇杆 / WASD 移动 · Space / A 出拳 · Shift / X 融入", "Stick / WASD to move · Space / A to punch · Shift / X to blend in"],
+  fpsStats: ["帧率 {fps} · 平均 {avg} ms · 最慢 {slow} ms", "FPS {fps} · avg {avg} ms · slow {slow} ms"],
   stick: ["移动摇杆", "Move stick"],
   punch: ["出拳", "Punch"],
   blend: ["融入", "Blend"],
