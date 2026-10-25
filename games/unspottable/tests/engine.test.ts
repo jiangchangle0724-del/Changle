@@ -3,8 +3,10 @@ import test from "node:test";
 import {
   ARENA,
   MATCH_MS,
+  CHARACTER_COLLISION_DIAMETER,
   NPC_COUNT,
   PLAYER_SPEED,
+  crowdSeparationVelocity,
   SCORE_TO_WIN,
   advanceMatch,
   createMatch,
@@ -70,6 +72,23 @@ test("player movement accelerates, brakes, and turns without snapping", () => {
   assert.ok(faced.facing > 0 && faced.facing < Math.PI / 2, "facing should rotate toward movement rather than snap");
 });
 
+test("crowd separation resolves body contact without stacking or NaN motion", () => {
+  const match = createMatch(players, 0, 24);
+  const first = match.characters.find((character) => character.ownerId === "player-one")!;
+  const second = match.characters.find((character) => character.ownerId === "player-two")!;
+  first.x = second.x = 50;
+  first.y = second.y = 29;
+  const firstSeparation = crowdSeparationVelocity(first, match.characters);
+  const secondSeparation = crowdSeparationVelocity(second, match.characters);
+  assert.ok(Math.hypot(firstSeparation.x, firstSeparation.y) > 0);
+  assert.ok(Math.hypot(firstSeparation.x + secondSeparation.x, firstSeparation.y + secondSeparation.y) < 0.001);
+  const next = advanceMatch(match, 50, {});
+  const movedFirst = next.characters.find((character) => character.ownerId === "player-one")!;
+  const movedSecond = next.characters.find((character) => character.ownerId === "player-two")!;
+  assert.ok(Math.hypot(movedFirst.x - movedSecond.x, movedFirst.y - movedSecond.y) >= CHARACTER_COLLISION_DIAMETER - 0.02);
+  assert.ok(Number.isFinite(movedFirst.velocity.x) && Number.isFinite(movedSecond.velocity.y));
+});
+
 test("metro walkways carry idle players and the gallery spotlight boosts movement", () => {
   const players = [{ id: "one", name: "One" }, { id: "two", name: "Two" }];
   const metro = createMatch(players, 0, 20, "metro");
@@ -131,6 +150,11 @@ test("a punch has a wind-up, respects cooldown, and tags only a rival in its fro
   const knockedBack = advanceMatch(tagged, 260, {});
   assert.ok(knockedBack.characters.find((character) => character.ownerId === "player-two")!.x > 46);
   assert.equal(tagged.events.at(-1)?.t, "tag");
+  assert.equal(tagged.characters.find((character) => character.ownerId === "player-one")?.pose, "punch");
+  const followThrough = advanceMatch(tagged, 220, {});
+  assert.equal(followThrough.characters.find((character) => character.ownerId === "player-one")?.pose, "punch");
+  const recovered = advanceMatch(followThrough, 400, {});
+  assert.notEqual(recovered.characters.find((character) => character.ownerId === "player-one")?.pose, "punch");
 });
 
 test("hitting a passer-by causes a short stun and does not award a tag", () => {
