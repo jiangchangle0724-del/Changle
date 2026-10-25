@@ -43,6 +43,8 @@ export interface Settings {
   mode: Mode;
   /** Party forfeits (派对惩罚), off by default. */
   party: boolean;
+  /** Travel news (旅行快讯), off by default. Missing in rooms and saves from before it. */
+  news?: boolean;
   /** One device controls every human team (the single-device demo). */
   hotseat: boolean;
   /** Tests only: end after this many rounds. */
@@ -61,7 +63,7 @@ export type ClientMsg =
   | { t: "bot"; op: "add"; style?: StyleId }
   | { t: "bot"; op: "remove"; team: string }
   | { t: "bot"; op: "style"; team: string; style: StyleId }
-  | { t: "settings"; mode?: Mode; party?: boolean }
+  | { t: "settings"; mode?: Mode; party?: boolean; news?: boolean }
   | { t: "start" }
   | { t: "act"; d: number; a: Action; seat?: number }
   | { t: "manage"; k: ManageKind; at: number; seat?: number }

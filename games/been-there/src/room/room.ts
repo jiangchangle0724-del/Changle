@@ -220,6 +220,9 @@ export class Room {
     if (st.game) {
       st.game.triviaUsed ??= [];
       st.game.triviaTurn ??= -1;
+      // …and from before travel news.
+      st.game.s.news ??= null;
+      st.game.s.newsSeen ??= [];
       // A question from an older list of questions: drop it rather than show the wrong one.
       if (!st.game.trivia || !TRIVIA[st.game.trivia.q]) st.game.trivia = null;
     }
@@ -234,7 +237,7 @@ export class Room {
         createdAt: now,
         lastActive: now,
         hostId: null,
-        settings: { mode: "target", party: false, hotseat: false, ...settings },
+        settings: { mode: "target", party: false, news: false, hotseat: false, ...settings },
         members: {},
         teams: [],
         game: null,
@@ -270,6 +273,8 @@ export class Room {
         triviaUsed: g.triviaUsed ?? [],
         triviaTurn: g.triviaTurn ?? -1,
       };
+      room.st.game.s.news ??= null;
+      room.st.game.s.newsSeen ??= [];
       room.refreshAway();
     }
     return room;
@@ -457,6 +462,7 @@ export class Room {
         if (g) return;
         if (msg.mode === "target" || msg.mode === 15 || msg.mode === 60) this.st.settings.mode = msg.mode;
         if (typeof msg.party === "boolean") this.st.settings.party = msg.party;
+        if (typeof msg.news === "boolean") this.st.settings.news = msg.news;
         this.dirty = true;
         return;
       case "start":
@@ -637,6 +643,7 @@ export class Room {
       cfg.dealCities = mode === 15 ? 2 : 0;
     }
     if (testRounds) cfg.end = { kind: "rounds", rounds: testRounds };
+    cfg.news = !!this.st.settings.news;
     const seed = Math.floor(this.env.random() * 2 ** 31);
     const s = E.newGame(
       cfg,
@@ -1223,7 +1230,7 @@ export class Room {
         lang: m?.lang ?? "zh",
       },
       hostId: st.hostId,
-      settings: { mode: st.settings.mode, party: st.settings.party, hotseat: st.settings.hotseat },
+      settings: { mode: st.settings.mode, party: st.settings.party, news: !!st.settings.news, hotseat: st.settings.hotseat },
       members: members.map((x) => ({ id: x.id, name: x.name, team: x.team, role: x.role, online: x.online > 0, score: x.score })),
       teams,
       game: g ? this.gameView(g, m) : null,

@@ -14,6 +14,7 @@ import {
 } from "./board";
 import type { GameConfig } from "./config";
 import { BOARD, CITIES, GROUPS, JOURNEY_CARDS, POSTCARDS } from "./data";
+import { NEWS, NEWS_EVERY, NEWS_ROUNDS, newsFor } from "./news";
 import { random, shuffle } from "./rng";
 import {
   activePlayers,
@@ -67,6 +68,8 @@ export function newGame(cfg: GameConfig, names: string[], seed: number, opts: { 
     dir: 1,
     decks: { journey: [], postcard: [] },
     fx: { ban: null, typhoon: null, sales: null, salesUsed: 0, permits: 2, policies: 2 },
+    news: null,
+    newsSeen: [],
     turns: 0,
     pending: null,
     stack: [],
@@ -112,6 +115,27 @@ function startTurn(s: GameState) {
   pl.dbl = 0;
   s.pending = { k: "roll", who: p, jail: pl.jail };
   ev(s, { t: "turn", p });
+  if (s.cfg.news) tickNews(s);
+}
+
+/** Travel news: the last piece ends after NEWS_ROUNDS rounds; a new one comes every NEWS_EVERY. (Exported for the tests.) */
+export function tickNews(s: GameState) {
+  const round = activePlayers(s).length;
+  if (s.news && s.turns >= s.news.until) {
+    ev(s, { t: "news", id: s.news.id, on: false });
+    s.news = null;
+  }
+  if (s.news || s.turns === 0 || s.turns % (NEWS_EVERY * round) !== 0) return;
+  // Every piece once before any comes round again.
+  let fresh = NEWS.filter((n) => !s.newsSeen.includes(n.id));
+  if (!fresh.length) {
+    s.newsSeen = [];
+    fresh = NEWS;
+  }
+  const item = fresh[Math.floor(random(s) * fresh.length)];
+  s.newsSeen.push(item.id);
+  s.news = { id: item.id, until: s.turns + NEWS_ROUNDS * round };
+  ev(s, { t: "news", id: item.id, on: true });
 }
 
 function nextTurn(s: GameState) {
@@ -244,9 +268,13 @@ function land(s: GameState, p: number, noTango: boolean) {
     }
   }
   switch (sp.k) {
-    case "city":
+    case "city": {
       s.stack.push(s.cfg.cityRules ? { t: "rule", p, at, noTango } : { t: "prop", p, at });
+      // Travel news: a fee for visitors (Venice), paid before anything else there.
+      const fee = newsFor(s, sp.id)?.fee;
+      if (fee && s.deeds[at]!.owner !== p) s.stack.push({ t: "pay", p, amount: fee, to: -1 });
       return;
+    }
     case "route":
     case "service":
       s.stack.push({ t: "prop", p, at });
@@ -273,6 +301,8 @@ function visitProperty(s: GameState, item: Extract<StackItem, { t: "prop" }>) {
   if (deed.owner < 0) {
     let price = priceOf(s, at);
     if (BOARD[at].k === "city" && s.ps[p].keep.includes("points")) price = Math.round(price * 0.8);
+    const sale = cityAt(at) && newsFor(s, cityAt(at)!.id)?.buy;
+    if (sale) price = Math.round(price * sale);
     s.pending = { k: "buy", who: p, at, price };
     return;
   }

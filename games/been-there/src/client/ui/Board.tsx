@@ -10,6 +10,7 @@ import { colon, groupName, money, spaceName, t, tx } from "../i18n";
 import { prefs } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
+import { currentNews, newsTag } from "./News";
 
 export const reducedMotion = () => prefs.reduced || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
@@ -83,10 +84,17 @@ export function Board({ v, center, globe, over }: { v: RoomView; big?: boolean; 
   const s = g.s;
   const [open, setOpen] = useState<number | null>(null);
   const focus = useTurnFocus(v);
-  const marks: (SpaceMark | null)[] = s.deeds.map((d) => {
+  const news = currentNews(s);
+  const marks: (SpaceMark | null)[] = s.deeds.map((d, at) => {
     if (!d) return null;
     const team = d.owner >= 0 ? teamOf(v, d.owner) : undefined;
-    return { owner: team ? { color: TEAM_COLORS[team.color], letter: TEAM_LETTERS[team.color] } : null, houses: d.houses, mortgaged: d.mort };
+    const city = CITY_AT[at];
+    return {
+      owner: team ? { color: TEAM_COLORS[team.color], letter: TEAM_LETTERS[team.color] } : null,
+      houses: d.houses,
+      mortgaged: d.mort,
+      news: news && city && news.item.cities.includes(city.id) ? newsTag(news.item) : undefined,
+    };
   });
   const tokens: TokenMark[] = s.ps.flatMap((p, seat) => (p.out ? [] : [{ seat, at: p.pos, kind: teamOf(v, seat)?.color ?? 0, mood: moodOf(v, seat) }]));
   return (

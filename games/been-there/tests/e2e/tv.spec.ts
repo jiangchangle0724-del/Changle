@@ -1,6 +1,7 @@
 // The big screen: the 3D globe in the middle of the board loads, and flies the plane when a token
 // reaches another region. Without WebGL the flat map stays, which is the designed fallback. Every
-// throw lands as dice on the board, and the live weather (here: rain everywhere) shows on arrival.
+// throw lands as dice on the board, the live weather (here: rain everywhere) shows on arrival, and
+// with travel news switched on, a piece of news comes up with its tag on the city's square.
 import { expect, test } from "@playwright/test";
 import { COORDS } from "../../src/client/art/coords";
 import { createRoom, joinWithTeam, newPhone, playUntil, watch, type Phone } from "./phones";
@@ -19,6 +20,7 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   const p = await newPhone(browser, "东", contextOptions);
   await joinWithTeam(p, code);
   for (let i = 0; i < 2; i++) await p.page.getByRole("button", { name: "加一个电脑队" }).click();
+  await p.page.getByRole("checkbox", { name: /旅行快讯/ }).check();
   await p.page.getByRole("button", { name: "开始", exact: true }).click();
   await expect(tv.page.locator(".screen .boardwrap")).toBeVisible();
   // Note each throw's dice as they land (they're only up for a few seconds), drawn at a real size, and
@@ -26,9 +28,10 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   // touchdown gives way to any auction), so with computer teams playing fast one can be gone a moment
   // after it shows: read them as they happen, not afterwards.
   await tv.page.evaluate(() => {
-    const w = window as unknown as { sawDice: number; wx: { arrival: string[]; touchdown: string[] } };
+    const w = window as unknown as { sawDice: number; wx: { arrival: string[]; touchdown: string[] }; news: string[] };
     w.sawDice = 0;
     w.wx = { arrival: [], touchdown: [] };
+    w.news = [];
     const note = (list: string[], text: string | null | undefined) => {
       if (text && list[list.length - 1] !== text) list.push(text);
     };
@@ -38,6 +41,9 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
       note(w.wx.arrival, document.querySelector(".arrival-wx")?.textContent);
       const td = document.querySelector(".touchdown.wx-rain");
       note(w.wx.touchdown, td?.querySelector(".td-weather.rain") ? td.querySelector(".td-meta")?.textContent : null);
+      // The news card, and the tag on its city's square, together.
+      const news = document.querySelector(".news.big h3")?.textContent;
+      note(w.news, news && document.querySelector(".board-news") ? news : null);
     }).observe(document.body, { childList: true, subtree: true });
   });
   const webgl = await tv.page.evaluate(() => {
@@ -72,5 +78,9 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
     await playUntil([p], async () => (await wx()).touchdown.length > 0, 90_000);
     expect((await wx()).touchdown[0]).toContain("雨 12°C");
   }
+  // Travel news: with three teams, the first piece comes after three rounds (turn 9).
+  const news = () => tv.page.evaluate(() => (window as unknown as { news: string[] }).news);
+  await playUntil([p], async () => (await news()).length > 0, 90_000);
+  expect((await news())[0]).toMatch(/×2|½|×1\.5|\+\$20|−25%/);
   expect([...tv.errors, ...p.errors]).toEqual([]);
 });

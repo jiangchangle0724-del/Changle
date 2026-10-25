@@ -285,6 +285,8 @@ export const sfx = {
   descent: () => swell(1.4, { type: "bandpass", freq: 300, sweep: 1400, q: 0.8, vol: 0.07 }),
   /** The city's own sound (see CITY_SOUND). */
   city: (id: string) => CITY_SOUND[id]?.(),
+  /** Travel news: a newsroom ticker. */
+  news: () => [880, 1108.7, 1318.5, 1760].forEach((f, i) => tone(f, 0.11, { type: "square", vol: 0.035, at: i * 0.085 })),
   /** The weather we land in: rain on the window, a roll of thunder, wind with the snow or fog. */
   weather: (kind: string) => {
     if (kind === "rain" || kind === "storm" || kind === "drizzle") {

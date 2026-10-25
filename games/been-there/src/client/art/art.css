@@ -229,6 +229,16 @@
     transform: scale(1);
   }
 }
+/* Travel news on the board: a vermilion tag on the inner edge of the city it changes. */
+.roundboard .board-news rect {
+  fill: var(--active);
+  stroke: var(--board-paper);
+  stroke-width: 2.5;
+}
+.roundboard .board-news text {
+  fill: var(--board-paper);
+  font: 800 17px var(--display);
+}
 .roundboard .react {
   transform-box: fill-box;
   transform-origin: 50% 100%;

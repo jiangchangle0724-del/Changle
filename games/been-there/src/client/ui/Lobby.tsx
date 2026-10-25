@@ -150,6 +150,13 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
               <small>{t("partyHint")}</small>
             </span>
           </label>
+          <label class="radio">
+            <input type="checkbox" checked={!!v.settings.news} onChange={(e) => send({ t: "settings", news: (e.target as HTMLInputElement).checked })} />
+            <span>
+              <b>{t("news")}</b>
+              <small>{t("newsHint")}</small>
+            </span>
+          </label>
           <Btn kind="primary" wide disabled={!ready} onClick={() => send({ t: "start" })}>
             {t("start")}
           </Btn>

@@ -134,6 +134,7 @@ export type GameEvent =
   | { t: "trade"; a: number; b: number; give: Offer; get: Offer }
   | { t: "bankrupt"; p: number; to: number }
   | { t: "bonus"; p: number; amount: number; why: string }
+  | { t: "news"; id: string; on: boolean }
   | { t: "over"; reason: string; winner: number | null };
 
 export interface GameState {
@@ -149,6 +150,9 @@ export interface GameState {
   /** Card order; the top card is the last one. Secret. */
   decks: { journey: number[]; postcard: number[] };
   fx: Effects;
+  /** Travel news in force (news.ts) until `turns` reaches `until`, and the ones already told. */
+  news: { id: string; until: number } | null;
+  newsSeen: string[];
   turns: number;
   pending: Pending | null;
   stack: StackItem[];

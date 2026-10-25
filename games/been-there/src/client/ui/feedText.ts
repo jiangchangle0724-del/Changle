@@ -1,5 +1,5 @@
 // Turn feed items (game and room events) into one line of plain language.
-import { BOARD, CITIES, TRASH_QUIZ, type GameEvent, type Offer } from "../../engine";
+import { BOARD, CITIES, TRASH_QUIZ, newsById, type GameEvent, type Offer } from "../../engine";
 import { FORFEITS } from "../../room/party";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import { cardById, cardTitle, money, spaceName, t, tx, type Key } from "../i18n";
@@ -68,6 +68,11 @@ export function gameEventText(v: RoomView, e: GameEvent): string | null {
       return ruleText(v, e, team);
     case "bonus":
       return t("log_bonus", { team, amount: money(e.amount) });
+    case "news": {
+      const n = newsById(e.id);
+      if (!n) return null;
+      return e.on ? t("log_news", { title: tx(n.title), text: tx(n.text) }) : t("log_newsEnd", { title: tx(n.title) });
+    }
   }
 }
 

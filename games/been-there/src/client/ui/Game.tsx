@@ -13,6 +13,7 @@ import { Btn, Countdown, Money, SeatChip, TeamChip, hostOf, seatName, teamOf, us
 import { Decision, pendingSummary } from "./Decision";
 import { dareText, feedText } from "./feedText";
 import { CardFace, Cash, MiniDice, RollMoment, cardThisTurn, rollBefore } from "./Moments";
+import { NewsBanner } from "./News";
 import { SettingsSheet } from "./Settings";
 import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
@@ -76,6 +77,7 @@ export function Game({ v }: { v: RoomView }) {
           <Arrival v={v} />
           <TurnCard v={v} />
           <Decision v={v} />
+          <NewsBanner v={v} />
           <Trivia v={v} />
           <Standings v={v} />
           {mySeat === undefined && <Bets v={v} />}
@@ -340,6 +342,7 @@ function usePhoneSounds(v: RoomView, myMove: boolean) {
     else if (ask && ask !== p.ask) sfx.ask();
     const fresh = v.feed.filter((f) => f.id > p.feed);
     if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
+    if (fresh.some((f) => f.t === "game" && f.e.t === "news" && f.e.on)) sfx.news();
     // (with motion on, the touchdown plays the stamp in time with its own)
     if (reducedMotion() && fresh.some((f) => f.t === "game" && f.e.t === "stamp" && v.you.seats.includes(f.e.p))) sfx.stamp();
     const cash = v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0);
