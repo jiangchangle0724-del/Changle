@@ -1,9 +1,13 @@
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
 export const MATCH_MS = 75_000;
 export const SCORE_TO_WIN = 3;
-export const NPC_COUNT = 12;
+export const NPC_COUNT = 18;
 export const PLAYER_SPEED = 13;
 export const NPC_SPEED = 7.4;
+export const PLAYER_ACCELERATION = 46;
+export const NPC_ACCELERATION = 32;
+export const PLAYER_BRAKING = 60;
+export const TURN_RATE = 10;
 export const PUNCH_RANGE = 8.5;
 export const PUNCH_ARC = Math.PI / 2.8;
 export const PUNCH_WINDUP_MS = 160;
@@ -25,6 +29,7 @@ export interface Character {
   x: number;
   y: number;
   facing: number;
+  velocity: Vector;
   score: number;
   pose: Pose;
   npcStyle: number;
@@ -56,6 +61,25 @@ export interface MatchState {
   nextEventId: number;
 }
 
+export function characterMaxSpeed(character: Pick<Character, "kind" | "blendUntil" | "x" | "y">, arena: ArenaId, now: number): number {
+  const blended = character.kind === "player" && now < character.blendUntil;
+  const spotlightBoost = arena === "gallery" && Math.abs(character.x - 50) <= 14 && Math.abs(character.y - 29) <= 17 ? 1.3 : 1;
+  return (character.kind === "npc" || blended ? NPC_SPEED : PLAYER_SPEED) * spotlightBoost;
+}
+
+export function steerVelocity(current: Vector, target: Vector, dt: number, acceleration: number, braking = PLAYER_BRAKING): Vector {
+  const elapsed = Math.max(0, Math.min(0.15, Number.isFinite(dt) ? dt : 0));
+  const dx = target.x - current.x;
+  const dy = target.y - current.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 0.0001 || elapsed === 0) return { x: current.x, y: current.y };
+  const targetSpeed = Math.hypot(target.x, target.y);
+  const reversing = current.x * target.x + current.y * target.y < 0;
+  const rate = targetSpeed < 0.05 || reversing ? Math.max(acceleration, braking) : acceleration;
+  const amount = Math.min(distance, rate * elapsed);
+  return { x: current.x + dx / distance * amount, y: current.y + dy / distance * amount };
+}
+
 export function normalizeVector(value: Vector): Vector {
   const x = Number.isFinite(value.x) ? Math.max(-1, Math.min(1, value.x)) : 0;
   const y = Number.isFinite(value.y) ? Math.max(-1, Math.min(1, value.y)) : 0;
@@ -65,8 +89,8 @@ export function normalizeVector(value: Vector): Vector {
 
 function slots(): Vector[] {
   const result: Vector[] = [];
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 8; col++) result.push({ x: 7 + col * 12.2, y: 10 + row * 19 });
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 10; col++) result.push({ x: 6 + col * 9.8, y: 6.5 + row * 15 });
   }
   return result;
 }
@@ -88,6 +112,7 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: Are
       x: point.x,
       y: point.y,
       facing: index % 2 === 0 ? 0 : Math.PI,
+      velocity: { x: 0, y: 0 },
       score: 0,
       pose: "idle",
       npcStyle: 0,
@@ -114,6 +139,7 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: Are
       x: point.x,
       y: point.y,
       facing: i % 2 === 0 ? 0 : Math.PI,
+      velocity: { x: 0, y: 0 },
       score: 0,
       pose: "idle",
       npcStyle: i % 3,
@@ -219,6 +245,7 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   }
   if (target.kind === "npc") {
     attacker.stunnedUntil = now + NPC_FOUL_STUN_MS;
+    attacker.velocity = { x: 0, y: 0 };
     attacker.recoil = { x: -Math.cos(attacker.facing) * 8, y: -Math.sin(attacker.facing) * 8 };
     attacker.pose = "stunned";
     addEvent(state, "foul", attacker.ownerId, target.id);
@@ -226,6 +253,7 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   }
   attacker.score++;
   target.stunnedUntil = now + STUN_MS;
+  target.velocity = { x: 0, y: 0 };
   target.recoil = { x: Math.cos(attacker.facing) * 17, y: Math.sin(attacker.facing) * 17 };
   target.pose = "stunned";
   addEvent(state, "tag", attacker.ownerId, target.ownerId);
@@ -240,8 +268,13 @@ function bounded(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value));
 }
 
-function metroDrift(state: MatchState, now: number): number {
-  const phase = (now - state.startedAt) % 12_000;
+function turnToward(current: number, target: number, maxStep: number): number {
+  const turn = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + bounded(turn, -maxStep, maxStep);
+}
+
+function metroDrift(startedAt: number, now: number): number {
+  const phase = (now - startedAt) % 12_000;
   if (phase < 2_600) return 4.5;
   if (phase >= 6_000 && phase < 8_600) return -4.5;
   return 0;
@@ -251,20 +284,29 @@ function inGallerySpotlight(character: Character): boolean {
   return Math.abs(character.x - 50) <= 14 && Math.abs(character.y - 29) <= 17;
 }
 
+export function environmentalDrift(arena: ArenaId, startedAt: number, now: number): Vector {
+  return { x: arena === "metro" ? metroDrift(startedAt, now) : 0, y: 0 };
+}
+
 export function advanceMatch(state: MatchState, now: number, inputs: Record<string, Vector>): MatchState {
   if (state.phase !== "playing") return state;
   const next: MatchState = {
     ...state,
     lastTickAt: now,
-    characters: state.characters.map((character) => ({ ...character })),
+    characters: state.characters.map((character) => ({
+      ...character,
+      velocity: { ...(character.velocity ?? { x: 0, y: 0 }) },
+      recoil: { ...character.recoil }
+    })),
     events: [...state.events]
   };
   const dt = bounded(now - state.lastTickAt, 0, 120) / 1_000;
-  const laneDrift = state.arena === "metro" ? metroDrift(state, now) : 0;
+  const laneDrift = environmentalDrift(state.arena, state.startedAt, now).x;
   for (const character of next.characters) {
     if (now < character.stunnedUntil) {
       character.x = bounded(character.x + character.recoil.x * dt, ARENA.marginX, ARENA.width - ARENA.marginX);
       character.y = bounded(character.y + character.recoil.y * dt, ARENA.marginY, ARENA.height - ARENA.marginY);
+      character.velocity = { x: 0, y: 0 };
       const drag = Math.exp(-dt * 6);
       character.recoil.x *= drag;
       character.recoil.y *= drag;
@@ -275,14 +317,25 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     const rawInput = character.kind === "npc" ? botVector(character, now) : inputs[character.ownerId ?? ""] ?? { x: 0, y: 0 };
     const vector = normalizeVector(rawInput);
     const blended = character.kind === "player" && now < character.blendUntil;
-    const spotlightBoost = state.arena === "gallery" && inGallerySpotlight(character) ? 1.3 : 1;
-    const speed = (character.kind === "npc" || blended ? NPC_SPEED : PLAYER_SPEED) * spotlightBoost;
-    const moveX = vector.x * speed + laneDrift;
-    const moveY = vector.y * speed;
-    const moving = Math.hypot(moveX, moveY) > 1.5;
-    if (moving) character.facing = Math.atan2(moveY, moveX);
-    character.x = bounded(character.x + moveX * dt, ARENA.marginX, ARENA.width - ARENA.marginX);
-    character.y = bounded(character.y + moveY * dt, ARENA.marginY, ARENA.height - ARENA.marginY);
+    const speed = characterMaxSpeed(character, state.arena, now);
+    const desired = { x: vector.x * speed + laneDrift, y: vector.y * speed };
+    character.velocity = steerVelocity(
+      character.velocity ?? { x: 0, y: 0 },
+      desired,
+      dt,
+      character.kind === "npc" ? NPC_ACCELERATION : PLAYER_ACCELERATION,
+      PLAYER_BRAKING
+    );
+    const moveX = character.velocity.x;
+    const moveY = character.velocity.y;
+    const moving = Math.hypot(moveX, moveY) > 0.65;
+    if (moving) character.facing = turnToward(character.facing, Math.atan2(moveY, moveX), TURN_RATE * dt);
+    const nextX = character.x + moveX * dt;
+    const nextY = character.y + moveY * dt;
+    character.x = bounded(nextX, ARENA.marginX, ARENA.width - ARENA.marginX);
+    character.y = bounded(nextY, ARENA.marginY, ARENA.height - ARENA.marginY);
+    if (character.x !== nextX) character.velocity.x = 0;
+    if (character.y !== nextY) character.velocity.y = 0;
     if (character.attackResolveAt !== null && now < character.attackResolveAt) character.pose = "windup";
     else if (character.attackResolveAt !== null && !character.attackResolved && now >= character.attackResolveAt) {
       character.attackResolved = true;
