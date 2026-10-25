@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { SIMULATION_STEP_MS } from "../src/engine";
 import { Room } from "../src/room/room";
 
 const first = "player-one";
@@ -33,6 +34,25 @@ test("only the host starts and the server requires at least two online players",
   assert.equal(room.view(first, "player", 6).game?.phase, "playing");
 });
 
+
+test("movement frames coalesce to simulation ticks and stale input brakes to rest", () => {
+  const room = twoPlayerRoom();
+  room.handle(first, { t: "start" }, 3);
+  const player = room.st.game!.characters.find((character) => character.ownerId === first)!;
+  const startX = player.x;
+  room.handle(first, { t: "move", x: 1, y: 0 }, 10);
+  assert.equal(room.st.game!.lastTickAt, 3);
+  assert.equal(player.x, startX);
+  room.advance(3 + SIMULATION_STEP_MS);
+  const moving = room.st.game!.characters.find((character) => character.ownerId === first)!;
+  assert.ok(moving.x > startX);
+  assert.ok(moving.velocity.x > 0);
+  room.advance(300);
+  const stopped = room.st.game!.characters.find((character) => character.ownerId === first)!;
+  assert.equal(room.st.inputs[first], undefined);
+  assert.equal(room.st.inputUpdatedAt[first], undefined);
+  assert.ok(stopped.velocity.x < moving.velocity.x);
+});
 
 test("players vote for an arena and the winning rule starts for every screen", () => {
   const room = twoPlayerRoom();
