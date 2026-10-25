@@ -29,6 +29,11 @@
   --coin: #e0a526;
   --coin-hi: #ffe08a;
   --coin-edge: #93640c;
+  /* Weather seen through the plane window (the live weather, in the touchdown). */
+  --rain: rgba(232, 240, 255, 0.62);
+  --snow: rgba(255, 255, 255, 0.92);
+  --fog: rgba(228, 232, 238, 0.72);
+  --flash: rgba(255, 255, 255, 0.7);
   --display: "Big Shoulders Display", "ZCOOL QingKe HuangYou", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
   --display-zh: "ZCOOL QingKe HuangYou", "Big Shoulders Display", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
   --mono: "Space Mono", ui-monospace, Menlo, monospace;

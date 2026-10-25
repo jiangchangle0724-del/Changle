@@ -92,18 +92,18 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
                 </p>
               </div>
               {team.bot && host && (
-                <select value={team.bot} onChange={(e) => send({ t: "bot", op: "style", team: team.id, style: (e.target as HTMLSelectElement).value as StyleId })}>
-                  {(["balanced", "tycoon", "saver", "jetsetter", "gambler"] as StyleId[]).map((st) => (
-                    <option key={st} value={st}>
-                      {styleName(st)}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {team.bot && host && (
-                <Btn kind="quiet" onClick={() => send({ t: "bot", op: "remove", team: team.id })}>
-                  {t("removeBot")}
-                </Btn>
+                <span class="bot-tools">
+                  <select value={team.bot} onChange={(e) => send({ t: "bot", op: "style", team: team.id, style: (e.target as HTMLSelectElement).value as StyleId })}>
+                    {(["balanced", "tycoon", "saver", "jetsetter", "gambler"] as StyleId[]).map((st) => (
+                      <option key={st} value={st}>
+                        {styleName(st)}
+                      </option>
+                    ))}
+                  </select>
+                  <Btn kind="quiet" onClick={() => send({ t: "bot", op: "remove", team: team.id })}>
+                    {t("removeBot")}
+                  </Btn>
+                </span>
               )}
               {!team.bot && !mineTeam && !demo && team.members.length < MAX_TEAM_SIZE && (
                 <Btn onClick={() => send({ t: "team", op: "join", team: team.id })}>{t("joinTeam")}</Btn>

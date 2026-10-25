@@ -309,6 +309,8 @@ select {
   margin: 0 auto;
   padding: calc(24px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
   display: grid;
+  /* One column that never grows past the screen, whatever a row inside wants. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 .home header {
@@ -359,6 +361,7 @@ details > *:not(summary) {
 }
 .teams li {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   background: var(--surface);
@@ -373,6 +376,17 @@ details > *:not(summary) {
 .grow {
   flex: 1;
   min-width: 0;
+}
+/* A computer team's style and Remove: beside the name when they fit, on a line of their own when
+   they don't (English on a narrow phone). */
+.teams li .grow {
+  min-width: 5em;
+}
+.bot-tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: auto;
 }
 .teamname {
   font-weight: 600;
@@ -1800,6 +1814,142 @@ legend {
 }
 .touchdown.big .td-meta {
   font-size: 2.4vh;
+}
+
+/* Live weather in the touchdown (ui/Touchdown.tsx): rain streaks down the window, snow drifts, fog
+   hangs, a storm flashes. Each layer is a strip one tile taller than the window that slides down by
+   exactly one tile, so the loop is seamless and only moves a composited layer. */
+.wx-overcast .td-sky,
+.wx-fog .td-sky,
+.wx-drizzle .td-sky,
+.wx-rain .td-sky,
+.wx-storm .td-sky,
+.wx-snow .td-sky {
+  filter: saturate(0.5) brightness(0.9);
+}
+.td-weather {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  --tile: 120px;
+}
+.td-weather::before,
+.td-weather::after {
+  content: "";
+  position: absolute;
+  left: -15%;
+  right: -15%;
+  top: calc(-1 * var(--tile));
+  bottom: 0;
+}
+.td-weather.rain::before,
+.td-weather.storm::before,
+.td-weather.drizzle::before {
+  background-image:
+    radial-gradient(1.2px 15px at 20% 30%, var(--rain) 55%, transparent 100%),
+    radial-gradient(1.2px 11px at 70% 75%, var(--rain) 55%, transparent 100%),
+    radial-gradient(1px 9px at 45% 5%, var(--rain) 55%, transparent 100%);
+  background-size:
+    46px var(--tile),
+    63px var(--tile),
+    29px var(--tile);
+  animation: wx-fall 0.42s linear infinite;
+}
+.td-weather.rain::after,
+.td-weather.storm::after,
+.td-weather.drizzle::after {
+  opacity: 0.5;
+  background-image:
+    radial-gradient(1px 8px at 35% 60%, var(--rain) 55%, transparent 100%),
+    radial-gradient(1px 7px at 80% 15%, var(--rain) 55%, transparent 100%);
+  background-size:
+    23px var(--tile),
+    37px var(--tile);
+  animation: wx-fall 0.7s linear infinite;
+}
+.td-weather.drizzle::before {
+  opacity: 0.55;
+  animation-duration: 0.6s;
+}
+.td-weather.drizzle::after {
+  opacity: 0.3;
+}
+.td-weather.storm {
+  animation: wx-flash 3.4s linear 0.9s infinite;
+}
+.td-weather.snow {
+  --tile: 200px;
+}
+/* Flakes scattered across wide tiles, so they don't fall in visible rows. */
+.td-weather.snow::before {
+  background-image:
+    radial-gradient(3px 3px at 8% 12%, var(--snow) 70%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 31% 64%, var(--snow) 70%, transparent 100%),
+    radial-gradient(3.5px 3.5px at 54% 28%, var(--snow) 70%, transparent 100%),
+    radial-gradient(2px 2px at 72% 83%, var(--snow) 70%, transparent 100%),
+    radial-gradient(3px 3px at 89% 47%, var(--snow) 70%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 43% 95%, var(--snow) 70%, transparent 100%);
+  background-size: 260px var(--tile);
+  animation: wx-drift 5s linear infinite;
+}
+.td-weather.snow::after {
+  opacity: 0.6;
+  background-image:
+    radial-gradient(1.5px 1.5px at 15% 40%, var(--snow) 70%, transparent 100%),
+    radial-gradient(2px 2px at 38% 8%, var(--snow) 70%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 61% 71%, var(--snow) 70%, transparent 100%),
+    radial-gradient(2px 2px at 83% 22%, var(--snow) 70%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 94% 88%, var(--snow) 70%, transparent 100%);
+  background-size: 190px var(--tile);
+  animation: wx-drift 8s linear infinite;
+}
+.td-weather.fog {
+  background: linear-gradient(to top, var(--fog), transparent 75%);
+}
+.td-weather.fog::before {
+  top: 25%;
+  bottom: 15%;
+  background: radial-gradient(60% 50% at 50% 50%, var(--fog), transparent 70%);
+  animation: wx-haze 6s ease-in-out infinite alternate;
+}
+@keyframes wx-fall {
+  from {
+    transform: rotate(9deg) translateY(0);
+  }
+  to {
+    transform: rotate(9deg) translateY(var(--tile));
+  }
+}
+@keyframes wx-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(var(--tile));
+  }
+}
+@keyframes wx-haze {
+  from {
+    transform: translateX(-12%);
+    opacity: 0.7;
+  }
+  to {
+    transform: translateX(12%);
+    opacity: 1;
+  }
+}
+@keyframes wx-flash {
+  0%,
+  6%,
+  9%,
+  100% {
+    background-color: transparent;
+  }
+  7%,
+  10% {
+    background-color: var(--flash);
+  }
 }
 
 /* ---------- moments: dice, coins, drawn cards, cash (ui/Moments.tsx, art/dice.tsx) ----------

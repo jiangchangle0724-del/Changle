@@ -7,6 +7,7 @@ import { setLang } from "../client/i18n";
 import { identity, prefs } from "../client/prefs";
 import { installAudioUnlock, setMuted } from "../client/sound";
 import { onServer, setConn, update } from "../client/store";
+import { disableWeather } from "../client/weather";
 import { App } from "../client/ui/App";
 import { setReduced, toggleMute } from "../client/ui/Settings";
 
@@ -72,6 +73,8 @@ function reset() {
   pump();
 }
 
+// No server here to ask for the weather.
+disableWeather();
 setLang(prefs.lang);
 setMuted(prefs.muted);
 setReduced(prefs.reduced);
