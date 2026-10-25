@@ -1332,6 +1332,8 @@ legend {
 .medal .face {
   position: relative;
   z-index: 1;
+  width: 73%;
+  height: auto;
 }
 @keyframes rays {
   to {
@@ -1445,11 +1447,13 @@ legend {
   max-width: 1440px;
   min-height: 100dvh;
   align-content: center;
-  gap: 32px;
+  gap: min(32px, 3.5vh);
+  padding-bottom: 24px;
   padding-inline: 56px;
 }
+/* (Heights follow the screen's: nobody scrolls a TV, and a 720-pixel-tall one must fit too.) */
 .over.big .exit-stamp h1 {
-  font-size: 5rem;
+  font-size: min(5rem, 8vh);
 }
 .over.big .exit-stamp p {
   font-size: 16px;
@@ -1492,17 +1496,21 @@ legend {
   padding: 28px 28px 22px;
 }
 .over.big .won-name {
-  font-size: 2.6rem;
+  font-size: min(2.6rem, 4.6vh);
 }
 .over.big .medal {
-  width: 230px;
+  width: min(230px, 24vh);
   margin-bottom: 14px;
 }
 .over.big .medal::before {
   inset: -56px;
 }
 .over.big .results .won .worth {
-  font-size: 3.4rem;
+  font-size: min(3.4rem, 6vh);
+}
+.over.big .trip .stamp {
+  width: min(84px, 9vh);
+  height: min(84px, 9vh);
 }
 .over.big .champion {
   top: 22px;

@@ -18,8 +18,9 @@ import { Feed } from "./Game";
 const STAMP_AT = 0.3;
 const FIRST_AT = 1.1;
 const EACH = 0.55;
-/** As many passport stamps as fit in two rows on a phone. */
+/** As many passport stamps as fit in two rows on a phone, and in one on the big screen. */
 const TRIP = 12;
+const TRIP_BIG = 7;
 
 export function Over({ v, big }: { v: RoomView; big?: boolean }) {
   const g = v.game!;
@@ -96,6 +97,7 @@ function Row({ v, seat, rank, at, big }: { v: RoomView; seat: number; rank: numb
   const style = { "--at": `${at}s`, "--team": TEAM_COLORS[team?.color ?? 0] };
   if (seat === s.winner) {
     const lang = getLang();
+    const trip = big ? TRIP_BIG : TRIP;
     return (
       <li class="won" style={style}>
         <div class="medal">
@@ -114,12 +116,12 @@ function Row({ v, seat, rank, at, big }: { v: RoomView; seat: number; rank: numb
         </span>
         {p.stamps.length > 0 && (
           <div class="trip" aria-hidden="true">
-            {p.stamps.slice(0, TRIP).map((id, i) => (
+            {p.stamps.slice(0, trip).map((id, i) => (
               <span key={id} style={{ "--i": i }}>
                 <Stamp id={id} size={big ? 84 : 54} turn={(i % 2 ? 1 : -1) * (3 + ((i * 7) % 10))} lang={lang} />
               </span>
             ))}
-            {p.stamps.length > TRIP && <b class="num">+{p.stamps.length - TRIP}</b>}
+            {p.stamps.length > trip && <b class="num">+{p.stamps.length - trip}</b>}
           </div>
         )}
       </li>
