@@ -2,7 +2,9 @@
 // of the plane window, come down through the clouds and arrive. The city fills the view, the greeting
 // and the real local time come up, the city's sound plays and the stamp comes down. On the big screen
 // for every team; on a phone only for its own team. Tap to skip; reduced motion skips it (the arrival
-// card still shows). The timing lives in styles.css (.touchdown), scaled by --k on phones.
+// card still shows). It never covers a decision on a clock: if an auction, Shanghai's quiz, Seoul's
+// silence or a table vote comes up, it gives way. The timing lives in styles.css (.touchdown), scaled
+// by --k on phones.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { CITIES } from "../../engine";
 import type { RoomView } from "../../room/protocol";
@@ -30,6 +32,14 @@ function latestStamp(v: RoomView, seats: number[] | null): Landing | null {
   return null;
 }
 
+/** Something is up on a clock: an auction, Shanghai's quiz, Seoul's silence or a table vote. */
+function onClock(v: RoomView): boolean {
+  const g = v.game;
+  if (!g) return false;
+  const now = serverNow();
+  return !!g.auction || !!g.quiz || (g.silenceUntil ?? 0) > now || (g.deadline ?? 0) > now;
+}
+
 /** Big screen: the whole scene is 5.2 s. Phones run the same timeline at this speed. */
 const PHONE = 0.68;
 
@@ -39,6 +49,10 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
   const seen = useRef(land?.id ?? 0);
   const timers = useRef<number[]>([]);
   const [show, setShow] = useState<Landing | null>(null);
+  // The newest view, for the timers below.
+  const latest = useRef(v);
+  latest.current = v;
+  const clocked = onClock(v);
   const stop = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
@@ -57,6 +71,7 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     // Let the token finish walking (and the plane flying) first.
     const lead = big ? 1400 : 600;
     later(lead, () => {
+      if (onClock(latest.current)) return stop();
       setShow(land);
       if (loud) sfx.cabin();
     });
@@ -67,6 +82,11 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     later(lead + 3000 * k, () => sfx.stamp());
     later(lead + 5200 * k, stop);
   }, [land?.id]);
+  // A decision on a clock came up (the team passed on a city and it went to auction, or landed on
+  // Shanghai's quiz): give way to it, sounds and all.
+  useEffect(() => {
+    if (clocked) stop();
+  }, [clocked]);
 
   if (!show) return null;
   const city = CITIES.find((c) => c.id === show.city);
