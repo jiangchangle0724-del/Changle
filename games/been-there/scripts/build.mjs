@@ -37,6 +37,51 @@ async function inlineCss() {
   return css;
 }
 
+// Third-party licences in full: the code inside the pages, the map data and the fonts. The bundles
+// carry no comments, so the texts ship beside them as licences.txt, and inside the single-file pages
+// as a text block the credits page shows.
+const MIT = (holder) => `MIT License
+
+Copyright (c) ${holder}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`;
+const THIRD_PARTY = [
+  ["Preact", "https://preactjs.com/", "node_modules/preact/LICENSE"],
+  ["three.js", "https://threejs.org/", "node_modules/three/LICENSE"],
+  // Its licence is only in the header of its source.
+  ["qrcode-generator", "https://github.com/kazuhikoarase/qrcode-generator", MIT("2009 Kazuhiko Arase")],
+  ["world-atlas (the map: Natural Earth 1:110m land, public domain)", "https://github.com/topojson/world-atlas", "node_modules/world-atlas/LICENSE"],
+  ["ZCOOL QingKe HuangYou", "https://fonts.google.com/specimen/ZCOOL+QingKe+HuangYou", "src/client/fonts/licences/ZCOOLQingKeHuangYou-OFL.txt"],
+  ["Big Shoulders Display", "https://fonts.google.com/specimen/Big+Shoulders+Display", "src/client/fonts/licences/BigShouldersDisplay-OFL.txt"],
+  ["Space Mono", "https://fonts.google.com/specimen/Space+Mono", "src/client/fonts/licences/SpaceMono-OFL.txt"],
+];
+async function licences() {
+  const parts = [];
+  for (const [name, url, src] of THIRD_PARTY) {
+    const text = src.includes("\n") ? src : await readFile(src, "utf8");
+    parts.push(`=== ${name}\n${url}\n\n${text.trim()}\n`);
+  }
+  parts.push("=== Weather data\nhttps://open-meteo.com/\n\nWeather data by Open-Meteo.com, licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/\n");
+  return `Been There, Bought That (到此一游): third-party licences\n\n${parts.join("\n")}`;
+}
+const LICENCES = await licences();
+await writeFile(`${out}/licences.txt`, LICENCES);
+/** The licences inside a single-file page, for the credits page to show. */
+const licenceBlock = () => `<script type="text/plain" id="licences">${LICENCES.replace(/<\//g, "<\\/")}</script>`;
+
 // Inside a claude.ai artifact the page is wrapped for us and :root already clears the phone's
 // notch and home bar, so the screens drop their own top inset there.
 const ARTIFACT_CSS = `
@@ -50,7 +95,7 @@ async function demo() {
   const res = await esbuild.build({ ...common, entryPoints: ["src/local/demo.tsx"], write: false, format: "iife" });
   const js = res.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
   const css = await inlineCss();
-  const body = `<div id="app"></div><script>${js}</script>`;
+  const body = `<div id="app"></div><script>${js}</script>${licenceBlock()}`;
   // Standalone file you can open from disk.
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>到此一游试玩版</title><style>${css}</style></head><body>${body}</body></html>`;
   await writeFile("dist/demo.html", html);
@@ -68,7 +113,7 @@ async function samples() {
   const js = res.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
   const css = (await readFile("src/client/art/art.css", "utf8")) + (await readFile("src/samples/styles.css", "utf8"));
   const head = `<title>到此一游美术样张</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<link rel="stylesheet" href="${SAMPLE_FONTS}">\n<style>${css}</style>`;
-  const body = `<div id="app"></div><script>${js}</script>`;
+  const body = `<div id="app"></div><script>${js}</script>${licenceBlock()}`;
   await writeFile("dist/styles.html", `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">${head}</head><body>${body}</body></html>`);
   await writeFile("dist/styles.artifact.html", `${head}\n${body}\n`);
   console.log(`dist/styles.html ${((head.length + body.length) / 1024).toFixed(0)} KB`);

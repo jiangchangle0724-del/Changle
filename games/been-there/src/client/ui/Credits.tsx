@@ -79,6 +79,26 @@ export function Credits() {
       <p>{t("creditsArtText")}</p>
       <h3>{t("creditsSound")}</h3>
       <p>{t("creditsSoundText")}</p>
+      <Licences />
     </div>
+  );
+}
+
+/** The licence texts in full: beside the online game as licences.txt, inside the single-file pages. */
+function Licences() {
+  const inPage = typeof document !== "undefined" ? document.getElementById("licences")?.textContent : null;
+  if (!inPage)
+    return (
+      <p>
+        <a href="/licences.txt" target="_blank" rel="noopener noreferrer">
+          {t("creditsLicences")} · licences.txt
+        </a>
+      </p>
+    );
+  return (
+    <details class="licences">
+      <summary>{t("creditsLicences")}</summary>
+      <pre>{inPage}</pre>
+    </details>
   );
 }

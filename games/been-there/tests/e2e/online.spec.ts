@@ -149,3 +149,15 @@ test("窄屏手机、英文界面、长队名：顶栏和页面都不超出屏�
   }
   expect(errorsOf([en, zh])).toEqual([]);
 });
+
+test("许可证全文：licences.txt 里有打包进游戏的程序库、地图数据和字体的许可", async ({ request }) => {
+  const res = await request.get("/licences.txt");
+  expect(res.ok()).toBe(true);
+  expect(res.headers()["content-type"]).toContain("text/plain");
+  const text = await res.text();
+  for (const name of ["Preact", "three.js", "qrcode-generator", "world-atlas", "ZCOOL QingKe HuangYou", "Big Shoulders Display", "Space Mono"])
+    expect(text).toContain(`=== ${name}`);
+  expect(text).toContain("Permission is hereby granted");
+  expect(text).toContain("SIL OPEN FONT LICENSE Version 1.1");
+  expect(text).toContain("Weather data by Open-Meteo.com, licensed under CC BY 4.0");
+});
