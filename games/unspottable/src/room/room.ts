@@ -1,5 +1,6 @@
 import {
   BLEND_COOLDOWN_MS,
+  SIMULATION_STEP_MS,
   SCORE_TO_WIN,
   characterMaxSpeed,
   environmentalDrift,
@@ -17,6 +18,7 @@ import {
 import type { ClientMsg, Lang, Role, RoomView } from "./protocol";
 
 const ROOM_TTL_MS = 3 * 60 * 60_000;
+const INPUT_STALE_MS = SIMULATION_STEP_MS * 4;
 const MAX_PLAYERS = 8;
 const ARENAS: ArenaId[] = ["plaza", "metro", "gallery"];
 
@@ -37,6 +39,7 @@ export interface RoomState {
   members: Member[];
   game: MatchState | null;
   inputs: Record<string, Vector>;
+  inputUpdatedAt: Record<string, number>;
   arenaVotes: Record<string, ArenaId>;
   seed: number;
 }
@@ -44,6 +47,7 @@ export interface RoomState {
 export class Room {
   constructor(readonly st: RoomState) {
     this.st.arenaVotes ??= {};
+    this.st.inputUpdatedAt ??= {};
     if (this.st.game) {
       this.st.game.arena ??= "plaza";
       for (const character of this.st.game.characters) {
@@ -62,6 +66,7 @@ export class Room {
       members: [],
       game: null,
       inputs: {},
+      inputUpdatedAt: {},
       arenaVotes: {},
       seed
     });
@@ -98,7 +103,10 @@ export class Room {
     const member = this.st.members.find((item) => item.id === id);
     if (!member) return;
     member.online = online;
-    if (!online) delete this.st.inputs[id];
+    if (!online) {
+      delete this.st.inputs[id];
+      delete this.st.inputUpdatedAt[id];
+    }
     if (!this.st.members.some((item) => item.id === this.st.hostId && item.role === "player" && item.online)) {
       this.st.hostId = this.st.members.find((item) => item.role === "player" && item.online)?.id ?? null;
     }
@@ -109,7 +117,10 @@ export class Room {
     const connected = new Set(connectedIds);
     for (const member of this.st.members) {
       member.online = connected.has(member.id);
-      if (!member.online) delete this.st.inputs[member.id];
+      if (!member.online) {
+        delete this.st.inputs[member.id];
+        delete this.st.inputUpdatedAt[member.id];
+      }
     }
     if (!this.st.members.some((item) => item.id === this.st.hostId && item.role === "player" && item.online)) {
       this.st.hostId = this.st.members.find((item) => item.role === "player" && item.online)?.id ?? null;
@@ -132,8 +143,8 @@ export class Room {
     }
     if (message.t === "move") {
       if (member.role !== "player" || !this.st.game || this.st.game.phase !== "playing") return;
-      this.advance(now);
       this.st.inputs[id] = normalizeVector({ x: message.x, y: message.y });
+      this.st.inputUpdatedAt[id] = now;
       return;
     }
     if (message.t === "start") {
@@ -167,6 +178,15 @@ export class Room {
 
   advance(now: number): void {
     if (!this.st.game || this.st.game.phase !== "playing") return;
+    for (const [id, updatedAt] of Object.entries(this.st.inputUpdatedAt)) {
+      if (now - updatedAt > INPUT_STALE_MS) {
+        delete this.st.inputs[id];
+        delete this.st.inputUpdatedAt[id];
+      }
+    }
+    for (const id of Object.keys(this.st.inputs)) {
+      if (this.st.inputUpdatedAt[id] === undefined && now - this.st.game.lastTickAt > INPUT_STALE_MS) delete this.st.inputs[id];
+    }
     this.st.game = advanceMatch(this.st.game, now, this.st.inputs);
   }
 
@@ -234,8 +254,9 @@ export class Room {
     return this.st.members.every((member) => !member.online) && now - this.st.lastActivityAt > ROOM_TTL_MS;
   }
 
-  setInput(id: string, vector: Vector): void {
+  setInput(id: string, vector: Vector, now = Date.now()): void {
     this.st.inputs[id] = normalizeVector(vector);
+    this.st.inputUpdatedAt[id] = now;
   }
 }
 
