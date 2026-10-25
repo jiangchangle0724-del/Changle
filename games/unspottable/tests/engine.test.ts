@@ -36,6 +36,41 @@ test("movement input is finite, normalized, and stays inside the arena", () => {
   assert.equal(before.x, 94);
 });
 
+
+
+test("metro walkways carry idle players and the gallery spotlight boosts movement", () => {
+  const players = [{ id: "one", name: "One" }, { id: "two", name: "Two" }];
+  const metro = createMatch(players, 0, 20, "metro");
+  const metroPlayer = metro.characters.find((character) => character.ownerId === "one")!;
+  const metroStart = metroPlayer.x;
+  const carried = advanceMatch(metro, 100, {});
+  assert.ok(carried.characters.find((character) => character.ownerId === "one")!.x > metroStart);
+
+  const gallery = createMatch(players, 0, 21, "gallery");
+  const spotlightPlayer = gallery.characters.find((character) => character.ownerId === "one")!;
+  spotlightPlayer.x = 50;
+  spotlightPlayer.y = 29;
+  const base = createMatch(players, 0, 21, "plaza");
+  const basePlayer = base.characters.find((character) => character.ownerId === "one")!;
+  basePlayer.x = 50;
+  basePlayer.y = 29;
+  const galleryMoved = advanceMatch(gallery, 100, { one: { x: 1, y: 0 } });
+  const plazaMoved = advanceMatch(base, 100, { one: { x: 1, y: 0 } });
+  assert.ok(galleryMoved.characters.find((character) => character.ownerId === "one")!.x > plazaMoved.characters.find((character) => character.ownerId === "one")!.x);
+});
+test("ambient crowd follows varied, deterministic walking routes", () => {
+  const first = createMatch(players, 0, 42);
+  const second = createMatch(players, 0, 42);
+  const walked = advanceMatch(first, 250, {});
+  const repeated = advanceMatch(second, 250, {});
+  assert.deepEqual(walked, repeated);
+  const npcMoves = walked.characters.filter((character) => character.kind === "npc").map((character) => {
+    const before = first.characters.find((item) => item.id === character.id)!;
+    return [Math.round((character.x - before.x) * 100), Math.round((character.y - before.y) * 100)].join(":");
+  });
+  assert.ok(npcMoves.some((move) => move.includes(":") && !move.endsWith(":0")), "some walkers should cross lanes");
+  assert.ok(new Set(npcMoves).size > 1, "the crowd should not move as one synchronized line");
+});
 test("a punch has a wind-up, respects cooldown, and tags only a rival in its front arc", () => {
   const match = createMatch(players, 0, 7);
   const actor = match.characters.find((character) => character.ownerId === "player-one")!;
@@ -56,6 +91,9 @@ test("a punch has a wind-up, respects cooldown, and tags only a rival in its fro
   const tagged = advanceMatch(windup, 160, {});
   assert.equal(tagged.characters.find((character) => character.ownerId === "player-one")?.score, 1);
   assert.ok((tagged.characters.find((character) => character.ownerId === "player-two")?.stunnedUntil ?? 0) > 160);
+  assert.ok((tagged.characters.find((character) => character.ownerId === "player-two")?.recoil.x ?? 0) > 0);
+  const knockedBack = advanceMatch(tagged, 260, {});
+  assert.ok(knockedBack.characters.find((character) => character.ownerId === "player-two")!.x > 46);
   assert.equal(tagged.events.at(-1)?.t, "tag");
 });
 

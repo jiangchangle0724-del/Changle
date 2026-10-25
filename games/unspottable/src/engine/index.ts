@@ -14,6 +14,7 @@ export const BLEND_MS = 1_450;
 export const BLEND_COOLDOWN_MS = 6_000;
 
 export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned";
+export type ArenaId = "plaza" | "metro" | "gallery";
 export interface Vector { x: number; y: number }
 export interface PlayerSeed { id: string; name: string }
 export interface Character {
@@ -32,6 +33,7 @@ export interface Character {
   attackResolved: boolean;
   cooldownUntil: number;
   stunnedUntil: number;
+  recoil: Vector;
   blendUntil: number;
   blendCooldownUntil: number;
 }
@@ -43,6 +45,7 @@ export interface MatchEvent {
 }
 export interface MatchState {
   phase: "playing" | "over";
+  arena: ArenaId;
   startedAt: number;
   endsAt: number;
   lastTickAt: number;
@@ -68,7 +71,7 @@ function slots(): Vector[] {
   return result;
 }
 
-export function createMatch(players: PlayerSeed[], now = 0, seed = 1): MatchState {
+export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: ArenaId = "plaza"): MatchState {
   if (players.length < 2 || players.length > 8) throw new RangeError("A match needs 2 to 8 players");
   const positions = slots();
   const occupied = new Set<number>();
@@ -93,6 +96,7 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1): MatchStat
       attackResolved: false,
       cooldownUntil: 0,
       stunnedUntil: 0,
+      recoil: { x: 0, y: 0 },
       blendUntil: 0,
       blendCooldownUntil: 0
     });
@@ -118,12 +122,14 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1): MatchStat
       attackResolved: false,
       cooldownUntil: 0,
       stunnedUntil: 0,
+      recoil: { x: 0, y: 0 },
       blendUntil: 0,
       blendCooldownUntil: 0
     });
   }
   return {
     phase: "playing",
+    arena,
     startedAt: now,
     endsAt: now + MATCH_MS,
     lastTickAt: now,
@@ -168,16 +174,26 @@ export function startBlend(state: MatchState, ownerId: string, now: number): Mat
   return next;
 }
 
+function npcPhase(character: Character, now: number): number {
+  return (now + character.npcOffset) % 6_800;
+}
+
+function npcGlancing(character: Character, now: number): boolean {
+  const beat = Math.floor(npcPhase(character, now) / 850);
+  return beat === 2 || beat === 5;
+}
+
 function botVector(character: Character, now: number): Vector {
-  const phase = (now + character.npcOffset) % 4_600;
-  if (phase < 1_850) {
-    const direction = character.npcStyle === 1 ? -1 : 1;
-    const drift = character.npcStyle === 2 ? 0.35 : 0.08;
-    return { x: direction * (character.x > 94 ? -1 : character.x < 6 ? 1 : 1), y: Math.sin((now + character.npcOffset) / 650) * drift };
-  }
-  if (phase < 2_700) return { x: 0, y: 0 };
-  const direction = character.npcStyle === 1 ? 1 : -1;
-  return { x: direction * (character.x > 94 ? -1 : character.x < 6 ? 1 : 1), y: Math.sin((now + character.npcOffset) / 500) * 0.18 };
+  const beat = Math.floor(npcPhase(character, now) / 850);
+  if (beat === 2 || beat === 5) return { x: 0, y: 0 };
+  const route = (Math.floor(character.npcOffset / 379) + character.npcStyle * 2) % 8;
+  const turn = Math.floor(beat / 3) * (Math.PI / 2);
+  const angle = route * (Math.PI / 4) + turn;
+  let x = Math.cos(angle);
+  let y = Math.sin(angle);
+  if ((character.x <= ARENA.marginX + 2 && x < 0) || (character.x >= ARENA.width - ARENA.marginX - 2 && x > 0)) x *= -1;
+  if ((character.y <= ARENA.marginY + 2 && y < 0) || (character.y >= ARENA.height - ARENA.marginY - 2 && y > 0)) y *= -1;
+  return { x, y };
 }
 
 function angleDifference(a: number, b: number): number {
@@ -203,12 +219,14 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   }
   if (target.kind === "npc") {
     attacker.stunnedUntil = now + NPC_FOUL_STUN_MS;
+    attacker.recoil = { x: -Math.cos(attacker.facing) * 8, y: -Math.sin(attacker.facing) * 8 };
     attacker.pose = "stunned";
     addEvent(state, "foul", attacker.ownerId, target.id);
     return;
   }
   attacker.score++;
   target.stunnedUntil = now + STUN_MS;
+  target.recoil = { x: Math.cos(attacker.facing) * 17, y: Math.sin(attacker.facing) * 17 };
   target.pose = "stunned";
   addEvent(state, "tag", attacker.ownerId, target.ownerId);
   if (attacker.score >= SCORE_TO_WIN) {
@@ -222,6 +240,17 @@ function bounded(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value));
 }
 
+function metroDrift(state: MatchState, now: number): number {
+  const phase = (now - state.startedAt) % 12_000;
+  if (phase < 2_600) return 4.5;
+  if (phase >= 6_000 && phase < 8_600) return -4.5;
+  return 0;
+}
+
+function inGallerySpotlight(character: Character): boolean {
+  return Math.abs(character.x - 50) <= 14 && Math.abs(character.y - 29) <= 17;
+}
+
 export function advanceMatch(state: MatchState, now: number, inputs: Record<string, Vector>): MatchState {
   if (state.phase !== "playing") return state;
   const next: MatchState = {
@@ -231,19 +260,29 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     events: [...state.events]
   };
   const dt = bounded(now - state.lastTickAt, 0, 120) / 1_000;
+  const laneDrift = state.arena === "metro" ? metroDrift(state, now) : 0;
   for (const character of next.characters) {
     if (now < character.stunnedUntil) {
+      character.x = bounded(character.x + character.recoil.x * dt, ARENA.marginX, ARENA.width - ARENA.marginX);
+      character.y = bounded(character.y + character.recoil.y * dt, ARENA.marginY, ARENA.height - ARENA.marginY);
+      const drag = Math.exp(-dt * 6);
+      character.recoil.x *= drag;
+      character.recoil.y *= drag;
       character.pose = "stunned";
       continue;
     }
+    character.recoil = { x: 0, y: 0 };
     const rawInput = character.kind === "npc" ? botVector(character, now) : inputs[character.ownerId ?? ""] ?? { x: 0, y: 0 };
     const vector = normalizeVector(rawInput);
-    const moving = Math.hypot(vector.x, vector.y) > 0.12;
-    if (moving) character.facing = Math.atan2(vector.y, vector.x);
     const blended = character.kind === "player" && now < character.blendUntil;
-    const speed = character.kind === "npc" || blended ? NPC_SPEED : PLAYER_SPEED;
-    character.x = bounded(character.x + vector.x * speed * dt, ARENA.marginX, ARENA.width - ARENA.marginX);
-    character.y = bounded(character.y + vector.y * speed * dt, ARENA.marginY, ARENA.height - ARENA.marginY);
+    const spotlightBoost = state.arena === "gallery" && inGallerySpotlight(character) ? 1.3 : 1;
+    const speed = (character.kind === "npc" || blended ? NPC_SPEED : PLAYER_SPEED) * spotlightBoost;
+    const moveX = vector.x * speed + laneDrift;
+    const moveY = vector.y * speed;
+    const moving = Math.hypot(moveX, moveY) > 1.5;
+    if (moving) character.facing = Math.atan2(moveY, moveX);
+    character.x = bounded(character.x + moveX * dt, ARENA.marginX, ARENA.width - ARENA.marginX);
+    character.y = bounded(character.y + moveY * dt, ARENA.marginY, ARENA.height - ARENA.marginY);
     if (character.attackResolveAt !== null && now < character.attackResolveAt) character.pose = "windup";
     else if (character.attackResolveAt !== null && !character.attackResolved && now >= character.attackResolveAt) {
       character.attackResolved = true;
@@ -251,7 +290,7 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       resolvePunch(next, character, now);
     } else if (blended) character.pose = "glance";
     else if (moving) character.pose = "walk";
-    else if (character.kind === "npc" && (now + character.npcOffset) % 4_600 >= 1_850 && (now + character.npcOffset) % 4_600 < 2_700) character.pose = "glance";
+    else if (character.kind === "npc" && npcGlancing(character, now)) character.pose = "glance";
     else character.pose = "idle";
     if (character.attackResolved && character.attackResolveAt !== null && now > character.attackResolveAt + 220) {
       character.attackResolveAt = null;

@@ -8,6 +8,7 @@ import {
   nextMatchWake,
   startBlend,
   startPunch,
+  type ArenaId,
   type MatchState,
   type Vector
 } from "../engine";
@@ -15,6 +16,7 @@ import type { ClientMsg, Lang, Role, RoomView } from "./protocol";
 
 const ROOM_TTL_MS = 3 * 60 * 60_000;
 const MAX_PLAYERS = 8;
+const ARENAS: ArenaId[] = ["plaza", "metro", "gallery"];
 
 export interface Member {
   id: string;
@@ -33,11 +35,18 @@ export interface RoomState {
   members: Member[];
   game: MatchState | null;
   inputs: Record<string, Vector>;
+  arenaVotes: Record<string, ArenaId>;
   seed: number;
 }
 
 export class Room {
-  constructor(readonly st: RoomState) {}
+  constructor(readonly st: RoomState) {
+    this.st.arenaVotes ??= {};
+    if (this.st.game) {
+      this.st.game.arena ??= "plaza";
+      for (const character of this.st.game.characters) character.recoil ??= { x: 0, y: 0 };
+    }
+  }
 
   static create(code: string, now: number, seed = Math.floor(Math.random() * 0x7fffffff)): Room {
     return new Room({
@@ -48,6 +57,7 @@ export class Room {
       members: [],
       game: null,
       inputs: {},
+      arenaVotes: {},
       seed
     });
   }
@@ -111,6 +121,10 @@ export class Room {
       this.presence(id, false, now);
       return;
     }
+    if (message.t === "vote") {
+      if (member.role === "player" && !this.st.game && ARENAS.includes(message.arena)) this.st.arenaVotes[id] = message.arena;
+      return;
+    }
     if (message.t === "move") {
       if (member.role !== "player" || !this.st.game || this.st.game.phase !== "playing") return;
       this.advance(now);
@@ -123,7 +137,15 @@ export class Room {
       if (players.length < 2 || players.length > MAX_PLAYERS) return;
       this.st.seed = (this.st.seed * 48271 + now) % 0x7fffffff;
       this.st.inputs = {};
-      this.st.game = createMatch(players.map((player) => ({ id: player.id, name: player.name })), now, this.st.seed);
+      const totals: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: 0 };
+      for (const player of players) {
+        const vote = this.st.arenaVotes[player.id];
+        if (vote && ARENAS.includes(vote)) totals[vote]++;
+      }
+      const highest = Math.max(...Object.values(totals));
+      const leaders = ARENAS.filter((arena) => totals[arena] === highest);
+      const arena = highest === 0 ? "plaza" : leaders[this.st.seed % leaders.length];
+      this.st.game = createMatch(players.map((player) => ({ id: player.id, name: player.name })), now, this.st.seed, arena);
       return;
     }
     if (message.t === "again") {
@@ -152,6 +174,11 @@ export class Room {
       host: member.id === this.st.hostId,
       score: game?.characters.find((character) => character.ownerId === member.id)?.score ?? 0
     }));
+    const arenaVotes: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: 0 };
+    for (const member of this.st.members) {
+      const vote = this.st.arenaVotes[member.id];
+      if (member.role === "player" && member.online && vote && ARENAS.includes(vote)) arenaVotes[vote]++;
+    }
     let gameView: RoomView["game"] = null;
     if (game) {
       const mine = game.characters.find((character) => character.ownerId === id);
@@ -160,6 +187,7 @@ export class Room {
       const winnerName = winner ? this.st.members.find((member) => member.id === winner.ownerId)?.name ?? null : null;
       gameView = {
         phase: game.phase,
+        arena: game.arena,
         endsAt: game.endsAt,
         remainingMs: Math.max(0, game.endsAt - now),
         scoreToWin: SCORE_TO_WIN,
@@ -181,7 +209,8 @@ export class Room {
     return {
       code: this.st.code,
       phase: game?.phase ?? "lobby",
-      you: { role, host: me?.id === this.st.hostId },
+      you: { role, host: me?.id === this.st.hostId, vote: role === "player" ? this.st.arenaVotes[id] ?? null : null },
+      arenaVotes,
       players,
       screenCount: this.st.members.filter((member) => member.role === "screen" && member.online).length,
       game: gameView

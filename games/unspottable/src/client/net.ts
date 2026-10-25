@@ -9,17 +9,27 @@ export interface RoomConnection {
   close(): void;
 }
 
+function newClientId(): string {
+  if (typeof crypto.randomUUID === "function") return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
+}
+
 function clientId(role: Role): string {
   const key = "unspottable.id." + role;
   try {
     let value = localStorage.getItem(key);
     if (!value) {
-      value = crypto.randomUUID();
+      value = newClientId();
       localStorage.setItem(key, value);
     }
     return value;
   } catch {
-    return crypto.randomUUID();
+    return newClientId();
   }
 }
 

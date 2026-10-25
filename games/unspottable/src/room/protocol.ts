@@ -1,4 +1,4 @@
-import type { Pose, Vector } from "../engine";
+import type { ArenaId, Pose, Vector } from "../engine";
 
 export type Lang = "zh" | "en";
 export type Role = "player" | "screen";
@@ -7,6 +7,7 @@ export type ClientMsg =
   | { t: "move"; x: number; y: number }
   | { t: "punch" }
   | { t: "blend" }
+  | { t: "vote"; arena: ArenaId }
   | { t: "start" }
   | { t: "again" }
   | { t: "leave" }
@@ -40,6 +41,7 @@ export interface EventView {
 
 export interface GameView {
   phase: "playing" | "over";
+  arena: ArenaId;
   endsAt: number;
   remainingMs: number;
   scoreToWin: number;
@@ -54,7 +56,8 @@ export interface GameView {
 export interface RoomView {
   code: string;
   phase: "lobby" | "playing" | "over";
-  you: { role: Role; host: boolean };
+  you: { role: Role; host: boolean; vote: ArenaId | null };
+  arenaVotes: Record<ArenaId, number>;
   players: PlayerView[];
   screenCount: number;
   game: GameView | null;

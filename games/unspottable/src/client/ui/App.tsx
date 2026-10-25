@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { BLEND_COOLDOWN_MS } from "../../engine";
-import { getLang, setLang, t, type Lang } from "../i18n";
+import { BLEND_COOLDOWN_MS, PLAYER_SPEED, type ArenaId } from "../../engine";
+import { getLang, setLang, t, type Key, type Lang } from "../i18n";
 import { createRoom, openRoomClient, roomExists, type ConnectionState, type RoomConnection } from "../net";
 import type { AvatarView, ClientMsg, GameView, PlayerView, RoomView, Role, ServerMsg } from "../../room/protocol";
 
 type Route = { kind: "home" } | { kind: "room"; code: string; role: Role };
 type Theme = "system" | "light" | "dark";
+
+const ARENA_CHOICES: Array<{ id: ArenaId; name: Key; rule: Key }> = [
+  { id: "plaza", name: "plaza", rule: "plazaRule" },
+  { id: "metro", name: "metro", rule: "metroRule" },
+  { id: "gallery", name: "gallery", rule: "galleryRule" }
+];
 
 function currentRoute(): Route {
   const tv = location.pathname.match(/^\/tv\/(\d{4})\/?$/);
@@ -18,6 +24,15 @@ function currentRoute(): Route {
 function navigate(path: string): void {
   history.pushState({}, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function requestLandscape(): void {
+  try {
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
+    if (typeof orientation?.lock === "function") void orientation.lock("landscape").catch(() => undefined);
+  } catch {
+    // iOS Safari does not expose orientation locking; rotating the device still activates the landscape layout.
+  }
 }
 
 function savedName(): string {
@@ -143,6 +158,7 @@ function HomePage(props: HomeProps) {
 
   const create = async () => {
     if (!name.trim()) { setError(t("emptyName")); return; }
+    requestLandscape();
     setBusy(true);
     setError("");
     saveName(name.trim().slice(0, 18));
@@ -159,6 +175,7 @@ function HomePage(props: HomeProps) {
   const join = async () => {
     if (!name.trim()) { setError(t("emptyName")); return; }
     if (!/^\d{4}$/.test(code)) { setError(t("invalidCode")); return; }
+    requestLandscape();
     setBusy(true);
     setError("");
     saveName(name.trim().slice(0, 18));
@@ -289,7 +306,7 @@ function RoomPage(props: RoomPageProps) {
   }
 
   if (view.phase === "lobby") {
-    return <main class="room-shell">{top}<Lobby view={view} code={props.code} status={status} error={error} copied={copied} onCopy={copyTv} onStart={() => send({ t: "start" })} /></main>;
+    return <main class="room-shell">{top}<Lobby view={view} code={props.code} status={status} error={error} copied={copied} onCopy={copyTv} onVote={(arena) => send({ t: "vote", arena })} onStart={() => send({ t: "start" })} /></main>;
   }
 
   const game = view.game;
@@ -320,6 +337,7 @@ function Lobby(props: {
   error: string;
   copied: boolean;
   onCopy: () => void;
+  onVote: (arena: ArenaId) => void;
   onStart: () => void;
 }) {
   return <section class="lobby-grid">
@@ -336,6 +354,21 @@ function Lobby(props: {
         </div>)}
         {!props.view.players.length && <p class="muted">{t("noPlayers")}</p>}
       </div>
+      <section class="arena-vote-section" aria-label={t("chooseArena")}>
+        <h2>{t("chooseArena")}</h2>
+        <div class="arena-votes">
+          {ARENA_CHOICES.map((choice) => <button
+            class={"arena-vote" + (props.view.you.vote === choice.id ? " is-selected" : "")}
+            aria-pressed={props.view.you.vote === choice.id}
+            onClick={() => props.onVote(choice.id)}
+            key={choice.id}
+          >
+            <strong>{t(choice.name)}</strong>
+            <small>{t(choice.rule)}</small>
+            <span>{t("voteCount", { n: props.view.arenaVotes[choice.id] })}</span>
+          </button>)}
+        </div>
+      </section>
       {props.error && <p class="error status-message" role="alert">{props.error}</p>}
       <p class="hint">{props.status === "online" ? t("screenNote") : t("reconnecting")}</p>
       {props.view.you.host
@@ -385,6 +418,7 @@ function GameScreen(props: {
   onCopy: () => void;
   copied: boolean;
 }) {
+  const [localVector, setLocalVector] = useState({ x: 0, y: 0 });
   const remaining = Math.max(0, props.game.remainingMs - (props.now - props.receivedAt));
   const seconds = Math.ceil(remaining / 1_000);
   const latest = props.game.events[props.game.events.length - 1];
@@ -398,15 +432,24 @@ function GameScreen(props: {
   return <section class={props.role === "screen" ? "game-layout game-layout-tv" : "game-layout"}>
     <header class="game-hud">
       <div>
-        <p class="eyebrow">{t("arena")}</p>
+        <p class="eyebrow">{t("arena")} · {t(props.game.arena)}</p>
         <h1>{t(props.game.phase === "over" ? "gameOver" : "targetScore", { n: props.game.scoreToWin })}</h1>
+        <p class="arena-rule">{t(props.game.arena === "metro" ? "metroRule" : props.game.arena === "gallery" ? "galleryRule" : "plazaRule")}</p>
       </div>
       <div class="hud-right">
         <strong class="timer">{seconds}</strong>
         <span>{t("timeLeft", { n: seconds })}</span>
       </div>
     </header>
-    <Arena avatars={props.game.avatars} />
+    <p class="orientation-hint">{t("rotateTip")}</p>
+    <Arena
+      avatars={props.game.avatars}
+      arena={props.game.arena}
+      localVector={props.role === "player" ? localVector : { x: 0, y: 0 }}
+      receivedAt={props.receivedAt}
+      impactId={latest?.id ?? 0}
+      impactType={latest?.t ?? "swing"}
+    />
     <div class="score-strip" aria-label={t("score")}>
       {props.view.players.map((player, index) => <div class="score-card" key={index}>
         <span class={"player-chip player-chip-" + (index % 4)} aria-hidden="true">{index + 1}</span>
@@ -415,7 +458,7 @@ function GameScreen(props: {
       </div>)}
     </div>
     {notice && <p class="event-toast" role="status">{notice}</p>}
-    {props.role === "player" && props.game.phase === "playing" && <PlayerControls game={props.game} send={props.send} />}
+    {props.role === "player" && props.game.phase === "playing" && <PlayerControls game={props.game} send={props.send} onVector={setLocalVector} />}
     {props.role === "screen" && <div class="tv-footer">
       <span>{props.status === "online" ? t("screenJoined") : t("reconnecting")}</span>
       <button class="btn quiet compact" onClick={props.onCopy}>{t(props.copied ? "copied" : "copyLink")}</button>
@@ -429,31 +472,99 @@ function GameScreen(props: {
   </section>;
 }
 
-function Arena(props: { avatars: AvatarView[] }) {
-  return <div class="arena" role="img" aria-label={t("arena")}>
+interface VisualAvatar { x: number; y: number }
+
+function Arena(props: {
+  avatars: AvatarView[];
+  arena: ArenaId;
+  localVector: { x: number; y: number };
+  receivedAt: number;
+  impactId: number;
+  impactType: "tag" | "foul" | "swing" | "over";
+}) {
+  const arenaRef = useRef<HTMLDivElement>(null);
+  const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
+  const avatarTargets = useRef(props.avatars);
+  const vectorRef = useRef(props.localVector);
+  const receivedAtRef = useRef(props.receivedAt);
+  const visuals = useRef<VisualAvatar[]>([]);
+  const [shaking, setShaking] = useState(false);
+  avatarTargets.current = props.avatars;
+  vectorRef.current = props.localVector;
+  receivedAtRef.current = props.receivedAt;
+
+  useEffect(() => {
+    let frame = 0;
+    let previous = 0;
+    const draw = (time: number) => {
+      frame = requestAnimationFrame(draw);
+      const arena = arenaRef.current;
+      if (!arena || document.hidden) return;
+      const width = arena.clientWidth;
+      const height = arena.clientHeight;
+      const delta = previous ? Math.min(50, time - previous) : 16;
+      previous = time;
+      const reduced = document.documentElement.dataset.reduced === "1" || (document.documentElement.dataset.reduced !== "0" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      const ease = reduced ? 1 : 1 - Math.exp(-delta / 44);
+      const snapshot = avatarTargets.current;
+      const vector = vectorRef.current;
+      const predictionMs = Math.min(125, Math.max(0, Date.now() - receivedAtRef.current));
+      for (let index = 0; index < snapshot.length; index++) {
+        const avatar = snapshot[index];
+        const node = avatarNodes.current[index];
+        if (!node) continue;
+        let targetX = avatar.x;
+        let targetY = avatar.y;
+        if (avatar.isMine && predictionMs > 0) {
+          targetX += vector.x * PLAYER_SPEED * predictionMs / 1000;
+          targetY += vector.y * PLAYER_SPEED * predictionMs / 1000;
+        }
+        targetX = Math.max(5, Math.min(95, targetX));
+        targetY = Math.max(6, Math.min(52, targetY));
+        const visual = visuals.current[index] ?? (visuals.current[index] = { x: targetX, y: targetY });
+        visual.x += (targetX - visual.x) * ease;
+        visual.y += (targetY - visual.y) * ease;
+        node.style.transform = "translate3d(" + width * visual.x / 100 + "px, " + height * visual.y / 58 + "px, 0) translate(-50%, -50%) rotate(" + avatar.facing + "rad)";
+        const depth = String(Math.round(avatar.y * 10));
+        if (node.style.zIndex !== depth) node.style.zIndex = depth;
+      }
+    };
+    frame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (props.impactId < 1 || props.impactType !== "tag") return;
+    setShaking(false);
+    const frame = requestAnimationFrame(() => setShaking(true));
+    const timer = window.setTimeout(() => setShaking(false), 280);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [props.impactId, props.impactType]);
+
+  return <div ref={arenaRef} class={"arena arena--" + props.arena + (shaking ? " arena--impact" : "")} role="img" aria-label={t("arena")}>
+    {props.arena === "metro" && <div class="arena-belt" aria-hidden="true"><span>» » »</span><span>» » »</span><span>» » »</span></div>}
+    {props.arena === "gallery" && <div class="arena-spotlight" aria-hidden="true"></div>}
     <div class="arena-mark arena-mark-left"></div>
     <div class="arena-mark arena-mark-right"></div>
     <div class="arena-line"></div>
     {props.avatars.map((avatar, index) => <div
       key={index}
       class={"avatar avatar--tone-" + (index % 4) + " pose-" + avatar.pose + (avatar.isMine ? " is-mine" : "")}
-      style={{
-        left: avatar.x + "%",
-        top: avatar.y / 58 * 100 + "%",
-        transform: "translate(-50%, -50%) rotate(" + (avatar.facing * 180 / Math.PI) + "deg)"
-      }}
+      ref={(node) => { avatarNodes.current[index] = node; }}
       aria-hidden="true"
     >
       <span class="avatar__shadow"></span>
       <span class="avatar__legs"><i></i><i></i></span>
-      <span class="avatar__body"><i class="avatar__arm"></i><i class="avatar__arm avatar__arm--far"></i></span>
-      <span class="avatar__head"><i class="avatar__eye"></i></span>
+      <span class="avatar__body"><i class="avatar__arm avatar__arm--far"></i><i class="avatar__arm"></i><i class="avatar__badge"></i></span>
+      <span class="avatar__head"><i class="avatar__eye"></i><i class="avatar__visor"></i></span>
       {avatar.isMine && <span class="you-marker">{t("player")}</span>}
     </div>)}
   </div>;
 }
-
-function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => void }) {
+function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => void; onVector: (value: { x: number; y: number }) => void }) {
   const [vector, setVector] = useState({ x: 0, y: 0 });
   const vectorRef = useRef(vector);
   const heldKeys = useRef(new Set<string>());
@@ -463,7 +574,7 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
     const timer = window.setInterval(() => {
       const current = vectorRef.current;
       if (Math.hypot(current.x, current.y) > 0.05) props.send({ t: "move", x: current.x, y: current.y });
-    }, 70);
+    }, 50);
     return () => window.clearInterval(timer);
   }, [props.send]);
 
@@ -474,13 +585,16 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
     let y = (event.clientY - rect.top - rect.height / 2) / (rect.height / 2);
     const length = Math.hypot(x, y);
     if (length > 1) { x /= length; y /= length; }
-    setVector({ x, y });
+    const next = { x, y };
+    setVector(next);
+    props.onVector(next);
   };
 
   const release = (event: PointerEvent) => {
     const element = event.currentTarget as HTMLDivElement;
     if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
     setVector({ x: 0, y: 0 });
+    props.onVector({ x: 0, y: 0 });
     props.send({ t: "move", x: 0, y: 0 });
   };
 
@@ -488,7 +602,9 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
     const keys = heldKeys.current;
     const x = (keys.has("ArrowRight") || keys.has("d") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("a") ? 1 : 0);
     const y = (keys.has("ArrowDown") || keys.has("s") ? 1 : 0) - (keys.has("ArrowUp") || keys.has("w") ? 1 : 0);
-    setVector({ x, y });
+    const next = { x, y };
+    setVector(next);
+    props.onVector(next);
   };
 
   const keyDown = (event: KeyboardEvent) => {
@@ -518,7 +634,7 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
       onPointerCancel={release}
       onKeyDown={keyDown}
       onKeyUp={keyUp}
-      onBlur={() => { heldKeys.current.clear(); setVector({ x: 0, y: 0 }); props.send({ t: "move", x: 0, y: 0 }); }}
+      onBlur={() => { heldKeys.current.clear(); setVector({ x: 0, y: 0 }); props.onVector({ x: 0, y: 0 }); props.send({ t: "move", x: 0, y: 0 }); }}
     >
       <span class="stick-ring"></span>
       <span class="stick-knob" style={{ transform: "translate(" + vector.x * 35 + "px, " + vector.y * 35 + "px)" }}></span>
