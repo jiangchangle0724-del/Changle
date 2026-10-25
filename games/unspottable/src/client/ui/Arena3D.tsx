@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import * as THREE from "three";
-import { PLAYER_SPEED } from "../../engine";
+import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
 import type { ArenaId, Pose } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
 import { t } from "../i18n";
+import { addEnvironmentalLandmarks } from "./landmarks";
 
 interface Props {
   avatars: AvatarView[];
   arena: ArenaId;
+  environmentalDrift: { x: number; y: number };
   localVector: { x: number; y: number };
   receivedAt: number;
   impactId: number;
@@ -18,7 +20,7 @@ interface Props {
   fallback: ComponentChildren;
 }
 
-interface Visual { x: number; z: number; facing: number }
+interface Visual { x: number; z: number; facing: number; stridePhase: number; speed: number }
 interface Palette {
   bg: string;
   sky: string;
@@ -37,7 +39,7 @@ interface Palette {
   font: string;
 }
 
-const MAX_CHARACTERS = 20;
+const MAX_CHARACTERS = 26;
 
 function readPalette(): Palette {
   const style = getComputedStyle(document.documentElement);
@@ -103,7 +105,7 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
   const wood = makeMaterial(palette.land, 0.9, "land");
   const dark = makeMaterial(darkTint(palette), 0.9);
   const groundMaterial = arena === "plaza" ? grass : arena === "gallery" ? wood : floor;
-  const ground = new THREE.Mesh(new THREE.BoxGeometry(20, 0.35, 12), groundMaterial);
+  const ground = new THREE.Mesh(new THREE.BoxGeometry(25, 0.35, 17), groundMaterial);
   ground.position.y = -0.19;
   scene.add(ground);
 
@@ -277,10 +279,10 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
     }
   }
 }
-function writeInstance(mesh: THREE.InstancedMesh, index: number, dummy: THREE.Object3D, position: THREE.Vector3, yaw: number, scale: THREE.Vector3, tilt = 0, roll = 0): void {
-  dummy.position.copy(position);
+function writeInstance(mesh: THREE.InstancedMesh, index: number, dummy: THREE.Object3D, x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number, tilt = 0, roll = 0): void {
+  dummy.position.set(x, y, z);
   dummy.rotation.set(tilt, yaw, roll, "YXZ");
-  dummy.scale.copy(scale);
+  dummy.scale.set(sx, sy, sz);
   dummy.updateMatrix();
   mesh.setMatrixAt(index, dummy.matrix);
 }
@@ -289,6 +291,7 @@ export function Arena3D(props: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targets = useRef(props.avatars);
   const vector = useRef(props.localVector);
+  const drift = useRef(props.environmentalDrift);
   const receivedAt = useRef(props.receivedAt);
   const impact = useRef(props.impactId);
   const impactType = useRef(props.impactType);
@@ -298,6 +301,7 @@ export function Arena3D(props: Props) {
   const showFps = new URLSearchParams(window.location.search).get("fps") === "1";
   targets.current = props.avatars;
   vector.current = props.localVector;
+  drift.current = props.environmentalDrift;
   receivedAt.current = props.receivedAt;
   impact.current = props.impactId;
   impactType.current = props.impactType;
@@ -316,7 +320,7 @@ export function Arena3D(props: Props) {
       setSupported(false);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
@@ -325,7 +329,7 @@ export function Arena3D(props: Props) {
     let palette = readPalette();
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(palette.bg);
-    scene.fog = new THREE.Fog(palette.bg, 29, 48);
+    scene.fog = new THREE.Fog(palette.bg, 34, 58);
     const camera = new THREE.OrthographicCamera(-11.25, 11.25, 6, -6, 0.1, 60);
     camera.position.set(0, 11, 23);
     camera.lookAt(0, 0, 0);
@@ -336,6 +340,7 @@ export function Arena3D(props: Props) {
     scene.add(key);
 
     addVenue(scene, props.arena, palette);
+    addEnvironmentalLandmarks(scene, props.arena, palette);
     const bodyGeometry = new THREE.SphereGeometry(0.34, 14, 12);
     const headGeometry = new THREE.SphereGeometry(0.305, 18, 14);
     const neckGeometry = new THREE.CylinderGeometry(0.1, 0.12, 0.18, 8);
@@ -497,7 +502,7 @@ export function Arena3D(props: Props) {
       const height = canvas.clientHeight;
       if (width < 1 || height < 1) return;
       renderer.setSize(width, height, false);
-      const viewWidth = 22.5;
+      const viewWidth = 24.5;
       const viewHeight = Math.max(5.8, viewWidth * height / width);
       camera.left = -viewWidth / 2;
       camera.right = viewWidth / 2;
@@ -559,7 +564,7 @@ export function Arena3D(props: Props) {
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
       const reduced = document.documentElement.dataset.reduced === "1" || (document.documentElement.dataset.reduced !== "0" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       const ease = reduced ? 1 : 1 - Math.exp(-delta / 46);
-      const snapshot = targets.current.slice(0, MAX_CHARACTERS);
+      const snapshot = targets.current;
       body.count = snapshot.length;
       head.count = snapshot.length;
       neck.count = snapshot.length;
@@ -579,44 +584,70 @@ export function Arena3D(props: Props) {
       shoes.count = snapshot.length * 2;
       const input = vector.current;
       const prediction = Math.min(125, Math.max(0, Date.now() - receivedAt.current));
+      const predictionSeconds = prediction / 1000;
       const clock = reduced ? 0 : time / 1000;
-      let local: AvatarView | undefined;
+      let localVisual: Visual | undefined;
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
-        if (avatar.isMine) local = avatar;
         let worldX = avatar.x;
         let worldY = avatar.y;
+        let velocityX = avatar.velocity.x;
+        let velocityY = avatar.velocity.y;
         if (avatar.isMine && prediction > 0) {
-          worldX += input.x * PLAYER_SPEED * prediction / 1000;
-          worldY += input.y * PLAYER_SPEED * prediction / 1000;
+          const predicted = steerVelocity(
+            avatar.velocity,
+            { x: input.x * avatar.maxSpeed + drift.current.x, y: input.y * avatar.maxSpeed + drift.current.y },
+            predictionSeconds,
+            PLAYER_ACCELERATION,
+            PLAYER_BRAKING
+          );
+          worldX += (avatar.velocity.x + predicted.x) * 0.5 * predictionSeconds;
+          worldY += (avatar.velocity.y + predicted.y) * 0.5 * predictionSeconds;
+          velocityX = predicted.x;
+          velocityY = predicted.y;
         }
         worldX = Math.max(5, Math.min(95, worldX));
         worldY = Math.max(6, Math.min(52, worldY));
         const targetX = (worldX / 100 - 0.5) * 17.5;
         const targetZ = (worldY / 58 - 0.5) * 9.1;
-        const visual = visuals[index] ?? (visuals[index] = { x: targetX, z: targetZ, facing: avatar.facing });
+        const targetSpeed = Math.hypot(velocityX, velocityY);
+        const visual = visuals[index] ?? (visuals[index] = {
+          x: targetX,
+          z: targetZ,
+          facing: Math.PI / 2 - avatar.facing,
+          stridePhase: index * 1.71,
+          speed: targetSpeed
+        });
         visual.x += (targetX - visual.x) * ease;
         visual.z += (targetZ - visual.z) * ease;
         const yaw = Math.PI / 2 - avatar.facing;
-        visual.facing += (yaw - visual.facing) * ease;
-        const phase = clock * 8.2 + index * 1.71;
-        const walking = avatar.pose === "walk";
+        if (!reduced) {
+          const angularDelta = Math.atan2(Math.sin(yaw - visual.facing), Math.cos(yaw - visual.facing));
+          visual.facing += angularDelta * (1 - Math.exp(-delta / 82));
+          const phaseGait = avatar.pose === "stunned" ? 0 : Math.min(1, targetSpeed / 7);
+          visual.stridePhase += delta / 1000 * (4 + targetSpeed * 0.72) * phaseGait;
+        } else visual.facing = yaw;
+        const gait = !reduced && avatar.pose !== "stunned" ? Math.min(1, targetSpeed / 7) : 0;
+        const stride = Math.sin(visual.stridePhase) * 0.46 * gait;
         const staggered = avatar.pose === "stunned";
         const swinging = avatar.pose === "punch" || avatar.pose === "windup";
-        const stride = walking ? Math.sin(phase) * 0.46 : 0;
         const recoil = staggered ? Math.sin(clock * 27 + index) * 0.48 : 0;
         const tumble = staggered && !reduced ? Math.sin(clock * 19 + index) * 0.64 : 0;
-        const bounce = walking ? Math.abs(Math.sin(phase)) * 0.055 : reduced ? 0 : Math.sin(clock * 2.4 + index) * 0.018;
+        const bounce = gait > 0.05
+          ? Math.abs(Math.sin(visual.stridePhase * 2)) * 0.055 * gait
+          : reduced ? 0 : Math.sin(clock * 2.4 + index) * 0.018;
+        const accelerationLean = !reduced && delta > 0
+          ? Math.max(-0.1, Math.min(0.12, (targetSpeed - visual.speed) / (delta / 1000) * 0.003))
+          : 0;
+        visual.speed += (targetSpeed - visual.speed) * (reduced ? 1 : 1 - Math.exp(-delta / 90));
         const yawNow = visual.facing;
-        const bodyTilt = staggered ? tumble : recoil + (swinging ? -0.22 : 0);
-        const center = new THREE.Vector3(visual.x, (staggered ? 0.9 : 0.96) + bounce, visual.z);
-        writeInstance(body, index, dummy, center, yawNow, new THREE.Vector3(0.84, staggered ? 1.2 : 1.32, 0.74), bodyTilt, staggered ? Math.cos(clock * 19 + index) * 0.26 : 0);
-      writeInstance(shirts, index, dummy, new THREE.Vector3(visual.x, 1.02 + bounce, visual.z), yawNow, new THREE.Vector3(0.94, staggered ? 1.12 : 1, 0.92), bodyTilt * 0.82, staggered ? Math.cos(clock * 19 + index) * 0.18 : 0);
+        const bodyTilt = staggered ? tumble : recoil + (swinging ? -0.22 : 0) + gait * 0.075 + accelerationLean;
+        writeInstance(body, index, dummy, visual.x, (staggered ? 0.9 : 0.96) + bounce, visual.z, yawNow, 0.84, staggered ? 1.2 : 1.32, 0.74, bodyTilt, staggered ? Math.cos(clock * 19 + index) * 0.26 : 0);
+        writeInstance(shirts, index, dummy, visual.x, 1.02 + bounce, visual.z, yawNow, 0.94, staggered ? 1.12 : 1, 0.92, bodyTilt * 0.82, staggered ? Math.cos(clock * 19 + index) * 0.18 : 0);
         const headTurn = avatar.pose === "glance" && !reduced ? Math.sin(clock * 5 + index) * 0.22 : 0;
-        const headPosition = new THREE.Vector3(visual.x, 1.78 + bounce, visual.z);
         const headYaw = yawNow + headTurn;
-        writeInstance(head, index, dummy, headPosition, headYaw, new THREE.Vector3(1, 1.04, 0.92), staggered ? tumble * 0.72 : recoil * 0.4, staggered ? Math.cos(clock * 19 + index) * 0.4 : 0);
-        writeInstance(neck, index, dummy, new THREE.Vector3(visual.x, 1.51 + bounce, visual.z), yawNow, new THREE.Vector3(1, 1, 1), bodyTilt * 0.22);
+        writeInstance(head, index, dummy, visual.x, 1.78 + bounce, visual.z, headYaw, 1, 1.04, 0.92, staggered ? tumble * 0.72 : recoil * 0.4, staggered ? Math.cos(clock * 19 + index) * 0.4 : 0);
+        writeInstance(neck, index, dummy, visual.x, 1.51 + bounce, visual.z, yawNow, 1, 1, 1, bodyTilt * 0.22);
         const forwardX = Math.sin(headYaw);
         const forwardZ = Math.cos(headYaw);
         const sideX = Math.cos(headYaw);
@@ -625,22 +656,24 @@ export function Arena3D(props: Props) {
         const blinkScale = !reduced && blinkPhase > 4.84 ? 0.14 : 1;
         for (let eyeSide = 0; eyeSide < 2; eyeSide++) {
           const side = eyeSide === 0 ? -1 : 1;
-          const eyePosition = new THREE.Vector3(visual.x + forwardX * 0.264 + sideX * side * 0.105, 1.84 + bounce, visual.z + forwardZ * 0.264 + sideZ * side * 0.105);
-          const pupilPosition = new THREE.Vector3(visual.x + forwardX * 0.337 + sideX * side * 0.105, 1.84 + bounce, visual.z + forwardZ * 0.337 + sideZ * side * 0.105);
-          writeInstance(eyes, index * 2 + eyeSide, dummy, eyePosition, headYaw, new THREE.Vector3(1, blinkScale, 1), recoil * 0.3);
-          writeInstance(pupils, index * 2 + eyeSide, dummy, pupilPosition, headYaw, new THREE.Vector3(1, blinkScale * 0.82, 1), recoil * 0.3);
+          writeInstance(eyes, index * 2 + eyeSide, dummy,
+            visual.x + forwardX * 0.264 + sideX * side * 0.105, 1.84 + bounce,
+            visual.z + forwardZ * 0.264 + sideZ * side * 0.105, headYaw, 1, blinkScale, 1, recoil * 0.3);
+          writeInstance(pupils, index * 2 + eyeSide, dummy,
+            visual.x + forwardX * 0.337 + sideX * side * 0.105, 1.84 + bounce,
+            visual.z + forwardZ * 0.337 + sideZ * side * 0.105, headYaw, 1, blinkScale * 0.82, 1, recoil * 0.3);
         }
-        const mouthPosition = new THREE.Vector3(visual.x + forwardX * 0.286, 1.68 + bounce, visual.z + forwardZ * 0.286);
-        writeInstance(mouths, index, dummy, mouthPosition, headYaw, new THREE.Vector3(0.82, 0.48, 0.34), recoil * 0.3);
+        writeInstance(mouths, index, dummy, visual.x + forwardX * 0.286, 1.68 + bounce, visual.z + forwardZ * 0.286, headYaw, 0.82, 0.48, 0.34, recoil * 0.3);
         const ringPulse = staggered && !reduced ? 1 + Math.abs(Math.sin(clock * 12 + index)) * 0.55 : 0;
-        writeInstance(impactRings, index, dummy, new THREE.Vector3(visual.x, 0.055, visual.z), 0, new THREE.Vector3(ringPulse, ringPulse, ringPulse));
+        writeInstance(impactRings, index, dummy, visual.x, 0.055, visual.z, 0, ringPulse, ringPulse, ringPulse);
         const wearingCap = index % 3 === 0 || index % 7 === 0;
-        writeInstance(caps, index, dummy, new THREE.Vector3(visual.x, 2.03 + bounce, visual.z), yawNow, new THREE.Vector3(wearingCap ? 1 : 0, wearingCap ? 1 : 0, wearingCap ? 1 : 0));
+        const capScale = wearingCap ? 1 : 0;
+        writeInstance(caps, index, dummy, visual.x, 2.03 + bounce, visual.z, yawNow, capScale, capScale, capScale);
         const wearingPack = index % 4 === 0 || index % 7 === 2;
-        writeInstance(backpacks, index, dummy, new THREE.Vector3(visual.x - forwardX * 0.31, 1.02 + bounce, visual.z - forwardZ * 0.31), yawNow, new THREE.Vector3(wearingPack ? 1 : 0, wearingPack ? 1 : 0, wearingPack ? 1 : 0), bodyTilt * 0.4);
-        const badgePosition = new THREE.Vector3(visual.x + Math.sin(yawNow) * 0.31, 1.02 + bounce, visual.z + Math.cos(yawNow) * 0.31);
-        writeInstance(badges, index, dummy, badgePosition, yawNow, new THREE.Vector3(index % 4 === 0 ? 1.15 : 0.72, 1, 1), bodyTilt * 0.35);
-        writeInstance(shadows, index, dummy, new THREE.Vector3(visual.x, 0.03, visual.z), 0, new THREE.Vector3(staggered ? 1.28 : 1, 1, staggered ? 0.72 : 0.8));
+        const packScale = wearingPack ? 1 : 0;
+        writeInstance(backpacks, index, dummy, visual.x - forwardX * 0.31, 1.02 + bounce, visual.z - forwardZ * 0.31, yawNow, packScale, packScale, packScale, bodyTilt * 0.4);
+        writeInstance(badges, index, dummy, visual.x + Math.sin(yawNow) * 0.31, 1.02 + bounce, visual.z + Math.cos(yawNow) * 0.31, yawNow, index % 4 === 0 ? 1.15 : 0.72, 1, 1, bodyTilt * 0.35);
+        writeInstance(shadows, index, dummy, visual.x, 0.03, visual.z, 0, staggered ? 1.28 : 1, 1, staggered ? 0.72 : 0.8);
         for (let side = 0; side < 2; side++) {
           const sign = side === 0 ? -1 : 1;
           const armSwing = stride * (side === 0 ? -1 : 1) + (swinging && side === 1 ? -1.16 : 0) + recoil * sign;
@@ -648,21 +681,22 @@ export function Arena3D(props: Props) {
           const localX = sign * 0.32;
           const rotatedX = visual.x + localX * Math.cos(yawNow);
           const rotatedZ = visual.z - localX * Math.sin(yawNow);
-          const armPos = new THREE.Vector3(rotatedX, 1.14 + bounce, rotatedZ);
-          const legPos = new THREE.Vector3(visual.x + sign * 0.14 * Math.cos(yawNow), 0.43, visual.z - sign * 0.14 * Math.sin(yawNow));
-          const shoePos = new THREE.Vector3(legPos.x + Math.sin(yawNow) * 0.12, 0.18, legPos.z + Math.cos(yawNow) * 0.12);
-          const shoulderPos = new THREE.Vector3(rotatedX, 1.36 + bounce, rotatedZ);
-          const handPos = new THREE.Vector3(rotatedX + Math.sin(yawNow) * armSwing * 0.08, 0.87 + bounce, rotatedZ + Math.cos(yawNow) * armSwing * 0.08);
-          writeInstance(shoulders, index * 2 + side, dummy, shoulderPos, yawNow, new THREE.Vector3(1, 1, 1), bodyTilt * 0.3);
-          writeInstance(arms, index * 2 + side, dummy, armPos, yawNow, new THREE.Vector3(1, 0.96, 1), armSwing);
-          writeInstance(hands, index * 2 + side, dummy, handPos, yawNow, new THREE.Vector3(1, 0.96, 1), armSwing);
-          writeInstance(legs, index * 2 + side, dummy, legPos, yawNow, new THREE.Vector3(0.82, 0.92, 0.82), legSwing);
-          writeInstance(shoes, index * 2 + side, dummy, shoePos, yawNow, new THREE.Vector3(1.05, 0.56, 1.5), 0);
+          const footLift = Math.max(0, Math.sin(visual.stridePhase + (side === 0 ? 0 : Math.PI))) * 0.11 * gait;
+          const legX = visual.x + sign * 0.14 * Math.cos(yawNow);
+          const legZ = visual.z - sign * 0.14 * Math.sin(yawNow);
+          const shoulderY = 1.36 + bounce;
+          const handX = rotatedX + Math.sin(yawNow) * armSwing * 0.08;
+          const handZ = rotatedZ + Math.cos(yawNow) * armSwing * 0.08;
+          writeInstance(shoulders, index * 2 + side, dummy, rotatedX, shoulderY, rotatedZ, yawNow, 1, 1, 1, bodyTilt * 0.3);
+          writeInstance(arms, index * 2 + side, dummy, rotatedX, 1.14 + bounce, rotatedZ, yawNow, 1, 0.96, 1, armSwing);
+          writeInstance(hands, index * 2 + side, dummy, handX, 0.87 + bounce, handZ, yawNow, 1, 0.96, 1, armSwing);
+          writeInstance(legs, index * 2 + side, dummy, legX, 0.43 + footLift, legZ, yawNow, 0.82, 0.92, 0.82, legSwing);
+          writeInstance(shoes, index * 2 + side, dummy, legX + Math.sin(yawNow) * 0.12, 0.18 + footLift, legZ + Math.cos(yawNow) * 0.12, yawNow, 1.05, 0.56, 1.5);
         }
+        if (avatar.isMine) localVisual = visual;
       }
       for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, legs, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
-      if (local) {
-        const localVisual = visuals[snapshot.indexOf(local)];
+      if (localVisual) {
         marker.position.set(localVisual.x, 2.68, localVisual.z);
         marker.visible = true;
       } else marker.visible = false;
