@@ -9,6 +9,7 @@ import type { Flight } from "../art/RouteMap";
 import { colon, groupName, money, spaceName, t, tx } from "../i18n";
 import { prefs } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
+import { GlobeLayer } from "./GlobeLayer";
 
 export const reducedMotion = () => prefs.reduced || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
@@ -77,7 +78,7 @@ function useTurnFocus(v: RoomView) {
   return ref.current.pos;
 }
 
-export function Board({ v, center }: { v: RoomView; big?: boolean; center?: ComponentChildren }) {
+export function Board({ v, center, globe }: { v: RoomView; big?: boolean; center?: ComponentChildren; globe?: boolean }) {
   const g = v.game!;
   const s = g.s;
   const [open, setOpen] = useState<number | null>(null);
@@ -91,6 +92,7 @@ export function Board({ v, center }: { v: RoomView; big?: boolean; center?: Comp
   return (
     <div class="boardwrap">
       <RoundBoard marks={marks} tokens={tokens} focus={focus} active={s.ps[s.turn]?.pos} flight={latestFlight(v)} onPick={setOpen} reduced={reducedMotion()} />
+      {globe && <GlobeLayer flight={latestFlight(v)} focus={CITY_AT[focus]?.id ?? null} />}
       {center && <div class="center-disc">{center}</div>}
       {open !== null && <SpaceSheet v={v} at={open} onClose={() => setOpen(null)} />}
     </div>

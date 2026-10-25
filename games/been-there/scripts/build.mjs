@@ -19,7 +19,8 @@ const common = {
   logLevel: "info",
 };
 
-const client = await esbuild.context({ ...common, entryPoints: { app: "src/client/main.tsx" }, outdir: out, format: "iife" });
+// globe.js (three.js) is its own file: only the big screen loads it.
+const client = await esbuild.context({ ...common, entryPoints: { app: "src/client/main.tsx", globe: "src/client/globe/main.ts" }, outdir: out, format: "iife" });
 await copyFile("src/client/index.html", `${out}/index.html`);
 
 // One stylesheet: the fonts (made by scripts/fonts.mjs), the art, then the screens.

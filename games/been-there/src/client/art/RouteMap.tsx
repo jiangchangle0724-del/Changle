@@ -12,7 +12,7 @@ export interface Flight {
   key: string | number;
 }
 
-const GROUP_DOT: Record<number, string> = {
+export const GROUP_DOT: Record<number, string> = {
   1: "#9c6b3c",
   2: "#56b4e9",
   3: "#cc79a7",
