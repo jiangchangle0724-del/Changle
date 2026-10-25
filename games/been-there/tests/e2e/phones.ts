@@ -63,6 +63,8 @@ export interface TapOptions {
   declineBuys?: boolean;
   /** Chance of bidding when an auction is open (0 = never). */
   bid?: number;
+  /** Kinds of question to leave alone (the test answers them itself). */
+  skip?: string[];
 }
 
 /**
@@ -90,6 +92,7 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       const panel = document.querySelector<HTMLElement>(".decide:not(.waiting)");
       if (!panel) return null;
       const kind = panel.dataset.kind ?? panel.className;
+      if (o.skip?.includes(kind)) return null;
       const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>(".btn:not([disabled]):not(.danger)"));
       if (!buttons.length) return null;
       let pick =

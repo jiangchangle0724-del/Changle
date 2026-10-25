@@ -45,11 +45,11 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动�
     return n;
   };
   const roll = p.page.locator('.decide[data-kind="roll"]');
-  // Play along (buy, end the turn…) until our roll is up again.
+  // Play along (buy, end the turn…) until our roll is up again, never pressing 掷骰子 ourselves.
   const untilRoll = async () => {
     for (const end = Date.now() + 40_000; Date.now() < end; ) {
       if (await roll.count()) return;
-      if (!(await tap(p))) await p.page.waitForTimeout(150);
+      if (!(await tap(p, { skip: ["roll"] }))) await p.page.waitForTimeout(150);
     }
     await explain(p, "no roll");
     throw new Error("our roll never came up");
@@ -70,17 +70,18 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动�
     await expect(browserName === "chromium" ? hint : hint.or(enable)).toBeVisible();
     if (await hint.count()) {
       const before = await throws();
-      await p.page.waitForTimeout(150);
-      // (Each reading is made by hand: WebKit, iPhone's engine, won't let a page build a DeviceMotionEvent.)
-      await p.page.evaluate(async () => {
+      const asked = answers.length;
+      // Four firm jolts, back to back. (Made by hand: WebKit, iPhone's engine, won't let a page build a
+      // DeviceMotionEvent. And no timers in between, which a slow test browser may stretch.)
+      await p.page.evaluate(() => {
         for (let i = 0; i < 4; i++) {
           const e = new Event("devicemotion");
           Object.defineProperties(e, { acceleration: { value: { x: 22, y: 4, z: 0 } }, accelerationIncludingGravity: { value: { x: 22, y: 13, z: 0 } } });
           window.dispatchEvent(e);
-          await new Promise((r) => setTimeout(r, 80));
         }
       });
-      await expect.poll(throws, { timeout: 5_000 }).toBeGreaterThan(before);
+      await expect.poll(() => answers.length, { message: "the shake sends a roll", timeout: 3_000 }).toBeGreaterThan(asked);
+      await expect.poll(throws, { message: "the dice are thrown", timeout: 5_000 }).toBeGreaterThan(before);
     }
   }
 
