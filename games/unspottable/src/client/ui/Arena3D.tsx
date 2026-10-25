@@ -95,7 +95,92 @@ function makeCylinder(scene: THREE.Scene, radius: number, height: number, positi
   return mesh;
 }
 
-function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
+function paintGroundTexture(texture: THREE.CanvasTexture, arena: ArenaId, palette: Palette): void {
+  const canvas = texture.image as HTMLCanvasElement;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  const rgba = (value: string, alpha: number) => {
+    const color = new THREE.Color(value);
+    return "rgba(" + Math.round(color.r * 255) + "," + Math.round(color.g * 255) + "," + Math.round(color.b * 255) + "," + alpha + ")";
+  };
+  const base = arena === "plaza" ? palette.foliage : arena === "gallery" ? palette.land : palette.surface;
+  const mid = arena === "plaza" ? palette.land : arena === "gallery" ? palette.surface2 : palette.surface2;
+  const seam = arena === "metro" ? palette.line : palette.ink;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = base;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (arena === "plaza") {
+    for (let index = 0; index < 420; index++) {
+      const x = (index * 73) % 512;
+      const y = (index * 137) % 512;
+      const radius = 2 + index % 7;
+      context.fillStyle = rgba(index % 3 === 0 ? palette.surface : mid, 0.10 + (index % 4) * 0.025);
+      context.beginPath();
+      context.ellipse(x, y, radius * 1.5, radius, (index % 9) * 0.2, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.strokeStyle = rgba(palette.surface, 0.2);
+    context.lineWidth = 1;
+    for (let index = 0; index < 260; index++) {
+      const x = (index * 97) % 512;
+      const y = (index * 151) % 512;
+      context.beginPath();
+      context.moveTo(x, y);
+      context.lineTo(x + ((index % 5) + 2), y - 3 - index % 4);
+      context.stroke();
+    }
+  } else if (arena === "gallery") {
+    for (let y = 0; y < 512; y += 36) {
+      context.fillStyle = rgba(seam, 0.18);
+      context.fillRect(0, y, 512, 2);
+      const offset = (Math.floor(y / 36) % 2) * 42;
+      for (let x = offset; x < 512; x += 84) context.fillRect(x, y, 1, 36);
+      context.strokeStyle = rgba(palette.surface, 0.18);
+      context.lineWidth = 1;
+      for (let grain = 0; grain < 3; grain++) {
+        const x = (Math.floor(y / 36) * 61 + grain * 103) % 512;
+        context.beginPath();
+        context.moveTo(x, y + 9 + grain * 7);
+        context.bezierCurveTo(x + 22, y + 7 + grain * 7, x + 34, y + 11 + grain * 7, x + 55, y + 8 + grain * 7);
+        context.stroke();
+      }
+    }
+  } else {
+    for (let x = 0; x <= 512; x += 64) {
+      context.fillStyle = rgba(seam, x % 128 === 0 ? 0.24 : 0.16);
+      context.fillRect(x, 0, 2, 512);
+    }
+    for (let y = 0; y <= 512; y += 64) {
+      context.fillStyle = rgba(seam, y % 128 === 0 ? 0.24 : 0.16);
+      context.fillRect(0, y, 512, 2);
+    }
+    for (let index = 0; index < 120; index++) {
+      const x = (index * 89) % 512;
+      const y = (index * 157) % 512;
+      context.fillStyle = rgba(palette.surface, 0.28);
+      context.fillRect(x, y, 9 + index % 12, 1);
+    }
+  }
+  texture.needsUpdate = true;
+}
+
+function createGroundTexture(arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 2);
+  texture.anisotropy = Math.min(4, maxAnisotropy);
+  texture.generateMipmaps = true;
+  paintGroundTexture(texture, arena, palette);
+  return texture;
+}
+
+function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
   const floor = makeMaterial(palette.surface, 0.9, "surface");
   const detail = makeMaterial(palette.surface2, 0.86, "surface2");
   const accent = makeMaterial(palette.accent, 0.78, "accent");
@@ -107,6 +192,9 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
   const wood = makeMaterial(palette.land, 0.9, "land");
   const dark = makeMaterial(darkTint(palette), 0.9);
   const groundMaterial = arena === "plaza" ? grass : arena === "gallery" ? wood : floor;
+  const groundTexture = createGroundTexture(arena, palette, maxAnisotropy);
+  groundMaterial.map = groundTexture;
+  groundMaterial.needsUpdate = true;
   const ground = new THREE.Mesh(new THREE.BoxGeometry(25, 0.35, 17), groundMaterial);
   ground.position.y = -0.19;
   scene.add(ground);
@@ -196,7 +284,7 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
     center.rotation.x = -Math.PI / 2;
     center.position.y = 0.015;
     scene.add(center);
-    return;
+    return groundTexture;
   }
 
   if (arena === "metro") {
@@ -225,7 +313,7 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
       makeBox(scene, [1.12, 0.1, 1.66], [x, 0.62, 0], accent);
     }
     for (const x of [-6, -2, 2, 6]) makeBox(scene, [0.85, 0.06, 0.52], [x, 3.48, -5.22], warm);
-    return;
+    return groundTexture;
   }
 
   // Chinese courtyard theatre: tiled timber stage, lattice panels, lanterns and red curtains.
@@ -280,6 +368,7 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
       makeBox(scene, [1.64, 0.08, 0.5], [x, 0.5, z], accent);
     }
   }
+  return groundTexture;
 }
 function writeInstance(mesh: THREE.InstancedMesh, index: number, dummy: THREE.Object3D, x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number, tilt = 0, roll = 0): void {
   dummy.position.set(x, y, z);
@@ -370,7 +459,7 @@ export function Arena3D(props: Props) {
     key.position.set(-7, 16, 10);
     scene.add(key);
 
-    addVenue(scene, props.arena, palette);
+    const groundTexture = addVenue(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
     addEnvironmentalLandmarks(scene, props.arena, palette);
     const bodyGeometry = new THREE.SphereGeometry(0.34, 14, 12);
     const headGeometry = new THREE.SphereGeometry(0.305, 18, 14);
@@ -514,6 +603,7 @@ export function Arena3D(props: Props) {
       });
       scene.background = new THREE.Color(palette.bg);
       if (scene.fog) scene.fog.color.set(palette.bg);
+      paintGroundTexture(groundTexture, props.arena, palette);
       bodyMat.color.set(lightTint(palette));
       shirtMat.color.set(lightTint(palette));
       handMat.color.set(lightTint(palette));
@@ -828,6 +918,7 @@ export function Arena3D(props: Props) {
       });
       marker.material.dispose();
       markerTexture.dispose();
+      groundTexture.dispose();
       renderer.dispose();
     };
   }, [props.arena]);
