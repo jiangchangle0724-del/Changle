@@ -344,7 +344,11 @@ export function Arena3D(props: Props) {
     const mouthGeometry = new THREE.SphereGeometry(0.07, 10, 8);
     const impactRingGeometry = new THREE.RingGeometry(0.42, 0.51, 24);
     impactRingGeometry.rotateX(-Math.PI / 2);
-    const capGeometry = new THREE.ConeGeometry(0.22, 0.23, 7);
+    const capGeometry = new THREE.SphereGeometry(0.26, 12, 7, 0, Math.PI * 2, 0, Math.PI / 2);
+    const shirtGeometry = new THREE.CylinderGeometry(0.29, 0.39, 0.68, 10);
+    const shoulderGeometry = new THREE.SphereGeometry(0.16, 9, 7);
+    const handGeometry = new THREE.SphereGeometry(0.125, 9, 7);
+    const backpackGeometry = new THREE.BoxGeometry(0.36, 0.42, 0.2);
     const badgeGeometry = new THREE.BoxGeometry(0.15, 0.16, 0.045);
     const armGeometry = new THREE.CylinderGeometry(0.105, 0.135, 0.52, 8);
     const legGeometry = new THREE.CylinderGeometry(0.11, 0.125, 0.49, 8);
@@ -360,6 +364,9 @@ export function Arena3D(props: Props) {
     const mouthMat = makeMaterial(darkTint(palette), 0.54);
     const impactRingMat = Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.82, depthWrite: false }), { userData: { paletteToken: "warn" } });
     const capMat = makeMaterial(lightTint(palette), 0.62);
+    const shirtMat = makeMaterial(lightTint(palette), 0.74);
+    const handMat = makeMaterial(lightTint(palette), 0.62);
+    const backpackMat = makeMaterial(palette.surface2, 0.8, "surface2");
     const badgeMat = makeMaterial(palette.onAccent, 0.52, "onAccent");
     const legMat = makeMaterial(palette.ink, 0.82, "ink");
     const shoeMat = makeMaterial(palette.danger, 0.58, "danger");
@@ -367,18 +374,22 @@ export function Arena3D(props: Props) {
     const body = new THREE.InstancedMesh(bodyGeometry, bodyMat, MAX_CHARACTERS);
     const head = new THREE.InstancedMesh(headGeometry, headMat, MAX_CHARACTERS);
     const neck = new THREE.InstancedMesh(neckGeometry, neckMat, MAX_CHARACTERS);
+    const shirts = new THREE.InstancedMesh(shirtGeometry, shirtMat, MAX_CHARACTERS);
     const eyes = new THREE.InstancedMesh(eyeGeometry, eyeMat, MAX_CHARACTERS * 2);
     const pupils = new THREE.InstancedMesh(pupilGeometry, pupilMat, MAX_CHARACTERS * 2);
     const mouths = new THREE.InstancedMesh(mouthGeometry, mouthMat, MAX_CHARACTERS);
     const impactRings = new THREE.InstancedMesh(impactRingGeometry, impactRingMat, MAX_CHARACTERS);
     const caps = new THREE.InstancedMesh(capGeometry, capMat, MAX_CHARACTERS);
+    const shoulders = new THREE.InstancedMesh(shoulderGeometry, shirtMat, MAX_CHARACTERS * 2);
+    const hands = new THREE.InstancedMesh(handGeometry, handMat, MAX_CHARACTERS * 2);
+    const backpacks = new THREE.InstancedMesh(backpackGeometry, backpackMat, MAX_CHARACTERS);
     const badges = new THREE.InstancedMesh(badgeGeometry, badgeMat, MAX_CHARACTERS);
     const arms = new THREE.InstancedMesh(armGeometry, limbMat, MAX_CHARACTERS * 2);
     const legs = new THREE.InstancedMesh(legGeometry, legMat, MAX_CHARACTERS * 2);
     const shoes = new THREE.InstancedMesh(shoeGeometry, shoeMat, MAX_CHARACTERS * 2);
     const shadows = new THREE.InstancedMesh(shadowGeometry, shadowMat, MAX_CHARACTERS);
     shadows.position.y = 0.025;
-    for (const mesh of [body, head, neck, eyes, pupils, mouths, impactRings, caps, badges, arms, legs, shoes, shadows]) {
+    for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, legs, shoes, shadows]) {
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false;
       scene.add(mesh);
@@ -420,16 +431,24 @@ export function Arena3D(props: Props) {
       for (let index = 0; index < MAX_CHARACTERS; index++) {
         const color = new THREE.Color(tones[index % tones.length]);
         body.setColorAt(index, color);
+        shirts.setColorAt(index, new THREE.Color(tones[(index + 1) % tones.length]));
         arms.setColorAt(index * 2, color);
         arms.setColorAt(index * 2 + 1, color);
+        shoulders.setColorAt(index * 2, new THREE.Color(tones[(index + 1) % tones.length]));
+        shoulders.setColorAt(index * 2 + 1, new THREE.Color(tones[(index + 1) % tones.length]));
+        hands.setColorAt(index * 2, new THREE.Color(palette.surface));
+        hands.setColorAt(index * 2 + 1, new THREE.Color(palette.surface));
         head.setColorAt(index, new THREE.Color(headTones[index % headTones.length]));
         caps.setColorAt(index, new THREE.Color(capTones[index % capTones.length]));
+        backpacks.setColorAt(index, new THREE.Color(tones[(index + 3) % tones.length]));
+        legs.setColorAt(index * 2, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
+        legs.setColorAt(index * 2 + 1, new THREE.Color(index % 2 === 0 ? palette.ink : palette.surface2));
         badges.setColorAt(index, new THREE.Color(index % 2 === 0 ? palette.onAccent : palette.surface));
         const shoeColor = new THREE.Color(index % 3 === 0 ? palette.danger : palette.ink);
         shoes.setColorAt(index * 2, shoeColor);
         shoes.setColorAt(index * 2 + 1, shoeColor);
       }
-      for (const mesh of [body, head, caps, badges, arms, shoes]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      for (const mesh of [body, shirts, head, caps, shoulders, hands, backpacks, badges, arms, legs, shoes]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     };
     applyTones();
     const updatePalette = () => {
@@ -447,6 +466,9 @@ export function Arena3D(props: Props) {
       scene.background = new THREE.Color(palette.bg);
       if (scene.fog) scene.fog.color.set(palette.bg);
       bodyMat.color.set(lightTint(palette));
+      shirtMat.color.set(lightTint(palette));
+      handMat.color.set(lightTint(palette));
+      backpackMat.color.set(palette.surface2);
       headMat.color.set(lightTint(palette));
       limbMat.color.set(lightTint(palette));
       neckMat.color.set(palette.surface2);
@@ -541,6 +563,10 @@ export function Arena3D(props: Props) {
       body.count = snapshot.length;
       head.count = snapshot.length;
       neck.count = snapshot.length;
+      shirts.count = snapshot.length;
+      shoulders.count = snapshot.length * 2;
+      hands.count = snapshot.length * 2;
+      backpacks.count = snapshot.length;
       eyes.count = snapshot.length * 2;
       pupils.count = snapshot.length * 2;
       mouths.count = snapshot.length;
@@ -585,6 +611,7 @@ export function Arena3D(props: Props) {
         const bodyTilt = staggered ? tumble : recoil + (swinging ? -0.22 : 0);
         const center = new THREE.Vector3(visual.x, (staggered ? 0.9 : 0.96) + bounce, visual.z);
         writeInstance(body, index, dummy, center, yawNow, new THREE.Vector3(0.84, staggered ? 1.2 : 1.32, 0.74), bodyTilt, staggered ? Math.cos(clock * 19 + index) * 0.26 : 0);
+      writeInstance(shirts, index, dummy, new THREE.Vector3(visual.x, 1.02 + bounce, visual.z), yawNow, new THREE.Vector3(0.94, staggered ? 1.12 : 1, 0.92), bodyTilt * 0.82, staggered ? Math.cos(clock * 19 + index) * 0.18 : 0);
         const headTurn = avatar.pose === "glance" && !reduced ? Math.sin(clock * 5 + index) * 0.22 : 0;
         const headPosition = new THREE.Vector3(visual.x, 1.78 + bounce, visual.z);
         const headYaw = yawNow + headTurn;
@@ -594,19 +621,23 @@ export function Arena3D(props: Props) {
         const forwardZ = Math.cos(headYaw);
         const sideX = Math.cos(headYaw);
         const sideZ = -Math.sin(headYaw);
+        const blinkPhase = (clock * 1.25 + index * 0.83) % 5;
+        const blinkScale = !reduced && blinkPhase > 4.84 ? 0.14 : 1;
         for (let eyeSide = 0; eyeSide < 2; eyeSide++) {
           const side = eyeSide === 0 ? -1 : 1;
           const eyePosition = new THREE.Vector3(visual.x + forwardX * 0.264 + sideX * side * 0.105, 1.84 + bounce, visual.z + forwardZ * 0.264 + sideZ * side * 0.105);
           const pupilPosition = new THREE.Vector3(visual.x + forwardX * 0.337 + sideX * side * 0.105, 1.84 + bounce, visual.z + forwardZ * 0.337 + sideZ * side * 0.105);
-          writeInstance(eyes, index * 2 + eyeSide, dummy, eyePosition, headYaw, new THREE.Vector3(1, 1, 1), recoil * 0.3);
-          writeInstance(pupils, index * 2 + eyeSide, dummy, pupilPosition, headYaw, new THREE.Vector3(1, 1, 1), recoil * 0.3);
+          writeInstance(eyes, index * 2 + eyeSide, dummy, eyePosition, headYaw, new THREE.Vector3(1, blinkScale, 1), recoil * 0.3);
+          writeInstance(pupils, index * 2 + eyeSide, dummy, pupilPosition, headYaw, new THREE.Vector3(1, blinkScale * 0.82, 1), recoil * 0.3);
         }
         const mouthPosition = new THREE.Vector3(visual.x + forwardX * 0.286, 1.68 + bounce, visual.z + forwardZ * 0.286);
         writeInstance(mouths, index, dummy, mouthPosition, headYaw, new THREE.Vector3(0.82, 0.48, 0.34), recoil * 0.3);
         const ringPulse = staggered && !reduced ? 1 + Math.abs(Math.sin(clock * 12 + index)) * 0.55 : 0;
         writeInstance(impactRings, index, dummy, new THREE.Vector3(visual.x, 0.055, visual.z), 0, new THREE.Vector3(ringPulse, ringPulse, ringPulse));
         const wearingCap = index % 3 === 0 || index % 7 === 0;
-        writeInstance(caps, index, dummy, new THREE.Vector3(visual.x, 2.12 + bounce, visual.z), yawNow, new THREE.Vector3(wearingCap ? 1 : 0, wearingCap ? 1 : 0, wearingCap ? 1 : 0));
+        writeInstance(caps, index, dummy, new THREE.Vector3(visual.x, 2.03 + bounce, visual.z), yawNow, new THREE.Vector3(wearingCap ? 1 : 0, wearingCap ? 1 : 0, wearingCap ? 1 : 0));
+        const wearingPack = index % 4 === 0 || index % 7 === 2;
+        writeInstance(backpacks, index, dummy, new THREE.Vector3(visual.x - forwardX * 0.31, 1.02 + bounce, visual.z - forwardZ * 0.31), yawNow, new THREE.Vector3(wearingPack ? 1 : 0, wearingPack ? 1 : 0, wearingPack ? 1 : 0), bodyTilt * 0.4);
         const badgePosition = new THREE.Vector3(visual.x + Math.sin(yawNow) * 0.31, 1.02 + bounce, visual.z + Math.cos(yawNow) * 0.31);
         writeInstance(badges, index, dummy, badgePosition, yawNow, new THREE.Vector3(index % 4 === 0 ? 1.15 : 0.72, 1, 1), bodyTilt * 0.35);
         writeInstance(shadows, index, dummy, new THREE.Vector3(visual.x, 0.03, visual.z), 0, new THREE.Vector3(staggered ? 1.28 : 1, 1, staggered ? 0.72 : 0.8));
@@ -620,12 +651,16 @@ export function Arena3D(props: Props) {
           const armPos = new THREE.Vector3(rotatedX, 1.14 + bounce, rotatedZ);
           const legPos = new THREE.Vector3(visual.x + sign * 0.14 * Math.cos(yawNow), 0.43, visual.z - sign * 0.14 * Math.sin(yawNow));
           const shoePos = new THREE.Vector3(legPos.x + Math.sin(yawNow) * 0.12, 0.18, legPos.z + Math.cos(yawNow) * 0.12);
+          const shoulderPos = new THREE.Vector3(rotatedX, 1.36 + bounce, rotatedZ);
+          const handPos = new THREE.Vector3(rotatedX + Math.sin(yawNow) * armSwing * 0.08, 0.87 + bounce, rotatedZ + Math.cos(yawNow) * armSwing * 0.08);
+          writeInstance(shoulders, index * 2 + side, dummy, shoulderPos, yawNow, new THREE.Vector3(1, 1, 1), bodyTilt * 0.3);
           writeInstance(arms, index * 2 + side, dummy, armPos, yawNow, new THREE.Vector3(1, 0.96, 1), armSwing);
+          writeInstance(hands, index * 2 + side, dummy, handPos, yawNow, new THREE.Vector3(1, 0.96, 1), armSwing);
           writeInstance(legs, index * 2 + side, dummy, legPos, yawNow, new THREE.Vector3(0.82, 0.92, 0.82), legSwing);
           writeInstance(shoes, index * 2 + side, dummy, shoePos, yawNow, new THREE.Vector3(1.05, 0.56, 1.5), 0);
         }
       }
-      for (const mesh of [body, head, neck, eyes, pupils, mouths, impactRings, caps, badges, arms, legs, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
+      for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, legs, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
       if (local) {
         const localVisual = visuals[snapshot.indexOf(local)];
         marker.position.set(localVisual.x, 2.68, localVisual.z);
