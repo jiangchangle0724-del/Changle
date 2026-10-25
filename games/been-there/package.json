@@ -18,12 +18,14 @@
   },
   "dependencies": {
     "preact": "10.29.8",
-    "qrcode-generator": "2.0.4"
+    "qrcode-generator": "2.0.4",
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261019.1",
     "@playwright/test": "1.63.0",
     "@types/node": "22.20.5",
+    "@types/three": "0.186.0",
     "esbuild": "0.28.2",
     "subset-font": "^2.9.0",
     "topojson-client": "^3.1.0",

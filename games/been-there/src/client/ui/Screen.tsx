@@ -55,7 +55,7 @@ export function Screen({ v }: { v: RoomView }) {
   return (
     <main class="screen">
       <div class="tv-board">
-        <Board v={v} big center={TvCenter({ v })} />
+        <Board v={v} big globe center={TvCenter({ v })} />
       </div>
       <aside class={`tv-side${g.trivia ? " quiz-up" : ""}`}>
         <div class="tv-head">

@@ -14,7 +14,7 @@ import { Stamp } from "../art/stamps";
 import { getLang, t, tx } from "../i18n";
 import { sfx } from "../sound";
 import { serverNow } from "../store";
-import { reducedMotion } from "./Board";
+import { latestFlight, reducedMotion } from "./Board";
 import { SeatChip } from "./common";
 
 interface Landing {
@@ -68,8 +68,11 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     const later = (ms: number, f: () => void) => timers.current.push(window.setTimeout(f, ms));
     // On a phone, the city's sound only plays when there's no big screen in the room to play it.
     const loud = big || !v.members.some((m) => m.role === "screen" && m.online);
-    // Let the token finish walking (and the plane flying) first.
-    const lead = big ? 1400 : 600;
+    // Let the token finish walking first, and on the big screen let the plane land if it flew here
+    // from another region (the flight is keyed by the landing, which comes just before the stamp).
+    const flight = latestFlight(v);
+    const flew = !!flight && land.id - Number(flight.key) >= 1 && land.id - Number(flight.key) <= 3;
+    const lead = !big ? 600 : flew ? 3300 : 1400;
     later(lead, () => {
       if (onClock(latest.current)) return stop();
       setShow(land);

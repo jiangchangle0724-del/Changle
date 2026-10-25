@@ -956,6 +956,22 @@ legend {
   max-width: 640px;
   margin-inline: auto;
 }
+/* The big screen's 3D globe sits exactly over the map circle (radius 320 of the board's 1000). */
+.boardwrap .globe {
+  position: absolute;
+  left: 18%;
+  top: 18%;
+  width: 64%;
+  height: 64%;
+  border-radius: 50%;
+  background: var(--map-sea);
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
+}
+.boardwrap .globe.on {
+  opacity: 1;
+}
 .boardwrap .center-disc {
   position: absolute;
   left: 50%;
