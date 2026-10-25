@@ -33,13 +33,13 @@ Mobile players use the on-screen joystick, Punch, and Blend controls; Punch is s
     npm test
     npm run build
 
-The unit tests cover deterministic crowd setup, expanded lobby placement, acceleration and braking, gradual turning, movement bounds and input normalization, punch range and direction, crowd fouls, blend cooldowns, win and draw rules, room hosting and presence, player limits, and the TV view's identity privacy.
+The unit tests cover deterministic crowd setup, expanded lobby placement, acceleration and braking, gradual turning, movement bounds and input normalization, punch range and direction, crowd fouls, blend cooldowns, win and draw rules, room hosting and presence, player limits, TV identity privacy, frame-time percentile calculation, adaptive resolution hysteresis, and quality-tier pixel budgets.
 
 ## On-device FPS check / 真机帧率
 
-Append `?fps=1` to an active room URL on iPhone or iPad Safari. Start a match with both devices in the room; each screen shows an animation-frame rate updated once per second, average frame time, and slowest frame time. Keep the same arena and player count for comparisons, and note the device model, iOS/iPadOS version, browser, and displayed values. Remove the query string to hide the meter.
+Append `?fps=1` to an active room URL on iPhone or iPad Safari. Start a match with both devices in the room; the meter reports FPS, average/P95/slowest frame time, adaptive render tier, and effective pixel ratio once per second. The renderer starts at up to 1.65 device pixel ratio, drops a tier after two windows above 23 ms P95 (or immediately at 36 ms), and restores one tier after five windows below 18 ms. Keep the same arena and player count for comparisons, and note the device model, iOS/iPadOS version, browser, and displayed values. Remove the query string to hide the meter.
 
-在 iPhone 或 iPad 的 Safari 打开进行中的房间链接，并在末尾加上 `?fps=1`。两台设备都加入并开始游戏后，各自会显示每秒更新一次的动画帧率、平均帧耗时和最慢帧耗时。对比时保持场景和玩家人数一致，并记录设备型号、系统版本、浏览器及读数；删掉查询参数即可隐藏读数。
+在 iPhone 或 iPad 的 Safari 打开进行中的房间链接，并在末尾加上 `?fps=1`。面板每秒显示 FPS、平均/P95/最慢帧耗时、自动画质档位和实际 DPR。渲染器最高以 1.65 DPR 起步，P95 连续两个采样窗口高于 23ms 就降一档，达到 36ms 会立即进入省电档；P95 连续五个窗口低于 18ms 后恢复一档。对比时保持场景和玩家人数一致，并记录设备型号、系统版本、浏览器及读数；删掉查询参数即可隐藏读数。
 
 ## Deploy to Cloudflare Workers
 
