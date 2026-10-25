@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { BLEND_COOLDOWN_MS, PLAYER_SPEED, type ArenaId } from "../../engine";
+import { BLEND_COOLDOWN_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
 import { getLang, setLang, t, type Key, type Lang } from "../i18n";
 import { createRoom, openRoomClient, roomExists, type ConnectionState, type RoomConnection } from "../net";
 import type { AvatarView, ClientMsg, GameView, PlayerView, RoomView, Role, ServerMsg } from "../../room/protocol";
@@ -446,6 +446,7 @@ function GameScreen(props: {
     <Arena3D
       avatars={props.game.avatars}
       arena={props.game.arena}
+      environmentalDrift={props.game.environmentalDrift}
       localVector={props.role === "player" ? localVector : { x: 0, y: 0 }}
       receivedAt={props.receivedAt}
       impactId={latest?.id ?? 0}
@@ -455,6 +456,7 @@ function GameScreen(props: {
       fallback={<ArenaFallback
         avatars={props.game.avatars}
         arena={props.game.arena}
+        environmentalDrift={props.game.environmentalDrift}
         localVector={props.role === "player" ? localVector : { x: 0, y: 0 }}
         receivedAt={props.receivedAt}
         impactId={latest?.id ?? 0}
@@ -488,6 +490,7 @@ interface VisualAvatar { x: number; y: number }
 function ArenaFallback(props: {
   avatars: AvatarView[];
   arena: ArenaId;
+  environmentalDrift: { x: number; y: number };
   localVector: { x: number; y: number };
   receivedAt: number;
   impactId: number;
@@ -497,11 +500,13 @@ function ArenaFallback(props: {
   const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
   const avatarTargets = useRef(props.avatars);
   const vectorRef = useRef(props.localVector);
+  const driftRef = useRef(props.environmentalDrift);
   const receivedAtRef = useRef(props.receivedAt);
   const visuals = useRef<VisualAvatar[]>([]);
   const [shaking, setShaking] = useState(false);
   avatarTargets.current = props.avatars;
   vectorRef.current = props.localVector;
+  driftRef.current = props.environmentalDrift;
   receivedAtRef.current = props.receivedAt;
 
   useEffect(() => {
@@ -520,6 +525,7 @@ function ArenaFallback(props: {
       const snapshot = avatarTargets.current;
       const vector = vectorRef.current;
       const predictionMs = Math.min(125, Math.max(0, Date.now() - receivedAtRef.current));
+      const predictionSeconds = predictionMs / 1000;
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
         const node = avatarNodes.current[index];
@@ -527,8 +533,15 @@ function ArenaFallback(props: {
         let targetX = avatar.x;
         let targetY = avatar.y;
         if (avatar.isMine && predictionMs > 0) {
-          targetX += vector.x * PLAYER_SPEED * predictionMs / 1000;
-          targetY += vector.y * PLAYER_SPEED * predictionMs / 1000;
+          const predicted = steerVelocity(
+            avatar.velocity,
+            { x: vector.x * avatar.maxSpeed + driftRef.current.x, y: vector.y * avatar.maxSpeed + driftRef.current.y },
+            predictionSeconds,
+            PLAYER_ACCELERATION,
+            PLAYER_BRAKING
+          );
+          targetX += (avatar.velocity.x + predicted.x) * 0.5 * predictionSeconds;
+          targetY += (avatar.velocity.y + predicted.y) * 0.5 * predictionSeconds;
         }
         targetX = Math.max(5, Math.min(95, targetX));
         targetY = Math.max(6, Math.min(52, targetY));
