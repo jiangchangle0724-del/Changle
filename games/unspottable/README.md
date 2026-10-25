@@ -6,6 +6,14 @@ A bilingual, phone-first crowd-blending party game for changle.ca. Players steer
 
 The arena is an original low-poly 3D scene rendered with WebGL. Instanced crowd characters, venue props, pose animation, and local movement prediction keep the scene light enough for phones; browsers without WebGL fall back to the CSS-animated crowd. Turn a phone sideways to play; orientation lock is used only when the browser allows it. This is a fan-made rules homage and does not use models, textures, or audio from the commercial game.
 
+## Original 3D arenas / 场景
+
+- **Vancouver Seawall Park / 温哥华海堤公园:** a bright lawn by the bay, with a boardwalk, railings, cedars, flowers, clouds and a mountain horizon.
+- **Vancouver Transit Hall / 温哥华交通站厅:** a glassy public concourse with tiled platforms, columns, seats and reversing walkways.
+- **Chinese Courtyard Theatre / 中式庭院戏台:** a timber stage framed by red curtains and lanterns, with lattice details, audience seats and a center spotlight.
+
+Each location has its own original low-poly props and camera composition. The shared crowd uses larger expressive faces, varied color-token outfits, walk cycles, punch poses and a pulse ring when stunned.
+
 ## Run locally
 
 From the repository root:
