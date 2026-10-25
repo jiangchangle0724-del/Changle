@@ -21,13 +21,23 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   for (let i = 0; i < 2; i++) await p.page.getByRole("button", { name: "加一个电脑队" }).click();
   await p.page.getByRole("button", { name: "开始", exact: true }).click();
   await expect(tv.page.locator(".screen .boardwrap")).toBeVisible();
-  // Note each throw's dice as they land (they're only up for a few seconds), drawn at a real size.
+  // Note each throw's dice as they land (they're only up for a few seconds), drawn at a real size, and
+  // the weather on each arrival card and in each touchdown. They come and go with the turns (a
+  // touchdown gives way to any auction), so with computer teams playing fast one can be gone a moment
+  // after it shows: read them as they happen, not afterwards.
   await tv.page.evaluate(() => {
-    const w = window as unknown as { sawDice: number };
+    const w = window as unknown as { sawDice: number; wx: { arrival: string[]; touchdown: string[] } };
     w.sawDice = 0;
+    w.wx = { arrival: [], touchdown: [] };
+    const note = (list: string[], text: string | null | undefined) => {
+      if (text && list[list.length - 1] !== text) list.push(text);
+    };
     new MutationObserver(() => {
       const face = document.querySelector(".tv-dice .face");
       if (face && face.getBoundingClientRect().width > 10) w.sawDice += 1;
+      note(w.wx.arrival, document.querySelector(".arrival-wx")?.textContent);
+      const td = document.querySelector(".touchdown.wx-rain");
+      note(w.wx.touchdown, td?.querySelector(".td-weather.rain") ? td.querySelector(".td-meta")?.textContent : null);
     }).observe(document.body, { childList: true, subtree: true });
   });
   const webgl = await tv.page.evaluate(() => {
@@ -55,11 +65,12 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   }
   expect(await tv.page.evaluate(() => (window as unknown as { sawDice: number }).sawDice)).toBeGreaterThan(0);
   // The weather where the team on turn arrives, on its arrival card and, on a first visit, in the touchdown.
-  await playUntil([p], async () => (await tv.page.locator(".arrival-wx").count()) > 0, 60_000);
-  await expect(tv.page.locator(".arrival-wx").first()).toContainText("此刻 雨 12°C");
+  const wx = () => tv.page.evaluate(() => (window as unknown as { wx: { arrival: string[]; touchdown: string[] } }).wx);
+  await playUntil([p], async () => (await wx()).arrival.length > 0, 60_000);
+  expect((await wx()).arrival[0]).toContain("此刻 雨 12°C");
   if (await tv.page.evaluate(() => !matchMedia("(prefers-reduced-motion: reduce)").matches)) {
-    await playUntil([p], async () => (await tv.page.locator(".touchdown.wx-rain .td-weather.rain").count()) > 0, 90_000);
-    await expect(tv.page.locator(".touchdown .td-meta")).toContainText("雨 12°C");
+    await playUntil([p], async () => (await wx()).touchdown.length > 0, 90_000);
+    expect((await wx()).touchdown[0]).toContain("雨 12°C");
   }
   expect([...tv.errors, ...p.errors]).toEqual([]);
 });
