@@ -4,6 +4,8 @@ export const SCORE_TO_WIN = 3;
 export const NPC_COUNT = 18;
 export const PLAYER_SPEED = 13;
 export const NPC_SPEED = 7.4;
+export const SIMULATION_STEP_MS = 50;
+export const CHARACTER_COLLISION_DIAMETER = 2.4;
 export const PLAYER_ACCELERATION = 46;
 export const NPC_ACCELERATION = 32;
 export const PLAYER_BRAKING = 60;
@@ -85,6 +87,41 @@ export function normalizeVector(value: Vector): Vector {
   const y = Number.isFinite(value.y) ? Math.max(-1, Math.min(1, value.y)) : 0;
   const length = Math.hypot(x, y);
   return length > 1 ? { x: x / length, y: y / length } : { x, y };
+}
+
+export function crowdSeparationVelocity(
+  character: Pick<Character, "id" | "x" | "y">,
+  others: readonly Pick<Character, "id" | "x" | "y">[]
+): Vector {
+  let x = 0;
+  let y = 0;
+  for (const other of others) {
+    if (other.id === character.id) continue;
+    let dx = character.x - other.x;
+    let dy = character.y - other.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= 4.5) continue;
+    if (distance < 0.0001) {
+      const pair = character.id < other.id ? character.id + ":" + other.id : other.id + ":" + character.id;
+      let hash = 2166136261;
+      for (let index = 0; index < pair.length; index++) hash = Math.imul(hash ^ pair.charCodeAt(index), 16777619);
+      const angle = ((hash >>> 0) / 0xffffffff) * Math.PI * 2;
+      const direction = character.id < other.id ? 1 : -1;
+      dx = Math.cos(angle) * direction;
+      dy = Math.sin(angle) * direction;
+    } else {
+      dx /= distance;
+      dy /= distance;
+    }
+    const proximity = (4.5 - distance) / 4.5;
+    const overlap = Math.max(0, (CHARACTER_COLLISION_DIAMETER - distance) / CHARACTER_COLLISION_DIAMETER);
+    const force = proximity * proximity * 1.9 + overlap * 4.8;
+    x += dx * force;
+    y += dy * force;
+  }
+  const length = Math.hypot(x, y);
+  if (length > 3.4) return { x: x / length * 3.4, y: y / length * 3.4 };
+  return { x, y };
 }
 
 function slots(): Vector[] {
@@ -264,6 +301,43 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   }
 }
 
+function resolveCrowdCollisions(characters: Character[]): void {
+  const diameter = CHARACTER_COLLISION_DIAMETER;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let first = 0; first < characters.length; first++) {
+      const a = characters[first];
+      for (let second = first + 1; second < characters.length; second++) {
+        const b = characters[second];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let distance = Math.hypot(dx, dy);
+        if (distance >= diameter) continue;
+        if (distance < 0.0001) {
+          dx = a.id < b.id ? 1 : -1;
+          dy = 0;
+          distance = 0;
+        } else {
+          dx /= distance;
+          dy /= distance;
+        }
+        const correction = (diameter - distance) * 0.5;
+        a.x = bounded(a.x + dx * correction, ARENA.marginX, ARENA.width - ARENA.marginX);
+        a.y = bounded(a.y + dy * correction, ARENA.marginY, ARENA.height - ARENA.marginY);
+        b.x = bounded(b.x - dx * correction, ARENA.marginX, ARENA.width - ARENA.marginX);
+        b.y = bounded(b.y - dy * correction, ARENA.marginY, ARENA.height - ARENA.marginY);
+        const closing = (a.velocity.x - b.velocity.x) * dx + (a.velocity.y - b.velocity.y) * dy;
+        if (closing < 0) {
+          const impulse = -closing * 0.48;
+          a.velocity.x += dx * impulse;
+          a.velocity.y += dy * impulse;
+          b.velocity.x -= dx * impulse;
+          b.velocity.y -= dy * impulse;
+        }
+      }
+    }
+  }
+}
+
 function bounded(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value));
 }
@@ -318,7 +392,14 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     const vector = normalizeVector(rawInput);
     const blended = character.kind === "player" && now < character.blendUntil;
     const speed = characterMaxSpeed(character, state.arena, now);
-    const desired = { x: vector.x * speed + laneDrift, y: vector.y * speed };
+    const separation = crowdSeparationVelocity(character, state.characters);
+    const desired = { x: vector.x * speed + laneDrift + separation.x, y: vector.y * speed + separation.y };
+    const desiredSpeed = Math.hypot(desired.x, desired.y);
+    const speedLimit = speed + Math.abs(laneDrift);
+    if (desiredSpeed > speedLimit) {
+      desired.x *= speedLimit / desiredSpeed;
+      desired.y *= speedLimit / desiredSpeed;
+    }
     character.velocity = steerVelocity(
       character.velocity ?? { x: 0, y: 0 },
       desired,
@@ -341,7 +422,8 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       character.attackResolved = true;
       character.pose = "punch";
       resolvePunch(next, character, now);
-    } else if (blended) character.pose = "glance";
+    } else if (character.attackResolved && character.attackResolveAt !== null && now <= character.attackResolveAt + 220) character.pose = "punch";
+    else if (blended) character.pose = "glance";
     else if (moving) character.pose = "walk";
     else if (character.kind === "npc" && npcGlancing(character, now)) character.pose = "glance";
     else character.pose = "idle";
@@ -350,6 +432,7 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       character.attackResolved = false;
     }
   }
+  resolveCrowdCollisions(next.characters);
   if (next.phase === "playing" && now >= next.endsAt) {
     const players = next.characters.filter((character) => character.kind === "player");
     const maxScore = Math.max(...players.map((player) => player.score));
@@ -366,5 +449,5 @@ export function nextMatchWake(state: MatchState): number | null {
   const attacks = state.characters
     .filter((character) => character.attackResolveAt !== null && !character.attackResolved)
     .map((character) => character.attackResolveAt as number);
-  return Math.min(state.endsAt, state.lastTickAt + 65, ...attacks);
+  return Math.min(state.endsAt, state.lastTickAt + SIMULATION_STEP_MS, ...attacks);
 }
