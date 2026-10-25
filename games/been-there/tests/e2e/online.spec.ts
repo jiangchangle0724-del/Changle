@@ -127,7 +127,14 @@ test("窄屏手机、英文界面、长队名：顶栏和页面都不超出屏�
   await en.page.getByRole("button", { name: "New team" }).click();
   const zh = await newPhone(browser, "小明同学好朋友", { ...contextOptions, ...se, locale: "zh-CN" });
   await joinWithTeam(zh, code);
-  // The first phone in is the host.
+  // The first phone in is the host. Its lobby, with a computer team's style and Remove, fits too.
+  await en.page.getByRole("button", { name: "Add a computer team" }).click();
+  await expect(en.page.locator(".teams li")).toHaveCount(3);
+  const lobbyOver = await en.page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    return Math.max(...[...document.querySelectorAll(".lobby *")].map((el) => el.getBoundingClientRect().right)) - vw;
+  });
+  expect(lobbyOver, "lobby wider than the screen").toBeLessThanOrEqual(1);
   await en.page.getByRole("button", { name: "Start", exact: true }).click();
   for (const p of [en, zh]) {
     await expect(p.page.locator(".game")).toBeVisible();
