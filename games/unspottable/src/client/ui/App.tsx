@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { BLEND_COOLDOWN_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
+import { BLEND_COOLDOWN_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, SIMULATION_STEP_MS, steerVelocity, type ArenaId } from "../../engine";
 import { getLang, setLang, t, type Key, type Lang } from "../i18n";
 import { createRoom, openRoomClient, roomExists, type ConnectionState, type RoomConnection } from "../net";
 import type { AvatarView, ClientMsg, GameView, PlayerView, RoomView, Role, ServerMsg } from "../../room/protocol";
@@ -600,7 +600,7 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
     const timer = window.setInterval(() => {
       const current = vectorRef.current;
       if (Math.hypot(current.x, current.y) > 0.05) props.send({ t: "move", x: current.x, y: current.y });
-    }, 50);
+    }, SIMULATION_STEP_MS);
     return () => window.clearInterval(timer);
   }, [props.send]);
 
@@ -610,7 +610,14 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
     let x = (event.clientX - rect.left - rect.width / 2) / (rect.width / 2);
     let y = (event.clientY - rect.top - rect.height / 2) / (rect.height / 2);
     const length = Math.hypot(x, y);
-    if (length > 1) { x /= length; y /= length; }
+    if (length <= 0.08) { x = 0; y = 0; }
+    else {
+      const normalizedLength = Math.min(1, length);
+      const remapped = (normalizedLength - 0.08) / 0.92;
+      const response = remapped * 0.78 + remapped * remapped * 0.22;
+      x = x / length * response;
+      y = y / length * response;
+    }
     const next = { x, y };
     setVector(next);
     props.onVector(next);
@@ -673,7 +680,12 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
   useEffect(() => {
     if (!navigator.getGamepads) return;
     const deadzone = 0.18;
-    const axis = (value: number) => Math.abs(value) < deadzone ? 0 : Math.sign(value) * (Math.abs(value) - deadzone) / (1 - deadzone);
+    const axis = (value: number) => {
+      const magnitude = Math.abs(value);
+      if (magnitude < deadzone) return 0;
+      const remapped = (magnitude - deadzone) / (1 - deadzone);
+      return Math.sign(value) * Math.pow(remapped, 1.35);
+    };
     const timer = window.setInterval(() => {
       const pad = Array.from(navigator.getGamepads()).find((candidate) => candidate?.connected);
       if (!pad) {
@@ -708,6 +720,7 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
   }, [props.onVector, props.send]);
 
   const ready = Date.now() >= props.game.blendReadyAt;
+  const punchReady = Date.now() >= props.game.punchReadyAt;
   return <div class="controls-row">
     <div
       class="joystick"
@@ -724,8 +737,8 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
       <span class="stick-knob" style={{ transform: "translate(" + vector.x * 35 + "px, " + vector.y * 35 + "px)" }}></span>
     </div>
     <div class="action-buttons">
-      <button class="btn punch-button" aria-label={t("punch")} onPointerDown={(event) => { event.preventDefault(); props.send({ t: "punch" }); navigator.vibrate?.(24); }} onClick={(event) => { if (event.detail === 0) props.send({ t: "punch" }); }}>
-        <span class="punch-mark" aria-hidden="true"></span>{t("punch")}
+      <button class="btn punch-button" aria-label={t("punch")} disabled={!punchReady} onPointerDown={(event) => { event.preventDefault(); props.send({ t: "punch" }); navigator.vibrate?.(24); }} onClick={(event) => { if (event.detail === 0) props.send({ t: "punch" }); }}>
+        <span class="punch-mark" aria-hidden="true"></span>{t(punchReady ? "punch" : "cooldown")}
       </button>
       <button class="btn blend-button" disabled={!ready} onPointerDown={(event) => { event.preventDefault(); props.send({ t: "blend" }); }} onClick={(event) => { if (event.detail === 0) props.send({ t: "blend" }); }}>
         {t(ready ? "blendReady" : "cooldown")}
