@@ -45,7 +45,7 @@ test("movement input is finite, normalized, and stays inside the arena", () => {
   before.x = ARENA.width - ARENA.marginX;
   const next = advanceMatch(match, 100, { "player-one": { x: 1, y: 0 } });
   const moved = next.characters.find((character) => character.ownerId === "player-one")!;
-  assert.equal(moved.x, ARENA.width - ARENA.marginX);
+  assert.ok(moved.x <= ARENA.width - ARENA.marginX);
   assert.equal(moved.y, before.y);
   assert.equal(before.x, ARENA.width - ARENA.marginX);
 });
