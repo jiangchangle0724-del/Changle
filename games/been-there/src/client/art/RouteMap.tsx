@@ -1,8 +1,10 @@
 // The map in the middle of the round board: the world seen from above the North Pole, like the
 // airline route maps of the 1940s. City dots in their region colours; a little plane flies the
-// great-circle route when a token crosses to another region.
+// great-circle route when a token crosses to another region. The night side is the real one, with the
+// cities lit up in it, and moves on every minute.
+import { useEffect, useState } from "preact/hooks";
 import { CITIES } from "../../engine";
-import { COORDS, flightPath, polar } from "./geo";
+import { COORDS, flightPath, isNight, nightPath, polar } from "./geo";
 import { LAND, WORLD_R } from "./world";
 
 export interface Flight {
@@ -27,8 +29,15 @@ export const GROUP_DOT: Record<number, string> = {
 export function RouteMap({ r, flight, labels, reduced }: { r: number; flight?: Flight | null; labels?: boolean; reduced?: boolean }) {
   const k = r / WORLD_R;
   const path = flight ? flightPath(flight.from, flight.to, r) : "";
+  const now = useMinute();
   return (
     <g class="routemap">
+      <defs>
+        <radialGradient id="city-glow">
+          <stop offset="0" stop-color="#ffcf73" stop-opacity="0.9" />
+          <stop offset="1" stop-color="#ffcf73" stop-opacity="0" />
+        </radialGradient>
+      </defs>
       <circle r={r} fill="var(--map-sea)" />
       {[60, 30, 0, -30].map((lat) => (
         <circle key={lat} r={polar(lat, 0, r)[1]} fill="none" stroke="var(--map-line)" stroke-width={lat === 0 ? 1.6 : 1} stroke-dasharray={lat === 0 ? "none" : "4 5"} />
@@ -38,11 +47,13 @@ export function RouteMap({ r, flight, labels, reduced }: { r: number; flight?: F
         return <line key={i} x1="0" y1="0" x2={x} y2={y} stroke="var(--map-line)" stroke-width="0.8" />;
       })}
       <path d={LAND} transform={`scale(${k})`} fill="var(--map-land)" />
+      <path d={nightPath(now, r)} fill="var(--night-shade)" fill-rule="evenodd" opacity="0.3" class="night" />
       <circle r={r} fill="none" stroke="var(--board-ink)" stroke-width="2.5" />
       {CITIES.map((c) => {
         const [x, y] = polar(COORDS[c.id][0], COORDS[c.id][1], r);
         return (
           <g key={c.id}>
+            {isNight(COORDS[c.id][0], COORDS[c.id][1], now) && <circle cx={x} cy={y} r={r * 0.05} fill="url(#city-glow)" class="lamp" />}
             <circle cx={x} cy={y} r={r * 0.022} fill={GROUP_DOT[c.group]} stroke="var(--map-sea)" stroke-width={r * 0.008} />
             {labels && (
               <text x={x} y={y - r * 0.035} font-size={r * 0.04} text-anchor="middle" class="map-label">
@@ -63,4 +74,14 @@ export function RouteMap({ r, flight, labels, reduced }: { r: number; flight?: F
       )}
     </g>
   );
+}
+
+/** The time now, a minute at a time: enough for the night to creep across the map. */
+function useMinute() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
 }

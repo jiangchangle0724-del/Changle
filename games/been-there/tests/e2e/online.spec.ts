@@ -34,6 +34,9 @@ test("4 人完整打完一局：15 分钟局（测试里时钟压缩到 1/10）"
   );
   for (const p of phones) {
     await expect(p.page.getByRole("heading", { name: "游戏结束" })).toBeVisible();
+    // The finale reads out every team, the winners last, on a card of their own.
+    await expect(p.page.locator(".results > li")).toHaveCount(4);
+    await expect(p.page.locator(".results li.won")).toContainText("赢了");
     expect(p.taps, `${p.name} played`).toBeGreaterThan(5);
   }
   expect(errorsOf(phones)).toEqual([]);

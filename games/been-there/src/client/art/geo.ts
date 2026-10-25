@@ -1,5 +1,6 @@
 // Where the 22 cities are, and how to draw the globe seen from above the North Pole (the map in the
 // middle of the round board, src/client/art/world.ts uses the same projection).
+import { subsolar } from "../globe/sun";
 import { COORDS } from "./coords";
 import { WORLD_LAT_MIN } from "./world";
 
@@ -42,4 +43,31 @@ export function greatCircle(a: [number, number], b: [number, number], steps = 48
 export function flightPath(from: string, to: string, r: number): string {
   const pts = greatCircle(COORDS[from], COORDS[to]).map(([lat, lon]) => polar(lat, lon, r));
   return "M" + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L");
+}
+
+/** Whether it's night at a place at `at` (ms): the sun is below the horizon there. */
+export function isNight(lat: number, lon: number, at: number): boolean {
+  const sun = subsolar(at);
+  const p = lat * RAD;
+  const d = sun.lat * RAD;
+  return Math.sin(p) * Math.sin(d) + Math.cos(p) * Math.cos(d) * Math.cos((lon - sun.lon) * RAD) < 0;
+}
+
+/**
+ * The night side on the polar map of radius r at `at` (ms), as an SVG path (fill-rule evenodd). For
+ * each longitude, the latitude where the sun sits on the horizon; in the northern winter the night is
+ * the cap around the pole inside that line, in summer everything outside it.
+ */
+export function nightPath(at: number, r: number): string {
+  const sun = subsolar(at);
+  // (at the equinox the line runs through the poles: nudge it off)
+  const d = (Math.abs(sun.lat) < 0.1 ? 0.1 : Math.abs(sun.lat)) * Math.sign(sun.lat || 1) * RAD;
+  const pts: string[] = [];
+  for (let lon = -180; lon < 180; lon += 3) {
+    const lat = Math.atan(-Math.cos((lon - sun.lon) * RAD) / Math.tan(d)) / RAD;
+    const [x, y] = polar(lat, lon, r);
+    pts.push(`${x.toFixed(1)} ${y.toFixed(1)}`);
+  }
+  const line = `M${pts.join("L")}Z`;
+  return d < 0 ? line : `${line}M${r} 0A${r} ${r} 0 1 0 ${-r} 0A${r} ${r} 0 1 0 ${r} 0Z`;
 }

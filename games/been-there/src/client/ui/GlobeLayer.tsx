@@ -51,6 +51,7 @@ function colors(): GlobeColors {
     line: v("--map-line"),
     ink: v("--board-ink"),
     flight: v("--flight"),
+    night: v("--night-shade"),
     dots: Object.fromEntries(CITIES.map((c) => [c.id, GROUP_DOT[c.group]])),
   };
 }

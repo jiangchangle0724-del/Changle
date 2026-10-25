@@ -1,4 +1,5 @@
 // The big screen (TV or laptop): the board, everyone's standing, and how to join. No controls.
+import type { ComponentChildren } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { money, spaceName, t, type Key } from "../i18n";
@@ -7,7 +8,8 @@ import { Board, latestFlight, reducedMotion } from "./Board";
 import { CityPoster } from "../art/posters";
 import { Countdown, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
 import { dareText, quizItemText, recentParty } from "./feedText";
-import { Arrival, Clock, Feed, Over, Standings, lastId } from "./Game";
+import { Over } from "./Finale";
+import { Arrival, Clock, Feed, Standings, lastId } from "./Game";
 import { Qr, joinUrl } from "./Lobby";
 import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
 import { NewsBanner } from "./News";
@@ -53,7 +55,7 @@ export function Screen({ v }: { v: RoomView }) {
         </ul>
       </main>
     );
-  if (v.phase === "over") return <Over v={v} />;
+  if (v.phase === "over") return <Over v={v} big />;
   const g = v.game!;
   return (
     <main class="screen">
@@ -72,11 +74,11 @@ export function Screen({ v }: { v: RoomView }) {
         {/* What's happening now, and the table (standings and log): side by side where the screen is
             wide enough, one under the other where it isn't. The log takes whatever room is left. */}
         <div class="tv-cols">
-          <div class="tv-now">
+          <FitColumn class="tv-now">
             <Arrival v={v} big />
             <NewsBanner v={v} big />
             <Trivia v={v} big />
-          </div>
+          </FitColumn>
           <div class="tv-table">
             <h2 class="departures">{t("departures")}</h2>
             <Standings v={v} big />
@@ -92,6 +94,49 @@ export function Screen({ v }: { v: RoomView }) {
       <CoinFx v={v} />
       <Touchdown v={v} big />
     </main>
+  );
+}
+
+/**
+ * A column of cards that shrinks them when they'd run off the bottom (nobody scrolls a TV): an arrival
+ * card, the news and a question can be taller than a smaller screen, in English especially. They're
+ * laid out wider by the same factor, so the text wraps into fewer lines rather than getting squeezed.
+ */
+function FitColumn({ class: cls, children }: { class: string; children: ComponentChildren }) {
+  const outer = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const o = outer.current;
+    const i = inner.current;
+    if (!o || !i) return;
+    const fit = () => {
+      i.classList.remove("shrunk");
+      const room = o.clientHeight;
+      const need = i.offsetHeight;
+      if (room > 0 && need > room) {
+        i.style.setProperty("--fit", (room / need).toFixed(3));
+        i.classList.add("shrunk");
+      }
+    };
+    // Straight away, before the change is painted, so a card never shows cut off. (Both observers report
+    // before the next paint; fit() changes only a class and a style, which neither of them watches.)
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(o);
+    const mo = new MutationObserver(fit);
+    mo.observe(i, { childList: true, subtree: true, characterData: true });
+    void document.fonts?.ready.then(fit);
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, []);
+  return (
+    <div class={cls} ref={outer}>
+      <div class="fit" ref={inner}>
+        {children}
+      </div>
+    </div>
   );
 }
 

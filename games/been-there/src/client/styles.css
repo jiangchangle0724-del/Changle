@@ -15,6 +15,8 @@
   --top-bg: var(--ink);
   --top-fg: var(--bg);
   --top-edge: transparent;
+  /* The characters' outline on a dark page (see .face). */
+  --face-edge: none;
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 8px 22px rgba(10, 14, 30, 0.14);
   --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
@@ -29,6 +31,7 @@
     --top-bg: #0b0e1c;
     --top-fg: #f1e6cf;
     --top-edge: #303a5a;
+    --face-edge: drop-shadow(0 0 0.6px #f1e6cf) drop-shadow(0 0 0.6px #f1e6cf);
     --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
     color-scheme: dark;
   }
@@ -42,6 +45,7 @@
   --top-bg: #0b0e1c;
   --top-fg: #f1e6cf;
   --top-edge: #303a5a;
+  --face-edge: drop-shadow(0 0 0.6px #f1e6cf) drop-shadow(0 0 0.6px #f1e6cf);
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
 }
@@ -981,26 +985,16 @@ legend {
 .trivia.big .trivia-fact {
   font-size: 1rem;
 }
-/* On the big screen a question shares the side panel with the arrival card: the card gives up its wide poster. */
-.tv-side.quiz-up .arrival.big {
-  grid-template-columns: 112px minmax(0, 1fr);
+/* Once the answer is out, the big screen keeps only the right one, with the story behind it. */
+.trivia.big.closed .trivia-options li:not(.right) {
+  display: none;
 }
-.tv-side.quiz-up .arrival.big .arrival-poster {
-  aspect-ratio: 4 / 5;
-}
-.tv-side.quiz-up .arrival.big h3 {
-  font-size: 1.9rem;
-}
-.tv-side.quiz-up .arrival.big .arrival-rule {
-  -webkit-line-clamp: 2;
-  font-size: 0.95rem;
-}
-.tv-side.quiz-up .arrival.big .arrival-stamp {
-  left: 70px;
-  top: 96px;
-  right: auto;
-  transform: scale(0.5);
-  transform-origin: top left;
+/* On the big screen a question has the "now" column to itself while it's up (about 18 s): the arrival
+   card and the news step aside, and come back when it closes. Nobody scrolls a TV, and with all three
+   an English question ran off the bottom of a 1366×768 screen. */
+.tv-side.quiz-up .tv-now .arrival,
+.tv-side.quiz-up .tv-now .news {
+  display: none;
 }
 /* board */
 .boardwrap {
@@ -1193,6 +1187,332 @@ legend {
   align-items: center;
   flex-wrap: wrap;
 }
+/* ---------- the end of the trip (ui/Finale.tsx): an exit stamp, the teams read out last place first,
+   the winners' card with their passport, and paper falling ---------- */
+/* The stamps wait for their moment already enlarged (to land from above the page); they mustn't make
+   the page wider than the phone meanwhile. */
+.over {
+  overflow-x: clip;
+}
+.exit-stamp {
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 8px 0 4px;
+  padding: 10px 26px 8px;
+  color: var(--accent);
+  border: 4px double currentColor;
+  border-radius: 12px;
+  transform: rotate(-4deg);
+  -webkit-mask-image: var(--speckle, none);
+  mask-image: var(--speckle, none);
+  -webkit-mask-size: 160px;
+  mask-size: 160px;
+  animation: exit-slam 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) var(--stamp-at, 0s) both;
+}
+.exit-stamp h1 {
+  font-size: clamp(2.4rem, 11vw, 3.2rem);
+  letter-spacing: 0.06em;
+}
+.exit-stamp p {
+  font: 700 11px/1.4 var(--mono);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+@keyframes exit-slam {
+  0% {
+    opacity: 0;
+    transform: rotate(-4deg) scale(1.9);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(-4deg) scale(0.93);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-4deg) scale(1);
+  }
+}
+.over .results {
+  list-style: none;
+  padding: 0;
+  gap: 10px;
+}
+.over .results li {
+  position: relative;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  border-left: 6px solid var(--team);
+  animation: row-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15) var(--at, 0s) both;
+}
+.over .results .rank {
+  min-width: 1.2em;
+  font: 700 1.1rem/1 var(--mono);
+  color: var(--muted);
+}
+.over .results .worth {
+  margin-left: auto;
+  font: 700 1.15rem/1.2 var(--mono);
+}
+.over .results small {
+  flex-basis: 100%;
+}
+.over .results li.broke {
+  opacity: 0.72;
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+/* The winners: a bigger card, centred like a podium, with their face, the winner's stamp and their
+   passport. (Team names can be anything, so they're in the body font: the display font only carries
+   the game's own characters.) */
+.over .results li.won {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  text-align: center;
+  gap: 4px;
+  padding: 18px 16px 14px;
+  box-shadow:
+    0 0 0 3px var(--team),
+    var(--shadow);
+}
+.won-text {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.won-name {
+  font: 700 1.45rem/1.2 var(--font);
+  text-wrap: balance;
+}
+.over .results .won .worth {
+  margin: 6px 0 0;
+  font-size: 2rem;
+}
+/* Their face on a paper medallion (the characters are drawn in navy ink, so it reads on a dark card
+   too), with a ray burst turning slowly behind. */
+.medal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 132px;
+  aspect-ratio: 1;
+  margin: 2px 0 8px;
+  animation: won-hop 0.9s cubic-bezier(0.3, 1.4, 0.5, 1) var(--at, 0s) both;
+}
+.medal::before,
+.medal::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+.medal::before {
+  inset: -34px;
+  background: repeating-conic-gradient(var(--team) 0 7deg, transparent 7deg 18deg);
+  opacity: 0.3;
+  -webkit-mask-image: radial-gradient(circle, #000 35%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 35%, transparent 70%);
+  animation: rays 30s linear infinite;
+}
+.medal::after {
+  inset: 0;
+  background: #fbf4e4;
+  box-shadow:
+    0 0 0 4px var(--team),
+    0 0 0 10px color-mix(in srgb, var(--team) 22%, transparent);
+}
+.medal .face {
+  position: relative;
+  z-index: 1;
+}
+@keyframes rays {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@keyframes won-hop {
+  0% {
+    transform: translateY(24px) scale(0.6);
+    opacity: 0;
+  }
+  45% {
+    transform: translateY(-10px) scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+.champion {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 4px 10px 2px;
+  color: var(--accent);
+  border: 3px double currentColor;
+  border-radius: 8px;
+  font: 800 1.35rem/1 var(--display);
+  letter-spacing: 0.08em;
+  transform: rotate(9deg);
+  -webkit-mask-image: var(--speckle, none);
+  mask-image: var(--speckle, none);
+  -webkit-mask-size: 120px;
+  mask-size: 120px;
+  animation: champion-slam 0.45s cubic-bezier(0.2, 1.5, 0.4, 1) calc(var(--at, 0s) + 0.4s) both;
+}
+@keyframes champion-slam {
+  0% {
+    opacity: 0;
+    transform: rotate(9deg) scale(2.2);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(9deg) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(9deg) scale(1);
+  }
+}
+.trip {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 2px;
+  padding-top: 8px;
+  border-top: 2px dashed var(--line);
+}
+.trip > span {
+  line-height: 0;
+  animation: thunk 0.42s cubic-bezier(0.2, 1.6, 0.4, 1) calc(var(--at, 0s) + 0.7s + var(--i) * 0.09s) both;
+}
+.trip > b {
+  padding: 0 6px;
+  color: var(--muted);
+}
+.over-again {
+  animation: row-in 0.4s ease-out var(--at, 0s) both;
+}
+/* Paper falling: once, over everything, never in the way of a tap. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 40;
+}
+.confetti i {
+  position: absolute;
+  top: -24px;
+  border-radius: 1px;
+  animation: paper-fall var(--d) cubic-bezier(0.3, 0.5, 0.6, 1) var(--delay) both;
+}
+@keyframes paper-fall {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate(var(--sway), calc(100vh + 48px)) rotate(var(--spin));
+  }
+}
+.over.big .confetti {
+  perspective: 600px;
+}
+.over.big .confetti i {
+  animation-name: paper-tumble;
+}
+@keyframes paper-tumble {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg) rotateX(0deg);
+  }
+  to {
+    transform: translate3d(var(--sway), calc(100vh + 48px), 0) rotate(var(--spin)) rotateX(var(--flip));
+  }
+}
+/* The big screen: the winners on the left, everyone else down the right, all large enough to read
+   from across the room. */
+.over.big {
+  max-width: 1440px;
+  min-height: 100dvh;
+  align-content: center;
+  gap: 32px;
+  padding-inline: 56px;
+}
+.over.big .exit-stamp h1 {
+  font-size: 5rem;
+}
+.over.big .exit-stamp p {
+  font-size: 16px;
+}
+.over.big .results.with-won {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-flow: row dense;
+  gap: 16px 32px;
+}
+.over.big .with-won li {
+  grid-column: 2;
+}
+.over.big .results li {
+  gap: 6px 16px;
+  padding: 16px 22px;
+  font-size: 1.5rem;
+}
+.over.big .results .chip b {
+  width: 36px;
+  height: 36px;
+  font-size: 1.1rem;
+}
+.over.big .results .chip .face {
+  width: 48px;
+  height: 48px;
+}
+.over.big .results .rank {
+  font-size: 1.6rem;
+}
+.over.big .results .worth {
+  font-size: 2rem;
+}
+.over.big .results small {
+  font-size: 1.05rem;
+}
+.over.big .results li.won {
+  grid-column: 1;
+  grid-row: 1 / span 6;
+  align-self: stretch;
+  padding: 28px 28px 22px;
+}
+.over.big .won-name {
+  font-size: 2.6rem;
+}
+.over.big .medal {
+  width: 230px;
+  margin-bottom: 14px;
+}
+.over.big .medal::before {
+  inset: -56px;
+}
+.over.big .results .won .worth {
+  font-size: 3.4rem;
+}
+.over.big .champion {
+  top: 22px;
+  right: 24px;
+  font-size: 2.2rem;
+}
+.over.big .over-again {
+  justify-self: center;
+  width: min(420px, 100%);
+}
 /* wide screens: board in the middle, decisions and lists alongside, no tab bar */
 @media (min-width: 960px) {
   .game {
@@ -1278,10 +1598,19 @@ legend {
   gap: 14px;
 }
 .tv-now {
+  min-height: 0;
+  overflow: hidden;
+}
+.tv-now > .fit {
   display: grid;
   gap: 14px;
   align-content: start;
-  min-height: 0;
+}
+/* Shrunk to fit the column (ui/Screen.tsx FitColumn), laid out wider by the same factor. */
+.tv-now > .fit.shrunk {
+  width: calc(100% / var(--fit));
+  transform: scale(var(--fit));
+  transform-origin: 0 0;
 }
 .tv-table {
   container: table / inline-size;
@@ -1508,10 +1837,13 @@ legend {
 }
 
 /* ---------- step 5: faces, arrival card, passport, posters on the home screen ---------- */
+/* On a dark page the characters' navy ink would sink into the card, so they get a thin paper edge,
+   like a die-cut sticker. */
 .face {
   display: block;
   flex: none;
   overflow: visible;
+  filter: var(--face-edge);
 }
 .chip .face {
   margin-right: -2px;
@@ -1627,9 +1959,6 @@ legend {
 }
 .arrival-fact small {
   font: 400 0.75rem var(--mono);
-}
-.tv-side.quiz-up .arrival-fact {
-  display: none;
 }
 .sheet-poster {
   aspect-ratio: 16 / 9;
@@ -2580,9 +2909,6 @@ legend {
   font-size: 0.85rem;
 }
 /* While a question is up on the big screen, the news keeps its headline and rule. */
-.tv-side.quiz-up .news-fact {
-  display: none;
-}
 .news.big {
   font-size: clamp(13px, 1.05vw, 17px);
 }

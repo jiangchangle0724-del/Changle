@@ -32,7 +32,7 @@ export function Trivia({ v, big }: { v: RoomView; big?: boolean }) {
       <p class="trivia-q">{tx(q.q)}</p>
       <ol class="trivia-options">
         {q.options.map((o, i) => (
-          <li key={i}>
+          <li key={i} class={q.correct === i ? "right" : undefined}>
             <button
               type="button"
               class={`trivia-opt${q.correct === i ? " right" : ""}${q.mine === i ? " picked" : ""}`}

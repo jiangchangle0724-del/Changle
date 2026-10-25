@@ -3,7 +3,8 @@ import { installTextures } from "../art/texture";
 import { has, t } from "../i18n";
 import { useApp } from "../store";
 import { Btn } from "./common";
-import { Game, Over } from "./Game";
+import { Over } from "./Finale";
+import { Game } from "./Game";
 import { Lobby } from "./Lobby";
 import { Screen } from "./Screen";
 
