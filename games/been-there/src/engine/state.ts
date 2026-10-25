@@ -24,6 +24,8 @@ export interface Player {
   /** Jet lag: roll one die next turn. */
   jetlag: boolean;
   turns: number;
+  /** Board index of the last city landed on (missing in games saved before it was kept). */
+  city?: number;
 }
 
 export interface Deed {
@@ -119,7 +121,8 @@ export type GameEvent =
   | { t: "turn"; p: number }
   | { t: "roll"; p: number; dice: number[]; steps: number; jail?: boolean; doubles?: boolean }
   | { t: "move"; p: number; from: number; to: number; salary?: number }
-  | { t: "land"; p: number; at: number }
+  /** `from`: on a city, the last city this team landed on before (where the big screen's plane flies from). */
+  | { t: "land"; p: number; at: number; from?: number }
   | { t: "stamp"; p: number; city: string }
   | { t: "passport"; p: number; amount: number }
   | { t: "buy"; p: number; at: number; price: number }

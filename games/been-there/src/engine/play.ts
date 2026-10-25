@@ -252,7 +252,9 @@ function land(s: GameState, p: number, noTango: boolean) {
   const sp = BOARD[at];
   s.stats.landings[at] += 1;
   log(s, `${pl.name} lands on ${sp.k === "city" ? sp.id : sp.k}`);
-  ev(s, { t: "land", p, at });
+  const from = sp.k === "city" ? pl.city : undefined;
+  if (sp.k === "city") pl.city = at;
+  ev(s, from === undefined ? { t: "land", p, at } : { t: "land", p, at, from });
   if (sp.k === "city" && !pl.stamps.includes(sp.id)) {
     pl.stamps.push(sp.id);
     ev(s, { t: "stamp", p, city: sp.id });
