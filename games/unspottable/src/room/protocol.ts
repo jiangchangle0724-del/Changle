@@ -29,6 +29,8 @@ export interface AvatarView {
   x: number;
   y: number;
   facing: number;
+  velocity: Vector;
+  maxSpeed: number;
   pose: Pose;
   isMine: boolean;
 }
@@ -42,6 +44,7 @@ export interface EventView {
 export interface GameView {
   phase: "playing" | "over";
   arena: ArenaId;
+  environmentalDrift: Vector;
   endsAt: number;
   remainingMs: number;
   scoreToWin: number;
