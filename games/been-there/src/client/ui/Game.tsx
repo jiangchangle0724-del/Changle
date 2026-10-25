@@ -7,11 +7,12 @@ import { colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
 import { sfx } from "../sound";
 import { getState, send, toast } from "../store";
 import { Assets } from "./Assets";
-import { Board, moodOf } from "./Board";
+import { Board, moodOf, reducedMotion } from "./Board";
 import { Btn, Countdown, Money, SeatChip, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { dareText, feedText } from "./feedText";
 import { SettingsSheet } from "./Settings";
+import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
 import { Trivia } from "./Trivia";
 
@@ -100,6 +101,7 @@ export function Game({ v }: { v: RoomView }) {
         ))}
       </nav>
       {menu && <SettingsSheet v={v} onClose={() => setMenu(false)} />}
+      <Touchdown v={v} />
     </div>
   );
 }
@@ -324,7 +326,8 @@ function usePhoneSounds(v: RoomView, myMove: boolean) {
     else if (ask && ask !== p.ask) sfx.ask();
     const fresh = v.feed.filter((f) => f.id > p.feed);
     if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
-    if (fresh.some((f) => f.t === "game" && f.e.t === "stamp" && v.you.seats.includes(f.e.p))) sfx.stamp();
+    // (with motion on, the touchdown plays the stamp in time with its own)
+    if (reducedMotion() && fresh.some((f) => f.t === "game" && f.e.t === "stamp" && v.you.seats.includes(f.e.p))) sfx.stamp();
     const cash = v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0);
     const delta = cash.reduce((a, b) => a + b, 0) - p.cash.reduce((a, b) => a + b, 0);
     if (delta > 0) sfx.coin();

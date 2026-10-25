@@ -214,6 +214,8 @@ const S = {
   triviaNoWinner: ["没人答对", "Nobody got it"],
   triviaSource: ["出处", "Source"],
   arrivedIn: ["到了", "has arrived"],
+  touchdownFirst: ["第一次来到这里", "First time here"],
+  localTime: ["当地时间 {time}", "Local time {time}"],
   departures: ["出发 · Departures", "Departures"],
   stampsOf: ["{n}/8 个区域", "{n} of 8 regions"],
   permits: ["拥车证 {n} 张", "{n} car permit(s)"],
