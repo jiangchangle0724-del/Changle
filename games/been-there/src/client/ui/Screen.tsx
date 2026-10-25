@@ -10,6 +10,7 @@ import { dareText, quizItemText, recentParty } from "./feedText";
 import { Arrival, Clock, Feed, Over, Standings, lastId } from "./Game";
 import { Qr, joinUrl } from "./Lobby";
 import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
+import { NewsBanner } from "./News";
 import { Touchdown } from "./Touchdown";
 import { Trivia } from "./Trivia";
 
@@ -69,6 +70,7 @@ export function Screen({ v }: { v: RoomView }) {
         </div>
         {g.paused && <p class="banner">{t("paused")}</p>}
         <Arrival v={v} big />
+        <NewsBanner v={v} big />
         <Trivia v={v} big />
         <h2 class="departures">{t("departures")}</h2>
         <Standings v={v} big />
@@ -141,6 +143,7 @@ function useScreenSounds(v: RoomView) {
     if (!fresh.length) return;
     const flight = latestFlight(v);
     if (flight && fresh.some((f) => f.id === flight.key)) sfx.flight();
+    if (fresh.some((f) => f.t === "game" && f.e.t === "news" && f.e.on)) sfx.news();
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
     else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction" || f.e.t === "bonus"))) sfx.coin();

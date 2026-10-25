@@ -12,6 +12,7 @@ import {
   groupAt,
 } from "./board";
 import { BOARD } from "./data";
+import { newsFor } from "./news";
 import type { GameEvent, GameState, Offer } from "./state";
 
 export function log(s: GameState, line: string) {
@@ -77,7 +78,9 @@ export function rentAt(s: GameState, at: number, diceTotal: number): number {
   }
   if (sp.k !== "city") return 0;
   const table = s.cfg.rents[sp.id];
-  return d.houses > 0 ? table[1 + d.houses] : ownsSet(s, d.owner, CITY_AT[at]!.group) ? table[1] : table[0];
+  const rent = d.houses > 0 ? table[1 + d.houses] : ownsSet(s, d.owner, CITY_AT[at]!.group) ? table[1] : table[0];
+  const news = newsFor(s, sp.id);
+  return news?.rent ? Math.round(rent * news.rent) : rent;
 }
 
 /** Move money. -1 is the bank. */

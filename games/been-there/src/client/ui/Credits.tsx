@@ -1,6 +1,6 @@
 // 素材来源 · Credits: where every city fact, font, map line and borrowed piece of code comes from,
 // with its licence. Opened from the home screen and from the in-game menu.
-import { CITIES } from "../../engine";
+import { CITIES, NEWS } from "../../engine";
 import { t, tx, type Key } from "../i18n";
 import { hostOf } from "./common";
 
@@ -45,6 +45,17 @@ export function Credits() {
             <b>{tx(c.name)}</b> ·{" "}
             <a href={c.source} target="_blank" rel="noopener noreferrer">
               {hostOf(c.source)}
+            </a>
+          </li>
+        ))}
+      </ol>
+      <h3>{t("creditsNews")}</h3>
+      <ol class="credits-facts">
+        {NEWS.map((n) => (
+          <li key={n.id}>
+            <b>{tx(n.title)}</b> ·{" "}
+            <a href={n.source} target="_blank" rel="noopener noreferrer">
+              {hostOf(n.source)}
             </a>
           </li>
         ))}

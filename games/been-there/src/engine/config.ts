@@ -79,6 +79,8 @@ export interface GameConfig {
   /** Cities dealt to each team at the start (2 in the 15-minute game). */
   dealCities: number;
   seatBonus: number[];
+  /** Travel news (news.ts): off unless the room switches it on. */
+  news?: boolean;
 }
 
 export function defaultConfig(teams = 4): GameConfig {

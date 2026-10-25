@@ -15,6 +15,8 @@ export interface SpaceMark {
   owner?: { color: string; letter: string } | null;
   houses?: number;
   mortgaged?: boolean;
+  /** Travel news changing this city for now: a short tag (×2, ½, +$20, −25%). */
+  news?: string;
 }
 
 export interface TokenMark {
@@ -32,6 +34,8 @@ const RL = 428;
 const RM = 389;
 const RH = 358;
 const RT = 294;
+/** Travel news tags sit on the inner edge of the ring. */
+const RN = 330;
 const RMAP = 320;
 const STEP = 360 / BOARD.length;
 
@@ -252,6 +256,16 @@ export function RoundBoard({
                 </Up>
               )}
               {mark?.houses ? <Houses at={at} n={mark.houses} old={houses.get(at) ?? 0} /> : null}
+              {mark?.news && (
+                <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
+                  <g class="pop board-news">
+                    <rect x={-24} y={-13} width="48" height="26" rx="13" />
+                    <text y="6" text-anchor="middle">
+                      {mark.news}
+                    </text>
+                  </g>
+                </Up>
+              )}
               {mark?.owner && (
                 <Up x={mx} y={my} rot={r}>
                   <g class={owned.has(at) ? undefined : "pop"}>

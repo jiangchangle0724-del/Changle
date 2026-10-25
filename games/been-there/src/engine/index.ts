@@ -4,6 +4,7 @@ export * from "./board";
 export * from "./config";
 export * from "./state";
 export * from "./rules";
+export * from "./news";
 export { newGame, act, manage, whoMustAct, rollDie, settleLiveAuction, endAfterThisRound, bonus } from "./play";
 export type { Action, ManageKind } from "./play";
 export { STYLES, newBrain, decide, auctionLimit, fallbackAction, runBots, botAcceptsTrade } from "./bots";
