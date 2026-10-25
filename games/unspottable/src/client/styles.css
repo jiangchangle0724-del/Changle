@@ -1481,3 +1481,20 @@ input {
     animation: none;
   }
 }
+/* WebGL arena: the CSS renderer remains as the no-WebGL fallback. */
+.arena--3d {
+  background: var(--bg);
+}
+.arena--3d::before,
+.arena--3d::after {
+  display: none;
+}
+.arena__canvas {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
