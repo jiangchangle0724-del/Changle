@@ -16,7 +16,7 @@ From the repository root:
 
 Open the Wrangler URL shown in the terminal, usually http://127.0.0.1:8787. To play from phones on the same Wi-Fi, open the same port at your computer's LAN address. The dev server binds to all interfaces for this purpose. Create a room on one phone and join with its four-digit code on the others.
 
-Mobile players use the on-screen joystick, Punch, and Blend controls. On a computer, focus the joystick and use the arrow keys or W/A/S/D. A TV can open the room's TV link directly; alternatively, open it on a spare phone and mirror that phone to the TV with AirPlay or a similar casting option.
+Mobile players use the on-screen joystick, Punch, and Blend controls; Punch is sent as soon as the touch begins. On a computer, use the arrow keys or W/A/S/D anywhere in the match. Compatible controllers use the left stick or D-pad to move, A to Punch, and X to Blend. A TV can open the room's TV link directly; alternatively, open it on a spare phone and mirror that phone to the TV with AirPlay or a similar casting option.
 
 ## Test and build
 
@@ -35,3 +35,4 @@ The unit tests cover deterministic crowd setup, movement bounds and input normal
 4. Share the deployed HTTPS address. Players use the home page; the room owner can copy the TV view link after creating a room. Open that link on a TV browser or a spare phone and mirror it.
 
 The Worker configuration provisions the ArenaRoom Durable Object and serves the built client assets. No secrets or external game assets are required.
+
