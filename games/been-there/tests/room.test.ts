@@ -521,3 +521,8 @@ test("party mode is off unless the host turns it on", () => {
   assert.equal(t.seen.filter((f) => f.t === "party").length, 0);
 });
 
+test("a new room is saved as soon as it's made, before anyone joins", () => {
+  const room = Room.create("1234", makeEnv(new Clock()));
+  assert.equal(room.flush().changed, true);
+  assert.equal(room.flush().changed, false);
+});

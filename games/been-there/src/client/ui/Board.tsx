@@ -78,7 +78,7 @@ function useTurnFocus(v: RoomView) {
   return ref.current.pos;
 }
 
-export function Board({ v, center, globe }: { v: RoomView; big?: boolean; center?: ComponentChildren; globe?: boolean }) {
+export function Board({ v, center, globe, over }: { v: RoomView; big?: boolean; center?: ComponentChildren; globe?: boolean; over?: ComponentChildren }) {
   const g = v.game!;
   const s = g.s;
   const [open, setOpen] = useState<number | null>(null);
@@ -94,6 +94,7 @@ export function Board({ v, center, globe }: { v: RoomView; big?: boolean; center
       <RoundBoard marks={marks} tokens={tokens} focus={focus} active={s.ps[s.turn]?.pos} flight={latestFlight(v)} onPick={setOpen} reduced={reducedMotion()} />
       {globe && <GlobeLayer flight={latestFlight(v)} focus={CITY_AT[focus]?.id ?? null} />}
       {center && <div class="center-disc">{center}</div>}
+      {over}
       {open !== null && <SpaceSheet v={v} at={open} onClose={() => setOpen(null)} />}
     </div>
   );

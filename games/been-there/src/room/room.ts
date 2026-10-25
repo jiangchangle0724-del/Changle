@@ -227,7 +227,7 @@ export class Room {
 
   static create(code: string, env: RoomEnv, settings: Partial<Settings> = {}): Room {
     const now = env.now();
-    return new Room(
+    const room = new Room(
       {
         v: 1,
         code,
@@ -243,6 +243,10 @@ export class Room {
       },
       env,
     );
+    // Not saved yet: the server must store it now, not wait for the first phone. (If the room's
+    // server process were unloaded before anyone joined, the code would lead nowhere.)
+    room.dirty = true;
+    return room;
   }
 
   /** A new room continuing a saved game. It starts paused so people can take their seats again. */

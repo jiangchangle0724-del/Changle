@@ -67,18 +67,27 @@ function glyphName(at: number): string {
   return sp.k;
 }
 
-/** Houses sit in a row along the inner edge of the space (a hotel is one wide block). */
-function Houses({ at, n }: { at: number; n: number }) {
+/** Houses sit in a row along the inner edge of the space (a hotel is one wide block). Houses beyond
+ * the first `old` were just built and pop up. */
+function Houses({ at, n, old }: { at: number; n: number; old: number }) {
   const deg = angleOf(at);
   if (n >= 5) {
     const [x, y] = xy(deg, RH);
-    return <rect x={x - 15} y={y - 8} width="30" height="16" rx="3" fill="var(--hotel)" stroke="var(--board-paper)" stroke-width="2" transform={`rotate(${deg} ${x} ${y})`} />;
+    return (
+      <g class={old >= 5 ? undefined : "pop"}>
+        <rect x={x - 15} y={y - 8} width="30" height="16" rx="3" fill="var(--hotel)" stroke="var(--board-paper)" stroke-width="2" transform={`rotate(${deg} ${x} ${y})`} />
+      </g>
+    );
   }
   return (
     <g>
       {Array.from({ length: n }, (_, i) => {
         const [x, y] = xy(deg + (i - (n - 1) / 2) * 2.1, RH);
-        return <rect key={i} x={x - 5.5} y={y - 5.5} width="11" height="11" rx="2" fill="var(--house)" stroke="var(--board-paper)" stroke-width="1.6" transform={`rotate(${deg} ${x} ${y})`} />;
+        return (
+          <g key={i} class={i < old ? undefined : "pop"}>
+            <rect x={x - 5.5} y={y - 5.5} width="11" height="11" rx="2" fill="var(--house)" stroke="var(--board-paper)" stroke-width="1.6" transform={`rotate(${deg} ${x} ${y})`} />
+          </g>
+        );
       })}
     </g>
   );
@@ -188,6 +197,18 @@ export function RoundBoard({
     return () => cancelAnimationFrame(raf);
   }, [posKey, reduced]);
 
+  // Owner marks and houses already there when the board first draws stay still; new ones pop up.
+  const born = useRef<{ owned: Set<number>; houses: Map<number, number> } | null>(null);
+  born.current ??= {
+    owned: new Set(marks.flatMap((m, at) => (m?.owner ? [at] : []))),
+    houses: new Map(marks.flatMap((m, at) => (m?.houses ? [[at, m.houses] as [number, number]] : []))),
+  };
+  const { owned, houses } = born.current;
+  marks.forEach((m, at) => {
+    if (!m?.owner) owned.delete(at);
+    if ((m?.houses ?? 0) < (houses.get(at) ?? 0)) houses.set(at, m?.houses ?? 0);
+  });
+
   const r = rot.current;
   const bySpace = new Map<number, TokenMark[]>();
   for (const t of tokens) bySpace.set(t.at, [...(bySpace.get(t.at) ?? []), t]);
@@ -230,13 +251,15 @@ export function RoundBoard({
                   <SpaceGlyph name={glyphName(at)} x={-17} y={-17} size={34} color="var(--board-ink-2)" width={2.6} />
                 </Up>
               )}
-              {mark?.houses ? <Houses at={at} n={mark.houses} /> : null}
+              {mark?.houses ? <Houses at={at} n={mark.houses} old={houses.get(at) ?? 0} /> : null}
               {mark?.owner && (
                 <Up x={mx} y={my} rot={r}>
-                  <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
-                  <text class="owner" y="6.5" text-anchor="middle">
-                    {mark.owner.letter}
-                  </text>
+                  <g class={owned.has(at) ? undefined : "pop"}>
+                    <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
+                    <text class="owner" y="6.5" text-anchor="middle">
+                      {mark.owner.letter}
+                    </text>
+                  </g>
                 </Up>
               )}
             </g>
@@ -253,7 +276,11 @@ export function RoundBoard({
                 <g class={`token${at === active && tk.mood !== "sad" ? " now" : ""}`}>
                   <ellipse cx="0" cy="26" rx="22" ry="7" fill="rgba(0,0,0,.18)" />
                   <g transform="translate(-34 -40) scale(0.57)">
-                    <CharacterArt kind={tk.kind} mood={tk.mood} />
+                    {/* A new mood plays its reaction once (a new animation name restarts it): a jump for
+                        good news, a shake for a bill… */}
+                    <g class={`react r-${tk.mood ?? "idle"}`}>
+                      <CharacterArt kind={tk.kind} mood={tk.mood} />
+                    </g>
                   </g>
                 </g>
               </Up>

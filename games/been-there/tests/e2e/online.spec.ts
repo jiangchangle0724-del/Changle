@@ -41,7 +41,9 @@ test("4 人完整打完一局：15 分钟局（测试里时钟压缩到 1/10）"
 
 test("手机锁屏 60 秒后回来，回到原来的座位", async ({ browser, request, contextOptions }) => {
   test.setTimeout(240_000);
-  const code = await createRoom(request, { test: { speed: 0.5 } });
+  // A timed game: in the default race to the target line, the computer playing for the locked team
+  // could win the game during the minute away.
+  const code = await createRoom(request, { mode: 60, test: { speed: 0.5 } });
   const phones = await table(browser, contextOptions, code, ["小红", "小蓝", "小绿"]);
   await phones[0].page.getByRole("button", { name: "开始", exact: true }).click();
   const [a, locked, c] = phones;
