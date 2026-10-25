@@ -10,6 +10,7 @@ import { serverNow } from "../store";
 import { reducedMotion } from "./Board";
 import { SeatChip } from "./common";
 import { recentParty } from "./feedText";
+import { onClock } from "./Touchdown";
 
 interface Hit<T> {
   id: number;
@@ -46,6 +47,9 @@ function useFresh<T>(v: RoomView, pick: (f: FeedItem) => T | null, ms: number): 
 }
 
 const sum = (dice: number[]) => dice.reduce((a, b) => a + b, 0);
+/** What the dice say, and how far the token goes when that's different (a driving ban in Mexico City,
+ * jet lag on the way out of Immigration): "7 → 0". */
+const thrown = (roll: Roll) => (roll.steps === sum(roll.dice) ? `${roll.steps}` : `${sum(roll.dice)} → ${roll.steps}`);
 
 /** Big screen: the dice land on the table in front of the team on turn (the bottom of the board).
  * They make way for what the middle of the board is showing: an auction, a quiz, the silence, a forfeit. */
@@ -59,25 +63,26 @@ export function TvDice({ v }: { v: RoomView }) {
     <div class="tv-dice" key={hit.id} aria-hidden="true">
       <Dice dice={roll.dice} seed={hit.id} size={70} />
       <p class="dice-sum num">
-        {sum(roll.dice)}
+        {thrown(roll)}
         {roll.doubles && <small>{t("doubles")}</small>}
       </p>
     </div>
   );
 }
 
-/** Phone: the team that just rolled sees its own throw, big, for a moment. */
+/** Phone: the team that just rolled sees its own throw, big, for a moment. It never covers a decision
+ * on a clock (an auction or a table vote can open the moment the token lands). */
 export function RollMoment({ v }: { v: RoomView }) {
   const roll = useFresh(v, (f) => {
     const e = asRoll(f);
     return e && v.you.seats.includes(e.p) ? e : null;
   }, 1700);
-  if (!roll) return null;
+  if (!roll || onClock(v, true)) return null;
   return (
     <div class="roll-moment" key={roll.id} aria-hidden="true">
       <Dice dice={roll.x.dice} seed={roll.id} size={76} />
       <p class="dice-sum num">
-        {sum(roll.x.dice)}
+        {thrown(roll.x)}
         {roll.x.doubles && <small>{t("doubles")}</small>}
       </p>
     </div>
@@ -98,11 +103,11 @@ export function rollBefore(v: RoomView, seat: number, landId: number): Hit<Roll>
 
 /** Small dice for the arrival card: they tumble once when the card appears. */
 export function MiniDice({ roll, size = 20 }: { roll: Hit<Roll>; size?: number }) {
-  if (reducedMotion()) return <span class="num">{sum(roll.x.dice)}</span>;
+  if (reducedMotion()) return <span class="num">{thrown(roll.x)}</span>;
   return (
     <span class="mini-dice">
       <Dice dice={roll.x.dice} seed={roll.id} size={size} />
-      <b class="num">{sum(roll.x.dice)}</b>
+      <b class="num">{thrown(roll.x)}</b>
     </span>
   );
 }
@@ -176,10 +181,12 @@ export function CoinFx({ v }: { v: RoomView }) {
   const [flights, setFlights] = useState<Coins[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   useEffect(() => {
-    const fresh = v.feed.filter((f) => f.id > seen.current);
-    if (!fresh.length) return;
-    seen.current = fresh[fresh.length - 1].id;
+    const news = v.feed.filter((f) => f.id > seen.current);
+    if (!news.length) return;
+    seen.current = news[news.length - 1].id;
     if (reducedMotion()) return;
+    // Back from a dropped connection, the payments missed meanwhile don't all fly at once.
+    const fresh = news.filter((f) => serverNow() - f.at < 4000);
     // Wait for the token to walk the short way round (RoundBoard: 220 ms + 120 ms a space, at most 1.8 s).
     let walk = 0;
     for (const f of fresh) {
@@ -255,6 +262,7 @@ export function Cash({ n }: { n: number }) {
     if (reducedMotion()) {
       now.current = n;
       setShown(n);
+      setDelta(null);
       return;
     }
     setDelta((x) => ({ d: change, k: (x?.k ?? 0) + 1 }));
@@ -269,6 +277,12 @@ export function Cash({ n }: { n: number }) {
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [n]);
+  // The "+$200" floats off in 1.5 s; take it away then too, or it would stay if motion is turned off.
+  useEffect(() => {
+    if (!delta) return;
+    const timer = window.setTimeout(() => setDelta(null), 1600);
+    return () => clearTimeout(timer);
+  }, [delta?.k]);
   return (
     <span class="cash-tick">
       <span class="num">{money(shown)}</span>

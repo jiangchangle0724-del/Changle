@@ -8,7 +8,7 @@ import { sfx } from "../sound";
 import { getState, send, toast } from "../store";
 import { useWeather, weatherLabel } from "../weather";
 import { Assets } from "./Assets";
-import { Board, moodOf, reducedMotion } from "./Board";
+import { Board, moodOf, reducedMotion, thisGame } from "./Board";
 import { Btn, Countdown, Money, SeatChip, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { dareText, feedText } from "./feedText";
@@ -175,7 +175,7 @@ export function Standings({ v, big }: { v: RoomView; big?: boolean }) {
             {!big && <span class="name">{seatName(v, seat)}</span>}
             <span class="num">{money(g.worth[seat])}</span>
             {big && (
-              <small class="muted num">
+              <small class="muted num cash">
                 {t("cash")} {money(p.cash)}
               </small>
             )}
@@ -183,7 +183,7 @@ export function Standings({ v, big }: { v: RoomView; big?: boolean }) {
             {p.out && <small class="tag">{t("out")}</small>}
             {team?.covered && <small class="tag">{t("covered")}</small>}
             {big && team && !team.bot && (
-              <small class="muted">
+              <small class="muted members">
                 {team.members
                   .map((id) => v.members.find((m) => m.id === id))
                   .filter(Boolean)
@@ -201,8 +201,10 @@ export function Standings({ v, big }: { v: RoomView; big?: boolean }) {
 export function Feed({ v, n }: { v: RoomView; n?: number }) {
   // Newest first, and only as many lines as are shown.
   const lines: { id: number; text: string; party: boolean }[] = [];
+  const ours = thisGame(v);
   for (let i = v.feed.length - 1; i >= 0 && lines.length < (n ?? 60); i--) {
     const f = v.feed[i];
+    if (!ours(f)) break;
     const text = feedText(v, f);
     if (text) lines.push({ id: f.id, text, party: f.t === "party" });
   }
@@ -282,7 +284,7 @@ export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
       </div>
       {stamped && (
         <div class="arrival-stamp">
-          <Stamp id={city.id} size={big ? 120 : 76} turn={-10} lang={lang} fresh />
+          <Stamp id={city.id} size={big ? 120 : 64} turn={-10} lang={lang} fresh />
         </div>
       )}
     </article>

@@ -12,6 +12,9 @@
   --warn: #9a5a00;
   --danger: #a8231c;
   --me: #f6dfba;
+  --top-bg: var(--ink);
+  --top-fg: var(--bg);
+  --top-edge: transparent;
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 8px 22px rgba(10, 14, 30, 0.14);
   --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
@@ -23,6 +26,9 @@
     --warn: #ffb36b;
     --danger: #ff8a7f;
     --me: #2c2f52;
+    --top-bg: #0b0e1c;
+    --top-fg: #f1e6cf;
+    --top-edge: #303a5a;
     --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
     color-scheme: dark;
   }
@@ -33,6 +39,9 @@
   --warn: #ffb36b;
   --danger: #ff8a7f;
   --me: #2c2f52;
+  --top-bg: #0b0e1c;
+  --top-fg: #f1e6cf;
+  --top-edge: #303a5a;
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
 }
@@ -459,8 +468,11 @@ legend {
   align-items: center;
   gap: 12px;
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
-  background: var(--ink);
-  color: var(--bg);
+  /* Navy in light mode; in dark mode a deeper navy rather than the cream ink, so a phone at the table
+     at night doesn't glare. */
+  background: var(--top-bg);
+  color: var(--top-fg);
+  border-bottom: 1px solid var(--top-edge);
 }
 .top .num {
   font-family: var(--mono);
@@ -954,14 +966,15 @@ legend {
   font-size: 1.9rem;
 }
 .tv-side.quiz-up .arrival.big .arrival-rule {
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   font-size: 0.95rem;
 }
 .tv-side.quiz-up .arrival.big .arrival-stamp {
-  right: 4px;
-  top: 2px;
-  transform: scale(0.6);
-  transform-origin: top right;
+  left: 70px;
+  top: 96px;
+  right: auto;
+  transform: scale(0.5);
+  transform-origin: top left;
 }
 /* board */
 .boardwrap {
@@ -1203,7 +1216,8 @@ legend {
   height: 100dvh;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 420px);
+  /* The board is a square as tall as the screen; everything else gets the rest of the width. */
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 20px;
   padding-block: 20px;
   padding-left: max(20px, env(safe-area-inset-left, 0px));
@@ -1216,17 +1230,119 @@ legend {
   min-height: 0;
 }
 .tv-board .boardwrap {
-  width: min(100%, calc(100vh - 40px));
-  width: min(100%, calc(100dvh - 40px));
+  width: min(62vw, calc(100vh - 40px));
+  width: min(62vw, calc(100dvh - 40px));
   max-width: none;
 }
+/* Nobody scrolls a TV: the side never grows past the screen. The standings always show; the log
+   takes what's left and fades out at the bottom. */
 .tv-side {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: hidden;
+}
+.tv-cols {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tv-now {
   display: grid;
   gap: 14px;
   align-content: start;
   min-height: 0;
-  max-height: 100%;
-  overflow: auto;
+}
+.tv-table {
+  container: table / inline-size;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tv-table .feed {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 56px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 56px), transparent);
+}
+/* One column (a narrow side, or a browser without container queries): the arrival card keeps its
+   poster small, beside the text, and the fact behind the rule waits for a wider screen. */
+.tv-side .arrival.big {
+  grid-template-columns: 112px minmax(0, 1fr);
+}
+.tv-side .arrival.big .arrival-poster {
+  aspect-ratio: 4 / 5;
+}
+.tv-side .arrival.big h3 {
+  font-size: 1.9rem;
+}
+.tv-side .arrival-fact {
+  display: none;
+}
+/* Its stamp comes down on the corner of the postcard, clear of the city's name. */
+.tv-side .arrival.big .arrival-stamp {
+  left: 70px;
+  top: 96px;
+  right: auto;
+  transform: scale(0.5);
+  transform-origin: top left;
+}
+/* In one column the standings come first (who's winning matters most on a TV) at their full height;
+   the log waits for a wider screen and the cards of the moment take what's left. */
+.tv-table {
+  order: -1;
+  flex: none;
+}
+.tv-table .feed {
+  display: none;
+}
+.tv-cols > .tv-now {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+/* Two columns where there's room (16:9 and 16:10 screens): now on the left (the arrival with its wide
+   poster, the news, the question), the table on the right. */
+@container (min-width: 520px) {
+  .tv-table {
+    order: 0;
+  }
+  .tv-table .feed {
+    display: grid;
+  }
+  .tv-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .tv-now {
+    overflow: hidden;
+  }
+  .tv-side .arrival.big {
+    grid-template-columns: 1fr;
+  }
+  .tv-side .arrival.big .arrival-poster {
+    aspect-ratio: 16 / 9;
+  }
+  .tv-side .arrival.big h3 {
+    font-size: 2.4rem;
+  }
+  .tv-side .arrival-fact {
+    display: -webkit-box;
+  }
+  .tv-side .arrival.big .arrival-stamp {
+    left: auto;
+    right: 10px;
+    top: 6px;
+    transform: none;
+  }
 }
 .tv-head {
   display: flex;
@@ -1242,9 +1358,12 @@ legend {
   display: grid;
   font-size: 1rem;
 }
+/* A departure-board row: the team on the left (its name shortens rather than wrap), the money on
+   the right; who's playing and any tags under the name, the cash under the money. */
 .standings.big li {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 2px 10px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1254,8 +1373,52 @@ legend {
 .standings.big li.turn {
   border-color: var(--accent);
 }
-.standings.big li > :not(:first-child) {
+.standings.big li > .chip {
+  grid-column: 1;
+  min-width: 0;
+}
+.standings.big li > .chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.standings.big li > .num:not(.cash) {
   grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+.standings.big li > .cash {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+.standings.big li > .members,
+.standings.big li > .tag {
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A narrow table (16:10 screens): the full name on top, the money under it. */
+@container table (max-width: 300px) {
+  .standings.big li > .chip {
+    grid-column: 1 / -1;
+  }
+  .standings.big li > .num:not(.cash) {
+    grid-row: 2;
+    grid-column: 1;
+    justify-self: start;
+  }
+  .standings.big li > .cash {
+    grid-row: 2;
+    grid-column: 2;
+  }
+  .standings.big li > .members,
+  .standings.big li > .tag {
+    grid-column: 1 / -1;
+  }
 }
 .lobby-tv {
   height: auto;
@@ -1328,7 +1491,7 @@ legend {
   margin-right: -2px;
 }
 .top .chip b {
-  box-shadow: 0 0 0 2px var(--ink);
+  box-shadow: 0 0 0 2px var(--top-bg);
 }
 .teams li .face {
   margin: -6px 0;
@@ -1400,6 +1563,12 @@ legend {
   right: 10px;
   top: 6px;
   pointer-events: none;
+}
+/* On a phone the stamp comes down on the corner of the postcard, clear of the city's name. */
+.arrival:not(.big) .arrival-stamp {
+  left: 40px;
+  top: 62px;
+  right: auto;
 }
 .arrival.big {
   grid-template-columns: 1fr;
@@ -1544,6 +1713,7 @@ legend {
   box-shadow: 0 0 0 3px var(--accent);
 }
 .standings.big .tag {
+  justify-self: start;
   background: transparent;
   color: #f4ead5;
   border-color: #4a5170;
@@ -1755,6 +1925,21 @@ legend {
   padding: 0;
   background: none;
   text-shadow: 0 0.3vh 1.2vh rgba(12, 16, 32, 0.55);
+  isolation: isolate;
+}
+/* A soft shade comes up behind the words with the first line, so they read against a bright sky. */
+.touchdown.big .td-caption::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4vw 0 -6vw;
+  z-index: -1;
+  background: radial-gradient(ellipse 62% 34% at 45% 50%, rgba(12, 16, 32, 0.55), rgba(12, 16, 32, 0));
+  animation: td-shade calc(0.6s * var(--k)) ease-out calc(1.9s * var(--k)) both;
+}
+@keyframes td-shade {
+  from {
+    opacity: 0;
+  }
 }
 .td-caption > * {
   margin: 0;
@@ -2367,6 +2552,10 @@ legend {
 .news-fact {
   color: var(--muted);
   font-size: 0.85rem;
+}
+/* While a question is up on the big screen, the news keeps its headline and rule. */
+.tv-side.quiz-up .news-fact {
+  display: none;
 }
 .news.big {
   font-size: clamp(13px, 1.05vw, 17px);

@@ -38,7 +38,8 @@ export function useWeather(city: string | null | undefined): CityWeather | null 
       listeners.delete(f);
     };
   }, []);
-  if (report && Date.now() - askedAt >= WEATHER_TTL) ask();
+  // Ask again when the answer goes stale, or two minutes after a failed try (ask() keeps to those).
+  ask();
   return (city && report?.cities[city]) || null;
 }
 

@@ -69,17 +69,25 @@ export function Screen({ v }: { v: RoomView }) {
           <Qr text={joinUrl(v.code)} size={84} />
         </div>
         {g.paused && <p class="banner">{t("paused")}</p>}
-        <Arrival v={v} big />
-        <NewsBanner v={v} big />
-        <Trivia v={v} big />
-        <h2 class="departures">{t("departures")}</h2>
-        <Standings v={v} big />
-        {g.bets && (
-          <p class="muted">
-            {t("betQuestion", { team: seatName(v, g.bets.seat) })} {t("betOdds", { yes: g.bets.yes, no: g.bets.no })}
-          </p>
-        )}
-        <Feed v={v} n={8} />
+        {/* What's happening now, and the table (standings and log): side by side where the screen is
+            wide enough, one under the other where it isn't. The log takes whatever room is left. */}
+        <div class="tv-cols">
+          <div class="tv-now">
+            <Arrival v={v} big />
+            <NewsBanner v={v} big />
+            <Trivia v={v} big />
+          </div>
+          <div class="tv-table">
+            <h2 class="departures">{t("departures")}</h2>
+            <Standings v={v} big />
+            {g.bets && (
+              <p class="muted">
+                {t("betQuestion", { team: seatName(v, g.bets.seat) })} {t("betOdds", { yes: g.bets.yes, no: g.bets.no })}
+              </p>
+            )}
+            <Feed v={v} n={12} />
+          </div>
+        </div>
       </aside>
       <CoinFx v={v} />
       <Touchdown v={v} big />

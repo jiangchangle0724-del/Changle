@@ -21,25 +21,32 @@ import { SeatChip } from "./common";
 
 interface Landing {
   id: number;
+  /** Server time of the stamp. */
+  at: number;
   seat: number;
   city: string;
 }
+
+/** A landing older than this (a phone back from the lock screen, a reconnect) isn't replayed. */
+const STALE = 4000;
 
 /** The newest first visit (a new passport stamp) by one of these seats, or by anyone. */
 function latestStamp(v: RoomView, seats: number[] | null): Landing | null {
   for (let i = v.feed.length - 1; i >= 0; i--) {
     const f = v.feed[i];
-    if (f.t === "game" && f.e.t === "stamp" && (!seats || seats.includes(f.e.p))) return { id: f.id, seat: f.e.p, city: f.e.city };
+    if (f.t === "game" && f.e.t === "stamp" && (!seats || seats.includes(f.e.p))) return { id: f.id, at: f.at, seat: f.e.p, city: f.e.city };
   }
   return null;
 }
 
-/** Something is up on a clock: an auction, Shanghai's quiz, Seoul's silence or a table vote. */
-function onClock(v: RoomView): boolean {
+/** Something is up on a clock: an auction, Shanghai's quiz, Seoul's silence or a table vote; and on a
+ * phone (`mine`), a waiting players' question this phone can still answer. */
+export function onClock(v: RoomView, mine = false): boolean {
   const g = v.game;
   if (!g) return false;
   const now = serverNow();
-  return !!g.auction || !!g.quiz || (g.silenceUntil ?? 0) > now || (g.deadline ?? 0) > now;
+  const question = mine && !!g.trivia?.open && g.trivia.answerFor !== null;
+  return !!g.auction || !!g.quiz || (g.silenceUntil ?? 0) > now || (g.deadline ?? 0) > now || question;
 }
 
 /** Big screen: the whole scene is 5.2 s. Phones run the same timeline at this speed. */
@@ -54,7 +61,7 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
   // The newest view, for the timers below.
   const latest = useRef(v);
   latest.current = v;
-  const clocked = onClock(v);
+  const clocked = onClock(v, !big);
   // The real weather there right now (live, from Open-Meteo through the game's server), if known.
   const wx = useWeather(show?.city ?? land?.city);
   const wxNow = useRef(wx);
@@ -69,7 +76,7 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     if (!land || land.id <= seen.current) return;
     seen.current = land.id;
     // One at a time: a landing while another is showing just gets its arrival card.
-    if (timers.current.length || reducedMotion()) return;
+    if (timers.current.length || reducedMotion() || serverNow() - land.at > STALE) return;
     const k = big ? 1 : PHONE;
     const later = (ms: number, f: () => void) => timers.current.push(window.setTimeout(f, ms));
     // On a phone, the city's sound only plays when there's no big screen in the room to play it.
@@ -78,9 +85,10 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     // if it flew here from another region (the flight is keyed by the landing, just before the stamp).
     const flight = latestFlight(v);
     const flew = !!flight && land.id - Number(flight.key) >= 1 && land.id - Number(flight.key) <= 3;
-    const lead = !big ? 1500 : flew ? 3300 : 2000;
+    // (On a phone the team's own throw is up for 1.7 s: the scene starts once it's gone.)
+    const lead = !big ? 1800 : flew ? 3300 : 2000;
     later(lead, () => {
-      if (onClock(latest.current)) return stop();
+      if (onClock(latest.current, !big)) return stop();
       setShow(land);
       if (loud) sfx.cabin();
     });
@@ -97,6 +105,11 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
   useEffect(() => {
     if (clocked) stop();
   }, [clocked]);
+  // The team throws again (doubles, or the computer playing for it): the game has moved on.
+  const rolledAgain = !!show && v.feed.some((f) => f.id > show.id && f.t === "game" && f.e.t === "roll" && f.e.p === show.seat);
+  useEffect(() => {
+    if (rolledAgain) stop();
+  }, [rolledAgain]);
 
   if (!show) return null;
   const city = CITIES.find((c) => c.id === show.city);

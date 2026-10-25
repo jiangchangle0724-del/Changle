@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useRef, useState } from "preact/hooks";
-import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt } from "../../engine";
-import type { RoomView } from "../../room/protocol";
+import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
+import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { CityPoster } from "../art/posters";
 import { RoundBoard, type SpaceMark, type TokenMark } from "../art/RoundBoard";
@@ -18,7 +18,7 @@ export const reducedMotion = () => prefs.reduced || (typeof matchMedia === "func
 export function moodOf(v: RoomView, seat: number): Mood {
   const s = v.game!.s;
   if (s.ps[seat]?.out) return "sad";
-  const recent = v.feed.slice(-10);
+  const recent = v.feed.slice(-10).filter(thisGame(v));
   for (let i = recent.length - 1; i >= 0; i--) {
     const f = recent[i];
     if (f.t !== "game") continue;
@@ -54,21 +54,26 @@ export function moodOf(v: RoomView, seat: number): Mood {
   return "idle";
 }
 
+/** Feed items from this game: after a rematch the room's feed still holds the last game's end. */
+export const thisGame = (v: RoomView) => (f: FeedItem) => !v.game || f.at >= v.game.startedAt;
+
 /** The latest flight: a token reaching a city in a different region from the last city it visited. */
 export function latestFlight(v: RoomView): Flight | null {
-  const lands = v.feed.filter((f) => f.t === "game" && f.e.t === "land" && CITY_AT[(f.e as { at: number }).at]) as {
+  const lands = v.feed.filter((f) => f.t === "game" && f.e.t === "land" && CITY_AT[(f.e as { at: number }).at]).filter(thisGame(v)) as {
     id: number;
-    e: { t: "land"; p: number; at: number };
+    e: Extract<GameEvent, { t: "land" }>;
   }[];
   const last = lands[lands.length - 1];
   if (!last) return null;
   const to = CITY_AT[last.e.at]!;
-  for (let i = lands.length - 2; i >= 0; i--) {
+  // The engine names the city the team came from; a game saved before it did is looked up in the feed.
+  let from = last.e.from === undefined ? undefined : CITY_AT[last.e.from];
+  for (let i = lands.length - 2; i >= 0 && last.e.from === undefined; i--) {
     if (lands[i].e.p !== last.e.p) continue;
-    const from = CITY_AT[lands[i].e.at]!;
-    return from.group !== to.group ? { from: from.id, to: to.id, key: last.id } : null;
+    from = CITY_AT[lands[i].e.at];
+    break;
   }
-  return null;
+  return from && from.group !== to.group ? { from: from.id, to: to.id, key: last.id } : null;
 }
 
 /** The table turns when the turn passes, not while a token is walking. */

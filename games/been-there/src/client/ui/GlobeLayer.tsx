@@ -16,12 +16,18 @@ function loadGlobe(): Promise<GlobeModule> {
     const s = document.createElement("script");
     s.src = "/globe.js";
     s.async = true;
+    // A failed load is forgotten, so the next game tries again (a network hiccup isn't for good).
+    const fail = (why: string) => {
+      loading = null;
+      s.remove();
+      reject(new Error(why));
+    };
     s.onload = () => {
       const m = (window as unknown as { BeenThereGlobe?: GlobeModule }).BeenThereGlobe;
       if (m) resolve(m);
-      else reject(new Error("globe.js loaded without the globe"));
+      else fail("globe.js loaded without the globe");
     };
-    s.onerror = () => reject(new Error("globe.js failed to load"));
+    s.onerror = () => fail("globe.js failed to load");
     document.head.appendChild(s);
   });
   return loading;

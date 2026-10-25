@@ -87,7 +87,7 @@ const licenceBlock = () => `<script type="text/plain" id="licences">${LICENCES.r
 const ARTIFACT_CSS = `
 .home, .lobby, .over { padding-top: 24px; }
 .top { top: env(safe-area-inset-top, 0px); padding-top: 8px; }
-.top::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--ink); }
+.top::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--top-bg); }
 `;
 
 async function demo() {

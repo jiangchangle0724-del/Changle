@@ -185,6 +185,7 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
   let trail: Mesh | null = null;
   /** The city the globe should face once a flight is over (the team on turn may have changed). */
   let want: string | null = null;
+  let flying = false;
 
   // The globe's turn is a quaternion: "this city faces the camera, north up".
   const facing = (lat: number, lon: number) => {
@@ -242,7 +243,8 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
       const c = opts.cities[city];
       if (!c) return;
       want = city;
-      if (!anim) turnTo(facing(c[0], c[1]), 1100);
+      // A flight turns to `want` when it lands; any other turn just changes course from where it is.
+      if (!flying) turnTo(facing(c[0], c[1]), 1100);
     },
     fly(fromId, toId) {
       const a = opts.cities[fromId];
@@ -272,8 +274,8 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
       trail.geometry.setDrawRange(0, 0);
       world.add(trail);
       want = toId;
+      flying = true;
       canvas.dataset.flying = "1";
-      plane.visible = true;
       // Face the middle of the route, then fly it with the camera leaning in.
       const mid = pts[32].clone().normalize();
       const midLat = Math.asin(mid.y) / RAD;
@@ -287,9 +289,12 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
             const i = Math.min(63, Math.floor(k * 64));
             const f = k * 64 - i;
             const p = pts[i].clone().lerp(pts[i + 1], f);
-            // Nose along the route, belly to the ground: build the plane's axes directly.
+            // (Only now: before, it would still be sitting where the last flight left it.)
+            plane.visible = true;
+            // Nose along the route, belly to the ground: build the plane's axes directly. The heading
+            // comes from the route ahead, or its last stretch at the very end.
             const up = p.clone().normalize();
-            const ahead = pts[Math.min(64, i + 2)].clone().sub(p);
+            const ahead = pts[Math.min(64, i + 2)].clone().sub(pts[i]);
             const fwd = ahead.sub(up.clone().multiplyScalar(ahead.dot(up))).normalize();
             const side = new Vector3().crossVectors(fwd, up);
             basis.makeBasis(side, fwd, up);
@@ -300,6 +305,7 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
           },
           () => {
             plane.visible = false;
+            flying = false;
             delete canvas.dataset.flying;
             camera.position.z = REST;
             const end = (want && opts.cities[want]) || b;
