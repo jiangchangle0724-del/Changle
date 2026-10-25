@@ -1124,6 +1124,18 @@ legend {
   color: var(--accent);
   overflow-wrap: anywhere;
 }
+.licences summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.licences pre {
+  max-height: 50vh;
+  overflow: auto;
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
 .saved {
   background: var(--me);
   border-radius: 10px;

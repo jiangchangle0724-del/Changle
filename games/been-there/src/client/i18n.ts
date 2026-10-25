@@ -419,6 +419,7 @@ const S = {
   creditsSound: ["声音", "Sound"],
   creditsSoundText: ["所有音效都是浏览器现场合成的，没有录音文件。", "Every sound is synthesised in the browser. There are no recordings."],
   publicDomain: ["公有领域", "public domain"],
+  creditsLicences: ["许可证全文", "Full licence texts"],
   back: ["返回", "Back"],
   source: ["来源", "Source"],
   greeting: ["问候", "Greeting"],
