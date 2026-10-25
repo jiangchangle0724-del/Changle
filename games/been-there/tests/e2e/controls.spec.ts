@@ -10,14 +10,22 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动�
   const p = await newPhone(browser, "摇", contextOptions);
   // The yes a person gives when the phone asks about motion (where this browser knows the question).
   await p.ctx.grantPermissions(["accelerometer", "gyroscope"]).catch(() => {});
-  // Every answer the phone sends, by question number.
+  // Every answer the phone sends, by question number; and our throws, as the server reports them
+  // (counted from its messages, not by visiting the log: a touchdown scene covers the tabs for a while).
   const answers: number[] = [];
-  p.page.on("websocket", (ws) =>
+  const rolls = new Set<number>();
+  p.page.on("websocket", (ws) => {
     ws.on("framesent", (f) => {
       const m = JSON.parse(String(f.payload));
       if (m.t === "act") answers.push(m.d);
-    }),
-  );
+    });
+    ws.on("framereceived", (f) => {
+      const m = JSON.parse(String(f.payload));
+      if (m.t !== "view") return;
+      for (const x of m.view.feed) if (x.t === "game" && x.e.t === "roll" && m.view.you.seats.includes(x.e.p)) rolls.add(x.id);
+    });
+  });
+  const throws = () => rolls.size;
   // Each question of ours as it comes up: would a tap reach its buttons straight away?
   await p.page.addInitScript(() => {
     const w = window as unknown as { fresh: string[] };
@@ -37,13 +45,6 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动�
   await p.page.getByRole("button", { name: "开始", exact: true }).click();
   await expect(p.page.locator(".game")).toBeVisible();
   const tab = (name: string) => p.page.locator("nav.tabs").getByRole("button", { name });
-  // Our throws so far, counted in the full log.
-  const throws = async () => {
-    await tab("记录").click();
-    const n = await p.page.locator(".p-log .feed li", { hasText: "摇 掷出" }).count();
-    await tab("行动").click();
-    return n;
-  };
   const roll = p.page.locator('.decide[data-kind="roll"]');
   // Play along (buy, end the turn…) until our roll is up again, never pressing 掷骰子 ourselves.
   const untilRoll = async () => {
@@ -69,7 +70,7 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动�
     // leaves the button for another try.
     await expect(browserName === "chromium" ? hint : hint.or(enable)).toBeVisible();
     if (await hint.count()) {
-      const before = await throws();
+      const before = throws();
       const asked = answers.length;
       // Four firm jolts, back to back. (Made by hand: WebKit, iPhone's engine, won't let a page build a
       // DeviceMotionEvent. And no timers in between, which a slow test browser may stretch.)
