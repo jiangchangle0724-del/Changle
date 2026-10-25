@@ -35,6 +35,12 @@ Mobile players use the on-screen joystick, Punch, and Blend controls; Punch is s
 
 The unit tests cover deterministic crowd setup, movement bounds and input normalization, punch range and direction, crowd fouls, blend cooldowns, win and draw rules, room hosting and presence, player limits, and the TV view's identity privacy.
 
+## On-device FPS check / 真机帧率
+
+Append `?fps=1` to an active room URL on iPhone or iPad Safari. Start a match with both devices in the room; each screen shows an animation-frame rate updated once per second, average frame time, and slowest frame time. Keep the same arena and player count for comparisons, and note the device model, iOS/iPadOS version, browser, and displayed values. Remove the query string to hide the meter.
+
+在 iPhone 或 iPad 的 Safari 打开进行中的房间链接，并在末尾加上 `?fps=1`。两台设备都加入并开始游戏后，各自会显示每秒更新一次的动画帧率、平均帧耗时和最慢帧耗时。对比时保持场景和玩家人数一致，并记录设备型号、系统版本、浏览器及读数；删掉查询参数即可隐藏读数。
+
 ## Deploy to Cloudflare Workers
 
 1. In Cloudflare, create a Workers project from this repository and set the root directory to games/unspottable.
