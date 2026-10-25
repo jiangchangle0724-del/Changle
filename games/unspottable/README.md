@@ -14,6 +14,12 @@ The arenas remain original stylized 3D scenes rather than copied game files. Ins
 
 Each location now has its own landmark layers and original low-poly architecture: the seawall opens onto a mountain ridge, downtown towers and a small ferry; the transit hall has a long roof frame, platform lights and ticket gates; and the courtyard adds a timber side gallery, tiled eaves, bamboo and stone paving. Palette-driven canvas maps add lawn grain, timber plank seams, and transit floor tiles; they refresh when the theme changes and use capped anisotropic filtering. The shared crowd has 18 independent passers-by plus the real players, with palette-driven outfits, walk cycles, punch poses and stun feedback. Characters accelerate into a run, brake with a short carry-through, and rotate toward their travel direction instead of snapping. Rendering uses instanced crowd parts and reuses transform scratch state to reduce phone-side garbage collection.
 
+## 3D visual pipeline / 画面优化
+
+The visual pass now uses an elevated perspective camera with a consistent arena width, a palette-derived fill light, subtle floor relief, and soft radial contact shadows. The shadows stay in the existing instanced crowd batch; realtime shadow maps remain off for phone GPUs. The scene still uses original procedural geometry and does not yet match Steam's authored art assets. See [docs/visual-pipeline.md](docs/visual-pipeline.md) for the GitHub game-development guides, asset review, licensing policy, and the remaining quality gate.
+
+当前画面改为保持场地宽度稳定的透视镜头，并增加调色板适配的补光、地面细节和柔边脚底阴影；阴影继续使用实例化绘制，避免在手机 GPU 上开启昂贵的实时阴影。场景仍为原创程序化几何，画面质量还没有达到 Steam 原版的美术资产水准。GitHub 游戏开发指南、素材审核和后续质量门槛见 [docs/visual-pipeline.md](docs/visual-pipeline.md)。
+
 ## Run locally
 
 From the repository root:

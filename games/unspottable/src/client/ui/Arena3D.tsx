@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import * as THREE from "three";
+import { verticalFovForWidth } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
 import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
 import type { ArenaId, Pose } from "../../engine";
@@ -180,6 +181,30 @@ function createGroundTexture(arena: ArenaId, palette: Palette, maxAnisotropy: nu
   return texture;
 }
 
+function createSoftShadowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const center = canvas.width / 2;
+    const gradient = context.createRadialGradient(center, center, 2, center, center, center);
+    gradient.addColorStop(0, "rgb(255,255,255)");
+    gradient.addColorStop(0.42, "rgb(212,212,212)");
+    gradient.addColorStop(0.76, "rgb(88,88,88)");
+    gradient.addColorStop(1, "rgb(0,0,0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
 function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
   const floor = makeMaterial(palette.surface, 0.9, "surface");
   const detail = makeMaterial(palette.surface2, 0.86, "surface2");
@@ -191,9 +216,13 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAniso
   const water = makeMaterial(palette.sky, 0.52, "sky");
   const wood = makeMaterial(palette.land, 0.9, "land");
   const dark = makeMaterial(darkTint(palette), 0.9);
-  const groundMaterial = arena === "plaza" ? grass : arena === "gallery" ? wood : floor;
+  const groundSourceMaterial = arena === "plaza" ? grass : arena === "gallery" ? wood : floor;
+  const groundMaterial = groundSourceMaterial.clone();
+  groundMaterial.userData = { ...groundSourceMaterial.userData };
   const groundTexture = createGroundTexture(arena, palette, maxAnisotropy);
   groundMaterial.map = groundTexture;
+  groundMaterial.bumpMap = groundTexture;
+  groundMaterial.bumpScale = arena === "plaza" ? 0.035 : arena === "gallery" ? 0.022 : 0.012;
   groundMaterial.needsUpdate = true;
   const ground = new THREE.Mesh(new THREE.BoxGeometry(25, 0.35, 17), groundMaterial);
   ground.position.y = -0.19;
@@ -450,14 +479,17 @@ export function Arena3D(props: Props) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(palette.bg);
     scene.fog = new THREE.Fog(palette.bg, 34, 58);
-    const camera = new THREE.OrthographicCamera(-11.25, 11.25, 6, -6, 0.1, 60);
-    camera.position.set(0, 11, 23);
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
+    camera.position.set(0, 17, 18);
     camera.lookAt(0, 0, 0);
     const ambient = new THREE.HemisphereLight(lightTint(palette), palette.bg, 2.6);
     scene.add(ambient);
     const key = new THREE.DirectionalLight(lightTint(palette), 3.1);
     key.position.set(-7, 16, 10);
     scene.add(key);
+    const fill = new THREE.DirectionalLight(lightTint(palette), 0.72);
+    fill.position.set(8, 9, -11);
+    scene.add(fill);
 
     const groundTexture = addVenue(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
     addEnvironmentalLandmarks(scene, props.arena, palette);
@@ -479,7 +511,7 @@ export function Arena3D(props: Props) {
     const legGeometry = new THREE.CylinderGeometry(0.11, 0.125, 0.49, 8);
     const shoeGeometry = new THREE.SphereGeometry(0.14, 10, 8);
     const jointGeometry = new THREE.SphereGeometry(0.105, 8, 6);
-    const shadowGeometry = new THREE.CircleGeometry(0.34, 16);
+    const shadowGeometry = new THREE.PlaneGeometry(1.8, 1.25);
     shadowGeometry.rotateX(-Math.PI / 2);
     const bodyMat = makeMaterial(lightTint(palette), 0.66);
     const headMat = makeMaterial(lightTint(palette), 0.42);
@@ -496,7 +528,8 @@ export function Arena3D(props: Props) {
     const badgeMat = makeMaterial(palette.onAccent, 0.52, "onAccent");
     const legMat = makeMaterial(palette.ink, 0.82, "ink");
     const shoeMat = makeMaterial(palette.danger, 0.58, "danger");
-    const shadowMat = Object.assign(new THREE.MeshBasicMaterial({ color: palette.ink, transparent: true, opacity: 0.16, depthWrite: false }), { userData: { paletteToken: "ink" } });
+    const shadowTexture = createSoftShadowTexture();
+    const shadowMat = Object.assign(new THREE.MeshBasicMaterial({ color: darkTint(palette), alphaMap: shadowTexture, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }), { userData: { paletteToken: "ink" } });
     const body = new THREE.InstancedMesh(bodyGeometry, bodyMat, MAX_CHARACTERS);
     const head = new THREE.InstancedMesh(headGeometry, headMat, MAX_CHARACTERS);
     const neck = new THREE.InstancedMesh(neckGeometry, neckMat, MAX_CHARACTERS);
@@ -518,7 +551,7 @@ export function Arena3D(props: Props) {
     const elbows = new THREE.InstancedMesh(jointGeometry, shirtMat, MAX_CHARACTERS * 2);
     const knees = new THREE.InstancedMesh(jointGeometry, legMat, MAX_CHARACTERS * 2);
     const shadows = new THREE.InstancedMesh(shadowGeometry, shadowMat, MAX_CHARACTERS);
-    shadows.position.y = 0.025;
+    shadows.position.y = 0;
     for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, forearms, legs, calves, elbows, knees, shoes, shadows]) {
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false;
@@ -618,10 +651,11 @@ export function Arena3D(props: Props) {
       badgeMat.color.set(palette.onAccent);
       legMat.color.set(palette.ink);
       shoeMat.color.set(palette.danger);
-      shadowMat.color.set(palette.ink);
+      shadowMat.color.set(darkTint(palette));
       ambient.color.set(lightTint(palette));
       ambient.groundColor.set(palette.bg);
       key.color.set(lightTint(palette));
+      fill.color.set(lightTint(palette));
       paintMarker();
       tones.splice(0, tones.length, palette.accent, palette.warn, palette.danger, palette.muted, palette.me, palette.surface2, palette.onAccent);
       applyTones();
@@ -636,12 +670,8 @@ export function Arena3D(props: Props) {
       const height = canvas.clientHeight;
       if (width < 1 || height < 1) return;
       renderer.setSize(width, height, false);
-      const viewWidth = 24.5;
-      const viewHeight = Math.max(5.8, viewWidth * height / width);
-      camera.left = -viewWidth / 2;
-      camera.right = viewWidth / 2;
-      camera.top = viewHeight / 2;
-      camera.bottom = -viewHeight / 2;
+      camera.aspect = width / height;
+      camera.fov = verticalFovForWidth(24.5, camera.aspect, Math.hypot(17, 18));
       camera.updateProjectionMatrix();
     };
     resizeObserver = new ResizeObserver(resize);
@@ -838,7 +868,8 @@ export function Arena3D(props: Props) {
         const packScale = wearingPack ? 1 : 0;
         writeInstance(backpacks, index, dummy, visual.x - forwardX * 0.31, 1.02 + bounce, visual.z - forwardZ * 0.31, yawNow, packScale, packScale, packScale, bodyTilt * 0.4);
         writeInstance(badges, index, dummy, visual.x + Math.sin(yawNow) * 0.31, 1.02 + bounce, visual.z + Math.cos(yawNow) * 0.31, yawNow, index % 4 === 0 ? 1.15 : 0.72, 1, 1, bodyTilt * 0.35);
-        writeInstance(shadows, index, dummy, visual.x, 0.03, visual.z, 0, staggered ? 1.28 : 1, 1, staggered ? 0.72 : 0.8);
+        const shadowSpread = (staggered ? 1.08 : 0.82) + bounce * 0.7;
+        writeInstance(shadows, index, dummy, visual.x + 0.2, 0.005, visual.z - 0.15, 0, shadowSpread, 1, staggered ? 0.92 : 0.72);
         const cycleRate = (4 + targetSpeed * 0.72) / (Math.PI * 2);
         const halfStride = gait > 0.05 ? Math.min(2.35, targetSpeed / Math.max(0.5, cycleRate) * 0.5) : 0;
         for (let side = 0; side < 2; side++) {
@@ -898,7 +929,7 @@ export function Arena3D(props: Props) {
       const impactAge = time - shakeAt;
       const shake = shakeAt && impactAge < 280 && !reduced ? Math.sin(impactAge * 0.095) * (1 - impactAge / 280) * shakeStrength : 0;
       camera.position.x = shake;
-      camera.position.y = 11 + Math.abs(shake) * 0.34;
+      camera.position.y = 17 + Math.abs(shake) * 0.34;
       camera.lookAt(shake, -shake * 0.22, 0);
       renderer.render(scene, camera);
     };
@@ -919,6 +950,7 @@ export function Arena3D(props: Props) {
       marker.material.dispose();
       markerTexture.dispose();
       groundTexture.dispose();
+      shadowTexture.dispose();
       renderer.dispose();
     };
   }, [props.arena]);
