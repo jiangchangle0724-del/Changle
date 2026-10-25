@@ -2,9 +2,9 @@
 
 A bilingual, phone-first crowd-blending party game for changle.ca. Players steer a character through a moving crowd, blend into passer-by rhythms, and tag rival players. A separate screen view shows the whole arena without identifying which characters are human.
 
-这是一个适合手机游玩的中英双语派对游戏。玩家在移动人群中操控角色、模仿路人节奏隐藏身份，并抢先给对手贴标签。电视视图展示整个人群和比分，但不会标记真人角色。
+这是一个手机优先的中英双语派对游戏。玩家在移动人群中操控角色、模仿路人节奏隐藏身份，并抢先给对手贴标签。电视视图展示整个人群和比分，但不会标记真人角色。游戏场景使用原创低多边形 WebGL 3D 画面，并为手机限制渲染开销；不支持 WebGL 的浏览器会切换到 CSS 动画版。手机请横屏游玩；浏览器支持时会尝试锁定横屏。它是规则致敬作品，没有使用商业游戏的模型、贴图或音频。
 
-The crowd, character poses, and motion are original CSS artwork and animation. This is a fan-made rules homage; it does not use assets from the commercial game.
+The arena is an original low-poly 3D scene rendered with WebGL. Instanced crowd characters, venue props, pose animation, and local movement prediction keep the scene light enough for phones; browsers without WebGL fall back to the CSS-animated crowd. Turn a phone sideways to play; orientation lock is used only when the browser allows it. This is a fan-made rules homage and does not use models, textures, or audio from the commercial game.
 
 ## Run locally
 
