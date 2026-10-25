@@ -12,7 +12,7 @@ The arena is an original low-poly 3D scene rendered with WebGL. Instanced crowd 
 - **Vancouver Transit Hall / 温哥华交通站厅:** a glassy public concourse with tiled platforms, columns, seats and reversing walkways.
 - **Chinese Courtyard Theatre / 中式庭院戏台:** a timber stage framed by red curtains and lanterns, with lattice details, audience seats and a center spotlight.
 
-Each location has its own original low-poly props and camera composition. The shared crowd uses larger expressive faces, varied color-token outfits, walk cycles, punch poses and a pulse ring when stunned.
+Each location has its own original low-poly props and camera composition. The shared crowd uses bot-like segmented bodies, oversized expressive faces, palette-driven outfits and backpacks, staggered blinks, walk cycles, punch poses and a pulse ring when stunned. Repeated body parts are instanced to keep draw calls bounded.
 
 ## Run locally
 
