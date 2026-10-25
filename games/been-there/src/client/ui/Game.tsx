@@ -32,6 +32,11 @@ export function Game({ v }: { v: RoomView }) {
   usePhoneSounds(v, myMove);
   usePartyToasts(v);
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
+  const wide = useWide();
+  // Phones show one tab at a time, so the board, Mine and Log are only built while on screen (every
+  // update from the server would otherwise redraw them unseen). Play and Trade always stay built:
+  // a half-made choice or offer survives a look at the board.
+  const shown = (t: Tab) => wide || tab === t;
   const tabs: [Tab, Key, number][] = [
     ["play", "tab_play", myMove ? 1 : 0],
     ["board", "tab_board", 0],
@@ -73,16 +78,18 @@ export function Game({ v }: { v: RoomView }) {
           <Feed v={v} n={5} />
         </section>
         <section class="pane p-board">
-          <Board v={v} />
-          <BoardNote v={v} />
+          {shown("board") && (
+            <>
+              <Board v={v} />
+              <BoardNote v={v} />
+            </>
+          )}
         </section>
-        <section class="pane p-mine">{mySeat !== undefined ? <Assets v={v} seat={mySeat} /> : <Bets v={v} />}</section>
+        <section class="pane p-mine">{shown("mine") && (mySeat !== undefined ? <Assets v={v} seat={mySeat} /> : <Bets v={v} />)}</section>
         <section class="pane p-trade">
           <Trade v={v} />
         </section>
-        <section class="pane p-log">
-          <Feed v={v} />
-        </section>
+        <section class="pane p-log">{shown("log") && <Feed v={v} />}</section>
       </div>
       <nav class="tabs">
         {tabs.map(([id, key, badge]) => (
@@ -95,6 +102,19 @@ export function Game({ v }: { v: RoomView }) {
       {menu && <SettingsSheet v={v} onClose={() => setMenu(false)} />}
     </div>
   );
+}
+
+/** True on screens wide enough to show every pane side by side (see the 960px layout in styles.css). */
+function useWide() {
+  const query = typeof matchMedia === "function" ? matchMedia("(min-width: 960px)") : null;
+  const [wide, setWide] = useState(!!query?.matches);
+  useEffect(() => {
+    if (!query) return;
+    const change = () => setWide(query.matches);
+    query.addEventListener("change", change);
+    return () => query.removeEventListener("change", change);
+  }, []);
+  return wide;
 }
 
 export function Clock({ v }: { v: RoomView }) {
@@ -164,11 +184,13 @@ export function Standings({ v, big }: { v: RoomView; big?: boolean }) {
 }
 
 export function Feed({ v, n }: { v: RoomView; n?: number }) {
-  const lines = v.feed
-    .map((f) => ({ id: f.id, text: feedText(v, f), party: f.t === "party" }))
-    .filter((x) => x.text)
-    .reverse()
-    .slice(0, n ?? 60);
+  // Newest first, and only as many lines as are shown.
+  const lines: { id: number; text: string; party: boolean }[] = [];
+  for (let i = v.feed.length - 1; i >= 0 && lines.length < (n ?? 60); i--) {
+    const f = v.feed[i];
+    const text = feedText(v, f);
+    if (text) lines.push({ id: f.id, text, party: f.t === "party" });
+  }
   return (
     <ol class="feed" aria-live={n ? "polite" : undefined}>
       {lines.map((x) => (

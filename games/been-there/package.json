@@ -11,6 +11,7 @@
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
     "sim": "tsx scripts/sim.ts",
+    "perf": "node scripts/perf.mjs",
     "deploy": "node scripts/build.mjs && wrangler deploy",
     "fonts": "node scripts/fonts.mjs",
     "world": "node scripts/gen-world.mjs"
