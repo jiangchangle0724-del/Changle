@@ -9,7 +9,9 @@ Step 4 made the full game playable online; step 5 gave it its look: the golden a
 an air-age route map, and six token characters. Step 6 adds the city content: a quiz for the teams
 waiting their turn (one question per city, from the same sourced fact as its rule), the real fact
 on the big screen's arrival card, a drink-free set of party forfeits, and a credits page listing
-every source and licence. More facts per city and recorded city sounds are still to come.
+every source and licence. Each city now also has a real photo (Wikimedia Commons) beside its
+poster, and a few seconds of a real recording made there (Freesound) when a team first lands. More
+facts per city are still to come.
 
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 

@@ -1,8 +1,9 @@
-// 素材来源 · Credits: where every city fact, font, map line and borrowed piece of code comes from,
-// with its licence. Opened from the home screen and from the in-game menu.
+// 素材来源 · Credits: where every city fact, photo, recording, font, map line and borrowed piece of
+// code comes from, with its licence. Opened from the home screen and from the in-game menu.
 import { CITIES, NEWS } from "../../engine";
 import { BASE } from "../base";
 import { t, tx, type Key } from "../i18n";
+import { PHOTOS, RECORDINGS, type Credit } from "../media";
 import { hostOf } from "./common";
 
 /** [name, licence, link]. A licence of "" means public domain. */
@@ -80,10 +81,43 @@ export function Credits() {
       ))}
       <h3>{t("creditsArt")}</h3>
       <p>{t("creditsArtText")}</p>
+      <h3>{t("creditsPhotos")}</h3>
+      <p class="muted">{t("creditsPhotosText")}</p>
+      <MediaList of={PHOTOS} />
       <h3>{t("creditsSound")}</h3>
       <p>{t("creditsSoundText")}</p>
+      <h3>{t("creditsRecordings")}</h3>
+      <p class="muted">{t("creditsRecordingsText")}</p>
+      <MediaList of={RECORDINGS} />
       <Licences />
     </div>
+  );
+}
+
+/** Each city's photo or recording: its title (linked to its page), who made it, and its licence. */
+function MediaList({ of }: { of: Record<string, Credit> }) {
+  return (
+    <ol class="credits-facts credits-media">
+      {CITIES.filter((c) => of[c.id]).map((c) => {
+        const m = of[c.id];
+        return (
+          <li key={c.id}>
+            <b>{tx(c.name)}</b> ·{" "}
+            <a href={m.page} target="_blank" rel="noopener noreferrer">
+              {m.title}
+            </a>{" "}
+            · {m.author} ·{" "}
+            {m.licenseUrl ? (
+              <a href={m.licenseUrl} target="_blank" rel="noopener noreferrer">
+                {m.license}
+              </a>
+            ) : (
+              m.license || t("publicDomain")
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

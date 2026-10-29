@@ -3,7 +3,7 @@
 //   node scripts/build.mjs           build once
 //   node scripts/build.mjs --watch   rebuild on change
 import * as esbuild from "esbuild";
-import { mkdir, readFile, writeFile, copyFile, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile, copyFile, rm } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
 // Everything the worker serves sits under /trip, so the files do too (dist/client is the root).
@@ -35,6 +35,12 @@ const appCss = async () =>
 await mkdir(`${out}/fonts`, { recursive: true });
 for (const f of FONT_FILES) await copyFile(`src/client/fonts/${f}`, `${out}/fonts/${f}`);
 await writeFile(`${out}/app.css`, await appCss());
+// The city photos and recordings (credited in src/client/media.ts). Pages fetch them when they're
+// needed, so they ship as files beside the game and stay out of the single-file pages.
+for (const kind of ["photos", "sounds"]) {
+  await mkdir(`${out}/${kind}`, { recursive: true });
+  for (const f of await readdir(`src/client/media/${kind}`)) if (!f.startsWith(".")) await copyFile(`src/client/media/${kind}/${f}`, `${out}/${kind}/${f}`);
+}
 /** The same stylesheet with the fonts inside it, for the single-file pages. */
 async function inlineCss() {
   let css = await appCss();

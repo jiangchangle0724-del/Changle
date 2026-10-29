@@ -3,7 +3,6 @@ import { useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
-import { CityPoster } from "../art/posters";
 import { RoundBoard, type SpaceMark, type TokenMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
 import { colon, groupName, money, spaceName, t, tx } from "../i18n";
@@ -11,6 +10,7 @@ import { prefs } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
 import { currentNews, newsTag } from "./News";
+import { SheetFrame } from "./Photo";
 
 export const reducedMotion = () => prefs.reduced || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
@@ -123,9 +123,7 @@ export function SpaceSheet({ v, at, onClose }: { v: RoomView; at: number; onClos
     <Sheet title={spaceName(at)} onClose={onClose}>
       {city && (
         <div class="citycard">
-          <div class="poster sheet-poster">
-            <CityPoster id={city.id} />
-          </div>
+          <SheetFrame id={city.id} />
           <p class="group">
             <GroupIcon group={city.group} size={14} /> {groupName(city.group)}
           </p>

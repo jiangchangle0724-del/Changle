@@ -107,37 +107,29 @@ Each of these was measured or is tested. Check them again after a change.
 Then run `npm run typecheck`, `npm test` and `npm run test:e2e`. GitHub runs them on every push,
 in Chromium and in WebKit (the engine in iPhone Safari and WeChat on iOS).
 
-## Next: photos and recorded city sounds
+## Photos and recorded city sounds
 
-The brief asks for a Creative Commons photo of each of the 22 cities and for recorded city sounds.
-Neither is in the game yet: the cloud environment that built it couldn't reach the sources. On a
-computer with ordinary internet:
+Every city has a real photo and a few seconds of a real recording made there. All are free to use
+(public domain or CC0, CC BY, or CC BY-SA; no NC, no ND). `src/client/media.ts` says where each one
+comes from and who made it, and the credits page lists them all.
 
-* **Where from.** Photos: Wikimedia Commons (commons.wikimedia.org) and Openverse
-  (openverse.org). Sounds: Freesound (freesound.org) and Wikimedia Commons.
-* **Which licences.** Public domain or CC0, CC BY, or CC BY-SA. Skip NC (non-commercial) and ND
-  (no derivatives): NC limits where the game can go, and ND doesn't allow edits such as crops.
-* **Read each file's own page**, not the search result, for its licence and author. Leave out
-  photos with recognisable people, logos and trademarks. Also leave out recent buildings in
-  countries without freedom of panorama: France, Italy and the UAE are among them, and Commons
-  marks such files. The posters already leave those buildings out; the Eiffel Tower lit at night
-  is a known case.
-* **Credit every file.** Add a list to the credits page (`src/client/ui/Credits.tsx`, like the
-  fonts' list) with name, author, licence and link, and what was changed (cropped, recoloured,
-  shortened). Its texts in `i18n.ts` (`creditsArtText`, `creditsSoundText`) currently say no
-  outside images or recordings are used: change them.
-* **Keep it light for phones.** Use WebP photos sized for where they show (about 1200 px wide on
-  the big screen, 600 px on phones), fetched when a city first comes up rather than at the start.
-  Use short sound loops of a few seconds, as MP3 or AAC, which every phone plays.
-* **Keep the one-page demo small.** `dist/demo.html` carries everything inside it (about 820 KB
-  now), so leave photos and recordings out of it, or use only a few small ones.
-* **Sound must still work without the files.** Each city's arrival sound is a sketch made in the
-  browser (`CITY_SOUND` in `sound.ts`). A recording should replace its sketch once it has loaded,
-  and the sketch should play if it hasn't. Phones (and WeChat) still need a first tap before any
-  sound plays.
-* **Where photos go** (the arrival card, the touchdown, the credits) is a design call. The posters
-  are the game's look from step 5, so photos sit alongside them rather than replacing them. Give
-  each photo a short alt text in both languages, and check it against the rules above: the night
-  (a bright photo glares on it), the big screen's fit, and the frame rate.
+* **Photos** come from Wikimedia Commons. `src/client/media/photos/<id>.webp` is 1280×720 and
+  `<id>-s.webp` 640×360, both cropped to 16:9. They sit alongside the posters rather than replacing
+  them. In a city's sheet the photo fades in over the poster once it has loaded, and a switch goes
+  back and forth between the two, with the photo's credit beside it. On the big screen's arrival
+  card the photo comes in 2.6 s after the poster, with its credit in the corner (not in the narrow
+  one-column card, whose poster is small and upright). A photo that can't load leaves the poster.
+  Each has an alt text in both languages.
+* **Recordings** come from Freesound. `src/client/media/sounds/<id>.mp3` is about 5 s, mono,
+  levelled to about -20 LUFS, 64 kbps. A city's recording is fetched when its touchdown starts and
+  plays instead of its sketch in the browser (`CITY_SOUND` in `sound.ts`). The sketch plays when the
+  recording hasn't loaded, or can't (the demo opened from a file or in an artifact).
+* **They ship beside the game**, at `/trip/photos` and `/trip/sounds`, and are fetched only when a
+  city comes up, so the first load and the one-page demo stay as small as before.
+* **Choosing another.** Read the file's own page for its licence and author, not the search
+  result. Leave out photos with recognisable people, logos and trademarks, and recent buildings in
+  countries without freedom of panorama (France, Italy and the UAE are among them; the Eiffel Tower
+  lit at night is a known case). Leave out recordings with clear speech or music someone else
+  wrote. Say what was changed (cropped, cut, levelled) on the credits page.
 
 Also still to do: playtests on real phones and with people who haven't seen the game.
