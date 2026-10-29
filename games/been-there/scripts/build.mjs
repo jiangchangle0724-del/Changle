@@ -27,6 +27,8 @@ const client = await esbuild.context({ ...common, entryPoints: { app: "src/clien
 // app.html, not index.html: on changle.ca the bare /trip leads to the game's card, which the worker
 // decides, so no file may answer it first. The worker serves app.html for room and big-screen links.
 await copyFile("src/client/index.html", `${out}/app.html`);
+// The web app manifest: added to a Home Screen from a game page, changle.ca opens as an app.
+await copyFile("src/client/app.webmanifest", `${out}/app.webmanifest`);
 
 // One stylesheet: the fonts (made by scripts/fonts.mjs), the art, then the screens.
 const FONT_FILES = ["unbounded.woff2", "figtree.woff2", "zcool.woff2", "bigshoulders.woff2", "spacemono-400.woff2", "spacemono-700.woff2"];
@@ -110,7 +112,8 @@ async function demo() {
   const css = await inlineCss();
   const body = `<div id="app"></div><script>${js}</script>${licenceBlock()}`;
   // Standalone file you can open from disk.
-  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>到此一游试玩版</title><style>${css}</style></head><body>${body}</body></html>`;
+  const head = `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0e0c22"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="开席"><link rel="manifest" href="/trip/app.webmanifest"><link rel="apple-touch-icon" href="/apple-touch-icon.png">`;
+  const html = `<!doctype html><html lang="zh-CN"><head>${head}<title>到此一游试玩版</title><style>${css}</style></head><body>${body}</body></html>`;
   await writeFile("dist/demo.html", html);
   // changle.ca/trip/demo: a game's "one phone" way to play.
   await writeFile(`${out}/demo.html`, html);

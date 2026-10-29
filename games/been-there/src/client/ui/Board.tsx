@@ -1,18 +1,20 @@
-import type { ComponentChildren } from "preact";
+import type { ComponentChildren, VNode } from "preact";
 import { useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
-import { RoundBoard, type SpaceMark, type TokenMark } from "../art/RoundBoard";
+import { RoundBoard, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
 import { colon, groupName, money, spaceName, t, tx } from "../i18n";
-import { prefs } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
 import { currentNews, newsTag } from "./News";
+import { reducedMotion } from "../motion";
 import { SheetFrame } from "./Photo";
+import { Ride } from "./Ride";
+import type { RidePlan } from "./ridePlan";
 
-export const reducedMotion = () => prefs.reduced || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+export { reducedMotion };
 
 /** How a token looks right now, from the latest thing that happened to its team. */
 export function moodOf(v: RoomView, seat: number): Mood {
@@ -84,11 +86,32 @@ function useTurnFocus(v: RoomView) {
   return ref.current.pos;
 }
 
-export function Board({ v, center, globe, over }: { v: RoomView; big?: boolean; center?: ComponentChildren; globe?: boolean; over?: ComponentChildren }) {
+export function Board({
+  v,
+  center,
+  globe,
+  over,
+  ride,
+  urgent,
+  onRideDone,
+}: {
+  v: RoomView;
+  big?: boolean;
+  center?: ComponentChildren;
+  globe?: boolean;
+  over?: ComponentChildren;
+  /** A first-person move to play (a phone, its own team's move: ridePlan.ts). */
+  ride?: RidePlan | null;
+  /** Something on a clock came up for this phone: a ride gives way. */
+  urgent?: boolean;
+  onRideDone?: (key: number) => void;
+}) {
   const g = v.game!;
   const s = g.s;
   const [open, setOpen] = useState<number | null>(null);
   const focus = useTurnFocus(v);
+  const rig = useRef<Rig | null>(null);
+  const still = useRef<{ key: number; board: VNode } | null>(null);
   const news = currentNews(s);
   const marks: (SpaceMark | null)[] = s.deeds.map((d, at) => {
     if (!d) return null;
@@ -102,11 +125,43 @@ export function Board({ v, center, globe, over }: { v: RoomView; big?: boolean; 
     };
   });
   const tokens: TokenMark[] = s.ps.flatMap((p, seat) => (p.out ? [] : [{ seat, at: p.pos, kind: teamOf(v, seat)?.color ?? 0, mood: moodOf(v, seat) }]));
+  let table = (
+    <RoundBoard
+      marks={marks}
+      tokens={tokens}
+      focus={focus}
+      active={s.ps[s.turn]?.pos}
+      flight={latestFlight(v)}
+      onPick={ride ? undefined : setOpen}
+      reduced={reducedMotion()}
+      rig={rig}
+      riding={ride ? ride.seat : null}
+    />
+  );
+  // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
+  // drawing is handed back, which Preact skips), and once it's over it catches up in one go.
+  if (ride) {
+    if (still.current?.key !== ride.key) still.current = { key: ride.key, board: table };
+    table = still.current.board;
+  } else still.current = null;
   return (
-    <div class="boardwrap">
-      <RoundBoard marks={marks} tokens={tokens} focus={focus} active={s.ps[s.turn]?.pos} flight={latestFlight(v)} onPick={setOpen} reduced={reducedMotion()} />
+    <div class={`boardwrap${ride ? " on-ride" : ""}`}>
+      {/* (behind the board: the sky the board leans back into on a ride) */}
+      {ride && <div class="ride-sky" key={`sky-${ride.key}`} />}
+      {table}
       {globe && <GlobeLayer flight={latestFlight(v)} focus={CITY_AT[focus]?.id ?? null} />}
       {center && <div class="center-disc">{center}</div>}
+      {ride && (
+        <Ride
+          key={ride.key}
+          plan={ride}
+          rig={rig}
+          kind={teamOf(v, ride.seat)?.color ?? 0}
+          mood={moodOf(v, ride.seat)}
+          urgent={!!urgent}
+          onDone={onRideDone ?? (() => {})}
+        />
+      )}
       {over}
       {open !== null && <SpaceSheet v={v} at={open} onClose={() => setOpen(null)} />}
     </div>

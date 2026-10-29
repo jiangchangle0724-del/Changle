@@ -55,7 +55,7 @@ const threwSince = (v: RoomView, land: Landing) => v.feed.some((f) => f.id > lan
 /** Big screen: the whole scene is 5.2 s. Phones run the same timeline at this speed. */
 const PHONE = 0.68;
 
-export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
+export function Touchdown({ v, big, after }: { v: RoomView; big?: boolean; after?: number }) {
   const land = latestStamp(v, big ? null : v.you.seats);
   // A landing from before this page opened isn't replayed.
   const seen = useRef(land?.id ?? 0);
@@ -90,8 +90,9 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     // if it flew here from another region (the flight is keyed by the landing, just before the stamp).
     const flight = latestFlight(v);
     const flew = !!flight && land.id - Number(flight.key) >= 1 && land.id - Number(flight.key) <= 3;
-    // (On a phone the team's own throw is up for 1.7 s: the scene starts once it's gone.)
-    const lead = !big ? 1800 : flew ? 3300 : 2000;
+    // (On a phone the team's own throw is up for 1.7 s: the scene starts once it's gone, or once its
+    // first-person move is over, `after`.)
+    const lead = !big ? Math.max(1800, (after ?? 0) - serverNow() + 150) : flew ? 3300 : 2000;
     later(lead, () => {
       // The game moved on while the dice were up (a clock came up, or the team threw again): no scene.
       if (onClock(latest.current, !big) || threwSince(latest.current, land)) return stop();

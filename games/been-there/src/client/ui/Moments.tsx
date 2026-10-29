@@ -10,7 +10,7 @@ import { serverNow } from "../store";
 import { reducedMotion } from "./Board";
 import { SeatChip } from "./common";
 import { recentParty } from "./feedText";
-import { onClock } from "./Touchdown";
+import { rideUrgent } from "./ridePlan";
 
 interface Hit<T> {
   id: number;
@@ -34,7 +34,7 @@ function latest<T>(v: RoomView, pick: (f: FeedItem) => T | null): Hit<T> | null 
 }
 
 /** The newest feed item `pick` accepts while it's younger than `ms`; re-renders when it goes stale. */
-function useFresh<T>(v: RoomView, pick: (f: FeedItem) => T | null, ms: number): Hit<T> | null {
+export function useFresh<T>(v: RoomView, pick: (f: FeedItem) => T | null, ms: number): Hit<T> | null {
   const hit = latest(v, pick);
   const [, setTick] = useState(0);
   const left = hit ? ms - (serverNow() - hit.at) : 0;
@@ -70,16 +70,18 @@ export function TvDice({ v }: { v: RoomView }) {
   );
 }
 
-/** Phone: the team that just rolled sees its own throw, big, for a moment. It never covers a decision
+/** Phone: the team that just rolled sees its own throw, big, for a moment (`short` when the move
+ * plays first-person after it: the camera takes over as the dice settle). It never covers a decision
  * on a clock (an auction or a table vote can open the moment the token lands). */
-export function RollMoment({ v }: { v: RoomView }) {
+export function RollMoment({ v, short }: { v: RoomView; short?: boolean }) {
+  const ms = short ? 1350 : 1700;
   const roll = useFresh(v, (f) => {
     const e = asRoll(f);
     return e && v.you.seats.includes(e.p) ? e : null;
-  }, 1700);
-  if (!roll || onClock(v, true)) return null;
+  }, ms);
+  if (!roll || rideUrgent(v)) return null;
   return (
-    <div class="roll-moment" key={roll.id} aria-hidden="true">
+    <div class="roll-moment" key={roll.id} aria-hidden="true" style={{ "--moment": `${ms}ms` }}>
       <Dice dice={roll.x.dice} seed={roll.id} size={76} />
       <p class="dice-sum num">
         {thrown(roll.x)}
@@ -173,9 +175,10 @@ function moneyOf(e: GameEvent): { from: number; to: number; amount: number } | n
   return null;
 }
 
-/** Big screen: coins fly from whoever pays to whoever is paid, token to token (the bank is the
- * middle of the board), once the token that moved has finished walking. */
-export function CoinFx({ v }: { v: RoomView }) {
+/** Coins fly from whoever pays to whoever is paid, token to token (the bank is the middle of the
+ * board), once the token that moved has finished walking. On the big screen every payment; on a phone
+ * (`phone`) the ones to or from its own team, and after its ride lands (`after`, server time). */
+export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; after?: number }) {
   const seen = useRef(v.feed[v.feed.length - 1]?.id ?? 0);
   const timers = useRef<number[]>([]);
   const [flights, setFlights] = useState<Coins[]>([]);
@@ -195,14 +198,18 @@ export function CoinFx({ v }: { v: RoomView }) {
       const d = (((f.e.to - f.e.from) % n) + n) % n;
       walk = Math.max(walk, Math.min(1800, 220 + 120 * Math.min(d, n - d)));
     }
+    const mine = (seat: number) => v.you.seats.includes(seat);
     const moves = fresh.flatMap((f) => {
       const m = f.t === "game" ? moneyOf(f.e) : null;
+      // (a phone's own salary is shown by its ride, and the bank's money isn't anyone's on a phone)
+      if (m && phone && (m.from < 0 || m.to < 0 || !(mine(m.from) || mine(m.to)))) return [];
       return m ? [{ id: f.id, ...m }] : [];
     });
     if (!moves.length) return;
+    const wait = phone && after && after > serverNow() ? after - serverNow() + 180 : walk + 120;
     timers.current.push(
       window.setTimeout(() => {
-        const board = document.querySelector<SVGSVGElement>(".tv-board .roundboard");
+        const board = document.querySelector<SVGSVGElement>(phone ? ".stage .roundboard" : ".tv-board .roundboard");
         if (!board) return;
         const where = (seat: number) => {
           const el = seat >= 0 ? board.querySelector(`[data-seat="${seat}"]`) : null;
@@ -216,7 +223,7 @@ export function CoinFx({ v }: { v: RoomView }) {
         });
         setFlights((list) => [...list, ...add]);
         timers.current.push(window.setTimeout(() => setFlights((list) => list.filter((c) => !add.includes(c))), 2200));
-      }, walk + 120),
+      }, wait),
     );
   }, [v.feed[v.feed.length - 1]?.id]);
   if (!flights.length) return null;

@@ -195,6 +195,47 @@
     transform: scale(1);
   }
 }
+/* A city just bought: its owner's mark stamps down and the ink spreads out round it. */
+.roundboard .stamp-in {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: stamp-in 0.46s cubic-bezier(0.5, 0, 0.6, 1.5) both;
+}
+@keyframes stamp-in {
+  0% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.88);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.roundboard .stamp-ring {
+  fill: none;
+  stroke-width: 4;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: stamp-ring 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.26s both;
+}
+@keyframes stamp-ring {
+  from {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.7);
+    opacity: 0;
+  }
+}
+/* A first-person move draws its own token (ui/Ride.tsx). */
+.roundboard .token.ridden {
+  opacity: 0;
+}
 /* Travel news on the board: a vermilion tag on the inner edge of the city it changes. */
 .roundboard .board-news rect {
   fill: var(--active);
@@ -295,10 +336,17 @@
 @media (prefers-reduced-motion: reduce) {
   .roundboard .token.now > g,
   .roundboard .pop,
+  .roundboard .stamp-in,
   .roundboard .react,
   .stamp.fresh {
     animation: none;
   }
+  .roundboard .stamp-ring {
+    display: none;
+  }
+}
+:root[data-reduced="1"] .roundboard .stamp-ring {
+  display: none;
 }
 :root.reduced .roundboard .token.now > g,
 :root.reduced .stamp.fresh {

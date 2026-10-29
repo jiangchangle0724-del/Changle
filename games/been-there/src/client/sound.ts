@@ -358,4 +358,36 @@ export const sfx = {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.26, { at: i * 0.13, type: "triangle" }));
     tone(1319, 0.6, { at: 0.55, type: "triangle", vol: 0.08 });
   },
+  /** The dice hitting the table. */
+  clack: () => {
+    burst(0.03, { type: "bandpass", freq: 2600, q: 3, vol: 0.14 });
+    burst(0.05, { type: "lowpass", freq: 500, vol: 0.12, at: 0.02 });
+  },
+  /** A token's step on the board: a soft wooden tick. */
+  step: () => {
+    burst(0.025, { type: "bandpass", freq: 1500, q: 6, vol: 0.06 });
+    tone(620, 0.05, { type: "triangle", vol: 0.025 });
+  },
+  /** A token landing: a thud with a little ring. */
+  land: () => {
+    tone(140, 0.16, { vol: 0.14, slide: 90 });
+    burst(0.06, { type: "lowpass", freq: 700, vol: 0.12 });
+    tone(988, 0.3, { type: "triangle", vol: 0.03, at: 0.05 });
+  },
+  /** Air past the camera: in (1) as it leans down to the token, out (-1) as it pulls back up. */
+  whoosh: (dir: number) =>
+    dir > 0
+      ? swell(0.55, { type: "bandpass", freq: 260, sweep: 1500, q: 0.9, vol: 0.05 })
+      : swell(0.6, { type: "bandpass", freq: 1500, sweep: 240, q: 0.9, vol: 0.04 }),
+  /** A card off the pile. */
+  card: () => {
+    burst(0.07, { type: "highpass", freq: 2200, vol: 0.06 });
+    burst(0.05, { type: "bandpass", freq: 900, q: 1.2, vol: 0.05, at: 0.06 });
+  },
+  /** Sent to Immigration: the gate comes down. */
+  jail: () => {
+    burst(0.08, { type: "bandpass", freq: 700, q: 2, vol: 0.2 });
+    tone(196, 0.5, { type: "square", vol: 0.04, at: 0.02 });
+    tone(147, 0.7, { type: "square", vol: 0.04, at: 0.22 });
+  },
 };

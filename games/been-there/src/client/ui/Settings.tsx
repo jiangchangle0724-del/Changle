@@ -2,12 +2,14 @@ import { useState } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { BUZZ, allowShake, buzz, canBuzz, canShake } from "../controls";
 import { backToTable, tableFrom } from "../base";
+import { isIPhone, toggleFullscreen } from "../fullscreen";
 import { getLang, setLang, t } from "../i18n";
 import { prefs } from "../prefs";
 import { setMuted } from "../sound";
 import { getState, send, update } from "../store";
 import { Btn, Sheet } from "./common";
 import { Credits } from "./Credits";
+import { FullscreenGuide, useFullscreen } from "./Fullscreen";
 
 /** Re-render everything after a language or preference change. */
 export const refresh = () => update({});
@@ -52,7 +54,10 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
   const mySeat = v?.you.seats[0];
   const myTeam = v && mySeat !== undefined ? v.teams.find((x) => x.seat === mySeat) : undefined;
   const [credits, setCredits] = useState(false);
+  const [guide, setGuide] = useState(false);
+  const fs = useFullscreen();
   const table = v && !v.settings.hotseat ? tableFrom(v) : null;
+  if (guide) return <FullscreenGuide onClose={() => setGuide(false)} />;
   if (credits)
     return (
       <Sheet title={t("credits")} onClose={onClose}>
@@ -77,10 +82,38 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
             <small>{t("muteHint")}</small>
           </span>
         </label>
+        {fs.offer === "toggle" && (
+          <label class="radio">
+            <input type="checkbox" checked={fs.on} onChange={() => void toggleFullscreen()} />
+            <span>
+              <b>{t("fullscreen")}</b>
+            </span>
+          </label>
+        )}
+        {fs.offer === "iphone" && (
+          <Btn kind="quiet" onClick={() => setGuide(true)}>
+            {t("fullscreenHow")} →
+          </Btn>
+        )}
         <label class="radio">
           <input type="checkbox" checked={prefs.reduced} onChange={(e) => setReduced((e.target as HTMLInputElement).checked)} />
           <span>
             <b>{t("reduceMotion")}</b>
+          </span>
+        </label>
+        <label class={`radio${prefs.reduced ? " off" : ""}`}>
+          <input
+            type="checkbox"
+            checked={prefs.ride && !prefs.reduced}
+            disabled={prefs.reduced}
+            onChange={(e) => {
+              prefs.ride = (e.target as HTMLInputElement).checked;
+              refresh();
+            }}
+          />
+          <span>
+            <b>{t("rideSetting")}</b>
+            <small>{t("rideHint")}</small>
           </span>
         </label>
         {canBuzz && (
@@ -99,6 +132,14 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
               <small>{t("vibrationHint")}</small>
             </span>
           </label>
+        )}
+        {!canBuzz && isIPhone() && (
+          <div class="radio off">
+            <span>
+              <b>{t("vibration")}</b>
+              <small>{t("vibrationIphone")}</small>
+            </span>
+          </div>
         )}
         {canShake && (
           <label class="radio">
