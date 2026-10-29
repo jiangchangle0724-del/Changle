@@ -94,8 +94,9 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       const kind = panel.dataset.kind ?? panel.className;
       if (o.skip?.includes(kind)) return null;
       const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>(".btn:not([disabled]):not(.danger)"));
-      if (!buttons.length) return null;
-      let pick =
+      // (In debt with nothing left to sell, the only way on is a danger button: going broke, below.)
+      if (!buttons.length && kind !== "debt") return null;
+      let pick: HTMLButtonElement | undefined =
         panel.querySelector<HTMLButtonElement>(".btn.primary:not([disabled])") ??
         panel.querySelector<HTMLButtonElement>(".btn[data-default]:not([disabled])") ??
         buttons[0];
@@ -107,6 +108,7 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
         if (sellable) pick = sellable;
         else pick = panel.querySelector<HTMLButtonElement>(".btn.danger") ?? pick;
       }
+      if (!pick) return null;
       pick.click();
       return kind;
       })();
