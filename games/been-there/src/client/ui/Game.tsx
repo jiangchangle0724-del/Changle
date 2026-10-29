@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, type GameEvent } from "../../engine";
-import type { RoomView } from "../../room/protocol";
+import type { FeedItem, RoomView } from "../../room/protocol";
 import { Stamp } from "../art/stamps";
 import { BUZZ, buzz } from "../controls";
 import { colon, getLang, money, spaceName, t, tx } from "../i18n";
 import { sfx } from "../sound";
-import { getState, send, toast } from "../store";
+import { getState, send, serverNow, toast } from "../store";
 import { useWeather, weatherLabel } from "../weather";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion, thisGame } from "./Board";
 import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { dareText, feedText } from "./feedText";
-import { CardFace, Cash, MiniDice, RollMoment, cardThisTurn, rollBefore } from "./Moments";
+import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
+import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { NewsBanner } from "./News";
 import { ArrivalFrame } from "./Photo";
+import { rideEnd, rideLand, rideUrgent, useRide, type RidePlan } from "./ridePlan";
 import { SettingsSheet } from "./Settings";
 import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
@@ -33,6 +35,7 @@ export function Game({ v }: { v: RoomView }) {
   const s = g.s;
   const [panel, setPanel] = useState<Panel | null>(null);
   const [menu, setMenu] = useState(false);
+  const [fsGuide, setFsGuide] = useState(false);
   const mySeat = v.you.seats[0];
   const me = mySeat !== undefined ? s.ps[mySeat] : null;
   const myMove =
@@ -42,22 +45,33 @@ export function Game({ v }: { v: RoomView }) {
   // Something for this phone to answer: its move, or the quiz the waiting teams race to answer.
   const needs = myMove || (!!g.trivia?.open && g.trivia.answerFor !== null);
   const incoming = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
-  usePhoneSounds(v, myMove);
+  // The team's own move plays first-person on the board (ridePlan.ts); money that changes hands on the
+  // way shows when the token gets there, not the moment the dice are thrown.
+  const { plan: ride, done: rideDone } = useRide(v);
+  const landAt = rideLand(ride);
+  const myCash = useHeldUntil(me?.cash ?? 0, landAt);
+  const cashShown = useHeldUntil(
+    v.you.seats.reduce((a, x) => a + (s.ps[x]?.cash ?? 0), 0),
+    landAt,
+  );
+  usePhoneSounds(v, myMove, cashShown, ride);
   usePartyToasts(v);
+  const thud = useDiceThud(v);
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
   const wide = useWide();
   const play = usePlayWindow(needs, mySeat === undefined);
-  const open = wide || play.open;
+  // (on a ride the window steps aside, and comes back with whatever there is to answer)
+  const open = wide || (play.open && !ride);
   const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
   return (
-    <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}`}>
+    <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}${ride ? " riding" : ""}`}>
       <header class="top">
         {me && myTeam ? (
           <>
             <TeamChip team={myTeam} />
             <span class="stat">
               <small>{t("cash")}</small>
-              <Cash n={me.cash} />
+              <Cash n={myCash} />
             </span>
             <span class="stat worth">
               <small>{t("worth")}</small>
@@ -68,13 +82,14 @@ export function Game({ v }: { v: RoomView }) {
           <b>{t("spectators")}</b>
         )}
         <Clock v={v} />
+        <FullscreenButton onGuide={() => setFsGuide(true)} />
         <button type="button" class="menu-btn" onClick={() => setMenu(true)}>
           {t("menu")}
         </button>
       </header>
       <Banner v={v} onOpen={wide ? undefined : play.show} />
-      <main class="stage">
-        <Board v={v} />
+      <main class={`stage${thud ? " thud" : ""}`} key="stage">
+        <Board v={v} ride={ride} urgent={rideUrgent(v)} onRideDone={rideDone} over={<JailFx v={v} ride={ride} />} />
         <BoardNote v={v} />
       </main>
       <aside class="side">
@@ -147,8 +162,90 @@ export function Game({ v }: { v: RoomView }) {
         </>
       )}
       {menu && <SettingsSheet v={v} onClose={() => setMenu(false)} />}
-      <RollMoment v={v} />
-      <Touchdown v={v} />
+      {fsGuide && <FullscreenGuide onClose={() => setFsGuide(false)} />}
+      <RollMoment v={v} short={!!ride} />
+      <CoinFx v={v} phone after={landAt} />
+      <TurnCall myMove={myMove} />
+      <Touchdown v={v} after={rideEnd(ride)} />
+    </div>
+  );
+}
+
+/**
+ * A number as it was until `until` (server time), then as it is: a ride's money shows when the token
+ * lands. Re-renders at `until`.
+ */
+function useHeldUntil(n: number, until: number): number {
+  const before = useRef(n);
+  const held = useRef<{ until: number; n: number } | null>(null);
+  const [, tick] = useState(0);
+  if (until > serverNow()) {
+    if (held.current?.until !== until) held.current = { until, n: before.current };
+  } else held.current = null;
+  useEffect(() => {
+    const left = until - serverNow();
+    if (left <= 0) return;
+    const id = window.setTimeout(() => tick((x) => x + 1), left + 20);
+    return () => clearTimeout(id);
+  }, [until]);
+  if (held.current) return held.current.n;
+  before.current = n;
+  return n;
+}
+
+/** The dice landing on the table: the board takes the knock (a key for the moment, or 0). */
+function useDiceThud(v: RoomView): number {
+  const [k, setK] = useState(0);
+  const last = useRef(lastId(v));
+  useEffect(() => {
+    const fresh = v.feed.filter((f) => f.id > last.current);
+    last.current = lastId(v) || last.current;
+    const mine = fresh.find((f) => f.t === "game" && f.e.t === "roll" && v.you.seats.includes(f.e.p) && serverNow() - f.at < 2000);
+    if (!mine || reducedMotion()) return;
+    // (the dice in styles.css land 0.74 s into their throw)
+    const hit = window.setTimeout(() => {
+      setK(mine.id);
+      sfx.clack();
+      buzz(BUZZ.thud);
+    }, 740);
+    const off = window.setTimeout(() => setK(0), 1100);
+    return () => {
+      clearTimeout(hit);
+      clearTimeout(off);
+    };
+  });
+  return k;
+}
+
+/** Your turn: the edge of the screen glows for a moment (on a phone that can't buzz, this is the call). */
+function TurnCall({ myMove }: { myMove: boolean }) {
+  const [k, setK] = useState(0);
+  const was = useRef(myMove);
+  useEffect(() => {
+    if (myMove && !was.current) setK((n) => n + 1);
+    was.current = myMove;
+  }, [myMove]);
+  useEffect(() => {
+    if (!k) return;
+    const id = window.setTimeout(() => setK(0), 2000);
+    return () => clearTimeout(id);
+  }, [k]);
+  return k ? <div class="turn-call" key={k} aria-hidden="true" /> : null;
+}
+
+/** Sent to Immigration without a ride (three doubles; a ride shows it itself): bars over the board. */
+function JailFx({ v, ride }: { v: RoomView; ride: RidePlan | null }) {
+  const hit = useFresh(v, (f: FeedItem) => (f.t === "game" && f.e.t === "jail" && v.you.seats.includes(f.e.p) ? f.e : null), 2000);
+  if (!hit || ride) return null;
+  return (
+    <div class="jail-fx" key={hit.id} aria-hidden="true">
+      <svg viewBox="0 0 120 120" class="bars">
+        {[14, 38, 62, 86, 110].map((x) => (
+          <rect key={x} x={x - 4} y="0" width="8" height="120" rx="4" />
+        ))}
+        <rect x="0" y="16" width="120" height="8" rx="4" />
+      </svg>
+      <b>{t("sentToImmigration")}</b>
     </div>
   );
 }
@@ -431,33 +528,62 @@ function usePartyToasts(v: RoomView) {
 /** Id of the newest feed item (0 if none). */
 export const lastId = (v: RoomView) => (v.feed.length ? v.feed[v.feed.length - 1].id : 0);
 
-/** Sounds on a phone: my turn, dice, money in and out. */
-function usePhoneSounds(v: RoomView, myMove: boolean) {
+/**
+ * Sounds and buzzes on a phone: my turn, the dice, money in and out (when it shows: a ride's money when
+ * the token lands), and the big moments for my team: a city bought, a card drawn, sent to
+ * Immigration, an auction, a trade offer, going broke. A phone that can't vibrate (an iPhone) gets
+ * the sounds and what's on screen.
+ */
+function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePlan | null) {
   const g = v.game!;
   const ask = g.trivia?.open && g.trivia.answerFor !== null ? g.trivia.id : 0;
-  const prev = useRef({ myMove, feed: lastId(v), cash: v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0), ask });
+  const offers = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
+  const prev = useRef({ myMove, feed: lastId(v), cash, ask, offers, auction: !!g.auction });
   useEffect(() => {
     const p = prev.current;
+    const mine = (seat: number | null) => seat !== null && v.you.seats.includes(seat);
     if (myMove && !p.myMove) {
       sfx.turn();
-      buzz(BUZZ.turn);
-    } else if (ask && ask !== p.ask) sfx.ask();
-    const fresh = v.feed.filter((f) => f.id > p.feed);
-    if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
-    if (fresh.some((f) => f.t === "game" && f.e.t === "roll" && v.you.seats.includes(f.e.p))) buzz(BUZZ.dice);
-    if (fresh.some((f) => f.t === "game" && f.e.t === "news" && f.e.on)) sfx.news();
+      buzz(g.auction && !p.auction ? BUZZ.auction : BUZZ.turn);
+    } else if (ask && ask !== p.ask) {
+      sfx.ask();
+      buzz(BUZZ.tap);
+    }
+    const ev = v.feed.filter((f) => f.id > p.feed).flatMap((f) => (f.t === "game" ? [f.e] : []));
+    if (ev.some((e) => e.t === "roll")) sfx.dice();
+    const myRoll = ev.find((e): e is Extract<GameEvent, { t: "roll" }> => e.t === "roll" && mine(e.p));
+    if (myRoll) buzz(myRoll.doubles ? BUZZ.doubles : BUZZ.dice);
+    if (ev.some((e) => e.t === "news" && e.on)) sfx.news();
     // (with motion on, the touchdown plays the stamp in time with its own)
-    if (reducedMotion() && fresh.some((f) => f.t === "game" && f.e.t === "stamp" && v.you.seats.includes(f.e.p))) sfx.stamp();
-    const cash = v.you.seats.map((x) => g.s.ps[x]?.cash ?? 0);
-    const delta = cash.reduce((a, b) => a + b, 0) - p.cash.reduce((a, b) => a + b, 0);
+    if (reducedMotion() && ev.some((e) => e.t === "stamp" && mine(e.p))) sfx.stamp();
+    const bought = ev.some((e) => (e.t === "buy" && mine(e.p)) || (e.t === "auction" && mine(e.winner)));
+    if (bought) {
+      sfx.stamp();
+      buzz(BUZZ.buy);
+    }
+    // (on a ride these come as the token gets there)
+    if (!ride && ev.some((e) => e.t === "card" && mine(e.p))) {
+      sfx.card();
+      buzz(BUZZ.card);
+    }
+    if (!ride && ev.some((e) => e.t === "jail" && mine(e.p))) {
+      sfx.jail();
+      buzz(BUZZ.jail);
+    }
+    if (ev.some((e) => e.t === "bankrupt" && mine(e.p))) buzz(BUZZ.alarm);
+    if (offers > p.offers) {
+      sfx.ask();
+      buzz(BUZZ.offer);
+    }
+    const delta = cash - p.cash;
     if (delta > 0) {
       sfx.coin();
       buzz(BUZZ.paid);
-    } else if (delta < 0) {
+    } else if (delta < 0 && !bought) {
       sfx.pay();
       buzz(BUZZ.pay);
     }
-    prev.current = { myMove, feed: lastId(v) || p.feed, cash, ask };
+    prev.current = { myMove, feed: lastId(v) || p.feed, cash, ask, offers, auction: !!g.auction };
   });
 }
 

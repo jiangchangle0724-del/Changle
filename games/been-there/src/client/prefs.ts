@@ -75,6 +75,13 @@ export const prefs = {
   set haptics(v: boolean) {
     set("bt.haptics", v ? "1" : "0");
   },
+  /** Play the team's own moves from behind its token (first-person). On unless turned off. */
+  get ride() {
+    return get("bt.ride") !== "0";
+  },
+  set ride(v: boolean) {
+    set("bt.ride", v ? "1" : "0");
+  },
   /** Shake the phone to roll (where it can feel motion). On unless turned off. */
   get shake() {
     return get("bt.shake") !== "0";

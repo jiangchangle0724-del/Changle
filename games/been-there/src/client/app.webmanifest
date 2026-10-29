@@ -1,0 +1,14 @@
+{
+  "name": "开席 Lazy Susan",
+  "short_name": "开席",
+  "description": "中英双语聚会游戏，一台手机传着玩，或者一桌人各用各的手机。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e0c22",
+  "theme_color": "#0e0c22",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

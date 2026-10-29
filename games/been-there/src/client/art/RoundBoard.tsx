@@ -1,6 +1,7 @@
 // The round board: 40 spaces on a turntable around the route map, a nod to changle.ca's Lazy Susan.
 // When the turn passes, the table turns so the player whose go it is sits at the bottom. Labels,
-// markers and tokens stay upright while it turns.
+// markers and tokens stay upright while it turns. A phone's first-person move (ui/Ride.tsx) drives
+// the table through `rig`: it turns it, moves a camera over it and leans it back.
 import type { ComponentChildren } from "preact";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { BOARD, CITY_AT, GROUPS } from "../../engine";
@@ -27,6 +28,19 @@ export interface TokenMark {
   mood?: Mood;
 }
 
+/** What a first-person move needs to drive the table (ui/Ride.tsx). */
+export interface Rig {
+  svg: SVGSVGElement;
+  /** Turn the table to this angle (degrees), labels and tokens staying upright: all of them, or
+   * only those within `span` degrees of the screen angle `at` (what a close camera can see). */
+  turn(deg: number, near?: { at: number; span: number }): void;
+  /** The table's angle now, and where it rests for this turn. */
+  rotation(): number;
+  focusRotation(): number;
+  /** The camera over the table: a zoom and an offset (board units, before the zoom's centre). */
+  camera(z: number, tx: number, ty: number): void;
+}
+
 const RO = 490;
 const RB = 460;
 const RI = 342;
@@ -40,8 +54,10 @@ const RMAP = 320;
 const STEP = 360 / BOARD.length;
 
 /** Angle of a space, degrees clockwise from 12 o'clock; Departure sits at the bottom. */
-const angleOf = (at: number) => 180 + at * STEP;
-const xy = (deg: number, r: number): [number, number] => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg * Math.PI) / 180)];
+export const angleOf = (at: number) => 180 + at * STEP;
+export const xy = (deg: number, r: number): [number, number] => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg * Math.PI) / 180)];
+/** Where the tokens stand: just inside the ring of spaces. */
+export const TOKEN_R = RT;
 
 function wedge(at: number, ro = RO) {
   const a0 = angleOf(at) - STEP / 2;
@@ -118,6 +134,8 @@ export function RoundBoard({
   reduced,
   center,
   class: cls,
+  rig,
+  riding,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -131,21 +149,58 @@ export function RoundBoard({
   /** Drawn over the middle of the map, not turning. */
   center?: ComponentChildren;
   class?: string;
+  /** Filled in for a first-person move to drive the table. */
+  rig?: { current: Rig | null };
+  /** The seat on a first-person move: its token is drawn by the ride, and the table is the ride's. */
+  riding?: number | null;
 }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const cam = useRef<SVGGElement>(null);
   const ref = useRef<SVGGElement>(null);
   const rot = useRef(-focus * STEP);
+  // Everything that stays upright, found once per drawing rather than on every frame of a turn.
+  const ups = useRef<SVGGElement[]>([]);
+  useLayoutEffect(() => {
+    ups.current = ref.current ? Array.from(ref.current.querySelectorAll<SVGGElement>("[data-up]")) : [];
+  });
 
-  const apply = (r: number) => {
+  const apply = (r: number, near?: { at: number; span: number }) => {
     rot.current = r;
     const g = ref.current;
     if (!g) return;
     g.setAttribute("transform", `rotate(${r.toFixed(2)})`);
-    g.querySelectorAll<SVGGElement>("[data-up]").forEach((el) => {
-      el.setAttribute("transform", `translate(${el.dataset.x} ${el.dataset.y}) rotate(${(-r).toFixed(2)})`);
-    });
+    const back = `rotate(${(-r).toFixed(2)})`;
+    for (const el of ups.current) {
+      if (!el.isConnected) continue;
+      if (near) {
+        const a = (Math.atan2(Number(el.dataset.x), -Number(el.dataset.y)) * 180) / Math.PI + r;
+        if (Math.abs(((((a - near.at) % 360) + 540) % 360) - 180) > near.span) continue;
+      }
+      const lift = el.dataset.lift;
+      el.setAttribute("transform", `translate(${el.dataset.x} ${el.dataset.y}) ${back}${lift ? ` translate(0 ${lift})` : ""}`);
+    }
   };
 
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
   useLayoutEffect(() => {
+    if (!rig) return;
+    rig.current = svgRef.current && {
+      svg: svgRef.current,
+      turn: apply,
+      rotation: () => rot.current,
+      focusRotation: () => {
+        // The nearest way round to where the table rests.
+        const target = -focusRef.current * STEP;
+        return rot.current + (((((target - rot.current) % 360) + 540) % 360) - 180);
+      },
+      camera: (z, tx, ty) => cam.current?.setAttribute("transform", z === 1 && !tx && !ty ? "" : `translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${z.toFixed(4)})`),
+    };
+  });
+
+  useLayoutEffect(() => {
+    // A first-person move turns the table itself, and gives it back where it rests.
+    if (riding !== undefined && riding !== null) return;
     const target = -focus * STEP;
     const start = rot.current;
     const delta = ((((target - start) % 360) + 540) % 360) - 180;
@@ -163,7 +218,7 @@ export function RoundBoard({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [focus, reduced]);
+  }, [focus, reduced, riding]);
 
   // Tokens walk around the ring to their new space, with a little hop on each one.
   const shown = useRef(new Map<number, number>());
@@ -174,7 +229,7 @@ export function RoundBoard({
     for (const tk of tokens) {
       const from = shown.current.get(tk.seat);
       shown.current.set(tk.seat, tk.at);
-      if (from === undefined || from === tk.at || reduced || !g) continue;
+      if (from === undefined || from === tk.at || reduced || !g || tk.seat === riding) continue;
       let delta = (tk.at - from + BOARD.length) % BOARD.length;
       if (delta > BOARD.length / 2) delta -= BOARD.length;
       const el = g.querySelector<SVGGElement>(`[data-seat="${tk.seat}"]`);
@@ -218,7 +273,8 @@ export function RoundBoard({
   for (const t of tokens) bySpace.set(t.at, [...(bySpace.get(t.at) ?? []), t]);
 
   return (
-    <svg class={cls ?? "roundboard"} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
+    <svg ref={svgRef} class={cls ?? "roundboard"} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
+      <g ref={cam}>
       <circle r={RO + 8} fill="var(--board-rim)" />
       <g ref={ref} transform={`rotate(${r})`}>
         <RouteMap r={RMAP} flight={flight} reduced={reduced} />
@@ -268,7 +324,9 @@ export function RoundBoard({
               )}
               {mark?.owner && (
                 <Up x={mx} y={my} rot={r}>
-                  <g class={owned.has(at) ? undefined : "pop"}>
+                  {/* A city just bought: the owner's mark comes down like a stamp, and the ink spreads. */}
+                  {!owned.has(at) && <circle class="stamp-ring" r="17" stroke={mark.owner.color} />}
+                  <g class={owned.has(at) ? undefined : "stamp-in"}>
                     <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
                     <text class="owner" y="6.5" text-anchor="middle">
                       {mark.owner.letter}
@@ -287,7 +345,7 @@ export function RoundBoard({
             const [x, y] = xy(angleOf(at) + fan, ring);
             return (
               <Up key={tk.seat} x={x} y={y} rot={r} extra={{ "data-seat": tk.seat, "data-fan": fan.toFixed(2), "data-ring": ring }}>
-                <g class={`token${at === active && tk.mood !== "sad" ? " now" : ""}`}>
+                <g class={`token${at === active && tk.mood !== "sad" ? " now" : ""}${tk.seat === riding ? " ridden" : ""}`}>
                   <ellipse cx="0" cy="26" rx="22" ry="7" fill="rgba(0,0,0,.18)" />
                   <g transform="translate(-34 -40) scale(0.57)">
                     {/* A new mood plays its reaction once (a new animation name restarts it): a jump for
@@ -301,6 +359,7 @@ export function RoundBoard({
             );
           }),
         )}
+      </g>
       </g>
       {center}
     </svg>

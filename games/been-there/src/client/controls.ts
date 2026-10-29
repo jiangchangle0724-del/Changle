@@ -1,7 +1,9 @@
-// The phone as a controller: shake it to roll the dice, and feel a buzz on your turn, on your throw
-// and when money changes hands. Shaking needs a phone that lets the page feel motion (an iPhone asks
-// once, from a tap); buzzing needs one that lets it vibrate (Android does, iPhones don't). Both can be
-// turned off in the menu, and neither replaces a button.
+// The phone as a controller: shake it to roll the dice, and feel a buzz on your turn, on your throw,
+// each space your token passes, when money changes hands and at the big moments (a city bought, a
+// card, Immigration, an auction, a trade offer). Shaking needs a phone that lets the page feel motion
+// (an iPhone asks once, from a tap); buzzing needs one that lets a page vibrate: Android does, and
+// iPhones don't (Safari has no vibration for web pages, and closed the last way round it in iOS
+// 26.5). Both can be turned off in the menu, and neither replaces a button or what's on screen.
 import { prefs } from "./prefs";
 
 export const canBuzz = typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
@@ -10,8 +12,20 @@ export const canBuzz = typeof navigator !== "undefined" && typeof navigator.vibr
 export const BUZZ = {
   turn: [30, 70, 30],
   dice: [12, 40, 12, 40, 20],
+  doubles: [12, 40, 12, 40, 20, 90, 30, 60, 30],
+  /** The dice hitting the table. */
+  thud: 18,
+  /** Each space a first-person move passes, and its landing. */
+  step: 6,
+  land: [26, 40, 12],
   paid: [15, 50, 15],
   pay: 70,
+  buy: [18, 40, 40],
+  card: [10, 40, 10],
+  jail: [90, 60, 90, 60, 160],
+  auction: [24, 50, 24, 50, 24],
+  offer: [14, 70, 14],
+  alarm: [160, 90, 160],
   tap: 8,
 };
 
@@ -58,6 +72,11 @@ export async function allowShake(): Promise<boolean> {
 
 // When the last shake counted: one long shake rolls once, even when doubles bring the roll straight back.
 let last = -Infinity;
+// While a first-person move plays, a shake doesn't throw again (the next throw waits for the ride).
+let held = false;
+export const holdShake = (on: boolean) => {
+  held = on;
+};
 
 /**
  * Call `then` when the phone is shaken: three firm jolts within 0.6 s (walking, or putting the phone
@@ -76,7 +95,7 @@ export function onShake(then: () => void): () => void {
     const now = performance.now();
     hits = hits.filter((t) => now - t < 600);
     hits.push(now);
-    if (hits.length >= 3 && now - last > 1500) {
+    if (hits.length >= 3 && now - last > 1500 && !held) {
       last = now;
       hits = [];
       then();
