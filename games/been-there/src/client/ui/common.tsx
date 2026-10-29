@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { GROUPS, STYLES, type Shape } from "../../engine";
 import type { RoomView, TeamView } from "../../room/protocol";
 import { CharacterArt, type Mood } from "../art/characters";
-import { money, t, type Key } from "../i18n";
+import { getLang, money, other, t, type Key } from "../i18n";
 import { serverNow } from "../store";
 
 /** Mid-tone team colours that hold up on light and dark backgrounds; the letter is the real identifier. */
@@ -158,6 +158,16 @@ export function Btn(props: {
     >
       {props.children}
     </button>
+  );
+}
+
+/** The game's name as changle.ca titles a game: the reader's language leads, the other rides along. */
+export function GameTitle() {
+  return (
+    <h1 class="bi">
+      <span>{t("title")}</span>
+      <small lang={getLang() === "zh" ? "en" : "zh-CN"}>{other("title")}</small>
+    </h1>
   );
 }
 

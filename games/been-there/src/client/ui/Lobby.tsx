@@ -6,7 +6,7 @@ import { backToTable, joinUrl, onChangle, tableFrom } from "../base";
 import { colon, t, type Key } from "../i18n";
 import { prefs } from "../prefs";
 import { send } from "../store";
-import { Btn, TEAM_COLORS, TEAM_LETTERS, TeamFace, styleName, teamLabel } from "./common";
+import { Btn, GameTitle, TEAM_COLORS, TEAM_LETTERS, TeamFace, styleName, teamLabel } from "./common";
 
 export function Qr({ text, size = 180 }: { text: string; size?: number }) {
   const qr = qrcode(0, "M");
@@ -66,7 +66,7 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
       )}
       {demo && (
         <header class="demohead">
-          <h1>{t("title")}</h1>
+          <GameTitle />
           <p class="hint">{t("localDemo")}</p>
         </header>
       )}

@@ -464,6 +464,9 @@ export function t(key: Key, vars: Record<string, string | number> = {}): string 
   return s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
 }
 
+/** The same string in the other language (for a bilingual title). */
+export const other = (key: Key): string => S[key]?.[lang === "zh" ? 1 : 0] ?? key;
+
 export const has = (key: string): key is Key => key in S;
 
 /** Pick the current language from bilingual game data. */

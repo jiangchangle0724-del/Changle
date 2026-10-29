@@ -1,8 +1,8 @@
 # 到此一游 · Been There, Bought That
 
-An online city-property party game for [changle.ca](https://changle.ca): 22 real cities, each with
-a rule drawn from a real fact. Up to 6 teams of 1–3 people; phones join by QR code or a 4-digit
-room code, no sign-up; an optional big screen (TV or laptop) shows the board.
+An online city-property party game, one of [changle.ca](https://changle.ca)'s games: 22 real
+cities, each with a rule drawn from a real fact. Up to 6 teams of 1 to 3 people; an optional big
+screen (TV or laptop) shows the board. It plays at changle.ca/trip and starts from a table there.
 
 Step 4 made the full game playable online; step 5 gave it its look: the golden age of travel
 (1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
@@ -12,6 +12,27 @@ on the big screen's arrival card, a drink-free set of party forfeits, and a cred
 every source and licence. More facts per city and recorded city sounds are still to come.
 
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
+
+## How it sits inside changle.ca
+
+* **It starts from a table.** On changle.ca the host picks 到此一游 from a table's games. The
+  host's phone asks this Worker for a room (`POST /trip/api/rooms` with the table's code, which
+  keeps that phone the host for 90 seconds), and every phone at the table and the table's big
+  screen go in by themselves: `changle.ca/trip/r/<room>?table=<table>` and
+  `changle.ca/trip/tv/<room>?table=<table>`. Names, language and sound come along (same site, same
+  storage). Players join with the table's code, as for any other game.
+* **It goes back to the table.** The lobby's and the finale's buttons lead back to the table; the
+  finale tells the host's phone the game is over, and everyone lands in the table's lobby. The
+  big screen goes back on its own a couple of minutes after the finale.
+* **One phone:** `changle.ca/trip/demo`, the whole game on one page.
+* **Addresses.** The Worker answers `changle.ca/trip` and `changle.ca/trip/*` (the routes in
+  `wrangler.jsonc`); the rest of changle.ca is the site. A bare `/trip` leads to the game's card on
+  the site and `/trip/tv` to the site's big screen. The old workers.dev address forwards to
+  changle.ca/trip.
+* **The site's side** (the game's card, opening it from a table, the way back) is in the site's
+  code: `src/party/trip/` and `src/shared/engine/games/trip.ts`.
+* **The look** follows the site's: its night room around the game's printed things. See
+  [DESIGN.md](DESIGN.md).
 
 ## What's where
 
@@ -32,11 +53,14 @@ How the game looks and moves, and what a design change has to keep: [DESIGN.md](
 
 ```sh
 npm install
-npm run dev          # builds, then serves the game at http://localhost:8787
+npm run dev          # builds, then serves the game at http://localhost:8787/trip/
 ```
 
-Open http://localhost:8787 in two browser windows and start a room. To try it from a phone on the
-same Wi-Fi, run `npm run dev -- --ip 0.0.0.0` and open the computer's address on port 8787.
+`npm run dev` runs the game by itself (`STANDALONE=1`), with its own start page: open
+http://localhost:8787/trip/ in two browser windows and start a room. To try it from a phone on the
+same Wi-Fi, run `npm run dev -- --ip 0.0.0.0` and open the computer's address on port 8787. To try it
+from a changle.ca table, run the site's code with its `/trip` proxy (`vite.config.ts` there) and
+this game with `npx wrangler dev --port 8799`.
 
 ## Check it
 
@@ -46,6 +70,7 @@ npm test             # rules reproduce the step-3 report (17,000 games) + room s
 npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its seat back; two simultaneous bids
 npm run sim          # print the step-3 report numbers again
 npm run fonts        # after adding Chinese text: rebuild the font subsets (a test reminds you)
+npm run build        # then open dist/demo.html: the whole game on one page
 ```
 
 GitHub runs the first three on every push, in Chromium and WebKit (`.github/workflows/been-there.yml`).

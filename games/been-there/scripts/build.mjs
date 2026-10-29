@@ -29,7 +29,7 @@ const client = await esbuild.context({ ...common, entryPoints: { app: "src/clien
 await copyFile("src/client/index.html", `${out}/app.html`);
 
 // One stylesheet: the fonts (made by scripts/fonts.mjs), the art, then the screens.
-const FONT_FILES = ["zcool.woff2", "bigshoulders.woff2", "spacemono-400.woff2", "spacemono-700.woff2"];
+const FONT_FILES = ["unbounded.woff2", "figtree.woff2", "zcool.woff2", "bigshoulders.woff2", "spacemono-400.woff2", "spacemono-700.woff2"];
 const appCss = async () =>
   (await readFile("src/client/fonts/fonts.css", "utf8")) + (await readFile("src/client/art/art.css", "utf8")) + (await readFile("src/client/styles.css", "utf8"));
 await mkdir(`${out}/fonts`, { recursive: true });
@@ -69,6 +69,8 @@ const THIRD_PARTY = [
   // Its licence is only in the header of its source.
   ["qrcode-generator", "https://github.com/kazuhikoarase/qrcode-generator", MIT("2009 Kazuhiko Arase")],
   ["world-atlas (the map: Natural Earth 1:110m land, public domain)", "https://github.com/topojson/world-atlas", "node_modules/world-atlas/LICENSE"],
+  ["Unbounded", "https://fonts.google.com/specimen/Unbounded", "src/client/fonts/licences/Unbounded-OFL.txt"],
+  ["Figtree", "https://fonts.google.com/specimen/Figtree", "src/client/fonts/licences/Figtree-OFL.txt"],
   ["ZCOOL QingKe HuangYou", "https://fonts.google.com/specimen/ZCOOL+QingKe+HuangYou", "src/client/fonts/licences/ZCOOLQingKeHuangYou-OFL.txt"],
   ["Big Shoulders Display", "https://fonts.google.com/specimen/Big+Shoulders+Display", "src/client/fonts/licences/BigShouldersDisplay-OFL.txt"],
   ["Space Mono", "https://fonts.google.com/specimen/Space+Mono", "src/client/fonts/licences/SpaceMono-OFL.txt"],
@@ -92,7 +94,7 @@ const licenceBlock = () => `<script type="text/plain" id="licences">${LICENCES.r
 const ARTIFACT_CSS = `
 .home, .lobby, .over { padding-top: 24px; }
 .top { top: env(safe-area-inset-top, 0px); padding-top: 8px; }
-.top::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--top-bg); }
+.top::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--night); }
 `;
 
 async function demo() {

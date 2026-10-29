@@ -12,6 +12,8 @@ const PARTS: [Key, Item[]][] = [
   [
     "creditsFonts",
     [
+      ["Unbounded", "SIL OFL 1.1", "https://fonts.google.com/specimen/Unbounded"],
+      ["Figtree", "SIL OFL 1.1", "https://fonts.google.com/specimen/Figtree"],
       ["ZCOOL QingKe HuangYou · 站酷庆科黄油体", "SIL OFL 1.1", "https://fonts.google.com/specimen/ZCOOL+QingKe+HuangYou"],
       ["Big Shoulders Display", "SIL OFL 1.1", "https://fonts.google.com/specimen/Big+Shoulders+Display"],
       ["Space Mono", "SIL OFL 1.1", "https://fonts.google.com/specimen/Space+Mono"],

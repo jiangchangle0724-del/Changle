@@ -6,7 +6,7 @@ import { money, spaceName, t, type Key } from "../i18n";
 import { sfx } from "../sound";
 import { Board, latestFlight, reducedMotion } from "./Board";
 import { CityPoster } from "../art/posters";
-import { Countdown, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
+import { Countdown, GameTitle, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
 import { dareText, quizItemText, recentParty } from "./feedText";
 import { Over } from "./Finale";
 import { Arrival, Clock, Feed, Standings, lastId } from "./Game";
@@ -31,7 +31,7 @@ export function Screen({ v }: { v: RoomView }) {
             </div>
           ))}
         </div>
-        <h1>{t("title")}</h1>
+        <GameTitle />
         <div class="join-tv">
           <Qr text={joinUrl(v.code, table)} size={260} />
           <div>
