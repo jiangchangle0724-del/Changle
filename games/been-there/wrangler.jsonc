@@ -1,16 +1,23 @@
 // Cloudflare settings for 到此一游. `npm run deploy` (or a GitHub push, once Cloudflare is
-// connected to the repo) builds the web pages into dist/client and publishes this Worker.
+// connected to the repo) builds the web pages into dist/client/trip and publishes this Worker.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "been-there",
   "main": "src/server/worker.ts",
   "compatibility_date": "2026-10-01",
+  // The game's files are in dist/client/trip, so they answer at /trip/…; anything that isn't a file
+  // (the API, room and big-screen links, the old workers.dev address) goes to the worker.
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/r/*", "/tv", "/tv/*"]
+    "not_found_handling": "none"
   },
+  // One of changle.ca's games: it answers at changle.ca/trip. (The rest of changle.ca is the site.)
+  "routes": [
+    { "pattern": "changle.ca/trip", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/trip/*", "zone_name": "changle.ca" }
+  ],
+  "workers_dev": true,
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "RoomDO" },

@@ -6,6 +6,7 @@ import type { GlobeApi, GlobeColors, mountGlobe } from "../globe/main";
 import { COORDS } from "../art/geo";
 import { GROUP_DOT, type Flight } from "../art/RouteMap";
 import { CITIES } from "../../engine";
+import { BASE } from "../base";
 import { reducedMotion } from "./Board";
 
 type GlobeModule = { mountGlobe: typeof mountGlobe };
@@ -14,7 +15,7 @@ let loading: Promise<GlobeModule> | null = null;
 function loadGlobe(): Promise<GlobeModule> {
   loading ??= new Promise((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = "/globe.js";
+    s.src = `${BASE}/globe.js`;
     s.async = true;
     // A failed load is forgotten, so the next game tries again (a network hiccup isn't for good).
     const fail = (why: string) => {

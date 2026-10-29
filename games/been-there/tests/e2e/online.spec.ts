@@ -66,7 +66,7 @@ test("手机锁屏 60 秒后回来，回到原来的座位", async ({ browser, r
   // Unlock: open the same link again.
   locked.page = await locked.ctx.newPage();
   watch(locked, locked.page);
-  await locked.page.goto(`/r/${code}`);
+  await locked.page.goto(`/trip/r/${code}`);
   await expect(locked.page.locator(".game")).toBeVisible();
   await expect(locked.page.locator(".top .chip")).toHaveText(seat);
   await expect(locked.page.getByText("电脑在替你们玩")).toHaveCount(0);
@@ -135,7 +135,7 @@ test("窄屏手机、英文界面、长队名：顶栏和页面都不超出屏�
   const { defaultBrowserType: _ignored, ...se } = playwright.devices["iPhone SE"];
   const code = await createRoom(request, {});
   const en = await newPhone(browser, "Alexandra the Great", { ...contextOptions, ...se, locale: "en-US" });
-  await en.page.goto(`/r/${code}`);
+  await en.page.goto(`/trip/r/${code}`);
   await expect(en.page.locator(".lobby")).toBeVisible({ timeout: 20_000 });
   await en.page.locator(".lobby .field input").fill(en.name);
   await en.page.locator(".lobby .field input").blur();
@@ -166,7 +166,7 @@ test("窄屏手机、英文界面、长队名：顶栏和页面都不超出屏�
 });
 
 test("许可证全文：licences.txt 里有打包进游戏的程序库、地图数据和字体的许可", async ({ request }) => {
-  const res = await request.get("/licences.txt");
+  const res = await request.get("/trip/licences.txt");
   expect(res.ok()).toBe(true);
   expect(res.headers()["content-type"]).toContain("text/plain");
   const text = await res.text();

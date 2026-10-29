@@ -1,11 +1,14 @@
-// Build the web pages: dist/client (online game) and dist/demo.html (single-file, single-device demo).
+// Build the web pages: dist/client/trip (the online game, served at changle.ca/trip) and
+// dist/demo.html (single-file, single-device demo, also served at changle.ca/trip/demo).
 //   node scripts/build.mjs           build once
 //   node scripts/build.mjs --watch   rebuild on change
 import * as esbuild from "esbuild";
-import { mkdir, readFile, writeFile, copyFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, copyFile, rm } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
-const out = "dist/client";
+// Everything the worker serves sits under /trip, so the files do too (dist/client is the root).
+const out = "dist/client/trip";
+await rm("dist/client", { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
 const common = {
@@ -21,7 +24,9 @@ const common = {
 
 // globe.js (three.js) is its own file: only the big screen loads it.
 const client = await esbuild.context({ ...common, entryPoints: { app: "src/client/main.tsx", globe: "src/client/globe/main.ts" }, outdir: out, format: "iife" });
-await copyFile("src/client/index.html", `${out}/index.html`);
+// app.html, not index.html: on changle.ca the bare /trip leads to the game's card, which the worker
+// decides, so no file may answer it first. The worker serves app.html for room and big-screen links.
+await copyFile("src/client/index.html", `${out}/app.html`);
 
 // One stylesheet: the fonts (made by scripts/fonts.mjs), the art, then the screens.
 const FONT_FILES = ["zcool.woff2", "bigshoulders.woff2", "spacemono-400.woff2", "spacemono-700.woff2"];
@@ -99,6 +104,8 @@ async function demo() {
   // Standalone file you can open from disk.
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>到此一游试玩版</title><style>${css}</style></head><body>${body}</body></html>`;
   await writeFile("dist/demo.html", html);
+  // changle.ca/trip/demo: a game's "one phone" way to play.
+  await writeFile(`${out}/demo.html`, html);
   // Artifact page (the artifact service adds the document skeleton).
   const artifact = `<title>到此一游试玩版</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<style>${css}${ARTIFACT_CSS}</style>\n${body}\n`;
   await writeFile("dist/demo.artifact.html", artifact);

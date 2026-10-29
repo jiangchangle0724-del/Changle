@@ -81,14 +81,14 @@ export async function gate(p: Phone): Promise<Gate> {
 
 /** Make a room through the API; tests may speed up the room's timers. */
 export async function createRoom(request: APIRequestContext, body: object): Promise<string> {
-  const res = await request.post("/api/rooms", { data: body });
+  const res = await request.post("/trip/api/rooms", { data: body });
   expect(res.ok()).toBeTruthy();
   return (await res.json()).code;
 }
 
 /** Open the room link, set a name, start a team of one. */
 export async function joinWithTeam(p: Phone, code: string) {
-  await p.page.goto(`/r/${code}`);
+  await p.page.goto(`/trip/r/${code}`);
   try {
     await expect(p.page.locator(".lobby")).toBeVisible({ timeout: 20_000 });
   } catch (e) {

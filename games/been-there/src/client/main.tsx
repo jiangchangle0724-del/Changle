@@ -1,10 +1,13 @@
-// Entry point for the online game: /, /r/1234 (a phone in room 1234), /tv/1234 (the big screen).
+// Entry point for the online game, under /trip on changle.ca: /trip/r/1234 is a phone in room 1234,
+// /trip/tv/1234 the big screen. A game is started from a changle.ca table, which sends everyone here;
+// /trip on its own (the start page) only exists on a computer running the game by itself.
 import { render } from "preact";
+import { BASE, backToTable, onChangle, tableFrom } from "./base";
 import { setLang, t } from "./i18n";
 import { api, connectWs } from "./net";
 import { identity, prefs } from "./prefs";
 import { installAudioUnlock, setMuted } from "./sound";
-import { onServer, setConn, update } from "./store";
+import { getState, onServer, setConn, update } from "./store";
 import { App } from "./ui/App";
 import { Home } from "./ui/Home";
 import { setReduced, toggleMute } from "./ui/Settings";
@@ -22,14 +25,23 @@ document.addEventListener("keydown", (e) => {
 
 const root = document.getElementById("app")!;
 
+/** Go to a page of the game; `path` is inside BASE ("/r/1234"). */
 function go(path: string, replace = false) {
-  if (replace) history.replaceState(null, "", path);
-  else history.pushState(null, "", path);
+  if (replace) history.replaceState(null, "", BASE + path);
+  else history.pushState(null, "", BASE + path);
   route();
 }
 
+/** Leave the game: back to the changle.ca table it came from, or to the start page. */
+function leave(screen: boolean) {
+  const table = tableFrom(getState().view);
+  if (table) return backToTable(table, { screen });
+  if (onChangle()) location.href = "/";
+  else go("/");
+}
+
 async function route() {
-  const path = location.pathname;
+  const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) || "/" : location.pathname;
   const room = path.match(/^\/(r|tv)\/(\d{4})\/?$/);
   if (path === "/tv" || path === "/tv/") {
     // Open /tv on the TV: it makes a room and shows the QR code.
@@ -48,7 +60,8 @@ async function route() {
       ),
     );
     document.title = `${t("title")} · ${room[2]}`;
-    render(<App home={() => go("/")} />, root);
+    tableFrom(null); // keep the table from the link for this visit
+    render(<App home={() => leave(screen)} />, root);
     return;
   }
   setConn(null);

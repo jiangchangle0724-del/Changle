@@ -1,6 +1,7 @@
 // Talking to the room. The WebSocket reconnects by itself (phone locked, network switched,
 // app backgrounded), and the server puts this phone back in its seat using its id + key.
 import type { ClientMsg, Lang, Role, ServerMsg } from "../room/protocol";
+import { BASE } from "./base";
 
 export type Status = "idle" | "connecting" | "open" | "reconnecting" | "fatal";
 
@@ -32,7 +33,7 @@ export function connectWs(code: string, info: JoinInfo, h: Handlers): Conn {
   const open = () => {
     if (closed) return;
     h.onStatus(tries ? "reconnecting" : "connecting");
-    const url = new URL(`/api/rooms/${code}/ws`, location.href);
+    const url = new URL(`${BASE}/api/rooms/${code}/ws`, location.href);
     url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
     url.search = new URLSearchParams({ cid: info.cid, key: info.key, name: info.name, lang: info.lang, role: info.role }).toString();
     const sock = new WebSocket(url.toString());
@@ -110,9 +111,10 @@ export function connectWs(code: string, info: JoinInfo, h: Handlers): Conn {
   };
 }
 
+/** A call to the game's server; `path` starts with /api. */
 export async function api<T>(path: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: T }> {
   try {
-    const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+    const res = await fetch(BASE + path, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
     const data = (await res.json().catch(() => ({}))) as T;
     return { ok: res.ok, status: res.status, data };
   } catch {

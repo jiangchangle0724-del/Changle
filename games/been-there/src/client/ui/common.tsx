@@ -139,17 +139,18 @@ export function Countdown({ until, label }: { until: number | null | undefined; 
 export function Btn(props: {
   onClick?: () => void;
   children: ComponentChildren;
-  kind?: "primary" | "quiet" | "danger";
+  kind?: "primary" | "quiet" | "danger" | "ghost";
   disabled?: boolean;
   wide?: boolean;
   title?: string;
   /** The safe "no thanks" answer for this decision. */
   def?: boolean;
+  class?: string;
 }) {
   return (
     <button
       type="button"
-      class={`btn ${props.kind ?? ""}${props.wide ? " wide" : ""}`}
+      class={`btn ${props.kind ?? ""}${props.wide ? " wide" : ""}${props.class ? ` ${props.class}` : ""}`}
       disabled={props.disabled}
       onClick={props.onClick}
       title={props.title}

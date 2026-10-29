@@ -2,12 +2,11 @@ import qrcode from "qrcode-generator";
 import { useState } from "preact/hooks";
 import { MAX_TEAMS, MAX_TEAM_SIZE, type RoomView } from "../../room/protocol";
 import type { Mode, StyleId } from "../../engine";
+import { backToTable, joinUrl, onChangle, tableFrom } from "../base";
 import { colon, t, type Key } from "../i18n";
 import { prefs } from "../prefs";
 import { send } from "../store";
 import { Btn, TEAM_COLORS, TEAM_LETTERS, TeamFace, styleName, teamLabel } from "./common";
-
-export const joinUrl = (code: string) => `${location.origin}/r/${code}`;
 
 export function Qr({ text, size = 180 }: { text: string; size?: number }) {
   const qr = qrcode(0, "M");
@@ -16,17 +15,18 @@ export function Qr({ text, size = 180 }: { text: string; size?: number }) {
   return <div class="qr" style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true }) }} />;
 }
 
-export function RoomCode({ code, demo }: { code: string; demo?: boolean }) {
+/** The code people join with: the changle.ca table's when the game came from one, else the room's. */
+export function RoomCode({ code, table, demo }: { code: string; table: string | null; demo?: boolean }) {
   const [copied, setCopied] = useState(false);
   if (demo) return null;
   return (
     <div class="roomcode">
-      <span class="muted">{t("room")}</span>
-      <b class="num">{code}</b>
+      <span class="muted">{table ? t("tableCode") : t("room")}</span>
+      <b class={table ? "tablecode" : "num"}>{table ?? code}</b>
       <Btn
         kind="quiet"
         onClick={() => {
-          void navigator.clipboard?.writeText(joinUrl(code)).then(() => {
+          void navigator.clipboard?.writeText(joinUrl(code, table)).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           });
@@ -44,14 +44,25 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
   const host = v.you.host;
   const ready = v.teams.filter((x) => x.bot || x.members.length > 0).length >= 2;
   const unassigned = v.members.filter((m) => !m.team && m.role === "player");
+  const table = demo ? null : tableFrom(v);
   return (
     <main class="lobby">
-      <RoomCode code={v.code} demo={demo} />
+      {table && (
+        <Btn kind="ghost" class="back-table" onClick={() => backToTable(table)}>
+          ‹ {t("backToTable")}
+        </Btn>
+      )}
+      <RoomCode code={v.code} table={table} demo={demo} />
       {!demo && (
         <details class="qrbox">
           <summary>QR</summary>
-          <Qr text={joinUrl(v.code)} />
+          <Qr text={joinUrl(v.code, table)} />
         </details>
+      )}
+      {demo && onChangle() && (
+        <Btn kind="ghost" class="back-table" onClick={() => location.assign("/")}>
+          ‹ {t("backToSite")}
+        </Btn>
       )}
       {demo && (
         <header class="demohead">

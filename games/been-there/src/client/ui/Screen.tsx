@@ -10,7 +10,8 @@ import { Countdown, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, tea
 import { dareText, quizItemText, recentParty } from "./feedText";
 import { Over } from "./Finale";
 import { Arrival, Clock, Feed, Standings, lastId } from "./Game";
-import { Qr, joinUrl } from "./Lobby";
+import { joinUrl, tableFrom } from "../base";
+import { Qr } from "./Lobby";
 import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
 import { NewsBanner } from "./News";
 import { Touchdown } from "./Touchdown";
@@ -19,6 +20,7 @@ import { Trivia } from "./Trivia";
 export function Screen({ v }: { v: RoomView }) {
   useScreenSounds(v);
   const card = useFreshCard(v);
+  const table = tableFrom(v);
   if (v.phase === "lobby")
     return (
       <main class="screen lobby-tv">
@@ -31,11 +33,11 @@ export function Screen({ v }: { v: RoomView }) {
         </div>
         <h1>{t("title")}</h1>
         <div class="join-tv">
-          <Qr text={joinUrl(v.code)} size={260} />
+          <Qr text={joinUrl(v.code, table)} size={260} />
           <div>
-            <p class="muted">{t("room")}</p>
-            <p class="code num">{v.code}</p>
-            <p>{t("scanToJoin", { host: location.host })}</p>
+            <p class="muted">{table ? t("tableCode") : t("room")}</p>
+            <p class={table ? "code tablecode" : "code num"}>{table ?? v.code}</p>
+            <p>{t(table ? "scanToJoinTable" : "scanToJoin", { host: location.host })}</p>
           </div>
         </div>
         <ul class="teams tv">
@@ -65,10 +67,10 @@ export function Screen({ v }: { v: RoomView }) {
       <aside class={`tv-side${g.trivia ? " quiz-up" : ""}`}>
         <div class="tv-head">
           <Clock v={v} />
-          <span class="code num">
-            {t("room")} {v.code}
+          <span class={table ? "code tablecode" : "code num"}>
+            {table ? t("tableCode") : t("room")} {table ?? v.code}
           </span>
-          <Qr text={joinUrl(v.code)} size={84} />
+          <Qr text={joinUrl(v.code, table)} size={84} />
         </div>
         {g.paused && <p class="banner">{t("paused")}</p>}
         {/* What's happening now, and the table (standings and log): side by side where the screen is

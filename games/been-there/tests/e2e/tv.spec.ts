@@ -18,7 +18,7 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   await ctx.route("**/api/weather", (route) => route.fulfill({ json: RAIN }));
   const tv: Phone = { name: "大屏", ctx, page: await ctx.newPage(), errors: [], log: [], taps: 0 };
   watch(tv, tv.page);
-  await tv.page.goto(`/tv/${code}`);
+  await tv.page.goto(`/trip/tv/${code}`);
   await expect(tv.page.locator(".lobby-tv")).toBeVisible({ timeout: 20_000 });
   const p = await newPhone(browser, "东", contextOptions);
   await joinWithTeam(p, code);

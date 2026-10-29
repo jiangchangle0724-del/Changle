@@ -145,6 +145,10 @@ export interface RoomState {
   createdAt: number;
   lastActive: number;
   hostId: string | null;
+  /** Until when a host chosen at the start keeps the role before they arrive (see claimHost). */
+  hostHold?: number;
+  /** The changle.ca table this game was started from: where everyone goes back to. */
+  table?: string | null;
   settings: Settings;
   members: Record<string, Member>;
   teams: Team[];
@@ -173,6 +177,16 @@ export interface Flush {
 }
 
 const FEED_KEEP = 120;
+/** How long a room opened from a changle.ca table keeps the host role for the table's host. */
+export const HOST_HOLD = 90_000;
+const TABLE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
+const ID_RE = /^[0-9a-f]{8,64}$/;
+
+/** Who opened the room from a changle.ca table, and which table. Anything that doesn't look right is ignored. */
+export interface Opening {
+  host?: unknown;
+  table?: unknown;
+}
 const FEED_SEND = 60;
 const QUIZ_ITEMS = E.TRASH_QUIZ.flatMap((b, bin) => b.items.map((_, item) => ({ bin, item })));
 export const quizItem = (i: number) => QUIZ_ITEMS[i];
@@ -228,15 +242,19 @@ export class Room {
     }
   }
 
-  static create(code: string, env: RoomEnv, settings: Partial<Settings> = {}): Room {
+  static create(code: string, env: RoomEnv, settings: Partial<Settings> = {}, opening: Opening = {}): Room {
     const now = env.now();
+    const host = typeof opening.host === "string" && ID_RE.test(opening.host) ? opening.host : null;
+    const table = typeof opening.table === "string" && TABLE_RE.test(opening.table) ? opening.table : null;
     const room = new Room(
       {
         v: 1,
         code,
         createdAt: now,
         lastActive: now,
-        hostId: null,
+        hostId: host,
+        ...(host ? { hostHold: now + HOST_HOLD } : {}),
+        table,
         settings: { mode: "target", party: false, news: false, hotseat: false, ...settings },
         members: {},
         teams: [],
@@ -253,8 +271,8 @@ export class Room {
   }
 
   /** A new room continuing a saved game. It starts paused so people can take their seats again. */
-  static fromSave(code: string, save: SaveFile, env: RoomEnv): Room {
-    const room = Room.create(code, env, { ...save.settings, hotseat: false });
+  static fromSave(code: string, save: SaveFile, env: RoomEnv, opening: Opening = {}): Room {
+    const room = Room.create(code, env, { ...save.settings, hotseat: false }, opening);
     const now = env.now();
     room.st.teams = save.teams.map((t) => ({ ...t, autoplay: false }));
     room.st.nextId = 1000;
@@ -368,9 +386,14 @@ export class Room {
     this.dirty = true;
   }
 
-  /** The host is the first person in; if they've been gone two minutes, the next person who joins takes over. */
+  /**
+   * The host is the first person in; if they've been gone two minutes, the next person who joins takes
+   * over. A room opened from a changle.ca table keeps the role for the table's host for a while, in
+   * case another phone gets here before theirs.
+   */
   private claimHost() {
     const host = this.st.hostId ? this.st.members[this.st.hostId] : null;
+    if (this.st.hostId && !host && this.now < (this.st.hostHold ?? 0)) return;
     if (host && host.role === "player" && (host.online > 0 || this.now - host.lastSeen < 120_000)) return;
     const candidate = Object.values(this.st.members)
       .filter((m) => m.role === "player" && m.online > 0)
@@ -1230,6 +1253,7 @@ export class Room {
         lang: m?.lang ?? "zh",
       },
       hostId: st.hostId,
+      table: st.table ?? null,
       settings: { mode: st.settings.mode, party: st.settings.party, news: !!st.settings.news, hotseat: st.settings.hotseat },
       members: members.map((x) => ({ id: x.id, name: x.name, team: x.team, role: x.role, online: x.online > 0, score: x.score })),
       teams,

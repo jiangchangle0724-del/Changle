@@ -7,6 +7,7 @@ import type { RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { Stamp } from "../art/stamps";
 import { buzz } from "../controls";
+import { backToTable, tableFrom } from "../base";
 import { getLang, money, t, type Key } from "../i18n";
 import { sfx } from "../sound";
 import { send, serverNow } from "../store";
@@ -39,6 +40,13 @@ export function Over({ v, big }: { v: RoomView; big?: boolean }) {
   // When the team at `rank` comes in (the winners, rank 0, last), in seconds from now.
   const at = (rank: number) => (still ? 0 : FIRST_AT + (order.length - 1 - rank) * EACH - since);
   const ours = s.winner !== null && v.you.seats.includes(s.winner);
+  const table = v.settings.hotseat ? null : tableFrom(v);
+  // Nobody holds the big screen's remote: two minutes after the results it goes back to the table.
+  useEffect(() => {
+    if (!big || !table) return;
+    const back = setTimeout(() => backToTable(table, { screen: true, over: v.code }), Math.max(20_000, 120_000 - since * 1000));
+    return () => clearTimeout(back);
+  }, []);
   useEffect(() => {
     const cheer = () => {
       sfx.win();
@@ -64,11 +72,18 @@ export function Over({ v, big }: { v: RoomView; big?: boolean }) {
         ))}
       </ol>
       {s.winner !== null && !still && at(0) > -3 && <Confetti at={at(0)} many={big} />}
-      {v.you.host && (
+      {(v.you.host || table) && (
         <div class="over-again" style={{ "--at": `${at(0) + 0.8}s` }}>
-          <Btn kind="primary" wide onClick={() => send({ t: "again" })}>
-            {t("again")}
-          </Btn>
+          {table && (
+            <Btn kind={v.you.host ? "quiet" : "primary"} wide onClick={() => backToTable(table, { screen: big, over: v.code })}>
+              {t("backToTable")}
+            </Btn>
+          )}
+          {v.you.host && (
+            <Btn kind="primary" wide onClick={() => send({ t: "again" })}>
+              {t("again")}
+            </Btn>
+          )}
         </div>
       )}
       {!big && <Feed v={v} n={12} />}

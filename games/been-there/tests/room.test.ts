@@ -526,3 +526,26 @@ test("a new room is saved as soon as it's made, before anyone joins", () => {
   assert.equal(room.flush().changed, true);
   assert.equal(room.flush().changed, false);
 });
+
+test("a room opened from a changle.ca table keeps the host role for the table's host, and knows its table", () => {
+  const clock = new Clock();
+  const host = { id: "a1b2c3d4e5f6a7b8c9d0e1f2", key: "host-key-secret-xxxx" };
+  const room = Room.create("4321", makeEnv(clock), {}, { host: host.id, table: "N55C" });
+  // someone else's phone gets there first: they don't become the host
+  assert.ok(room.join("member-9-xxxxxxxx", "key-9-secret-xxxx", { name: "Mia" }));
+  assert.equal(room.view("member-9-xxxxxxxx").you.host, false);
+  assert.equal(room.view("member-9-xxxxxxxx").table, "N55C");
+  assert.ok(room.join(host.id, host.key, { name: "Steve" }));
+  assert.equal(room.view(host.id).you.host, true);
+  // a host who never arrives hands over once the hold is past
+  const late = Room.create("4322", makeEnv(clock), {}, { host: "ffffffffffffffffffffffff", table: "N55C" });
+  assert.ok(late.join("member-9-xxxxxxxx", "key-9-secret-xxxx", { name: "Mia" }));
+  assert.equal(late.view("member-9-xxxxxxxx").you.host, false);
+  clock.t += 91_000;
+  late.handle("member-9-xxxxxxxx", { t: "ping" });
+  assert.equal(late.view("member-9-xxxxxxxx").you.host, true);
+  // anything that doesn't look like an id or a table code is ignored
+  const odd = Room.create("4323", makeEnv(clock), {}, { host: "<script>", table: "no!" });
+  assert.equal(odd.st.hostId, null);
+  assert.equal(odd.view("x").table, null);
+});

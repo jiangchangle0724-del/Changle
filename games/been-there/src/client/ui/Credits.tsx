@@ -1,6 +1,7 @@
 // 素材来源 · Credits: where every city fact, font, map line and borrowed piece of code comes from,
 // with its licence. Opened from the home screen and from the in-game menu.
 import { CITIES, NEWS } from "../../engine";
+import { BASE } from "../base";
 import { t, tx, type Key } from "../i18n";
 import { hostOf } from "./common";
 
@@ -90,7 +91,7 @@ function Licences() {
   if (!inPage)
     return (
       <p>
-        <a href="/licences.txt" target="_blank" rel="noopener noreferrer">
+        <a href={`${BASE}/licences.txt`} target="_blank" rel="noopener noreferrer">
           {t("creditsLicences")} · licences.txt
         </a>
       </p>

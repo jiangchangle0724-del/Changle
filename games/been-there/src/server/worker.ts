@@ -1,18 +1,24 @@
-// Cloudflare Worker: the online server for 到此一游.
+// Cloudflare Worker: the online server for 到此一游, one of changle.ca's games. It answers on
+// changle.ca/trip (a route on the changle.ca zone); everything below is under /trip.
 //
-//   POST /api/rooms               → { code }        new room with a free 4-digit code
+//   POST /api/rooms               → { code }        new room with a free 4-digit code; a changle.ca
+//                                                   table sends { host, table } (see Opening)
 //   GET  /api/rooms/:code         → { exists, ... } check a code before joining
 //   GET  /api/rooms/:code/ws      → WebSocket       play (cid, key, name, lang, role in the query)
 //   POST /api/saves/:save/load    → { code }        continue a saved game in a new room
 //   GET  /api/weather             → { at, cities }  the weather right now in each city (15-minute cache)
-//   anything else                 → the game's web pages (static assets)
+//   /r/:code, /tv/:code           → the game's page (phone, big screen)
+//   /demo                         → one phone playing every human team (no server)
+//   anything else                 → the game's files (static assets in dist/client/trip)
+//
+// The old address on workers.dev sends everyone to changle.ca/trip.
 //
 // Each room is one Durable Object: the single source of truth for that game. It saves itself after
 // every change, so a phone that drops (or a server restart) never loses the game.
 import { DurableObject } from "cloudflare:workers";
 import { COORDS } from "../client/art/coords";
 import type { ClientMsg, Settings } from "../room/protocol";
-import { Room, type RoomEnv, type RoomState, type SaveFile } from "../room/room";
+import { Room, type Opening, type RoomEnv, type RoomState, type SaveFile } from "../room/room";
 import { WEATHER_TTL, parseWeather, weatherUrl, type WeatherReport } from "../room/weather";
 
 export interface Env {
@@ -21,8 +27,11 @@ export interface Env {
   ASSETS: Fetcher;
   /** "1" only for local tests: lets a new room use faster timings. */
   ALLOW_TEST_SETTINGS?: string;
+  /** "1" on a computer running the game by itself (npm run dev, the browser tests): keeps the game's own start page. */
+  STANDALONE?: string;
 }
 
+const BASE = "/trip";
 const SAVE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const SAVE_DAYS = 90;
 
@@ -33,8 +42,8 @@ const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
 const roomCode = () => String(1000 + Math.floor(randomUnit() * 9000));
 const saveCode = () => Array.from({ length: 6 }, () => SAVE_ALPHABET[Math.floor(randomUnit() * SAVE_ALPHABET.length)]).join("");
 
-// The weather: kept in this isolate's memory and in Cloudflare's cache (which only works on a custom
-// domain, not on workers.dev), so Open-Meteo hears from the game about once every 15 minutes.
+// The weather: kept in this isolate's memory and in Cloudflare's cache (which works on changle.ca,
+// not on workers.dev), so Open-Meteo hears from the game about once every 15 minutes.
 let weatherMemo: { report: WeatherReport; until: number } | null = null;
 const WEATHER_CACHE_KEY = "https://been-there.cache/weather-v1";
 // (The DOM types, which the pages share, don't know Cloudflare's default cache.)
@@ -67,14 +76,28 @@ async function weather(ctx: ExecutionContext): Promise<Response> {
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
-    // Room and big-screen links are app pages. Serve the app for them directly rather than relying
-    // on the browser sending Sec-Fetch-Mode (older iPhones don't), so a scanned QR code always opens.
-    if (/^\/(r\/\d{4}|tv(\/\d{4})?)\/?$/.test(url.pathname)) return env.ASSETS.fetch(new Request(new URL("/", url), req));
-    const parts = url.pathname.split("/").filter(Boolean);
+    // The game had its own address on workers.dev; it is one of changle.ca's games now.
+    if (url.hostname.endsWith(".workers.dev")) {
+      const rest = url.pathname === BASE || url.pathname.startsWith(`${BASE}/`) ? url.pathname.slice(BASE.length) : url.pathname;
+      return Response.redirect(`https://changle.ca${BASE}${rest || "/"}${url.search}`, 301);
+    }
+    if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return Response.redirect(new URL(`${BASE}/`, url).toString(), 302);
+    const path = url.pathname.slice(BASE.length) || "/";
+    // On changle.ca a game starts from a table, so the game's own start page and a bare /tv lead to
+    // the game's card and to changle.ca's big screen. (A computer running the game by itself keeps them.)
+    if (env.STANDALONE !== "1") {
+      if (path === "/") return Response.redirect(new URL("/#/g/trip", url).toString(), 302);
+      if (/^\/tv\/?$/.test(path)) return Response.redirect(new URL("/tv", url).toString(), 302);
+    }
+    // Room and big-screen links (and the start page) are the app's page. Serve it for them directly
+    // rather than relying on the browser sending Sec-Fetch-Mode (older iPhones don't), so a scanned
+    // QR code always opens. (The file is app.html, served at /trip/app.)
+    if (path === "/" || /^\/(r\/\d{4}|tv(\/\d{4})?)\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/app`, url), req));
+    const parts = path.split("/").filter(Boolean);
     if (parts[0] !== "api") return env.ASSETS.fetch(req);
 
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
-      const body = (await req.json().catch(() => ({}))) as Partial<Settings> & { test?: { speed?: number; testRounds?: number } };
+      const body = (await req.json().catch(() => ({}))) as Partial<Settings> & Opening & { test?: { speed?: number; testRounds?: number } };
       const settings: Partial<Settings> = {};
       if (body.mode === "target" || body.mode === 15 || body.mode === 60) settings.mode = body.mode;
       if (env.ALLOW_TEST_SETTINGS === "1" && body.test) {
@@ -83,7 +106,7 @@ export default {
       }
       for (let i = 0; i < 40; i++) {
         const code = roomCode();
-        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, settings)) return json({ code });
+        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, settings, { host: body.host, table: body.table })) return json({ code });
       }
       return json({ error: "busy" }, 503);
     }
@@ -106,9 +129,10 @@ export default {
       if (!/^[A-Z2-9]{6}$/.test(save)) return json({ error: "badCode" }, 400);
       const file = await env.SAVES.get(env.SAVES.idFromName(save)).load();
       if (!file) return json({ error: "noSave" }, 404);
+      const opening = (await req.json().catch(() => ({}))) as Opening;
       for (let i = 0; i < 40; i++) {
         const code = roomCode();
-        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).restore(code, file)) return json({ code });
+        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).restore(code, file, { host: opening.host, table: opening.table })) return json({ code });
       }
       return json({ error: "busy" }, 503);
     }
@@ -137,17 +161,17 @@ export class RoomDO extends DurableObject<Env> {
   }
 
   /** Claim this code for a new room. False if a live room already has it. */
-  async init(code: string, settings: Partial<Settings>): Promise<boolean> {
+  async init(code: string, settings: Partial<Settings>, opening: Opening = {}): Promise<boolean> {
     if (this.room && !this.room.expired()) return false;
-    this.room = Room.create(code, this.roomEnv, settings);
+    this.room = Room.create(code, this.roomEnv, settings, opening);
     await this.commit();
     return true;
   }
 
   /** Claim this code for a saved game. */
-  async restore(code: string, file: SaveFile): Promise<boolean> {
+  async restore(code: string, file: SaveFile, opening: Opening = {}): Promise<boolean> {
     if (this.room && !this.room.expired()) return false;
-    this.room = Room.fromSave(code, file, this.roomEnv);
+    this.room = Room.fromSave(code, file, this.roomEnv, opening);
     await this.commit();
     return true;
   }
