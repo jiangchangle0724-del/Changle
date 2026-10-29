@@ -13,7 +13,7 @@ import { localClock } from "../art/places";
 import { CityPoster } from "../art/posters";
 import { Stamp } from "../art/stamps";
 import { getLang, t, tx } from "../i18n";
-import { sfx } from "../sound";
+import { preloadCity, sfx } from "../sound";
 import { serverNow } from "../store";
 import { useWeather, weatherLabel } from "../weather";
 import { latestFlight, reducedMotion } from "./Board";
@@ -82,6 +82,8 @@ export function Touchdown({ v, big }: { v: RoomView; big?: boolean }) {
     if (timers.current.length || reducedMotion() || serverNow() - land.at > STALE) return;
     const k = big ? 1 : PHONE;
     const later = (ms: number, f: () => void) => timers.current.push(window.setTimeout(f, ms));
+    // The city's recording plays a few seconds from now: start fetching it.
+    preloadCity(land.city);
     // On a phone, the city's sound only plays when there's no big screen in the room to play it.
     const loud = big || !v.members.some((m) => m.role === "screen" && m.online);
     // Let the dice land and the token finish walking first, and on the big screen let the plane land

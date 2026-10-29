@@ -3,8 +3,9 @@
 // uses for phones), and count how smoothly the board animates.
 //   npm run dev                      (in another terminal)
 //   node scripts/perf.mjs [rate…]    (default: 1 4 6)
-// Two numbers per tab: every frame (catches hitches anywhere, including CSS animations), and only the
-// frames while something on the board is moving (idle frames would flatter the board's numbers).
+// Two numbers for the board on its own: every frame (catches hitches anywhere, including CSS
+// animations), and only the frames while something on the board is moving (idle frames would flatter
+// the board's numbers). Then every frame with the play window up over the board.
 // Headless Chromium draws without a GPU, so this is a stand-in for a real phone, not a replacement.
 import { chromium, devices } from "playwright";
 
@@ -49,8 +50,11 @@ async function run(browser, rate) {
   await cdp.send("Emulation.setCPUThrottlingRate", { rate });
 
   const out = {};
+  // Two looks at the same game: the board on its own (the play window put away), then with the play
+  // window up over it. (It comes up by itself when it's this team's move, as it would for a player.)
   for (const [tab, secs] of [["棋盘", SECONDS], ["行动", Math.round(SECONDS / 2)]]) {
-    await page.locator("nav.tabs button", { hasText: tab }).click();
+    const up = (await page.locator(".playwin").getAttribute("data-open")) === "1";
+    if ((tab === "棋盘") === up) await page.locator(tab === "棋盘" ? ".playwin-x" : "nav.tabs .tab-play").click();
     await page.waitForTimeout(500);
     await page.evaluate(() => ((window.__frames = []), (window.__recording = true)));
     await page.waitForTimeout(secs * 1000);

@@ -171,14 +171,16 @@ export function GameTitle() {
   );
 }
 
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ComponentChildren }) {
+/** A sheet rising from the bottom. `hidden` keeps it built while closed (a half-made offer survives). */
+export function Sheet({ title, onClose, children, hidden }: { title: string; onClose: () => void; children: ComponentChildren; hidden?: boolean }) {
   useEffect(() => {
+    if (hidden) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, hidden]);
   return (
-    <div class="sheet-bg" onClick={onClose}>
+    <div class="sheet-bg" hidden={hidden} onClick={onClose}>
       <div class="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header>
           <h2>{title}</h2>

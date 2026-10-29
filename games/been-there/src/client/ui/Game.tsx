@@ -1,31 +1,37 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, type GameEvent } from "../../engine";
 import type { RoomView } from "../../room/protocol";
-import { CityPoster } from "../art/posters";
 import { Stamp } from "../art/stamps";
 import { BUZZ, buzz } from "../controls";
-import { colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
+import { colon, getLang, money, spaceName, t, tx } from "../i18n";
 import { sfx } from "../sound";
 import { getState, send, toast } from "../store";
 import { useWeather, weatherLabel } from "../weather";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion, thisGame } from "./Board";
-import { Btn, Countdown, Money, SeatChip, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
+import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { dareText, feedText } from "./feedText";
 import { CardFace, Cash, MiniDice, RollMoment, cardThisTurn, rollBefore } from "./Moments";
 import { NewsBanner } from "./News";
+import { ArrivalFrame } from "./Photo";
 import { SettingsSheet } from "./Settings";
 import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
 import { Trivia } from "./Trivia";
 
-type Tab = "play" | "board" | "mine" | "trade" | "log";
+type Panel = "mine" | "trade" | "log";
 
+/**
+ * A player's screen. The board is always there; what the team has to do comes up over it in a
+ * window (the play window), and their cities, trades and the log open as sheets from the bar at the
+ * bottom. Held sideways, the board fills the left of the screen and the window the right. A screen
+ * wide enough for everything (a laptop) shows it all side by side.
+ */
 export function Game({ v }: { v: RoomView }) {
   const g = v.game!;
   const s = g.s;
-  const [tab, setTab] = useState<Tab>("play");
+  const [panel, setPanel] = useState<Panel | null>(null);
   const [menu, setMenu] = useState(false);
   const mySeat = v.you.seats[0];
   const me = mySeat !== undefined ? s.ps[mySeat] : null;
@@ -33,25 +39,18 @@ export function Game({ v }: { v: RoomView }) {
     v.you.seats.some((x) => g.mustAct.includes(x)) ||
     (!!g.auction && v.you.seats.length > 0) ||
     (!!g.quiz && v.you.seats.includes(g.quiz.visitor));
+  // Something for this phone to answer: its move, or the quiz the waiting teams race to answer.
+  const needs = myMove || (!!g.trivia?.open && g.trivia.answerFor !== null);
   const incoming = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
   usePhoneSounds(v, myMove);
   usePartyToasts(v);
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
   const wide = useWide();
-  // Phones show one tab at a time, so the board, Mine and Log are only built while on screen (every
-  // update from the server would otherwise redraw them unseen). Play and Trade always stay built:
-  // a half-made choice or offer survives a look at the board.
-  const shown = (t: Tab) => wide || tab === t;
-  const tabs: [Tab, Key, number][] = [
-    ["play", "tab_play", myMove ? 1 : 0],
-    ["board", "tab_board", 0],
-    ["mine", "tab_mine", 0],
-    ["trade", "tab_trade", incoming],
-    ["log", "tab_log", 0],
-  ];
-  const swipe = useSwipe(tabs.map(([id]) => id), tab, setTab, !wide);
+  const play = usePlayWindow(needs, mySeat === undefined);
+  const open = wide || play.open;
+  const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
   return (
-    <div class={`game${myMove ? " my-move" : ""}`}>
+    <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}`}>
       <header class="top">
         {me && myTeam ? (
           <>
@@ -73,40 +72,80 @@ export function Game({ v }: { v: RoomView }) {
           {t("menu")}
         </button>
       </header>
-      <Banner v={v} />
-      <div class="panes" data-tab={tab} {...swipe}>
-        <section class="pane p-play">
+      <Banner v={v} onOpen={wide ? undefined : play.show} />
+      <main class="stage">
+        <Board v={v} />
+        <BoardNote v={v} />
+      </main>
+      <aside class="side">
+        <Standings v={v} />
+        <Feed v={v} n={wide ? 12 : 3} />
+      </aside>
+      {/* Always built, open or not: a half-made choice survives a look at the board. */}
+      <section class="playwin p-play" aria-label={t("tab_play")} data-open={open ? "1" : "0"} aria-hidden={open ? undefined : "true"}>
+        {!wide && (
+          <header class="playwin-head" {...play.drag}>
+            <span class="playwin-grip" aria-hidden="true" />
+            <b>{t("tab_play")}</b>
+            <button type="button" class="playwin-x" aria-label={t("playHide")} onClick={play.hide}>
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </header>
+        )}
+        <div class="playwin-body">
           <Arrival v={v} />
           <TurnCard v={v} />
           <Decision v={v} />
           <NewsBanner v={v} />
           <Trivia v={v} />
-          <Standings v={v} />
           {mySeat === undefined && <Bets v={v} />}
-          <Feed v={v} n={5} />
-        </section>
-        <section class="pane p-board">
-          {shown("board") && (
-            <>
-              <Board v={v} />
-              <BoardNote v={v} />
-            </>
-          )}
-        </section>
-        <section class="pane p-mine">{shown("mine") && (mySeat !== undefined ? <Assets v={v} seat={mySeat} /> : <Bets v={v} />)}</section>
-        <section class="pane p-trade">
+        </div>
+      </section>
+      {wide ? (
+        <aside class="rail">
+          {mySeat !== undefined ? <Assets v={v} seat={mySeat} /> : <Bets v={v} />}
           <Trade v={v} />
-        </section>
-        <section class="pane p-log">{shown("log") && <Feed v={v} />}</section>
-      </div>
-      <nav class="tabs">
-        {tabs.map(([id, key, badge]) => (
-          <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)}>
-            {t(key)}
-            {badge > 0 && <i class="badge">{badge}</i>}
-          </button>
-        ))}
-      </nav>
+        </aside>
+      ) : (
+        <>
+          <nav class="tabs">
+            <button type="button" class="tab-play" aria-pressed={play.open} aria-expanded={play.open} onClick={play.toggle}>
+              {t("tab_play")}
+              {needs && !play.open && <i class="badge">1</i>}
+            </button>
+            <button type="button" aria-pressed={panel === "mine"} onClick={() => toggle("mine")}>
+              {t("tab_mine")}
+            </button>
+            <button type="button" aria-pressed={panel === "trade"} onClick={() => toggle("trade")}>
+              {t("tab_trade")}
+              {incoming > 0 && <i class="badge">{incoming}</i>}
+            </button>
+            <button type="button" aria-pressed={panel === "log"} onClick={() => toggle("log")}>
+              {t("tab_log")}
+            </button>
+          </nav>
+          {panel === "mine" && (
+            <Sheet title={t("tab_mine")} onClose={() => setPanel(null)}>
+              <div class="p-mine">{mySeat !== undefined ? <Assets v={v} seat={mySeat} /> : <Bets v={v} />}</div>
+            </Sheet>
+          )}
+          {/* (kept built while closed, like the play window: a half-made offer survives) */}
+          <Sheet title={t("tab_trade")} onClose={() => setPanel(null)} hidden={panel !== "trade"}>
+            <div class="p-trade">
+              <Trade v={v} />
+            </div>
+          </Sheet>
+          {panel === "log" && (
+            <Sheet title={t("tab_log")} onClose={() => setPanel(null)}>
+              <div class="p-log">
+                <Feed v={v} />
+              </div>
+            </Sheet>
+          )}
+        </>
+      )}
       {menu && <SettingsSheet v={v} onClose={() => setMenu(false)} />}
       <RollMoment v={v} />
       <Touchdown v={v} />
@@ -121,34 +160,61 @@ function TurnCard({ v }: { v: RoomView }) {
   return <CardFace v={v} card={card} />;
 }
 
-/** On a phone, a sideways swipe goes to the next or previous tab (the tab bar still works). */
-function useSwipe(tabs: Tab[], tab: Tab, setTab: (t: Tab) => void, on: boolean) {
-  const start = useRef<{ x: number; y: number; t: number } | null>(null);
-  if (!on) return {};
+/**
+ * The play window on a phone. It comes up by itself when there's something to answer, and goes away
+ * again by itself a moment after the answer (unless the player opened it themselves, to watch).
+ * The bar's Play button, the banner and a downward flick on its header open and close it.
+ */
+function usePlayWindow(needs: boolean, watching: boolean) {
+  const [open, setOpen] = useState(needs || watching);
+  const auto = useRef(needs);
+  const was = useRef(needs);
+  useEffect(() => {
+    const before = was.current;
+    was.current = needs;
+    if (needs && !before) {
+      auto.current = true;
+      setOpen(true);
+    } else if (!needs && before && auto.current) {
+      // (a beat, so the next question of the same turn doesn't close and reopen it)
+      const id = setTimeout(() => {
+        auto.current = false;
+        setOpen(false);
+      }, 1800);
+      return () => clearTimeout(id);
+    }
+  }, [needs]);
+  const set = (x: boolean) => {
+    auto.current = false;
+    setOpen(x);
+  };
+  const start = useRef<{ y: number; t: number } | null>(null);
   return {
-    onTouchStart: (e: TouchEvent) => {
-      const p = e.touches[0];
-      const field = (e.target as Element | null)?.closest?.("input, select, textarea");
-      start.current = e.touches.length === 1 && p && !field ? { x: p.clientX, y: p.clientY, t: performance.now() } : null;
-    },
-    onTouchEnd: (e: TouchEvent) => {
-      const from = start.current;
-      start.current = null;
-      const p = e.changedTouches[0];
-      if (!from || !p) return;
-      const dx = p.clientX - from.x;
-      const dy = p.clientY - from.y;
-      // Clearly sideways, far enough and quick: a flick, not a scroll that wandered.
-      if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy) || performance.now() - from.t > 600) return;
-      const next = tabs[tabs.indexOf(tab) + (dx < 0 ? 1 : -1)];
-      if (next) setTab(next);
+    open,
+    show: () => set(true),
+    hide: () => set(false),
+    toggle: () => set(!open),
+    drag: {
+      onTouchStart: (e: TouchEvent) => {
+        const p = e.touches[0];
+        start.current = e.touches.length === 1 && p ? { y: p.clientY, t: performance.now() } : null;
+      },
+      onTouchEnd: (e: TouchEvent) => {
+        const from = start.current;
+        start.current = null;
+        const p = e.changedTouches[0];
+        if (from && p && p.clientY - from.y > 48 && performance.now() - from.t < 700) set(false);
+      },
     },
   };
 }
 
-/** True on screens wide enough to show every pane side by side (see the 960px layout in styles.css). */
+/**
+ * True on screens with room for every part side by side (the laptop layout in styles.css). A phone
+ * held sideways is wide but short, and keeps the board-and-window layout.
+ */
 function useWide() {
-  const query = typeof matchMedia === "function" ? matchMedia("(min-width: 960px)") : null;
+  const query = typeof matchMedia === "function" ? matchMedia("(min-width: 960px) and (min-height: 601px)") : null;
   const [wide, setWide] = useState(!!query?.matches);
   useEffect(() => {
     if (!query) return;
@@ -172,8 +238,9 @@ export function Clock({ v }: { v: RoomView }) {
   return end.kind === "target" ? <span class="clock num">{t("target", { amount: money(end.amount) })}</span> : null;
 }
 
-/** Top-of-screen line: whose turn, pause, the computer covering for us, connection trouble. */
-function Banner({ v }: { v: RoomView }) {
+/** Top-of-screen line: whose turn, pause, the computer covering for us, connection trouble. On a
+    phone, "your turn" is also the way into the play window. */
+function Banner({ v, onOpen }: { v: RoomView; onOpen?: () => void }) {
   const g = v.game!;
   const st = getState();
   const myTeam = v.teams.find((x) => x.id === v.you.team);
@@ -186,6 +253,12 @@ function Banner({ v }: { v: RoomView }) {
       </button>
     );
   const mine = v.you.seats.includes(g.s.turn);
+  if (mine && onOpen)
+    return (
+      <button type="button" class="banner me" onClick={onOpen}>
+        {t("yourTurn")}
+      </button>
+    );
   return <p class={`banner${mine ? " me" : ""}`}>{mine ? t("yourTurn") : t("turnOf", { team: seatName(v, g.s.turn) })}</p>;
 }
 
@@ -280,9 +353,7 @@ export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
   const lang = getLang();
   return (
     <article class={`arrival${big ? " big" : ""}`} key={landId}>
-      <div class="poster arrival-poster">
-        <CityPoster id={city.id} />
-      </div>
+      <ArrivalFrame id={city.id} big={big} />
       <div class="arrival-text">
         <p class="arrival-who">
           <SeatChip v={v} seat={seat} small /> {roll && <MiniDice roll={roll} size={big ? 30 : 20} />} {t("arrivedIn")}

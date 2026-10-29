@@ -59,7 +59,7 @@ test("手机锁屏 60 秒后回来，回到原来的座位", async ({ browser, r
   await locked.page.close();
   const start = Date.now();
   // The others see the computer step in for the locked team…
-  const covering = a.page.locator(".p-play .standings .tag", { hasText: "电脑代打中" });
+  const covering = a.page.locator(".side .standings .tag", { hasText: "电脑代打中" });
   await playUntil([a, c], async () => (await covering.count()) > 0, 30_000);
   // …and keep playing for the rest of the minute.
   await playUntil([a, c], async () => Date.now() - start >= 60_000, 90_000);

@@ -1,7 +1,10 @@
-// Sounds in the golden-age-of-travel style, synthesised in the browser (no files to download or
-// license): the airport chime, a rubber stamp, a till, an auctioneer's gavel, a propeller plane.
-// Each city has a sound sketch for the first arrival; recorded city sounds will replace them.
+// Sounds in the golden-age-of-travel style, synthesised in the browser: the airport chime, a rubber
+// stamp, a till, an auctioneer's gavel, a propeller plane. Each city's first arrival plays a few
+// seconds of a real recording made there (media/sounds, credited in media.ts), and the sketch made
+// here in the browser while the recording hasn't loaded (or can't: the single-file demo).
 // Phones (and WeChat) only allow sound after a tap, so the first tap unlocks it.
+import { BASE } from "./base";
+
 let ctx: AudioContext | null = null;
 let muted = false;
 
@@ -132,9 +135,61 @@ const gulls = (at: number) => {
   tone(2100, 0.3, { at: at + 0.42, vol: 0.025, slide: 1500 });
 };
 
+/** The recorded city sounds: fetched when a team lands, decoded once the phone allows sound. */
+const clipFiles = new Map<string, ArrayBuffer | "loading" | "decoding" | "missing">();
+const clips = new Map<string, AudioBuffer>();
+
+/** Start fetching a city's recording (a team has just landed there; its sound comes a few seconds later). */
+export function preloadCity(id: string) {
+  if (clipFiles.has(id) || clips.has(id) || typeof fetch !== "function") return;
+  clipFiles.set(id, "loading");
+  fetch(`${BASE}/sounds/${id}.mp3`)
+    .then((r) => (r.ok ? r.arrayBuffer() : null))
+    .then((b) => {
+      clipFiles.set(id, b ?? "missing");
+      decodeClip(id);
+    })
+    .catch(() => clipFiles.set(id, "missing"));
+}
+
+function decodeClip(id: string) {
+  const b = clipFiles.get(id);
+  if (!ctx || !(b instanceof ArrayBuffer)) return;
+  clipFiles.set(id, "decoding");
+  const done = (buf: AudioBuffer) => {
+    clips.set(id, buf);
+    clipFiles.delete(id);
+  };
+  const fail = () => clipFiles.set(id, "missing");
+  try {
+    // (the callback form: older Safari has no promise from decodeAudioData)
+    const p = ctx.decodeAudioData(b, done, fail) as Promise<AudioBuffer> | undefined;
+    p?.catch(fail);
+  } catch {
+    fail();
+  }
+}
+
+/** Play the city's recording if it's ready; false if not (the sketch plays instead). */
+function cityClip(id: string): boolean {
+  if (muted || !ctx || ctx.state !== "running") return false;
+  const buf = clips.get(id);
+  if (!buf) {
+    decodeClip(id);
+    return false;
+  }
+  const src = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  gain.gain.value = 0.45;
+  src.buffer = buf;
+  src.connect(gain).connect(ctx.destination);
+  src.start();
+  return true;
+}
+
 /**
- * A sound sketch for each city, played when a team first arrives. Made in the browser, like the
- * other sounds; real field recordings (Freesound, CC0) will replace them once they can be fetched.
+ * A sound sketch for each city, made in the browser like the other sounds: what plays on a first
+ * arrival while the city's recording hasn't loaded.
  */
 const CITY_SOUND: Record<string, () => void> = {
   // bells over the Thames
@@ -283,8 +338,10 @@ export const sfx = {
   },
   /** Air rushing past the window on the way down. */
   descent: () => swell(1.4, { type: "bandpass", freq: 300, sweep: 1400, q: 0.8, vol: 0.07 }),
-  /** The city's own sound (see CITY_SOUND). */
-  city: (id: string) => CITY_SOUND[id]?.(),
+  /** The city's own sound: its recording, or its sketch (see CITY_SOUND) until that has loaded. */
+  city: (id: string) => {
+    if (!cityClip(id)) CITY_SOUND[id]?.();
+  },
   /** Travel news: a newsroom ticker. */
   news: () => [880, 1108.7, 1318.5, 1760].forEach((f, i) => tone(f, 0.11, { type: "square", vol: 0.035, at: i * 0.085 })),
   /** The weather we land in: rain on the window, a roll of thunder, wind with the snow or fog. */

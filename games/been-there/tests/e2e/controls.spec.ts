@@ -1,12 +1,13 @@
 // The phone as a controller: shaking it rolls the dice, a quick double tap answers once (and its
-// second half can't answer the question that comes up next), and a sideways swipe moves between tabs.
+// second half can't answer the question that comes up next), and the play window over the board
+// comes up for our move and goes away with the bar's button or a flick down.
 // (The shake is played into the page as motion events.)
 import { expect, test } from "@playwright/test";
 import { closeAll, createRoom, explain, joinWithTeam, newPhone, tap } from "./phones";
 
 test.afterEach(closeAll);
 
-test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动换页", async ({ browser, browserName, request, contextOptions }) => {
+test("手机当手柄：摇一摇掷骰子，连点只算一次，行动窗口收起和打开", async ({ browser, browserName, request, contextOptions }) => {
   test.setTimeout(150_000);
   const code = await createRoom(request, { mode: 60, test: { speed: 0.3 } });
   const p = await newPhone(browser, "摇", contextOptions);
@@ -101,26 +102,27 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动�
   expect(fresh.length).toBeGreaterThanOrEqual(3);
   expect(fresh.filter((x) => x !== "none")).toEqual([]);
 
-  // A sideways swipe on the page goes to the next tab, and back. (The finger's touches are made by
-  // hand: not every browser lets a page build real ones.)
-  const swipe = (from: number, to: number) =>
-    p.page.evaluate(
-      ([from, to]) => {
-        const panes = document.querySelector(".panes")!;
-        const touch = (type: string, x: number, down: boolean) => {
-          const e = new Event(type, { bubbles: true });
-          const at = [{ identifier: 1, target: panes, clientX: x, clientY: 400 }];
-          Object.defineProperties(e, { touches: { value: down ? at : [] }, changedTouches: { value: at } });
-          panes.dispatchEvent(e);
-        };
-        touch("touchstart", from, true);
-        touch("touchend", to, false);
-      },
-      [from, to],
-    );
-  await swipe(320, 120);
-  await expect(tab("棋盘")).toHaveAttribute("aria-pressed", "true");
-  await swipe(120, 320);
-  await expect(tab("行动")).toHaveAttribute("aria-pressed", "true");
+  // The play window came up by itself for our roll. The bar's Play button puts it away and brings it
+  // back, and a flick down on its header puts it away. (The finger's touches are made by hand: not
+  // every browser lets a page build real ones.)
+  const win = p.page.locator(".playwin");
+  await expect(win).toHaveAttribute("data-open", "1");
+  await tab("行动").click();
+  await expect(win).toHaveAttribute("data-open", "0");
+  await expect(tab("行动").locator(".badge")).toBeVisible();
+  await tab("行动").click();
+  await expect(win).toHaveAttribute("data-open", "1");
+  await p.page.evaluate(() => {
+    const head = document.querySelector(".playwin-head")!;
+    const touch = (type: string, y: number, down: boolean) => {
+      const e = new Event(type, { bubbles: true });
+      const at = [{ identifier: 1, target: head, clientX: 200, clientY: y }];
+      Object.defineProperties(e, { touches: { value: down ? at : [] }, changedTouches: { value: at } });
+      head.dispatchEvent(e);
+    };
+    touch("touchstart", 300, true);
+    touch("touchend", 400, false);
+  });
+  await expect(win).toHaveAttribute("data-open", "0");
   expect(p.errors).toEqual([]);
 });
