@@ -1521,6 +1521,19 @@ legend {
   justify-self: center;
   width: min(420px, 100%);
 }
+/* With the phone's or computer's own "reduce motion" setting, the finale is simply there, as with the
+   game's switch (which stops every animation, at the top): no stamps landing, no rays turning. */
+@media (prefers-reduced-motion: reduce) {
+  .exit-stamp,
+  .over .results li,
+  .medal,
+  .medal::before,
+  .champion,
+  .trip > span,
+  .over-again {
+    animation: none;
+  }
+}
 /* wide screens: board in the middle, decisions and lists alongside, no tab bar */
 @media (min-width: 960px) {
   .game {
