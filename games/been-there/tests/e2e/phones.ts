@@ -1,5 +1,5 @@
 // Helpers: a "phone" is a separate browser context (its own storage, like its own device).
-import { expect, type APIRequestContext, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Browser, type BrowserContext, type Page, type WebSocketRoute } from "@playwright/test";
 
 export interface Phone {
   name: string;
@@ -11,8 +11,22 @@ export interface Phone {
   taps: number;
 }
 
+/** What the running test opened (phones, a big screen): closed when it ends, by `closeAll`. */
+const opened: BrowserContext[] = [];
+export const track = (ctx: BrowserContext) => void opened.push(ctx);
+
+/**
+ * Close everything the test opened. A context made with browser.newContext() otherwise outlives its
+ * test and keeps running, in the same browser, through every test after it (a game still going, a
+ * finished game's finale with its turning rays), taking time from them.
+ */
+export async function closeAll() {
+  await Promise.all(opened.splice(0).map((c) => c.close().catch(() => {})));
+}
+
 export async function newPhone(browser: Browser, name: string, contextOptions: Parameters<Browser["newContext"]>[0]): Promise<Phone> {
   const ctx = await browser.newContext(contextOptions);
+  track(ctx);
   const page = await ctx.newPage();
   const phone: Phone = { name, ctx, page, errors: [], log: [], taps: 0 };
   watch(phone, page);
@@ -34,6 +48,35 @@ export function watch(phone: Phone, page: Page) {
 export async function explain(p: Phone, what: string) {
   const body = await p.page.locator("body").innerText().catch(() => "(no page)");
   console.log(`--- ${p.name}: ${what}\nscreen: ${body.slice(0, 400)}\nerrors: ${JSON.stringify(p.errors)}\nlog: ${JSON.stringify(p.log.slice(-20))}`);
+}
+
+export interface Gate {
+  /** From now on, what the server sends this phone waits, as if its network stalled. */
+  hold(): void;
+  /** Deliver what waited, in order, and let the rest straight through again. */
+  release(): void;
+}
+
+/** Put a gate on what the server sends this phone. Set it up before the phone opens the room. */
+export async function gate(p: Phone): Promise<Gate> {
+  let held = false;
+  let page: WebSocketRoute | undefined;
+  const waiting: (string | Buffer)[] = [];
+  await p.ctx.routeWebSocket(/\/api\/rooms\/[^/]+\/ws/, (ws) => {
+    page = ws;
+    const server = ws.connectToServer();
+    ws.onMessage((m) => server.send(m));
+    server.onMessage((m) => (held ? waiting.push(m) : ws.send(m)));
+  });
+  return {
+    hold: () => {
+      held = true;
+    },
+    release: () => {
+      held = false;
+      for (const m of waiting.splice(0)) page?.send(m);
+    },
+  };
 }
 
 /** Make a room through the API; tests may speed up the room's timers. */
@@ -94,8 +137,9 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       const kind = panel.dataset.kind ?? panel.className;
       if (o.skip?.includes(kind)) return null;
       const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>(".btn:not([disabled]):not(.danger)"));
-      if (!buttons.length) return null;
-      let pick =
+      // (In debt with nothing left to sell, the only way on is a danger button: going broke, below.)
+      if (!buttons.length && kind !== "debt") return null;
+      let pick: HTMLButtonElement | undefined =
         panel.querySelector<HTMLButtonElement>(".btn.primary:not([disabled])") ??
         panel.querySelector<HTMLButtonElement>(".btn[data-default]:not([disabled])") ??
         buttons[0];
@@ -107,6 +151,7 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
         if (sellable) pick = sellable;
         else pick = panel.querySelector<HTMLButtonElement>(".btn.danger") ?? pick;
       }
+      if (!pick) return null;
       pick.click();
       return kind;
       })();

@@ -13,6 +13,7 @@
   --map-land: #e4c690;
   --map-line: #b7cabd;
   --flight: #c8432b;
+  --night-shade: #1d2340;
   --corner-disc: #1d2340;
   --corner-ink: #f4ead5;
   --house: #2f7d4f;
@@ -51,6 +52,7 @@
     --map-land: #3c4669;
     --map-line: #27314f;
     --flight: #ff8a6b;
+    --night-shade: #03050c;
     --corner-disc: #f1e6cf;
     --corner-ink: #1c2238;
     --house: #5fc48a;
@@ -73,6 +75,7 @@
   --map-land: #3c4669;
   --map-line: #27314f;
   --flight: #ff8a6b;
+  --night-shade: #03050c;
   --corner-disc: #f1e6cf;
   --corner-ink: #1c2238;
   --house: #5fc48a;
@@ -134,6 +137,10 @@
 }
 .roundboard .sp {
   cursor: pointer;
+}
+/* On a dark board the tokens get the characters' paper edge (--face-edge, styles.css). */
+.roundboard .token .react {
+  filter: var(--face-edge, none);
 }
 .roundboard .token.now > g {
   animation: hop 1.3s ease-in-out infinite;

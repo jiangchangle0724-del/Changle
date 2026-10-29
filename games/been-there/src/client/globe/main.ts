@@ -2,21 +2,28 @@
 // its own file (dist/client/globe.js) and loaded only by the big screen, so phones never download it.
 // The globe's paper, land and ink come from the page's colours, so it matches the board in light
 // and dark. It turns to face the team on turn; when a token flies to another region, a little plane
-// flies the great-circle arc above the surface while the camera leans in.
+// flies the great-circle arc above the surface while the camera leans in. Its night side is the real
+// one, from where the sun is right now, with the cities lit up in the dark.
 import {
+  AdditiveBlending,
   AmbientLight,
+  BufferGeometry,
   CanvasTexture,
   CatmullRomCurve3,
   Color,
   DirectionalLight,
+  Float32BufferAttribute,
   Group,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
   PerspectiveCamera,
+  Points,
+  PointsMaterial,
   Quaternion,
   Scene,
+  ShaderMaterial,
   Shape,
   ShapeGeometry,
   SphereGeometry,
@@ -27,6 +34,7 @@ import {
 } from "three";
 // Natural Earth 1:110m land as [lon, lat] rings (made by scripts/gen-world.mjs).
 import LAND from "../../samples/land-lonlat.json";
+import { subsolar } from "./sun";
 
 export interface GlobeColors {
   sea: string;
@@ -34,6 +42,8 @@ export interface GlobeColors {
   line: string;
   ink: string;
   flight: string;
+  /** The tint of the night side (the same as the phone map's). */
+  night: string;
   dots: Record<string, string>;
 }
 
@@ -61,6 +71,22 @@ function toVec(lat: number, lon: number, r = 1) {
   const phi = lat * RAD;
   const lam = lon * RAD;
   return new Vector3(r * Math.cos(phi) * Math.sin(lam), r * Math.sin(phi), r * Math.cos(phi) * Math.cos(lam));
+}
+
+/** A soft round glow, for a city's lights at night. */
+function glowDot() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.55)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
 }
 
 /** Paint the globe's paper: sea, graticule, land, city dots. Equirectangular, lon -180 at the left. */
@@ -176,6 +202,52 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
   sun.position.set(-2, 3, 4);
   scene.add(sun);
 
+  // Night: a thin layer just over the paper that darkens the side where it really is night now, with a
+  // twilight band (cheap enough for a computer drawing without a graphics card). In the world's own
+  // frame, like the cities.
+  const nightMat = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: { sun: { value: new Vector3(0, 0, 1) }, shade: { value: new Color(opts.colors.night) } },
+    vertexShader: `varying vec3 vPos;
+void main() {
+  vPos = position;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,
+    fragmentShader: `uniform vec3 sun;
+uniform vec3 shade;
+varying vec3 vPos;
+void main() {
+  float night = 1.0 - smoothstep(-0.1, 0.1, dot(normalize(vPos), sun));
+  gl_FragColor = vec4(shade, night * 0.42);
+  #include <colorspace_fragment>
+}`,
+  });
+  // (Under the flight's trail, which leaves the ground at 1.004.)
+  const nightSky = new Mesh(new SphereGeometry(1.002, 64, 48), nightMat);
+  world.add(nightSky);
+  // The cities light up on the night side: a soft glow each, brighter the darker it is there (set once
+  // a minute, not worked out for every pixel).
+  const cityAt = Object.values(opts.cities).map(([lat, lon]) => toVec(lat, lon, 1.006));
+  const lampGeo = new BufferGeometry().setFromPoints(cityAt);
+  lampGeo.setAttribute("color", new Float32BufferAttribute(new Float32Array(cityAt.length * 3), 3));
+  const lampMat = new PointsMaterial({ map: glowDot(), size: 0.07, vertexColors: true, transparent: true, depthWrite: false, blending: AdditiveBlending });
+  const lamps = new Points(lampGeo, lampMat);
+  world.add(lamps);
+  const warm = new Color("#ffcf73");
+  const placeSun = () => {
+    const at = subsolar(Date.now());
+    const overhead = toVec(at.lat, at.lon);
+    nightMat.uniforms.sun.value.copy(overhead);
+    const colors = lampGeo.getAttribute("color") as Float32BufferAttribute;
+    cityAt.forEach((v, i) => {
+      const dark = 1 - Math.min(1, Math.max(0, (v.clone().normalize().dot(overhead) + 0.1) / 0.2));
+      colors.setXYZ(i, warm.r * dark, warm.g * dark, warm.b * dark);
+    });
+    colors.needsUpdate = true;
+  };
+  placeSun();
+
   const trailMat = new MeshBasicMaterial({ color: new Color(opts.colors.flight) });
   const planeMat = new MeshBasicMaterial({ color: new Color(opts.colors.ink) });
   const plane = new Mesh(planeShape(), planeMat);
@@ -232,6 +304,11 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
   const ro = new ResizeObserver(resize);
   ro.observe(canvas);
   resize();
+  // The night creeps west a quarter of a degree a minute.
+  const clock = setInterval(() => {
+    placeSun();
+    kick();
+  }, 60_000);
 
   const turnTo = (q: Quaternion, dur: number, done?: () => void) => {
     const from = world.quaternion.clone();
@@ -319,17 +396,26 @@ export function mountGlobe(canvas: HTMLCanvasElement, opts: GlobeOptions): Globe
       texture.needsUpdate = true;
       trailMat.color.set(colors.flight);
       planeMat.color.set(colors.ink);
+      nightMat.uniforms.shade.value.set(colors.night);
       kick();
     },
     destroy() {
       cancelAnimationFrame(raf);
+      clearInterval(clock);
       ro.disconnect();
       earth.geometry.dispose();
+      nightSky.geometry.dispose();
+      nightMat.dispose();
+      lampGeo.dispose();
+      lampMat.map?.dispose();
+      lampMat.dispose();
       plane.geometry.dispose();
       trail?.geometry.dispose();
       for (const m of [earthMat, trailMat, planeMat]) m.dispose();
       texture.dispose();
       renderer.dispose();
+      // Hand the WebGL context back now: a browser keeps only a few, and every rematch makes a new globe.
+      renderer.forceContextLoss();
     },
   };
 }

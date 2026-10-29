@@ -2,7 +2,9 @@
 // second half can't answer the question that comes up next), and a sideways swipe moves between tabs.
 // (The shake is played into the page as motion events.)
 import { expect, test } from "@playwright/test";
-import { createRoom, explain, joinWithTeam, newPhone, tap } from "./phones";
+import { closeAll, createRoom, explain, joinWithTeam, newPhone, tap } from "./phones";
+
+test.afterEach(closeAll);
 
 test("手机当手柄：摇一摇掷骰子，连点只算一次，左右滑动换页", async ({ browser, browserName, request, contextOptions }) => {
   test.setTimeout(150_000);

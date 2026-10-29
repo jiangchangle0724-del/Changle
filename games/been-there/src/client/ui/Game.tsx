@@ -390,36 +390,4 @@ function usePhoneSounds(v: RoomView, myMove: boolean) {
   });
 }
 
-export function Over({ v }: { v: RoomView }) {
-  const g = v.game!;
-  const s = g.s;
-  const order = s.ps.map((_, seat) => seat).sort((a, b) => (b === s.winner ? 1 : 0) - (a === s.winner ? 1 : 0) || g.worth[b] - g.worth[a]);
-  useEffect(() => sfx.win(), []);
-  return (
-    <main class="over">
-      <h1>{t("gameOver")}</h1>
-      {s.winner !== null && (
-        <p class="big">
-          {t("winner", { team: seatName(v, s.winner) })} <span class="muted">{t(`reason_${s.reason}` as Key)}</span>
-        </p>
-      )}
-      <ol class="results">
-        {order.map((seat) => (
-          <li key={seat}>
-            <SeatChip v={v} seat={seat} />
-            <span class="num">{money(g.worth[seat])}</span>
-            <small class="muted">{t("rentCollected", { amount: money(s.stats.rentByOwner[seat] ?? 0) })}</small>
-          </li>
-        ))}
-      </ol>
-      {v.you.host && (
-        <Btn kind="primary" onClick={() => send({ t: "again" })}>
-          {t("again")}
-        </Btn>
-      )}
-      <Feed v={v} n={12} />
-    </main>
-  );
-}
-
 export { Countdown };

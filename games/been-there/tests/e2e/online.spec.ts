@@ -1,14 +1,17 @@
 // The brief's "联机稳定" acceptance row, run on every code change:
 //   4 people play a whole game · a phone locked for 60 s comes back to its seat · two simultaneous bids don't break anything
 import { expect, test } from "@playwright/test";
-import { createRoom, joinWithTeam, newPhone, playUntil, watch, type Phone } from "./phones";
+import { closeAll, createRoom, gate, joinWithTeam, newPhone, playUntil, watch, type Gate, type Phone } from "./phones";
 
 test.describe.configure({ mode: "serial" });
+test.afterEach(closeAll);
 
-async function table(browser: import("@playwright/test").Browser, contextOptions: object, code: string, names: string[]) {
+/** Phones at a table; pass `gates` to get a gate on each phone's connection (see `gate`), in order. */
+async function table(browser: import("@playwright/test").Browser, contextOptions: object, code: string, names: string[], gates?: Gate[]) {
   const phones: Phone[] = [];
   for (const name of names) {
     const p = await newPhone(browser, name, contextOptions);
+    if (gates) gates.push(await gate(p));
     await joinWithTeam(p, code);
     phones.push(p);
   }
@@ -34,6 +37,9 @@ test("4 人完整打完一局：15 分钟局（测试里时钟压缩到 1/10）"
   );
   for (const p of phones) {
     await expect(p.page.getByRole("heading", { name: "游戏结束" })).toBeVisible();
+    // The finale reads out every team, the winners last, on a card of their own.
+    await expect(p.page.locator(".results > li")).toHaveCount(4);
+    await expect(p.page.locator(".results li.won")).toContainText("赢了");
     expect(p.taps, `${p.name} played`).toBeGreaterThan(5);
   }
   expect(errorsOf(phones)).toEqual([]);
@@ -73,7 +79,8 @@ test("手机锁屏 60 秒后回来，回到原来的座位", async ({ browser, r
 test("两人同时出价不出错", async ({ browser, request, contextOptions }) => {
   test.setTimeout(240_000);
   const code = await createRoom(request, {});
-  const phones = await table(browser, contextOptions, code, ["东", "南", "西"]);
+  const gates: Gate[] = [];
+  const phones = await table(browser, contextOptions, code, ["东", "南", "西"], gates);
   await phones[0].page.getByRole("button", { name: "开始", exact: true }).click();
   // Everyone passes on buying, so the next unowned city goes to auction.
   await playUntil(phones, async () => (await phones[0].page.locator(".decide.auction").count()) > 0, 180_000, { declineBuys: true, bid: 0 });
@@ -82,6 +89,10 @@ test("两人同时出价不出错", async ({ browser, request, contextOptions })
   await expect(bid(x)).toBeEnabled();
   await expect(bid(y)).toBeEnabled();
   // Both press "出 $10" in the same millisecond, before either screen can show the other's bid.
+  // What the server says to the two phones waits until both have pressed: on a slow browser one
+  // phone can otherwise start a moment late, find the other's bid already up, and press "出 $20".
+  gates[0].hold();
+  gates[1].hold();
   const at = Date.now() + 400;
   const press = (p: Phone) =>
     p.page.evaluate(
@@ -98,17 +109,21 @@ test("两人同时出价不出错", async ({ browser, request, contextOptions })
       at,
     );
   const pressed = await Promise.all([press(x), press(y)]);
+  gates[0].release();
+  gates[1].release();
   expect(pressed).toEqual(["出 $10", "出 $10"]);
   // Exactly one leads at $10, every phone agrees, and the other is told it was a moment too late.
   // (Wait for the leader's line: the no-bids line says "最低 $10" too.)
   const leads = phones.map((p) => p.page.locator(".decide.auction .big"));
+  await expect(leads[0]).toContainText("出价最高：$10");
+  // (The toast is only up for 3.5 s, so it's looked at first.)
+  const loser = (await leads[0].innerText()).includes("你们出价最高") ? y : x;
+  await expect(loser.page.locator(".toasts")).toContainText("慢了一步");
   for (const l of leads) await expect(l).toContainText("出价最高：$10");
   // The first-arrival scene never covers an auction.
   for (const p of phones) expect(await p.page.locator(".touchdown").count()).toBe(0);
   const texts = await Promise.all(leads.map((l) => l.innerText()));
   expect(texts.filter((s) => s.includes("你们出价最高"))).toHaveLength(1);
-  const loser = texts[0].includes("你们出价最高") ? y : x;
-  await expect(loser.page.locator(".toasts")).toContainText("慢了一步");
   // The auction closes after the countdown and the city goes to the leader.
   await expect(x.page.locator(".decide.auction")).toHaveCount(0, { timeout: 20_000 });
   await x.page.getByRole("button", { name: "记录" }).click();

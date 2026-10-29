@@ -4,7 +4,9 @@
 // with travel news switched on, a piece of news comes up with its tag on the city's square.
 import { expect, test } from "@playwright/test";
 import { COORDS } from "../../src/client/art/coords";
-import { createRoom, joinWithTeam, newPhone, playUntil, watch, type Phone } from "./phones";
+import { closeAll, createRoom, joinWithTeam, newPhone, playUntil, track, watch, type Phone } from "./phones";
+
+test.afterEach(closeAll);
 
 const RAIN = { at: Date.now(), cities: Object.fromEntries(Object.keys(COORDS).map((id) => [id, { t: 12, code: 63, day: true }])) };
 
@@ -12,6 +14,7 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   test.setTimeout(180_000);
   const code = await createRoom(request, {});
   const ctx = await browser.newContext({ ...contextOptions, viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+  track(ctx);
   await ctx.route("**/api/weather", (route) => route.fulfill({ json: RAIN }));
   const tv: Phone = { name: "大屏", ctx, page: await ctx.newPage(), errors: [], log: [], taps: 0 };
   watch(tv, tv.page);

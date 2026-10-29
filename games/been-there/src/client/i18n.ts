@@ -284,6 +284,9 @@ const S = {
   reason_last: ["只剩这一队", "last team standing"],
   reason_cap: ["回合数到上限", "turn limit reached"],
   rentCollected: ["收到租金 {amount}", "Rent collected {amount}"],
+  finalCities: ["{n} 座城市", "Cities: {n}"],
+  finalStamps: ["{n} 枚印章", "Stamps: {n}"],
+  champion: ["冠军", "Winner"],
   again: ["再来一局", "Play again"],
   // toasts
   hostOnly: ["只有房主能做这个", "Only the host can do that"],
