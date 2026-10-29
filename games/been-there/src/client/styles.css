@@ -2280,7 +2280,8 @@ legend {
 .tv-posters .poster:nth-child(even) {
   transform: rotate(3deg) translateY(8px);
 }
-.departures {
+/* Named with its tag so the headings' Chinese weight and spacing (above) don't override it. */
+h2.departures {
   margin: 4px 0 -6px;
   font: 700 1rem/1.2 var(--font);
   letter-spacing: 0.12em;
