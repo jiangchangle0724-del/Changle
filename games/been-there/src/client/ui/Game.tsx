@@ -60,8 +60,10 @@ export function Game({ v }: { v: RoomView }) {
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
   const wide = useWide();
   const play = usePlayWindow(needs, mySeat === undefined);
-  // (on a ride the window steps aside, and comes back with whatever there is to answer)
-  const open = wide || (play.open && !ride);
+  // (on a ride the window steps aside, and comes back with whatever there is to answer: at once if
+  // it's on a clock, while the ride gives way)
+  const urgent = rideUrgent(v, ride);
+  const open = wide || (play.open && (!ride || urgent));
   const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
   return (
     <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}${ride ? " riding" : ""}`}>
@@ -89,7 +91,7 @@ export function Game({ v }: { v: RoomView }) {
       </header>
       <Banner v={v} onOpen={wide ? undefined : play.show} />
       <main class={`stage${thud ? " thud" : ""}`} key="stage">
-        <Board v={v} ride={ride} urgent={rideUrgent(v)} onRideDone={rideDone} over={<JailFx v={v} ride={ride} />} />
+        <Board v={v} ride={ride} urgent={urgent} onRideDone={rideDone} over={<JailFx v={v} ride={ride} />} />
         <BoardNote v={v} />
       </main>
       <aside class="side">

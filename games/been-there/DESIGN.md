@@ -154,8 +154,11 @@ Immigration gate down at the end.
 * **What waits for it.** The play window steps aside (upright phones) and comes back with whatever
   there is to answer. Money that changes hands shows when the token lands: the cash in the top bar,
   its sound and buzz, the coins. A first visit's touchdown starts once the camera is back up.
-* **What it gives way to.** An auction, Shanghai's quiz for this team, or a table vote cuts it short
-  (`rideUrgent`). A shake doesn't throw again while it plays.
+* **What it gives way to** (`rideUrgent`). An auction or Shanghai's quiz for this team (5 s to
+  answer) cuts it short and brings the play window straight back; one already up when the throw
+  comes in means no ride, and the token walks the board. A table vote (25 s, Cape Town's say) waits
+  for the ride, unless that would leave less than 15 s to answer. A shake doesn't throw again while
+  it plays.
 * **Off.** Reduced motion has no ride; the menu's 第一视角走棋 turns it off on its own. The board
   is then as before: the token walks round the top of the table.
 * **The page stays still.** The leaning board is drawn bigger than its box, which clips it

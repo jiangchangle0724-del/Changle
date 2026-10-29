@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GameEvent } from "../src/engine";
 import type { FeedItem, RoomView } from "../src/room/protocol";
-import { RIDE, planRide, stepMs, timesFor } from "../src/client/ui/ridePlan";
+import { RIDE, planRide, rideUrgent, stepMs, timesFor, type RidePlan } from "../src/client/ui/ridePlan";
 
 const now = Date.now();
 let id = 0;
@@ -98,6 +98,19 @@ test("no ride for another team's throw, an old throw, or a throw that didn't mov
     planRide(view([ev({ t: "roll", p: 0, dice: [1, 1], steps: 2 }), ev({ t: "move", p: 0, from: 0, to: 2 }), ev({ t: "turn", p: 1 }), ev({ t: "move", p: 0, from: 2, to: 5 })]))?.legs.length,
     1,
   );
+});
+
+test("a ride gives way to what's on a clock: an auction, our Shanghai quiz, a vote it would leave no time for", () => {
+  const legs = [{ from: 0, to: 3, dir: 1 as const, steps: 3, salary: 0 }];
+  const plan: RidePlan = { key: 1, seat: 0, legs, jail: false, card: false, start: Date.now() + 1000, t: timesFor(legs, false) };
+  const at = (game: object) => ({ you: { seats: [0] }, game, feed: [] }) as unknown as RoomView;
+  assert.equal(rideUrgent(at({ auction: {} }), plan), true);
+  assert.equal(rideUrgent(at({ quiz: { visitor: 0 } }), plan), true);
+  assert.equal(rideUrgent(at({ quiz: { visitor: 1 } }), plan), false, "another team's quiz");
+  // Cape Town's vote has 25 s: plenty to answer after a short ride. Nearly out of time, no ride.
+  assert.equal(rideUrgent(at({ deadline: Date.now() + 25_000 }), plan), false);
+  assert.equal(rideUrgent(at({ deadline: Date.now() + 8_000 }), plan), true);
+  assert.equal(rideUrgent(at({ deadline: Date.now() - 1 }), plan), false);
 });
 
 test("the ride's clock: the camera, each leg's steps (a card's go twice as fast), the landing, the way back", () => {

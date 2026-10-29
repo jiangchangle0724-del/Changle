@@ -159,6 +159,9 @@ export function useRide(v: RoomView): { plan: RidePlan | null; done: (key: numbe
   if (raw && cache.current?.key !== raw.key) {
     const t = timesFor(raw.legs, raw.jail);
     cache.current = { key: raw.key, seat: raw.seat, legs: raw.legs, jail: raw.jail, card: raw.card, start: raw.at + RIDE.hold, t };
+    // Something on a clock is already up when the throw comes in (Shanghai's quiz, say): no ride. The
+    // token walks the board as before and the question comes straight up.
+    if (rideUrgent(v, cache.current)) ridden.add(raw.key);
   }
   const plan = raw && cache.current?.key === raw.key ? cache.current : null;
   const [, tick] = useState(0);
@@ -178,15 +181,21 @@ export function useRide(v: RoomView): { plan: RidePlan | null; done: (key: numbe
   return { plan, done };
 }
 
+/** A table vote gives 25 s: a ride plays first if this long is still left to answer after it. */
+const ANSWER_TIME = 15_000;
+
 /**
  * Something on a clock this phone's team has to answer now, which a ride mustn't keep it from: an
- * auction, Shanghai's quiz for the team that landed there, a table vote. (The waiting teams' question
- * is for the others; Seoul's silence is the table's, and the ride is quiet anyway.)
+ * auction, Shanghai's quiz for the team that landed there (5 s), a table vote that wouldn't leave
+ * time to answer after the ride (`plan`: the ride, if one is on). (The waiting teams' question is for
+ * the others; Seoul's silence is the table's, and the ride is quiet anyway.)
  */
-export function rideUrgent(v: RoomView): boolean {
+export function rideUrgent(v: RoomView, plan: RidePlan | null = null): boolean {
   const g = v.game;
   if (!g) return false;
-  return !!g.auction || (!!g.quiz && v.you.seats.includes(g.quiz.visitor)) || (g.deadline ?? 0) > serverNow();
+  if (g.auction || (g.quiz && v.you.seats.includes(g.quiz.visitor))) return true;
+  const left = (g.deadline ?? 0) - serverNow();
+  return left > 0 && left - Math.max(0, rideEnd(plan) - serverNow()) < ANSWER_TIME;
 }
 
 /** Server time this phone's ride is over (a touchdown and the city's sound wait for it), or 0. */
