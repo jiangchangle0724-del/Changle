@@ -16,8 +16,8 @@ export default defineConfig({
     ...(process.env.CI ? [{ name: "webkit", use: { browserName: "webkit" as const } }] : []),
   ],
   webServer: {
-    command: "npx wrangler dev --port 8787 --ip 127.0.0.1 --var ALLOW_TEST_SETTINGS:1",
-    url: "http://127.0.0.1:8787",
+    command: "npx wrangler dev --port 8787 --ip 127.0.0.1 --var ALLOW_TEST_SETTINGS:1 --var STANDALONE:1",
+    url: "http://127.0.0.1:8787/trip/",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: { WRANGLER_SEND_METRICS: "false" },

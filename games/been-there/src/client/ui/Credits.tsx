@@ -1,6 +1,7 @@
 // 素材来源 · Credits: where every city fact, font, map line and borrowed piece of code comes from,
 // with its licence. Opened from the home screen and from the in-game menu.
 import { CITIES, NEWS } from "../../engine";
+import { BASE } from "../base";
 import { t, tx, type Key } from "../i18n";
 import { hostOf } from "./common";
 
@@ -11,6 +12,8 @@ const PARTS: [Key, Item[]][] = [
   [
     "creditsFonts",
     [
+      ["Unbounded", "SIL OFL 1.1", "https://fonts.google.com/specimen/Unbounded"],
+      ["Figtree", "SIL OFL 1.1", "https://fonts.google.com/specimen/Figtree"],
       ["ZCOOL QingKe HuangYou · 站酷庆科黄油体", "SIL OFL 1.1", "https://fonts.google.com/specimen/ZCOOL+QingKe+HuangYou"],
       ["Big Shoulders Display", "SIL OFL 1.1", "https://fonts.google.com/specimen/Big+Shoulders+Display"],
       ["Space Mono", "SIL OFL 1.1", "https://fonts.google.com/specimen/Space+Mono"],
@@ -90,7 +93,7 @@ function Licences() {
   if (!inPage)
     return (
       <p>
-        <a href="/licences.txt" target="_blank" rel="noopener noreferrer">
+        <a href={`${BASE}/licences.txt`} target="_blank" rel="noopener noreferrer">
           {t("creditsLicences")} · licences.txt
         </a>
       </p>

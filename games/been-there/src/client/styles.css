@@ -1,65 +1,85 @@
-/* 到此一游 in its golden-age-of-travel look (step 5): paper, navy ink, vermilion, tickets and stamps.
-   The paper and ink colours live in art/art.css; these are the names the screens use. */
+/* 到此一游 inside changle.ca: the site's night room around the game's own printed things. The frame
+   (top bar, buttons, panels, sheets, fields, tabs, type) is changle.ca's, lit by the game's gel; the
+   board, posters, stamps, passports, dice and characters keep their travel-poster inks (art/art.css).
+   Night only, like the rest of the site. */
 :root {
-  --bg: var(--table);
-  --surface: var(--board-paper);
-  --surface-2: var(--board-paper-2);
-  --ink: var(--board-ink);
-  --muted: var(--board-ink-2);
-  --line: var(--board-line);
-  --accent: #c8432b;
-  --on-accent: #ffffff;
-  --warn: #9a5a00;
-  --danger: #a8231c;
-  --me: #f6dfba;
-  --top-bg: var(--ink);
-  --top-fg: var(--bg);
-  --top-edge: transparent;
-  /* The characters' outline on a dark page (see .face). */
-  --face-edge: none;
-  --shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 8px 22px rgba(10, 14, 30, 0.14);
-  --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --accent: #ff8a6b;
-    --on-accent: #1c2238;
-    --warn: #ffb36b;
-    --danger: #ff8a7f;
-    --me: #2c2f52;
-    --top-bg: #0b0e1c;
-    --top-fg: #f1e6cf;
-    --top-edge: #303a5a;
-    --face-edge: drop-shadow(0 0 0.6px #f1e6cf) drop-shadow(0 0 0.6px #f1e6cf);
-    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --accent: #ff8a6b;
-  --on-accent: #1c2238;
-  --warn: #ffb36b;
-  --danger: #ff8a7f;
-  --me: #2c2f52;
-  --top-bg: #0b0e1c;
-  --top-fg: #f1e6cf;
-  --top-edge: #303a5a;
+  /* changle.ca's night room (party-games/src/styles/global.css) */
+  --night: #0e0c22;
+  --night-2: #131030;
+  --dusk: #181633;
+  --dusk-2: #221f44;
+  --dusk-3: #2c2955;
+  --line-soft: rgba(181, 178, 220, 0.14);
+  --moon: #f5f4fd;
+  --haze: #b6b4d0;
+  --dim: #7f7c9d;
+  /* The game's gel on changle.ca: its main move, and the light in the room. */
+  --gel: #ff8a6b;
+  --on-gel: #0e0c22;
+  --go: #4be38f;
+  --stop: #ff4d6d;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* The names the screens use. */
+  --bg: var(--night);
+  --surface: var(--dusk-2);
+  --surface-2: var(--dusk);
+  --ink: var(--moon);
+  --muted: var(--haze);
+  --line: #35325a;
+  --accent: var(--gel);
+  --on-accent: var(--on-gel);
+  --warn: #ffb82e;
+  --danger: var(--stop);
+  --me: #3d2b48;
+  --top-bg: rgba(14, 12, 34, 0.84);
+  --top-fg: var(--moon);
+  --top-edge: var(--line-soft);
+  /* The characters are drawn in navy ink: on the night they get a thin paper edge (see .face). */
   --face-edge: drop-shadow(0 0 0.6px #f1e6cf) drop-shadow(0 0 0.6px #f1e6cf);
-  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.35);
+  /* A panel's edge, as on the site: a hairline and a faint light along the top. */
+  --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px var(--line-soft);
+  --lift: 0 14px 34px -12px rgba(0, 0, 0, 0.7);
+  /* changle.ca's fonts. Neither has Chinese, which falls back to the phone's own font, as on the site. */
+  --ui: "Unbounded", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font: "Figtree", -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
   color-scheme: dark;
+  accent-color: var(--gel);
 }
 * {
   box-sizing: border-box;
 }
-html,
+html {
+  background: var(--bg);
+}
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--ink);
   font: 16px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+}
+/* The room light: the game's gel spilling down from the top of the screen, as everywhere on
+   changle.ca. (The body has no background of its own, so it shows.) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 46% at 50% -6%, color-mix(in oklab, var(--gel) 38%, transparent) 0%, color-mix(in oklab, var(--gel) 11%, transparent) 46%, transparent 72%),
+    radial-gradient(70% 40% at 100% 108%, color-mix(in oklab, var(--gel) 8%, transparent), transparent 70%);
+}
+/* The big screen lights the room from behind the table instead, as the site's big screen does. */
+body:has(.screen)::before {
+  background:
+    radial-gradient(60% 70% at 30% 0%, color-mix(in oklab, var(--gel) 22%, transparent) 0%, transparent 70%),
+    radial-gradient(45% 55% at 92% 100%, color-mix(in oklab, var(--gel) 14%, transparent) 0%, transparent 72%);
+}
+::selection {
+  background: var(--gel);
+  color: var(--on-gel);
 }
 [data-reduced="1"] *,
 [data-reduced="1"] *::before,
@@ -74,31 +94,51 @@ h3,
 p {
   margin: 0;
 }
+/* Headings are the site's: Unbounded, and the phone's own heavy Chinese. (The printed things, the
+   city names, stamps and tickets, set their own type.) */
 h1,
 h2,
 h3,
 .display {
-  font-family: var(--display);
-  font-weight: 800;
-  font-synthesis: none;
-  letter-spacing: 0.5px;
+  font-family: var(--ui);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   text-wrap: balance;
 }
+h1:lang(zh),
+h2:lang(zh),
+h3:lang(zh),
+.display:lang(zh) {
+  font-weight: 800;
+  letter-spacing: 0;
+}
 h1 {
-  font-size: 2.2rem;
-  line-height: 1.05;
+  font-size: 2.1rem;
+  line-height: 1.08;
 }
 h2 {
-  font-size: 1.35rem;
-  line-height: 1.15;
+  font-size: 1.2rem;
+  line-height: 1.2;
   margin-top: 8px;
 }
 h3 {
-  font-size: 1.15rem;
-  line-height: 1.2;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+/* A bilingual title, as on changle.ca: the reader's language leads, the other rides along smaller. */
+.bi {
+  display: grid;
+  gap: 4px;
+}
+.bi > small {
+  font: 600 max(0.42em, 14px) / 1.2 var(--font);
+  letter-spacing: 0;
+  color: var(--haze);
 }
 a {
-  color: var(--accent);
+  color: var(--ink);
+  text-decoration-color: color-mix(in oklab, var(--gel) 70%, transparent);
+  text-underline-offset: 3px;
 }
 .num {
   font-variant-numeric: tabular-nums;
@@ -116,52 +156,71 @@ a {
 .center {
   text-align: center;
 }
+/* Buttons are changle.ca's pills: dusk by default, the game's gel (with its glow) for the main move
+   on a screen, a hairline for a way out, plain text for the small things. */
 .btn {
   font: inherit;
-  font-family: var(--display);
-  font-weight: 800;
-  font-synthesis: none;
-  font-size: 1.05rem;
-  letter-spacing: 0.5px;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.005em;
   line-height: 1.15;
-  min-height: 46px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 2px solid var(--ink);
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: inset 0 0 0 2px var(--surface), inset 0 0 0 3px var(--line);
+  min-height: 50px;
+  padding: 8px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dusk-3);
+  color: var(--moon);
   cursor: pointer;
   touch-action: manipulation;
   transition:
-    transform 90ms ease-out,
-    filter 90ms ease-out;
+    transform 0.16s var(--ease-out),
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.25s,
+    opacity 0.2s;
 }
 .btn:disabled {
-  opacity: 0.45;
-  cursor: default;
+  opacity: 0.38;
+  cursor: not-allowed;
 }
 .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-  box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 3px rgba(255, 255, 255, 0.6);
+  background: var(--gel);
+  color: var(--on-gel);
+  box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--gel) 70%, transparent);
+}
+/* A faded gel reads as mud on the night: a resting main button goes grey instead. */
+.btn.primary:disabled {
+  background: var(--dusk-3);
+  color: var(--dim);
+  box-shadow: none;
+  opacity: 1;
+}
+.btn.ghost {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line);
 }
 .btn.danger {
-  color: var(--danger);
-  border-color: var(--danger);
-  box-shadow: none;
+  background: transparent;
+  color: color-mix(in oklab, var(--stop) 80%, var(--moon));
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--stop) 55%, transparent);
 }
 .btn.quiet {
-  border-color: transparent;
+  min-height: 44px;
+  padding-inline: 14px;
   background: transparent;
-  color: var(--accent);
-  box-shadow: none;
+  color: var(--haze);
 }
-/* Pressed: the ticket sinks a little and darkens, quickly, like a real button. */
+@media (hover: hover) {
+  .btn.ghost:not(:disabled):hover {
+    box-shadow: inset 0 0 0 1.5px var(--dim);
+  }
+  .btn.quiet:not(:disabled):hover {
+    background: var(--line-soft);
+    color: var(--moon);
+  }
+}
 .btn:not(:disabled):active {
-  transform: translateY(2px) scale(0.98);
-  filter: brightness(0.92);
+  transform: scale(0.965);
 }
 .shake-hint {
   text-align: center;
@@ -170,29 +229,43 @@ a {
   width: 100%;
 }
 button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+summary:focus-visible,
+input[type="radio"]:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--moon);
+  outline-offset: 3px;
 }
-input,
+/* Fields are dusk wells with a line; the one you're typing in lights up in the gel. */
+input:not([type="radio"]):not([type="checkbox"]),
 select {
   font: inherit;
   color: var(--ink);
-  background: var(--surface);
-  border: 2px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  min-height: 44px;
+  background: var(--dusk);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  padding: 10px 14px;
+  min-height: 48px;
+  caret-color: var(--gel);
+  transition: box-shadow 0.2s;
+}
+input:not([type="radio"]):not([type="checkbox"]):focus,
+select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+input::placeholder {
+  color: var(--dim);
 }
 .field {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 .field span {
-  color: var(--muted);
-  font-size: 0.875rem;
+  color: var(--haze);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-left: 2px;
 }
 .choices {
   display: flex;
@@ -208,28 +281,40 @@ select {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
 }
+.choices.grid5 .btn {
+  padding-inline: 4px;
+}
 .choices.grid2 {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
 }
+/* A pill group, as on the site: the chosen one is moonlit. */
 .seg {
   display: inline-flex;
-  border: 1px solid var(--line);
+  gap: 4px;
+  padding: 4px;
   border-radius: 999px;
-  overflow: hidden;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
 }
 .seg button {
   font: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
   border: 0;
+  border-radius: 999px;
   background: transparent;
-  color: var(--ink);
-  padding: 6px 14px;
+  color: var(--haze);
+  padding: 0 14px;
   min-height: 36px;
   cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 .seg button[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--moon);
+  color: var(--night);
 }
 .chip {
   display: inline-flex;
@@ -265,18 +350,30 @@ select {
 .top .clock {
   flex: none;
 }
-/* Narrow phones: the top bar keeps team, cash, clock and menu. Net worth is in the standings on the play tab. */
+/* Narrow phones: the top bar keeps team, cash, clock and menu. Net worth is in the standings on the
+   play tab; then the team's face goes (its letter stays), then the bar packs tighter. */
 @media (max-width: 419px) {
   .top .stat.worth {
     display: none;
   }
 }
-@media (max-width: 340px) {
-  .top {
-    gap: 8px;
-  }
+@media (max-width: 379px) {
   .top .chip .face {
     display: none;
+  }
+}
+/* (Inside .game, so these win over the bar's own rules further down.) */
+@media (max-width: 340px) {
+  .game .top {
+    gap: 8px;
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+  .game .top .num {
+    font-size: 15px;
+  }
+  .game .top .menu-btn {
+    padding: 0 12px;
   }
 }
 .chip.small b {
@@ -291,7 +388,7 @@ select {
 .toasts {
   position: fixed;
   left: 50%;
-  bottom: calc(76px + env(safe-area-inset-bottom));
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   display: grid;
   gap: 6px;
@@ -300,11 +397,13 @@ select {
   pointer-events: none;
 }
 .toasts p {
-  background: var(--ink);
-  color: var(--bg);
-  padding: 10px 14px;
-  border-radius: 10px;
+  background: var(--moon);
+  color: var(--night);
+  padding: 10px 16px;
+  border-radius: 18px;
   font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: var(--lift);
   animation: pop 0.2s ease-out;
 }
 @keyframes pop {
@@ -351,7 +450,9 @@ select {
 }
 details summary {
   cursor: pointer;
-  color: var(--accent);
+  color: var(--haze);
+  font-weight: 700;
+  font-size: 0.9rem;
   min-height: 32px;
 }
 details > *:not(summary) {
@@ -364,14 +465,15 @@ details > *:not(summary) {
   flex-wrap: wrap;
 }
 .roomcode b {
-  font-size: 2.2rem;
-  letter-spacing: 0.15em;
+  font: 800 2.2rem/1.1 var(--ui);
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
 }
 .qr svg {
   width: 100%;
   height: 100%;
   background: #fff;
-  border-radius: 8px;
+  border-radius: 14px;
 }
 .teams {
   list-style: none;
@@ -380,19 +482,20 @@ details > *:not(summary) {
   display: grid;
   gap: 8px;
 }
+/* A team is a panel; its colour is on its character and its letter. Yours is lit by the gel. */
 .teams li {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-left: 6px solid var(--team);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 18px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow);
 }
 .teams li.mine {
   background: var(--me);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--gel) 55%, transparent);
 }
 .grow {
   flex: 1;
@@ -409,30 +512,38 @@ details > *:not(summary) {
   align-items: center;
   margin-left: auto;
 }
-.teamname {
-  font-weight: 600;
+input.teamname {
+  font-weight: 700;
   width: 100%;
-  min-height: 36px;
-  padding: 4px 8px;
+  min-height: 42px;
+  padding: 6px 12px;
+  border-radius: 12px;
 }
 .host {
   display: grid;
   gap: 12px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 16px;
 }
 fieldset {
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 20px;
   margin: 0;
-  padding: 10px 12px;
+  padding: 14px 16px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
+/* Floated, the legend sits inside the panel like any label instead of on its edge. */
 legend {
-  color: var(--muted);
-  font-size: 0.875rem;
-  padding: 0 4px;
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  color: var(--haze);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 .radio {
   display: flex;
@@ -442,9 +553,13 @@ legend {
 }
 .radio input {
   min-height: auto;
-  margin-top: 4px;
-  width: 18px;
-  height: 18px;
+  margin-top: 3px;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.radio b {
+  font-weight: 700;
 }
 .radio span {
   display: grid;
@@ -460,8 +575,9 @@ legend {
 }
 .check input {
   min-height: auto;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  flex: none;
 }
 /* game (phone) */
 .game {
@@ -480,32 +596,43 @@ legend {
   align-items: center;
   gap: 12px;
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
-  /* Navy in light mode; in dark mode a deeper navy rather than the cream ink, so a phone at the table
-     at night doesn't glare. */
+  /* The night, frosted, so the room light and the page show through as they scroll under it. */
   background: var(--top-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
   color: var(--top-fg);
   border-bottom: 1px solid var(--top-edge);
 }
 .top .num {
-  font-family: var(--mono);
+  font-family: var(--ui);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 .stat {
   display: grid;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 .stat small {
-  opacity: 0.7;
-  font-size: 0.7rem;
+  color: var(--haze);
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 .clock {
   margin-left: auto;
   font-size: 0.8rem;
-  opacity: 0.8;
+  font-weight: 600;
+  color: var(--haze);
+}
+/* The clock is a label with a figure in it: the text font, which is narrower than Unbounded. */
+.top .clock.num {
+  font-family: var(--font);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 .top .clock.warn {
-  color: #ffb36b;
-  opacity: 1;
+  color: var(--warn);
 }
 .clock.warn,
 .banner.warn {
@@ -525,23 +652,25 @@ legend {
   display: block;
   width: 100%;
   text-align: center;
-  padding: 6px 12px;
-  font-size: 0.9rem;
+  padding: 8px 12px;
+  font: 600 0.9rem/1.4 var(--font);
   background: var(--surface-2);
   border: 0;
-  border-bottom: 2px dashed var(--line);
+  border-bottom: 1px solid var(--line-soft);
   color: var(--muted);
-  font-family: inherit;
 }
+/* Your turn: the strip lights up in the gel, the one thing on the screen that does. */
 .banner.me {
-  background: var(--accent);
+  background: var(--gel);
   border-bottom-color: transparent;
-  color: var(--on-accent);
-  font-family: var(--display);
+  color: var(--on-gel);
+  font: 700 1rem/1.4 var(--ui);
+  letter-spacing: -0.01em;
+  box-shadow: 0 10px 30px -14px color-mix(in oklab, var(--gel) 75%, transparent);
+}
+.banner.me:lang(zh) {
   font-weight: 800;
-  font-synthesis: none;
-  font-size: 1.05rem;
-  letter-spacing: 1px;
+  letter-spacing: 0;
 }
 .panes {
   flex: 1;
@@ -561,77 +690,102 @@ legend {
 }
 .menu-btn {
   font: inherit;
-  font-size: 0.85rem;
-  background: none;
-  border: 1px solid currentColor;
+  font-size: 0.875rem;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
   border-radius: 999px;
+  box-shadow: inset 0 0 0 1.5px var(--line);
   color: inherit;
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 40px;
+  padding: 0 14px;
   white-space: nowrap;
   flex: none;
   cursor: pointer;
+  transition: box-shadow 0.2s;
 }
+@media (hover: hover) {
+  .menu-btn:hover {
+    box-shadow: inset 0 0 0 1.5px var(--dim);
+  }
+}
+/* The tabs float over the bottom of the screen, frosted, as on changle.ca: the one you're on is the
+   moonlit pill. */
 .tabs {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: max(10px, env(safe-area-inset-left, 0px));
+  right: max(10px, env(safe-area-inset-right, 0px));
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   z-index: 6;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  background: var(--surface);
-  border-top: 2px solid var(--ink);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  gap: 2px;
+  max-width: 560px;
+  margin-inline: auto;
+  padding: 5px;
+  border-radius: 22px;
+  background: rgba(24, 22, 51, 0.9);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 14px 30px -20px rgba(0, 0, 0, 0.8);
 }
 .tabs button {
   font: inherit;
-  font-family: var(--display);
   font-weight: 800;
-  font-synthesis: none;
-  font-size: 1rem;
-  letter-spacing: 1px;
+  font-size: 0.95rem;
   background: none;
   border: 0;
-  color: var(--muted);
-  min-height: 56px;
+  border-radius: 17px;
+  color: var(--haze);
+  min-height: 48px;
   position: relative;
   cursor: pointer;
+  transition:
+    background-color 0.25s,
+    color 0.25s;
 }
 .tabs button[aria-pressed="true"] {
-  color: var(--accent);
-  box-shadow: inset 0 4px 0 var(--accent);
+  background: var(--moon);
+  color: var(--night);
+  box-shadow: 0 6px 20px -8px color-mix(in oklab, var(--gel) 80%, transparent);
 }
+/* Something to answer on that tab. */
 .badge {
   position: absolute;
-  top: 6px;
-  right: 18%;
-  background: var(--danger);
-  color: #fff;
+  top: 3px;
+  right: 12%;
+  background: var(--gel);
+  color: var(--on-gel);
+  box-shadow: 0 0 0 2px var(--dusk);
   border-radius: 999px;
   font-style: normal;
   font-size: 0.7rem;
+  font-weight: 800;
   min-width: 18px;
   line-height: 18px;
 }
+/* Every question is a panel with a ticket's printed strip across the top. When it's your move, the
+   panel is ringed in the gel. */
 .decide {
   position: relative;
   background: var(--surface);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 20px;
+  padding: 16px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   box-shadow: var(--shadow);
 }
 .decide.waiting {
-  background: var(--surface-2);
-  border: 2px dashed var(--line);
+  background: transparent;
+  border: 1.5px dashed var(--line);
   box-shadow: none;
 }
 .my-move .decide:not(.waiting) {
-  box-shadow: 0 0 0 3px var(--accent), var(--shadow);
+  box-shadow:
+    0 0 0 2px var(--gel),
+    0 18px 44px -22px color-mix(in oklab, var(--gel) 75%, transparent);
 }
 /* A question that has just come up slides in like a pass handed across the counter, and takes no
    taps for a moment: the second half of a quick double tap on the button before it lands on nothing. */
@@ -651,15 +805,16 @@ legend {
     transform: translateY(10px);
   }
 }
+/* The printed strip: paper and navy ink, the same on any screen. */
 .pass-strip {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin: -14px -14px 0;
-  padding: 7px 14px;
-  border-radius: 12px 12px 0 0;
-  background: var(--ink);
-  color: var(--bg);
+  margin: -16px -16px 0;
+  padding: 8px 16px;
+  border-radius: 20px 20px 0 0;
+  background: var(--print-paper);
+  color: var(--print-ink);
   font: 700 11px/1.4 var(--mono);
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -679,8 +834,8 @@ legend {
   font-weight: 600;
 }
 .huge {
-  font-size: 3rem;
-  font-weight: 700;
+  font: 700 3rem/1.1 var(--ui);
+  font-variant-numeric: tabular-nums;
   text-align: center;
 }
 .brief {
@@ -741,31 +896,47 @@ legend {
   white-space: nowrap;
 }
 .tag {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0 5px;
+  border-radius: 999px;
+  padding: 0 8px;
   font-size: 0.7rem;
-  color: var(--muted);
-  background: var(--surface);
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--haze);
+  background: var(--dusk-3);
 }
+/* The log: the newest line is lit, the rest recede. */
 .feed {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: 2px;
   font-size: 0.9rem;
 }
 .feed li {
-  border-left: 3px solid var(--line);
-  padding-left: 8px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  color: var(--haze);
 }
 .feed li:first-child {
-  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
 }
 .feed li.party {
-  border-color: var(--danger);
+  color: color-mix(in oklab, var(--stop) 70%, var(--moon));
   font-weight: 600;
+}
+/* The mine and trade tabs: headings with room above them. */
+.assets:not(.compact),
+.trade {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.assets:not(.compact) > h3:not(:first-child),
+.trade > .composer {
+  margin-top: 14px;
 }
 .assets ul,
 .offers {
@@ -775,25 +946,22 @@ legend {
   display: grid;
   gap: 8px;
 }
+/* A city you own is a panel; its group is the coloured shape beside its name. */
 .assets li,
 .offers li {
   position: relative;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px 12px 12px 6px;
-  padding: 10px 12px;
+  border-radius: 16px;
+  padding: 10px 14px;
   display: grid;
   gap: 8px;
-}
-.assets li {
-  border-left: 8px solid var(--g, var(--line));
+  box-shadow: var(--shadow);
 }
 .assets .thumb {
   width: 38px;
   height: 48px;
   flex: none;
   border: 2px solid #f8f0dc;
-  outline: 1px solid var(--line);
 }
 .assets li.mort {
   opacity: 0.7;
@@ -815,7 +983,7 @@ legend {
   opacity: 1;
 }
 .offers li.incoming {
-  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--gel);
 }
 .deal {
   display: grid;
@@ -838,19 +1006,19 @@ legend {
 }
 .bets {
   background: var(--surface);
-  border: 2px dashed var(--line);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 20px;
+  padding: 14px 16px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  box-shadow: var(--shadow);
 }
-/* the waiting players' quiz: a boarding pass with three ticket-stub answers */
+/* The waiting players' quiz: a panel with the ticket strip, and three answers as the site's options. */
 .trivia {
   background: var(--surface);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 20px;
+  padding: 16px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   box-shadow: var(--shadow);
   animation: arrive 420ms cubic-bezier(0.2, 1.2, 0.4, 1) both;
 }
@@ -884,31 +1052,43 @@ legend {
 }
 .trivia-opt {
   font: inherit;
+  font-weight: 600;
   width: 100%;
-  min-height: 46px;
+  min-height: 50px;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  align-items: stretch;
-  padding: 0;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px 8px 10px;
   text-align: left;
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  background: var(--surface);
+  border: 0;
+  border-radius: 16px;
+  background: var(--dusk);
   color: var(--ink);
-  overflow: hidden;
+  box-shadow: inset 0 0 0 1.5px var(--line);
   cursor: pointer;
+  transition:
+    transform 0.16s var(--ease-out),
+    box-shadow 0.2s,
+    opacity 0.2s;
+}
+/* Still open: each answer is ringed in the gel, as the site marks what you can tap. */
+.trivia-opt:not(:disabled) {
+  box-shadow: inset 0 0 0 2px var(--gel);
 }
 .trivia-opt b {
   display: grid;
   place-items: center;
-  background: var(--ink);
-  color: var(--bg);
-  font: 700 0.95rem var(--mono);
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--moon);
+  color: var(--night);
+  font: 700 0.85rem/1 var(--ui);
 }
 .trivia-opt span {
-  padding: 9px 12px;
+  padding: 4px 0;
   line-height: 1.3;
-  border-left: 2px dashed var(--line);
 }
 .trivia-opt:disabled {
   cursor: default;
@@ -921,17 +1101,16 @@ legend {
   text-decoration: line-through;
 }
 .trivia-opt.right {
-  border-color: var(--house);
-  box-shadow: 0 0 0 2px var(--house);
+  box-shadow: inset 0 0 0 2px var(--go);
 }
 .trivia-opt.right b {
-  background: var(--house);
+  background: var(--go);
 }
 .trivia-opt.right span {
   text-decoration: none;
 }
 .trivia-opt:not(:disabled):active {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 .trivia-status {
   display: flex;
@@ -947,11 +1126,13 @@ legend {
   color: var(--danger);
 }
 .trivia-result {
-  font-family: var(--display);
-  font-weight: 800;
-  font-synthesis: none;
-  font-size: 1.15rem;
+  font: 700 1.05rem/1.3 var(--ui);
+  letter-spacing: -0.01em;
   color: var(--accent);
+}
+.trivia-result:lang(zh) {
+  font-weight: 800;
+  letter-spacing: 0;
 }
 .trivia-fact {
   font-size: 0.85rem;
@@ -959,7 +1140,6 @@ legend {
   color: var(--muted);
 }
 .trivia-fact a {
-  color: var(--accent);
   overflow-wrap: anywhere;
 }
 .trivia.big {
@@ -974,10 +1154,10 @@ legend {
 }
 .trivia.big .trivia-opt {
   font-size: 1.15rem;
-  min-height: 44px;
+  min-height: 48px;
 }
 .trivia.big .trivia-opt span {
-  padding: 7px 12px;
+  padding: 2px 0;
 }
 .trivia.big .trivia-result {
   font-size: 1.4rem;
@@ -1033,8 +1213,9 @@ legend {
   aspect-ratio: 1;
   align-content: center;
   text-align: center;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  box-shadow: 0 0 0 3px var(--ink);
+  background: color-mix(in srgb, var(--board-paper) 92%, transparent);
+  color: var(--board-ink);
+  box-shadow: 0 0 0 3px var(--board-ink);
 }
 .boardnote {
   display: flex;
@@ -1070,7 +1251,7 @@ legend {
 }
 .party-card .pass-strip {
   margin: 0;
-  border-radius: 6px;
+  border-radius: 10px;
   background: var(--accent);
   color: var(--on-accent);
   gap: 14px;
@@ -1086,40 +1267,71 @@ legend {
   gap: 8px;
 }
 /* sheets */
+/* Sheets are the site's: the night dims and blurs, a dusk sheet rises with its handle. */
 .sheet-bg {
   position: fixed;
   inset: 0;
-  background: rgb(0 0 0 / 0.4);
+  background: rgba(6, 5, 18, 0.62);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   z-index: 40;
   display: grid;
   align-items: end;
   justify-items: center;
 }
 .sheet {
-  background: var(--surface);
-  border-top: 3px solid var(--ink);
+  background: var(--dusk);
   width: min(100%, 560px);
-  max-height: 85vh;
-  max-height: 85dvh;
+  max-height: 88vh;
+  max-height: 88dvh;
   overflow: auto;
-  border-radius: 16px 16px 0 0;
-  padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  overscroll-behavior: contain;
+  border-radius: 28px 28px 0 0;
+  box-shadow:
+    0 -20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  padding: 8px max(18px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
   display: grid;
   gap: 12px;
+}
+.sheet::before {
+  content: "";
+  justify-self: center;
+  width: 40px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--line);
+  margin: 2px 0 -6px;
 }
 .sheet header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+}
+.sheet header h2 {
+  margin: 0;
+  font-size: 1.3rem;
 }
 .sheet .x {
   font-size: 1.6rem;
+  line-height: 1;
   background: none;
   border: 0;
+  border-radius: 999px;
   color: var(--ink);
-  min-width: 44px;
-  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  margin-right: -8px;
+  flex: none;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+@media (hover: hover) {
+  .sheet .x:hover {
+    background: var(--line-soft);
+  }
 }
 .settings {
   display: grid;
@@ -1127,7 +1339,7 @@ legend {
 }
 .sheet-back {
   display: flex;
-  margin: -8px 0 4px -16px;
+  margin: -6px 0 2px -14px;
 }
 .credits {
   display: grid;
@@ -1154,12 +1366,10 @@ legend {
   break-inside: avoid;
 }
 .credits a {
-  color: var(--accent);
   overflow-wrap: anywhere;
 }
 .licences summary {
   cursor: pointer;
-  color: var(--accent);
 }
 .licences pre {
   max-height: 50vh;
@@ -1171,8 +1381,9 @@ legend {
 }
 .saved {
   background: var(--me);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--gel) 45%, transparent);
 }
 /* results */
 .results {
@@ -1211,7 +1422,11 @@ legend {
   mask-size: 160px;
   animation: exit-slam 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) var(--stamp-at, 0s) both;
 }
+/* A rubber stamp: printed type, not the frame's. */
 .exit-stamp h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-synthesis: none;
   font-size: clamp(2.4rem, 11vw, 3.2rem);
   letter-spacing: 0.06em;
 }
@@ -1241,21 +1456,23 @@ legend {
 }
 .over .results li {
   position: relative;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
   background: var(--surface);
   box-shadow: var(--shadow);
-  border-left: 6px solid var(--team);
   animation: row-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15) var(--at, 0s) both;
 }
 .over .results .rank {
   min-width: 1.2em;
-  font: 700 1.1rem/1 var(--mono);
+  font: 700 1.1rem/1 var(--ui);
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 .over .results .worth {
   margin-left: auto;
-  font: 700 1.15rem/1.2 var(--mono);
+  font: 700 1.15rem/1.2 var(--ui);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 .over .results small {
   flex-basis: 100%;
@@ -1280,7 +1497,8 @@ legend {
   gap: 4px;
   padding: 18px 16px 14px;
   box-shadow:
-    0 0 0 3px var(--team),
+    0 0 0 2px var(--team),
+    0 20px 50px -24px color-mix(in oklab, var(--team) 75%, transparent),
     var(--shadow);
 }
 .won-text {
@@ -1727,8 +1945,8 @@ legend {
   justify-content: space-between;
 }
 .tv-head .code {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font: 700 1.4rem/1.2 var(--ui);
+  font-variant-numeric: tabular-nums;
 }
 .standings.big {
   display: grid;
@@ -1741,13 +1959,8 @@ legend {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 2px 10px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 8px 10px;
-}
-.standings.big li.turn {
-  border-color: var(--accent);
+  border-radius: 16px;
+  padding: 8px 12px;
 }
 .standings.big li > .chip {
   grid-column: 1;
@@ -1807,6 +2020,7 @@ legend {
 }
 .lobby-tv h1 {
   font-size: 4.5rem;
+  justify-items: center;
 }
 .join-tv {
   display: flex;
@@ -1815,12 +2029,9 @@ legend {
   text-align: left;
 }
 .join-tv .code {
-  font-family: var(--display);
-  font-synthesis: none;
-  font-size: 7rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
-  line-height: 1;
+  font: 800 7rem/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
 }
 .teams.tv {
   width: min(90vw, 720px);
@@ -1838,10 +2049,10 @@ legend {
 }
 .confirm {
   display: grid;
-  gap: 8px;
-  border: 1px solid var(--danger);
-  border-radius: 12px;
-  padding: 10px;
+  gap: 10px;
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--stop) 60%, transparent);
 }
 /* Older Safari (before 15) has no aspect-ratio: keep the board square anyway. */
 @supports not (aspect-ratio: 1 / 1) {
@@ -1881,8 +2092,8 @@ legend {
   grid-template-columns: 84px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
-  padding: 10px;
-  border-radius: 10px;
+  padding: 12px;
+  border-radius: 20px;
   background: var(--surface);
   box-shadow: var(--shadow);
   animation: arrive 480ms cubic-bezier(0.2, 1.2, 0.4, 1) both;
@@ -1890,7 +2101,7 @@ legend {
 .arrival-poster {
   aspect-ratio: 4 / 5;
   border: 4px solid #f8f0dc;
-  outline: 1px solid var(--line);
+  border-radius: 4px;
 }
 .arrival-text {
   display: grid;
@@ -1904,7 +2115,12 @@ legend {
   font-size: 0.8rem;
   color: var(--muted);
 }
+/* The city's name is printed, like the poster above it. */
 .arrival h3 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-synthesis: none;
+  letter-spacing: 0.5px;
   font-size: 1.6rem;
   line-height: 1.05;
   margin: 0;
@@ -1951,7 +2167,7 @@ legend {
 }
 .arrival.big {
   grid-template-columns: 1fr;
-  padding: 12px;
+  padding: 14px;
 }
 .arrival.big .arrival-poster {
   aspect-ratio: 16 / 9;
@@ -1984,7 +2200,7 @@ legend {
 .sheet-poster {
   aspect-ratio: 16 / 9;
   border: 6px solid #f8f0dc;
-  outline: 1px solid var(--line);
+  border-radius: 6px;
 }
 .passport-book {
   display: grid;
@@ -2031,7 +2247,7 @@ legend {
   width: 104px;
   height: 130px;
   border: 5px solid #f8f0dc;
-  box-shadow: 0 8px 18px rgba(10, 14, 30, 0.22);
+  box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.7);
 }
 .home-posters .poster:nth-child(1) {
   transform: rotate(-8deg) translate(14px, 12px);
@@ -2056,7 +2272,7 @@ legend {
   width: 120px;
   height: 150px;
   border: 6px solid #f8f0dc;
-  box-shadow: 0 8px 18px rgba(10, 14, 30, 0.22);
+  box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.7);
 }
 .tv-posters .poster:nth-child(odd) {
   transform: rotate(-4deg);
@@ -2064,15 +2280,17 @@ legend {
 .tv-posters .poster:nth-child(even) {
   transform: rotate(3deg) translateY(8px);
 }
-.departures {
+/* Named with its tag so the headings' Chinese weight and spacing (above) don't override it. */
+h2.departures {
   margin: 4px 0 -6px;
-  font-size: 1rem;
-  letter-spacing: 3px;
+  font: 700 1rem/1.2 var(--font);
+  letter-spacing: 0.12em;
   color: var(--muted);
 }
+/* The departure board: the airport's own object, cream letters and amber figures, set into the room. */
 .standings.big li {
-  background: #161a2c;
-  border-color: #161a2c;
+  background: var(--night-2);
+  box-shadow: var(--shadow);
   color: #f4ead5;
 }
 .standings.big li .num {
@@ -2086,13 +2304,15 @@ legend {
   color: #b4ad9b;
 }
 .standings.big li.turn {
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow:
+    0 0 0 2px var(--gel),
+    0 14px 34px -18px color-mix(in oklab, var(--gel) 75%, transparent);
 }
 .standings.big .tag {
   justify-self: start;
   background: transparent;
   color: #f4ead5;
-  border-color: #4a5170;
+  box-shadow: inset 0 0 0 1px #4a5170;
 }
 
 /* ---------- touchdown: the first arrival in a city, seen from the plane (ui/Touchdown.tsx) ----------
@@ -2609,9 +2829,9 @@ legend {
 .dice-sum {
   padding: 2px 14px;
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 0 0 3px var(--ink);
+  background: var(--board-paper);
+  color: var(--board-ink);
+  box-shadow: 0 0 0 3px var(--board-ink);
   font: 800 2rem/1.1 var(--display);
   animation: sum-in 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) 0.9s both;
 }
@@ -2654,7 +2874,7 @@ legend {
   gap: 10px;
   padding: 26px 34px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--surface) 88%, transparent), transparent);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--night) 88%, transparent), transparent);
   transform: translate(-50%, -50%);
   pointer-events: none;
   animation: moment-out 1.7s linear both;
@@ -2704,9 +2924,10 @@ legend {
   gap: 6px;
   padding-bottom: 12px;
   overflow: hidden;
-  border: 2px solid var(--ink);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  border: 2px solid var(--board-ink);
+  background: var(--board-paper);
+  color: var(--board-ink);
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.7);
 }
 .card-front .pass-strip {
   margin: 0;
@@ -2716,7 +2937,12 @@ legend {
 .card-front > p {
   padding-inline: 14px;
 }
+/* A card from the deck: printed type. */
 .card-front h3 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-synthesis: none;
+  letter-spacing: 0.5px;
   font-size: 1.3em;
 }
 .card-back {
@@ -2725,14 +2951,14 @@ legend {
   display: grid;
   place-items: center;
   transform: rotateY(180deg);
-  border: 2px solid var(--ink);
-  background: repeating-linear-gradient(45deg, var(--ink) 0 10px, color-mix(in srgb, var(--ink) 80%, var(--surface)) 10px 20px);
-  color: var(--surface);
+  border: 2px solid var(--board-ink);
+  background: repeating-linear-gradient(45deg, var(--board-ink) 0 10px, color-mix(in srgb, var(--board-ink) 80%, var(--board-paper)) 10px 20px);
+  color: var(--board-paper);
   font: 800 1.3em var(--display);
   letter-spacing: 0.1em;
 }
 .deck-postcard .card-back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 10px, color-mix(in srgb, var(--accent) 78%, var(--surface)) 10px 20px);
+  background: repeating-linear-gradient(45deg, var(--accent) 0 10px, color-mix(in srgb, var(--accent) 78%, var(--board-paper)) 10px 20px);
   color: var(--on-accent);
 }
 .deck-postcard .card-front {
@@ -2813,7 +3039,7 @@ legend {
 .coin-amount {
   position: fixed;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface);
   box-shadow: 0 0 0 2px currentColor;
   font: 800 clamp(18px, 2vw, 30px) / 1.3 var(--display);
@@ -2853,7 +3079,7 @@ legend {
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), var(--lift);
   font-size: 0.8rem;
   font-style: normal;
   white-space: nowrap;
@@ -2862,7 +3088,7 @@ legend {
   animation: delta-float 1.5s ease-out both;
 }
 .cash-delta.up {
-  color: var(--house);
+  color: var(--go);
 }
 .cash-delta.down {
   color: var(--danger);
@@ -2894,15 +3120,15 @@ legend {
 .news {
   display: grid;
   gap: 8px;
-  padding: 14px;
-  border-radius: 12px;
+  padding: 16px;
+  border-radius: 20px;
   background: var(--surface);
   box-shadow: var(--shadow);
   animation: arrive 420ms cubic-bezier(0.2, 1.2, 0.4, 1) both;
 }
 .news .pass-strip {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--gel);
+  color: var(--on-gel);
 }
 .news-body {
   display: grid;

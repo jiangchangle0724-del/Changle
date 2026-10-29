@@ -204,6 +204,8 @@ export interface RoomView {
   phase: "lobby" | "playing" | "over";
   you: { id: string; name: string; team: string | null; role: Role; host: boolean; seats: number[]; lang: Lang };
   hostId: string | null;
+  /** The changle.ca table the game was started from (its 4-letter code), or null. */
+  table: string | null;
   settings: Settings;
   members: MemberView[];
   teams: TeamView[];

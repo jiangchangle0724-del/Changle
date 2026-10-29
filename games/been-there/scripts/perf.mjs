@@ -8,7 +8,8 @@
 // Headless Chromium draws without a GPU, so this is a stand-in for a real phone, not a replacement.
 import { chromium, devices } from "playwright";
 
-const BASE = process.env.BASE ?? "http://127.0.0.1:8787";
+// The game answers under /trip, as on changle.ca.
+const BASE = `${process.env.BASE ?? "http://127.0.0.1:8787"}/trip`;
 const rates = process.argv.slice(2).map(Number).filter(Boolean);
 const SECONDS = Number(process.env.SECONDS ?? 40);
 

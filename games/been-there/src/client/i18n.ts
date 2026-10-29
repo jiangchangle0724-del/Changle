@@ -23,6 +23,10 @@ const S = {
   room: ["房间", "Room"],
   scanToJoin: ["扫码加入，或在 {host} 输入房间码", "Scan to join, or enter the code at {host}"],
   shareLink: ["复制邀请链接", "Copy invite link"],
+  tableCode: ["桌号", "Table"],
+  backToTable: ["回到这桌", "Back to the table"],
+  backToSite: ["回到开席", "Back to changle.ca"],
+  scanToJoinTable: ["扫码上桌，或在 {host} 输入桌号", "Scan to join the table, or enter its code at {host}"],
   copied: ["已复制", "Copied"],
   teams: ["队伍", "Teams"],
   newTeam: ["新建一队", "New team"],
@@ -459,6 +463,9 @@ export function t(key: Key, vars: Record<string, string | number> = {}): string 
   const s = S[key]?.[lang === "zh" ? 0 : 1] ?? key;
   return s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
 }
+
+/** The same string in the other language (for a bilingual title). */
+export const other = (key: Key): string => S[key]?.[lang === "zh" ? 1 : 0] ?? key;
 
 export const has = (key: string): key is Key => key in S;
 

@@ -1,70 +1,9 @@
 /* The golden-age-of-travel look: posters, luggage labels, passport stamps, boarding passes.
-   Colours are tokens so the page works in light and dark; posters and passports are "printed"
-   and keep their own colours in both. */
+   changle.ca is a night room, so the board is printed in its night inks: navy paper, cream ink,
+   vermilion. Posters, passports, dice and coins are printed objects and keep their own colours. */
 :root {
-  --table: #efe4cc;
-  --board-paper: #fbf4e4;
-  --board-paper-2: #efe2c4;
-  --board-ink: #1d2340;
-  --board-ink-2: #6b6658;
-  --board-line: #d9c8a3;
-  --board-rim: #1d2340;
-  --map-sea: #d3e3da;
-  --map-land: #e4c690;
-  --map-line: #b7cabd;
-  --flight: #c8432b;
-  --night-shade: #1d2340;
-  --corner-disc: #1d2340;
-  --corner-ink: #f4ead5;
-  --house: #2f7d4f;
-  --hotel: #c8432b;
-  --active: #c8432b;
-  --passport: #f3e8cf;
-  --passport-cover: #1f3b5c;
-  /* Dice and coins are objects on the table: they keep their own colours in both themes. As on
-     Chinese dice, the one and the four are red. */
-  --die-face: #fffaf0;
-  --die-edge: #e2d4b6;
-  --die-pip: #1d2340;
-  --die-red: #c8102e;
-  --coin: #e0a526;
-  --coin-hi: #ffe08a;
-  --coin-edge: #93640c;
-  /* Weather seen through the plane window (the live weather, in the touchdown). */
-  --rain: rgba(232, 240, 255, 0.62);
-  --snow: rgba(255, 255, 255, 0.92);
-  --fog: rgba(228, 232, 238, 0.72);
-  --flash: rgba(255, 255, 255, 0.7);
-  --display: "Big Shoulders Display", "ZCOOL QingKe HuangYou", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
-  --display-zh: "ZCOOL QingKe HuangYou", "Big Shoulders Display", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
-  --mono: "Space Mono", ui-monospace, Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --table: #121628;
-    --board-paper: #1c2238;
-    --board-paper-2: #242b47;
-    --board-ink: #f1e6cf;
-    --board-ink-2: #b4ad9b;
-    --board-line: #303a5a;
-    --board-rim: #0a0d19;
-    --map-sea: #16203a;
-    --map-land: #3c4669;
-    --map-line: #27314f;
-    --flight: #ff8a6b;
-    --night-shade: #03050c;
-    --corner-disc: #f1e6cf;
-    --corner-ink: #1c2238;
-    --house: #5fc48a;
-    --hotel: #ff8a6b;
-    --active: #ff8a6b;
-    --passport-cover: #13263d;
-    --die-face: #f4ead5;
-    --die-edge: #c9b994;
-  }
-}
-:root[data-theme="dark"] {
-  --table: #121628;
+  /* The table under the board: the room's night (the holes punched in a ticket show it). */
+  --table: #0e0c22;
   --board-paper: #1c2238;
   --board-paper-2: #242b47;
   --board-ink: #f1e6cf;
@@ -81,9 +20,29 @@
   --house: #5fc48a;
   --hotel: #ff8a6b;
   --active: #ff8a6b;
+  --passport: #f3e8cf;
   --passport-cover: #13263d;
+  /* Printed paper and its ink: the strip across the top of a ticket, a postcard's border. */
+  --print-paper: #f1e6cf;
+  --print-ink: #1d2340;
+  /* Dice and coins are objects on the table. As on Chinese dice, the one and the four are red. */
   --die-face: #f4ead5;
   --die-edge: #c9b994;
+  --die-pip: #1d2340;
+  --die-red: #c8102e;
+  --coin: #e0a526;
+  --coin-hi: #ffe08a;
+  --coin-edge: #93640c;
+  /* Weather seen through the plane window (the live weather, in the touchdown). */
+  --rain: rgba(232, 240, 255, 0.62);
+  --snow: rgba(255, 255, 255, 0.92);
+  --fog: rgba(228, 232, 238, 0.72);
+  --flash: rgba(255, 255, 255, 0.7);
+  /* The printed type: only on the posters, the board, tickets and stamps. The frame around them
+     uses changle.ca's own fonts (styles.css). */
+  --display: "Big Shoulders Display", "ZCOOL QingKe HuangYou", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  --display-zh: "ZCOOL QingKe HuangYou", "Big Shoulders Display", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  --mono: "Space Mono", ui-monospace, Menlo, monospace;
 }
 
 /* ---------- round board ---------- */

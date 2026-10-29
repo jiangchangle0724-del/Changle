@@ -1,11 +1,14 @@
-// Build the web pages: dist/client (online game) and dist/demo.html (single-file, single-device demo).
+// Build the web pages: dist/client/trip (the online game, served at changle.ca/trip) and
+// dist/demo.html (single-file, single-device demo, also served at changle.ca/trip/demo).
 //   node scripts/build.mjs           build once
 //   node scripts/build.mjs --watch   rebuild on change
 import * as esbuild from "esbuild";
-import { mkdir, readFile, writeFile, copyFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, copyFile, rm } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
-const out = "dist/client";
+// Everything the worker serves sits under /trip, so the files do too (dist/client is the root).
+const out = "dist/client/trip";
+await rm("dist/client", { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
 const common = {
@@ -21,10 +24,12 @@ const common = {
 
 // globe.js (three.js) is its own file: only the big screen loads it.
 const client = await esbuild.context({ ...common, entryPoints: { app: "src/client/main.tsx", globe: "src/client/globe/main.ts" }, outdir: out, format: "iife" });
-await copyFile("src/client/index.html", `${out}/index.html`);
+// app.html, not index.html: on changle.ca the bare /trip leads to the game's card, which the worker
+// decides, so no file may answer it first. The worker serves app.html for room and big-screen links.
+await copyFile("src/client/index.html", `${out}/app.html`);
 
 // One stylesheet: the fonts (made by scripts/fonts.mjs), the art, then the screens.
-const FONT_FILES = ["zcool.woff2", "bigshoulders.woff2", "spacemono-400.woff2", "spacemono-700.woff2"];
+const FONT_FILES = ["unbounded.woff2", "figtree.woff2", "zcool.woff2", "bigshoulders.woff2", "spacemono-400.woff2", "spacemono-700.woff2"];
 const appCss = async () =>
   (await readFile("src/client/fonts/fonts.css", "utf8")) + (await readFile("src/client/art/art.css", "utf8")) + (await readFile("src/client/styles.css", "utf8"));
 await mkdir(`${out}/fonts`, { recursive: true });
@@ -64,6 +69,8 @@ const THIRD_PARTY = [
   // Its licence is only in the header of its source.
   ["qrcode-generator", "https://github.com/kazuhikoarase/qrcode-generator", MIT("2009 Kazuhiko Arase")],
   ["world-atlas (the map: Natural Earth 1:110m land, public domain)", "https://github.com/topojson/world-atlas", "node_modules/world-atlas/LICENSE"],
+  ["Unbounded", "https://fonts.google.com/specimen/Unbounded", "src/client/fonts/licences/Unbounded-OFL.txt"],
+  ["Figtree", "https://fonts.google.com/specimen/Figtree", "src/client/fonts/licences/Figtree-OFL.txt"],
   ["ZCOOL QingKe HuangYou", "https://fonts.google.com/specimen/ZCOOL+QingKe+HuangYou", "src/client/fonts/licences/ZCOOLQingKeHuangYou-OFL.txt"],
   ["Big Shoulders Display", "https://fonts.google.com/specimen/Big+Shoulders+Display", "src/client/fonts/licences/BigShouldersDisplay-OFL.txt"],
   ["Space Mono", "https://fonts.google.com/specimen/Space+Mono", "src/client/fonts/licences/SpaceMono-OFL.txt"],
@@ -87,7 +94,7 @@ const licenceBlock = () => `<script type="text/plain" id="licences">${LICENCES.r
 const ARTIFACT_CSS = `
 .home, .lobby, .over { padding-top: 24px; }
 .top { top: env(safe-area-inset-top, 0px); padding-top: 8px; }
-.top::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--top-bg); }
+.top::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--night); }
 `;
 
 async function demo() {
@@ -99,6 +106,8 @@ async function demo() {
   // Standalone file you can open from disk.
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>到此一游试玩版</title><style>${css}</style></head><body>${body}</body></html>`;
   await writeFile("dist/demo.html", html);
+  // changle.ca/trip/demo: a game's "one phone" way to play.
+  await writeFile(`${out}/demo.html`, html);
   // Artifact page (the artifact service adds the document skeleton).
   const artifact = `<title>到此一游试玩版</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<style>${css}${ARTIFACT_CSS}</style>\n${body}\n`;
   await writeFile("dist/demo.artifact.html", artifact);

@@ -3,7 +3,7 @@ import { CityPoster } from "../art/posters";
 import { t } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
-import { Btn } from "./common";
+import { Btn, GameTitle } from "./common";
 import { Credits } from "./Credits";
 import { LangToggle } from "./Settings";
 
@@ -51,7 +51,7 @@ export function Home({ go }: { go: (path: string) => void }) {
         ))}
       </div>
       <header>
-        <h1>{t("title")}</h1>
+        <GameTitle />
         <p class="muted">{t("tagline")}</p>
         <LangToggle />
       </header>

@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { BUZZ, allowShake, buzz, canBuzz, canShake } from "../controls";
+import { backToTable, tableFrom } from "../base";
 import { getLang, setLang, t } from "../i18n";
 import { prefs } from "../prefs";
 import { setMuted } from "../sound";
@@ -51,6 +52,7 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
   const mySeat = v?.you.seats[0];
   const myTeam = v && mySeat !== undefined ? v.teams.find((x) => x.seat === mySeat) : undefined;
   const [credits, setCredits] = useState(false);
+  const table = v && !v.settings.hotseat ? tableFrom(v) : null;
   if (credits)
     return (
       <Sheet title={t("credits")} onClose={onClose}>
@@ -133,6 +135,11 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
         <Btn kind="quiet" onClick={() => setCredits(true)}>
           {t("credits")} →
         </Btn>
+        {table && (
+          <Btn kind="ghost" onClick={() => backToTable(table, { over: g?.s.over ? v?.code : undefined })}>
+            {t("backToTable")}
+          </Btn>
+        )}
       </div>
     </Sheet>
   );
