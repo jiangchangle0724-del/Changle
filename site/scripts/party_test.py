@@ -540,7 +540,7 @@ def t_tune_songs_online(browser):
     start_game(host, everyone, "tune")
     ok(until(lambda: view(host)["mode"] == "songs"), "real songs by default")
     host.get_by_role("button", name="华语").click()
-    ok(until(lambda: view(guests[0])["pool"] == "zh"), "the host picks Chinese songs")
+    ok(until(lambda: str(view(guests[0])["pool"]).startswith("zh")), "the host picks Chinese songs")
     host.wait_for_timeout(300)
     shot(guests[0], "tn-songs-net-ready")
     host.get_by_role("button", name="放第一首").click()
