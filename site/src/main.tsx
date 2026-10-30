@@ -6,6 +6,7 @@ import "./styles/online.css";
 import "./styles/home.css";
 import "./styles/tools.css";
 import "./styles/account.css";
+import "./styles/landscape.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
