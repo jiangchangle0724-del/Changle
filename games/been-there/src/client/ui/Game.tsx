@@ -16,7 +16,7 @@ import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
 import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { NewsBanner } from "./News";
 import { ArrivalFrame } from "./Photo";
-import { planMove, rideEnd, rideLand, rideMode, rideReady, rideUrgent, useRide, type RidePlan } from "./ridePlan";
+import { moveInPlay, planMove, rideEnd, rideLand, rideMode, rideReady, rideUrgent, useRide, type RidePlan } from "./ridePlan";
 import { SettingsSheet } from "./Settings";
 import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
@@ -60,10 +60,14 @@ export function Game({ v }: { v: RoomView }) {
   // up the dice; the window it's in is put away until then anyway)
   const arriveAt = riding ? rideLand(ride) + 150 : 0;
   useRerenderAt(arriveAt);
-  const myCash = useHeldUntil(me?.cash ?? 0, riding ? readyAt : 0);
-  const cashShown = useHeldUntil(
+  // Money changes hands with the decision window: this team's own ride's (sooner when it's skipped),
+  // or with another team's, as its token lands here in step with the big screen.
+  const playing = moveInPlay(v);
+  const holdUntil = riding ? readyAt : playing && !v.you.seats.includes(playing.seat) ? playing.ready : 0;
+  const myCash = useHeld(me?.cash ?? 0, holdUntil);
+  const cashShown = useHeld(
     v.you.seats.reduce((a, x) => a + (s.ps[x]?.cash ?? 0), 0),
-    riding ? readyAt : 0,
+    holdUntil,
   );
   usePhoneSounds(v, myMove, cashShown, ride);
   usePartyToasts(v);
@@ -117,7 +121,7 @@ export function Game({ v }: { v: RoomView }) {
         <BoardNote v={v} />
       </main>
       <aside class="side">
-        <Standings v={v} />
+        <Standings v={v} until={holdUntil} />
         <Feed v={v} n={wide ? 12 : 3} />
       </aside>
       {/* Always built, open or not: a half-made choice survives a look at the board. */}
@@ -198,25 +202,19 @@ export function Game({ v }: { v: RoomView }) {
 }
 
 /**
- * A number as it was until `until` (server time), then as it is: a ride's money shows when the token
- * lands. Re-renders at `until`.
+ * A value as it was until `until` (server time), then as it is: a move's money shows with its
+ * decision window. Re-renders at `until`.
  */
-function useHeldUntil(n: number, until: number): number {
-  const before = useRef(n);
-  const held = useRef<{ until: number; n: number } | null>(null);
-  const [, tick] = useState(0);
+export function useHeld<T>(value: T, until: number): T {
+  const before = useRef(value);
+  const held = useRef<{ until: number; value: T } | null>(null);
+  useRerenderAt(until);
   if (until > serverNow()) {
-    if (held.current?.until !== until) held.current = { until, n: before.current };
+    if (held.current?.until !== until) held.current = { until, value: before.current };
   } else held.current = null;
-  useEffect(() => {
-    const left = until - serverNow();
-    if (left <= 0) return;
-    const id = window.setTimeout(() => tick((x) => x + 1), left + 20);
-    return () => clearTimeout(id);
-  }, [until]);
-  if (held.current) return held.current.n;
-  before.current = n;
-  return n;
+  if (held.current) return held.current.value;
+  before.current = value;
+  return value;
 }
 
 /** Re-render at a server time (when a ride's decision window is due back, or its token lands). */
@@ -375,18 +373,22 @@ function Banner({ v, onOpen }: { v: RoomView; onOpen?: () => void }) {
   return <p class={`banner${mine ? " me" : ""}`}>{mine ? t("yourTurn") : t("turnOf", { team: seatName(v, g.s.turn) })}</p>;
 }
 
-export function Standings({ v, big }: { v: RoomView; big?: boolean }) {
+export function Standings({ v, big, until }: { v: RoomView; big?: boolean; until?: number }) {
   const g = v.game!;
   const s = g.s;
+  // (what a move did to the teams shows with its decision window, while its token is on the way)
+  const hold = until ?? moveInPlay(v)?.ready ?? 0;
+  const ps = useHeld(s.ps, hold);
+  const worth = useHeld(g.worth, hold);
   return (
     <ul class={`standings${big ? " big" : ""}`}>
-      {s.ps.map((p, seat) => {
+      {ps.map((p, seat) => {
         const team = teamOf(v, seat);
         return (
           <li key={seat} class={`${seat === s.turn ? "turn" : ""}${p.out ? " out" : ""}`}>
             <TeamChip team={team} small={!big} mood={moodOf(v, seat)} />
             {!big && <span class="name">{seatName(v, seat)}</span>}
-            <span class="num">{money(g.worth[seat])}</span>
+            <span class="num">{money(worth[seat])}</span>
             {big && (
               <small class="muted num cash">
                 {t("cash")} {money(p.cash)}
@@ -412,11 +414,16 @@ export function Standings({ v, big }: { v: RoomView; big?: boolean }) {
 }
 
 export function Feed({ v, n }: { v: RoomView; n?: number }) {
+  // A move's lines wait for its token to land: where it lands is the stamp's to tell.
+  const playing = moveInPlay(v);
+  useRerenderAt(playing?.land ?? 0);
+  const held = playing && serverNow() < playing.land ? playing.key : Infinity;
   // Newest first, and only as many lines as are shown.
   const lines: { id: number; text: string; party: boolean }[] = [];
   const ours = thisGame(v);
   for (let i = v.feed.length - 1; i >= 0 && lines.length < (n ?? 60); i--) {
     const f = v.feed[i];
+    if (f.id >= held) continue;
     if (!ours(f)) break;
     const text = feedText(v, f);
     if (text) lines.push({ id: f.id, text, party: f.t === "party" });
@@ -434,13 +441,19 @@ export function Feed({ v, n }: { v: RoomView; n?: number }) {
 
 const die = (n: number) => "⚀⚁⚂⚃⚄⚅"[n - 1] ?? "";
 
-/** Under the phone board: the last dice and what the table is waiting for. */
+/** Under the phone board: the last dice and what the table is waiting for (while a token is on the
+ * way, the dice once they settle, and the rest once it lands). */
 function BoardNote({ v }: { v: RoomView }) {
   const s = v.game!.s;
+  const playing = moveInPlay(v);
+  const now = serverNow();
+  const settled = !playing || now >= playing.dice;
+  const landed = !playing || now >= playing.land;
+  useRerenderAt(playing ? (settled ? playing.land : playing.dice) : 0);
   return (
     <p class="boardnote">
-      {s.dice[0] ? <span class="dice num">{`${die(s.dice[0])} ${die(s.dice[1])}`}</span> : null}
-      <span>{pendingSummary(v)}</span>
+      {s.dice[0] && settled ? <span class="dice num">{`${die(s.dice[0])} ${die(s.dice[1])}`}</span> : null}
+      <span>{landed ? pendingSummary(v) : ""}</span>
     </p>
   );
 }

@@ -105,7 +105,10 @@ Each of these was measured or is tested. Check them again after a change.
    and licence.
 
 Then run `npm run typecheck`, `npm test` and `npm run test:e2e`. GitHub runs them on every push,
-in Chromium and in WebKit (the engine in iPhone Safari and WeChat on iOS).
+in Chromium and in WebKit (the engine in iPhone Safari and WeChat on iOS). Speed is held in
+Chromium only: GitHub's WebKit draws without a GPU on two shared cores, nothing like an iPhone, so
+there the tests hold what happens, not how fast (a real iPhone's numbers: the menu's 测速, in the
+playtest).
 
 ## Photos and recorded city sounds
 
@@ -173,7 +176,10 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   page at 4× CPU slowdown; the menu's 测速 shows the same numbers on a real phone.
 * **What waits for it.** The question, the cash in the top bar and its coins come back with the
   stamp; a first visit's touchdown once the camera is back up (on the big screen, once the plane
-  has flown there on the globe, which it does after the move).
+  has flown there on the globe, which it does after the move). Nothing tells the landing before
+  the stamp, on any screen (`moveInPlay`): the dice under the board show when they settle, the
+  log's lines from the throw on and what the table is waiting for when the token lands, the
+  standings and every team's cash with the question.
 * **What it gives way to** (`rideUrgent`). An auction or Shanghai's quiz for this team cuts it short
   and brings the question straight back; a table vote waits for it unless that would leave less
   than 15 s to answer. A shake doesn't throw again while it plays.

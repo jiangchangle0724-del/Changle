@@ -358,6 +358,20 @@ export function rideUrgent(v: RoomView, plan: RidePlan | null = null): boolean {
   return left > 0 && left - Math.max(0, rideEnd(plan) - serverNow()) < ANSWER_TIME;
 }
 
+/**
+ * The newest move on the table, from its throw until money changes hands (server times): on every
+ * screen what came of it waits for its beats. The dice under the board show when they settle; the
+ * feed's lines from the throw on (`key`) and what the table waits for, when the token lands, which is
+ * the stamp's to tell; money, with the decision window. Null when no move is playing.
+ */
+export function moveInPlay(v: RoomView, now = serverNow()): { key: number; seat: number; dice: number; land: number; ready: number } | null {
+  const raw = planMove(v, null, now);
+  if (!raw) return null;
+  const t = timesFor(raw.legs, raw.jail, raw.pace, raw.rolled);
+  const ready = raw.start + t.ready;
+  return now < ready ? { key: raw.key, seat: raw.seat, dice: raw.start + t.dice, land: raw.start + t.land, ready } : null;
+}
+
 /** Server time this ride is over (a touchdown and the city's sound wait for it), or 0. */
 export const rideEnd = (plan: RidePlan | null) => (plan ? plan.start + plan.t.end : 0);
 
