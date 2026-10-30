@@ -1,4 +1,5 @@
-// Cloudflare Worker: the server for 随便 · Whatever's Fine.
+// Cloudflare Worker: the server for 随便 · Whatever's Fine, one of changle.ca's tools. It answers on
+// changle.ca/eat (a route on the changle.ca zone); everything below is under /eat.
 //
 //   GET  /api/me                 → { user, loginEnabled, card, last }
 //   PUT  /api/me/card            ← Limits           save my diet card (logged in)
@@ -9,11 +10,13 @@
 //   GET  /api/rooms/:code        → { exists, phase }
 //   GET  /api/rooms/:code/ws     → WebSocket (cid, key, name, lang in the query)
 //   POST /api/rooms/:code/rate   ← { cid, overall, liked, wait }
-//   anything else                → the web pages
+//   /, /r/:code, /r/:code/rate   → the app's page (home, a phone at a table, rating the meal)
+//   anything else                → the app's files (static assets in dist/client/eat)
 //
 // Real Google data needs both the Places key and Google login set up (so only logged-in people
 // can spend API money). Without them the server runs on made-up demo restaurants.
 import { DurableObject } from "cloudflare:workers";
+import { BASE } from "../base";
 import { NEIGHBOURHOODS, RANGES, cleanLimits, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating } from "../engine";
 import type { ClientMsg } from "../room/protocol";
 import { Room, cleanRating, type RoomEnv, type RoomState, type Want } from "../room/room";
@@ -56,9 +59,13 @@ function cleanCenter(x: unknown): Center | null {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    const path = url.pathname;
-    // Room and rating links are app pages; serve the app for them directly (old phones don't send Sec-Fetch-Mode).
-    if (/^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL("/", url), req));
+    // On changle.ca only /eat reaches this Worker (the routes in wrangler.jsonc); on a computer running
+    // it by itself, the bare address leads to /eat/ too.
+    if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return Response.redirect(new URL(`${BASE}/`, url).toString(), 302);
+    const path = url.pathname.slice(BASE.length) || "/";
+    // Room and rating links are app pages; serve the app for them directly (old phones don't send
+    // Sec-Fetch-Mode). The page is dist/client/eat/index.html, served at /eat/.
+    if (path === "/" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
 
     if (path === "/auth/google") return loginEnabled(env) ? startLogin(req, env) : json({ error: "loginOff" }, 404);
     if (path === "/auth/callback") {

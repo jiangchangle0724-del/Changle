@@ -1,5 +1,6 @@
 // One table on a phone: lobby → round 1 (mood) → round 2 (cards) → spinner → result.
 import { useEffect, useState } from "preact/hooks";
+import { BASE } from "../../base";
 import { CUISINES, RANGES, type Limits, type MoodPick, type RangeId } from "../../engine";
 import type { CardView, RoomView } from "../../room/protocol";
 import { t, tx, type Key } from "../i18n";
@@ -25,7 +26,7 @@ export function Table({ home }: { home: () => void }) {
     <main class={`page phase-${v.phase}`}>
       <header class="bar">
         <a
-          href="/"
+          href={`${BASE}/`}
           class="brand"
           onClick={(e) => {
             e.preventDefault();
@@ -64,7 +65,8 @@ export function Table({ home }: { home: () => void }) {
 /** Allergies and typed "don't eat"s are listed once above the cards, not on every card. */
 const needsServer = (v: RoomView) => Object.keys(v.table.allergies).length > 0 || v.table.custom.length > 0;
 
-const joinUrl = (code: string) => `${location.origin}/r/${code}`;
+/** The link in the QR code and the copy button: changle.ca/eat/r/1234. */
+const joinUrl = (code: string) => `${location.origin}${BASE}/r/${code}`;
 
 function Lobby({ v }: { v: RoomView }) {
   const [copied, setCopied] = useState(false);
@@ -81,7 +83,7 @@ function Lobby({ v }: { v: RoomView }) {
         <Qr text={joinUrl(v.code)} />
         <div>
           <p class="code num">{v.code}</p>
-          <p class="muted small">{t("scan", { host: location.host })}</p>
+          <p class="muted small">{t("scan", { host: location.host + BASE })}</p>
           <Btn
             kind="quiet"
             onClick={() => {
@@ -395,7 +397,7 @@ function Result({ v }: { v: RoomView }) {
   if (v.phase === "spin") return <Spinner v={v} />;
   if (!r || !win) return null;
   const s = r.scores.find((x) => x.id === r.winner)!;
-  const rateUrl = `${location.origin}/r/${v.code}/rate`;
+  const rateUrl = `${location.origin}${BASE}/r/${v.code}/rate`;
   const map = win.place.mapsUrl ?? "";
   const share = async () => {
     const text = t("shareText", { name: win.place.name, map, rate: rateUrl });
@@ -420,7 +422,7 @@ function Result({ v }: { v: RoomView }) {
       <Btn kind="primary" wide onClick={() => void share()}>
         {t("share")}
       </Btn>
-      <a class="btn wide" href={`/r/${v.code}/rate`}>
+      <a class="btn wide" href={`${BASE}/r/${v.code}/rate`}>
         {t("rateAfter")}
       </a>
       {v.ratings.n > 0 && <p class="center">{t("tableScore", { n: v.ratings.liked, m: v.ratings.n })}</p>}

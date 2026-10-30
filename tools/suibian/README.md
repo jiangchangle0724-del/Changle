@@ -1,7 +1,8 @@
 # 随便 · Whatever's Fine
 
-"Where should we eat?" "Whatever's fine." A tool on [changle.ca](https://changle.ca) that lets a
-group of friends in Vancouver pick a restaurant together in a few minutes, each on their own phone.
+"Where should we eat?" "Whatever's fine." A tool on [changle.ca](https://changle.ca), at
+[changle.ca/eat](https://changle.ca/eat), that lets a group of friends in Vancouver pick a
+restaurant together in a few minutes, each on their own phone.
 Why it works the way it does: [DESIGN.md](DESIGN.md).
 
 This folder is **v1**: "now" tables (everyone together, deciding live). It is its own Cloudflare
@@ -22,10 +23,24 @@ How a table goes:
 5. Most ticks wins; a tie spins. The result card goes to the group chat with a link to rate the
    meal afterwards (three taps). Those ratings feed back into scores and wait estimates.
 
+## How it sits inside changle.ca
+
+* **Addresses.** The Worker answers `changle.ca/eat` and `changle.ca/eat/*` (the routes in
+  `wrangler.jsonc`); the rest of changle.ca is the site. Everything is under `/eat`: the home page
+  (`/eat/`), a phone at a table (`/eat/r/1234`, which is also what the QR code and the invite link
+  say), rating the meal afterwards (`/eat/r/1234/rate`), the API (`/eat/api/…`), sign-in
+  (`/eat/auth/…`) and the files (`/eat/app.js`, `/eat/app.css`, built into `dist/client/eat`).
+  `BASE` in `src/base.ts` is the one place that says `/eat`; the server strips it off incoming
+  paths and the pages put it in front of theirs. The session cookie's `Path` is `/eat` too, so
+  the rest of the site never sees it.
+* **The site's side** (the card in the site's Tools tab that opens `/eat`) is in the site's code,
+  next to 到此一游's card.
+
 ## What's where
 
 | Folder | What it is |
 | --- | --- |
+| `src/base.ts` | `BASE = "/eat"`: where the tool lives on changle.ca. |
 | `src/engine` | The rules: cuisines, diet limits (with the draft severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
 | `src/room` | One table from lobby to result. No network inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker: rooms (one Durable Object each), Google Places, Google sign-in, users' diet cards, our per-restaurant ratings. |
@@ -36,11 +51,11 @@ How a table goes:
 
 ```sh
 npm install
-npm run dev          # http://localhost:8787, with made-up demo restaurants and no sign-in
+npm run dev          # http://localhost:8787/eat/, with made-up demo restaurants and no sign-in
 ```
 
 To try it from a phone on the same Wi-Fi: `npm run dev -- --ip 0.0.0.0`, then open the computer's
-address on port 8787.
+address on port 8787, followed by `/eat/`.
 
 ## Check it
 
@@ -60,8 +75,10 @@ It works in three stages; each one is usable.
 **1. Online with demo restaurants (about 5 minutes).** Cloudflare dashboard → Workers & Pages →
 Create → Import a repository → this repo, with **project name** `suibian` (must match `name` in
 `wrangler.jsonc`), **root directory** `tools/suibian`, build command `npm run build`, deploy
-command `npx wrangler deploy`. Then the Worker → Settings → Domains & Routes → Add → Custom
-domain, e.g. `eat.changle.ca`. Anyone can start a table; restaurants are made up and say so.
+command `npx wrangler deploy`. The deploy registers the routes from `wrangler.jsonc`, so the tool
+answers at [changle.ca/eat](https://changle.ca/eat) (check the Worker → Settings → Domains &
+Routes: `changle.ca/eat` and `changle.ca/eat/*`). Anyone can start a table; restaurants are made
+up and say so.
 
 **2. Google sign-in.** In [Google Cloud console](https://console.cloud.google.com/), create a
 project (e.g. "changle-ca"), then:
@@ -70,15 +87,15 @@ project (e.g. "changle-ca"), then:
    email needed). Then **Publish app** ("In production"). While it stays in "Testing", only the
    test users you list can sign in; with just these basic scopes Google doesn't need to review it.
 2. Credentials → Create credentials → OAuth client ID → **Web application**. Under Authorized
-   redirect URIs add exactly `https://eat.changle.ca/auth/callback` (your domain; a missing
-   `https`, a trailing slash or the workers.dev address instead gives Google's
-   `redirect_uri_mismatch` error). Copy the client ID and secret.
+   redirect URIs add exactly `https://changle.ca/eat/auth/callback` (a missing `https`, a
+   trailing slash, or any other address gives Google's `redirect_uri_mismatch` error). Copy the
+   client ID and secret.
 3. Cloudflare → Workers & Pages → `suibian` → Settings → Variables and Secrets → Add, type
    **Secret**, three times: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `SESSION_SECRET`
    (any long random text, e.g. from `openssl rand -base64 32`; changing it later signs everyone
    out). Cloudflare redeploys by itself.
 
-Check: open the site. The home page now says "用 Google 登录" under 开一桌; sign in and you land
+Check: open changle.ca/eat. The home page now says "用 Google 登录" under 开一桌; sign in and you land
 back on the home page with "你好，<name>". Restaurants are still the demo ones (step 3 adds the
 real ones). From now on starting a table needs sign-in (10 tables per account per day); joining
 doesn't. In WeChat's built-in browser Google blocks sign-in, so the page tells people to open it
@@ -96,7 +113,7 @@ in the browser; joining a table works in WeChat as before.
    until tomorrow instead of costing more.
 6. Cloudflare: add Secret `GOOGLE_PLACES_KEY`.
 
-Check: open the site; the yellow "示例数据" banner is gone. Start a table where you are: round 1
+Check: open changle.ca/eat; the yellow "示例数据" banner is gone. Start a table where you are: round 1
 shows the cuisines open nearby and round 2 real restaurants with photos (credited to whoever took
 them), opening hours and phone numbers. If the table says "搜索出错了", open Cloudflare →
 `suibian` → Logs: a line `places Error: google 403 …` means the key is wrong, restricted to the

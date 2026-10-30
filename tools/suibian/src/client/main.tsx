@@ -1,5 +1,7 @@
-// Entry point: / (home), /r/1234 (a phone at table 1234), /r/1234/rate (after the meal).
+// Entry point, under /eat on changle.ca: /eat/ (home), /eat/r/1234 (a phone at table 1234),
+// /eat/r/1234/rate (after the meal).
 import { render } from "preact";
+import { BASE } from "../base";
 import { setLang, t } from "./i18n";
 import { api, connectWs } from "./net";
 import { identity, prefs } from "./prefs";
@@ -12,9 +14,10 @@ import { Table } from "./ui/Table";
 setLang(prefs.lang);
 const root = document.getElementById("app")!;
 
+/** Go to a page of the app; `path` is inside BASE ("/r/1234"). */
 function go(path: string, replace = false) {
-  if (replace) history.replaceState(null, "", path);
-  else history.pushState(null, "", path);
+  if (replace) history.replaceState(null, "", BASE + path);
+  else history.pushState(null, "", BASE + path);
   route();
 }
 
@@ -31,7 +34,7 @@ function Shell({ children }: { children: preact.ComponentChildren }) {
 }
 
 function route() {
-  const path = location.pathname;
+  const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) || "/" : location.pathname;
   const table = path.match(/^\/r\/(\d{4})\/?$/);
   const rate = path.match(/^\/r\/(\d{4})\/rate\/?$/);
   if (table) {

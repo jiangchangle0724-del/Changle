@@ -1,5 +1,6 @@
 // After the meal: three taps, under ten seconds.
 import { useEffect, useState } from "preact/hooks";
+import { BASE } from "../../base";
 import type { Rating } from "../../engine";
 import { t } from "../i18n";
 import { api } from "../net";
@@ -34,7 +35,7 @@ export function Rate({ code, home }: { code: string; home: () => void }) {
     <main class="page rate">
       <header class="bar">
         <a
-          href="/"
+          href={`${BASE}/`}
           class="brand"
           onClick={(e) => {
             e.preventDefault();
