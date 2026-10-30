@@ -1,0 +1,369 @@
+import { LISTEN_MS, STAGE_GAPS, TUNES } from "../../../data/tunes";
+import { SONG_ROWS } from "../../../data/songs";
+import type { TuneView } from "../../protocol";
+import { cardOf, checkRow, decoysFor, fromRow, pickSong, previewUrl, type Song, type SongPool } from "../../songs";
+import { range, t, type Api, type GameDef } from "../api";
+
+/**
+ * Name That Tune. Songs mode: every phone plays the same 30-second preview of a real song at the
+ * same moment, streamed from Apple. Melody mode: the same, with public-domain tunes on the
+ * built-in synth (works with no internet). Buzz in, pick the title from four; the sooner, the
+ * more points. A wrong answer costs a sip and locks you out of that song. DJ mode: the host plays
+ * songs from their own music app, everyone else buzzes, the host says right or wrong.
+ */
+
+type Mode = TuneView["mode"];
+
+type S = {
+  mode: Mode;
+  pool: SongPool;
+  phase: TuneView["phase"];
+  round: number;
+  total: number;
+  deck: number[];
+  tune: number;
+  stageAt: number[];
+  endsAt: number;
+  buzzer: string | null;
+  answerEndsAt: number;
+  options: number[] | null;
+  locked: string[];
+  correct: string | null;
+  scores: Record<string, number>;
+  last: { pid: string; ok: boolean } | null;
+  pausedAt: number | null;
+  /** songs mode: the song playing, the next one (picked early so phones can load it), the four choices */
+  song: Song | null;
+  next: Song | null;
+  choices: Song[] | null;
+  /** server time the preview's first second plays; moves on with every pause */
+  startAt: number;
+  /** where the preview picks up for the reveal, ms into it */
+  revealPos: number;
+  /** played at this table, and heard lately on the phones here: both kept off the playlist */
+  played: number[];
+  heard: number[];
+  /** today's chart songs, handed in by the host's phone with the first song */
+  extra: Song[];
+};
+
+const LEAD_MS = 1500;
+const SONG_LEAD_MS = 2500;
+/** Apple previews run 30 seconds */
+const SONG_MS = 29_500;
+const ANSWER_MS = 10_000;
+const DJ_ANSWER_MS = 30_000;
+const DJ_LISTEN_MS = 120_000;
+const NEXT_MS = 7500;
+/** a real song gets a little longer at the reveal: it keeps playing */
+const SONG_NEXT_MS = 9500;
+const HEARD_MAX = 1500;
+
+const CATALOG: Song[] = SONG_ROWS.map(fromRow);
+const CATALOG_IDS = new Set(CATALOG.map((x) => x.id));
+const EXTRA_EACH = 30;
+const PLAYED_MAX = 600;
+
+const players = (s: S, api: Api) => api.ids().filter((pid) => s.mode !== "dj" || !api.isHost(pid));
+const songsOf = (s: S) => (s.extra.length ? CATALOG.concat(s.extra) : CATALOG);
+
+function pick(s: S, api: Api, exclude: number[] = []) {
+  const played = new Set([...s.played, ...exclude]);
+  return pickSong(songsOf(s), s.pool, new Set(s.heard), played, () => api.rand());
+}
+
+function go(s: S, api: Api) {
+  api.clear("next");
+  if (s.round >= s.total) return finish(s, api);
+  s.round += 1;
+  s.locked = [];
+  s.buzzer = null;
+  s.correct = null;
+  s.last = null;
+  s.pausedAt = null;
+  s.phase = "listen";
+  if (s.mode === "songs") {
+    const song = s.next && !s.played.includes(s.next.id) ? s.next : pick(s, api);
+    if (!song) {
+      // no songs at all (should not happen): fall back to melodies
+      s.mode = "melody";
+      s.round -= 1;
+      return go(s, api);
+    }
+    s.song = song;
+    s.played.push(song.id);
+    if (s.played.length > PLAYED_MAX) s.played = s.played.slice(-PLAYED_MAX);
+    s.next = pick(s, api);
+    s.choices = api.shuffle([song, ...decoysFor(song, songsOf(s), () => api.rand())]);
+    s.options = null;
+    s.tune = -1;
+    const t0 = api.now + SONG_LEAD_MS;
+    s.startAt = t0;
+    s.stageAt = STAGE_GAPS.map((g) => t0 + g);
+    s.endsAt = t0 + SONG_MS;
+  } else if (s.mode === "melody") {
+    if (!s.deck.length) s.deck = api.shuffle(range(TUNES.length));
+    s.tune = s.deck.pop()!;
+    const decoys = api.shuffle(range(TUNES.length).filter((i) => i !== s.tune)).slice(0, 3);
+    s.options = api.shuffle([s.tune, ...decoys]);
+    const t0 = api.now + LEAD_MS;
+    s.stageAt = STAGE_GAPS.map((g) => t0 + g);
+    s.endsAt = t0 + LISTEN_MS;
+  } else {
+    s.tune = -1;
+    s.options = null;
+    s.stageAt = [api.now];
+    s.endsAt = api.now + DJ_LISTEN_MS;
+  }
+  api.timer("listen", s.endsAt);
+}
+
+function reveal(s: S, api: Api) {
+  api.clear("listen");
+  api.clear("answer");
+  s.phase = "reveal";
+  s.buzzer = null;
+  if (s.mode === "songs") s.revealPos = Math.max(0, Math.min(22_000, (s.pausedAt ?? api.now) - s.startAt));
+  if (s.mode !== "dj") api.timer("next", api.now + (s.mode === "songs" ? SONG_NEXT_MS : NEXT_MS));
+}
+
+function finish(s: S, api: Api) {
+  api.clear("listen");
+  api.clear("answer");
+  api.clear("next");
+  s.phase = "end";
+  const ids = players(s, api);
+  const vals = ids.map((pid) => s.scores[pid] ?? 0);
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  api.fx("win");
+  if (lo < hi) api.penalty(ids.filter((pid) => (s.scores[pid] ?? 0) === lo), "two", t("猜歌名：最后一名", "Name That Tune: last place"), { delay: 2200 });
+}
+
+function points(s: S, at: number) {
+  if (s.mode === "dj") return 1;
+  return at < s.stageAt[1] ? 3 : at < s.stageAt[2] ? 2 : 1;
+}
+
+/** The music picks up where it stopped: everything still ahead moves on by the pause. */
+function resume(s: S, api: Api) {
+  const paused = s.pausedAt ?? api.now;
+  const shift = api.now - paused;
+  s.stageAt = s.stageAt.map((at) => (at > paused ? at + shift : at));
+  s.endsAt += shift;
+  if (s.mode === "songs") s.startAt += shift;
+  s.pausedAt = null;
+}
+
+function resolve(s: S, api: Api, ok: boolean) {
+  const pid = s.buzzer;
+  if (!pid) return;
+  api.clear("answer");
+  s.last = { pid, ok };
+  if (ok) {
+    s.scores[pid] = (s.scores[pid] ?? 0) + points(s, s.pausedAt ?? api.now);
+    s.correct = pid;
+    api.fx("correct", pid);
+    reveal(s, api);
+    return;
+  }
+  api.fx("wrong", pid);
+  api.penalty([pid], "sip", t("猜歌名：猜错了", "Name That Tune: wrong answer"), { delay: 700 });
+  s.locked.push(pid);
+  s.buzzer = null;
+  resume(s, api);
+  if (players(s, api).every((p) => s.locked.includes(p))) {
+    reveal(s, api);
+    return;
+  }
+  s.phase = "listen";
+  api.timer("listen", s.endsAt);
+}
+
+/** Drop a buzz without judging it: the music picks up where it stopped. */
+function unbuzz(s: S, api: Api) {
+  api.clear("answer");
+  s.buzzer = null;
+  resume(s, api);
+  s.phase = "listen";
+  api.timer("listen", s.endsAt);
+}
+
+const POOLS: SongPool[] = ["mix", "zh", "en"];
+
+export const tune: GameDef<S> = {
+  id: "tune",
+  min: 2,
+  init(api) {
+    return {
+      mode: "songs",
+      pool: "mix",
+      phase: "ready",
+      round: 0,
+      total: 8,
+      deck: api.shuffle(range(TUNES.length)),
+      tune: -1,
+      stageAt: [],
+      endsAt: 0,
+      buzzer: null,
+      answerEndsAt: 0,
+      options: null,
+      locked: [],
+      correct: null,
+      scores: Object.fromEntries(api.ids().map((pid) => [pid, 0])),
+      last: null,
+      pausedAt: null,
+      song: null,
+      next: null,
+      choices: null,
+      startAt: 0,
+      revealPos: 0,
+      played: [],
+      heard: [],
+      extra: [],
+    };
+  },
+
+  act(s, pid, g, api) {
+    const host = api.isHost(pid);
+    switch (g.x) {
+      case "mode": {
+        if (!host || (s.phase !== "ready" && s.phase !== "reveal") || (g.mode !== "songs" && g.mode !== "melody" && g.mode !== "dj")) return;
+        s.mode = g.mode;
+        return;
+      }
+      case "pool": {
+        if (!host || (s.phase !== "ready" && s.phase !== "reveal") || !POOLS.includes(g.pool as SongPool)) return;
+        if (s.pool !== g.pool) s.next = null;
+        s.pool = g.pool as SongPool;
+        return;
+      }
+      case "heard": {
+        // each phone says which songs it played lately, so the table hears new ones
+        if (!Array.isArray(g.ids)) return;
+        const have = new Set(s.heard);
+        for (const x of g.ids.slice(0, 400)) if (typeof x === "number" && Number.isSafeInteger(x) && x > 0 && !have.has(x)) {
+          have.add(x);
+          s.heard.push(x);
+        }
+        if (s.heard.length > HEARD_MAX) s.heard = s.heard.slice(-HEARD_MAX);
+        if (s.next && have.has(s.next.id)) s.next = null;
+        return;
+      }
+      case "total": {
+        const n = Number(g.n);
+        if (!host || s.phase !== "ready" || ![5, 8, 12, 20].includes(n)) return;
+        s.total = n;
+        return;
+      }
+      case "go": {
+        if (!host || (s.phase !== "ready" && s.phase !== "reveal")) return;
+        // the host's phone brings today's charts from Apple; every row is checked, and only Apple's preview links play
+        if (Array.isArray(g.charts) && g.charts.length) {
+          // keep a few dozen of each language: the whole room is saved on every move
+          const avoid = new Set([...s.heard, ...s.played]);
+          const fresh = g.charts
+            .slice(0, 1000)
+            .map(checkRow)
+            .filter((x): x is Song => !!x && !CATALOG_IDS.has(x.id) && !avoid.has(x.id));
+          s.extra = [0, 1].flatMap((l) => api.shuffle(fresh.filter((x) => x.l === l)).slice(0, EXTRA_EACH));
+        }
+        go(s, api);
+        return;
+      }
+      case "buzz": {
+        if (s.phase !== "listen" || s.locked.includes(pid) || !players(s, api).includes(pid)) return;
+        if (s.mode !== "dj" && api.now < s.stageAt[0] - 300) return;
+        s.buzzer = pid;
+        s.phase = "answer";
+        s.pausedAt = api.now;
+        s.answerEndsAt = api.now + (s.mode === "dj" ? DJ_ANSWER_MS : ANSWER_MS);
+        api.clear("listen");
+        api.timer("answer", s.answerEndsAt);
+        api.fx("buzz", pid, [Math.max(0, api.ids().indexOf(pid))]);
+        return;
+      }
+      case "answer": {
+        const choice = Number(g.choice);
+        if (s.phase !== "answer" || pid !== s.buzzer) return;
+        if (s.mode === "melody" && s.options?.includes(choice)) resolve(s, api, choice === s.tune);
+        else if (s.mode === "songs" && s.song && s.choices?.some((c) => c.id === choice)) resolve(s, api, choice === s.song.id);
+        return;
+      }
+      case "judge": {
+        if (s.mode !== "dj" || !host || s.phase !== "answer" || pid === s.buzzer) return;
+        resolve(s, api, !!g.ok);
+        return;
+      }
+      case "skip": {
+        if (!host || s.phase !== "listen") return;
+        reveal(s, api);
+        return;
+      }
+      case "end": {
+        if (!host || s.phase === "end" || s.phase === "ready") return;
+        finish(s, api);
+        return;
+      }
+      case "again": {
+        if (!host || s.phase !== "end") return;
+        s.round = 0;
+        s.scores = Object.fromEntries(api.ids().map((p) => [p, 0]));
+        s.phase = "ready";
+        return;
+      }
+    }
+  },
+
+  timer(s, key, _data, api) {
+    if (key === "listen" && s.phase === "listen") reveal(s, api);
+    else if (key === "answer" && s.phase === "answer") {
+      // DJ mode with the buzzer now holding the host's seat: nobody can judge, so no penalty
+      if (s.mode === "dj" && s.buzzer && api.isHost(s.buzzer)) unbuzz(s, api);
+      else resolve(s, api, false);
+    } else if (key === "next" && s.phase === "reveal") go(s, api);
+  },
+
+  join(s, pid) {
+    s.scores[pid] ??= 0;
+  },
+
+  leave(s, pid, api) {
+    if (s.buzzer === pid && s.phase === "answer") resolve(s, api, false);
+    s.locked = s.locked.filter((p) => p !== pid);
+  },
+
+  view(s): TuneView {
+    const done = s.phase === "reveal" || s.phase === "end";
+    const songs = s.mode === "songs";
+    const live = s.phase === "listen" || s.phase === "answer" || s.phase === "reveal";
+    return {
+      id: "tune",
+      mode: s.mode,
+      pool: s.pool,
+      phase: s.phase,
+      round: s.round,
+      total: s.total,
+      // phones get the notes to play; which tune it is stays on the server until the reveal
+      tune: done && s.mode === "melody" ? s.tune : -1,
+      clip: s.mode === "melody" && s.tune >= 0 ? { bpm: TUNES[s.tune].bpm, notes: TUNES[s.tune].notes, up: TUNES[s.tune].up ?? 0 } : null,
+      stageAt: s.stageAt,
+      endsAt: s.endsAt,
+      buzzer: s.buzzer,
+      answerEndsAt: s.answerEndsAt,
+      options: s.mode === "melody" && (s.phase === "answer" || done) ? s.options : null,
+      locked: s.locked,
+      correct: s.correct,
+      scores: s.scores,
+      last: s.last,
+      pausedAt: s.pausedAt,
+      // songs mode: the preview to play (not what it is), the next one to load early, and at the reveal the song itself
+      audio: songs && live && s.song ? previewUrl(s.song.p) : null,
+      startAt: s.startAt,
+      revealPos: s.revealPos,
+      pre: songs && s.next && s.phase !== "end" ? previewUrl(s.next.p) : null,
+      choices: songs && s.choices && (s.phase === "answer" || done) ? s.choices.map((c) => ({ id: c.id, t: c.t, a: c.a, ae: c.ae })) : null,
+      song: songs && done && s.song ? cardOf(s.song) : null,
+    };
+  },
+};

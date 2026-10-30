@@ -1,0 +1,736 @@
+/* ---------- the front door ---------- */
+.home {
+  padding-bottom: 76px;
+}
+
+.home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  margin: 2px 0 10px;
+}
+.home-head-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+.wordmark-char {
+  display: inline-block;
+}
+@media (max-width: 370px) {
+  .wordmark {
+    font-size: 26px;
+  }
+  .home-head-right {
+    gap: 2px;
+  }
+}
+.wordmark-dot {
+  display: inline-block;
+  color: var(--light);
+  text-shadow:
+    0 0 12px var(--light),
+    0 0 34px color-mix(in oklab, var(--light) 60%, transparent);
+  transform-origin: 50% 80%;
+}
+
+/* tabs: one bright pill slides under the active one */
+.tabs {
+  position: sticky;
+  top: calc(var(--safe-top) + 6px);
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 5px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--dusk) 84%, transparent);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 14px 30px -20px rgba(0, 0, 0, 0.8);
+  margin-bottom: 20px;
+}
+.tabs-indicator {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  width: 0;
+  border-radius: 17px;
+  background: var(--moon);
+  box-shadow: 0 6px 20px -8px color-mix(in oklab, var(--light) 80%, transparent);
+}
+.tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 52px;
+  color: var(--haze);
+  transition: color 0.3s;
+}
+.tab[aria-selected="true"] {
+  color: var(--night);
+}
+.tab-main {
+  font-weight: 800;
+  font-size: 15.5px;
+  line-height: 1.15;
+}
+.tab-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.72;
+  line-height: 1.15;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ---------- party ---------- */
+.tonight {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.tonight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+}
+
+.roster {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 6px 16px 6px 14px;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition: transform 0.16s var(--ease-out);
+}
+.roster:active {
+  transform: scale(0.97);
+}
+.roster-face {
+  width: 38px;
+  height: 38px;
+  margin-left: -8px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--night);
+  box-shadow: 0 0 0 2.5px var(--dusk-2);
+  background: var(--gel-pink);
+}
+.roster-face:nth-child(8n + 2) {
+  background: var(--gel-amber);
+}
+.roster-face:nth-child(8n + 3) {
+  background: var(--gel-mint);
+}
+.roster-face:nth-child(8n + 4) {
+  background: var(--gel-cyan);
+}
+.roster-face:nth-child(8n + 5) {
+  background: var(--gel-violet);
+}
+.roster-face:nth-child(8n + 6) {
+  background: var(--gel-lemon);
+}
+.roster-face:nth-child(8n + 7) {
+  background: var(--gel-coral);
+}
+.roster-face:nth-child(8n + 8) {
+  background: var(--gel-blue);
+}
+.roster-more {
+  background: var(--dusk-3) !important;
+  color: var(--moon);
+  font-size: 12.5px;
+}
+.roster-count {
+  margin-left: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.roster-empty {
+  justify-content: flex-start;
+  border-radius: 18px;
+  min-height: 56px;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  background: transparent;
+}
+
+.online-row {
+  display: flex;
+  gap: 8px;
+}
+.online-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 10px 16px;
+  border-radius: 18px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  text-align: left;
+  transition: transform 0.16s var(--ease-out);
+}
+.online-btn:active {
+  transform: scale(0.98);
+}
+.online-btn > svg {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--gel-mint) 20%, transparent);
+  color: var(--gel-mint);
+}
+.online-btn strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+}
+.online-btn small {
+  display: block;
+  font-size: 13px;
+  color: var(--haze);
+  line-height: 1.35;
+}
+.online-code {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.spin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow: 0 8px 26px -10px color-mix(in oklab, var(--light) 90%, transparent);
+  transition:
+    transform 0.16s var(--ease-out),
+    opacity 0.2s;
+}
+.spin-btn:active {
+  transform: scale(0.95);
+}
+.spin-btn:disabled {
+  opacity: 0.7;
+}
+
+/* the lighting board: every game is a gel */
+.board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.tile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 148px;
+  padding: 14px 14px 12px;
+  border-radius: var(--r-tile);
+  background: var(--gel);
+  color: var(--night);
+  text-align: left;
+  transition:
+    scale 0.22s var(--ease-out),
+    translate 0.22s var(--ease-out),
+    box-shadow 0.3s,
+    filter 0.3s;
+}
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(130% 90% at 0% 0%, rgba(255, 255, 255, 0.34), transparent 55%),
+    linear-gradient(165deg, transparent 45%, rgba(14, 12, 34, 0.2));
+}
+.tile-icon {
+  position: absolute;
+  right: -12px;
+  bottom: -14px;
+  width: 92px;
+  height: 92px;
+  z-index: -1;
+  color: color-mix(in oklab, var(--gel) 42%, var(--night));
+  opacity: 0.5;
+  transform: rotate(-12deg);
+}
+.tile-main {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.14;
+  letter-spacing: -0.025em;
+  max-width: 94%;
+  text-wrap: balance;
+}
+.tile-main.is-zh {
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: 0.01em;
+}
+.tile-sub {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  opacity: 0.68;
+  line-height: 1.25;
+}
+.tile-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.tile-players {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(14, 12, 34, 0.13);
+}
+.tile-tag {
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--night);
+  color: var(--gel);
+}
+.tile:active:not(:disabled) {
+  scale: 0.965;
+}
+.tile.is-lit {
+  z-index: 2;
+  translate: 0 -2px;
+  box-shadow:
+    0 0 0 3px var(--moon),
+    0 18px 50px -12px var(--gel);
+}
+.board.is-spinning .tile:not(.is-lit) {
+  filter: saturate(0.3) brightness(0.5);
+  transition-duration: 0.22s, 0.22s, 0.3s, 0.5s;
+}
+.board.is-spinning .tile.is-lit {
+  transition-duration: 0s;
+}
+
+/* coming soon: the gel is in the rig but not lit yet */
+.board-head-soon {
+  margin-top: 28px;
+}
+.tile.is-soon {
+  min-height: 112px;
+  background: var(--dusk);
+  color: var(--gel);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--gel) 55%, transparent);
+}
+.tile.is-soon::before {
+  background: radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--gel) 14%, transparent), transparent 60%);
+}
+.tile.is-soon .tile-icon {
+  width: 74px;
+  height: 74px;
+  color: var(--gel);
+  opacity: 0.22;
+}
+.tile.is-soon .tile-sub {
+  color: var(--haze);
+  opacity: 1;
+}
+.tile.is-soon .tile-players {
+  background: color-mix(in oklab, var(--gel) 16%, transparent);
+}
+.tile.is-soon .tile-tag {
+  background: color-mix(in oklab, var(--gel) 22%, transparent);
+  color: var(--gel);
+}
+.tile.is-soon.is-lit {
+  box-shadow:
+    inset 0 0 0 2px var(--gel),
+    0 18px 50px -16px var(--gel);
+}
+
+.board-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  font-size: 13px;
+}
+
+/* ---------- game card (sheet) ---------- */
+.game-card-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.game-card-icon {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: 0 12px 30px -12px var(--gel);
+}
+.game-card-title {
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+.game-card-title.is-zh {
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.game-card-sub {
+  margin-top: 3px;
+  color: var(--haze);
+  font-weight: 600;
+}
+.game-card-how {
+  margin: 18px 0 8px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.game-card-meta {
+  color: var(--haze);
+  font-size: 14px;
+  font-weight: 700;
+}
+.game-card-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  padding: 12px 18px;
+  border-radius: 20px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  text-align: left;
+  transition: transform 0.16s var(--ease-out);
+}
+.mode-btn:active {
+  transform: scale(0.98);
+}
+.mode-btn strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+}
+.mode-btn small {
+  display: block;
+  font-size: 13.5px;
+  color: var(--haze);
+}
+.mode-btn > svg {
+  flex-shrink: 0;
+}
+.mode-help {
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--gel) 14%, var(--dusk-2));
+  color: var(--moon);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.mode-primary {
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: 0 16px 36px -16px var(--gel);
+}
+.mode-primary small {
+  color: rgba(14, 12, 34, 0.68);
+}
+.game-card-soon {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--dusk-2);
+  color: var(--haze);
+}
+
+/* ---------- tip jar ---------- */
+.tip-btn {
+  position: fixed;
+  right: max(16px, calc((100vw - 560px) / 2 + 16px));
+  bottom: calc(var(--safe-bottom) + 16px);
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 44px;
+  padding: 0 16px 0 14px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 86%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--gel-amber);
+  font-weight: 800;
+  font-size: 14.5px;
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklab, var(--gel-amber) 45%, transparent),
+    0 12px 30px -12px rgba(0, 0, 0, 0.7);
+  transition: transform 0.16s var(--ease-out);
+}
+.tip-btn:active {
+  transform: scale(0.95);
+}
+.tip {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tip-body {
+  font-size: 16px;
+  line-height: 1.55;
+}
+.tip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--dusk-2);
+}
+.tip-email {
+  font-size: 19px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.tip-thanks {
+  color: var(--gel-amber);
+  font-weight: 800;
+}
+
+/* ---------- wishlist ---------- */
+.wish {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.wish-title {
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-bottom: 6px;
+}
+.wish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+.wish-form .field {
+  background: var(--dusk);
+}
+.wish-form-row {
+  display: flex;
+  gap: 8px;
+}
+.wish-name {
+  flex: 1;
+  min-width: 0;
+}
+.form-error {
+  color: var(--stop);
+  font-size: 14px;
+  font-weight: 600;
+}
+.wish-sort {
+  display: flex;
+}
+.wish-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wish-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.wish-item.is-ghost {
+  height: 80px;
+  background: linear-gradient(90deg, var(--dusk) 0%, var(--dusk-2) 50%, var(--dusk) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.vote {
+  position: relative;
+  flex-shrink: 0;
+  width: 54px;
+  min-height: 58px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--dusk-2);
+  color: var(--haze);
+  font-weight: 800;
+  font-size: 14px;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.vote.is-voted {
+  background: color-mix(in oklab, var(--gel-tangerine) 22%, var(--dusk-2));
+  color: var(--gel-tangerine);
+}
+.vote-plus {
+  position: absolute;
+  top: 2px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--gel-tangerine);
+  pointer-events: none;
+}
+.wish-body {
+  min-width: 0;
+  flex: 1;
+}
+.wish-text {
+  font-size: 15.5px;
+  line-height: 1.45;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.wish-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 7px;
+  color: var(--fog);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.wish-kind,
+.wish-status {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--dusk-3);
+  color: var(--haze);
+}
+.wish-status.is-planned {
+  background: color-mix(in oklab, var(--gel-amber) 20%, transparent);
+  color: var(--gel-amber);
+}
+.wish-status.is-done {
+  background: color-mix(in oklab, var(--go) 20%, transparent);
+  color: var(--go);
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 10px;
+  color: var(--haze);
+  text-align: center;
+}
+
+/* ---------- forms in sheets ---------- */
+.join-form {
+  gap: 0;
+  margin-top: 24px;
+}
+.code-field .code-input {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.picker .chip .muted {
+  font-weight: 500;
+  font-size: 12.5px;
+}

@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "sim/web/verify.html"
+        ],
+        "createdAt": "2026-10-24T17:54:40.870Z",
+        "reason": "Claude: static check mixes light and dark tokens (#9aa5a1 on #ffffff, #000 on #171d1b); a Playwright render in light and dark measured every text pair at 5.7:1 or better"
+      }
+    ]
+  }
+}
