@@ -80,6 +80,11 @@ export function JoinScreen({ code, onJoin, onBack }: { code: string; onJoin: (na
         <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={!name.trim() || !!gone || !!full}>
           {ui("takeSeat")}
         </button>
+        {!gone && (
+          <button type="button" className="btn btn-ghost btn-block" onClick={() => window.location.replace(`#/tv/${code}`)}>
+            {lang === "zh" ? "只看不玩（投到电视上）" : "Just watch (mirror it to a TV)"}
+          </button>
+        )}
         <p className="hint-ink join-foot">{ui("onlineVoice")}</p>
       </motion.form>
     </div>

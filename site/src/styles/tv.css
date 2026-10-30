@@ -723,3 +723,111 @@ html.tv-mode .room-light {
     animation-fill-mode: none;
   }
 }
+
+/* ---------- any game, watched ---------- */
+
+.tv-game {
+  position: absolute;
+  inset: 0;
+}
+.tv-game-head {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.tv-game-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+}
+.tv-game-title svg {
+  align-self: center;
+  color: var(--gel);
+}
+.tv-game-title small {
+  font-family: var(--font-text);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--haze);
+}
+.tv-game-main {
+  position: absolute;
+  top: 110px;
+  left: 64px;
+  right: 64px;
+  bottom: 40px;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 40px;
+  align-items: start;
+}
+/* the phone's own screen, drawn large; its chrome (back, rules, reactions) is not for a TV */
+.tv-game-phone {
+  zoom: 1.45;
+  height: calc(750px / 1.45);
+  overflow: hidden auto;
+  scrollbar-width: none;
+  border-radius: 24px;
+  padding: 0 8px;
+}
+.tv-game-phone .net-screen > .topbar,
+.tv-game-phone .net-screen .react-dock,
+.tv-game-phone .net-screen .host-row,
+.tv-game-phone .net-screen .net-wait {
+  display: none;
+}
+.tv-game-phone .net-screen {
+  min-height: 0;
+}
+.tv-game-phone .net-body {
+  gap: 14px;
+}
+.tv-game-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 8px;
+}
+.tv-game-seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.tv-game-seats li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.tv-game-seats li.is-away {
+  opacity: 0.45;
+}
+.tv-game-crown {
+  color: var(--gel-amber);
+}
+.tv-game-note {
+  margin: 0;
+  color: var(--fog);
+  font-size: 16px;
+}
+/* Name That Tune on the big screen: a bigger stage, the titles side by side */
+.tv-game-phone .tn-stage {
+  padding-top: 24px;
+}
+.tv-game-phone .tn-avatar {
+  width: 150px;
+}
+.tv-game-phone .tn-stage .vinyl-disc {
+  width: 190px;
+}
+.tv-game-phone .tn-quiz,
+.tv-game-phone .tn-options {
+  grid-template-columns: 1fr 1fr;
+}

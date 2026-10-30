@@ -218,7 +218,9 @@ export const postit: GameDef<S> = {
     for (const p of s.order) {
       const w = s.notes[p];
       // while writing, you only see the note you wrote; after that, everyone's but your own
-      const hidden = s.phase === "write" ? p !== mineToWrite : p === pid && !reveal && !s.solved.includes(pid);
+      // a watcher (the big screen) is not at the table: it sees a note only once it is guessed
+      const watcher = !s.order.includes(pid);
+      const hidden = s.phase === "write" ? p !== mineToWrite : watcher ? !reveal && !s.solved.includes(p) : p === pid && !reveal && !s.solved.includes(pid);
       notes[p] = w && !hidden ? w.note : null;
     }
     return {

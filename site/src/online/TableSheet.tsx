@@ -117,8 +117,8 @@ export function TableSheet({ open, onClose, onInvite, onLeave }: { open: boolean
                 ? "已连上，电视正在显示这桌"
                 : "Connected: a TV is showing this table"
               : zh
-                ? `电视或电脑的浏览器打开 ${window.location.host}/tv/${room.code}`
-                : `On a TV or computer, open ${window.location.host}/tv/${room.code}`}
+                ? `电视或电脑的浏览器打开 ${window.location.host}/tv/${room.code}，整局都在大屏幕上看。手机想只看不玩，也打开这个地址，再投屏到电视`
+                : `On a TV or computer, open ${window.location.host}/tv/${room.code} to watch the whole game big. A phone that only wants to watch opens it too, then mirrors to a TV`}
           </small>
         </span>
         {!room.screens && window.matchMedia("(min-width: 900px) and (hover: hover)").matches && (

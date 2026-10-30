@@ -798,7 +798,7 @@ test("punchline: a host tap only moves the step it was made on", () => {
   ok(t.view<V<"punchline">>("p0").phase === "result", "play again only works at the end");
 });
 
-test("big screen: sees Punchline, but no other game's secrets; a kicked id stays out", () => {
+test("big screen: sees every game, but nobody's secrets; a kicked id stays out", () => {
   const e = new RoomEngine(freshRoom("TVTW", clock), host);
   ok(e.screenHello("tv-scr1", true) === null, "a screen opens a table");
   e.hello("p1", "Amy", false);
@@ -806,9 +806,20 @@ test("big screen: sees Punchline, but no other game's secrets; a kicked id stays
   e.hello("p3", "Cat", false);
   e.act("p1", { a: "start", game: "postit" });
   e.flush();
-  const tv = e.view("tv-scr1");
-  ok(tv.game === null && tv.playing === "postit", "the screen knows Post-it is on, without anyone's notes");
+  let tv = e.view("tv-scr1");
+  ok(tv.game?.id === "postit" && tv.playing === "postit", "the screen watches Post-it");
   ok(e.view("p2").game !== null && e.view("p2").playing === "postit", "a seated phone gets the game");
+  for (const p of ["p1", "p2", "p3"]) e.act(p, { a: "g", g: { x: "write", text: `note for ${(e.view(p).game as { myTarget: string }).myTarget}` } });
+  e.flush();
+  const notes = (e.view("tv-scr1").game as { notes: Record<string, string | null>; phase: string }).notes;
+  ok((e.view("p1").game as { phase: string }).phase === "play" && Object.values(notes).every((n) => n === null), "while they play, the screen shows no note (the person it is about might be looking)");
+  ok(Object.values((e.view("p2").game as { notes: Record<string, string | null> }).notes).filter((n) => n !== null).length === 2, "a phone sees everyone's note but its own");
+  e.act("p1", { a: "end" });
+  e.act("p1", { a: "start", game: "king" });
+  e.flush();
+  tv = e.view("tv-scr1");
+  ok(tv.game?.id === "king" && (tv.game as { myToken: unknown }).myToken === null, "King's Game: the screen holds no token");
+  e.act("p1", { a: "end" });
   e.act("p1", { a: "end" });
   e.act("p1", { a: "start", game: "punchline" });
   e.flush();
