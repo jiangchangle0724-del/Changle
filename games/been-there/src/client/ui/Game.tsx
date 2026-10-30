@@ -16,11 +16,14 @@ import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
 import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { NewsBanner } from "./News";
 import { ArrivalFrame } from "./Photo";
-import { rideEnd, rideLand, rideUrgent, useRide, type RidePlan } from "./ridePlan";
+import { planMove, rideEnd, rideLand, rideMode, rideReady, rideUrgent, useRide, type RidePlan } from "./ridePlan";
 import { SettingsSheet } from "./Settings";
 import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
 import { Trivia } from "./Trivia";
+import { useWakeLock } from "../wake";
+import { SpeedMeter } from "./SpeedMeter";
+import { SambaLesson, useDanceClock } from "./Samba";
 
 type Panel = "mine" | "trade" | "log";
 
@@ -45,25 +48,36 @@ export function Game({ v }: { v: RoomView }) {
   // Something for this phone to answer: its move, or the quiz the waiting teams race to answer.
   const needs = myMove || (!!g.trivia?.open && g.trivia.answerFor !== null);
   const incoming = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
-  // The team's own move plays first-person on the board (ridePlan.ts); money that changes hands on the
-  // way shows when the token gets there, not the moment the dice are thrown.
+  // The team's own move plays on the board (ridePlan.ts): first-person, or flat. The decision window
+  // and the money that changed hands come back with the stamp (sooner when the ride is skipped).
   const { plan: ride, done: rideDone } = useRide(v);
-  const landAt = rideLand(ride);
-  const myCash = useHeldUntil(me?.cash ?? 0, landAt);
+  const [readyKey, setReadyKey] = useState(0);
+  const ready = !ride || readyKey === ride.key;
+  const readyAt = ready ? 0 : rideReady(ride);
+  useRerenderAt(readyAt);
+  const riding = !!ride && !ready && serverNow() < readyAt;
+  // (the arrival card, a poster, is drawn once the stamp is down: drawing it at the throw would hold
+  // up the dice; the window it's in is put away until then anyway)
+  const arriveAt = riding ? rideLand(ride) + 150 : 0;
+  useRerenderAt(arriveAt);
+  const myCash = useHeldUntil(me?.cash ?? 0, riding ? readyAt : 0);
   const cashShown = useHeldUntil(
     v.you.seats.reduce((a, x) => a + (s.ps[x]?.cash ?? 0), 0),
-    landAt,
+    riding ? readyAt : 0,
   );
   usePhoneSounds(v, myMove, cashShown, ride);
   usePartyToasts(v);
-  const thud = useDiceThud(v);
+  useWakeLock(true);
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
   const wide = useWide();
   const play = usePlayWindow(needs, mySeat === undefined);
   // (on a ride the window steps aside, and comes back with whatever there is to answer: at once if
   // it's on a clock, while the ride gives way)
   const urgent = rideUrgent(v, ride);
-  const open = wide || (play.open && (!ride || urgent));
+  const open = wide || (play.open && (!riding || urgent));
+  // Rio: the dancing team's phone shows the lesson full screen while it dances.
+  const dance = useDanceClock(v);
+  const dancingHere = !!dance && !dance.over && v.you.seats.includes(dance.seat);
   const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
   return (
     <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}${ride ? " riding" : ""}`}>
@@ -90,8 +104,16 @@ export function Game({ v }: { v: RoomView }) {
         </button>
       </header>
       <Banner v={v} onOpen={wide ? undefined : play.show} />
-      <main class={`stage${thud ? " thud" : ""}`} key="stage">
-        <Board v={v} ride={ride} urgent={urgent} onRideDone={rideDone} over={<JailFx v={v} ride={ride} />} />
+      <main class="stage" key="stage">
+        <Board
+          v={v}
+          ride={ride}
+          rideMode={rideMode(ride)}
+          urgent={urgent}
+          onRideReady={setReadyKey}
+          onRideDone={rideDone}
+          over={<JailFx v={v} ride={ride} />}
+        />
         <BoardNote v={v} />
       </main>
       <aside class="side">
@@ -112,7 +134,7 @@ export function Game({ v }: { v: RoomView }) {
           </header>
         )}
         <div class="playwin-body">
-          <Arrival v={v} />
+          <Arrival v={v} after={arriveAt} />
           <TurnCard v={v} />
           <Decision v={v} />
           <NewsBanner v={v} />
@@ -165,8 +187,10 @@ export function Game({ v }: { v: RoomView }) {
       )}
       {menu && <SettingsSheet v={v} onClose={() => setMenu(false)} />}
       {fsGuide && <FullscreenGuide onClose={() => setFsGuide(false)} />}
-      <RollMoment v={v} short={!!ride} />
-      <CoinFx v={v} phone after={landAt} />
+      {!ride && <RollMoment v={v} />}
+      {dancingHere && <SambaLesson v={v} size="full" />}
+      <CoinFx v={v} phone after={riding ? readyAt : 0} />
+      <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
     </div>
@@ -195,28 +219,15 @@ function useHeldUntil(n: number, until: number): number {
   return n;
 }
 
-/** The dice landing on the table: the board takes the knock (a key for the moment, or 0). */
-function useDiceThud(v: RoomView): number {
-  const [k, setK] = useState(0);
-  const last = useRef(lastId(v));
+/** Re-render at a server time (when a ride's decision window is due back, or its token lands). */
+export function useRerenderAt(at: number) {
+  const [, tick] = useState(0);
   useEffect(() => {
-    const fresh = v.feed.filter((f) => f.id > last.current);
-    last.current = lastId(v) || last.current;
-    const mine = fresh.find((f) => f.t === "game" && f.e.t === "roll" && v.you.seats.includes(f.e.p) && serverNow() - f.at < 2000);
-    if (!mine || reducedMotion()) return;
-    // (the dice in styles.css land 0.74 s into their throw)
-    const hit = window.setTimeout(() => {
-      setK(mine.id);
-      sfx.clack();
-      buzz(BUZZ.thud);
-    }, 740);
-    const off = window.setTimeout(() => setK(0), 1100);
-    return () => {
-      clearTimeout(hit);
-      clearTimeout(off);
-    };
-  });
-  return k;
+    const left = at - serverNow();
+    if (left <= 0) return;
+    const id = window.setTimeout(() => tick((x) => x + 1), left + 20);
+    return () => clearTimeout(id);
+  }, [at]);
 }
 
 /** Your turn: the edge of the screen glows for a moment (on a phone that can't buzz, this is the call). */
@@ -352,6 +363,9 @@ function Banner({ v, onOpen }: { v: RoomView; onOpen?: () => void }) {
       </button>
     );
   const mine = v.you.seats.includes(g.s.turn);
+  // Another team's dice are rolling and its token is on the way.
+  const move = mine ? null : planMove(v, [g.s.turn]);
+  if (move && serverNow() < move.start + 3200) return <p class="banner">{t("rolling", { team: seatName(v, g.s.turn) })}</p>;
   if (mine && onOpen)
     return (
       <button type="button" class="banner me" onClick={onOpen}>
@@ -431,15 +445,16 @@ function BoardNote({ v }: { v: RoomView }) {
   );
 }
 
-/** "You've arrived": the city the player whose turn it is has just reached. */
-export function Arrival({ v, big }: { v: RoomView; big?: boolean }) {
+/** "You've arrived": the city the player whose turn it is has just reached (on the big screen, once
+ * its token has: `after`, server time). */
+export function Arrival({ v, big, after = 0 }: { v: RoomView; big?: boolean; after?: number }) {
   const g = v.game!;
   const s = g.s;
   const seat = s.turn;
   const pos = s.ps[seat]?.pos ?? -1;
   const city = CITY_AT[pos];
   const wx = useWeather(city?.id);
-  if (!city) return null;
+  if (!city || after > serverNow()) return null;
   let land: { id: number; at: number } | null = null;
   for (let i = v.feed.length - 1; i >= 0 && !land; i--) {
     const f = v.feed[i];
@@ -552,9 +567,9 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
       buzz(BUZZ.tap);
     }
     const ev = v.feed.filter((f) => f.id > p.feed).flatMap((f) => (f.t === "game" ? [f.e] : []));
-    if (ev.some((e) => e.t === "roll")) sfx.dice();
-    const myRoll = ev.find((e): e is Extract<GameEvent, { t: "roll" }> => e.t === "roll" && mine(e.p));
-    if (myRoll) buzz(myRoll.doubles ? BUZZ.doubles : BUZZ.dice);
+    // (our own throw clacks and lands in the ride; another team's rattles here)
+    const myRoll = ev.some((e) => e.t === "roll" && mine(e.p));
+    if (ev.some((e) => e.t === "roll") && !(myRoll && ride)) sfx.dice();
     if (ev.some((e) => e.t === "news" && e.on)) sfx.news();
     // (with motion on, the touchdown plays the stamp in time with its own)
     if (reducedMotion() && ev.some((e) => e.t === "stamp" && mine(e.p))) sfx.stamp();

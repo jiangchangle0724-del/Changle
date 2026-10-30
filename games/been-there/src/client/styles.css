@@ -3267,22 +3267,6 @@ h2.departures {
     opacity: 0;
   }
 }
-/* The dice hitting the table: the board takes the knock. */
-.stage.thud .boardwrap {
-  animation: board-thud 0.32s cubic-bezier(0.3, 0.7, 0.4, 1);
-}
-@keyframes board-thud {
-  0%,
-  100% {
-    transform: none;
-  }
-  30% {
-    transform: translateY(3px) scale(0.996);
-  }
-  65% {
-    transform: translateY(-1px);
-  }
-}
 /* Your turn: the edge of the screen glows twice (on a phone that can't buzz, this is the call). */
 .turn-call {
   position: fixed;
@@ -3329,6 +3313,13 @@ h2.departures {
 .boardwrap .roundboard {
   /* (over the ride's sky, which comes before it) */
   position: relative;
+}
+/* The board's frame: what a move's camera zooms, pans, turns and leans (ui/Ride.tsx viewBoard). */
+.board-view {
+  position: relative;
+}
+.boardwrap.on-ride .board-view {
+  will-change: transform;
 }
 /* (The leaning board is drawn bigger than its box: the box keeps it, so the page never gets wider.) */
 .boardwrap.on-ride {
@@ -3384,28 +3375,6 @@ h2.departures {
 .ride-shadow {
   fill: rgba(6, 5, 18, 0.45);
 }
-/* The landing: a ring goes out across the board from the token's feet. */
-.ride-ripple {
-  fill: none;
-  stroke: var(--print-paper);
-  stroke-width: 3;
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.ride.landed .ride-ripple {
-  animation: ride-ripple 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes ride-ripple {
-  from {
-    opacity: 0.85;
-    transform: scale(0.6);
-  }
-  to {
-    opacity: 0;
-    transform: scale(3.2);
-  }
-}
 .ride .after,
 .ride.landed .before {
   display: none;
@@ -3418,48 +3387,106 @@ h2.departures {
   opacity: 0;
   transition: opacity 0.3s ease;
 }
-/* The cities passed, in the sky: paper tags in the order they came (their places are kept, so none
-   moves when the next comes up). A card's stop is gel. */
-.ride-trail {
+/* The cities passed, on a split-flap departures board in the corner of the sky: each row flips up
+   (two flaps of 0.1 s) as the token gets there; the newest four show. A card that sends the token on
+   is a gel row. It goes when the token lands, for the city's name. */
+.ride-board {
   position: absolute;
-  top: max(10px, 3%);
-  left: 10px;
-  right: 10px;
+  top: max(10px, 2.5%);
+  left: max(10px, 2.5%);
+  width: min(58%, 270px);
   margin: 0;
-  padding: 0;
+  padding: 8px 10px 9px;
   list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-}
-.ride-chip {
-  display: inline-flex;
-  align-items: baseline;
+  display: grid;
   gap: 5px;
-  padding: 3px 9px 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--board-rim) 82%, transparent);
+  box-shadow: inset 0 0 0 1px var(--board-line);
+  color: var(--board-ink);
+  transition: opacity 0.2s ease;
+}
+.ride-board-head {
+  font: 700 0.72rem/1 var(--font);
+  color: var(--board-ink-2);
+}
+.ride-board .row {
+  display: none;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font: 700 0.9rem/1.15 var(--font);
+}
+.ride-board .row.on {
+  display: grid;
+  animation: row-in 0.18s var(--ease-out) both;
+}
+.ride-board .row.old,
+.ride-board:not(.shown) {
+  display: none;
+}
+.ride-board .row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ride-board .row.card,
+.ride-board .row.stay {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ride-board .row.card .row-name {
+  padding: 2px 8px;
   border-radius: 6px;
-  background: var(--print-paper);
-  color: var(--print-ink);
-  font: 600 0.8rem/1.25 var(--font);
-  box-shadow: 0 8px 18px -10px rgba(0, 0, 0, 0.8);
-  opacity: 0;
-  transform: translateY(10px) scale(0.9);
-  transition:
-    opacity 0.2s ease,
-    transform 0.36s var(--ease-out);
-}
-.ride-chip .code {
-  font: 800 0.92rem/1 var(--display);
-  letter-spacing: 0.5px;
-}
-.ride-chip.on {
-  opacity: 1;
-  transform: none;
-}
-.ride-chip.stop {
   background: var(--gel);
   color: var(--on-gel);
+}
+.ride-board .row.salary .row-name {
+  color: var(--go);
+}
+.ride-board.gone {
+  opacity: 0;
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+/* Split-flap tiles: a letter on a dark flap, split across the middle. */
+.tiles {
+  display: inline-flex;
+  gap: 2px;
+  perspective: 300px;
+}
+.tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.08em;
+  height: 1.42em;
+  border-radius: 0.14em;
+  background: var(--board-rim);
+  box-shadow: inset 0 0 0 1px var(--board-line);
+  color: var(--board-ink);
+  font: 800 1em/1 var(--display);
+  font-synthesis: none;
+  overflow: hidden;
+}
+.tile::after {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 1px;
+  background: color-mix(in srgb, var(--board-rim) 70%, #000);
+}
+.ride-board .tiles {
+  font-size: 1.02rem;
+}
+@keyframes flap {
+  from {
+    transform: rotateX(-80deg);
+  }
 }
 /* Where it lands: the name in the board's type, under its region's colour. */
 .ride-land {
@@ -3503,45 +3530,15 @@ h2.departures {
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
 }
-.ride.leaving .ride-chip,
 .ride.leaving .ride-land,
-.ride.leaving .ride-salary {
+.ride-land.off,
+.ride.leaving .ride-skip {
   opacity: 0;
   transition: opacity 0.22s ease;
 }
-/* Passing Departure: the salary floats up from the token. */
-.ride-salary {
-  position: absolute;
-  left: 50%;
-  top: 55%;
-  margin: 0;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--go);
-  color: var(--night);
-  font: 800 1.1rem/1.1 var(--display);
-  opacity: 0;
-  transform: translate(-50%, 0);
-}
-.ride-salary.on {
-  animation: ride-salary 1.5s var(--ease-out) both;
-}
-@keyframes ride-salary {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, 10px) scale(0.8);
-  }
-  15% {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1.06);
-  }
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -46px);
-  }
+/* The big screen: the name in front of the sofa. */
+.ride.mode-tv .ride-land b {
+  font-size: clamp(2.6rem, 7vmin, 4.6rem);
 }
 /* Sent to Immigration: the gate comes down over the token. */
 .ride-jail,
@@ -3607,6 +3604,162 @@ h2.departures {
     background: transparent;
   }
 }
+/* The dice of a move: thrown in the middle of the board, settled at 0.6 s (a screen that heard of the
+   throw late joins the tumble where it is by then, --late), the number popping out; then off to the
+   corner while the camera pushes in. Placed by ui/Ride.tsx. */
+.ride-dice {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  will-change: transform;
+}
+.ride-dice .die3d,
+.ride-dice .die3d .cube {
+  animation-duration: 0.53s;
+  animation-delay: calc(var(--delay, 0ms) - var(--late, 0ms));
+}
+.ride-dice.still .die3d,
+.ride-dice.still .die3d .cube,
+.ride-dice .dice-sum {
+  animation: none;
+}
+.ride-dice .dice-sum {
+  opacity: 0;
+}
+/* The stamp coming down beside the token, and the ink it leaves on the board. */
+.ride-stamp,
+.ride-ink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 120px;
+  height: 120px;
+  transform-origin: 60px 60px;
+  opacity: 0;
+  pointer-events: none;
+}
+.ride-stamp svg,
+.ride-ink svg {
+  display: block;
+  overflow: visible;
+}
+.ride-stamp {
+  filter: drop-shadow(0 12px 10px rgba(6, 5, 18, 0.55));
+}
+/* The ink, a moment after the stamp touches down; gone again as the camera pulls out. */
+.ride-ink.on {
+  opacity: 0.92;
+  transition: opacity 0.12s ease 80ms;
+}
+.ride.leaving .ride-ink {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+/* A card sending the token far round the board: a quick dip to the night and back, not a dash. */
+.ride-fade {
+  position: absolute;
+  inset: 0;
+  background: var(--night);
+  opacity: 0;
+}
+.ride-skip {
+  position: absolute;
+  left: 50%;
+  bottom: max(8px, 2%);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--night) 70%, transparent);
+  color: var(--haze);
+  font: 600 0.75rem/1.3 var(--font);
+  transform: translateX(-50%);
+  animation: skip-in 0.3s ease 0.7s both;
+}
+@keyframes skip-in {
+  from {
+    opacity: 0;
+  }
+}
+/* This phone's dice leave the hand at once: they tumble in the middle of the board until the
+   server's throw comes back (a moment), and the move takes over. */
+.throw-dice {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.throw-dice .die3d {
+  animation-duration: 0.53s;
+}
+.throw-dice .die3d .cube {
+  animation: die-spin 0.53s linear infinite;
+}
+/* Another team's token lands (a phone): a small stamp beside it, in time with the thrower's. */
+.other-stamp {
+  position: absolute;
+  width: 11%;
+  aspect-ratio: 1;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.62);
+  pointer-events: none;
+}
+.other-stamp svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.other-stamp.on {
+  animation: other-stamp 1.8s var(--ease-out) both;
+}
+@keyframes other-stamp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.62);
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.62);
+  }
+}
+/* What's drawn over the middle of the board (the big screen's globe and centre card): it moves with
+   the camera on a move (ui/Ride.tsx sets the transform). */
+.board-cam {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+.board-cam > * {
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ride-board .row.on,
+  .ride-skip,
+  .throw-dice .die3d,
+  .throw-dice .die3d .cube,
+  .other-stamp.on {
+    animation: none;
+  }
+  .other-stamp.on {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(0.62);
+  }
+  .ride-ink.on {
+    transition: none;
+  }
+}
+
 /* Arrival card: the roll that brought them, small, spinning without the throw. */
 .mini-dice {
   display: inline-flex;
@@ -3880,4 +4033,288 @@ h2.departures {
 }
 .news.big .news-fact {
   font-size: 0.9em;
+}
+
+/* ---------- the big screen's departures board (ui/Departures.tsx) ----------
+   Two split-flap rows read from the sofa: the team called to board with its flight number, and where
+   its token is (leaving from, passing, arrived). The table's question comes under them once the
+   token has landed. */
+.departures-board {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 20px;
+  background: var(--board-paper);
+  box-shadow:
+    inset 0 0 0 1.5px var(--board-line),
+    var(--lift);
+  color: var(--board-ink);
+}
+.departures-board ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.bb-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+.bb-row .tiles {
+  font-size: clamp(1.4rem, 4vh, 2.8rem);
+}
+.bb-row .tile {
+  animation: flap 0.12s var(--ease-out) calc(var(--i) * 45ms) both;
+}
+.bb-row .nm {
+  min-width: 0;
+  overflow: hidden;
+  font: 800 clamp(1.2rem, 3.1vh, 2.1rem) / 1.05 var(--display);
+  font-synthesis: none;
+  letter-spacing: 0.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-row .nm small {
+  display: block;
+  margin-top: 2px;
+  font: 600 0.48em/1.2 var(--font);
+  letter-spacing: 0;
+  color: var(--board-ink-2);
+}
+.bb-row .stt {
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: var(--board-paper-2);
+  font: 700 clamp(0.95rem, 2.2vh, 1.3rem) / 1.2 var(--font);
+  white-space: nowrap;
+}
+.bb-row.boarding .stt {
+  background: var(--team, var(--gel));
+  color: #fff;
+}
+.bb-row.where.landed .stt {
+  background: var(--gel);
+  color: var(--on-gel);
+}
+.bb-ask {
+  padding-top: 10px;
+  border-top: 1px solid var(--board-line);
+  font-size: clamp(1rem, 2.3vh, 1.4rem);
+  line-height: 1.35;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-row .tile {
+    animation: none;
+  }
+}
+/* The board's own spot for the samba lesson: over it, the board dimmed behind. */
+.tv-board {
+  position: relative;
+}
+/* A TV that hasn't been touched yet can't play sound: a quiet line at the bottom says so. */
+.sound-hint {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow), var(--lift);
+  color: var(--haze);
+  font-size: clamp(0.95rem, 1.4vw, 1.25rem);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* ---------- the speed test (menu): a readout in the corner ---------- */
+.speed-meter {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left, 0px));
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  z-index: 61;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--night) 82%, transparent);
+  color: var(--moon);
+  font: 600 0.72rem/1.3 var(--font);
+  pointer-events: none;
+}
+
+/* ---------- a button that taps back on an iPhone (ui/common.tsx HapticBtn) ----------
+   The pill is a label; the switch inside it covers it, unseen, and takes the tap and the keyboard. */
+.haptic-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.haptic {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: inherit;
+  opacity: 0;
+  cursor: pointer;
+}
+.haptic-btn:has(.haptic:focus-visible) {
+  outline: 2px solid var(--moon);
+  outline-offset: 3px;
+}
+.haptic-btn:not(.off):active {
+  transform: scale(0.965);
+}
+.haptic-btn.off {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.haptic-btn.primary.off {
+  background: var(--dusk-3);
+  color: var(--dim);
+  box-shadow: none;
+  opacity: 1;
+}
+.haptic-btn.off .haptic {
+  cursor: not-allowed;
+}
+
+/* ---------- the menu's "watch on a TV" ---------- */
+.watch-tv {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.watch-tv p {
+  display: grid;
+  gap: 2px;
+}
+.watch-tv small {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ---------- Rio's samba lesson (ui/Samba.tsx) ----------
+   The teacher dances a mirror of you; the footprints light up the foot to move, and the word and the
+   count say the same. Full screen on the dancing team's phone, small over the judges' buttons, big
+   over the big screen's board. It never takes a tap. */
+.samba {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+  pointer-events: none;
+}
+.samba svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.samba-cue {
+  font: 700 1.15rem/1.2 var(--ui);
+}
+.samba-cue:lang(zh) {
+  font-weight: 800;
+}
+.samba-count {
+  min-height: 1.1em;
+  font: 800 2.6rem/1 var(--display);
+  font-synthesis: none;
+  color: var(--gel);
+}
+.samba-who,
+.samba-tip {
+  color: var(--haze);
+  font-size: 0.9rem;
+}
+.samba-full {
+  position: fixed;
+  inset: 0;
+  z-index: 56;
+  align-content: center;
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background:
+    radial-gradient(70% 50% at 50% 30%, color-mix(in oklab, var(--gel) 22%, transparent), transparent 70%),
+    color-mix(in srgb, var(--night) 94%, transparent);
+}
+.samba-full svg {
+  width: min(78vw, 46vh, 380px);
+}
+.samba-full .samba-count {
+  font-size: 4rem;
+}
+.samba-full .samba-cue {
+  font-size: 1.5rem;
+}
+.samba-full.over {
+  animation: samba-out 0.6s ease both;
+}
+@keyframes samba-out {
+  to {
+    opacity: 0;
+  }
+}
+.samba-small {
+  grid-template-columns: 112px minmax(0, 1fr);
+  justify-items: start;
+  align-items: center;
+  gap: 4px 14px;
+  text-align: left;
+}
+.samba-small svg {
+  grid-row: 1 / span 2;
+  width: 112px;
+}
+.samba-small .samba-count {
+  font-size: 1.9rem;
+}
+.samba-tv {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  align-content: center;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--night) 90%, transparent) 62%, transparent);
+}
+.samba-tv svg {
+  width: min(58%, 62vh);
+}
+.samba-tv .samba-cue {
+  font-size: clamp(1.6rem, 4.4vh, 2.8rem);
+}
+.samba-tv .samba-count {
+  font-size: clamp(3rem, 9vh, 6rem);
+}
+.samba-tv .samba-who {
+  font-size: clamp(1rem, 2.4vh, 1.5rem);
+}
+/* The last beat, "hey": one soft glow of the gel behind the teacher, once. */
+.samba.hey::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(40% 36% at 50% 42%, color-mix(in oklab, var(--gel) 55%, transparent), transparent 72%);
+  animation: samba-hey 0.9s ease-out both;
+}
+.samba-small.hey::before {
+  display: none;
+}
+@keyframes samba-hey {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }

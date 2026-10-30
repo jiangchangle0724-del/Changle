@@ -1,6 +1,7 @@
-// The phone as a controller: shake it to roll the dice, and feel a buzz on your turn, on your throw,
-// each space your token passes, when money changes hands and at the big moments (a city bought, a
-// card, Immigration, an auction, a trade offer). Shaking needs a phone that lets the page feel motion
+// The phone as a controller: shake it to roll the dice, and feel a buzz on your turn, on your tap,
+// when your token lands, when money changes hands and at the big moments (a city bought, a card,
+// Immigration, an auction, a trade offer). Short ones: what happens often is felt lightly, and a web
+// page can only switch the motor on and off, so a long buzz just drones. Shaking needs a phone that lets the page feel motion
 // (an iPhone asks once, from a tap); buzzing needs one that lets a page vibrate: Android does, and
 // iPhones don't (Safari has no vibration for web pages, and closed the last way round it in iOS
 // 26.5). Both can be turned off in the menu, and neither replaces a button or what's on screen.
@@ -10,23 +11,21 @@ export const canBuzz = typeof navigator !== "undefined" && typeof navigator.vibr
 
 /** Buzz patterns, in milliseconds (on, off, on…): short enough to feel, never to annoy. */
 export const BUZZ = {
-  turn: [30, 70, 30],
-  dice: [12, 40, 12, 40, 20],
-  doubles: [12, 40, 12, 40, 20, 90, 30, 60, 30],
-  /** The dice hitting the table. */
-  thud: 18,
-  /** Each space a first-person move passes, and its landing. */
-  step: 6,
-  land: [26, 40, 12],
-  paid: [15, 50, 15],
-  pay: 70,
+  /** Your turn: two light taps. */
+  turn: [15, 120, 15],
+  /** The token lands (the stamp comes down). */
+  land: 30,
+  paid: 15,
+  pay: 15,
   buy: [18, 40, 40],
   card: [10, 40, 10],
-  jail: [90, 60, 90, 60, 160],
+  /** Sent to Immigration: the gate, twice. */
+  jail: [40, 60, 40],
   auction: [24, 50, 24, 50, 24],
   offer: [14, 70, 14],
   alarm: [160, 90, 160],
-  tap: 8,
+  /** A tap on a button (the dice, an answer). */
+  tap: 15,
 };
 
 export function buzz(pattern: number | number[]) {

@@ -21,11 +21,11 @@ export const CHARACTERS: CharacterInfo[] = [
   { key: "globey", name: { zh: "球球", en: "Globey" }, color: "#3b6fd6" },
 ];
 
-const INK = "#1d2340";
-const LINE = { stroke: INK, "stroke-width": 3, "stroke-linejoin": "round" as const, "stroke-linecap": "round" as const };
+export const INK = "#1d2340";
+export const LINE = { stroke: INK, "stroke-width": 3, "stroke-linejoin": "round" as const, "stroke-linecap": "round" as const };
 
 /** Pie-cut eyes and a mouth, centred on (x, y). */
-function Face({ x, y, s = 1, mood }: { x: number; y: number; s?: number; mood: Mood }) {
+export function Face({ x, y, s = 1, mood }: { x: number; y: number; s?: number; mood: Mood }) {
   const e = 7 * s;
   const eye = (cx: number, flip = 1): JSX.Element => {
     switch (mood) {

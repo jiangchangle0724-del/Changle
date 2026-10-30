@@ -19,3 +19,16 @@ test("every Chinese character in the game is in the heading font", () => {
     for (const ch of readFileSync(f, "utf8")) if (/[⺀-鿿　-〿＀-￯]/.test(ch) && !covered.has(ch)) missing.add(ch);
   assert.equal([...missing].join(""), "", "run `npm run fonts` to add these characters");
 });
+
+test("the board's codes, owners' letters and news tags are all drawn as outlines", async () => {
+  // (scripts/board-type.mjs: text in the board's SVG would be laid out again on every frame of a move)
+  const { CODE_PATH, OWNER_PATH, NEWS_PATH } = await import("../src/client/art/boardType");
+  const { CITIES, NEWS } = await import("../src/engine");
+  const { newsTag } = await import("../src/client/ui/newsTag");
+  const missing = [
+    ...CITIES.filter((c) => !CODE_PATH[c.id]).map((c) => c.id),
+    ...[..."ABCDEF"].filter((l) => !OWNER_PATH[l]),
+    ...NEWS.map(newsTag).filter((t) => !NEWS_PATH[t]),
+  ];
+  assert.deepEqual(missing, [], "run `node scripts/board-type.mjs` to draw these");
+});

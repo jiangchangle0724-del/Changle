@@ -124,6 +124,8 @@ interface Game {
   pendingSince: number;
   deadline: number | null;
   silenceUntil: number | null;
+  /** Rio: when the dance started (the judges wait for TIMING.dance after it). Missing in older saves. */
+  danceAt?: number | null;
   auction: LiveAuction | null;
   quiz: Quiz | null;
   trivia: Trivia | null;
@@ -308,6 +310,12 @@ export class Room {
 
   private ms(k: keyof typeof TIMING) {
     return TIMING[k] * this.speed();
+  }
+
+  /** Rio's dance is still on (the judges wait for it). */
+  private dancing() {
+    const g = this.st.game;
+    return !!g?.danceAt && this.now < g.danceAt + this.ms("dance");
   }
 
   // ---------- output ----------
@@ -537,6 +545,7 @@ export class Room {
         if (seat < 0 || !waiting.includes(seat)) return this.toast(id, "notYourTurn");
         if (pd.k === "auction" || pd.k === "quiz") return;
         if (pd.k === "silence" && g.silenceUntil !== null && this.now < g.silenceUntil) return this.toast(id, "stillQuiet");
+        if (pd.k === "scores" && this.dancing()) return this.toast(id, "stillDancing");
         const a = msg.a && typeof msg.a === "object" ? msg.a : {};
         if (!E.act(g.s, seat, a)) return this.toast(id, "cantDoThat");
         return this.afterMove();
@@ -674,6 +683,7 @@ export class Room {
       seed,
       { events: true },
     );
+    if (this.st.settings.dice?.length) s.forced = [...this.st.settings.dice];
     const now = this.now;
     this.st.teams = [...order, ...this.st.teams.filter((t) => !order.includes(t))];
     this.st.game = {
@@ -720,6 +730,7 @@ export class Room {
     g.endsAt = later(g.endsAt);
     g.deadline = later(g.deadline);
     g.silenceUntil = later(g.silenceUntil);
+    g.danceAt = later(g.danceAt ?? null);
     g.pendingSince += shift;
     if (g.auction) {
       g.auction.endsAt += shift;
@@ -776,6 +787,7 @@ export class Room {
       g.pendingSince = now;
       g.deadline = null;
       g.silenceUntil = null;
+      g.danceAt = null;
       if (pd?.k !== "auction") g.auction = null;
       if (pd?.k !== "quiz") g.quiz = null;
       if (pd?.k === "auction") {
@@ -798,7 +810,11 @@ export class Room {
           botAt: now + (1500 + this.env.random() * 1500) * this.speed(),
         };
       } else if (pd?.k === "silence") g.silenceUntil = now + this.ms("silence");
-      else if (pd && E.SIMULTANEOUS.has(pd.k)) g.deadline = now + this.ms("vote");
+      else if (pd?.k === "scores") {
+        // Rio: every screen plays the dance first; the judges' time starts when it's over.
+        g.danceAt = now;
+        g.deadline = now + this.ms("dance") + this.ms("vote");
+      } else if (pd && E.SIMULTANEOUS.has(pd.k)) g.deadline = now + this.ms("vote");
     }
     // A new turn: settle the spectators' bets on the last one and open betting on this one.
     if (!s.over && (!g.bets || g.bets.turns !== s.turns)) {
@@ -1075,7 +1091,7 @@ export class Room {
       } else if (tv) times.push(tv.revealUntil);
       const pd = s.pending;
       if (pd && pd.k !== "auction" && pd.k !== "quiz") {
-        const after = Math.max(g.pendingSince + this.ms("bot"), g.silenceUntil ?? 0);
+        const after = Math.max(g.pendingSince + this.ms("bot"), g.silenceUntil ?? 0, g.danceAt ? g.danceAt + this.ms("dance") : 0);
         for (const seat of E.whoMustAct(s)) {
           const team = this.teamAt(seat);
           if (!team || team.bot || team.autoplay) times.push(after);
@@ -1195,6 +1211,7 @@ export class Room {
     }
     if (now < g.pendingSince + this.ms("bot")) return false;
     if (pd.k === "silence" && g.silenceUntil !== null && now < g.silenceUntil) return false;
+    if (pd.k === "scores" && this.dancing()) return false;
     for (const seat of waiting) {
       if (this.botControlled(seat)) {
         this.botMove(seat);
@@ -1332,6 +1349,7 @@ export class Room {
       trades: g.trades.map((t) => ({ id: t.id, from: t.from, to: t.to, give: t.give, get: t.get, expiresAt: t.createdAt + this.ms("offer"), byBot: t.byBot })),
       answered,
       peek,
+      dance: g.danceAt && s.pending?.k === "scores" ? { seat: s.pending.dancer, at: g.danceAt, ms: this.ms("dance") } : null,
       bets: g.bets && {
         seat: g.bets.seat,
         open: g.bets.open,

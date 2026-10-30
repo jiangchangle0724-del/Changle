@@ -10,7 +10,7 @@ import { serverNow } from "../store";
 import { reducedMotion } from "./Board";
 import { SeatChip } from "./common";
 import { recentParty } from "./feedText";
-import { rideUrgent } from "./ridePlan";
+import { rideUrgent, type RidePlan } from "./ridePlan";
 
 interface Hit<T> {
   id: number;
@@ -42,7 +42,7 @@ export function useFresh<T>(v: RoomView, pick: (f: FeedItem) => T | null, ms: nu
     if (!hit || left <= 0) return;
     const timer = window.setTimeout(() => setTick((n) => n + 1), left + 30);
     return () => clearTimeout(timer);
-  }, [hit?.id]);
+  }, [hit?.id, ms]);
   return hit && left > 0 && !reducedMotion() ? hit : null;
 }
 
@@ -52,12 +52,14 @@ const sum = (dice: number[]) => dice.reduce((a, b) => a + b, 0);
 const thrown = (roll: Roll) => (roll.steps === sum(roll.dice) ? `${roll.steps}` : `${sum(roll.dice)} → ${roll.steps}`);
 
 /** Big screen: the dice land on the table in front of the team on turn (the bottom of the board).
- * They make way for what the middle of the board is showing: an auction, a quiz, the silence, a forfeit. */
-export function TvDice({ v }: { v: RoomView }) {
+ * They make way for what the middle of the board is showing: an auction, a quiz, the silence, a forfeit.
+ * A throw that moved a token is played by the move (`played`: the big screen's latest), dice and all. */
+export function TvDice({ v, played }: { v: RoomView; played?: RidePlan | null }) {
   const hit = useFresh(v, asRollOrCard, 2800);
   const g = v.game!;
   const busy = !!g.auction || !!g.quiz || (g.silenceUntil ?? 0) > serverNow() || !!recentParty(v);
   if (!hit || hit.x.t !== "roll" || busy) return null;
+  if (played?.rolled && hit.at >= played.start - 50 && hit.at - played.start <= 1000) return null;
   const roll = hit.x;
   return (
     <div class="tv-dice" key={hit.id} aria-hidden="true">
@@ -151,10 +153,20 @@ export function CardFace({ v, card, big }: { v: RoomView; card: Hit<CardEvent>; 
 }
 
 /** Big screen: the card in the middle of the board for a few seconds after it's drawn (until the
- * next throw). */
-export function useFreshCard(v: RoomView): Hit<CardEvent> | null {
-  const hit = useFresh(v, asRollOrCard, 6500);
-  return hit && hit.x.t === "card" ? { id: hit.id, at: hit.at, x: hit.x } : null;
+ * next throw). On a move it turns over when the token gets to it (`showAt`, server time), and stays
+ * as long. */
+export function useFreshCard(v: RoomView, showAt = 0): Hit<CardEvent> | null {
+  const last = latest(v, asRollOrCard);
+  const hold = last && showAt > last.at ? showAt - last.at : 0;
+  const hit = useFresh(v, asRollOrCard, 6500 + hold);
+  const wait = hit && showAt ? showAt - serverNow() : 0;
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (wait <= 0) return;
+    const id = window.setTimeout(() => tick((n) => n + 1), wait + 20);
+    return () => clearTimeout(id);
+  }, [hit?.id, showAt]);
+  return hit && hit.x.t === "card" && wait <= 0 ? { id: hit.id, at: hit.at, x: hit.x } : null;
 }
 
 interface Coins {
@@ -176,8 +188,8 @@ function moneyOf(e: GameEvent): { from: number; to: number; amount: number } | n
 }
 
 /** Coins fly from whoever pays to whoever is paid, token to token (the bank is the middle of the
- * board), once the token that moved has finished walking. On the big screen every payment; on a phone
- * (`phone`) the ones to or from its own team, and after its ride lands (`after`, server time). */
+ * board), once the token that moved has landed (`after`, server time: the move's stamp). On the big
+ * screen every payment; on a phone (`phone`) the ones to or from its own team. */
 export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; after?: number }) {
   const seen = useRef(v.feed[v.feed.length - 1]?.id ?? 0);
   const timers = useRef<number[]>([]);
@@ -206,7 +218,7 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
       return m ? [{ id: f.id, ...m }] : [];
     });
     if (!moves.length) return;
-    const wait = phone && after && after > serverNow() ? after - serverNow() + 180 : walk + 120;
+    const wait = after && after > serverNow() ? after - serverNow() + 180 : walk + 120;
     timers.current.push(
       window.setTimeout(() => {
         const board = document.querySelector<SVGSVGElement>(phone ? ".stage .roundboard" : ".tv-board .roundboard");

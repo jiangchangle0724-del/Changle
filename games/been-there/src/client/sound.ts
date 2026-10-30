@@ -34,6 +34,13 @@ export function installAudioUnlock() {
 }
 
 export const setMuted = (m: boolean) => (muted = m);
+export const isMuted = () => muted;
+
+/** Whether sound can play now (a phone or TV needs a first tap before it may). */
+export const audioReady = () => !muted && !!ctx && ctx.state === "running";
+
+/** Seconds on the audio clock now (to schedule music against). */
+export const audioNow = () => ctx?.currentTime ?? 0;
 
 function tone(freq: number, dur: number, opts: { type?: OscillatorType; vol?: number; at?: number; slide?: number } = {}) {
   if (muted || !ctx || ctx.state !== "running") return;
@@ -288,12 +295,52 @@ const CITY_SOUND: Record<string, () => void> = {
   },
 };
 
+/**
+ * Rio's samba school, synthesised, at 100 beats a minute (Latin dance competitions' samba: 50 bars
+ * a minute in 2/4): a whistle counts in four beats, then twelve beats of the band (the big surdo
+ * heavy on the second beat and answered on the first, the shaker in sixteenths, the tamborim's
+ * syncopation, the agogô's two bells marking the change of foot) and one last hit. `delay` is when
+ * beat 0 falls, in seconds from now (negative: the band is already playing, and joins in time).
+ */
+export function samba(delay: number, bpm = 100) {
+  if (muted || !ctx || ctx.state !== "running") return;
+  const beat = 60 / bpm;
+  for (let b = 0; b < 17; b++) {
+    const at = delay + b * beat;
+    if (at < -0.02) continue;
+    if (b < 4) {
+      tone(b < 3 ? 2600 : 2500, b < 3 ? 0.12 : 0.42, { type: "sine", vol: 0.07, at, slide: b < 3 ? 2450 : 2250 });
+      continue;
+    }
+    if (b === 16) {
+      tone(55, 0.6, { vol: 0.32, at, slide: 40 });
+      burst(0.3, { type: "highpass", freq: 3000, q: 0.7, vol: 0.12, at });
+      continue;
+    }
+    const second = (b - 4) % 2 === 1;
+    tone(second ? 58 : 78, 0.35, { vol: second ? 0.34 : 0.2, at, slide: second ? 44 : 62 });
+    for (let k = 0; k < 4; k++) burst(0.03, { type: "highpass", freq: 6000, q: 0.8, vol: k === 0 || k === 3 ? 0.06 : 0.028, at: at + (k * beat) / 4 });
+    for (const k of [[0, 3], [1, 2], [0, 2], [1, 3]][(b - 4) % 4]) burst(0.02, { type: "bandpass", freq: 2600, q: 6, vol: 0.08, at: at + (k * beat) / 4 });
+    tone(second ? 740 : 990, 0.14, { type: "triangle", vol: 0.035, at });
+  }
+}
+
 export const sfx = {
-  /** The airport announcement chime: your turn. */
+  /** Your turn: an airport chime's shape, three rising notes 0.2 s apart, done in under a second. */
   turn: () => {
-    tone(784, 0.5, { vol: 0.1 });
-    tone(659, 0.5, { vol: 0.1, at: 0.28 });
-    tone(523, 0.7, { vol: 0.1, at: 0.56 });
+    [523.3, 659.3, 784].forEach((f, i) => {
+      tone(f, 0.42, { vol: 0.1, at: i * 0.2 });
+      tone(f * 3, 0.18, { vol: 0.012, at: i * 0.2 });
+    });
+  },
+  /** A finger on the button. */
+  tap: () => burst(0.025, { type: "bandpass", freq: 2400, q: 1.2, vol: 0.12 }),
+  /** The dice settle and their number comes up. */
+  result: () => tone(880, 0.16, { type: "triangle", vol: 0.08 }),
+  /** A split-flap departures board turning over: one space passed. */
+  flap: () => {
+    burst(0.012, { type: "highpass", freq: 4200, q: 1.5, vol: 0.09 });
+    burst(0.02, { type: "bandpass", freq: 900, q: 3, vol: 0.06, at: 0.004 });
   },
   /** Two dice rattling in a wooden cup. */
   dice: () => {

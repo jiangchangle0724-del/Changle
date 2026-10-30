@@ -161,6 +161,33 @@ export function Btn(props: {
   );
 }
 
+/**
+ * A button that, on an iPhone, taps back like a switch: a real tap on it flips a hidden switch, and
+ * Safari answers that with the system's light haptic (iPhones give web pages no other way to buzz;
+ * since Safari 26.5 only a real tap does it, so this is for the player's own taps: the dice, buying,
+ * dancing). Anywhere else it's an ordinary button, and the keyboard reaches it through the switch.
+ */
+export function HapticBtn(props: { onClick: () => void; children: ComponentChildren; kind?: "primary" | "quiet"; wide?: boolean; disabled?: boolean }) {
+  return (
+    <label class={`btn haptic-btn ${props.kind ?? ""}${props.wide ? " wide" : ""}${props.disabled ? " off" : ""}`} aria-disabled={props.disabled || undefined}>
+      <input
+        type="checkbox"
+        class="haptic"
+        role="button"
+        aria-pressed="false"
+        disabled={props.disabled}
+        {...({ switch: "" } as Record<string, string>)}
+        onChange={(e) => {
+          (e.target as HTMLInputElement).checked = false;
+          // (on an iPhone the switch has tapped back; an Android phone buzzes with the answer it sends)
+          if (!props.disabled) props.onClick();
+        }}
+      />
+      {props.children}
+    </label>
+  );
+}
+
 /** The game's name as changle.ca titles a game: the reader's language leads, the other rides along. */
 export function GameTitle() {
   return (
