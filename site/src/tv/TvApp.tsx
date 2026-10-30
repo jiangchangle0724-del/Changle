@@ -112,7 +112,8 @@ function Fit({ children }: { children: ReactNode }) {
   }, []);
   return (
     <div className="tv-fit">
-      <div className="tv-canvas" style={{ transform: `scale(${k})` }}>
+      {/* pinned to the screen's centre, then scaled: a grid cell would grow to the canvas's own size and push it off a narrow screen (a phone that only watches) */}
+      <div className="tv-canvas" style={{ transform: `translate(-50%, -50%) scale(${k})` }}>
         {children}
       </div>
     </div>

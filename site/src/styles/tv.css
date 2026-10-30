@@ -18,14 +18,13 @@ html.tv-mode .room-light {
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: grid;
-  place-items: center;
   overflow: hidden;
   background: #07040a;
 }
 .tv-canvas {
-  position: relative;
-  flex: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   width: 1600px;
   height: 900px;
   overflow: hidden;
