@@ -1,0 +1,327 @@
+<title>到此一游模拟验证</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* layout: one narrow column; the settings, then three passport-style stamps for the brief's three lines, then the detail */
+  :root {
+    --bg: #f5f6f4;
+    --surface: #ffffff;
+    --ink: #1c2321;
+    --muted: #5b6662;
+    --line: #d6dcd9;
+    --accent: #2c46a3;
+    --on-accent: #ffffff;
+    --accent-soft: #e3e8f8;
+    --pass: #1f6e45;
+    --fail: #b3261e;
+    --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101413; --surface: #171d1b; --ink: #e6ebe9; --muted: #9aa5a1; --line: #2a3330;
+      --accent: #9aabff; --on-accent: #0f1530; --accent-soft: #222a49; --pass: #6dd19a; --fail: #ff8a7f;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101413; --surface: #171d1b; --ink: #e6ebe9; --muted: #9aa5a1; --line: #2a3330;
+    --accent: #9aabff; --on-accent: #0f1530; --accent-soft: #222a49; --pass: #6dd19a; --fail: #ff8a7f;
+    color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.6; }
+  .page {
+    max-width: 720px; margin: 0 auto; display: grid; gap: 28px;
+    padding-block: 32px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  h1 { margin: 0; font-size: 1.75rem; line-height: 1.25; letter-spacing: 0.02em; text-wrap: balance; }
+  h2 { margin: 0; font-size: 1rem; }
+  p { margin: 0; }
+  .lead { color: var(--muted); max-width: 38em; margin-top: 8px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .setup { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 16px; }
+  fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: 6.5em 1fr; gap: 10px; align-items: center; }
+  legend { float: left; padding: 0; color: var(--muted); font-size: 0.875rem; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .seg label { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--surface); white-space: nowrap; }
+  .seg input:checked + label { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .seg input:disabled + label { opacity: 0.45; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .seed-label { width: 6.5em; color: var(--muted); font-size: 0.875rem; }
+  input[type="number"] { width: 8em; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
+  button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; padding: 10px 22px; }
+  .note { color: var(--muted); font-size: 0.875rem; }
+  .progress { flex: 1 1 160px; height: 8px; border-radius: 99px; background: var(--accent-soft); overflow: hidden; }
+  .progress div { height: 100%; width: 0; background: var(--accent); }
+
+  .source { font-size: 0.875rem; color: var(--muted); }
+  .source strong { color: var(--ink); }
+  .stamps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 18px; margin-top: 14px; }
+  .check { display: grid; gap: 10px; align-content: start; }
+  .stamp {
+    justify-self: start; display: grid; justify-items: center; gap: 0;
+    min-width: 132px; padding: 10px 16px 8px; color: var(--pass);
+    border: 2.5px solid currentColor; border-radius: 12px; outline: 1px solid currentColor; outline-offset: -7px;
+    transform: rotate(-3deg);
+  }
+  .check:nth-child(2) .stamp { transform: rotate(2deg); }
+  .check:nth-child(3) .stamp { transform: rotate(-1.5deg); }
+  .stamp small { font-size: 0.75rem; letter-spacing: 0.15em; }
+  .stamp strong { font-size: 1.5rem; letter-spacing: 0.35em; margin-right: -0.35em; line-height: 1.3; }
+  .stamp.fail { color: var(--fail); }
+  .stamp.na { color: var(--muted); border-style: dashed; outline: 0; transform: none; }
+  .check p { font-size: 0.9375rem; }
+  .check .rule { color: var(--muted); font-size: 0.8125rem; }
+  .fresh .stamp:not(.na) { animation: thunk 0.32s ease-out both; }
+  .fresh .check:nth-child(2) .stamp { animation-delay: 0.12s; }
+  .fresh .check:nth-child(3) .stamp { animation-delay: 0.24s; }
+  @keyframes thunk { from { opacity: 0; scale: 1.25; } to { opacity: 1; scale: 1; } }
+  @media (prefers-reduced-motion: reduce) { .fresh .stamp:not(.na) { animation: none; } }
+
+  .detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-top: 26px; }
+  .detail section { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .bars { display: grid; gap: 7px; }
+  .bar { display: grid; grid-template-columns: 6.5em 1fr 3.4em; gap: 8px; align-items: center; font-size: 0.875rem; }
+  .track { position: relative; height: 12px; background: var(--accent-soft); border-radius: 3px; }
+  .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px; }
+  .fair { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 1.5px dashed var(--ink); }
+  .bar span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .facts { display: grid; gap: 4px; font-size: 0.9rem; }
+  .match { margin-top: 22px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 0.9rem; }
+  .match.same { border-color: var(--pass); }
+  .match.differs { border-color: var(--fail); }
+  .match strong.same { color: var(--pass); }
+  .match strong.differs { color: var(--fail); }
+
+  .foot { border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 8px; color: var(--muted); font-size: 0.8125rem; }
+  @media (max-width: 480px) {
+    fieldset { grid-template-columns: 1fr; gap: 6px; }
+    .seed-label { width: 100%; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+
+<main class="page">
+  <header>
+    <h1>到此一游 · 模拟验证</h1>
+    <p class="lead">这页跑的是和第 3 步报告同一份规则代码、同一批电脑玩家。选好条件，点「开始对打」，电脑就在你的浏览器里把这些局打完。用报告的种子，数字会和报告一模一样；换一个种子就是另一批随机的局，数字应该很接近。</p>
+  </header>
+
+  <form id="setup" class="setup" novalidate>
+    <fieldset>
+      <legend>几队</legend>
+      <div class="seg">
+        <input type="radio" name="n" id="n2" value="2"><label for="n2">2 队</label>
+        <input type="radio" name="n" id="n3" value="3"><label for="n3">3 队</label>
+        <input type="radio" name="n" id="n4" value="4" checked><label for="n4">4 队</label>
+        <input type="radio" name="n" id="n5" value="5"><label for="n5">5 队</label>
+        <input type="radio" name="n" id="n6" value="6"><label for="n6">6 队</label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>怎么结束</legend>
+      <div class="seg">
+        <input type="radio" name="mode" id="m-target" value="target" checked><label for="m-target">不限时，到目标线</label>
+        <input type="radio" name="mode" id="m15" value="15"><label for="m15">15 分钟</label>
+        <input type="radio" name="mode" id="m60" value="60"><label for="m60">1 小时</label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>电脑的打法</legend>
+      <div class="seg">
+        <input type="radio" name="styles" id="st-bal" value="balanced" checked><label for="st-bal">都是稳健</label>
+        <input type="radio" name="styles" id="st-mix" value="mixed"><label for="st-mix">五种打法混坐</label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>打几局</legend>
+      <div class="seg">
+        <input type="radio" name="games" id="g300" value="300"><label for="g300">300</label>
+        <input type="radio" name="games" id="g1000" value="1000"><label for="g1000">1,000</label>
+        <input type="radio" name="games" id="g3000" value="3000" checked><label for="g3000">3,000</label>
+      </div>
+    </fieldset>
+    <div class="row">
+      <label class="seed-label" for="seed">随机种子</label>
+      <input id="seed" name="seed" type="number" inputmode="numeric" min="1" max="999999" value="10000">
+      <button type="button" id="reportSeed">用报告的种子</button>
+      <button type="button" id="newSeed">换一个</button>
+    </div>
+    <p class="note" id="seedNote"></p>
+    <div class="row">
+      <button type="submit" id="go" class="primary">开始对打</button>
+      <button type="button" id="stop" hidden>停下</button>
+      <div class="progress" id="progress" hidden><div id="bar"></div></div>
+      <span class="note num" id="progressText" aria-live="polite"></span>
+    </div>
+  </form>
+
+  <section id="result" aria-live="polite">
+    <p class="source" id="source"></p>
+    <div class="stamps" id="stamps"></div>
+    <div class="detail" id="detail"></div>
+    <div id="match"></div>
+  </section>
+
+  <footer class="foot">
+    <p>三条合格线来自任务书：平均时长在目标范围内；第 1 个出发的人的胜率和公平值相差不超过 5 个百分点；没有一种打法稳赢（这里按胜率到公平值的 2 倍算稳赢）。15 分钟局按 12 到 18 分钟算合格，1 小时局按 45 到 62 分钟。</p>
+    <p>分钟数是估出来的：电脑玩得飞快，所以按每件事在桌上要多久来算，掷骰走步 14 秒，买地 6 秒，拍卖 25 秒，全桌投票或打分 12 到 22 秒，抽卡 7 秒，一次交易 35 秒。限时局按这个速度算出能玩几圈。</p>
+  </footer>
+</main>
+
+<script>/*__ENGINE__*/</script>
+<script>
+  const REPORT = /*__REPORT__*/[];
+  const STYLE_NAMES = { balanced: "稳健", tycoon: "敢买敢盖", saver: "攒现金", jetsetter: "航线派", gambler: "爱冒险" };
+  const RANGE = { target: [30, 45], 15: [12, 18], 60: [45, 62] };
+  const REASONS = { target: "有队到了目标线", rounds: "时间到", last: "只剩一队", turns: "打了太多回合" };
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("setup");
+  const pct = (x) => (x * 100).toFixed(1);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  function job() {
+    const v = (name) => form.querySelector(`input[name="${name}"]:checked`).value;
+    const mode = v("mode") === "target" ? "target" : Number(v("mode"));
+    const seed = Math.max(1, Math.min(999999, Math.round(Number($("seed").value) || 1)));
+    return { n: Number(v("n")), mode, styles: v("styles"), games: Number(v("games")), seed };
+  }
+  const presetFor = (j) => REPORT.find((p) => p.n === j.n && p.mode === j.mode && p.styles === j.styles);
+  const sameRun = (p, j) => p && p.games === j.games && p.seed === j.seed;
+
+  function setRadio(name, value) {
+    const el = form.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (el) el.checked = true;
+  }
+  function seedNote() {
+    const j = job();
+    const p = presetFor(j);
+    $("reportSeed").disabled = !p;
+    $("seedNote").textContent = !p
+      ? "报告里没有这一组，换个种子随便跑就行。"
+      : sameRun(p, j)
+        ? `这是报告用的种子，跑 ${p.games.toLocaleString("en-US")} 局，结果应该和报告一模一样。`
+        : `报告这一组用的是种子 ${p.seed}、${p.games.toLocaleString("en-US")} 局。`;
+  }
+
+  function render(res, j, source, fresh) {
+    const fair = 1 / j.n;
+    const [lo, hi] = RANGE[j.mode];
+    const m = res.minutes.mean;
+    const timeOk = m >= lo && m <= hi;
+    const s0 = res.seat[0];
+    const seatOk = Math.abs(s0 - fair) * 100 <= 5;
+    const styleRows = res.byStyle ? Object.entries(res.byStyle).map(([id, v]) => ({ id, rate: v.rate })).sort((a, b) => b.rate - a.rate) : null;
+    const best = styleRows && styleRows.length > 1 ? styleRows[0] : null;
+    const ratio = best ? best.rate / fair : 0;
+    const spread = res.minutes.p10 !== undefined ? `，10% 的局短于 ${Math.round(res.minutes.p10)} 分钟，90% 短于 ${Math.round(res.minutes.p90)} 分钟` : "";
+    const diff = (s0 - fair) * 100;
+
+    $("source").innerHTML = source;
+    const stamp = (state, label) =>
+      `<div class="stamp ${state}"><small>${label}</small><strong>${state === "pass" ? "合格" : state === "fail" ? "不合格" : "待测"}</strong></div>`;
+    $("stamps").className = "stamps" + (fresh ? " fresh" : "");
+    $("stamps").innerHTML = [
+      `<div class="check">${stamp(timeOk ? "pass" : "fail", "时长")}<p class="num">平均 ${m.toFixed(1)} 分钟${spread}。</p><p class="rule">合格线：${lo} 到 ${hi} 分钟</p></div>`,
+      `<div class="check">${stamp(seatOk ? "pass" : "fail", "先手")}<p class="num">第 1 个出发的赢 ${pct(s0)}%，公平值 ${pct(fair)}%，${diff >= 0 ? "多" : "少"} ${Math.abs(diff).toFixed(1)} 个百分点。</p><p class="rule">合格线：相差不超过 5 个百分点</p></div>`,
+      best
+        ? `<div class="check">${stamp(ratio < 2 ? "pass" : "fail", "打法")}<p class="num">最强的${STYLE_NAMES[best.id]}赢 ${pct(best.rate)}%，是公平值的 ${ratio.toFixed(2)} 倍。</p><p class="rule">合格线：不到公平值的 2 倍</p></div>`
+        : `<div class="check">${stamp("na", "打法")}<p>每队都用同一种打法，比不出强弱。</p><p class="rule">选「五种打法混坐」再跑一次</p></div>`,
+    ].join("");
+
+    const bar = (label, rate, scale) =>
+      `<div class="bar"><span>${esc(label)}</span><span class="track"><span class="fill" style="width:${Math.min(100, (rate / scale) * 100).toFixed(1)}%"></span><span class="fair" style="left:${((fair / scale) * 100).toFixed(1)}%"></span></span><span>${pct(rate)}%</span></div>`;
+    const top = Math.max(fair * 1.6, ...res.seat, ...(styleRows || []).map((r) => r.rate)) * 1.05;
+    let html = `<section><h2>按出发顺序的胜率</h2><div class="bars">${res.seat.map((r, i) => bar(`第 ${i + 1} 个出发`, r, top)).join("")}</div><p class="note">虚线是公平值 ${pct(fair)}%</p></section>`;
+    if (best) html += `<section><h2>按打法的胜率</h2><div class="bars">${styleRows.map((r) => bar(STYLE_NAMES[r.id], r.rate, top)).join("")}</div><p class="note">稳健留 $200 现金什么都买；敢买敢盖几乎不留现金；攒现金留 $450 才买；航线派专收航线和服务；爱冒险在拉斯维加斯押大注</p></section>`;
+    const facts = [];
+    if (res.rounds) facts.push(`<p class="num">平均打 ${res.rounds.mean.toFixed(1)} 圈${res.games ? `，一共 ${res.games.toLocaleString("en-US")} 局` : ""}</p>`);
+    if (res.reasons) {
+      const total = Object.values(res.reasons).reduce((s, x) => s + x, 0);
+      facts.push(`<p class="num">怎么结束的：${Object.entries(res.reasons).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${REASONS[k] || k} ${Math.round((v / total) * 100)}%`).join("，")}</p>`);
+    }
+    if (facts.length) html += `<section><h2>这批局</h2><div class="facts">${facts.join("")}</div></section>`;
+    $("detail").innerHTML = html;
+  }
+
+  function compare(res, p) {
+    const pairs = [];
+    if (p.minutes !== undefined) pairs.push([`平均时长`, `${p.minutes.toFixed(1)} 分钟`, `${res.minutes.mean.toFixed(1)} 分钟`]);
+    if (p.seat) p.seat.forEach((r, i) => pairs.push([`第 ${i + 1} 个出发`, `${pct(r)}%`, `${pct(res.seat[i])}%`]));
+    if (p.styleRates) Object.entries(p.styleRates).forEach(([k, r]) => pairs.push([STYLE_NAMES[k], `${pct(r)}%`, `${pct(res.byStyle[k] ? res.byStyle[k].rate : 0)}%`]));
+    const off = pairs.filter(([, a, b]) => a !== b);
+    $("match").innerHTML = off.length
+      ? `<div class="match differs"><strong class="differs">和报告不一样。</strong> ${off.map(([k, a, b]) => `${k}：报告 ${a}，这次 ${b}`).join("；")}。</div>`
+      : `<div class="match same"><strong class="same">和报告一模一样。</strong> 对了 ${pairs.length} 个数：${pairs.slice(0, 3).map(([k, a]) => `${k} ${a}`).join("，")}${pairs.length > 3 ? " 等" : ""}。</div>`;
+  }
+
+  let stopped = false;
+  let running = false;
+  async function start(e) {
+    e.preventDefault();
+    if (running) return;
+    const j = job();
+    $("seed").value = j.seed;
+    running = true;
+    stopped = false;
+    $("go").disabled = true;
+    $("stop").hidden = false;
+    $("progress").hidden = false;
+    $("match").innerHTML = "";
+    const run = TripSim.createRun(j);
+    const t0 = performance.now();
+    let done = 0;
+    while (done < j.games && !stopped) {
+      const slice = performance.now();
+      while (done < j.games && performance.now() - slice < 30) done = run.step(4);
+      $("bar").style.width = `${((done / j.games) * 100).toFixed(1)}%`;
+      $("progressText").textContent = `已打 ${done.toLocaleString("en-US")} / ${j.games.toLocaleString("en-US")} 局`;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    const secs = ((performance.now() - t0) / 1000).toFixed(1);
+    running = false;
+    $("go").disabled = false;
+    $("stop").hidden = true;
+    $("progress").hidden = true;
+    $("progressText").textContent = done < j.games ? `停在第 ${done.toLocaleString("en-US")} 局，用了 ${secs} 秒` : `打完 ${done.toLocaleString("en-US")} 局，用了 ${secs} 秒`;
+    if (!done) return;
+    const res = run.summary();
+    const mode = j.mode === "target" ? "不限时" : `${j.mode} 分钟`;
+    render(res, j, `<strong>你的浏览器刚算出来的：</strong>${j.n} 队，${mode}，${j.styles === "mixed" ? "五种打法混坐" : "都是稳健"}，${res.games.toLocaleString("en-US")} 局，种子 ${j.seed}`, true);
+    const p = presetFor(j);
+    if (sameRun(p, j) && done === j.games) compare(res, p);
+  }
+
+  form.addEventListener("submit", start);
+  $("stop").addEventListener("click", () => (stopped = true));
+  $("newSeed").addEventListener("click", () => {
+    $("seed").value = 1 + Math.floor(Math.random() * 999999);
+    seedNote();
+  });
+  $("reportSeed").addEventListener("click", () => {
+    const p = presetFor(job());
+    if (!p) return;
+    setRadio("games", p.games);
+    $("seed").value = p.seed;
+    seedNote();
+  });
+  form.addEventListener("change", seedNote);
+  $("seed").addEventListener("input", seedNote);
+
+  // at rest: the report's own numbers for the default table, until the browser reruns them
+  const first = REPORT[0];
+  render(
+    { minutes: { mean: first.minutes, p10: first.p10, p90: first.p90 }, rounds: first.rounds ? { mean: first.rounds } : null, seat: first.seat, byStyle: null, reasons: null, games: first.games },
+    { n: first.n, mode: first.mode },
+    `<strong>报告里的数：</strong>4 队，不限时，都是稳健，3,000 局。点「开始对打」在你的浏览器里重算一遍。`,
+    false,
+  );
+  seedNote();
+</script>

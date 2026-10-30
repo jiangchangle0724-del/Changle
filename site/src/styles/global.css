@@ -1,0 +1,730 @@
+/*
+ * changle: a dark room lit by colored stage gels.
+ * Color is light: it comes from the game you're in (its gel) or from live state, never decoration.
+ */
+:root {
+  /* the room */
+  --night: #0e0c22;
+  --night-2: #131030;
+  --dusk: #181633;
+  --dusk-2: #221f44;
+  --dusk-3: #2c2955;
+  --line: #35325a;
+  --line-soft: rgba(181, 178, 220, 0.14);
+  --moon: #f5f4fd;
+  --haze: #b6b4d0;
+  --fog: #7f7c9d;
+
+  /* the gels: one per game, all bright enough to carry night-colored text */
+  --gel-pink: #ff5fa2;
+  --gel-coral: #ff6b5e;
+  --gel-tangerine: #ff8c42;
+  --gel-amber: #ffb82e;
+  --gel-lemon: #f5df3b;
+  --gel-lime: #b6e83a;
+  --gel-mint: #4be38f;
+  --gel-jade: #22d3a6;
+  --gel-aqua: #2ed3d9;
+  --gel-cyan: #31b9ff;
+  --gel-blue: #5b9bff;
+  --gel-periwinkle: #8c86ff;
+  --gel-violet: #b072ff;
+  --gel-orchid: #e765f0;
+  --gel-rose: #ff9cc5;
+
+  /* signals */
+  --go: var(--gel-mint);
+  --stop: #ff4d6d;
+  --warn: var(--gel-amber);
+
+  /* the current light: set per screen, tweened by GSAP */
+  --light: #8c86ff;
+  --gel: var(--moon);
+  --on-gel: var(--night);
+
+  --font-display: "Unbounded Variable", "Unbounded", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-text: "Figtree Variable", "Figtree", -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  --r-tile: 24px;
+  --r-panel: 20px;
+  --r-field: 14px;
+  --r-small: 10px;
+  --r-sheet: 28px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: dark;
+  accent-color: var(--light);
+  /* legacy names some game components still read */
+  --porcelain: var(--dusk-2);
+  --cobalt: var(--gel-blue);
+  --cobalt-deep: var(--gel-periwinkle);
+  --gold: var(--gel-amber);
+  --jade: var(--gel-jade);
+  --vermilion: var(--stop);
+  --amber: var(--gel-amber);
+  --lamp: var(--moon);
+  --ink: var(--moon);
+  --cream: var(--moon);
+  --cream-soft: var(--haze);
+  --cream-faint: var(--fog);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: var(--night);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--moon);
+  background: var(--night);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
+}
+
+/* the room light: a colored wash spilling down from the top of the screen */
+.room-light {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(90% 46% at 50% -6%, color-mix(in oklab, var(--light) 42%, transparent) 0%, color-mix(in oklab, var(--light) 12%, transparent) 46%, transparent 72%),
+    radial-gradient(70% 40% at 100% 108%, color-mix(in oklab, var(--light) 9%, transparent), transparent 70%),
+    var(--night);
+}
+
+::selection {
+  background: var(--light);
+  color: var(--night);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--moon);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+* {
+  scrollbar-color: var(--line) transparent;
+  scrollbar-width: thin;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+input,
+textarea {
+  caret-color: var(--light);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--fog);
+}
+
+a {
+  color: var(--moon);
+  text-decoration-color: color-mix(in oklab, var(--light) 70%, transparent);
+  text-underline-offset: 3px;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+/* ---------- type ---------- */
+.display,
+.en-display,
+.zh-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+.zh-display {
+  letter-spacing: 0;
+  font-weight: 800;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  color: var(--haze);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.hint-ink {
+  color: var(--haze);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.muted {
+  color: var(--fog);
+}
+
+/* ---------- app frame ---------- */
+.app {
+  min-height: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 8px) 16px calc(var(--safe-bottom) + 16px);
+  position: relative;
+  z-index: 1;
+}
+
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.005em;
+  line-height: 1.15;
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    transform 0.16s var(--ease-out),
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.25s,
+    opacity 0.2s;
+  background: var(--dusk-3);
+  color: var(--moon);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.965);
+}
+
+.btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.btn svg {
+  flex-shrink: 0;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-lg {
+  min-height: 60px;
+  font-size: 18px;
+  padding: 0 26px;
+}
+
+.btn-sm {
+  min-height: 40px;
+  font-size: 14.5px;
+  padding: 0 16px;
+}
+
+/* the main move on any screen glows in the current game's color */
+.btn-primary {
+  background: var(--gel);
+  color: var(--on-gel);
+  box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--gel) 70%, transparent);
+}
+/* a faded gel reads as mud on the dark room: a resting button goes grey instead */
+.btn-primary:disabled {
+  background: var(--dusk-3);
+  color: var(--fog);
+  box-shadow: none;
+  opacity: 1;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--moon);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.btn-ghost:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--fog);
+}
+
+.btn-porcelain,
+.btn-quiet {
+  background: var(--dusk-3);
+  color: var(--moon);
+}
+
+.btn-jade,
+.btn-go {
+  background: var(--go);
+  color: var(--night);
+}
+
+.btn-gold {
+  background: var(--gel-amber);
+  color: var(--night);
+}
+
+.btn-penalty {
+  background: var(--stop);
+  color: #fff;
+  box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--stop) 70%, transparent);
+}
+
+.btn-moon {
+  background: var(--moon);
+  color: var(--night);
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--moon);
+  transition:
+    background-color 0.2s,
+    transform 0.16s var(--ease-out);
+}
+.icon-btn:hover {
+  background: var(--line-soft);
+}
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+.link-btn {
+  color: var(--haze);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+  padding: 8px 4px;
+}
+
+/* ---------- chips ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  color: var(--moon);
+  font-weight: 600;
+  font-size: 15px;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s,
+    transform 0.15s var(--ease-out);
+}
+.chip:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.chip-sm {
+  min-height: 32px;
+  padding: 0 11px;
+  font-size: 13.5px;
+}
+.chip-selected,
+.chip[aria-pressed="true"] {
+  background: var(--gel);
+  color: var(--on-gel);
+  box-shadow: none;
+}
+.chip-porcelain {
+  background: var(--dusk-3);
+}
+.chip-out {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  margin-right: -6px;
+  color: var(--haze);
+}
+.chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- panels ---------- */
+.porcelain,
+.panel {
+  background: var(--dusk-2);
+  border-radius: var(--r-panel);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px var(--line-soft);
+  color: var(--moon);
+}
+
+.ink {
+  color: var(--moon);
+}
+
+/* ---------- fields ---------- */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 6px 0 16px;
+  border-radius: var(--r-field);
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  transition: box-shadow 0.2s;
+}
+.field:focus-within {
+  box-shadow: inset 0 0 0 2px var(--light);
+}
+.field input,
+.field textarea,
+.field select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  padding: 12px 0;
+}
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: none;
+}
+.field textarea {
+  resize: none;
+  line-height: 1.45;
+}
+.field-ink {
+  background: var(--dusk);
+}
+.field-label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--haze);
+  margin: 0 0 6px 2px;
+}
+
+/* ---------- segmented (pill group) ---------- */
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.seg > button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--haze);
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.seg > button[aria-pressed="true"] {
+  background: var(--moon);
+  color: var(--night);
+}
+.seg-sm {
+  align-self: flex-start;
+}
+.seg-sm > button {
+  flex: 0 1 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13.5px;
+}
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: grid;
+  grid-template-columns: 96px 1fr 96px;
+  align-items: center;
+  min-height: 56px;
+  margin: 0 -6px 6px;
+}
+.topbar-side {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.topbar-right {
+  justify-content: flex-end;
+}
+.topbar-title {
+  text-align: center;
+  min-width: 0;
+}
+
+/* bilingual title: the reader's language leads, the other rides along smaller */
+.bi-title {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.bi-left {
+  align-items: flex-start;
+}
+.bi-title > :first-child {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.bi-title > :last-child {
+  font-weight: 600;
+  color: var(--haze);
+  line-height: 1.2;
+}
+.bi-sm > :first-child {
+  font-size: 16px;
+}
+.bi-sm > :last-child {
+  font-size: 12px;
+}
+.bi-md > :first-child {
+  font-size: 24px;
+}
+.bi-md > :last-child {
+  font-size: 14px;
+}
+.bi-lg > :first-child {
+  font-size: 34px;
+}
+.bi-lg > :last-child {
+  font-size: 16px;
+}
+.lead-zh > :first-child {
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.lang-tab {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.lang-tab button {
+  min-width: 38px;
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--haze);
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.lang-tab button[aria-pressed="true"] {
+  background: var(--moon);
+  color: var(--night);
+}
+
+/* ---------- sheet ---------- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(6, 5, 18, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: min(88dvh, 860px);
+  display: flex;
+  flex-direction: column;
+  background: var(--dusk);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow:
+    0 -20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  padding: 8px 18px calc(var(--safe-bottom) + 18px);
+}
+.sheet-handle {
+  width: 40px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--line);
+  margin: 2px auto 6px;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+}
+.sheet-title {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sheet-close {
+  margin-right: -8px;
+}
+.sheet-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 2px 6px;
+  margin: 0 -2px;
+}
+
+.rules-text {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--haze);
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+.rules-text strong,
+.rules-text b {
+  color: var(--moon);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.chip-in {
+  animation: chip-in 0.35s var(--ease-pop) both;
+}
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}

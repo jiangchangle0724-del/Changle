@@ -1,0 +1,12 @@
+node_modules
+dist
+.impeccable/review
+.impeccable/live
+worker/node_modules
+worker/.wrangler
+.env.production
+build/
+.wrangler/
+
+worker/.dev.vars
+__pycache__/

@@ -1,0 +1,24 @@
+{
+  // 开席 rooms: the online-table server. Deployed to the same Cloudflare account as the site.
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "changle-rooms",
+  "main": "index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "routes": [{ "pattern": "rooms.changle.ca", "custom_domain": true }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "Room" },
+      { "name": "HUB", "class_name": "Hub" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Room"] },
+    { "tag": "v2", "new_sqlite_classes": ["Hub"] }
+  ],
+  "vars": {
+    "ADMIN_EMAILS": "jiangchangle0724@gmail.com,jiangchangle0724@hotmail.com",
+    "MAIL_FROM": "changle <hello@changle.ca>"
+  },
+  "observability": { "enabled": true }
+}

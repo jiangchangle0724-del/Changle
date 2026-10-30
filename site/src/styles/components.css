@@ -1,0 +1,807 @@
+/* ================= game screens (one phone and online share these) ================= */
+
+.app-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  gap: 3px;
+}
+
+.toast {
+  position: fixed;
+  top: calc(var(--safe-top) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-weight: 700;
+  font-size: 14.5px;
+  white-space: nowrap;
+  box-shadow: 0 14px 34px -10px rgba(0, 0, 0, 0.7);
+}
+
+/* legacy "ink" variants: panels are dark now, so these are just the normal look */
+.btn-ghost.ink,
+.icon-btn.ink {
+  color: var(--moon);
+}
+.settings-row.ink {
+  color: var(--moon);
+}
+.table-tv {
+  margin-top: 10px;
+  padding: 8px 0;
+}
+.table-tv-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.table-tv-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.table-tv small {
+  overflow-wrap: anywhere;
+}
+
+/* a label beside a small control (heat, mode) */
+.segmented-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.segmented-row .lang-tab button {
+  font-size: 14px;
+  padding: 0 14px;
+}
+
+/* ---------- game shell ---------- */
+.game-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 4px;
+}
+.rule-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rule-list li {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 12px;
+  align-items: start;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.rule-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--moon);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.turn-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0;
+  text-align: center;
+}
+.turn-name {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--gel);
+}
+.turn-name.ink {
+  color: var(--gel);
+}
+
+.card-stage {
+  display: flex;
+  justify-content: center;
+}
+
+.rule-card {
+  padding: 20px 18px 18px;
+}
+.rule-title {
+  font-size: 26px;
+  margin-bottom: 8px;
+  color: var(--gel);
+}
+.rule-body {
+  font-size: 16px;
+  line-height: 1.6;
+}
+.held {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.held .chip {
+  font-size: 13px;
+  min-height: 32px;
+}
+.held-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--moon);
+  color: var(--night);
+  font-size: 11.5px;
+  margin-right: 2px;
+}
+
+.card-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kind-tag {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--night);
+  background: var(--gel-cyan);
+}
+.kind-tag.dare {
+  background: var(--stop);
+  color: #fff;
+}
+
+.prompt-card {
+  position: relative;
+  min-height: 190px;
+  padding: 28px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+.prompt-text {
+  font-size: 22px;
+  line-height: 1.45;
+  font-weight: 800;
+  text-wrap: balance;
+}
+.prompt-other {
+  text-wrap: balance;
+}
+.word-big {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.12;
+  color: var(--gel);
+  text-wrap: balance;
+}
+.word-big.en-display {
+  font-size: 34px;
+  font-weight: 700;
+}
+.king-red {
+  color: var(--gel-amber);
+}
+
+.setup-card {
+  padding: 10px 18px 18px;
+}
+.reveal-card {
+  padding: 22px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+.crown-card {
+  width: 100%;
+}
+.reveal-role {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: var(--night);
+  background: var(--go);
+}
+.reveal-role.undercover {
+  background: var(--stop);
+  color: #fff;
+}
+.reveal-role.blank {
+  background: var(--gel-amber);
+}
+.reveal-role.small {
+  margin: 0;
+  padding: 2px 10px;
+  font-size: 13px;
+}
+.role-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.role-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line-soft);
+  font-weight: 700;
+}
+.score-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.score-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-weight: 700;
+}
+.score-list li .tabular {
+  font-family: var(--font-display);
+}
+.holder-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---------- reveal card (cover lifts off) ---------- */
+.cloche-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.cloche-plate {
+  width: 100%;
+}
+.cloche-content {
+  height: 100%;
+  will-change: opacity, transform;
+}
+.cloche-dome {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border-radius: var(--r-panel);
+  color: var(--night);
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.14) 0 14px, transparent 14px 28px),
+    radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, 0.35), transparent 60%),
+    var(--gel);
+  box-shadow: 0 20px 44px -18px color-mix(in oklab, var(--gel) 80%, transparent);
+  transform-origin: 50% 100%;
+}
+.cloche-dome:active {
+  filter: brightness(1.05);
+}
+.cover-mark {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 12, 34, 0.88);
+  color: var(--gel);
+}
+.cloche-hint {
+  padding: 7px 18px;
+  border-radius: 999px;
+  background: rgba(14, 12, 34, 0.88);
+  color: var(--moon);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+/* ---------- penalty ---------- */
+.stamp-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(80% 55% at 50% 38%, color-mix(in oklab, var(--stop) 30%, transparent) 0%, transparent 70%),
+    rgba(9, 8, 24, 0.97);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.stamp-layer.is-safe {
+  background:
+    radial-gradient(80% 55% at 50% 38%, color-mix(in oklab, var(--go) 26%, transparent) 0%, transparent 70%),
+    rgba(9, 8, 24, 0.97);
+}
+.stamp-flash {
+  position: absolute;
+  inset: 0;
+  background: var(--stop);
+  opacity: 0;
+  pointer-events: none;
+}
+.stamp-layer.is-safe .stamp-flash {
+  background: var(--go);
+}
+.stamp-stage {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.stamp-names {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 7.4vw, 34px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--moon);
+  text-align: center;
+  text-wrap: balance;
+}
+.stamp-seal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: min(56vw, 230px);
+  padding: 8px 12px;
+  color: var(--stop);
+  text-align: center;
+  transform: rotate(-3deg);
+}
+.stamp-safe {
+  color: var(--go);
+}
+.stamp-big {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(88px, 34vw, 156px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  text-shadow:
+    0 0 30px color-mix(in oklab, currentColor 55%, transparent),
+    0 0 80px color-mix(in oklab, currentColor 35%, transparent);
+}
+.stamp-big.en-display {
+  font-size: clamp(64px, 22vw, 108px);
+}
+.stamp-custom .stamp-big {
+  font-family: var(--font-text);
+  font-size: clamp(32px, 9vw, 46px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.stamp-second {
+  font-size: clamp(22px, 6.6vw, 32px);
+  font-weight: 800;
+  color: var(--moon);
+  line-height: 1.15;
+}
+.stamp-custom .stamp-second {
+  font-size: clamp(18px, 5vw, 24px);
+}
+.stamp-glass {
+  position: absolute;
+  right: -2px;
+  top: 52%;
+  transform-origin: 50% 100%;
+}
+.stamp-note {
+  max-width: 32ch;
+  color: var(--haze);
+  font-size: 15px;
+  text-align: center;
+  text-wrap: balance;
+}
+.stamp-foot {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.stamp-done {
+  margin-top: 6px;
+  min-width: 220px;
+}
+
+/* ---------- glass ---------- */
+.glass-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.glass-label {
+  font-size: 13px;
+  color: var(--haze);
+  font-weight: 700;
+}
+
+/* ---------- timer ---------- */
+.timer-arc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.timer-arc svg {
+  position: absolute;
+  inset: 0;
+}
+.timer-text {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--moon);
+}
+.timer-small .timer-text {
+  font-size: 19px;
+}
+.timer-urgent {
+  color: var(--stop);
+}
+
+/* ---------- dice ---------- */
+.dice-stage {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 12px;
+  padding: 6px 0;
+}
+.bowl {
+  width: 216px;
+  height: 216px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 35%, var(--dusk-3) 0%, var(--dusk-2) 55%, var(--dusk) 100%);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--gel) 70%, transparent),
+    inset 0 0 40px color-mix(in oklab, var(--gel) 22%, transparent),
+    0 20px 50px -20px color-mix(in oklab, var(--gel) 60%, transparent);
+}
+.bowl-dice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.die {
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
+}
+.dice-sum {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 68px;
+  line-height: 1;
+  color: var(--moon);
+}
+.dice-hot {
+  color: var(--stop);
+  text-shadow: 0 0 30px color-mix(in oklab, var(--stop) 50%, transparent);
+}
+.dice-outcome {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gel);
+  text-align: center;
+}
+
+/* ---------- drawing board ---------- */
+.plate-draw {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.plate-surface {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle, rgba(181, 178, 220, 0.12) 1px, transparent 1.5px) 0 0 / 22px 22px,
+    var(--night-2);
+  box-shadow:
+    inset 0 0 0 1.5px var(--line),
+    0 20px 50px -24px color-mix(in oklab, var(--gel) 70%, transparent);
+}
+.plate-disabled {
+  opacity: 0.7;
+}
+.plate-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+.plate-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.inks {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.swatch,
+.brush {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.swatch::before {
+  content: "";
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--swatch);
+  transition:
+    transform 0.15s var(--ease-out),
+    outline-color 0.15s;
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+}
+.swatch.ink-on::before,
+.brush.ink-on span {
+  transform: scale(1.15);
+  outline: 2px solid var(--moon);
+  outline-offset: 3px;
+}
+.brush span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--dusk-3);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: transform 0.15s var(--ease-out);
+}
+.brush span i {
+  display: block;
+  border-radius: 50%;
+  background: var(--moon);
+}
+
+/* ---------- truth or dare ---------- */
+.bottle-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bottle-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.bottle-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 96px;
+}
+.choose-box {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+.choose-who {
+  text-align: center;
+}
+.heat-tab button.heat-spicy[aria-pressed="true"] {
+  background: var(--stop);
+  color: #fff;
+}
+
+/* ---------- playing card ---------- */
+.pcard-scene {
+  perspective: 1200px;
+  width: 170px;
+  height: 238px;
+}
+.pcard {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.pcard-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 14px;
+  box-shadow: 0 24px 50px -16px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.pcard-face svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.pcard-back {
+  width: 100%;
+  cursor: pointer;
+  position: absolute;
+}
+.pcard-front {
+  transform: rotateY(180deg);
+}
+.pcard-draw {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--night);
+  color: var(--moon);
+  font-weight: 800;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* ---------- prompt decks ---------- */
+.deck-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.deck-lead {
+  text-align: center;
+  color: var(--gel);
+  font-weight: 800;
+  font-size: 18px;
+}
+.deck-stack {
+  position: relative;
+  min-height: 236px;
+  margin-bottom: 14px;
+}
+.deck-ghost {
+  position: absolute;
+  inset: 0;
+  transform: translateY(8px) rotate(2deg);
+  opacity: 0.5;
+}
+.deck-ghost-2 {
+  transform: translateY(16px) rotate(-3deg);
+  opacity: 0.25;
+}
+.deck-card {
+  position: relative;
+  min-height: 236px;
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    inset 0 3px 0 var(--gel);
+}
+.deck-text {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+/* ---------- wheel ---------- */
+.wheel-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.wheel-result {
+  font-size: 30px;
+  color: var(--gel);
+  text-align: center;
+}
+.wedge-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* ---------- waiting / bad news ---------- */
+.notice-ring.is-spinning .notice-arc {
+  transform-origin: 0 0;
+  animation: ring-turn 1.1s linear infinite;
+}
+@keyframes ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.notice-arc {
+  filter: drop-shadow(0 0 6px var(--light));
+}
+
+@media (min-width: 720px) {
+  .app {
+    padding-top: 24px;
+  }
+}

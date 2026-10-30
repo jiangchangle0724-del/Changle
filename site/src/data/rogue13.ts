@@ -1,0 +1,147 @@
+import type { T } from "../i18n";
+
+export type Rank = "A" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K";
+export type Suit = "spade" | "heart" | "club" | "diamond";
+export type Card = { rank: Rank; suit: Suit };
+
+export const RANKS: Rank[] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+export const SUITS: Suit[] = ["spade", "heart", "club", "diamond"];
+
+export const SUIT_GLYPH: Record<Suit, string> = { spade: "♠", heart: "♥", club: "♣", diamond: "♦" };
+export const SUIT_RED: Record<Suit, boolean> = { spade: false, heart: true, club: false, diamond: true };
+
+export type RuleKind =
+  | "pick" // choose a player to drink
+  | "self-sip"
+  | "self-full"
+  | "left"
+  | "right"
+  | "group" // a table game starts, loser drinks
+  | "hold"; // the holder keeps a standing power
+
+export type Rule = {
+  rank: Rank;
+  title: T;
+  rule: T;
+  kind: RuleKind;
+  /** For standing powers: the short badge shown next to the holder's name. */
+  badge?: T;
+};
+
+export const RULES: Rule[] = [
+  {
+    rank: "A",
+    kind: "pick",
+    title: { zh: "指定", en: "Point" },
+    rule: { zh: "指定在座任何一个人喝一口。", en: "Point at anyone at the table. They drink." },
+  },
+  {
+    rank: "2",
+    kind: "hold",
+    title: { zh: "陪酒", en: "Drinking Buddy" },
+    badge: { zh: "陪酒", en: "Buddy" },
+    rule: {
+      zh: "从现在起你负责陪酒：谁被罚酒时喊一声“陪酒”，你就得起身双手举杯，大声说“谢谢老板！”，陪着一起喝。直到下一张 2 被抽出。",
+      en: "You're the drinking buddy. Whenever someone is penalized and shouts “buddy!”, you stand, raise your glass with both hands, shout “thank you, boss!” and drink with them. Lasts until the next 2 is drawn.",
+    },
+  },
+  {
+    rank: "3",
+    kind: "group",
+    title: { zh: "逛三园", en: "Three Gardens" },
+    rule: {
+      zh: "你选一个园：蔬菜园、水果园或动物园。从下一个人开始，每人说出园里的一样东西，说不出或重复别人说过的，喝。",
+      en: "Choose a garden: vegetables, fruits or animals. Starting with the next player, each person names one thing from it. Stall or repeat and you drink.",
+    },
+  },
+  {
+    rank: "4",
+    kind: "group",
+    title: { zh: "抢数字", en: "Grab the Number" },
+    rule: {
+      zh: "你喊“1”，其他人抢着喊“2”、“3”……往下数。两个人同时喊同一个数，两个都喝；最后一个始终没开口的，也喝。",
+      en: "You shout “1”. Everyone else races to shout “2”, “3” and so on. Two voices on one number both drink; the last person who never spoke drinks too.",
+    },
+  },
+  {
+    rank: "5",
+    kind: "hold",
+    title: { zh: "照相机", en: "Camera" },
+    badge: { zh: "照相机", en: "Camera" },
+    rule: {
+      zh: "在这副牌发完之前，你随时可以喊“照相机”。所有人立刻定格不动，动了的喝。",
+      en: "Until this deck runs out, you may shout “camera!” at any moment. Everyone freezes. Whoever moves drinks.",
+    },
+  },
+  {
+    rank: "6",
+    kind: "hold",
+    title: { zh: "摸鼻子", en: "Nose" },
+    badge: { zh: "摸鼻子", en: "Nose" },
+    rule: {
+      zh: "在这副牌发完之前，你随时可以喊“摸鼻子”。所有人都得摸鼻子，最后一个摸到的喝。",
+      en: "Until this deck runs out, you may shout “nose!” at any moment. Everyone touches their nose. The last one drinks.",
+    },
+  },
+  {
+    rank: "7",
+    kind: "group",
+    title: { zh: "逢七过", en: "Sevens" },
+    rule: {
+      zh: "你从 1 到 20 之间任选一个数开始，大家依次往下数。遇到 7 的倍数或带 7 的数（7、14、17、21……）要说“过”。说错了或把数报出来的，喝。",
+      en: "Start counting from any number between 1 and 20, going around the table. On multiples of 7 or numbers containing 7 (7, 14, 17, 21…) say “pass” instead. Slip up and you drink.",
+    },
+  },
+  {
+    rank: "8",
+    kind: "hold",
+    title: { zh: "WC 票", en: "Bathroom Pass" },
+    badge: { zh: "WC票", en: "WC pass" },
+    rule: {
+      zh: "你拿到了唯一一张上厕所的票。其他人想去厕所，得先喝一口。",
+      en: "You hold the only bathroom pass. Anyone else who needs to go drinks first.",
+    },
+  },
+  {
+    rank: "9",
+    kind: "self-sip",
+    title: { zh: "自己喝", en: "Your Round" },
+    rule: { zh: "自己喝一口。", en: "You take a sip." },
+  },
+  {
+    rank: "10",
+    kind: "hold",
+    title: { zh: "神经病", en: "Troublemaker" },
+    badge: { zh: "神经病", en: "Trouble" },
+    rule: {
+      zh: "在这副牌发完之前，你可以随时搭讪任何人。谁接了你的话，谁喝。",
+      en: "Until this deck runs out, you may strike up a conversation with anyone at any time. Whoever answers you drinks.",
+    },
+  },
+  {
+    rank: "J",
+    kind: "left",
+    title: { zh: "左边", en: "Left" },
+    rule: { zh: "你左边的人喝一口。", en: "The person on your left drinks." },
+  },
+  {
+    rank: "Q",
+    kind: "right",
+    title: { zh: "右边", en: "Right" },
+    rule: { zh: "你右边的人喝一口。", en: "The person on your right drinks." },
+  },
+  {
+    rank: "K",
+    kind: "self-full",
+    title: { zh: "国王", en: "King" },
+    rule: { zh: "自己喝一杯。", en: "You finish your drink." },
+  },
+];
+
+export const RULE_BY_RANK: Record<Rank, Rule> = Object.fromEntries(RULES.map((r) => [r.rank, r])) as Record<Rank, Rule>;
+
+export function fullDeck(): Card[] {
+  const deck: Card[] = [];
+  for (const suit of SUITS) for (const rank of RANKS) deck.push({ rank, suit });
+  return deck;
+}

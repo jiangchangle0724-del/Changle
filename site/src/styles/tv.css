@@ -1,0 +1,725 @@
+/*
+ * The big screen (changle.ca/tv): a fixed 1600x900 canvas scaled to the TV or computer, in the
+ * same night room as the phones. The lobby puts the code and a QR at poster size, the seats fill
+ * in as phones sit down, and the game in front of the table glows in its own stage light.
+ */
+
+html.tv-mode,
+html.tv-mode body {
+  overflow: hidden;
+  background: #07040a;
+  overscroll-behavior: none;
+}
+html.tv-mode .room-light {
+  display: none;
+}
+
+.tv-fit {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #07040a;
+}
+.tv-canvas {
+  position: relative;
+  flex: none;
+  width: 1600px;
+  height: 900px;
+  overflow: hidden;
+  background: var(--night);
+  color: var(--moon);
+  transform-origin: 50% 50%;
+}
+
+/* ---------- shared ---------- */
+.tv-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 46px;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+.tv-wordmark-dot {
+  color: var(--gel, #e765f0);
+  text-shadow:
+    0 0 14px var(--gel, #e765f0),
+    0 0 40px color-mix(in oklab, var(--gel, #e765f0) 60%, transparent);
+}
+.tv-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 70% at 30% 0%, color-mix(in oklab, var(--gel, #e765f0) 30%, transparent) 0%, transparent 70%),
+    radial-gradient(45% 55% at 92% 100%, color-mix(in oklab, var(--gel, #e765f0) 18%, transparent) 0%, transparent 72%);
+  transition: background 0.8s;
+}
+.tv-head {
+  position: absolute;
+  top: 40px;
+  left: 64px;
+  z-index: 2;
+}
+.tv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 0 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dusk-3);
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tv-btn-main {
+  background: var(--gel, #e765f0);
+  color: var(--night);
+}
+.tv-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tv-btn:focus-visible,
+.tv-ctl:focus-visible,
+.tv-link:focus-visible {
+  outline: 4px solid var(--moon);
+  outline-offset: 4px;
+}
+.tv-link {
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--haze);
+  font-size: 20px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  cursor: pointer;
+}
+
+/* top right: language and sound */
+.tv-controls {
+  position: absolute;
+  top: 34px;
+  right: 56px;
+  z-index: 30;
+  display: flex;
+  gap: 12px;
+}
+.tv-controls.is-game {
+  top: auto;
+  right: 26px;
+  bottom: 28px;
+  transition: opacity 0.5s;
+}
+.tv-controls.is-idle {
+  opacity: 0;
+}
+.tv-controls.is-idle:focus-within {
+  opacity: 1;
+}
+.tv-ctl {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 85%, transparent);
+  color: var(--moon);
+  font-size: 18px;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  cursor: pointer;
+}
+.tv-gate {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 14px 26px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-size: 22px;
+  font-weight: 800;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  animation: tv-nudge 2.4s ease-in-out infinite;
+}
+.tv-gate-key {
+  padding-left: 12px;
+  border-left: 2px solid rgba(14, 12, 34, 0.18);
+  color: #5b5873;
+  font-size: 18px;
+}
+@keyframes tv-nudge {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 6px;
+  }
+}
+
+/* ---------- notices: connecting, ended, moved ---------- */
+.tv-notice {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+  background: radial-gradient(60% 60% at 50% 40%, color-mix(in oklab, #e765f0 20%, transparent) 0%, transparent 70%);
+  text-align: center;
+}
+.tv-notice-title {
+  max-width: 1100px;
+  font-family: var(--font-display);
+  font-size: 54px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.tv-notice-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+.tv-spinner {
+  width: 72px;
+  height: 72px;
+  border: 6px solid color-mix(in oklab, #e765f0 25%, transparent);
+  border-top-color: #e765f0;
+  border-radius: 999px;
+  animation: tv-spin 0.9s linear infinite;
+}
+@keyframes tv-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.tv-join {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tv-join label {
+  color: var(--haze);
+  font-size: 20px;
+  font-weight: 700;
+}
+.tv-join-row {
+  display: flex;
+  gap: 12px;
+}
+.tv-join input {
+  width: 220px;
+  height: 64px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--dusk-2);
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.tv-join input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--moon);
+}
+
+/* ---------- the lobby ---------- */
+.tv-lobby {
+  position: absolute;
+  inset: 0;
+}
+.tv-join-panel {
+  position: absolute;
+  top: 150px;
+  left: 64px;
+  width: 960px;
+}
+.tv-call {
+  margin-bottom: 32px;
+  font-family: var(--font-display);
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.tv-join-body {
+  display: flex;
+  align-items: center;
+  gap: 56px;
+}
+.tv-qr {
+  flex: none;
+  width: 296px;
+  height: 296px;
+  padding: 24px;
+  border-radius: 30px;
+  background: #fff;
+  box-shadow:
+    0 0 0 8px color-mix(in oklab, var(--gel) 40%, transparent),
+    0 30px 60px rgba(0, 0, 0, 0.45);
+}
+.tv-qr > div,
+.tv-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.tv-code-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.tv-code-label {
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 700;
+}
+.tv-code {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 148px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 18px color-mix(in oklab, var(--gel) 70%, transparent),
+    0 0 60px color-mix(in oklab, var(--gel) 45%, transparent);
+}
+.tv-code-help {
+  max-width: 520px;
+  margin-top: 14px;
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.tv-host-note {
+  margin-top: 34px;
+  color: var(--moon);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.tv-seats {
+  position: absolute;
+  top: 150px;
+  right: 64px;
+  bottom: 236px;
+  width: 470px;
+  padding: 28px 28px 24px;
+  overflow: hidden;
+  border-radius: 34px;
+  background: color-mix(in oklab, var(--dusk) 82%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.tv-seats-title {
+  margin-bottom: 22px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+}
+.tv-seats-empty {
+  margin-top: 40px;
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+}
+.tv-seat-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tv-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tv-seat.is-away {
+  opacity: 0.4;
+}
+.tv-seat-face {
+  position: relative;
+  display: inline-grid;
+}
+.tv-seat-crown {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--gel-amber);
+  color: var(--night);
+  box-shadow: 0 0 0 4px var(--dusk);
+}
+.tv-seat-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tv-front {
+  position: absolute;
+  left: 64px;
+  right: 64px;
+  bottom: 52px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  perspective: 900px;
+}
+.tv-front-card {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 720px;
+  padding: 20px 26px 20px 20px;
+  border-radius: 30px;
+  background: color-mix(in oklab, var(--gel) 16%, var(--dusk-2));
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--gel) 45%, transparent),
+    0 20px 50px rgba(0, 0, 0, 0.35);
+  transform-origin: 50% 100%;
+}
+.tv-front-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 92px;
+  height: 92px;
+  border-radius: 26px;
+  background: var(--gel);
+  color: var(--night);
+}
+.tv-front-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tv-front-kicker {
+  color: var(--haze);
+  font-size: 18px;
+  font-weight: 700;
+}
+.tv-front-name {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.tv-front-other {
+  color: var(--haze);
+  font-size: 18px;
+  font-weight: 600;
+}
+.tv-front-need {
+  margin-left: auto;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(14, 12, 34, 0.55);
+  font-size: 20px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tv-front-note {
+  max-width: 440px;
+  color: var(--haze);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.tv-front .tv-join,
+.tv-front .tv-link {
+  margin-left: auto;
+}
+
+/* ---------- another game: it plays on the phones ---------- */
+.tv-now {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.tv-now-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 1200px;
+  text-align: center;
+}
+.tv-now-icon {
+  display: grid;
+  place-items: center;
+  width: 200px;
+  height: 200px;
+  margin-bottom: 20px;
+  border-radius: 56px;
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: 0 0 80px color-mix(in oklab, var(--gel) 55%, transparent);
+}
+.tv-now-name {
+  font-family: var(--font-display);
+  font-size: 96px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.tv-now-other {
+  color: var(--haze);
+  font-size: 32px;
+  font-weight: 700;
+}
+.tv-now-sub {
+  margin-top: 24px;
+  font-size: 30px;
+  font-weight: 700;
+}
+.tv-now-seats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px 26px;
+  margin: 44px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tv-now-seats li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 96px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.tv-now-seats li span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tv-now-seats li.is-away {
+  opacity: 0.4;
+}
+
+/* ---------- during a game: the code in a corner ---------- */
+.tv-corner {
+  position: absolute;
+  left: 26px;
+  bottom: 22px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px 8px 8px;
+  border-radius: 22px;
+  background: rgba(7, 4, 10, 0.72);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.tv-corner-qr {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  padding: 7px;
+  border-radius: 14px;
+  background: #fff;
+}
+.tv-corner-qr span,
+.tv-corner-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.tv-corner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tv-corner-label {
+  color: var(--haze);
+  font-size: 16px;
+  font-weight: 700;
+}
+.tv-corner-code {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- reactions float up from the bottom ---------- */
+.tv-reacts {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tv-react {
+  position: absolute;
+  bottom: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 22px;
+  border-radius: 24px;
+  background: #fff;
+  color: var(--night);
+  font-size: 34px;
+  font-weight: 900;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  translate: -50% 0;
+  animation: tv-float 3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.tv-react small {
+  color: #5b5873;
+  font-size: 16px;
+  font-weight: 700;
+}
+.tv-react-cheers {
+  box-shadow:
+    inset 0 0 0 4px var(--gel-amber),
+    0 16px 40px rgba(0, 0, 0, 0.4);
+}
+.tv-react-haha {
+  box-shadow:
+    inset 0 0 0 4px #e765f0,
+    0 16px 40px rgba(0, 0, 0, 0.4);
+}
+.tv-react-nice {
+  box-shadow:
+    inset 0 0 0 4px var(--go),
+    0 16px 40px rgba(0, 0, 0, 0.4);
+}
+.tv-react-drink {
+  box-shadow:
+    inset 0 0 0 4px var(--stop),
+    0 16px 40px rgba(0, 0, 0, 0.4);
+}
+@keyframes tv-float {
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-420px) scale(1);
+  }
+}
+
+/* ---------- a penalty, stamped across the bottom ---------- */
+.tv-pen {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: fit-content;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 34px 14px 16px;
+  border-radius: 999px;
+  background: var(--stop);
+  color: #fff;
+  box-shadow:
+    0 0 0 6px rgba(255, 77, 109, 0.28),
+    0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.tv-pen.is-safe {
+  background: var(--go);
+  color: var(--night);
+  box-shadow:
+    0 0 0 6px color-mix(in oklab, var(--go) 30%, transparent),
+    0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.tv-pen-faces {
+  display: flex;
+}
+.tv-pen-faces > * + * {
+  margin-left: -14px;
+}
+.tv-pen-text {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  min-width: 0;
+}
+.tv-pen-who {
+  overflow: hidden;
+  font-size: 30px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tv-pen-what {
+  font-size: 44px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tv-gate,
+  .tv-spinner {
+    animation: none;
+  }
+  .tv-react {
+    animation-duration: 0.01s;
+    animation-fill-mode: none;
+  }
+}

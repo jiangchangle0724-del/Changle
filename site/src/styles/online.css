@@ -1,0 +1,1048 @@
+/* ================= online tables ================= */
+
+/* ---------- frame ---------- */
+.toast-net {
+  max-width: calc(100% - 140px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.net-body .picker {
+  justify-content: center;
+}
+.net-screen {
+  position: relative;
+}
+.net-body {
+  padding-bottom: 8px;
+}
+.table-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  color: var(--moon);
+  font-weight: 800;
+  font-size: 15px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition:
+    background-color 0.18s,
+    transform 0.18s var(--ease-out);
+}
+.table-btn:hover {
+  background: var(--dusk-3);
+}
+.table-btn:active {
+  transform: scale(0.95);
+}
+.table-code-line {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--haze);
+}
+
+.net-banner {
+  position: sticky;
+  top: calc(var(--safe-top) + 4px);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 6px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--warn) 18%, var(--dusk-2));
+  color: var(--warn);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--warn) 45%, transparent),
+    0 12px 30px -12px rgba(0, 0, 0, 0.7);
+}
+.net-banner span {
+  flex: 1;
+}
+.net-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--night);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* ---------- reactions ---------- */
+.react-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px -16px calc(-1 * (var(--safe-bottom) + 16px));
+  padding: 10px 16px calc(var(--safe-bottom) + 12px);
+  background: linear-gradient(to top, var(--night) 0, var(--night) calc(100% - 10px), transparent);
+}
+.react-btn {
+  min-width: 66px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: var(--moon);
+  font-size: 15px;
+  font-weight: 800;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition:
+    background-color 0.18s,
+    transform 0.15s var(--ease-out);
+}
+.react-btn:active {
+  transform: scale(0.93);
+}
+.react-btn.react-drink {
+  color: var(--gel-amber);
+}
+
+.react-layer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + 80px);
+  height: 0;
+  pointer-events: none;
+  z-index: 65;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.react-float {
+  position: absolute;
+  bottom: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  white-space: nowrap;
+  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.75);
+}
+.react-label {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+}
+.react-label.en-display {
+  font-size: 16px;
+}
+.react-float.react-drink {
+  background: var(--gel-amber);
+}
+.react-float.react-cheers {
+  background: var(--gel-cyan);
+}
+.react-float.react-haha {
+  background: var(--gel-lemon);
+}
+.react-float.react-nice {
+  background: var(--gel-mint);
+}
+.react-float.is-mine {
+  box-shadow:
+    0 0 0 3px var(--night),
+    0 0 0 5px var(--moon),
+    0 16px 36px -12px rgba(0, 0, 0, 0.75);
+}
+.react-who {
+  font-weight: 700;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+/* ---------- penalty, online ---------- */
+.stamp-name-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.stamp-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition:
+    color 0.3s,
+    opacity 0.3s;
+}
+.stamp-you {
+  align-self: center;
+  margin-left: 2px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--night);
+  background: var(--moon);
+}
+.stamp-name.is-done,
+.stamp-name.is-done svg {
+  color: var(--go);
+}
+.stamp-drank-count {
+  font-size: 16px;
+  color: var(--haze);
+}
+.stamp-actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.stamp-actions .btn-ghost {
+  min-width: 120px;
+}
+
+/* ---------- table sheet ---------- */
+.seat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.seat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.seat-row.is-away .seat-row-name {
+  color: var(--fog);
+}
+.seat-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--fog);
+}
+.seat-dot.on {
+  background: var(--go);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--go) 25%, transparent);
+}
+.seat-row-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 16px;
+}
+.seat-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--haze);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.seat-tag-host {
+  background: var(--gel-amber);
+  color: var(--night);
+  box-shadow: none;
+}
+.seat-tag-away {
+  color: var(--fog);
+}
+.seat-row-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.seat-row-actions .btn-sm {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 13px;
+}
+.table-penalty-text {
+  font-weight: 700;
+  color: var(--gel-amber);
+  text-align: right;
+}
+
+/* the table number, set like a door sign */
+.code-plaque {
+  display: inline-block;
+  padding: 0.14em 0.32em 0.1em 0.46em;
+  border-radius: 14px;
+  background: var(--moon);
+  color: var(--night) !important;
+  margin-right: 0 !important;
+  box-shadow: 0 12px 30px -12px color-mix(in oklab, var(--light) 80%, transparent);
+}
+
+/* ---------- invite card ---------- */
+.invite-card {
+  padding: 22px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.invite-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  white-space: nowrap;
+}
+.invite-label {
+  font-size: 20px;
+  color: var(--haze);
+}
+.invite-label.en-display {
+  font-size: 17px;
+}
+.invite-code {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 10vw, 44px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.14em;
+}
+.invite-qr {
+  width: min(56vw, 212px);
+  aspect-ratio: 1;
+  padding: 14px;
+  border-radius: 18px;
+  background: #ffffff;
+}
+.invite-qr-svg,
+.invite-qr-svg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.invite-qr-blank {
+  width: 100%;
+  height: 100%;
+}
+.invite-help {
+  text-align: center;
+}
+.invite-link {
+  font-size: 13px;
+  color: var(--fog);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+  text-align: center;
+  margin-top: -6px;
+}
+
+/* ---------- join and notices ---------- */
+.join-screen,
+.notice-screen {
+  min-height: 100%;
+}
+.join-card {
+  margin-top: clamp(16px, 8vh, 72px);
+  padding: 28px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.join-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+.join-label {
+  font-size: 24px;
+  color: var(--haze);
+}
+.join-label.en-display {
+  font-size: 19px;
+}
+.join-code {
+  font-family: var(--font-display);
+  font-size: clamp(40px, 12vw, 52px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.12em;
+}
+.join-meta {
+  text-align: center;
+  color: var(--haze);
+  font-size: 15px;
+  min-height: 1.5em;
+  margin-top: -2px;
+}
+.join-foot {
+  text-align: center;
+  font-size: 13px;
+}
+.notice-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px 6px 60px;
+  text-align: center;
+}
+.notice-title {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  max-width: 24ch;
+}
+.code-field {
+  padding-right: 6px;
+}
+.code-input {
+  font-family: var(--font-display);
+  font-size: 22px !important;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+.code-input::placeholder {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ---------- lobby ---------- */
+.lobby-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--haze);
+  font-size: 14px;
+}
+.lobby-title strong {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.12em;
+  color: var(--moon);
+}
+.lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lobby-seats {
+  margin: -2px -16px 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lobby-seats::-webkit-scrollbar {
+  display: none;
+}
+.faces {
+  list-style: none;
+  margin: 0;
+  /* room above for the "you" ring and the host's crown: the scroller clips both axes */
+  padding: 9px 16px 2px;
+  display: flex;
+  gap: 12px;
+  width: max-content;
+}
+.face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 54px;
+}
+.face-dot {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--night);
+  background: var(--gel-violet);
+}
+.face.is-me .face-dot {
+  box-shadow:
+    0 0 0 3px var(--night),
+    0 0 0 5px var(--moon);
+}
+.face.is-away .face-dot {
+  filter: grayscale(1) brightness(0.55);
+}
+.face-crown {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--gel-amber);
+  color: var(--night);
+  box-shadow: 0 0 0 2.5px var(--night);
+}
+.face-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--haze);
+}
+.face-add .face-dot {
+  background: transparent;
+  color: var(--moon);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.lobby .tile {
+  min-height: 118px;
+}
+.lobby .tile:disabled {
+  cursor: default;
+}
+.lobby-dock {
+  position: sticky;
+  bottom: calc(var(--safe-bottom) + 64px);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px -16px 0;
+  padding: 14px 16px 10px;
+  background: linear-gradient(to top, var(--night) 0, var(--night) calc(100% - 14px), transparent);
+}
+.lobby-actions {
+  display: flex;
+  gap: 10px;
+}
+.lobby-actions .btn-primary {
+  flex: 1;
+}
+.lobby-need {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--haze);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+.lobby-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  color: var(--moon);
+  font-weight: 700;
+  font-size: 15px;
+  text-align: center;
+}
+.lobby-wait svg {
+  flex: none;
+  color: var(--gel-amber);
+}
+
+/* ---------- in-game vocabulary ---------- */
+.turn-mine {
+  color: var(--gel);
+}
+.net-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+  color: var(--haze);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  text-wrap: balance;
+}
+.net-wait-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gel);
+  animation: live 1.8s infinite;
+}
+.host-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.host-row:empty {
+  display: none;
+}
+.host-btn {
+  color: var(--haze);
+}
+.host-btn svg {
+  color: var(--gel-amber);
+}
+button.bowl {
+  border: 0;
+  padding: 0;
+}
+button.bowl:disabled {
+  cursor: default;
+}
+
+/* ---------- shared game pieces ---------- */
+.draw-head {
+  gap: 14px;
+}
+.draw-word {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.draw-word-main {
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--gel);
+}
+.draw-word-main.en-display {
+  font-size: 24px;
+}
+.draw-hint {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  color: var(--moon);
+}
+.answer-head {
+  justify-content: center;
+  gap: 14px;
+}
+.plate-watch .plate-canvas {
+  cursor: default;
+}
+.solved-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--go) 16%, transparent);
+  color: var(--go);
+  font-weight: 800;
+}
+.guess-field {
+  padding-right: 6px;
+}
+.guess-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 2px;
+  min-height: 72px;
+  max-height: 152px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.guess-list li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 15px;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.guess-list li.is-ok {
+  color: var(--go);
+  font-weight: 800;
+}
+.guess-who {
+  flex: none;
+  font-weight: 700;
+  color: var(--haze);
+  min-width: 4.5em;
+}
+.score-list li.is-me {
+  color: var(--gel);
+}
+
+.reveal-line {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--gel);
+  text-align: center;
+  text-wrap: balance;
+}
+.vote-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vote-list li {
+  display: grid;
+  grid-template-columns: 6em 1fr 2em;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+.vote-list li.is-top {
+  color: var(--gel);
+}
+.vote-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--dusk-3);
+  justify-self: start;
+  transition: width 0.6s var(--ease-out);
+}
+.vote-list li.is-top .vote-bar {
+  background: var(--gel);
+}
+
+/* king */
+.token-pill-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.token-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-weight: 800;
+}
+.token-pill.is-king {
+  background: var(--gel-amber);
+}
+.called-row,
+.grab-claims {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.called-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  color: var(--moon);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.called-chip .en-display {
+  font-size: 18px;
+}
+.called-chip.is-out,
+.called-chip.is-me {
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: none;
+}
+.called-who {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+/* undercover */
+.my-word {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-weight: 800;
+}
+.my-word svg {
+  color: var(--gel-periwinkle);
+}
+.talk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.talk-list li {
+  display: grid;
+  grid-template-columns: 5.5em 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.talk-name {
+  font-weight: 800;
+}
+.talk-desc {
+  color: var(--haze);
+}
+.talk-now .talk-name {
+  color: var(--gel);
+}
+.talk-next {
+  opacity: 0.55;
+}
+
+/* rogue */
+.rule-online {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.game-panel {
+  padding: 14px;
+  border-radius: var(--r-panel);
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.num-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.num-btn {
+  min-height: 50px;
+  border-radius: 14px;
+  background: var(--moon);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  transition: transform 0.15s var(--ease-out);
+}
+.num-btn:active {
+  transform: scale(0.93);
+}
+.grab-btn {
+  align-self: center;
+  width: min(52vw, 200px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #ffffff 0%, var(--gel) 70%);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(64px, 22vw, 96px);
+  line-height: 1;
+  box-shadow: 0 24px 50px -16px color-mix(in oklab, var(--gel) 80%, transparent);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.grab-mine {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gel);
+}
+.grab-mine .en-display {
+  font-size: 40px;
+  margin-left: 6px;
+}
+.sevens-log {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sevens-entry {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 54px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--dusk-2);
+}
+.sevens-entry .en-display {
+  font-size: 20px;
+}
+.sevens-entry .called-who {
+  font-size: 12px;
+}
+.sevens-num {
+  font-size: 26px !important;
+}
+
+.power-dock {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.power-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-weight: 800;
+  transition:
+    transform 0.15s var(--ease-out),
+    opacity 0.18s;
+}
+.power-btn svg {
+  color: var(--gel);
+}
+.power-btn:active {
+  transform: scale(0.95);
+}
+.power-btn:disabled {
+  opacity: 0.45;
+}
+.power-quiet {
+  background: var(--dusk-2);
+  color: var(--haze);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.power-quiet svg {
+  color: var(--haze);
+}
+.wc-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--dusk-2);
+  text-align: center;
+  font-size: 15px;
+}
+
+.camera-flash {
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  z-index: 68;
+  pointer-events: none;
+}
+.interrupt-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 66;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(80% 55% at 50% 40%, color-mix(in oklab, var(--gel) 26%, transparent) 0%, transparent 70%),
+    rgba(9, 8, 24, 0.97);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.interrupt-stage {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  color: var(--gel);
+}
+.interrupt-big {
+  font-size: clamp(56px, 20vw, 96px);
+  line-height: 1;
+  color: var(--moon);
+}
+.interrupt-sub {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--moon);
+  text-wrap: balance;
+}
+.interrupt-stage .picker {
+  justify-content: center;
+}
+.nose-btn {
+  width: min(64vw, 240px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--gel);
+  color: var(--night);
+  font-size: 24px;
+  font-weight: 800;
+  box-shadow: 0 24px 50px -14px color-mix(in oklab, var(--gel) 80%, transparent);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.card-stage .pcard-scene {
+  transition:
+    width 0.4s var(--ease-out),
+    height 0.4s var(--ease-out);
+}
+.card-stage-small .pcard-scene {
+  width: 92px;
+  height: 129px;
+}

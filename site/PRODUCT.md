@@ -1,0 +1,59 @@
+# Product
+
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+
+web
+
+## Stack
+delegated: Vite + React + TypeScript, GSAP 3 (with CustomEase) for orchestrated motion and `motion` for a few springs, lucide-react icons, Web Audio for every sound and backing track. Static site on Cloudflare Pages (changle.ca); a Cloudflare Worker (`changle-rooms`, rooms.changle.ca) with Durable Objects runs online tables (one object per table, game rules in `src/shared/engine`, shared with the client) and a Hub object (SQLite) for accounts, friends, chat and the wishlist. Email sign-in codes are sent with Resend. The owner does not code and has asked Claude to make implementation choices; deploys run from a zip with a Windows `deploy.cmd`.
+
+## Users
+Groups of 2–15 friends at a house party, bar table, or hot-pot dinner, in Greater Vancouver and across Chinese- and English-speaking friend circles. Either one phone is passed around the table, or everyone opens the same table on their own phone (in the room, or apart on a video call). People are standing, drinking, laughing, in dim light, with wet hands and short attention. Mixed-language groups: some players read Chinese, some English, some both.
+
+Owner: Steve Jiang (蒋常乐), who hosts these nights and runs the phone.
+
+## Product Purpose
+A bilingual (中文 / English) party companion called changle. It replaces the deck of cards, the dice, the scraps of paper and the "wait, what are the rules again" moment with a phone that deals the card, spins the wheel, keeps the timer, plays the music, picks the victim and announces the penalty. A second tab holds everyday tools for a Vancouver life between two countries: live CAD/CNY/USD/HKD conversion, a linked world clock, and unit-price conversion. Success: a table of strangers is laughing within 60 seconds of the host tapping a game, and nobody has to explain rules twice.
+
+## Positioning
+Chinese drinking-game canon (流氓十三张, 国王游戏, 谁是卧底, 真心话大冒险) and North American party staples (Euchre, Superlatives, Quiplash-style Punchline, Freeze Dance, Limbo, Name That Tune, Post-it Note) played straight, with faithful rules and a real rendering in both languages. Every game works on one shared phone and online with every phone. Every round ends in a penalty moment the app announces; here the penalty is the ritual.
+
+## Operating Context
+- Portrait phone is the primary frame; large tap targets, high contrast for dim rooms.
+- One-phone mode: players are entered once (names) and shared by all games; private moments (secret words, votes, notes) use a pass-the-phone curtain.
+- Online mode: a four-letter table code or QR; each phone sees only what it should; the host's phone drives; reactions, drink confirmations and a drinking buddy across phones.
+- A language toggle (中 / EN) switches every string, including game content, instantly.
+- Accounts are optional (email code). Signed-in players get a photo, profile, game history, friends and chat. Nothing in a game requires signing in.
+- Penalty is drinking by default; the host can set a custom penalty (push-ups, sing, pay the bill).
+
+## Capabilities and Constraints
+Fifteen games, each one-phone and online: Truth or Dare, Rogue Thirteen, Superlatives, King's Game, Post-it Note, Limbo, Never Have I Ever / Most Likely To, Euchre (bots fill empty seats; one-phone is you and three bots), Seven Eight Nine, Freeze Dance, Wheel of Fate, Undercover, Name That Tune, Punchline, Draw & Guess. Movement games (Limbo, Freeze Dance) read the phone's motion sensors when allowed and fall back to a human judge.
+
+Also on the home screen: a wishlist where anyone can suggest games and features, and a tip jar that shows Steve's Interac e-Transfer address (no payment processing in the app).
+
+Not planned: UNO (Mattel trademark).
+
+Terminology: 惩罚 / penalty; 喝一口 / sip; 喝两口 / two sips; 喝一杯 / finish the drink; 指定 / assign; 尤克 / euchred.
+
+## Brand Commitments
+- Name: changle (from the owner's name 常乐, "always happy"); domain changle.ca. Chinese is the first language of the canon; English must read as native, not translated, and the interface should feel equally at home in both.
+- Owner's stated bar: "很多高级感的动画和交互体验": premium-feeling motion and interaction throughout. This is binding.
+- Visual world: a night party, a dark room lit by colored stage gels; each game has its own gel.
+- Adults only; a light "drink responsibly" note is welcome, never preachy.
+
+## Evidence on Hand
+- 流氓十三张 rules sourced from a published rule write-up (diyifanwen.com) and matched against other listings; 七八九 rules from a Sina article on party drinking games; Euchre follows standard North American rules (stick the dealer, going alone).
+- No logo, no photography. All game content (prompts, word banks, commands, melodies) is authored originally in both languages; songs in Name That Tune are public-domain or folk melodies played as notes.
+
+## Product Principles
+1. The phone is a prop at the table, not a screen to stare at: big, legible, one action per screen, playable with one thumb while the other hand holds a glass.
+2. Rules are shown when needed and never block the fun; the app explains by doing.
+3. Every round ends in a penalty moment, and that moment is the most animated thing on the screen.
+4. Both languages are first-class: a mixed table can switch mid-game without losing state.
+5. Playing never requires signing in or downloading anything; an account only adds a face, a history and friends.
+6. Online, each phone sees only what its player should see, and the table survives phones locking, dropping off and coming back.
+
+## Accessibility & Inclusion
+Dim-room contrast, 44px+ touch targets, reduced-motion respected, no color-only meaning, every game playable without sound and without motion sensors.

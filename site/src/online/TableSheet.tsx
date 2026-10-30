@@ -1,0 +1,251 @@
+import { Crown, LogOut, Music, Tv, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sheet } from "../components/Sheet";
+import { LangTab } from "../components/TopBar";
+import { setSoundEnabled } from "../lib/sound";
+import { useStore } from "../store";
+import { useRoom } from "./RoomContext";
+import { SeatFace } from "./People";
+
+/**
+ * Everything about the table that is not the game: who is seated, the host's tools,
+ * this phone's name and settings, and the way out.
+ */
+export function TableSheet({ open, onClose, onInvite, onLeave }: { open: boolean; onClose: () => void; onInvite: () => void; onLeave: () => void }) {
+  const { room, me, isHost, act, rename } = useRoom();
+  const { ui, sound, setSound, music, setMusic, lang } = useStore();
+  const zh = lang === "zh";
+  const myName = room?.seats.find((s) => s.id === me)?.name ?? "";
+  const [name, setName] = useState(myName);
+  const [penalty, setPenalty] = useState(room?.penalty ?? "");
+  const [confirmKick, setConfirmKick] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName(myName);
+      setPenalty(room?.penalty ?? "");
+      setConfirmKick(null);
+    }
+    // refresh the fields each time the sheet opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  if (!room) return null;
+
+  return (
+    <Sheet open={open} onClose={onClose} title={`${ui("thisTable")} ${room.code}`}>
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+        <span className="hint">{ui("atTable", { n: room.seats.length })}</span>
+        <button
+          type="button"
+          className="btn btn-gold btn-sm"
+          onClick={() => {
+            onClose();
+            onInvite();
+          }}
+        >
+          <UserPlus size={16} />
+          {ui("invite")}
+        </button>
+      </div>
+
+      <ul className="seat-list" aria-label={ui("players")}>
+        {room.seats.map((s) => {
+          const isMe = s.id === me;
+          const isHostSeat = s.id === room.host;
+          return (
+            <li key={s.id} className={`seat-row ${s.on ? "" : "is-away"}`}>
+              <span className="seat-face">
+                <SeatFace seat={s} size={36} />
+                <span className={`seat-dot ${s.on ? "on" : ""}`} aria-hidden="true" />
+              </span>
+              <span className="seat-row-name">
+                {s.name}
+                {isHostSeat && (
+                  <span className="seat-tag seat-tag-host">
+                    <Crown size={12} strokeWidth={2.6} />
+                    {ui("host")}
+                  </span>
+                )}
+                {isMe && <span className="seat-tag">{ui("you")}</span>}
+                {!s.on && <span className="seat-tag seat-tag-away">{ui("away")}</span>}
+              </span>
+              {isHost && !isMe && (
+                <span className="seat-row-actions">
+                  {confirmKick === s.id ? (
+                    <>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmKick(null)}>
+                        {ui("stay")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-porcelain btn-sm"
+                        onClick={() => {
+                          act({ a: "kick", pid: s.id });
+                          setConfirmKick(null);
+                        }}
+                      >
+                        {ui("kick")}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => act({ a: "makeHost", pid: s.id })}>
+                        {ui("makeHost")}
+                      </button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmKick(s.id)}>
+                        {ui("kick")}
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="settings-row table-tv">
+        <span className="table-tv-text">
+          <span className="table-tv-title">
+            <Tv size={16} />
+            {zh ? "大屏幕" : "Big screen"}
+          </span>
+          <small className="hint">
+            {room.screens
+              ? zh
+                ? "已连上，电视正在显示这桌"
+                : "Connected: a TV is showing this table"
+              : zh
+                ? `电视或电脑的浏览器打开 ${window.location.host}/tv/${room.code}`
+                : `On a TV or computer, open ${window.location.host}/tv/${room.code}`}
+          </small>
+        </span>
+        {!room.screens && window.matchMedia("(min-width: 900px) and (hover: hover)").matches && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.open(`${window.location.origin}/#/tv/${room.code}`, "_blank")}>
+            {zh ? "新窗口打开" : "Open it here"}
+          </button>
+        )}
+      </div>
+
+      {isHost && room.game && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-block"
+          style={{ marginTop: 16 }}
+          onClick={() => {
+            act({ a: "end" });
+            onClose();
+          }}
+        >
+          {ui("endGame")}
+        </button>
+      )}
+
+      <form
+        className="stack"
+        style={{ gap: 8, marginTop: 20 }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim() && name.trim() !== myName) rename(name);
+        }}
+      >
+        <span>{ui("rename")}</span>
+        <div className="field">
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={14} autoComplete="nickname" enterKeyHint="done" aria-label={ui("yourName")} />
+          <button type="submit" className="btn btn-gold btn-sm" disabled={!name.trim() || name.trim() === myName}>
+            {ui("save")}
+          </button>
+        </div>
+      </form>
+
+      {isHost ? (
+        <form
+          className="stack"
+          style={{ gap: 8, marginTop: 18 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            act({ a: "penalty", text: penalty });
+          }}
+        >
+          <span>{ui("tablePenalty")}</span>
+          <div className="field">
+            <input value={penalty} onChange={(e) => setPenalty(e.target.value)} placeholder={ui("penaltyCustomPlaceholder")} maxLength={24} aria-label={ui("tablePenalty")} />
+            <button type="submit" className="btn btn-gold btn-sm" disabled={penalty.trim() === (room.penalty ?? "")}>
+              {ui("save")}
+            </button>
+          </div>
+          <p className="hint">{ui("tablePenaltyHelp")}</p>
+        </form>
+      ) : (
+        <div className="settings-row" style={{ marginTop: 14 }}>
+          <span>{ui("tablePenalty")}</span>
+          <span className="table-penalty-text">{room.penalty || ui("penaltyDefault")}</span>
+        </div>
+      )}
+
+      <div className="settings-row" style={{ marginTop: 14 }}>
+        <span>{ui("language")}</span>
+        <LangTab />
+      </div>
+      <div className="settings-row">
+        <span>{ui("sound")}</span>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          aria-pressed={sound}
+          onClick={() => {
+            setSound(!sound);
+            setSoundEnabled(!sound);
+          }}
+        >
+          {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          {sound ? ui("soundOn") : ui("soundOff")}
+        </button>
+      </div>
+      <div className="settings-row">
+        <span>{ui("music")}</span>
+        <button type="button" className="btn btn-ghost btn-sm" aria-pressed={music} disabled={!sound} onClick={() => setMusic(!music)}>
+          <Music size={16} />
+          {music && sound ? ui("soundOn") : ui("soundOff")}
+        </button>
+      </div>
+
+      <button
+        type="button"
+        className="btn btn-ghost btn-block"
+        style={{ marginTop: 22 }}
+        onClick={() => {
+          onClose();
+          onLeave();
+        }}
+      >
+        <LogOut size={16} />
+        {ui("leaveTable")}
+      </button>
+      <p className="hint" style={{ marginTop: 14 }}>
+        {ui("adultsOnly")} · {ui("responsible")}
+      </p>
+    </Sheet>
+  );
+}
+
+export function LeaveSheet({ open, onClose, onLeave }: { open: boolean; onClose: () => void; onLeave: () => void }) {
+  const { ui } = useStore();
+  return (
+    <Sheet open={open} onClose={onClose} title={ui("leaveTable")}>
+      <p className="hint" style={{ fontSize: 16, marginBottom: 18 }}>
+        {ui("leaveConfirm")}
+      </p>
+      <div className="row" style={{ gap: 10 }}>
+        <button type="button" className="btn btn-ghost btn-block" onClick={onClose}>
+          {ui("stay")}
+        </button>
+        <button type="button" className="btn btn-primary btn-block" onClick={onLeave}>
+          <LogOut size={16} />
+          {ui("leaveTable")}
+        </button>
+      </div>
+    </Sheet>
+  );
+}

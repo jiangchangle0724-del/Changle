@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="p" cx="40%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#fdfaf3"/>
+      <stop offset="60%" stop-color="#f3ecdf"/>
+      <stop offset="100%" stop-color="#d8ccb6"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#3a0e0c"/>
+  <circle cx="32" cy="32" r="25" fill="url(#p)"/>
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#1f3f8e" stroke-width="1.8"/>
+  <circle cx="32" cy="32" r="16.5" fill="none" stroke="#1f3f8e" stroke-width="0.9" opacity="0.7"/>
+  <text x="32" y="33" text-anchor="middle" dominant-baseline="central" font-size="22" font-family="'ZCOOL QingKe HuangYou','PingFang SC','Noto Sans SC',sans-serif" fill="#142b63">席</text>
+</svg>
