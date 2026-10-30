@@ -39,7 +39,8 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
       if (text && list[list.length - 1] !== text) list.push(text);
     };
     new MutationObserver(() => {
-      const face = document.querySelector(".tv-dice .face");
+      // (a throw that moves a token lands its dice with the move, in the middle of the board)
+      const face = document.querySelector(".tv-dice .face, .tv-board .ride-dice .face");
       if (face && face.getBoundingClientRect().width > 10) w.sawDice += 1;
       note(w.wx.arrival, document.querySelector(".arrival-wx")?.textContent);
       const td = document.querySelector(".touchdown.wx-rain");

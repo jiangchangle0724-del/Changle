@@ -87,7 +87,10 @@ export function GlobeLayer({ flight, focus }: { flight: Flight | null; focus: st
     if (on && focus) api.current?.focus(focus);
   }, [on, focus]);
   useEffect(() => {
-    if (on && flight && flight.key !== before.current) api.current?.fly(flight.from, flight.to);
+    if (!on || !flight || flight.key === before.current) return;
+    // (once: a flight held back while a token walks, then handed back, isn't flown twice)
+    before.current = flight.key;
+    api.current?.fly(flight.from, flight.to);
   }, [on, flight?.key]);
   return <canvas ref={ref} class={`globe${on ? " on" : ""}`} aria-hidden="true" />;
 }

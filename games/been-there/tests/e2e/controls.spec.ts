@@ -38,7 +38,8 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，行动窗口�
         for (const n of r.addedNodes) {
           if (!(n instanceof HTMLElement)) continue;
           const panel = n.matches(".decide[data-kind]") ? n : n.querySelector(".decide[data-kind]");
-          const b = panel?.querySelector("button");
+          // (a button, or the label round a hidden switch that taps back on an iPhone)
+          const b = panel?.querySelector(".btn");
           if (b) w.fresh.push(getComputedStyle(b).pointerEvents);
         }
     }).observe(document, { childList: true, subtree: true });

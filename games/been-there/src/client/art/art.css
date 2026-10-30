@@ -72,17 +72,13 @@
 .roundboard .sp.mort .code {
   opacity: 0.4;
 }
+/* The airport codes and the owners' letters are outlines of the printed type (art/boardType.ts:
+   Big Shoulders Display 800 at 34 px, Space Mono Bold at 19 px), so turning the table never makes the
+   browser lay text out again. */
 .roundboard .code {
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: 34px;
-  letter-spacing: 1px;
   fill: var(--board-ink);
 }
 .roundboard .owner {
-  font-family: var(--mono);
-  font-weight: 700;
-  font-size: 19px;
   fill: #fff;
 }
 .roundboard .sp .wedge.corner-w {
@@ -101,7 +97,8 @@
 .roundboard .token .react {
   filter: var(--face-edge, none);
 }
-.roundboard .token.now > g {
+/* (not while a move plays: the board stands still under the camera, and a hop would redraw it) */
+.roundboard:not(.riding) .token.now > g {
   animation: hop 1.3s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: 50% 100%;
@@ -242,7 +239,8 @@
   stroke: var(--board-paper);
   stroke-width: 2.5;
 }
-.roundboard .board-news text {
+.roundboard .board-news text,
+.roundboard .board-news .tag {
   fill: var(--board-paper);
   font: 800 17px var(--display);
 }

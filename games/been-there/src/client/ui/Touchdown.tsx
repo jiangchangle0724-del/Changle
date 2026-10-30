@@ -90,9 +90,10 @@ export function Touchdown({ v, big, after }: { v: RoomView; big?: boolean; after
     // if it flew here from another region (the flight is keyed by the landing, just before the stamp).
     const flight = latestFlight(v);
     const flew = !!flight && land.id - Number(flight.key) >= 1 && land.id - Number(flight.key) <= 3;
-    // (On a phone the team's own throw is up for 1.7 s: the scene starts once it's gone, or once its
-    // first-person move is over, `after`.)
-    const lead = !big ? Math.max(1800, (after ?? 0) - serverNow() + 150) : flew ? 3300 : 2000;
+    // (The scene starts once the move is over, `after`; on the big screen, once the plane has flown
+    // there too, which it does after the move.)
+    const wait = Math.max(0, (after ?? 0) - serverNow());
+    const lead = !big ? Math.max(1800, wait + 150) : wait ? wait + (flew ? 3300 : 300) : flew ? 3300 : 2000;
     later(lead, () => {
       // The game moved on while the dice were up (a clock came up, or the team threw again): no scene.
       if (onClock(latest.current, !big) || threwSince(latest.current, land)) return stop();

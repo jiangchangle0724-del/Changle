@@ -1,7 +1,9 @@
 // The round board: 40 spaces on a turntable around the route map, a nod to changle.ca's Lazy Susan.
-// When the turn passes, the table turns so the player whose go it is sits at the bottom. Labels,
-// markers and tokens stay upright while it turns. A phone's first-person move (ui/Ride.tsx) drives
-// the table through `rig`: it turns it, moves a camera over it and leans it back.
+// The table turns a space to the place it's asked for (`focus` to `focusAt`): on the big screen the
+// team on turn comes to the bottom, on a phone its own token to 9 o'clock, where its first-person
+// camera pushes in. It never turns faster than 60 degrees a second; a bigger turn is a quick fade
+// instead. Labels, markers and tokens stay upright while it turns. A move (ui/Ride.tsx) drives the
+// table through `rig`: it turns it, moves a camera over it and leans it back.
 import type { ComponentChildren } from "preact";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { BOARD, CITY_AT, GROUPS } from "../../engine";
@@ -9,7 +11,7 @@ import { CharacterArt, type Mood } from "./characters";
 import { SpaceGlyph } from "./icons";
 import { RouteMap, type Flight } from "./RouteMap";
 import { shapePath } from "./shapes";
-import { CODE } from "./stamps";
+import { CODE_PATH, NEWS_PATH, OWNER_PATH } from "./boardType";
 
 export interface SpaceMark {
   /** Owner's team colour and letter. */
@@ -34,11 +36,12 @@ export interface Rig {
   /** Turn the table to this angle (degrees), labels and tokens staying upright: all of them, or
    * only those within `span` degrees of the screen angle `at` (what a close camera can see). */
   turn(deg: number, near?: { at: number; span: number }): void;
-  /** The table's angle now, and where it rests for this turn. */
+  /** Stand up only the labels and tokens near `at` for a table seen at `deg`, leaving the table's
+   * own angle as it is (a move turns the drawing as a whole, on the compositor: ui/Ride.tsx). */
+  upright(deg: number, near: { at: number; span: number }): void;
+  /** The table's angle now (as drawn), and where it rests for this turn. */
   rotation(): number;
   focusRotation(): number;
-  /** The camera over the table: a zoom and an offset (board units, before the zoom's centre). */
-  camera(z: number, tx: number, ty: number): void;
 }
 
 const RO = 490;
@@ -113,7 +116,11 @@ function Houses({ at, n, old }: { at: number; n: number; old: number }) {
   );
 }
 
-const ease = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+/** The table turns 60 degrees a second at most (easing in and out); past this a fade is kinder. */
+const TURN_MAX = 60;
+const TURN_ACCEL = 300;
+const FADE_PAST = 60;
+const FADE_MS = 500;
 
 /** Something that stays upright while the table turns. */
 function Up({ x, y, rot, children, extra }: { x: number; y: number; rot: number; children: ComponentChildren; extra?: Record<string, string | number> }) {
@@ -136,6 +143,8 @@ export function RoundBoard({
   class: cls,
   rig,
   riding,
+  focusAt = 180,
+  walks,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -153,15 +162,23 @@ export function RoundBoard({
   rig?: { current: Rig | null };
   /** The seat on a first-person move: its token is drawn by the ride, and the table is the ride's. */
   riding?: number | null;
+  /** Where on screen (degrees clockwise from 12 o'clock) the focus space is turned to: the bottom (180)
+   * on the big screen, 9 o'clock (270) on a phone. */
+  focusAt?: number;
+  /** When other teams' tokens start walking and how long a space takes (performance.now() ms), so
+   * they move in step with the thrower's ride. */
+  walks?: Record<number, { start: number; per: number }>;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const cam = useRef<SVGGElement>(null);
   const ref = useRef<SVGGElement>(null);
-  const rot = useRef(-focus * STEP);
-  // Everything that stays upright, found once per drawing rather than on every frame of a turn.
-  const ups = useRef<SVGGElement[]>([]);
+  const rot = useRef(focusAt - angleOf(focus));
+  // Everything that stays upright, found once per drawing rather than on every frame of a turn, with
+  // where it sits round the ring (degrees from 12 o'clock, before the table turns).
+  // (a token walking round moves its own: its place is read again when it has)
+  const ups = useRef<{ el: SVGGElement; x?: string; y?: string; at: string; angle: number; shown: number }[]>([]);
   useLayoutEffect(() => {
-    ups.current = ref.current ? Array.from(ref.current.querySelectorAll<SVGGElement>("[data-up]")) : [];
+    ups.current = ref.current ? Array.from(ref.current.querySelectorAll<SVGGElement>("[data-up]")).map((el) => ({ el, at: "", angle: 0, shown: NaN })) : [];
   });
 
   const apply = (r: number, near?: { at: number; span: number }) => {
@@ -169,63 +186,104 @@ export function RoundBoard({
     const g = ref.current;
     if (!g) return;
     g.setAttribute("transform", `rotate(${r.toFixed(2)})`);
+    upright(r, near);
+  };
+  const upright = (r: number, near?: { at: number; span: number }) => {
     const back = `rotate(${(-r).toFixed(2)})`;
-    for (const el of ups.current) {
-      if (!el.isConnected) continue;
-      if (near) {
-        const a = (Math.atan2(Number(el.dataset.x), -Number(el.dataset.y)) * 180) / Math.PI + r;
-        if (Math.abs(((((a - near.at) % 360) + 540) % 360) - 180) > near.span) continue;
+    for (const u of ups.current) {
+      const { x, y, lift } = u.el.dataset;
+      if (x !== u.x || y !== u.y) {
+        u.x = x;
+        u.y = y;
+        u.at = `translate(${x} ${y}) `;
+        u.angle = (Math.atan2(Number(x), -Number(y)) * 180) / Math.PI;
+        u.shown = NaN;
       }
-      const lift = el.dataset.lift;
-      el.setAttribute("transform", `translate(${el.dataset.x} ${el.dataset.y}) ${back}${lift ? ` translate(0 ${lift})` : ""}`);
+      // (a fraction of a degree isn't worth the browser's work; turned in step, it never adds up)
+      if (Math.abs(u.shown - r) < 0.35 || !u.el.isConnected) continue;
+      if (near && Math.abs(((((u.angle + r - near.at) % 360) + 540) % 360) - 180) > near.span) continue;
+      u.shown = r;
+      u.el.setAttribute("transform", `${u.at}${back}${lift ? ` translate(0 ${lift})` : ""}`);
     }
   };
 
-  const focusRef = useRef(focus);
-  focusRef.current = focus;
+  const focusRef = useRef({ focus, focusAt });
+  focusRef.current = { focus, focusAt };
   useLayoutEffect(() => {
     if (!rig) return;
     rig.current = svgRef.current && {
       svg: svgRef.current,
       turn: apply,
+      upright,
       rotation: () => rot.current,
       focusRotation: () => {
         // The nearest way round to where the table rests.
-        const target = -focusRef.current * STEP;
+        const target = focusRef.current.focusAt - angleOf(focusRef.current.focus);
         return rot.current + (((((target - rot.current) % 360) + 540) % 360) - 180);
       },
-      camera: (z, tx, ty) => cam.current?.setAttribute("transform", z === 1 && !tx && !ty ? "" : `translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${z.toFixed(4)})`),
     };
   });
 
   useLayoutEffect(() => {
-    // A first-person move turns the table itself, and gives it back where it rests.
+    // A move turns the table itself, and gives it back where it rests.
     if (riding !== undefined && riding !== null) return;
-    const target = -focus * STEP;
+    const target = focusAt - angleOf(focus);
     const start = rot.current;
     const delta = ((((target - start) % 360) + 540) % 360) - 180;
+    const svg = svgRef.current;
     if (reduced || Math.abs(delta) < 0.01) {
       apply(start + delta);
       return;
     }
-    const t0 = performance.now();
-    const dur = 650 + Math.abs(delta) * 3;
     let raf = 0;
+    if (Math.abs(delta) > FADE_PAST) {
+      // A long way round: the board dips out and comes back turned, rather than spinning.
+      const t0 = performance.now();
+      let turned = false;
+      const step = (now: number) => {
+        const p = Math.min(1, (now - t0) / FADE_MS);
+        if (p >= 0.5 && !turned) {
+          turned = true;
+          apply(start + delta);
+        }
+        if (svg) svg.style.opacity = p < 1 ? Math.abs(2 * p - 1).toFixed(3) : "";
+        if (p < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+      return () => {
+        cancelAnimationFrame(raf);
+        if (svg) svg.style.opacity = "";
+        if (!turned) apply(start + delta);
+      };
+    }
+    let at = start;
+    let vel = 0;
+    let last = performance.now();
+    const goal = start + delta;
     const step = (now: number) => {
-      const p = Math.min(1, (now - t0) / dur);
-      apply(start + delta * ease(p));
-      if (p < 1) raf = requestAnimationFrame(step);
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const err = goal - at;
+      const want = Math.sign(err) * Math.min(TURN_MAX, Math.sqrt(2 * TURN_ACCEL * Math.abs(err)));
+      vel += Math.max(-TURN_ACCEL * dt, Math.min(TURN_ACCEL * dt, want - vel));
+      at += vel * dt;
+      const done = Math.abs(goal - at) < 0.05 && Math.abs(vel) < 3;
+      apply(done ? goal : at);
+      if (!done) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [focus, reduced, riding]);
+  }, [focus, focusAt, reduced, riding]);
 
-  // Tokens walk around the ring to their new space, with a little hop on each one.
+  // Tokens walk around the ring to their new space, with a little hop on each one: in step with the
+  // thrower's ride when we know its beat (`walks`), at once otherwise.
   const shown = useRef(new Map<number, number>());
+  const walksRef = useRef(walks);
+  walksRef.current = walks;
   const posKey = tokens.map((t) => `${t.seat}:${t.at}`).join(",");
   useLayoutEffect(() => {
     const g = ref.current;
-    const moves: { seat: number; from: number; delta: number; el: SVGGElement; fan: number; ring: number }[] = [];
+    const moves: { seat: number; from: number; delta: number; el: SVGGElement; fan: number; ring: number; start: number; per: number }[] = [];
     for (const tk of tokens) {
       const from = shown.current.get(tk.seat);
       shown.current.set(tk.seat, tk.at);
@@ -234,25 +292,31 @@ export function RoundBoard({
       if (delta > BOARD.length / 2) delta -= BOARD.length;
       const el = g.querySelector<SVGGElement>(`[data-seat="${tk.seat}"]`);
       if (!el) continue;
-      moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT) });
+      const w = walksRef.current?.[tk.seat];
+      const now = performance.now();
+      // (a beat we know of: the walk starts when the thrower's does, a space at its pace; otherwise now)
+      const start = w && w.start > now - 4000 ? w.start : now;
+      const per = w ? w.per : Math.min(1800, 220 + Math.abs(delta) * 120) / Math.max(1, Math.abs(delta));
+      moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT), start, per });
     }
     if (!moves.length) return;
-    const t0 = performance.now();
-    const dur = Math.min(1800, 220 + Math.max(...moves.map((m) => Math.abs(m.delta))) * 120);
     let raf = 0;
     const step = (now: number) => {
-      const p = Math.min(1, (now - t0) / dur);
+      let going = false;
       for (const m of moves) {
+        const p = Math.max(0, Math.min(1, (now - m.start) / Math.max(1, m.per * Math.abs(m.delta))));
+        if (p < 1) going = true;
         const at = m.from + m.delta * p;
-        const hop = Math.abs(Math.sin(Math.PI * (at - Math.floor(at)))) * 16 * (p < 1 ? 1 : 0);
+        const hop = Math.abs(Math.sin(Math.PI * (at - Math.floor(at)))) * 16 * (p < 1 && p > 0 ? 1 : 0);
         const [x, y] = xy(angleOf(at) + m.fan, m.ring);
         m.el.dataset.x = x.toFixed(1);
         m.el.dataset.y = y.toFixed(1);
         m.el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(-rot.current).toFixed(2)}) translate(0 ${(-hop).toFixed(1)})`);
       }
-      if (p < 1) raf = requestAnimationFrame(step);
+      if (going) raf = requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(step);
+    // (straight away, before the board is painted: a token waiting for the thrower's beat stays put)
+    step(performance.now());
     return () => cancelAnimationFrame(raf);
   }, [posKey, reduced]);
 
@@ -273,7 +337,7 @@ export function RoundBoard({
   for (const t of tokens) bySpace.set(t.at, [...(bySpace.get(t.at) ?? []), t]);
 
   return (
-    <svg ref={svgRef} class={cls ?? "roundboard"} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
+    <svg ref={svgRef} class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}`} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
       <g ref={cam}>
       <circle r={RO + 8} fill="var(--board-rim)" />
       <g ref={ref} transform={`rotate(${r})`}>
@@ -298,9 +362,7 @@ export function RoundBoard({
               )}
               {city ? (
                 <Up x={lx} y={ly} rot={r}>
-                  <text class="code" y="11" text-anchor="middle">
-                    {CODE[city.id]}
-                  </text>
+                  <path class="code" d={CODE_PATH[city.id]} aria-hidden="true" />
                 </Up>
               ) : corner ? (
                 <Up x={lx} y={ly} rot={r}>
@@ -316,9 +378,13 @@ export function RoundBoard({
                 <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
                   <g class="pop board-news">
                     <rect x={-24} y={-13} width="48" height="26" rx="13" />
-                    <text y="6" text-anchor="middle">
-                      {mark.news}
-                    </text>
+                    {NEWS_PATH[mark.news] ? (
+                      <path class="tag" d={NEWS_PATH[mark.news]} />
+                    ) : (
+                      <text y="6" text-anchor="middle">
+                        {mark.news}
+                      </text>
+                    )}
                   </g>
                 </Up>
               )}
@@ -328,9 +394,7 @@ export function RoundBoard({
                   {!owned.has(at) && <circle class="stamp-ring" r="17" stroke={mark.owner.color} />}
                   <g class={owned.has(at) ? undefined : "stamp-in"}>
                     <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
-                    <text class="owner" y="6.5" text-anchor="middle">
-                      {mark.owner.letter}
-                    </text>
+                    <path class="owner" d={OWNER_PATH[mark.owner.letter]} />
                   </g>
                 </Up>
               )}

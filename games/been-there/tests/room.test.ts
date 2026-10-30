@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as E from "../src/engine";
 import { random } from "../src/engine/rng";
-import { TRIVIA_PRIZE, type ClientMsg, type RoomView, type ServerMsg } from "../src/room/protocol";
+import { TIMING, TRIVIA_PRIZE, type ClientMsg, type RoomView, type ServerMsg } from "../src/room/protocol";
 import { Room, type RoomEnv } from "../src/room/room";
 import { FORFEITS } from "../src/room/party";
 import { TRIVIA } from "../src/room/trivia";
@@ -103,6 +103,8 @@ class Table {
         if (!g.mustAct.includes(seat)) continue;
         if (pd.k === "quiz") continue;
         if (pd.k === "silence" && g.silenceUntil && v.now < g.silenceUntil) continue;
+        // (Rio's judges: the buttons light up once the dance is over)
+        if (pd.k === "scores" && g.dance && v.now < g.dance.at + g.dance.ms) continue;
         const state = structuredClone(g.s);
         const brains = state.ps.map(() => p.brain);
         const key = `${g.decision}:${seat}`;
@@ -548,4 +550,38 @@ test("a room opened from a changle.ca table keeps the host role for the table's 
   const odd = Room.create("4323", makeEnv(clock), {}, { host: "<script>", table: "no!" });
   assert.equal(odd.st.hostId, null);
   assert.equal(odd.view("x").table, null);
+});
+
+test("Rio: every screen plays the dance first, and the judges' 25 s start when it's over", () => {
+  const t = new Table({ speed: 1 }, 8);
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  const s = t.game.s;
+  const dancer = s.turn;
+  const dancerPhone = ps.find((p) => t.view(p).you.seats.includes(dancer))!;
+  // The team on turn is in Rio, and says it will dance.
+  s.pending = { k: "dance", who: dancer };
+  t.send(dancerPhone, { t: "act", d: t.view(dancerPhone).game!.decision, a: { yes: true }, seat: dancer });
+  const start = t.clock.t;
+  assert.deepEqual(t.view(ps[0]).game!.dance, { seat: dancer, at: start, ms: TIMING.dance });
+  assert.equal(t.game.deadline, start + TIMING.dance + TIMING.vote, "the vote's time starts after the dance");
+  // A judge who scores mid-dance is told to watch first; nothing is counted.
+  const judge = ps.find((p) => p !== dancerPhone)!;
+  const seat = t.view(judge).you.seats[0];
+  t.send(judge, { t: "act", d: t.view(judge).game!.decision, a: { score: 7 }, seat });
+  assert.equal(judge.toasts.at(-1), "stillDancing");
+  const votes = () => (t.game.s.pending?.k === "scores" ? t.game.s.pending.votes : {});
+  assert.deepEqual(votes(), {});
+  // The room's clock wakes for the dance's end (a computer judge scores then, not before).
+  t.clock.t = start + TIMING.dance - 1;
+  t.room.tick();
+  t.settle();
+  assert.deepEqual(votes(), {});
+  t.clock.t = start + TIMING.dance;
+  t.room.tick();
+  t.settle();
+  const told = judge.toasts.length;
+  t.send(judge, { t: "act", d: t.view(judge).game!.decision, a: { score: 7 }, seat });
+  assert.equal(judge.toasts.length, told, "no toast: the score counts");
+  assert.equal(votes()[seat], 7);
 });

@@ -105,7 +105,10 @@ Each of these was measured or is tested. Check them again after a change.
    and licence.
 
 Then run `npm run typecheck`, `npm test` and `npm run test:e2e`. GitHub runs them on every push,
-in Chromium and in WebKit (the engine in iPhone Safari and WeChat on iOS).
+in Chromium and in WebKit (the engine in iPhone Safari and WeChat on iOS). Speed is held in
+Chromium only: GitHub's WebKit draws without a GPU on two shared cores, nothing like an iPhone, so
+there the tests hold what happens, not how fast (a real iPhone's numbers: the menu's 测速, in the
+playtest).
 
 ## Photos and recorded city sounds
 
@@ -134,52 +137,90 @@ comes from and who made it, and the credits page lists them all.
 
 ## Your move, first-person
 
-On a phone (and a laptop), the team's own move plays from behind its token. After the dice have
-their moment (1.15 s), the board leans back into the night sky and a camera comes down behind the
-token. It follows the token round the ring space by space, the cities it passes come up one by one
-in the sky as paper tags, and it lands with the city's name in the board's type before the camera
-pulls back up to the table. A card that sends the token on is a second, faster stretch after a
-pause at the card's space (the hitch-hiking card's second throw too: it comes in the same moment as
-the first, so it's the same ride); a card drawn where the token lands gets its sound and buzz once
-the token is down; passing Departure shows the salary; the Passport Expired corner brings the
-Immigration gate down at the end.
+From the press on the dice to the question after the landing, in beats every screen plays from the
+server's moment of the throw (`ui/ridePlan.ts`, the beat sheet's clock):
 
-* **Where.** `ui/ridePlan.ts` works the ride out from the feed (which moves follow the throw, which
-  way round, how long each part takes). `ui/Ride.tsx` plays it: one loop on the animation clock
-  turns the table, moves a camera over it and leans it back (through `rig`, `art/RoundBoard.tsx`),
-  and draws the token standing upright where its space shows on screen. Keep the board, the
-  camera and the token on that one clock, or they drift apart.
-* **Timing.** About 0.3 s a space for a throw (a long move runs: no stretch takes much more than
-  2.4 s), 0.9 s on the landing, 0.64 s back up. Five seconds or so for a throw of seven.
-* **What waits for it.** The play window steps aside (upright phones) and comes back with whatever
-  there is to answer. Money that changes hands shows when the token lands: the cash in the top bar,
-  its sound and buzz, the coins. A first visit's touchdown starts once the camera is back up.
-* **What it gives way to** (`rideUrgent`). An auction or Shanghai's quiz for this team (5 s to
-  answer) cuts it short and brings the play window straight back; one already up when the throw
-  comes in means no ride, and the token walks the board. A table vote (25 s, Cape Town's say) waits
-  for the ride, unless that would leave less than 15 s to answer. A shake doesn't throw again while
-  it plays.
-* **Off.** Reduced motion has no ride; the menu's 第一视角走棋 turns it off on its own. The board
-  is then as before: the token walks round the top of the table.
+| ms from the throw | what happens |
+| --- | --- |
+| 0 | the dice tumble (on the thrower's phone from the press, before the server answers) |
+| 600 | they settle, the number jumps out; the camera pushes in for 300 ms, without turning |
+| 900 | the walk: 200 ms a space, a long move runs (1.8 s at most), never under 150 ms a space |
+| land | the stamp comes down (80 ms), holds (120 ms), lifts and leaves its ink; Immigration's gate +400 ms |
+| land + 350 | the question is back, while the camera pulls out (500 ms, without turning) |
+
+A card that sends the token on pauses 300 ms on its space, then walks 150 ms a space, or fades
+(500 ms) when it's more than six spaces. Later turns go quicker (pace 0.85 from a team's 4th turn,
+0.7 from its 11th; a second throw after doubles at 0.85 at most), never past 150 ms a space. A tap
+on the board skips to the stamp, a second past it. Worst case, from the press to the question: 4.2 s
+(`tests/ride-oracle.test.ts`, 10,000 throws), against 1.7 s before the ride existed.
+
+* **One camera move at a time** (motion sickness). Push in without turning, follow by turning only
+  (60 degrees a second at most, easing in and out), pull out without turning. On a phone the table
+  rests with the team's own token at 9 o'clock, where the camera pushes in, so a turn starts without
+  the table moving. Any other turn of the table is capped the same way, and one of more than 60
+  degrees is a 0.5 s fade instead (`art/RoundBoard.tsx`).
+* **Three ways to play it** (`ui/Ride.tsx`). "fp": the thrower's phone, first-person, the board
+  leaning back into the night with the departures board flipping up each city passed in the corner
+  of the sky. "flat": the same beats on the flat board, for reduced motion, the menu's 第一视角走棋
+  off, or a throw that stays put. "tv": the big screen pushes in 1.4× and pans 55% of the way to the
+  token, flat, with its own departures board beside the board (`ui/Departures.tsx`). Every other
+  phone walks the token on its flat board in step and stamps the landing with the thrower's.
+* **Every screen in step.** Each screen keeps the server's clock from the quickest of its last views
+  (`store.ts`), and plays the move from the server's moment of the throw: in tests the planned
+  landing agrees to within 3 ms across a phone, another phone and the big screen.
+* **Cheap frames.** The camera moves a frame round the drawing (`.board-view`), one CSS transform;
+  the board's words are outlines (`art/boardType.ts`, made by `scripts/board-type.mjs`), because
+  text in an SVG is laid out again whenever anything above it moves. The stamp is placed once and
+  played by the browser's own animation; sizes are read once, never in a frame; the arrival card
+  (a poster) is drawn once the stamp is down. `node scripts/ride-perf.mjs` measures it on a Pixel 5
+  page at 4× CPU slowdown; the menu's 测速 shows the same numbers on a real phone.
+* **What waits for it.** The question, the cash in the top bar and its coins come back with the
+  stamp; a first visit's touchdown once the camera is back up (on the big screen, once the plane
+  has flown there on the globe, which it does after the move). Nothing tells the landing before
+  the stamp, on any screen (`moveInPlay`): the dice under the board show when they settle, the
+  log's lines from the throw on and what the table is waiting for when the token lands, the
+  standings and every team's cash with the question.
+* **What it gives way to** (`rideUrgent`). An auction or Shanghai's quiz for this team cuts it short
+  and brings the question straight back; a table vote waits for it unless that would leave less
+  than 15 s to answer. A shake doesn't throw again while it plays.
 * **The page stays still.** The leaning board is drawn bigger than its box, which clips it
   (`.boardwrap.on-ride`): the phone never scrolls sideways.
 
 ## The moments, and the phone in your hand
 
-* **Your turn.** The edge of the screen glows gel twice, with the airport chime and a buzz.
-* **The dice** knock the board as they land (0.74 s into their throw), with a clack.
+* **Your turn.** The edge of the screen glows gel twice, with the airport chime and a buzz. On the
+  big screen the chime is the next team's boarding call, its flight number on the departures board.
+* **The dice** are in the air the moment the button is pressed (under 0.1 s), clack twice as they
+  land, and their number comes up with a tick.
 * **A city bought:** the owner's mark stamps down and its ink spreads out round it.
-* **Money:** coins fly from whoever pays to whoever is paid. On the big screen, every payment; on a
-  phone, its own team's.
+* **Money:** coins fly from whoever pays to whoever is paid, once the token is down. On the big
+  screen, every payment; on a phone, its own team's.
 * **Sent to Immigration:** the gate comes down over the board.
+* **Rio's samba** (`ui/Samba.tsx`): a team that says it will dance gets a 10.6 s lesson on every
+  screen, from the server's moment (protocol `TIMING.dance`): four beats counted in, twelve of the
+  basic step at 100 a minute, a pose. The teacher is a mirror, the foot to move lights up, the word
+  is spoken a little ahead of the beat. Full screen on the dancing team's phone, small over the
+  judges' buttons (which light up when it's over: their 25 s start then), big over the big screen's
+  board, where the band plays (or on the dancer's phone when there's no big screen).
 * **Vibration** (`controls.ts`) works where a page is allowed to vibrate: Android. It buzzes on
-  your turn, your throw, each space passed and the landing, money in and out, a city bought, a
-  card, Immigration, an auction, a trade offer and going broke. iPhones can't: Safari doesn't let a
-  web page vibrate, and iOS 26.5 closed the last way round it (a hidden switch's tick only fires
-  for a real tap). There the glow and the sounds carry it; the menu says so.
+  your turn, your press on the dice (or any answer), the landing, money in and out, a city bought, a
+  card, Immigration, an auction, a trade offer and going broke. iPhones can't buzz from a page: the
+  buttons that matter most (the dice, buying, dancing) are a hidden switch inside a label, which
+  Safari answers with its own light tap (`HapticBtn`), and the glow and the sounds carry the rest.
+* **The screen stays on** (`wake.ts`): a phone set down between turns and the big screen keep a
+  wake lock, asked for again when the page comes back.
 * **Full screen** (`fullscreen.ts`). Android, iPads and computers use the browser's own: the
-  corner button in the top bar and the menu. An iPhone doesn't let a page go full screen, so the
-  button there explains how to add changle.ca to the Home Screen. The game page's manifest
+  corner button in the top bar and the menu. A phone keeps the way it was held when it went full
+  screen (one put down flat doesn't flip its board). An iPhone doesn't let a page go full screen,
+  so the button there explains how to add changle.ca to the Home Screen; the game page's manifest
   (`app.webmanifest`) starts that web app at changle.ca, the table, not at an old game.
+* **Watching on a TV** (menu, 旁观): any device can become the room's big screen in place, keeping
+  the sound it was allowed to play; one opened straight on the board asks for a tap to turn sound on.
+* **Photosensitivity** (WCAG 2.3.1 and 2.3.3). Measured on films of every screen through a throw,
+  the samba and a turn call: at most 2 flashes a second over 25% of a 10-degree field (3 with a
+  stricter field a quarter of the screen across), no red flashes. Reduced motion (the phone's
+  setting or the menu's) plays every beat flat and still: no lean, no push, no tumble, a standing
+  teacher.
 
-Also still to do: playtests on real phones and with people who haven't seen the game.
+Also still to do: the ten-minute playtest on real phones (the script and record sheet are in the
+beat sheet's document), with people who haven't seen the game.

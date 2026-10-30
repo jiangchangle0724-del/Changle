@@ -6,6 +6,7 @@ import { backToTable, joinUrl, onChangle, tableFrom } from "../base";
 import { colon, t, type Key } from "../i18n";
 import { prefs } from "../prefs";
 import { send } from "../store";
+import { WatchTv } from "./Settings";
 import { Btn, GameTitle, TEAM_COLORS, TEAM_LETTERS, TeamFace, styleName, teamLabel } from "./common";
 
 export function Qr({ text, size = 180 }: { text: string; size?: number }) {
@@ -139,6 +140,7 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
           {t("spectators")}{colon()}{unassigned.map((m) => m.name).join("、")}
         </p>
       )}
+      {!demo && <LobbyWatch v={v} />}
       {host ? (
         <section class="host">
           <h2>{t("hostControls")}</h2>
@@ -178,6 +180,12 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
       )}
     </main>
   );
+}
+
+/** 旁观（接电视） in the lobby: this device can become the room's big screen instead of joining a team. */
+function LobbyWatch({ v }: { v: RoomView }) {
+  const [open, setOpen] = useState(false);
+  return <WatchTv v={v} open={open} onOpen={() => setOpen(true)} />;
 }
 
 function TeamName({ team }: { team: RoomView["teams"][number] }) {
