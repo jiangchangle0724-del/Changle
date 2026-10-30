@@ -2,7 +2,7 @@ import { Check, Crown, Play, Smartphone, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
-import { startGroove, type GrooveHandle } from "../../lib/music";
+import { holdBackground, startGroove, type GrooveHandle } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { LIMBO_ANGLES } from "../../shared/engine/games/limbo";
 import { useStore } from "../../store";
@@ -18,6 +18,8 @@ const TRY_MS = 15_000;
 
 /** One phone: pass it round and let it measure each lean, or run a real bar with music and a scorecard. */
 export function Limbo({ onBack }: { onBack: () => void }) {
+  // the dance floor has its own music: the lounge music waits
+  useEffect(() => holdBackground(), []);
   const { players, lang } = useStore();
   const zh = lang === "zh";
   const people = useMemo(() => (players.length ? players : [{ id: "me", name: zh ? "你" : "You" }]), [players, zh]);

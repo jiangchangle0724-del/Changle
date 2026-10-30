@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
 import { pick, randInt } from "../../lib/random";
-import { startGroove, type GrooveHandle, type GrooveId } from "../../lib/music";
+import { holdBackground, startGroove, type GrooveHandle, type GrooveId } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import { NameFace } from "../common";
@@ -15,6 +15,8 @@ type Phase = "setup" | "dance" | "freeze" | "judge" | "end";
 
 /** One phone plays DJ: the music cuts out at random, one person judges who moved. */
 export function Freeze({ onBack }: { onBack: () => void }) {
+  // the dance floor has its own music: the lounge music waits
+  useEffect(() => holdBackground(), []);
   const { players, lang } = useStore();
   const zh = lang === "zh";
   const [mode, setMode] = useState<"out" | "drink">("out");
