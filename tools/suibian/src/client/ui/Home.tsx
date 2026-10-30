@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { BASE } from "../../base";
 import { NEIGHBOURHOODS, RANGES, type Center, type RangeId } from "../../engine";
 import { t, tx } from "../i18n";
 import { api } from "../net";
@@ -69,7 +70,7 @@ export function Home({ go }: { go: (path: string) => void }) {
   };
 
   const mustLogin = !!me?.loginEnabled && !me.user;
-  const loginHref = `/auth/google?back=${encodeURIComponent(location.pathname)}`;
+  const loginHref = `${BASE}/auth/google?back=${encodeURIComponent(location.pathname)}`;
   const askRating = me?.last && !prefs.rated(me.last.code) && Date.now() - me.last.at < 3 * 24 * 3600_000 ? me.last : null;
 
   return (
@@ -85,7 +86,7 @@ export function Home({ go }: { go: (path: string) => void }) {
       {me && <DemoBanner demo={me.demo} />}
 
       {askRating && (
-        <a class="card nudge" href={`/r/${askRating.code}/rate`}>
+        <a class="card nudge" href={`${BASE}/r/${askRating.code}/rate`}>
           <span>{t("lastMeal", { name: askRating.name })}</span>
           <b>{t("rateIt")} →</b>
         </a>

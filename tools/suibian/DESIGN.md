@@ -37,7 +37,7 @@ Two kinds of input, handled differently:
 | 11 | API cost and abuse | **Creating a room needs Google login** (joining doesn't); at most 10 rooms per account per day. Places requests use field masks; reviews, photos and Claude only for the final candidates; each place fetched once per room. Google Cloud budget alert and daily quota cap. |
 | 12 | Post-meal feedback | The result card carries a "rate it after you eat ⭐" link (the card is already going to the group chat), and logged-in users get a prompt next time they open the site. Three taps, under 10 s: overall 👍/😐/👎, "did I get something I liked?", "how long did we wait?" (0/15/30/45+). Guests can rate anonymously. When everyone has rated, the table's score is revealed. |
 | 13 | What v1 is | See below. |
-| 14 | Name and place | **随便 · Whatever's Fine**, under `tools/suibian`. Chinese/English, following the phone's language. |
+| 14 | Name and place | **随便 · Whatever's Fine**, under `tools/suibian`, at `changle.ca/eat` (a card in the site's Tools tab). Chinese/English, following the phone's language. |
 
 ## v1 — take it to the next dinner
 

@@ -1,4 +1,6 @@
-// Cloudflare settings for 随便 · Whatever's Fine — its own Worker, separate from 到此一游.
+// Cloudflare settings for 随便 · Whatever's Fine — its own Worker, separate from 到此一游. It is one
+// of changle.ca's tools and answers at changle.ca/eat. `npm run deploy` (or a GitHub push, once
+// Cloudflare is connected to the repo) builds the web pages into dist/client/eat and publishes it.
 // Secrets (Cloudflare dashboard → this Worker → Settings → Variables and Secrets, type "Secret"):
 //   GOOGLE_PLACES_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET
 // Without them it runs on made-up demo restaurants and nobody needs to log in.
@@ -7,12 +9,20 @@
   "name": "suibian",
   "main": "src/server/worker.ts",
   "compatibility_date": "2026-10-01",
+  // The app's files are in dist/client/eat, so they answer at /eat/…; anything that isn't a file
+  // (the API, sign-in, room and rating links) goes to the worker, which serves the page for them.
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*", "/r/*"]
+    "not_found_handling": "none",
+    "run_worker_first": ["/eat/api/*", "/eat/auth/*", "/eat/r/*"]
   },
+  // One of changle.ca's tools: it answers at changle.ca/eat. (The rest of changle.ca is the site.)
+  // With routes set, wrangler leaves the workers.dev address off, so /eat is its only address.
+  "routes": [
+    { "pattern": "changle.ca/eat", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/eat/*", "zone_name": "changle.ca" }
+  ],
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "RoomDO" },
