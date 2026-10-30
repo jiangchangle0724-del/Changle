@@ -72,13 +72,14 @@ GitHub runs all three on every push that touches this folder, in Chromium and We
 
 It works in three stages; each one is usable.
 
-**1. Online with demo restaurants (about 5 minutes).** Cloudflare dashboard → Workers & Pages →
-Create → Import a repository → this repo, with **project name** `suibian` (must match `name` in
-`wrangler.jsonc`), **root directory** `tools/suibian`, build command `npm run build`, deploy
-command `npx wrangler deploy`. The deploy registers the routes from `wrangler.jsonc`, so the tool
-answers at [changle.ca/eat](https://changle.ca/eat) (check the Worker → Settings → Domains &
-Routes: `changle.ca/eat` and `changle.ca/eat/*`). Anyone can start a table; restaurants are made
-up and say so.
+**1. Online with demo restaurants.** The Worker `suibian` (Cloudflare dashboard → Workers &
+Pages) is connected to this repository: **root directory** `tools/suibian`, build command
+`npm run build`, deploy command `npx wrangler deploy`, production branch `main`, build watch path
+`tools/suibian/*`. Every merge into `main` that touches this folder builds and deploys it (Worker →
+Deployments shows the builds); nothing else in the repository does. The deploy registers the routes
+from `wrangler.jsonc`, so the tool answers at [changle.ca/eat](https://changle.ca/eat) (check the
+Worker → Settings → Domains & Routes: `changle.ca/eat` and `changle.ca/eat/*`, and nothing else).
+Anyone can start a table; restaurants are made up and say so.
 
 **2. Google sign-in.** In [Google Cloud console](https://console.cloud.google.com/), create a
 project (e.g. "changle-ca"), then:
