@@ -348,8 +348,10 @@ export type LimboView = {
 export type TuneView = {
   id: "tune";
   mode: "songs" | "melody" | "dj";
-  /** songs mode: Chinese, English or both */
-  pool: "mix" | "zh" | "en";
+  /** songs mode: what the table listens to, "language:category" (see SongPool in shared/songs.ts) */
+  pool: string;
+  /** everyone answers at once from four titles, no buzzer */
+  quiz: boolean;
   phase: "ready" | "listen" | "answer" | "reveal" | "end";
   round: number;
   total: number;
@@ -362,7 +364,7 @@ export type TuneView = {
   endsAt: number;
   buzzer: string | null;
   answerEndsAt: number;
-  /** melody mode: four tunes to pick from once you buzz */
+  /** melody mode: four tunes to pick from once you buzz (from the start in a quiz) */
   options: number[] | null;
   locked: string[];
   correct: string | null;
@@ -378,10 +380,18 @@ export type TuneView = {
   revealPos: number;
   /** the next preview, so phones can load it while this one plays */
   pre: string | null;
-  /** four titles to pick from once you buzz */
+  /** four titles to pick from once you buzz (from the start in a quiz) */
   choices: { id: number; t: string; a: string; ae: string }[] | null;
   /** the song, once it's revealed */
-  song: { id: number; t: string; a: string; ae: string; art: string; url: string; y: number } | null;
+  song: { id: number; t: string; a: string; ae: string; art: string; url: string; y: number; g: number; l: number } | null;
+  /** songs mode: who sings this one (1 a man, 2 a woman, 3 a mixed group, 0 unknown): the stage shows it */
+  singer: number;
+  /** the pool the host picked has no songs: pick another */
+  noSongs: boolean;
+  /** quiz: who has answered (not what), this phone's own pick, and at the reveal everyone who got it */
+  answered: string[];
+  mine: number | null;
+  right: string[];
 };
 
 export type ESuit = "S" | "H" | "D" | "C";

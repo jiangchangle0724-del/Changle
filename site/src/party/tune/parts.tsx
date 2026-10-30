@@ -5,7 +5,7 @@ import { gsap, reduced } from "../../lib/anim";
 import { playMelody, type TuneHandle } from "../../lib/music";
 import { loadPreview, playElement, playPreview, type PreviewHandle } from "../../lib/preview";
 import { isSfxEnabled } from "../../lib/sfx";
-import type { SongPool } from "../../shared/songs";
+import { CATS, DEFAULT_POOL, parsePool, POOL_LANGS, poolOf, type SongPool } from "../../shared/songs";
 import { useStore } from "../../store";
 
 /** A tune by its place in the list, or the notes themselves (online, the server sends only the notes). */
@@ -151,22 +151,75 @@ export function startSong(a: SongAudio, opts: { startPerf?: number; offset?: num
   return null;
 }
 
-/** Chinese, English or both. */
-export function PoolPicker({ pool, onPick, disabled }: { pool: SongPool; onPick: (p: SongPool) => void; disabled?: boolean }) {
+/** What to listen to: a language (or a mix, the charts, anything), then a category where the list has them. */
+export function PoolPicker({ pool, onPick, disabled }: { pool: string; onPick: (p: SongPool) => void; disabled?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const opts: [SongPool, string][] = [
-    ["mix", zh ? "中英混合" : "Both"],
-    ["zh", zh ? "华语" : "Chinese"],
-    ["en", zh ? "英文" : "English"],
-  ];
+  const cur = parsePool(pool) ?? parsePool(DEFAULT_POOL)!;
+  const langDef = POOL_LANGS.find((x) => x.key === cur.lang) ?? POOL_LANGS[0];
   return (
-    <div className="seg seg-sm" role="group" aria-label={zh ? "歌单" : "Songs"} style={{ alignSelf: "center" }}>
-      {opts.map(([id, label]) => (
-        <button key={id} type="button" aria-pressed={pool === id} disabled={disabled} onClick={() => onPick(id)}>
-          {label}
-        </button>
-      ))}
+    <div className="tn-pool" role="group" aria-label={zh ? "歌单" : "Songs"}>
+      <div className="tn-pool-row">
+        {POOL_LANGS.map((l) => (
+          <button key={l.key} type="button" className="chip" aria-pressed={cur.lang === l.key} disabled={disabled} onClick={() => onPick(poolOf(l.key, l.cats ? cur.cat : "any"))}>
+            {zh ? l.zh : l.en}
+          </button>
+        ))}
+      </div>
+      {langDef.cats && (
+        <div className="tn-pool-row tn-pool-cats" role="group" aria-label={zh ? "类别" : "Category"}>
+          <button type="button" className="chip" aria-pressed={cur.cat === "any"} disabled={disabled} onClick={() => onPick(poolOf(cur.lang, "any"))}>
+            {zh ? "不限" : "Any"}
+          </button>
+          {CATS.map((c) => (
+            <button key={c.key} type="button" className="chip" aria-pressed={cur.cat === c.key} disabled={disabled} onClick={() => onPick(poolOf(cur.lang, c.key))}>
+              {zh ? c.zh : c.en}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** How the table answers: race to buzz, or everyone picks from four at once. */
+export function AnswerPicker({ quiz, onPick, disabled }: { quiz: boolean; onPick: (quiz: boolean) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="seg seg-sm" role="group" aria-label={zh ? "怎么答" : "How to answer"} style={{ alignSelf: "center" }}>
+      <button type="button" aria-pressed={!quiz} disabled={disabled} onClick={() => onPick(false)}>
+        {zh ? "抢答" : "Buzz in"}
+      </button>
+      <button type="button" aria-pressed={quiz} disabled={disabled} onClick={() => onPick(true)}>
+        {zh ? "选择题" : "Multiple choice"}
+      </button>
+    </div>
+  );
+}
+
+export type QuizChoice = { id: number; t: string; a: string; ae: string };
+
+/**
+ * Four titles for everyone. Before the reveal a tap is the player's pick (one only); at the reveal
+ * the right one lights up and a wrong pick is marked.
+ */
+export function QuizChoices({ choices, mine, answer, onPick, disabled }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const done = answer !== null;
+  return (
+    <div className="tn-quiz" role="group" aria-label={zh ? "四个歌名" : "Four titles"}>
+      {choices.map((c) => {
+        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", done && mine === c.id && c.id !== answer ? "is-wrong" : ""].join(" ");
+        return (
+          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
+            <strong>{c.t}</strong>
+            <small>{zh ? c.a : c.ae}</small>
+            {mine === c.id && !done && <span className="tn-pick">{zh ? "你的答案" : "Your pick"}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

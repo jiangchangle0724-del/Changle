@@ -16,7 +16,9 @@ import { useStore } from "../../store";
 import { Leaderboard } from "../common";
 import { perfAt } from "../sensors";
 import { chartsForRoom, loadCharts } from "./charts";
-import { BuzzButton, clipSeconds, CoverLabel, playClip, PoolPicker, SongReveal, SongStatus, StageDots, stageNow, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, stageNow, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { TuneStage, type StageTiming } from "./stage";
+import { beatsFor } from "../../lib/beats";
 import "../../styles/party.css";
 
 export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
@@ -32,6 +34,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   const iAmDj = djMode && isHost;
   const locked = v.locked.includes(me);
   const buzzerIsMe = v.buzzer === me;
+  const quiz = v.quiz;
 
   // the game has its own soundtrack: the lounge music waits
   useEffect(() => holdBackground(), []);
@@ -63,9 +66,14 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
     if (songs && v.pre) void loadPreview(v.pre);
   }, [songs, v.pre]);
   const canPlay = audio.status === "ready" || audio.status === "failed";
+  // where the beats and the voice are in this preview, so the stage can follow it
+  const beats = useMemo(() => (audio.url && audio.buf ? beatsFor(audio.url, audio.buf) : null), [audio.url, audio.buf]);
+  const [timing, setTiming] = useState<StageTiming | null>(null);
   useEffect(() => {
     if (!songs || v.phase !== "listen" || !canPlay) return;
-    const h = startSong(audio, { startPerf: perfAt(v.startAt, now()), offset: 0 });
+    const startPerf = perfAt(v.startAt, now());
+    const h = startSong(audio, { startPerf, offset: 0 });
+    setTiming(h ? { startPerf, offset: 0 } : null);
     return () => h?.stop(0.12);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songs, v.phase, canPlay, audio.url, v.startAt]);
@@ -73,9 +81,13 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   useEffect(() => {
     if (!songs || v.phase !== "reveal" || !canPlay) return;
     const h = startSong(audio, { offset: v.revealPos / 1000, seconds: 9, fadeIn: 0.35 });
+    setTiming(h ? { startPerf: performance.now(), offset: v.revealPos / 1000 } : null);
     return () => h?.stop(0.5);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songs, v.phase, v.round, canPlay, audio.url]);
+  useEffect(() => {
+    if (v.phase === "ready" || v.phase === "end" || v.phase === "answer") setTiming(null);
+  }, [v.phase]);
 
   /* ---------- melodies: the server sends the notes, not which tune they are ---------- */
 
@@ -102,6 +114,9 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
     return () => h?.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [melody, v.phase, v.round]);
+
+  // in melody mode the stage bops to the tune's own tempo from the first note
+  const melodyTiming = useMemo<StageTiming | null>(() => (melody && v.stageAt.length ? { startPerf: perfAt(v.stageAt[0], now()), offset: 0 } : null), [melody, stageKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // stage ticks over while listening
   const [stage, setStage] = useState(0);
@@ -132,8 +147,8 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   const rules = (
     <p>
       {zh
-        ? "真歌模式：所有手机同时放同一首歌的 30 秒试听，华语、英文或者混着来，越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。知道就抢答，从四个歌名里选。答错喝一口，这首就不能再抢。揭晓时可以去 Apple Music 听完整版。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的喝两口。"
-        : "Real songs: every phone plays the same 30-second preview of a real song, Chinese, English or both. The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Know it? Buzz and pick the title from four. A wrong answer is a sip and locks you out of that song. The reveal links to the full song on Apple Music. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score drinks two."}
+        ? "真歌模式：所有手机同时放同一首歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。抢答：知道就抢，从四个歌名里选，答错喝一口，这首就不能再抢。选择题：四个歌名从一开始就在每个人手机上，各选各的，越早选对分越高，没选对的喝一口。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓时可以去 Apple Music 听完整版。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的喝两口。"
+        : "Real songs: every phone plays the same 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV). The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Buzz in: know it? Buzz and pick the title from four; a wrong answer is a sip and locks you out of that song. Multiple choice: the four titles are on every phone from the start, everyone picks their own, the sooner the right one the more points, and whoever misses drinks. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. The reveal links to the full song on Apple Music. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score drinks two."}
     </p>
   );
 
@@ -174,6 +189,8 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
               </button>
             </div>
             {songs && <PoolPicker pool={v.pool} disabled={!isHost} onPick={(pool) => g("pool", { pool })} />}
+            {songs && v.noSongs && <p className="tn-miss">{zh ? "这个歌单还没有歌，换一个语言或类别" : "No songs in this pool yet. Pick another language or category."}</p>}
+            {!djMode && <AnswerPicker quiz={quiz} disabled={!isHost} onPick={(on) => g("quiz", { on })} />}
             <p className="hint" style={{ textAlign: "center" }}>
               {modeHint}
             </p>
@@ -198,11 +215,41 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
         {(v.phase === "listen" || v.phase === "answer") && (
           <>
             {roundLine}
-            <Vinyl spinning={v.phase === "listen" && (djMode || started)} label={recordLabel} />
+            {djMode ? (
+              <Vinyl spinning={v.phase === "listen"} label={recordLabel} />
+            ) : (
+              <TuneStage singer={songs ? v.singer : 0} playing={v.phase === "listen" && started} beats={songs ? beats : null} timing={songs ? timing : melodyTiming} fallbackBpm={melody ? (v.clip?.bpm ?? 100) : 100}>
+                <Vinyl spinning={v.phase === "listen" && started} label={recordLabel} />
+              </TuneStage>
+            )}
             {!djMode && <StageDots stage={stage} />}
             {songs && <SongStatus audio={audio} playing={started} />}
 
+            {v.phase === "listen" && quiz && (songs ? v.choices : v.options) && (
+              <>
+                <QuizChoices
+                  choices={songs ? v.choices! : v.options!.map((o) => ({ id: o, t: zh ? TUNES[o].title.zh : TUNES[o].title.en, a: TUNES[o].title.en, ae: TUNES[o].title.zh }))}
+                  mine={v.mine}
+                  answer={null}
+                  disabled={!started}
+                  onPick={(id) => {
+                    g("answer", { choice: id });
+                    haptic(20);
+                  }}
+                />
+                <p className="tn-answered">
+                  <span className="faces">
+                    {v.answered.map((pid) => (
+                      <SeatFace key={pid} seat={seat(pid)} size={26} />
+                    ))}
+                  </span>
+                  {v.mine !== null ? (zh ? `${v.answered.length}/${scoreRows.length} 人已答，等其他人` : `${v.answered.length}/${scoreRows.length} answered. Waiting for the rest.`) : zh ? "越早选对分越高" : "The sooner the right one, the more points"}
+                </p>
+              </>
+            )}
+
             {v.phase === "listen" &&
+              !quiz &&
               (iAmDj ? (
                 <p className="tn-dj-note">{zh ? "放你的歌，有人抢答会在这里显示" : "Play your song. Buzzes show up here."}</p>
               ) : (
@@ -285,25 +332,60 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             {roundLine}
             {songs && v.song ? (
               <>
-                <Vinyl spinning label={<CoverLabel art={v.song.art} />} />
+                <TuneStage singer={v.singer} playing beats={beats} timing={timing}>
+                  <Vinyl spinning label={<CoverLabel art={v.song.art} />} />
+                </TuneStage>
                 <SongReveal song={v.song} />
               </>
             ) : melody ? (
               <TuneTitle tune={v.tune} />
             ) : null}
-            <p className="tn-who">
-              {v.correct ? (
-                <>
-                  <SeatFace seat={seat(v.correct)} size={36} />
-                  {v.correct === me ? (zh ? "你答对了" : "You got it") : zh ? `${nameOf(v.correct)} 答对了` : `${nameOf(v.correct)} got it`}
-                </>
-              ) : zh ? (
-                "这首没人答对"
-              ) : (
-                "Nobody got this one"
-              )}
-            </p>
+            {quiz && (songs ? v.choices : v.options) && (
+              <QuizChoices
+                choices={songs ? v.choices! : v.options!.map((o) => ({ id: o, t: zh ? TUNES[o].title.zh : TUNES[o].title.en, a: TUNES[o].title.en, ae: TUNES[o].title.zh }))}
+                mine={v.mine}
+                answer={songs ? (v.song?.id ?? null) : v.tune}
+              />
+            )}
+            {quiz ? (
+              <p className="tn-who tn-right">
+                {v.right.length ? (
+                  <>
+                    <span>{zh ? "答对了：" : "Got it:"}</span>
+                    {v.right.map((pid) => (
+                      <span key={pid}>
+                        <SeatFace seat={seat(pid)} size={28} />
+                        {pid === me ? (zh ? "你" : "You") : nameOf(pid)}
+                      </span>
+                    ))}
+                  </>
+                ) : zh ? (
+                  "这首没人答对，都喝一口"
+                ) : (
+                  "Nobody got this one. Everyone drinks."
+                )}
+              </p>
+            ) : (
+              <p className="tn-who">
+                {v.correct ? (
+                  <>
+                    <SeatFace seat={seat(v.correct)} size={36} />
+                    {v.correct === me ? (zh ? "你答对了" : "You got it") : zh ? `${nameOf(v.correct)} 答对了` : `${nameOf(v.correct)} got it`}
+                  </>
+                ) : zh ? (
+                  "这首没人答对"
+                ) : (
+                  "Nobody got this one"
+                )}
+              </p>
+            )}
             <Leaderboard rows={scoreRows} />
+            {songs && v.noSongs && (
+              <>
+                <p className="tn-miss">{zh ? "这个歌单的歌放完了，换一个语言或类别" : "This pool has run out of songs. Pick another language or category."}</p>
+                <PoolPicker pool={v.pool} disabled={!isHost} onPick={(pool) => g("pool", { pool })} />
+              </>
+            )}
             {iAmDj || (!djMode && isHost) ? (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g(v.round >= v.total ? "end" : "go")}>
                 {v.round >= v.total ? (zh ? "看结果" : "Final scores") : djMode ? (zh ? "放下一首" : "Next song") : zh ? "下一首" : "Next song"}
