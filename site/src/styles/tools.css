@@ -63,6 +63,30 @@
   margin-top: 14px;
 }
 
+/* 随便: a card that leads out to /eat (its own pages), so it is a blurb and one button */
+.tool-eat .tool-head {
+  margin-bottom: 10px;
+}
+/* The button is a link (it leaves the app), so it must not pick up the page's link underline. */
+.tool-eat .btn {
+  text-decoration: none;
+}
+.tool-tag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--night);
+  color: var(--light);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.tool-blurb {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
 /* currency */
 .fx-list {
   display: flex;

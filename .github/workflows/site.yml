@@ -1,0 +1,30 @@
+# Runs every time the changle.ca site changes: types, the room engine's rules (incl. 到此一游's
+# hand-off) and a production build. The phone-in-a-browser scripts in site/scripts need the table
+# server and the site running, so they stay a local step (see site/README.md). Only this folder.
+name: site
+
+on:
+  push:
+    paths: ["site/**", ".github/workflows/site.yml"]
+  pull_request:
+    paths: ["site/**", ".github/workflows/site.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx tsx tests/engine.test.ts
+      - run: npx tsx tests/trip.test.ts
+      - run: npm run build
