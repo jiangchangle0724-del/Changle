@@ -1201,7 +1201,7 @@ input {
     text-align: center;
   }
 }
-@media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-height: 700px) {
+@media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-height: 900px) {
   html,
   body {
     width: 100%;
