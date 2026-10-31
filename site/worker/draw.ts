@@ -62,7 +62,7 @@ async function send(url: string, key: string, body: unknown, sent: Pic): Promise
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key, "User-Agent": "changle/1.0 (+https://changle.ca)" },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT),
     });
