@@ -37,8 +37,7 @@ with sync_playwright() as p:
     pg = page(ctx)
     pg.goto(BASE, wait_until="networkidle"); pg.wait_for_timeout(1200)
     snap(pg, "hub.png")
-    # Draw & Guess by name, not by place: the board's order changes when a game is added.
-    pg.locator('.tile[aria-label^="Draw & Guess"]').tap(); pg.wait_for_timeout(900)
+    pg.locator('.tile', has_text="你画我猜").first.tap(); pg.wait_for_timeout(900)
     if not pg.locator(".game-card").count():
         fails.append("hub: tapping a tile did not open its card")
     pg.locator(".mode-primary").tap(); pg.wait_for_timeout(900)

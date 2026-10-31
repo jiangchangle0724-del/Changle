@@ -117,6 +117,35 @@ function disarm() {
 }
 
 let installed = false;
+let wakeAt = 0;
+
+/**
+ * Coming back from another app: phones hand the speaker to whatever took it (WeChat, a call,
+ * the music app) and the context is either stopped ("suspended", or "interrupted" on iPhone)
+ * or, worse, still says "running" while producing silence. A stop-and-start cycle fixes both,
+ * and the next tap tries again in case the browser only allows it inside a gesture.
+ */
+function wake() {
+  const now = Date.now();
+  if (now - wakeAt < 300) return;
+  wakeAt = now;
+  askForPlaybackSession();
+  if (!A || !enabled) return;
+  const c = A.c;
+  const state = c.state as string;
+  if (state === "closed") return;
+  if (state === "running") {
+    void c
+      .suspend()
+      .then(() => c.resume())
+      .catch(() => {});
+  } else {
+    void c.resume().catch(() => {});
+  }
+  arm();
+  startKeepAlive();
+}
+
 /** Call once at startup. */
 export function initAudio() {
   if (installed || typeof window === "undefined") return;
@@ -124,14 +153,11 @@ export function initAudio() {
   askForPlaybackSession();
   arm();
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      if (A && A.c.state !== "running") {
-        void A.c.resume().catch(() => {});
-        arm();
-      }
-    } else if (keepAlive) {
-      keepAlive.pause();
-    }
+    if (document.visibilityState === "visible") wake();
+    else if (keepAlive) keepAlive.pause();
+  });
+  window.addEventListener("pageshow", (e) => {
+    if ((e as PageTransitionEvent).persisted) wake();
   });
 }
 

@@ -25,8 +25,9 @@ installs on its own. Node 22, as in CI.
 4. If the PR changed `site/worker/` or `site/src/shared/` (game rules, the protocol), also deploy
    the rooms Worker straight after the merge, because online tables run the rules there:
    `cd site && npx wrangler login && npx wrangler deploy -c worker/wrangler.jsonc` (needs the
-   owner's Cloudflare account). Or the owner runs the Windows package: `site/deploy/make_pkg.sh`
-   builds `changle-deploy.zip`, and its `deploy.cmd` deploys the rooms Worker and uploads the site.
+   owner's Cloudflare account). Or, on the owner's Windows PC with this repository checked out,
+   `site/deploy/pc-deploy.cmd` installs, builds, deploys the rooms Worker and uploads the site;
+   `site/deploy/make_pkg.sh` builds the older zip package (`changle-deploy.zip` with `deploy.cmd`).
 
 Access needed: push access to this GitHub repository. A Cloudflare login only to deploy the rooms
 Worker or change settings. Never the values of any secret.

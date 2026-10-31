@@ -8,19 +8,22 @@ import { sfx, unlockAudio } from "../lib/sfx";
 import { cleanCode, isCode, newCode } from "../online/config";
 import { REACTION_KEY } from "../online/Overlays";
 import { SeatFace } from "../online/People";
+import { NetGame } from "../online/games/NetGame";
 import { RoomProvider, useRoom, useRoomEvent } from "../online/RoomContext";
 import { useWakeLock } from "../party/sensors";
 import { Stage } from "../party/punchline/show/Stage";
 import { useWho } from "../party/punchline/show/who";
 import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
-import { ONLINE_GAMES, ONLINE_MIN, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
+import { ONLINE_GAMES, ONLINE_MIN, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
 import { useStore } from "../store";
 import "../styles/tv.css";
 
 /**
  * changle.ca/tv: a TV or a computer becomes the table's big screen. It opens a table (or shows
  * one that is already going), puts the code and a QR up for the phones, and then shows the game.
- * Punchline plays as a full show here; the phones become controllers. Nobody sits at the TV.
+ * Punchline plays as a full show here; the phones become controllers. Every other game shows
+ * here too, large, as the table sees it: nobody at the screen can touch the game. A phone that
+ * only wants to watch (to mirror to a TV, say) opens this same page.
  */
 export function TvApp({ code: given, game }: { code?: string; game?: GameId }) {
   const [table, setTable] = useState(() => ({ code: given && isCode(given) ? given : newCode(), create: !given || !isCode(given), n: 0 }));
@@ -82,6 +85,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   else if (!room) body = <TvNotice title={status === "reconnecting" ? (zh ? "正在重新连接…" : "Reconnecting…") : zh ? "正在开桌…" : "Opening the table…"} spinning />;
   else if (room.game?.id === "punchline") body = <TvPunch v={room.game} audio={gate.armed} />;
   else if (room.game?.id === "trip") body = <TvTrip v={room.game} table={code} />;
+  else if (room.game) body = <TvGame room={room} v={room.game} />;
   else if (room.playing) body = <TvNowPlaying room={room} id={room.playing} />;
   else body = <TvLobby room={room} audio={gate.armed} onJoin={onJoin} />;
 
@@ -108,7 +112,8 @@ function Fit({ children }: { children: ReactNode }) {
   }, []);
   return (
     <div className="tv-fit">
-      <div className="tv-canvas" style={{ transform: `scale(${k})` }}>
+      {/* pinned to the screen's centre, then scaled: a grid cell would grow to the canvas's own size and push it off a narrow screen (a phone that only watches) */}
+      <div className="tv-canvas" style={{ transform: `translate(-50%, -50%) scale(${k})` }}>
         {children}
       </div>
     </div>
@@ -408,6 +413,48 @@ function TvPunch({ v, audio }: { v: PunchView; audio: boolean }) {
   const { lang, sound } = useStore();
   const who = useWho(room?.seats ?? []);
   return <Stage v={v} who={who} now={now} mode="tv" sound={audio && sound} lang={lang} me={null} />;
+}
+
+/**
+ * Any other game, watched: the game itself in the middle (the same screen the phones show, drawn
+ * for someone with no seat, so no secrets and nothing to press), the table down the side.
+ */
+function TvGame({ room, v }: { room: RoomView; v: GameView }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const meta = GAME_BY_ID[v.id];
+  const Icon = meta.icon;
+  return (
+    <div className="tv-game" style={{ ["--gel" as string]: meta.gel } as React.CSSProperties}>
+      <div className="tv-glow" aria-hidden="true" />
+      <header className="tv-head tv-game-head">
+        <Wordmark />
+        <span className="tv-game-title">
+          <Icon size={30} strokeWidth={2} />
+          <span>{zh ? meta.name.zh : meta.name.en}</span>
+          <small>{zh ? meta.name.en : meta.name.zh}</small>
+        </span>
+      </header>
+      <div className="tv-game-main">
+        <div className="tv-game-phone">
+          <NetGame view={v} onLeave={() => {}} />
+        </div>
+        <aside className="tv-game-side">
+          <h2 className="tv-seats-title tabular">{zh ? `${room.seats.length} 人在玩` : `${room.seats.length} playing`}</h2>
+          <ul className="tv-game-seats">
+            {room.seats.map((s) => (
+              <li key={s.id} className={s.on ? "" : "is-away"}>
+                <SeatFace seat={s} size={44} />
+                <span>{s.name}</span>
+                {s.id === room.host && <Crown size={14} strokeWidth={2.6} className="tv-game-crown" />}
+              </li>
+            ))}
+          </ul>
+          <p className="tv-game-note">{zh ? "这里只看，操作在各自的手机上" : "Watch here; everyone plays on their own phone"}</p>
+        </aside>
+      </div>
+    </div>
+  );
 }
 
 function TvNowPlaying({ room, id }: { room: RoomView; id: GameId }) {

@@ -1,0 +1,2 @@
+/** The categories each language's songs come in (at least 20 songs each), from the song list built on 2026-10-31. Written by scripts/build-songs.mjs. */
+export const POOL_CATS: Record<string, string[]> = {"mix":["oldies","pop","rock","folk","rap","dance","rnb","ost"],"zh":["oldies","pop","rock","folk","rap","dance","ost"],"en":["oldies","pop","rock","folk","rap","dance","rnb","ost"],"yue":["oldies","pop","rock","folk","rap"],"ko":["oldies","pop","folk","rap","dance"],"ja":["oldies","pop","rock","folk","rap","dance"],"vi":["oldies","pop","folk","rap","dance"]};

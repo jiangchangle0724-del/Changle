@@ -1,31 +1,44 @@
 import { toSimplified } from "../../data/t2s";
-import { cleanTitle, type SongRow } from "../../shared/songs";
+import { cleanTitle, guessLang, type SongRow } from "../../shared/songs";
 
 /**
  * Today's top songs on Apple's iTunes charts, fetched by the phone itself: Taiwan and Hong Kong
- * for Chinese, pop in the US and Canada for English. Apple turns away requests from servers but
- * lets browsers in, and these lists carry each song's 30-second preview. The room checks every
- * row before it plays one. Same filters as scripts/build_songs.py.
+ * for Chinese, pop in the US and Canada for English, then Korea, Japan, Vietnam and a few more
+ * countries for the global hits. Apple turns away requests from servers but lets browsers in,
+ * and these lists carry each song's 30-second preview. The room checks every row before it
+ * plays one. Same filters as scripts/build_songs.py.
  */
 
-const FEEDS: [store: string, lang: 0 | 1, genre: string][] = [
+/** store, which language its songs count as (-1: tell from the title), genre filter */
+const FEEDS: [store: string, lang: number, genre: string][] = [
   ["tw", 0, ""],
   ["hk", 0, ""],
   ["us", 1, "/genre=14"],
   ["ca", 1, "/genre=14"],
+  ["gb", 1, ""],
+  ["kr", -1, ""],
+  ["jp", -1, ""],
+  ["vn", -1, ""],
+  ["au", 1, ""],
+  ["br", -1, ""],
+  ["mx", -1, ""],
+  ["de", -1, ""],
+  ["fr", -1, ""],
+  ["in", -1, ""],
 ];
 const SKIP =
   /(?<![a-z])live(?![a-z])|現場|现场|演唱會|演唱会|金曲|\bin [a-g][b#]? (major|minor)\b|remix|\bmix\)|instrumental|伴奏|伴唱|純音樂|纯音乐|演奏|karaoke|\bdemo\b|acoustic|\bversion\)|\bver\.|medley|reprise|\bintro\b|\boutro\b|interlude|commentary|鋼琴版|钢琴版|\bedit\)|sped up|slowed|orchestral|unplugged|a cappella|cover\)/i;
 const LIVE_ALBUM = /(?<![a-z])live(?![a-z])|演唱會|演唱会/i;
 const CJK = /[㐀-鿿]/;
 const OTHER = /[가-힯぀-ヿ]/;
+const CJK_LANGS = [0, 2];
 const PRE = "https://audio-ssl.itunes.apple.com/itunes-assets/";
 const SUF = ".plus.aac.p.m4a";
 const ART = /^https:\/\/is(\d)-ssl\.mzstatic\.com\/image\/thumb\/(.+)\/\d+x\d+bb\.(jpg|png)$/;
-const KEY = "tune-charts-v1";
+const KEY = "tune-charts-v2";
 const KEEP_MS = 6 * 3600_000;
-/** a room message stays under 32 KB: about 50 songs of each language */
-export const CHARTS_EACH = 50;
+/** a room message stays under 32 KB: a few dozen songs of each language */
+export const CHARTS_EACH = 16;
 
 type Label = { label?: string; attributes?: Record<string, string> };
 type Entry = {
@@ -38,7 +51,7 @@ type Entry = {
   link?: Label | Label[];
 };
 
-export function rowFromEntry(e: Entry, lang: 0 | 1, store: string): SongRow | null {
+export function rowFromEntry(e: Entry, feedLang: number, store: string): SongRow | null {
   const name = e["im:name"]?.label ?? "";
   const artist = e["im:artist"]?.label ?? "";
   const id = Number(e.id?.attributes?.["im:id"]);
@@ -46,17 +59,21 @@ export function rowFromEntry(e: Entry, lang: 0 | 1, store: string): SongRow | nu
   const url = links.find((l) => l.attributes?.["im:assetType"] === "preview")?.attributes?.href ?? "";
   if (!Number.isSafeInteger(id) || id <= 0 || !name || !artist || !url.startsWith(PRE)) return null;
   if (SKIP.test(name) || LIVE_ALBUM.test(e["im:collection"]?.["im:name"]?.label ?? "")) return null;
-  if (lang === 0 ? !CJK.test(name) || OTHER.test(name) : CJK.test(name) || OTHER.test(name) || CJK.test(artist)) return null;
+  const lang = feedLang >= 0 ? feedLang : guessLang(name, artist, store);
+  // a feed that counts as one language only keeps songs that look like it
+  if (feedLang === 0 && (!CJK.test(name) || OTHER.test(name))) return null;
+  if (feedLang === 1 && (CJK.test(name) || OTHER.test(name) || CJK.test(artist))) return null;
   const p = url.endsWith(SUF) ? url.slice(PRE.length, -SUF.length) : url;
   const m = ART.exec((e["im:image"] ?? []).map((x) => x.label ?? "").pop() ?? "");
-  const title = cleanTitle(lang === 0 ? toSimplified(name) : name, lang);
-  const a = lang === 0 ? toSimplified(artist) : artist;
+  const cjk = CJK_LANGS.includes(lang);
+  const title = cleanTitle(cjk ? toSimplified(name) : name, lang);
+  const a = cjk ? toSimplified(artist) : artist;
   // a song named after its singer gives the answer away
   if (title.toLowerCase() === a.toLowerCase()) return null;
-  return [id, title.slice(0, 120), a.slice(0, 120), "", lang, Number((e["im:releaseDate"]?.label ?? "").slice(0, 4)) || 0, p, m ? `${m[1]}|${m[2]}` : "", store, 1];
+  return [id, title.slice(0, 120), a.slice(0, 120), "", lang, Number((e["im:releaseDate"]?.label ?? "").slice(0, 4)) || 0, p, m ? `${m[1]}|${m[2]}` : "", store, 1, 0, 0];
 }
 
-async function feed(store: string, lang: 0 | 1, genre: string, signal: AbortSignal): Promise<SongRow[]> {
+async function feed(store: string, lang: number, genre: string, signal: AbortSignal): Promise<SongRow[]> {
   const r = await fetch(`https://itunes.apple.com/${store}/rss/topsongs/limit=100${genre}/json`, { signal });
   if (!r.ok) return [];
   const d = (await r.json()) as { feed?: { entry?: Entry | Entry[] } };
@@ -97,14 +114,15 @@ export function loadCharts(ms = 5000): Promise<SongRow[]> {
   return pending;
 }
 
-/** What the host's phone hands the room with the first song: a random few dozen of each language. */
+/** What the host's phone hands the room with the first song: a random few of each language. */
 export function chartsForRoom(rows: SongRow[]): SongRow[] {
-  const pick = (l: 0 | 1) =>
+  const langs = [...new Set(rows.map((r) => r[4]))];
+  const pick = (l: number) =>
     rows
       .filter((r) => r[4] === l)
       .map((r) => ({ r, k: Math.random() }))
       .sort((a, b) => a.k - b.k)
       .slice(0, CHARTS_EACH)
       .map((x) => x.r);
-  return [...pick(0), ...pick(1)];
+  return langs.flatMap(pick);
 }

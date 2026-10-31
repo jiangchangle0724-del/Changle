@@ -458,11 +458,10 @@ export class RoomEngine {
   view(pid: string): RoomView {
     const d = this.d;
     const gd = this.gameDef();
-    // a big screen has no seat: it gets the details only of a game it shows as a show
-    // (Punchline) or follows elsewhere (到此一游's room number); for the others it learns which
-    // game is on, not anyone's secrets
-    const seated = d.seats.some((s) => s.id === pid);
-    const detail = !!gd && !!d.game && (seated || d.game.id === "punchline" || d.game.id === "trip");
+    // a big screen has no seat: every game's view is drawn for one id, and a watcher's id is
+    // nobody's, so it sees what the table sees and no one's secrets (each game's view keeps a
+    // phone's own word, token, hand or pick to that phone)
+    const detail = !!gd && !!d.game;
     return {
       code: d.code,
       you: pid,

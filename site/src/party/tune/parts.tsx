@@ -1,11 +1,12 @@
 import { ExternalLink, Lock, Music } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { POOL_CATS } from "../../data/songPools";
 import { clipOf, TUNES, type Tune } from "../../data/tunes";
 import { gsap, reduced } from "../../lib/anim";
 import { playMelody, type TuneHandle } from "../../lib/music";
 import { loadPreview, playElement, playPreview, type PreviewHandle } from "../../lib/preview";
 import { isSfxEnabled } from "../../lib/sfx";
-import type { SongPool } from "../../shared/songs";
+import { CATS, DEFAULT_POOL, parsePool, poolOf, SOURCES, type CatKey, type SongPool, type SourceKey } from "../../shared/songs";
 import { useStore } from "../../store";
 
 /** A tune by its place in the list, or the notes themselves (online, the server sends only the notes). */
@@ -151,22 +152,98 @@ export function startSong(a: SongAudio, opts: { startPerf?: number; offset?: num
   return null;
 }
 
-/** Chinese, English or both. */
-export function PoolPicker({ pool, onPick, disabled }: { pool: SongPool; onPick: (p: SongPool) => void; disabled?: boolean }) {
+/**
+ * What to listen to: any number of languages (plus the world classics and today's charts), and any
+ * number of categories, or none for all of them. Only categories that a picked language has songs
+ * in are offered (no rock in Korean, say); one that no longer fits is dropped.
+ */
+export function PoolPicker({ pool, onPick, disabled }: { pool: string; onPick: (p: SongPool) => void; disabled?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const opts: [SongPool, string][] = [
-    ["mix", zh ? "中英混合" : "Both"],
-    ["zh", zh ? "华语" : "Chinese"],
-    ["en", zh ? "英文" : "English"],
-  ];
+  const cur = parsePool(pool) ?? parsePool(DEFAULT_POOL)!;
+  const withCats = cur.srcs.filter((k) => SOURCES.find((x) => x.key === k)?.cats);
+  const offered = CATS.filter((c) => withCats.some((k) => !POOL_CATS[k] || POOL_CATS[k].includes(c.key)));
+  const keep = cur.cats.filter((c) => offered.some((o) => o.key === c));
+  const fix = withCats.length && keep.length !== cur.cats.length ? poolOf(cur.srcs, keep) : "";
+  const pick = useRef(onPick);
+  pick.current = onPick;
+  useEffect(() => {
+    if (fix && !disabled) pick.current(fix);
+  }, [fix, disabled]);
+  const everything = cur.srcs.length === SOURCES.length;
+  const toggleSrc = (k: string) => {
+    const on = cur.srcs.includes(k as SourceKey);
+    if (on && cur.srcs.length === 1) return; // something always plays
+    onPick(poolOf(on ? cur.srcs.filter((x) => x !== k) : [...cur.srcs, k], cur.cats));
+  };
+  const toggleCat = (c: string) => onPick(poolOf(cur.srcs, cur.cats.includes(c as CatKey) ? cur.cats.filter((x) => x !== c) : [...cur.cats, c]));
   return (
-    <div className="seg seg-sm" role="group" aria-label={zh ? "歌单" : "Songs"} style={{ alignSelf: "center" }}>
-      {opts.map(([id, label]) => (
-        <button key={id} type="button" aria-pressed={pool === id} disabled={disabled} onClick={() => onPick(id)}>
-          {label}
+    <div className="tn-pool" role="group" aria-label={zh ? "歌单" : "Songs"}>
+      <div className="tn-pool-row">
+        {SOURCES.map((x) => (
+          <button key={x.key} type="button" className="chip" aria-pressed={cur.srcs.includes(x.key)} disabled={disabled} onClick={() => toggleSrc(x.key)}>
+            {zh ? x.zh : x.en}
+          </button>
+        ))}
+        <button type="button" className="chip chip-all" aria-pressed={everything} disabled={disabled} onClick={() => onPick(everything ? DEFAULT_POOL : poolOf(SOURCES.map((x) => x.key), cur.cats))}>
+          {zh ? "全选" : "All"}
         </button>
-      ))}
+      </div>
+      {withCats.length > 0 && (
+        <div className="tn-pool-row tn-pool-cats" role="group" aria-label={zh ? "类别" : "Category"}>
+          <button type="button" className="chip" aria-pressed={keep.length === 0} disabled={disabled} onClick={() => onPick(poolOf(cur.srcs, []))}>
+            {zh ? "不限" : "Any"}
+          </button>
+          {offered.map((c) => (
+            <button key={c.key} type="button" className="chip" aria-pressed={keep.includes(c.key)} disabled={disabled} onClick={() => toggleCat(c.key)}>
+              {zh ? c.zh : c.en}
+            </button>
+          ))}
+        </div>
+      )}
+      {!disabled && <p className="tn-pool-hint">{zh ? "语言和类别都能多选，点一下选上，再点一下取消" : "Pick as many languages and categories as you like. Tap again to drop one."}</p>}
+    </div>
+  );
+}
+
+/** How the table answers: race to buzz, or everyone picks from four at once. */
+export function AnswerPicker({ quiz, onPick, disabled }: { quiz: boolean; onPick: (quiz: boolean) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="seg seg-sm" role="group" aria-label={zh ? "怎么答" : "How to answer"} style={{ alignSelf: "center" }}>
+      <button type="button" aria-pressed={!quiz} disabled={disabled} onClick={() => onPick(false)}>
+        {zh ? "抢答" : "Buzz in"}
+      </button>
+      <button type="button" aria-pressed={quiz} disabled={disabled} onClick={() => onPick(true)}>
+        {zh ? "选择题" : "Multiple choice"}
+      </button>
+    </div>
+  );
+}
+
+export type QuizChoice = { id: number; t: string; a: string; ae: string };
+
+/**
+ * Four titles for everyone. Before the reveal a tap is the player's pick (one only); at the reveal
+ * the right one lights up and a wrong pick is marked.
+ */
+export function QuizChoices({ choices, mine, answer, onPick, disabled }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const done = answer !== null;
+  return (
+    <div className="tn-quiz" role="group" aria-label={zh ? "四个歌名" : "Four titles"}>
+      {choices.map((c) => {
+        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", done && mine === c.id && c.id !== answer ? "is-wrong" : ""].join(" ");
+        return (
+          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
+            <strong>{c.t}</strong>
+            <small>{zh ? c.a : c.ae}</small>
+            {mine === c.id && !done && <span className="tn-pick">{zh ? "你的答案" : "Your pick"}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
