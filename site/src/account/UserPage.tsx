@@ -79,7 +79,7 @@ export function UserPage({ id, onBack }: { id: string; onBack: () => void }) {
     <div className="screen me">
       <TopBar onBack={onBack} />
       <header className="me-head">
-        <Face user={u} on={!!u.look} />
+        <Face user={u} />
         <div className="me-id">
           <h1 className="me-name">{u.name}</h1>
           <p className="me-tags">

@@ -1,7 +1,8 @@
 """
 Two phones, two accounts: sign up with email codes (dev mode shows the code), one with a photo
-and one with an anime avatar made in the maker, add each other, chat live, sit at one online
-table and check the faces, then switch the first to an anime avatar too. Screenshots go to OUT.
+and one with an AI-drawn anime avatar (DEV_FAKE_DRAW=1 stands in for the AI), add each other,
+chat live, sit at one online table and check the faces, then switch the first to a drawn
+figure, back to a photo, and back again. Screenshots go to OUT.
 
   python3 scripts/account_check.py [base_url] [out_dir] [--solo]
 """
@@ -57,17 +58,17 @@ def phone(browser):
     return ctx, page
 
 
-def make_anime(page, style):
-    """In the avatar maker (already open): start from a style and use it."""
+def make_anime(page, pic):
+    """In the avatar maker (already open): give it a photo, let the AI draw, use the drawing.
+    Locally the worker runs with DEV_FAKE_DRAW=1, so the "drawing" is the photo it was sent."""
     page.wait_for_selector(".mk-start", timeout=5000)
-    page.click(f".mk-start-fig:has-text('{style}')")
-    page.wait_for_selector(".mk-fig svg", timeout=5000)
-    page.click(".mk-tab:text-is('发型')")
-    page.click(".mk-pic:has-text('丸子头')")
+    page.set_input_files(".mk input[type=file]:not([capture])", files=[{"name": "me.png", "mimeType": "image/png", "buffer": pic}])
+    page.wait_for_selector(".mk-card.is-busy", timeout=5000)
+    page.wait_for_selector(".mk-acts .btn-primary", timeout=20000)
     page.wait_for_timeout(300)
-    shot(page, f"maker-{style}")
-    page.click(".mk-foot .btn-primary")
-    page.wait_for_selector(".mk", state="detached", timeout=5000)
+    shot(page, "maker-drawn")
+    page.click(".mk-acts .btn-primary")
+    page.wait_for_selector(".mk", state="detached", timeout=8000)
 
 
 def signup(page, email, name, city, gender, bio, pic=None, anime=None):
@@ -87,7 +88,7 @@ def signup(page, email, name, city, gender, bio, pic=None, anime=None):
     if anime:
         page.click(".pf-kind button:has-text('动漫头像')")
         make_anime(page, anime)
-        page.wait_for_selector(".pf-photo .pf-look svg", timeout=5000)
+        page.wait_for_selector(".pf-photo img.avatar", timeout=5000)
     page.fill("#pf-name", name)
     page.fill("#pf-phone", "+1 604 555 01" + str(random.randint(10, 99)))
     page.fill("#pf-city", city)
@@ -115,19 +116,18 @@ def main():
             check(False, "A: header shows the uploaded photo")
         shot(a, "home-signed-in")
 
-        signup(b, f"mia.{tag}@example.com", "Mia", "Toronto", "女", "酒量一般，气氛担当。", None, anime="女")
+        signup(b, f"mia.{tag}@example.com", "Mia", "Toronto", "女", "酒量一般，气氛担当。", None, anime=photo((255, 156, 197), (140, 134, 255)))
         try:
             b.wait_for_selector(".acct-me .avatar img", timeout=6000)
             src = b.get_attribute(".acct-me .avatar img", "src")
             r = b.request.get(src)
-            kind = f"{r.headers.get('content-type')} {r.headers.get('content-security-policy')}"
-            check(kind.startswith("image/svg+xml") and "default-src 'none'" in kind, f"B: header shows the anime face, served as locked-down SVG ({kind})")
+            check(r.ok and r.headers.get("content-type") == "image/jpeg" and len(r.body()) > 2000, f"B: header shows the anime face's round crop ({r.headers.get('content-type')}, {len(r.body())} bytes)")
         except Exception as e:
             check(False, f"B: header shows the anime face ({e})")
         b.goto(BASE + "#/me")
         b.wait_for_selector(".me-head")
         b.wait_for_timeout(500)
-        check(b.locator(".me-head .me-figure svg").count() == 1, "B: profile shows the whole figure")
+        check(b.locator(".me-head .me-figure img").count() == 1, "B: profile shows the whole figure")
         shot(b, "me-B")
 
         # A's profile and friend code
@@ -216,7 +216,7 @@ def main():
         a.goto(BASE + f"#/u/{bid}")
         a.wait_for_selector(".me-head")
         a.wait_for_timeout(500)
-        check(a.locator(".me-head .me-figure svg").count() == 1, "A: B's page shows B's whole figure")
+        check(a.locator(".me-head .me-figure img").count() == 1, "A: B's page shows B's whole figure")
         shot(a, "user-B-from-A")
 
         # one online table, both faces
@@ -255,16 +255,24 @@ def main():
         a.click(".topbar-right .icon-btn")
         a.wait_for_selector(".profile-form .pf-kind")
         a.click(".pf-kind button:has-text('动漫头像')")
-        make_anime(a, "男")
+        make_anime(a, photo((49, 185, 255), (255, 184, 46)))
         try:
-            a.wait_for_selector(".me-head .me-figure svg", timeout=6000)
+            a.wait_for_selector(".me-head .me-figure img", timeout=6000)
             check(True, "A: switching to anime shows the figure on the profile")
         except Exception:
             check(False, "A: switching to anime shows the figure on the profile")
         a.wait_for_timeout(400)
         shot(a, "edit-A-anime")
         after = a.evaluate(me_now, api)
-        check(after["lookOn"] and after["av"] > before["av"] and not before.get("lookOn"), f"A: the round face is redrawn as the look (av {before['av']} -> {after['av']}, lookOn {before.get('lookOn')} -> {after['lookOn']})")
+        check(after["figure"] and after["av"] > before["av"] and not before.get("figure"), f"A: the face is now the drawn figure (av {before['av']} -> {after['av']}, figure {before.get('figure')} -> {after['figure']})")
+        # and back to the photo (the editor is still open): one upload, the figure stays kept
+        a.wait_for_selector(".profile-form .pf-kind")
+        a.set_input_files(".profile-form input[type=file]", files=[{"name": "me.png", "mimeType": "image/png", "buffer": photo((176, 114, 255), (255, 95, 162))}])
+        a.wait_for_function("u => fetch(u + '/me', {headers: {Authorization: 'Bearer ' + localStorage.getItem('changle.session')}}).then(r => r.json()).then(d => !d.user.figure && d.user.hasFigure)", arg=api, timeout=8000)
+        check(True, "A: a photo takes over, the figure is kept")
+        a.click(".pf-kind button:has-text('动漫头像')")
+        a.wait_for_function("u => fetch(u + '/me', {headers: {Authorization: 'Bearer ' + localStorage.getItem('changle.session')}}).then(r => r.json()).then(d => d.user.figure)", arg=api, timeout=8000)
+        check(a.locator(".mk").count() == 0, "A: switching back to the figure is one tap (no maker)")
 
         if SOLO:
             a.goto(BASE + "#/g/dice")

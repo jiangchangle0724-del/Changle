@@ -1,17 +1,16 @@
 import { Camera, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { AvatarCfg } from "../shared/avatar/cfg";
+import type { Choices } from "../shared/draw";
 import { useStore } from "../store";
 import type { Gender } from "./AccountContext";
 import { Avatar, AV_COLORS } from "./Avatar";
-import { AvatarArt } from "./avatar/art";
-import { AvatarMaker } from "./avatar/Maker";
+import { AvatarMaker, type Drawn } from "./avatar/Maker";
 
-/** What a profile shows as its face: the anime look, a photo, or neither (the first letter). */
+/** What a profile shows as its face: the AI-drawn anime figure, a photo, or neither (the first letter). */
 export type FaceKind = "anime" | "photo" | "none";
 
-/** The maker's starting style from the profile's gender (the choices stay open to everyone). */
-const styleFor = (g: Gender | ""): AvatarCfg["start"] => (g === "female" ? "f" : g === "male" ? "m" : "x");
+/** The maker's first "draw me as" from the profile's gender (every choice stays open to everyone). */
+const styleFor = (g: Gender | ""): string => (g === "female" ? "f" : g === "male" ? "m" : g === "nonbinary" ? "x" : "keep");
 
 export type ProfileValues = { name: string; phone: string; city: string; gender: Gender | ""; bio: string; ac: number };
 
@@ -45,14 +44,17 @@ export function ProfileForm({
   initial,
   mode,
   show,
-  look,
+  figure,
+  hasFigure,
+  choices,
+  ticket,
   photo,
   uid,
   av,
   busy,
   error,
-  onLook,
-  onUseLook,
+  onFigure,
+  onUseFigure,
   onPhoto,
   onRemovePhoto,
   onSubmit,
@@ -61,18 +63,24 @@ export function ProfileForm({
   mode: "signup" | "edit";
   /** the face others see */
   show: FaceKind;
-  /** the anime look, kept even while a photo shows */
-  look?: AvatarCfg | null;
+  /** the anime figure while it's the face: its round crop and the whole picture */
+  figure?: { round: string; full: string } | null;
+  /** there is a figure, kept while a photo shows (switching back is one tap) */
+  hasFigure?: boolean;
+  /** what was picked for it */
+  choices?: Choices | null;
+  /** a sign-up in progress, so the AI can draw before there's an account */
+  ticket?: string;
   /** a picked photo not uploaded yet (sign-up) */
   photo?: Blob | null;
   uid?: string;
   av?: number;
   busy?: boolean;
   error?: string;
-  /** a look made or changed in the maker, to show from now on */
-  onLook: (c: AvatarCfg) => void;
-  /** show the look you have again, instead of the photo */
-  onUseLook: () => void;
+  /** a drawing chosen in the maker, to show from now on */
+  onFigure: (d: Drawn) => void;
+  /** show the figure you have again, instead of the photo */
+  onUseFigure: () => void;
   onPhoto: (b: Blob) => void;
   onRemovePhoto?: () => void;
   onSubmit: (v: ProfileValues, adult: boolean) => void;
@@ -113,9 +121,14 @@ export function ProfileForm({
       }}
     >
       <div className="pf-face" style={{ ["--av" as string]: AV_COLORS[v.ac % AV_COLORS.length] } as React.CSSProperties}>
-        <button type="button" className="pf-photo" onClick={() => (show === "photo" ? file.current?.click() : setMaking(true))} aria-label={show === "photo" ? (zh ? "换照片" : "Change photo") : look ? (zh ? "改动漫头像" : "Change your anime avatar") : zh ? "做动漫头像" : "Make an anime avatar"}>
-          {show === "anime" && look ? (
-            <AvatarArt cfg={look} view="head" className="avatar pf-look" style={{ width: 92, height: 92 }} />
+        <button
+          type="button"
+          className="pf-photo"
+          onClick={() => (show === "photo" ? file.current?.click() : setMaking(true))}
+          aria-label={show === "photo" ? (zh ? "换照片" : "Change photo") : figure ? (zh ? "重画动漫头像" : "Redraw your anime avatar") : zh ? "AI 画动漫头像" : "Draw an anime avatar"}
+        >
+          {show === "anime" && figure ? (
+            <img src={figure.round} alt="" className="avatar" style={{ width: 92, height: 92 }} />
           ) : show === "photo" && preview ? (
             <img src={preview} alt="" className="avatar" style={{ width: 92, height: 92 }} />
           ) : (
@@ -125,7 +138,7 @@ export function ProfileForm({
         </button>
         <div className="pf-face-side">
           <div className="seg seg-sm pf-kind" role="group" aria-label={zh ? "头像用哪个" : "Which face to show"}>
-            <button type="button" aria-pressed={show === "anime"} onClick={() => (show !== "anime" && look ? onUseLook() : setMaking(true))}>
+            <button type="button" aria-pressed={show === "anime"} onClick={() => (show !== "anime" && hasFigure ? onUseFigure() : setMaking(true))}>
               <Sparkles size={14} />
               {zh ? "动漫头像" : "Anime"}
             </button>
@@ -159,12 +172,17 @@ export function ProfileForm({
         />
         <AvatarMaker
           open={making}
-          initial={look}
-          start={styleFor(v.gender)}
+          ticket={ticket}
+          figureUrl={show === "anime" ? figure?.full : null}
+          choices={choices}
+          backdrop={v.ac}
+          style={styleFor(v.gender)}
           onClose={() => setMaking(false)}
-          onDone={(c) => {
+          onDone={(d) => {
             setMaking(false);
-            onLook(c);
+            // (the drawing's backdrop is the avatar color from now on)
+            set({ ac: d.choices.backdrop });
+            onFigure(d);
           }}
         />
       </div>

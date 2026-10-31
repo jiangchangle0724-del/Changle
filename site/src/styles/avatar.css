@@ -1,6 +1,6 @@
 /*
- * The avatar maker: a dressing room under the "me" rose light. The figure stands in a pool of
- * light on a dark stage; everything you can change sits in a sheet below it.
+ * The AI avatar maker: a dressing room under the "me" rose light. The drawing hangs on a lit stage
+ * like a print in its own backdrop color; everything you can pick sits in a sheet below it.
  */
 .mk {
   position: fixed;
@@ -46,148 +46,176 @@
   font-size: inherit;
   text-align: center;
 }
-.mk-top-right {
-  display: flex;
-  justify-content: flex-end;
-}
-.mk-top .icon-btn:disabled {
-  color: var(--fog);
-  opacity: 0.45;
-  background: none;
-  cursor: default;
-  transform: none;
-}
-.mk-dice {
-  display: inline-grid;
-  place-items: center;
-}
 
-/* ---------- the stage ---------- */
+/* ---------- the stage: the drawing, and the ones before it ---------- */
 .mk-stage {
+  --bd: var(--gel);
   position: relative;
   flex: 1 1 0;
   min-height: 0;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0 16px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 4px 16px 0;
 }
 .mk-spot {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(30% 7% at 50% 97%, color-mix(in oklab, var(--gel) 34%, transparent), transparent 75%),
-    radial-gradient(40% 46% at 50% 46%, color-mix(in oklab, var(--gel) 11%, transparent), transparent 72%),
-    linear-gradient(to bottom, transparent 55%, color-mix(in oklab, var(--gel) 6%, transparent));
+    radial-gradient(42% 46% at 50% 44%, color-mix(in oklab, var(--bd) 20%, transparent), transparent 72%),
+    radial-gradient(36% 6% at 50% 86%, color-mix(in oklab, var(--bd) 26%, transparent), transparent 75%);
 }
-.mk-fig {
+.mk-card {
   position: relative;
-  height: 100%;
-  max-height: 440px;
-  aspect-ratio: 240 / 368;
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 460px;
+  aspect-ratio: 3 / 4;
   max-width: 100%;
-  will-change: transform;
-}
-.mk-fig svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* ---------- reading a photo ---------- */
-.mk-scan {
-  --scan: min(232px, 58vw, 33dvh);
-  position: relative;
-  align-self: center;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding-bottom: 8px;
-}
-.mk-scan-frame {
-  position: relative;
-  width: var(--scan);
-  height: var(--scan);
-  flex: none;
-}
-.mk-scan-pic {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 999px;
-  object-fit: cover;
+  border-radius: 22px;
+  overflow: hidden;
   background: var(--dusk-2);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 24px 60px -24px color-mix(in oklab, var(--bd) 70%, transparent);
+}
+.mk-card > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mk-card-tag {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(14, 12, 34, 0.66);
+  color: var(--moon);
+  font-size: 12.5px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.mk-card.is-busy > img {
+  filter: saturate(0.6) brightness(0.62);
   transition: filter 0.4s;
 }
-.mk-scan.is-fail .mk-scan-pic {
-  filter: grayscale(0.7) brightness(0.55);
-}
-.mk-scan-beam {
+
+/* while the AI draws: a band of light over the picture, the seconds, a bar that never quite fills */
+.mk-drawing {
   position: absolute;
   inset: 0;
-  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.mk-beam {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   pointer-events: none;
 }
-.mk-scan-beam::after {
+.mk-beam::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  top: -34%;
-  height: 34%;
-  background: linear-gradient(to bottom, transparent, color-mix(in oklab, var(--gel) 28%, transparent) 70%, color-mix(in oklab, var(--gel) 80%, #fff) 97%, transparent);
+  top: -30%;
+  height: 30%;
+  background: linear-gradient(to bottom, transparent, color-mix(in oklab, var(--gel) 26%, transparent) 70%, color-mix(in oklab, var(--gel) 75%, #fff) 97%, transparent);
   mix-blend-mode: screen;
-  animation: mk-beam 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation: mk-beam 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 @keyframes mk-beam {
   to {
-    transform: translateY(400%);
+    transform: translateY(440%);
   }
 }
-.mk-scan-ring {
-  position: absolute;
-  inset: -12px;
-  width: calc(100% + 24px);
-  height: calc(100% + 24px);
-  transform: rotate(-90deg);
-  pointer-events: none;
-}
-.mk-scan-track {
-  fill: none;
-  stroke: var(--line-soft);
-  stroke-width: 3;
-}
-.mk-scan.is-mesh .mk-scan-track,
-.mk-scan.is-read .mk-scan-track {
-  stroke: color-mix(in oklab, var(--gel) 55%, transparent);
-}
-.mk-scan-fill {
-  fill: none;
-  stroke: var(--gel);
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.3s linear;
-}
-.mk-scan-status {
-  color: var(--haze);
+.mk-drawing-note {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 14px;
   font-size: 14px;
-  text-align: center;
-  min-height: 1.45em;
+  font-weight: 600;
+  color: var(--moon);
+  background: linear-gradient(to top, rgba(14, 12, 34, 0.82), transparent);
+}
+.mk-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--gel);
+  transform-origin: left center;
+  transition: transform 0.9s var(--ease-out);
+  box-shadow: 0 0 12px var(--gel);
 }
 
-/* ---------- the dock: tabs, choices, done ---------- */
+.mk-strip {
+  position: relative;
+  flex: none;
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px 4px 2px;
+}
+.mk-strip::-webkit-scrollbar {
+  display: none;
+}
+.mk-thumb {
+  flex: none;
+  width: 42px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition:
+    box-shadow 0.2s,
+    transform 0.15s var(--ease-out);
+}
+.mk-thumb:active {
+  transform: scale(0.94);
+}
+.mk-thumb > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mk-thumb.is-on {
+  box-shadow:
+    0 0 0 2px var(--night),
+    0 0 0 4px var(--moon);
+}
+.mk-thumb-add {
+  display: grid;
+  place-items: center;
+  color: var(--haze);
+}
+.mk-thumb-add:disabled {
+  opacity: 0.4;
+}
+
+/* ---------- the dock: tabs, choices, the buttons ---------- */
 .mk-dock {
   position: relative;
   flex: none;
-  height: clamp(300px, 50dvh, 460px);
+  height: clamp(290px, 46dvh, 430px);
   display: flex;
   flex-direction: column;
-  margin-top: 8px;
+  margin-top: 12px;
   background: var(--dusk);
   border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   box-shadow:
@@ -200,23 +228,20 @@
   gap: 2px;
   overflow-x: auto;
   scrollbar-width: none;
-  /* more tabs off the edge fade out rather than stop dead */
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 28px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 28px), transparent);
   padding: 12px max(12px, env(safe-area-inset-right, 0px)) 4px max(12px, env(safe-area-inset-left, 0px));
-  scroll-padding: 0 12px;
 }
 .mk-tabs::-webkit-scrollbar {
   display: none;
 }
 .mk-tab {
-  flex: none;
+  flex: 1 0 auto;
   min-height: 40px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: 999px;
   color: var(--haze);
   font-weight: 700;
   font-size: 14.5px;
+  white-space: nowrap;
   transition:
     background-color 0.2s,
     color 0.2s;
@@ -230,92 +255,61 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px max(16px, env(safe-area-inset-right, 0px)) 18px max(16px, env(safe-area-inset-left, 0px));
+  padding: 2px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
 }
 .mk-foot {
   flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + 12px) max(16px, env(safe-area-inset-left, 0px));
   box-shadow: inset 0 1px 0 var(--line-soft);
 }
-
-.mk-group + .mk-group {
-  margin-top: 8px;
+.mk-acts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 8px;
 }
+.mk-err {
+  margin: 0;
+}
+.mk-left {
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--fog);
+}
+
 .mk-label {
   display: block;
-  margin: 12px 2px 8px;
+  margin: 14px 2px 8px;
   font-size: 13.5px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--haze);
 }
-
-/* pictures: your own look with one thing changed */
-.mk-pics {
-  display: grid;
+.mk-sub {
+  margin: -4px 2px 8px;
+}
+.mk-chips {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
-.mk-pics.cols-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.mk-pics.cols-4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.mk-pic {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  min-width: 0;
-  padding-bottom: 7px;
-  border-radius: 16px;
-  background: var(--dusk-2);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 0 1px var(--line-soft);
-  overflow: hidden;
-  transition:
-    box-shadow 0.2s,
-    transform 0.15s var(--ease-out);
-}
-.mk-pic:active {
-  transform: scale(0.96);
-}
-.mk-pic[aria-pressed="true"] {
-  box-shadow:
-    0 0 0 2.5px var(--moon),
-    0 12px 30px -14px var(--gel);
-}
-.mk-pic-art {
-  display: block;
-  background: radial-gradient(70% 62% at 50% 42%, color-mix(in oklab, var(--gel) 9%, var(--dusk-3)), var(--dusk-2) 100%);
-}
-.mk-pic-art svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.mk-pic-name {
-  padding: 5px 4px 0;
-  font-size: 12.5px;
-  line-height: 1.2;
-  text-align: center;
-  color: var(--haze);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.mk-pic[aria-pressed="true"] .mk-pic-name {
-  color: var(--moon);
-  font-weight: 600;
+.mk-chips-lead {
+  margin-top: 14px;
 }
 
 /* colors */
 .mk-colors {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 2px;
   margin: 0 -4px;
+}
+.mk-color-word {
+  margin: 0 6px 0 4px;
 }
 .mk-color {
   width: 44px;
@@ -325,11 +319,10 @@
   border-radius: 999px;
 }
 .mk-color > span {
-  position: relative;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   transition:
     box-shadow 0.2s,
     transform 0.15s var(--ease-out);
@@ -339,63 +332,11 @@
 }
 .mk-color[aria-pressed="true"] > span {
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
     0 0 0 2.5px var(--dusk),
     0 0 0 4.5px var(--moon);
 }
-.mk-colors.is-eye .mk-color > span::after {
-  content: "";
-  position: absolute;
-  left: 29%;
-  top: 25%;
-  width: 22%;
-  height: 22%;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-}
-/* skin reads as one strip, light to deep */
-.mk-colors.is-skin {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 4px;
-  margin: 0;
-  padding: 3px 0;
-}
-.mk-colors.is-skin .mk-color {
-  width: auto;
-  height: 46px;
-  border-radius: 10px;
-}
-.mk-colors.is-skin .mk-color > span {
-  width: 100%;
-  height: 100%;
-  border-radius: 10px;
-}
 
-.mk-switches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.mk-steps {
-  max-width: 340px;
-}
-
-/* ---------- photo ---------- */
-.mk-photo {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 8px;
-}
-.mk-photo-lead {
-  max-width: 34em;
-}
-.mk-photo-acts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
 .mk-private {
   display: flex;
   align-items: flex-start;
@@ -409,40 +350,8 @@
   margin-top: 1px;
   color: var(--gel);
 }
-.mk-found,
-.mk-note {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 14px 12px;
-  border-radius: var(--r-panel);
-  background: var(--dusk-2);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 0 1px var(--line-soft);
-}
-.mk-found .mk-label {
-  margin: 6px 0 2px;
-}
-.mk-found-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-weight: 700;
-}
-.mk-found-head svg {
-  color: var(--go);
-}
-.mk-note {
-  align-items: flex-start;
-}
-.link-btn.mk-inline {
-  padding: 0;
-  font-size: inherit;
-  color: var(--moon);
-}
 
-/* ---------- the first screen: a photo, or one of three to start from ---------- */
+/* ---------- the first screen: a photo to draw from ---------- */
 .mk-start {
   flex: 1 1 0;
   min-height: 0;
@@ -451,57 +360,48 @@
   gap: 18px;
   padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + 16px) max(16px, env(safe-area-inset-left, 0px));
 }
-.mk-lineup {
+.mk-slot {
   position: relative;
   flex: 1 1 0;
-  min-height: 150px;
+  min-height: 160px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
+  place-items: center;
 }
-.mk-lineup::before {
+.mk-slot::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(56% 9% at 50% 91%, color-mix(in oklab, var(--gel) 26%, transparent), transparent 75%),
-    radial-gradient(60% 50% at 50% 50%, color-mix(in oklab, var(--gel) 8%, transparent), transparent 72%);
+  background: radial-gradient(46% 50% at 50% 50%, color-mix(in oklab, var(--gel) 16%, transparent), transparent 72%);
 }
-.mk-start-fig {
+.mk-slot-card {
   position: relative;
-  min-height: 0;
+  height: min(100%, 360px);
+  aspect-ratio: 3 / 4;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  padding: 8px 2px 6px;
-  border-radius: 20px;
-  transition:
-    background-color 0.2s,
-    transform 0.16s var(--ease-out);
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--dusk-2) 80%, transparent);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklab, var(--gel) 45%, transparent),
+    0 24px 60px -26px color-mix(in oklab, var(--gel) 60%, transparent);
+  color: var(--gel);
+  transition: transform 0.16s var(--ease-out);
 }
-.mk-start-fig:hover {
-  background: var(--line-soft);
+.mk-slot:active .mk-slot-card {
+  transform: scale(0.98);
 }
-.mk-start-fig:active {
-  transform: scale(0.97);
-}
-.mk-start-art {
-  flex: 1 1 0;
-  min-height: 0;
-  display: block;
-}
-.mk-start-art svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.mk-start-name {
-  flex: none;
-  font-weight: 700;
-  font-size: 15px;
+.mk-slot-card > span {
+  color: var(--haze);
+  font-size: 13.5px;
+  line-height: 1.4;
   text-align: center;
+  max-width: 14em;
 }
 .mk-start-copy {
   display: flex;
@@ -543,14 +443,8 @@
 .mk-leave-q {
   font-family: var(--font-display);
   font-size: 19px;
-  font-weight: 700;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-}
-:lang(zh) .mk-leave-q,
-.mk-leave-q:lang(zh) {
   font-weight: 800;
-  letter-spacing: 0;
+  line-height: 1.3;
 }
 .mk-leave-acts {
   display: grid;
@@ -558,48 +452,25 @@
   gap: 8px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mk-scan-beam::after {
-    animation: none;
-    top: 33%;
-    opacity: 0.6;
-  }
-  .mk-scan-fill {
-    transition: none;
-  }
-}
-
 /* ---------- a profile's face, standing ---------- */
 .me-figure {
   position: relative;
   flex: none;
-  width: 96px;
-  isolation: isolate;
+  width: 104px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 3px var(--night),
+    0 0 0 5px color-mix(in oklab, var(--av) 70%, transparent),
+    0 22px 46px -14px var(--av);
 }
-.me-figure > span,
-.me-figure svg {
+.me-figure > img {
   display: block;
   width: 100%;
   height: auto;
 }
-/* their own color, as a pool of light at their feet */
-.me-figure::before {
-  content: "";
-  position: absolute;
-  left: -14%;
-  right: -14%;
-  bottom: -6%;
-  height: 34%;
-  z-index: -1;
-  background: radial-gradient(50% 42% at 50% 72%, color-mix(in oklab, var(--av) 46%, transparent), transparent 72%);
-}
 
-/* the form's face: the look drawn on its backdrop */
-.pf-look > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
+/* the form's face: anime or photo */
 .pf-face > .pf-face-side {
   flex: 1 1 auto;
 }
@@ -612,4 +483,15 @@
   gap: 5px;
   padding: 0 10px;
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-beam::after {
+    animation: none;
+    top: 35%;
+    opacity: 0.5;
+  }
+  .mk-progress {
+    transition: none;
+  }
 }

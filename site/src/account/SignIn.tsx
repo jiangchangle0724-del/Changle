@@ -5,8 +5,9 @@ import { api, ApiError } from "../lib/api";
 import { sfx } from "../lib/sfx";
 import { savedName } from "../online/config";
 import { useStore } from "../store";
-import type { AvatarCfg } from "../shared/avatar/cfg";
 import { useAccount, type SelfUser } from "./AccountContext";
+import type { Drawn } from "./avatar/Maker";
+import { blobToB64 } from "./avatar/pics";
 import { ProfileForm, type FaceKind, type ProfileValues } from "./ProfileForm";
 
 type Step = { k: "email" } | { k: "code"; email: string; dev?: string } | { k: "profile"; email: string; ticket: string };
@@ -23,7 +24,7 @@ export function SignInSheet() {
   const [error, setError] = useState("");
   const [wait, setWait] = useState(0);
   const [photo, setPhoto] = useState<Blob | null>(null);
-  const [look, setLook] = useState<AvatarCfg | null>(null);
+  const [drawn, setDrawn] = useState<(Drawn & { round_url: string; full_url: string }) | null>(null);
   const [show, setShow] = useState<FaceKind>("none");
   const codeRef = useRef<HTMLInputElement>(null);
   const [codeFocus, setCodeFocus] = useState(false);
@@ -35,7 +36,10 @@ export function SignInSheet() {
         setCode("");
         setError("");
         setPhoto(null);
-        setLook(null);
+        setDrawn((d) => {
+          if (d) [d.round_url, d.full_url].forEach((u) => URL.revokeObjectURL(u));
+          return null;
+        });
         setShow("none");
       }, 400);
       return () => window.clearTimeout(id);
@@ -117,9 +121,12 @@ export function SignInSheet() {
     try {
       const d = await api<{ token: string; user: SelfUser }>("/auth/signup", { body: { ticket: step.ticket, ...v, adult } });
       signedIn(d.token, d.user);
-      // the face: an anime look is kept even when the photo is what shows
+      // the face: a drawn figure is kept even when the photo is what shows
       try {
-        if (look) signedIn(d.token, (await api<{ user: SelfUser }>("/me/look", { method: "PUT", body: { look, use: show === "anime" } })).user);
+        if (drawn) {
+          const body = { full: await blobToB64(drawn.full), round: await blobToB64(drawn.round), mime: "image/jpeg", choices: drawn.choices };
+          signedIn(d.token, (await api<{ user: SelfUser }>("/me/figure", { method: "PUT", body })).user);
+        }
         if (show === "photo" && photo) signedIn(d.token, (await api<{ user: SelfUser }>("/me/avatar", { method: "PUT", raw: photo, type: "image/jpeg" })).user);
       } catch {
         /* the face can be added later */
@@ -211,15 +218,21 @@ export function SignInSheet() {
           mode="signup"
           initial={{ name: savedName(), phone: "", city: "", gender: "", bio: "", ac: Math.floor(Math.random() * 10) }}
           show={show}
-          look={look}
+          figure={drawn && { round: drawn.round_url, full: drawn.full_url }}
+          hasFigure={!!drawn}
+          choices={drawn?.choices}
+          ticket={step.ticket}
           photo={photo}
           busy={busy}
           error={error}
-          onLook={(c) => {
-            setLook(c);
+          onFigure={(f) => {
+            setDrawn((old) => {
+              if (old) [old.round_url, old.full_url].forEach((u) => URL.revokeObjectURL(u));
+              return { ...f, round_url: URL.createObjectURL(f.round), full_url: URL.createObjectURL(f.full) };
+            });
             setShow("anime");
           }}
-          onUseLook={() => setShow("anime")}
+          onUseFigure={() => setShow("anime")}
           onPhoto={(b) => {
             setPhoto(b);
             setShow("photo");
