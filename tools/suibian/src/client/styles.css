@@ -607,12 +607,13 @@ select {
   padding-top: 24px;
 }
 .legal h1 {
-  font-size: 1.8rem;
+  font-size: 2rem;
   margin-top: 8px;
 }
+/* Section headings a clear step above the text (1.3x), so a long page scans by its sections. */
 .legal h2 {
-  font-size: 1.1rem;
-  margin-top: 12px;
+  font-size: 1.3rem;
+  margin-top: 16px;
 }
 .legal ul {
   margin: 0;
