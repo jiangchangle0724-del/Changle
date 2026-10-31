@@ -1,5 +1,6 @@
 import { ExternalLink, Lock, Music } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { POOL_CATS } from "../../data/songPools";
 import { clipOf, TUNES, type Tune } from "../../data/tunes";
 import { gsap, reduced } from "../../lib/anim";
 import { playMelody, type TuneHandle } from "../../lib/music";
@@ -157,21 +158,27 @@ export function PoolPicker({ pool, onPick, disabled }: { pool: string; onPick: (
   const zh = lang === "zh";
   const cur = parsePool(pool) ?? parsePool(DEFAULT_POOL)!;
   const langDef = POOL_LANGS.find((x) => x.key === cur.lang) ?? POOL_LANGS[0];
+  // only the categories this language has songs in (no rock in Korean, say)
+  const has = (lk: string, c: string) => !POOL_CATS[lk] || POOL_CATS[lk].includes(c);
+  const stale = langDef.cats && cur.cat !== "any" && !has(cur.lang, cur.cat);
+  useEffect(() => {
+    if (stale && !disabled) onPick(poolOf(cur.lang, "any"));
+  }, [stale, disabled, cur.lang, onPick]);
   return (
     <div className="tn-pool" role="group" aria-label={zh ? "歌单" : "Songs"}>
       <div className="tn-pool-row">
         {POOL_LANGS.map((l) => (
-          <button key={l.key} type="button" className="chip" aria-pressed={cur.lang === l.key} disabled={disabled} onClick={() => onPick(poolOf(l.key, l.cats ? cur.cat : "any"))}>
+          <button key={l.key} type="button" className="chip" aria-pressed={cur.lang === l.key} disabled={disabled} onClick={() => onPick(poolOf(l.key, l.cats && cur.cat !== "any" && has(l.key, cur.cat) ? cur.cat : "any"))}>
             {zh ? l.zh : l.en}
           </button>
         ))}
       </div>
       {langDef.cats && (
         <div className="tn-pool-row tn-pool-cats" role="group" aria-label={zh ? "类别" : "Category"}>
-          <button type="button" className="chip" aria-pressed={cur.cat === "any"} disabled={disabled} onClick={() => onPick(poolOf(cur.lang, "any"))}>
+          <button type="button" className="chip" aria-pressed={cur.cat === "any" || stale} disabled={disabled} onClick={() => onPick(poolOf(cur.lang, "any"))}>
             {zh ? "不限" : "Any"}
           </button>
-          {CATS.map((c) => (
+          {CATS.filter((c) => has(cur.lang, c.key)).map((c) => (
             <button key={c.key} type="button" className="chip" aria-pressed={cur.cat === c.key} disabled={disabled} onClick={() => onPick(poolOf(cur.lang, c.key))}>
               {zh ? c.zh : c.en}
             </button>

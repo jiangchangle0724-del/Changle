@@ -39,8 +39,17 @@ const LANG_OF = Object.fromEntries(Object.entries(LANG_INDEX).map(([k, v]) => [v
 const CAT_BIT = { oldies: 1, pop: 2, rock: 4, folk: 8, rap: 16, dance: 32, rnb: 64, ost: 128 };
 const CLASSIC_BIT = 256;
 const PER = { pop: 10, oldies: 10, rock: 8, folk: 8, rap: 8, dance: 6, rnb: 8, ost: 6 };
-const CHART_COUNTRIES = ["us", "gb", "ca", "au", "tw", "hk", "cn", "jp", "kr", "vn", "br", "mx", "de", "fr", "in"];
-const STORES = { zh: ["tw", "cn"], yue: ["hk"], en: ["us", "gb"], ko: ["kr"], ja: ["jp"], vi: ["vn"] };
+const CHART_COUNTRIES = ["us", "gb", "ca", "au", "tw", "hk", "cn", "jp", "vn", "br", "mx", "de", "fr", "in"];
+// the second store is tried when the first has too little. Apple's search finds nothing in the Korea
+// store, so Korean stars come from the US one (romanized names, often English titles); Cantonese
+// singers are on the Taiwan store too.
+const STORES = { zh: ["tw", "cn"], yue: ["hk", "tw"], en: ["us", "gb"], ko: ["us", "jp"], ja: ["jp"], vi: ["vn", "us"] };
+// Apple tags every Chinese song with a genre that says Cantonese or Mandarin (in the store's own words:
+// 廣東歌/香港流行樂 and 國語流行樂 in Hong Kong, 粵語流行樂 and 華語流行樂 in Taiwan)
+const CANTO = /廣東|粵語|粤语|广东|canto|hk-pop/i;
+const MANDO = /國語|国语|華語|华语|mando/i;
+// the first so many artists of each list (the lists run from best known down)
+const SEEDS_PER_CAT = Number(process.env.SEEDS_PER_CAT || 30);
 const GENDER = { m: 1, f: 2, mixed: 3 };
 
 /* ---------- the same filters as build_songs.py ---------- */
@@ -122,7 +131,7 @@ function okTrack(x, lang) {
   const name = x.trackName || "";
   if (SKIP.test(name) || /(?<![a-z])live(?![a-z])|演唱會|演唱会/i.test(x.collectionName || "")) return false;
   if (t2s(cleanTitle(name, lang)).toLowerCase() === t2s(x.artistName || "").toLowerCase()) return false;
-  if (lang === "zh") return CJK.test(name) && !OTHER_SCRIPTS.test(name);
+  if (lang === "zh") return CJK.test(name) && !OTHER_SCRIPTS.test(name) && !CANTO.test(x.primaryGenreName || "");
   return !CJK.test(name) && !OTHER_SCRIPTS.test(name) && !CJK.test(x.artistName || "");
 }
 function okFor(x, lang) {
@@ -130,7 +139,7 @@ function okFor(x, lang) {
   if (x.kind !== "song" || !x.previewUrl || (x.trackTimeMillis || 0) < 100000) return false;
   const name = x.trackName || "", album = x.collectionName || "";
   if (SKIP.test(name) || LIVE_ALBUM.test(album)) return false;
-  if (lang === "yue") return CJK.test(name) && !OTHER_SCRIPTS.test(name) && !/國語|国语|Mandarin/i.test(album + " " + name);
+  if (lang === "yue") return CJK.test(name) && !OTHER_SCRIPTS.test(name) && CANTO.test(x.primaryGenreName || "");
   if (lang === "ko") return HANGUL.test(name + " " + (x.artistName || "")) || !CJK.test(name);
   if (lang === "ja") return !HANGUL.test(name);
   if (lang === "vi") return !CJK.test(name) && !HANGUL.test(name) && !KANA.test(name);
@@ -180,44 +189,85 @@ function loadExisting() {
 async function main() {
   const songs = new Map();
   const titles = new Set();
+  // a title is one song per language: K歌之王 in Mandarin and in Cantonese are two songs
+  const keyOf = (l, title, artist) => `${l}|${normTitle(title)}|${t2s(artist).toLowerCase()}`;
   for (const r of loadExisting()) {
     songs.set(r[0], { id: r[0], t: r[1], a: r[2], ae: r[3], l: r[4], y: r[5], p: r[6], art: r[7], s: r[8], c: r[9], k: r[10] || 0, g: r[11] || singerOf(r[2]) });
-    titles.add(normTitle(r[1]) + "|" + t2s(r[2]).toLowerCase());
   }
   log("kept", songs.size, "songs from the current list");
 
-  function add(x, lang, store, cats, chartHit = false, shown = null) {
+  // The first list called every Chinese song "Chinese". Ask Apple which of them are Cantonese.
+  if (want("zh") || want("yue")) {
+    const byStore = {};
+    for (const s of songs.values()) if (s.l === 0) (byStore[s.s] = byStore[s.s] || []).push(s.id);
+    let moved = 0;
+    for (const [store, ids] of Object.entries(byStore)) {
+      for (const x of await lookup(ids, store)) {
+        const s = songs.get(x.trackId);
+        if (s && s.l === 0 && CANTO.test(x.primaryGenreName || "")) { s.l = 2; moved++; }
+      }
+    }
+    log("Cantonese songs found among the Chinese ones:", moved);
+  }
+  for (const s of songs.values()) titles.add(keyOf(s.l, s.t, s.a));
+
+  // seed: the name from song_seeds.json. When Apple's store spells the artist differently (아이유 for
+  // IU, Eason Chan for 陈奕迅), the seed is what players know, so it is the name shown.
+  function add(x, lang, store, cats, chartHit = false, shown = null, seed = null) {
     const tid = x.trackId, li = LANG_INDEX[lang];
     if (songs.has(tid)) { const s = songs.get(tid); s.k |= cats; if (chartHit) s.c = 1; return false; }
     const isCn = lang === "zh" || lang === "yue";
     const aRaw = x.artistName || "";
-    const artist = isCn ? t2s(aRaw) : aRaw;
+    let artist = isCn ? t2s(aRaw) : aRaw;
+    let artistEn = isCn ? aRaw : artist;
+    if (seed && !artistMatches(seed, aRaw)) {
+      artistEn = /^[\x20-\x7e]+$/.test(aRaw) ? aRaw : seed;
+      artist = seed;
+    }
     const title = shown || cleanTitle(x.trackName, isCn ? "zh" : "en");
-    const key = normTitle(title) + "|" + t2s(artist).toLowerCase();
+    const key = keyOf(li, title, artist);
     if (titles.has(key)) return false;
     titles.add(key);
-    const p = pack(x, isCn ? "zh" : "en", artist, isCn ? aRaw : artist, store, chartHit);
-    p.t = title; p.l = li; p.k = cats; p.g = singerOf(aRaw);
+    const p = pack(x, isCn ? "zh" : "en", artist, artistEn, store, chartHit);
+    p.t = title; p.l = li; p.k = cats; p.g = (seed && singerOf(seed)) || singerOf(aRaw);
     songs.set(tid, p);
     return true;
+  }
+
+  // Apple's results for an artist search, kept to that artist: by name, or, when the store spells the
+  // name its own way, by the artist most of the results belong to.
+  function byArtist(results, seed) {
+    const named = results.filter((x) => artistMatches(seed, x.artistName || ""));
+    if (named.length) return named;
+    const ids = {};
+    for (const x of results.slice(0, 12)) if (x.artistId) ids[x.artistId] = (ids[x.artistId] || 0) + 1;
+    const [top, n] = Object.entries(ids).sort((a, b) => b[1] - a[1])[0] || [];
+    if (!top || n < 6) return [];
+    return results.filter((x) => String(x.artistId) === top);
   }
 
   const missing = [];
   for (const [lang, cats] of Object.entries(SEEDS.SEEDS)) {
     if (!want(lang)) continue;
     const maxy = ((SEEDS.CATEGORIES.oldies || {}).maxYear || {})[lang];
-    for (const [cat, names] of Object.entries(cats)) {
+    for (const [cat, all] of Object.entries(cats)) {
+      const names = all.slice(0, SEEDS_PER_CAT);
       for (const seed of names) {
         let got = 0, seen = 0;
         for (const store of STORES[lang]) {
           const term = store === "tw" ? s2t(seed) : store === "hk" ? s2hk(seed) : seed;
-          for (const x of await search(term, store)) {
-            if (!artistMatches(seed, x.artistName || "") || !okFor(x, lang)) continue;
+          for (const x of byArtist(await search(term, store), seed)) {
+            // a Hong Kong singer on the Chinese list sings in Cantonese too, and the other way round:
+            // the song goes to the language Apple's genre says
+            const g = x.primaryGenreName || "";
+            const as = lang === "zh" && CANTO.test(g) ? "yue" : lang === "yue" && MANDO.test(g) ? "zh" : lang;
+            if (!okFor(x, as)) continue;
             seen++;
             let bits = CAT_BIT[cat];
             const y = parseInt((x.releaseDate || "0000").slice(0, 4), 10) || 0;
-            if (cat !== "oldies" && maxy && y && y <= maxy) bits |= CAT_BIT.oldies;
-            if (add(x, lang, store, bits)) got++;
+            const maxAs = ((SEEDS.CATEGORIES.oldies || {}).maxYear || {})[as] || maxy;
+            if (cat !== "oldies" && maxAs && y && y <= maxAs) bits |= CAT_BIT.oldies;
+            if (add(x, as, store, bits, false, null, seed)) got++;
             if (got >= PER[cat]) break;
           }
           if (got >= Math.min(5, PER[cat]) || seen >= PER[cat]) break;
@@ -230,14 +280,16 @@ async function main() {
 
   if (want("world")) {
     for (const [title, by, zh] of SEEDS.WORLD_CLASSICS) {
-      const q = new URLSearchParams({ term: `${title} ${by}`, entity: "song", limit: "12", country: "us" });
+      // Chinese and Japanese pieces are found in the Taiwan store, the rest in the US one
+      const cjk = CJK.test(title);
+      const q = new URLSearchParams({ term: cjk ? s2t(`${title} ${by}`) : `${title} ${by}`, entity: "song", limit: "12", country: cjk ? "tw" : "us" });
       const d = await get("https://itunes.apple.com/search?" + q);
       const items = ((d && d.results) || []).filter((x) => x.previewUrl && (x.trackTimeMillis || 0) >= 45000 && !/karaoke|ringtone|tutorial|8-bit|lullab|music box|tribute/i.test((x.trackName || "") + " " + (x.collectionName || "")));
       const head = normTitle(title).slice(0, 6);
       const pick = items.find((x) => head && normTitle(x.trackName || "").includes(head)) || items[0] || null;
       if (pick) {
         const orig = cleanTitle(pick.trackName, "en");
-        add(pick, "world", "us", CLASSIC_BIT, false, zh !== orig ? `${zh} · ${orig}` : zh);
+        add(pick, "world", cjk ? "tw" : "us", CLASSIC_BIT, false, zh !== orig ? `${zh} · ${orig}` : zh);
       }
       log(`world ${title}: ${pick ? pick.trackName + " — " + pick.artistName : "not found"}`);
     }
@@ -255,6 +307,32 @@ async function main() {
       }
       log("chart", cc, ids.length, "added", n);
     }
+  }
+
+  // A chart song's language was guessed from its title's letters. Latin letters on a chart outside the
+  // English-speaking countries say little (Hindi, Spanish, K-pop's English titles), so such a song keeps
+  // "English" only when its singer is one the list knows as English; a singer the list knows in another
+  // language takes that language; anyone else goes to "other" (heard in the global and anything pools).
+  {
+    const EN_STORES = ["us", "gb", "ca", "au"];
+    const lead = (a) => normArtist(String(a).split(SPLIT)[0] || "");
+    const known = {};
+    for (const s of songs.values()) {
+      if (s.c && !(s.l === 1 && EN_STORES.includes(s.s))) continue; // learn from songs found by artist, and English charts
+      (known[s.l] = known[s.l] || new Set()).add(lead(s.a));
+      if (s.ae) known[s.l].add(lead(s.ae));
+    }
+    // Latin stars top the US charts in Spanish: not English
+    const LATIN = new Set(["Bad Bunny", "Fuerza Regida", "J Balvin", "Banda MS de Sergio Lizárraga", "KAROL G", "Peso Pluma", "Grupo Frontera", "Feid", "Rauw Alejandro", "Junior H", "Natanael Cano", "Myke Towers", "Anuel AA", "Ozuna", "Daddy Yankee", "Maluma", "Aitana", "ROSALÍA", "Anitta", "Tito Double P", "Neton Vega", "Xavi", "Gabito Ballesteros", "Iván Cornejo", "Carín León", "Eslabon Armado", "Óscar Maydon", "Alejandro Fernández", "Grupo Firme", "Marshmello & Manuel Turizo", "Manuel Turizo"].map(lead));
+    let moved = 0;
+    for (const s of songs.values()) {
+      if (s.l === 1 && LATIN.has(lead(s.a))) { s.l = 7; moved++; continue; }
+      if (!s.c || !(s.l === 1 || s.l === 7) || (s.l === 1 && EN_STORES.includes(s.s))) continue;
+      const who = lead(s.a);
+      const to = [3, 4, 0, 2, 5, 1].find((l) => known[l] && known[l].has(who) && !(l === 1 && LATIN.has(who))) ?? 7;
+      if (to !== s.l) { s.l = to; moved++; }
+    }
+    log("chart songs given their singer's language:", moved);
   }
 
   const rows = [...songs.values()].sort((a, b) => a.l - b.l || a.a.localeCompare(b.a) || a.y - b.y);
@@ -285,6 +363,20 @@ ${lines.map((r) => "  " + r + ",").join("\n")}
 ];
 `;
   fs.writeFileSync(OUT, ts);
+
+  // The setup screen offers only the categories a language has songs in. It can't load the big list
+  // to find out, so the list's shape goes in a small file of its own.
+  const CATS_ORDER = Object.keys(CAT_BIT);
+  const MIN = 20;
+  const count = (langs, cat) => rows.filter((s) => langs.includes(s.l) && ((s.k ? s.k & CAT_BIT[cat] : cat === "pop" || (cat === "oldies" && s.y > 0 && s.y < 2003)))).length;
+  const pools = {};
+  for (const [key, langs] of [["mix", [0, 1]], ["zh", [0]], ["en", [1]], ["yue", [2]], ["ko", [3]], ["ja", [4]], ["vi", [5]]]) {
+    pools[key] = CATS_ORDER.filter((c) => count(langs, c) >= MIN);
+  }
+  fs.writeFileSync(
+    path.join(SITE, "src", "data", "songPools.ts"),
+    `/** The categories each language's songs come in (at least ${MIN} songs each), from the song list built on ${stamp}. Written by scripts/build-songs.mjs. */\nexport const POOL_CATS: Record<string, string[]> = ${JSON.stringify(pools)};\n`,
+  );
   fs.writeFileSync(path.join(CACHE, "missing.txt"), missing.join("\n"));
   log("wrote", OUT, fs.statSync(OUT).size, "bytes;", "artists with nothing usable:", missing.length);
   log("DONE");
