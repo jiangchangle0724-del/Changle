@@ -26,15 +26,15 @@ type Look = {
 };
 const LOOKS: Record<Kind, Look> = {
   m: {
-    skin: "#f3c9a6", skinShade: "#dda283", hair: "#241c3d", hairHi: "#5a4c8c", hairShade: "#140f26",
-    cloth: "#2e9cff", clothShade: "#1f5fd0", clothHi: "#8ad8ff", trim: "#e9f6ff", legs: "#2a3566", legsShade: "#1a2148",
-    shoe: "#f4f6ff", shoeSole: "#31b9ff", iris: "#4a7cf0", irisDeep: "#18245e", lip: "#b04a5e", brow: "#241c3d",
+    skin: "#f6cbb0", skinShade: "#d89b86", hair: "#202b49", hairHi: "#536b97", hairShade: "#111a32",
+    cloth: "#429fff", clothShade: "#275dbb", clothHi: "#a0e2ff", trim: "#eff9ff", legs: "#354664", legsShade: "#1c2945",
+    shoe: "#f4f6ff", shoeSole: "#54bfe8", iris: "#418ee1", irisDeep: "#173968", lip: "#a44c60", brow: "#202b49",
     shoulderX: 27, upper: 30, fore: 28, hip: 10,
   },
   f: {
-    skin: "#f9d6bd", skinShade: "#e8b095", hair: "#4b2342", hairHi: "#9a5584", hairShade: "#2c1027",
-    cloth: "#ff5fa2", clothShade: "#d63f83", clothHi: "#ffb3d2", trim: "#ffffff", legs: "#f9d6bd", legsShade: "#e8b095",
-    shoe: "#c2345f", shoeSole: "#7a1a3a", iris: "#b9579a", irisDeep: "#4d1640", lip: "#d2506f", brow: "#4b2342",
+    skin: "#fbd6c2", skinShade: "#dda28e", hair: "#48213f", hairHi: "#956189", hairShade: "#29162e",
+    cloth: "#f875b0", clothShade: "#c43e7e", clothHi: "#ffd0e4", trim: "#ffffff", legs: "#fbd6c2", legsShade: "#dda28e",
+    shoe: "#da4361", shoeSole: "#86243f", iris: "#bb639f", irisDeep: "#5a285b", lip: "#d2506f", brow: "#48213f",
     shoulderX: 23, upper: 29, fore: 27, hip: 9,
   },
 };
@@ -145,122 +145,212 @@ let uid = 0;
 function markup(kind: Kind, id: string) {
   const L = LOOKS[kind];
   const isF = kind === "f";
+  const ink = isF ? "#49233f" : "#172443";
+  // All paint is local to this SVG. Rims are paths, never filters on the moving rig.
   const defs = `
   <defs>
-    <linearGradient id="${id}-cloth" x1="0" y1="0" x2="1" y2="0.3"><stop offset="0" stop-color="${L.clothHi}"/><stop offset="0.28" stop-color="${L.cloth}"/><stop offset="1" stop-color="${L.clothShade}"/></linearGradient>
-    <linearGradient id="${id}-sleeve" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${L.cloth}"/><stop offset="1" stop-color="${L.clothShade}"/></linearGradient>
-    <linearGradient id="${id}-legs" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${L.legs}"/><stop offset="1" stop-color="${L.legsShade}"/></linearGradient>
-    <radialGradient id="${id}-face" cx="0.42" cy="0.38" r="0.75"><stop offset="0" stop-color="${L.skin}"/><stop offset="0.75" stop-color="${L.skin}"/><stop offset="1" stop-color="${L.skinShade}"/></radialGradient>
-    <linearGradient id="${id}-hair" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="${L.hairHi}"/><stop offset="0.35" stop-color="${L.hair}"/><stop offset="1" stop-color="${L.hairShade}"/></linearGradient>
-    <radialGradient id="${id}-iris" cx="0.5" cy="0.62" r="0.62"><stop offset="0" stop-color="${L.iris}" stop-opacity="0.95"/><stop offset="0.55" stop-color="${L.iris}"/><stop offset="1" stop-color="${L.irisDeep}"/></radialGradient>
-    <linearGradient id="${id}-tear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f9ff"/><stop offset="1" stop-color="#7fd0ff"/></linearGradient>
+    <linearGradient id="${id}-cloth" x1="0" y1="0" x2="1" y2=".65"><stop stop-color="${L.clothHi}"/><stop offset=".3" stop-color="${L.cloth}"/><stop offset="1" stop-color="${L.clothShade}"/></linearGradient>
+    <linearGradient id="${id}-sleeve" gradientUnits="userSpaceOnUse" x1="-9" y1="0" x2="9" y2="0"><stop stop-color="${L.clothHi}"/><stop offset=".35" stop-color="${L.cloth}"/><stop offset="1" stop-color="${L.clothShade}"/></linearGradient>
+    <linearGradient id="${id}-legs" gradientUnits="userSpaceOnUse" x1="-9" y1="0" x2="9" y2="0"><stop stop-color="${L.legs}"/><stop offset="1" stop-color="${L.legsShade}"/></linearGradient>
+    <linearGradient id="${id}-skin" gradientUnits="userSpaceOnUse" x1="-9" y1="0" x2="9" y2="0"><stop stop-color="${L.skin}"/><stop offset=".5" stop-color="${L.skin}"/><stop offset="1" stop-color="${L.skinShade}"/></linearGradient>
+    <radialGradient id="${id}-face" cx=".3" cy=".28" r=".85"><stop stop-color="#fff0dd"/><stop offset=".42" stop-color="${L.skin}"/><stop offset="1" stop-color="${L.skinShade}"/></radialGradient>
+    <linearGradient id="${id}-hair" x1=".15" y1="0" x2=".8" y2="1"><stop stop-color="${L.hairHi}"/><stop offset=".3" stop-color="${L.hair}"/><stop offset="1" stop-color="${L.hairShade}"/></linearGradient>
+    <linearGradient id="${id}-lock" x1="0" y1="0" x2="1" y2=".75"><stop stop-color="${L.hairHi}"/><stop offset=".48" stop-color="${L.hair}"/><stop offset="1" stop-color="${L.hairShade}"/></linearGradient>
+    <linearGradient id="${id}-white" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffffff"/><stop offset=".65" stop-color="${L.trim}"/><stop offset="1" stop-color="${isF ? "#d9c9e2" : "#b6cbea"}"/></linearGradient>
+    <linearGradient id="${id}-shoe" x1=".15" y1="0" x2=".7" y2="1"><stop stop-color="${isF ? "#ff8794" : "#ffffff"}"/><stop offset=".45" stop-color="${L.shoe}"/><stop offset="1" stop-color="${isF ? "#a51f43" : "#c1d1e9"}"/></linearGradient>
+    <radialGradient id="${id}-iris" cx=".4" cy=".85" r=".85"><stop stop-color="${isF ? "#ffd0db" : "#9ff2ff"}"/><stop offset=".45" stop-color="${L.iris}"/><stop offset="1" stop-color="${L.irisDeep}"/></radialGradient>
+    <linearGradient id="${id}-eyeWhite" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#c7c6e2"/><stop offset=".35" stop-color="#fff"/><stop offset="1" stop-color="#fff7f5"/></linearGradient>
+    <radialGradient id="${id}-cheek"><stop stop-color="#ff7f98" stop-opacity=".85"/><stop offset="1" stop-color="#ff9eb3" stop-opacity=".08"/></radialGradient>
+    <linearGradient id="${id}-tear" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f1fcff"/><stop offset="1" stop-color="#78cbff"/></linearGradient>
     <clipPath id="${id}-eyeL"><ellipse cx="-15" cy="-56" rx="${isF ? 9.6 : 9}" ry="${isF ? 11.4 : 10.6}"/></clipPath>
     <clipPath id="${id}-eyeR"><ellipse cx="15" cy="-56" rx="${isF ? 9.6 : 9}" ry="${isF ? 11.4 : 10.6}"/></clipPath>
     <clipPath id="${id}-mouth"><path class="mclip" d="M-6,-31 L6,-31 L6,-30 L-6,-30 Z"/></clipPath>
   </defs>`;
 
-  /* ---- legs (floor space): thigh > shin > foot, each drawn pointing down from its joint ---- */
+  // Rounded end caps overlap at every joint, even when the solver folds a limb back on itself.
   const leg = (side: "L" | "R") => {
     const dir = side === "L" ? -1 : 1;
     const thigh = isF
-      ? `<path d="M-5.5,-2 L5.5,-2 L5,${THIGH} L-5,${THIGH} Z" fill="url(#${id}-legs)"/>`
-      : `<path d="M-8.5,-3 C-9,12 -8,26 -7.2,${THIGH} L7.2,${THIGH} C8,26 9,12 8.5,-3 Z" fill="url(#${id}-legs)"/><path d="M${dir * 2},4 L${dir * 1.5},${THIGH - 4}" stroke="${L.legsShade}" stroke-width="1" opacity=".6"/>`;
-    const knee = `<circle cx="0" cy="0" r="${isF ? 5 : 7.2}" fill="${L.legs}"/>`;
+      ? `<path d="M0,0 V${THIGH}" stroke="url(#${id}-legs)" stroke-width="10.4" stroke-linecap="round"/><path d="M-3.5,5 V32" stroke="#fff0df" stroke-width="1.2" stroke-linecap="round" opacity=".7"/>`
+      : `<path d="M0,0 V${THIGH}" stroke="url(#${id}-legs)" stroke-width="15" stroke-linecap="round"/>
+         <path d="M-7,-2 Q-10,12 -7.2,38 H7.2 Q10,12 7,-2 Z" fill="url(#${id}-legs)"/>
+         <path d="M-5,2 Q-6,16 -4.6,28" stroke="#8ca0c5" stroke-width="1.2" fill="none" opacity=".55"/>
+         <path d="M5,4 L4,28 M-5,31 L2,33 L-3,35" stroke="${L.legsShade}" stroke-width="1.1" fill="none" stroke-linecap="round"/>`;
     const shin = isF
-      ? `<path d="M-5,0 L5,0 L4.4,${SHIN} L-4.4,${SHIN} Z" fill="url(#${id}-legs)"/><path d="M-4.9,${SHIN - 15} L4.9,${SHIN - 15} L4.5,${SHIN + 1} L-4.5,${SHIN + 1} Z" fill="#fff"/><path d="M-4.9,${SHIN - 15} L4.9,${SHIN - 15}" stroke="#ffd0e4" stroke-width="1.6"/>`
-      : `<path d="M-7.2,0 L7.2,0 L7,${SHIN - 2} L-7,${SHIN - 2} Z" fill="url(#${id}-legs)"/><path d="M-7.4,${SHIN - 6} L7.4,${SHIN - 6} L7.6,${SHIN} L-7.6,${SHIN} Z" fill="${L.legsShade}"/>`;
+      ? `<path d="M0,0 V${SHIN}" stroke="url(#${id}-legs)" stroke-width="9.6" stroke-linecap="round"/>
+         <path d="M0,22 V${SHIN}" stroke="${L.trim}" stroke-width="10" stroke-linecap="round"/>
+         <path d="M-4.7,21 H4.7 M-3.2,24 V31 M-1,24 V31" stroke="#e3d7ed" stroke-width=".9" fill="none"/>
+         <path d="M-4.7,19.5 H4.7" stroke="${L.clothHi}" stroke-width="1.6" stroke-linecap="round"/>`
+      : `<path d="M0,0 V${SHIN}" stroke="url(#${id}-legs)" stroke-width="14.4" stroke-linecap="round"/>
+         <path d="M-4.9,5 L-4.4,27 M-4,4 L3,6 M-3,9 L3,7" stroke="#8598be" stroke-width=".9" fill="none" opacity=".65"/>
+         <path d="M-7,30 Q0,32 7,30 L7.2,36 Q0,38 -7.2,36 Z" fill="${L.legsShade}"/>
+         <path d="M-6,31.5 Q0,33 6,31.5" stroke="#7186b0" stroke-width=".9" fill="none"/>`;
+    // Mirroring only the artwork keeps both outward toes and all animated foot origins intact.
     const foot = isF
-      ? `<path d="M-5.5,-1 C-7,3 -6,9 -1,9.5 L${dir * 9},9.5 C${dir * 12},9.5 ${dir * 12.5},4 ${dir * 8},1 L${dir * 4},-1 Z" fill="${L.shoe}"/><path d="M-4.6,1.5 L4.6,1.5" stroke="${L.shoeSole}" stroke-width="1.4"/><path d="M-6,9.5 L${dir * 11},9.5" stroke="${L.shoeSole}" stroke-width="2"/>`
-      : `<path d="M-8,-2 C-10,4 -9,11 -2,12 L${dir * 11},12 C${dir * 16},12 ${dir * 16},5 ${dir * 11},1 L${dir * 6},-2 Z" fill="${L.shoe}"/><path d="M-9,12 L${dir * 14},12" stroke="${L.shoeSole}" stroke-width="2.6" stroke-linecap="round"/><path d="M${dir * -3},3 L${dir * 6},3 M${dir * -3},6.5 L${dir * 7},6.5" stroke="#c9d2ff" stroke-width="1.1"/>`;
-    return `<g class="leg${side}"><g class="thigh${side}">${thigh}<g class="shin${side}" transform="translate(0 ${THIGH})">${knee}${shin}<g class="foot${side}" transform="translate(0 ${SHIN})">${foot}</g></g></g></g>`;
+      ? `<g transform="scale(${dir} 1)">
+          <path d="M-4.5,-3 H4.5 V4 H-4.5 Z" fill="url(#${id}-white)"/>
+          <path d="M-5.5,0 Q-8,6 -4,10 H10 Q15,9 12,4 Q9,1 5,0 Z" fill="url(#${id}-shoe)" stroke="${L.shoeSole}" stroke-width=".8"/>
+          <path d="M-3.7,.5 Q0,5 5,.6 L7,3 Q0,8 -4.4,3 Z" fill="url(#${id}-white)"/>
+          <path d="M-4.8,2 Q0,4 6.2,1" stroke="${L.shoe}" stroke-width="2.7" fill="none"/>
+          <rect x="4.5" y=".6" width="2.7" height="3.2" rx=".6" fill="#ffe6a8"/>
+          <path d="M-5,10 H11" stroke="${L.shoeSole}" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M7,5 Q10,5 11,6" stroke="#ffd4d7" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+        </g>`
+      : `<g transform="scale(${dir} 1)">
+          <path d="M-7,-2 H5 Q7,1 11,2 Q16,4 15,9 L12,12 H-6 Q-10,8 -7,-2 Z" fill="url(#${id}-shoe)" stroke="#8cadd1" stroke-width=".8"/>
+          <path d="M-7,4 L-4,7 L-3,-1 H2 L5,5 L11,5" stroke="${L.clothShade}" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+          <path d="M-2,1.5 L4,2.3 M-2,4 L5,4.7 M-2,6.5 L5,7" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"/>
+          <path d="M7,8 Q11,6.5 14,8" stroke="#9eb8d7" stroke-width=".8" fill="none"/>
+          <path d="M-7,10.2 H14" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          <path d="M-7,12 H13" stroke="${L.shoeSole}" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M-4,11.5 V12.5 M0,11.5 V12.5 M4,11.5 V12.5 M8,11.5 V12.5" stroke="${L.clothShade}" stroke-width=".7"/>
+        </g>`;
+    return `<g class="leg${side}"><g class="thigh${side}">${thigh}<g class="shin${side}">${shin}<g class="foot${side}">${foot}</g></g></g></g>`;
   };
 
-  /* ---- arms (torso space): upper > fore > hand ---- */
   const arm = (side: "L" | "R") => {
-    const thumb = side === "L" ? 1 : -1; // the thumb faces the body at rest
+    const thumb = side === "L" ? 1 : -1;
     const upper = isF
-      ? `<path d="M-4.6,4 L4.6,4 L4.2,${L.upper} L-4.2,${L.upper} Z" fill="${L.skin}"/><path d="M-9,-3 C-10,6 -6,11 0,11 C6,11 10,6 9,-3 C6,-7 -6,-7 -9,-3 Z" fill="url(#${id}-sleeve)"/><path d="M-8,8.5 C-3,11.5 3,11.5 8,8.5" stroke="${L.trim}" stroke-width="1.6" fill="none"/>`
-      : `<path d="M-7.6,-3 C-8.2,10 -7.4,20 -6.4,${L.upper} L6.4,${L.upper} C7.4,20 8.2,10 7.6,-3 Z" fill="url(#${id}-sleeve)"/>`;
-    const elbow = `<circle cx="0" cy="0" r="${isF ? 4.2 : 6.4}" fill="${isF ? L.skin : L.cloth}"/>`;
+      ? `<path d="M0,0 V${L.upper}" stroke="url(#${id}-skin)" stroke-width="8.6" stroke-linecap="round"/>
+         <path d="M-8,-4 C-13,0 -11,9 -7,12 Q0,16 7,12 C11,9 13,0 8,-4 Q0,-9 -8,-4 Z" fill="url(#${id}-sleeve)"/>
+         <path d="M-6,-3 Q-9,1 -7,5 M-2,-4 L-3,3 M5,-2 Q8,2 6,6" stroke="${L.clothHi}" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+         <path d="M-7,11 Q0,14 7,11" stroke="url(#${id}-white)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+         <path d="M-2.8,17 V25" stroke="#fff0df" stroke-width="1" stroke-linecap="round" opacity=".7"/>`
+      : `<path d="M0,0 V${L.upper}" stroke="url(#${id}-sleeve)" stroke-width="14" stroke-linecap="round"/>
+         <path d="M-7,-1 Q-10,10 -6.5,30 H6.5 Q10,10 7,-1 Z" fill="url(#${id}-sleeve)"/>
+         <path d="M-5,-1 Q-7,7 -5,17" stroke="${L.clothHi}" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+         <path d="M5,9 L4,23 M-4,25 L2,27" stroke="${L.clothShade}" stroke-width="1" fill="none" stroke-linecap="round"/>`;
     const fore = isF
-      ? `<path d="M-4.2,0 L4.2,0 L3.6,${L.fore} L-3.6,${L.fore} Z" fill="${L.skin}"/><path d="M-3.8,${L.fore - 4} L3.8,${L.fore - 4}" stroke="${L.clothHi}" stroke-width="2.4"/>`
-      : `<path d="M-6.4,0 L6.4,0 L5.8,${L.fore - 3} L-5.8,${L.fore - 3} Z" fill="url(#${id}-sleeve)"/><rect x="-6.2" y="${L.fore - 5}" width="12.4" height="5.5" rx="2" fill="${L.trim}"/>`;
-    const s = isF ? 0.86 : 1;
-    const hand = `<g transform="scale(${s})"><path d="M-5.8,-0.5 C-7.4,4 -7.2,11.5 -2.2,13.6 C2,15.2 6.6,12.4 6.4,7.4 L6.2,0 Z" fill="${L.skin}"/><ellipse cx="${thumb * 5.6}" cy="4.6" rx="2.5" ry="4.2" transform="rotate(${-thumb * 24} ${thumb * 5.6} 4.6)" fill="${L.skin}"/><path d="M${thumb * -2.5},6 L${thumb * -2.2},12 M0,6.5 L0.2,13" stroke="${L.skinShade}" stroke-width="0.8" opacity=".7"/></g>`;
-    return `<g class="arm${side}"><g class="upper${side}">${upper}<g class="fore${side}" transform="translate(0 ${L.upper})">${elbow}${fore}<g class="hand${side}" transform="translate(0 ${L.fore})">${hand}</g></g></g></g>`;
+      ? `<path d="M0,0 V${L.fore}" stroke="url(#${id}-skin)" stroke-width="8.2" stroke-linecap="round"/>
+         <path d="M-2.8,4 L-2.5,20" stroke="#fff0df" stroke-width="1" stroke-linecap="round"/>
+         <path d="M-3.9,${L.fore - 4} Q0,${L.fore - 2} 3.9,${L.fore - 4}" stroke="${L.cloth}" stroke-width="2.1" fill="none"/>
+         <circle cx="0" cy="${L.fore - 2.5}" r="1.3" fill="#ffe4a5"/>`
+      : `<path d="M0,0 V${L.fore}" stroke="url(#${id}-sleeve)" stroke-width="12.8" stroke-linecap="round"/>
+         <path d="M-4.4,4 L-4,19 M-3,5 L2,7" stroke="${L.clothHi}" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+         <rect x="-6.4" y="${L.fore - 5}" width="12.8" height="6.5" rx="2.8" fill="url(#${id}-white)"/>
+         <path d="M-3.5,${L.fore - 3.5} v3 M0,${L.fore - 3.5} v3 M3.5,${L.fore - 3.5} v3" stroke="#aec8e7" stroke-width=".7"/>`;
+    const s = isF ? .86 : 1;
+    const hand = `<g transform="scale(${thumb * s} ${s})">
+      <path d="M-3.8,-1 C-5.6,1 -5.8,4.5 -5.5,7.8 L-5,11.2 Q-4.5,13.4 -2.7,12.7 Q-1.5,15 .2,13.7 Q2,15.1 3.3,12.8 Q5.4,13.1 5.6,10 L5.3,6.4 C8,7.9 10,5.5 8.4,3.5 L5.6,.4 Q4,-1 3.6,-1 Z" fill="url(#${id}-skin)" stroke="${L.skinShade}" stroke-width=".6" stroke-linejoin="round"/>
+      <path d="M-3,7 L-2.7,11 M-.3,7.5 L.2,12 M2.6,7 L3.3,11 M5.4,3 Q3.8,4.5 4.2,6.3" stroke="${L.skinShade}" stroke-width=".8" fill="none" stroke-linecap="round"/>
+      <path d="M-3.8,2 Q-4.2,4 -3.8,6" stroke="#fff0df" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    </g>`;
+    return `<g class="arm${side}"><g class="upper${side}">${upper}<g class="fore${side}">${fore}<g class="hand${side}">${hand}</g></g></g></g>`;
   };
 
-  /* ---- torso (torso space, around the pelvis at 100,206) ---- */
   const torso = isF
     ? `<g class="skirt">
-        <path d="M83,186 C92,183.5 108,183.5 117,186 L141,232 C121,243 79,243 59,232 Z" fill="url(#${id}-cloth)"/>
-        <path d="M91,190 L80,238 M100,191 L100,241 M109,190 L120,238" stroke="${L.clothShade}" stroke-width="1.3" opacity=".55"/>
-        <path d="M59,232 C79,243 121,243 141,232" stroke="${L.trim}" stroke-width="2.4" fill="none" stroke-dasharray="1 5.2" stroke-linecap="round"/>
+        <path d="M82,186 H118 L141,232 Q137,241 132,237 Q127,245 121,240 Q115,247 109,243 Q102,249 96,244 Q89,248 83,242 Q76,246 71,239 Q65,243 59,233 Z" fill="url(#${id}-white)"/>
+        <path d="M83,186 Q100,181 117,186 L141,232 Q100,249 59,232 Z" fill="url(#${id}-cloth)"/>
+        <path d="M87,189 L70,234 L81,237 L93,189 Z M98,189 L94,240 L104,240 L103,189 Z M108,189 L118,237 L131,235 L113,188 Z" fill="${L.clothHi}" opacity=".48"/>
+        <path d="M91,191 L81,233 M101,192 L100,237 M111,191 L121,233 M117,195 L133,230" stroke="${L.clothShade}" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <path d="M64,230 Q100,244 136,230" stroke="${L.clothHi}" stroke-width="1.3" fill="none"/>
+        <path d="M70,237 l1.5,2 M82,241 l1,2 M95,243 v2 M109,243 v2 M122,240 l-1,2 M133,236 l-1,2" stroke="#cbbdd7" stroke-width=".9"/>
+        <path d="M83,188 L64,230" stroke="#ffe4f1" stroke-width="1.2" opacity=".8"/>
       </g>
-      <path d="M78.5,150 C86,143 114,143 121.5,150 L117.5,185 C108,189 92,189 82.5,185 Z" fill="url(#${id}-cloth)"/>
-      <path d="M100,152 L100,182" stroke="${L.clothShade}" stroke-width="1" opacity=".5"/>
-      <rect x="81.5" y="181" width="37" height="7.5" rx="3" fill="#ffd0e4"/>
-      <path d="M110,184.5 l7,-5 l0,10 Z M110,184.5 l-7,-5 l0,10 Z" fill="#ffffff"/><circle cx="110" cy="184.5" r="2.2" fill="#ffd0e4"/>
-      <path d="M88,147 C88,155 99,156 100,149 C101,156 112,155 112,147 C106,144 94,144 88,147 Z" fill="#ffffff"/>`
-    : `<path d="M71.5,149 C80,141 120,141 128.5,149 L133.5,203 C120,211 80,211 66.5,203 Z" fill="url(#${id}-cloth)"/>
-      <path d="M83,147 C89,137 111,137 117,147 C111,152 89,152 83,147 Z" fill="${L.clothShade}"/>
-      <path d="M100,151 L100,206" stroke="${L.trim}" stroke-width="1.4" opacity=".85"/>
-      <path d="M94.5,150 L93.5,167 M105.5,150 L106.5,167" stroke="${L.trim}" stroke-width="1.6" stroke-linecap="round"/>
-      <circle cx="93.4" cy="168.4" r="1.8" fill="${L.trim}"/><circle cx="106.6" cy="168.4" r="1.8" fill="${L.trim}"/>
-      <path d="M83,184 L117,184 L121,199 L79,199 Z" fill="none" stroke="${L.clothShade}" stroke-width="1.6"/>
-      <path d="M67,200 C80,207 120,207 133,200 L133.6,205 C120,212 80,212 66.4,205 Z" fill="${L.clothShade}"/>`;
+      <path d="M78.5,150 Q85,143 92,145 H108 Q115,143 121.5,150 L117.5,186 Q100,191 82.5,186 Z" fill="url(#${id}-cloth)"/>
+      <path d="M81,153 L85,177 M116,153 L113,179 M100,157 V181" stroke="${L.clothShade}" stroke-width="1" fill="none" opacity=".7"/>
+      <path d="M82,151 L84,171" stroke="#ffe1ef" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M88,146 Q100,141 112,146 L109,156 Q103,156 100,150 Q97,156 91,156 Z" fill="url(#${id}-white)" stroke="#e0bad5" stroke-width=".6"/>
+      <path d="M97,153 L100,156 L103,153 L100,159 Z" fill="${L.clothShade}"/>
+      <path d="M82,180.5 Q100,185 118,180.5 V188 Q100,192 82,188 Z" fill="url(#${id}-white)"/>
+      <path d="M83,183 Q100,187 117,183" stroke="${L.clothHi}" stroke-width="1.2" fill="none"/>
+      <path d="M110,186 L106,199 L111,196 L115,198 L114,187 M111,186 L118,198 L119,193 L123,194 L115,185" fill="${L.clothHi}" stroke="${L.clothShade}" stroke-width=".6"/>
+      <path d="M111,184 C98,173 99,190 110,187 C124,194 125,175 113,183 Z" fill="url(#${id}-white)" stroke="${L.clothShade}" stroke-width=".7"/>
+      <path d="M103,181 L109,184 M120,182 L115,185" stroke="${L.clothHi}" stroke-width="1.2" stroke-linecap="round"/>
+      <ellipse cx="111.5" cy="185" rx="2.5" ry="3.3" fill="${L.cloth}"/>`
+    : `<path d="M80,148 C77,133 85,128 100,130 C115,128 123,133 120,148 L110,158 H90 Z" fill="url(#${id}-cloth)" stroke="${L.clothShade}" stroke-width="1"/>
+      <path d="M84,142 Q86,134 100,135 Q114,134 116,142 L108,152 H92 Z" fill="${L.clothShade}"/>
+      <path d="M82,138 Q90,129 105,132" stroke="${L.clothHi}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      <path d="M71.5,149 Q80,142 88,146 Q100,151 112,146 Q120,142 128.5,149 L133.5,203 Q100,216 66.5,203 Z" fill="url(#${id}-cloth)"/>
+      <path d="M74,152 L72,184 M125,153 L127,189" stroke="${L.clothShade}" stroke-width="1.2" fill="none"/>
+      <path d="M73,151 L70,180" stroke="#c3efff" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M88,146 L100,158 L112,146 L108,146 L100,153 L92,146 Z" fill="${L.trim}"/>
+      <path d="M82,181 Q89,178 96,180 V199 H79 Q79,188 82,181 Z M104,180 Q111,178 118,181 L121,199 H104 Z" fill="${L.clothShade}" opacity=".32"/>
+      <path d="M84,182 L80,192 M116,182 L120,192 M81,198 H95 M105,198 H119" stroke="${L.clothHi}" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      <path d="M67,200 Q100,211 133,200 L133.6,206 Q100,218 66.4,206 Z" fill="${L.clothShade}"/>
+      <path d="M70,204 Q100,213 130,204" stroke="${L.clothHi}" stroke-width="1" fill="none" stroke-dasharray="1 3" opacity=".65"/>
+      <path d="M100,157 V209" stroke="${L.clothShade}" stroke-width="3.7"/>
+      <path d="M99.5,158 V208" stroke="#e3f7ff" stroke-width="1.5" stroke-dasharray="1 1.5"/>
+      <rect x="97.7" y="158" width="4" height="6" rx="1.4" fill="url(#${id}-white)"/>
+      <path d="M92,151 Q90,158 92,168 M108,151 Q110,158 108,168" stroke="${L.clothShade}" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <path d="M91,150 Q89,157 91,167 M107,150 Q109,157 107,167" stroke="${L.trim}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+      <path d="M90.8,166 v3 M107.2,166 v3" stroke="#d2eaff" stroke-width="2.5" stroke-linecap="round"/>`;
 
-  /* ---- head: back layer (behind the body) and face layer; origin at the neck ---- */
   const backHair = isF
-    ? `<path d="M-46,-62 C-55,-108 -26,-126 0,-126 C26,-126 55,-108 46,-62 L49,-8 C44,6 30,8 25,-2 L24,-30 L-24,-30 L-25,-2 C-30,8 -44,6 -49,-8 Z" fill="url(#${id}-hair)"/>
-       <g class="tail" transform="translate(31 -108)"><path d="M0,0 C20,4 30,28 24,62 C21,78 10,86 2,90 C10,66 10,40 -3,14 Z" fill="url(#${id}-hair)"/><path d="M6,12 C14,26 16,44 12,62" stroke="${L.hairHi}" stroke-width="1.6" fill="none" opacity=".55"/><circle r="5.5" fill="${L.cloth}"/><circle r="2.2" cx="-1.4" cy="-1.4" fill="${L.clothHi}"/></g>`
-    : `<path d="M-43,-60 C-50,-106 -24,-126 2,-124 C30,-124 50,-104 43,-60 Z" fill="url(#${id}-hair)"/>`;
+    ? `<path d="M-46,-63 C-54,-107 -28,-127 0,-127 C29,-127 53,-106 46,-62 L49,-8 Q44,10 30,4 L25,-4 L24,-31 H-24 L-25,-4 Q-37,12 -49,-8 Z" fill="url(#${id}-hair)" stroke="${L.hairHi}" stroke-width=".7"/>
+       <path d="M-44,-67 Q-48,-25 -40,-6 L-35,-12 L-36,-47 M37,-56 Q44,-23 39,-5" stroke="${L.hairHi}" stroke-width="1.6" fill="none" opacity=".65"/>
+       <path d="M-30,-52 Q-37,-15 -31,-5 M33,-45 Q30,-20 34,-5" stroke="${L.hairShade}" stroke-width="2" fill="none"/>
+       <g class="tail">
+         <path d="M-3,3 C10,-16 31,-4 34,22 C37,46 25,69 16,77 Q11,85 2,90 C12,67 5,52 8,34 Q10,20 -3,13 Z" fill="url(#${id}-lock)" stroke="${L.hairHi}" stroke-width=".8"/>
+         <path d="M8,4 C24,3 29,20 25,39 Q21,59 13,68 C21,43 15,25 8,4 Z" fill="${L.hairHi}" opacity=".35"/>
+         <path d="M13,9 Q29,26 16,57 M8,18 Q17,36 11,48" stroke="${L.hairHi}" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+         <path d="M-5,-3 Q-2,-9 2,-6 Q8,-9 9,-3 Q14,0 9,5 Q9,11 3,8 Q-2,12 -5,6 Q-11,4 -7,0 Z" fill="url(#${id}-cloth)" stroke="#ffd3eb" stroke-width=".8"/>
+         <ellipse cx="1" cy="1" rx="3.7" ry="5.3" fill="${L.hairShade}" transform="rotate(-25)"/>
+         <path d="M-5,-2 L-3,-4 M5,-4 L7,-2 M7,5 L5,7" stroke="#ffe5f2" stroke-width="1.2" stroke-linecap="round"/>
+       </g>`
+    : `<path d="M-43,-58 L-48,-75 L-44,-87 L-47,-97 L-35,-103 L-36,-115 L-21,-114 L-11,-126 L2,-121 L15,-125 L23,-117 L34,-117 L35,-108 L45,-100 L42,-87 L47,-74 L42,-58 Z" fill="url(#${id}-hair)"/>
+       <path d="M-44,-88 L-42,-97 L-30,-103 L-31,-112 L-20,-111 L-10,-122" stroke="#9bafd5" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".8"/>`;
 
   const eye = (side: "L" | "R") => {
     const cx = side === "L" ? -15 : 15;
-    const rx = isF ? 9.6 : 9, ry = isF ? 11.4 : 10.6;
+    const rx = isF ? 9.6 : 9, ry = isF ? 11.4 : 10.6, ir = isF ? 7.8 : 7.4;
     return `<g class="eye${side}">
       <g clip-path="url(#${id}-eye${side})">
-        <ellipse cx="${cx}" cy="-56" rx="${rx}" ry="${ry}" fill="#ffffff"/>
-        <g class="iris${side}"><circle cx="${cx}" cy="-54.5" r="${isF ? 7.6 : 7.2}" fill="url(#${id}-iris)"/><circle cx="${cx}" cy="-54" r="3.5" fill="#120c22"/>
-          <circle cx="${cx + 2.6}" cy="-58.2" r="2.7" fill="#ffffff"/><circle cx="${cx - 2.6}" cy="-50.6" r="1.25" fill="#ffffff" opacity=".9"/></g>
+        <ellipse cx="${cx}" cy="-56" rx="${rx}" ry="${ry}" fill="url(#${id}-eyeWhite)"/>
+        <g class="iris${side}">
+          <ellipse cx="${cx}" cy="-54.5" rx="${ir}" ry="${ir + 1}" fill="${L.irisDeep}"/>
+          <ellipse cx="${cx}" cy="-54.2" rx="${ir - 1}" ry="${ir}" fill="url(#${id}-iris)"/>
+          <path d="M${cx - 4.8},-51 Q${cx},-46.8 ${cx + 4.8},-51" stroke="${isF ? "#ffc9df" : "#8aeeff"}" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          <ellipse cx="${cx}" cy="-54.5" rx="3.3" ry="4.5" fill="${ink}"/>
+          <circle cx="${cx - 2.7}" cy="-58.6" r="2.8" fill="#fff"/>
+          <circle cx="${cx + 3.2}" cy="-51.2" r="1.3" fill="#fff"/>
+        </g>
         <rect class="lid${side}" x="${cx - 13}" y="${-56 - ry - 26}" width="26" height="26" fill="${L.skin}"/>
       </g>
-      <g class="lash${side}"><path class="lashP${side}" d="M0,0" stroke="#1c1430" stroke-width="${isF ? 2.8 : 2.4}" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
-      <path class="lower${side}" d="M${cx - 6},${-56 + ry - 0.5} Q${cx},${-56 + ry + 1.4} ${cx + 6},${-56 + ry - 0.5}" stroke="${L.skinShade}" stroke-width="1" fill="none" opacity=".8"/>
-      <path class="joy${side}" d="M${cx - 8},-54 Q${cx},-63 ${cx + 8},-54" stroke="#1c1430" stroke-width="2.6" fill="none" stroke-linecap="round" style="display:none"/>
+      <g class="lash${side}"><path class="lashP${side}" d="M0,0" stroke="${ink}" stroke-width="${isF ? 2.8 : 2.4}" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <path class="lower${side}" d="M${cx - 6},${-56 + ry - .5} Q${cx},${-56 + ry + 1.4} ${cx + 6},${-56 + ry - .5}" stroke="${L.skinShade}" stroke-width="1" fill="none" opacity=".8"/>
+      <path class="joy${side}" d="M${cx - 8},-54 Q${cx},-63 ${cx + 8},-54" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round" style="display:none"/>
     </g>`;
   };
   const brow = (side: "L" | "R") => {
     const cx = side === "L" ? -15 : 15;
-    const inner = side === "L" ? cx + 7 : cx - 7, outer = side === "L" ? cx - 7 : cx + 7;
-    return `<g class="brow${side}"><path d="M${outer},-71 Q${cx},${isF ? -76.5 : -75.5} ${inner},-72.5" stroke="${L.brow}" stroke-width="${isF ? 2.2 : 3.4}" fill="none" stroke-linecap="round"/></g>`;
+    const inner = side === "L" ? -8 : 8, outer = side === "L" ? -22 : 22;
+    return `<g class="brow${side}"><path d="M${outer},-71 Q${cx},${isF ? -76.5 : -75.5} ${inner},-72.5" stroke="${L.brow}" stroke-width="${isF ? 2.2 : 3}" fill="none" stroke-linecap="round"/></g>`;
   };
   const frontHair = isF
-    ? `<path d="M-45,-62 C-48,-104 -18,-122 8,-120 C35,-118 50,-98 45,-64 C40,-84 30,-94 15,-96 C6,-86 -9,-81 -23,-86 C-31,-81 -38,-74 -45,-62 Z" fill="url(#${id}-hair)"/>
-       <path d="M-45,-68 C-50,-46 -46,-24 -38,-14 C-38,-30 -39,-46 -37,-62 Z" fill="url(#${id}-hair)"/>
-       <path d="M45,-70 C50,-46 47,-26 40,-16 C40,-32 40,-48 38,-64 Z" fill="url(#${id}-hair)"/>
-       <path d="M-26,-106 C-14,-114 8,-115 22,-108" stroke="#ffffff" stroke-width="3" fill="none" opacity=".28" stroke-linecap="round"/>
-       <path d="M-30,-100 l3.2,-7 l3.2,7 l-6.4,-4.4 l6.4,0 Z" fill="#ffd84d" transform="rotate(-14 -27 -103)"/>`
-    : `<path d="M-42,-70 C-45,-102 -20,-120 4,-118 C30,-118 47,-100 42,-72 L37,-84 L31,-74 L24,-90 L14,-79 L4,-92 L-6,-79 L-17,-91 L-25,-77 L-33,-88 Z" fill="url(#${id}-hair)"/>
-       <path d="M-42,-72 C-44,-62 -43,-54 -40,-48 L-38,-66 Z M42,-74 C44,-62 43,-54 40,-48 L38,-66 Z" fill="url(#${id}-hair)"/>
-       <path d="M-22,-110 C-8,-117 10,-117 22,-110" stroke="#ffffff" stroke-width="2.6" fill="none" opacity=".22" stroke-linecap="round"/>`;
+    ? `<path d="M-45,-63 C-49,-103 -24,-124 5,-123 C34,-123 51,-100 45,-64 L38,-76 Q34,-91 23,-96 Q19,-85 10,-81 L13,-94 Q2,-80 -10,-82 L-8,-94 Q-18,-84 -28,-86 Q-36,-75 -45,-63 Z" fill="url(#${id}-hair)"/>
+       <path d="M-42,-80 Q-48,-45 -38,-14 L-33,-22 Q-39,-45 -35,-69 Z M40,-81 Q48,-47 40,-16 L35,-24 Q39,-47 34,-70 Z" fill="url(#${id}-lock)"/>
+       <path d="M-36,-88 Q-31,-110 -10,-114 Q-23,-108 -28,-94 Z M-6,-115 Q12,-119 24,-108 Q11,-111 3,-100 Z" fill="${L.hairHi}" opacity=".48"/>
+       <path d="M-32,-103 Q-17,-116 3,-115 M8,-115 Q19,-115 27,-109 M-40,-57 Q-41,-34 -37,-26" stroke="#e1a5ce" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".8"/>
+       <path d="M-18,-105 Q-22,-94 -28,-89 M7,-108 Q4,-94 -5,-87 M25,-104 Q27,-94 34,-90 M42,-47 L41,-28" stroke="${L.hairShade}" stroke-width="1.1" fill="none"/>
+       <g transform="translate(-33 -91) rotate(-28)"><rect x="-7" y="-2" width="14" height="4" rx="2" fill="#ffe5a5" stroke="#c78761" stroke-width=".6"/><path d="M0,-6 L1.7,-1.8 L6,0 L1.7,1.7 L0,6 L-1.7,1.7 L-6,0 L-1.7,-1.8 Z" fill="#fff1be"/><circle r="1.3" fill="#fff"/></g>`
+    : `<path d="M-43,-69 Q-45,-100 -24,-114 Q-8,-125 12,-119 Q31,-120 41,-102 L43,-88 L39,-70 L32,-81 L29,-73 L19,-86 L11,-79 L5,-91 L-5,-78 L-13,-88 L-25,-78 L-28,-88 Z" fill="url(#${id}-hair)"/>
+       <path d="M-34,-103 Q-14,-122 9,-115 Q-5,-111 -13,-96 L-17,-88 L-20,-97 L-31,-88 Z" fill="url(#${id}-lock)"/>
+       <path d="M-6,-115 Q16,-121 31,-105 L37,-91 L25,-99 L28,-84 L17,-95 L11,-86 L9,-101 L0,-92 Z" fill="url(#${id}-lock)"/>
+       <path d="M-42,-72 Q-45,-56 -40,-47 L-36,-62 L-34,-79 Z M40,-74 Q45,-60 40,-47 L36,-62 L34,-82 Z" fill="url(#${id}-hair)"/>
+       <path d="M-34,-104 Q-19,-117 -3,-115 Q-17,-109 -23,-99 Z M3,-114 Q17,-116 27,-107 L15,-109 L10,-104 Z" fill="#9bafd5" opacity=".42"/>
+       <path d="M-36,-101 Q-24,-115 -10,-116 M-29,-95 L-33,-89 M4,-117 Q17,-119 25,-112 M-41,-63 L-40,-56" stroke="#b4cae8" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".8"/>
+       <path d="M-10,-107 L-16,-95 M18,-104 L23,-97 M32,-98 L37,-87" stroke="${L.hairShade}" stroke-width="1.2" fill="none" stroke-linecap="round"/>`;
 
   const face = `
-    <path d="M-8.5,-22 L-8.5,3 L8.5,3 L8.5,-22 Z" fill="${L.skin}"/>
-    <ellipse cx="0" cy="-15" rx="12" ry="5" fill="${L.skinShade}" opacity=".45"/>
-    <ellipse cx="-41" cy="-56" rx="6.5" ry="9.5" fill="${L.skin}"/><ellipse cx="41" cy="-56" rx="6.5" ry="9.5" fill="${L.skin}"/>
-    <path d="M-41,-60 q-3,4 0,8 M41,-60 q3,4 0,8" stroke="${L.skinShade}" stroke-width="1.4" fill="none"/>
-    ${isF ? `<circle cx="-42" cy="-46" r="2.2" fill="#ffd84d"/><circle cx="42" cy="-46" r="2.2" fill="#ffd84d"/>` : ""}
+    <path d="M-8.5,-22 V3 Q0,9 8.5,3 V-22 Z" fill="url(#${id}-skin)"/>
+    <path d="M-8.5,-20 H8.5 V-7 Q0,-3 -8.5,-10 Z" fill="${L.skinShade}" opacity=".65"/>
+    <ellipse cx="-41" cy="-56" rx="6.5" ry="9.5" fill="url(#${id}-skin)"/><ellipse cx="41" cy="-56" rx="6.5" ry="9.5" fill="url(#${id}-skin)"/>
+    <path d="M-42,-61 Q-46,-56 -41,-51 L-40,-55 M42,-61 Q46,-56 41,-51 L40,-55" stroke="${L.skinShade}" stroke-width="1.2" stroke-linecap="round" fill="none"/>
     <path d="M-41,-66 C-42,-97 -21,-111 0,-111 C21,-111 42,-97 41,-66 C41,-40 25,-16 0,-14 C-25,-16 -41,-40 -41,-66 Z" fill="url(#${id}-face)"/>
+    <path d="M37,-64 C38,-44 22,-20 0,-17 Q19,-13 33,-34 Q44,-49 41,-68 Z" fill="${L.skinShade}" opacity=".33"/>
+    <path d="M-38,-71 Q-41,-47 -26,-30" stroke="#fff2df" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".9"/>
+    ${isF ? `<path d="M-44,-46 l2,-3 l2,3 l-2,3 Z M40,-46 l2,-3 l2,3 l-2,3 Z" fill="#ffe5a5"/>` : ""}
     <g class="feat">
-      <ellipse class="blushL" cx="-25" cy="-40" rx="7" ry="4" fill="#ff7aa8" opacity=".3"/><ellipse class="blushR" cx="25" cy="-40" rx="7" ry="4" fill="#ff7aa8" opacity=".3"/>
-      <path d="M-29,-42.5 l2,-2.6 M-25,-42.5 l2,-2.6 M21,-42.5 l2,-2.6 M25,-42.5 l2,-2.6" class="shine" stroke="#ffffff" stroke-width="1" opacity="0"/>
+      <ellipse class="blushL" cx="-25" cy="-40" rx="9" ry="5.5" fill="url(#${id}-cheek)"/><ellipse class="blushR" cx="25" cy="-40" rx="9" ry="5.5" fill="url(#${id}-cheek)"/>
+      <path class="shine" d="M-29,-42.5 l2,-2.6 M-25,-42.5 l2,-2.6 M21,-42.5 l2,-2.6 M25,-42.5 l2,-2.6" stroke="#fff5ed" stroke-width="1" stroke-linecap="round" opacity="0"/>
       ${eye("L")}${eye("R")}${brow("L")}${brow("R")}
-      <path d="M-1.6,-42 Q0.4,-38.8 2.4,-41.2" stroke="${L.skinShade}" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M-1.6,-42 Q.4,-38.8 2.4,-41.2" stroke="${L.skinShade}" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      <path d="M-1.5,-43.8 L0,-44.4" stroke="#fff6e9" stroke-width="1.4" stroke-linecap="round"/>
       <g class="mouth">
-        <path class="mfill" d="M-6,-31 L6,-31 L6,-30 L-6,-30 Z" fill="#6e1b32"/>
-        <g clip-path="url(#${id}-mouth)"><rect class="teeth" x="-12" y="-40" width="24" height="7.6" fill="#ffffff"/><ellipse class="tongue" cx="0" cy="-22" rx="6" ry="4" fill="#ff7b93"/></g>
+        <path class="mfill" d="M-6,-31 L6,-31 L6,-30 L-6,-30 Z" fill="#591f3a"/>
+        <g clip-path="url(#${id}-mouth)"><rect class="teeth" x="-12" y="-40" width="24" height="7.6" fill="#fff9f4"/><ellipse class="tongue" cx="0" cy="-22" rx="6" ry="4" fill="#ff8da3"/></g>
         <path class="mline" d="M-6,-31 L6,-31" stroke="${L.lip}" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       </g>
       <g class="tears"></g>
@@ -277,6 +367,7 @@ function markup(kind: Kind, id: string) {
     </g>
   </g>`;
 }
+
 
 /* ------------------------------------------------------------------ the performer */
 
