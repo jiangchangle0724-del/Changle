@@ -5,8 +5,9 @@ import { api, ApiError } from "../lib/api";
 import { sfx } from "../lib/sfx";
 import { savedName } from "../online/config";
 import { useStore } from "../store";
+import type { AvatarCfg } from "../shared/avatar/cfg";
 import { useAccount, type SelfUser } from "./AccountContext";
-import { ProfileForm, type ProfileValues } from "./ProfileForm";
+import { ProfileForm, type FaceKind, type ProfileValues } from "./ProfileForm";
 
 type Step = { k: "email" } | { k: "code"; email: string; dev?: string } | { k: "profile"; email: string; ticket: string };
 
@@ -22,6 +23,8 @@ export function SignInSheet() {
   const [error, setError] = useState("");
   const [wait, setWait] = useState(0);
   const [photo, setPhoto] = useState<Blob | null>(null);
+  const [look, setLook] = useState<AvatarCfg | null>(null);
+  const [show, setShow] = useState<FaceKind>("none");
   const codeRef = useRef<HTMLInputElement>(null);
   const [codeFocus, setCodeFocus] = useState(false);
 
@@ -32,6 +35,8 @@ export function SignInSheet() {
         setCode("");
         setError("");
         setPhoto(null);
+        setLook(null);
+        setShow("none");
       }, 400);
       return () => window.clearTimeout(id);
     }
@@ -112,13 +117,12 @@ export function SignInSheet() {
     try {
       const d = await api<{ token: string; user: SelfUser }>("/auth/signup", { body: { ticket: step.ticket, ...v, adult } });
       signedIn(d.token, d.user);
-      if (photo) {
-        try {
-          const r = await api<{ user: SelfUser }>("/me/avatar", { method: "PUT", raw: photo, type: "image/jpeg" });
-          signedIn(d.token, r.user);
-        } catch {
-          /* the photo can be added later */
-        }
+      // the face: an anime look is kept even when the photo is what shows
+      try {
+        if (look) signedIn(d.token, (await api<{ user: SelfUser }>("/me/look", { method: "PUT", body: { look, use: show === "anime" } })).user);
+        if (show === "photo" && photo) signedIn(d.token, (await api<{ user: SelfUser }>("/me/avatar", { method: "PUT", raw: photo, type: "image/jpeg" })).user);
+      } catch {
+        /* the face can be added later */
       }
       sfx.win();
       openSignIn(false);
@@ -206,11 +210,21 @@ export function SignInSheet() {
         <ProfileForm
           mode="signup"
           initial={{ name: savedName(), phone: "", city: "", gender: "", bio: "", ac: Math.floor(Math.random() * 10) }}
+          show={show}
+          look={look}
           photo={photo}
           busy={busy}
           error={error}
-          onPhoto={setPhoto}
-          onRemovePhoto={() => setPhoto(null)}
+          onLook={(c) => {
+            setLook(c);
+            setShow("anime");
+          }}
+          onUseLook={() => setShow("anime")}
+          onPhoto={(b) => {
+            setPhoto(b);
+            setShow("photo");
+          }}
+          onRemovePhoto={() => setShow("none")}
           onSubmit={(v, adult) => void signup(v, adult)}
         />
       )}

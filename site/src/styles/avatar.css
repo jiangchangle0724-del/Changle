@@ -568,3 +568,48 @@
     transition: none;
   }
 }
+
+/* ---------- a profile's face, standing ---------- */
+.me-figure {
+  position: relative;
+  flex: none;
+  width: 96px;
+  isolation: isolate;
+}
+.me-figure > span,
+.me-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* their own color, as a pool of light at their feet */
+.me-figure::before {
+  content: "";
+  position: absolute;
+  left: -14%;
+  right: -14%;
+  bottom: -6%;
+  height: 34%;
+  z-index: -1;
+  background: radial-gradient(50% 42% at 50% 72%, color-mix(in oklab, var(--av) 46%, transparent), transparent 72%);
+}
+
+/* the form's face: the look drawn on its backdrop */
+.pf-look > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pf-face > .pf-face-side {
+  flex: 1 1 auto;
+}
+.pf-kind {
+  align-self: stretch;
+  max-width: 260px;
+}
+.pf-kind > button {
+  flex: 1 1 auto;
+  gap: 5px;
+  padding: 0 10px;
+  white-space: nowrap;
+}

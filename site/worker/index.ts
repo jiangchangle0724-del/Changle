@@ -137,8 +137,12 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
     bytes,
     type,
   })) as unknown as Reply;
-  if (r.bytes)
-    return cors(new Response(r.bytes, { status: r.status, headers: { "Content-Type": r.type ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" } }), req, r.cache ?? "no-store");
+  if (r.bytes) {
+    const headers: Record<string, string> = { "Content-Type": r.type ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" };
+    // (a drawn avatar is SVG: opened on its own it may not run anything or load anything)
+    if (r.type === "image/svg+xml") headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+    return cors(new Response(r.bytes, { status: r.status, headers }), req, r.cache ?? "no-store");
+  }
   return cors(json(r.json ?? {}, r.status), req);
 }
 

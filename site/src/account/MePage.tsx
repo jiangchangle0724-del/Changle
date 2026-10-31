@@ -6,8 +6,9 @@ import { api } from "../lib/api";
 import { LIGHTS, setLight } from "../lib/anim";
 import { sfx } from "../lib/sfx";
 import { useStore } from "../store";
+import type { AvatarCfg } from "../shared/avatar/cfg";
 import { useAccount, useLive, type SelfUser } from "./AccountContext";
-import { Avatar } from "./Avatar";
+import { Face } from "./avatar/Face";
 import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
 import { ProfileForm } from "./ProfileForm";
@@ -83,6 +84,16 @@ export function MePage({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const showLook = async (look: AvatarCfg) => {
+    try {
+      const d = await api<{ user: SelfUser }>("/me/look", { method: "PUT", body: { look, use: true } });
+      setMe(d.user);
+      sfx.pop();
+    } catch {
+      setError(zh ? "头像没存上，再试一次" : "The avatar didn't save. Try again");
+    }
+  };
+
   return (
     <div className="screen me">
       <TopBar
@@ -94,7 +105,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
         }
       />
       <header className="me-head">
-        <Avatar uid={me.id} name={me.name} av={me.av} ac={me.ac} size={88} className="me-avatar" />
+        <Face user={me} on={!!me.lookOn} />
         <div className="me-id">
           <h1 className="me-name">{me.name}</h1>
           <p className="me-tags">
@@ -165,8 +176,12 @@ export function MePage({ onBack }: { onBack: () => void }) {
           uid={me.id}
           av={me.av}
           initial={{ name: me.name, phone: me.phone, city: me.city, gender: me.gender, bio: me.bio, ac: me.ac }}
+          show={me.lookOn ? "anime" : me.av > 0 ? "photo" : "none"}
+          look={me.look}
           busy={busy}
           error={error}
+          onLook={(c) => void showLook(c)}
+          onUseLook={() => me.look && void showLook(me.look)}
           onPhoto={(b) => void photo(b)}
           onRemovePhoto={() => void api<{ user: SelfUser }>("/me/avatar", { method: "DELETE" }).then((d) => setMe(d.user), () => {})}
           onSubmit={(v) => void save(v)}

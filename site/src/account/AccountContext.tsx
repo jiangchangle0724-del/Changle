@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SERVER } from "../config";
 import { api, sessionToken, setSessionToken } from "../lib/api";
+import type { AvatarCfg } from "../shared/avatar/cfg";
 
 export type Gender = "female" | "male" | "nonbinary" | "private";
-export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number };
-export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean };
+export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; look?: AvatarCfg | null };
+/** `look` is your anime look (kept while a photo shows); `lookOn`, whether it's the avatar others see. */
+export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; lookOn?: boolean };
 export type ChatMsg = { id: number; from: string; body: string; at: number; read: boolean };
 
 export type LiveEvent = { t: "msg"; with: string; msg: ChatMsg } | { t: "friends" } | { t: "unread"; n: number } | { t: "hello"; unread: number; requests?: number } | { t: "read"; with: string };

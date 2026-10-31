@@ -5,6 +5,8 @@
  * live socket open while signed in, for chat and friend requests as they happen.
  */
 import { DurableObject } from "cloudflare:workers";
+import { sanitize, type AvatarCfg } from "../src/shared/avatar/cfg";
+import { renderAvatar } from "../src/shared/avatar/render";
 
 export type HubEnv = { RESEND_API_KEY?: string; MAIL_FROM?: string; ADMIN_EMAILS?: string; DEV_SHOW_CODES?: string };
 
@@ -79,6 +81,8 @@ export class Hub extends DurableObject<HubEnv> {
       gender TEXT NOT NULL, bio TEXT NOT NULL DEFAULT '', av INTEGER NOT NULL DEFAULT 0, ac INTEGER NOT NULL DEFAULT 0,
       handle TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS avatars (user_id TEXT PRIMARY KEY, mime TEXT NOT NULL, data BLOB NOT NULL, updated_at INTEGER NOT NULL)`);
+    // an anime look: the maker's choices (JSON), kept even while a photo is the avatar
+    q(`CREATE TABLE IF NOT EXISTS looks (user_id TEXT PRIMARY KEY, cfg TEXT NOT NULL, updated_at INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS codes (email TEXT PRIMARY KEY, hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent_at INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS tickets (hash TEXT PRIMARY KEY, email TEXT NOT NULL, expires INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, last_used INTEGER NOT NULL, expires INTEGER NOT NULL)`);
@@ -209,6 +213,21 @@ export class Hub extends DurableObject<HubEnv> {
       this.sql.exec(`UPDATE users SET av = av + 1 WHERE id = ?`, me.id);
       return ok({ user: this.selfView(this.userById(me.id)!) });
     }
+    if (path === "/me/look" && m === "PUT") {
+      // the look is redrawn here from its choices (never taken as a picture), and by default it
+      // becomes the avatar everyone sees
+      if (!b.look || typeof b.look !== "object") return err(400, "bad");
+      if (!this.allow(`av:${me.id}`, 30, 3600_000)) return err(429, "slow-down");
+      const look = sanitize(b.look);
+      const now = Date.now();
+      this.sql.exec(`INSERT INTO looks (user_id, cfg, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET cfg = excluded.cfg, updated_at = excluded.updated_at`, me.id, JSON.stringify(look), now);
+      if (b.use !== false) {
+        const svg = new TextEncoder().encode(renderAvatar(look, { view: "head", id: "av" }));
+        this.sql.exec(`INSERT INTO avatars (user_id, mime, data, updated_at) VALUES (?, 'image/svg+xml', ?, ?) ON CONFLICT(user_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at`, me.id, svg, now);
+        this.sql.exec(`UPDATE users SET av = av + 1 WHERE id = ?`, me.id);
+      }
+      return ok({ user: this.selfView(this.userById(me.id)!) });
+    }
     if (path === "/me/avatar" && m === "DELETE") {
       this.sql.exec(`DELETE FROM avatars WHERE user_id = ?`, me.id);
       this.sql.exec(`UPDATE users SET av = 0 WHERE id = ?`, me.id);
@@ -231,7 +250,8 @@ export class Hub extends DurableObject<HubEnv> {
       const u = this.userById(mm[1]);
       if (!u) return err(404, "none");
       const rel = this.relation(me.id, u.id);
-      return ok({ user: this.publicView(u), relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [] });
+      const lk = this.look(u.id);
+      return ok({ user: { ...this.publicView(u), look: lk.on ? lk.cfg : null }, relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [] });
     }
     if (path === "/users" && m === "GET") {
       const q = clean((c.body as { q?: string } | undefined)?.q ?? "", 30);
@@ -314,7 +334,21 @@ export class Hub extends DurableObject<HubEnv> {
   }
 
   private selfView(u: U) {
-    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u) };
+    const lk = this.look(u.id);
+    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), look: lk.cfg, lookOn: lk.on };
+  }
+
+  /** Someone's anime look, and whether it's the avatar they show (rather than a photo). */
+  private look(id: string): { cfg: AvatarCfg | null; on: boolean } {
+    const r = this.one(`SELECT l.cfg AS cfg, a.mime AS mime FROM looks l LEFT JOIN avatars a ON a.user_id = l.user_id WHERE l.user_id = ?`, id);
+    if (!r) return { cfg: null, on: false };
+    let cfg: AvatarCfg | null = null;
+    try {
+      cfg = sanitize(JSON.parse(String(r.cfg)));
+    } catch {
+      cfg = null;
+    }
+    return { cfg, on: !!cfg && r.mime === "image/svg+xml" };
   }
 
   private publicView(u: U) {
@@ -438,6 +472,7 @@ export class Hub extends DurableObject<HubEnv> {
     for (const s of [
       `DELETE FROM sessions WHERE user_id = ?`,
       `DELETE FROM avatars WHERE user_id = ?`,
+      `DELETE FROM looks WHERE user_id = ?`,
       `DELETE FROM history WHERE user_id = ?`,
       `DELETE FROM friends WHERE a = ? OR b = ?`,
       `DELETE FROM messages WHERE a = ? OR b = ?`,
