@@ -30,7 +30,7 @@ From the repository root:
 
 Open the Wrangler URL shown in the terminal, usually http://127.0.0.1:8787. To play from phones on the same Wi-Fi, open the same port at your computer's LAN address. The dev server binds to all interfaces for this purpose. Create a room on one phone and join with its four-digit code on the others.
 
-Mobile players use the on-screen joystick, Punch, and Blend controls; Punch is sent as soon as the touch begins. On a computer, use the arrow keys or W/A/S/D anywhere in the match. Compatible controllers use the left stick or D-pad to move, A to Punch, and X to Blend. A TV can open the room's TV link directly; alternatively, open it on a spare phone and mirror that phone to the TV with AirPlay or a similar casting option.
+Mobile players use the on-screen joystick, Punch, and Blend controls; Punch is sent as soon as the touch begins. In landscape, the arena fills the available screen and the controls stay at the lower left; tap the fullscreen icon in the game HUD to request immersive fullscreen and a landscape lock where the browser permits it. On iPhone Safari, add the game to the Home Screen and launch it from there for a standalone screen without Safari browser chrome. On a computer, use the arrow keys or W/A/S/D anywhere in the match. Compatible controllers use the left stick or D-pad to move, A to Punch, and X to Blend. A TV can open the room's TV link directly; alternatively, open it on a spare phone and mirror that phone to the TV with AirPlay or a similar casting option.
 
 ## Test and build
 
@@ -55,4 +55,5 @@ Append `?fps=1` to an active room URL on iPhone or iPad Safari. Start a match wi
 4. Share the deployed HTTPS address. Players use the home page; the room owner can copy the TV view link after creating a room. Open that link on a TV browser or a spare phone and mirror it.
 
 The Worker configuration provisions the ArenaRoom Durable Object and serves the built client assets. No secrets or external game assets are required.
+
 

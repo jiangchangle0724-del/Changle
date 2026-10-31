@@ -5,6 +5,9 @@ const S = {
   tagline: ["走得像路人，出手要果断。", "Walk like a passer-by. Strike with intent."],
   subtitle: ["手机操控，电视看全场。", "Play on phones. See the whole arena on a TV."],
   rotateTip: ["横过手机，获得完整对战视野。", "Rotate your phone for a wider arena."],
+  enterFullscreen: ["全屏", "Full screen"],
+  exitFullscreen: ["退出全屏", "Exit full screen"],
+  fullscreenHelp: ["此 Safari 暂不支持网页全屏。请从分享菜单选择“添加到主屏幕”，再从主屏幕打开游戏。", "This Safari version does not support web page fullscreen. Use Share → Add to Home Screen, then launch the game from the Home Screen."],
   name: ["你的名字", "Your name"],
   create: ["创建房间", "Create room"],
   join: ["加入房间", "Join room"],
@@ -117,3 +120,4 @@ export function t(key: Key, vars: Record<string, string | number> = {}): string 
   const value = S[key][lang === "zh" ? 0 : 1];
   return value.replace(/\{(\w+)\}/g, (_match, name: string) => (name in vars ? String(vars[name]) : "{" + name + "}"));
 }
+

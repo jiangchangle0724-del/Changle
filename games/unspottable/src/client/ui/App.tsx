@@ -27,14 +27,6 @@ function navigate(path: string): void {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-function requestLandscape(): void {
-  try {
-    const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
-    if (typeof orientation?.lock === "function") void orientation.lock("landscape").catch(() => undefined);
-  } catch {
-    // iOS Safari does not expose orientation locking; rotating the device still activates the landscape layout.
-  }
-}
 
 function savedName(): string {
   try {
@@ -87,6 +79,13 @@ export function App() {
     setLang(lang);
     applyTheme(theme, reduced);
   }, [lang, theme, reduced]);
+
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    if (standalone) document.documentElement.dataset.standalone = "1";
+    else delete document.documentElement.dataset.standalone;
+    return () => { delete document.documentElement.dataset.standalone; };
+  }, []);
 
   const changeLang = (value: Lang) => {
     setLang(value);
@@ -159,7 +158,6 @@ function HomePage(props: HomeProps) {
 
   const create = async () => {
     if (!name.trim()) { setError(t("emptyName")); return; }
-    requestLandscape();
     setBusy(true);
     setError("");
     saveName(name.trim().slice(0, 18));
@@ -176,7 +174,6 @@ function HomePage(props: HomeProps) {
   const join = async () => {
     if (!name.trim()) { setError(t("emptyName")); return; }
     if (!/^\d{4}$/.test(code)) { setError(t("invalidCode")); return; }
-    requestLandscape();
     setBusy(true);
     setError("");
     saveName(name.trim().slice(0, 18));
@@ -230,6 +227,9 @@ interface RoomPageProps extends PreferencesProps {
 }
 
 function RoomPage(props: RoomPageProps) {
+  const roomShellRef = useRef<HTMLElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenHelp, setFullscreenHelp] = useState(false);
   const [view, setView] = useState<RoomView | null>(null);
   const [status, setStatus] = useState<ConnectionState>("connecting");
   const [error, setError] = useState("");
@@ -238,6 +238,21 @@ function RoomPage(props: RoomPageProps) {
   const connectionRef = useRef<RoomConnection | null>(null);
   const [refresh, setRefresh] = useState(0);
   const send = useCallback((message: ClientMsg) => connectionRef.current?.send(message), []);
+
+  useEffect(() => {
+    const updateFullscreen = () => {
+      const safariDocument = document as Document & { webkitFullscreenElement?: Element | null };
+      const activeElement = document.fullscreenElement ?? safariDocument.webkitFullscreenElement ?? null;
+      setFullscreen(Boolean(roomShellRef.current && activeElement === roomShellRef.current));
+    };
+    document.addEventListener("fullscreenchange", updateFullscreen);
+    document.addEventListener("webkitfullscreenchange", updateFullscreen);
+    updateFullscreen();
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreen);
+      document.removeEventListener("webkitfullscreenchange", updateFullscreen);
+    };
+  }, []);
 
   useEffect(() => {
     const connection = openRoomClient(
@@ -281,6 +296,39 @@ function RoomPage(props: RoomPageProps) {
     }
   };
 
+  const toggleFullscreen = async () => {
+    const shell = roomShellRef.current;
+    const safariDocument = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const activeElement = document.fullscreenElement ?? safariDocument.webkitFullscreenElement ?? null;
+    if (activeElement) {
+      const exit = document.exitFullscreen?.bind(document) ?? safariDocument.webkitExitFullscreen?.bind(document);
+      try { await exit?.(); } catch { /* Safari also provides a native fullscreen exit gesture. */ }
+      setFullscreen(false);
+      return;
+    }
+    const safariShell = shell as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }) | null;
+    const request = shell?.requestFullscreen?.bind(shell) ?? safariShell?.webkitRequestFullscreen?.bind(safariShell);
+    if (!shell || !request) {
+      setFullscreenHelp(true);
+      return;
+    }
+    try {
+      const pendingFullscreen = request();
+      const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
+      if (typeof orientation?.lock === "function") void orientation.lock("landscape").catch(() => undefined);
+      await pendingFullscreen;
+
+
+      setFullscreen(true);
+      setFullscreenHelp(false);
+    } catch {
+      setFullscreenHelp(true);
+    }
+  };
+
   const leave = () => {
     send({ t: "leave" });
     props.onHome();
@@ -313,7 +361,7 @@ function RoomPage(props: RoomPageProps) {
   const game = view.game;
   if (!game) return <main class="room-shell">{top}<p class="status-message">{t("connecting")}</p></main>;
 
-  return <main class={props.role === "screen" ? "tv-shell" : "room-shell"}>
+  return <main ref={roomShellRef} class="room-shell room-shell--playing">
     {top}
     <GameScreen
       view={view}
@@ -327,6 +375,10 @@ function RoomPage(props: RoomPageProps) {
       onAgain={() => send({ t: "again" })}
       onCopy={copyTv}
       copied={copied}
+      fullscreen={fullscreen}
+      fullscreenHelp={fullscreenHelp}
+      onFullscreen={() => void toggleFullscreen()}
+      onLeave={leave}
     />
   </main>;
 }
@@ -418,6 +470,10 @@ function GameScreen(props: {
   onAgain: () => void;
   onCopy: () => void;
   copied: boolean;
+  fullscreen: boolean;
+  fullscreenHelp: boolean;
+  onFullscreen: () => void;
+  onLeave: () => void;
 }) {
   const [localVector, setLocalVector] = useState({ x: 0, y: 0 });
   const remaining = Math.max(0, props.game.remainingMs - (props.now - props.receivedAt));
@@ -440,9 +496,18 @@ function GameScreen(props: {
       <div class="hud-right">
         <strong class="timer">{seconds}</strong>
         <span>{t("timeLeft", { n: seconds })}</span>
+        {props.role === "player" && <>
+          <button class="btn leave-game-button" aria-label={t("leave")} onClick={props.onLeave}>
+            <span aria-hidden="true">↩</span><span>{t("leave")}</span>
+          </button>
+          <button class="btn fullscreen-button" aria-label={t(props.fullscreen ? "exitFullscreen" : "enterFullscreen")} aria-pressed={props.fullscreen} onClick={props.onFullscreen}>
+            <span aria-hidden="true">⛶</span><span>{t(props.fullscreen ? "exitFullscreen" : "enterFullscreen")}</span>
+          </button>
+        </>}
       </div>
     </header>
     <p class="orientation-hint">{t("rotateTip")}</p>
+    {props.role === "player" && props.fullscreenHelp && <p class="fullscreen-help" role="status">{t("fullscreenHelp")}</p>}
     <Arena3D
       avatars={props.game.avatars}
       arena={props.game.arena}
@@ -747,3 +812,4 @@ function PlayerControls(props: { game: GameView; send: (message: ClientMsg) => v
     </div>
   </div>;
 }
+
