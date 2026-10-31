@@ -3,7 +3,8 @@
 "Where should we eat?" "Whatever's fine." A tool on [changle.ca](https://changle.ca), at
 [changle.ca/eat](https://changle.ca/eat), that lets a group of friends in Vancouver pick a
 restaurant together in a few minutes, each on their own phone.
-Why it works the way it does: [DESIGN.md](DESIGN.md).
+Why it works the way it does: [DESIGN.md](DESIGN.md). Picking it up? The current state, commands
+and settings: [HANDOFF.md](HANDOFF.md).
 
 This folder is **v1**: "now" tables (everyone together, deciding live). It is its own Cloudflare
 Worker (`suibian`), separate from 到此一游, and shares no code or storage with it.
@@ -55,7 +56,8 @@ npm run dev          # http://localhost:8787/eat/, with made-up demo restaurants
 ```
 
 To try it from a phone on the same Wi-Fi: `npm run dev -- --ip 0.0.0.0`, then open the computer's
-address on port 8787, followed by `/eat/`.
+address on port 8787, followed by `/eat/`. To run it with Google switched on, copy
+`.dev.vars.example` to `.dev.vars` and fill it in (it says what each setting is).
 
 ## Check it
 
