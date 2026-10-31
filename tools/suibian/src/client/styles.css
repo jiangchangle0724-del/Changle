@@ -596,6 +596,37 @@ select {
   max-width: 100%;
 }
 
+/* Privacy and terms pages (privacy.html, terms.html): plain reading pages, both languages. */
+.legal article {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.legal article + article {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+.legal h1 {
+  font-size: 1.8rem;
+  margin-top: 8px;
+}
+.legal h2 {
+  font-size: 1.1rem;
+  margin-top: 12px;
+}
+.legal ul {
+  margin: 0;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legal-links {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

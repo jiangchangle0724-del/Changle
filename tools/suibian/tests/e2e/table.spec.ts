@@ -112,3 +112,25 @@ test("guests can't start a table when login is on", async ({ request }) => {
   const res = await request.post("/eat/api/rooms", { data: { cid: "abcdef0123456789", center: { lat: 49.28, lng: -123.12 }, range: "walk10" } });
   expect(res.status()).toBe(401);
 });
+
+test("the privacy and terms pages are public and linked from the home page", async ({ page, request }) => {
+  // Google needs both pages to publish the sign-in screen; they work without JavaScript.
+  for (const [path, zh, en] of [
+    ["/eat/privacy", "隐私政策", "Privacy"],
+    ["/eat/terms", "使用条款", "Terms"],
+  ] as const) {
+    const res = await request.get(path);
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(`<h1>${zh}</h1>`);
+    expect(html).toContain(`<h1>${en}</h1>`);
+  }
+  await page.goto("/eat/");
+  await page.getByRole("link", { name: "隐私政策" }).click();
+  await expect(page).toHaveURL(/\/eat\/privacy$/);
+  await expect(page.getByRole("heading", { name: "隐私政策" })).toBeVisible();
+  await page.getByRole("link", { name: "使用条款 · Terms" }).click();
+  await expect(page).toHaveURL(/\/eat\/terms$/);
+  await page.getByRole("link", { name: /随便 · Whatever's Fine/ }).click();
+  await expect(page).toHaveURL(/\/eat\/$/);
+});

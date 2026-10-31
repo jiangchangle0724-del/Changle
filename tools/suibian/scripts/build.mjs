@@ -23,9 +23,12 @@ const ctx = await esbuild.context({
   legalComments: "none",
   logLevel: "info",
 });
-// The one page: /eat/ (home), and the worker serves it for /eat/r/1234 and /eat/r/1234/rate too.
+// The app's page: /eat/ (home), and the worker serves it for /eat/r/1234 and /eat/r/1234/rate too.
 await copyFile("src/client/index.html", `${out}/index.html`);
 await copyFile("src/client/styles.css", `${out}/app.css`);
+// Plain pages, served at /eat/privacy and /eat/terms (Google sign-in needs both to be public).
+await copyFile("src/client/privacy.html", `${out}/privacy.html`);
+await copyFile("src/client/terms.html", `${out}/terms.html`);
 
 if (watch) {
   await ctx.watch();
