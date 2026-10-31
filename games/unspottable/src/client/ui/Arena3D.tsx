@@ -7,6 +7,7 @@ import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine
 import type { ArenaId, Pose } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
 import { t } from "../i18n";
+import { spriteBatchIndex, spriteDirectionRow, spritePoseColumn, SPRITE_ARCHETYPES, SPRITE_DIRECTIONS, SPRITE_FRAMES } from "../spriteAtlas";
 import { addEnvironmentalLandmarks } from "./landmarks";
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 
 interface Visual { x: number; z: number; facing: number; stridePhase: number; speed: number; pose: Pose; poseStartedAt: number }
 type FrameMetrics = { fps: number; avg: number; p95: number; slow: number; quality: RenderQuality; dpr: number };
+interface SpriteBatch { archetype: number; direction: number; frame: number; mesh: THREE.InstancedMesh }
 interface Palette {
   bg: string;
   sky: string;
@@ -43,6 +45,34 @@ interface Palette {
 }
 
 const MAX_CHARACTERS = 26;
+const ARENA_PANORAMAS: Record<ArenaId, string> = {
+  plaza: "/art/plaza-seawall.jpg",
+  metro: "/art/metro-station.jpg",
+  gallery: "/art/gallery-courtyard.jpg"
+};
+const SPRITE_ATLAS_COLUMNS = SPRITE_ARCHETYPES * SPRITE_FRAMES;
+const SPRITE_ATLAS_CELL = 192;
+const SPRITE_ATLAS_PITCH = 200;
+const SPRITE_ATLAS_INSET = 4;
+const SPRITE_ATLAS_WIDTH = SPRITE_ATLAS_COLUMNS * SPRITE_ATLAS_PITCH;
+const SPRITE_ATLAS_HEIGHT = SPRITE_DIRECTIONS * SPRITE_ATLAS_PITCH;
+
+function backgroundIntensity(palette: Palette): number {
+  const color = new THREE.Color(palette.bg);
+  return color.r + color.g + color.b < 1.2 ? 0.46 : 0.94;
+}
+
+function createSpriteCellGeometry(column: number, row: number): THREE.PlaneGeometry {
+  const geometry = new THREE.PlaneGeometry(1.82, 2.35);
+  const uv = geometry.getAttribute("uv") as THREE.BufferAttribute;
+  const uStart = (column * SPRITE_ATLAS_PITCH + SPRITE_ATLAS_INSET) / SPRITE_ATLAS_WIDTH;
+  const vStart = 1 - (row * SPRITE_ATLAS_PITCH + SPRITE_ATLAS_INSET + SPRITE_ATLAS_CELL) / SPRITE_ATLAS_HEIGHT;
+  const uSize = SPRITE_ATLAS_CELL / SPRITE_ATLAS_WIDTH;
+  const vSize = SPRITE_ATLAS_CELL / SPRITE_ATLAS_HEIGHT;
+  for (let index = 0; index < uv.count; index++) uv.setXY(index, uStart + uv.getX(index) * uSize, vStart + uv.getY(index) * vSize);
+  uv.needsUpdate = true;
+  return geometry;
+}
 
 function readPalette(): Palette {
   const style = getComputedStyle(document.documentElement);
@@ -478,7 +508,28 @@ export function Arena3D(props: Props) {
     let palette = readPalette();
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(palette.bg);
+    scene.backgroundIntensity = backgroundIntensity(palette);
     scene.fog = new THREE.Fog(palette.bg, 34, 58);
+    let disposed = false;
+    let panoramaLoaded = false;
+    const panorama = new THREE.TextureLoader().load(ARENA_PANORAMAS[props.arena], () => {
+      if (disposed) return;
+      panoramaLoaded = true;
+      scene.background = panorama;
+      scene.backgroundIntensity = backgroundIntensity(palette);
+    });
+    panorama.colorSpace = THREE.SRGBColorSpace;
+    panorama.mapping = THREE.EquirectangularReflectionMapping;
+    panorama.generateMipmaps = true;
+    panorama.minFilter = THREE.LinearMipmapLinearFilter;
+    panorama.magFilter = THREE.LinearFilter;
+    panorama.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    const crowdAtlas = new THREE.TextureLoader().load("/art/crowd-atlas.png");
+    crowdAtlas.colorSpace = THREE.SRGBColorSpace;
+    crowdAtlas.generateMipmaps = true;
+    crowdAtlas.minFilter = THREE.LinearMipmapLinearFilter;
+    crowdAtlas.magFilter = THREE.LinearFilter;
+    crowdAtlas.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
     camera.position.set(0, 17, 18);
     camera.lookAt(0, 0, 0);
@@ -557,6 +608,29 @@ export function Arena3D(props: Props) {
       mesh.frustumCulled = false;
       scene.add(mesh);
     }
+    for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, caps, shoulders, hands, backpacks, badges, arms, forearms, legs, calves, elbows, knees, shoes]) mesh.visible = false;
+    const spriteMaterial = new THREE.MeshBasicMaterial({
+      map: crowdAtlas,
+      transparent: true,
+      alphaTest: 0.18,
+      depthWrite: true,
+      side: THREE.DoubleSide,
+      toneMapped: false
+    });
+    const spriteBatches: SpriteBatch[] = [];
+    for (let archetype = 0; archetype < SPRITE_ARCHETYPES; archetype++) {
+      for (let direction = 0; direction < SPRITE_DIRECTIONS; direction++) {
+        for (let spriteFrame = 0; spriteFrame < SPRITE_FRAMES; spriteFrame++) {
+          const geometry = createSpriteCellGeometry(archetype * SPRITE_FRAMES + spriteFrame, direction);
+          const mesh = new THREE.InstancedMesh(geometry, spriteMaterial, MAX_CHARACTERS);
+          mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          mesh.count = 0;
+          mesh.frustumCulled = false;
+          scene.add(mesh);
+          spriteBatches.push({ archetype, direction, frame: spriteFrame, mesh });
+        }
+      }
+    }
     const dummy = new THREE.Object3D();
     const markerCanvas = document.createElement("canvas");
     markerCanvas.width = 512;
@@ -634,7 +708,8 @@ export function Arena3D(props: Props) {
           if (token && "color" in material) (material as THREE.MeshStandardMaterial).color.set(palette[token]);
         }
       });
-      scene.background = new THREE.Color(palette.bg);
+      scene.background = panoramaLoaded ? panorama : new THREE.Color(palette.bg);
+      scene.backgroundIntensity = backgroundIntensity(palette);
       if (scene.fog) scene.fog.color.set(palette.bg);
       paintGroundTexture(groundTexture, props.arena, palette);
       bodyMat.color.set(lightTint(palette));
@@ -748,6 +823,7 @@ export function Arena3D(props: Props) {
       const reduced = document.documentElement.dataset.reduced === "1" || (document.documentElement.dataset.reduced !== "0" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       const ease = reduced ? 1 : 1 - Math.exp(-delta / 46);
       const snapshot = targets.current;
+      for (const batch of spriteBatches) batch.mesh.count = 0;
       body.count = snapshot.length;
       head.count = snapshot.length;
       neck.count = snapshot.length;
@@ -870,6 +946,12 @@ export function Arena3D(props: Props) {
         writeInstance(badges, index, dummy, visual.x + Math.sin(yawNow) * 0.31, 1.02 + bounce, visual.z + Math.cos(yawNow) * 0.31, yawNow, index % 4 === 0 ? 1.15 : 0.72, 1, 1, bodyTilt * 0.35);
         const shadowSpread = (staggered ? 1.08 : 0.82) + bounce * 0.7;
         writeInstance(shadows, index, dummy, visual.x + 0.2, 0.005, visual.z - 0.15, 0, shadowSpread, 1, staggered ? 0.92 : 0.72);
+        const spriteDirection = spriteDirectionRow(yawNow);
+        const spriteFrame = spritePoseColumn(avatar.pose, gait, visual.stridePhase);
+        const spriteBatch = spriteBatches[spriteBatchIndex(index, spriteDirection, spriteFrame)];
+        const spriteSlot = spriteBatch.mesh.count;
+        writeInstance(spriteBatch.mesh, spriteSlot, dummy, visual.x, 1.16 + bounce, visual.z, 0, 1, 1, 1, bodyTilt * 0.28, staggered ? Math.cos(clock * 19 + index) * 0.16 : accelerationLean * 0.2);
+        spriteBatch.mesh.count = spriteSlot + 1;
         const cycleRate = (4 + targetSpeed * 0.72) / (Math.PI * 2);
         const halfStride = gait > 0.05 ? Math.min(2.35, targetSpeed / Math.max(0.5, cycleRate) * 0.5) : 0;
         for (let side = 0; side < 2; side++) {
@@ -922,6 +1004,7 @@ export function Arena3D(props: Props) {
         if (avatar.isMine) localVisual = visual;
       }
       for (const mesh of [body, head, neck, shirts, eyes, pupils, mouths, impactRings, caps, shoulders, hands, backpacks, badges, arms, forearms, legs, calves, elbows, knees, shoes, shadows]) mesh.instanceMatrix.needsUpdate = true;
+      for (const batch of spriteBatches) if (batch.mesh.count > 0) batch.mesh.instanceMatrix.needsUpdate = true;
       if (localVisual) {
         marker.position.set(localVisual.x, 2.68, localVisual.z);
         marker.visible = true;
@@ -936,6 +1019,7 @@ export function Arena3D(props: Props) {
     frame = requestAnimationFrame(animate);
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(frame);
       resizeObserver?.disconnect();
       themeObserver.disconnect();
@@ -951,6 +1035,8 @@ export function Arena3D(props: Props) {
       markerTexture.dispose();
       groundTexture.dispose();
       shadowTexture.dispose();
+      panorama.dispose();
+      crowdAtlas.dispose();
       renderer.dispose();
     };
   }, [props.arena]);

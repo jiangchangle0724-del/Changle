@@ -4,7 +4,7 @@ A bilingual, phone-first crowd-blending party game for changle.ca. Players steer
 
 这是一个手机优先的中英双语派对游戏。玩家在移动人群中操控角色、模仿路人节奏隐藏身份，并抢先给对手贴标签。电视视图展示整个人群和比分，但不会标记真人角色。场景使用原创低多边形 WebGL 3D 画面，并为手机限制渲染开销；不支持 WebGL 的浏览器会切换到 CSS 动画版。移动采用目标 20Hz 的服务端权威模拟，手机输入按模拟帧合并，本机预测让自己操控的角色保持跟手；摇杆加入死区和非线性响应，角色有加速、惯性刹车、人群避让与身体碰撞。动画增加分段四肢、支撑/摆动步态、挥拳前摇与收招、受击反馈。手机请横屏游玩；浏览器支持时会尝试锁定横屏。它是规则致敬作品，没有使用商业游戏的模型、贴图或音频。
 
-The arenas remain original stylized 3D scenes rather than copied game files. Instanced crowd characters and landmark layers keep draw calls bounded; 20 Hz server-authoritative movement ticks coalesce phone input frames, while local prediction keeps the controlled character responsive. A deadzone and curved joystick response improve fine control; crowd separation and contact resolution prevent characters from occupying the same space. Articulated limb segments use a planted stance phase, lifted swing phase, timed punch wind-up and follow-through, and impact feedback. Turn a phone sideways to play; orientation lock is used only when the browser allows it. This is a fan-made rules homage and does not use models, textures, or audio from the commercial game.
+The arenas remain original stylized 3D scenes rather than copied game files. Each arena now has its own original, AI-generated panoramic environment artwork, alongside the existing live 3D landmarks. The crowd uses three original ChatGPT ImageGen character sprite atlases, rendered as animated billboards inside the 3D arenas with front, side, and back views plus walk and punch poses. Server movement, collision, tagging, shadows, and hit rings remain real-time; browser physics does not depend on the artwork. The atlases were compressed for mobile delivery. 20 Hz server-authoritative movement ticks coalesce phone input frames, while local prediction keeps the controlled character responsive. A deadzone and curved joystick response improve fine control; crowd separation and contact resolution prevent characters from occupying the same space. Turn a phone sideways to play; orientation lock is used only when the browser allows it. This is a fan-made rules homage and does not use models, textures, or audio from the commercial game.
 
 ## Original 3D arenas / 场景
 
@@ -55,5 +55,4 @@ Append `?fps=1` to an active room URL on iPhone or iPad Safari. Start a match wi
 4. Share the deployed HTTPS address. Players use the home page; the room owner can copy the TV view link after creating a room. Open that link on a TV browser or a spare phone and mirror it.
 
 The Worker configuration provisions the ArenaRoom Durable Object and serves the built client assets. No secrets or external game assets are required.
-
 

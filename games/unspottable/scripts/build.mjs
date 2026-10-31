@@ -1,9 +1,10 @@
 import * as esbuild from "esbuild";
-import { mkdir, readFile, writeFile, copyFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, copyFile, cp } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
 const out = "dist/client";
 await mkdir(out, { recursive: true });
+await cp("src/client/art", out + "/art", { recursive: true });
 
 const common = {
   bundle: true,
