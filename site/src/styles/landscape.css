@@ -126,7 +126,7 @@
     width: min(30vh, 150px);
   }
   .tn-avatar {
-    height: min(46vh, 220px);
+    height: min(58vh, 236px);
   }
   .game-body > .wheel-svg,
   .net-body > .wheel-svg {
@@ -161,10 +161,11 @@
     height: 64vh;
     width: min(100%, 400px);
   }
-  /* the stage keeps its own three columns */
+  /* the stage keeps its own three columns, the performers standing on its floor */
   .game-body .tn-stage,
   .net-body .tn-stage {
     display: grid;
+    align-items: end;
   }
   .plate-draw .plate-surface,
   .plate-watch .plate-surface {

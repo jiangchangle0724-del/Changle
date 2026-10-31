@@ -546,9 +546,10 @@ html.tv-mode .room-light {
 }
 
 /* ---------- during a game: the code in a corner ---------- */
+/* under the list of players, clear of the game itself (on the left it covered the bottom answers) */
 .tv-corner {
   position: absolute;
-  left: 26px;
+  right: 64px;
   bottom: 22px;
   z-index: 20;
   display: flex;
@@ -818,13 +819,14 @@ html.tv-mode .room-light {
 }
 /* Name That Tune on the big screen: a bigger stage, the titles side by side */
 .tv-game-phone .tn-stage {
-  padding-top: 24px;
+  padding-top: 12px;
 }
+/* tall enough to see the faces, short enough that all four titles fit under the stage */
 .tv-game-phone .tn-avatar {
-  height: 310px;
+  height: 236px;
 }
 .tv-game-phone .tn-stage .vinyl-disc {
-  width: 190px;
+  width: 170px;
 }
 .tv-game-phone .tn-quiz,
 .tv-game-phone .tn-options {
