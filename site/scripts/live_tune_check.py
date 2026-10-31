@@ -2,18 +2,19 @@
 sideways), then an online table with three phones and a phone that only watches.
 
 usage: python3 scripts/live_tune_check.py [out_dir]
+(BASE=https://<branch>.changle-ets.pages.dev/ checks a preview instead; ONLY=solo skips the online table)
 """
 import json, os, re, sys
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "live-shots"
-sys.argv = [sys.argv[0], "https://changle.ca/"]  # party_test reads its base URL from argv
+BASE = os.environ.get("BASE", "https://changle.ca/")
+sys.argv = [sys.argv[0], BASE]  # party_test reads its base URL from argv
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import party_test as T  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 os.makedirs(OUT, exist_ok=True)
 T.OUT = OUT
-BASE = "https://changle.ca/"
 PROXY = {"server": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "小雨", "Kevin"])]
 ok = T.ok
