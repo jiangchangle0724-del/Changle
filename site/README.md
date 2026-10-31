@@ -53,6 +53,8 @@
 
 改完以后重新打包部署即可。
 
+加一个新游戏要改哪些文件：见仓库根目录的 `HANDOFF.md`（Add a party game to the site）。
+
 ## 自己跑起来
 
 ```bash
@@ -78,9 +80,11 @@ python3 scripts/account_check.py    # 登录、资料、好友、聊天
 
 ## 部署
 
-网站在 Cloudflare Pages（项目 changle，域名 changle.ca），服务器是 Cloudflare Worker `changle-rooms`（域名 rooms.changle.ca）。
+网站在 Cloudflare Pages（项目 changle，域名 changle.ca），已经连上 GitHub：PR 合并进 `main` 后自动构建发布（根目录 `site`，构建 `npm run build`，输出 `dist`）。
 
-`deploy/make_pkg.sh` 会打包出 `changle-deploy.zip`：在 Windows 上解压，双击 `deploy.cmd`，自动部署服务器和网站。登录发验证码用 Resend：双击 `set-email-key.cmd`，粘贴 Resend 的 API key（只需要做一次）。
+服务器是 Cloudflare Worker `changle-rooms`（域名 rooms.changle.ca），还没连 GitHub。改了 `worker/` 或 `src/shared/`（游戏规则、协议），合并后要手动部署一次：`npx wrangler login`，再 `npx wrangler deploy -c worker/wrangler.jsonc`。
+
+也可以用 Windows 部署包：`deploy/make_pkg.sh` 会打包出 `changle-deploy.zip`，在 Windows 上解压，双击 `deploy.cmd`，自动部署服务器和网站。登录发验证码用 Resend：双击 `set-email-key.cmd`，粘贴 Resend 的 API key（只需要做一次）。
 
 ## 技术
 

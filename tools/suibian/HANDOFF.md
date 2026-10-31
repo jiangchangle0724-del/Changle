@@ -3,6 +3,8 @@
 For whoever picks up 随便 · Whatever's Fine at [changle.ca/eat](https://changle.ca/eat) next. How it
 works and how to set it up: [README.md](README.md). Why it works that way: [DESIGN.md](DESIGN.md).
 This page is the state of play: where things are, the commands, the settings, and what is left.
+The whole of changle.ca (adding games, how changes go live): [HANDOFF.md](../../HANDOFF.md) at the
+repository's root.
 
 ## Where the code is
 
@@ -13,7 +15,7 @@ One repository, `jiangchangle0724-del/changle-ca`. Each app has its own `package
 | --- | --- | --- |
 | `tools/suibian` | 随便: Cloudflare Worker `suibian` (Preact pages, Durable Objects, Google sign-in, Google Places) | changle.ca/eat |
 | `site` | changle.ca itself (Vite, React). Its Tools tab has the 随便 card: `site/src/tools/Suibian.tsx` | Cloudflare Pages project `changle` |
-| `games/been-there` | 到此一游. Another session works on it: **don't change anything under `games/`** | changle.ca/trip |
+| `games/been-there` | 到此一游. Another session has been working on it: check its open PRs before changing it | changle.ca/trip |
 
 ## Commands
 

@@ -1,6 +1,13 @@
 # changle-ca
 
 Code for [changle.ca](https://changle.ca) (开席 Lazy Susan), a bilingual party-game site.
+Working on it, or picking it up: [HANDOFF.md](HANDOFF.md) (what runs where, how changes go live,
+how to add a game).
+
+| Part | Folder |
+| --- | --- |
+| The site: party games, tools tab, accounts, big screen | [`site`](site) |
+| The online rooms server (rooms.changle.ca) | [`site/worker`](site/worker) |
 
 | Game | Folder |
 | --- | --- |
