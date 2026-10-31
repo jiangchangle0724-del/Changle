@@ -45,7 +45,7 @@ How a table goes:
 | `src/room` | One table from lobby to result. No network inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker: rooms (one Durable Object each), Google Places, Google sign-in, users' diet cards, our per-restaurant ratings. |
 | `src/client` | The phone pages (Preact), Chinese and English, and the privacy and terms pages (`privacy.html`, `terms.html`, plain HTML at `/eat/privacy` and `/eat/terms`). |
-| `tests` | Rules and room tests (Node), and three phones in a browser (`tests/e2e`, Playwright). |
+| `tests` | Rules and room tests (Node), and phones in a browser (`tests/e2e`, Playwright): a whole table, and the privacy and terms pages. |
 
 ## Run it on a computer
 
@@ -62,7 +62,8 @@ address on port 8787, followed by `/eat/`.
 ```sh
 npm run typecheck
 npm test             # rules (incl. "a severe allergy never gets through", 500 random tables) and room
-npm run test:e2e     # three phones: sign in, join, diet cards, both rounds, result, rating
+npm run test:e2e     # three phones: sign in, join, diet cards, both rounds, result, rating;
+                     # and the privacy and terms pages are up and linked from the home page
 ```
 
 GitHub runs all three on every push that touches this folder, in Chromium and WebKit
