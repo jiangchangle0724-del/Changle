@@ -6,7 +6,7 @@ import { LIGHTS, setLight } from "../lib/anim";
 import { sfx } from "../lib/sfx";
 import { useStore } from "../store";
 import { useAccount, useLive, type PublicUser } from "./AccountContext";
-import { Avatar } from "./Avatar";
+import { Face } from "./avatar/Face";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
 import { GENDER_LABEL, type Stats } from "./MePage";
 
@@ -79,7 +79,7 @@ export function UserPage({ id, onBack }: { id: string; onBack: () => void }) {
     <div className="screen me">
       <TopBar onBack={onBack} />
       <header className="me-head">
-        <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={88} className="me-avatar" />
+        <Face user={u} />
         <div className="me-id">
           <h1 className="me-name">{u.name}</h1>
           <p className="me-tags">

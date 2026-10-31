@@ -1,8 +1,16 @@
-import { Camera, Trash2 } from "lucide-react";
+import { Camera, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { Choices } from "../shared/draw";
 import { useStore } from "../store";
 import type { Gender } from "./AccountContext";
 import { Avatar, AV_COLORS } from "./Avatar";
+import { AvatarMaker, type Drawn } from "./avatar/Maker";
+
+/** What a profile shows as its face: the AI-drawn anime figure, a photo, or neither (the first letter). */
+export type FaceKind = "anime" | "photo" | "none";
+
+/** The maker's first "draw me as" from the profile's gender (every choice stays open to everyone). */
+const styleFor = (g: Gender | ""): string => (g === "female" ? "f" : g === "male" ? "m" : g === "nonbinary" ? "x" : "keep");
 
 export type ProfileValues = { name: string; phone: string; city: string; gender: Gender | ""; bio: string; ac: number };
 
@@ -35,29 +43,51 @@ export async function toAvatarBlob(file: File): Promise<Blob> {
 export function ProfileForm({
   initial,
   mode,
+  show,
+  figure,
+  hasFigure,
+  choices,
+  ticket,
   photo,
   uid,
   av,
   busy,
   error,
+  onFigure,
+  onUseFigure,
   onPhoto,
   onRemovePhoto,
   onSubmit,
 }: {
   initial: ProfileValues;
   mode: "signup" | "edit";
+  /** the face others see */
+  show: FaceKind;
+  /** the anime figure while it's the face: its round crop and the whole picture */
+  figure?: { round: string; full: string } | null;
+  /** there is a figure, kept while a photo shows (switching back is one tap) */
+  hasFigure?: boolean;
+  /** what was picked for it */
+  choices?: Choices | null;
+  /** a sign-up in progress, so the AI can draw before there's an account */
+  ticket?: string;
   /** a picked photo not uploaded yet (sign-up) */
   photo?: Blob | null;
   uid?: string;
   av?: number;
   busy?: boolean;
   error?: string;
+  /** a drawing chosen in the maker, to show from now on */
+  onFigure: (d: Drawn) => void;
+  /** show the figure you have again, instead of the photo */
+  onUseFigure: () => void;
   onPhoto: (b: Blob) => void;
   onRemovePhoto?: () => void;
   onSubmit: (v: ProfileValues, adult: boolean) => void;
 }) {
   const { lang } = useStore();
   const zh = lang === "zh";
+  const [making, setMaking] = useState(false);
   const [v, setV] = useState<ProfileValues>(initial);
   const [adult, setAdult] = useState(mode === "edit");
   const [preview, setPreview] = useState<string | null>(null);
@@ -90,23 +120,42 @@ export function ProfileForm({
         if (valid && !busy) onSubmit(v, adult);
       }}
     >
-      <div className="pf-face">
-        <button type="button" className="pf-photo" onClick={() => file.current?.click()} aria-label={zh ? "换头像" : "Change photo"}>
-          {preview ? <img src={preview} alt="" className="avatar" style={{ width: 92, height: 92 }} /> : <Avatar uid={uid} name={v.name || "?"} av={av} ac={v.ac} size={92} />}
-          <span className="pf-cam">
-            <Camera size={16} />
-          </span>
+      <div className="pf-face" style={{ ["--av" as string]: AV_COLORS[v.ac % AV_COLORS.length] } as React.CSSProperties}>
+        <button
+          type="button"
+          className="pf-photo"
+          onClick={() => (show === "photo" ? file.current?.click() : setMaking(true))}
+          aria-label={show === "photo" ? (zh ? "换照片" : "Change photo") : figure ? (zh ? "重画动漫头像" : "Redraw your anime avatar") : zh ? "AI 画动漫头像" : "Draw an anime avatar"}
+        >
+          {show === "anime" && figure ? (
+            <img src={figure.round} alt="" className="avatar" style={{ width: 92, height: 92 }} />
+          ) : show === "photo" && preview ? (
+            <img src={preview} alt="" className="avatar" style={{ width: 92, height: 92 }} />
+          ) : (
+            <Avatar uid={show === "photo" ? uid : undefined} name={v.name || "?"} av={show === "photo" ? av : 0} ac={v.ac} size={92} />
+          )}
+          <span className="pf-cam">{show === "photo" ? <Camera size={16} /> : <Sparkles size={16} />}</span>
         </button>
         <div className="pf-face-side">
-          <span className="field-label">{zh ? "头像颜色" : "Color"}</span>
+          <div className="seg seg-sm pf-kind" role="group" aria-label={zh ? "头像用哪个" : "Which face to show"}>
+            <button type="button" aria-pressed={show === "anime"} onClick={() => (show !== "anime" && hasFigure ? onUseFigure() : setMaking(true))}>
+              <Sparkles size={14} />
+              {zh ? "动漫头像" : "Anime"}
+            </button>
+            <button type="button" aria-pressed={show === "photo"} onClick={() => file.current?.click()}>
+              <Camera size={14} />
+              {zh ? "真照片" : "Photo"}
+            </button>
+          </div>
+          <span className="field-label">{zh ? "头像底色" : "Backdrop"}</span>
           <div className="swatches">
             {AV_COLORS.slice(0, 10).map((c, i) => (
-              <button key={c} type="button" className={`av-swatch ${v.ac === i ? "is-on" : ""}`} style={{ background: c }} onClick={() => set({ ac: i })} aria-label={`${zh ? "颜色" : "Color"} ${i + 1}`} aria-pressed={v.ac === i} />
+              <button key={c} type="button" className={`av-swatch ${v.ac === i ? "is-on" : ""}`} style={{ background: c }} onClick={() => set({ ac: i })} aria-label={`${zh ? "底色" : "Backdrop"} ${i + 1}`} aria-pressed={v.ac === i} />
             ))}
           </div>
-          {(preview || (av ?? 0) > 0) && onRemovePhoto && (
+          {show !== "none" && onRemovePhoto && (
             <button type="button" className="link-btn" onClick={onRemovePhoto}>
-              <Trash2 size={13} /> {zh ? "不用照片" : "Remove photo"}
+              <Trash2 size={13} /> {zh ? "不用头像" : "No avatar"}
             </button>
           )}
         </div>
@@ -119,6 +168,21 @@ export function ProfileForm({
             const f = e.target.files?.[0];
             e.target.value = "";
             if (f) void toAvatarBlob(f).then(onPhoto).catch(() => {});
+          }}
+        />
+        <AvatarMaker
+          open={making}
+          ticket={ticket}
+          figureUrl={show === "anime" ? figure?.full : null}
+          choices={choices}
+          backdrop={v.ac}
+          style={styleFor(v.gender)}
+          onClose={() => setMaking(false)}
+          onDone={(d) => {
+            setMaking(false);
+            // (the drawing's backdrop is the avatar color from now on)
+            set({ ac: d.choices.backdrop });
+            onFigure(d);
           }}
         />
       </div>
