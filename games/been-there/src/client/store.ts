@@ -52,8 +52,21 @@ export function toast(text: string, ms = 3500) {
   setTimeout(() => update({ toasts: state.toasts.filter((x) => x.id !== id) }), ms);
 }
 
+/**
+ * The server's clock against ours, from the views it sends (its time when it sent each). A view that
+ * took long to arrive, or to be read (a busy page, a slow network), makes the server look behind by
+ * that delay: the quickest of the last few is the truest. Every screen plays a throw from the server's
+ * moment of it, so this is what keeps them in step.
+ */
+const samples: number[] = [];
+function clockOffset(serverTime: number) {
+  samples.push(serverTime - Date.now());
+  if (samples.length > 24) samples.shift();
+  return Math.max(...samples);
+}
+
 export function onServer(msg: ServerMsg) {
-  if (msg.t === "view") update({ view: msg.view, offset: msg.view.now - Date.now() });
+  if (msg.t === "view") update({ view: msg.view, offset: clockOffset(msg.view.now) });
   else if (msg.t === "toast") toast(has(msg.key) ? t(msg.key, msg.vars) : msg.key);
   else if (msg.t === "saved") update({ saved: msg.code });
   else if (msg.t === "fatal") update({ fatal: msg.key });

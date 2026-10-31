@@ -5,7 +5,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { freshRoom, RoomEngine, type Output, type Profile, type RoomData } from "../src/shared/engine/room";
 import { CODE_RE, type ClientMsg, type ServerMsg } from "../src/shared/protocol";
+import { drawPicture, drawReady } from "./draw";
 import { Hub, type Reply } from "./hub";
+import { cleanChoices, drawPrompt } from "../src/shared/draw";
 
 export { Hub };
 
@@ -16,6 +18,11 @@ export interface Env {
   MAIL_FROM?: string;
   ADMIN_EMAILS?: string;
   DEV_SHOW_CODES?: string;
+  /** Google AI key for drawing anime avatars (a secret: set-ai-key.cmd) */
+  GEMINI_API_KEY?: string;
+  GEMINI_IMAGE_MODEL?: string;
+  /** local runs without a key: "drawing" answers with the picture it was sent */
+  DEV_FAKE_DRAW?: string;
 }
 
 /** `screen`: a TV or computer showing the table, with no seat at it */
@@ -112,6 +119,9 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
   const auth = req.headers.get("Authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
   const type = req.headers.get("Content-Type") ?? "";
+  // (the largest body is a photo for drawing, as base64: about 1 MB)
+  if (Number(req.headers.get("Content-Length") ?? 0) > 1_500_000) return cors(json({ error: "size" }, 413), req);
+  if (path === "/avatar/draw" && req.method === "POST") return cors(await drawAvatar(req, env, hub, token), req);
   let body: unknown = undefined;
   let bytes: ArrayBuffer | undefined;
   if (req.method === "GET") body = Object.fromEntries(url.searchParams);
@@ -137,9 +147,38 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
     bytes,
     type,
   })) as unknown as Reply;
-  if (r.bytes)
-    return cors(new Response(r.bytes, { status: r.status, headers: { "Content-Type": r.type ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" } }), req, r.cache ?? "no-store");
+  if (r.bytes) return cors(new Response(r.bytes, { status: r.status, headers: { "Content-Type": r.type ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" } }), req, r.cache ?? "no-store");
   return cors(json(r.json ?? {}, r.status), req);
+}
+
+/**
+ * POST /api/avatar/draw: { image (base64), mime, from: "photo" | "figure", choices, ticket? }.
+ * The hub says whether this person may draw again today; the picture goes to the image model with
+ * words built only from the choice lists, and the drawing comes straight back. Nothing is kept.
+ */
+async function drawAvatar(req: Request, env: Env, hub: DurableObjectStub<Hub>, token: string): Promise<Response> {
+  let b: Record<string, unknown>;
+  try {
+    b = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "bad" }, 400);
+  }
+  const image = typeof b.image === "string" ? b.image : "";
+  const mime = typeof b.mime === "string" && /^image\/(jpeg|png|webp)$/.test(b.mime) ? b.mime : "";
+  if (!image || !mime || image.length > 1_400_000 || !/^[A-Za-z0-9+/]+=*$/.test(image)) return json({ error: "size" }, 400);
+  if (!drawReady(env)) return json({ error: "not-ready" }, 503);
+  const ip = req.headers.get("CF-Connecting-IP") ?? "";
+  const gate = await hub.drawGate({ token, ticket: typeof b.ticket === "string" ? b.ticket : "", ip });
+  if ("error" in gate) return json({ error: gate.error }, gate.error === "signin" ? 401 : 429);
+  const from = b.from === "figure" ? "figure" : "photo";
+  const r = await drawPicture(env, { mime, b64: image }, drawPrompt(cleanChoices(b.choices), from));
+  if (!r.ok) {
+    // (a refusal still counts: the same photo would be refused again)
+    if (r.code !== "blocked") await hub.drawRefund({ key: gate.key, ip });
+    console.log("draw failed", r.code, r.detail ?? "");
+    return json({ error: r.code, left: gate.left + (r.code === "blocked" ? 0 : 1) }, r.code === "blocked" ? 422 : 502);
+  }
+  return json({ image: r.pic.b64, mime: r.pic.mime, left: gate.left });
 }
 
 export default {

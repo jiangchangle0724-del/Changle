@@ -44,8 +44,8 @@ How a table goes:
 | `src/engine` | The rules: cuisines, diet limits (with the draft severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
 | `src/room` | One table from lobby to result. No network inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker: rooms (one Durable Object each), Google Places, Google sign-in, users' diet cards, our per-restaurant ratings. |
-| `src/client` | The phone pages (Preact), Chinese and English. |
-| `tests` | Rules and room tests (Node), and three phones in a browser (`tests/e2e`, Playwright). |
+| `src/client` | The phone pages (Preact), Chinese and English, and the privacy and terms pages (`privacy.html`, `terms.html`, plain HTML at `/eat/privacy` and `/eat/terms`). |
+| `tests` | Rules and room tests (Node), and phones in a browser (`tests/e2e`, Playwright): a whole table, and the privacy and terms pages. |
 
 ## Run it on a computer
 
@@ -62,7 +62,8 @@ address on port 8787, followed by `/eat/`.
 ```sh
 npm run typecheck
 npm test             # rules (incl. "a severe allergy never gets through", 500 random tables) and room
-npm run test:e2e     # three phones: sign in, join, diet cards, both rounds, result, rating
+npm run test:e2e     # three phones: sign in, join, diet cards, both rounds, result, rating;
+                     # and the privacy and terms pages are up and linked from the home page
 ```
 
 GitHub runs all three on every push that touches this folder, in Chromium and WebKit
@@ -84,9 +85,14 @@ Anyone can start a table; restaurants are made up and say so.
 **2. Google sign-in.** In [Google Cloud console](https://console.cloud.google.com/), create a
 project (e.g. "changle-ca"), then:
 1. APIs & Services → OAuth consent screen (also called "Google Auth Platform"): user type
-   **External**; app name 随便; support email yours. Scopes: only `openid` and `profile` (no
-   email needed). Then **Publish app** ("In production"). While it stays in "Testing", only the
-   test users you list can sign in; with just these basic scopes Google doesn't need to review it.
+   **External**; app name 随便; support email yours. Data Access: only `openid` and `profile`
+   (no email needed). Branding: authorized domain `changle.ca`, home page
+   `https://changle.ca/eat`, privacy policy `https://changle.ca/eat/privacy`, terms
+   `https://changle.ca/eat/terms` (Google won't let an external app be published without these;
+   the two pages are `src/client/privacy.html` and `terms.html`, and must stay true to what the
+   code keeps). Then Audience → **Publish app** ("In production"). While it stays in "Testing",
+   only the test users you list can sign in; with just these basic scopes and no logo Google
+   doesn't need to review it.
 2. Credentials → Create credentials → OAuth client ID → **Web application**. Under Authorized
    redirect URIs add exactly `https://changle.ca/eat/auth/callback` (a missing `https`, a
    trailing slash, or any other address gives Google's `redirect_uri_mismatch` error). Copy the

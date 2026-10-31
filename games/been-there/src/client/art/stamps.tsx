@@ -83,9 +83,9 @@ function fit(text: string, size: number, maxW: number, cjk: boolean) {
 }
 
 /** A passport stamp, drawn centred on (0, 0) in a 120 × 120 box. */
-export function StampArt({ id, lang = "zh" }: { id: string; lang?: "zh" | "en" }) {
+export function StampArt({ id, lang = "zh", ink: inkOver }: { id: string; lang?: "zh" | "en"; /** Another ink (a stamp on the dark board). */ ink?: string }) {
   const city = CITIES.find((c) => c.id === id)!;
-  const ink = INK_OF[city.group];
+  const ink = inkOver ?? INK_OF[city.group];
   const [outer, inner] = outline(city.group);
   const zh = lang === "zh";
   const big = zh ? city.name.zh : city.name.en.toUpperCase();

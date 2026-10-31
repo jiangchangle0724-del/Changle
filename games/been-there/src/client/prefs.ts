@@ -82,6 +82,13 @@ export const prefs = {
   set ride(v: boolean) {
     set("bt.ride", v ? "1" : "0");
   },
+  /** The speed test's readout (frame times, tap to screen). Off unless turned on. */
+  get speed() {
+    return get("bt.speed") === "1";
+  },
+  set speed(v: boolean) {
+    set("bt.speed", v ? "1" : "0");
+  },
   /** Shake the phone to roll (where it can feel motion). On unless turned off. */
   get shake() {
     return get("bt.shake") !== "0";

@@ -1,0 +1,497 @@
+/*
+ * The AI avatar maker: a dressing room under the "me" rose light. The drawing hangs on a lit stage
+ * like a print in its own backdrop color; everything you can pick sits in a sheet below it.
+ */
+.mk {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  justify-content: center;
+  background: var(--night);
+  color: var(--moon);
+  outline: none;
+  overscroll-behavior: contain;
+}
+/* the room light, spilling from the top */
+.mk::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(95% 42% at 50% -10%, color-mix(in oklab, var(--gel) 30%, transparent), color-mix(in oklab, var(--gel) 7%, transparent) 52%, transparent 76%);
+}
+
+.mk-in {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+}
+
+.mk-top {
+  flex: none;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 96px;
+  align-items: center;
+  min-height: 52px;
+  padding: 2px max(8px, env(safe-area-inset-right, 0px)) 0 max(8px, env(safe-area-inset-left, 0px));
+}
+.mk-title {
+  justify-self: center;
+  font-size: inherit;
+  text-align: center;
+}
+
+/* ---------- the stage: the drawing, and the ones before it ---------- */
+.mk-stage {
+  --bd: var(--gel);
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 4px 16px 0;
+}
+.mk-spot {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 46% at 50% 44%, color-mix(in oklab, var(--bd) 20%, transparent), transparent 72%),
+    radial-gradient(36% 6% at 50% 86%, color-mix(in oklab, var(--bd) 26%, transparent), transparent 75%);
+}
+.mk-card {
+  position: relative;
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 460px;
+  aspect-ratio: 3 / 4;
+  max-width: 100%;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--dusk-2);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 24px 60px -24px color-mix(in oklab, var(--bd) 70%, transparent);
+}
+.mk-card > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mk-card-tag {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(14, 12, 34, 0.66);
+  color: var(--moon);
+  font-size: 12.5px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.mk-card.is-busy > img {
+  filter: saturate(0.6) brightness(0.62);
+  transition: filter 0.4s;
+}
+
+/* while the AI draws: a band of light over the picture, the seconds, a bar that never quite fills */
+.mk-drawing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.mk-beam {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mk-beam::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -30%;
+  height: 30%;
+  background: linear-gradient(to bottom, transparent, color-mix(in oklab, var(--gel) 26%, transparent) 70%, color-mix(in oklab, var(--gel) 75%, #fff) 97%, transparent);
+  mix-blend-mode: screen;
+  animation: mk-beam 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes mk-beam {
+  to {
+    transform: translateY(440%);
+  }
+}
+.mk-drawing-note {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--moon);
+  background: linear-gradient(to top, rgba(14, 12, 34, 0.82), transparent);
+}
+.mk-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--gel);
+  transform-origin: left center;
+  transition: transform 0.9s var(--ease-out);
+  box-shadow: 0 0 12px var(--gel);
+}
+
+.mk-strip {
+  position: relative;
+  flex: none;
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px 4px 2px;
+}
+.mk-strip::-webkit-scrollbar {
+  display: none;
+}
+.mk-thumb {
+  flex: none;
+  width: 42px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition:
+    box-shadow 0.2s,
+    transform 0.15s var(--ease-out);
+}
+.mk-thumb:active {
+  transform: scale(0.94);
+}
+.mk-thumb > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mk-thumb.is-on {
+  box-shadow:
+    0 0 0 2px var(--night),
+    0 0 0 4px var(--moon);
+}
+.mk-thumb-add {
+  display: grid;
+  place-items: center;
+  color: var(--haze);
+}
+.mk-thumb-add:disabled {
+  opacity: 0.4;
+}
+
+/* ---------- the dock: tabs, choices, the buttons ---------- */
+.mk-dock {
+  position: relative;
+  flex: none;
+  height: clamp(290px, 46dvh, 430px);
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  background: var(--dusk);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow:
+    0 -18px 50px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.mk-tabs {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 12px max(12px, env(safe-area-inset-right, 0px)) 4px max(12px, env(safe-area-inset-left, 0px));
+}
+.mk-tabs::-webkit-scrollbar {
+  display: none;
+}
+.mk-tab {
+  flex: 1 0 auto;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--haze);
+  font-weight: 700;
+  font-size: 14.5px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.mk-tab[aria-selected="true"] {
+  background: var(--moon);
+  color: var(--night);
+}
+.mk-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+}
+.mk-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + 12px) max(16px, env(safe-area-inset-left, 0px));
+  box-shadow: inset 0 1px 0 var(--line-soft);
+}
+.mk-acts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 8px;
+}
+.mk-err {
+  margin: 0;
+}
+.mk-left {
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--fog);
+}
+
+.mk-label {
+  display: block;
+  margin: 14px 2px 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--haze);
+}
+.mk-sub {
+  margin: -4px 2px 8px;
+}
+.mk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mk-chips-lead {
+  margin-top: 14px;
+}
+
+/* colors */
+.mk-colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 -4px;
+}
+.mk-color-word {
+  margin: 0 6px 0 4px;
+}
+.mk-color {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+.mk-color > span {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  transition:
+    box-shadow 0.2s,
+    transform 0.15s var(--ease-out);
+}
+.mk-color:active > span {
+  transform: scale(0.9);
+}
+.mk-color[aria-pressed="true"] > span {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 0 2.5px var(--dusk),
+    0 0 0 4.5px var(--moon);
+}
+
+.mk-private {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--haze);
+}
+.mk-private svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--gel);
+}
+
+/* ---------- the first screen: a photo to draw from ---------- */
+.mk-start {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + 16px) max(16px, env(safe-area-inset-left, 0px));
+}
+.mk-slot {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+}
+.mk-slot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(46% 50% at 50% 50%, color-mix(in oklab, var(--gel) 16%, transparent), transparent 72%);
+}
+.mk-slot-card {
+  position: relative;
+  height: min(100%, 360px);
+  aspect-ratio: 3 / 4;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--dusk-2) 80%, transparent);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklab, var(--gel) 45%, transparent),
+    0 24px 60px -26px color-mix(in oklab, var(--gel) 60%, transparent);
+  color: var(--gel);
+  transition: transform 0.16s var(--ease-out);
+}
+.mk-slot:active .mk-slot-card {
+  transform: scale(0.98);
+}
+.mk-slot-card > span {
+  color: var(--haze);
+  font-size: 13.5px;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 14em;
+}
+.mk-start-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mk-start-copy h2 {
+  font-size: inherit;
+}
+.mk-start-acts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------- leaving without using it ---------- */
+.mk-leave-back {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(14, 12, 34, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.mk-leave {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px max(16px, env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + 16px) max(16px, env(safe-area-inset-left, 0px));
+  background: var(--dusk);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow:
+    0 -20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.mk-leave-q {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.mk-leave-acts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* ---------- a profile's face, standing ---------- */
+.me-figure {
+  position: relative;
+  flex: none;
+  width: 104px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 3px var(--night),
+    0 0 0 5px color-mix(in oklab, var(--av) 70%, transparent),
+    0 22px 46px -14px var(--av);
+}
+.me-figure > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* the form's face: anime or photo */
+.pf-face > .pf-face-side {
+  flex: 1 1 auto;
+}
+.pf-kind {
+  align-self: stretch;
+  max-width: 260px;
+}
+.pf-kind > button {
+  flex: 1 1 auto;
+  gap: 5px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-beam::after {
+    animation: none;
+    top: 35%;
+    opacity: 0.5;
+  }
+  .mk-progress {
+    transition: none;
+  }
+}

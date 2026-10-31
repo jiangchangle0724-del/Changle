@@ -192,6 +192,11 @@ export function Home({ go }: { go: (path: string) => void }) {
           </Btn>
         </footer>
       )}
+
+      <nav class="legal-links small" aria-label={`${t("privacy")} · ${t("terms")}`}>
+        <a href={`${BASE}/privacy`}>{t("privacy")}</a>
+        <a href={`${BASE}/terms`}>{t("terms")}</a>
+      </nav>
     </main>
   );
 }

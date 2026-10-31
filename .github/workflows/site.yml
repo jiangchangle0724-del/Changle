@@ -1,6 +1,7 @@
 # Runs every time the changle.ca site changes: types, the room engine's rules (incl. 到此一游's
-# hand-off) and a production build. The phone-in-a-browser scripts in site/scripts need the table
-# server and the site running, so they stay a local step (see site/README.md). Only this folder.
+# hand-off), the anime avatar's drawing words and a production build. The phone-in-a-browser
+# scripts in site/scripts need the table server and the site running, so they stay a local step
+# (see site/README.md). Only this folder.
 name: site
 
 on:
@@ -27,4 +28,5 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx tsx tests/engine.test.ts
       - run: npx tsx tests/trip.test.ts
+      - run: npx tsx tests/draw.test.ts
       - run: npm run build

@@ -11,6 +11,8 @@ const S = {
   hi: ["你好，{name}", "Hi, {name}"],
   logout: ["退出登录", "Sign out"],
   forgetMe: ["删除我的所有数据", "Delete all my data"],
+  privacy: ["隐私政策", "Privacy"],
+  terms: ["使用条款", "Terms"],
   forgetSure: ["确定删除？饮食卡和记录都会清掉", "Delete? Your diet card and history will be erased"],
   yourName: ["你的名字", "Your name"],
   startTable: ["开一桌", "Start a table"],

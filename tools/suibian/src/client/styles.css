@@ -596,6 +596,38 @@ select {
   max-width: 100%;
 }
 
+/* Privacy and terms pages (privacy.html, terms.html): plain reading pages, both languages. */
+.legal article {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.legal article + article {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+.legal h1 {
+  font-size: 2rem;
+  margin-top: 8px;
+}
+/* Section headings a clear step above the text (1.3x), so a long page scans by its sections. */
+.legal h2 {
+  font-size: 1.3rem;
+  margin-top: 16px;
+}
+.legal ul {
+  margin: 0;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legal-links {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

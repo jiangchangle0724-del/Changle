@@ -80,6 +80,7 @@ export async function gate(p: Phone): Promise<Gate> {
 }
 
 /** Make a room through the API; tests may speed up the room's timers. */
+// (A button that taps back on an iPhone is a label round a hidden switch: `.off` when it can't be pressed.)
 export async function createRoom(request: APIRequestContext, body: object): Promise<string> {
   const res = await request.post("/trip/api/rooms", { data: body });
   expect(res.ok()).toBeTruthy();
@@ -125,7 +126,7 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       if (document.querySelector(".settling")) return null;
       const auction = document.querySelector(".decide.auction");
       if (auction) {
-        const b = auction.querySelector<HTMLButtonElement>(".btn.primary:not([disabled])");
+        const b = auction.querySelector<HTMLButtonElement>(".btn.primary:not([disabled]):not(.off)");
         if (b && Math.random() < (o.bid ?? 0.4)) {
           b.click();
           return "bid";
@@ -136,17 +137,17 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       if (!panel) return null;
       const kind = panel.dataset.kind ?? panel.className;
       if (o.skip?.includes(kind)) return null;
-      const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>(".btn:not([disabled]):not(.danger)"));
+      const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>(".btn:not([disabled]):not(.danger):not(.off)"));
       // (In debt with nothing left to sell, the only way on is a danger button: going broke, below.)
       if (!buttons.length && kind !== "debt") return null;
       let pick: HTMLButtonElement | undefined =
-        panel.querySelector<HTMLButtonElement>(".btn.primary:not([disabled])") ??
-        panel.querySelector<HTMLButtonElement>(".btn[data-default]:not([disabled])") ??
+        panel.querySelector<HTMLButtonElement>(".btn.primary:not([disabled]):not(.off)") ??
+        panel.querySelector<HTMLButtonElement>(".btn[data-default]:not([disabled]):not(.off)") ??
         buttons[0];
       if (kind === "buy" && o.declineBuys) pick = buttons.find((b) => !b.classList.contains("primary")) ?? pick;
-      if (kind === "debt" && !panel.querySelector(".btn.primary:not([disabled])")) {
+      if (kind === "debt" && !panel.querySelector(".btn.primary:not([disabled]):not(.off)")) {
         // Can't pay yet: sell or mortgage something first (the debt panel lists them), else go broke.
-        const sellable = panel.querySelector<HTMLButtonElement>(".assets .btn:not([disabled])");
+        const sellable = panel.querySelector<HTMLButtonElement>(".assets .btn:not([disabled]):not(.off)");
         // Going broke takes two taps: the button, then "确定破产".
         if (sellable) pick = sellable;
         else pick = panel.querySelector<HTMLButtonElement>(".btn.danger") ?? pick;

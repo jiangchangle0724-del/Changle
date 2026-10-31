@@ -6,7 +6,7 @@ rm -rf dist build/rooms build/pkg
 npm run build >/dev/null
 npx wrangler deploy -c worker/wrangler.jsonc --dry-run --outdir "$PWD/build/rooms" >/dev/null 2>&1
 mkdir -p build/pkg/changle-deploy/rooms
-cp deploy/deploy.cmd deploy/set-email-key.cmd deploy/README.txt build/pkg/changle-deploy/
+cp deploy/deploy.cmd deploy/set-email-key.cmd deploy/set-ai-key.cmd deploy/README.txt build/pkg/changle-deploy/
 cp build/rooms/index.js build/pkg/changle-deploy/rooms/index.js
 node -e '
 const fs = require("fs");
@@ -18,7 +18,7 @@ fs.writeFileSync("build/pkg/changle-deploy/rooms/wrangler.json", JSON.stringify(
 '
 cp -r dist build/pkg/changle-deploy/site
 # Windows line endings for the batch file
-sed -i 's/$/\r/' build/pkg/changle-deploy/deploy.cmd build/pkg/changle-deploy/set-email-key.cmd build/pkg/changle-deploy/README.txt
+sed -i 's/$/\r/' build/pkg/changle-deploy/deploy.cmd build/pkg/changle-deploy/set-email-key.cmd build/pkg/changle-deploy/set-ai-key.cmd build/pkg/changle-deploy/README.txt
 mkdir -p /mnt/user-data/outputs
 rm -f /mnt/user-data/outputs/changle-deploy.zip
 (cd build/pkg && zip -qr /mnt/user-data/outputs/changle-deploy.zip changle-deploy)

@@ -14,6 +14,12 @@ export const TIMING = {
   auctionStep: 5_000,
   /** Whole-table votes and sealed bids: people who haven't answered get the default after this. */
   vote: 25_000,
+  /**
+   * Rio: the dance every screen plays before the judges score it, from the moment the team says
+   * yes: 0.4 s for every screen to get it, then 17 beats at 100 a minute (4 counted in, 12 danced,
+   * the pose). The judges' 25 s start after it.
+   */
+  dance: 10_600,
   /** Shanghai: time to answer the trash quiz. */
   quiz: 5_000,
   /** Seoul: the silent ten seconds. */
@@ -51,6 +57,8 @@ export interface Settings {
   testRounds?: number;
   /** Tests only: multiply all room timings by this. */
   speed?: number;
+  /** Tests only: the game's first dice, in order (the same throws for a before-and-after film). */
+  dice?: number[];
 }
 
 export type ClientMsg =
@@ -194,6 +202,8 @@ export interface GameView {
   answered: number[];
   /** Dubai: the top Journey cards, only for the seat looking. */
   peek: number[] | null;
+  /** Rio: a team dancing, from server time `at` for `ms` (TIMING.dance), the judges' buttons waiting. */
+  dance: { seat: number; at: number; ms: number } | null;
   bets: { seat: number; open: boolean; yes: number; no: number; mine: boolean | null } | null;
   worth: number[];
 }

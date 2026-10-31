@@ -5,6 +5,7 @@
  * live socket open while signed in, for chat and friend requests as they happen.
  */
 import { DurableObject } from "cloudflare:workers";
+import { cleanChoices, type Choices } from "../src/shared/draw";
 
 export type HubEnv = { RESEND_API_KEY?: string; MAIL_FROM?: string; ADMIN_EMAILS?: string; DEV_SHOW_CODES?: string };
 
@@ -26,7 +27,12 @@ const SEEDS: [string, string][] = [
 ];
 
 const CODE_TTL = 10 * 60_000;
-const TICKET_TTL = 30 * 60_000;
+// (an hour: the sign-up form now includes drawing an avatar)
+const TICKET_TTL = 60 * 60_000;
+/** AI drawings a day: per person, per network, and for everyone together (the bill's ceiling). */
+const DRAWS_PER_PERSON = 12;
+const DRAWS_PER_IP = 40;
+const DRAWS_PER_DAY = 400;
 const SESSION_TTL = 180 * 86400_000;
 const GENDERS = ["female", "male", "nonbinary", "private"];
 const HANDLE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -79,6 +85,11 @@ export class Hub extends DurableObject<HubEnv> {
       gender TEXT NOT NULL, bio TEXT NOT NULL DEFAULT '', av INTEGER NOT NULL DEFAULT 0, ac INTEGER NOT NULL DEFAULT 0,
       handle TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS avatars (user_id TEXT PRIMARY KEY, mime TEXT NOT NULL, data BLOB NOT NULL, updated_at INTEGER NOT NULL)`);
+    // the anime figure an AI drew for someone (whole, and the round crop their avatar shows), kept
+    // while a photo is the avatar so switching back is one tap; `shown` is which of the two is up
+    q(`CREATE TABLE IF NOT EXISTS figures (user_id TEXT PRIMARY KEY, mime TEXT NOT NULL, full BLOB NOT NULL, round BLOB NOT NULL, choices TEXT NOT NULL, shown INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)`);
+    // AI drawings counted per day (k: e:<email>, ip:<address>, all)
+    q(`CREATE TABLE IF NOT EXISTS draws (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS codes (email TEXT PRIMARY KEY, hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent_at INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS tickets (hash TEXT PRIMARY KEY, email TEXT NOT NULL, expires INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, last_used INTEGER NOT NULL, expires INTEGER NOT NULL)`);
@@ -184,6 +195,13 @@ export class Hub extends DurableObject<HubEnv> {
       return { status: 200, bytes: data, type: String(r.mime), cache: "public, max-age=31536000, immutable" };
     }
 
+    mm = /^\/figure\/(u[a-z0-9]{6,20})$/.exec(path);
+    if (mm && m === "GET") {
+      const r = this.one(`SELECT mime, full FROM figures WHERE user_id = ? AND shown = 1`, mm[1]);
+      if (!r) return err(404, "none");
+      return { status: 200, bytes: r.full as ArrayBuffer, type: String(r.mime), cache: "public, max-age=31536000, immutable" };
+    }
+
     if (!me) return err(401, "signin");
     this.sql.exec(`UPDATE users SET last_seen = ? WHERE id = ?`, Date.now(), me.id);
 
@@ -207,10 +225,40 @@ export class Hub extends DurableObject<HubEnv> {
       if (!this.allow(`av:${me.id}`, 20, 3600_000)) return err(429, "slow-down");
       this.sql.exec(`INSERT INTO avatars (user_id, mime, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at`, me.id, type, bytes, Date.now());
       this.sql.exec(`UPDATE users SET av = av + 1 WHERE id = ?`, me.id);
+      this.sql.exec(`UPDATE figures SET shown = 0 WHERE user_id = ?`, me.id);
+      return ok({ user: this.selfView(this.userById(me.id)!) });
+    }
+    if (path === "/me/figure" && m === "PUT") {
+      // an AI drawing the player chose: the whole figure and its round crop, both made on the phone
+      const full = fromB64(b.full, 450_000);
+      const round = fromB64(b.round, 120_000);
+      const mime = String(b.mime ?? "");
+      if (!full || !round || full.byteLength < 2000 || round.byteLength < 500) return err(400, "size");
+      if (!["image/jpeg", "image/webp", "image/png"].includes(mime) || !isImage(full) || !isImage(round)) return err(400, "type");
+      if (!this.allow(`av:${me.id}`, 20, 3600_000)) return err(429, "slow-down");
+      const now = Date.now();
+      const choices = JSON.stringify(cleanChoices(b.choices));
+      this.sql.exec(
+        `INSERT INTO figures (user_id, mime, full, round, choices, shown, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?) ON CONFLICT(user_id) DO UPDATE SET mime = excluded.mime, full = excluded.full, round = excluded.round, choices = excluded.choices, shown = 1, updated_at = excluded.updated_at`,
+        me.id,
+        mime,
+        full,
+        round,
+        choices,
+        now,
+      );
+      this.showFigure(me.id);
+      return ok({ user: this.selfView(this.userById(me.id)!) });
+    }
+    if (path === "/me/figure/use" && m === "POST") {
+      if (!this.one(`SELECT user_id FROM figures WHERE user_id = ?`, me.id)) return err(404, "none");
+      this.sql.exec(`UPDATE figures SET shown = 1 WHERE user_id = ?`, me.id);
+      this.showFigure(me.id);
       return ok({ user: this.selfView(this.userById(me.id)!) });
     }
     if (path === "/me/avatar" && m === "DELETE") {
       this.sql.exec(`DELETE FROM avatars WHERE user_id = ?`, me.id);
+      this.sql.exec(`UPDATE figures SET shown = 0 WHERE user_id = ?`, me.id);
       this.sql.exec(`UPDATE users SET av = 0 WHERE id = ?`, me.id);
       return ok({ user: this.selfView(this.userById(me.id)!) });
     }
@@ -231,7 +279,7 @@ export class Hub extends DurableObject<HubEnv> {
       const u = this.userById(mm[1]);
       if (!u) return err(404, "none");
       const rel = this.relation(me.id, u.id);
-      return ok({ user: this.publicView(u), relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [] });
+      return ok({ user: { ...this.publicView(u), figure: this.figure(u.id).shown }, relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [] });
     }
     if (path === "/users" && m === "GET") {
       const q = clean((c.body as { q?: string } | undefined)?.q ?? "", 30);
@@ -314,7 +362,59 @@ export class Hub extends DurableObject<HubEnv> {
   }
 
   private selfView(u: U) {
-    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u) };
+    const f = this.figure(u.id);
+    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), figure: f.shown, hasFigure: f.has, choices: f.choices };
+  }
+
+  /** Someone's AI-drawn figure: whether there is one, whether it's the face they show, and what they chose. */
+  private figure(id: string): { has: boolean; shown: boolean; choices: Choices | null } {
+    const r = this.one(`SELECT shown, choices FROM figures WHERE user_id = ?`, id);
+    if (!r) return { has: false, shown: false, choices: null };
+    let choices: Choices | null = null;
+    try {
+      choices = cleanChoices(JSON.parse(String(r.choices)));
+    } catch {
+      choices = null;
+    }
+    return { has: true, shown: Number(r.shown) === 1, choices };
+  }
+
+  /** Make the figure's round crop the avatar everyone sees. */
+  private showFigure(id: string) {
+    const r = this.one(`SELECT round FROM figures WHERE user_id = ?`, id);
+    if (!r) return;
+    this.sql.exec(`INSERT INTO avatars (user_id, mime, data, updated_at) VALUES (?, 'image/jpeg', ?, ?) ON CONFLICT(user_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at`, id, r.round as ArrayBuffer, Date.now());
+    this.sql.exec(`UPDATE users SET av = av + 1 WHERE id = ?`, id);
+  }
+
+  /**
+   * May this person have another AI drawing today? `token` is a session, `ticket` a sign-up in
+   * progress (no account yet). Counts the drawing if so; `drawRefund` gives it back when the
+   * drawing failed on our side.
+   */
+  async drawGate(g: { token: string; ticket: string; ip: string }): Promise<{ key: string; left: number } | { error: string }> {
+    let who = "";
+    if (g.token) {
+      const u = await this.session(g.token);
+      if (u) who = `e:${u.email}`;
+    }
+    if (!who && g.ticket && /^[A-Za-z0-9_-]{20,80}$/.test(g.ticket)) {
+      const t = this.one(`SELECT email, expires FROM tickets WHERE hash = ?`, await sha(g.ticket));
+      if (t && Number(t.expires) > Date.now()) who = `e:${String(t.email)}`;
+    }
+    if (!who) return { error: "signin" };
+    const day = new Date().toISOString().slice(0, 10);
+    const used = (k: string) => Number(this.one(`SELECT n FROM draws WHERE k = ? AND day = ?`, k, day)?.n ?? 0);
+    if (used("all") >= DRAWS_PER_DAY) return { error: "closed" };
+    if (used(who) >= DRAWS_PER_PERSON || (g.ip && used(`ip:${g.ip}`) >= DRAWS_PER_IP)) return { error: "limit" };
+    for (const k of [who, "all", ...(g.ip ? [`ip:${g.ip}`] : [])])
+      this.sql.exec(`INSERT INTO draws (k, day, n) VALUES (?, ?, 1) ON CONFLICT(k) DO UPDATE SET n = CASE WHEN day = excluded.day THEN n + 1 ELSE 1 END, day = excluded.day`, k, day);
+    return { key: who, left: DRAWS_PER_PERSON - used(who) };
+  }
+
+  async drawRefund(g: { key: string; ip: string }) {
+    const day = new Date().toISOString().slice(0, 10);
+    for (const k of [g.key, "all", ...(g.ip ? [`ip:${g.ip}`] : [])]) this.sql.exec(`UPDATE draws SET n = MAX(0, n - 1) WHERE k = ? AND day = ?`, k, day);
   }
 
   private publicView(u: U) {
@@ -438,6 +538,7 @@ export class Hub extends DurableObject<HubEnv> {
     for (const s of [
       `DELETE FROM sessions WHERE user_id = ?`,
       `DELETE FROM avatars WHERE user_id = ?`,
+      `DELETE FROM figures WHERE user_id = ?`,
       `DELETE FROM history WHERE user_id = ?`,
       `DELETE FROM friends WHERE a = ? OR b = ?`,
       `DELETE FROM messages WHERE a = ? OR b = ?`,
@@ -728,4 +829,26 @@ function randomHandle() {
 async function sha(s: string) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return b64url(new Uint8Array(d));
+}
+
+/** Base64 to bytes, or null if it isn't, or is bigger than `max` bytes. */
+function fromB64(x: unknown, max: number): ArrayBuffer | null {
+  if (typeof x !== "string" || x.length > Math.ceil((max * 4) / 3) + 4 || !/^[A-Za-z0-9+/]+=*$/.test(x)) return null;
+  try {
+    const bin = atob(x);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out.buffer;
+  } catch {
+    return null;
+  }
+}
+
+/** Starts like a JPEG, PNG or WebP file. */
+function isImage(b: ArrayBuffer): boolean {
+  const u = new Uint8Array(b.slice(0, 12));
+  const jpeg = u[0] === 0xff && u[1] === 0xd8;
+  const png = u[0] === 0x89 && u[1] === 0x50 && u[2] === 0x4e && u[3] === 0x47;
+  const webp = u[0] === 0x52 && u[1] === 0x49 && u[2] === 0x46 && u[3] === 0x46 && u[8] === 0x57 && u[9] === 0x45;
+  return jpeg || png || webp;
 }

@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { BUZZ, allowShake, buzz, canBuzz, canShake } from "../controls";
-import { backToTable, tableFrom } from "../base";
+import { BASE, backToTable, tableFrom } from "../base";
 import { isIPhone, toggleFullscreen } from "../fullscreen";
 import { getLang, setLang, t } from "../i18n";
 import { prefs } from "../prefs";
@@ -10,6 +10,32 @@ import { getState, send, update } from "../store";
 import { Btn, Sheet } from "./common";
 import { Credits } from "./Credits";
 import { FullscreenGuide, useFullscreen } from "./Fullscreen";
+
+/**
+ * 旁观（接电视）: this device becomes the room's big screen (the TV page: no team, no taps, the sound
+ * on and the screen kept awake). From a team, it first says what that means for the team.
+ */
+export function WatchTv({ v, open, onOpen }: { v: RoomView; open: boolean; onOpen: () => void }) {
+  const inTeam = v.you.seats.length > 0;
+  // (inside the page rather than loading it again: the sound this device was allowed to play stays
+  // allowed, so the big screen has sound from the start)
+  const go = () => {
+    history.pushState(null, "", `${BASE}/tv/${v.code}`);
+    dispatchEvent(new PopStateEvent("popstate"));
+  };
+  return (
+    <div class="watch-tv">
+      <p>
+        <b>{t("watchTv")}</b>
+        <small>{t("watchTvHint")}</small>
+      </p>
+      {inTeam && open && <p class="muted">{t("watchTvLeave")}</p>}
+      <Btn kind="quiet" onClick={inTeam && !open ? onOpen : go}>
+        📺 {t("watchTvGo")}
+      </Btn>
+    </div>
+  );
+}
 
 /** Re-render everything after a language or preference change. */
 export const refresh = () => update({});
@@ -55,6 +81,7 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
   const myTeam = v && mySeat !== undefined ? v.teams.find((x) => x.seat === mySeat) : undefined;
   const [credits, setCredits] = useState(false);
   const [guide, setGuide] = useState(false);
+  const [watch, setWatch] = useState(false);
   const fs = useFullscreen();
   const table = v && !v.settings.hotseat ? tableFrom(v) : null;
   if (guide) return <FullscreenGuide onClose={() => setGuide(false)} />;
@@ -158,6 +185,21 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
             </span>
           </label>
         )}
+        <label class="radio">
+          <input
+            type="checkbox"
+            checked={prefs.speed}
+            onChange={(e) => {
+              prefs.speed = (e.target as HTMLInputElement).checked;
+              refresh();
+            }}
+          />
+          <span>
+            <b>{t("speedTest")}</b>
+            <small>{t("speedHint")}</small>
+          </span>
+        </label>
+        {v && !v.settings.hotseat && <WatchTv v={v} open={watch} onOpen={() => setWatch(true)} />}
         {g && !g.s.over && myTeam && !v.settings.hotseat && (
           <label class="radio">
             <input type="checkbox" checked={myTeam.autoplay} onChange={(e) => send({ t: "autoplay", on: (e.target as HTMLInputElement).checked })} />

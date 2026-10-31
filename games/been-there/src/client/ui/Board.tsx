@@ -1,18 +1,21 @@
 import type { ComponentChildren, VNode } from "preact";
-import { useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
-import { RoundBoard, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
+import { Dice } from "../art/dice";
+import { RoundBoard, TOKEN_R, angleOf, xy, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
 import { colon, groupName, money, spaceName, t, tx } from "../i18n";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
 import { currentNews, newsTag } from "./News";
 import { reducedMotion } from "../motion";
+import { serverNow } from "../store";
 import { SheetFrame } from "./Photo";
-import { Ride } from "./Ride";
-import type { RidePlan } from "./ridePlan";
+import { LandStamp, Ride } from "./Ride";
+import { ridesOn, walkOf, type RidePlan } from "./ridePlan";
+import { useThrowing } from "./throwing";
 
 export { reducedMotion };
 
@@ -78,39 +81,71 @@ export function latestFlight(v: RoomView): Flight | null {
   return from && from.group !== to.group ? { from: from.id, to: to.id, key: last.id } : null;
 }
 
-/** The table turns when the turn passes, not while a token is walking. */
-function useTurnFocus(v: RoomView) {
+/**
+ * Which space the table turns where. A phone with first-person moves keeps its own token at
+ * 9 o'clock, where its camera pushes in (so its turn starts without the table turning, and a ride
+ * ends where the table rests). With reduced motion, or the setting off, a phone's table never
+ * turns. The big screen (and a phone with no team) turns the team on turn to the bottom when the
+ * turn passes, not while a token is walking.
+ */
+function useFocus(v: RoomView, tv: boolean): { focus: number; at: number } {
   const s = v.game!.s;
-  const ref = useRef<{ turn: number; pos: number } | null>(null);
-  if (!ref.current || ref.current.turn !== s.turn) ref.current = { turn: s.turn, pos: s.ps[s.turn]?.pos ?? 0 };
-  return ref.current.pos;
+  const mine = v.you.seats;
+  const seatRef = useRef<number | null>(null);
+  const turnRef = useRef<{ turn: number; pos: number } | null>(null);
+  if (!tv && mine.length) {
+    if (!ridesOn()) return { focus: 0, at: 180 };
+    const seat = mine.includes(s.turn) ? s.turn : seatRef.current !== null && mine.includes(seatRef.current) ? seatRef.current : mine[0];
+    seatRef.current = seat;
+    return { focus: s.ps[seat]?.pos ?? 0, at: 270 };
+  }
+  if (!turnRef.current || turnRef.current.turn !== s.turn) turnRef.current = { turn: s.turn, pos: s.ps[s.turn]?.pos ?? 0 };
+  return { focus: turnRef.current.pos, at: 180 };
 }
 
 export function Board({
   v,
+  big,
   center,
   globe,
   over,
   ride,
+  rideMode = "fp",
   urgent,
+  onRideReady,
   onRideDone,
 }: {
   v: RoomView;
+  /** The big screen. */
   big?: boolean;
   center?: ComponentChildren;
   globe?: boolean;
   over?: ComponentChildren;
-  /** A first-person move to play (a phone, its own team's move: ridePlan.ts). */
+  /** A move to play (ridePlan.ts): a phone's own team's, or on the big screen anyone's. */
   ride?: RidePlan | null;
+  rideMode?: "fp" | "flat" | "tv";
   /** Something on a clock came up for this phone: a ride gives way. */
   urgent?: boolean;
+  onRideReady?: (key: number) => void;
   onRideDone?: (key: number) => void;
 }) {
   const g = v.game!;
   const s = g.s;
   const [open, setOpen] = useState<number | null>(null);
-  const focus = useTurnFocus(v);
+  const { focus, at: focusAt } = useFocus(v, !!big);
   const rig = useRef<Rig | null>(null);
+  const throwing = useThrowing();
+  // The other teams' tokens walk in step with their thrower's ride (a phone), and land with a stamp.
+  const others = big ? [] : s.ps.flatMap((p, seat) => (p.out || v.you.seats.includes(seat) ? [] : [seat]));
+  const walks: Record<number, { start: number; per: number }> = {};
+  const landings: { seat: number; at: number; land: number }[] = [];
+  const nowS = serverNow();
+  for (const seat of others) {
+    const w = walkOf(v, seat, nowS);
+    if (!w) continue;
+    walks[seat] = { start: performance.now() + (w.start - nowS), per: w.per };
+    landings.push({ seat, at: w.to, land: w.land });
+  }
   const still = useRef<{ key: number; board: VNode } | null>(null);
   const news = currentNews(s);
   const marks: (SpaceMark | null)[] = s.deeds.map((d, at) => {
@@ -136,6 +171,8 @@ export function Board({
       reduced={reducedMotion()}
       rig={rig}
       riding={ride ? ride.seat : null}
+      focusAt={focusAt}
+      walks={walks}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -148,9 +185,16 @@ export function Board({
     <div class={`boardwrap${ride ? " on-ride" : ""}`}>
       {/* (behind the board: the sky the board leans back into on a ride) */}
       {ride && <div class="ride-sky" key={`sky-${ride.key}`} />}
-      {table}
-      {globe && <GlobeLayer flight={latestFlight(v)} focus={CITY_AT[focus]?.id ?? null} />}
-      {center && <div class="center-disc">{center}</div>}
+      {/* (the frame a move's camera moves: ui/Ride.tsx) */}
+      <div class="board-view">{table}</div>
+      {/* (what's drawn over the middle of the board moves with the big screen's camera on a move;
+          a flight on the globe waits for the token to land) */}
+      {(globe || center) && (
+        <div class="board-cam">
+          {globe && <GlobeLayer flight={ride ? null : latestFlight(v)} focus={CITY_AT[focus]?.id ?? null} />}
+          {center && <div class="center-disc">{center}</div>}
+        </div>
+      )}
       {ride && (
         <Ride
           key={ride.key}
@@ -158,12 +202,53 @@ export function Board({
           rig={rig}
           kind={teamOf(v, ride.seat)?.color ?? 0}
           mood={moodOf(v, ride.seat)}
+          mode={rideMode}
           urgent={!!urgent}
+          onReady={onRideReady}
           onDone={onRideDone ?? (() => {})}
         />
       )}
+      {/* (this phone's dice are in the air: they tumble at once, before the server answers) */}
+      {throwing && !ride && (
+        <div class="throw-dice" aria-hidden="true">
+          <Dice dice={[3, 5]} seed={7} size={40} />
+        </div>
+      )}
+      {landings.map((l) => (
+        <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
+      ))}
       {over}
       {open !== null && <SpaceSheet v={v} at={open} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+/**
+ * Another team's token lands (on a phone): a small stamp comes down beside it, at the moment the
+ * thrower's own stamp does, and fades.
+ */
+function OtherStamp({ rig, at, land }: { rig: { current: Rig | null }; at: number; land: number }) {
+  const el = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const r = rig.current;
+    const box = el.current;
+    if (!r || !box) return;
+    const [x, y] = xy(angleOf(at), TOKEN_R - 104);
+    const a = (r.rotation() * Math.PI) / 180;
+    const rx = x * Math.cos(a) - y * Math.sin(a);
+    const ry = x * Math.sin(a) + y * Math.cos(a);
+    box.style.left = `${(50 + rx / 10).toFixed(2)}%`;
+    box.style.top = `${(50 + ry / 10).toFixed(2)}%`;
+    const wait = land - serverNow();
+    box.dataset.land = String(Math.round(Date.now() + wait));
+    const on = window.setTimeout(() => box.classList.add("on"), Math.max(0, wait));
+    return () => clearTimeout(on);
+  }, [land]);
+  return (
+    <div class="other-stamp" ref={el} aria-hidden="true">
+      <svg viewBox="-60 -60 120 120" overflow="visible">
+        <LandStamp at={at} />
+      </svg>
     </div>
   );
 }

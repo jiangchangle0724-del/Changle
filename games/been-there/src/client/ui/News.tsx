@@ -2,6 +2,7 @@
 // has left, and the real thing behind it with its source. On phones in the play tab; on the big
 // screen in the side panel.
 import { newsById, type GameState, type NewsItem } from "../../engine";
+import { newsTag } from "./newsTag";
 import type { RoomView } from "../../room/protocol";
 import { t, tx } from "../i18n";
 import { hostOf } from "./common";
@@ -16,12 +17,7 @@ export function currentNews(s: GameState): { item: NewsItem; left: number } | nu
 }
 
 /** How the news changes a city, short enough for a tag on the board: ×2, ½, +$20, −25%. */
-export function newsTag(item: NewsItem): string {
-  if (item.fee) return `+$${item.fee}`;
-  if (item.buy) return `−${Math.round((1 - item.buy) * 100)}%`;
-  if (item.rent === 0.5) return "½";
-  return `×${item.rent}`;
-}
+export { newsTag };
 
 export function NewsBanner({ v, big }: { v: RoomView; big?: boolean }) {
   const now = currentNews(v.game!.s);

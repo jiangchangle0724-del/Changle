@@ -20,7 +20,10 @@ import { BUZZ, allowShake, buzz, onShake, shakeState } from "../controls";
 import { send } from "../store";
 import { CODE } from "../art/stamps";
 import { Assets } from "./Assets";
-import { Btn, Countdown, GroupIcon, Money, SeatChip, seatName, useCountdown } from "./common";
+import { Btn, Countdown, GroupIcon, HapticBtn, Money, SeatChip, seatName, useCountdown } from "./common";
+import { sfx } from "../sound";
+import { startThrow } from "./throwing";
+import { SambaLesson, useDanceClock } from "./Samba";
 import { quizItemText } from "./feedText";
 
 /** One line saying what the table is waiting for (for people who aren't deciding, and the big screen). */
@@ -151,6 +154,25 @@ function Strip({ label, at }: { label: string; at?: number }) {
   );
 }
 
+/** Rio's judges: the 1 to 10 buttons light up once the dance is over (the vote's 25 s start then). */
+function Scores({ v, dancer, act }: { v: RoomView; dancer: number; act: (a: Action) => void }) {
+  const dance = useDanceClock(v);
+  const dancing = dance !== null && !dance.over;
+  return (
+    <>
+      {dance && <SambaLesson v={v} size="small" />}
+      <p class="ask">{dancing ? t("sambaWatch", { team: seatName(v, dancer) }) : t("scoreAsk", { team: seatName(v, dancer) })}</p>
+      <div class="choices grid5">
+        {Array.from({ length: 10 }, (_, i) => (
+          <Btn key={i} disabled={dancing} onClick={() => act({ score: i + 1 })}>
+            {i + 1}
+          </Btn>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function Votes({ v }: { v: RoomView }) {
   const g = v.game!;
   const total = g.answered.length + g.mustAct.length;
@@ -220,15 +242,21 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
   switch (pd.k) {
     case "roll": {
       const waiver = me.keep.some((c) => c === "waiver" || c === "waiver2");
+      // The dice leave the hand at once: tumbling on the board, a click and a tick, before the server answers.
+      const throwDice = (a: Action) => {
+        startThrow();
+        sfx.tap();
+        act(a);
+      };
       return (
         <>
           <p class="ask">{t("yourTurn")}</p>
           {pd.jail ? (
             <>
               <p class="muted">{t("jailNote")}</p>
-              <Btn kind="primary" wide onClick={() => act({ how: "roll" })}>
+              <HapticBtn kind="primary" wide onClick={() => throwDice({ how: "roll" })}>
                 {t("rollJail")}
-              </Btn>
+              </HapticBtn>
               <Btn wide onClick={() => act({ how: "pay" })}>
                 {t("payOut")}
               </Btn>
@@ -239,11 +267,11 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
               )}
             </>
           ) : (
-            <Btn kind="primary" wide onClick={() => act({})}>
+            <HapticBtn kind="primary" wide onClick={() => throwDice({})}>
               🎲 {t("roll")}
-            </Btn>
+            </HapticBtn>
           )}
-          <ShakeToRoll roll={() => act(pd.jail ? { how: "roll" } : {})} />
+          <ShakeToRoll roll={() => throwDice(pd.jail ? { how: "roll" } : {})} />
           {me.jetlag && <p class="muted">{t("jetlag")}</p>}
           <p class="hint">{t("manageFirst")}</p>
         </>
@@ -280,9 +308,9 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
           <CityBrief v={v} at={pd.at} />
           {pd.price !== priceOf(s, pd.at) && <p class="muted">{t("pointsNote")}</p>}
           <div class="choices">
-            <Btn kind="primary" disabled={me.cash < pd.price} onClick={() => act({ yes: true })}>
+            <HapticBtn kind="primary" disabled={me.cash < pd.price} onClick={() => act({ yes: true })}>
               {t("buyYes", { price: money(pd.price) })}
-            </Btn>
+            </HapticBtn>
             <Btn onClick={() => act({ yes: false })}>{t("buyNo")}</Btn>
           </div>
           {me.cash < pd.price && <p class="muted">{t("cantAfford")}</p>}
@@ -407,26 +435,15 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
         <>
           <p class="ask">{t("danceAsk")}</p>
           <div class="choices">
-            <Btn kind="primary" onClick={() => act({ yes: true })}>
+            <HapticBtn kind="primary" onClick={() => act({ yes: true })}>
               {t("dance")}
-            </Btn>
+            </HapticBtn>
             <Btn onClick={() => act({ yes: false })}>{t("noDance")}</Btn>
           </div>
         </>
       );
     case "scores":
-      return (
-        <>
-          <p class="ask">{t("scoreAsk", { team: name(pd.dancer) })}</p>
-          <div class="choices grid5">
-            {Array.from({ length: 10 }, (_, i) => (
-              <Btn key={i} onClick={() => act({ score: i + 1 })}>
-                {i + 1}
-              </Btn>
-            ))}
-          </div>
-        </>
-      );
+      return <Scores v={v} dancer={pd.dancer} act={act} />;
     case "mumbai":
       return <Mumbai v={v} seat={seat} act={act} />;
     case "peek":
