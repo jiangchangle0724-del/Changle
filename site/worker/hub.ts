@@ -465,9 +465,10 @@ export class Hub extends DurableObject<HubEnv> {
 <p style="margin:0 0 8px;color:#b6b4d0">${lead}</p>
 <p style="font-size:40px;font-weight:800;letter-spacing:8px;margin:0 0 18px">${code}</p>
 <p style="margin:0;color:#7f7c9d;font-size:13px">${note}</p></div>`;
+    // (Resend turns away any request without a User-Agent, and a Worker's fetch sends none)
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "User-Agent": "changle/1.0 (+https://changle.ca)" },
       body: JSON.stringify({ from: this.env.MAIL_FROM || "changle <hello@changle.ca>", to: [to], subject, html, text: `${lead} ${code}\n\n${note}` }),
     });
     if (!res.ok) throw new Error(`resend ${res.status} ${(await res.text()).slice(0, 200)}`);
