@@ -145,5 +145,5 @@ Worker's `wrangler.jsonc`.
 * The rooms Worker `changle-rooms` is not connected to Git, so rule changes need the manual deploy
   above. Connecting it to Workers Builds (root `site`, deploy command
   `npx wrangler deploy -c worker/wrangler.jsonc`) would make it deploy on merge like the rest.
-* 随便: the Google Places key isn't set yet (demo restaurants), and its severe-allergy table is a
-  draft. See `tools/suibian/HANDOFF.md`.
+* 随便: its severe-allergy table is a draft, and two small things showed up once real restaurants
+  were on. See `tools/suibian/HANDOFF.md`.

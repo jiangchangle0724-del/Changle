@@ -98,9 +98,13 @@ All merged into `main`:
   Cloud Quotas API because the console can't edit quotas that have never been used:
   `SearchNearbyRequestPerDayPerProject` 200, `GetPlaceRequestPerDayPerProject` 600,
   `GetPhotoMediaRequestPerDayPerProject` 600.
-* **Not done yet:** the Cloudflare Secret `GOOGLE_PLACES_KEY`. Until it is set the tool runs on demo
-  restaurants with the yellow 示例数据 banner. After setting it, do the check under "3. Real
-  restaurants" in the README.
+* Real restaurants are on: the Cloudflare Secret `GOOGLE_PLACES_KEY` is set (2026-10-30) and
+  `/eat/api/me` says `"demo": false`. Checked on a Downtown table: round 1 listed the cuisines open
+  nearby, round 2 six real restaurants with photos credited to their photographers, ratings, walking
+  minutes, last-order times, phone and map links.
+* Seen in that check, not fixed yet: Google tags some hotels as restaurants, so Fairmont Hotel
+  Vancouver came up as a card; and when a place has no wait reasons, the wait line ends in a stray
+  " · " (`Table.tsx`, the `wait` paragraph).
 
 ## Open items
 
