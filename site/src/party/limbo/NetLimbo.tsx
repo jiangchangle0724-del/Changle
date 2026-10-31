@@ -1,7 +1,7 @@
 import { Check, Crown, Play, Smartphone, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { GAME_BY_ID } from "../../games/registry";
-import { startGroove } from "../../lib/music";
+import { holdBackground, startGroove } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
@@ -15,6 +15,8 @@ import { LeanGauge, LimboScene, useLean } from "./parts";
 import "../../styles/party.css";
 
 export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) {
+  // the dance floor has its own music: the lounge music waits
+  useEffect(() => holdBackground(), []);
   const { room, me, isHost, g, nameOf, now } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";

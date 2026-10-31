@@ -1,0 +1,253 @@
+/*
+ * A phone held sideways. The screen is short and wide, so a game's big picture (the bottle, the
+ * wheel, the dice, the record and its stage, the drawing, the dance floor, the limbo bar) sits
+ * on the left, centred on the height, and everything else stacks on the right and scrolls when
+ * it must. The chrome gets shorter. Nothing here touches a phone held upright, a tablet in
+ * portrait, or a computer window.
+ */
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  .topbar {
+    min-height: 40px;
+    margin-bottom: 2px;
+  }
+  .bi-title > :last-child {
+    display: none;
+  }
+  .bi-title > :first-child {
+    font-size: 17px;
+  }
+  .room-light {
+    height: 30vh;
+  }
+  /* the whole width of the phone, clear of the notch; the screen is the viewport, the body scrolls inside */
+  .app:has(.game-screen),
+  .app:has(.net-screen):not(:has(.lobby-screen)) {
+    max-width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-top: calc(var(--safe-top) + 4px);
+    padding-bottom: calc(var(--safe-bottom) + 6px);
+  }
+  .screen.game-screen,
+  .screen.net-screen {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+  .game-body,
+  .net-body {
+    position: static;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+    gap: 10px;
+    padding-top: 0;
+  }
+  .game-body > .tn,
+  .net-body > .tn,
+  .game-body > .fz,
+  .net-body > .fz,
+  .game-body > .lb,
+  .net-body > .lb,
+  .game-body > .sup,
+  .net-body > .sup,
+  .game-body > .pi,
+  .net-body > .pi {
+    gap: 10px;
+  }
+
+  /* ---- the big picture on the left, when the screen has one ---- */
+  .game-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene),
+  .net-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene) {
+    padding-left: calc(44% + 20px);
+  }
+  .game-body .bottle-stage,
+  .net-body .bottle-stage,
+  .game-body > .card-stage,
+  .net-body > .card-stage,
+  .game-body > .dice-stage,
+  .net-body > .dice-stage,
+  .game-body > .wheel-svg,
+  .net-body > .wheel-svg,
+  .game-body .tn-stage,
+  .net-body .tn-stage,
+  .game-body .tn > .vinyl,
+  .net-body .tn > .vinyl,
+  .game-body .deck-stack,
+  .net-body .deck-stack,
+  .game-body .plate-draw,
+  .net-body .plate-draw,
+  .game-body .plate-watch,
+  .net-body .plate-watch,
+  .game-body .fz > .floor,
+  .net-body .fz > .floor,
+  .game-body .lb > .limbo-scene,
+  .net-body .lb > .limbo-scene {
+    position: absolute;
+    left: 0;
+    top: 46px;
+    bottom: 0;
+    width: 44%;
+    max-width: 44%;
+    height: auto;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  /* online, the reactions row sits along the bottom */
+  .net-body .bottle-stage,
+  .net-body > .card-stage,
+  .net-body > .dice-stage,
+  .net-body > .wheel-svg,
+  .net-body .tn-stage,
+  .net-body .tn > .vinyl,
+  .net-body .deck-stack,
+  .net-body .plate-draw,
+  .net-body .plate-watch,
+  .net-body .fz > .floor,
+  .net-body .lb > .limbo-scene {
+    bottom: 60px;
+  }
+  /* sizes that were set for a phone's width now follow its height */
+  .vinyl-disc {
+    width: min(44vh, 210px);
+  }
+  .tn-stage {
+    padding: 4px 0 10px;
+  }
+  .tn-stage .vinyl-disc {
+    width: min(30vh, 150px);
+  }
+  .tn-avatar {
+    height: min(58vh, 236px);
+  }
+  .game-body > .wheel-svg,
+  .net-body > .wheel-svg {
+    height: 100%;
+    max-height: 100%;
+  }
+  .bottle-svg {
+    height: 56vh;
+    width: auto;
+  }
+  .card-stage .pcard-scene,
+  .card-stage .rule-card {
+    max-height: 76vh;
+  }
+  .game-body > .dice-stage,
+  .net-body > .dice-stage {
+    flex-direction: row;
+    justify-content: center;
+    gap: 14px;
+    transform: scale(0.88);
+    transform-origin: 50% 50%;
+  }
+  .deck-stack {
+    min-height: 0;
+  }
+  .deck-ghost {
+    display: none;
+  }
+  .deck-card {
+    position: static;
+    min-height: 0;
+    height: 64vh;
+    width: min(100%, 400px);
+  }
+  /* the stage keeps its own three columns, the performers standing on its floor */
+  .game-body .tn-stage,
+  .net-body .tn-stage {
+    display: grid;
+    align-items: end;
+  }
+  .plate-draw .plate-surface,
+  .plate-watch .plate-surface {
+    width: auto;
+    height: min(100%, 70vh);
+    aspect-ratio: 1;
+  }
+  .game-body .fz > .floor,
+  .net-body .fz > .floor {
+    top: auto;
+    bottom: auto;
+    inset-block: 46px 0;
+    margin-block: auto;
+    height: min(64vh, 300px);
+    width: min(64vh, 300px);
+    aspect-ratio: 1;
+    left: calc(22% - min(32vh, 150px));
+  }
+  .net-body .fz > .floor {
+    inset-block: 46px 60px;
+  }
+  .game-body .lb > .limbo-scene,
+  .net-body .lb > .limbo-scene {
+    height: auto;
+    max-height: 100%;
+    width: 44%;
+  }
+  /* buttons in a column that is no longer the whole phone */
+  .host-row {
+    justify-content: flex-start;
+  }
+  /* text-heavy games: one comfortable column instead of a wall of text */
+  .game-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene)) > *,
+  .net-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene)) > * {
+    max-width: 640px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  /* "pass the phone to …": a short wide card instead of a tall one, so the button stays on screen */
+  .screen .pass-curtain {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-auto-rows: auto;
+    align-items: center;
+    column-gap: 18px;
+    row-gap: 4px;
+    padding: 14px 18px;
+    margin-top: 4px;
+    text-align: left;
+    max-width: 720px;
+  }
+  .screen .pass-curtain > * {
+    grid-column: 2;
+  }
+  .screen .pass-curtain > .avatar {
+    grid-column: 1;
+    grid-row: 1 / span 8;
+  }
+  .screen .pass-curtain > .btn {
+    grid-column: 3;
+    grid-row: 1 / span 8;
+    margin-top: 0;
+    min-width: 160px;
+  }
+  .screen .pass-lead {
+    margin-top: 0;
+  }
+  .screen .pass-name {
+    font-size: 26px;
+  }
+  .screen .pass-note {
+    margin-bottom: 0;
+  }
+  /* the king's chopsticks and the comedy club: no taller than the phone */
+  .holder-svg {
+    width: auto;
+    height: min(62vh, 300px);
+    margin: 0 auto;
+  }
+  .screen .sh-stage.is-phone {
+    min-height: 0;
+    max-height: calc(100vh - 60px);
+  }
+}

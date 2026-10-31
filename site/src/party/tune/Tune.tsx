@@ -8,10 +8,12 @@ import { holdBackground, type TuneHandle } from "../../lib/music";
 import { heardSongs, loadPreview, rememberSong, type PreviewHandle } from "../../lib/preview";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
-import { cardOf, pickSong, previewUrl, type Song, type SongPool } from "../../shared/songs";
+import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, type Song, type SongPool } from "../../shared/songs";
 import { useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
-import { clipSeconds, CoverLabel, playClip, PoolPicker, SongReveal, SongStatus, StageDots, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { AnswerPicker, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { TuneStage, type StageCue, type StageTiming } from "./stage";
+import { beatsFor } from "../../lib/beats";
 import { loadSongbook } from "./songbook";
 import "../../styles/party.css";
 
@@ -27,7 +29,8 @@ export function Tune({ onBack }: { onBack: () => void }) {
   const zh = lang === "zh";
   const people = useMemo(() => (players.length ? players : [{ id: "me", name: zh ? "你" : "You" }]), [players, zh]);
   const [mode, setMode] = useState<Mode>("songs");
-  const [pool, setPool] = useState<SongPool>("mix");
+  const [pool, setPool] = useState<SongPool>(DEFAULT_POOL);
+  const [quiz, setQuiz] = useState(false);
   const [total, setTotal] = useState(8);
   const [phase, setPhase] = useState<"setup" | "play" | "end">("setup");
   const [scores, setScores] = useState<Record<string, number>>({});
@@ -50,8 +53,8 @@ export function Tune({ onBack }: { onBack: () => void }) {
   const rules = (
     <p>
       {zh
-        ? "真歌：手机放一首真歌的 30 秒试听（华语、英文或者混着来），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。揭晓以后点谁先喊对，还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，错了喝一口。最后得分最低的喝两口。"
-        : "Real songs: the phone plays a 30-second preview of a real song (Chinese, English or both); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. After the reveal, tap who said it first, and open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: right is a point, wrong is a sip. Lowest score drinks two."}
+        ? "真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，错了喝一口。最后得分最低的喝两口。"
+        : "Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: right is a point, wrong is a sip. Lowest score drinks two."}
     </p>
   );
 
@@ -73,6 +76,7 @@ export function Tune({ onBack }: { onBack: () => void }) {
               </button>
             </div>
             {mode === "songs" && <PoolPicker pool={pool} onPick={setPool} />}
+            {mode !== "pads" && <AnswerPicker quiz={quiz} onPick={setQuiz} />}
             {mode !== "pads" ? (
               <div className="seg seg-sm" role="group" style={{ alignSelf: "center" }}>
                 {[5, 8, 12, 20].map((n) => (
@@ -101,8 +105,8 @@ export function Tune({ onBack }: { onBack: () => void }) {
           </>
         )}
 
-        {phase === "play" && mode === "songs" && <SongRounds total={total} pool={pool} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} />}
-        {phase === "play" && mode === "melody" && <MelodyRounds total={total} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
+        {phase === "play" && mode === "songs" && <SongRounds total={total} pool={pool} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />}
+        {phase === "play" && mode === "melody" && <MelodyRounds total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
         {phase === "play" && mode === "pads" && <Pads people={people} scores={scores} setScores={setScores} onEnd={() => finish(scores)} onWrong={(name) => penalty.show({ who: [name], kind: "sip", note: zh ? "抢答错了" : "Wrong answer" })} />}
 
         {phase === "end" && (
@@ -123,24 +127,29 @@ export function Tune({ onBack }: { onBack: () => void }) {
 function SongRounds({
   total,
   pool,
+  quiz,
   people,
   scores,
   setScores,
   onEnd,
   onOffline,
+  onEmpty,
 }: {
   total: number;
   pool: SongPool;
+  quiz: boolean;
   people: { id: string; name: string }[];
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
   onEnd: (final: Record<string, number>) => void;
   onOffline: () => void;
+  onEmpty: () => void;
 }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const [book, setBook] = useState<Song[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [empty, setEmpty] = useState(false);
   const played = useRef(new Set<number>());
   const avoid = useRef(new Set(heardSongs()));
   const [round, setRound] = useState(1);
@@ -151,6 +160,12 @@ function SongRounds({
   const [stage, setStage] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const handle = useRef<PreviewHandle | null>(null);
+  const [timing, setTiming] = useState<StageTiming | null>(null);
+  /** quiz: the four titles for this song, and the wrong ones the table has tried */
+  const [choices, setChoices] = useState<Song[]>([]);
+  const [tried, setTried] = useState<number[]>([]);
+  /** the performers react: a cheer for the right title, a shrug for a wrong one */
+  const [cue, setCue] = useState<StageCue | null>(null);
 
   useEffect(() => holdBackground(), []);
   useEffect(() => {
@@ -163,7 +178,7 @@ function SongRounds({
   useEffect(() => {
     if (!book || song) return;
     const first = pick(book);
-    if (!first) return setFailed(true);
+    if (!first) return setEmpty(true);
     played.current.add(first.id);
     setSong(first);
     setNext(pick(book, [first.id]));
@@ -175,10 +190,16 @@ function SongRounds({
 
   const audio = useSongAudio(song ? previewUrl(song.p) : null);
   const canPlay = audio.status === "ready" || audio.status === "failed";
+  const beats = useMemo(() => (audio.url && audio.buf ? beatsFor(audio.url, audio.buf) : null), [audio.url, audio.buf]);
+  useEffect(() => {
+    if (song && book) setChoices(shuffle([song, ...decoysFor(song, book, Math.random)]));
+    setTried([]);
+  }, [song, book]);
 
   const play = (from: number) => {
     handle.current?.stop(0.1);
     handle.current = startSong(audio, { offset: from, fadeIn: from ? 0.2 : 0.05 });
+    setTiming(handle.current ? { startPerf: performance.now(), offset: from } : null);
   };
   // the song starts as soon as it has loaded; the points clock starts with it
   useEffect(() => {
@@ -200,6 +221,17 @@ function SongRounds({
     return () => window.clearInterval(id);
   }, [startedAt, revealed]);
 
+  if (empty)
+    return (
+      <>
+        <p className="hint" style={{ textAlign: "center" }}>
+          {zh ? "这个歌单还没有歌，换一个语言或类别试试。" : "No songs in this pool yet. Try another language or category."}
+        </p>
+        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onEmpty}>
+          {zh ? "换歌单" : "Pick another"}
+        </button>
+      </>
+    );
   if (failed)
     return (
       <>
@@ -248,16 +280,44 @@ function SongRounds({
   };
 
   const card = cardOf(song);
+  const reveal = () => {
+    setRevealedAt(stage);
+    setRevealed(true);
+    sfx.reveal();
+  };
   return (
     <>
       <p className="tn-round tabular">{zh ? `第 ${round} 首，共 ${total} 首` : `Song ${round} of ${total}`}</p>
-      <Vinyl spinning={startedAt !== null} label={revealed ? <CoverLabel art={card.art} /> : "?"} />
+      <TuneStage singer={song.g} playing={startedAt !== null} beats={beats} timing={timing} mood={moodOf(song)} songKey={song.id} cue={cue}>
+        <Vinyl spinning={startedAt !== null} label={revealed ? <CoverLabel art={card.art} /> : "?"} />
+      </TuneStage>
       <StageDots stage={revealed ? revealedAt : stage} />
       <SongStatus audio={audio} playing />
+      {quiz && choices.length === 4 && (
+        <QuizChoices
+          choices={choices.map((c) => ({ id: c.id, t: c.t, a: c.a, ae: c.ae }))}
+          mine={revealed ? song.id : tried[tried.length - 1] ?? null}
+          answer={revealed ? song.id : null}
+          disabled={startedAt === null}
+          onPick={(id) => {
+            if (id === song.id) {
+              haptic([12, 30, 12]);
+              setCue({ kind: "right", at: performance.now() });
+              reveal();
+            } else {
+              setTried((t) => [...t, id]);
+              setCue({ kind: "wrong", at: performance.now() });
+              sfx.wrong();
+              haptic(30);
+            }
+          }}
+        />
+      )}
+      {quiz && !revealed && tried.length > 0 && <p className="tn-miss">{zh ? `猜错 ${tried.length} 次了，喝一口再猜` : `${tried.length} wrong so far. Sip and try again.`}</p>}
       {revealed ? (
         <>
           <SongReveal song={card} />
-          <p className="sup-ask">{zh ? "谁先猜对的？" : "Who got it first?"}</p>
+          <p className="sup-ask">{quiz ? (zh ? "谁答对的？" : "Who got it?") : zh ? "谁先猜对的？" : "Who got it first?"}</p>
           <div className="picker" style={{ justifyContent: "center" }}>
             {people.map((p) => (
               <button key={p.id} type="button" className="chip" onClick={() => award(p.id)}>
@@ -276,15 +336,7 @@ function SongRounds({
             <RotateCcw size={16} />
             {zh ? "从头再放" : "From the top"}
           </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-lg btn-block"
-            onClick={() => {
-              setRevealedAt(stage);
-              setRevealed(true);
-              sfx.reveal();
-            }}
-          >
+          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={reveal}>
             <Eye size={18} />
             {zh ? "揭晓歌名" : "Reveal the title"}
           </button>
@@ -296,12 +348,14 @@ function SongRounds({
 
 function MelodyRounds({
   total,
+  quiz,
   people,
   scores,
   setScores,
   onEnd,
 }: {
   total: number;
+  quiz: boolean;
   people: { id: string; name: string }[];
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
@@ -319,12 +373,19 @@ function MelodyRounds({
   const [spinning, setSpinning] = useState(false);
   const handle = useRef<TuneHandle | null>(null);
   const stopTimer = useRef(0);
+  const [timing, setTiming] = useState<StageTiming | null>(null);
+  const [tried, setTried] = useState<number[]>([]);
+  const options = useMemo(() => {
+    const decoys = shuffle(TUNES.map((_, i) => i).filter((i) => i !== tune)).slice(0, 3);
+    return shuffle([tune, ...decoys]);
+  }, [tune]);
 
   const play = (st: number) => {
     handle.current?.stop();
     handle.current = playClip(tune, st);
     setStage(st);
     setSpinning(true);
+    setTiming({ startPerf: performance.now(), offset: 0 });
     window.clearTimeout(stopTimer.current);
     stopTimer.current = window.setTimeout(() => setSpinning(false), clipSeconds(tune, st) * 1000 + 200);
   };
@@ -355,18 +416,45 @@ function MelodyRounds({
     setRound((r) => r + 1);
     setRevealed(false);
     setStage(0);
+    setTried([]);
     setTune(deck.current.pop()!);
+  };
+  const reveal = () => {
+    setRevealedAt(stage);
+    setRevealed(true);
+    play(2);
+    sfx.reveal();
   };
 
   return (
     <>
       <p className="tn-round tabular">{zh ? `第 ${round} 首，共 ${total} 首` : `Song ${round} of ${total}`}</p>
-      <Vinyl spinning={spinning} label={revealed ? "" : "?"} />
+      <TuneStage singer={0} playing={spinning} beats={null} timing={timing} fallbackBpm={TUNES[tune].bpm} songKey={`tune${tune}`}>
+        <Vinyl spinning={spinning} label={revealed ? "" : "?"} />
+      </TuneStage>
       <StageDots stage={revealed ? revealedAt : stage} />
+      {quiz && (
+        <QuizChoices
+          choices={options.map((o) => ({ id: o, t: zh ? TUNES[o].title.zh : TUNES[o].title.en, a: TUNES[o].title.en, ae: TUNES[o].title.zh }))}
+          mine={revealed ? tune : tried[tried.length - 1] ?? null}
+          answer={revealed ? tune : null}
+          onPick={(id) => {
+            if (id === tune) {
+              haptic([12, 30, 12]);
+              reveal();
+            } else {
+              setTried((t) => [...t, id]);
+              sfx.wrong();
+              haptic(30);
+            }
+          }}
+        />
+      )}
+      {quiz && !revealed && tried.length > 0 && <p className="tn-miss">{zh ? `猜错 ${tried.length} 次了，喝一口再猜` : `${tried.length} wrong so far. Sip and try again.`}</p>}
       {revealed ? (
         <>
           <TuneTitle tune={tune} />
-          <p className="sup-ask">{zh ? "谁先猜对的？" : "Who got it first?"}</p>
+          <p className="sup-ask">{quiz ? (zh ? "谁答对的？" : "Who got it?") : zh ? "谁先猜对的？" : "Who got it first?"}</p>
           <div className="picker" style={{ justifyContent: "center" }}>
             {people.map((p) => (
               <button key={p.id} type="button" className="chip" onClick={() => award(p.id)}>
@@ -393,16 +481,7 @@ function MelodyRounds({
               </button>
             )}
           </div>
-          <button
-            type="button"
-            className="btn btn-primary btn-lg btn-block"
-            onClick={() => {
-              setRevealedAt(stage);
-              setRevealed(true);
-              play(2);
-              sfx.reveal();
-            }}
-          >
+          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={reveal}>
             <Eye size={18} />
             {zh ? "揭晓歌名" : "Reveal the title"}
           </button>

@@ -3,6 +3,8 @@ import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import type { Action, GameView, PenaltyEvent, RoomEvent } from "../src/shared/protocol";
+import { SONG_ROWS } from "../src/data/songs";
+import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
 
 let clock = 1_000_000;
 let seed = 7;
@@ -592,15 +594,26 @@ test("tune: real songs play in sync, never twice, and the reveal names the song"
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
   let v = t.view<V<"tune">>("p1");
-  ok(v.mode === "songs" && v.pool === "mix", "real songs, both languages, by default");
-  t.g("p1", "pool", { pool: "zh" });
-  ok(t.view<V<"tune">>("p1").pool === "mix", "only the host picks the songs");
+  ok(v.mode === "songs" && v.pool === "zh+en:any" && v.quiz === false, "real songs, both languages, buzzers, by default");
+  t.g("p1", "pool", { pool: "zh:any" });
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "only the host picks the songs");
   t.g("p0", "pool", { pool: "zh" });
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "a pool has languages and categories");
+  for (const bad of ["zh:nope", "klingon:any", ":any", "zh+:any", 7, "zh:any:rock"]) t.g("p0", "pool", { pool: bad });
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "made-up languages and categories are turned away");
+  t.g("p0", "pool", { pool: "ko+yue:rock+oldies" });
+  ok(t.view<V<"tune">>("p1").pool === "yue+ko:oldies+rock", "several languages and categories at once, always written the same way");
+  t.g("p0", "pool", { pool: "mix:any" });
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "the first list's words still work");
+  t.g("p0", "pool", { pool: "world+global:rock" });
+  ok(t.view<V<"tune">>("p1").pool === "world+global:any", "no categories where the picks have none");
+  t.g("p0", "pool", { pool: "zh:any" });
   t.g("p0", "total", { n: 5 });
   t.g("p0", "go");
   v = t.view<V<"tune">>("p1");
   let s = t.eng.d.game!.s as SongS;
   ok(v.phase === "listen" && !!v.audio?.startsWith("https://audio-ssl.itunes.apple.com/") && v.song === null && v.choices === null, "phones get the preview, not which song it is");
+  ok(v.singer === (s.song as unknown as { g: number }).g, "the stage learns who sings it");
   ok(s.song.l === 0 && s.choices.length === 4 && s.choices.every((c) => c.l === 0) && s.choices.some((c) => c.id === s.song.id), "a Chinese song, four Chinese titles, the right one among them");
   ok(new Set(s.choices.map((c) => (c as unknown as { a: string }).a)).size === 4, "four different artists to pick from");
   ok(!!v.pre && v.pre !== v.audio, "the next song is named early so phones can load it");
@@ -649,15 +662,67 @@ test("tune: real songs play in sync, never twice, and the reveal names the song"
 test("tune: the host's phone brings today's charts, and only good rows get in", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "tune" });
-  t.g("p0", "pool", { pool: "en" });
+  t.g("p0", "pool", { pool: "en:any" });
   const good = [9_000_000_001, "New Hit", "New Artist", "", 1, 2026, "AudioPreview1/v4/aa/bb/cc/x/mzaf_1", "", "us", 1];
+  const good12 = [9_000_000_004, "New Hit 2", "New Artist 2", "", 3, 2026, "AudioPreview1/v4/aa/bb/cc/x/mzaf_4", "", "kr", 1, 0, 0];
+  const bad12 = [9_000_000_005, "Odd", "Odd", "", 1, 2026, "AudioPreview1/v4/aa/bb/cc/x/mzaf_5", "", "us", 1, 9999, 7];
   const evil = [9_000_000_002, "Bad", "Bad", "", 1, 2026, "https://evil.example/x.m4a", "", "us", 1];
   const broken = [9_000_000_003, "", "No title", "", 1, 2026, "AudioPreview1/x", "", "us", 1];
   const s = t.eng.d.game!.s as { extra: { id: number }[] };
   t.g("p1", "go", { charts: [good] });
   ok(s.extra.length === 0, "another phone can't start the song or hand in charts");
-  t.g("p0", "go", { charts: [good, evil, broken, "nope"] });
-  ok(s.extra.length === 1 && s.extra[0].id === 9_000_000_001, "the good row is in, the rest are dropped");
+  t.g("p0", "go", { charts: [good, evil, broken, "nope", good12, bad12] });
+  ok(s.extra.length === 2 && s.extra.some((x) => x.id === 9_000_000_001) && s.extra.some((x) => x.id === 9_000_000_004), "the good rows are in (old and new shapes), the rest are dropped");
+});
+
+test("tune: pools by language and category, and the quiz where everyone answers", () => {
+  type SongS = { song: { id: number; l: number; y: number; k: number }; choices: { id: number }[]; answers: Record<string, { c: number }> };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p0", "pool", { pool: "en:oldies" });
+  t.g("p0", "quiz", { on: true });
+  t.g("p0", "total", { n: 5 });
+  t.g("p0", "go");
+  let v = t.view<V<"tune">>("p1");
+  let s = t.eng.d.game!.s as SongS;
+  ok(v.quiz && v.phase === "listen" && v.choices?.length === 4 && v.mine === null && v.answered.length === 0, "a quiz: four titles up from the start, nobody has answered");
+  ok(s.song.l === 1 && s.song.y < 2000, "an English song from before 2000");
+  t.g("p1", "answer", { choice: s.choices[0].id });
+  ok(t.view<V<"tune">>("p1").mine === null, "no answers before the song starts");
+  t.advance(2600);
+  t.g("p1", "buzz");
+  ok(t.view<V<"tune">>("p0").phase === "listen" && t.view<V<"tune">>("p0").buzzer === null, "no buzzer in a quiz");
+  t.g("p1", "answer", { choice: s.song.id });
+  v = t.view<V<"tune">>("p1");
+  ok(v.mine === s.song.id && v.answered.length === 1 && t.view<V<"tune">>("p2").mine === null, "my pick is mine; the others see that I answered, not what");
+  t.g("p1", "answer", { choice: s.choices.find((c) => c.id !== s.song.id)!.id });
+  ok(t.view<V<"tune">>("p1").mine === s.song.id, "one answer each");
+  t.advance(9000);
+  const wrong = s.choices.find((c) => c.id !== s.song.id)!.id;
+  t.g("p2", "answer", { choice: wrong });
+  ok(t.view<V<"tune">>("p0").phase === "listen", "two of three answered: the song plays on");
+  t.g("p0", "answer", { choice: s.song.id });
+  v = t.view<V<"tune">>("p0");
+  ok(v.phase === "reveal" && v.right.join() === "p1,p0" && v.scores.p1 === 3 && v.scores.p0 === 2 && (v.scores.p2 ?? 0) === 0, "everyone in: the reveal; the right ones score by how soon they answered");
+  ok(t.view<V<"tune">>("p2").mine === wrong && v.song?.id === s.song.id, "the reveal shows each phone its own pick and the answer");
+  t.advance(10_000);
+  s = t.eng.d.game!.s as SongS;
+  ok(t.view<V<"tune">>("p0").round === 2 && Object.keys(s.answers).length === 0, "next song: fresh answers");
+  t.advance(2600 + 20_000);
+  ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").right.length === 0, "nobody answered in time: the reveal, nobody scores");
+});
+
+test("tune: a pool of several languages and categories", () => {
+  const all = SONG_ROWS.map(fromRow);
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pick = (pool: string, n: number) => Array.from({ length: n }, () => pickSong(all, pool, new Set(), new Set(), rand)!);
+  const kj = pick("ko+ja:rock", 40);
+  ok(kj.every((x) => x.l === 4 && (x.k & CAT_BIT.rock) !== 0), "Korean and Japanese rock: Korean has none, so Japanese rock only");
+  const zy = pick("zh+yue:oldies+folk", 60);
+  ok(new Set(zy.map((x) => x.l)).size === 2 && zy.every((x) => inPool(x, "zh+yue:oldies+folk")), "Mandarin and Cantonese oldies and folk: both languages come up");
+  const wg = pick("world+global:any", 40);
+  ok(wg.every((x) => x.l === 6 || x.c === 1) && wg.some((x) => x.l === 6), "world classics and today's charts");
+  ok(moodOf({ t: "后来的我们哭了" }) === "sad" && moodOf({ t: "Dance Monkey" }) === "hype" && moodOf({ t: "月亮代表我的心" }) === "love" && moodOf({ t: "稻香" }) === "", "a song's mood from its title");
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {
@@ -756,7 +821,7 @@ test("punchline: a host tap only moves the step it was made on", () => {
   ok(t.view<V<"punchline">>("p0").phase === "result", "play again only works at the end");
 });
 
-test("big screen: sees Punchline, but no other game's secrets; a kicked id stays out", () => {
+test("big screen: sees every game, but nobody's secrets; a kicked id stays out", () => {
   const e = new RoomEngine(freshRoom("TVTW", clock), host);
   ok(e.screenHello("tv-scr1", true) === null, "a screen opens a table");
   e.hello("p1", "Amy", false);
@@ -764,9 +829,20 @@ test("big screen: sees Punchline, but no other game's secrets; a kicked id stays
   e.hello("p3", "Cat", false);
   e.act("p1", { a: "start", game: "postit" });
   e.flush();
-  const tv = e.view("tv-scr1");
-  ok(tv.game === null && tv.playing === "postit", "the screen knows Post-it is on, without anyone's notes");
+  let tv = e.view("tv-scr1");
+  ok(tv.game?.id === "postit" && tv.playing === "postit", "the screen watches Post-it");
   ok(e.view("p2").game !== null && e.view("p2").playing === "postit", "a seated phone gets the game");
+  for (const p of ["p1", "p2", "p3"]) e.act(p, { a: "g", g: { x: "write", text: `note for ${(e.view(p).game as { myTarget: string }).myTarget}` } });
+  e.flush();
+  const notes = (e.view("tv-scr1").game as { notes: Record<string, string | null>; phase: string }).notes;
+  ok((e.view("p1").game as { phase: string }).phase === "play" && Object.values(notes).every((n) => n === null), "while they play, the screen shows no note (the person it is about might be looking)");
+  ok(Object.values((e.view("p2").game as { notes: Record<string, string | null> }).notes).filter((n) => n !== null).length === 2, "a phone sees everyone's note but its own");
+  e.act("p1", { a: "end" });
+  e.act("p1", { a: "start", game: "king" });
+  e.flush();
+  tv = e.view("tv-scr1");
+  ok(tv.game?.id === "king" && (tv.game as { myToken: unknown }).myToken === null, "King's Game: the screen holds no token");
+  e.act("p1", { a: "end" });
   e.act("p1", { a: "end" });
   e.act("p1", { a: "start", game: "punchline" });
   e.flush();
