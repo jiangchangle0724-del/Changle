@@ -5,7 +5,7 @@ export type ScanState =
   | { stage: "load"; photo: string; progress: number }
   | { stage: "read"; photo: string }
   | { stage: "mesh"; photo: string; pic: HTMLCanvasElement; pts: [number, number][] }
-  | { stage: "fail"; photo: string; why: "no-face" | "load" };
+  | { stage: "fail"; photo: string; why: "no-face" | "load" | "blocked" };
 
 const SIZE = 232;
 
@@ -100,9 +100,13 @@ export function Scan({ s, zh, onMeshDone }: { s: ScanState; zh: boolean; onMeshD
             ? zh
               ? "这张里没找到脸"
               : "No face in this one"
-            : zh
-              ? "这里没法读照片"
-              : "Photos can't be read here";
+            : s.why === "blocked"
+              ? zh
+                ? "这里没法读照片"
+                : "Photos can't be read here"
+              : zh
+                ? "没下载好"
+                : "The download didn't finish";
 
   return (
     <div className={`mk-scan is-${s.stage}`} role="status" aria-live="polite">

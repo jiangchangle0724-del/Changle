@@ -19,7 +19,8 @@ import { setLight } from "../../src/lib/anim";
 import type { AvatarCfg } from "../../src/shared/avatar/cfg";
 import { StoreProvider, useStore } from "../../src/store";
 
-serveMatcherFrom("mp");
+// (the preview's host serves text but not binary files, so the models ride along as base64)
+serveMatcherFrom("mp", { packed: true });
 setLight("#ff9cc5", 0);
 
 const BACKS = ["#b072ff", "#4be38f", "#ffb82e", "#31b9ff", "#ff5fa2"];

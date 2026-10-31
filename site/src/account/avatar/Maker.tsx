@@ -167,8 +167,9 @@ function Body({ initial, start, onDone, onClose }: { initial: AvatarCfg | null; 
       }
       matched.current = { cfg: { ...cfgNow.current, ...r.cfg }, found: { seen: r.seen } };
       setScan({ stage: "mesh", photo: url, pic: lastRead, pts: lastPts });
-    } catch {
-      if (photoUrl.current === url) setScan({ stage: "fail", photo: url, why: "load" });
+    } catch (e) {
+      // (a CompileError: this page's rules don't let WebAssembly run; anything else: the download)
+      if (photoUrl.current === url) setScan({ stage: "fail", photo: url, why: e instanceof WebAssembly.CompileError ? "blocked" : "load" });
     }
   };
 
@@ -401,9 +402,13 @@ function PhotoTab({
               ? zh
                 ? "换一张正脸、亮一点的照片试试，脸占画面大一些更好。"
                 : "Try a brighter photo, facing the camera, with your face filling more of it."
-              : zh
-                ? "这里读不了照片。可以自己捏，或者换个浏览器再试。"
-                : "Photos can't be read here. Make it yourself, or try another browser."}
+              : scan.why === "blocked"
+                ? zh
+                  ? "这个页面不让读照片，可以先自己捏。"
+                  : "This page doesn't allow reading photos. Make it yourself for now."
+                : zh
+                  ? "读照片的工具没下载好。网好一点再试，或者先自己捏。"
+                  : "What reads the photo didn't download. Try again on a better connection, or make it yourself."}
           </p>
           <button className="link-btn" onClick={onBack}>
             {zh ? "回到我的头像" : "Back to my avatar"}

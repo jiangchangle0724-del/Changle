@@ -29,6 +29,7 @@ const js = res.outputFiles.find((f) => f.path.endsWith(".js")).text;
 const css = res.outputFiles.find((f) => f.path.endsWith(".css")).text;
 const fonts = "https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&family=Unbounded:wght@600..800&display=swap";
 const html = `<title>头像小样</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="${fonts}">
 <style>${css}</style>
@@ -44,5 +45,6 @@ writeFileSync(
 const wasm = join(site, "node_modules/@mediapipe/tasks-vision/wasm");
 copyFileSync(join(wasm, "vision_wasm_internal.js"), join(out, "mp/vision_wasm_internal.js"));
 copyFileSync(join(wasm, "vision_wasm_internal.wasm"), join(out, "mp/vision_wasm_internal.wasm"));
-for (const f of ["face_landmarker.task", "hair_segmenter.tflite"]) copyFileSync(join(site, "public/mp", f), join(out, "mp", f));
+// the models as base64 text: hosts that serve only web file types still serve .txt
+for (const f of ["face_landmarker.task", "hair_segmenter.tflite"]) writeFileSync(join(out, "mp", f + ".b64.txt"), readFileSync(join(site, "public/mp", f)).toString("base64"));
 console.log(`${out}/index.html ${(html.length / 1024).toFixed(0)} KB`);

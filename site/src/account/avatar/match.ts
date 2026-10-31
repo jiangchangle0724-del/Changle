@@ -13,9 +13,14 @@ export type Match = { cfg: Partial<AvatarCfg>; seen: Seen[]; note?: "no-face" | 
 export type Seen = "skin" | "face" | "eyes" | "eyeColor" | "brows" | "hair" | "fringe" | "hairColor" | "glasses" | "beard";
 
 let MP = "/mp";
-/** Where the reading kit is served from (the site keeps it at /mp; a preview page next to itself). */
-export function serveMatcherFrom(base: string) {
+let packed = false;
+/**
+ * Where the reading kit is served from: the site keeps it at /mp. A host that won't serve binary
+ * files (a preview page) can keep the two models as base64 text instead (`packed`, as *.b64.txt).
+ */
+export function serveMatcherFrom(base: string, opts: { packed?: boolean } = {}) {
   MP = base;
+  packed = !!opts.packed;
 }
 /** Bytes to fetch the first time (the runtime and the two models), for the progress bar. */
 export const MP_BYTES = 14_466_654 + 3_758_596 + 781_618;
@@ -47,11 +52,22 @@ async function fetchWithProgress(url: string, onBytes: (n: number) => void): Pro
   return out;
 }
 
+/** A model kept as base64 text, back to its bytes (progress counts the bytes it stands for). */
+async function fetchPacked(url: string, onBytes: (n: number) => void): Promise<Uint8Array> {
+  const text = new TextDecoder().decode(await fetchWithProgress(url, (n) => onBytes(n * 0.75)));
+  const bin = atob(text.trim());
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 /** Load the models once (they stay for the visit). `onProgress` gets 0..1. */
 export function loadMatcher(onProgress?: (p: number) => void, base?: string): Promise<Matcher> {
   if (loading) return loading;
   const from = base ?? MP;
   loading = (async () => {
+    // (a page whose rules forbid running WebAssembly can't read photos: find out before downloading)
+    await WebAssembly.compile(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
     let got = 0;
     const tick = (n: number) => {
       got += n;
@@ -60,8 +76,8 @@ export function loadMatcher(onProgress?: (p: number) => void, base?: string): Pr
     // (the runtime is fetched by MediaPipe itself; fetching it first fills the cache and shows progress)
     const [, faceModel, hairModel, vision] = await Promise.all([
       fetchWithProgress(`${from}/vision_wasm_internal.wasm`, tick),
-      fetchWithProgress(`${from}/face_landmarker.task`, tick),
-      fetchWithProgress(`${from}/hair_segmenter.tflite`, tick),
+      packed ? fetchPacked(`${from}/face_landmarker.task.b64.txt`, tick) : fetchWithProgress(`${from}/face_landmarker.task`, tick),
+      packed ? fetchPacked(`${from}/hair_segmenter.tflite.b64.txt`, tick) : fetchWithProgress(`${from}/hair_segmenter.tflite`, tick),
       import("@mediapipe/tasks-vision"),
     ]);
     const files = await vision.FilesetResolver.forVisionTasks(from);
