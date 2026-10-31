@@ -17,7 +17,7 @@ import { Leaderboard } from "../common";
 import { perfAt } from "../sensors";
 import { chartsForRoom, loadCharts } from "./charts";
 import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, stageNow, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
-import { TuneStage, type StageTiming } from "./stage";
+import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
 import "../../styles/party.css";
 
@@ -38,6 +38,17 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
 
   // the game has its own soundtrack: the lounge music waits
   useEffect(() => holdBackground(), []);
+
+  // the performers shrug when a buzz-in misses, and cheer (or shrug) when the answer is out
+  const [missCue, setMissCue] = useState<StageCue | null>(null);
+  const misses = v.locked.length;
+  const lastMisses = useRef(misses);
+  useEffect(() => {
+    if (misses > lastMisses.current) setMissCue({ kind: "wrong", at: performance.now() });
+    lastMisses.current = misses;
+  }, [misses]);
+  const someoneGotIt = quiz ? v.right.length > 0 : v.correct !== null;
+  const revealCue = useMemo<StageCue>(() => ({ kind: someoneGotIt ? "right" : "wrong", at: v.round }), [someoneGotIt, v.round]);
 
   /* ---------- songs: every phone plays the same preview from the same second ---------- */
 
@@ -218,7 +229,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             {djMode ? (
               <Vinyl spinning={v.phase === "listen"} label={recordLabel} />
             ) : (
-              <TuneStage singer={songs ? v.singer : 0} playing={v.phase === "listen" && started} beats={songs ? beats : null} timing={songs ? timing : melodyTiming} fallbackBpm={melody ? (v.clip?.bpm ?? 100) : 100}>
+              <TuneStage singer={songs ? v.singer : 0} playing={v.phase === "listen" && started} beats={songs ? beats : null} timing={songs ? timing : melodyTiming} fallbackBpm={melody ? (v.clip?.bpm ?? 100) : 100} mood={songs ? v.mood : ""} songKey={songs ? (v.audio ?? "") : `r${v.round}`} cue={missCue}>
                 <Vinyl spinning={v.phase === "listen" && started} label={recordLabel} />
               </TuneStage>
             )}
@@ -332,7 +343,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             {roundLine}
             {songs && v.song ? (
               <>
-                <TuneStage singer={v.singer} playing beats={beats} timing={timing}>
+                <TuneStage singer={v.singer} playing beats={beats} timing={timing} mood={v.mood} songKey={v.audio ?? v.song.id} cue={revealCue}>
                   <Vinyl spinning label={<CoverLabel art={v.song.art} />} />
                 </TuneStage>
                 <SongReveal song={v.song} />

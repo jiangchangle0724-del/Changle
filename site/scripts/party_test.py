@@ -472,7 +472,8 @@ def t_tune_single(browser):
     # real songs (the default): the list loads on demand, the reveal links to Apple Music
     pg.goto(BASE + "#/g/tune", wait_until="networkidle")
     pg.wait_for_selector(".vinyl")
-    pg.get_by_role("button", name="华语").click()
+    pg.get_by_role("button", name="英文", exact=True).click()  # drop English: Chinese songs only
+    ok(pg.locator(".tn-pool .chip[aria-pressed=true]", has_text="华语").count() == 1 and pg.locator(".tn-pool .chip[aria-pressed=true]", has_text="英文").count() == 0, "languages toggle one by one")
     pg.get_by_role("button", name="5 首").click()
     shot(pg, "tn-songs-setup")
     pg.get_by_role("button", name="开始").click()
@@ -539,8 +540,8 @@ def t_tune_songs_online(browser):
     everyone = [host] + guests
     start_game(host, everyone, "tune")
     ok(until(lambda: view(host)["mode"] == "songs"), "real songs by default")
-    host.get_by_role("button", name="华语").click()
-    ok(until(lambda: str(view(guests[0])["pool"]).startswith("zh")), "the host picks Chinese songs")
+    host.get_by_role("button", name="英文", exact=True).click()
+    ok(until(lambda: view(guests[0])["pool"] == "zh:any"), "the host drops English: Chinese songs only, and the table sees it")
     host.wait_for_timeout(300)
     shot(guests[0], "tn-songs-net-ready")
     host.get_by_role("button", name="放第一首").click()

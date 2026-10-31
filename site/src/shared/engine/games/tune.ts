@@ -1,7 +1,7 @@
 import { LISTEN_MS, STAGE_GAPS, TUNES } from "../../../data/tunes";
 import { SONG_ROWS } from "../../../data/songs";
 import type { TuneView } from "../../protocol";
-import { cardOf, checkRow, decoysFor, DEFAULT_POOL, fromRow, isPool, pickSong, previewUrl, type Song, type SongPool } from "../../songs";
+import { cardOf, checkRow, decoysFor, DEFAULT_POOL, fromRow, moodOf, pickSong, previewUrl, samePool, type Song, type SongPool } from "../../songs";
 import { range, t, type Api, type GameDef } from "../api";
 
 /**
@@ -268,9 +268,10 @@ export const tune: GameDef<S> = {
         return;
       }
       case "pool": {
-        if (!host || (s.phase !== "ready" && s.phase !== "reveal") || !isPool(g.pool)) return;
-        if (s.pool !== g.pool) s.next = null;
-        s.pool = g.pool;
+        const pool = samePool(g.pool);
+        if (!host || (s.phase !== "ready" && s.phase !== "reveal") || !pool) return;
+        if (s.pool !== pool) s.next = null;
+        s.pool = pool;
         s.noSongs = false;
         return;
       }
@@ -421,6 +422,8 @@ export const tune: GameDef<S> = {
       choices: songs && s.choices && showAnswers ? s.choices.map((c) => ({ id: c.id, t: c.t, a: c.a, ae: c.ae })) : null,
       song: songs && done && s.song ? cardOf(s.song) : null,
       singer: songs && live && s.song ? s.song.g : 0,
+      // how the song feels, from its title and categories: the stage plays it (tears for a sad one)
+      mood: songs && live && s.song ? moodOf(s.song) : "",
       noSongs: s.noSongs,
       answered: quiz ? Object.keys(s.answers) : [],
       mine: quiz ? (s.answers[pid]?.c ?? null) : null,

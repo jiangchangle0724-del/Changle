@@ -20,6 +20,9 @@ export type BeatMap = {
   frame: number;
   /** how sure the tempo is, 0..1 */
   conf: number;
+  /** how loud the clip is on average (frame RMS of the mix): dance, rock and rap masters sit around
+   *  0.35-0.6, ballads and folk 0.1-0.3, classical below 0.2. Says how hard the stage should dance. */
+  loud: number;
 };
 
 const FRAME_S = 0.02;
@@ -157,7 +160,10 @@ export function analyzeBuffer(buf: AudioBuffer): BeatMap {
     v += (raw - v) * (raw > v ? 0.5 : 0.18);
     voice[f] = v;
   }
-  return { bpm: 60 / period, beats: Float32Array.from(beats), drum, voice, frame: FRAME_S, conf };
+  let loud = 0;
+  for (let f = 0; f < F; f++) loud += eAll[f];
+  loud /= F || 1;
+  return { bpm: 60 / period, beats: Float32Array.from(beats), drum, voice, frame: FRAME_S, conf, loud };
 }
 
 /** Sample a per-frame curve at a time in seconds. */

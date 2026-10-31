@@ -3,6 +3,8 @@ import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import type { Action, GameView, PenaltyEvent, RoomEvent } from "../src/shared/protocol";
+import { SONG_ROWS } from "../src/data/songs";
+import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
 
 let clock = 1_000_000;
 let seed = 7;
@@ -592,11 +594,19 @@ test("tune: real songs play in sync, never twice, and the reveal names the song"
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
   let v = t.view<V<"tune">>("p1");
-  ok(v.mode === "songs" && v.pool === "mix:any" && v.quiz === false, "real songs, both languages, buzzers, by default");
+  ok(v.mode === "songs" && v.pool === "zh+en:any" && v.quiz === false, "real songs, both languages, buzzers, by default");
   t.g("p1", "pool", { pool: "zh:any" });
-  ok(t.view<V<"tune">>("p1").pool === "mix:any", "only the host picks the songs");
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "only the host picks the songs");
   t.g("p0", "pool", { pool: "zh" });
-  ok(t.view<V<"tune">>("p1").pool === "mix:any", "a pool has a language and a category");
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "a pool has languages and categories");
+  for (const bad of ["zh:nope", "klingon:any", ":any", "zh+:any", 7, "zh:any:rock"]) t.g("p0", "pool", { pool: bad });
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "made-up languages and categories are turned away");
+  t.g("p0", "pool", { pool: "ko+yue:rock+oldies" });
+  ok(t.view<V<"tune">>("p1").pool === "yue+ko:oldies+rock", "several languages and categories at once, always written the same way");
+  t.g("p0", "pool", { pool: "mix:any" });
+  ok(t.view<V<"tune">>("p1").pool === "zh+en:any", "the first list's words still work");
+  t.g("p0", "pool", { pool: "world+global:rock" });
+  ok(t.view<V<"tune">>("p1").pool === "world+global:any", "no categories where the picks have none");
   t.g("p0", "pool", { pool: "zh:any" });
   t.g("p0", "total", { n: 5 });
   t.g("p0", "go");
@@ -700,6 +710,19 @@ test("tune: pools by language and category, and the quiz where everyone answers"
   ok(t.view<V<"tune">>("p0").round === 2 && Object.keys(s.answers).length === 0, "next song: fresh answers");
   t.advance(2600 + 20_000);
   ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").right.length === 0, "nobody answered in time: the reveal, nobody scores");
+});
+
+test("tune: a pool of several languages and categories", () => {
+  const all = SONG_ROWS.map(fromRow);
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pick = (pool: string, n: number) => Array.from({ length: n }, () => pickSong(all, pool, new Set(), new Set(), rand)!);
+  const kj = pick("ko+ja:rock", 40);
+  ok(kj.every((x) => x.l === 4 && (x.k & CAT_BIT.rock) !== 0), "Korean and Japanese rock: Korean has none, so Japanese rock only");
+  const zy = pick("zh+yue:oldies+folk", 60);
+  ok(new Set(zy.map((x) => x.l)).size === 2 && zy.every((x) => inPool(x, "zh+yue:oldies+folk")), "Mandarin and Cantonese oldies and folk: both languages come up");
+  const wg = pick("world+global:any", 40);
+  ok(wg.every((x) => x.l === 6 || x.c === 1) && wg.some((x) => x.l === 6), "world classics and today's charts");
+  ok(moodOf({ t: "后来的我们哭了" }) === "sad" && moodOf({ t: "Dance Monkey" }) === "hype" && moodOf({ t: "月亮代表我的心" }) === "love" && moodOf({ t: "稻香" }) === "", "a song's mood from its title");
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {

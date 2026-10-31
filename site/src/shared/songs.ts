@@ -73,36 +73,68 @@ export const CLASSIC_BIT = 256;
 export const OLD_BEFORE: Record<number, number> = { 0: 2003, 1: 2000, 2: 2003, 3: 2006, 4: 2006, 5: 2009 };
 
 /**
- * What the table listens to: a language (or "mix" for Chinese and English together, "global" for
- * today's and recent charts everywhere, "all" for everything), and a category or "any".
- * Written "zh:any", "en:rock", "global:any".
+ * What the table listens to: one or more sources (languages, the world classics, today's charts
+ * everywhere) and one or more categories, or any. Written with "+" between the picks:
+ * "zh+yue:oldies+rock", "en:any", "global:any". The first list's words still read: "mix" is
+ * Chinese and English, "all" is every source.
  */
-export type PoolLang = Exclude<LangKey, "other"> | "mix" | "global" | "all";
-export type SongPool = `${PoolLang}:${CatKey | "any"}`;
-export const DEFAULT_POOL: SongPool = "mix:any";
-export const POOL_LANGS: { key: PoolLang; zh: string; en: string; cats: boolean }[] = [
-  { key: "mix", zh: "中英混合", en: "Chinese + English", cats: true },
-  ...LANGS.filter((l) => l.key !== "other").map((l) => ({ key: l.key as PoolLang, zh: l.zh, en: l.en, cats: l.key !== "world" })),
+export type SourceKey = Exclude<LangKey, "other"> | "global";
+export type SongPool = string;
+export const SOURCES: { key: SourceKey; zh: string; en: string; cats: boolean }[] = [
+  { key: "zh", zh: "华语", en: "Chinese", cats: true },
+  { key: "en", zh: "英文", en: "English", cats: true },
+  { key: "yue", zh: "粤语", en: "Cantonese", cats: true },
+  { key: "ko", zh: "韩语", en: "Korean", cats: true },
+  { key: "ja", zh: "日语", en: "Japanese", cats: true },
+  { key: "vi", zh: "越南语", en: "Vietnamese", cats: true },
+  { key: "world", zh: "世界名曲", en: "World classics", cats: false },
   { key: "global", zh: "全球热曲", en: "Global hits", cats: false },
-  { key: "all", zh: "全部随机", en: "Anything", cats: false },
 ];
+export const DEFAULT_POOL: SongPool = "zh+en:any";
+export type ParsedPool = { srcs: SourceKey[]; cats: CatKey[] };
 
-export function parsePool(p: unknown): { lang: PoolLang; cat: CatKey | "any" } | null {
-  if (typeof p !== "string") return null;
-  const [lang, cat] = p.split(":");
-  if (!POOL_LANGS.some((x) => x.key === lang)) return null;
-  if (cat !== "any" && !CATS.some((c) => c.key === cat)) return null;
-  const pl = POOL_LANGS.find((x) => x.key === lang)!;
-  return { lang: pl.key, cat: pl.cats ? (cat as CatKey | "any") : "any" };
+const parsed = new Map<string, ParsedPool | null>();
+export function parsePool(p: unknown): ParsedPool | null {
+  if (typeof p !== "string" || p.length > 160) return null;
+  const hit = parsed.get(p);
+  if (hit !== undefined) return hit;
+  const out = parseOnce(p);
+  if (parsed.size > 200) parsed.clear();
+  parsed.set(p, out);
+  return out;
+}
+function parseOnce(p: string): ParsedPool | null {
+  const parts = p.split(":");
+  if (parts.length !== 2) return null;
+  const want = new Set<string>();
+  for (const w of parts[0].split("+")) {
+    if (w === "mix") ["zh", "en"].forEach((x) => want.add(x));
+    else if (w === "all") SOURCES.forEach((x) => want.add(x.key));
+    else if (SOURCES.some((x) => x.key === w)) want.add(w);
+    else return null;
+  }
+  const srcs = SOURCES.filter((x) => want.has(x.key)).map((x) => x.key);
+  if (!srcs.length) return null;
+  const cw = new Set<string>();
+  if (parts[1] !== "any") {
+    for (const c of parts[1].split("+")) {
+      if (!CATS.some((x) => x.key === c)) return null;
+      cw.add(c);
+    }
+  }
+  const cats = srcs.some((k) => SOURCES.find((x) => x.key === k)!.cats) ? CATS.filter((c) => cw.has(c.key)).map((c) => c.key) : [];
+  return { srcs, cats };
 }
 export const isPool = (p: unknown): p is SongPool => parsePool(p) !== null;
-export const poolOf = (lang: PoolLang, cat: CatKey | "any"): SongPool => `${lang}:${cat}`;
-
-/** The languages a pool draws from (chart and "all" pools: whatever the list has). */
-export function poolLangs(lang: PoolLang): number[] | null {
-  if (lang === "mix") return [0, 1];
-  if (lang === "global" || lang === "all") return null;
-  return [LANG_INDEX[lang]];
+/** The one way to write a pool, whatever order the picks came in. */
+export function poolOf(srcs: readonly string[], cats: readonly string[]): SongPool {
+  const s = SOURCES.filter((x) => srcs.includes(x.key)).map((x) => x.key);
+  const c = CATS.filter((x) => cats.includes(x.key)).map((x) => x.key);
+  return `${s.length ? s.join("+") : "zh+en"}:${c.length ? c.join("+") : "any"}`;
+}
+export function samePool(a: unknown) {
+  const p = parsePool(a);
+  return p ? poolOf(p.srcs, p.cats) : null;
 }
 
 /** Which language a chart song is in, from its title and singer (Apple's charts don't say). */
@@ -127,13 +159,36 @@ export function inCat(s: Song, cat: CatKey | "any"): boolean {
   return (s.k & CAT_BIT[cat]) !== 0;
 }
 
+/** A song is in a pool when it's on today's charts and the charts are picked, or when its language
+ *  is picked and it belongs to any picked category (the world classics have none: always in). */
 export function inPool(s: Song, pool: SongPool): boolean {
   const p = parsePool(pool);
   if (!p) return false;
-  if (p.lang === "global") return s.c === 1;
-  const langs = poolLangs(p.lang);
-  if (langs && !langs.includes(s.l)) return false;
-  return inCat(s, p.cat);
+  if (s.c === 1 && p.srcs.includes("global")) return true;
+  const key = LANGS[s.l]?.key;
+  if (!key || key === "other" || !p.srcs.includes(key)) return false;
+  if (s.l === 6 || !p.cats.length) return true;
+  return p.cats.some((c) => inCat(s, c));
+}
+
+/**
+ * How a song feels, from its title, categories and language, for the stage: sad songs bring tears,
+ * love songs blushes and hearts, party songs the big moves, rock a headbang, hip-hop and R&B a
+ * groove, the world classics something graceful. "" when nothing says (the music itself decides).
+ */
+export type MoodHint = "sad" | "love" | "hype" | "rock" | "groove" | "classic" | "";
+const SAD = /泪|淚|哭|伤心|傷心|心痛|心碎|分手|离开|離開|再见|再見|孤单|孤單|寂寞|后悔|後悔|遗憾|遺憾|难过|難過|告别|告別|失恋|失戀|离别|離別|悲|愁|放手|回不去|不爱|不愛|涙|泣|さよなら|サヨナラ|悲し|눈물|이별|슬픔|nước mắt|buồn|chia tay|cô đơn|khóc|\b(cry|crying|tears?|sad|lonely|alone|goodbye|good ?bye|miss you|hurt|broken|sorry|someone like you|without you|let (her|him|you) go|say something|fix you|apologi[sz]e|heartbreak|heartless|stay with me|all i ask|when we were young)\b/i;
+const LOVE = /爱|愛|喜欢|喜歡|恋|戀|心动|心動|亲爱|親愛|甜蜜|告白|情歌|月亮代表|小幸运|好き|愛して|恋|사랑|yêu|thương|\b(love|lover|kiss|baby|darling|honey|sweet|heart|perfect|marry|beautiful|you are|with you|my girl|my boy)\b/i;
+const HYPE = /派对|嗨|燃|炸|跳舞|蹦迪|\b(party|dance|dancing|jump|fire|boom|bang|crazy|wild|club|shake|hot|turn up|let'?s go|gangnam|dynamite|butter)\b/i;
+export function moodOf(s: { t: string; k?: number; l?: number }): MoodHint {
+  const k = s.k ?? 0;
+  if (SAD.test(s.t)) return "sad";
+  if (HYPE.test(s.t) || (k & CAT_BIT.dance) !== 0) return "hype";
+  if (LOVE.test(s.t)) return "love";
+  if (k & CAT_BIT.rock) return "rock";
+  if (k & (CAT_BIT.rap | CAT_BIT.rnb)) return "groove";
+  if (s.l === 6 || (k & CLASSIC_BIT) !== 0) return "classic";
+  return "";
 }
 
 export const fromRow = (r: SongRow): Song => ({ id: r[0], t: r[1], a: r[2], ae: r[3] || r[2], l: r[4], y: r[5], p: r[6], art: r[7], s: r[8], c: r[9], k: r[10] ?? 0, g: r[11] ?? 0 });

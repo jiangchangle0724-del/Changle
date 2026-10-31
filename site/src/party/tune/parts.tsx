@@ -6,7 +6,7 @@ import { gsap, reduced } from "../../lib/anim";
 import { playMelody, type TuneHandle } from "../../lib/music";
 import { loadPreview, playElement, playPreview, type PreviewHandle } from "../../lib/preview";
 import { isSfxEnabled } from "../../lib/sfx";
-import { CATS, DEFAULT_POOL, parsePool, POOL_LANGS, poolOf, type SongPool } from "../../shared/songs";
+import { CATS, DEFAULT_POOL, parsePool, poolOf, SOURCES, type CatKey, type SongPool, type SourceKey } from "../../shared/songs";
 import { useStore } from "../../store";
 
 /** A tune by its place in the list, or the notes themselves (online, the server sends only the notes). */
@@ -152,39 +152,56 @@ export function startSong(a: SongAudio, opts: { startPerf?: number; offset?: num
   return null;
 }
 
-/** What to listen to: a language (or a mix, the charts, anything), then a category where the list has them. */
+/**
+ * What to listen to: any number of languages (plus the world classics and today's charts), and any
+ * number of categories, or none for all of them. Only categories that a picked language has songs
+ * in are offered (no rock in Korean, say); one that no longer fits is dropped.
+ */
 export function PoolPicker({ pool, onPick, disabled }: { pool: string; onPick: (p: SongPool) => void; disabled?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const cur = parsePool(pool) ?? parsePool(DEFAULT_POOL)!;
-  const langDef = POOL_LANGS.find((x) => x.key === cur.lang) ?? POOL_LANGS[0];
-  // only the categories this language has songs in (no rock in Korean, say)
-  const has = (lk: string, c: string) => !POOL_CATS[lk] || POOL_CATS[lk].includes(c);
-  const stale = langDef.cats && cur.cat !== "any" && !has(cur.lang, cur.cat);
+  const withCats = cur.srcs.filter((k) => SOURCES.find((x) => x.key === k)?.cats);
+  const offered = CATS.filter((c) => withCats.some((k) => !POOL_CATS[k] || POOL_CATS[k].includes(c.key)));
+  const keep = cur.cats.filter((c) => offered.some((o) => o.key === c));
+  const fix = withCats.length && keep.length !== cur.cats.length ? poolOf(cur.srcs, keep) : "";
+  const pick = useRef(onPick);
+  pick.current = onPick;
   useEffect(() => {
-    if (stale && !disabled) onPick(poolOf(cur.lang, "any"));
-  }, [stale, disabled, cur.lang, onPick]);
+    if (fix && !disabled) pick.current(fix);
+  }, [fix, disabled]);
+  const everything = cur.srcs.length === SOURCES.length;
+  const toggleSrc = (k: string) => {
+    const on = cur.srcs.includes(k as SourceKey);
+    if (on && cur.srcs.length === 1) return; // something always plays
+    onPick(poolOf(on ? cur.srcs.filter((x) => x !== k) : [...cur.srcs, k], cur.cats));
+  };
+  const toggleCat = (c: string) => onPick(poolOf(cur.srcs, cur.cats.includes(c as CatKey) ? cur.cats.filter((x) => x !== c) : [...cur.cats, c]));
   return (
     <div className="tn-pool" role="group" aria-label={zh ? "歌单" : "Songs"}>
       <div className="tn-pool-row">
-        {POOL_LANGS.map((l) => (
-          <button key={l.key} type="button" className="chip" aria-pressed={cur.lang === l.key} disabled={disabled} onClick={() => onPick(poolOf(l.key, l.cats && cur.cat !== "any" && has(l.key, cur.cat) ? cur.cat : "any"))}>
-            {zh ? l.zh : l.en}
+        {SOURCES.map((x) => (
+          <button key={x.key} type="button" className="chip" aria-pressed={cur.srcs.includes(x.key)} disabled={disabled} onClick={() => toggleSrc(x.key)}>
+            {zh ? x.zh : x.en}
           </button>
         ))}
+        <button type="button" className="chip chip-all" aria-pressed={everything} disabled={disabled} onClick={() => onPick(everything ? DEFAULT_POOL : poolOf(SOURCES.map((x) => x.key), cur.cats))}>
+          {zh ? "全选" : "All"}
+        </button>
       </div>
-      {langDef.cats && (
+      {withCats.length > 0 && (
         <div className="tn-pool-row tn-pool-cats" role="group" aria-label={zh ? "类别" : "Category"}>
-          <button type="button" className="chip" aria-pressed={cur.cat === "any" || stale} disabled={disabled} onClick={() => onPick(poolOf(cur.lang, "any"))}>
+          <button type="button" className="chip" aria-pressed={keep.length === 0} disabled={disabled} onClick={() => onPick(poolOf(cur.srcs, []))}>
             {zh ? "不限" : "Any"}
           </button>
-          {CATS.filter((c) => has(cur.lang, c.key)).map((c) => (
-            <button key={c.key} type="button" className="chip" aria-pressed={cur.cat === c.key} disabled={disabled} onClick={() => onPick(poolOf(cur.lang, c.key))}>
+          {offered.map((c) => (
+            <button key={c.key} type="button" className="chip" aria-pressed={keep.includes(c.key)} disabled={disabled} onClick={() => toggleCat(c.key)}>
               {zh ? c.zh : c.en}
             </button>
           ))}
         </div>
       )}
+      {!disabled && <p className="tn-pool-hint">{zh ? "语言和类别都能多选，点一下选上，再点一下取消" : "Pick as many languages and categories as you like. Tap again to drop one."}</p>}
     </div>
   );
 }

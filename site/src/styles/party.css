@@ -3036,9 +3036,10 @@ button.ecard.is-legal:active {
     0 14px 30px -10px #000;
 }
 .tn-avatar {
-  width: min(23vw, 108px);
-  height: auto;
-  aspect-ratio: 120 / 245;
+  /* sized by height: the figure is tall and narrow, its arms and hair reach outside the box */
+  height: min(50vw, 226px);
+  width: auto;
+  aspect-ratio: 112 / 286;
   justify-self: center;
   overflow: visible;
   transform-origin: 50% 100%;
@@ -3101,6 +3102,23 @@ button.ecard.is-legal:active {
   min-height: 32px;
   padding: 5px 11px;
   font-size: 13px;
+}
+/* a tick on every pick, so it reads as "pick several" */
+.tn-pool-row .chip[aria-pressed="true"]::before {
+  content: "✓";
+  content: "✓" / ""; /* seen, not read out: the button's name stays the language */
+  margin-right: 4px;
+  font-weight: 800;
+}
+.tn-pool-row .chip-all {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.tn-pool-hint {
+  margin: 0;
+  color: var(--haze);
+  font-size: 12.5px;
+  text-align: center;
 }
 
 /* ---------- quiz: four titles for everyone ---------- */

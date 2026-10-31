@@ -126,7 +126,7 @@
     width: min(30vh, 150px);
   }
   .tn-avatar {
-    width: min(21vh, 108px);
+    height: min(46vh, 220px);
   }
   .game-body > .wheel-svg,
   .net-body > .wheel-svg {

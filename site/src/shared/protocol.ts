@@ -386,6 +386,8 @@ export type TuneView = {
   song: { id: number; t: string; a: string; ae: string; art: string; url: string; y: number; g: number; l: number } | null;
   /** songs mode: who sings this one (1 a man, 2 a woman, 3 a mixed group, 0 unknown): the stage shows it */
   singer: number;
+  /** songs mode: how the song feels ("sad", "love", "hype", "rock", "groove", "classic" or ""), for the stage */
+  mood: string;
   /** the pool the host picked has no songs: pick another */
   noSongs: boolean;
   /** quiz: who has answered (not what), this phone's own pick, and at the reveal everyone who got it */

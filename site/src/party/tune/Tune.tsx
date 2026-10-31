@@ -8,11 +8,11 @@ import { holdBackground, type TuneHandle } from "../../lib/music";
 import { heardSongs, loadPreview, rememberSong, type PreviewHandle } from "../../lib/preview";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
-import { cardOf, decoysFor, DEFAULT_POOL, pickSong, previewUrl, type Song, type SongPool } from "../../shared/songs";
+import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, type Song, type SongPool } from "../../shared/songs";
 import { useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
 import { AnswerPicker, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
-import { TuneStage, type StageTiming } from "./stage";
+import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
 import { loadSongbook } from "./songbook";
 import "../../styles/party.css";
@@ -164,6 +164,8 @@ function SongRounds({
   /** quiz: the four titles for this song, and the wrong ones the table has tried */
   const [choices, setChoices] = useState<Song[]>([]);
   const [tried, setTried] = useState<number[]>([]);
+  /** the performers react: a cheer for the right title, a shrug for a wrong one */
+  const [cue, setCue] = useState<StageCue | null>(null);
 
   useEffect(() => holdBackground(), []);
   useEffect(() => {
@@ -286,7 +288,7 @@ function SongRounds({
   return (
     <>
       <p className="tn-round tabular">{zh ? `第 ${round} 首，共 ${total} 首` : `Song ${round} of ${total}`}</p>
-      <TuneStage singer={song.g} playing={startedAt !== null} beats={beats} timing={timing}>
+      <TuneStage singer={song.g} playing={startedAt !== null} beats={beats} timing={timing} mood={moodOf(song)} songKey={song.id} cue={cue}>
         <Vinyl spinning={startedAt !== null} label={revealed ? <CoverLabel art={card.art} /> : "?"} />
       </TuneStage>
       <StageDots stage={revealed ? revealedAt : stage} />
@@ -300,9 +302,11 @@ function SongRounds({
           onPick={(id) => {
             if (id === song.id) {
               haptic([12, 30, 12]);
+              setCue({ kind: "right", at: performance.now() });
               reveal();
             } else {
               setTried((t) => [...t, id]);
+              setCue({ kind: "wrong", at: performance.now() });
               sfx.wrong();
               haptic(30);
             }
@@ -425,7 +429,7 @@ function MelodyRounds({
   return (
     <>
       <p className="tn-round tabular">{zh ? `第 ${round} 首，共 ${total} 首` : `Song ${round} of ${total}`}</p>
-      <TuneStage singer={0} playing={spinning} beats={null} timing={timing} fallbackBpm={TUNES[tune].bpm}>
+      <TuneStage singer={0} playing={spinning} beats={null} timing={timing} fallbackBpm={TUNES[tune].bpm} songKey={`tune${tune}`}>
         <Vinyl spinning={spinning} label={revealed ? "" : "?"} />
       </TuneStage>
       <StageDots stage={revealed ? revealedAt : stage} />
