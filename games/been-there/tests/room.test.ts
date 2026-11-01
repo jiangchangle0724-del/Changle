@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as E from "../src/engine";
 import { random } from "../src/engine/rng";
-import { TIMING, TRIVIA_PRIZE, type ClientMsg, type RoomView, type ServerMsg } from "../src/room/protocol";
+import { TIMING, TRIVIA_PRIZE, TRIVIA_WRONG, type ClientMsg, type RoomView, type ServerMsg } from "../src/room/protocol";
 import { Room, type RoomEnv } from "../src/room/room";
 import { FORFEITS } from "../src/room/party";
 import { TRIVIA } from "../src/room/trivia";
@@ -85,6 +85,14 @@ class Table {
       const v = this.view(p);
       const g = v.game;
       if (!g || v.phase !== "playing" || g.paused) continue;
+      // A party forfeit holds the game: its team does it and says so; nobody else can move meanwhile.
+      if (g.forfeit) {
+        if (v.you.seats.includes(g.forfeit.seat)) {
+          this.send(p, { t: "forfeit", id: g.forfeit.id, op: "done" });
+          return true;
+        }
+        continue;
+      }
       assert.equal(g.s.seed, 0, "the dice seed never leaves the server");
       assert.equal(g.s.decks.journey.length, 0, "card order never leaves the server");
       const pd = g.s.pending;
@@ -382,7 +390,8 @@ test("waiting teams race to answer: a wrong answer locks you out, the first righ
 
   assert.equal(g.trivia!.winner, seatOf(quick));
   assert.equal(g.s.ps[seatOf(quick)].cash, cash[seatOf(quick)] + TRIVIA_PRIZE);
-  assert.equal(g.s.ps[seatOf(slow)].cash, cash[seatOf(slow)]);
+  assert.equal(g.s.ps[seatOf(slow)].cash, cash[seatOf(slow)] - TRIVIA_WRONG, "a wrong answer costs a little");
+  assert.ok(t.seen.some((f) => f.t === "game" && f.e.t === "fine" && f.e.p === seatOf(slow) && f.e.amount === TRIVIA_WRONG), "the charge is in the feed");
   assert.equal(g.decision, decision, "the quiz doesn't make the decision on the table stale");
   assert.ok(t.seen.some((f) => f.t === "game" && f.e.t === "bonus" && f.e.p === seatOf(quick)));
   const after = t.view(onTurn).game!.trivia!;
@@ -513,6 +522,127 @@ test("party mode deals a forfeit that fits what happened, and doesn't repeat one
   }
   for (let i = 0; i < dares.length; i++)
     for (let j = Math.max(0, i - 8); j < i; j++) assert.notEqual(dares[i].dare, dares[j].dare, "no repeat within nine forfeits");
+});
+
+/** A party table whose game is under way, the first team's turn up. */
+function partyTable(seed = 11) {
+  const t = new Table({ party: true }, seed);
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  const seatOf = (p: Phone) => t.view(p).you.seats[0];
+  const deal = (seat: number) => (t.room as unknown as { party(seat: number, why: string): void }).party(seat, "rent");
+  return { t, ps, seatOf, deal };
+}
+
+test("a party forfeit holds the game, every clock with it, until its team says it's done", () => {
+  const { t, ps, seatOf, deal } = partyTable();
+  const g = t.game;
+  const onTurn = ps.find((p) => seatOf(p) === g.s.turn)!;
+  const doer = ps.find((p) => p !== onTurn)!;
+  const other = ps.find((p) => p !== onTurn && p !== doer)!;
+  const before = { decision: g.decision, pending: g.pendingSince, trivia: g.trivia!.endsAt, turn: g.s.turn };
+  deal(seatOf(doer));
+  t.settle();
+  const f = t.view(other).game!.forfeit!;
+  assert.ok(f, "every screen shows the forfeit");
+  assert.equal(f.seat, seatOf(doer));
+  assert.equal(t.view(other).game!.frozenAt, t.clock.t, "the countdowns stand still from here");
+
+  // Time passes (less than the limit); nothing moves, nobody can move.
+  t.clock.t += TIMING.forfeitMax * 0.05 * 0.8;
+  t.room.tick();
+  t.settle();
+  assert.equal(g.decision, before.decision);
+  assert.equal(g.trivia!.closed, false, "the quiz clock stopped too");
+  t.send(onTurn, { t: "act", d: g.decision, a: {}, seat: g.s.turn });
+  assert.equal(onTurn.toasts.at(-1), "forfeitWait");
+  t.send(other, { t: "forfeit", id: f.id, op: "done" });
+  assert.equal(other.toasts.at(-1), "notYours", "only its own team says it's done");
+  assert.ok(g.forfeit);
+
+  const held = t.clock.t - f.at;
+  t.send(doer, { t: "forfeit", id: f.id, op: "done" });
+  assert.equal(g.forfeit, null);
+  assert.equal(t.view(other).game!.frozenAt, null);
+  assert.equal(g.pendingSince, before.pending + held, "the clocks pick up where they stopped");
+  assert.equal(g.trivia!.endsAt, before.trivia + held);
+  assert.ok(t.seen.some((x) => x.t === "party-done" && x.seat === seatOf(doer) && x.how === "done"));
+  t.send(doer, { t: "forfeit", id: f.id, op: "done" });
+  assert.equal(t.seen.filter((x) => x.t === "party-done").length, 1, "a second tap does nothing");
+  t.playUntil(() => g.s.turns >= 3);
+});
+
+test("forfeits wait their turn; the host can skip one; a pause and a forfeit together count the time once", () => {
+  const { t, ps, seatOf, deal } = partyTable(12);
+  const g = t.game;
+  const host = ps[0];
+  const [a, b] = ps.filter((p) => p !== host);
+  const start = { pending: g.pendingSince, at: t.clock.t };
+  deal(seatOf(a));
+  deal(seatOf(b));
+  t.settle();
+  assert.equal(g.forfeit!.seat, seatOf(a));
+  assert.equal(t.view(host).game!.forfeit!.waiting, 1, "the second waits its turn");
+  t.clock.t += 1000;
+  t.send(host, { t: "pause", on: true });
+  t.clock.t += 1000;
+  t.send(a, { t: "forfeit", id: g.forfeit!.id, op: "done" });
+  assert.equal(g.forfeit!.seat, seatOf(b), "the next comes up");
+  assert.equal(g.forfeit!.at, t.clock.t);
+  t.send(b, { t: "forfeit", id: g.forfeit!.id, op: "skip" });
+  assert.equal(b.toasts.at(-1), "hostOnly");
+  t.send(host, { t: "forfeit", id: g.forfeit!.id, op: "skip" });
+  assert.equal(g.forfeit, null);
+  assert.ok(t.seen.some((x) => x.t === "party-done" && x.seat === seatOf(b) && x.how === "skip"));
+  assert.equal(g.pendingSince, start.pending, "still paused: nothing moved yet");
+  t.clock.t += 1000;
+  t.send(host, { t: "pause", on: false });
+  assert.equal(g.pendingSince, start.pending + (t.clock.t - start.at), "stood still from the first forfeit to the end of the pause, once");
+});
+
+test("a forfeit nobody closes lets the game go on after a while; computer teams don't do forfeits", () => {
+  const { t, ps, seatOf, deal } = partyTable(13);
+  const g = t.game;
+  deal(seatOf(ps[1]));
+  t.settle();
+  assert.ok(g.forfeit);
+  t.clock.t += TIMING.forfeitMax * 0.05 + 10;
+  t.room.tick();
+  t.settle();
+  assert.equal(g.forfeit, null);
+  assert.ok(t.seen.some((x) => x.t === "party-done" && x.how === "timeout"));
+
+  const t2 = new Table({ party: true }, 14);
+  const ps2 = lobby(t2, 1, 2);
+  t2.send(ps2[0], { t: "start" });
+  const bot = t2.game.seats.findIndex((id) => t2.room.st.teams.find((x) => x.id === id)?.bot);
+  (t2.room as unknown as { party(seat: number, why: string): void }).party(bot, "rent");
+  assert.equal(t2.game.forfeit, null);
+  assert.equal(t2.room.st.feed.filter((x) => x.t === "party").length, 0);
+});
+
+test("a wrong answer in the waiting teams' quiz costs a little, never more than the team has", () => {
+  const t = new Table({}, 5);
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  const g = t.game;
+  const tv = g.trivia!;
+  const seatOf = (p: Phone) => t.view(p).you.seats[0];
+  const [x, y] = ps.filter((p) => seatOf(p) !== g.s.turn);
+  const wrong = (tv.order.indexOf(0) + 1) % 3;
+  g.s.ps[seatOf(x)].cash = 4;
+  g.s.ps[seatOf(y)].cash = 0;
+  t.send(x, { t: "trivia", id: tv.id, choice: wrong });
+  t.send(y, { t: "trivia", id: tv.id, choice: wrong });
+  assert.equal(g.s.ps[seatOf(x)].cash, 0, "the team pays what it has");
+  assert.equal(g.s.ps[seatOf(y)].cash, 0);
+  const fines = t.seen.flatMap((f) => (f.t === "game" && f.e.t === "fine" ? [f.e] : []));
+  assert.deepEqual(
+    fines.map((e) => [e.p, e.amount]),
+    [[seatOf(x), 4]],
+    "nothing to take, no charge",
+  );
+  assert.equal(g.trivia!.closed, true, "everyone answered");
 });
 
 test("party mode is off unless the host turns it on", () => {

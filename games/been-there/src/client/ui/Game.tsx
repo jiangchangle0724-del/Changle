@@ -5,13 +5,14 @@ import { Stamp } from "../art/stamps";
 import { BUZZ, buzz } from "../controls";
 import { colon, getLang, money, spaceName, t, tx } from "../i18n";
 import { sfx } from "../sound";
-import { getState, send, serverNow, toast } from "../store";
+import { getState, send, serverNow } from "../store";
 import { useWeather, weatherLabel } from "../weather";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion, thisGame } from "./Board";
 import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
-import { dareText, feedText } from "./feedText";
+import { feedText } from "./feedText";
+import { ForfeitHold } from "./Forfeit";
 import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
 import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { NewsBanner } from "./News";
@@ -26,6 +27,8 @@ import { SpeedMeter } from "./SpeedMeter";
 import { SambaLesson, useDanceClock } from "./Samba";
 
 type Panel = "mine" | "trade" | "log";
+/** The parts of the play window, in the order they stack (see `asks` in Game). */
+type Part = "arrival" | "card" | "decision" | "news" | "trivia";
 
 /**
  * A player's screen. The board is always there; what the team has to do comes up over it in a
@@ -46,7 +49,8 @@ export function Game({ v }: { v: RoomView }) {
     (!!g.auction && v.you.seats.length > 0) ||
     (!!g.quiz && v.you.seats.includes(g.quiz.visitor));
   // Something for this phone to answer: its move, or the quiz the waiting teams race to answer.
-  const needs = myMove || (!!g.trivia?.open && g.trivia.answerFor !== null);
+  const quizMine = !!g.trivia?.open && g.trivia.answerFor !== null;
+  const needs = myMove || quizMine;
   const incoming = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
   // The team's own move plays on the board (ridePlan.ts): first-person, or flat. The decision window
   // and the money that changed hands come back with the stamp (sooner when the ride is skipped).
@@ -70,7 +74,6 @@ export function Game({ v }: { v: RoomView }) {
     holdUntil,
   );
   usePhoneSounds(v, myMove, cashShown, ride);
-  usePartyToasts(v);
   useWakeLock(true);
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
   const wide = useWide();
@@ -83,6 +86,28 @@ export function Game({ v }: { v: RoomView }) {
   const dance = useDanceClock(v);
   const dancingHere = !!dance && !dance.over && v.you.seats.includes(dance.seat);
   const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
+  // What this phone has to answer comes first in the window, above the arrival card and the turn's
+  // card: on a phone the window is short, and a buy button under a poster is one nobody finds. Each
+  // part is keyed, so it keeps its state (a half-made bid, a chosen option) as it moves.
+  const parts: Record<Part, preact.JSX.Element> = {
+    arrival: <Arrival key="arrival" v={v} after={arriveAt} />,
+    card: <TurnCard key="card" v={v} />,
+    decision: <Decision key="decision" v={v} />,
+    news: <NewsBanner key="news" v={v} />,
+    trivia: <Trivia key="trivia" v={v} />,
+  };
+  const asks: Part[] = myMove
+    ? ["decision", "trivia", "arrival", "card", "news"]
+    : quizMine
+      ? ["trivia", "arrival", "card", "decision", "news"]
+      : ["arrival", "card", "decision", "news", "trivia"];
+  // A new question goes back to the top of the window, where it is (the player may have scrolled
+  // down to read the arrival card during the last one).
+  const playBody = useRef<HTMLDivElement>(null);
+  const askKey = myMove ? `d${g.decision}` : quizMine ? `q${g.trivia!.id}` : "";
+  useEffect(() => {
+    if (askKey && playBody.current) playBody.current.scrollTop = 0;
+  }, [askKey]);
   return (
     <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}${ride ? " riding" : ""}`}>
       <header class="top">
@@ -137,12 +162,8 @@ export function Game({ v }: { v: RoomView }) {
             </button>
           </header>
         )}
-        <div class="playwin-body">
-          <Arrival v={v} after={arriveAt} />
-          <TurnCard v={v} />
-          <Decision v={v} />
-          <NewsBanner v={v} />
-          <Trivia v={v} />
+        <div class="playwin-body" ref={playBody}>
+          {asks.map((k) => parts[k])}
           {mySeat === undefined && <Bets v={v} />}
         </div>
       </section>
@@ -197,6 +218,7 @@ export function Game({ v }: { v: RoomView }) {
       <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
+      <ForfeitHold v={v} />
     </div>
   );
 }
@@ -540,19 +562,6 @@ export function Bets({ v }: { v: RoomView }) {
       </p>
     </div>
   );
-}
-
-/** A party forfeit pops up on every phone for a few seconds (the toast never blocks a tap). */
-function usePartyToasts(v: RoomView) {
-  const last = useRef(lastId(v));
-  useEffect(() => {
-    for (const f of v.feed) {
-      if (f.id <= last.current || f.t !== "party") continue;
-      toast(`${t("partyTitle")} · ${seatName(v, f.seat)}${colon()}${dareText(f)}`, 9000);
-      if (v.you.seats.includes(f.seat)) sfx.alert();
-    }
-    last.current = lastId(v) || last.current;
-  });
 }
 
 /** Id of the newest feed item (0 if none). */

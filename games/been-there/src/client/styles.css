@@ -993,6 +993,27 @@ button.banner {
   padding-top: 12px;
   border-top: 2px dashed var(--line);
 }
+/* On a phone the window can be shorter than the question (held sideways, a city with a long rule):
+   its answers stay in sight at the foot of the window, and the question scrolls up under them. (The
+   bar reaches 12px into the panel's own padding, so the panel is the same height either way.) */
+.playwin-body .decide > .choices.answers {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+  padding-bottom: 12px;
+  margin-bottom: -12px;
+  background: var(--surface);
+}
+.playwin-body .decide > .choices.answers::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 2px);
+  height: 12px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
+}
 .decide .ask {
   font-weight: 600;
   font-size: 1.05rem;
@@ -1429,6 +1450,175 @@ button.banner {
   font-weight: 600;
   line-height: 1.35;
   text-wrap: balance;
+}
+/* ---------- a party forfeit holding the game (ui/Forfeit.tsx) ----------
+   The night dims and every clock stops; a printed notice comes down in the middle of every screen,
+   stamped "boarding paused" in red, and under it the team's Done (and the host's Skip). */
+.forfeit-hold {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(6, 5, 18, 0.74);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: hold-dim 0.25s ease-out both;
+}
+.forfeit-card {
+  position: relative;
+  width: min(100%, 440px);
+  display: grid;
+  gap: 16px;
+  padding-bottom: 22px;
+  border-radius: 20px;
+  background: var(--print-paper);
+  color: var(--print-ink);
+  box-shadow: 0 26px 60px -18px rgba(0, 0, 0, 0.9);
+  transform: rotate(-1.2deg);
+  animation: notice-down 0.5s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+.forfeit-card .pass-strip {
+  margin: 0;
+  border-radius: 20px 20px 0 0;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.forfeit-who {
+  justify-self: center;
+  font-size: 1.1rem;
+}
+.forfeit-dare {
+  margin: 0;
+  padding-inline: 22px;
+  font: 700 clamp(1.25rem, 5.4vw, 1.6rem) / 1.35 var(--font);
+  text-align: center;
+  text-wrap: balance;
+}
+/* The red rubber stamp across the notice (the speckle wears it like real ink). */
+.forfeit-stamp {
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  margin: 0;
+  padding: 6px 18px 4px;
+  border: 3px double currentColor;
+  border-radius: 10px;
+  color: var(--die-red);
+  transform: rotate(-6deg);
+  -webkit-mask-image: var(--speckle, none);
+  mask-image: var(--speckle, none);
+  -webkit-mask-size: 160px;
+  mask-size: 160px;
+  animation: hold-stamp 0.45s cubic-bezier(0.2, 1.5, 0.4, 1) 0.35s both;
+}
+.forfeit-stamp b {
+  font: 800 1.55rem/1.1 var(--display);
+  font-synthesis: none;
+  letter-spacing: 0.08em;
+}
+.forfeit-stamp b:lang(zh) {
+  font-family: var(--display-zh);
+}
+.forfeit-stamp small {
+  font: 700 10px/1.4 var(--mono);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.forfeit-acts {
+  width: min(100%, 440px);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+.forfeit-acts p {
+  margin: 0;
+  color: var(--moon);
+  font-weight: 600;
+  text-wrap: balance;
+}
+.forfeit-acts .haptic-btn {
+  width: 100%;
+  min-height: 58px;
+  font-size: 1.15rem;
+}
+.forfeit-acts .forfeit-queue {
+  color: var(--haze);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+/* The big screen: the notice large enough to read across the room, no buttons. */
+.forfeit-hold.big {
+  gap: 3vh;
+}
+.forfeit-hold.big .forfeit-card {
+  width: min(72vw, 980px);
+  gap: 2.4vh;
+  padding-bottom: 3.4vh;
+  font-size: clamp(16px, 1.6vw, 26px);
+}
+.forfeit-hold.big .pass-strip {
+  font-size: clamp(12px, 1vw, 18px);
+  padding: 1.2vh 2vw;
+}
+.forfeit-hold.big .forfeit-dare {
+  padding-inline: 4vw;
+  font-size: clamp(28px, 3.6vw, 60px);
+}
+.forfeit-hold.big .forfeit-who {
+  margin-block: 1vh;
+  transform: scale(1.7);
+}
+.forfeit-hold.big .forfeit-stamp b {
+  font-size: clamp(26px, 2.6vw, 44px);
+}
+.forfeit-hold.big .forfeit-stamp small {
+  font-size: clamp(11px, 0.9vw, 16px);
+}
+.forfeit-hold.big .forfeit-acts {
+  width: min(72vw, 980px);
+}
+.forfeit-hold.big .forfeit-acts p {
+  font-size: clamp(18px, 1.8vw, 30px);
+}
+@keyframes hold-dim {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes notice-down {
+  from {
+    opacity: 0;
+    transform: translateY(-28px) rotate(-4deg) scale(0.96);
+  }
+}
+@keyframes hold-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(-6deg) scale(1.9);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(-6deg) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-6deg) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .forfeit-hold,
+  .forfeit-card,
+  .forfeit-stamp {
+    animation: none;
+  }
 }
 .citycard {
   display: grid;

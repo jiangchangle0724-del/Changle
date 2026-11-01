@@ -1091,6 +1091,19 @@ export function bonus(s: GameState, p: number, amount: number, why: string): boo
   return true;
 }
 
+/**
+ * Take up to `amount` from a team for the bank (outside the board's rules: a wrong answer in the
+ * waiting teams' quiz). Never more than the team has, so it can't put anyone in debt. Returns what was taken.
+ */
+export function fine(s: GameState, p: number, amount: number, why: string): number {
+  if (s.over || !s.ps[p] || s.ps[p].out) return 0;
+  const take = Math.min(Math.round(amount), s.ps[p].cash);
+  if (take <= 0) return 0;
+  s.ps[p].cash -= take;
+  ev(s, { t: "fine", p, amount: take, why });
+  return take;
+}
+
 /** Time's up in a timed game: finish the round in progress, then the richest team wins. */
 export function endAfterThisRound(s: GameState) {
   if (s.over) return;

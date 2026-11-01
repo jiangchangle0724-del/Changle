@@ -8,7 +8,8 @@ Step 4 made the full game playable online; step 5 gave it its look: the golden a
 (1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
 an air-age route map, and six token characters. Step 6 adds the city content: a quiz for the teams
 waiting their turn (one question per city, from the same sourced fact as its rule), the real fact
-on the big screen's arrival card, a drink-free set of party forfeits, and a credits page listing
+on the big screen's arrival card, a drink-free set of party forfeits (each one holds the game until
+its team taps Done, or the host skips it), and a credits page listing
 every source and licence. Each city now also has a real photo (Wikimedia Commons) beside its
 poster, and a few seconds of a real recording made there (Freesound) when a team first lands. A
 team's own move plays first-person on its phone: the camera follows the token round the board past

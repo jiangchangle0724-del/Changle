@@ -4,15 +4,16 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
-import { money, spaceName, t, type Key } from "../i18n";
+import { money, spaceName, t } from "../i18n";
 import { audioReady, isMuted, sfx } from "../sound";
 import { serverNow } from "../store";
 import { useWakeLock } from "../wake";
 import { Board, latestFlight, reducedMotion } from "./Board";
 import { CityPoster } from "../art/posters";
-import { Countdown, GameTitle, SeatChip, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
+import { Countdown, GameTitle, TEAM_COLORS, TEAM_LETTERS, TeamFace, seatName, teamLabel } from "./common";
 import { Departures } from "./Departures";
-import { dareText, quizItemText, recentParty } from "./feedText";
+import { quizItemText } from "./feedText";
+import { ForfeitHold } from "./Forfeit";
 import { Over } from "./Finale";
 import { Arrival, Clock, Feed, Standings, lastId, useRerenderAt } from "./Game";
 import { joinUrl, tableFrom } from "../base";
@@ -138,6 +139,7 @@ function TvGame({ v }: { v: RoomView }) {
       </aside>
       <CoinFx v={v} after={rideReady(move)} />
       <Touchdown v={v} big after={rideEnd(move)} />
+      <ForfeitHold v={v} big />
       <SoundHint />
     </main>
   );
@@ -230,18 +232,6 @@ function TvCenter({ v, card }: { v: RoomView; card: ReturnType<typeof useFreshCa
         <p class="pending">🤫 {t("silenceTitle")}</p>
         <Countdown until={g.silenceUntil} />
         <small class="muted">{t("silencePull")}</small>
-      </div>
-    );
-  const party = recentParty(v);
-  if (party)
-    return (
-      <div class="boardcenter big party-card" key={party.id}>
-        <p class="pass-strip">
-          <span>{t("partyTitle")}</span>
-          <span>{t(`party_${party.why}` as Key)}</span>
-        </p>
-        <SeatChip v={v} seat={party.seat} />
-        <p class="party-dare">{dareText(party)}</p>
       </div>
     );
   if (card) return <CardFace v={v} card={card} big />;

@@ -68,6 +68,8 @@ export function gameEventText(v: RoomView, e: GameEvent): string | null {
       return ruleText(v, e, team);
     case "bonus":
       return t("log_bonus", { team, amount: money(e.amount) });
+    case "fine":
+      return t("log_fine", { team, amount: money(e.amount) });
     case "news": {
       const n = newsById(e.id);
       if (!n) return null;
@@ -160,6 +162,8 @@ export function feedText(v: RoomView, f: FeedItem): string | null {
       return t("log_bets", { team: seatName(v, f.seat), paid: t(f.paidRent ? "paidRent" : "noRent"), right: f.right, wrong: f.wrong });
     case "party":
       return t("log_party", { team: seatName(v, f.seat), why: t(`party_${f.why}` as Key), dare: dareText(f) });
+    case "party-done":
+      return t(f.how === "skip" ? "log_partySkipped" : "log_partyDone", { team: seatName(v, f.seat) });
     case "quiz": {
       const q = QUIZ[f.item];
       const bin = (i: number) => tx(TRASH_QUIZ[i].bin);
@@ -181,11 +185,3 @@ export const dareText = (f: Extract<FeedItem, { t: "party" }>) => {
   return d ? tx(d.text) : t("partyOwnRules");
 };
 
-/** The newest party forfeit, while it's still news (12 seconds). */
-export function recentParty(v: RoomView) {
-  for (let i = v.feed.length - 1; i >= 0; i--) {
-    const f = v.feed[i];
-    if (f.t === "party") return v.now - f.at < 12_000 ? f : null;
-  }
-  return null;
-}
