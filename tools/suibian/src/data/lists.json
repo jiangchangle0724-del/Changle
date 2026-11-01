@@ -1,11 +1,2818 @@
 {
   "about": "Greater Vancouver restaurant lists and awards, as facts only: which list, which award, which year, and the page that says so. No reviews or descriptions copied from the sources. Compiled by hand (or by Codex); see README.md, 'Cards: descriptions, lists and picks'.",
-  "updated": "2026-11-01",
+  "updated": "2026-10-31",
   "sources": {
-    "michelin": { "zh": "米其林指南", "en": "MICHELIN Guide", "url": "https://guide.michelin.com/ca/en/british-columbia/vancouver/restaurants" },
-    "vanmag": { "zh": "Vancouver Magazine 餐厅大奖", "en": "Vancouver Magazine Restaurant Awards", "url": "https://www.vanmag.com/restaurant-awards" },
-    "canada100": { "zh": "加拿大百佳餐厅", "en": "Canada's 100 Best", "url": "https://canadas100best.com" },
-    "cra": { "zh": "温哥华中餐大奖", "en": "Chinese Restaurant Awards", "url": "https://www.chineserestaurantawards.com" }
+    "michelin": {
+      "zh": "米其林指南",
+      "en": "MICHELIN Guide",
+      "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurants"
+    },
+    "vanmag": {
+      "zh": "Vancouver Magazine 餐厅大奖",
+      "en": "Vancouver Magazine Restaurant Awards",
+      "url": "https://vanmag.com/restaurant-awards/2026/2026-vancouver-magazine-restaurant-awards/"
+    },
+    "canada100": {
+      "zh": "加拿大百佳餐厅",
+      "en": "Canada's 100 Best",
+      "url": "https://canadas100best.com/best-restaurants/2026/"
+    },
+    "cra": {
+      "zh": "温哥华中餐大奖",
+      "en": "Chinese Restaurant Awards",
+      "url": "https://chineserestaurantawards.com/award-winners/"
+    }
   },
-  "places": []
+  "places": [
+    {
+      "name": "¿CóMO? Taperia",
+      "aliases": [
+        "Como Taperia"
+      ],
+      "address": "201 E 7th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/como-taperia"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳地中海菜 铜奖",
+            "en": "Best Mediterranean Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-mediterranean-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "acquafarina",
+      "aliases": [],
+      "address": "425 W Georgia St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/acquafarina"
+        }
+      ]
+    },
+    {
+      "name": "Anh and Chi",
+      "aliases": [],
+      "address": "3388 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/anh-and-chi"
+        }
+      ]
+    },
+    {
+      "name": "AnnaLena",
+      "aliases": [],
+      "address": "1809 W 1st Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林二星",
+            "en": "MICHELIN 2 Stars"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/annalena"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 12 名",
+            "en": "Canada's 100 Best #12"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/annalena-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Argo Cafe",
+      "aliases": [],
+      "address": "1836 Ontario St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳休闲餐厅 金奖",
+            "en": "Best Casual Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-casual-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Ask for Luigi",
+      "aliases": [],
+      "address": "305 Alexander St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/ask-for-luigi"
+        }
+      ]
+    },
+    {
+      "name": "Baan Lao",
+      "aliases": [],
+      "address": "4100 Bayview St",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 24 名",
+            "en": "Canada's 100 Best #24"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/baan-lao-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Baby Dhal Roti",
+      "aliases": [],
+      "address": "2707 Commercial Dr",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳非洲及非洲侨民菜 铜奖",
+            "en": "Best African and Diaspora Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-best-african-and-diaspora-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Bacchus",
+      "aliases": [
+        "Bacchus Restaurant & Lounge"
+      ],
+      "address": "845 Hornby St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/bacchus-1199004"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 67 名",
+            "en": "Canada's 100 Best #67"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/bacchus-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Ban Bu Xian Szechuan Cuisine",
+      "aliases": [
+        "Ban Bu Xian",
+        "半步仙小酒館",
+        "半步仙小酒馆"
+      ],
+      "address": "1282 Robson St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Ban Bu Xian Szechuan Cuisine",
+      "aliases": [
+        "Ban Bu Xian",
+        "半步仙小酒館",
+        "半步仙小酒馆"
+      ],
+      "address": "3665 Kingsway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Bao Bei",
+      "aliases": [],
+      "address": "163 Keefer St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/bao-bei"
+        }
+      ]
+    },
+    {
+      "name": "Barbara",
+      "aliases": [],
+      "address": "305 E Pender St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/barbara"
+        }
+      ]
+    },
+    {
+      "name": "Blue Water Cafe",
+      "aliases": [],
+      "address": "1095 Hamilton St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳海鲜 银奖",
+            "en": "Best Seafood Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-seafood-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Botanist",
+      "aliases": [],
+      "address": "1038 Canada Pl",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/botanist"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 64 名",
+            "en": "Canada's 100 Best #64"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/botanist-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Boulevard Kitchen & Oyster Bar",
+      "aliases": [
+        "Boulevard"
+      ],
+      "address": "845 Burrard St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/boulevard-kitchen-oyster-bar"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳高级餐厅 金奖",
+            "en": "Best Fine Dining Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-fine-dining-restaurants-in-vancouver/"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳海鲜 铜奖",
+            "en": "Best Seafood Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-seafood-restaurants-in-vancouver/"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 59 名",
+            "en": "Canada's 100 Best #59"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/boulevard-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Bravo",
+      "aliases": [],
+      "address": "4194 Fraser St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/bravo-1214855"
+        }
+      ]
+    },
+    {
+      "name": "Burdock & Co",
+      "aliases": [
+        "Burdock & Co."
+      ],
+      "address": "2702 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/burdock-co"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 33 名",
+            "en": "Canada's 100 Best #33"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/burdock-co-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Carlino",
+      "aliases": [],
+      "address": "1115 Alberni St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/carlino"
+        }
+      ]
+    },
+    {
+      "name": "Chang'An",
+      "aliases": [
+        "Chang’An",
+        "品味長安",
+        "品味长安"
+      ],
+      "address": "1661 Granville St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/chang-an"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Chef Tian’s",
+      "aliases": [
+        "田師傅",
+        "田师傅"
+      ],
+      "address": "4711 McClelland Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Chef’s Choice Seafood Restaurant",
+      "aliases": [
+        "Chef's Choice Chinese Cuisine",
+        "大當家海鮮酒家",
+        "大当家海鲜酒家"
+      ],
+      "address": "955 W Broadway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/chef-s-choice-chinese-cuisine"
+        }
+      ]
+    },
+    {
+      "name": "Chez Céline",
+      "aliases": [],
+      "address": "4298 Fraser St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳新餐厅 铜奖",
+            "en": "Best New Restaurant Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-new-restaurant-in-vancouver/"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳法餐 金奖",
+            "en": "Best French Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-french-restaurants-in-vancouver/"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 60 名",
+            "en": "Canada's 100 Best #60"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/chez-celine-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Chupito",
+      "aliases": [],
+      "address": "2450 Yukon St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳拉丁美洲菜 银奖",
+            "en": "Best Latin American Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-latin-american-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Crab Hot Lau",
+      "aliases": [],
+      "address": "2141 Kingsway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳越南菜 金奖",
+            "en": "Best Vietnamese Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-vietnamese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Crab Hot Lau",
+      "aliases": [],
+      "address": "2192 Western Parkway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳越南菜 金奖",
+            "en": "Best Vietnamese Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-vietnamese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Crab Hot Lau",
+      "aliases": [],
+      "address": "2993 Granville St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳越南菜 金奖",
+            "en": "Best Vietnamese Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-vietnamese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Cuchillo",
+      "aliases": [],
+      "address": "261 Powell St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳拉丁美洲菜 铜奖",
+            "en": "Best Latin American Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-latin-american-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Delara Restaurant",
+      "aliases": [
+        "Delara"
+      ],
+      "address": "2272 W 4th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/delara"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳中东菜 金奖",
+            "en": "Best Middle Eastern Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-middle-eastern-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Din Tai Fung",
+      "aliases": [
+        "鼎泰豐",
+        "鼎泰丰"
+      ],
+      "address": "1132 Alberni St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Dynasty Seafood Restaurant",
+      "aliases": [
+        "Dynasty",
+        "皇朝海鮮酒家",
+        "皇朝海鲜酒家"
+      ],
+      "address": "777 W Broadway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳中餐 金奖",
+            "en": "Best Chinese Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chinese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Elem",
+      "aliases": [],
+      "address": "2110 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/elem"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳新餐厅 金奖",
+            "en": "Best New Restaurant Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-new-restaurant-in-vancouver/"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳精致当代餐厅 银奖",
+            "en": "Best Upscale Contemporary Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-upscale-contemporary-restaurants-in-vancouver/"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 80 名",
+            "en": "Canada's 100 Best #80"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/elem-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Elio Volpe",
+      "aliases": [],
+      "address": "540 W 17th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳意大利菜 铜奖",
+            "en": "Best Italian Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-italian-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Elisa",
+      "aliases": [],
+      "address": "1109 Hamilton St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/elisa"
+        }
+      ]
+    },
+    {
+      "name": "Fanny Bay Oyster Bar & Shellfish Market",
+      "aliases": [],
+      "address": "762 Cambie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/fanny-bay-oyster-bar"
+        }
+      ]
+    },
+    {
+      "name": "Farmer's Apprentice",
+      "aliases": [],
+      "address": "1535 W 6th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/farmer-s-apprentice"
+        }
+      ]
+    },
+    {
+      "name": "Fat Mao Noodles",
+      "aliases": [
+        "Fat Mao"
+      ],
+      "address": "217 E Georgia St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳休闲餐厅 银奖",
+            "en": "Best Casual Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-casual-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Fat Mao Noodles",
+      "aliases": [
+        "Fat Mao"
+      ],
+      "address": "983 Helmcken St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳休闲餐厅 银奖",
+            "en": "Best Casual Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-casual-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Five Sails",
+      "aliases": [],
+      "address": "999 Canada Pl",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳高级餐厅 银奖",
+            "en": "Best Fine Dining Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-fine-dining-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Folke",
+      "aliases": [],
+      "address": "2585 W Broadway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/folke"
+        }
+      ]
+    },
+    {
+      "name": "Gary’s",
+      "aliases": [],
+      "address": "1485 W 12th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/gary-s"
+        }
+      ]
+    },
+    {
+      "name": "Good Thief",
+      "aliases": [],
+      "address": "3336 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/good-thief"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳休闲当代餐厅 银奖",
+            "en": "Best Informal Contemporary Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-informal-contemporary-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Hawksworth Restaurant",
+      "aliases": [
+        "Hawksworth"
+      ],
+      "address": "801 W Georgia St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/hawksworth-restaurant"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳高级餐厅 铜奖",
+            "en": "Best Fine Dining Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-fine-dining-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Homer St. Cafe",
+      "aliases": [],
+      "address": "898 Homer St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/homer-st-cafe"
+        }
+      ]
+    },
+    {
+      "name": "iDen & QuanJuDe Beijing Duck House",
+      "aliases": [
+        "全聚德"
+      ],
+      "address": "2808 Cambie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/iden-quanjude-beijing-duck-house"
+        }
+      ]
+    },
+    {
+      "name": "Jay Nok",
+      "aliases": [],
+      "address": "127 W 2nd Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/jay-nok"
+        }
+      ]
+    },
+    {
+      "name": "Jeju",
+      "aliases": [],
+      "address": "540 E Broadway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/jeju"
+        }
+      ]
+    },
+    {
+      "name": "JiangNan Wok",
+      "aliases": [
+        "江南小灶"
+      ],
+      "address": "8338 Capstan Way",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "JOEY Bentall One",
+      "aliases": [
+        "JOEY"
+      ],
+      "address": "507 Burrard St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 银奖",
+            "en": "Best Chain Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "JOEY Burnaby",
+      "aliases": [
+        "JOEY"
+      ],
+      "address": "1899 Rosser Ave",
+      "city": "Burnaby",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 银奖",
+            "en": "Best Chain Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "JOEY Burrard",
+      "aliases": [
+        "JOEY"
+      ],
+      "address": "820 Burrard St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 银奖",
+            "en": "Best Chain Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "JOEY Coquitlam",
+      "aliases": [
+        "JOEY"
+      ],
+      "address": "550 Lougheed Hwy",
+      "city": "Coquitlam",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 银奖",
+            "en": "Best Chain Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "JOEY Shipyards",
+      "aliases": [
+        "JOEY"
+      ],
+      "address": "125 Victory Ship Way",
+      "city": "North Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 银奖",
+            "en": "Best Chain Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "June",
+      "aliases": [],
+      "address": "3305 Cambie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 29 名",
+            "en": "Canada's 100 Best #29"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/june-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Karma Indian Bistro",
+      "aliases": [],
+      "address": "2741 W 4th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/karma-indian-bistro"
+        }
+      ]
+    },
+    {
+      "name": "Kavita",
+      "aliases": [],
+      "address": "250 W 3rd Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/kavita"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳新餐厅 银奖",
+            "en": "Best New Restaurant Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-new-restaurant-in-vancouver/"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳印度菜 金奖",
+            "en": "Best Indian Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-indian-restaurants-in-vancouver/"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 96 名",
+            "en": "Canada's 100 Best #96"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/kavita-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Kilimanjaro Snack House",
+      "aliases": [
+        "Kilimanjaro"
+      ],
+      "address": "789 Kingsway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳非洲及非洲侨民菜 银奖",
+            "en": "Best African and Diaspora Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-best-african-and-diaspora-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Kishimoto",
+      "aliases": [],
+      "address": "2054 Commercial Dr",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳日本菜 铜奖",
+            "en": "Best Japanese Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-japanese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Kissa Tanto",
+      "aliases": [],
+      "address": "263 E Pender St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/kissa-tanto"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳精致当代餐厅 铜奖",
+            "en": "Best Upscale Contemporary Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-upscale-contemporary-restaurants-in-vancouver/"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 15 名",
+            "en": "Canada's 100 Best #15"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/kissa-tanto-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Kook Korean BBQ",
+      "aliases": [
+        "Kook"
+      ],
+      "address": "2800 E 1st Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳韩国菜 铜奖",
+            "en": "Best Korean Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-korean-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "L'Abattoir",
+      "aliases": [
+        "L’Abattoir"
+      ],
+      "address": "217 Carrall St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/l-abattoir"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳法餐 铜奖",
+            "en": "Best French Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-french-restaurants-in-vancouver/"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳精致当代餐厅 金奖",
+            "en": "Best Upscale Contemporary Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-upscale-contemporary-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "La Quercia",
+      "aliases": [],
+      "address": "3689 W 4th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳意大利菜 银奖",
+            "en": "Best Italian Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-italian-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Le Crocodile by Rob Feenie",
+      "aliases": [
+        "Le Crocodile"
+      ],
+      "address": "909 Burrard St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳法餐 银奖",
+            "en": "Best French Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-french-restaurants-in-vancouver/"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 26 名",
+            "en": "Canada's 100 Best #26"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/le-crocodile-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Little Bird Dim Sum + Craft Beer",
+      "aliases": [],
+      "address": "2958 W 4th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/little-bird-dim-sum-craft-beer"
+        }
+      ]
+    },
+    {
+      "name": "Long’s Noodle House",
+      "aliases": [
+        "Long’s Noodle",
+        "上海小龍記",
+        "上海小龙记"
+      ],
+      "address": "4731 Garden City Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Lunch Lady",
+      "aliases": [],
+      "address": "1046 Commercial Dr",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/lunch-lady"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳越南菜 银奖",
+            "en": "Best Vietnamese Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-vietnamese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Madame Danh",
+      "aliases": [],
+      "address": "4288 Fraser St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳越南菜 铜奖",
+            "en": "Best Vietnamese Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-vietnamese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Maenam",
+      "aliases": [],
+      "address": "1938 W 4th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/maenam-1198925"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳泰国菜 银奖",
+            "en": "Best Thai Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-thai-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Magari by Oca",
+      "aliases": [
+        "Oca Pastificio"
+      ],
+      "address": "1260 Commercial Dr",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/oca-pastificio"
+        }
+      ]
+    },
+    {
+      "name": "Mama’s Dumpling & Coffee",
+      "aliases": [
+        "Mama’s Dumpling"
+      ],
+      "address": "11782 Hammersmith Way",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Mamalee Malaysian Delight",
+      "aliases": [
+        "Mamalee"
+      ],
+      "address": "186 Keefer Pl",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Mamalee Malaysian Delight",
+      "aliases": [
+        "Mamalee"
+      ],
+      "address": "3144 W Broadway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Masayoshi",
+      "aliases": [],
+      "address": "4376 Fraser St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/masayoshi"
+        }
+      ]
+    },
+    {
+      "name": "Miku",
+      "aliases": [],
+      "address": "200 Granville St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/miku"
+        }
+      ]
+    },
+    {
+      "name": "Moltaqa Moroccan Restaurant",
+      "aliases": [
+        "Moltaqa"
+      ],
+      "address": "1002 Mainland St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/moltaqa"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳非洲及非洲侨民菜 金奖",
+            "en": "Best African and Diaspora Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-best-african-and-diaspora-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Motonobu Udon",
+      "aliases": [],
+      "address": "3501 E Hastings St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/motonobu-udon"
+        }
+      ]
+    },
+    {
+      "name": "Mott 32",
+      "aliases": [
+        "卅二公館",
+        "卅二公馆"
+      ],
+      "address": "1161 W Georgia St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳中餐 银奖",
+            "en": "Best Chinese Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chinese-restaurants-in-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Nammos Estiatorio",
+      "aliases": [
+        "Nammos"
+      ],
+      "address": "3980 Fraser St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/nammos-estiatorio"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳地中海菜 银奖",
+            "en": "Best Mediterranean Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-mediterranean-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Neptune Palace Seafood Restaurant",
+      "aliases": [],
+      "address": "470 SW Marine Dr",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/neptune-palace-seafood-restaurant"
+        }
+      ]
+    },
+    {
+      "name": "Nero Tondo",
+      "aliases": [],
+      "address": "1879 Powell St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/nero-tondo"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳休闲当代餐厅 铜奖",
+            "en": "Best Informal Contemporary Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-informal-contemporary-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "New Town Bakery & Restaurant",
+      "aliases": [
+        "新城餅家餐室",
+        "新城饼家餐室",
+        "New Town Bakery"
+      ],
+      "address": "148 E Pender St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Nightingale",
+      "aliases": [],
+      "address": "1017 W Hastings St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/nightingale"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳休闲当代餐厅 金奖",
+            "en": "Best Informal Contemporary Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-informal-contemporary-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Niwa",
+      "aliases": [],
+      "address": "1875 Powell St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/niwa"
+        }
+      ]
+    },
+    {
+      "name": "Nook",
+      "aliases": [],
+      "address": "1155 Melville St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 金奖",
+            "en": "Best Chain Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Nook",
+      "aliases": [],
+      "address": "150 Victory Ship Way",
+      "city": "North Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 金奖",
+            "en": "Best Chain Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Nook",
+      "aliases": [],
+      "address": "1525 Yew St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 金奖",
+            "en": "Best Chain Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Nook",
+      "aliases": [],
+      "address": "195 W 2nd Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 金奖",
+            "en": "Best Chain Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Nook",
+      "aliases": [],
+      "address": "781 Denman St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 金奖",
+            "en": "Best Chain Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Northern Cafe",
+      "aliases": [],
+      "address": "1640 E Kent Ave S",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳休闲餐厅 铜奖",
+            "en": "Best Casual Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-casual-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Nui",
+      "aliases": [],
+      "address": "4811 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳韩国菜 银奖",
+            "en": "Best Korean Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-korean-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Octopus' Garden",
+      "aliases": [],
+      "address": "1995 Cornwall Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/octopus-garden"
+        }
+      ]
+    },
+    {
+      "name": "Oddfish",
+      "aliases": [],
+      "address": "1889 W 1st Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳海鲜 金奖",
+            "en": "Best Seafood Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-seafood-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Okeya Kyujiro",
+      "aliases": [],
+      "address": "1038 Mainland St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/okeya-kyujiro"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳主厨发办 铜奖",
+            "en": "Best Omakase Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-omakase-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Ophelía",
+      "aliases": [],
+      "address": "165 W 2nd Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/ophelia-1198934"
+        }
+      ]
+    },
+    {
+      "name": "Osteria Savio Volpe",
+      "aliases": [
+        "Savio Volpe"
+      ],
+      "address": "615 Kingsway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/osteria-savio-volpe"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳意大利菜 金奖",
+            "en": "Best Italian Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-italian-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "per se Social Corner",
+      "aliases": [],
+      "address": "891 Homer St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/per-se-social-corner"
+        }
+      ]
+    },
+    {
+      "name": "Peya",
+      "aliases": [],
+      "address": "2101 E Hastings St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/peya"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳印度菜 铜奖",
+            "en": "Best Indian Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-indian-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Phnom Penh",
+      "aliases": [],
+      "address": "244 E Georgia St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/phnom-penh"
+        }
+      ]
+    },
+    {
+      "name": "PiDGiN",
+      "aliases": [],
+      "address": "350 Carrall St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/pidgin-1198928"
+        }
+      ]
+    },
+    {
+      "name": "Published on Main",
+      "aliases": [],
+      "address": "3593 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/published-on-main"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 20 名",
+            "en": "Canada's 100 Best #20"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/published-on-main-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Riley's Fish & Steak",
+      "aliases": [],
+      "address": "200 Burrard St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/riley-s-fish-steak"
+        }
+      ]
+    },
+    {
+      "name": "Sea Harbour Seafood Restaurant",
+      "aliases": [
+        "Sea Harbour Restaurant",
+        "海港酒家"
+      ],
+      "address": "8888 River Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Seaport City Seafood",
+      "aliases": [
+        "Seaport City",
+        "海洋城"
+      ],
+      "address": "2425 Cambie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/seaport-city-seafood"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳中餐 铜奖",
+            "en": "Best Chinese Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chinese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Selene",
+      "aliases": [],
+      "address": "360 Penticton St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳地中海菜 金奖",
+            "en": "Best Mediterranean Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-mediterranean-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Silom Thai",
+      "aliases": [
+        "Silom"
+      ],
+      "address": "3913 Knight St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳泰国菜 银奖",
+            "en": "Best Thai Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-thai-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Song (by Kin Kao)",
+      "aliases": [],
+      "address": "317 E Broadway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/kin-kao-song"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳泰国菜 金奖",
+            "en": "Best Thai Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-thai-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Southern Delicacy",
+      "aliases": [
+        "鋒味",
+        "锋味"
+      ],
+      "address": "6055 West Blvd",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "St. Lawrence",
+      "aliases": [],
+      "address": "269 Powell St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/st-lawrence"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 40 名",
+            "en": "Canada's 100 Best #40"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/st-lawrence-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Sula Indian Restaurant",
+      "aliases": [
+        "Sula"
+      ],
+      "address": "1128 Commercial Dr",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 铜奖",
+            "en": "Best Chain Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Sula Indian Restaurant",
+      "aliases": [
+        "Sula"
+      ],
+      "address": "1708 Davie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 铜奖",
+            "en": "Best Chain Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Sula Indian Restaurant",
+      "aliases": [
+        "Sula"
+      ],
+      "address": "4172 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳连锁餐厅 铜奖",
+            "en": "Best Chain Bronze"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chain-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Sumibiyaki Arashi",
+      "aliases": [],
+      "address": "363 E Broadway",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/sumibiyaki-arashi"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳主厨发办 银奖",
+            "en": "Best Omakase Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-omakase-in-vancouver/"
+        },
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 17 名",
+            "en": "Canada's 100 Best #17"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/sumibiyaki-arashi-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Sushi Bar Maumi",
+      "aliases": [],
+      "address": "1668 Robson St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/sushi-bar-maumi"
+        }
+      ]
+    },
+    {
+      "name": "Sushi Hil",
+      "aliases": [],
+      "address": "3330 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/sushi-hil"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳日本菜 金奖",
+            "en": "Best Japanese Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-japanese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Sushi Hyun",
+      "aliases": [],
+      "address": "795 Jervis St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/sushi-hyun"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳主厨发办 金奖",
+            "en": "Best Omakase Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-omakase-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Sushi Jin",
+      "aliases": [],
+      "address": "750 Nelson St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/sushi-jin"
+        }
+      ]
+    },
+    {
+      "name": "Sushi Masuda",
+      "aliases": [],
+      "address": "1066 W Hastings St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林一星",
+            "en": "MICHELIN 1 Star"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/sushi-masuda-1214860"
+        }
+      ]
+    },
+    {
+      "name": "SUYO Modern Peruvian",
+      "aliases": [
+        "Suyo"
+      ],
+      "address": "3475 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/suyo"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳拉丁美洲菜 金奖",
+            "en": "Best Latin American Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-latin-american-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Szechuan Chili Restaurant",
+      "aliases": [
+        "Szechuan Chili"
+      ],
+      "address": "804 W 6th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 食客之选",
+            "en": "Chinese Restaurant Awards Diners' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/canada-doordash-diners-choice-awards-2025/"
+        }
+      ]
+    },
+    {
+      "name": "Tetsu Sushi Bar",
+      "aliases": [],
+      "address": "775 Denman St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/tetsu-sushi-bar"
+        }
+      ]
+    },
+    {
+      "name": "The Acorn",
+      "aliases": [],
+      "address": "3995 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/the-acorn"
+        }
+      ]
+    },
+    {
+      "name": "The Fish Man",
+      "aliases": [
+        "漁人",
+        "渔人"
+      ],
+      "address": "8391 Alexandra Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "canada100",
+          "label": {
+            "zh": "加拿大百佳 第 90 名",
+            "en": "Canada's 100 Best #90"
+          },
+          "year": 2026,
+          "url": "https://canadas100best.com/list/2026/the-fish-man-2026/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "The Mackenzie Room",
+      "aliases": [],
+      "address": "415 Powell St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/the-mackenzie-room"
+        }
+      ]
+    },
+    {
+      "name": "Torafuku",
+      "aliases": [],
+      "address": "958 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/torafuku"
+        }
+      ]
+    },
+    {
+      "name": "Vij's",
+      "aliases": [
+        "Vij’s"
+      ],
+      "address": "3106 Cambie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林必比登",
+            "en": "MICHELIN Bib Gourmand"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/vij-s"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳印度菜 银奖",
+            "en": "Best Indian Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-indian-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Xi’An Flavour",
+      "aliases": [
+        "Xi’An Flavor",
+        "李良記",
+        "李良记"
+      ],
+      "address": "4731 McClelland Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Yasma",
+      "aliases": [],
+      "address": "550 Denman St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳中东菜 银奖",
+            "en": "Best Middle Eastern Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-middle-eastern-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Yuan’s Garden Restaurant",
+      "aliases": [
+        "Yuan’s Garden",
+        "隨園",
+        "随园"
+      ],
+      "address": "8077 Alexandra Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "温哥华中餐大奖 评审之选",
+            "en": "Chinese Restaurant Awards Critics' Choice"
+          },
+          "year": 2025,
+          "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Yuwa",
+      "aliases": [],
+      "address": "2775 W 16th Ave",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/yuwa"
+        },
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳日本菜 银奖",
+            "en": "Best Japanese Silver"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-japanese-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Zab Bite - Thai E-Sarn Cuisine",
+      "aliases": [],
+      "address": "4197 Fraser St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "michelin",
+          "label": {
+            "zh": "米其林推荐",
+            "en": "MICHELIN Recommended"
+          },
+          "year": 2026,
+          "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/zab-bite-thai-e-sarn-cuisine"
+        }
+      ]
+    },
+    {
+      "name": "Zarak",
+      "aliases": [],
+      "address": "2102 Main St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳中东菜 金奖",
+            "en": "Best Middle Eastern Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-middle-eastern-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Zoomak",
+      "aliases": [],
+      "address": "52 Alexander St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "vanmag",
+          "label": {
+            "zh": "最佳韩国菜 金奖",
+            "en": "Best Korean Gold"
+          },
+          "year": 2026,
+          "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-korean-restaurants-in-vancouver/"
+        }
+      ]
+    }
+  ]
 }
