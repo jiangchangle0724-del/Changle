@@ -20,9 +20,10 @@ installs on its own. Node 22, as in CI.
 ## How a change reaches changle.ca
 
 1. Branch from `main` (one branch per change), commit, push, open a PR.
-2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip, draw and cutout tests, build),
-   `suibian.yml` and `been-there.yml` (each with browser tests in Chromium and WebKit), and
-   `events.yml` (What's On: parsers and a whole run, in the Workers runtime).
+2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip, draw, cutout and
+   performer tests, build), `suibian.yml` and `been-there.yml` (each with browser tests in
+   Chromium and WebKit), and `events.yml` (What's On: parsers and a whole run, in the Workers
+   runtime).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
@@ -59,6 +60,7 @@ npx tsc --noEmit
 npx tsx tests/engine.test.ts    # every game's rules, as the rooms server runs them
 npx tsx tests/trip.test.ts
 npx tsx tests/draw.test.ts
+npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
 npm run build
 ```
 
@@ -71,6 +73,7 @@ python3 scripts/net_test.py        # four phones at one table, online
 python3 scripts/party_test.py      # the newer games, one phone and online
 python3 scripts/tv_test.py         # the big screen
 python3 scripts/account_check.py   # sign-in, profile, friends, chat
+python3 scripts/tune_quiz_check.py # Name That Tune's multiple choice, 20 songs, sound on, memory watched
 ```
 
 The other apps: `npm run typecheck`, `npm test`, `npm run test:e2e` in `tools/suibian` or

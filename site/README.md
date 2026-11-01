@@ -71,15 +71,17 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 
 到此一游和 随便 各自是独立的 Worker（本仓库的 `games/been-there` 和 `tools/suibian`）。本地要连着试，在它们的文件夹里分别跑 `npx wrangler dev --port 8799` 和 `npx wrangler dev --port 8798`，网站的 `/trip` 和 `/eat` 会代理过去（`vite.config.ts`）。
 
-测试（后三个需要上面两个都在跑）：
+测试（`scripts/` 里的几个需要上面两个都在跑）：
 
 ```bash
 npx tsx tests/engine.test.ts        # 所有游戏的服务器规则
+npx tsx tests/performer.test.ts     # 猜歌名台上两个小人：每个舞步逐帧检查手臂和腿
 python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
 python3 scripts/local_check.py      # 单机回归
 python3 scripts/party_test.py       # 七个新游戏，单机和联机
 python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回复
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
+python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 ```
 
 ## 部署

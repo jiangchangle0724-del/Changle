@@ -224,6 +224,13 @@ export function AnswerPicker({ quiz, onPick, disabled }: { quiz: boolean; onPick
 
 export type QuizChoice = { id: number; t: string; a: string; ae: string };
 
+/** A classic tune as a choice: its title in this phone's language, the other one underneath. A tune
+ *  this phone doesn't have (the table server is a newer version than the page) shows as a "?". */
+export function tuneChoice(o: number, zh: boolean): QuizChoice {
+  const t = TUNES[o]?.title ?? { zh: "?", en: "?" };
+  return { id: o, t: zh ? t.zh : t.en, a: t.en, ae: t.zh };
+}
+
 /**
  * Four titles for everyone. Before the reveal a tap is the player's pick (one only); at the reveal
  * the right one lights up and a wrong pick is marked.
