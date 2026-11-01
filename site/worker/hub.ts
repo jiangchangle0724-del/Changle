@@ -24,7 +24,8 @@ export type HubEnv = {
 export type Call = { method: string; path: string; token: string; device: string; ip: string; body?: unknown; bytes?: ArrayBuffer; type?: string };
 export type Reply = { status: number; json?: unknown; bytes?: ArrayBuffer; type?: string; cache?: string };
 
-export type WishRow = { id: number; text: string; kind: "game" | "feature"; name: string; votes: number; status: "new" | "planned" | "done"; at: number; voted: boolean; mine: boolean };
+/** `text`: the game's (or feature's) name; `desc`: what it is; `rules`: how it's played (both "" on wishes from before they were asked for). */
+export type WishRow = { id: number; text: string; desc: string; rules: string; kind: "game" | "feature"; name: string; votes: number; status: "new" | "planned" | "done"; at: number; voted: boolean; mine: boolean };
 export type GameRecord = { game: string; room: string; started: number; ended: number; players: { pid: string; uid?: string; name: string; drinks: number }[] };
 /** `fg`: their figure cut out for the games' stages (its version), 0 for none. */
 export type Who = { uid: string; name: string; av: number; ac: number; fg: number; fr?: string };
@@ -33,6 +34,7 @@ export type RoomReport = { code: string; game: string; screens: number; seats: {
 /** May this phone sit down? `block` says why not. */
 export type Admit = { who: Who | null; block?: "paused" | "banned" };
 
+// the first wishes; every one of these games is on the site now, so they count as made
 const SEEDS: [string, string][] = [
   ["Punchline 神回复", "game"],
   ["Euchre 尤克牌", "game"],
@@ -42,6 +44,9 @@ const SEEDS: [string, string][] = [
   ["Post-it Note 额头便利贴", "game"],
   ["Superlatives 最佳称号", "game"],
 ];
+/** How long a wish's description and rules may be, in characters after tidying (the form in WishlistTab.tsx says the same). */
+const WISH_DESC: [number, number] = [10, 300];
+const WISH_RULES: [number, number] = [10, 600];
 
 const CODE_TTL = 10 * 60_000;
 // (an hour: the sign-up form now includes drawing an avatar)
@@ -116,6 +121,10 @@ export class Hub extends DurableObject<HubEnv> {
       status TEXT NOT NULL DEFAULT 'new', created_at INTEGER NOT NULL, device TEXT NOT NULL DEFAULT '', user_id TEXT,
       votes INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0)`);
     q(`CREATE TABLE IF NOT EXISTS wish_votes (wish_id INTEGER NOT NULL, voter TEXT NOT NULL, PRIMARY KEY (wish_id, voter))`);
+    // a wish also says what the game is and how it's played (wishes from before have neither)
+    const wcols = this.sql.exec(`PRAGMA table_info(wishes)`).toArray().map((c) => String(c.name));
+    if (!wcols.includes("description")) q(`ALTER TABLE wishes ADD COLUMN description TEXT NOT NULL DEFAULT ''`);
+    if (!wcols.includes("rules")) q(`ALTER TABLE wishes ADD COLUMN rules TEXT NOT NULL DEFAULT ''`);
     q(`CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, phone TEXT NOT NULL, city TEXT NOT NULL,
       gender TEXT NOT NULL, bio TEXT NOT NULL DEFAULT '', av INTEGER NOT NULL DEFAULT 0, ac INTEGER NOT NULL DEFAULT 0,
@@ -166,9 +175,14 @@ export class Hub extends DurableObject<HubEnv> {
     if (!seeded.length) {
       const now = Date.now();
       SEEDS.forEach(([text, kind], i) => {
-        this.sql.exec(`INSERT INTO wishes (text, kind, name, status, created_at, device) VALUES (?, ?, 'Steve', 'planned', ?, 'seed')`, text, kind, now - (SEEDS.length - i) * 1000);
+        this.sql.exec(`INSERT INTO wishes (text, kind, name, status, created_at, device) VALUES (?, ?, 'Steve', 'done', ?, 'seed')`, text, kind, now - (SEEDS.length - i) * 1000);
       });
       this.sql.exec(`INSERT INTO meta (k, v) VALUES ('seeded', '1')`);
+    }
+    // seeded back when these games were still being built: made now (once, so the owner can still change them)
+    if (!this.sql.exec(`SELECT v FROM meta WHERE k = 'seeds-made'`).toArray().length) {
+      this.sql.exec(`UPDATE wishes SET status = 'done' WHERE device = 'seed' AND text IN (${SEEDS.map(() => "?").join(", ")})`, ...SEEDS.map(([text]) => text));
+      this.sql.exec(`INSERT INTO meta (k, v) VALUES ('seeds-made', '1')`);
     }
     const p = this.sql.exec(`SELECT v FROM meta WHERE k = 'pepper'`).toArray();
     if (p.length) this.pepper = String(p[0].v);
@@ -225,7 +239,7 @@ export class Hub extends DurableObject<HubEnv> {
     // ---- wishlist ----
     if (path === "/wishes" && m === "GET") return ok({ wishes: this.listWishes(c.device, me?.id ?? "") });
     if (path === "/wishes" && m === "POST") {
-      const r = this.addWish(c.device, c.ip, String(b.text ?? ""), String(b.kind ?? ""), String(b.name ?? ""), me?.id ?? null);
+      const r = this.addWish(c.device, c.ip, { text: b.text, desc: b.desc, rules: b.rules, kind: b.kind, name: b.name }, me?.id ?? null);
       return "error" in r ? err(r.error === "slow-down" ? 429 : 400, r.error) : ok({ wish: r });
     }
     let mm = /^\/wishes\/(\d+)\/vote$/.exec(path);
@@ -1223,7 +1237,7 @@ export class Hub extends DurableObject<HubEnv> {
     const voter = uid || device;
     const rows = this.sql
       .exec(
-        `SELECT w.id, w.text, w.kind, w.name, w.status, w.created_at, w.votes, w.device, w.user_id,
+        `SELECT w.id, w.text, w.description, w.rules, w.kind, w.name, w.status, w.created_at, w.votes, w.device, w.user_id,
            EXISTS(SELECT 1 FROM wish_votes v WHERE v.wish_id = w.id AND (v.voter = ? OR v.voter = ?)) AS voted
          FROM wishes w WHERE w.hidden = 0 ORDER BY w.created_at DESC LIMIT 300`,
         voter,
@@ -1233,6 +1247,8 @@ export class Hub extends DurableObject<HubEnv> {
     return rows.map((r) => ({
       id: Number(r.id),
       text: String(r.text),
+      desc: String(r.description ?? ""),
+      rules: String(r.rules ?? ""),
       kind: r.kind === "feature" ? "feature" : "game",
       name: String(r.name ?? ""),
       votes: Number(r.votes),
@@ -1243,15 +1259,23 @@ export class Hub extends DurableObject<HubEnv> {
     }));
   }
 
-  private addWish(device: string, ip: string, text: string, kind: string, name: string, uid: string | null): WishRow | { error: string } {
-    const t = clean(text, 200);
-    if (t.length < 3) return { error: "too-short" };
+  /** A new wish: its name, what it is and how it's played (each checked here, whatever the phone said). */
+  private addWish(device: string, ip: string, w: { text: unknown; desc: unknown; rules: unknown; kind: unknown; name: unknown }, uid: string | null): WishRow | { error: string } {
+    const t = clean(w.text, 200);
+    // (two characters make a name: 掼蛋, 猜拳)
+    if (t.length < 2) return { error: "too-short" };
+    const desc = cleanLines(w.desc);
+    if (desc.length < WISH_DESC[0]) return { error: "desc-short" };
+    if (desc.length > WISH_DESC[1]) return { error: "desc-long" };
+    const rules = cleanLines(w.rules);
+    if (rules.length < WISH_RULES[0]) return { error: "rules-short" };
+    if (rules.length > WISH_RULES[1]) return { error: "rules-long" };
     if (!this.allow(`w:${device}`, 6, 3600_000) || !this.allow(`wip:${ip}`, 20, 3600_000)) return { error: "slow-down" };
-    const k = kind === "feature" ? "feature" : "game";
-    const n = clean(name, 14);
+    const k = w.kind === "feature" ? "feature" : "game";
+    const n = clean(w.name, 14);
     const now = Date.now();
-    const row = this.sql.exec(`INSERT INTO wishes (text, kind, name, created_at, device, user_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`, t, k, n, now, device, uid).one();
-    return { id: Number(row.id), text: t, kind: k, name: n, votes: 0, status: "new", at: now, voted: false, mine: true };
+    const row = this.sql.exec(`INSERT INTO wishes (text, description, rules, kind, name, created_at, device, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, t, desc, rules, k, n, now, device, uid).one();
+    return { id: Number(row.id), text: t, desc, rules, kind: k, name: n, votes: 0, status: "new", at: now, voted: false, mine: true };
   }
 
   private vote(device: string, ip: string, id: number, up: boolean): { votes: number; voted: boolean } | { error: string } {
@@ -1283,6 +1307,20 @@ export function clean(s: unknown, max: number) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);
+}
+
+/**
+ * clean() for a wish's description and rules, keeping line breaks (at most one empty line in a
+ * row). Not cut short: addWish turns away what is too long. The wish form tidies the same way.
+ */
+function cleanLines(s: unknown) {
+  return (typeof s === "string" ? s : "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ ?\n ?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function profileFields(b: Record<string, unknown>): { name: string; phone: string; city: string; gender: string; bio: string; ac: number } | { error: string } {
