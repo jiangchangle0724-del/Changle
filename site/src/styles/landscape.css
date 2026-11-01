@@ -253,4 +253,61 @@
     min-height: 0;
     max-height: calc(100vh - 60px);
   }
+
+  /* the penalty: the stamp and its glass on the left, who pays and the buttons on the right */
+  .stamp-layer {
+    padding: 12px max(24px, env(safe-area-inset-right, 0px)) 12px max(24px, env(safe-area-inset-left, 0px));
+  }
+  .stamp-stage {
+    max-width: 760px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas:
+      "seal glass names"
+      "seal glass note"
+      "seal glass foot";
+    align-items: center;
+    column-gap: 20px;
+    row-gap: 12px;
+  }
+  .stamp-seal {
+    grid-area: seal;
+    min-height: 0;
+    margin: 0;
+  }
+  /* as big as the height allows, and never wider than its column */
+  .stamp-big {
+    font-size: clamp(64px, min(38vh, 30vw), 156px);
+  }
+  .stamp-big.en-display {
+    font-size: clamp(44px, min(24vh, 10.5vw), 108px);
+  }
+  .stamp-custom .stamp-big {
+    font-size: clamp(26px, 11vh, 46px);
+  }
+  .stamp-second {
+    font-size: clamp(20px, 8vh, 32px);
+  }
+  .stamp-glass {
+    grid-area: glass;
+    position: relative;
+    top: auto;
+    right: auto;
+  }
+  .stamp-names {
+    grid-area: names;
+    align-self: end;
+    font-size: clamp(22px, 8vh, 30px);
+  }
+  .stamp-note {
+    grid-area: note;
+    justify-self: center;
+  }
+  .stamp-foot {
+    grid-area: foot;
+    align-self: start;
+  }
+  .stamp-done {
+    min-width: min(220px, 100%);
+  }
 }

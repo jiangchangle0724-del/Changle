@@ -297,7 +297,8 @@ function Scene({ sceneKey, children }: { sceneKey: string; children: React.React
     }
     if (reduced() || !ref.current) return;
     window.scrollTo(0, 0);
-    gsap.fromTo(ref.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45 });
+    // no transform may stay behind: it would pin every full-screen layer in the game to this box
+    gsap.fromTo(ref.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45, clearProps: "transform,opacity" });
   }, [sceneKey]);
   return (
     <div className="screen" ref={ref} key={sceneKey}>

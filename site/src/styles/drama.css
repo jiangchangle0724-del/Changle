@@ -205,7 +205,8 @@
   z-index: 4;
   display: flex;
   justify-content: space-evenly;
-  align-items: flex-end;
+  /* the figures stand level even when one plaque takes two lines */
+  align-items: flex-start;
   gap: 4px;
 }
 .dm-actor {
@@ -271,12 +272,26 @@
   line-height: 1.15;
   text-align: center;
 }
+/* two or three on stage: a plaque may be wider than its actor, into the space between them */
+.dm-cast.n2 .dm-plaque {
+  width: max-content;
+  max-width: calc(166% - 6px);
+}
+.dm-cast.n3 .dm-plaque {
+  width: max-content;
+  max-width: calc(125% - 6px);
+}
+/* a long role goes onto a second line before it is cut short */
 .dm-plaque strong {
   font-size: 12.5px;
   font-weight: 800;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
   max-width: 100%;
 }
 .dm-plaque small {
@@ -850,12 +865,14 @@ li.is-ready .dm-roster-state {
   padding: 0;
   display: grid;
   gap: 8px;
+  container-type: inline-size;
 }
 .dm-rates li {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
   padding: 8px 10px;
   border-radius: 16px;
   background: var(--dusk-2);
@@ -872,11 +889,23 @@ li.is-ready .dm-roster-state {
   flex-direction: column;
   min-width: 0;
 }
+/* the whole role, on two lines if it needs them */
 .dm-rate-who strong {
   font-size: 15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+/* a phone held upright: the stars go under the name, every row the same */
+@container (max-width: 405px) {
+  .dm-rates li {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .dm-rate-who {
+    flex-basis: 100%;
+  }
+  .dm-stars {
+    margin-left: 46px;
+  }
 }
 .dm-rate-who small {
   color: var(--haze);

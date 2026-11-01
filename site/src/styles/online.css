@@ -529,6 +529,15 @@
   color: var(--moon);
   box-shadow: inset 0 0 0 1.5px var(--line);
 }
+/* a 320px phone: four at the table and the invite button all on screen */
+@media (max-width: 359px) {
+  .lobby-seats .faces {
+    gap: 9px;
+  }
+  .lobby-seats .face {
+    width: 50px;
+  }
+}
 .lobby .tile {
   min-height: 118px;
 }
@@ -922,6 +931,11 @@ button.bowl:disabled {
 }
 .sevens-num {
   font-size: 26px !important;
+}
+
+/* Three Gardens: "Vegetables", "Fruits" and "Animals" side by side on a 320px phone */
+.garden-pick > .btn {
+  padding: 0 12px;
 }
 
 .power-dock {

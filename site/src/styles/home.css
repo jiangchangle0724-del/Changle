@@ -36,6 +36,18 @@
     gap: 2px;
   }
 }
+/* a 320px phone: the wordmark, the language switch, settings and the account button in one row */
+@media (max-width: 345px) {
+  .wordmark {
+    font-size: 22px;
+  }
+  .home-head-right {
+    gap: 0;
+  }
+  .home-head-right .acct-btn {
+    margin-left: 0;
+  }
+}
 .wordmark-dot {
   display: inline-block;
   color: var(--light);
