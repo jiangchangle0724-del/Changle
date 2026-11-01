@@ -16,5 +16,5 @@ export function Face({ user }: { user: PublicUser }) {
         <img src={`${API}/figure/${user.id}?v=${user.av}`} alt={lang === "zh" ? `${user.name}的头像` : `${user.name}'s avatar`} width={300} height={400} decoding="async" />
       </span>
     );
-  return <Avatar uid={user.id} name={user.name} av={user.av} ac={user.ac} size={88} className="me-avatar" />;
+  return <Avatar uid={user.id} name={user.name} av={user.av} ac={user.ac} size={88} className="me-avatar" frame={user.frame} />;
 }

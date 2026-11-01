@@ -6,6 +6,7 @@ import { gsap, reduced, setLight } from "./lib/anim";
 import { Home, type HomeTab } from "./home/Home";
 import { GAME_BY_ID, isGameId, type GameId } from "./games/registry";
 import { AccountProvider, useAccount } from "./account/AccountContext";
+import { PerkNews } from "./account/PerkNews";
 import { ScreenGuard } from "./components/ScreenGuard";
 import { SiteGate } from "./components/SiteGate";
 import { api } from "./lib/api";
@@ -269,6 +270,7 @@ function Shell() {
       }
     >
       <div className="room-light" aria-hidden="true" />
+      <PerkNews />
       <main className="app" style={route.kind === "game" ? ({ ["--gel" as string]: GAME_BY_ID[route.id].gel } as React.CSSProperties) : undefined}>
         <Scene sceneKey={key}>
           <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>

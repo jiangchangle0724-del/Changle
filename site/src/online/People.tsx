@@ -11,7 +11,7 @@ import { useStore } from "../store";
 /** A seat's face: the profile photo or color for signed-in players, a steady color from the phone id for everyone else. */
 export function SeatFace({ seat, size = 40, className = "" }: { seat: SeatView | undefined; size?: number; className?: string }) {
   if (!seat) return <Avatar name="?" size={size} className={className} />;
-  return <Avatar uid={seat.uid} name={seat.name} av={seat.av ?? 0} ac={seat.uid ? seat.ac : colorFor(seat.id)} size={size} className={className} />;
+  return <Avatar uid={seat.uid} name={seat.name} av={seat.av ?? 0} ac={seat.uid ? seat.ac : colorFor(seat.id)} size={size} className={className} frame={seat.fr} />;
 }
 
 type Relation = "self" | "friends" | "sent" | "received" | "none" | "blocked";
