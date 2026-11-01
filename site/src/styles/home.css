@@ -593,9 +593,77 @@
 .wish-form .field {
   background: var(--dusk);
 }
+.wish-form .field textarea {
+  min-width: 0;
+}
+.wish-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 2px;
+}
+.wish-field-head .field-label {
+  margin: 0 0 0 2px;
+}
+.wish-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  color: var(--fog);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.wish-count.is-ok {
+  color: var(--go);
+}
+.wish-field-hint {
+  margin: 0 0 7px 2px;
+  color: var(--fog);
+  font-size: 13px;
+  line-height: 1.4;
+}
 .wish-form-row {
   display: flex;
   gap: 8px;
+}
+/* the promise: a wish that goes live earns its maker the gold frame and the limited outfits */
+.wish-reward {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px 12px 12px;
+  border-radius: 16px;
+  background: color-mix(in oklab, #ffcf5a 11%, var(--dusk));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #ffcf5a 30%, transparent);
+}
+.wish-reward-face {
+  flex-shrink: 0;
+  margin: 5px;
+}
+/* signed out: a crown where your face would be, already in the frame */
+.avatar.wish-reward-crown {
+  width: 40px;
+  height: 40px;
+  background: var(--dusk-3);
+  color: #ffcf5a;
+}
+.wish-reward-text {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.wish-reward-signin {
+  margin-top: 2px;
+  color: var(--haze);
+}
+.wish-reward-signin .link-btn {
+  margin: -6px 0;
+  padding: 6px 0;
+  font-size: inherit;
+  color: #ffcf5a;
+  text-decoration-color: color-mix(in oklab, #ffcf5a 50%, transparent);
 }
 .wish-name {
   flex: 1;
@@ -678,6 +746,47 @@
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+.wish-desc {
+  margin-top: 3px;
+  color: var(--haze);
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+/* the rules, folded away until asked for */
+.wish-rules-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  margin: 0 0 -6px;
+  padding: 0 10px 0 0;
+  color: var(--moon);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.wish-chev {
+  color: var(--haze);
+  transition: transform 0.35s var(--ease-out);
+}
+[aria-expanded="true"] > .wish-chev {
+  transform: rotate(180deg);
+}
+.wish-reveal[hidden] {
+  display: none;
+}
+.wish-rules {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--dusk-2);
+  color: var(--haze);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
 .wish-meta {
   display: flex;
   flex-wrap: wrap;
@@ -702,6 +811,55 @@
 .wish-status.is-done {
   background: color-mix(in oklab, var(--go) 20%, transparent);
   color: var(--go);
+}
+/* what got made, folded away under the open wishes */
+.wish-made {
+  display: flex;
+  flex-direction: column;
+}
+.wish-made-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 14px 0 12px;
+  border-radius: 18px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--haze);
+  font-size: 14.5px;
+  font-weight: 700;
+  text-align: left;
+}
+.wish-made-tick,
+.wish-made-mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--go) 18%, transparent);
+  color: var(--go);
+}
+.wish-made-tick {
+  width: 26px;
+  height: 26px;
+}
+.wish-made-n {
+  color: var(--fog);
+}
+.wish-made-head .wish-chev {
+  margin-left: auto;
+}
+.wish-made .wish-list {
+  padding-top: 8px;
+}
+.wish-made-mark {
+  width: 34px;
+  height: 34px;
+  margin: 1px 4px 0;
+}
+.wish-item.is-made {
+  background: color-mix(in oklab, var(--dusk) 60%, var(--night));
 }
 .empty {
   display: flex;

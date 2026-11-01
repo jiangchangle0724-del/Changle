@@ -34,7 +34,14 @@ def main():
             owner.wait_for_selector(".acct-me", timeout=10000)
         ac.signup(wisher, f"wish.{tag}@example.com", "Wen")
         otok, wtok = ac.token_of(owner), ac.token_of(wisher)
-        st, r = ac.call("POST", "/wishes", wtok, {"text": f"真心话升级版 {tag}", "kind": "game", "name": "Wen"})
+        wish = {
+            "text": f"真心话升级版 {tag}",
+            "desc": "真心话大冒险，题目按大家的尺度一轮比一轮大胆。",
+            "rules": "转瓶子选人，选真心话或大冒险。\n不答不做就喝一杯。",
+            "kind": "game",
+            "name": "Wen",
+        }
+        st, r = ac.call("POST", "/wishes", wtok, wish)
         wid = r.get("wish", {}).get("id")
         check(st == 200 and wid, f"the player makes a wish ({st})")
         pic = ac.jpeg()
