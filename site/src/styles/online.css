@@ -551,7 +551,7 @@
   color: var(--moon);
   box-shadow: inset 0 0 0 1.5px var(--line);
 }
-/* a 320px phone: four at the table and the invite button all on screen */
+/* a 320px phone: the invite button and four at the table on screen */
 @media (max-width: 359px) {
   .lobby-seats .faces {
     gap: 9px;

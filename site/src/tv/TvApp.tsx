@@ -15,6 +15,7 @@ import { Stage } from "../party/punchline/show/Stage";
 import { useWho } from "../party/punchline/show/who";
 import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
 import { ONLINE_GAMES, ONLINE_MIN, timesOf, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
+import { t } from "../i18n";
 import { TablePenalty, useStore } from "../store";
 import "../styles/tv.css";
 import { useCodeField } from "../online/codeField";
@@ -553,8 +554,9 @@ function TvPenalties({ room, audio }: { room: RoomView; audio: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cur?.id]);
   if (!cur) return null;
-  const custom = room.penalty;
-  // the host's own penalty: once, twice for two sips, or as many times as the game says (7-8-9's pot)
+  // a game's own forfeit (Drama's) comes first, as on the phones; then the host's own penalty
+  const custom = cur.say ? t(lang, cur.say) : room.penalty;
+  // done once, twice for two sips, or as many times as the game says (7-8-9's pot); a named forfeit once
   const n = timesOf(cur);
   const own = custom ? (n > 1 ? `${custom} ×${n}` : custom) : "";
   const what =
