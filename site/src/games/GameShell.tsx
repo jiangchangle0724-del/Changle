@@ -2,7 +2,7 @@ import { MotionConfig } from "motion/react";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import type { T } from "../i18n";
 import { useStore } from "../store";
-import { TopBar } from "../components/TopBar";
+import { LangTab, TopBar } from "../components/TopBar";
 import { Sheet } from "../components/Sheet";
 import { PenaltyStamp, type PenaltyCall } from "../components/PenaltyStamp";
 
@@ -49,6 +49,11 @@ export function GameShell({
       <TopBar title={title} onBack={onBack} onHelp={() => setRulesOpen(true)} right={right} />
       <div className="game-body">{children}</div>
       <Sheet open={rulesOpen} onClose={() => setRulesOpen(false)} title={ui("rules")}>
+        {/* a mixed table switches language here, mid-game, without losing the game */}
+        <div className="settings-row">
+          <span>{ui("language")}</span>
+          <LangTab />
+        </div>
         <div className="rules-text">{rules}</div>
       </Sheet>
       <PenaltyStamp call={penalty} onDone={onPenaltyDone} />

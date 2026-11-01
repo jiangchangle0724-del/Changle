@@ -13,14 +13,28 @@ type Settings = {
 
 const KEY = "lazysusan.settings.v1";
 
+/**
+ * A first visit opens in the phone's language: Chinese if Chinese is anywhere in its list (many
+ * Chinese readers here keep their phone in English), English otherwise. After that, the reader's
+ * own choice (中 / EN) is kept.
+ */
+function phoneLang(): Lang {
+  try {
+    const list = navigator.languages?.length ? navigator.languages : [navigator.language];
+    return list.some((l) => /^zh\b/i.test(l)) ? "zh" : "en";
+  } catch {
+    return "zh";
+  }
+}
+
 function load(): Settings {
-  const fallback: Settings = { lang: "zh", sound: true, music: false, customPenalty: "", players: [] };
+  const fallback: Settings = { lang: phoneLang(), sound: true, music: false, customPenalty: "", players: [] };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     return {
-      lang: parsed.lang === "en" ? "en" : "zh",
+      lang: parsed.lang === "en" || parsed.lang === "zh" ? parsed.lang : fallback.lang,
       sound: parsed.sound !== false,
       music: parsed.music === true,
       customPenalty: typeof parsed.customPenalty === "string" ? parsed.customPenalty : "",
