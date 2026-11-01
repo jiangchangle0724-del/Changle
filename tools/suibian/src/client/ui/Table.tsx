@@ -71,8 +71,17 @@ const needsServer = (v: RoomView) => Object.keys(v.table.allergies).length > 0 |
 const joinUrl = (code: string) => `${location.origin}${BASE}/r/${code}`;
 
 function Lobby({ v }: { v: RoomView }) {
+  const { me } = useApp();
   const [copied, setCopied] = useState(false);
   const [name, setName] = useState(v.you.name || prefs.name);
+  // A signed-in phone with no name yet goes by its Google first name (it can still be changed here).
+  useEffect(() => {
+    const n = me?.user?.name?.trim().slice(0, 16);
+    if (!n || v.you.name || prefs.name) return;
+    setName(n);
+    prefs.name = n;
+    send({ t: "name", name: n });
+  }, [me?.user?.name]);
   const [editing, setEditing] = useState(false);
   const [range, setRange] = useState<RangeId>(v.range);
   const host = v.you.host || !v.members.find((m) => m.host)?.online;
@@ -211,7 +220,7 @@ function Mood({ v }: { v: RoomView }) {
                 {cu.emoji}
               </span>
               <span class="label">{tx(cu)}</span>
-              <small class="muted">{t("places", { n: c.count })}</small>
+              <small class="muted">{t(c.count === 1 ? "place1" : "places", { n: c.count })}</small>
               <span class="mark" aria-hidden="true">
                 {now === "like" ? "👍" : now === "ban" ? "🚫" : ""}
               </span>

@@ -83,6 +83,7 @@ const S = {
   round1: ["第 1 轮 · 今天的心情", "Round 1 · Today's mood"],
   round1Hint: ["想吃点 👍，不想吃点两下 🚫。有一个人 🚫 就淘汰。", "Tap 👍 for yes, twice for 🚫 no. One 🚫 knocks it out."],
   places: ["{n} 家", "{n} places"],
+  place1: ["{n} 家", "{n} place"],
   done: ["好了", "Done"],
   waitingOthers: ["{n}/{m} 人好了", "{n}/{m} done"],
   skipAhead: ["不等了，下一步", "Don't wait, next"],
@@ -201,6 +202,7 @@ const S = {
   soloShare: ["发给朋友", "Send to a friend"],
   soloShareText: ["今天吃「{name}」！🗺️ {map}", "Eating at {name}! 🗺️ {map}"],
   soloNoMore: ["附近就这些了，换大一点的范围试试？", "That's all nearby. Try a wider range?"],
+  soloNoMoreAny: ["就这些了，换个心情或预算试试？", "That's all of them. Try another mood or budget?"],
 } satisfies Record<string, [string, string]>;
 
 export type Key = keyof typeof S;

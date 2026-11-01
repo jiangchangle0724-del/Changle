@@ -130,6 +130,7 @@ a {
 .tagline {
   color: var(--muted);
   margin-top: 8px;
+  text-wrap: balance;
 }
 
 .bar {

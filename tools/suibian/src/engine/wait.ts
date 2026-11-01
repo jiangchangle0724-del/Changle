@@ -60,5 +60,6 @@ export function estimateWait(p: Place, clock: { dow: number; minutes: number }):
     reasons.push("reservable");
   }
   const level: WaitLevel = points >= 2 ? 2 : points >= 1 ? 1 : 0;
-  return { level, reasons };
+  // "Probably no wait · very popular" reads as a contradiction: with no wait, only what helps shows.
+  return { level, reasons: level === 0 ? reasons.filter((r) => r === "reservable") : reasons };
 }

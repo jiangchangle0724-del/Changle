@@ -174,7 +174,7 @@ export function Solo({ home }: { home: () => void }) {
                 {t("soloMore")}
               </Btn>
             ) : (
-              <p class="muted small center">{t("soloNoMore")}</p>
+              <p class="muted small center">{t(where.range === "any" ? "soloNoMoreAny" : "soloNoMore")}</p>
             )}
             <Btn kind="quiet" wide onClick={() => ask(0)}>
               {t("soloRestart")}
