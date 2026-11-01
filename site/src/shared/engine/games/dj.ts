@@ -5,11 +5,13 @@
  * host can override, and every set ends 4 hours after its music started.
  */
 import { ENERGY, FAKE_MIX, mixFor } from "../../dj/curve";
-import { DJ_TIMES, FIRE_GAP_MS, SET_PHASES, type DjPhase, type RoomState, type SetPhase } from "../../dj/types";
+import { DJ_TIMES, FIRE_TAKE_MS, SET_PHASES, type DjPhase, type RoomState, type SetPhase } from "../../dj/types";
 import type { DjView } from "../../protocol";
 import { num, type Api, type GameDef } from "../api";
 
 const KEEP_FIRES = 40;
+/** The speaker reports at most this often (it sends once a minute; a screen can't be kicked). */
+const STATS_GAP_MS = 30_000;
 
 function fresh(set: number): RoomState {
   return {
@@ -56,7 +58,6 @@ function begin(s: RoomState, api: Api) {
   api.timer("wind", s.capAt - DJ_TIMES.cool);
   api.timer("cap", s.capAt);
   goTo(s, "warm", api);
-  api.fx("start");
 }
 
 export const dj: GameDef<RoomState> = {
@@ -72,9 +73,11 @@ export const dj: GameDef<RoomState> = {
     const host = api.isHost(pid);
     switch (g.x) {
       case "fire": {
-        // one 🔥 per FIRE_GAP_MS a phone: a held thumb can't flood the room
+        // a tap many times a minute: sent at once, saved with the next save
+        api.light();
+        // one 🔥 per FIRE_TAKE_MS a phone: a held thumb can't flood the room
         const last = [...s.fires].reverse().find((f) => f.pid === pid);
-        if (last && api.now - last.at < FIRE_GAP_MS) return;
+        if (last && api.now - last.at < FIRE_TAKE_MS) return;
         s.fires.push({ pid, at: api.now });
         if (s.fires.length > KEEP_FIRES) s.fires = s.fires.slice(-KEEP_FIRES);
         s.total[pid] = (s.total[pid] ?? 0) + 1;
@@ -92,8 +95,9 @@ export const dj: GameDef<RoomState> = {
       case "again": {
         if (!host || s.phase !== "end") return;
         const next = fresh(s.set + 1);
-        // the night's 🔥 count carries on into the next set
+        // the night's 🔥 count and the speaker's record carry on into the next set
         next.total = s.total;
+        next.speaker = s.speaker;
         Object.assign(s, next);
         api.clear("next");
         api.clear("wind");
@@ -106,25 +110,28 @@ export const dj: GameDef<RoomState> = {
   screen(s, _sid, g, api) {
     switch (g.x) {
       case "live": {
-        if (s.phase !== "wait") return;
+        if (s.phase !== "wait") return false;
         s.source = g.source === "lyria" ? "lyria" : "fake";
         begin(s, api);
-        return;
+        return true;
       }
       case "stats": {
-        const stalls = num(g.stalls, 0, 10_000);
-        const resets = num(g.resets, 0, 10_000);
-        const seconds = num(g.seconds, 0, 6 * 3600);
-        if (stalls === null || resets === null || seconds === null) return;
+        if (s.speaker.at && api.now - s.speaker.at < STATS_GAP_MS) return false;
+        // a minute's worth at most (a report covers the minute since the last one)
+        const stalls = num(g.stalls, 0, 600);
+        const resets = num(g.resets, 0, 60);
+        const seconds = num(g.seconds, 0, 120);
+        if (stalls === null || resets === null || seconds === null) return false;
         s.speaker = {
           at: api.now,
           stalls: s.speaker.stalls + Math.round(stalls),
           resets: s.speaker.resets + Math.round(resets),
           seconds: s.speaker.seconds + Math.round(seconds),
         };
-        return;
+        return true;
       }
     }
+    return false;
   },
 
   timer(s, key, _data, api) {

@@ -2,11 +2,13 @@ import { Disc3, Flame as FlameIcon, Loader2, Play } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
 import { SeatFace } from "../../online/People";
+import { ENERGY } from "../../shared/dj/curve";
+import type { DjPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
-import { NightCurve, NowPlaying, phaseName } from "./parts";
+import { NightCurve, NowPlaying, phaseName, useHeardPhase, useHeat } from "./parts";
 import { useBooth } from "./useBooth";
 import "../../styles/dj.css";
 
@@ -22,9 +24,13 @@ export default function TvDj({ v }: { v: DjView }) {
   const booth = useBooth({ phase: v.phase, muted: !sound, onReport: (r) => g("stats", r) });
   const { speaker, dj } = booth;
 
-  // the music starts here: the room's set begins when this screen says it's playing
+  // the music starts here: the room's set begins when this screen says it's playing (said again
+  // every few seconds until the room has heard it: a message can be lost on a dropping connection)
   useEffect(() => {
-    if (booth.status === "on" && v.phase === "wait") g("live", { source: "fake" });
+    if (booth.status !== "on" || v.phase !== "wait") return;
+    g("live", { source: "fake" });
+    const id = window.setInterval(() => g("live", { source: "fake" }), 3000);
+    return () => window.clearInterval(id);
   }, [booth.status, v.phase, v.set, g]);
 
   const fires = useRef(new Map<string, number>());
@@ -46,7 +52,11 @@ export default function TvDj({ v }: { v: DjView }) {
     }),
     [speaker, dj],
   );
-  useFloorLoop(root, clock, v.energy, fires);
+  // the lights and the dancers follow the music the speakers are playing, which reaches a new
+  // stretch of the night on the phrase after the host's tap
+  const heard = useHeardPhase(dj, booth.status === "on");
+  const stage: DjPhase = v.phase === "end" || v.phase === "wait" ? v.phase : (heard ?? v.phase);
+  useFloorLoop(root, clock, ENERGY[stage].density, fires);
 
   // the player's state, for the buffering note
   const [state, setState] = useState("waiting");
@@ -57,17 +67,37 @@ export default function TvDj({ v }: { v: DjView }) {
 
   useTicker(v.phase !== "wait" && v.phase !== "end", 5000);
   const seats = room?.seats ?? [];
-  const heat = v.fires.filter((f) => now() - f.at < 60_000).length;
-  const fans = Object.entries(v.total)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([pid, n]) => ({ seat: seats.find((s) => s.id === pid), n }))
-    .filter((f) => f.seat);
+  const h = useHeat(v);
+  const heat = h.minute;
+  const fans = h.top
+    .map((pid) => ({ seat: seats.find((s) => s.id === pid), n: h.total(pid) }))
+    .filter((f) => f.seat && f.n > 0)
+    .slice(0, 3);
   const live = booth.status === "on";
   const silent = live && (v.phase === "wait" || state !== "playing") && v.phase !== "end";
+  const tonight = Object.values(v.total).reduce((a, b) => a + b, 0);
+
+  // the moment the music itself reaches a new stretch of the night (not the host's tap, which can
+  // come up to a phrase earlier): its name, big, on the beat it lands
+  const [banner, setBanner] = useState<{ phase: DjPhase; n: number } | null>(null);
+  const lastHeard = useRef<DjPhase | null>(null);
+  useEffect(() => {
+    if (!heard || heard === lastHeard.current) return;
+    lastHeard.current = heard;
+    setBanner((b) => ({ phase: heard, n: (b?.n ?? 0) + 1 }));
+  }, [heard]);
+  useEffect(() => {
+    if (!banner) return;
+    const id = window.setTimeout(() => setBanner(null), 2800);
+    return () => window.clearTimeout(id);
+  }, [banner]);
+  useEffect(() => {
+    // a new set announces its warm-up again
+    if (v.phase === "wait" || v.phase === "end") lastHeard.current = null;
+  }, [v.phase]);
 
   return (
-    <div className={`dj-stage is-${v.phase} ${live ? "is-live" : ""}`} ref={root}>
+    <div className={`dj-stage is-${stage} ${live ? "is-live" : ""}`} ref={root}>
       <div className="dj-sky" aria-hidden="true" />
       <div className="dj-beams" aria-hidden="true">
         {[0, 1, 2, 3, 4].map((k) => (
@@ -91,14 +121,16 @@ export default function TvDj({ v }: { v: DjView }) {
       <Floor seats={seats} flames={flames} host={room?.host} />
       {!seats.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
+      {banner && <DropBanner key={banner.n} phase={banner.phase} />}
+
       <footer className="dj-foot">
         <NightCurve v={v} now={now()} />
         <div className="dj-heat">
           <span className="dj-heat-n tabular">
             <FlameIcon size={30} strokeWidth={2.4} />
-            {heat}
+            {v.phase === "end" ? tonight : heat}
           </span>
-          <span className="dj-heat-label">{zh ? "这一分钟的 🔥" : "🔥 this minute"}</span>
+          <span className="dj-heat-label">{v.phase === "end" ? (zh ? "今晚的 🔥" : "🔥 tonight") : zh ? "这一分钟的 🔥" : "🔥 this minute"}</span>
           {fans.length > 0 && (
             <span className="dj-fans">
               {fans.map((f) => (
@@ -130,6 +162,27 @@ export default function TvDj({ v }: { v: DjView }) {
           {zh ? "声音停了，点一下接着放" : "The sound stopped. Tap to carry on"}
         </button>
       )}
+    </div>
+  );
+}
+
+const DROP_LINES: Record<DjPhase, { zh: string; en: string }> = {
+  wait: { zh: "", en: "" },
+  warm: { zh: "先热热身", en: "Ease into it" },
+  build: { zh: "往上走", en: "Here it comes" },
+  peak: { zh: "全场跳起来", en: "Everybody up" },
+  cool: { zh: "慢慢放下来", en: "Bring it home" },
+  end: { zh: "", en: "" },
+};
+
+/** The name of the stretch the music has just reached, across the floor for a moment. */
+function DropBanner({ phase }: { phase: DjPhase }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className={`dj-drop is-${phase}`} role="status">
+      <span className="dj-drop-name">{phaseName(phase, zh)}</span>
+      <span className="dj-drop-line">{zh ? DROP_LINES[phase].zh : DROP_LINES[phase].en}</span>
     </div>
   );
 }

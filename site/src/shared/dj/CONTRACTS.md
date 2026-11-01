@@ -40,9 +40,11 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
 ```
 
 - **Opening.** A big screen that opens a table for the DJ booth (`screenHello(..., "dj")`) starts
-  the game at once (`GameDef.auto`): the booth is on before anyone sits down. The first phone to sit
-  down hosts. The host can close the booth (back to the lobby, the booth still up front) and open it
+  the game at once (`GameDef.auto`): the booth is on before anyone sits down, and it stays on when
+  every phone has left (the music plays on for whoever comes next). The first phone to sit down
+  hosts. The host can close the booth (back to the lobby, the booth still up front) and open it
   again from there. The booth is hidden everywhere else (`hidden` in `site/src/games/registry.ts`).
+  Its phones make no sound at all: no start sound, no table sounds (`useTableSounds`).
 - **wait.** No music yet. Nothing moves until the speaker says it is playing.
 - **The set** starts when the speaker sends `live`: `liveAt` and `capAt = liveAt + 4 h` are set,
   and with them two timers: `wind` (cap minus 15 min: to `cool`) and `cap` (to `end`).
@@ -52,14 +54,23 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
 - **The host** (`phase`) can take the night to `warm`, `build`, `peak`, `cool` or `end` at any time
   once it has started (each with a fresh clock), and after the end start another set (`again`):
   back to `wait`, a new `set` number, the night's 🔥 kept.
-- **Everyone** can press 🔥 (`fire`): at most one per 400 ms per phone. The room keeps the latest 40
-  presses (`fires`, who and when) and a count per player for the night (`total`), and tells every
-  screen at once (an `fx` event `fire` with the player's id).
+- **Everyone** can press 🔥 (`fire`): a phone sends at most one per 400 ms (faster taps only burst
+  on the phone), and the room takes one per 300 ms a phone (the network bunches taps up). The room
+  keeps the latest 40 presses (`fires`, who and when) and a count per player for the night
+  (`total`), and tells every screen at once (an `fx` event `fire` with the player's id).
+- **🔥 is a light change** (`api.light()`, `Output.light`): the rooms server sends the fresh table
+  at once but stores it only with the next real change or after 10 seconds, so a party pressing
+  all night doesn't write to storage on every tap. Losing the last few seconds of 🔥 counts if the
+  table is evicted is fine.
 - **The speaker** is a big screen, so it has no seat: it talks to the game through
   `RoomEngine.screenAct` (the rooms server passes a screen's game actions there; only games with a
-  `screen` handler listen, and a screen can never act for a seat). The booth takes two from it:
-  `live` (the music started; ignored unless waiting) and `stats` (stalls, resets and seconds played
-  since the last report, once a minute, added up in `speaker` for the night's recap).
+  `screen` handler listen, and a screen can never act for a seat). A screen can't be kicked and
+  anyone with the code can open one, so only what the game takes counts as a change (`screen`
+  returns whether it took it); anything else costs nothing. The booth takes two: `live` (the music
+  started; taken only while waiting; the speaker says it every 3 seconds until the room has heard
+  it) and `stats` (stalls, times the sound had to be woken, and seconds played since the last
+  report, at most one report per 30 seconds and a minute's worth each, added up in `speaker` for
+  the night's recap; kept across sets).
 
 `energy` in the view is the stretch's density (0 to 1); `mix` is what the speaker plays (with
 Lyria, it becomes the prompts and config; `ENERGY` in `curve.ts` sets density and brightness).
@@ -100,6 +111,10 @@ PCM chunks → player (AudioWorklet) → master gain → glue compressor → lim
   kick at any volume.
 - **Stopped sound:** an iPhone or iPad stops it when the screen locks or a call comes in; the
   screen then shows one button that wakes it (`resume`).
+- **One per page** (`useBooth.ts`): the speaker and the stand-in DJ (with what it has recorded)
+  live as long as the page, not the screen showing them. When the host closes the booth and opens
+  it again, the music comes back without another tap on the TV; a double tap on start makes one
+  speaker, not two.
 
 ## The stand-in DJ
 
@@ -107,10 +122,17 @@ Six 8-bar sections (`sections.ts`): warm1 and warm2, build1 (a snare roll and a 
 drop), peak1 (opens with a crash) and peak2, cool1 (a breakdown, the kick back halfway). Each is
 recorded on the device with an OfflineAudioContext (`render.ts`, no tap needed, before anyone
 presses start) as exactly 8 bars plus 2 seconds of ring-out, levelled to its own loudness (warm
-−19 dB RMS up to peak −15). At the end of each section the next is picked for the phase
-(`arrange.ts`): the phase's own in turn, from its first when the phase has just changed, so a
-change of phase lands on the phrase. The ring-out of one section is laid over the start of the
-next. The end of a set fades out over 3 seconds.
+−19 dB RMS up to peak −15). Recording is kept quick, since the night can't move on until the next
+section exists: the drums are recorded once as a kit and played back hit by hit, every sound is
+written in a beat before it plays, the first section of every stretch is made before the rest
+(`renderOrder`), and a recording that takes over 90 seconds is given up on and asked for again
+later. Until the next section is ready the last one plays again. At the end of each section the
+next is picked for the phase (`arrange.ts`): the phase's own in turn, from its first when the phase
+has just changed, so a change of phase lands on the phrase. The ring-out of one section is laid
+over the start of the next. The end of a set fades out over 3 seconds. `heardSection()` says which
+section (and so which stretch) the speakers are sounding now: the big screen puts the stretch's
+name across the floor the moment the music gets there, not when the host tapped (that can be up to
+a phrase, 15 seconds, earlier).
 
 ## The lights and the dancers
 

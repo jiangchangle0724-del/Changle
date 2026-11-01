@@ -57,6 +57,11 @@ export interface Host {
 export type Output = {
   /** Room state changed: persist and send fresh views to everyone. */
   changed: boolean;
+  /**
+   * Changed, but only in a way that can wait for the next save (a 🔥 tap, which comes many times a
+   * minute): send fresh views now, keep it in storage with the next save.
+   */
+  light: boolean;
   /** Persist only (drawing finished a stroke). */
   persist: boolean;
   events: RoomEvent[];
@@ -87,7 +92,7 @@ export function validPid(pid: unknown): pid is string {
 }
 
 function blankOut(): Output {
-  return { changed: false, persist: false, events: [], relay: [], strokesReset: false, kicked: [], records: [] };
+  return { changed: false, light: false, persist: false, events: [], relay: [], strokesReset: false, kicked: [], records: [] };
 }
 
 export function freshRoom(code: string, now: number): RoomData {
@@ -116,6 +121,8 @@ export function freshRoom(code: string, now: number): RoomData {
 export class RoomEngine {
   private out: Output = blankOut();
   private lastReact = new Map<string, number>();
+  /** the game action being run asked to be light (see Output.light) */
+  private lightAct = false;
 
   constructor(
     public d: RoomData,
@@ -125,7 +132,8 @@ export class RoomEngine {
   flush(): Output {
     const o = this.out;
     this.out = blankOut();
-    if (o.changed) {
+    if (o.changed) o.light = false;
+    if (o.changed || o.light) {
       this.d.v += 1;
       this.d.touched = this.h.now();
     }
@@ -243,7 +251,7 @@ export class RoomEngine {
       this.clearTimer("host-away");
       if (next) this.event({ k: "host", pid: next.id });
     }
-    if (!d.seats.length && d.game) {
+    if (!d.seats.length && d.game && !this.screenRun()) {
       this.finishPlay();
       d.game = null;
       this.clearGameTimers();
@@ -331,7 +339,8 @@ export class RoomEngine {
           this.clearTimer("host-away");
           if (next) this.event({ k: "host", pid: next.id });
         }
-        if (!d.seats.length) {
+        // the last one out ends the game, except one a big screen runs (the DJ booth plays on)
+        if (!d.seats.length && !this.screenRun()) {
           this.finishPlay();
           d.game = null;
           this.clearGameTimers();
@@ -396,14 +405,22 @@ export class RoomEngine {
    * A big screen talks to the game it shows: only games that listen to screens (the DJ booth's
    * speaker saying the music has started), and only game actions; it can't touch the table.
    */
-  screenAct(sid: string, g: unknown) {
+  screenAct(sid: string, g: unknown): boolean {
     const d = this.d;
-    if (!validPid(sid) || d.banned.includes(sid) || d.seats.some((s) => s.id === sid)) return;
-    if (!g || typeof g !== "object" || typeof (g as { x?: unknown }).x !== "string") return;
+    if (!validPid(sid) || d.banned.includes(sid) || d.seats.some((s) => s.id === sid)) return false;
+    if (!g || typeof g !== "object" || typeof (g as { x?: unknown }).x !== "string") return false;
     const gd = this.gameDef();
-    if (!gd?.def.screen || !d.game) return;
-    gd.def.screen(d.game.s, sid, g as { x: string; [k: string]: unknown }, this.api());
+    if (!gd?.def.screen || !d.game) return false;
+    // a screen can't be kicked and anyone with the code can open one: only what the game took counts
+    if (!gd.def.screen(d.game.s, sid, g as { x: string; [k: string]: unknown }, this.api())) return false;
     this.out.changed = true;
+    return true;
+  }
+
+  /** The game on now is one a big screen runs (it stays on with nobody seated). */
+  private screenRun() {
+    const g = this.d.game;
+    return !!g && !!(GAMES[g.id] as GameDef<unknown> | undefined)?.auto;
   }
 
   private startGame(id: GameId) {
@@ -417,18 +434,21 @@ export class RoomEngine {
     d.play = { game: id, started: this.h.now(), tally: {} };
     d.game.s = def.init(this.api());
     d.front = Math.max(0, ONLINE_GAMES.indexOf(id));
-    this.fx("start");
+    // (the DJ booth's phones stay silent: its sound is the speaker's)
+    if (!def.auto) this.fx("start");
     this.out.changed = true;
   }
 
   private gameAct(pid: string, g: { x: string; [k: string]: unknown }) {
     const gd = this.gameDef();
     if (!gd || !this.d.game) return;
-    const before = this.d.timers.length;
+    this.lightAct = false;
     gd.def.act(this.d.game.s, pid, g, this.api());
-    // games mutate in place; assume a change whenever an action reached them
-    this.out.changed = true;
-    void before;
+    // games mutate in place; assume a change whenever an action reached them (a light one if the
+    // game said so)
+    if (this.lightAct) this.out.light = true;
+    else this.out.changed = true;
+    this.lightAct = false;
   }
 
   /* ---------------- drawing ---------------- */
@@ -666,6 +686,9 @@ export class RoomEngine {
       resetStrokes: () => {
         this.d.strokes = [];
         this.out.strokesReset = true;
+      },
+      light: () => {
+        this.lightAct = true;
       },
     };
   }

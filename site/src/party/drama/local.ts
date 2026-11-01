@@ -67,6 +67,8 @@ export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string
         timers.current = timers.current.filter((x) => x.key !== `g:${key}`);
       },
       resetStrokes: () => {},
+      // one phone saves nothing: every change is shown at once anyway
+      light: () => {},
     };
     return self;
   }, []);

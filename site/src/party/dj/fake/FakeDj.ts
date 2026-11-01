@@ -16,6 +16,8 @@ import { BPM, SECTION_BY_ID, type Section } from "./sections";
 const RATE = 48000;
 const CHUNK = RATE / 4;
 const AHEAD_S = 5;
+/** a section that takes longer than this to record is given up on for now */
+const RENDER_TIMEOUT_MS = 90_000;
 
 export class FakeDj {
   readonly bpm = BPM;
@@ -36,6 +38,8 @@ export class FakeDj {
   private dead = false;
   private sets = 0;
   private heldUntil = 0;
+  /** where each of the last few sections starts in the stream (the speaker's frame count) */
+  private marks: { frame: number; id: string; phase: DjPhase }[] = [];
   /** called once the first section is ready to play */
   onReady: (() => void) | null = null;
 
@@ -52,8 +56,15 @@ export class FakeDj {
     return this.made.size > 0;
   }
 
-  /** Plays into this speaker from now on. */
+  /** Plays into this speaker from now on (a new speaker starts a new stream). */
   attach(speaker: Speaker) {
+    if (speaker !== this.speaker) {
+      this.streaming = false;
+      this.cur = null;
+      this.carry = null;
+      this.prev = null;
+      this.marks = [];
+    }
     this.speaker = speaker;
     this.stopTick?.();
     // the player reports about 23 times a second: top the stream up then, and on a timer too
@@ -77,6 +88,7 @@ export class FakeDj {
       this.cur = null;
       this.carry = null;
       this.prev = null;
+      this.marks = [];
       const set = ++this.sets;
       window.setTimeout(() => {
         if (set === this.sets && !this.streaming && !this.dead) sp.flush();
@@ -90,6 +102,18 @@ export class FakeDj {
     const sp = this.speaker;
     if (!sp || !this.streaming) return 0;
     return ((sp.heardFrame() - this.origin) / RATE) * (BPM / 60);
+  }
+
+  /**
+   * The section the speakers are sounding right now (null between sets): the screen times its
+   * moments to the music, not to the tap that asked for them.
+   */
+  heardSection(): { id: string; phase: DjPhase } | null {
+    const sp = this.speaker;
+    if (!sp || !this.streaming) return null;
+    const at = sp.heardFrame();
+    for (let i = this.marks.length - 1; i >= 0; i--) if (this.marks[i].frame <= at) return this.marks[i];
+    return null;
   }
 
   /** Stop sending for a while, as a dropped connection would (the speaker test page's button). */
@@ -115,13 +139,19 @@ export class FakeDj {
     const id = this.wanted.shift();
     if (!id) return;
     if (this.made.has(id)) return this.makeNext();
-    this.making = this.render(SECTION_BY_ID[id], RATE)
+    // a recording that never finishes must not hold up the rest (it is asked for again later)
+    let timer = 0;
+    const tooLong = new Promise<never>((_, no) => {
+      timer = window.setTimeout(() => no(new Error("too long")), RENDER_TIMEOUT_MS);
+    });
+    this.making = Promise.race([this.render(SECTION_BY_ID[id], RATE), tooLong])
       .then((r) => {
         this.made.set(id, r);
         if (this.made.size === 1) this.onReady?.();
       })
       .catch(() => {})
       .finally(() => {
+        window.clearTimeout(timer);
         this.making = null;
         // give the page a breath between sections
         window.setTimeout(() => this.makeNext(), 30);
@@ -147,6 +177,7 @@ export class FakeDj {
         }
         this.cur = pick;
         this.off = 0;
+        this.marks = [...this.marks.slice(-5), { frame: sp.sentFrames, id: pick.id, phase: SECTION_BY_ID[pick.id]?.phase ?? this.phase }];
       }
       this.push(sp, this.cur);
     }

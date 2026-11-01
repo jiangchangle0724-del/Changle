@@ -1,12 +1,13 @@
 import { Disc3, Play, Volume2, VolumeX, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { reduced } from "../../lib/anim";
+import { holdBackground } from "../../lib/music";
 import { mixFor, FAKE_MIX } from "../../shared/dj/curve";
 import { SET_PHASES, type DjPhase } from "../../shared/dj/types";
 import type { SeatView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { Floor, useFloorLoop } from "./Floor";
-import { mixLine, phaseName } from "./parts";
+import { mixLine, phaseName, useHeardPhase } from "./parts";
 import { useBooth } from "./useBooth";
 import "../../styles/dj.css";
 
@@ -18,13 +19,15 @@ const DANCERS: SeatView[] = ["Amy", "Ben", "Cat", "Dev", "Eli"].map((name, i) =>
  * Works on a branch preview too, where the rooms server doesn't know the booth yet.
  */
 export function DjTestPage() {
+  // the speaker is the only music here: the lounge loop stays off
+  useEffect(() => holdBackground(), []);
   const { lang, setLang } = useStore();
   const zh = lang === "zh";
   const [phase, setPhase] = useState<DjPhase>("wait");
   const [muted, setMuted] = useState(false);
   const booth = useBooth({ phase, muted });
   const { speaker, dj } = booth;
-  const level = mixFor(phase, FAKE_MIX).density;
+
 
   const root = useRef<HTMLDivElement>(null);
   const fires = useRef(new Map<string, number>());
@@ -35,7 +38,10 @@ export function DjTestPage() {
     }),
     [speaker, dj],
   );
-  useFloorLoop(root, clock, level, fires);
+  // the lights follow what the speakers play (a new stretch lands on the phrase after the tap)
+  const heard = useHeardPhase(dj, !!speaker);
+  const stage: DjPhase = phase === "end" || phase === "wait" ? phase : (heard ?? phase);
+  useFloorLoop(root, clock, mixFor(stage, FAKE_MIX).density, fires);
 
   // the numbers, four times a second
   const [, bump] = useState(0);
@@ -81,7 +87,7 @@ export function DjTestPage() {
         </button>
       </header>
 
-      <div className={`djt-stage dj-stage is-live is-${phase}`} ref={root}>
+      <div className={`djt-stage dj-stage is-live is-${stage}`} ref={root}>
         <div className="dj-sky" aria-hidden="true" />
         <div className="dj-beams" aria-hidden="true">
           {[0, 1, 2, 3, 4].map((k) => (
@@ -128,6 +134,10 @@ export function DjTestPage() {
               <div>
                 <dt>{zh ? "状态" : "State"}</dt>
                 <dd className={`djt-state is-${st?.state ?? "off"}`}>{stateName}</dd>
+              </div>
+              <div>
+                <dt>{zh ? "正在放" : "Playing now"}</dt>
+                <dd>{heard ? phaseName(heard, zh) : "—"}</dd>
               </div>
               <div>
                 <dt>{zh ? "缓冲" : "Buffered"}</dt>

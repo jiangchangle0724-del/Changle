@@ -9,6 +9,7 @@
    the set, starts another.
 
 usage: python3 scripts/dj_check.py [base_url] [zh|en] [seconds=60]
+       python3 scripts/dj_check.py https://<preview>/ speaker [seconds]   the speaker page only
        python3 scripts/dj_check.py soak webkit|chromium [seconds=1800]   the speaker alone for a long
        while, the night's four stretches in turn (gate A asks for 30 minutes without a stall)
 Screenshots and results.json go to $SHOTS (default: the session scratchpad's dj folder).
@@ -154,9 +155,12 @@ def the_room(p):
     a.locator(".djp-seg button").nth(2).click()
     ok(until(lambda: (view(tv) or {}).get("phase") == "peak", 4000), "the host takes the night to the peak")
     ok(bb.locator(".djp-seg").count() == 0, "a guest has no host controls")
-    tv.wait_for_timeout(18000)
-    st = tv.evaluate("() => document.querySelector('.dj-stage')?.className")
-    ok("is-peak" in (st or ""), "the TV lights turn to the peak's colours")
+    # the lights change with the music, which reaches the peak at the end of its phrase (and once
+    # the device has recorded the peak's sections)
+    t_tap = time.time()
+    lit = until(lambda: "is-peak" in (tv.evaluate("() => document.querySelector('.dj-stage')?.className") or ""), 45000, 100)
+    ok(bool(lit), f"the TV lights turn to the peak's colours when the music gets there ({time.time() - t_tap:.1f} s after the tap)")
+    ok(tv.locator(".dj-drop.is-peak").count() > 0, "and its name goes across the floor")
     tv.screenshot(path=os.path.join(OUT, "room-4-tv-peak.png"))
     a.locator(".djp-host .btn-ghost").click()
     ok(until(lambda: (view(tv) or {}).get("phase") == "end", 4000), "the host ends the set")
@@ -225,7 +229,9 @@ with sync_playwright() as p:
     for engine in (p.webkit, p.chromium):
         for mobile in (False, True):
             speaker_alone(p, engine, mobile)
-    the_room(p)
+    # ("speaker": only the page above, e.g. on a branch preview, whose tables don't know the booth yet)
+    if "speaker" not in sys.argv[1:]:
+        the_room(p)
 
 results["fails"] = fails
 with open(os.path.join(OUT, "results.json"), "w") as f:

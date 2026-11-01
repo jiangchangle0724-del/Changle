@@ -17,10 +17,12 @@ export function nextSection(phase: DjPhase, prev: string | null): string | null 
   return list[(i + 1) % list.length];
 }
 
-/** The order to make the sections in: this phase's first, then the rest of the night in order. */
+/**
+ * The order to make the sections in: this phase's first one, then the first of every other stretch
+ * (so wherever the host takes the night there is something to play), then the rest.
+ */
 export function renderOrder(phase: DjPhase): string[] {
   const start = Math.max(0, SET_PHASES.indexOf(phase as SetPhase));
-  const order: string[] = [];
-  for (let k = 0; k < SET_PHASES.length; k++) order.push(...BY_PHASE[SET_PHASES[(start + k) % SET_PHASES.length]]);
-  return order;
+  const phases = SET_PHASES.map((_, k) => SET_PHASES[(start + k) % SET_PHASES.length]);
+  return [...phases.map((p) => BY_PHASE[p][0]), ...phases.flatMap((p) => BY_PHASE[p].slice(1))];
 }

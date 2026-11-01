@@ -139,8 +139,10 @@ export type DjCommand =
   /** how the playing has gone since the last report */
   | { x: "stats"; stalls: number; resets: number; seconds: number };
 
-/** Most 🔥 a phone can send: one per this many ms. */
+/** Most 🔥 a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;
+/** The room takes one per this many ms a phone: a little under, as the network bunches taps up. */
+export const FIRE_TAKE_MS = 300;
 
 /* ------------------------------------------------------------------ the booth's state */
 

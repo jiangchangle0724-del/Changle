@@ -55,6 +55,7 @@
   content: "";
   background:
     radial-gradient(55% 45% at 50% 0%, color-mix(in oklab, var(--gel) 55%, transparent) 0%, transparent 75%),
+    radial-gradient(50% 30% at 50% 100%, color-mix(in oklab, var(--gel) 55%, transparent) 0%, transparent 80%),
     radial-gradient(35% 45% at 8% 92%, color-mix(in oklab, var(--gel-2) 40%, transparent) 0%, transparent 70%),
     radial-gradient(35% 45% at 92% 92%, color-mix(in oklab, var(--gel) 40%, transparent) 0%, transparent 70%);
   opacity: calc(0.15 + var(--pulse) * 0.85);
@@ -66,7 +67,6 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  mix-blend-mode: screen;
 }
 .dj-beams span {
   --beam: var(--gel);
@@ -77,11 +77,10 @@
   height: 980px;
   margin-left: -110px;
   transform-origin: 50% 0;
-  background: linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--beam) 80%, white) 50%, transparent 100%);
+  /* bright at the lamp, fading out sideways and with distance: one gradient, no mask */
+  background: radial-gradient(ellipse 50% 100% at 50% 0%, color-mix(in oklab, var(--beam) 80%, white) 0%, color-mix(in oklab, var(--beam) 35%, transparent) 45%, transparent 100%);
   clip-path: polygon(47% 0, 53% 0, 100% 100%, 0 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.5) 40%, transparent 92%);
-  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.5) 40%, transparent 92%);
-  opacity: calc(0.08 + var(--pulse) * 0.5);
+  opacity: calc(0.1 + var(--pulse) * 0.55);
   animation: dj-sweep calc(6.5s + var(--k) * 1.7s) ease-in-out infinite alternate;
   animation-delay: calc(var(--k) * -2.3s);
   will-change: opacity, rotate;
@@ -98,17 +97,14 @@
   }
 }
 
-/* the dance floor: a grid in perspective that glows on the beat */
-.dj-plane,
-.dj-plane::after {
+/* the dance floor: a grid in perspective, drawn once (its glow on the beat is the sky's) */
+.dj-plane {
   position: absolute;
   left: -15%;
   right: -15%;
   bottom: -40px;
   height: 430px;
   pointer-events: none;
-}
-.dj-plane {
   transform: perspective(520px) rotateX(64deg);
   transform-origin: 50% 100%;
   background:
@@ -118,16 +114,6 @@
   -webkit-mask-image: linear-gradient(to top, #000 35%, transparent 100%);
   mask-image: linear-gradient(to top, #000 35%, transparent 100%);
 }
-.dj-plane::after {
-  content: "";
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100%;
-  background: radial-gradient(60% 70% at 50% 100%, color-mix(in oklab, var(--gel) 75%, transparent) 0%, transparent 70%);
-  opacity: calc(var(--pulse) * 0.75);
-  will-change: opacity;
-}
 
 .dj-flash {
   position: absolute;
@@ -135,8 +121,7 @@
   z-index: 15;
   pointer-events: none;
   background: radial-gradient(80% 80% at 50% 30%, #fff 0%, color-mix(in oklab, var(--gel) 60%, transparent) 60%, transparent 100%);
-  mix-blend-mode: screen;
-  opacity: calc(var(--flash) * 0.22);
+  opacity: calc(var(--flash) * 0.2);
   will-change: opacity;
 }
 
@@ -314,7 +299,7 @@
   letter-spacing: 0.06em;
 }
 .dj-join.is-big {
-  top: 230px;
+  top: 252px;
   right: 50%;
   flex-direction: column;
   gap: 18px;
@@ -322,8 +307,8 @@
   translate: 50% 0;
 }
 .dj-join.is-big .dj-join-qr {
-  width: 260px;
-  height: 260px;
+  width: 236px;
+  height: 236px;
   padding: 20px;
   border-radius: 26px;
   box-shadow: 0 0 0 8px color-mix(in oklab, var(--gel) 45%, transparent);
@@ -410,8 +395,9 @@
   box-shadow: inset 0 0 0 2px var(--gel-amber);
 }
 .dj-flame {
+  /* from the crown of the head, so the face's letter stays readable for someone pressing a lot */
   position: absolute;
-  bottom: calc(100% - 20px);
+  bottom: calc(100% - 6px);
   left: 50%;
   font-size: calc(var(--fig-h) * 0.26);
   line-height: 1;
@@ -437,7 +423,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 170px;
+  bottom: 118px;
   z-index: 5;
   color: var(--haze);
   font-family: var(--font-display);
@@ -545,7 +531,7 @@
 /* notes over the stage */
 .dj-buffer {
   position: absolute;
-  top: 214px;
+  top: 194px;
   left: 50%;
   z-index: 12;
   display: inline-flex;
@@ -602,6 +588,76 @@
   color: var(--haze);
   font-size: 19px;
   font-weight: 700;
+}
+
+/* the music reaches a new stretch of the night: its name across the floor, on the beat */
+.dj-drop {
+  position: absolute;
+  top: 236px;
+  left: 0;
+  right: 0;
+  z-index: 13;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  animation: dj-drop 2.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.dj-drop-name {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 132px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-shadow:
+    0 0 24px color-mix(in oklab, var(--gel) 85%, transparent),
+    0 0 80px color-mix(in oklab, var(--gel) 60%, transparent),
+    0 8px 30px rgba(0, 0, 0, 0.6);
+}
+.dj-drop-line {
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 800;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.7);
+}
+@keyframes dj-drop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  9% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  16% {
+    transform: scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.02) translateY(-20px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dj-drop {
+    animation-timing-function: linear;
+  }
+  @keyframes dj-drop {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    10%,
+    80% {
+      opacity: 1;
+    }
+  }
 }
 
 /* an iPhone or iPad stopped the sound (locked, a call): one tap brings it back */
@@ -828,6 +884,68 @@
     transform: translateY(6px);
   }
 }
+.djp-fans {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.djp-fans-title {
+  color: var(--haze);
+  font-size: 14px;
+  font-weight: 800;
+}
+.djp-fans ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.djp-fans li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+}
+.djp-fans li.is-me .djp-fan-name {
+  color: var(--gel);
+}
+.djp-rank {
+  width: 22px;
+  color: var(--fog);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 900;
+  text-align: center;
+}
+.djp-fans li:first-child .djp-rank {
+  color: var(--gel-amber);
+}
+.djp-fan-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djp-fan-n {
+  color: #ffb14a;
+  font-size: 16px;
+  font-weight: 800;
+}
+.djp-you {
+  margin: 0;
+  color: var(--haze);
+  font-size: 14px;
+  font-weight: 700;
+}
 .djp-host {
   display: flex;
   flex-direction: column;
@@ -847,6 +965,13 @@
 }
 .djp-seg > button {
   min-height: 48px;
+}
+.djp-host-note {
+  margin: 0;
+  color: var(--fog);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 @media (prefers-reduced-motion: reduce) {

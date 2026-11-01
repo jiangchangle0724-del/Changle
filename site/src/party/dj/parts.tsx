@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import type { T } from "../../i18n";
+import { useRoom, useRoomEvent } from "../../online/RoomContext";
 import { DJ_TIMES, SET_PHASES, type DjPhase, type Mix, type Scale, type Source, type StyleId } from "../../shared/dj/types";
 import { useStore } from "../../store";
 
@@ -115,3 +117,38 @@ export function NightCurve({ v, now }: { v: { phase: DjPhase; nextAt: number }; 
 
 /** How long each stretch lasts by itself, for the rules. */
 export const TIMES_MIN = { warm: DJ_TIMES.warm / 60_000, build: DJ_TIMES.build / 60_000, cool: DJ_TIMES.cool / 60_000, cap: DJ_TIMES.cap / 3_600_000 };
+
+/**
+ * 🔥 in the last minute (counted as the presses arrive, so it isn't capped by the 40 the room
+ * keeps), and who pressed how many all night (the room's count, sent with every press).
+ */
+export function useHeat(v: { fires: { pid: string; at: number }[]; total: Record<string, number> }) {
+  const { now } = useRoom();
+  // presses from before this screen was listening come from the room's list; after, as they arrive
+  const since = useRef(now());
+  const [heard, setHeard] = useState<number[]>([]);
+  useRoomEvent((e) => {
+    if (e.k !== "fx" || e.fx !== "fire" || !e.pid) return;
+    const at = now();
+    setHeard((list) => [...list.filter((x) => at - x < 60_000), at]);
+  });
+  const t = now();
+  const minute = v.fires.filter((f) => f.at < since.current && t - f.at < 60_000).length + heard.filter((x) => t - x < 60_000).length;
+  const total = (pid: string) => v.total[pid] ?? 0;
+  const top = Object.keys(v.total).sort((a, b) => total(b) - total(a));
+  return { minute, total, top };
+}
+
+/** The stretch of the night the speakers are sounding now, checked a few times a second. */
+export function useHeardPhase(dj: { heardSection(): { phase: DjPhase } | null }, on: boolean): DjPhase | null {
+  const [phase, setPhase] = useState<DjPhase | null>(null);
+  useEffect(() => {
+    if (!on) {
+      setPhase(null);
+      return;
+    }
+    const id = window.setInterval(() => setPhase(dj.heardSection()?.phase ?? null), 120);
+    return () => window.clearInterval(id);
+  }, [dj, on]);
+  return phase;
+}

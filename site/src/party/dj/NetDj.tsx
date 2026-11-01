@@ -4,11 +4,12 @@ import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
 import { haptic } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
+import { SeatFace } from "../../online/People";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
-import { SET_PHASES, type SetPhase } from "../../shared/dj/types";
+import { FIRE_GAP_MS, SET_PHASES, type SetPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
-import { NowPlaying, phaseHint, phaseName, TIMES_MIN } from "./parts";
+import { NowPlaying, phaseHint, phaseName, TIMES_MIN, useHeat } from "./parts";
 import "../../styles/dj.css";
 
 /**
@@ -22,15 +23,26 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   useTicker(v.phase !== "wait" && v.phase !== "end", 5000);
-  const mine = v.total[me] ?? 0;
-  const heat = v.fires.filter((f) => now() - f.at < 60_000).length;
+  const h = useHeat(v);
+  const mine = h.total(me);
+  const heat = h.minute;
   const noSpeaker = (room?.screens ?? 0) === 0;
+  // who's pressed the most tonight, among those at the table
+  const seats = room?.seats ?? [];
+  const ranked = h.top.map((pid) => seats.find((x) => x.id === pid)).filter((x): x is NonNullable<typeof x> => !!x && h.total(x.id) > 0);
+  const myRank = ranked.findIndex((x) => x.id === me) + 1;
 
-  // a burst on this phone for every press, and the latest names from everyone else
+  // a burst on this phone for every press, and the latest names from everyone else; the room
+  // takes one 🔥 per 400 ms a phone, so faster taps only burst here
   const [pops, setPops] = useState<number[]>([]);
   const seq = useRef(0);
+  const sentAt = useRef(0);
   const press = () => {
-    g("fire");
+    const t = performance.now();
+    if (t - sentAt.current >= FIRE_GAP_MS) {
+      sentAt.current = t;
+      g("fire");
+    }
     haptic(14);
     const id = ++seq.current;
     setPops((p) => [...p.slice(-5), id]);
@@ -92,6 +104,23 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
           </p>
         </div>
 
+        {ranked.length > 0 && (
+          <section className="djp-fans" aria-label={zh ? "今晚最嗨" : "Most fired up tonight"}>
+            <span className="djp-fans-title">{zh ? "今晚最嗨" : "Most fired up tonight"}</span>
+            <ol>
+              {ranked.slice(0, 3).map((s, i) => (
+                <li key={s.id} className={s.id === me ? "is-me" : ""}>
+                  <span className="djp-rank tabular">{i + 1}</span>
+                  <SeatFace seat={s} size={32} />
+                  <span className="djp-fan-name">{s.id === me ? (zh ? "你" : "You") : s.name}</span>
+                  <span className="djp-fan-n tabular">🔥 {h.total(s.id)}</span>
+                </li>
+              ))}
+            </ol>
+            {myRank > 3 && <p className="djp-you tabular">{zh ? `你排第 ${myRank}，再按几下` : `You're #${myRank}. Keep pressing`}</p>}
+          </section>
+        )}
+
         {isHost && (
           <section className="djp-host" aria-label={zh ? "主人" : "Host"}>
             <span className="djp-host-label">
@@ -105,6 +134,7 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
                 </button>
               ))}
             </div>
+            {v.phase !== "end" && <p className="djp-host-note">{zh ? "DJ 等这一段 8 小节放完再换，最多 15 秒，大屏上会报出来" : "The DJ switches when these 8 bars end, 15 seconds at most; the big screen announces it"}</p>}
             {v.phase === "end" ? (
               <button type="button" className="btn btn-primary btn-block" onClick={() => g("again")}>
                 <Play size={17} />

@@ -164,7 +164,8 @@ await test("fake DJ: exact sizes, music for every stretch of the night, the peak
   ok(nextSection("warm", null) === "warm1" && nextSection("warm", "warm1") === "warm2" && nextSection("warm", "warm2") === "warm1", "the warm-up takes its sections in turn");
   ok(nextSection("peak", "build1") === "peak1" && nextSection("peak", "peak1") === "peak2", "the peak opens with the drop, then moves on");
   ok(nextSection("cool", "peak2") === "cool1" && nextSection("build", "build1") === "build1", "one section repeats");
-  ok(renderOrder("peak")[0] === "peak1" && renderOrder("peak").length === SECTIONS.length, "the peak's sections are made first when the peak is on");
+  ok(renderOrder("peak")[0] === "peak1" && renderOrder("peak").length === SECTIONS.length && new Set(renderOrder("peak")).size === SECTIONS.length, "the peak's first section is made first when the peak is on, and every section once");
+  ok(renderOrder("warm").slice(0, 4).join() === "warm1,build1,peak1,cool1", "then every stretch's first, so the host can go anywhere early");
   ok(Object.values(BY_PHASE).every((list) => list.length > 0), "every stretch has music");
 });
 

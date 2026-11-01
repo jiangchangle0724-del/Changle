@@ -25,6 +25,12 @@ export interface Api {
   timer(key: string, at: number, data?: unknown): void;
   clear(key: string): void;
   resetStrokes(): void;
+  /**
+   * This action changed nothing that can't wait for the next save: send it now, store it later (a
+   * tap that comes many times a minute, like the DJ booth's 🔥). Only for actions that set no timer
+   * and give no penalty.
+   */
+  light(): void;
 }
 
 export interface GameDef<S> {
@@ -34,8 +40,11 @@ export interface GameDef<S> {
   auto?: boolean;
   init(api: Api): S;
   act(s: S, pid: string, g: GameAction, api: Api): void;
-  /** what a big screen showing the table may tell the game (the booth's speaker); seats use `act` */
-  screen?(s: S, sid: string, g: GameAction, api: Api): void;
+  /**
+   * What a big screen showing the table may tell the game (the booth's speaker); seats use `act`.
+   * True when it changed something (anything else costs nothing: a screen can't be kicked).
+   */
+  screen?(s: S, sid: string, g: GameAction, api: Api): boolean;
   view(s: S, pid: string, api: Api): GameView;
   timer?(s: S, key: string, data: unknown, api: Api): void;
   join?(s: S, pid: string, api: Api): void;
