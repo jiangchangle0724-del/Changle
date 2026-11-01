@@ -1,5 +1,5 @@
 import { Clapperboard, Eye, Play, SkipForward } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
@@ -12,6 +12,7 @@ import { BRIEF_MS } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
 import { perfAt } from "../sensors";
 import { seedOf, startAmbience, type Scape } from "./ambience";
+import { loadLibrary, SceneWriter, TableScenes } from "./writer";
 import { useStore } from "../../store";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
@@ -21,6 +22,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   const { lang } = useStore();
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
+  const [writing, setWriting] = useState(false);
   const seat = (id: string) => seats.find((s) => s.id === id);
   const mine = seat(me);
   const player = !!mine && !mine.watch;
@@ -39,6 +41,17 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   );
   const [slate, setSlate] = useState(false);
   const [peek, setPeek] = useState(false);
+  const credit = v.credit ? (v.credit.pid ? nameOf(v.credit.pid) : v.credit.name) : null;
+
+  // the host's phone brings a dozen scenes from the public library, once
+  const libAsked = useRef(false);
+  useEffect(() => {
+    if (!isHost || v.lib > 0 || libAsked.current) return;
+    libAsked.current = true;
+    void loadLibrary(zh ? "zh" : "en", seats).then((chunks) => chunks.forEach((scenes) => g("lib", { scenes })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, v.lib]);
+  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} />;
 
   // the scene has its own sound: the lounge music waits
   useEffect(() => holdBackground(), []);
@@ -83,6 +96,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
               <Marquee />
             </div>
             <SetupPanel cfg={v} disabled={!isHost} onChange={(c) => g("config", c)} />
+            {tableScenes}
             {isHost ? (
               <button type="button" className="btn btn-primary btn-lg btn-block" disabled={players.length < 3} onClick={() => g("start")}>
                 <Play size={18} />
@@ -97,7 +111,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
         {v.phase === "brief" && (
           <>
             {!acting && stage(false, false)}
-            <Playbill v={v} />
+            <Playbill v={v} credit={credit} />
             {acting && v.me ? (
               v.ready.includes(me) ? (
                 <Waiting>{zh ? "其他演员还在看牌，准备好就开演" : "The others are still reading. Get into character."}</Waiting>
@@ -141,7 +155,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
               </>
             ))}
             <TwistBanner twist={v.twist} />
-            <Playbill v={v} />
+            <Playbill v={v} credit={credit} />
             {acting && v.me && (
               <>
                 <button type="button" className="btn btn-ghost btn-block" onClick={() => setPeek((p) => !p)}>
@@ -185,6 +199,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             ) : (
               <Waiting>{zh ? "等主人拉开下一幕" : "Waiting for the host"}</Waiting>
             )}
+            {tableScenes}
           </>
         )}
 
@@ -199,6 +214,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
           </>
         )}
       </div>
+      <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} onAdd={(scene) => g("write", { scene })} />
     </NetFrame>
   );
 }

@@ -1,4 +1,4 @@
-import { Clapperboard, Drama as DramaIcon, Eye, Sparkles, Star, VenetianMask } from "lucide-react";
+import { Clapperboard, Drama as DramaIcon, Eye, Feather, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { KINDS, type DramaKind } from "../../data/drama";
 import type { T } from "../../i18n";
@@ -165,8 +165,8 @@ export function Tags({ v }: { v: Pick<DramaView, "mode" | "level" | "diff" | "sc
   );
 }
 
-/** The scene's title, its set-up and what the audience is hunting for. */
-export function Playbill({ v }: { v: DramaView }) {
+/** The scene's title, who wrote it (a player's scene), its set-up and what the audience is hunting for. */
+export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const ref = useRef<HTMLDivElement>(null);
@@ -183,6 +183,12 @@ export function Playbill({ v }: { v: DramaView }) {
           <h2 className="dm-title">
             <Both t={v.scene.title} />
           </h2>
+          {credit && (
+            <p className="dm-credit">
+              <Feather size={14} strokeWidth={2.4} />
+              {zh ? `编剧：${credit}` : `Written by ${credit}`}
+            </p>
+          )}
           <p className="dm-setup">{zh ? v.scene.setup.zh : v.scene.setup.en}</p>
           <p className="dm-hunt">
             <MiniMask />

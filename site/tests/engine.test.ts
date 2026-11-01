@@ -849,6 +849,54 @@ test("drama: an acting duel, and a culprit who fools everyone", () => {
   ok(!v.result!.caught && v.scores[s2.culprit] === 6 && v.result!.losers.join() === watcher, "the culprit escapes: three points, and the fooled one takes the penalty");
 });
 
+test("drama: scenes written at the table and from the public library", () => {
+  type V = V<"drama">;
+  const t = setup(5);
+  t.act("p0", { a: "start", game: "drama" });
+  const draft = {
+    title: "冰箱里的蛋糕",
+    setup: "生日蛋糕被人从冰箱里偷吃了一半。",
+    kind: "family",
+    roles: [{ name: "寿星", brief: "今天过生日" }, { name: "室友", alibi: "你昨晚确实开过冰箱，拿的是啤酒" }, { name: "男朋友" }],
+    culprit: "偷吃蛋糕的人",
+    culpritCard: "蛋糕是你吃的，奶油还在你袖子上。",
+  };
+  t.g("p3", "write", { scene: draft });
+  t.g("p3", "write", { scene: { ...draft, title: "" } });
+  t.g("p4", "write", { scene: { ...draft, roles: [{ name: "只有一个人" }] } });
+  let v = t.view<V>("p1");
+  ok(v.mine.length === 1 && v.mine[0].by === "p3" && v.mine[0].title.zh === "冰箱里的蛋糕" && !v.mine[0].played, "a written scene joins the table; one without a title, or with one role, doesn't");
+  ok(!JSON.stringify(v).includes("奶油"), "nobody sees a written scene's cards before it's played");
+  t.g("p1", "unwrite", { id: v.mine[0].id });
+  ok(t.view<V>("p1").mine.length === 1, "only its writer or the host takes a scene back");
+  // the host's phone brings two scenes from the public library (one broken)
+  t.g("p0", "lib", { scenes: [{ id: 7, name: "小雨", scene: { ...draft, title: "Library cake", setup: "Someone ate half the cake.", roles: [{ name: "A" }, { name: "B" }], culprit: "The cake thief", culpritCard: "You ate it." } }, { id: 8, scene: {} }] });
+  t.g("p2", "lib", { scenes: [{ id: 9, name: "x", scene: draft }] });
+  ok(t.view<V>("p0").lib === 1, "the library's scene is in (the broken one and a guest's aren't)");
+  t.g("p0", "start");
+  v = t.view<V>("p0");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string; scene: number | null };
+  ok(v.scene?.title.zh === "冰箱里的蛋糕" && s.scene === null, "the scene written here is played first");
+  ok(s.cast.includes("p3"), "its writer is on stage, so they never guess their own story");
+  ok(v.credit?.pid === "p3", "the playbill credits the writer");
+  ok(v.scene?.ask.zh === "谁是「偷吃蛋糕的人」？", "no question given: it comes from the culprit's name");
+  const blank = s.cast.find((c) => c !== s.culprit && v.cast.find((x) => x.pid === c)?.role.zh === "男朋友");
+  if (blank) ok(!!t.view<V>(blank).me?.secret.zh, "a role left blank gets a generic secret");
+  for (const c of s.cast) t.g(c, "ready");
+  t.advance(46_000);
+  ok(!!t.view<V>("p0").twist?.zh, "no twist given: a generic one lands");
+  ok(t.view<V>("p0").mine[0].played, "the written scene is marked played");
+  t.g("p3", "unwrite", { id: t.view<V>("p0").mine[0].id });
+  ok(t.view<V>("p0").mine.length === 1, "a played scene can't be taken back");
+  // the rest of the night: the library's scene comes up among the built-in ones
+  let seen = false;
+  for (let r = 0; r < 30 && !seen; r++) {
+    t.g("p0", "skip");
+    seen = t.view<V>("p0").scene?.title.en === "Library cake";
+  }
+  ok(seen && t.view<V>("p0").credit?.name === "小雨", "the library's scene comes up, credited to its writer");
+});
+
 test("euchre: bots fill seats, legal play, hands score", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "euchre" });

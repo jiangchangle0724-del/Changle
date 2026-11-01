@@ -6,6 +6,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
+import { cleanScene } from "../src/shared/dramaScene";
 
 /** The tables (Room objects), reached by code: the hub asks one to let someone go, or to close. */
 type RoomRpc = { adminKick(pid: string, ban: boolean): Promise<boolean>; pauseAll(keepUid: string): Promise<void> };
@@ -58,6 +59,9 @@ const SESSION_TTL = 5 * 365 * 86400_000;
 const GENDERS = ["female", "male", "nonbinary", "private"];
 const HANDLE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
+/** 戏精大赏 scenes players send in: a few a day each, and not too many waiting at once. */
+const SCENES_PER_DAY = 5;
+const SCENES_WAITING = 10;
 
 type Limit = { n: number; until: number };
 type Row = Record<string, SqlStorageValue>;
@@ -144,6 +148,13 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE TABLE IF NOT EXISTS rooms_live (code TEXT PRIMARY KEY, game TEXT NOT NULL, seats TEXT NOT NULL, screens INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL)`);
     // AI avatars this month, per person (k: e:<email>): drawings so far, and whether one was chosen
     q(`CREATE TABLE IF NOT EXISTS months (k TEXT PRIMARY KEY, month TEXT NOT NULL, n INTEGER NOT NULL, done INTEGER NOT NULL DEFAULT 0)`);
+    // 戏精大赏 scenes players wrote for everyone: 'new' waits for the owner, 'live' is played at
+    // every table, 'no' was turned down. `body` is the tidied scene; `name` the writer when sent
+    q(`CREATE TABLE IF NOT EXISTS scenes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, name TEXT NOT NULL, lang TEXT NOT NULL,
+      level TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'new', created_at INTEGER NOT NULL, decided_at INTEGER)`);
+    q(`CREATE INDEX IF NOT EXISTS scenes_status ON scenes (status, id)`);
+    q(`CREATE INDEX IF NOT EXISTS scenes_user ON scenes (user_id, id)`);
     // the figure lifted off its backdrop, for the games' stages, and a version that changes with it
     const fcols = this.sql.exec(`PRAGMA table_info(figures)`).toArray().map((c) => String(c.name));
     if (!fcols.includes("cut")) q(`ALTER TABLE figures ADD COLUMN cut BLOB`);
@@ -272,6 +283,9 @@ export class Hub extends DurableObject<HubEnv> {
       return { status: 200, bytes: r.cut as ArrayBuffer, type: String(r.cut_mime) || "image/png", cache: "public, max-age=31536000, immutable" };
     }
 
+    // ---- 戏精大赏's public library: approved scenes, in the table's language ----
+    if (path === "/scenes" && m === "GET") return ok({ scenes: this.liveScenes(String(b.lang ?? ""), Number(b.n ?? 12)) });
+
     if (!me) return err(401, "signin");
     this.sql.exec(`UPDATE users SET last_seen = ? WHERE id = ?`, Date.now(), me.id);
 
@@ -355,6 +369,27 @@ export class Hub extends DurableObject<HubEnv> {
       this.sql.exec(`UPDATE users SET av = 0 WHERE id = ?`, me.id);
       return ok({ user: this.selfView(this.userById(me.id)!) });
     }
+    // ---- 戏精大赏: a scene for everyone, which waits for the owner's yes ----
+    if (path === "/scenes" && m === "POST") {
+      const r = cleanScene(b.scene);
+      if ("error" in r) return err(400, r.error);
+      const day = Number(this.one(`SELECT COUNT(*) AS n FROM scenes WHERE user_id = ? AND created_at > ?`, me.id, Date.now() - 86400_000)?.n ?? 0);
+      const waiting = Number(this.one(`SELECT COUNT(*) AS n FROM scenes WHERE user_id = ? AND status = 'new'`, me.id)?.n ?? 0);
+      if (day >= SCENES_PER_DAY || waiting >= SCENES_WAITING) return err(429, "slow-down");
+      const at = Date.now();
+      this.sql.exec(`INSERT INTO scenes (user_id, name, lang, level, body, status, created_at) VALUES (?, ?, ?, ?, ?, 'new', ?)`, me.id, me.name, r.lang, r.scene.level, JSON.stringify(r.scene), at);
+      return ok({ id: Number(this.one(`SELECT last_insert_rowid() AS id`)?.id ?? 0) });
+    }
+    if (path === "/scenes/mine" && m === "GET") {
+      const rows = this.sql.exec(`SELECT id, body, status, created_at FROM scenes WHERE user_id = ? ORDER BY id DESC LIMIT 40`, me.id).toArray() as Row[];
+      return ok({ scenes: rows.map((r) => ({ id: Number(r.id), title: (JSON.parse(String(r.body)) as { title: unknown }).title, status: String(r.status), at: Number(r.created_at) })) });
+    }
+    mm = /^\/scenes\/(\d+)$/.exec(path);
+    if (mm && m === "DELETE") {
+      this.sql.exec(`DELETE FROM scenes WHERE id = ? AND user_id = ?`, Number(mm[1]), me.id);
+      return ok({ ok: true });
+    }
+
     if (path === "/me/history" && m === "GET") return ok({ history: this.history(me.id), stats: this.stats(me.id) });
     if (path === "/me/history" && m === "POST") {
       if (!this.allow(`h:${me.id}`, 60, 3600_000)) return err(429, "slow-down");
@@ -784,6 +819,7 @@ export class Hub extends DurableObject<HubEnv> {
       `DELETE FROM messages WHERE a = ? OR b = ?`,
       `DELETE FROM blocks WHERE user_id = ? OR blocked = ?`,
       `UPDATE wishes SET user_id = NULL WHERE user_id = ?`,
+      `DELETE FROM scenes WHERE user_id = ?`,
       `DELETE FROM users WHERE id = ?`,
     ]) {
       const n = (s.match(/\?/g) ?? []).length;
@@ -796,6 +832,18 @@ export class Hub extends DurableObject<HubEnv> {
         /* gone */
       }
     }
+  }
+
+  /* ================= 戏精大赏's public library ================= */
+
+  /** Up to n approved scenes, at random, in this language (or written in both), none by a banned writer. */
+  private liveScenes(lang: string, n: number) {
+    const l = lang === "en" ? "en" : "zh";
+    const count = Math.max(1, Math.min(24, Number.isFinite(n) ? Math.round(n) : 12));
+    const rows = this.sql
+      .exec(`SELECT s.id, s.user_id, s.body, COALESCE(u.name, s.name) AS name FROM scenes s LEFT JOIN users u ON u.id = s.user_id WHERE s.status = 'live' AND s.lang IN (?, 'both') AND COALESCE(u.banned, 0) = 0 ORDER BY RANDOM() LIMIT ?`, l, count)
+      .toArray() as Row[];
+    return rows.map((r) => ({ id: Number(r.id), uid: String(r.user_id), name: String(r.name), scene: JSON.parse(String(r.body)) as unknown }));
   }
 
   /* ================= people and friends ================= */
@@ -1062,6 +1110,29 @@ export class Hub extends DurableObject<HubEnv> {
       const jobs: Promise<boolean>[] = [];
       for (const r of this.liveRooms()) if (r.seats.some((s) => s.pid === device)) jobs.push(this.roomKick(r.code, device, true));
       await Promise.allSettled(jobs);
+      return ok({ ok: true });
+    }
+
+    // 戏精大赏 scenes players sent in: the ones waiting, and the latest on the air
+    if (path === "/admin/scenes" && m === "GET") {
+      const rows = (status: string, n: number) =>
+        (this.sql.exec(`SELECT s.*, u.email AS email, u.name AS uname FROM scenes s LEFT JOIN users u ON u.id = s.user_id WHERE s.status = ? ORDER BY s.id ${status === "new" ? "ASC" : "DESC"} LIMIT ?`, status, n).toArray() as Row[]).map((r) => ({
+          id: Number(r.id),
+          uid: String(r.user_id),
+          name: String(r.uname ?? r.name),
+          email: String(r.email ?? ""),
+          lang: String(r.lang),
+          status: String(r.status),
+          at: Number(r.created_at),
+          scene: JSON.parse(String(r.body)) as unknown,
+        }));
+      return ok({ waiting: rows("new", 100), live: rows("live", 100), counts: { waiting: Number(this.one(`SELECT COUNT(*) AS n FROM scenes WHERE status = 'new'`)?.n ?? 0), live: Number(this.one(`SELECT COUNT(*) AS n FROM scenes WHERE status = 'live'`)?.n ?? 0) } });
+    }
+    const sm = /^\/admin\/scenes\/(\d+)$/.exec(path);
+    if (sm && m === "POST") {
+      const st = String(b.status ?? "");
+      if (!["live", "no", "new"].includes(st)) return err(400, "bad");
+      this.sql.exec(`UPDATE scenes SET status = ?, decided_at = ? WHERE id = ?`, st, now, Number(sm[1]));
       return ok({ ok: true });
     }
 

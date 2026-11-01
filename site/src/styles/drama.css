@@ -1151,6 +1151,174 @@ li.is-ready .dm-roster-state {
   gap: 6px;
 }
 
+/* ---------- scenes players write ---------- */
+
+.dm-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 0;
+  color: #f3d27a;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.dm-written {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  border-radius: 18px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dm-written-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dm-written-head strong {
+  font-size: 15.5px;
+}
+.dm-written .hint {
+  margin: 0;
+}
+.dm-written ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.dm-written li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.dm-written-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dm-writer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+.dm-writer > .hint {
+  margin: 0 0 4px;
+}
+.dm-writer .field-label {
+  margin-top: 8px;
+}
+.dw-roles-hint {
+  margin: -2px 0 4px;
+}
+.dw-roles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.dw-role {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dw-role-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dw-role-head .field {
+  flex: 1;
+}
+.dw-role-n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--gel) 22%, var(--dusk));
+  color: var(--gel);
+  font-weight: 800;
+}
+.dw-add {
+  align-self: flex-start;
+}
+.dw-share {
+  align-items: flex-start;
+  margin-top: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.dw-share input {
+  flex: none;
+  margin-top: 2px;
+}
+.dw-share .link-btn {
+  padding: 0;
+}
+.dw-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--gel) 14%, var(--dusk));
+  color: var(--moon);
+  font-weight: 600;
+  line-height: 1.45;
+}
+.dw-mine ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.dw-mine li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 6px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.dw-mine-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dw-status {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: var(--dusk-2);
+  color: var(--haze);
+}
+.dw-status.is-live {
+  background: color-mix(in oklab, var(--go) 22%, var(--dusk));
+  color: var(--go);
+}
+.dw-status.is-no {
+  color: var(--fog);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dm-backdrop.is-live .dm-backdrop-img,
   .dm-backdrop.is-live .dm-backdrop-light,
