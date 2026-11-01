@@ -159,12 +159,43 @@ test("one person picks alone: five questions, three places with reasons, another
   expect(second.some((n) => first.includes(n))).toBe(false);
   await expect(page.getByText("附近就这些了")).toBeVisible();
 
+  const chosen = (await cards.first().locator("h3").textContent())!;
   await cards.first().getByRole("button", { name: "就它了" }).click();
   await expect(page.getByRole("heading", { name: "就吃这家！" })).toBeVisible();
   await expect(page.getByRole("button", { name: "发给朋友" })).toBeVisible();
   // The diet card is saved for next time, but not this search's budget.
-  const saved = (await page.evaluate(() => fetch("/eat/api/me").then((r) => r.json()))) as { card: { budget: number } };
+  const saved = (await page.evaluate(() => fetch("/eat/api/me").then((r) => r.json()))) as { card: { budget: number }; last: { place: string } };
   expect(saved.card.budget).toBe(0);
+
+  // Only your own last pick can be rated: any other place is refused.
+  const rate = (id: string) =>
+    page.evaluate((id) => fetch(`/eat/api/places/${id}/rate`, { method: "POST", body: JSON.stringify({ overall: "up", liked: true, wait: 0 }) }).then((r) => r.status), id);
+  const other = saved.last.place === "demo-1" ? "demo-2" : "demo-1";
+  expect(await rate(other)).toBe(403);
+
+  // Back home, it asks how the pick was; three taps rate it, once.
+  await page.goto("/eat/");
+  await page.getByText(`上次的「${chosen}」好吃吗？`).click();
+  await expect(page).toHaveURL(/\/eat\/rate$/);
+  await expect(page.getByText(`「${chosen}」怎么样？`)).toBeVisible();
+  await page.getByRole("button", { name: "👍" }).click();
+  await page.getByRole("button", { name: "是" }).click();
+  await page.getByRole("button", { name: "15 分钟" }).click();
+  await page.getByRole("button", { name: "提交" }).click();
+  await expect(page.getByText("谢谢！")).toBeVisible();
+  expect(await rate(saved.last.place)).toBe(403);
+  await page.goto("/eat/");
+  await expect(page.getByText("一个人，不知道吃什么？")).toBeVisible();
+  await expect(page.getByText(`上次的「${chosen}」好吃吗？`)).toHaveCount(0);
+  expect(me.errors).toEqual([]);
+});
+
+test("rating with nothing picked says so", async ({ browser }) => {
+  const me = await phone(browser, "nopick");
+  expect((await me.page.request.post("/eat/api/test/login", { data: { sub: `nopick-${Date.now()}`, name: "阿杰" } })).ok()).toBeTruthy();
+  await me.page.goto("/eat/rate");
+  await expect(me.page.getByText("最近没有要评的餐厅")).toBeVisible();
+  await expect(me.page.getByRole("button", { name: "提交" })).toHaveCount(0);
   expect(me.errors).toEqual([]);
 });
 

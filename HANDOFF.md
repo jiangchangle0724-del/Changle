@@ -19,7 +19,7 @@ installs on its own. Node 22, as in CI.
 ## How a change reaches changle.ca
 
 1. Branch from `main` (one branch per change), commit, push, open a PR.
-2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip and draw tests, build),
+2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip, draw and cutout tests, build),
    `suibian.yml` and `been-there.yml` (each with browser tests in Chromium and WebKit).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
@@ -147,5 +147,5 @@ Worker's `wrangler.jsonc`.
 
 * The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
   PR #34 (2026-11-01) and deployed fine.
-* 随便: its severe-allergy table is a draft, and two small things showed up once real restaurants
-  were on. See `tools/suibian/HANDOFF.md`.
+* 随便: its severe-allergy table is a draft, and its list badges and picks files are still empty.
+  See `tools/suibian/HANDOFF.md`.

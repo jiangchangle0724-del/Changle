@@ -17,9 +17,28 @@ export function Sticky({ note, size = "md", tilt = 0 }: { note: T | null; size?:
 }
 
 /** One person at the wall: their face with the note stuck on their forehead. */
-export function Forehead({ face, name, note, tilt, turn, solved, children }: { face: ReactNode; name: string; note: T | null; tilt: number; turn?: boolean; solved?: boolean; children?: ReactNode }) {
+export function Forehead({
+  face,
+  name,
+  note,
+  tilt,
+  turn,
+  solved,
+  figure,
+  children,
+}: {
+  face: ReactNode;
+  name: string;
+  note: T | null;
+  tilt: number;
+  turn?: boolean;
+  solved?: boolean;
+  /** `face` is a standing figure: the note goes on its forehead */
+  figure?: boolean;
+  children?: ReactNode;
+}) {
   return (
-    <div className={`forehead ${turn ? "is-turn" : ""} ${solved ? "is-solved" : ""}`}>
+    <div className={`forehead ${turn ? "is-turn" : ""} ${solved ? "is-solved" : ""} ${figure ? "has-figure" : ""}`}>
       <Sticky note={note} size="sm" tilt={tilt} />
       <span className="forehead-face">
         {face}

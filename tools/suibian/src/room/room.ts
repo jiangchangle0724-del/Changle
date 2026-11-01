@@ -48,7 +48,7 @@ export interface RoomState {
 }
 
 /** Work the room needs from outside: a Google search, or details for the cards. */
-export type Want = { k: "search"; center: E.Center; range: E.RangeId; lang: Lang } | { k: "details"; ids: string[]; lang: Lang };
+export type Want = { k: "search"; center: E.Center; range: E.RangeId; lang: Lang } | { k: "details"; ids: string[] };
 
 export interface Flush {
   changed: boolean;
@@ -225,7 +225,8 @@ export class Room {
   enrich(details: Record<string, Partial<E.Place>>) {
     for (const p of this.st.places) {
       const d = details[p.id];
-      if (d) Object.assign(p, d, { id: p.id, cuisine: p.cuisine });
+      // A description from the search (in the table's language) beats the English one from details.
+      if (d) Object.assign(p, d, { id: p.id, cuisine: p.cuisine, about: p.about ?? d.about });
     }
     this.changed = true;
   }
@@ -291,7 +292,7 @@ export class Room {
     this.st.phase = "cards";
     this.st.phaseEnds = this.env.now() + TIMING.cards;
     for (const m of Object.values(this.st.members)) m.moodDone = true;
-    this.want = { k: "details", ids, lang: this.st.lang ?? "zh" };
+    this.want = { k: "details", ids };
     this.changed = true;
   }
 

@@ -3205,6 +3205,7 @@ button.ecard.is-legal:active {
 .tn-mate {
   --s: 1;
   --lift: 0px;
+  --fig-h: var(--mate-h);
   position: absolute;
   left: var(--x);
   bottom: 0;
@@ -3315,15 +3316,6 @@ button.ecard.is-legal:active {
   }
 }
 
-.tn-mate-fig {
-  display: block;
-  height: 100%;
-  width: auto;
-  max-width: none;
-  user-select: none;
-  /* a thin rim of light so a figure reads against the dark stage, and its own shadow */
-  filter: drop-shadow(0 0 1px color-mix(in oklab, var(--moon) 45%, transparent)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.45));
-}
 .tn-mate-shadow {
   position: absolute;
   left: 50%;
@@ -3357,35 +3349,6 @@ button.ecard.is-legal:active {
   }
 }
 
-/* someone without a drawn figure: their round face on a little body */
-.tn-token {
-  position: relative;
-  height: 100%;
-  aspect-ratio: 0.62;
-}
-.tn-token-head {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 80%;
-  aspect-ratio: 1;
-  transform: translateX(-50%);
-  z-index: 1;
-}
-.tn-token-head .avatar {
-  width: 100% !important;
-  height: 100% !important;
-  font-size: calc(var(--mate-h) * 0.22) !important;
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--moon) 70%, transparent);
-}
-.tn-token-body {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  height: 56%;
-  overflow: visible;
-}
 
 .tn-mate-name {
   position: absolute;
@@ -3406,33 +3369,6 @@ button.ecard.is-legal:active {
   animation: tn-beam 0.4s ease-out 0.2s both;
 }
 
-/* a burst of confetti behind whoever got it */
-.tn-confetti {
-  position: absolute;
-  left: 50%;
-  bottom: 55%;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-.tn-confetti i {
-  position: absolute;
-  width: 5px;
-  height: 9px;
-  border-radius: 1px;
-  opacity: 0;
-  animation: tn-confetti 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) var(--d) forwards;
-}
-@keyframes tn-confetti {
-  0% {
-    opacity: 1;
-    transform: rotate(var(--a)) translateY(0) rotate(0deg);
-  }
-  100% {
-    opacity: 0;
-    transform: rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(260deg);
-  }
-}
 
 /* the podium at the end */
 .tn-podium {
@@ -3468,16 +3404,39 @@ button.ecard.is-legal:active {
   height: calc(var(--mate-h) * 0.16);
 }
 
+.tn-confetti {
+  left: 50%;
+  bottom: 55%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tn-mate,
   .tn-mate-hop,
   .tn-mate-bob,
-  .tn-mate::before,
-  .tn-confetti i {
+  .tn-mate::before {
     animation: none !important;
     transition: none !important;
   }
   .tn-mate-bob {
     transform: none;
   }
+}
+
+/* Post-it: the note stuck on a standing figure's forehead */
+.forehead.has-figure {
+  --fig-h: clamp(96px, 28vw, 124px);
+}
+.forehead.has-figure .forehead-face {
+  display: block;
+  height: var(--fig-h);
+  margin-top: calc(var(--fig-h) * -0.2);
+  z-index: 0;
+}
+.forehead.has-figure .sticky {
+  position: relative;
+  z-index: 1;
+}
+.forehead.has-figure .forehead-check {
+  right: 2px;
+  bottom: 4px;
 }

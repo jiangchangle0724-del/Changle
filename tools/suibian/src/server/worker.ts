@@ -3,7 +3,9 @@
 //
 //   GET  /api/me                 → { user, loginEnabled, card, last }
 //   PUT  /api/me/card            ← Limits           save my diet card (logged in)
-//   POST /api/me/last            ← { code, name }   remember my last table, to ask how it was
+//   POST /api/me/last            ← { code, name } or { place, name }   remember my last table or solo pick, to ask how it was
+//   POST /api/places/:id/rate    ← { overall, liked, wait }   rate my last solo pick (logged in, once)
+//   POST /api/solo               ← { center, range, answers, limits, lang } → { cards }   one person picking (logged in, counts toward 10 a day)
 //   DELETE /api/me               → 204              forget everything about me
 //   GET  /auth/google, /auth/callback, POST /auth/logout
 //   POST /api/rooms              ← { cid, center, range } → { code }   (logged in, 10 a day)
@@ -21,7 +23,7 @@ import { NEIGHBOURHOODS, cleanAnswers, cleanLimits, isRange, soloPick, soloReaso
 import { cardView, type ClientMsg, type SoloResponse } from "../room/protocol";
 import { Room, cleanRating, type RoomEnv, type RoomState, type Want } from "../room/room";
 import { currentUser, finishLogin, loginEnabled, logout, startLogin, testSession } from "./auth";
-import { demoPlaces, detailsGoogle, searchGoogle } from "./places";
+import { demoPlaces, detailsGoogle, keepAbout, searchGoogle } from "./places";
 
 export interface Env {
   ROOMS: DurableObjectNamespace<RoomDO>;
@@ -37,6 +39,8 @@ export interface Env {
 }
 
 const ROOMS_PER_DAY = 10;
+/** A Google place id, or one of the made-up demo places. */
+const PLACE_ID = /^(demo-\d{1,3}|[A-Za-z0-9_-]{10,300})$/;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -65,7 +69,7 @@ export default {
     const path = url.pathname.slice(BASE.length) || "/";
     // Room and rating links are app pages; serve the app for them directly (old phones don't send
     // Sec-Fetch-Mode). The page is dist/client/eat/index.html, served at /eat/.
-    if (path === "/" || path === "/solo" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
+    if (path === "/" || path === "/solo" || path === "/rate" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
 
     if (path === "/auth/google") return loginEnabled(env) ? startLogin(req, env) : json({ error: "loginOff" }, 404);
     if (path === "/auth/callback") {
@@ -104,9 +108,12 @@ export default {
         return json({ ok: true });
       }
       if (parts[2] === "last" && req.method === "POST") {
-        const body = (await req.json().catch(() => ({}))) as { code?: string; name?: string };
-        if (!/^\d{4}$/.test(body.code ?? "") || typeof body.name !== "string") return json({ error: "bad" }, 400);
-        await user(env, me.sub).setLast({ code: body.code!, name: body.name.slice(0, 80), at: Date.now() });
+        const body = (await req.json().catch(() => ({}))) as { code?: string; place?: string; name?: string };
+        if (typeof body.name !== "string") return json({ error: "bad" }, 400);
+        const name = body.name.slice(0, 80);
+        if (/^\d{4}$/.test(body.code ?? "")) await user(env, me.sub).setLast({ code: body.code!, name, at: Date.now() });
+        else if (PLACE_ID.test(body.place ?? "")) await user(env, me.sub).setLast({ place: body.place!, name, at: Date.now() });
+        else return json({ error: "bad" }, 400);
         return json({ ok: true });
       }
     }
@@ -127,6 +134,17 @@ export default {
     }
 
     if (parts[1] === "solo" && parts.length === 2 && req.method === "POST") return solo(req, env, me);
+
+    // One person's pick, rated after the meal: only your own last pick, once.
+    if (parts[1] === "places" && parts[3] === "rate" && parts.length === 4 && req.method === "POST") {
+      const id = decodeURIComponent(parts[2]);
+      if (!me) return json({ error: "login" }, 401);
+      const r = cleanRating(await req.json().catch(() => ({})));
+      if (!r || !PLACE_ID.test(id)) return json({ error: "bad" }, 400);
+      if (!(await user(env, me.sub).rateLast(id))) return json({ error: "notYours" }, 403);
+      if (!id.startsWith("demo-")) await env.PLACES.get(env.PLACES.idFromName(id)).add(r);
+      return json({ ok: true });
+    }
 
     const code = parts[2];
     if (parts[1] === "rooms" && code && /^\d{4}$/.test(code)) {
@@ -188,8 +206,8 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
   if (!ids.length) return json({ error: "nothingFits", demo: !google } satisfies SoloResponse);
   const byId = new Map(places.map((p) => [p.id, p]));
   if (google) {
-    const got = await Promise.allSettled(ids.map(async (id) => [id, await detailsGoogle(key, id, lang)] as const));
-    for (const g of got) if (g.status === "fulfilled") Object.assign(byId.get(g.value[0])!, g.value[1]);
+    const got = await Promise.allSettled(ids.map(async (id) => [id, await detailsGoogle(key, id)] as const));
+    for (const g of got) if (g.status === "fulfilled") Object.assign(byId.get(g.value[0])!, keepAbout(byId.get(g.value[0])!, g.value[1]));
   }
   const cards = ids.map((id) => {
     const p = byId.get(id)!;
@@ -318,7 +336,7 @@ export class RoomDO extends DurableObject<Env> {
         if (key) await Promise.all(places.map(async (p: Place) => (p.ours = (await this.env.PLACES.get(this.env.PLACES.idFromName(p.id)).get()) ?? undefined)));
         if (this.room === room) room.found(places);
       } else if (key) {
-        const got = await Promise.allSettled(want.ids.map(async (id) => [id, await detailsGoogle(key, id, want.lang)] as const));
+        const got = await Promise.allSettled(want.ids.map(async (id) => [id, await detailsGoogle(key, id)] as const));
         const details: Record<string, Partial<Place>> = {};
         for (const g of got) if (g.status === "fulfilled") details[g.value[0]] = g.value[1];
         if (this.room === room) room.enrich(details);
@@ -356,10 +374,21 @@ export class RoomDO extends DurableObject<Env> {
   }
 }
 
-/** One logged-in person: their diet card, last table, and today's room count. */
+/** The last table (its code) or solo pick (its place id) someone went to, to ask how it was. */
+type Last = { code?: string; place?: string; name: string; at: number; rated?: boolean };
+
+/** One logged-in person: their diet card, last table or pick, and today's count. */
 export class UserDO extends DurableObject<Env> {
-  async me(): Promise<{ card: Limits | null; last: { code: string; name: string; at: number } | null }> {
-    return { card: (await this.ctx.storage.get<Limits>("card")) ?? null, last: (await this.ctx.storage.get<{ code: string; name: string; at: number }>("last")) ?? null };
+  async me(): Promise<{ card: Limits | null; last: Last | null }> {
+    return { card: (await this.ctx.storage.get<Limits>("card")) ?? null, last: (await this.ctx.storage.get<Last>("last")) ?? null };
+  }
+
+  /** True once for the person's own last solo pick; false for anything else or a second time. */
+  async rateLast(place: string): Promise<boolean> {
+    const last = await this.ctx.storage.get<Last>("last");
+    if (!last || last.place !== place || last.rated) return false;
+    await this.ctx.storage.put("last", { ...last, rated: true });
+    return true;
   }
 
   async setName(name: string) {
@@ -370,7 +399,7 @@ export class UserDO extends DurableObject<Env> {
     await this.ctx.storage.put("card", card);
   }
 
-  async setLast(last: { code: string; name: string; at: number }) {
+  async setLast(last: Last) {
     await this.ctx.storage.put("last", last);
   }
 

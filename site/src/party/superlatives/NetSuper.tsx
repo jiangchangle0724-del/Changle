@@ -11,6 +11,7 @@ import type { SuperView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { AwardCard, AwardReveal, Ceremony } from "./parts";
 import "../../styles/party.css";
+import { Moment } from "../../components/Figure";
 
 export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, offset } = useRoom();
@@ -119,6 +120,14 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
 
         {v.phase === "reveal" && v.counts && (
           <>
+            {v.winners.length > 0 && (
+              <div className="moment-row">
+                {v.winners.slice(0, 3).map((id) => {
+                  const s = seat(id);
+                  return s ? <Moment key={id} seat={s} kind="winner" /> : null;
+                })}
+              </div>
+            )}
             <AwardReveal
               title={v.title}
               winners={v.winners.map((id) => ({ id, name: nameOf(id), face: face(id), count: v.counts![id] ?? 0 }))}

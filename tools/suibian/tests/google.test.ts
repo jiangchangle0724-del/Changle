@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { finishLogin, sign, startLogin, verify } from "../src/server/auth";
-import { detailsGoogle, fromGoogle, searchGoogle } from "../src/server/places";
+import { detailsGoogle, fromGoogle, keepAbout, searchGoogle } from "../src/server/places";
 
 type Call = { url: string; init?: RequestInit };
 const realFetch = globalThis.fetch;
@@ -136,18 +136,21 @@ test("details: phone, map, a queue review with its author, a photo with its auth
             { text: { text: "Great har gow." }, authorAttribution: { displayName: "A" } },
             { originalText: { text: "点心很好吃。周末排了40分钟才进去！服务一般。" }, text: { text: "Dim sum was good." }, authorAttribution: { displayName: "Lily W" } },
           ],
+          editorialSummary: { text: "Longtime Cantonese banquet hall known for its dim sum." },
         }),
     ],
   ]);
-  const d = await detailsGoogle("KEY", "ChIJgolden", "zh");
+  const d = await detailsGoogle("KEY", "ChIJgolden");
   assert.equal(d.phone, "(604) 278-0873");
   assert.equal(d.mapsUrl, "https://maps.google.com/?cid=123");
+  // The review keeps its own language even though details are asked in English.
   assert.deepEqual(d.waitQuote, { text: "周末排了40分钟才进去！", author: "Lily W" });
+  assert.equal(d.about, "Longtime Cantonese banquet hall known for its dim sum.");
   assert.equal(d.photo, "https://lh3.googleusercontent.com/places/AbC=s480");
   assert.deepEqual(d.photoBy, { name: "Ming L", uri: "https://maps.google.com/maps/contrib/1" });
   const details = calls.find((c) => c.url.includes("/v1/places/ChIJgolden?"))!;
-  assert.match(details.url, /languageCode=zh-CN/);
-  assert.equal(new Headers(details.init?.headers).get("X-Goog-FieldMask"), "nationalPhoneNumber,googleMapsUri,photos,reviews");
+  assert.match(details.url, /languageCode=en/);
+  assert.equal(new Headers(details.init?.headers).get("X-Goog-FieldMask"), "nationalPhoneNumber,googleMapsUri,photos,reviews,editorialSummary");
   const media = calls.find((c) => c.url.includes("/media?"))!;
   assert.match(media.url, /skipHttpRedirect=true/);
   // The key is in our server's request, never in what phones get.
@@ -159,8 +162,17 @@ test("details: no photo when Google gives no author to credit", async () => {
     [/\/media\?/, () => json({ photoUri: "https://lh3.googleusercontent.com/x" })],
     [/\/v1\/places\//, () => json({ photos: [{ name: "places/p/photos/x" }] })],
   ]);
-  const d = await detailsGoogle("KEY", "p", "en");
+  const d = await detailsGoogle("KEY", "p");
   assert.equal(d.photo, undefined);
+  assert.equal(d.about, undefined);
+});
+
+test("details: the English description only fills in when the search had none", () => {
+  const found = fromGoogle({ id: "a", displayName: { text: "金閣" }, location: { latitude: 49.17, longitude: -123.14 }, editorialSummary: { text: "粤式点心" } })!;
+  const bare = fromGoogle({ id: "b", displayName: { text: "金閣" }, location: { latitude: 49.17, longitude: -123.14 } })!;
+  const details = { phone: "(604) 000-0000", about: "Cantonese dim sum" };
+  assert.deepEqual(keepAbout(found, details), { phone: "(604) 000-0000", about: "粤式点心" });
+  assert.deepEqual(keepAbout(bare, details), details);
 });
 
 // ---- sign-in ----

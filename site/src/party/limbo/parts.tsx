@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap, reduced } from "../../lib/anim";
 import { useStore } from "../../store";
 import { leanOf, useTilt } from "../sensors";
@@ -7,7 +7,7 @@ import { leanOf, useTilt } from "../sensors";
 export const HOLD_MS = 1200;
 
 /** Two poles and the bar. A deeper lean means a lower bar. */
-export function LimboScene({ angle, level }: { angle: number; level: number }) {
+export function LimboScene({ angle, level, children }: { angle: number; level: number; children?: ReactNode }) {
   const bar = useRef<SVGGElement>(null);
   const y = 40 + (angle / 90) * 150;
   const last = useRef(y);
@@ -21,18 +21,33 @@ export function LimboScene({ angle, level }: { angle: number; level: number }) {
     last.current = y;
   }, [y]);
   const { lang } = useStore();
-  return (
-    <svg className="limbo-scene" viewBox="0 0 320 230" role="img" aria-label={lang === "zh" ? `第 ${level + 1} 杆，后仰 ${angle} 度` : `Bar ${level + 1}: lean back ${angle} degrees`}>
+  const label = lang === "zh" ? `第 ${level + 1} 杆，后仰 ${angle} 度` : `Bar ${level + 1}: lean back ${angle} degrees`;
+  const barG = (
+    <g ref={bar} transform={`translate(0 ${y})`}>
+      <rect x="32" y="-7" width="256" height="14" rx="7" className="limbo-bar" />
+      {Array.from({ length: 8 }, (_, i) => (
+        <rect key={i} x={52 + i * 30} y="-7" width="12" height="14" className="limbo-stripe" />
+      ))}
+    </g>
+  );
+  const frame = (withBar: boolean) => (
+    <svg className="limbo-scene" viewBox="0 0 320 230" role="img" aria-label={label}>
       <line x1="10" y1="214" x2="310" y2="214" className="limbo-ground" />
       <rect x="40" y="26" width="10" height="188" rx="5" className="limbo-pole" />
       <rect x="270" y="26" width="10" height="188" rx="5" className="limbo-pole" />
-      <g ref={bar} transform={`translate(0 ${y})`}>
-        <rect x="32" y="-7" width="256" height="14" rx="7" className="limbo-bar" />
-        {Array.from({ length: 8 }, (_, i) => (
-          <rect key={i} x={52 + i * 30} y="-7" width="12" height="14" className="limbo-stripe" />
-        ))}
-      </g>
+      {withBar && barG}
     </svg>
+  );
+  if (!children) return frame(true);
+  // the players stand between the poles, and the bar goes in front of them
+  return (
+    <div className="limbo-stage">
+      {frame(false)}
+      <div className="limbo-people">{children}</div>
+      <svg className="limbo-scene limbo-bar-front" viewBox="0 0 320 230" aria-hidden="true">
+        {barG}
+      </svg>
+    </div>
   );
 }
 

@@ -57,6 +57,14 @@ export function Solo({ home }: { home: () => void }) {
     setStage({ k: "ask", step: 3 });
   };
 
+  /** Remember the pick on the account, so the home page asks how it was (and it can be rated). */
+  const choose = (c: SoloCard) => {
+    setStage({ k: "chosen", card: c });
+    if (!me?.user) return;
+    void api("/api/me/last", { method: "POST", body: JSON.stringify({ place: c.place.id, name: c.place.name }) });
+    update({ me: { ...me, last: { place: c.place.id, name: c.place.name, at: Date.now() } } });
+  };
+
   const share = async (c: SoloCard) => {
     const text = t("soloShareText", { name: c.place.name, map: c.place.mapsUrl ?? "" });
     try {
@@ -153,7 +161,7 @@ export function Solo({ home }: { home: () => void }) {
           <section class="places">
             {stage.cards.slice(stage.batch * 3, stage.batch * 3 + 3).map((c) => (
               <PlaceCard key={c.place.id} c={c} reasons={c.reasons}>
-                <Btn kind="primary" wide onClick={() => setStage({ k: "chosen", card: c })}>
+                <Btn kind="primary" wide onClick={() => choose(c)}>
                   {t("soloThis")}
                 </Btn>
               </PlaceCard>
@@ -183,6 +191,11 @@ export function Solo({ home }: { home: () => void }) {
           <Btn kind="primary" wide onClick={() => void share(stage.card)}>
             {t("soloShare")}
           </Btn>
+          {me?.user && (
+            <a class="btn wide" href={`${BASE}/rate`}>
+              {t("rateAfter")}
+            </a>
+          )}
           <Btn kind="quiet" wide onClick={() => ask(0)}>
             {t("soloRestart")}
           </Btn>
