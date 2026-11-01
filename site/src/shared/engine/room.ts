@@ -164,6 +164,7 @@ export class RoomEngine {
     }
 
     let seat = d.seats.find((s) => s.id === pid);
+    let back = false;
     if (!seat) {
       if (d.seats.length >= MAX_SEATS) return "full";
       seat = { id: pid, name, on: true, at: now };
@@ -173,6 +174,7 @@ export class RoomEngine {
       const g = this.gameDef();
       if (g && d.game) g.def.join?.(d.game.s, pid, this.api());
     } else {
+      back = !seat.on;
       seat.on = true;
       seat.name = name;
       if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
@@ -180,6 +182,7 @@ export class RoomEngine {
     }
     if (!d.host || !d.seats.some((s) => s.id === d.host)) d.host = pid;
     if (pid === d.host) this.clearTimer("host-away");
+    if (back) this.presence(pid, true);
     this.out.changed = true;
     return null;
   }
@@ -220,7 +223,14 @@ export class RoomEngine {
     seat.on = on;
     if (!on && pid === this.d.host) this.setTimer("host-away", this.h.now() + HOST_GRACE);
     if (on && pid === this.d.host) this.clearTimer("host-away");
+    this.presence(pid, on);
     this.out.changed = true;
+  }
+
+  /** The game in play hears when a phone drops or comes back (a turn it waits on can stop waiting). */
+  private presence(pid: string, on: boolean) {
+    const g = this.gameDef();
+    if (g && this.d.game) g.def.presence?.(this.d.game.s, pid, on, this.api());
   }
 
   /**

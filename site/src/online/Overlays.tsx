@@ -175,12 +175,12 @@ export function ReactionLayer() {
 }
 
 /** Four things anyone can call out across the table, at any moment. */
-export function ReactionDock() {
+export function ReactionDock({ more = false }: { more?: boolean }) {
   const { act } = useRoom();
   const { ui } = useStore();
   const label = useReactionLabel();
   return (
-    <div className="react-dock" role="group" aria-label={ui("reactCheers")}>
+    <div className={`react-dock ${more ? "is-more" : ""}`} role="group" aria-label={ui("reactCheers")}>
       {REACTIONS.map((r) => (
         <motion.button
           key={r}

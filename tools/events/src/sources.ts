@@ -80,8 +80,11 @@ export const SOURCES: SourceDef[] = [
     tier: 1,
     lang: "en",
     needs: "TICKETMASTER_KEY",
-    // Greater Vancouver: 40 km round the city centre
-    url: "https://app.ticketmaster.com/discovery/v2/events.json?latlong=49.2609,-123.1139&radius=40&unit=km&sort=date,asc&locale=*&size=200",
+    // The 7 areas, Abbotsford, Mission and Chilliwack included: 60 km round a point between Surrey
+    // and Langley, in Canada only (no Blaine, Point Roberts or Bellingham). It reaches Bowen Island
+    // and Lions Bay but not Squamish, the Sunshine Coast or Nanaimo. (40 km round downtown missed
+    // Abbotsford's arenas, 62 km out, and took in Gibsons.)
+    url: "https://app.ticketmaster.com/discovery/v2/events.json?latlong=49.15,-122.75&radius=60&unit=km&countryCode=CA&sort=date,asc&locale=*&size=200",
     // (Ticketmaster serves at most 1,000 results per search: five pages of 200)
     maxParts: 5,
     request(part, env, w) {

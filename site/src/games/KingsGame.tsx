@@ -52,7 +52,12 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
     }, 420);
   };
 
+  // once per player: a double tap on 记住了 (the card still fading out takes the second tap) must
+  // not skip the next player, who would never see their number
+  const confirmed = useRef(-1);
   const confirm = () => {
+    if (confirmed.current === dealIndex) return;
+    confirmed.current = dealIndex;
     setTaken((t) => [...t, pulled!]);
     setPulled(null);
     setRevealed(false);
@@ -72,6 +77,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
 
   const newRound = () => {
     setTokens(deal(players.length));
+    confirmed.current = -1;
     setDealIndex(0);
     setTaken([]);
     setPulled(null);
@@ -157,7 +163,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
               {revealed && (
                 <motion.div key="tok" className="porcelain reveal-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
                   <p className={`word-big ${myToken === "K" ? "zh-display king-red" : "en-display"}`}>
-                    {myToken === "K" ? (lang === "zh" ? "国王" : "King") : lang === "zh" ? `${myToken} 号` : `No. ${myToken}`}
+                    {myToken === "K" ? (lang === "zh" ? "国王" : "King") : lang === "zh" ? `${myToken}号` : `No. ${myToken}`}
                   </p>
                   <button type="button" className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirm}>
                     {ui("gotIt")}

@@ -97,7 +97,8 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                 </button>
               </div>
               <p className="hint-ink" style={{ marginTop: 10 }}>
-                {lang === "zh" ? `${seats.length} 人在座，至少 4 人。白板没有词，猜出平民的词就赢。` : `${seats.length} seated, 4 needed. A blank has no word and wins by guessing the civilians' word.`}
+                {lang === "zh" ? `${seats.length} 人在座，至少 4 人。白板没有词，跟卧底一伙：白板也出局，平民才赢。` : `${seats.length} seated, 4 needed. A blank gets no word and plays on the undercover's side: civilians win only when the blank is out too.`}
+                {!v.blank && v.uc + 1 > v.maxSide && (lang === "zh" ? `${v.uc} 个卧底时，${3 * (v.uc + 1) + 1} 人以上才能加白板。` : ` With ${v.uc} undercover${v.uc > 1 ? "s" : ""}, a blank needs ${3 * (v.uc + 1) + 1} or more players.`)}
               </p>
             </div>
             {isHost ? (
