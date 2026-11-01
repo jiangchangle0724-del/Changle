@@ -1,14 +1,16 @@
 // One table on a phone: lobby → round 1 (mood) → round 2 (cards) → spinner → result.
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { CUISINES, RANGES, type Limits, type MoodPick, type RangeId } from "../../engine";
-import type { CardView, RoomView } from "../../room/protocol";
-import { t, tx, type Key } from "../i18n";
+import { CUISINES, type Limits, type MoodPick, type RangeId } from "../../engine";
+import type { RoomView } from "../../room/protocol";
+import { t, tx } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
 import { send, toast, useApp } from "../store";
 import { Btn, Countdown, DemoBanner, LangToggle, Qr, TableLimits, memberName } from "./common";
 import { DietCard } from "./DietCard";
+import { PlaceCard } from "./PlaceCard";
+import { RangePicker } from "./RangePicker";
 
 export function Table({ home }: { home: () => void }) {
   const { view: v, status, fatal, me } = useApp();
@@ -133,13 +135,7 @@ function Lobby({ v }: { v: RoomView }) {
           <p class="error">{t(v.error)}</p>
           {host && (
             <>
-              <div class="seg">
-                {(Object.keys(RANGES) as RangeId[]).map((r) => (
-                  <button key={r} type="button" aria-pressed={range === r} onClick={() => setRange(r)}>
-                    {tx(RANGES[r])}
-                  </button>
-                ))}
-              </div>
+              <RangePicker value={range} onChange={setRange} />
               <Btn kind="primary" wide onClick={() => send({ t: "again", range })}>
                 {t("wider")}
               </Btn>
@@ -228,81 +224,6 @@ function Mood({ v }: { v: RoomView }) {
       </Btn>
       <Progress v={v} />
     </>
-  );
-}
-
-function waitKey(level: number): Key {
-  return level === 2 ? "wait2" : level === 1 ? "wait1" : "wait0";
-}
-
-function PlaceCard({ c, children }: { c: CardView; children?: preact.ComponentChildren }) {
-  const p = c.place;
-  return (
-    <article class="place" data-id={p.id}>
-      {p.photo && (
-        <figure class="photo">
-          <img src={p.photo} alt="" loading="lazy" referrerpolicy="no-referrer" />
-          {p.photoBy && (
-            <figcaption>
-              📷{" "}
-              {p.photoBy.uri ? (
-                <a href={p.photoBy.uri} target="_blank" rel="noopener">
-                  {p.photoBy.name}
-                </a>
-              ) : (
-                p.photoBy.name
-              )}
-            </figcaption>
-          )}
-        </figure>
-      )}
-      <div class="body">
-        <h3>{p.name}</h3>
-        <p class="meta">
-          <span>
-            {CUISINES[p.cuisine].emoji} {tx(CUISINES[p.cuisine])}
-          </span>
-          {p.rating !== undefined && (
-            <span>
-              ★ {p.rating.toFixed(1)} <small class="muted">({t("ratings", { n: p.ratings ?? 0 })})</small>
-            </span>
-          )}
-          {p.priceLabel && <span>{p.priceLabel}</span>}
-          <span>
-            {t(c.drive ? "drive" : "walk")} {t("min", { n: c.minutes })}
-          </span>
-        </p>
-        <p class="wait">
-          {t(waitKey(c.wait.level))}
-          {c.wait.ours !== undefined && <small> {t("waitOurs", { n: c.wait.ours })}</small>}
-          <small class="muted"> · {c.wait.reasons.map((r) => t(`waitWhy_${r}` as Key)).join("、")}</small>
-        </p>
-        {p.waitQuote && (
-          <blockquote class="quote">
-            “{p.waitQuote.text}” <cite>— {p.waitQuote.author}, Google</cite>
-          </blockquote>
-        )}
-        <p class="meta">
-          {c.lastOrder !== undefined && <span>{c.lastOrder > 180 ? t("closesLate") : t("lastOrder", { n: Math.max(0, c.lastOrder) })}</span>}
-          {p.reservable && <span>{t("reservable")}</span>}
-        </p>
-        {c.relaxed && <p class="warn small">{t("relaxed")}</p>}
-        {c.warnings.filter((w) => w.k !== "allergy" && w.k !== "custom").map((w, i) => (
-          <p key={i} class="warn small">
-            {t(`warn_${w.k}` as Key)}
-          </p>
-        ))}
-        <p class="links">
-          {p.phone && <a href={`tel:${p.phone.replace(/[^\d+]/g, "")}`}>{t("call")}</a>}
-          {p.mapsUrl && (
-            <a href={p.mapsUrl} target="_blank" rel="noopener">
-              {t("map")}
-            </a>
-          )}
-        </p>
-        {children}
-      </div>
-    </article>
   );
 }
 

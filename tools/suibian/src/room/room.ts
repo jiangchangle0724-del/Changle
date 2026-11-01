@@ -2,7 +2,7 @@
 // (server/worker.ts) passes messages in, fetches places when `want` asks, calls tick() when
 // nextWake() comes due, and sends each person their view().
 import * as E from "../engine";
-import { TIMING, type CardView, type ClientMsg, type Lang, type Phase, type RoomView, type ServerMsg } from "./protocol";
+import { TIMING, cardView, type CardView, type ClientMsg, type Lang, type Phase, type RoomView, type ServerMsg } from "./protocol";
 
 export interface RoomEnv {
   now(): number;
@@ -173,7 +173,7 @@ export class Room {
       case "again":
         if (ph !== "result" && ph !== "lobby" && !this.st.error) return;
         if (!this.isHost(id)) return;
-        if (msg.range && msg.range in E.RANGES) this.st.range = msg.range;
+        if (E.isRange(msg.range)) this.st.range = msg.range;
         this.toLobby();
         break;
       case "mood": {
@@ -365,22 +365,12 @@ export class Room {
     const st = this.st;
     const now = this.env.now();
     const me = st.members[id];
-    const clock = E.vancouverClock(now);
     const table = this.table();
     const counts = this.moodCounts();
     const showCounts = st.phase !== "mood";
-    const range = E.RANGES[st.range];
     const cards: CardView[] = this.liveCards().map((cid) => {
       const p = st.places.find((x) => x.id === cid)!;
-      return {
-        place: p,
-        minutes: E.travelMinutes(E.distanceMeters(st.center, p), range.drive),
-        drive: range.drive,
-        wait: E.estimateWait(p, clock),
-        lastOrder: E.minutesToLastOrder(p, now),
-        warnings: E.check(p, table).warnings,
-        relaxed: st.relaxed.includes(cid),
-      };
+      return cardView(p, st.center, st.range, table, now, st.relaxed.includes(cid));
     });
     const rs = Object.values(st.ratings);
     const phaseDone = (m: Member) => (st.phase === "mood" ? m.moodDone : st.phase === "cards" ? m.ballotDone : false);

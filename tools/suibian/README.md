@@ -23,6 +23,51 @@ How a table goes:
 5. Most ticks wins; a tie spins. The result card goes to the group chat with a link to rate the
    meal afterwards (three taps). Those ratings feed back into scores and wait estimates.
 
+**On your own and can't decide?** The home page's second card asks one person five quick things
+(mood, which side of the menu, budget, where and how far, diet card) and shows three places at a
+time, each with why it was picked; "show me others" gives three more. It is at
+`changle.ca/eat/solo`, needs the same sign-in as starting a table, and counts toward the same
+10 uses a day. Nothing from the answers is kept.
+
+**How far** is three tabs: walk (5, 10, 15, 20 or 30 minutes), drive (5, 10, 15, 25 or 40) and
+any distance (Google's widest circle, 50 km, which covers Greater Vancouver from anywhere in the
+city; places are then picked by popularity and distance).
+
+## Cards: descriptions, lists and picks
+
+Each card can carry more than Google's numbers, all from free sources:
+
+* **A one-line description**: Google's own editorial summary of the place, when it has one. It
+  comes with the search we already make, at no extra cost.
+* **List badges** (🏅 Michelin, Vancouver Magazine Restaurant Awards, Canada's 100 Best, the
+  Chinese Restaurant Awards…): from `src/data/lists.json`, kept by hand. Facts only: which list,
+  which award, which year, and the page that says so; nothing copied from the source's write-ups.
+* **Steve's pick**: a line of why, in Chinese and English, and links to food-blogger posts (小红书,
+  抖音, TikTok, Instagram, YouTube, blogs), from `src/data/picks.json`.
+* **Our users' rating**: thumbs-up share from the post-meal ratings, once three people have rated.
+
+There is deliberately no combined score: Google's terms don't let us turn its ratings into a rating
+of our own, and TikTok and Instagram have no API that can search posts by restaurant (scraping them
+breaks their terms), so food-blogger posts come in by hand through `picks.json`.
+
+To add a place to either file, add an entry; `npm test` checks both files (names, zh and en text,
+https links, known list ids, years), so a bad edit fails CI instead of the app.
+
+```jsonc
+// src/data/lists.json → "places"
+{ "name": "Kissa Tanto", "aliases": ["喫茶丹頭"], "address": "263 E Pender St", "city": "Vancouver",
+  "awards": [{ "source": "michelin", "label": { "zh": "米其林一星", "en": "MICHELIN 1 Star" }, "year": 2025,
+               "url": "https://guide.michelin.com/…" }] }
+// src/data/picks.json → "places"
+{ "name": "Kissa Tanto", "address": "263 E Pender St",
+  "note": { "zh": "意日融合，约会首选", "en": "Italian-Japanese, a date-night favourite" }, "by": "Steve",
+  "links": [{ "platform": "小红书", "url": "https://www.xiaohongshu.com/…", "title": "探店" }] }
+```
+
+Places are matched by name (case, accents, " - Robson St" and words like "Restaurant" don't
+matter; `aliases` covers other names, e.g. Chinese ones). Give `address` when the name has several
+branches: then only the branch at that street number matches.
+
 ## How it sits inside changle.ca
 
 * **Addresses.** The Worker answers `changle.ca/eat` and `changle.ca/eat/*` (the routes in
@@ -44,7 +89,8 @@ How a table goes:
 | `src/engine` | The rules: cuisines, diet limits (with the draft severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
 | `src/room` | One table from lobby to result. No network inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker: rooms (one Durable Object each), Google Places, Google sign-in, users' diet cards, our per-restaurant ratings. |
-| `src/client` | The phone pages (Preact), Chinese and English, and the privacy and terms pages (`privacy.html`, `terms.html`, plain HTML at `/eat/privacy` and `/eat/terms`). |
+| `src/client` | The phone pages (Preact), Chinese and English: home, a table, rating, picking alone (`ui/Solo.tsx`), and the privacy and terms pages (`privacy.html`, `terms.html`, plain HTML at `/eat/privacy` and `/eat/terms`). |
+| `src/data` | Kept by hand: `lists.json` (list badges) and `picks.json` (Steve's picks), matched to Google's places in `src/server/curated.ts`. |
 | `tests` | Rules and room tests (Node), and phones in a browser (`tests/e2e`, Playwright): a whole table, and the privacy and terms pages. |
 
 ## Run it on a computer
@@ -138,5 +184,7 @@ be sure.
 * Score weights, cards per table, max per cuisine: `src/engine/pick.ts`.
 * Severe-allergy table (**draft, please review**): `SEVERE_RULES_OUT` in `src/engine/limits.ts`.
 * Wait-estimate rules (peak hours, popularity): `src/engine/wait.ts`.
-* Tables per account per day: `ROOMS_PER_DAY` in `src/server/worker.ts`.
+* Uses per account per day (tables and solo picks together): `ROOMS_PER_DAY` in `src/server/worker.ts`.
+* How far each range reaches: `RANGES` and the tabs' `RANGE_MODES` in `src/engine/clock.ts`.
+* Which cuisines fit each mood and each side of the menu when picking alone: `src/engine/solo.ts`.
 * Areas offered when GPS is off: `NEIGHBOURHOODS` in `src/engine/clock.ts`.

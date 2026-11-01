@@ -1,57 +1,24 @@
 import { useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { NEIGHBOURHOODS, RANGES, type Center, type RangeId } from "../../engine";
-import { t, tx } from "../i18n";
+import { t } from "../i18n";
 import { api } from "../net";
 import { identity, inWeChat, prefs } from "../prefs";
 import { update, useApp } from "../store";
 import { Btn, DemoBanner, LangToggle } from "./common";
-
-const inVancouver = (c: Center) => c.lat > 48.9 && c.lat < 49.6 && c.lng > -123.6 && c.lng < -122.2;
+import { WhereFields, useWhere } from "./Where";
 
 export function Home({ go }: { go: (path: string) => void }) {
   const { me } = useApp();
-  const last = prefs.start;
-  const [hood, setHood] = useState<string>(last?.center.label ?? (last ? "gps" : NEIGHBOURHOODS[0].en));
-  const [gps, setGps] = useState<Center | null>(last && !last.center.label ? last.center : null);
-  const [range, setRange] = useState<RangeId>(last?.range ?? "walk20");
   const [code, setCode] = useState("");
   const [err, setErr] = useState(new URLSearchParams(location.search).get("login") === "failed" ? t("loginFailed") : "");
+  const where = useWhere(setErr);
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
 
-  const locate = () => {
-    if (!navigator.geolocation) return setErr(t("noLocation"));
-    setErr(t("locating"));
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        if (!inVancouver(c)) {
-          setErr(t("outsideVancouver"));
-          setHood(NEIGHBOURHOODS[0].en);
-          return;
-        }
-        setErr("");
-        setGps(c);
-        setHood("gps");
-      },
-      () => {
-        setErr(t("noLocation"));
-        setHood(NEIGHBOURHOODS[0].en);
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 120_000 },
-    );
-  };
-
-  const center = (): Center | null => {
-    if (hood === "gps") return gps;
-    const n = NEIGHBOURHOODS.find((x) => x.en === hood);
-    return n ? { lat: n.lat, lng: n.lng, label: n.en } : null;
-  };
-
   const create = async () => {
-    const c = center();
+    const c = where.center();
     if (!c) return setErr(t("noLocation"));
+    const range = where.range;
     setBusy(true);
     prefs.start = { center: c, range };
     const res = await api<{ code?: string; error?: string }>("/api/rooms", { method: "POST", body: JSON.stringify({ cid: identity().cid, center: c, range, lang: prefs.lang }) });
@@ -101,38 +68,22 @@ export function Home({ go }: { go: (path: string) => void }) {
           </>
         ) : (
           <>
-            <label class="field">
-              <span>{t("where")}</span>
-              <select
-                value={hood}
-                onChange={(e) => {
-                  const v = (e.target as HTMLSelectElement).value;
-                  if (v === "gps" && !gps) locate();
-                  setHood(v);
-                }}
-              >
-                <option value="gps">{t("myLocation")}</option>
-                {NEIGHBOURHOODS.map((n) => (
-                  <option key={n.en} value={n.en}>
-                    {tx(n)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div class="field">
-              <span>{t("range")}</span>
-              <div class="seg">
-                {(Object.keys(RANGES) as RangeId[]).map((r) => (
-                  <button key={r} type="button" aria-pressed={range === r} onClick={() => setRange(r)}>
-                    {tx(RANGES[r])}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Btn kind="primary" wide disabled={busy || (hood === "gps" && !gps)} onClick={() => void create()}>
+            <WhereFields w={where} />
+            <Btn kind="primary" wide disabled={busy || where.waiting} onClick={() => void create()}>
               {t("startTable")}
             </Btn>
           </>
+        )}
+      </section>
+
+      <section class="card solo-entry">
+        <h2>{t("soloTitle")}</h2>
+        {/* Signed out: the sign-in button is in the card above, so just say it's needed. */}
+        <p class="muted small">{mustLogin ? t("soloLogin") : t("soloPitch")}</p>
+        {!mustLogin && (
+          <Btn wide onClick={() => go("/solo")}>
+            {t("soloStart")}
+          </Btn>
         )}
       </section>
 

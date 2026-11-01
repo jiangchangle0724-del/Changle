@@ -17,8 +17,8 @@
 // can spend API money). Without them the server runs on made-up demo restaurants.
 import { DurableObject } from "cloudflare:workers";
 import { BASE } from "../base";
-import { NEIGHBOURHOODS, RANGES, cleanLimits, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating } from "../engine";
-import type { ClientMsg } from "../room/protocol";
+import { NEIGHBOURHOODS, cleanAnswers, cleanLimits, isRange, soloPick, soloReasons, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating } from "../engine";
+import { cardView, type ClientMsg, type SoloResponse } from "../room/protocol";
 import { Room, cleanRating, type RoomEnv, type RoomState, type Want } from "../room/room";
 import { currentUser, finishLogin, loginEnabled, logout, startLogin, testSession } from "./auth";
 import { demoPlaces, detailsGoogle, searchGoogle } from "./places";
@@ -65,7 +65,7 @@ export default {
     const path = url.pathname.slice(BASE.length) || "/";
     // Room and rating links are app pages; serve the app for them directly (old phones don't send
     // Sec-Fetch-Mode). The page is dist/client/eat/index.html, served at /eat/.
-    if (path === "/" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
+    if (path === "/" || path === "/solo" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
 
     if (path === "/auth/google") return loginEnabled(env) ? startLogin(req, env) : json({ error: "loginOff" }, 404);
     if (path === "/auth/callback") {
@@ -114,20 +114,19 @@ export default {
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
       const body = (await req.json().catch(() => ({}))) as { cid?: string; center?: unknown; range?: string; lang?: string };
       const center = cleanCenter(body.center);
-      const range = (body.range && body.range in RANGES ? body.range : "walk20") as RangeId;
+      const range: RangeId = isRange(body.range) ? body.range : "walk20";
       if (!center) return json({ error: "badPlace" }, 400);
       if (!/^[a-f0-9]{8,64}$/.test(body.cid ?? "")) return json({ error: "bad" }, 400);
-      if (loginEnabled(env)) {
-        if (!me) return json({ error: "login" }, 401);
-        const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver" }).format(new Date());
-        if (!(await user(env, me.sub).takeRoom(day, ROOMS_PER_DAY))) return json({ error: "quota" }, 429);
-      }
+      const denied = await takeUse(env, me);
+      if (denied) return denied;
       for (let i = 0; i < 40; i++) {
         const code = roomCode();
         if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, { host: body.cid!, center, range, demo: !usesGoogle(env), lang: body.lang === "en" ? "en" : "zh" })) return json({ code });
       }
       return json({ error: "busy" }, 503);
     }
+
+    if (parts[1] === "solo" && parts.length === 2 && req.method === "POST") return solo(req, env, me);
 
     const code = parts[2];
     if (parts[1] === "rooms" && code && /^\d{4}$/.test(code)) {
@@ -148,6 +147,56 @@ export default {
     return json({ error: "notFound" }, 404);
   },
 } satisfies ExportedHandler<Env>;
+
+/** Starting a table and one person's pick both count toward the account's uses for the day. */
+async function takeUse(env: Env, me: { sub: string } | null): Promise<Response | null> {
+  if (!loginEnabled(env)) return null;
+  if (!me) return json({ error: "login" }, 401);
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver" }).format(new Date());
+  if (!(await user(env, me.sub).takeRoom(day, ROOMS_PER_DAY))) return json({ error: "quota" }, 429);
+  return null;
+}
+
+/**
+ * One person who doesn't know what to eat: their answers, where they are and their diet card come
+ * in; up to six places (two batches of three) go back, with phone, photo and map like a table's
+ * cards, and why each was picked. Nothing is kept: the answers only steer this one search.
+ */
+async function solo(req: Request, env: Env, me: { sub: string } | null): Promise<Response> {
+  const body = (await req.json().catch(() => ({}))) as { center?: unknown; range?: unknown; answers?: unknown; limits?: unknown; lang?: unknown };
+  const center = cleanCenter(body.center);
+  if (!center) return json({ error: "badPlace" } satisfies SoloResponse, 400);
+  const range: RangeId = isRange(body.range) ? body.range : "walk20";
+  const answers = cleanAnswers(body.answers);
+  const limits = cleanLimits(body.limits);
+  const lang = body.lang === "en" ? "en" : "zh";
+  const denied = await takeUse(env, me);
+  if (denied) return denied;
+  const google = usesGoogle(env);
+  const key = env.GOOGLE_PLACES_KEY!;
+  const now = Date.now();
+  let places: Place[];
+  try {
+    places = google ? await searchGoogle(key, center, range, lang) : demoPlaces(center, range, now);
+  } catch (e) {
+    console.error("places", String(e));
+    return json({ error: "searchFailed" } satisfies SoloResponse, 502);
+  }
+  if (!places.length) return json({ error: "nothingNearby", demo: !google } satisfies SoloResponse);
+  if (google) await Promise.all(places.map(async (p) => (p.ours = (await env.PLACES.get(env.PLACES.idFromName(p.id)).get()) ?? undefined)));
+  const { ids, relaxed } = soloPick({ places, answers, limits, center, range, now });
+  if (!ids.length) return json({ error: "nothingFits", demo: !google } satisfies SoloResponse);
+  const byId = new Map(places.map((p) => [p.id, p]));
+  if (google) {
+    const got = await Promise.allSettled(ids.map(async (id) => [id, await detailsGoogle(key, id, lang)] as const));
+    for (const g of got) if (g.status === "fulfilled") Object.assign(byId.get(g.value[0])!, g.value[1]);
+  }
+  const cards = ids.map((id) => {
+    const p = byId.get(id)!;
+    return { ...cardView(p, center, range, limits, now), reasons: soloReasons(p, answers, limits, center, range) };
+  });
+  return json({ cards, relaxed, demo: !google } satisfies SoloResponse);
+}
 
 interface Attachment {
   id: string;

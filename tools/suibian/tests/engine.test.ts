@@ -15,11 +15,19 @@ import {
   mentionsQueue,
   mergeLimits,
   pick,
+  RANGE_MODES,
+  RANGES,
+  cleanAnswers,
+  isRange,
+  soloPick,
+  soloReasons,
+  SIDE_CUISINES,
   tally,
   type AllergenId,
   type CuisineId,
   type Limits,
   type Place,
+  type RangeId,
 } from "../src/engine";
 
 const NOW = Date.parse("2026-10-23T02:00:00Z"); // Thursday 7 pm in Vancouver
@@ -232,4 +240,89 @@ test("typed items: cleaned, merged without duplicates, and only ever warn", () =
 test("queue mentions in Chinese and English reviews", () => {
   for (const yes of ["周末排了40分钟", "要排很久", "排長隊", "等位一小时", "等了半天", "We waited 45 minutes", "long line out the door", "expect a lineup", "wait about 30 min"]) assert.ok(mentionsQueue(yes), yes);
   for (const no of ["服务很好，菜很好吃", "Great food, friendly staff", "排骨很好吃"]) assert.ok(!mentionsQueue(no), no);
+});
+
+
+// ---- how far ----
+
+test("ranges: every range sits under one tab, nearer first; any distance is Google's widest circle", () => {
+  const all = Object.keys(RANGES) as RangeId[];
+  const listed = Object.values(RANGE_MODES).flat();
+  assert.deepEqual([...listed].sort(), [...all].sort());
+  for (const [mode, ids] of Object.entries(RANGE_MODES)) {
+    for (const id of ids) assert.equal(RANGES[id].mode, mode);
+    for (let i = 1; i < ids.length; i++) assert.ok(RANGES[ids[i]].meters > RANGES[ids[i - 1]].meters, `${ids[i]} reaches further`);
+  }
+  assert.equal(RANGES.any.meters, 50_000);
+  // The old four keep their sizes, so tables started before this change still search the same.
+  assert.deepEqual([RANGES.walk10.meters, RANGES.walk20.meters, RANGES.drive15.meters, RANGES.drive25.meters], [800, 1600, 6000, 12000]);
+});
+
+test("ranges: only real range names count (not 'toString' or anything else on an object)", () => {
+  assert.ok(isRange("walk5") && isRange("any"));
+  for (const bad of ["toString", "__proto__", "constructor", "walk7", "", null, 3]) assert.equal(isRange(bad), false);
+});
+
+// ---- one person, can't decide ----
+
+const noLimits: Limits = { allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 };
+
+test("solo: answers are cleaned; anything unexpected means 'any'", () => {
+  assert.deepEqual(cleanAnswers({ mood: "warm", side: "jk" }), { mood: "warm", side: "jk" });
+  assert.deepEqual(cleanAnswers({ mood: "toString", side: 5 }), { mood: "any", side: "any" });
+  assert.deepEqual(cleanAnswers(null), { mood: "any", side: "any" });
+});
+
+test("solo: the chosen side of the menu is kept when there are at least three of it nearby", () => {
+  const places = [
+    ...["cantonese", "sichuan", "hotpot", "taiwanese"].map((c) => place({ cuisine: c as CuisineId })),
+    ...["italian", "mexican", "japanese", "korean"].map((c) => place({ cuisine: c as CuisineId, rating: 4.9, ratings: 5000 })),
+  ];
+  const { ids, relaxed } = soloPick({ places, answers: { mood: "any", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW });
+  assert.equal(relaxed, false);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(SIDE_CUISINES.chinese.includes(places.find((p) => p.id === id)!.cuisine), "only Chinese places");
+});
+
+test("solo: too few on the chosen side, so others come in and it says so", () => {
+  const places = [place({ cuisine: "ramen" }), ...["italian", "mexican", "western", "thai"].map((c) => place({ cuisine: c as CuisineId }))];
+  const { ids, relaxed } = soloPick({ places, answers: { mood: "any", side: "jk" }, limits: noLimits, center, range: "walk20", now: NOW });
+  assert.equal(relaxed, true);
+  assert.equal(ids.length, 5);
+});
+
+test("solo: the mood moves matching places up, and each batch of three tries three cuisines", () => {
+  const places = [
+    place({ cuisine: "brunch", rating: 4.2, ratings: 300 }),
+    place({ cuisine: "hotpot", rating: 4.2, ratings: 300 }),
+    place({ cuisine: "hotpot", rating: 4.2, ratings: 300 }),
+    place({ cuisine: "ramen", rating: 4.2, ratings: 300 }),
+    place({ cuisine: "italian", rating: 4.6, ratings: 900 }),
+    place({ cuisine: "western", rating: 4.6, ratings: 900 }),
+    place({ cuisine: "mexican", rating: 4.6, ratings: 900 }),
+  ];
+  const { ids } = soloPick({ places, answers: { mood: "warm", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW });
+  const first = ids.slice(0, 3).map((id) => places.find((p) => p.id === id)!.cuisine);
+  assert.equal(new Set(first).size, 3, "three different cuisines");
+  assert.ok(first.includes("hotpot") && first.includes("ramen"), "warm places first");
+});
+
+test("solo: the diet card and budget still rule places out, and closed places never show", () => {
+  const places = [
+    place({ cuisine: "sichuan", price: 25 }),
+    place({ cuisine: "cantonese", price: 70 }),
+    place({ cuisine: "hotpot", price: 30, openNow: false }),
+    place({ cuisine: "taiwanese", price: 15 }),
+  ];
+  const limits: Limits = { ...noLimits, allergies: { chili: "severe" }, budget: 35 };
+  const { ids } = soloPick({ places, answers: { mood: "any", side: "any" }, limits, center, range: "walk20", now: NOW });
+  assert.deepEqual(ids, [places[3].id]);
+});
+
+test("solo: reasons say why, a pick and a list first, at most three", () => {
+  const p = place({ cuisine: "hotpot", price: 20, rating: 4.7, ratings: 900, recommend: { note: { zh: "好吃", en: "Good" }, links: [] }, badges: [{ source: "michelin", label: { zh: "必比登", en: "Bib Gourmand" }, year: 2025 }] });
+  const r = soloReasons(p, { mood: "warm", side: "chinese" }, { ...noLimits, budget: 35 }, center, "walk20");
+  assert.deepEqual(r, ["pick", "list", "mood"]);
+  const q = place({ cuisine: "italian", price: 20, rating: 4.0, ratings: 20 });
+  assert.deepEqual(soloReasons(q, { mood: "any", side: "any" }, { ...noLimits, budget: 35 }, center, "walk20"), ["budget", "near"]);
 });

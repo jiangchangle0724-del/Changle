@@ -1,12 +1,29 @@
 // Time and distance in Vancouver terms.
-import type { Center, RangeId, Text } from "./types";
+import type { Center, RangeId, RangeMode, Text } from "./types";
 
-export const RANGES: Record<RangeId, Text & { meters: number; drive: boolean }> = {
-  walk10: { zh: "走路 10 分钟", en: "10 min walk", meters: 800, drive: false },
-  walk20: { zh: "走路 20 分钟", en: "20 min walk", meters: 1600, drive: false },
-  drive15: { zh: "开车 15 分钟", en: "15 min drive", meters: 6000, drive: true },
-  drive25: { zh: "开车 25 分钟", en: "25 min drive", meters: 12000, drive: true },
+export const RANGES: Record<RangeId, Text & { meters: number; drive: boolean; mode: RangeMode; minutes?: number }> = {
+  walk5: { zh: "走路 5 分钟", en: "5 min walk", meters: 400, drive: false, mode: "walk", minutes: 5 },
+  walk10: { zh: "走路 10 分钟", en: "10 min walk", meters: 800, drive: false, mode: "walk", minutes: 10 },
+  walk15: { zh: "走路 15 分钟", en: "15 min walk", meters: 1200, drive: false, mode: "walk", minutes: 15 },
+  walk20: { zh: "走路 20 分钟", en: "20 min walk", meters: 1600, drive: false, mode: "walk", minutes: 20 },
+  walk30: { zh: "走路 30 分钟", en: "30 min walk", meters: 2400, drive: false, mode: "walk", minutes: 30 },
+  drive5: { zh: "开车 5 分钟", en: "5 min drive", meters: 1500, drive: true, mode: "drive", minutes: 5 },
+  drive10: { zh: "开车 10 分钟", en: "10 min drive", meters: 3500, drive: true, mode: "drive", minutes: 10 },
+  drive15: { zh: "开车 15 分钟", en: "15 min drive", meters: 6000, drive: true, mode: "drive", minutes: 15 },
+  drive25: { zh: "开车 25 分钟", en: "25 min drive", meters: 12000, drive: true, mode: "drive", minutes: 25 },
+  drive40: { zh: "开车 40 分钟", en: "40 min drive", meters: 20000, drive: true, mode: "drive", minutes: 40 },
+  // Google's widest search circle (50 km): from anywhere in the city it covers Greater Vancouver.
+  any: { zh: "不限距离", en: "Any distance", meters: 50000, drive: true, mode: "any" },
 };
+
+/** The ranges under each tab of the "how far" picker, nearest first. */
+export const RANGE_MODES: Record<RangeMode, RangeId[]> = {
+  walk: ["walk5", "walk10", "walk15", "walk20", "walk30"],
+  drive: ["drive5", "drive10", "drive15", "drive25", "drive40"],
+  any: ["any"],
+};
+
+export const isRange = (x: unknown): x is RangeId => typeof x === "string" && Object.prototype.hasOwnProperty.call(RANGES, x);
 
 /** Starting points for a host who doesn't share GPS. */
 export const NEIGHBOURHOODS: (Text & Center)[] = [
