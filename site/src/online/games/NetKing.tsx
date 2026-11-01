@@ -9,9 +9,11 @@ import { useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
 import { HostButton, HostRow, SeatPicker, useYourTurn, Waiting } from "./common";
+import { Moment } from "../../components/Figure";
 
 export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
-  const { me, g, nameOf } = useRoom();
+  const { me, g, nameOf, room } = useRoom();
+  const kingSeat = v.king ? room?.seats.find((s) => s.id === v.king) : undefined;
   const { ui, tr, lang } = useStore();
   const inRound = v.inRound.includes(me);
   const amKing = v.king === me;
@@ -173,6 +175,7 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
 
         {v.phase === "crown" && v.king && (
           <motion.div key={`crown-${v.round}`} className="stack" style={{ gap: 16, alignItems: "center" }} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+            {kingSeat && <Moment seat={kingSeat} kind="king" />}
             <div className="porcelain reveal-card crown-card">
               <p className="hint-ink">{amKing ? (lang === "zh" ? "你是" : "You are") : lang === "zh" ? "国王是" : "The king is"}</p>
               <p className={`word-big king-red ${lang === "zh" ? "zh-display" : "en-display"}`}>{amKing ? (lang === "zh" ? "国王" : "the King") : nameOf(v.king)}</p>
