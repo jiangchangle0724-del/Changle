@@ -34,10 +34,12 @@ now send, and makes everything readable from the sofa.
    styles with the biggest positive sum, near Now Playing: 「全场想要：拉丁、浩室」/ "The floor
    wants: Latin, House". Nothing when no knob is up.
 5. **Readable from 3 metres** on a 1080p TV (the canvas is 1600×900, so 1 px here is 1.2 px
-   there): anything a guest needs to read (names, the songs, the floor's choice, the drop lines, the
-   night's stretches and the time to the next one, the heat) at least 24 px; small print (labels)
-   at least 20 px; the join code at least 64 px. Text over the moving lights sits on a plate, as the
-   deck and the join card do. Fix whatever already on the screen is smaller.
+   there), with the type scale in `tokens.css`: anything a guest needs to read (names, the songs,
+   the floor's choice, the drop lines, the night's stretches and the time to the next one, the
+   heat) at `--text-xl` or bigger (26 px on the canvas); labels never under `--text-lg` (18 px);
+   the join code `--text-4xl` (64 px). Text over the moving lights sits on a plate, as the deck and
+   the join card do, and passes DESIGN.md's contrast (4.5:1, or 3:1 from 24 px). This is the one
+   place this card changes the screen's existing styles: bring whatever is smaller up to the scale.
 6. Nothing new covers a dancer's face, the QR code or the stretch's name crossing the floor, with
    1 to 12 dancers (two rows from 9).
 7. The screen's rules in CONTRACTS.md stand: what changes every frame changes only opacity or a
@@ -55,7 +57,7 @@ phones (Chromium):
 - songs asked from the phones show in the panel as 「一首歌在审核」/ "A song being checked"
   (never their text), in order, five at most with the rest counted; the panel goes when they're
   taken back;
-- every visible text element (`aria-hidden` ones aside) measures at least 20 px (24 px for those
+- every visible text element (`aria-hidden` ones aside) measures at least 18 px (26 px for those
   listed in 5, 64 px for the join code) by `getComputedStyle`, at 1600×900;
 - with 12 phones seated (add them over the room's WebSocket, as plain clients sending `hello`),
   no new element's box overlaps a dancer's face or the QR code;

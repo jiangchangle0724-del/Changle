@@ -9,9 +9,9 @@ for a card. The booth is built inside the site (changle.ca/dj): its rules run on
 server (`site/worker`), and a merge to `main` deploys everything.
 
 Always:
-- Node 22, in `site/`: `npm ci`, then the card's command, then before the PR `npx tsc --noEmit`,
-  `npx tsx tests/engine.test.ts`, `npx tsx tests/dj.test.ts` and `npm run build`. Paste the output
-  into the PR.
+- Node 22, in `site/`: `npm ci`, then the card's command, then before the PR every step CI runs
+  (`.github/workflows/site.yml`: `npx tsc --noEmit`, each `tests/*.test.ts` it lists, `npm run
+  build`). Paste the output into the PR.
 - Don't touch: `site/worker/`, any wrangler config or secret, `site/src/shared/engine/` (the rules),
   `site/src/shared/protocol.ts`, `site/src/shared/dj/types.ts` and `CONTRACTS.md` (the contract:
   if a card seems to need a change there, say what and why in the PR and leave it to Claude Code),
@@ -19,6 +19,15 @@ Always:
   card's files.
 - Everything a player reads exists in Chinese and English (`zh ? "…" : "…"`, as the booth's files
   do). Short and plain: the site's voice, no exclamation marks.
+- New screens follow `docs/DESIGN.md` (read it once): colours, font sizes, spacing, corners,
+  shadows and timings from `site/src/styles/tokens.css` by their meaning (`--color-*`, `--text-*`,
+  `--space-*`, …), never written out; the booth's own stage lights are game props, kept as local
+  variables at the top of `dj.css`, as DESIGN.md allows. Icons are lucide line icons, not emoji;
+  the 🔥 and ❄️ floating over the dancers are the one exception, as the 🔥 is today. Anything
+  pressable is at least 44 px. Where the shared components in `site/src/ui/` exist (Button, Pill,
+  Sheet, Tabs, RosterChip, Toast: UI card ui-C1), use them; where they don't yet, use the site's
+  current classes and say so in the PR. The booth's existing styles were written before DESIGN.md:
+  leave them unless your card says otherwise (the UI plan migrates them).
 - The phones make no sound at all; only the big screen plays music.
 - Tests never use the network. A fixture is a saved input: never edit one to make a test pass.
 - The room already takes every command (CONTRACTS.md, "Commands"). What the DJ does with the

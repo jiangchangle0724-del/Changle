@@ -16,7 +16,8 @@ phone the controls. Keep the 🔥 the first and biggest thing on the screen.
 
 ## What it must do
 
-1. **❄️ beside the 🔥:** a smaller button under the 🔥 (「冷」/ "Too much"), with its own burst.
+1. **❄️ beside the 🔥:** a smaller button under the 🔥 (lucide `Snowflake`, 「冷」/ "Too much"),
+   with its own burst.
    One press of 🔥 or ❄️ per `FIRE_GAP_MS` from this phone, shared (the room shares it too).
    Others' ❄️ shows with their name, as others' 🔥 does.
 2. **Drop:** a button beside the ❄️ (「要 Drop」/ "Drop it") that sends `drop`, then counts down
@@ -45,7 +46,9 @@ phone the controls. Keep the 🔥 the first and biggest thing on the screen.
    host gets a remove button on every `queued` one (`unask`). Kicking a player is already in the
    table's players sheet: nothing new for that.
 6. Everything in both languages; no sound; `haptic()` on a press is fine. Works at 360×640 and
-   390×844 with no sideways scrolling; buttons at least 44 px tall.
+   390×844 with no sideways scrolling. New styles follow DESIGN.md (tokens, lucide icons, 44 px
+   targets, the 16 px minimum in text fields so the iPhone doesn't zoom); the existing parts of the
+   phone stay as they are.
 
 ## Done when
 
