@@ -90,7 +90,7 @@ All merged into `main`:
 | #54 | List badges for 132 Greater Vancouver places (by Codex, from issue #42) | `tools/suibian/src/data/lists.json` |
 | #55 | List matching copes with Google's two-language names and unit numbers | `tools/suibian/src/server/curated.ts`, `tests/curated.test.ts`, README |
 | #57 | Bugs from a screen-by-screen walk and a code review: late joiners' diet cards, a race that skipped round 2, rounds ending while someone looks at a map, rating and search limits, fresh GPS, unknown hours, the diet summary only with the result, the host's location, and six display fixes | `tools/suibian/src/room/`, `src/server/worker.ts`, `src/engine/` (`clock.ts`, `pick.ts`, `wait.ts`), `src/client/` (`net.ts`, `i18n.ts`, `styles.css`, `privacy.html`, `ui/Table.tsx`, `Rate.tsx`, `Solo.tsx`, `Where.tsx`, `PlaceCard.tsx`), tests, README |
-| (this PR) | Picking alone: "show me others" goes up to twelve places, fetching each batch's details only when asked (`POST /api/solo/more`) | `tools/suibian/src/server/worker.ts`, `src/engine/solo.ts`, `src/room/protocol.ts`, `src/client/ui/Solo.tsx`, `src/client/i18n.ts`, `src/client/privacy.html`, tests, README |
+| #61 | Picking alone: "show me others" goes up to twelve places, fetching each batch's details only when asked (`POST /api/solo/more`) | `tools/suibian/src/server/worker.ts`, `src/engine/solo.ts`, `src/room/protocol.ts`, `src/client/ui/Solo.tsx`, `src/client/i18n.ts`, `src/client/privacy.html`, tests, README |
 
 ## Live state
 
