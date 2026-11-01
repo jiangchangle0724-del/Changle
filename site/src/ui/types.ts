@@ -59,10 +59,8 @@ export type TileProps = {
   name: T;
   lang: Lang;
   icon: LucideIcon;
-  /** sets its type color */
+  /** its type color: cards are colored by kind, not one color per game (decided 2026-11-01) */
   category: Category;
-  /** the game's own color instead, while the one-color-per-game look stays (Steve's call, see docs/DESIGN.md) */
-  gel?: string;
   players?: { min: number; max: number };
   /** how long a round usually takes */
   minutes?: number;

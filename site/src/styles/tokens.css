@@ -87,6 +87,7 @@
 
   --leading-zh: 1.65; /* Chinese running text */
   --leading-en: 1.5; /* English running text */
+  --leading: var(--leading-zh); /* running text in the page's language: follows <html lang>, see below */
   --leading-tight: 1.1; /* titles, scores, codes */
 
   /* ---------- type scale: 12 14 16 18 22 28 40, plus TV and poster ---------- */
@@ -151,6 +152,11 @@
   --dock-h: 72px; /* a game's bottom actions, plus the bottom safe area */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* the language switch sets <html lang> (store.tsx); English pages read at the English line height */
+:root:lang(en) {
+  --leading: var(--leading-en);
 }
 
 @media (prefers-reduced-motion: reduce) {

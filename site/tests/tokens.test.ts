@@ -31,9 +31,9 @@ function rootVars(css: string): Map<string, string> {
 const tokens = rootVars(read("src/styles/tokens.css"));
 const global = rootVars(read("src/styles/global.css"));
 
-// 1. same names, same values
+// 1. same names, same values (global.css loses its copies once the migration is done; then nothing is shared)
+ok(tokens.size >= 60, `tokens.css defines ${tokens.size} tokens`);
 const shared = [...tokens.keys()].filter((k) => global.has(k));
-ok(shared.length >= 40, `tokens.css shares ${shared.length} names with global.css`);
 for (const k of shared) ok(tokens.get(k) === global.get(k), `${k} is the same in both (${tokens.get(k)})`);
 
 // every semantic name resolves to something defined in tokens.css
