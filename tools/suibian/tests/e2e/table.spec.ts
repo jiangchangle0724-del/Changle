@@ -56,7 +56,8 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await dietCard(a.page, "peanut");
   await dietCard(b.page, undefined, ["香菜", "蘑菇"]);
   await expect(host.page.locator(".people li")).toHaveCount(3);
-  await expect(host.page.locator(".tablelimits")).toHaveText("本桌 有人对花生严重过敏 · 有人不吃香菜 · 有人不吃蘑菇");
+  // The table's diet summary isn't shown live (a new line would give away whose card it is).
+  await expect(host.page.locator(".tablelimits")).toHaveCount(0);
   await expect(a.page.getByText("等房主开始…")).toBeVisible();
 
   // Round 1.
@@ -87,6 +88,7 @@ test("three phones pick a restaurant", async ({ browser }) => {
     await expect(p.page.locator(".place h3")).toHaveText("Demo · Ramen Hinoki");
   }
   await expect(a.page.getByText("点菜时记得把过敏和忌口告诉店员。")).toBeVisible();
+  await expect(host.page.locator(".tablelimits")).toHaveText("本桌 有人对花生严重过敏 · 有人不吃香菜 · 有人不吃蘑菇");
 
   // a rates it; the table score shows up for the host.
   await a.page.getByRole("link", { name: "吃完回来评分 ⭐" }).click();
@@ -174,6 +176,7 @@ test("one person picks alone: five questions, three places with reasons, another
   await expect(page.getByText("示例推荐：虾饺皮薄，周末早点去")).toBeVisible();
   await expect(page.getByText("示例：推车点心，周末一早就满座")).toBeVisible();
   const first = await cards.locator("h3").allTextContents();
+  const shownIds = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-id")!));
   await page.getByRole("button", { name: "换一批" }).click();
   await expect(cards).toHaveCount(2);
   const second = await cards.locator("h3").allTextContents();
@@ -205,6 +208,14 @@ test("one person picks alone: five questions, three places with reasons, another
   await page.getByRole("button", { name: "提交" }).click();
   await expect(page.getByText("谢谢！")).toBeVisible();
   expect(await rate(saved.last.place)).toBe(403);
+  // Choosing another place from the same search doesn't open a second rating.
+  const another = shownIds.find((id) => id !== saved.last.place)!;
+  const chose = await page.evaluate((id) => fetch("/eat/api/me/last", { method: "POST", body: JSON.stringify({ place: id, name: "x" }) }).then((r) => r.status), another);
+  expect(chose).toBe(200);
+  expect(await rate(another)).toBe(403);
+  // A place the search never showed can't become the pick.
+  const stranger = await page.evaluate(() => fetch("/eat/api/me/last", { method: "POST", body: JSON.stringify({ place: "demo-999", name: "x" }) }).then((r) => r.status));
+  expect(stranger).toBe(403);
   await page.goto("/eat/");
   await expect(page.getByText("一个人，不知道吃什么？")).toBeVisible();
   await expect(page.getByText(`上次的「${chosen}」好吃吗？`)).toHaveCount(0);

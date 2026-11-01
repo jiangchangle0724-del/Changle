@@ -23,6 +23,14 @@ export const TIMING = {
 
 /** People at one table, at most (a dinner, not a stadium; it also bounds the ratings it can give). */
 export const MAX_MEMBERS = 20;
+/**
+ * Google searches one table may run (first try, a wider range, a second round...). Starting a table
+ * counts toward the host's daily limit; this keeps one table from searching without end.
+ */
+export const MAX_SEARCHES = 4;
+/** Ratings a table can give over its life: one per person, plus a little slack for someone who ate with
+ * them without joining, or rated from a second browser. */
+export const RATING_SLACK = 2;
 
 export type Phase = "lobby" | "finding" | "mood" | "cards" | "spin" | "result";
 
@@ -113,7 +121,10 @@ export interface RoomView {
   };
   members: MemberView[];
   range: RangeId;
-  /** Everyone's limits merged, with no names. */
+  /**
+   * Everyone's limits merged, with no names, sent only with the result: shown live, a line appearing
+   * as one person saves their card would give away whose it is.
+   */
   table: Limits;
   chips: { cuisine: CuisineId; count: number; likes: number; bans: number }[];
   cards: CardView[];
@@ -125,7 +136,7 @@ export interface RoomView {
   winner: (CardView & { unsafe: boolean }) | null;
   ratings: { n: number; up: number; mid: number; down: number; liked: number };
   /** Why the last search came back empty. */
-  error: "nothingNearby" | "nothingFits" | "searchFailed" | null;
+  error: "nothingNearby" | "nothingFits" | "searchFailed" | "searchLimit" | null;
 }
 
 export interface RatingInput extends Rating {

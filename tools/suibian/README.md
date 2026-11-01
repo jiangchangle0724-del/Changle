@@ -15,10 +15,10 @@ How a table goes:
    QR code. Friends scan it; they don't need to sign in.
 2. Everyone fills in a **diet card**: allergies incl. chili (don't eat / severe), anything else
    they type in (香菜, pork…; these only warn), halal, vegetarian, budget.
-   The table sees only "someone here doesn't eat peanuts", never who (in the lobby the summary
-   appears once everyone's card is in, so a line popping up as one person finishes doesn't give
-   them away). Signed-in people's cards are saved. Someone who joins after the start fills in
-   their card first, and a severe allergy still knocks out cards that can't work.
+   The table sees only "someone here doesn't eat peanuts", never who, and only with the result
+   (shown live, a line popping up as one person saves their card would give them away). Signed-in
+   people's cards are saved. Someone who joins after the start fills in their card first, and a
+   severe allergy still knocks out cards that can't work.
 3. **Round 1, today's mood**: 👍 or 🚫 on the cuisines actually open nearby. One 🚫 removes it.
 4. **Round 2, the cards**: six restaurants (at most two per cuisine), each with rating, travel
    minutes, last-order time, a 🟢/🟡/🔴 wait estimate, call and map buttons. Tick every place
@@ -195,7 +195,8 @@ be sure.
 ## Numbers you might want to change
 
 * Round timings, and how long a phone that drops off (map app, locked screen) still counts as at
-  the table: `TIMING` in `src/room/protocol.ts`. People per table: `MAX_MEMBERS` there.
+  the table: `TIMING` in `src/room/protocol.ts`. People per table, searches per table and
+  ratings per table: `MAX_MEMBERS`, `MAX_SEARCHES` and `RATING_SLACK` there.
 * Score weights, cards per table, max per cuisine: `src/engine/pick.ts`.
 * Severe-allergy table (**draft, please review**): `SEVERE_RULES_OUT` in `src/engine/limits.ts`.
 * Wait-estimate rules (peak hours, popularity): `src/engine/wait.ts`.

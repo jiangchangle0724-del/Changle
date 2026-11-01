@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SEVERE_RULES_OUT, type Place } from "../src/engine";
-import { MAX_MEMBERS, TIMING } from "../src/room/protocol";
+import { MAX_MEMBERS, MAX_SEARCHES, RATING_SLACK, TIMING } from "../src/room/protocol";
 import { Room } from "../src/room/room";
 import { demoPlaces } from "../src/server/places";
 
@@ -32,8 +32,9 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   const v = room.view(ids[2]);
   // Severe peanut: no Thai on offer, and the view doesn't say who.
   assert.ok(!v.chips.some((c) => SEVERE_RULES_OUT.peanut!.includes(c.cuisine)));
-  assert.deepEqual(v.table.allergies, { peanut: "severe" });
-  assert.ok(!JSON.stringify(v.members).includes("peanut"));
+  // The merged summary only comes with the result (see below), and nothing says who.
+  assert.deepEqual(v.table.allergies, {});
+  assert.ok(!JSON.stringify(v).includes("peanut"));
   // Round 1 counts stay hidden while people choose.
   room.handle(ids[0], { t: "mood", picks: { ramen: "like", hotpot: "ban" }, done: true });
   assert.ok(room.view(ids[1]).chips.every((c) => c.likes === 0 && c.bans === 0));
@@ -171,18 +172,20 @@ test("a phone that drops off to look at a map doesn't end the round without it",
   assert.notEqual(room.st.phase, "cards");
 });
 
-test("ratings: at most one per person at the table; the meal before 'start over' can still be rated", () => {
+test("ratings: about one per person over the table's life; the meal before 'start over' can still be rated", () => {
   const s = setup();
   const { room, ids } = s;
   const winner = toResult(s);
   const r = { overall: "up" as const, liked: true, wait: 0 as const };
   assert.deepEqual(room.rate("11111111", r), { status: "new", winner });
-  assert.equal(room.rate("22222222", r).status, "new");
   assert.equal(room.rate("11111111", r).status, "again");
-  assert.equal(room.rate("33333333", r).status, "new");
-  // Three people, three ratings: a shared link can't add more.
-  assert.equal(room.rate("44444444", r).status, "closed");
+  const cap = ids.length + RATING_SLACK;
+  for (let i = 2; i <= cap; i++) assert.equal(room.rate(`${i}`.repeat(8), r).status, "new", `rater ${i}`);
+  // A shared link can't add more, and another round doesn't open new places either.
+  assert.equal(room.rate("abcdef01", r).status, "closed");
   assert.equal(room.rate("not-hex!", r).status, "closed");
+  room.handle(ids[0], { t: "again" });
+  assert.equal(room.rate("abcdef01", r).status, "closed");
 
   const t = setup();
   const won = toResult(t);
@@ -191,6 +194,44 @@ test("ratings: at most one per person at the table; the meal before 'start over'
   assert.equal(t.room.st.phase, "lobby");
   assert.deepEqual(t.room.rate("22222222", r), { status: "new", winner: won });
   assert.equal(t.room.rate("11111111", r).status, "again");
+});
+
+test("a table runs at most MAX_SEARCHES searches, then says to start a new one", () => {
+  const { room, ids } = setup();
+  for (let i = 0; i < MAX_SEARCHES; i++) {
+    room.handle(ids[0], { t: "start" });
+    assert.equal(room.st.phase, "finding", `search ${i + 1}`);
+    room.found([]);
+    room.handle(ids[0], { t: "again" });
+  }
+  room.flush();
+  room.handle(ids[0], { t: "start" });
+  assert.equal(room.st.phase, "lobby");
+  assert.equal(room.view(ids[0]).error, "searchLimit");
+  assert.equal(room.flush().want, null);
+});
+
+test("when a phone's grace minute runs out, the room wakes up and tells everyone", () => {
+  const { room, ids, advance, env } = setup();
+  room.leave(ids[0]);
+  room.flush();
+  assert.equal(room.nextWake(), env.now() + TIMING.awayGrace);
+  assert.ok(room.view(ids[1]).members.find((m) => m.host)!.online);
+  advance(TIMING.awayGrace);
+  room.tick();
+  assert.equal(room.flush().changed, true);
+  assert.equal(room.view(ids[1]).members.find((m) => m.host)!.online, false);
+  room.handle(ids[1], { t: "start" });
+  assert.equal(room.st.phase, "finding");
+});
+
+test("the merged diet summary goes out only with the result", () => {
+  const s = setup();
+  const { room, ids } = s;
+  room.handle(ids[1], { t: "limits", limits: { allergies: { peanut: "severe" }, custom: [], halal: false, vegetarian: false, budget: 0 } });
+  assert.deepEqual(room.view(ids[0]).table.allergies, {});
+  toResult(s);
+  assert.deepEqual(room.view(ids[0]).table.allergies, { peanut: "severe" });
 });
 
 test("a table holds at most MAX_MEMBERS people", () => {

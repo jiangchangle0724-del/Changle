@@ -385,6 +385,8 @@ export class RoomDO extends DurableObject<Env> {
 
 /** The last table (its code) or solo pick (its place id) someone went to, to ask how it was. */
 type Last = { code?: string; place?: string; name: string; at: number; rated?: boolean };
+/** The last solo search: the places it showed, and whether one of them has been rated. */
+type Solo = { ids: string[]; rated?: boolean };
 
 /** One logged-in person: their diet card, last table or pick, and today's count. */
 export class UserDO extends DurableObject<Env> {
@@ -392,11 +394,16 @@ export class UserDO extends DurableObject<Env> {
     return { card: (await this.ctx.storage.get<Limits>("card")) ?? null, last: (await this.ctx.storage.get<Last>("last")) ?? null };
   }
 
-  /** True once for the person's own last solo pick; false for anything else or a second time. */
+  /**
+   * True once for the person's own last solo pick, and at most once per solo search (choosing another
+   * of its places doesn't open a second rating); false for anything else.
+   */
   async rateLast(place: string): Promise<boolean> {
     const last = await this.ctx.storage.get<Last>("last");
-    if (!last || last.place !== place || last.rated) return false;
+    const solo = await this.ctx.storage.get<Solo>("solo");
+    if (!last || last.place !== place || last.rated || solo?.rated) return false;
     await this.ctx.storage.put("last", { ...last, rated: true });
+    if (solo) await this.ctx.storage.put("solo", { ...solo, rated: true });
     return true;
   }
 
@@ -414,12 +421,12 @@ export class UserDO extends DurableObject<Env> {
 
   /** The places the last solo search showed (Google ids), replaced by the next search. */
   async setSolo(ids: string[]) {
-    await this.ctx.storage.put("solo", ids);
+    await this.ctx.storage.put("solo", { ids } satisfies Solo);
   }
 
   /** "就它了": becomes the pick to ask about, if the last solo search showed it. Choosing it again keeps it as it was (rated or not). */
   async chooseSolo(place: string, name: string): Promise<boolean> {
-    const shown = (await this.ctx.storage.get<string[]>("solo")) ?? [];
+    const shown = (await this.ctx.storage.get<Solo>("solo"))?.ids ?? [];
     if (!shown.includes(place)) return false;
     const last = await this.ctx.storage.get<Last>("last");
     if (last?.place !== place) await this.ctx.storage.put("last", { place, name, at: Date.now() } satisfies Last);

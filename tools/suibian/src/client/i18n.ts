@@ -144,6 +144,7 @@ const S = {
   rateClosed: ["这一桌的评分已经满了，或者已经没有可评的餐厅", "This table's ratings are full, or there's nothing left to rate"],
   dietLate: ["这一桌已经开始了，先填一下饮食卡，再一起选", "This table has started: fill in your diet card first, then join in"],
   roomFull: ["这一桌人满了（最多 20 人）", "This table is full (20 people max)"],
+  searchLimit: ["这一桌已经搜了 4 次，开一桌新的吧", "This table has searched 4 times: start a new one"],
   winnerUnsafe: ["有人后来填了严重过敏，这家可能不适合，建议重新来一轮", "Someone who joined later has a severe allergy this place may not suit: consider starting over"],
   hoursUnknown: ["Google 上没有营业时间，去之前先打个电话", "Google has no opening hours for it: call before you go"],
   home: ["回首页", "Home"],

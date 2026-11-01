@@ -137,7 +137,6 @@ function Lobby({ v }: { v: RoomView }) {
             </li>
           ))}
         </ul>
-        {v.members.filter((m) => m.online).every((m) => m.ready) && <TableLimits l={v.table} />}
         <Btn kind="quiet" onClick={() => setEditing(true)}>
           {t("editCard")}
         </Btn>
@@ -146,7 +145,7 @@ function Lobby({ v }: { v: RoomView }) {
       {v.error && (
         <section class="card">
           <p class="error">{t(v.error)}</p>
-          {host && (
+          {host && v.error !== "searchLimit" && (
             <>
               <RangePicker value={range} onChange={setRange} />
               <Btn kind="primary" wide onClick={() => send({ t: "again", range })}>
@@ -198,7 +197,6 @@ function Mood({ v }: { v: RoomView }) {
     <>
       <h2>{t("round1")}</h2>
       <p class="muted small">{t("round1Hint")}</p>
-      <TableLimits l={v.table} />
       <div class="moods">
         {v.chips.map((c) => {
           const now: MoodPick | "none" = picks[c.cuisine] ?? "none";
@@ -249,8 +247,6 @@ function Cards({ v }: { v: RoomView }) {
     <>
       <h2>{t("round2")}</h2>
       <p class="muted small">{t("round2Hint")}</p>
-      <TableLimits l={v.table} />
-      {needsServer(v) && <p class="warn small">{t("tellServer")}</p>}
       <div class="places">
         {v.cards.map((c) => {
           const id = c.place.id;
@@ -354,7 +350,12 @@ function Result({ v }: { v: RoomView }) {
         <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
       </PlaceCard>
       {v.winner?.unsafe && <p class="error">{t("winnerUnsafe")}</p>}
-      {needsServer(v) && <p class="warn">{t("tellServer")}</p>}
+      {needsServer(v) && (
+        <>
+          <TableLimits l={v.table} />
+          <p class="warn">{t("tellServer")}</p>
+        </>
+      )}
       <Btn kind="primary" wide onClick={() => void share()}>
         {t("share")}
       </Btn>
