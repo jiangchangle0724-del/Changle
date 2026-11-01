@@ -870,6 +870,8 @@ button.pl-answer:disabled {
 }
 .pi-reply-tag {
   position: absolute;
+  /* over the note, which sits above the figure */
+  z-index: 2;
   top: 2px;
   right: 2px;
   padding: 1px 7px;
@@ -1016,6 +1018,10 @@ button.pl-answer:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+/* two buttons side by side: "随机来一个" stays on one line on a 320px phone */
+.pi-note-form .row > .btn {
+  padding: 0 12px;
 }
 .pi-note-input {
   width: 100%;

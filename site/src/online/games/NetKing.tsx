@@ -69,7 +69,8 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
   };
 
   const token = v.myToken;
-  const tokenText = token === null ? "" : token === "K" ? (lang === "zh" ? "国王" : "King") : lang === "zh" ? `${token} 号` : `No. ${token}`;
+  // numbers read as the commands write them: 3号
+  const tokenText = token === null ? "" : token === "K" ? (lang === "zh" ? "国王" : "King") : lang === "zh" ? `${token}号` : `No. ${token}`;
 
   const rules = (
     <p>
@@ -214,7 +215,7 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
             </div>
             {typeof token === "number" && v.cmd.nums.includes(token) && !v.stepped[String(token)] && (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("step")}>
-                {lang === "zh" ? `我是 ${token} 号，站出来` : `I'm No. ${token}. Step up`}
+                {lang === "zh" ? `我是${token}号，站出来` : `I'm No. ${token}. Step up`}
               </button>
             )}
             {amKing ? (

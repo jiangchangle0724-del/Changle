@@ -157,7 +157,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
               {revealed && (
                 <motion.div key="tok" className="porcelain reveal-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
                   <p className={`word-big ${myToken === "K" ? "zh-display king-red" : "en-display"}`}>
-                    {myToken === "K" ? (lang === "zh" ? "国王" : "King") : lang === "zh" ? `${myToken} 号` : `No. ${myToken}`}
+                    {myToken === "K" ? (lang === "zh" ? "国王" : "King") : lang === "zh" ? `${myToken}号` : `No. ${myToken}`}
                   </p>
                   <button type="button" className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirm}>
                     {ui("gotIt")}

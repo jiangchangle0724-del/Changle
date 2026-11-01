@@ -152,7 +152,7 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
 
     case "garden-pick":
       return drawerActs ? (
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row garden-pick" style={{ gap: 8 }}>
           {GARDENS.map((name, kind) => (
             <button key={kind} type="button" className="btn btn-block btn-porcelain" onClick={() => g("garden", { kind })}>
               {tr(name)}
