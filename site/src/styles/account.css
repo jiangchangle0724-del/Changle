@@ -897,3 +897,35 @@ button.face-dot:disabled {
   gap: 8px 12px;
   margin-top: 10px;
 }
+
+/* the wishlist's reward: a gold frame round the face of someone whose wished-for game went live */
+.avatar.avatar-gold {
+  box-shadow:
+    0 0 0 2px #ffe08a,
+    0 0 0 3.5px #b9861d,
+    0 0 0 5px #ffcf5a,
+    0 0 12px 3px rgba(255, 207, 90, 0.5);
+}
+
+/* the news that a wish came true */
+.perk-news {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.perk-face {
+  position: relative;
+  margin: 8px 0 4px;
+}
+.perk-confetti {
+  left: 50%;
+  top: 40%;
+}
+.perk-lead {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}

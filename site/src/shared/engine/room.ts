@@ -20,8 +20,8 @@ import { clean, intIn, num, t, type Api, type GameDef } from "./api";
 import { GAMES } from "./games";
 
 /** `fg`: the version of the seat's figure cut out for the stages (0 or missing: none). */
-export type SeatData = { id: string; name: string; on: boolean; at: number; uid?: string; av?: number; ac?: number; fg?: number; watch?: boolean };
-export type Profile = { uid: string; name: string; av: number; ac: number; fg?: number };
+export type SeatData = { id: string; name: string; on: boolean; at: number; uid?: string; av?: number; ac?: number; fg?: number; fr?: string; watch?: boolean };
+export type Profile = { uid: string; name: string; av: number; ac: number; fg?: number; fr?: string };
 export type GameRecord = { game: string; room: string; started: number; ended: number; players: { pid: string; uid?: string; name: string; drinks: number }[] };
 export type TimerData = { at: number; key: string; data?: unknown };
 export type PenRecord = { id: string; who: string[]; buddy?: string; buddyUsed?: boolean; drank: string[]; at: number };
@@ -166,7 +166,7 @@ export class RoomEngine {
     if (!seat) {
       if (d.seats.length >= MAX_SEATS) return "full";
       seat = { id: pid, name, on: true, at: now };
-      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0 });
+      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
       d.seats.push(seat);
       this.event({ k: "join", pid });
       const g = this.gameDef();
@@ -174,8 +174,8 @@ export class RoomEngine {
     } else {
       seat.on = true;
       seat.name = name;
-      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0 });
-      else if (seat.uid) Object.assign(seat, { uid: undefined, av: undefined, ac: undefined, fg: undefined });
+      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
+      else if (seat.uid) Object.assign(seat, { uid: undefined, av: undefined, ac: undefined, fg: undefined, fr: undefined });
     }
     if (!d.host || !d.seats.some((s) => s.id === d.host)) d.host = pid;
     if (pid === d.host) this.clearTimer("host-away");
@@ -510,7 +510,7 @@ export class RoomEngine {
       you: pid,
       host: d.host,
       seats: d.seats.map((s) => ({
-        ...(s.uid ? { id: s.id, name: s.name, on: s.on, uid: s.uid, av: s.av ?? 0, ac: s.ac ?? 0, fg: s.fg ?? 0 } : { id: s.id, name: s.name, on: s.on }),
+        ...(s.uid ? { id: s.id, name: s.name, on: s.on, uid: s.uid, av: s.av ?? 0, ac: s.ac ?? 0, fg: s.fg ?? 0, ...(s.fr ? { fr: s.fr } : {}) } : { id: s.id, name: s.name, on: s.on }),
         ...(s.watch ? { watch: true } : {}),
       })),
       penalty: d.penalty,

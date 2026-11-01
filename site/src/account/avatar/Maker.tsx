@@ -18,6 +18,7 @@ import {
   HAIRS,
   HATS,
   HEIGHTS,
+  LIMITED,
   OUTFITS,
   STYLES,
   TRADITIONAL,
@@ -25,6 +26,7 @@ import {
   type Choices,
 } from "../../shared/draw";
 import { useStore } from "../../store";
+import { useAccount } from "../AccountContext";
 import { b64ToBlob, blobToB64, finishFigure, photoForDrawing } from "./pics";
 
 /** The maker belongs to "me": the room's rose light. */
@@ -54,6 +56,7 @@ function sorry(e: unknown, zh: boolean): string {
     closed: ["今天大家画得太多了，明天再来。", "Everyone's drawn a lot today. Come back tomorrow."],
     paused: ["网站暂停中，过一会儿再来。", "The site is paused. Come back in a while."],
     banned: ["这个账号已被停用。", "This account has been blocked."],
+    locked: ["这套是许愿成真的限定款：你许的愿上线后解锁。", "That's a limited outfit: it unlocks when a game you wished for goes live."],
     "not-ready": ["AI 画头像还没开通。", "AI avatars aren't switched on yet."],
     blocked: ["这张照片 AI 画不了，换一张试试。", "The AI won't draw this photo. Try another."],
     busy: ["AI 现在太忙，过一会儿再试。", "The AI is busy. Try again in a moment."],
@@ -133,7 +136,10 @@ export function AvatarMaker({
 
 function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; figureUrl: string | null; start: Choices; onDone: (d: Drawn) => void; onClose: () => void }) {
   const { lang } = useStore();
+  const { me } = useAccount();
   const zh = lang === "zh";
+  // the limited outfits: the wishlist's reward (admins try them out)
+  const unlocked = !!me && (!!me.perks?.includes("wish") || me.admin);
   const [ch, setCh] = useState<Choices>(start);
   const [photo, setPhoto] = useState<{ blob: Blob; url: string } | null>(null);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -412,7 +418,7 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
           ))}
         </div>
         <div ref={panel} id="mk-panel" className="mk-panel" role="tabpanel" aria-labelledby={`mk-tab-${tab}`}>
-          <Choose tab={tab} ch={ch} set={(p) => setCh((c) => ({ ...c, ...p }))} zh={zh} keepWord={keepWord} />
+          <Choose tab={tab} ch={ch} set={(p) => setCh((c) => ({ ...c, ...p }))} zh={zh} keepWord={keepWord} unlocked={unlocked} />
         </div>
         <div className="mk-foot">
           {err && (
@@ -535,7 +541,7 @@ function Dots({
   );
 }
 
-function Choose({ tab, ch, set, zh, keepWord }: { tab: Tab; ch: Choices; set: (p: Partial<Choices>) => void; zh: boolean; keepWord: string | null }) {
+function Choose({ tab, ch, set, zh, keepWord, unlocked }: { tab: Tab; ch: Choices; set: (p: Partial<Choices>) => void; zh: boolean; keepWord: string | null; unlocked: boolean }) {
   const label = (z: string, e: string) => <h3 className="mk-label">{zh ? z : e}</h3>;
   const outfits = useMemo(() => OUTFITS.filter((o) => o.id !== "keep"), []);
   if (tab === "style")
@@ -570,6 +576,18 @@ function Choose({ tab, ch, set, zh, keepWord }: { tab: Tab; ch: Choices; set: (p
         <Chips list={outfits} only={EVERYDAY} value={ch.outfit} onPick={(outfit) => set({ outfit })} zh={zh} />
         {label("各地传统服饰", "Traditional dress")}
         <Chips list={outfits} only={TRADITIONAL} value={ch.outfit} onPick={(outfit) => set({ outfit })} zh={zh} />
+        {label("限量款：许愿成真奖励", "Limited: the wishlist's reward")}
+        {!unlocked && <p className="hint mk-sub">{zh ? "你在心愿单许的游戏上线后解锁。" : "Unlocks when a game you wished for goes live."}</p>}
+        <div className={`mk-chips mk-limited ${unlocked ? "" : "is-locked"}`}>
+          {outfits
+            .filter((o) => LIMITED.includes(o.id))
+            .map((o) => (
+              <button key={o.id} className="chip" aria-pressed={ch.outfit === o.id} disabled={!unlocked} onClick={() => set({ outfit: o.id })}>
+                {!unlocked && <LockKeyhole size={13} aria-hidden="true" />}
+                {zh ? o.zh : o.en}
+              </button>
+            ))}
+        </div>
         {label("主色", "Main color")}
         <Dots list={CLOTH_COLORS} swatch={CLOTH_SWATCH} value={ch.outfitColor} first="auto" onPick={(outfitColor) => set({ outfitColor })} zh={zh} />
       </>

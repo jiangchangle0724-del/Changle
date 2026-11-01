@@ -5,9 +5,10 @@ import type { Choices } from "../shared/draw";
 
 export type Gender = "female" | "male" | "nonbinary" | "private";
 /** `figure`: their face is an AI-drawn anime figure (at /figure/:id), not a photo or a letter. */
-export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; figure?: boolean };
+/** `frame`: a reward frame round their face ("gold": a game they wished for went live). */
+export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; figure?: boolean; frame?: string };
 /** `hasFigure`: you have a drawn figure (kept while a photo shows); `choices`: what you picked for it. `master`: the site's owner. */
-export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null; cut?: boolean };
+export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null; cut?: boolean; perks?: string[] };
 export type ChatMsg = { id: number; from: string; body: string; at: number; read: boolean };
 
 export type LiveEvent =
@@ -18,7 +19,9 @@ export type LiveEvent =
   | { t: "read"; with: string }
   | { t: "paused"; on: boolean }
   | { t: "kicked" }
-  | { t: "banned" };
+  | { t: "banned" }
+  /** a reward came: "wish" (a game they wished for went live) */
+  | { t: "perk"; perk: string; about: string };
 
 type Account = {
   me: SelfUser | null;
@@ -213,6 +216,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             () => {},
           );
         if (e.t === "unread") setUnread(e.n);
+        // a reward: fetch the profile again (the frame, the outfits)
+        if (e.t === "perk") void refresh();
         if (e.t === "msg" && e.msg.from !== me?.id) setUnread((n) => n + 1);
         for (const fn of fns.current) fn(e);
       };

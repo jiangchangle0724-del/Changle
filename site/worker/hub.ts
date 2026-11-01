@@ -26,7 +26,7 @@ export type Reply = { status: number; json?: unknown; bytes?: ArrayBuffer; type?
 export type WishRow = { id: number; text: string; kind: "game" | "feature"; name: string; votes: number; status: "new" | "planned" | "done"; at: number; voted: boolean; mine: boolean };
 export type GameRecord = { game: string; room: string; started: number; ended: number; players: { pid: string; uid?: string; name: string; drinks: number }[] };
 /** `fg`: their figure cut out for the games' stages (its version), 0 for none. */
-export type Who = { uid: string; name: string; av: number; ac: number; fg: number };
+export type Who = { uid: string; name: string; av: number; ac: number; fg: number; fr?: string };
 /** What a table tells the hub about itself, so the back office can see who is playing where. */
 export type RoomReport = { code: string; game: string; screens: number; seats: { pid: string; name: string; on: boolean; uid?: string }[] };
 /** May this phone sit down? `block` says why not. */
@@ -62,7 +62,8 @@ const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 type Limit = { n: number; until: number };
 type Row = Record<string, SqlStorageValue>;
 type LiveRoom = { code: string; game: string; screens: number; at: number; seats: { pid: string; name: string; on: boolean; uid?: string }[] };
-type U = { id: string; email: string; name: string; phone: string; city: string; gender: string; bio: string; av: number; ac: number; handle: string; created_at: number; last_seen: number; banned: boolean };
+/** `perks`: rewards on the account ("wish": a game they wished for went live: a gold frame, limited outfits). */
+type U = { id: string; email: string; name: string; phone: string; city: string; gender: string; bio: string; av: number; ac: number; handle: string; created_at: number; last_seen: number; banned: boolean; perks: string[] };
 
 function asUser(r: Row): U {
   return {
@@ -79,6 +80,9 @@ function asUser(r: Row): U {
     created_at: Number(r.created_at),
     last_seen: Number(r.last_seen ?? 0),
     banned: Number(r.banned ?? 0) === 1,
+    perks: String(r.perks ?? "")
+      .split(",")
+      .filter(Boolean),
   };
 }
 
@@ -131,7 +135,10 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE TABLE IF NOT EXISTS blocks (user_id TEXT NOT NULL, blocked TEXT NOT NULL, PRIMARY KEY (user_id, blocked))`);
     // the owner's back office: who is banned (k: e:<email> or d:<phone id>), the phones each
     // account used, and every table with people at it right now
-    if (!this.sql.exec(`PRAGMA table_info(users)`).toArray().some((c) => c.name === "banned")) q(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`);
+    const ucols = this.sql.exec(`PRAGMA table_info(users)`).toArray().map((c) => String(c.name));
+    if (!ucols.includes("banned")) q(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`);
+    // rewards on an account, comma-separated (see U.perks)
+    if (!ucols.includes("perks")) q(`ALTER TABLE users ADD COLUMN perks TEXT NOT NULL DEFAULT ''`);
     q(`CREATE TABLE IF NOT EXISTS bans (k TEXT PRIMARY KEY, note TEXT NOT NULL DEFAULT '', at INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS devices (user_id TEXT NOT NULL, device TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, device))`);
     q(`CREATE TABLE IF NOT EXISTS rooms_live (code TEXT PRIMARY KEY, game TEXT NOT NULL, seats TEXT NOT NULL, screens INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL)`);
@@ -224,6 +231,11 @@ export class Hub extends DurableObject<HubEnv> {
         const st = String(b.status ?? "");
         if (!["new", "planned", "done"].includes(st)) return err(400, "bad");
         this.sql.exec(`UPDATE wishes SET status = ? WHERE id = ?`, st, id);
+        // a wish that came true: whoever made it (signed in) gets the gold frame and the limited outfits
+        if (st === "done") {
+          const w = this.one(`SELECT user_id, text FROM wishes WHERE id = ?`, id);
+          if (w?.user_id) this.grantPerk(String(w.user_id), "wish", String(w.text));
+        }
       }
       return ok({ ok: true });
     }
@@ -466,7 +478,7 @@ export class Hub extends DurableObject<HubEnv> {
 
   private selfView(u: U) {
     const f = this.figure(u.id);
-    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices, cut: f.cut };
+    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices, cut: f.cut, perks: u.perks };
   }
 
   /**
@@ -550,10 +562,12 @@ export class Hub extends DurableObject<HubEnv> {
    * May this person have another AI drawing? Counts it if so (`drawRefund` gives it back when
    * the drawing failed on our side). `left` is what remains this month, or null for no limit.
    */
-  async drawGate(g: { token: string; ticket: string; ip: string }): Promise<{ key: string; left: number | null } | { error: string }> {
+  async drawGate(g: { token: string; ticket: string; ip: string; limited?: boolean }): Promise<{ key: string; left: number | null } | { error: string }> {
     const p = await this.drawer(g);
     if (!p) return { error: "signin" };
     const free = this.drawsFree(p.u);
+    // the limited outfits are the wishlist's reward (admins try them out freely)
+    if (g.limited && !free && !p.u?.perks.includes("wish")) return { error: "locked" };
     if (this.paused && !(p.u && this.isMaster(p.u))) return { error: "paused" };
     if (this.isBanned(p.who)) return { error: "banned" };
     const day = new Date().toISOString().slice(0, 10);
@@ -608,7 +622,7 @@ export class Hub extends DurableObject<HubEnv> {
       if (this.paused) return { who: null, block: "paused" };
     }
     if (u) this.noteDevice(u.id, a.pid);
-    return { who: u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg } : null };
+    return { who: u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg, ...(u.perks.includes("wish") ? { fr: "gold" } : {}) } : null };
   }
 
   /** A table says who is at it (only when that changed). An empty table drops off the list. */
@@ -631,13 +645,21 @@ export class Hub extends DurableObject<HubEnv> {
   }
 
   private publicView(u: U) {
-    return { id: u.id, name: u.name, city: u.city, gender: u.gender, bio: u.bio, av: u.av, ac: u.ac, handle: u.handle, since: u.created_at };
+    return { id: u.id, name: u.name, city: u.city, gender: u.gender, bio: u.bio, av: u.av, ac: u.ac, handle: u.handle, since: u.created_at, ...(u.perks.includes("wish") ? { frame: "gold" } : {}) };
+  }
+
+  /** A reward onto an account (once), and the news to their phone if it's open. */
+  private grantPerk(uid: string, perk: string, about: string) {
+    const u = this.userById(uid);
+    if (!u || u.perks.includes(perk)) return;
+    this.sql.exec(`UPDATE users SET perks = ? WHERE id = ?`, [...u.perks, perk].join(","), uid);
+    this.push(uid, { t: "perk", perk, about: clean(about, 200) });
   }
 
   /** Who holds this session (for the table server). */
   async whoami(token: string): Promise<Who | null> {
     const u = await this.session(token);
-    return u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg } : null;
+    return u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg, ...(u.perks.includes("wish") ? { fr: "gold" } : {}) } : null;
   }
 
   private async sendCode(raw: string, ip: string, lang: "zh" | "en"): Promise<Reply> {

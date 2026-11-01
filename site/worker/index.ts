@@ -7,7 +7,7 @@ import { freshRoom, RoomEngine, type Output, type Profile, type RoomData } from 
 import { CODE_RE, type ClientMsg, type ErrorCode, type ServerMsg } from "../src/shared/protocol";
 import { drawPicture, drawReady, type Pic } from "./draw";
 import { Hub, type Reply } from "./hub";
-import { cleanChoices, drawPrompt } from "../src/shared/draw";
+import { cleanChoices, drawPrompt, LIMITED } from "../src/shared/draw";
 
 export { Hub };
 
@@ -258,12 +258,13 @@ async function drawAvatar(req: Request, env: Env, hub: DurableObjectStub<Hub>, t
     pic = { mime, b64: image };
   }
   const ip = req.headers.get("CF-Connecting-IP") ?? "";
-  const gate = await hub.drawGate({ token, ticket: typeof b.ticket === "string" ? b.ticket : "", ip });
+  const choices = cleanChoices(b.choices);
+  const gate = await hub.drawGate({ token, ticket: typeof b.ticket === "string" ? b.ticket : "", ip, limited: LIMITED.includes(choices.outfit) });
   if ("error" in gate) {
-    const status = gate.error === "signin" ? 401 : gate.error === "paused" ? 503 : gate.error === "banned" ? 403 : 429;
+    const status = gate.error === "signin" ? 401 : gate.error === "paused" ? 503 : gate.error === "banned" || gate.error === "locked" ? 403 : 429;
     return json({ error: gate.error }, status);
   }
-  const r = await drawPicture(env, pic, drawPrompt(cleanChoices(b.choices), from === "photo" ? "photo" : "figure"));
+  const r = await drawPicture(env, pic, drawPrompt(choices, from === "photo" ? "photo" : "figure"));
   if (!r.ok) {
     // (a refusal still counts: the same photo would be refused again)
     if (r.code !== "blocked") await hub.drawRefund({ key: gate.key, ip });

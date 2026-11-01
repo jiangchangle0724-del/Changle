@@ -54,7 +54,8 @@ export type SpinScope = "lobby" | "truth" | "wheel";
 
 /** uid/av/ac: the seat's changle profile when signed in (avatar version and color). */
 /** `fg`: the seat's figure cut out for the stages, by version (at /figure/:uid/cut); 0 or missing for none. */
-export type SeatView = { id: string; name: string; on: boolean; uid?: string; av?: number; ac?: number; fg?: number; watch?: boolean };
+/** `fr`: a reward frame round their face ("gold": a game they wished for went live). */
+export type SeatView = { id: string; name: string; on: boolean; uid?: string; av?: number; ac?: number; fg?: number; fr?: string; watch?: boolean };
 
 export type Fx =
   | "start"
