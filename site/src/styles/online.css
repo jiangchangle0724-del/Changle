@@ -15,6 +15,12 @@
 .net-body {
   padding-bottom: 8px;
 }
+/* a game screen keeps what you have to press in view itself (useActionsInView); the browser's own
+   scroll anchoring would shove the start of a new phase up out of sight when the page grows */
+.net-screen[data-follow],
+.net-screen[data-follow] .net-body {
+  overflow-anchor: none;
+}
 .table-btn {
   display: inline-flex;
   align-items: center;
@@ -88,6 +94,22 @@
   margin: 14px -16px calc(-1 * (var(--safe-bottom) + 16px));
   padding: 10px 16px calc(var(--safe-bottom) + 12px);
   background: linear-gradient(to top, var(--night) 0, var(--night) calc(100% - 10px), transparent);
+}
+/* the screen runs on below: what slides under the bar fades out first, so you can tell (taps go through) */
+.react-dock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 26px;
+  background: linear-gradient(to top, var(--night), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.react-dock.is-more::before {
+  opacity: 1;
 }
 .react-btn {
   min-width: 66px;

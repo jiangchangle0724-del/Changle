@@ -1,5 +1,5 @@
 import { ChevronLeft, CircleHelp, Eye, Users } from "lucide-react";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { GAME_BY_ID } from "../games/registry";
 import { setLight } from "../lib/anim";
 import { Sheet } from "../components/Sheet";
@@ -10,6 +10,7 @@ import { InviteSheet } from "./Invite";
 import { ConnectionBanner, ReactionDock } from "./Overlays";
 import { useRoom } from "./RoomContext";
 import { GameExitSheet, LeaveSheet, TableSheet } from "./TableSheet";
+import { useActionsInView, useMoreBelow } from "./useActionsInView";
 
 type Frame = { openInvite: () => void; openTable: () => void };
 const FrameCtx = createContext<Frame>({ openInvite: () => {}, openTable: () => {} });
@@ -17,7 +18,9 @@ export const useFrame = () => useContext(FrameCtx);
 
 /**
  * The frame every online screen sits in: back (leave), the title, who's at the table,
- * the rules; and along the bottom edge, the reactions anyone can throw.
+ * the rules; and along the bottom edge, the reactions anyone can throw. The reactions ride
+ * over the bottom of a long screen, so whatever this phone has to press next is brought up
+ * clear of them as it appears.
  */
 export function NetFrame({
   title,
@@ -27,6 +30,7 @@ export function NetFrame({
   className = "",
   onLeave,
   dock = true,
+  follow = true,
 }: {
   title?: T;
   center?: ReactNode;
@@ -36,8 +40,10 @@ export function NetFrame({
   onLeave: () => void;
   /** The reactions row; the drawer's plate needs the room. */
   dock?: boolean;
+  /** Bring new actions into view (a game screen); the lobby is a list people scroll themselves. */
+  follow?: boolean;
 }) {
-  const { room, me, act } = useRoom();
+  const { room, me, act, screen: bigScreen } = useRoom();
   const { ui, lang } = useStore();
   const watching = !!room?.game && !!room.seats.find((s) => s.id === me)?.watch;
   const [tableOpen, setTableOpen] = useState(false);
@@ -51,9 +57,26 @@ export function NetFrame({
     if (gel) setLight(gel);
   }, [gel]);
 
+  // (a TV showing the table only watches: nothing to press, and its own frame does the scrolling)
+  const following = follow && !bigScreen;
+  const screenRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // a game starts at its top, not wherever the lobby (or the last game) was scrolled to
+  useLayoutEffect(() => {
+    if (following) window.scrollTo(0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useActionsInView(screenRef, bodyRef, following, lang);
+  const more = useMoreBelow(bodyRef, following && dock);
+
   return (
     <FrameCtx.Provider value={{ openInvite: () => setInviteOpen(true), openTable: () => setTableOpen(true) }}>
-      <div className={`screen net-screen ${className}`} style={gel ? ({ ["--gel" as string]: gel } as React.CSSProperties) : undefined}>
+      <div
+        ref={screenRef}
+        className={`screen net-screen ${className}`}
+        data-follow={following ? "" : undefined}
+        style={gel ? ({ ["--gel" as string]: gel } as React.CSSProperties) : undefined}
+      >
         <header className="topbar">
           <div className="topbar-side">
             <button className="icon-btn" onClick={() => setLeaveOpen(true)} aria-label={ui("leaveTable")}>
@@ -83,8 +106,10 @@ export function NetFrame({
             </button>
           </div>
         )}
-        <div className="game-body net-body">{children}</div>
-        {dock && <ReactionDock />}
+        <div ref={bodyRef} className="game-body net-body">
+          {children}
+        </div>
+        {dock && <ReactionDock more={more} />}
       </div>
 
       {rules && (

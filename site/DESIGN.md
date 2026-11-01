@@ -279,6 +279,8 @@ The sixteen gels, in spectrum order as the game grid reads: **Hot Pink** (truth)
 
 Portrait phone, one column. The app frame is centered with a 560px max width and a 16px side gutter, padded by the safe-area insets. Each screen is a top bar (a three-column grid: 96px sides, back on the left, help and extras on the right, the small bilingual title centered), then the stage, then the actions toward the bottom where the thumb is. Menus, players, settings and rules come up as bottom sheets, never as new pages.
 
+Online, the reactions row rides along the bottom edge of every game screen. When something new to press appears under it or below the screen, the screen scrolls just far enough to bring it up clear of the row (`useActionsInView`, in the online frame); while the screen runs on below, the row fades the edge it covers. A new online screen gets this for free as long as its actions are real buttons and fields.
+
 The home grid is three columns of gel tiles in spectrum order (two columns below 370px wide), so the whole screen reads as one sweep of stage light. Spacing runs on small steps: 8px is the default gap, with 4, 6, 10, 12, 14 and 16 around it; 24px separates blocks. Touch targets are 44px minimum, 50px for buttons, 60px for the main move on a stage.
 
 ## Elevation & Depth
