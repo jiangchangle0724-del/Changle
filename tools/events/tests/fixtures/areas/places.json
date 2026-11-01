@@ -1,0 +1,455 @@
+{
+ "about": "50 real places, geocoded with OpenStreetMap (Nominatim) on 2026-10-31, and the area each is in. area null: no place (online); \"outside\": not in Greater Vancouver.",
+ "places": [
+  {
+   "name": "Rogers Arena",
+   "address": "800 Griffiths Way, Vancouver, BC V6B 6G1",
+   "city": "Vancouver",
+   "postalCode": "V6B 6G1",
+   "lat": 49.277909,
+   "lon": -123.108942,
+   "area": "vancouver"
+  },
+  {
+   "name": "BC Place",
+   "address": "777 Pacific Blvd, Vancouver, BC V6B 4Y8",
+   "city": "Vancouver",
+   "postalCode": "V6B 4Y8",
+   "lat": 49.276691,
+   "lon": -123.112006,
+   "area": "vancouver"
+  },
+  {
+   "name": "Orpheum",
+   "address": "601 Smithe St, Vancouver, BC V6B 3L4",
+   "city": "Vancouver",
+   "postalCode": "V6B 3L4",
+   "lat": 49.280148,
+   "lon": -123.120321,
+   "area": "vancouver"
+  },
+  {
+   "name": "Queen Elizabeth Theatre",
+   "address": "630 Hamilton St, Vancouver, BC V6B 5N6",
+   "city": "Vancouver",
+   "postalCode": "V6B 5N6",
+   "lat": 49.280528,
+   "lon": -123.113369,
+   "area": "vancouver"
+  },
+  {
+   "name": "Commodore Ballroom",
+   "address": "868 Granville St, Vancouver, BC V6Z 1K3",
+   "city": "Vancouver",
+   "postalCode": "V6Z 1K3",
+   "lat": 49.280563,
+   "lon": -123.120792,
+   "area": "vancouver"
+  },
+  {
+   "name": "Science World",
+   "address": "1455 Quebec St, Vancouver, BC V6A 3Z7",
+   "city": "Vancouver",
+   "postalCode": "V6A 3Z7",
+   "lat": 49.273454,
+   "lon": -123.103674,
+   "area": "vancouver"
+  },
+  {
+   "name": "Vancouver Art Gallery",
+   "address": "750 Hornby St, Vancouver, BC V6Z 2H7",
+   "city": "Vancouver",
+   "postalCode": "V6Z 2H7",
+   "lat": 49.282849,
+   "lon": -123.120625,
+   "area": "vancouver"
+  },
+  {
+   "name": "Chan Centre for the Performing Arts",
+   "address": "6265 Crescent Rd, Vancouver, BC V6T 1Z1",
+   "city": "Vancouver",
+   "postalCode": "V6T 1Z1",
+   "lat": 49.269748,
+   "lon": -123.255108,
+   "area": "vancouver"
+  },
+  {
+   "name": "Museum of Anthropology at UBC",
+   "address": "6393 NW Marine Dr, Vancouver, BC V6T 1Z2",
+   "city": "Vancouver",
+   "postalCode": "V6T 1Z2",
+   "lat": 49.269469,
+   "lon": -123.259415,
+   "area": "vancouver"
+  },
+  {
+   "name": "Dr. Sun Yat-Sen Classical Chinese Garden",
+   "address": "578 Carrall St, Vancouver, BC V6B 5K2",
+   "city": "Vancouver",
+   "postalCode": "V6B 5K2",
+   "lat": 49.277184,
+   "lon": -123.106405,
+   "area": "vancouver"
+  },
+  {
+   "name": "Pacific Coliseum",
+   "address": "100 N Renfrew St, Vancouver, BC V5K 3N7",
+   "city": "Vancouver",
+   "postalCode": "V5K 3N7",
+   "lat": 49.289237,
+   "lon": -123.044087,
+   "area": "vancouver"
+  },
+  {
+   "name": "Granville Island Public Market",
+   "address": "1661 Duranleau St, Vancouver, BC V6H 3S3",
+   "city": "Vancouver",
+   "postalCode": "V6H 3S3",
+   "lat": 49.271704,
+   "lon": -123.135977,
+   "area": "vancouver"
+  },
+  {
+   "name": "VanDusen Botanical Garden",
+   "address": "5251 Oak St, Vancouver, BC V6M 4H1",
+   "city": "Vancouver",
+   "postalCode": "V6M 4H1",
+   "lat": 49.239311,
+   "lon": -123.1288,
+   "area": "vancouver"
+  },
+  {
+   "name": "Vancouver Public Library Central Branch",
+   "address": "350 W Georgia St, Vancouver, BC V6B 6B1",
+   "city": "Vancouver",
+   "postalCode": "V6B 6B1",
+   "lat": 49.279659,
+   "lon": -123.115614,
+   "area": "vancouver"
+  },
+  {
+   "name": "Vancouver Convention Centre",
+   "address": "1055 Canada Pl, Vancouver, BC V6C 0C3",
+   "city": "Vancouver",
+   "postalCode": "V6C 0C3",
+   "lat": 49.288907,
+   "lon": -123.116077,
+   "area": "vancouver"
+  },
+  {
+   "name": "Richmond Olympic Oval",
+   "address": "6111 River Rd, Richmond, BC V7C 0A2",
+   "city": "Richmond",
+   "postalCode": "V7C 0A2",
+   "lat": 49.174693,
+   "lon": -123.151676,
+   "area": "richmond"
+  },
+  {
+   "name": "Aberdeen Centre",
+   "address": "4151 Hazelbridge Way, Richmond, BC V6X 4J7",
+   "city": "Richmond",
+   "postalCode": "V6X 4J7",
+   "lat": 49.183816,
+   "lon": -123.133777,
+   "area": "richmond"
+  },
+  {
+   "name": "Gulf of Georgia Cannery",
+   "address": "12138 Fourth Ave, Richmond, BC V7E 3J1",
+   "city": "Richmond",
+   "postalCode": "V7E 3J1",
+   "lat": 49.125858,
+   "lon": -123.187242,
+   "area": "richmond"
+  },
+  {
+   "name": "River Rock Casino Resort",
+   "address": "8811 River Rd, Richmond, BC V6X 3P8",
+   "city": "Richmond",
+   "postalCode": "V6X 3P8",
+   "lat": 49.19631,
+   "lon": -123.127799,
+   "area": "richmond"
+  },
+  {
+   "name": "Richmond Public Library Brighouse",
+   "address": "7700 Minoru Gate, Richmond, BC V6Y 1R8",
+   "city": "Richmond",
+   "postalCode": "V6Y 1R8",
+   "lat": 49.164076,
+   "lon": -123.141337,
+   "area": "richmond"
+  },
+  {
+   "name": "Metropolis at Metrotown",
+   "address": "4700 Kingsway, Burnaby, BC V5H 4M1",
+   "city": "Burnaby",
+   "postalCode": "V5H 4M1",
+   "lat": 49.226434,
+   "lon": -123.001179,
+   "area": "burnaby"
+  },
+  {
+   "name": "Burnaby Village Museum",
+   "address": "6501 Deer Lake Ave, Burnaby, BC V5G 3T6",
+   "city": "Burnaby",
+   "postalCode": "V5G 3T6",
+   "lat": 49.239924,
+   "lon": -122.966884,
+   "area": "burnaby"
+  },
+  {
+   "name": "Shadbolt Centre for the Arts",
+   "address": "6450 Deer Lake Ave, Burnaby, BC V5G 2J3",
+   "city": "Burnaby",
+   "postalCode": "V5G 2J3",
+   "lat": 49.240699,
+   "lon": -122.96951,
+   "area": "burnaby"
+  },
+  {
+   "name": "Simon Fraser University Burnaby",
+   "address": "8888 University Dr, Burnaby, BC V5A 1S6",
+   "city": "Burnaby",
+   "postalCode": "V5A 1S6",
+   "lat": 49.27671,
+   "lon": -122.917803,
+   "area": "burnaby"
+  },
+  {
+   "name": "Bob Prittie Metrotown Library",
+   "address": "6100 Willingdon Ave, Burnaby, BC V5H 4N5",
+   "city": "Burnaby",
+   "postalCode": "V5H 4N5",
+   "lat": 49.228181,
+   "lon": -123.006368,
+   "area": "burnaby"
+  },
+  {
+   "name": "Bell Performing Arts Centre",
+   "address": "6250 144 St, Surrey, BC V3X 1A1",
+   "city": "Surrey",
+   "postalCode": "V3X 1A1",
+   "lat": 49.116579,
+   "lon": -122.821473,
+   "area": "surrey"
+  },
+  {
+   "name": "Surrey City Hall",
+   "address": "13450 104 Ave, Surrey, BC V3T 1V8",
+   "city": "Surrey",
+   "postalCode": "V3T 1V8",
+   "lat": 49.191354,
+   "lon": -122.849229,
+   "area": "surrey"
+  },
+  {
+   "name": "Cloverdale Fairgrounds",
+   "address": "6050 176 St, Surrey, BC V3S 4E7",
+   "city": "Surrey",
+   "postalCode": "V3S 4E7",
+   "lat": 49.11271,
+   "lon": -122.734466,
+   "area": "surrey"
+  },
+  {
+   "name": "White Rock Community Centre",
+   "address": "15154 Russell Ave, White Rock, BC V4B 0A6",
+   "city": "White Rock",
+   "postalCode": "V4B 0A6",
+   "lat": 49.029023,
+   "lon": -122.802083,
+   "area": "surrey"
+  },
+  {
+   "name": "Central City Shopping Centre",
+   "address": "10153 King George Blvd, Surrey, BC V3T 2W1",
+   "city": "Surrey",
+   "postalCode": "V3T 2W1",
+   "lat": 49.186317,
+   "lon": -122.848111,
+   "area": "surrey"
+  },
+  {
+   "name": "Tsawwassen Mills",
+   "address": "5000 Canoe Pass Way, Delta, BC V4M 0B3",
+   "city": "Delta",
+   "postalCode": "V4M 0B3",
+   "lat": 49.037619,
+   "lon": -123.08663,
+   "area": "surrey"
+  },
+  {
+   "name": "Lonsdale Quay Market",
+   "address": "123 Carrie Cates Ct, North Vancouver, BC V7M 3K7",
+   "city": "North Vancouver",
+   "postalCode": "V7M 3K7",
+   "lat": 49.31037,
+   "lon": -123.081966,
+   "area": "north-shore"
+  },
+  {
+   "name": "Capilano Suspension Bridge Park",
+   "address": "3735 Capilano Rd, North Vancouver, BC V7R 4J1",
+   "city": "North Vancouver",
+   "postalCode": "V7R 4J1",
+   "lat": 49.325844,
+   "lon": -123.120677,
+   "area": "north-shore"
+  },
+  {
+   "name": "Grouse Mountain",
+   "address": "6400 Nancy Greene Way, North Vancouver, BC V7R 4K9",
+   "city": "North Vancouver",
+   "postalCode": "V7R 4K9",
+   "lat": 49.372218,
+   "lon": -123.098995,
+   "area": "north-shore"
+  },
+  {
+   "name": "Park Royal",
+   "address": "2002 Park Royal S, West Vancouver, BC V7T 2W4",
+   "city": "West Vancouver",
+   "postalCode": "V7T 2W4",
+   "lat": 49.326563,
+   "lon": -123.137659,
+   "area": "north-shore"
+  },
+  {
+   "name": "The Polygon Gallery",
+   "address": "101 Carrie Cates Ct, North Vancouver, BC V7M 3J4",
+   "city": "North Vancouver",
+   "postalCode": "V7M 3J4",
+   "lat": 49.310321,
+   "lon": -123.0808,
+   "area": "north-shore"
+  },
+  {
+   "name": "Coquitlam Centre",
+   "address": "2929 Barnet Hwy, Coquitlam, BC V3B 5R5",
+   "city": "Coquitlam",
+   "postalCode": "V3B 5R5",
+   "lat": 49.279766,
+   "lon": -122.798581,
+   "area": "tri-cities"
+  },
+  {
+   "name": "Evergreen Cultural Centre",
+   "address": "1205 Pinetree Way, Coquitlam, BC V3B 7Y3",
+   "city": "Coquitlam",
+   "postalCode": "V3B 7Y3",
+   "lat": 49.285227,
+   "lon": -122.790571,
+   "area": "tri-cities"
+  },
+  {
+   "name": "Inlet Theatre",
+   "address": "100 Newport Dr, Port Moody, BC V3H 5C3",
+   "city": "Port Moody",
+   "postalCode": "V3H 5C3",
+   "lat": 49.282105,
+   "lon": -122.829933,
+   "area": "tri-cities"
+  },
+  {
+   "name": "Anvil Centre",
+   "address": "777 Columbia St, New Westminster, BC V3M 1B6",
+   "city": "New Westminster",
+   "postalCode": "V3M 1B6",
+   "lat": 49.201779,
+   "lon": -122.911231,
+   "area": "tri-cities"
+  },
+  {
+   "name": "River Market",
+   "address": "810 Quayside Dr, New Westminster, BC V3M 6B9",
+   "city": "New Westminster",
+   "postalCode": "V3M 6B9",
+   "lat": 49.200144,
+   "lon": -122.91162,
+   "area": "tri-cities"
+  },
+  {
+   "name": "Port Coquitlam Community Centre",
+   "address": "2150 Wilson Ave, Port Coquitlam, BC V3C 6J5",
+   "city": "Port Coquitlam",
+   "postalCode": "V3C 6J5",
+   "lat": 49.260084,
+   "lon": -122.777032,
+   "area": "tri-cities"
+  },
+  {
+   "name": "Langley Events Centre",
+   "address": "7888 200 St, Langley, BC V2Y 3J4",
+   "city": "Langley",
+   "postalCode": "V2Y 3J4",
+   "lat": 49.145993,
+   "lon": -122.666416,
+   "area": "langley"
+  },
+  {
+   "name": "Fort Langley National Historic Site",
+   "address": "23433 Mavis Ave, Langley, BC V1M 2R5",
+   "city": "Langley",
+   "postalCode": "V1M 2R5",
+   "lat": 49.167626,
+   "lon": -122.572315,
+   "area": "langley"
+  },
+  {
+   "name": "Willowbrook Shopping Centre",
+   "address": "19705 Fraser Hwy, Langley, BC V3A 7E9",
+   "city": "Langley",
+   "postalCode": "V3A 7E9",
+   "lat": 49.114461,
+   "lon": -122.674812,
+   "area": "langley"
+  },
+  {
+   "name": "ACT Arts Centre",
+   "address": "11944 Haney Pl, Maple Ridge, BC V2X 6G1",
+   "city": "Maple Ridge",
+   "postalCode": "V2X 6G1",
+   "lat": 49.21921,
+   "lon": -122.598388,
+   "area": "langley"
+  },
+  {
+   "name": "Abbotsford Centre",
+   "address": "33800 King Rd, Abbotsford, BC V2S 7M6",
+   "city": "Abbotsford",
+   "postalCode": "V2S 7M6",
+   "lat": 49.030668,
+   "lon": -122.287119,
+   "area": "langley"
+  },
+  {
+   "name": "Pitt Meadows Arts Centre",
+   "address": "12492 Harris Rd, Pitt Meadows, BC V3Y 2J4",
+   "city": "Pitt Meadows",
+   "postalCode": "V3Y 2J4",
+   "lat": 49.230284,
+   "lon": -122.689463,
+   "area": "langley"
+  },
+  {
+   "name": "Online on Zoom",
+   "address": null,
+   "city": null,
+   "postalCode": null,
+   "lat": null,
+   "lon": null,
+   "area": null
+  },
+  {
+   "name": "Vancouver Mall (Vancouver, Washington)",
+   "address": "8700 NE Vancouver Mall Dr, Vancouver, WA 98662",
+   "city": "Vancouver",
+   "postalCode": "98662",
+   "lat": 45.6567,
+   "lon": -122.5838,
+   "area": "outside"
+  }
+ ]
+}

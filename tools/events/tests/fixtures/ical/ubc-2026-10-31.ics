@@ -1,0 +1,472 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//UBCevents - ECPv6.18.2//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:UBCevents
+X-ORIGINAL-URL:https://events.ubc.ca
+X-WR-CALDESC:Events for UBCevents
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-Robots-Tag:noindex
+X-PUBLISHED-TTL:PT1H
+BEGIN:VTIMEZONE
+TZID:America/Vancouver
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0800
+TZOFFSETTO:-0700
+TZNAME:PDT
+DTSTART:20250309T100000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0800
+TZNAME:PST
+DTSTART:20251102T090000
+END:STANDARD
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0800
+TZOFFSETTO:-0700
+TZNAME:PDT
+DTSTART:20260308T100000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0700
+TZNAME:MST
+DTSTART:20261101T090000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20260719
+DTEND;VALUE=DATE:20261209
+DTSTAMP:20260728T185508Z
+CREATED:20260715T171049Z
+LAST-MODIFIED:20260728T185508Z
+UID:10021787-1784419200-1796774399@events.ubc.ca
+SUMMARY:UBC Farm Workshops – Summer Series
+DESCRIPTION:UBC Farm Community Workshops \nThe UBC Farm offers 50+ workshops per year\, on a wide range of topics\, such as gardening\, cooking\, baking\, food preservation\, herbs\, plant walks\, foraging\, arts\, wellness\, and more. Among the new offerings in 2026\, we’re excited to welcome several new workshop presenters\, including celebrity chefs’ Bruno Feldeisen and Dara Yu (winner of the MasterChef competition). In addition\, bring the whole family for new family-friendly workshops! Join us\, as well\, for outdoor yoga classes (in collaboration with Casa Copal Yoga & Wellness) every Tuesday at 5:30 pm. \nPrograms typically take place inside the Farm’s beautiful and spacious Yurt\, Farm Centre Kitchen\, or outdoors on our organic\, biodiverse farm. Meet people\, learn new skills\, have fun\, and connect to community! \nREGISTER early as spots are limited. Student and senior (65+) discounts are available. \n**More workshops are continually being added — ensure you’re subscribed to our newsletter to be the first to know when new workshops are released.** \nUpcoming Workshops: \nOutdoor Yoga – [every Tuesday\, 5:30 – 6:30 pm\, until Sep 22] \nJuly: \nJuly 19: Learn How to Make Sourdough [waiting list]\nJuly 25: Deep Ecology Forest Walk\nJuly 26: Learn Floral Design & Make Your Own Bouquet [waiting list] \nAugust: \nAugust 4: BC Sockeye Salmon with Chef Bruno Feldeisen\nAugust 5: Guided Meditation (by donation)\nAugust 6: Flower Harvest & Bouquet Making\nAugust 21: BC Seafood Ceviche with Chef Bruno Feldeisen\nAugust 27: Cheesemaking with MasterChef Dara Yu\nAugust 28: Pie-making with MasterChef Dara Yu\nAugust 29: Learn to Make Jam with MasterChef Dara Yu\nAugust 29: Let’s Make Kimchi with MasterChef Dara Yu\nAugust 30: Learn to Make Breakfast Pastries with MasterChef Dara Yu \nSeptember: \nSeptember 2: Guided Meditation (by donation)\nSeptember 15: All About Fall Desserts & BC Fruits with Chef Bruno Feldeisen\nSeptember 17: Taco Night! Learn to Make Traditional Mexican Tacos & Salsas\nSeptember 19: All About Bees: Look Into a Hive! [Family-Friendly!}\nSeptember 20: Make Your Own Mooncakes\nSeptember 26: Deep Ecology Forest Walk\nSeptember 26: Harvesting Stories [Family-Friendly!]\nSeptember 29: Mushroom Foraging \nFall: \nOctober 3: Extracting Honey [Family-Friendly!]\nOctober 18: Fall in Tuscany with Chef Bruno Feldeisen [registration coming soon]\nNovember 6: Classic French Bistro with Chef Bruno Feldeisen [registration coming soon]\nNovember 12: Mozzarella\, Burrata and Bocconcini Cheesemaking [NEW!]\nNovember 13: Classic Bavarian with Chef Bruno Feldeisen [registration coming soon]\nDecember 1: A French Christmas with Chef Bruno Feldeisen [registration coming soon]\nDecember 8: Winter in Tuscany with Chef Bruno Feldeisen [registration coming soon]
+URL:https://events.ubc.ca/event/ubc-farm-workshops-summer-series/
+LOCATION:UBC Farm\, 3461 Ross Drive\, Vancouver\, British Columbia\, V6T1W5\, Canada
+CATEGORIES:Audience - All,Subject – Learning And Research – Sustainability,Subject – Lifestyle And Sport – Wellness,Subject – Personal And Professional Development – Community,Type – Workshop
+ATTACH;FMTTYPE=image/jpeg:https://events.ubc.ca/wp-content/uploads/2026/07/workshops-banner-photo-spring-2026-medium-size-no-graphics-sized-for-UBC-Events-e1785264903510.jpg
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20260901
+DTEND;VALUE=DATE:20270201
+DTSTAMP:20260916T222924Z
+CREATED:20260916T222924Z
+LAST-MODIFIED:20260916T222924Z
+UID:10022046-1788220800-1801439999@events.ubc.ca
+SUMMARY:UBC CCEL Community Grants for Student Projects
+DESCRIPTION:UBC CCEL community grants for student projects! \nAccepting applications November 1\, 2026 through January 31\, 2027! \nUp to $10\,000 of funding is available per student-led project. \n\nWe support you in co-designing and implementing impactful initiatives that address community needs. Bold\, creative ideas are encouraged and we offer hands-on support to submit an application. Dive in\, explore new possibilities and gain experience working to address real-world issues.\nIf you have questions or would like to book an advising appt (Mon – Thurs)\, reach out to Jacquie (she/her) at jacquie.kwok@ubc.ca.\nPlease help us circulate this opportunity to others who may benefit!\nVisit our website for more details about each funding stream\, and how to apply!\n\n  \nNeed inspiration to get ideas flowing? Explore our recently updated library of completed grant projects to learn more about how other students have worked alongside communities.
+URL:https://events.ubc.ca/event/ubc-ccel-community-grants-for-student-projects/
+LOCATION:See Description
+CATEGORIES:Audience – All Students,Audience – Graduate Students,Audience – Undergraduate Students,Subject – Equity, Diversity and Inclusion,Subject – Learning And Research – Community,Subject – Learning And Research – Interdisciplinary,Subject – Personal And Professional Development – Students
+ATTACH;FMTTYPE=image/jpeg:https://events.ubc.ca/wp-content/uploads/2026/08/ccelgrants.jpg
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20260921T183000
+DTEND;TZID=America/Vancouver:20261116T203000
+DTSTAMP:20260702T173822Z
+CREATED:20260702T173822Z
+LAST-MODIFIED:20260702T173822Z
+UID:10021751-1790015400-1794861000@events.ubc.ca
+SUMMARY:UBC CPD: Cognitive Behavioural Therapy (CBT) Skills Physician Wellness Group Training - Cohort B
+DESCRIPTION:The Cognitive Behavioural Therapy (CBT) Skills Physician Wellness Group Training Course is an 8-week course designed to provide BC physicians and nurse practitioners with education and training to support their own mental wellbeing through evidence-based self-management strategies. Secondary benefits include increased awareness of CBT and its clinical applications and training in skills coaching for patients. Each week consists of a 2-hour session facilitated by a specially trained family physician or psychiatrist. During the weekly workshops\, participants will practice incorporating CBT Skills into their own unique situations. \nCOHORT B | Sep 21 – Nov 16\, 6:30 – 8:30 P.M. | Weekly (Mon\, no session on Oct. 12)
+URL:https://events.ubc.ca/event/ubc-cpd-cognitive-behavioural-therapy-cbt-skills-physician-wellness-group-training-cohort-b/
+LOCATION:Online/Virtual Event
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/07/UBC-Events-Calendar-Cognitive-Behavioural-Therapy-CBT-Skills-Physician-Wellness-Group-Training-1-1.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261001T000000
+DTEND;TZID=America/Vancouver:20261031T233000
+DTSTAMP:20261022T200235Z
+CREATED:20261022T200235Z
+LAST-MODIFIED:20261022T200235Z
+UID:10022594-1790812800-1793489400@events.ubc.ca
+SUMMARY:Access Quest
+DESCRIPTION:Join us for Access Quest this October! We invite students\, faculty\, staff and community members to explore the UBC Vancouver campus and share what you notice about spaces\, environments and features that either support access or make access more difficult. This is your quest – find and share accessibility barriers and gold stars across campus. Every barrier or gold star you share gives you a chance to win an exciting prize! \nThis event welcomes everyone\, including disabled and non-disabled folks\, people living with chronic illness or injuries and anyone who wants to help make UBC more accessible. Your responses will help us better understand accessibility across campus and inform future planning and developments.
+URL:https://events.ubc.ca/event/access-quest/
+LOCATION:Hybrid Online/Virtual and In-Person – See Description\, Vancouver\, British Columbia\, Canada
+CATEGORIES:Audience - All
+ATTACH;FMTTYPE=image/jpeg:https://events.ubc.ca/wp-content/uploads/2026/10/Kaiser-building.jpg
+ORGANIZER;CN="Faculty of Applied Science":MAILTO:info@apsc.ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261001T183000
+DTEND;TZID=America/Vancouver:20261119T203000
+DTSTAMP:20260702T174238Z
+CREATED:20260702T174238Z
+LAST-MODIFIED:20260702T174238Z
+UID:10021752-1790879400-1795120200@events.ubc.ca
+SUMMARY:UBC CPD: Cognitive Behavioural Therapy (CBT) Skills Physician Wellness Group Training - Cohort C
+DESCRIPTION:The Cognitive Behavioural Therapy (CBT) Skills Physician Wellness Group Training Course is an 8-week course designed to provide BC physicians and nurse practitioners with education and training to support their own mental wellbeing through evidence-based self-management strategies. Secondary benefits include increased awareness of CBT and its clinical applications and training in skills coaching for patients. Each week consists of a 2-hour session facilitated by a specially trained family physician or psychiatrist. During the weekly workshops\, participants will practice incorporating CBT Skills into their own unique situations. \nCOHORT C | Oct 1 – Nov 19\, 6:30 – 8:30 P.M. | Weekly (Thu)
+URL:https://events.ubc.ca/event/ubc-cpd-cognitive-behavioural-therapy-cbt-skills-physician-wellness-group-training-cohort-c/
+LOCATION:Online/Virtual Event
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/07/UBC-Events-Calendar-Cognitive-Behavioural-Therapy-CBT-Skills-Physician-Wellness-Group-Training-1-2.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20261019
+DTEND;VALUE=DATE:20261130
+DTSTAMP:20260805T163727Z
+CREATED:20260805T163727Z
+LAST-MODIFIED:20260805T163727Z
+UID:10021887-1792368000-1795996799@events.ubc.ca
+SUMMARY:UBC CPD: Family Practice Anesthesia Journal Club 2026
+DESCRIPTION:Participants review articles and discuss clinical cases with specialists on topics relevant to rural anesthesia practice\, including obstetrics\, pain management and induction agents. Sessions also explore how research findings can be applied to clinical practice. \n\nZoom Kick-off Meeting: Monday\, October 19\, 7-8 PM PT\nSession 1: Monday\, October 19 to Sunday\, November 1\nSession 2: Monday\, November 2 to Sunday\, November 15\nSession 3: Monday\, November 16 to Sunday\, November 29
+URL:https://events.ubc.ca/event/ubc-cpd-family-practice-anesthesia-journal-club-2026/
+LOCATION:Online/Virtual Event
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/08/UBC-Events-Calendar-Family-Practice-Anesthesia-Journal-Club-2026.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261026T080000
+DTEND;TZID=America/Vancouver:20261119T170000
+DTSTAMP:20261022T200906Z
+CREATED:20261022T200906Z
+LAST-MODIFIED:20261022T200906Z
+UID:10022575-1793001600-1795107600@events.ubc.ca
+SUMMARY:Arts Multilingual Week (Oct 26–Nov 19)
+DESCRIPTION:AMW 2026 is the perfect opportunity to immerse yourself in cultures and languages from around the world and celebrate multilingualism at UBC V! \nIn collaboration with multiple units from the Faculty of Arts and beyond\, our program will showcase a wide array of student-focused activities aimed at engaging with the rich tapestry of languages spoken across campus. \nHighlights include a Multilingual Poetry Slam (Nov. 4)\, the Speech Contest on Translation\, Language Learning & AI (Nov. 5)\, lively Karaoke (Nov. 4) and a Multilingual Open Mic Nights (Nov. 5) at The Gallery in the Nest\, and much more! \nJoin us for prizes\, free food\, and fun! \nAre You interested in participating in Arts Multilingual Week 2026? Register here to attend\, participate in\, and volunteer for our various events. Then\, follow us on Instagram here\, and check out multilingualweek.arts.ubc.ca for more information. \n 
+URL:https://events.ubc.ca/event/arts-multilingual-week-oct-26-nov-19/
+LOCATION:Forest Engineering Research Institute of Canada (FERIC)\, 2601 East Mall\, Vancouver\, British Columbia\, V6T1Z2\, Canada
+CATEGORIES:Audience – All Students,Audience – Community,Audience – Undergraduate Students,Subject – Entertainment – Arts,Subject – Entertainment – Culture,Subject – Entertainment – Music,Subject – Entertainment – Social,Subject – Equity, Diversity and Inclusion,Subject – Learning And Research – Arts, Humanities And Social Sciences,Subject – Learning And Research – Community,Type – Film
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/10/AMW-2026-Flyer-Fall-2025.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261027T180000
+DTEND;TZID=America/Vancouver:20261215T200000
+DTSTAMP:20260702T174630Z
+CREATED:20260702T174630Z
+LAST-MODIFIED:20260702T174630Z
+UID:10021753-1793124000-1797364800@events.ubc.ca
+SUMMARY:UBC CPD: Cognitive Behavioural Therapy (CBT) Skills Physician Wellness Group Training - Cohort D
+DESCRIPTION:The Cognitive Behavioural Therapy (CBT) Skills Physician Wellness Group Training Course is a free 8-week course designed to provide practicing BC physicians and nurse practitioners with education and training to support their own mental well-being through evidence-based self-management strategies. Secondary benefits include increased awareness of CBT and its clinical applications and training in skills coaching for patients. Each week consists of a 2-hour session facilitated by a specially trained family physician or psychiatrist. During the weekly workshops\, participants will practice incorporating CBT Skills into their own unique situations. \nCOHORT D | Oct 27 – Dec 15\, 6–8 P.M. | Weekly (Tue)
+URL:https://events.ubc.ca/event/ubc-cpd-cognitive-behavioural-therapy-cbt-skills-physician-wellness-group-training-cohort-d/
+LOCATION:Online/Virtual Event
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/07/UBC-Events-Calendar-Cognitive-Behavioural-Therapy-CBT-Skills-Physician-Wellness-Group-Training-1-3.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261102T180000
+DTEND;TZID=America/Vancouver:20261102T191500
+DTSTAMP:20260928T190807Z
+CREATED:20260928T190807Z
+LAST-MODIFIED:20260928T190807Z
+UID:10022437-1793642400-1793646900@events.ubc.ca
+SUMMARY:UBC CPD: Supporting the Success of Internationally Trained Physicians in BC: A Role for the Health Care Community
+DESCRIPTION:What can we do to help internationally trained physicians thrive in BC? This webinar examines the systemic factors that influence physician integration and highlights how colleagues\, administrators and educators can contribute to more inclusive\, supportive practice environments. Participants will leave with a deeper understanding of the experiences of internationally trained physicians\, available resources and actions they can take to help make the path to success easier. The webinar features a panel of presenters including internationally trained physicians\, and attendees will have the chance to ask questions in real-time.
+URL:https://events.ubc.ca/event/ubc-cpd-supporting-the-success-of-internationally-trained-physicians-in-bc-a-role-for-the-health-care-community/
+LOCATION:Online/Virtual Event
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/09/UBC-Events-Calendar-Supporting-the-Success-of-Internationally-Trained-Physicians-in-BC.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261103T093000
+DTEND;TZID=America/Vancouver:20261103T123000
+DTSTAMP:20260915T233057Z
+CREATED:20260915T233057Z
+LAST-MODIFIED:20260915T233057Z
+UID:10022216-1793698200-1793709000@events.ubc.ca
+SUMMARY:Re-imagining your Evaluation Methods Toolkit
+DESCRIPTION:In this interactive session\, CTLT’s Indigenous Initiatives and Research & Evaluation teams will introduce creative data collection methods that are not commonly used in teaching and learning contexts. Exploring a co-created research question as a living example\, we will showcase 6 different methods that help explore this question. \nAs in all evaluation work\, context matters! Who you are and what you bring to the work influences every stage of how evaluation is done. Together\, we will reflect on the importance of our own positionality\, assumptions\, and research experiences when designing evaluation questions. Throughout the session\, we will examine our assumptions around data. We will highlight ethical principles\, how to increase accessibility\, and learning from diverse voices. \nThis session is designed for UBC faculty\, staff\, and students who are curious about creative and community-centered evaluation. Please bring a camera to the session; phone camera is great! \nPlease register to secure your spot.\nRegister
+URL:https://events.ubc.ca/event/re-imagining-your-evaluation-methods-toolkit/
+LOCATION:Irving K. Barber Learning Centre\, 1961 East Mall\, Vancouver\, British Columbia\, V6T1Z1\, Canada
+CATEGORIES:Audience – Faculty and Staff – Vancouver
+ORGANIZER;CN="Centre for Teaching%2C Learning and Technology":MAILTO:ctlt.info@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261103T100000
+DTEND;TZID=America/Vancouver:20261103T113000
+DTSTAMP:20261023T182938Z
+CREATED:20261023T182938Z
+LAST-MODIFIED:20261023T182938Z
+UID:10022476-1793700000-1793705400@events.ubc.ca
+SUMMARY:Making Indigenous Language Learning More Accessible Through Technology with K’odi Taylor
+DESCRIPTION:What happens when an Indigenous language learner with ADHD sets out to create the resources he wished he’d had as a child? Join K’odi Taylor\, founder of First-ory\, as he shares his personal language learning journey and the work he’s doing as a resource creator. Drawing on lived experience\, research\, and years of exploring what makes learning effective and engaging\, K’odi will discuss barriers learners face and the opportunities technology creates to support them. For more information please visit the events page.
+URL:https://events.ubc.ca/event/making-indigenous-language-learning-more-accessible-through-technology-with-kodi-taylor/
+LOCATION:Online/Virtual Event
+CATEGORIES:Audience - All,Subject – Equity, Diversity and Inclusion,Subject – Indigenous,Subject – Learning And Research – Community,Subject – Personal And Professional Development – Community,Subject – Personal And Professional Development – Students,Type – Seminar
+ATTACH;FMTTYPE=image/jpeg:https://events.ubc.ca/wp-content/uploads/2026/10/1103banner.jpg
+ORGANIZER;CN="UBC Learning Circle":MAILTO:learning.circle@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261103T120000
+DTEND;TZID=America/Vancouver:20261103T130000
+DTSTAMP:20251020T162649Z
+CREATED:20251020T162649Z
+LAST-MODIFIED:20251020T162649Z
+UID:10019188-1793707200-1793710800@events.ubc.ca
+SUMMARY:UBC CPD: Midwifery Documentation Workshop (Online)
+DESCRIPTION:Effective documentation is a critical component of midwifery care. Is your documentation clearly detailing your care? Are you leaving an intellectual footprint that is comprehensive and complete? Would some guidance help to ensure your record meets standards? Would you like to workshop with peers to refresh? \nIf you can use some support\, or just want to ensure you are documenting to standard\, join us for this online small group workshop. \nThere are three group Zoom workshops and one 45-minute individual coaching session. Each one-hour interactive workshop will include tailored exercises to assist in improving your own practice.
+URL:https://events.ubc.ca/event/ubc-cpd-midwifery-documentation-workshop-online__trashed/2026-11-03/
+LOCATION:See Description
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2025/10/Event-Calendar-new-13.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261103T170000
+DTEND;TZID=America/Vancouver:20261103T180000
+DTSTAMP:20261021T210250Z
+CREATED:20261021T203515Z
+LAST-MODIFIED:20261021T210250Z
+UID:10022878-1793725200-1793728800@events.ubc.ca
+SUMMARY:Employer-led Workshop: Moment Energy
+DESCRIPTION:What Recruiters Look For: Strengthen Your Interview Game \nCome and meet Eren Flood\, Talent Acquisition Lead at Moment Energy\, who will be sharing insights from the other side of the table. \nIn this engaging event\, Eren will share insights from her experience hiring talent\, how they assess applicants\, prevent freezing\, and how to impress recruiters and put your best possible self forward. \nThe workshop will include the following: \n\nResumes tips and tricks to make yourself stand out\nDo and Don’ts for interviews\nMini Mock Interviews\nCo-op roles and entry level roles Moment Energy is currently looking to fill\nRelevant disciplines include: Mechanical\, Electrical\, Supply Chain\, Software and Firmware\n\nPlease bring a copy of your resume to the event!
+URL:https://events.ubc.ca/event/employer-led-workshop-moment-energy/
+LOCATION:Brock Hall\, 1874 East Mall\, Vancouver\, British Columbia\, V6T1Z1\, Canada
+CATEGORIES:Audience – All Students,Audience – Graduate Students,Audience – Undergraduate Students,Subject – Personal And Professional Development – Students,Type – Information Session/Fair
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/10/Moment-EC-Banner.png
+ORGANIZER;CN="UBC Career Centre":MAILTO:career.centre@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261103T170000
+DTEND;TZID=America/Vancouver:20261103T182000
+DTSTAMP:20261022T200246Z
+CREATED:20261022T200246Z
+LAST-MODIFIED:20261022T200246Z
+UID:10022870-1793725200-1793730000@events.ubc.ca
+SUMMARY:Pedagogies of Play
+DESCRIPTION:This first workshop in The Critical Play Speakers’ Series focuses on how the interactive\, dynamic experiences at the heart of games can be used as new kind of teaching experience. Christopher Kawika Guillermo (Dr Christopher B Patterson) of UBC’s Institute for Gender\, Race\, Sexuality and Social Justice\, and Vancouver-based game designer and programmer Tim Bellefleur from Chronograph Games\, reveal their pedagogies of play\, and how the unexpected\, emergent properties of games create new opportunities for students (and players) to teach themselves and others. \nCo-organized with the new Critical Play Lab\, part of UBC’s Pop Culture Cluster; co-sponsored by UBC’s Public Humanities Hub. \n\nTim Bellefleur (he/they) is a Vancouver-based game developer and digital humanist who has spent most of his life playing games and making things. At UBC\, he studied theatre production (BFA 2010)\, Sanskrit theatre (MA 2012)\, and the research and development of technology to assist in the organization\, editing\, analysis\, and presentation of Sanskrit texts\, almost completing a PhD before being lured away from academia into the games industry as a programmer in 2018. He is a lover of experimental games and a strong proponent of collecting as many niche interests and arcane skills as possible. \nChristopher Kawika Guillermo (Dr Christopher B Patterson) is the multi-award-winning author of seven books\, which include the prose-poetry collection Nimrods: a fake-punk self-hurt anti-memoir (Duke University Press\, 2023)\, the essay collection Of Floating Isles: On Growing Pains and Video Games (Arsenal Pulp Press\, 2025)\, and the academic books Open World Empire: Race\, Erotics\, and the Global Rise of Video Games (New York University Press\, 2020)\, and their latest book\, Domesticating Brown: Movements of Racial Imagination (Duke University Press\, 2026). They are the co-editor of two edited collections\, Transpacific\, Undisciplined and Made in Asia/America: Why Video Games Were Never (Really) About Us\, and they were the lead designer of the video game Stamped: an anti-travel game\, an adaptation of their first novel. They are currently an assistant professor at the Institute for Gender\, Race\, Sexuality\, and Social Justice at the University of British Columbia. \nSeries image: detail of Germaine Koh\, Terra.
+URL:https://events.ubc.ca/event/pedagogies-of-play/
+LOCATION:Green College\, 6201 Cecil Green Park Road\, Vancouver\, British Columbia\, V6T1Z1\, Canada
+CATEGORIES:Audience - All,Audience – All Students,Audience – Alumni,Audience – Community,Audience – Faculty and Staff – Vancouver,Audience – Graduate Students,Subject – Entertainment – Media,Subject – Learning And Research – Interdisciplinary,Subject – Learning And Research – Learning Support,Type – Lecture
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/10/UBC-Events-Image_1280x720-32.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261103T173000
+DTEND;TZID=America/Vancouver:20261103T203000
+DTSTAMP:20260811T190304Z
+CREATED:20260811T190304Z
+LAST-MODIFIED:20260811T190304Z
+UID:10021907-1793727000-1793737800@events.ubc.ca
+SUMMARY:UBC CPD: Nawh Whu’nus’en - We See in Two Worlds: Trauma sensitive practices for collectively healing in relationship Level 1 (Nov 3)
+DESCRIPTION:Note: this edition of Nawh Whu’nus’en Level 1 is restricted to physicians only.  \nThe Nawh Whu’nus’en – We See in Two Worlds Level 1 Workshop is based on a widely accepted understanding that trauma-sensitive practices are the basis for offering culturally-safe and respectful health services for Indigenous relatives. It draws upon two-eyed seeing models\, weaving together Indigenous ways of knowing with western trauma theory and neuroscience. The curriculum recognizes that health professionals and patients work in relationship\, and a trauma-sensitive approach can help to build respectful\, trusting relationships. Participants also reflect on their own experiences of trauma and ways to support their own wellness.
+URL:https://events.ubc.ca/event/ubc-cpd-nawh-whunusen-we-see-in-two-worlds-trauma-sensitive-practices-for-collectively-healing-in-relationship-level-1-nov-3/
+LOCATION:Online/Virtual Event
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/08/UBC-Events-Calendar-Nawh-Whunusen-We-See-in-Two-Worlds-Nov-3.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T080000
+DTEND;TZID=America/Vancouver:20261104T090000
+DTSTAMP:20260916T220926Z
+CREATED:20260916T220926Z
+LAST-MODIFIED:20260916T220926Z
+UID:10022144-1793779200-1793782800@events.ubc.ca
+SUMMARY:Master of Engineering Leadership Online Information Session
+DESCRIPTION:Ready to take your career to the next level? Attend our online information session to learn how the UBC Master of Engineering Leadership (MEL) program can help you build advanced technical skills\, empowering you to make a meaningful impact in your profession. \nThis information session is for engineers\, architects and technical professionals who are looking to enhance their leadership capabilities\, drive industry innovation\, and advance their careers through a unique interdisciplinary graduate program. \nExplore how the Master of Engineering Leadership can advance your career. \nWhat to Expect: \n\nLearn about the unique structure of the MEL programs and how they combine leadership development with advanced technical knowledge.\nUnderstand the program’s eligibility requirement and how to determine if you’re eligible to apply.\nUnderstand the application process\, requirements\, and key deadlines.\nGet your questions answered by our Student Recruitment experts\nConnect with our team and discover how UBC can support your career aspirations.\n\nDon’t miss this chance to gain valuable insights and start planning your future with the UBC MEL. Register now to secure your spot.  \nRegister here!
+URL:https://events.ubc.ca/event/master-of-engineering-leadership-online-information-session/
+LOCATION:Online/Virtual Event
+CATEGORIES:Audience - All
+ORGANIZER;CN="Faculty of Applied Science":MAILTO:info@apsc.ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T110000
+DTEND;TZID=America/Vancouver:20261104T114500
+DTSTAMP:20260825T221407Z
+CREATED:20260825T221407Z
+LAST-MODIFIED:20260825T221407Z
+UID:10022061-1793790000-1793792700@events.ubc.ca
+SUMMARY:Data Bites - Introduction to Data Management Plans (DMPs)
+DESCRIPTION:Learn how to create effective and funder-compliant Data Management Plans (DMPs) in this hands-on workshop led by UBC’s Research Data Management team\, designed for graduate students and researchers across disciplines. Participants will explore best practices in research data planning and gain experience using the DMP Assistant tool\, a free\, bilingual platform maintained by the Digital Research Alliance of Canada. \nThis session uses UBC’s Simplified DMP Template to make data management planning accessible and practical. \nBy the end\, participants will have: \n\n\nA clear understanding of the components of a good Data Management Plan \n\n\nConfidence navigating the DMP Assistant tool \n\n\nInsight into applying data management principles to their research projects
+URL:https://events.ubc.ca/event/data-bites-introduction-to-data-management-plans-dmps-6/
+LOCATION:Online/Virtual Event
+CATEGORIES:Audience – All Students,Audience – Faculty and Staff – Okanagan,Audience – Faculty and Staff – Vancouver,Audience – Graduate Students,Subject – Learning And Research – Interdisciplinary,Subject – Personal And Professional Development – Faculty,Subject – Personal And Professional Development – Staff,Subject – Personal And Professional Development – Students,Type – Workshop
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T110000
+DTEND;TZID=America/Vancouver:20261104T130000
+DTSTAMP:20260925T171933Z
+CREATED:20260925T171933Z
+LAST-MODIFIED:20260925T171933Z
+UID:10022434-1793790000-1793797200@events.ubc.ca
+SUMMARY:Introduction to Large Language Models (LLMs)
+DESCRIPTION:This workshop focuses on Large Language Models (LLM) to provide participants with a foundational understanding of LLM\, their working\, and how to fine-tune a pre-trained LLM for your own data. \nIn this workshop\, we will use cloud-based platforms\, so you don’t need to have Python installed. Please make sure that you have a Google Colaboratory (https://colab.research.google.com/) account. This workshop will involve hands-on exercises that require the use of programming tools and libraries commonly used in machine learning\, such as Python and Scikit-learn. As such\, prior familiarity with Python programming is recommended for participants to fully benefit from the practical component of the workshop. \nThe first hour of the workshop will be core content and the last 30 minutes will be reserved for questions and hands on experimentation. \nLearning objectives\nAt the end of this workshop\, you will be able to: \n\nUnderstand architecture and working of LLM\nGain knowledge of some popular pre-trained LLM models\nFine tune pre-trained LLM model to customize for a sample dataset.\n\n\n\nSign up for other Machine Learning workshops in this series.  \nView other upcoming Digital Scholarship workshops. \n  \nLocation Details\n\nLocation: *ONLINE*\n\nIf you have any questions\, concerns\, or accessibility needs please email digital.scholarship@ubc.ca. \nTo keep up-to-date with all of the workshops\, consults\, and events subscribe to the UBC Library Research Commons monthly newsletter.
+URL:https://events.ubc.ca/event/introduction-to-large-language-models-llms-2/
+LOCATION:Online/Virtual Event
+CATEGORIES:Audience – All Students,Audience – Faculty and Staff – Okanagan,Audience – Faculty and Staff – Vancouver,Audience – Graduate Students,Subject – Learning And Research – Interdisciplinary,Subject – Personal And Professional Development – Faculty,Subject – Personal And Professional Development – Staff,Subject – Personal And Professional Development – Students,Type – Workshop
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T120000
+DTEND;TZID=America/Vancouver:20261104T130000
+DTSTAMP:20260930T000930Z
+CREATED:20260930T000930Z
+LAST-MODIFIED:20260930T000930Z
+UID:10022450-1793793600-1793797200@events.ubc.ca
+SUMMARY:Wednesday Noon Hours: La Modestine Ensemble
+DESCRIPTION:Marc Destrubé baroque violin | Natalie Mackie viola da gamba | Abraham Ross harpsichord \nLa Modestine Ensemble (Marc Destrubé\, Natalie Mackie & Abraham Ross) perform enchanting baroque works by Becker\, Rebel\, Buxtehude and more\, on period instruments.
+URL:https://events.ubc.ca/event/wednesday-noon-hours-la-modestine-ensemble/
+LOCATION:Roy Barnett Recital Hall (Music Building)\, 6361 Memorial Road\, Vancouver\, British Columbia\, V6T1Z2\, Canada
+CATEGORIES:Audience - All,Subject – Entertainment – Music,Type – Concert
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/09/WNH_Nov4.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T120000
+DTEND;TZID=America/Vancouver:20261104T130000
+DTSTAMP:20261013T181454Z
+CREATED:20261013T181454Z
+LAST-MODIFIED:20261013T181454Z
+UID:10022581-1793793600-1793797200@events.ubc.ca
+SUMMARY:Applying to Graduate School
+DESCRIPTION:Craft a genuine application and learn which strategies you want to use when responding to common questions like “what do you hope to learn?” or “why this program?”. We will review resources for preparing a CV\, statement of intent/personal statement\, and requesting reference letters.
+URL:https://events.ubc.ca/event/applying-to-graduate-school-5/
+LOCATION:See Description
+CATEGORIES:Audience – All Students,Subject – Personal And Professional Development – Students,Type – Workshop
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/10/Workshop-Applying-for-Grad-School.png
+ORGANIZER;CN="UBC Career Centre":MAILTO:career.centre@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T110000
+DTEND;TZID=America/Vancouver:20261104T123000
+DTSTAMP:20260703T230317Z
+CREATED:20260703T230317Z
+LAST-MODIFIED:20260703T230317Z
+UID:10021767-1793790000-1793795400@events.ubc.ca
+SUMMARY:Presenting Evidence of Teaching Effectiveness in a Dossier
+DESCRIPTION:Are you submitting your teaching dossier for tenure\, promotion or reappointment this fall? If so\, join us at this session where we’ll focus on crafting a compelling case for your teaching effectiveness. We’ll look at examples from different disciplines\, and discuss strategies for presenting student feedback\, peer reviews\, and other forms of evidence. You will leave with practical ideas for framing a persuasive account of your teaching impact and momentum to develop your own dossier.​ \nBy the end of this session\, you will be able to:​ \n\nExplain the purpose of the evidence of teaching effectiveness section within a teaching dossier.​\nIdentify a range of possible evidence sources\, including formal student evaluations\, informal feedback\, peer reviews\, and self-reflection.​\nAnalyze dossier examples to explore different ways of presenting evidence.​\nConsider how to frame evidence into a clear\, persuasive narrative about teaching effectiveness.​\nIdentify next steps for developing or refining your own evidence of teaching effectiveness section.\n\nIf you’re unable to make it to this session and are looking for support with your teaching dossier\, see the Teaching Portfolio section of our website (https://ctlt.ubc.ca/resources/teaching/portfolios/) or contact Megan Robertson for a consultation (megan.robertson@ubc.ca) \nPlease register to secure your spot.\nRegister
+URL:https://events.ubc.ca/event/presenting-evidence-of-teaching-effectiveness-in-a-dossier-3/
+LOCATION:Online/Virtual Event
+CATEGORIES:Audience – Faculty and Staff – Okanagan,Audience – Faculty and Staff – Vancouver,Subject – Personal And Professional Development – Faculty
+ORGANIZER;CN="Centre for Teaching%2C Learning and Technology":MAILTO:ctlt.info@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T120000
+DTEND;TZID=America/Vancouver:20261104T133000
+DTSTAMP:20261006T171038Z
+CREATED:20260721T195603Z
+LAST-MODIFIED:20261006T171038Z
+UID:10021814-1793793600-1793799000@events.ubc.ca
+SUMMARY:CGRS M: Crafting a Compelling Research Story
+DESCRIPTION:This workshop is designed for students applying for the Canada Graduate Research Scholarship – Master’s (CGRS M). Drawing on evidence-based research about successful grant proposals\, the facilitator discusses particular elements of this written academic genre: audience\, purpose\, knowledge gap\, competence claim\, structure\, style\, and more. The workshop includes examples of successful UBC CGRS M research proposals\, as well as dedicated time to write in community. \nFacilitator: Dr. Xuan Zhang\, Centre for Writing and Scholarly Communication \nLocation: IKBLC\, Level 3\, Dodson Room and on Zoom. Registrants receive the Zoom link 1 day prior to the workshop.
+URL:https://events.ubc.ca/event/cgrs-m-crafting-a-compelling-research-story/
+LOCATION:Hybrid Online/Virtual and In-Person – See Description\, Vancouver\, British Columbia\, Canada
+CATEGORIES:Audience – Graduate Students,Audience – Undergraduate Students,Subject – Personal And Professional Development – Students,Type – Workshop
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/07/CGRS-M.png
+ORGANIZER;CN="Centre for Writing and Scholarly Communication":MAILTO:cwsc.info@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T120000
+DTEND;TZID=America/Vancouver:20261104T140000
+DTSTAMP:20261023T183046Z
+CREATED:20261023T183046Z
+LAST-MODIFIED:20261023T183046Z
+UID:10022269-1793793600-1793800800@events.ubc.ca
+SUMMARY:Beyond the Birds and the Bees: A Sexual Health Education Workshop Series for UBC Graduate students
+DESCRIPTION:Join us for a 6-week\, free\, interactive Lunch & Learn workshop series about sex positivity\, pleasure\, gender and sexuality\, safer sex practices\, and more! Workshop starts on October 7th and runs every Wednesday (excluding November 11th) until November 18th\, 2026 from 12:30-2:00pm. Students are welcome to come anytime from 12:00pm to enjoy mingling\, a catered lunch\, and goodies! Sign up indicates that students can attend all sessions. Location is: SVPRO Office\, 6180 Walter Gage Road. Room 2110\, Brock Commons South. \nSessions are for registered UBC graduate students only\, and require sign-up via a Qualtrics link: https://www.grad.ubc.ca/current-students/professional-development/about-gps
+URL:https://events.ubc.ca/event/beyond-the-birds-and-the-bees-a-sexual-health-education-workshop-series-for-ubc-graduate-students-2/2026-11-04/
+LOCATION:UBC Vancouver Campus\, Vancouver\, British Columbia\, V6T1Z1\, Canada
+CATEGORIES:Audience – Graduate Students
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/09/Beyond-the-Birds-and-the-Bees-Grad-Student-Edition-Poster-e1790887214418.png
+ORGANIZER;CN="UBC Sexual Violence Prevention and Response Office (SVPRO)":MAILTO:svpro.vancouver@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T120000
+DTEND;TZID=America/Vancouver:20261104T141500
+DTSTAMP:20261028T223202Z
+CREATED:20261028T223202Z
+LAST-MODIFIED:20261028T223202Z
+UID:10022903-1793793600-1793801700@events.ubc.ca
+SUMMARY:UBC x Jade Music Fest 2026 | Panel Discussion: Who Gets Heard?
+DESCRIPTION:Join UBC Hong Kong Studies Initiative and Jade Music Fest for “Who Gets Heard?”\, a panel discussion exploring language\, accents\, and meaningful representation for artists in Canada. Featuring Vancouver-based music artists Caroline Ding\, Daniel Lew\, and hip-hop artist Scope G alongside CreativeBC’s Joseph Bardsley\, moderated by Dr. Helena Wu (UBC Department of Asian Studies). \nDate: Wed\, 04 November 2026\nTime: 12:00 – 14:15\nVenue: Coach House\, Green College\, UBC \nThe event will be conducted in English; free admission with registration: https://hksi.ubc.ca/events/event/jmf2026_panel/
+URL:https://events.ubc.ca/event/ubc-x-jade-music-fest-2026-panel-discussion-who-gets-heard/
+LOCATION:Green College\, 6201 Cecil Green Park Road\, Vancouver\, British Columbia\, V6T1Z1\, Canada
+CATEGORIES:Audience – All Students,Audience – Alumni,Audience – Community,Audience – Faculty and Staff – Vancouver,Subject – Entertainment – Arts,Subject – Entertainment – Culture,Subject – Entertainment – Media,Subject – Entertainment – Music,Subject – Entertainment – Social,Subject – Equity, Diversity and Inclusion,Subject – Learning And Research – Arts, Humanities And Social Sciences,Subject – Learning And Research – Community,Subject – Learning And Research – Interdisciplinary,Subject – Personal And Professional Development – Community,Type – Seminar
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/10/JMF_UBC_2026.png
+ORGANIZER;CN="UBC Hong Kong Studies Initiative":MAILTO:hksi.ubc@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T133000
+DTEND;TZID=America/Vancouver:20261104T143000
+DTSTAMP:20261030T201236Z
+CREATED:20260410T171510Z
+LAST-MODIFIED:20261030T201236Z
+UID:10022955-1793799000-1793802600@events.ubc.ca
+SUMMARY:Chung | Lind Gallery Weekly Drop-In Tour
+DESCRIPTION:Join us at our weekly drop-in tour through the Chung | Lind Gallery every Wednesday at 1:30 p.m. PT. \nLed by Rare Books and Special Collections and the University Archives archivists\, tours can take up to 60 minutes and begin in the Gallery foyer. Located on Level 2 of the Irving K. Barber Learning Centre\, the Gallery is free and open to the public. \nDrop-in tours offer visitors a chance to explore the histories represented in these collections\, ask questions\, and consider the ongoing relationship between past perspectives and life today. \nInterested in booking a tour for your class or large group? Contact us to schedule an appointment by phone (604-822-3053) or email (rare.books@ubc.ca).
+URL:https://events.ubc.ca/event/chung-lind-gallery-weekly-drop-in-tour/2026-11-04/
+LOCATION:Irving K. Barber Learning Centre\, 1961 East Mall\, Vancouver\, British Columbia\, V6T1Z1\, Canada
+CATEGORIES:Audience - All,Subject – Entertainment – Culture,Subject – Learning And Research – Arts, Humanities And Social Sciences,Type – Exhibit,Type – Reception
+ATTACH;FMTTYPE=image/jpeg:https://events.ubc.ca/wp-content/uploads/2026/04/UBCLibrary_GalleryTours_Mar2026_digitalsignage_1280x720_notext2.jpg
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T130000
+DTEND;TZID=America/Vancouver:20261104T140000
+DTSTAMP:20260630T211018Z
+CREATED:20250109T224039Z
+LAST-MODIFIED:20260630T211018Z
+UID:10021675-1793797200-1793800800@events.ubc.ca
+SUMMARY:Generative AI Studios
+DESCRIPTION:These sixty minute\, weekly sessions – facilitated by Technologists and Pedagogy Experts from the CTLT – are designed for faculty and staff at UBC who are using\, or thinking about using\, Generative AI tools as part of their teaching\, researching\, or daily work. \nEach session is broken into 3 parts. First\, a weekly insights presentation which will talk about what is new in the GenAI space this week\, either from projects across the University or the industry as a whole. Second\, a tool-of-the-week demonstration which highlights how faculty or staff can leverage different tools within the GenAI ecosystem. And third\, an open/office hours question and answer session. \nIf you have developed a GenAI based tool or methodology and wish to present\, please get in touch! \n\nSchedule: \n1:00pm – 1:15pm Weekly insights \n1:15pm – 1:30pm Tool of the week Demo \n1:30pm – 2:00pm Drop-in Q&A \nFacilitators: Experts in pedagogy from the CTLT
+URL:https://events.ubc.ca/event/generative-ai-studios__trashed-2/2026-11-04/
+LOCATION:Online/Virtual Event
+CATEGORIES:Audience – Faculty and Staff – Okanagan,Audience – Faculty and Staff – Vancouver
+ORGANIZER;CN="Centre for Teaching%2C Learning and Technology":MAILTO:ctlt.info@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T170000
+DTEND;TZID=America/Vancouver:20261104T190000
+DTSTAMP:20260806T165522Z
+CREATED:20260806T165522Z
+LAST-MODIFIED:20260806T165522Z
+UID:10021891-1793811600-1793818800@events.ubc.ca
+SUMMARY:UBC CPD: Menopause: Fall Virtual Series - Hormone Therapy
+DESCRIPTION:Build confidence in navigating hormone therapy throughout perimenopause and menopause. Explore practical prescribing\, hormone selection\, dosing\, monitoring and contraindications. Unpack practical challenges like navigating provincial coverage\, bleeding management\, addressing contraceptive needs\, and transitioning patients from contraceptives to MHT.
+URL:https://events.ubc.ca/event/ubc-cpd-menopause-fall-virtual-series-hormone-therapy/
+LOCATION:Online/Virtual Event
+CATEGORIES:Subject – Personal And Professional Development – Faculty
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/08/UBC-Events-Calendar-Menopause-Fall-Virtual-Series-1.png
+ORGANIZER;CN="Continuing Professional Development (UBC CPD)":MAILTO:camp.rcpd@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261104T173000
+DTEND;TZID=America/Vancouver:20261104T193000
+DTSTAMP:20261016T220015Z
+CREATED:20261016T215905Z
+LAST-MODIFIED:20261016T220015Z
+UID:10022864-1793813400-1793820600@events.ubc.ca
+SUMMARY:Career Pathways in Engineering and Geoscience: What I Wish I Knew as a Young Professional
+DESCRIPTION:Career Pathways in Engineering and Geoscience: What I Wish I Knew as a Young Professional \nHear experienced engineers and geoscientists share the advice they wish they’d had at the start of their careers; from choosing career tracks and pursuing licensure to finding mentors\, advocating for yourself\, and building a values‑aligned career. This panel launches BCSEG’s Emerging Professionals Group\, dedicated to amplifying voices of students\, new graduates\, and early-career professionals across the professions. \nThe panel discussion features six professionals from diverse backgrounds\, fields\, and years of experience. Following the moderated discussion the audience will have time to ask questions to the panel and participate in a networking time for one-on-one connections. \nMeet the Panelists: \nGhazaleh Haghighat\, P.Eng. is a Process Engineer with nearly 10 years of experience in the water and wastewater industry. She has contributed to a wide range of municipal infrastructure projects across Western Canada\, supporting initiatives from early planning and concept development through design and project delivery. \nPrior to joining AECOM\, Ghazaleh worked with Jacobs on major treatment plant upgrade projects throughout Metro Vancouver and previously worked at Metro Vancouver on infrastructure initiatives focused on long-term sustainability. Her experience spans multiple stages of project development and collaboration across multidisciplinary teams. \nTim Dunne\, P.Eng. is a Senior Engineer with over 30 years of experience in civil & structural engineering as a Professional Engineer. Over the years Mr. Dunne’s experience has included structural design\, civil design\, developing products and obtaining patents\, hydro-electric projects\, pedestrian bridges\, pedestrian structures\, industrial facility bridges\, drainage design\, and marina structural design. Mr. Dunne did not start out in Engineering\, he took a long and very important detour thru the Forest Industry as a Forester. Mr. Dunne is married to a Mining Engineer and MBA\, Friday debriefings on the home patio are sometimes heated! \nNima Moazen\, P.Eng.\, SMIEEE is a Hardware Development Engineer at Fortinet Technologies with over 12 years of experience in electrical and hardware engineering. He holds a Master of Applied Science in Electrical Engineering from the University of British Columbia (UBC) and is a licensed Professional Engineer in British Columbia. \nNavpreet Singh Bharaj\, P.Eng\, P.E. is a Principal and Structural Engineer at Ratio Structural Engineering Inc.\, based in the Greater Vancouver area of British Columbia. He holds structural engineering licensure in both Canada and the United States and brings a decade of experience in the design of complex civil\, structural\, and marine infrastructure. Prior to co-leading Ratio Structural Engineering\, Navpreet spent nearly five years as a Structural Engineer with Peter Kiewit Infrastructure Co.\, working on major heavy civil and infrastructure projects across the Pacific Northwest. His experience spans marine and foundation engineering\, seismic design\, and construction-phase structural problem solving on some of the region’s most technically demanding sites\, including the Woodfibre LNG project in Squamish\, British Columbia. Navpreet holds a Master of Engineering in Structural Engineering from the University of Western Ontario\, London\, ON and a Bachelor of Technology in Civil Engineering from Punjabi University in India. \nAmir Taleghani (he/him) is a water resources engineer with over 15 years of work experience primarily in floodplain management and creek engineering. He studied civil engineering at the universities of Waterloo (B.A.Sc.) and British Columbia (M.Eng.). Amir worked at a Burnaby-based consulting engineering firm (Kerr Wood Leidal) for the first 10 years of his career prior to transitioning to local government where he currently works as the senior technical manager for flood and watercourse management at the City of Vancouver. Amir serves as the volunteer chair of Engineers and Geoscientists British Columbia’s Natural Hazards and Natural Resources Advisory Group\, and also volunteers with the Canadian Water Resources Association – BC Chapter when he can. \nNicholas (Nic) Jansen\, PhD\, P.Geo. is a senior geologist at Teck Resources whose career began uniquely as a bush pilot in Northern Canada. He later transitioned into mineral exploration\, focusing primarily on greenfield projects across Southeast Asia\, Australia\, and the Americas. Throughout his professional journey\, Nic has developed deep technical expertise across multiple mineral systems\, including epithermal\, porphyry\, and magmatic sulfide deposits. \nAgenda: \n5:30 pm – Introductions \n5:35 pm – Panel Discussion \n6:45 pm – Live audience questions \n7:00 pm – Networking period \n7:30 pm – Event ends \n  \nCAREER PATHWAYS IN ENGINEERING AND GEOSCIENCE \nPresented by the BC Society of Engineering and Geoscience (BCSEG) and the University of British Columbia (UBC); the “Career Pathways in Engineering and Geoscience” is an in-person free event exclusively offered to UBC Students and Alumni.
+URL:https://events.ubc.ca/event/career-pathways-in-engineering-and-geoscience-what-i-wish-i-knew-as-a-young-professional/
+LOCATION:HR MacMillan Building\, 2357 Main Mall\, Vancouver\, British Columbia\, V6T1Z4\, Canada
+CATEGORIES:Audience – All Students,Audience – Graduate Students,Audience – Undergraduate Students,Subject – Personal And Professional Development – Students,Type – Workshop
+ATTACH;FMTTYPE=image/png:https://events.ubc.ca/wp-content/uploads/2026/10/BCSEG-EC-Banner.png
+ORGANIZER;CN="UBC Career Centre":MAILTO:career.centre@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261105T100000
+DTEND;TZID=America/Vancouver:20261105T123000
+DTSTAMP:20260824T151358Z
+CREATED:20260820T164841Z
+LAST-MODIFIED:20260824T151358Z
+UID:10021955-1793872800-1793881800@events.ubc.ca
+SUMMARY:Foundations of Pedagogy – September-November 2026
+DESCRIPTION:Goals\nAt the end of the one-term course\, you will be able to use concepts in evidence-based teaching to effectively teach a lesson in an undergraduate classroom\, with emphasis on alignment of learning objectives\, activities and assessment. UBC graduate students and postdocs from all disciplines are invited to participate. \nRequirements\nSuccessful completion involves participation in 7 out of 8 classes including pre-work\, teaching one 10 minute mini-lesson and writing a first draft of your teaching portfolio. Upon completion\, you will be awarded CIRTL Associate status. \nWe’re accepting applications until September 11th. There are no pre-requisites to participate in this course. The concepts are similar to what is covered in an ISW with more emphasis on theory. Previous students who had taken an ISW prior to FoP said that both courses complement each other well. \nSuccessful applicants will be contacted between September 11th-September 20th. Applicants are selected using a randomized order. \nWorkload: The course will be held online on Thursdays. 8 sessions of 2.5 hours plus 2-3 hours homework per week. \n  \nFor more information please visit our CIRTL webpage: https://cirtl.ubc.ca/get-involved/cirtl-associate/foundations-of-pedagogy/)
+URL:https://events.ubc.ca/event/foundations-of-pedagogy-september-november-2026__trashed/2026-11-05/
+LOCATION:Online/Virtual Event
+CATEGORIES:Audience – Graduate Students,Subject – Personal And Professional Development – Students
+ORGANIZER;CN="Centre for Teaching%2C Learning and Technology":MAILTO:ctlt.info@ubc.ca
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Vancouver:20261105T120000
+DTEND;TZID=America/Vancouver:20261105T125000
+DTSTAMP:20261028T222342Z
+CREATED:20261028T222342Z
+LAST-MODIFIED:20261028T222342Z
+UID:10022915-1793880000-1793883000@events.ubc.ca
+SUMMARY:UBC Staff Toastmasters Meeting
+DESCRIPTION:Looking to improve your public speaking skills? Join our UBC Staff Toastmasters Meetup! \nIf you’re looking to improve your communications and public speaking skills\, boost your confidence\, and connect with colleagues across campus\, come to our next Toastmasters meeting. We gather every other Thursday from 12:05 to 12:50 pm via Zoom and in-person. Sign up today and kickstart your public speaking and leadership journey! \nInterested? Please contact Helen Luk at helen.luk@ubc.ca for more details. \n(Feel free to share this information with any staff/colleague in your respective departments. If appropriate\, please share this meetup on your communication channels.) \nThank you for your consideration and we hope to see you at our club!
+URL:https://events.ubc.ca/event/ubc-staff-toastmasters-meeting/
+LOCATION:Hybrid Online/Virtual and In-Person – See Description\, Vancouver\, British Columbia\, Canada
+ATTACH;FMTTYPE=image/jpeg:https://events.ubc.ca/wp-content/uploads/2026/10/Toastmaster-logo_toaster-time_resize_UBC-events.jpg
+END:VEVENT
+END:VCALENDAR

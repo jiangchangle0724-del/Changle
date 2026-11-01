@@ -11,11 +11,16 @@ export interface Window {
   toMs: number;
 }
 
+export interface Parsed {
+  events: NormalizedEvent[];
+  more: boolean;
+}
+
 export interface SourceDef extends Source {
   /** The URL for part `part` (a page), with any key; never logged. */
   request(part: number, env: Env, w: Window): string;
-  /** Read one part. `more`: there's a next part worth fetching. */
-  parse(raw: string, part: number, w: Window): { events: NormalizedEvent[]; more: boolean };
+  /** Read one part. `more`: there's a next part worth fetching. (May be async: HTMLRewriter is.) */
+  parse(raw: string, part: number, w: Window): Parsed | Promise<Parsed>;
   /** At most this many parts in a run. */
   maxParts: number;
 }

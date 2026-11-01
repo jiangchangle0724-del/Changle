@@ -1,0 +1,651 @@
+{
+ "_embedded": {
+  "events": [
+   {
+    "name": "Vancouver Canucks vs. Calgary Flames",
+    "type": "event",
+    "id": "Z7r9jZ1A7aaa1",
+    "test": false,
+    "url": "https://www.ticketmaster.ca/event/Z7r9jZ1A7aaa1",
+    "locale": "en-us",
+    "dates": {
+     "start": {
+      "localDate": "2026-11-07",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false,
+      "localTime": "19:00:00",
+      "dateTime": "2026-11-08T02:00:00Z"
+     },
+     "timezone": "America/Vancouver",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "id": "seg",
+       "name": "Sports"
+      },
+      "genre": {
+       "id": "gen",
+       "name": "Hockey"
+      },
+      "subGenre": {
+       "id": "sub",
+       "name": "NHL"
+      }
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Rogers Arena",
+       "type": "venue",
+       "id": "KovRogers",
+       "locale": "en-us",
+       "postalCode": "V6B 6G1",
+       "timezone": "America/Vancouver",
+       "city": {
+        "name": "Vancouver"
+       },
+       "state": {
+        "name": "British Columbia",
+        "stateCode": "BC"
+       },
+       "country": {
+        "name": "Canada",
+        "countryCode": "CA"
+       },
+       "address": {
+        "line1": "800 Griffiths Way"
+       },
+       "location": {
+        "longitude": "-123.108942",
+        "latitude": "49.277909"
+       }
+      }
+     ]
+    },
+    "priceRanges": [
+     {
+      "type": "standard",
+      "currency": "CAD",
+      "min": 89.0,
+      "max": 420.0
+     }
+    ],
+    "images": [
+     {
+      "ratio": "16_9",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa1/16_9_1024.jpg",
+      "width": 1024,
+      "height": 576,
+      "fallback": false
+     },
+     {
+      "ratio": "3_2",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa1/3_2_640.jpg",
+      "width": 640,
+      "height": 427,
+      "fallback": false
+     }
+    ]
+   },
+   {
+    "name": "SYML: Beard Tour",
+    "type": "event",
+    "id": "Z7r9jZ1A7aaa2",
+    "test": false,
+    "url": "https://www.ticketmaster.ca/event/Z7r9jZ1A7aaa2",
+    "locale": "en-us",
+    "dates": {
+     "start": {
+      "localDate": "2026-11-05",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false,
+      "localTime": "19:00:00",
+      "dateTime": "2026-11-06T02:00:00Z"
+     },
+     "timezone": "America/Vancouver",
+     "status": {
+      "code": "offsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "id": "seg",
+       "name": "Music"
+      },
+      "genre": {
+       "id": "gen",
+       "name": "Rock"
+      },
+      "subGenre": {
+       "id": "sub",
+       "name": "Indie Rock"
+      }
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Commodore Ballroom",
+       "type": "venue",
+       "id": "KovCommod",
+       "locale": "en-us",
+       "postalCode": "V6Z 1K3",
+       "timezone": "America/Vancouver",
+       "city": {
+        "name": "Vancouver"
+       },
+       "state": {
+        "name": "British Columbia",
+        "stateCode": "BC"
+       },
+       "country": {
+        "name": "Canada",
+        "countryCode": "CA"
+       },
+       "address": {
+        "line1": "868 Granville St"
+       },
+       "location": {
+        "longitude": "-123.120792",
+        "latitude": "49.280563"
+       }
+      }
+     ]
+    },
+    "priceRanges": [
+     {
+      "type": "standard",
+      "currency": "CAD",
+      "min": 45.5,
+      "max": 45.5
+     }
+    ],
+    "images": [
+     {
+      "ratio": "16_9",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa2/16_9_1024.jpg",
+      "width": 1024,
+      "height": 576,
+      "fallback": false
+     },
+     {
+      "ratio": "3_2",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa2/3_2_640.jpg",
+      "width": 640,
+      "height": 427,
+      "fallback": false
+     }
+    ]
+   },
+   {
+    "name": "Matt Rogers: This Time It's Really Christmas",
+    "type": "event",
+    "id": "Z7r9jZ1A7aaa3",
+    "test": false,
+    "url": "https://www.ticketmaster.ca/event/Z7r9jZ1A7aaa3",
+    "locale": "en-us",
+    "dates": {
+     "start": {
+      "localDate": "2026-11-09",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false,
+      "localTime": "20:00:00",
+      "dateTime": "2026-11-10T03:00:00Z"
+     },
+     "timezone": "America/Vancouver",
+     "status": {
+      "code": "rescheduled"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "id": "seg",
+       "name": "Arts & Theatre"
+      },
+      "genre": {
+       "id": "gen",
+       "name": "Comedy"
+      },
+      "subGenre": {
+       "id": "sub",
+       "name": "Comedy"
+      }
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Queen Elizabeth Theatre",
+       "type": "venue",
+       "id": "KovQueen",
+       "locale": "en-us",
+       "postalCode": "V6B 5N6",
+       "timezone": "America/Vancouver",
+       "city": {
+        "name": "Vancouver"
+       },
+       "state": {
+        "name": "British Columbia",
+        "stateCode": "BC"
+       },
+       "country": {
+        "name": "Canada",
+        "countryCode": "CA"
+       },
+       "address": {
+        "line1": "630 Hamilton St"
+       },
+       "location": {
+        "longitude": "-123.113369",
+        "latitude": "49.280528"
+       }
+      }
+     ]
+    },
+    "images": [
+     {
+      "ratio": "16_9",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa3/16_9_1024.jpg",
+      "width": 1024,
+      "height": 576,
+      "fallback": false
+     },
+     {
+      "ratio": "3_2",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa3/3_2_640.jpg",
+      "width": 640,
+      "height": 427,
+      "fallback": false
+     }
+    ]
+   },
+   {
+    "name": "Paw Patrol Live! The Great Pirate Adventure",
+    "type": "event",
+    "id": "Z7r9jZ1A7aaa4",
+    "test": false,
+    "url": "https://www.ticketmaster.ca/event/Z7r9jZ1A7aaa4",
+    "locale": "en-us",
+    "dates": {
+     "start": {
+      "localDate": "2026-11-08",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false,
+      "localTime": "11:00:00",
+      "dateTime": "2026-11-08T18:00:00Z"
+     },
+     "timezone": "America/Vancouver",
+     "status": {
+      "code": "cancelled"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "id": "seg",
+       "name": "Arts & Theatre"
+      },
+      "genre": {
+       "id": "gen",
+       "name": "Children's Theatre"
+      },
+      "subGenre": {
+       "id": "sub",
+       "name": "Children's Theatre"
+      }
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Queen Elizabeth Theatre",
+       "type": "venue",
+       "id": "KovQueen",
+       "locale": "en-us",
+       "postalCode": "V6B 5N6",
+       "timezone": "America/Vancouver",
+       "city": {
+        "name": "Vancouver"
+       },
+       "state": {
+        "name": "British Columbia",
+        "stateCode": "BC"
+       },
+       "country": {
+        "name": "Canada",
+        "countryCode": "CA"
+       },
+       "address": {
+        "line1": "630 Hamilton St"
+       },
+       "location": {
+        "longitude": "-123.113369",
+        "latitude": "49.280528"
+       }
+      }
+     ]
+    },
+    "priceRanges": [
+     {
+      "type": "standard",
+      "currency": "CAD",
+      "min": 32.0,
+      "max": 120.0
+     }
+    ],
+    "images": [
+     {
+      "ratio": "16_9",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa4/16_9_1024.jpg",
+      "width": 1024,
+      "height": 576,
+      "fallback": false
+     },
+     {
+      "ratio": "3_2",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa4/3_2_640.jpg",
+      "width": 640,
+      "height": 427,
+      "fallback": false
+     }
+    ]
+   },
+   {
+    "name": "Winter Lights Music Festival",
+    "type": "event",
+    "id": "Z7r9jZ1A7aaa5",
+    "test": false,
+    "url": "https://www.ticketmaster.ca/event/Z7r9jZ1A7aaa5",
+    "locale": "en-us",
+    "dates": {
+     "start": {
+      "localDate": "2026-11-12",
+      "dateTBD": false,
+      "dateTBA": true,
+      "timeTBA": true,
+      "noSpecificTime": false
+     },
+     "timezone": "America/Vancouver",
+     "status": {
+      "code": "postponed"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "id": "seg",
+       "name": "Music"
+      },
+      "genre": {
+       "id": "gen",
+       "name": "Festival"
+      },
+      "subGenre": {
+       "id": "sub",
+       "name": "Music Festival"
+      }
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "BC Place",
+       "type": "venue",
+       "id": "KovBCPla",
+       "locale": "en-us",
+       "postalCode": "V6B 4Y8",
+       "timezone": "America/Vancouver",
+       "city": {
+        "name": "Vancouver"
+       },
+       "state": {
+        "name": "British Columbia",
+        "stateCode": "BC"
+       },
+       "country": {
+        "name": "Canada",
+        "countryCode": "CA"
+       },
+       "address": {
+        "line1": "777 Pacific Blvd"
+       },
+       "location": {
+        "longitude": "-123.112006",
+        "latitude": "49.276691"
+       }
+      }
+     ]
+    },
+    "images": [
+     {
+      "ratio": "16_9",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa5/16_9_1024.jpg",
+      "width": 1024,
+      "height": 576,
+      "fallback": false
+     },
+     {
+      "ratio": "3_2",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa5/3_2_640.jpg",
+      "width": 640,
+      "height": 427,
+      "fallback": false
+     }
+    ]
+   },
+   {
+    "name": "Vancouver Symphony: Holiday Pops",
+    "type": "event",
+    "id": "Z7r9jZ1A7aaa6",
+    "test": false,
+    "url": "https://www.ticketmaster.ca/event/Z7r9jZ1A7aaa6",
+    "locale": "en-us",
+    "dates": {
+     "start": {
+      "localDate": "2026-11-13",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false,
+      "localTime": "19:30:00",
+      "dateTime": "2026-11-14T02:30:00Z"
+     },
+     "timezone": "America/Vancouver",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "id": "seg",
+       "name": "Music"
+      },
+      "genre": {
+       "id": "gen",
+       "name": "Classical"
+      },
+      "subGenre": {
+       "id": "sub",
+       "name": "Symphonic"
+      }
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Orpheum",
+       "type": "venue",
+       "id": "KovOrpheu",
+       "locale": "en-us",
+       "postalCode": "V6B 3L4",
+       "timezone": "America/Vancouver",
+       "city": {
+        "name": "Vancouver"
+       },
+       "state": {
+        "name": "British Columbia",
+        "stateCode": "BC"
+       },
+       "country": {
+        "name": "Canada",
+        "countryCode": "CA"
+       },
+       "address": {
+        "line1": "601 Smithe St"
+       },
+       "location": {
+        "longitude": "-123.120321",
+        "latitude": "49.280148"
+       }
+      }
+     ]
+    },
+    "priceRanges": [
+     {
+      "type": "standard",
+      "currency": "USD",
+      "min": 35.0,
+      "max": 110.0
+     }
+    ]
+   },
+   {
+    "name": "Vancouver Giants vs. Kamloops Blazers",
+    "type": "event",
+    "id": "Z7r9jZ1A7aaa7",
+    "test": false,
+    "url": "https://www.ticketmaster.ca/event/Z7r9jZ1A7aaa7",
+    "locale": "en-us",
+    "dates": {
+     "start": {
+      "localDate": "2026-11-10",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false,
+      "localTime": "19:00:00",
+      "dateTime": "2026-11-11T02:00:00Z"
+     },
+     "timezone": "America/Vancouver",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "id": "seg",
+       "name": "Sports"
+      },
+      "genre": {
+       "id": "gen",
+       "name": "Hockey"
+      },
+      "subGenre": {
+       "id": "sub",
+       "name": "WHL"
+      }
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Langley Events Centre",
+       "type": "venue",
+       "id": "KovLangle",
+       "locale": "en-us",
+       "postalCode": "V2Y 3J4",
+       "timezone": "America/Vancouver",
+       "city": {
+        "name": "Langley"
+       },
+       "state": {
+        "name": "British Columbia",
+        "stateCode": "BC"
+       },
+       "country": {
+        "name": "Canada",
+        "countryCode": "CA"
+       },
+       "address": {
+        "line1": "7888 200 St"
+       },
+       "location": {
+        "longitude": "-122.666416",
+        "latitude": "49.145993"
+       }
+      }
+     ]
+    },
+    "priceRanges": [
+     {
+      "type": "standard including fees",
+      "currency": "CAD",
+      "min": 0.0,
+      "max": 0.0
+     }
+    ],
+    "images": [
+     {
+      "ratio": "16_9",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa7/16_9_1024.jpg",
+      "width": 1024,
+      "height": 576,
+      "fallback": false
+     },
+     {
+      "ratio": "3_2",
+      "url": "https://s1.ticketm.net/dam/a/Z7r9jZ1A7aaa7/3_2_640.jpg",
+      "width": 640,
+      "height": 427,
+      "fallback": false
+     }
+    ]
+   }
+  ]
+ },
+ "_links": {
+  "self": {
+   "href": "/discovery/v2/events.json?latlong=49.2609,-123.1139&radius=40&unit=km&page=0&size=7"
+  },
+  "next": {
+   "href": "/discovery/v2/events.json?page=1&size=7"
+  }
+ },
+ "page": {
+  "size": 7,
+  "totalElements": 10,
+  "totalPages": 2,
+  "number": 0
+ }
+}

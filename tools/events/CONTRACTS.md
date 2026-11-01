@@ -55,9 +55,10 @@ Fields follow schema.org/Event: `start`/`end` = startDate/endDate, `status` = ev
 7. **Place**: name, address, city, postal code, coordinates, as given. The area is worked out from
    the place (`src/area.ts`, by city now; task C5: postal codes and boundaries), never guessed by AI.
    Can't tell: Vancouver, flagged `areaCheck`.
-8. **Parsers are pure**: `(raw text, part, window) => { events, more }`. No fetching, no storage,
-   no clock (the window is passed in). Every parser has saved real responses in
-   `tests/fixtures/<kind>/` and tests that read them. Tests never use the network.
+8. **Parsers are pure**: `(raw text, part, window) => { events, more }`, or a Promise of it (the
+   JSON-LD one uses HTMLRewriter, which streams). No fetching, no storage, no clock (the window is
+   passed in). Every parser has saved real responses in `tests/fixtures/<kind>/` and tests that
+   read them. Tests never use the network.
 
 ## Storage
 
@@ -75,7 +76,13 @@ run has under half of yesterday's events, yesterday's stay up and the log says s
 ## The API
 
 - `GET /go/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD&cat=a,b&area=x,y&tag=free,kids`
+- `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6).
 - `GET /go/api/status`: the last run step by step (the fetch log) and what's published.
+
+## Work in progress
+
+The task cards for the parts Codex builds are in `docs/codex-tasks/` (C1 to C6), each with its
+saved inputs in `tests/fixtures/`.
 
 ## Adding a source
 

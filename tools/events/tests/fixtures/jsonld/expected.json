@@ -1,0 +1,145 @@
+{
+ "about": "What the JSON-LD extractor (task C2) finds in each saved page: how many events, and the first one's fields as the page has them (before normalising: the parser turns them into NormalizedEvent by the contract).",
+ "pages": {
+  "commodore-home.html": {
+   "events": 25,
+   "first": {
+    "name": "JR Country's Boots and Boos Halloween Party",
+    "startDate": "2026-10-31T19:00:00",
+    "endDate": null,
+    "location": "Commodore Ballroom",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": null
+   }
+  },
+  "eventbrite-ai-burnaby.html": {
+   "events": 1,
+   "first": {
+    "name": "AI for Service Providers: Free In-Person Event in Burnaby",
+    "startDate": "2026-11-14T16:00:00-07:00",
+    "endDate": "2026-11-14T19:00:00-07:00",
+    "location": "3993 Henning Dr",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": {
+     "lowPrice": "0.0",
+     "highPrice": "0.0",
+     "priceCurrency": "CAD",
+     "availability": "InStock"
+    }
+   }
+  },
+  "eventbrite-drag-show.html": {
+   "events": 1,
+   "first": {
+    "name": "A Muppets Christmas Carol: The Drag Show",
+    "startDate": "2026-12-10T19:00:00-07:00",
+    "endDate": "2026-12-10T22:30:00-07:00",
+    "location": "Fox Cabaret",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": {
+     "lowPrice": "35.53",
+     "highPrice": "35.53",
+     "priceCurrency": "CAD",
+     "availability": "InStock"
+    }
+   }
+  },
+  "eventbrite-garden-gala.html": {
+   "events": 1,
+   "first": {
+    "name": "Garden Gala",
+    "startDate": "2026-11-05T18:00:00-07:00",
+    "endDate": "2026-11-05T20:00:00-07:00",
+    "location": "Howe Sound Secondary School",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": {
+     "lowPrice": "38.61",
+     "highPrice": "38.61",
+     "priceCurrency": "CAD",
+     "availability": "InStock"
+    }
+   }
+  },
+  "eventbrite-job-fair.html": {
+   "events": 1,
+   "first": {
+    "name": "2026 Vancouver South Job Fair",
+    "startDate": "2026-11-04T10:00:00-07:00",
+    "endDate": "2026-11-04T15:30:00-07:00",
+    "location": "Champlain Heights Community Centre",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": {
+     "lowPrice": "0.0",
+     "highPrice": "0.0",
+     "priceCurrency": "CAD",
+     "availability": "InStock"
+    }
+   }
+  },
+  "eventbrite-vancouver-listing.html": {
+   "events": 32,
+   "first": {
+    "name": "Garden Gala",
+    "startDate": "2026-11-05",
+    "endDate": "2026-11-05",
+    "location": "Howe Sound Secondary School",
+    "locationType": "Place",
+    "eventStatus": null,
+    "offers": null
+   }
+  },
+  "meetup-mindset-workshop.html": {
+   "events": 1,
+   "first": {
+    "name": "Vancouver Weekly Online Mindset Workshop (Google Meet at 7pm PST)",
+    "startDate": "2026-11-04T19:00:00-07:00",
+    "endDate": "2026-11-04T21:00:00-07:00",
+    "location": null,
+    "locationType": "VirtualLocation",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": null
+   }
+  },
+  "meetup-new-in-vancouver.html": {
+   "events": 1,
+   "first": {
+    "name": "New & Not So New in Vancouver",
+    "startDate": "2026-11-25T17:00:00-07:00",
+    "endDate": "2026-11-25T19:00:00-07:00",
+    "location": "Donnellan's Irish Pub",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": null
+   }
+  },
+  "meetup-vancouver-group.html": {
+   "events": 1,
+   "first": {
+    "name": "🪞 Coming Home To Our True Self: The Psychology Of Living Authentically",
+    "startDate": "2026-11-01T12:00:00-07:00",
+    "endDate": "2026-11-01T14:00:00-07:00",
+    "location": "UBC Learning Exchange",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": null
+   }
+  },
+  "ubc-event-graph.html": {
+   "events": 1,
+   "first": {
+    "name": "UBC Farm Workshops – Summer Series",
+    "startDate": "2026-07-19T00:00:00-07:00",
+    "endDate": "2026-12-08T23:59:59-07:00",
+    "location": "UBC Farm",
+    "locationType": "Place",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "offers": null
+   }
+  }
+ }
+}
