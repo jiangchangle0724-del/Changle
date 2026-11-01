@@ -10,6 +10,7 @@ import type { EuchreView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { BotFace, EuchreBoard, EuchreRules, type Who } from "./Board";
 import "../../styles/party.css";
+import { Moment } from "../../components/Figure";
 
 export function NetEuchre({ v, onLeave }: { v: EuchreView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf } = useRoom();
@@ -39,6 +40,15 @@ export function NetEuchre({ v, onLeave }: { v: EuchreView; onLeave: () => void }
       ) : (
         <>
           {v.mySeat === null && <p className="eu-watching">{zh ? "座位满了，你这局在旁边看" : "The seats are full. You're watching this game."}</p>}
+          {v.phase === "end" && v.winner !== null && (
+            <div className="moment-row">
+              {[v.winner, v.winner + 2].map((i) => {
+                const pid = v.seats[i]?.pid;
+                const st = pid ? room?.seats.find((x) => x.id === pid) : undefined;
+                return st ? <Moment key={i} seat={st} kind="winner" small /> : null;
+              })}
+            </div>
+          )}
           <EuchreBoard
             v={v}
             who={who}
