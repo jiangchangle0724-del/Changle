@@ -7,6 +7,7 @@ import { sfx } from "../../../lib/sfx";
 import type { T } from "../../../i18n";
 import type { PunchAnswer, PunchMatch, PunchView } from "../../../shared/protocol";
 import { answerAt, RESULT_BEATS } from "../../../shared/punchline";
+import { usePenaltyText } from "../../../store";
 import { perfAt } from "../../sensors";
 import "../../../styles/show.css";
 
@@ -819,6 +820,7 @@ function ScoreScene({ v, who, now, sound, tx, mode, me }: SceneProps) {
 
 function EndScene({ v, who, now, sound, tx, mode, me, canvas }: SceneProps & { canvas: Canvas }) {
   const root = useRef<HTMLDivElement>(null);
+  const custom = usePenaltyText().isCustom;
   const ranked = v.players.slice().sort((a, b) => (v.scores[b] ?? 0) - (v.scores[a] ?? 0));
   const place = (pid: string) => 1 + ranked.filter((p) => (v.scores[p] ?? 0) > (v.scores[pid] ?? 0)).length;
   const podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean) as string[];
@@ -881,7 +883,13 @@ function EndScene({ v, who, now, sound, tx, mode, me, canvas }: SceneProps & { c
           ))}
         </ol>
       )}
-      {!!v.last?.length && <p className="sh-end-last">{tx(`最后一名：${v.last.map((p) => who(p).name).join("、")}，喝一杯`, `Last place: ${v.last.map((p) => who(p).name).join(", ")}. Drink up.`)}</p>}
+      {!!v.last?.length && (
+        <p className="sh-end-last">
+          {custom
+            ? tx(`最后一名：${v.last.map((p) => who(p).name).join("、")}，受罚`, `Last place: ${v.last.map((p) => who(p).name).join(", ")}. Penalty time.`)
+            : tx(`最后一名：${v.last.map((p) => who(p).name).join("、")}，喝一杯`, `Last place: ${v.last.map((p) => who(p).name).join(", ")}. Drink up.`)}
+        </p>
+      )}
     </div>
   );
 }

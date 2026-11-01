@@ -1,11 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { useSpinSound } from "../lib/useSpinSound";
 import { useTurntable } from "../lib/useTurntable";
-import { DARES, TRUTHS, type Heat, type Prompt } from "../data/truthDare";
+import { DARES, promptText, TRUTHS, type Heat, type Prompt } from "../data/truthDare";
 import { GameShell, usePenalty } from "./GameShell";
 import { Cloche } from "../components/Cloche";
 import { PorcelainDefs } from "../components/Dish";
@@ -23,6 +23,7 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
   const [lidOpen, setLidOpen] = useState(false);
   const [chosen, setChosen] = useState<number | null>(null);
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
 
   const truthDeck = useRef(new Deck(TRUTHS.filter((p) => p.heat <= heat)));
   const dareDeck = useRef(new Deck(DARES.filter((p) => p.heat <= heat)));
@@ -183,8 +184,8 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
             </p>
             <Cloche open={lidOpen} onOpen={() => setLidOpen(true)}>
               <div className="prompt-card">
-                <p className="prompt-text">{tr(prompt)}</p>
-                <p className="hint-ink prompt-other">{lang === "zh" ? prompt.en : prompt.zh}</p>
+                <p className="prompt-text">{tr(promptText(prompt, custom))}</p>
+                <p className="hint-ink prompt-other">{lang === "zh" ? promptText(prompt, custom).en : promptText(prompt, custom).zh}</p>
               </div>
             </Cloche>
             <AnimatePresence>

@@ -5,7 +5,7 @@ import { PorcelainDefs } from "../../components/Dish";
 import { UI } from "../../i18n";
 import { haptic, sfx } from "../../lib/sfx";
 import type { KingView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
 import { HostButton, HostRow, SeatPicker, useYourTurn, Waiting } from "./common";
@@ -15,6 +15,7 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
   const { me, g, nameOf, room } = useRoom();
   const kingSeat = v.king ? room?.seats.find((s) => s.id === v.king) : undefined;
   const { ui, tr, lang } = useStore();
+  const pen = usePenaltyText();
   const inRound = v.inRound.includes(me);
   const amKing = v.king === me;
   const ready = v.ready.includes(me);
@@ -74,9 +75,16 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
 
   const rules = (
     <p>
-      {lang === "zh"
-        ? "每个人在自己的手机上抽一支签，只有自己能看到。一支是国王，其余是号码。国王现身后抽一张命令，命令只叫号码不叫名字：被叫到的人在手机上按一下站出来，然后照做。不做的，国王罚他喝。"
-        : "Everyone draws a stick on their own phone, and only they see it. One is the king, the rest are numbers. The king draws a command that calls numbers, never names: whoever holds a called number taps to step forward, then does it. Refuse and the king makes you drink."}
+      {pen.line(
+        {
+          zh: "每个人在自己的手机上抽一支签，只有自己能看到。一支是国王，其余是号码。国王现身后抽一张命令，命令只叫号码不叫名字：被叫到的人在手机上按一下站出来，然后照做。不做的，国王罚他喝。",
+          en: "Everyone draws a stick on their own phone, and only they see it. One is the king, the rest are numbers. The king draws a command that calls numbers, never names: whoever holds a called number taps to step forward, then does it. Refuse and the king makes you drink.",
+        },
+        {
+          zh: "每个人在自己的手机上抽一支签，只有自己能看到。一支是国王，其余是号码。国王现身后抽一张命令，命令只叫号码不叫名字：被叫到的人在手机上按一下站出来，然后照做。不做的，国王判他受罚。",
+          en: "Everyone draws a stick on their own phone, and only they see it. One is the king, the rest are numbers. The king draws a command that calls numbers, never names: whoever holds a called number taps to step forward, then does it. Refuse and the king hands you the penalty.",
+        },
+      )}
     </p>
   );
 
@@ -221,7 +229,7 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
             {amKing ? (
               refusing ? (
                 <div className="stack" style={{ gap: 10 }}>
-                  <p className="hint">{lang === "zh" ? "谁不执行？点一下，他喝。" : "Who refused? Tap them. They drink."}</p>
+                  <p className="hint">{pen.line({ zh: "谁不执行？点一下，他喝。", en: "Who refused? Tap them. They drink." }, { zh: "谁不执行？点一下，他受罚。", en: "Who refused? Tap them. They take the penalty." })}</p>
                   <SeatPicker
                     exclude={[v.king ?? "", ...v.refused]}
                     onPick={(pid) => {

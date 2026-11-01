@@ -9,7 +9,7 @@ import { holdBackground } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import type { PunchMatch, PunchView } from "../../shared/protocol";
 import { finalPoints, headToHeadPoints, MAX_WRITERS, presentMs, ROUNDS } from "../../shared/punchline";
-import { useStore, type Player } from "../../store";
+import { usePenaltyText, useStore, type Player } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { useWakeLock } from "../sensors";
 import { PromptCard } from "./parts";
@@ -64,6 +64,7 @@ export function Punchline({ onBack }: { onBack: () => void }) {
   const [before, setBefore] = useState<Record<string, number>>({});
   const [tally, setTally] = useState<number[]>([]);
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
   const final = round >= ROUNDS;
   const playing = phase.k !== "setup";
   useWakeLock(playing);
@@ -149,7 +150,23 @@ export function Punchline({ onBack }: { onBack: () => void }) {
       if (r.winner >= 0) {
         const loser = m.authors[1 - r.winner];
         window.setTimeout(
-          () => penalty.show({ who: [name[loser]], kind: sweep !== null ? "two" : "sip", note: sweep !== null ? (zh ? "神回复：一票都没有" : "Punchline: not a single vote") : zh ? "神回复：票少的喝" : "Punchline: fewer votes drinks" }),
+          () =>
+            penalty.show({
+              who: [name[loser]],
+              kind: sweep !== null ? "two" : "sip",
+              note:
+                sweep !== null
+                  ? zh
+                    ? "神回复：一票都没有"
+                    : "Punchline: not a single vote"
+                  : custom
+                    ? zh
+                      ? "神回复：票少的受罚"
+                      : "Punchline: fewer votes takes the penalty"
+                    : zh
+                      ? "神回复：票少的喝"
+                      : "Punchline: fewer votes drinks",
+            }),
           5200,
         );
       }
@@ -179,9 +196,13 @@ export function Punchline({ onBack }: { onBack: () => void }) {
 
   const rules = (
     <p>
-      {zh
-        ? "前两轮：手机传一圈，每人偷偷写两道题的答案（每道题有两个人写）。然后手机上一题一题亮出来，不显示是谁写的，没写这题的人举手投票，一个人在手机上数票。每道题按票数比例分 1000 分，赢的多拿 100，拿走所有票就是神回复，再加 250，第二轮翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人举手选三个，按票数分 4000 分，总分最低的喝一杯。"
-        : "Rounds one and two: the phone goes round and everyone privately answers two prompts (each prompt has two writers). Then the phone shows them one at a time, without names; everyone who didn't write that one votes by show of hands, and one person counts on the phone. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote for a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if swept. Final round: everyone answers one prompt and raises a hand for three favorites, 4,000 points split by votes. Lowest total drinks a full glass."}
+      {custom
+        ? zh
+          ? "前两轮：手机传一圈，每人偷偷写两道题的答案（每道题有两个人写）。然后手机上一题一题亮出来，不显示是谁写的，没写这题的人举手投票，一个人在手机上数票。每道题按票数比例分 1000 分，赢的多拿 100，拿走所有票就是神回复，再加 250，第二轮翻倍。输的人受罚。最后一轮所有人写同一道题，每人举手选三个，按票数分 4000 分，总分最低的受罚。"
+          : "Rounds one and two: the phone goes round and everyone privately answers two prompts (each prompt has two writers). Then the phone shows them one at a time, without names; everyone who didn't write that one votes by show of hands, and one person counts on the phone. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote for a Punchline, 250 more. Round two doubles everything. The loser takes the penalty. Final round: everyone answers one prompt and raises a hand for three favorites, 4,000 points split by votes. Lowest total takes the penalty."
+        : zh
+          ? "前两轮：手机传一圈，每人偷偷写两道题的答案（每道题有两个人写）。然后手机上一题一题亮出来，不显示是谁写的，没写这题的人举手投票，一个人在手机上数票。每道题按票数比例分 1000 分，赢的多拿 100，拿走所有票就是神回复，再加 250，第二轮翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人举手选三个，按票数分 4000 分，总分最低的喝一杯。"
+          : "Rounds one and two: the phone goes round and everyone privately answers two prompts (each prompt has two writers). Then the phone shows them one at a time, without names; everyone who didn't write that one votes by show of hands, and one person counts on the phone. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote for a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if swept. Final round: everyone answers one prompt and raises a hand for three favorites, 4,000 points split by votes. Lowest total drinks a full glass."}
     </p>
   );
 

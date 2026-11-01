@@ -4,6 +4,8 @@ import type { Fx, GameAction, GameId, GameView, PenaltyKind, SpinScope } from ".
 /** What a game may do to the room. One instance per call; `now` is fixed for the call. */
 export interface Api {
   now: number;
+  /** The host set the table's own penalty instead of drinking: no line may tell anyone to drink. */
+  customPenalty: boolean;
   rand(): number;
   int(n: number): number;
   shuffle<X>(a: X[]): X[];
@@ -42,6 +44,9 @@ export interface GameDef<S> {
 }
 
 export const t = (zh: string, en: string): T => ({ zh, en });
+
+/** The line that fits the table's penalty: `drink` by default, `custom` when the host set their own. */
+export const byPenalty = (api: Api, drink: T, custom: T): T => (api.customPenalty ? custom : drink);
 
 export function range(n: number) {
   return Array.from({ length: n }, (_, i) => i);

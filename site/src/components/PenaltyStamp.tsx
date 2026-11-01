@@ -160,7 +160,7 @@ export function PenaltyStamp({
             ? ui("twoSips")
             : ui("sip");
 
-  const names = call.who.length ? call.who.join(lang === "zh" ? "、" : ", ") : ui("everyoneDrinks");
+  const names = call.who.length ? call.who.join(lang === "zh" ? "、" : ", ") : penalty.isCustom ? ui("everyone") : ui("everyoneDrinks");
 
   return createPortal(
     <div className={`stamp-layer ${safe ? "is-safe" : ""}`} ref={layer} role="alertdialog" aria-live="assertive">

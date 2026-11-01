@@ -8,7 +8,7 @@ import { SeatFace } from "../../online/People";
 import { useCue, useReached, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { LimboView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useSensorStatus, useWakeLock } from "../sensors";
 import { blindError } from "../../shared/engine/games/limbo";
@@ -21,6 +21,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   useEffect(() => holdBackground(), []);
   const { room, me, isHost, g, nameOf, now } = useRoom();
   const { lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
   const seat = (id: string) => seats.find((s) => s.id === id);
@@ -97,13 +98,13 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
     <>
       <p>
         {zh
-          ? "林波舞，手机当裁判。把手机竖着贴在胸口，屏幕对着自己，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局喝一口，最后剩下的人赢。没有动作感应的手机由主人判，或者自己说过没过。"
-          : "Limbo, with the phone as judge. Hold it upright against your chest, screen facing you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (drink). Last one standing wins. Phones without motion sensing are judged by the host, or by their owner's honesty."}
+          ? `林波舞，手机当裁判。把手机竖着贴在胸口，屏幕对着自己，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局${custom ? "受罚" : "喝一口"}，最后剩下的人赢。没有动作感应的手机由主人判，或者自己说过没过。`
+          : `Limbo, with the phone as judge. Hold it upright against your chest, screen facing you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (${custom ? "penalty" : "drink"}). Last one standing wins. Phones without motion sensing are judged by the host, or by their owner's honesty.`}
       </p>
       <p>
         {zh
-          ? "盲仰：每轮给一个目标角度，但看不到自己仰了多少。凭感觉仰到那个角度，停住不动一秒半，手机就锁定。离目标最远的出局喝一口，最后剩下的人赢。要用动作感应，测不了的手机这局当观众。"
-          : "Blind lean: each round gives a target angle, but you can't see your own. Lean back to what feels like it and hold still for a second and a half; the phone locks it. Furthest from the target is out (drink). Last one standing wins. It needs motion sensing: phones that can't measure watch that game."}
+          ? `盲仰：每轮给一个目标角度，但看不到自己仰了多少。凭感觉仰到那个角度，停住不动一秒半，手机就锁定。离目标最远的出局${custom ? "受罚" : "喝一口"}，最后剩下的人赢。要用动作感应，测不了的手机这局当观众。`
+          : `Blind lean: each round gives a target angle, but you can't see your own. Lean back to what feels like it and hold still for a second and a half; the phone locks it. Furthest from the target is out (${custom ? "penalty" : "drink"}). Last one standing wins. It needs motion sensing: phones that can't measure watch that game.`}
       </p>
     </>
   );
@@ -159,7 +160,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
                 <li>{zh ? "手机竖着贴在胸口，屏幕朝自己" : "Phone upright against your chest, screen facing you"}</li>
                 <li>{zh ? "每轮给一个目标角度，看不到自己仰了多少" : "Each round gives a target angle; you can't see your own"}</li>
                 <li>{zh ? "凭感觉仰到位，停住不动一秒半就锁定" : "Lean to what feels right and hold still for a second and a half"}</li>
-                <li>{zh ? "离目标最远的出局喝一口" : "Furthest from the target is out and drinks"}</li>
+                <li>{zh ? `离目标最远的出局${custom ? "受罚" : "喝一口"}` : `Furthest from the target is out and ${custom ? "takes the penalty" : "drinks"}`}</li>
               </ol>
             ) : (
               <ol className="lb-steps">

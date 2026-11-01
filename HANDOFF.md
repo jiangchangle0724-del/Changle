@@ -111,7 +111,9 @@ folder under `site/src/party/`. TypeScript flags most of what's missing.
 House rules for a game (the full set is in `site/PRODUCT.md`): Chinese and English are both
 first-class and switch mid-game; one action per screen, big targets, contrast for a dim room;
 every round ends in a penalty moment, made with `api.penalty(...)`, which the penalty stamp shows
-in the host's chosen penalty (drinking unless changed in settings); reduced motion respected;
+in the host's chosen penalty (drinking unless changed in settings), and with a custom penalty no
+line or button says drink (on the phone `usePenaltyText().isCustom` or `.line(drink, custom)`, on
+the rooms server `byPenalty(api, drink, custom)`); reduced motion respected;
 playable without sound and without motion sensors; nothing needs a sign-in.
 
 ## A bigger game with its own Worker (the 到此一游 pattern)

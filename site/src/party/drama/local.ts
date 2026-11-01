@@ -13,7 +13,7 @@ export type LocalEvent = { k: "penalty"; p: LocalPenalty } | { k: "fx"; fx: Fx; 
 
 type Timer = { key: string; at: number; data?: unknown };
 
-export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string[], onEvent: (e: LocalEvent) => void) {
+export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string[], onEvent: (e: LocalEvent) => void, customPenalty = false) {
   const state = useRef<S | null>(null);
   const timers = useRef<Timer[]>([]);
   const [, bump] = useState(0);
@@ -21,12 +21,16 @@ export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string
   emit.current = onEvent;
   const players = useRef(ids);
   players.current = ids;
+  // this phone's own penalty instead of drinking (settings)
+  const custom = useRef(customPenalty);
+  custom.current = customPenalty;
 
   const api = useCallback((): Api => {
     const list = () => players.current;
     const rand = () => Math.random();
     const self: Api = {
       now: Date.now(),
+      customPenalty: custom.current,
       rand,
       int: (n) => Math.floor(rand() * Math.max(1, n)),
       shuffle: <X,>(a: X[]) => {

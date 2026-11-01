@@ -6,7 +6,7 @@ import { confetti } from "../../lib/confetti";
 import { gsap, reduced } from "../../lib/anim";
 import { haptic, sfx } from "../../lib/sfx";
 import type { DramaCard, DramaView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { Both, Leaderboard } from "../common";
 import { dramaSfx } from "./sound";
 import "../../styles/party.css";
@@ -635,6 +635,8 @@ export type Config = Pick<DramaView, "mode" | "level" | "diff" | "pen" | "total"
 
 export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange: (c: Partial<Config>) => void; disabled?: boolean }) {
   const { lang } = useStore();
+  // the first choice is the table's own penalty: drinking, or whatever the host set instead
+  const pen = usePenaltyText();
   const zh = lang === "zh";
   const seg = <K extends keyof Config>(key: K, options: { value: Config[K]; label: string }[]) => (
     <div className="seg" role="group">
@@ -664,7 +666,7 @@ export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange:
       ])}
       <span className="field-label">{zh ? "输了怎么罚" : "Losers"}</span>
       {seg("pen", [
-        { value: "drink", label: zh ? "喝酒" : "Drink" },
+        { value: "drink", label: pen.isCustom ? pen.text : zh ? "喝酒" : "Drink" },
         { value: "move", label: zh ? "运动" : "Exercise" },
         { value: "prank", label: zh ? "整蛊" : "Forfeit" },
       ])}

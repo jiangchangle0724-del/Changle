@@ -5,7 +5,7 @@ import { GAME_BY_ID } from "../../games/registry";
 import { pick, randInt } from "../../lib/random";
 import { holdBackground, startGroove, type GrooveHandle, type GrooveId } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NameFace } from "../common";
 import { useWakeLock } from "../sensors";
 import { DanceFloor, FreezeFlash, TRACKS } from "./parts";
@@ -29,6 +29,8 @@ export function Freeze({ onBack }: { onBack: () => void }) {
   const handle = useRef<GrooveHandle | null>(null);
   const timer = useRef(0);
   const penalty = usePenalty();
+  // the "drink" mode is the one where you take the penalty and keep dancing: named for the penalty in settings
+  const custom = usePenaltyText().isCustom;
   const name = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p.name])), [players]);
   useWakeLock(phase === "dance" || phase === "freeze");
 
@@ -93,9 +95,13 @@ export function Freeze({ onBack }: { onBack: () => void }) {
 
   const rules = (
     <p>
-      {zh
-        ? "手机放音乐，大家跳舞。音乐会在随机的时候突然停，所有人马上定住。拿手机的人当裁判，点一下谁动了。淘汰赛：动了就出局，最后站着的人赢。喝酒版：动了喝一口，接着跳。"
-        : "The phone plays the music and everyone dances. It cuts out at a random moment and everyone freezes on the spot. Whoever holds the phone judges and taps anyone who moved. Knockout: move and you're out, last one standing wins. Drinking: move and drink, then keep dancing."}
+      {custom
+        ? zh
+          ? "手机放音乐，大家跳舞。音乐会在随机的时候突然停，所有人马上定住。拿手机的人当裁判，点一下谁动了。淘汰赛：动了就出局，最后站着的人赢。惩罚版：动了就受罚，接着跳。"
+          : "The phone plays the music and everyone dances. It cuts out at a random moment and everyone freezes on the spot. Whoever holds the phone judges and taps anyone who moved. Knockout: move and you're out, last one standing wins. Penalty: move and take the penalty, then keep dancing."
+        : zh
+          ? "手机放音乐，大家跳舞。音乐会在随机的时候突然停，所有人马上定住。拿手机的人当裁判，点一下谁动了。淘汰赛：动了就出局，最后站着的人赢。喝酒版：动了喝一口，接着跳。"
+          : "The phone plays the music and everyone dances. It cuts out at a random moment and everyone freezes on the spot. Whoever holds the phone judges and taps anyone who moved. Knockout: move and you're out, last one standing wins. Drinking: move and drink, then keep dancing."}
     </p>
   );
 
@@ -111,7 +117,7 @@ export function Freeze({ onBack }: { onBack: () => void }) {
                   {zh ? "淘汰赛" : "Knockout"}
                 </button>
                 <button type="button" aria-pressed={mode === "drink"} onClick={() => setMode("drink")}>
-                  {zh ? "喝酒版" : "Drinking"}
+                  {custom ? (zh ? "惩罚版" : "Penalty") : zh ? "喝酒版" : "Drinking"}
                 </button>
               </div>
               <span className="field-label">{zh ? "音乐" : "Music"}</span>

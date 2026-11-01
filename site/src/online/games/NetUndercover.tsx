@@ -5,7 +5,7 @@ import { Cloche } from "../../components/Cloche";
 import { TimerArc } from "../../components/TimerArc";
 import { UI } from "../../i18n";
 import type { UcRole, UndercoverView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
 import { HostButton, HostRow, SeatPicker, useYourTurn, Waiting } from "./common";
@@ -14,6 +14,7 @@ import { Moment } from "../../components/Figure";
 export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, offset } = useRoom();
   const { ui, tr, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const seats = room?.seats ?? [];
   const outSeat = v.phase === "reveal" && v.out ? seats.find((s) => s.id === v.out!.pid) : undefined;
   const inGame = v.inGame.includes(me);
@@ -39,8 +40,8 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
   const rules = (
     <p>
       {lang === "zh"
-        ? "每个人在自己的手机上点开看词，大多数人是同一个词，卧底拿到一个相近的词。按顺序每人用一句话描述自己的词，可以在手机上打出来。说完后每个人在手机上投票，票最多的出局。卧底全出局平民赢，卧底人数追平平民卧底赢，输的一方喝。"
-        : "Everyone lifts the lid on their own phone. Most share one word; the undercover gets a similar one. In turn, describe your word in one line, typed on your phone if you like. Then everyone votes on their phone and the most votes is out. All undercovers out: civilians win. Undercovers match civilians: they win. The losing side drinks."}
+        ? `每个人在自己的手机上点开看词，大多数人是同一个词，卧底拿到一个相近的词。按顺序每人用一句话描述自己的词，可以在手机上打出来。说完后每个人在手机上投票，票最多的出局。卧底全出局平民赢，卧底人数追平平民卧底赢，输的一方${custom ? "受罚" : "喝"}。`
+        : `Everyone lifts the lid on their own phone. Most share one word; the undercover gets a similar one. In turn, describe your word in one line, typed on your phone if you like. Then everyone votes on their phone and the most votes is out. All undercovers out: civilians win. Undercovers match civilians: they win. The losing side ${custom ? "takes the penalty" : "drinks"}.`}
     </p>
   );
 

@@ -1,7 +1,7 @@
 import { Minus, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
-import { useStore, type Player } from "../store";
+import { usePenaltyText, useStore, type Player } from "../store";
 import { pick, shuffle } from "../lib/random";
 import { WORD_PAIRS, type WordPair } from "../data/undercover";
 import { sfx } from "../lib/sfx";
@@ -105,12 +105,13 @@ export function Undercover({ onBack }: { onBack: () => void }) {
   const word = (s: Seat) => (s.role === "blank" ? (lang === "zh" ? "白板：你没有词，靠听" : "Blank: no word. Listen and bluff.") : s.role === "undercover" ? tr(pair!.b) : tr(pair!.a));
 
   const roleName = (r: Role) => (r === "civilian" ? (lang === "zh" ? "平民" : "Civilian") : r === "undercover" ? (lang === "zh" ? "卧底" : "Undercover") : lang === "zh" ? "白板" : "Blank");
+  const custom = usePenaltyText().isCustom;
 
   const rules = (
     <p>
       {lang === "zh"
-        ? "每人点开看自己的词，大多数人拿同一个词，卧底拿一个相近的词。轮流用一句话描述自己的词，不能说出来。每轮讨论后投票淘汰一个人。卧底全部出局，平民赢；卧底人数追平平民，卧底赢。输的一方喝。"
-        : "Everyone lifts the lid to see their word. Most players share one word; the undercover gets a similar one. Take turns describing your word in a sentence without saying it. After each round, vote someone out. All undercovers out: civilians win. Undercovers match civilians: undercovers win. The losing side drinks."}
+        ? `每人点开看自己的词，大多数人拿同一个词，卧底拿一个相近的词。轮流用一句话描述自己的词，不能说出来。每轮讨论后投票淘汰一个人。卧底全部出局，平民赢；卧底人数追平平民，卧底赢。输的一方${custom ? "受罚" : "喝"}。`
+        : `Everyone lifts the lid to see their word. Most players share one word; the undercover gets a similar one. Take turns describing your word in a sentence without saying it. After each round, vote someone out. All undercovers out: civilians win. Undercovers match civilians: undercovers win. The losing side ${custom ? "takes the penalty" : "drinks"}.`}
       {lang === "zh" ? "" : " "}
       {lang === "zh" ? "加了白板的话：白板没有词，跟卧底一伙，白板也出局平民才赢。" : "With a blank: it gets no word and plays on the undercover's side, so civilians also have to vote it out."}
     </p>

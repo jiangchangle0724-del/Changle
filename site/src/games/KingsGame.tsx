@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useStore, type Player } from "../store";
+import { usePenaltyText, useStore, type Player } from "../store";
 import { Deck, randInt, shuffle } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
-import { COMMANDS, type Command } from "../data/king";
+import { COMMANDS, commandText, type Command } from "../data/king";
 import { GameShell, usePenalty } from "./GameShell";
 import { Cloche } from "../components/Cloche";
 import { PlayerPicker } from "../components/PlayerPicker";
@@ -28,6 +28,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
   const [lidOpen, setLidOpen] = useState(false);
   const [taken, setTaken] = useState<number[]>([]);
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
 
   const king = useMemo(() => {
     const i = tokens.indexOf("K");
@@ -68,7 +69,8 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
     const c = commands.current.draw().card;
     const nums = shuffle(Array.from({ length: players.length - 1 }, (_, i) => i + 1)).slice(0, c.people);
     const vars = { a: nums[0] ?? randInt(1, players.length - 1), b: nums[1] ?? randInt(1, players.length - 1), c: nums[2] ?? randInt(1, players.length - 1) };
-    setCommand({ text: fill(tr(c), vars), other: fill(lang === "zh" ? c.en : c.zh, vars) });
+    const words = commandText(c, custom);
+    setCommand({ text: fill(tr(words), vars), other: fill(lang === "zh" ? words.en : words.zh, vars) });
     setLidOpen(false);
     setPhase("command");
   };
@@ -89,9 +91,13 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
 
   const rules = (
     <p>
-      {lang === "zh"
-        ? "每人抽一支签，只能自己看。一支是国王，其余是号码。国王现身后抽一张命令，命令只说号码不说名字：被叫到的号码自己站出来执行。谁不执行谁喝。每轮重新抽。"
-        : "Everyone draws a stick and looks at it alone. One is the king, the rest are numbers. The king draws a command. Commands call numbers, never names: whoever holds that number steps up. Refuse and drink. Redraw every round."}
+      {custom
+        ? lang === "zh"
+          ? "每人抽一支签，只能自己看。一支是国王，其余是号码。国王现身后抽一张命令，命令只说号码不说名字：被叫到的号码自己站出来执行。谁不执行谁受罚。每轮重新抽。"
+          : "Everyone draws a stick and looks at it alone. One is the king, the rest are numbers. The king draws a command. Commands call numbers, never names: whoever holds that number steps up. Refuse and take the penalty. Redraw every round."
+        : lang === "zh"
+          ? "每人抽一支签，只能自己看。一支是国王，其余是号码。国王现身后抽一张命令，命令只说号码不说名字：被叫到的号码自己站出来执行。谁不执行谁喝。每轮重新抽。"
+          : "Everyone draws a stick and looks at it alone. One is the king, the rest are numbers. The king draws a command. Commands call numbers, never names: whoever holds that number steps up. Refuse and drink. Redraw every round."}
     </p>
   );
 
@@ -208,7 +214,15 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
 
         {phase === "refusers" && (
           <motion.div key="refusers" className="stack" style={{ gap: 14 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <p className="hint">{lang === "zh" ? "谁不执行？点一下，他喝。" : "Who refused? Tap them. They drink."}</p>
+            <p className="hint">
+              {custom
+                ? lang === "zh"
+                  ? "谁不执行？点一下，他受罚。"
+                  : "Who refused? Tap them. They take the penalty."
+                : lang === "zh"
+                  ? "谁不执行？点一下，他喝。"
+                  : "Who refused? Tap them. They drink."}
+            </p>
             <PlayerPicker players={players} onPick={(p: Player) => penalty.show({ who: [p.name], kind: "sip" }, newRound)} />
           </motion.div>
         )}

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PenaltyStamp } from "../components/PenaltyStamp";
 import { haptic } from "../lib/sfx";
 import { REACTIONS, type Reaction } from "../shared/protocol";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
 import type { UIKey } from "../i18n";
 import { useRoom, useRoomEvent } from "./RoomContext";
 import { SeatFace } from "./People";
@@ -14,6 +14,7 @@ import { SeatFace } from "./People";
 export function NetPenaltyLayer() {
   const { pens, dismissPen, me, nameOf, room, act, drank } = useRoom();
   const { ui, tr } = useStore();
+  const custom = usePenaltyText().isCustom;
   const pen = pens[0] ?? null;
   const [called, setCalled] = useState<string | null>(null);
   const [mineDone, setMineDone] = useState<string | null>(null);
@@ -39,11 +40,13 @@ export function NetPenaltyLayer() {
 
   if (!pen || !room || !call) return null;
   const everyone = pen.kind === "everyone";
+  // nobody drinks when the table has its own penalty (or the game named one): they did it
+  const doneMark = custom || pen.say ? ui("doneMark") : ui("drankMark");
 
   const names = everyone ? (
     <span className="stamp-name-list">
-      <span>{ui("everyoneDrinks")}</span>
-      {drankIds.length > 0 && <span className="stamp-drank-count tabular">{`${drankIds.length}/${pen.who.length} ${ui("drankMark")}`}</span>}
+      <span>{custom ? ui("everyone") : ui("everyoneDrinks")}</span>
+      {drankIds.length > 0 && <span className="stamp-drank-count tabular">{`${drankIds.length}/${pen.who.length} ${doneMark}`}</span>}
     </span>
   ) : (
     <span className="stamp-name-list">
@@ -54,7 +57,7 @@ export function NetPenaltyLayer() {
             <SeatFace seat={room?.seats.find((x) => x.id === pid)} size={34} className="stamp-face" />
             {nameOf(pid)}
             {pid === me && <span className="stamp-you">{ui("you")}</span>}
-            {done && <Check size={22} strokeWidth={3} aria-label={ui("drankMark")} />}
+            {done && <Check size={22} strokeWidth={3} aria-label={doneMark} />}
           </span>
         );
       })}
@@ -82,7 +85,7 @@ export function NetPenaltyLayer() {
           }}
         >
           <Check size={18} strokeWidth={3} />
-          {pen.say ? ui("iDidIt") : ui("iDrank")}
+          {pen.say || custom ? ui("iDidIt") : ui("iDrank")}
         </button>
         {canBuddy && (
           <button
@@ -94,7 +97,7 @@ export function NetPenaltyLayer() {
               haptic([10, 20, 10]);
             }}
           >
-            {ui("callBuddy", { name: buddyName })}
+            {custom ? ui("callBuddyPenalty", { name: buddyName }) : ui("callBuddy", { name: buddyName })}
           </button>
         )}
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => dismissPen(pen.id)}>
@@ -127,12 +130,20 @@ export const REACTION_KEY: Record<Reaction, UIKey> = {
   drink: "reactDrink",
 };
 
+/** A reaction's word; "drink" becomes the penalty call when the table has its own penalty. */
+export function useReactionLabel() {
+  const { ui } = useStore();
+  const custom = usePenaltyText().isCustom;
+  return (r: Reaction) => (r === "drink" && custom ? ui("reactPenalty") : ui(REACTION_KEY[r]));
+}
+
 type Float = { id: number; r: Reaction; name: string; x: number; mine: boolean };
 
 /** Reactions rise from the table edge on every phone, with who threw them. */
 export function ReactionLayer() {
   const { me, nameOf } = useRoom();
-  const { ui, lang } = useStore();
+  const { lang } = useStore();
+  const label = useReactionLabel();
   const [items, setItems] = useState<Float[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
@@ -154,7 +165,7 @@ export function ReactionLayer() {
             animate={{ y: -220, opacity: [0, 1, 1, 0], scale: 1, rotate: f.x > 38 ? 3 : -3 }}
             transition={{ duration: 2.4, ease: [0.16, 1, 0.3, 1], opacity: { duration: 2.4, times: [0, 0.12, 0.7, 1] } }}
           >
-            <span className={`react-label ${lang === "zh" ? "zh-display" : "en-display"}`}>{ui(REACTION_KEY[f.r])}</span>
+            <span className={`react-label ${lang === "zh" ? "zh-display" : "en-display"}`}>{label(f.r)}</span>
             <span className="react-who">{f.name}</span>
           </motion.div>
         ))}
@@ -167,6 +178,7 @@ export function ReactionLayer() {
 export function ReactionDock({ more = false }: { more?: boolean }) {
   const { act } = useRoom();
   const { ui } = useStore();
+  const label = useReactionLabel();
   return (
     <div className={`react-dock ${more ? "is-more" : ""}`} role="group" aria-label={ui("reactCheers")}>
       {REACTIONS.map((r) => (
@@ -180,7 +192,7 @@ export function ReactionDock({ more = false }: { more?: boolean }) {
             haptic(8);
           }}
         >
-          {ui(REACTION_KEY[r])}
+          {label(r)}
         </motion.button>
       ))}
     </div>

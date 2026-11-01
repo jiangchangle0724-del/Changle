@@ -1,4 +1,4 @@
-import { DARES, TRUTHS } from "../../../data/truthDare";
+import { DARES, promptText, TRUTHS } from "../../../data/truthDare";
 import type { TruthView } from "../../protocol";
 import { intIn, num, range, type Api, type GameDef } from "../api";
 
@@ -102,7 +102,7 @@ export const truth: GameDef<S> = {
     if (s.chosen === pid) backToSpin(s, s.spinner);
   },
 
-  view(s): TruthView {
+  view(s, _pid, api): TruthView {
     const list = s.kind === "dare" ? DARES : TRUTHS;
     const p = s.prompt !== null ? list[s.prompt] : null;
     return {
@@ -113,7 +113,7 @@ export const truth: GameDef<S> = {
       chosen: s.chosen,
       revealAt: s.revealAt,
       kind: s.kind,
-      prompt: p ? { zh: p.zh, en: p.en } : null,
+      prompt: p ? promptText(p, api.customPenalty) : null,
     };
   },
 };
