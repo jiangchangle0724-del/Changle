@@ -209,6 +209,7 @@ const S = {
   soloShareText: ["今天吃「{name}」！🗺️ {map}", "Eating at {name}! 🗺️ {map}"],
   soloNoMore: ["附近就这些了，换大一点的范围试试？", "That's all nearby. Try a wider range?"],
   soloNoMoreAny: ["就这些了，换个心情或预算试试？", "That's all of them. Try another mood or budget?"],
+  soloExpired: ["这次挑选过期了，重新挑一次吧", "This search has expired: start again"],
 } satisfies Record<string, [string, string]>;
 
 export type Key = keyof typeof S;

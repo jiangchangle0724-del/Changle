@@ -28,10 +28,13 @@ How a table goes:
 
 **On your own and can't decide?** The home page's second card asks one person five quick things
 (mood, which side of the menu, budget, where and how far, diet card) and shows three places at a
-time, each with why it was picked; "show me others" gives three more. It is at
-`changle.ca/eat/solo`, needs the same sign-in as starting a table, and counts toward the same
-10 uses a day. Nothing from the answers is kept; changes to the diet card are saved for next time
-as at a table, except the budget, which is only that search's answer. Places with almost no Google
+time, each with why it was picked; "show me others" gives three more, up to twelve, and only then
+fetches their phone numbers, photos and reviews (fewer Google calls when the first three do). It is
+at `changle.ca/eat/solo`, needs the same sign-in as starting a table, and counts toward the same
+10 uses a day ("show me others" doesn't count again, for 30 minutes). The answers only steer that
+search: they wait on the account with its other candidates until the next search. Changes to the
+diet card are saved for next time as at a table, except the budget, which is only that search's
+answer. Places with almost no Google
 ratings rank lower than rated ones here (there's no table to vote them down), unless they're a pick.
 Once you choose one, the home page asks how it was for the next three days (or open
 `changle.ca/eat/rate`): three taps, once per pick, counted in that place's "our users" numbers

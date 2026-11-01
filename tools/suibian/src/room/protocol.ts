@@ -100,7 +100,9 @@ export interface SoloResponse {
   /** The side of the menu asked for had too few places nearby, so others were let in. */
   relaxed?: boolean;
   demo?: boolean;
-  error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace";
+  /** More places are waiting: POST /api/solo/more fetches the next batch. */
+  more?: boolean;
+  error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace" | "expired";
 }
 
 export interface RoomView {

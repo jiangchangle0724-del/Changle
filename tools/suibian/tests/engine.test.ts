@@ -337,6 +337,18 @@ test("solo: the mood moves matching places up, and each batch of three tries thr
   assert.ok(first.includes("hotpot") && first.includes("ramen"), "warm places first");
 });
 
+test("solo: up to twelve places, in batches of three, none repeated", () => {
+  const cuisines: CuisineId[] = ["hotpot", "ramen", "italian", "korean", "thai", "brunch"];
+  const places = Array.from({ length: 20 }, (_, i) => place({ cuisine: cuisines[i % cuisines.length] }));
+  const { ids } = soloPick({ places, answers: { mood: "any", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW });
+  assert.equal(ids.length, 12);
+  assert.equal(new Set(ids).size, 12);
+  for (let b = 0; b < 4; b++) {
+    const batch = ids.slice(b * 3, b * 3 + 3).map((id) => places.find((p) => p.id === id)!.cuisine);
+    assert.equal(new Set(batch).size, 3, `batch ${b + 1} has three cuisines`);
+  }
+});
+
 test("solo: the diet card and budget still rule places out, and closed places never show", () => {
   const places = [
     place({ cuisine: "sichuan", price: 25 }),
