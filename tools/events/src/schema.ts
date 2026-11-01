@@ -1,8 +1,12 @@
 // The Worker applies migrations/ itself, in order and once each, before a run touches the database:
 // nothing to do by hand after a deploy. Never edit a migration that has gone out; add the next one.
 import m0001 from "../migrations/0001_init.sql";
+import m0002 from "../migrations/0002_runs.sql";
 
-const MIGRATIONS: [name: string, sql: string][] = [["0001_init", m0001]];
+const MIGRATIONS: [name: string, sql: string][] = [
+  ["0001_init", m0001],
+  ["0002_runs", m0002],
+];
 
 /** The statements in a migration file (comments dropped, split at the semicolons). */
 export function statements(sql: string): string[] {

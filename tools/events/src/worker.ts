@@ -62,6 +62,10 @@ async function listEvents(url: URL, env: Env, ics = false): Promise<Response> {
 async function status(env: Env): Promise<Response> {
   await ensureSchema(env.DB);
   const last = await env.DB.prepare("SELECT max(run_id) AS run FROM fetch_log").first<{ run: string | null }>();
+  // how far the run has got: the step it goes on with (null once every source is done), the triggers so far
+  const progress = last?.run
+    ? await env.DB.prepare("SELECT next_source AS nextSource, next_part AS nextPart, steps, triggers, started_at AS startedAt, published_at AS publishedAt FROM runs WHERE run_id = ?1").bind(last.run).first()
+    : null;
   const steps = last?.run
     ? (
         await env.DB.prepare(
@@ -72,7 +76,7 @@ async function status(env: Env): Promise<Response> {
       ).results
     : [];
   const pub = await env.CACHE.get<Published>(LIVE_KEY, "json");
-  return json({ run: last?.run ?? null, steps, published: pub ? { runId: pub.runId, generatedAt: pub.generatedAt, from: pub.from, to: pub.to, count: pub.count } : null });
+  return json({ run: last?.run ?? null, progress, steps, published: pub ? { runId: pub.runId, generatedAt: pub.generatedAt, from: pub.from, to: pub.to, count: pub.count } : null });
 }
 
 const PAGE = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>玩什么 · What's On</title>
@@ -91,10 +95,13 @@ export default {
     return json({ error: "not found" }, 404);
   },
 
-  // 13:00 and 14:00 UTC: one of them is 06:00 in Vancouver, summer or winter. That one runs.
+  // At :00, :20 and :40 past 13:00 and 14:00 UTC: the ones at 06:xx in Vancouver run (13:xx while B.C.
+  // keeps UTC-7). Each goes on with the morning's run where the last stopped; the 06:40 one publishes
+  // whatever it has. (ALLOW_TEST: any hour, and never the last, so a local run goes on until done.)
   async scheduled(controller, env, ctx) {
     const local = vanParts(controller.scheduledTime);
-    if (local.hour !== 6 && env.ALLOW_TEST !== "1") return;
-    await runDay(ctx.exports.Steps, local.date);
+    const test = env.ALLOW_TEST === "1";
+    if (local.hour !== 6 && !test) return;
+    await runDay(ctx.exports.Steps, env.DB, local.date, { final: local.minute >= 40 && !test });
   },
 } satisfies ExportedHandler<Env>;
