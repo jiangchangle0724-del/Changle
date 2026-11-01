@@ -6,6 +6,8 @@ import { gsap, reduced, setLight } from "./lib/anim";
 import { Home, type HomeTab } from "./home/Home";
 import { GAME_BY_ID, isGameId, type GameId } from "./games/registry";
 import { AccountProvider, useAccount } from "./account/AccountContext";
+import { ScreenGuard } from "./components/ScreenGuard";
+import { SiteGate } from "./components/SiteGate";
 import { api } from "./lib/api";
 // each game loads when it is opened: the front door stays light
 const Rogue13 = lazy(() => import("./games/Rogue13").then((m) => ({ default: m.Rogue13 })));
@@ -33,6 +35,7 @@ const OnlineRoom = lazy(() => import("./online/OnlineRoom").then((m) => ({ defau
 const MePage = lazy(() => import("./account/MePage").then((m) => ({ default: m.MePage })));
 const UserPage = lazy(() => import("./account/UserPage").then((m) => ({ default: m.UserPage })));
 const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default: m.ChatPage })));
+const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
 const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default: m.SignInSheet })));
 
 type Route =
@@ -40,6 +43,7 @@ type Route =
   | { kind: "game"; id: GameId }
   | { kind: "room"; code: string }
   | { kind: "me" }
+  | { kind: "admin" }
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
   | { kind: "tv"; code?: string; game?: GameId };
@@ -58,6 +62,7 @@ function parse(hash: string): Route {
   const r = /^#\/r\/([A-Za-z0-9]{1,8})/.exec(hash);
   if (r) return { kind: "room", code: r[1].toUpperCase() };
   if (/^#\/me\b/.test(hash)) return { kind: "me" };
+  if (/^#\/admin\b/.test(hash)) return { kind: "admin" };
   const u = /^#\/u\/(u[a-z0-9]{6,20})/.exec(hash);
   if (u) return { kind: "user", id: u[1] };
   const c = /^#\/chat\/(u[a-z0-9]{6,20})/.exec(hash);
@@ -77,6 +82,8 @@ function hashOf(r: Route) {
       return `#/g/${r.id}`;
     case "me":
       return "#/me";
+    case "admin":
+      return "#/admin";
     case "user":
       return `#/u/${r.id}`;
     case "chat":
@@ -168,6 +175,7 @@ function Shell() {
   if (route.kind === "home") screen = <Home tab={route.tab} onTab={(tab) => go({ kind: "home", tab }, true)} onOpenGame={(id) => go({ kind: "game", id })} />;
   else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => window.location.replace("#/")} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
+  else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "chat") screen = <ChatPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "game") {
@@ -226,12 +234,22 @@ function Shell() {
   }
 
   const key =
-    route.kind === "home" ? "home" : route.kind === "room" ? `room-${route.code}` : route.kind === "game" ? route.id : route.kind === "me" ? "me" : route.kind === "tv" ? "tv" : `${route.kind}-${route.id}`;
+    route.kind === "home"
+      ? "home"
+      : route.kind === "room"
+        ? `room-${route.code}`
+        : route.kind === "game"
+          ? route.id
+          : route.kind === "me" || route.kind === "admin" || route.kind === "tv"
+            ? route.kind
+            : `${route.kind}-${route.id}`;
   if (route.kind === "tv")
     return (
-      <Suspense fallback={null}>
-        <TvApp key={`${route.code ?? "new"}:${route.game ?? ""}`} code={route.code} game={route.game} />
-      </Suspense>
+      <SiteGate signIn={null}>
+        <Suspense fallback={null}>
+          <TvApp key={`${route.code ?? "new"}:${route.game ?? ""}`} code={route.code} game={route.game} />
+        </Suspense>
+      </SiteGate>
     );
   // development only: the Punchline show with made-up data
   if (ShowPreview && window.location.hash.startsWith("#/dev/show"))
@@ -241,19 +259,24 @@ function Shell() {
       </Suspense>
     );
   return (
-    <>
+    <SiteGate
+      signIn={
+        signInUsed && (
+          <Suspense fallback={null}>
+            <SignInSheet />
+          </Suspense>
+        )
+      }
+    >
       <div className="room-light" aria-hidden="true" />
       <main className="app" style={route.kind === "game" ? ({ ["--gel" as string]: GAME_BY_ID[route.id].gel } as React.CSSProperties) : undefined}>
         <Scene sceneKey={key}>
-          <Suspense fallback={null}>{screen}</Suspense>
+          <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>
+            <Suspense fallback={null}>{screen}</Suspense>
+          </ScreenGuard>
         </Scene>
       </main>
-      {signInUsed && (
-        <Suspense fallback={null}>
-          <SignInSheet />
-        </Suspense>
-      )}
-    </>
+    </SiteGate>
   );
 }
 

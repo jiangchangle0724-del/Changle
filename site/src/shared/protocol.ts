@@ -506,7 +506,7 @@ export type ClientMsg =
   | { t: "stroke"; op: StrokeOp }
   | { t: "ping"; c: number };
 
-export type ErrorCode = "no-room" | "exists" | "full" | "kicked" | "bad" | "busy";
+export type ErrorCode = "no-room" | "exists" | "full" | "kicked" | "bad" | "busy" | "paused" | "banned";
 
 export type ServerMsg =
   | { t: "room"; room: RoomView; now: number }

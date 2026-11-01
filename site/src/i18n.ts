@@ -170,6 +170,8 @@ export const UI = {
   errNoRoom: { zh: "这桌已经散了，或者桌号不对。", en: "This table is gone, or the code is wrong." },
   errFull: { zh: "这桌坐满了，最多 15 人。", en: "This table is full. It seats 15." },
   errKicked: { zh: "主人把你请出了这桌。", en: "The host removed you from this table." },
+  errPaused: { zh: "changle 暂停中，过一会儿再来。", en: "changle is closed for now. Come back in a while." },
+  errBanned: { zh: "这台手机已被停用。", en: "This phone has been blocked." },
   errReplaced: { zh: "这桌在这台手机的另一个页面打开了。", en: "This table is open in another tab on this phone." },
   errUnreachable: { zh: "连不上联机服务，检查一下网络。", en: "Can't reach the table service. Check your connection." },
   errBusy: { zh: "这个桌号刚被别人用了，换一个再开。", en: "That code was just taken. Try again." },

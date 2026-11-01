@@ -1,6 +1,6 @@
 import { Check, RotateCw, WifiOff } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PenaltyStamp } from "../components/PenaltyStamp";
 import { haptic } from "../lib/sfx";
 import { REACTIONS, type Reaction } from "../shared/protocol";
@@ -21,6 +21,14 @@ export function NetPenaltyLayer() {
   const mine = !!pen && pen.who.includes(me) && pen.kind !== "safe";
   const drankIds = pen ? drank[pen.id] ?? [] : [];
   const iDrank = !!pen && (drankIds.includes(me) || mineDone === pen.id);
+  // One call per penalty. The stamp plays its entrance whenever its call changes, so a fresh
+  // object on every render replayed the whole stamp each time someone tapped "I drank".
+  const penId = pen?.id ?? "";
+  const call = useMemo(
+    () => (pen ? { who: pen.kind === "everyone" ? [] : pen.who.map((pid) => nameOf(pid)), kind: pen.kind, note: pen.note ? tr(pen.note) : undefined } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [penId],
+  );
 
   // a phone that is only watching lets the stamp go by itself
   useEffect(() => {
@@ -29,9 +37,8 @@ export function NetPenaltyLayer() {
     return () => window.clearTimeout(id);
   }, [pen, mine, dismissPen]);
 
-  if (!pen || !room) return null;
+  if (!pen || !room || !call) return null;
   const everyone = pen.kind === "everyone";
-  const who = everyone ? [] : pen.who.map((pid) => nameOf(pid));
 
   const names = everyone ? (
     <span className="stamp-name-list">
@@ -100,7 +107,7 @@ export function NetPenaltyLayer() {
   return (
     <PenaltyStamp
       key={pen.id}
-      call={{ who, kind: pen.kind, note: pen.note ? tr(pen.note) : undefined }}
+      call={call}
       onDone={() => dismissPen(pen.id)}
       customText={room.penalty}
       names={names}
