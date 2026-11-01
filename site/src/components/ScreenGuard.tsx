@@ -1,27 +1,49 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { isStaleBuild, loadingNewVersion, loadNewVersion } from "../lib/freshness";
 import { useStore } from "../store";
 
 type Props = { children: ReactNode; onHome?: () => void; compact?: boolean };
+type State = { failed: boolean; stale: boolean };
 
 /**
  * When something on a screen breaks, the rest of the app keeps going: a calm note with a way back
- * in place of the screen, instead of a blank page. (The error goes to the console for us.)
+ * in place of the screen, instead of a blank page. (The error goes to the console for us.) When
+ * what broke is a file of the site's that is gone because the site was updated, it opens the new
+ * version instead; trying again then means loading the page afresh, as the old file won't come back.
  */
-export class ScreenGuard extends Component<Props, { failed: boolean }> {
-  state = { failed: false };
+export class ScreenGuard extends Component<Props, State> {
+  state: State = { failed: false, stale: false };
 
-  static getDerivedStateFromError() {
-    return { failed: true };
+  static getDerivedStateFromError(error: unknown): State {
+    return { failed: true, stale: isStaleBuild(error) };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("screen", error, info.componentStack);
+    if (isStaleBuild(error) && loadNewVersion()) this.forceUpdate();
   }
 
   render() {
     if (!this.state.failed) return this.props.children;
-    return <Broken compact={this.props.compact} onRetry={() => this.setState({ failed: false })} onHome={this.props.onHome} />;
+    if (this.state.stale && loadingNewVersion()) return <Updating compact={this.props.compact} />;
+    const retry = () => (this.state.stale ? location.reload() : this.setState({ failed: false, stale: false }));
+    return <Broken compact={this.props.compact} onRetry={retry} onHome={this.props.onHome} />;
   }
+}
+
+function Updating({ compact }: { compact?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className={compact ? "broken broken-compact" : "screen notice-screen broken"} role="status">
+      <div className="notice-body">
+        <p className="notice-title">{zh ? "网站刚更新" : "The site was just updated"}</p>
+        <p className="hint" style={{ textAlign: "center" }}>
+          {zh ? "正在打开新版本……" : "Opening the new version…"}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function Broken({ onRetry, onHome, compact }: { onRetry: () => void; onHome?: () => void; compact?: boolean }) {
