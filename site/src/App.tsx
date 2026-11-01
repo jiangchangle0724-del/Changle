@@ -19,6 +19,7 @@ const PromptDecks = lazy(() => import("./games/PromptDecks").then((m) => ({ defa
 const Dice789 = lazy(() => import("./games/Dice789").then((m) => ({ default: m.Dice789 })));
 const WheelOfFate = lazy(() => import("./games/WheelOfFate").then((m) => ({ default: m.WheelOfFate })));
 const Superlatives = lazy(() => import("./party/superlatives/Superlatives").then((m) => ({ default: m.Superlatives })));
+const Drama = lazy(() => import("./party/drama/Drama").then((m) => ({ default: m.Drama })));
 const Punchline = lazy(() => import("./party/punchline/Punchline").then((m) => ({ default: m.Punchline })));
 const Postit = lazy(() => import("./party/postit/Postit").then((m) => ({ default: m.Postit })));
 const Freeze = lazy(() => import("./party/freeze/Freeze").then((m) => ({ default: m.Freeze })));
@@ -206,6 +207,9 @@ function Shell() {
         break;
       case "superlatives":
         screen = <Superlatives onBack={back} />;
+        break;
+      case "drama":
+        screen = <Drama onBack={back} />;
         break;
       case "punchline":
         screen = <Punchline onBack={back} />;

@@ -8,6 +8,7 @@ import { NetTruth } from "./NetTruth";
 import { NetUndercover } from "./NetUndercover";
 import { NetWheel } from "./NetWheel";
 import { NetSuper } from "../../party/superlatives/NetSuper";
+import { NetDrama } from "../../party/drama/NetDrama";
 import { NetPunch } from "../../party/punchline/NetPunch";
 import { NetPostit } from "../../party/postit/NetPostit";
 import { NetFreeze } from "../../party/freeze/NetFreeze";
@@ -37,6 +38,8 @@ export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void
       return <NetWheel v={view} onLeave={onLeave} />;
     case "superlatives":
       return <NetSuper v={view} onLeave={onLeave} />;
+    case "drama":
+      return <NetDrama v={view} onLeave={onLeave} />;
     case "punchline":
       return <NetPunch v={view} onLeave={onLeave} />;
     case "postit":

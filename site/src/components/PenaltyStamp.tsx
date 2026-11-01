@@ -13,6 +13,8 @@ export type PenaltyCall = {
   kind: PenaltyKind;
   /** Optional line under the names, e.g. the rule that caused it. */
   note?: string;
+  /** The penalty itself when the game names it ("15 push-ups"): shown instead of the drink. */
+  say?: string;
 };
 
 /**
@@ -44,7 +46,8 @@ export function PenaltyStamp({
   const { ui, lang, sound } = useStore();
   const local = usePenaltyText();
   const custom = customText === undefined ? null : customText.trim();
-  const penalty = custom === null ? local : { sip: custom || ui("sip"), full: custom || ui("finish"), isCustom: !!custom };
+  const base = custom === null ? local : { sip: custom || ui("sip"), full: custom || ui("finish"), isCustom: !!custom };
+  const penalty = call?.say ? { sip: call.say, full: call.say, isCustom: true } : base;
   const [level, setLevel] = useState(1);
   const layer = useRef<HTMLDivElement>(null);
 

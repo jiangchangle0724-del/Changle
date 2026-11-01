@@ -485,8 +485,8 @@ export class RoomEngine {
         continue;
       }
       if (ready.key.startsWith("pen:")) {
-        const p = ready.data as { who: string[]; kind: PenaltyKind; note?: T; buddy?: string };
-        this.penalty(p.who, p.kind, p.note, { buddy: p.buddy });
+        const p = ready.data as { who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T };
+        this.penalty(p.who, p.kind, p.note, { buddy: p.buddy, say: p.say });
         continue;
       }
       if (ready.key.startsWith("g:")) {
@@ -575,14 +575,14 @@ export class RoomEngine {
     this.d.timers = this.d.timers.filter((x) => !x.key.startsWith("g:") && !x.key.startsWith("pen:"));
   }
 
-  private penalty(who: string[], kind: PenaltyKind, note?: T, opts?: { buddy?: string; delay?: number }) {
+  private penalty(who: string[], kind: PenaltyKind, note?: T, opts?: { buddy?: string; delay?: number; say?: T }) {
     const d = this.d;
     // (only players: someone just watching never drinks)
     const ids = new Set(this.players().map((s) => s.id));
     const list = [...new Set(who)].filter((id) => ids.has(id));
     if (!list.length) return;
     if (opts?.delay && opts.delay > 0) {
-      this.setTimer(`pen:${++d.seq}`, this.h.now() + opts.delay, { who: list, kind, note, buddy: opts.buddy });
+      this.setTimer(`pen:${++d.seq}`, this.h.now() + opts.delay, { who: list, kind, note, buddy: opts.buddy, say: opts.say });
       this.out.changed = true;
       return;
     }
@@ -591,7 +591,7 @@ export class RoomEngine {
     const buddy = opts?.buddy && ids.has(opts.buddy) && !list.includes(opts.buddy) && kind !== "safe" ? opts.buddy : undefined;
     d.pens.push({ id, who: list, buddy, drank: [], at: this.h.now() });
     if (d.pens.length > 30) d.pens = d.pens.slice(-30);
-    this.event({ k: "penalty", id, who: list, kind, note, buddy });
+    this.event({ k: "penalty", id, who: list, kind, note, buddy, ...(opts?.say ? { say: opts.say } : {}) });
     this.out.persist = true;
   }
 

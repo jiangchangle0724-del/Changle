@@ -1,9 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Drama, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import type { T } from "../i18n";
 
 export type GameId =
   | "truth"
+  | "drama"
   | "rogue"
   | "superlatives"
   | "king"
@@ -53,6 +54,7 @@ export const GAMES: GameMeta[] = [
     icon: Wine,
     ready: true,
   },
+
   {
     id: "rogue",
     name: t("流氓十三张", "Rogue Thirteen"),
@@ -103,6 +105,21 @@ export const GAMES: GameMeta[] = [
     gel: "#ffb82e",
     icon: Crown,
     ready: true,
+  },  {
+    id: "drama",
+    name: t("戏精大赏", "Drama Queens"),
+    blurb: t("演一出狗血剧，揪出谁是小三", "Act out a soap opera. Find the culprit."),
+    how: t(
+      "每轮几个人上台演一段狗血剧情，其中一个人偷偷是小三或凶手。观众猜是谁，再给每个人的演技打星。被识破的、演得最差的受罚。",
+      "Each round a few players act out a soap-opera scene, and one of them is secretly the culprit. The audience guesses who, then gives every actor stars. Get caught, or act worst, and you pay.",
+    ),
+    minPlayers: 3,
+    maxPlayers: 15,
+    gel: "#ffcf6b",
+    icon: Drama,
+    ready: true,
+    isNew: true,
+    solo: { min: 3, hint: t("手机传着看身份牌，演完再传着投票", "Pass it round to read the cards, then again to vote") },
   },
   {
     id: "postit",

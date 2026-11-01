@@ -11,7 +11,7 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 
@@ -75,7 +75,7 @@ def clear_stamps(pages, wait=True):
             if g.locator(".stamp-layer").count() == 0:
                 continue
             busy = True
-            for label in ("我喝了", "继续", "I drank", "Continue"):
+            for label in ("我喝了", "做完了", "继续", "I drank", "Done it", "Continue"):
                 b = g.locator(".stamp-layer button", has_text=label)
                 if b.count():
                     try:
@@ -801,9 +801,116 @@ def t_trip_single(browser):
     pg.context.close()
 
 
+# ------------------------------------------------------------------ 戏精大赏
+
+
+def t_drama_single(browser):
+    pg = phone(browser, "solo", players=PLAYERS + [{"id": "p4", "name": "Lu"}])
+    pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+    pg.wait_for_selector(".dm-marquee")
+    pg.get_by_role("button", name="整蛊", exact=True).click()
+    pg.get_by_role("button", name="3", exact=True).click()
+    shot(pg, "dm-setup")
+    pg.get_by_role("button", name="开演").click()
+    pg.wait_for_selector(".dm-roster")
+    actors = pg.locator(".dm-roster li").count()
+    ok(actors >= 2 and actors <= 3, f"a scene with {actors} actors for five players")
+    shot(pg, "dm-brief")
+    pg.get_by_role("button", name="发身份牌").click()
+    culprits = 0
+    for _ in range(actors):
+        pg.locator(".pass-curtain .btn-primary").click()
+        pg.locator(".dm-card-back").click()
+        pg.wait_for_timeout(800)
+        culprits += pg.locator(".dm-card-secret.is-culprit").count()
+        pg.locator(".dm-cardwrap .btn-primary").click()
+        pg.wait_for_timeout(300)
+    ok(culprits == 1, "one actor's card says they're the culprit")
+    ok(until(lambda: pg.locator(".dm-clock").count() == 1, 3000), "the curtain opens and the clock runs")
+    pg.wait_for_timeout(1600)
+    shot(pg, "dm-act")
+    pg.get_by_role("button", name="演完了，开始投票").click()
+    pg.get_by_role("button", name="传手机投票").click()
+    voters = 5 - actors
+    for k in range(voters):
+        pg.locator(".pass-curtain .btn-primary").click()
+        pg.locator(".dm-suspect").nth(k % actors).click()
+        rows = pg.locator(".dm-rates li")
+        for r in range(rows.count()):
+            rows.nth(r).locator(".dm-star").nth((r + k) % 5).click()
+        if k == 0:
+            shot(pg, "dm-ballot")
+        pg.get_by_role("button", name="交卷").click()
+        pg.wait_for_timeout(250)
+    ok(until(lambda: pg.locator(".dm-reveal").count() == 1, 3000), "every ballot in: the reveal")
+    ok(until(lambda: pg.locator(".dm-truths li").count() == actors, 6000), "every card is turned over")
+    pg.wait_for_timeout(1500)
+    shot(pg, "dm-reveal")
+    ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 9000), "then the forfeit lands")
+    shot(pg, "dm-penalty")
+    pg.locator(".stamp-layer button").first.click()
+    pg.get_by_role("button", name="下一幕").click()
+    ok(until(lambda: pg.locator(".dm-roster").count() == 1, 3000), "act two")
+    errors([pg])
+    pg.context.close()
+
+
+def t_drama_online(browser):
+    host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay", "Kev", "Lu"])
+    everyone = [host] + guests
+    tv_ctx = browser.new_context(viewport={"width": 1366, "height": 768})
+    tv = tv_ctx.new_page()
+    tv._errs = []
+    tv._name = "tv"
+    tv.on("pageerror", lambda e: tv._errs.append(str(e)))
+    tv.goto(BASE + f"#/tv/{code}", wait_until="networkidle")
+    start_game(host, everyone, "drama")
+    host.get_by_role("button", name="困难", exact=True).click()
+    ok(until(lambda: view(guests[0])["diff"] == "hard"), "the host sets it up; the table sees it")
+    host.get_by_role("button", name="开演").click()
+    ok(until(lambda: view(host)["phase"] == "brief"), "a scene is dealt")
+    v = view(host)
+    cast = [c["pid"] for c in v["cast"]]
+    actors = [g for g in everyone if me(g) in cast]
+    audience = [g for g in everyone if me(g) not in cast]
+    ok(len(actors) == len(cast) and all(view(a)["me"] for a in actors) and not any(view(a)["me"] for a in audience), "each actor has a card, nobody else")
+    shot(actors[0], "dmn-card")
+    shot(audience[0], "dmn-brief")
+    for a in actors:
+        a.locator(".dm-card-back").click()
+        a.wait_for_timeout(700)
+        a.locator(".dm-cardwrap .btn-primary").click()
+    ok(until(lambda: view(host)["phase"] == "act"), "everyone's read their card: action")
+    tv.wait_for_timeout(1800)
+    tv.screenshot(path=os.path.join(OUT, "dmn-act-tv.png"))
+    shot(audience[0], "dmn-act")
+    actors[0].get_by_role("button", name="演完了，开始投票").click()
+    ok(until(lambda: view(host)["phase"] == "vote"), "an actor calls the wrap: the vote")
+    for k, g in enumerate(audience):
+        g.locator(".dm-suspect").nth(k % len(cast)).click()
+        rows = g.locator(".dm-rates li")
+        for r in range(rows.count()):
+            rows.nth(r).locator(".dm-star").nth((r + k + 1) % 5).click()
+        if k == 0:
+            shot(g, "dmn-ballot")
+        g.get_by_role("button", name="交卷").click()
+    ok(until(lambda: view(host)["phase"] == "reveal"), "the audience has voted: the reveal")
+    host.wait_for_timeout(4500)
+    shot(host, "dmn-reveal")
+    tv.screenshot(path=os.path.join(OUT, "dmn-reveal-tv.png"))
+    r = view(host)["result"]
+    ok(r and set(r["cards"].keys()) == set(cast) and r["culprit"] in cast, "the truth: every card, and the culprit")
+    clear_stamps(everyone)
+    errors(everyone + [tv])
+    for g in everyone:
+        g.context.close()
+    tv_ctx.close()
+
+
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
     "superlatives": [t_superlatives_single, t_superlatives_online],
+    "drama": [t_drama_single, t_drama_online],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],

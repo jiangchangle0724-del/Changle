@@ -2,7 +2,7 @@
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
-import type { Action, GameView, PenaltyEvent, RoomEvent } from "../src/shared/protocol";
+import { ONLINE_GAMES, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
 
@@ -753,6 +753,98 @@ test("tune: a pool of several languages and categories", () => {
   ok(moodOf({ t: "后来的我们哭了" }) === "sad" && moodOf({ t: "Dance Monkey" }) === "hype" && moodOf({ t: "月亮代表我的心" }) === "love" && moodOf({ t: "稻香" }) === "", "a song's mood from its title");
 });
 
+test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a penalty", () => {
+  type V = V<"drama">;
+  const t = setup(6);
+  t.act("p0", { a: "start", game: "drama" });
+  let v = t.view<V>("p1");
+  ok(v.phase === "setup" && v.mode === "show" && v.pen === "drink", "starts on the setup screen");
+  t.g("p1", "config", { level: "spicy" });
+  ok(t.view<V>("p0").level === "all", "only the host sets it up");
+  t.g("p0", "config", { level: "spicy", diff: "hard", pen: "move", total: 2 });
+  v = t.view<V>("p0");
+  ok(v.level === "spicy" && v.diff === "hard" && v.pen === "move" && v.total === 2, "level, difficulty, penalty and rounds");
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string; scene: number; votes: Record<string, unknown> };
+  v = t.view<V>("p0");
+  ok(v.phase === "brief" && v.scene !== null && v.cast.length >= 2 && v.cast.length <= 4, "a scene and a cast");
+  ok(v.cast.length <= 4 && 6 - v.cast.length >= 2, "a table of six puts up to four on stage, at least two still watching");
+  const actors = s.cast;
+  const watchers = t.ids.filter((id) => !actors.includes(id));
+  ok(actors.every((a) => t.view<V>(a).me !== null) && watchers.every((w) => t.view<V>(w).me === null), "only actors get a card");
+  ok(actors.filter((a) => t.view<V>(a).me!.culprit).length === 1 && t.view<V>(s.culprit).me!.culprit, "exactly one culprit, and only they know it");
+  ok(watchers.every((w) => JSON.stringify(t.view<V>(w)).indexOf(JSON.stringify(t.view<V>(s.culprit).me!.secret.zh)) < 0), "nobody else sees the culprit's card");
+  ok(v.twist === null, "the twist hasn't landed yet");
+  for (const a of actors) t.g(a, "ready");
+  v = t.view<V>("p0");
+  ok(v.phase === "act" && v.actMs === 120_000, "everyone has read their card: the scene starts (hard: two minutes)");
+  t.advance(61_000);
+  ok(t.view<V>("p0").twist !== null, "halfway: the twist lands on every phone");
+  const bystander = watchers.find((w) => w !== "p0");
+  if (bystander) t.g(bystander, "cut");
+  ok(t.view<V>("p0").phase === "act", "only the host or an actor ends the scene early");
+  t.advance(60_000);
+  v = t.view<V>("p0");
+  ok(v.phase === "vote", "time's up: the audience votes");
+  const stars = (good: string) => Object.fromEntries(actors.map((a) => [a, a === good ? 5 : 2]));
+  t.g(actors[0], "vote", { guess: actors[1], stars: stars(actors[0]) });
+  ok(t.view<V>("p0").voted.length === 0, "actors don't vote on their own scene");
+  t.g(watchers[0], "vote", { guess: s.culprit, stars: { [actors[0]]: 5 } });
+  ok(t.view<V>("p0").voted.length === 0, "every actor needs stars");
+  const innocent = actors.find((a) => a !== s.culprit)!;
+  t.g(watchers[0], "vote", { guess: s.culprit, stars: stars(innocent) });
+  ok(t.view<V>(watchers[0]).myVote?.guess === s.culprit && t.view<V>(watchers[1]).myVote === null, "my vote is mine");
+  for (const w of watchers.slice(1)) t.g(w, "vote", { guess: s.culprit, stars: stars(innocent) });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && !!v.result, "everyone voted: the reveal");
+  ok(v.result!.culprit === s.culprit && v.result!.caught, "the culprit was caught");
+  ok(v.result!.best.length === 1 && v.result!.best[0] === innocent && v.awards[innocent] === 1, "most stars: best actor");
+  ok(v.result!.losers.includes(s.culprit) && v.result!.right.length === watchers.length, "the caught culprit takes the penalty; every guesser was right");
+  ok(Object.keys(v.result!.cards).length === actors.length, "every card is shown at the reveal");
+  ok(!!v.result!.penalty && (v.scores[watchers[0]] ?? 0) === 1 && v.scores[innocent] === 5, "an exercise penalty is named; a right guess is a point, stars are points");
+  t.advance(8100);
+  const pen = t.events.filter((e) => e.k === "penalty").pop() as { who: string[]; say?: { zh: string } } | undefined;
+  ok(!!pen && pen.who.includes(s.culprit) && !!pen.say, "the penalty stamp names the exercise");
+  t.g("p0", "next");
+  v = t.view<V>("p0");
+  ok(v.round === 2 && v.phase === "brief", "round two");
+  const second = (t.eng.d.game!.s as { cast: string[] }).cast;
+  ok(watchers.every((w) => second.includes(w)), "those who watched get on stage next");
+});
+
+test("drama: an acting duel, and a culprit who fools everyone", () => {
+  type V = V<"drama">;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { mode: "pk", total: 1 });
+  t.g("p0", "start");
+  let v = t.view<V>("p0");
+  const s = t.eng.d.game!.s as { cast: string[] };
+  ok(v.cast.length === 2 && !!v.pk && Object.keys(v.pk.styles).length === 2 && v.pk.styles[s.cast[0]].zh !== v.pk.styles[s.cast[1]].zh, "two actors, one line, two styles");
+  t.g("p0", "go");
+  ok(t.view<V>("p0").phase === "act" && t.view<V>("p0").actMs === 45_000, "the host starts it");
+  t.advance(46_000);
+  const aud = t.ids.filter((id) => !s.cast.includes(id));
+  for (const a of aud) t.g(a, "vote", { stars: { [s.cast[0]]: 4, [s.cast[1]]: 2 } });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.result!.best[0] === s.cast[0] && v.result!.losers.join() === s.cast[1], "more stars wins, fewer drinks");
+  t.g("p0", "next");
+  ok(t.view<V>("p0").phase === "end", "after the last round: the end");
+
+  const u = setup(3);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p0", "start");
+  const s2 = u.eng.d.game!.s as { cast: string[]; culprit: string };
+  ok(s2.cast.length === 2, "three at the table: two act, one watches");
+  u.g("p0", "go");
+  u.advance(91_000);
+  const watcher = u.ids.find((id) => !s2.cast.includes(id))!;
+  const other = s2.cast.find((c) => c !== s2.culprit)!;
+  u.g(watcher, "vote", { guess: other, stars: { [s2.cast[0]]: 3, [s2.cast[1]]: 3 } });
+  v = u.view<V>("p0");
+  ok(!v.result!.caught && v.scores[s2.culprit] === 6 && v.result!.losers.join() === watcher, "the culprit escapes: three points, and the fooled one takes the penalty");
+});
+
 test("euchre: bots fill seats, legal play, hands score", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "euchre" });
@@ -817,7 +909,7 @@ test("big screen: opens a table, phones sit down, first one hosts", () => {
   ok(e.screenHello("tv-abc123", true, "punchline") === null, "a screen opens a fresh table");
   e.setScreens(1);
   e.flush();
-  ok(e.exists && e.d.seats.length === 0 && e.d.front === ["truth", "rogue", "trip", "superlatives", "king", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw"].indexOf("punchline"), "the table exists with the game queued, nobody seated");
+  ok(e.exists && e.d.seats.length === 0 && e.d.front === ONLINE_GAMES.indexOf("punchline"), "the table exists with the game queued, nobody seated");
   ok(e.hello("p1", "Amy", false) === null && e.d.host === "p1", "the first phone sits down and hosts");
   ok(e.hello("p2", "Ben", false) === null && e.d.host === "p1", "the second one just sits");
   ok(e.view("tv-abc123").screens === 1 && e.view("p2").screens === 1, "everyone knows a screen is watching");

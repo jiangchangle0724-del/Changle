@@ -11,6 +11,7 @@ export const MAX_SEATS = 15;
 
 export type GameId =
   | "truth"
+  | "drama"
   | "rogue"
   | "superlatives"
   | "king"
@@ -27,9 +28,10 @@ export type GameId =
   | "draw"
   | "trip";
 /** Every game, in the same spectrum order as the front door's board. */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw"];
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
+  drama: 3,
   rogue: 2,
   superlatives: 3,
   king: 3,
@@ -81,7 +83,8 @@ export type Fx =
   | "out"
   | "level";
 
-export type PenaltyEvent = { k: "penalty"; id: string; who: string[]; kind: PenaltyKind; note?: T; buddy?: string };
+/** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
+export type PenaltyEvent = { k: "penalty"; id: string; who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T };
 export type RoomEvent =
   | PenaltyEvent
   | { k: "drank"; pid: string; pen: string }
@@ -441,7 +444,59 @@ export type TripView = {
   at: number;
 };
 
+/**
+ * 戏精大赏: a few players act a scene, one of them secretly the culprit; the rest guess who and
+ * rate the acting. An actor's own card (`me`) reaches only that actor until the reveal.
+ */
+export type DramaCard = { secret: T; culprit: boolean; task: T };
+export type DramaView = {
+  id: "drama";
+  phase: "setup" | "brief" | "act" | "vote" | "reveal" | "end";
+  /** a scene with a hidden culprit, or a quick acting duel */
+  mode: "show" | "pk";
+  level: "all" | "spicy";
+  diff: "easy" | "hard";
+  /** what the losers do: drink, exercise, or a forfeit */
+  pen: "drink" | "move" | "prank";
+  round: number;
+  total: number;
+  scene: { id: string; kind: string; title: T; setup: T; ask: T; culprit: T } | null;
+  /** who plays whom, in order */
+  cast: { pid: string; role: T; brief: T }[];
+  pk: { line: T; styles: Record<string, T> } | null;
+  /** this phone's own card while acting */
+  me: DramaCard | null;
+  ready: string[];
+  endsAt: number;
+  /** the scene's length, for the timer */
+  actMs: number;
+  twistAt: number;
+  /** the twist, once it has landed */
+  twist: T | null;
+  voted: string[];
+  myVote: { guess: string | null; stars: Record<string, number> } | null;
+  result: {
+    culprit: string | null;
+    caught: boolean;
+    counts: Record<string, number>;
+    /** average stars, one decimal */
+    stars: Record<string, number>;
+    cards: Record<string, DramaCard>;
+    best: string[];
+    losers: string[];
+    right: string[];
+    /** the penalty drawn for the round (exercise or forfeit); null when it's a drink */
+    penalty: T | null;
+    /** points each player got this round */
+    gained: Record<string, number>;
+  } | null;
+  scores: Record<string, number>;
+  /** best-actor awards so far */
+  awards: Record<string, number>;
+};
+
 export type GameView =
+  | DramaView
   | TripView
   | RogueView
   | TruthView
