@@ -126,7 +126,7 @@ def main():
         a.wait_for_selector("#online-name")
         a.get_by_role("button", name="Open a table", exact=True).click()
         a.wait_for_selector(".lobby .faces", timeout=10000)
-        code = a.evaluate("location.hash").split("/")[-1]
+        code = a.evaluate("location.pathname").split("/")[-1]
         b.goto(BASE + f"#/r/{code}")
         b.wait_for_selector(".join-card", timeout=10000)
         b.wait_for_timeout(600)

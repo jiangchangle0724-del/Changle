@@ -97,8 +97,8 @@ def seat_table(browser, names):
     host.wait_for_timeout(400)
     host.get_by_label("你的名字").fill(names[0])
     host.get_by_role("button", name="开一桌", exact=True).click()
-    host.wait_for_url(re.compile(r"#/r/[A-Z0-9]{4}"), timeout=5000)
-    code = re.search(r"#/r/([A-Z0-9]{4})", host.url).group(1)
+    host.wait_for_url(re.compile(r"/t/[A-Z0-9]{4}"), timeout=5000)
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
     ok(until(lambda: room(host)) is not None, f"host opened table {code}")
     guests = []
     for n in names[1:]:
@@ -572,7 +572,7 @@ def t_lifecycle(host, everyone, browser, code):
     time.sleep(0.4)
     leaver.locator(".sheet").get_by_role("button", name="离开这桌").click()
     ok(until(lambda: lpid not in [s["id"] for s in room(host)["seats"]]), "[life] leaving frees the seat")
-    ok(until(lambda: "#/r/" not in leaver.evaluate("() => location.hash") and leaver.locator(".online-btn").count()), "[life] the one who left is back at the one-phone table")
+    ok(until(lambda: "/t/" not in leaver.evaluate("() => location.pathname") and leaver.locator(".online-btn").count()), "[life] the one who left is back at the one-phone table")
     # the host hands the table over, then removes someone
     host.locator(".table-btn").click()
     time.sleep(0.4)

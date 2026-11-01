@@ -62,7 +62,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   // once the table is up, a reload of this page comes back to the same table
   const up = !!room;
   useEffect(() => {
-    if (up) window.history.replaceState(null, "", `${window.location.pathname}#/tv/${code}`);
+    if (up) window.history.replaceState(window.history.state, "", `/tv/${code}`);
   }, [up, code]);
 
   let body: ReactNode;
@@ -222,7 +222,7 @@ function useQr(link: string, dark = "#0e0c22") {
   return svg;
 }
 
-const joinLink = (code: string) => `${window.location.origin}/#/r/${code}`;
+const joinLink = (code: string) => `${window.location.origin}/t/${code}`;
 const siteHost = () => window.location.host.replace(/^www\./, "");
 
 /**

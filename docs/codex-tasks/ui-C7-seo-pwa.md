@@ -1,15 +1,17 @@
 # ui-C7: robots, sitemap, caching, add to home screen (PWA), share images
 
-**When:** after A3 (the routing change) is merged. A3 gives every game its own address and puts
-the list of addresses in the code; this card points crawlers, caches and share cards at them.
+**When:** A3 (the routing change) is merged first. It gave every game an address
+(`slug` in `src/games/registry.ts`, the routes in `src/router.ts`) and made `scripts/postbuild.ts`,
+which writes one page per game with its title, description, canonical and share-card tags. This
+card points crawlers, caches and those share cards at them.
 **Files:** `site/index.html` (head only), `site/src/main.tsx` (registering the service worker),
-`site/package.json` (the `build` script only, no new dependencies), and new files:
+no new dependencies, and new files:
 `site/public/robots.txt`, `site/public/_headers`, `site/public/manifest.webmanifest`,
-`site/public/icons/` (app icons), `site/public/og/` (share images), `site/scripts/postbuild.mjs`
-(writes `dist/sw.js` and `dist/sitemap.xml`), `site/scripts/sw.template.js`, `site/og.html` with
-`site/scripts/og_images.py` (makes the share images), `site/scripts/pwa_check.py`.
-**Command:** in `site/`: `npx tsc --noEmit && npm run build && node scripts/postbuild.mjs --check`;
-then `npx vite preview` and `python3 scripts/pwa_check.py`.
+`site/public/icons/` (app icons), `site/public/og/` (share images), `site/scripts/sw.template.js`,
+`site/og.html` with `site/scripts/og_images.py` (makes the share images), `site/scripts/pwa_check.py`;
+and `site/scripts/postbuild.ts` (A3's: add writing `dist/sw.js` and `dist/sitemap.xml` to it).
+**Command:** in `site/`: `npx tsc --noEmit && npm run build`; then `npx vite preview` and
+`python3 scripts/pwa_check.py`.
 
 Steve decided on 2026-11-01 to make the site installable (加到主屏幕，全屏打开，没网也能打开首页).
 Today `/robots.txt` returns the page itself (there is no file, so Pages answers with `index.html`,
@@ -22,9 +24,9 @@ the address bar is painted an old red-brown (`theme-color` `#2A0907`), and a sha
   address (`/eat/api/`, `/go/api/`, and any under `/trip/`: read the Workers' routes in
   `tools/*/wrangler.jsonc` and `games/been-there/wrangler.jsonc`, don't change them),
   `Sitemap: https://changle.ca/sitemap.xml`.
-- `scripts/postbuild.mjs` writes `dist/sitemap.xml` from the same list A3 routes by: `/`, every
-  playable game's page, the tools page, plus `/eat`, `/trip` and `/go` (the separate Workers).
-  Not the table addresses (`/t/…`), not sheets like settings or sign-in.
+- `scripts/postbuild.ts` also writes `dist/sitemap.xml`: `/`, `/tools`, every playable game's
+  `/g/<slug>` (from `GAMES`), plus `/eat`, `/trip` and `/go` (the separate Workers). Not the tables
+  (`/t/…`), not `/g/<slug>/play`, not settings or sign-in.
 
 ## Caching (`public/_headers`, Cloudflare Pages)
 
@@ -44,8 +46,8 @@ the address bar is painted an old red-brown (`theme-color` `#2A0907`), and a sha
   Referrer-Policy: strict-origin-when-cross-origin
 ```
 
-No `Permissions-Policy` that touches motion sensors: Limbo reads the phone's tilt. If A3 writes
-pages per game (`/g/<name>/index.html`), give them `no-cache` too.
+No `Permissions-Policy` that touches motion sensors: Limbo reads the phone's tilt. Give A3's
+per-game pages (`/g/*`) and `/tools` `no-cache` too.
 
 ## Add to home screen
 
@@ -61,9 +63,8 @@ pages per game (`/g/<name>/index.html`), give them `no-cache` too.
 
 ## The service worker
 
-Hand-written, no Workbox. `scripts/postbuild.mjs` fills `scripts/sw.template.js` with the build's
-file list and a version (a hash of that list) and writes `dist/sw.js`; `npm run build` becomes
-`vite build && node scripts/postbuild.mjs`.
+Hand-written, no Workbox. `scripts/postbuild.ts` fills `scripts/sw.template.js` with the build's
+file list and a version (a hash of that list) and writes `dist/sw.js` (`npm run build` already runs it).
 
 - Install: cache the shell, which is `index.html` plus the entry JavaScript and CSS it links to.
 - Navigations (any page address): network first, the cached `index.html` when offline. So someone
@@ -92,8 +93,8 @@ request: static files cost nothing and can't run out of the free plan's CPU time
   wordmark. Keep the name inside the middle square: WeChat crops to a square thumbnail.
 - `scripts/og_images.py` screenshots each card at 1200×630 into `public/og/`. Each file under 300 KB.
   If Chinese shows as boxes in your environment, install a CJK font for the run (Noto Sans CJK).
-- A3's pages point `og:image` and `twitter:image` at these files (A3 writes those tags). If A3 isn't
-  doing that, add the tags in the same place A3 sets each page's title, and say so in the PR.
+- `scripts/postbuild.ts` already points each page's `og:image` at `public/og/<slug>.png` (or
+  `default.png`) as soon as the file exists: nothing else to wire.
 
 ## The check script
 

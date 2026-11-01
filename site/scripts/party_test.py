@@ -96,8 +96,8 @@ def seat_table(browser, names, lang="zh"):
     host.wait_for_timeout(400)
     host.locator("#online-name").fill(names[0])
     host.get_by_role("button", name="开一桌" if lang == "zh" else "Open a table", exact=True).click()
-    host.wait_for_url(re.compile(r"#/r/[A-Z0-9]{4}"), timeout=5000)
-    code = re.search(r"#/r/([A-Z0-9]{4})", host.url).group(1)
+    host.wait_for_url(re.compile(r"/t/[A-Z0-9]{4}"), timeout=5000)
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
     until(lambda: room(host))
     guests = []
     for n in names[1:]:
@@ -868,12 +868,12 @@ def t_trip_online(browser):
     shot(host, "trip-lobby")
     # a guest goes back to the table: the game is still on there
     guests[0].get_by_role("button", name=re.compile("回到这桌")).click()
-    guests[0].wait_for_url(re.compile(r"#/r/" + code), timeout=8000)
+    guests[0].wait_for_url(re.compile(r"/t/" + code), timeout=8000)
     ok(until(lambda: guests[0].get_by_role("button", name="回到这局").count() == 1), "back at the table, the game is still on")
     # the host comes back from the game's last screen: the game ends at the table
     host.evaluate(f"() => sessionStorage.setItem('trip.over', '{num}')")
     host.get_by_role("button", name=re.compile("回到这桌")).click()
-    host.wait_for_url(re.compile(r"#/r/" + code), timeout=8000)
+    host.wait_for_url(re.compile(r"/t/" + code), timeout=8000)
     ok(until(lambda: room(host) and room(host)["game"] is None), "the host's phone ended it: back in the table's lobby")
     ok(until(lambda: room(guests[0]) and room(guests[0])["game"] is None), "and so is everyone else")
     errors(everyone)
@@ -882,7 +882,8 @@ def t_trip_online(browser):
 
 
 def t_trip_single(browser):
-    pg = phone(browser, "solo")
+    # (with nobody on the phone, a game's link shows its card first, since #74)
+    pg = phone(browser, "solo", players=PLAYERS[:1])
     pg.goto(BASE + "#/g/trip", wait_until="networkidle")
     pg.wait_for_url(re.compile(r"/trip/demo"), timeout=8000)
     ok(pg.locator(".lobby .demohead").count() == 1 or until(lambda: pg.locator(".lobby .demohead").count() == 1), "one phone: the game's one-phone page")

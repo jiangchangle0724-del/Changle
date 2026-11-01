@@ -32,7 +32,7 @@ function dayLabel(at: number, lang: "zh" | "en") {
   return d.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-CA", { month: "short", day: "numeric", weekday: diff < 7 ? "short" : undefined, year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
 }
 
-/** #/chat/:id: a one-to-one chat with a friend. */
+/** /chat/:id: a one-to-one chat with a friend. */
 export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
   const { me, status, openSignIn } = useAccount();
   const { lang } = useStore();
@@ -238,7 +238,7 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
       {state === "not-friends" && (
         <div className="empty chat-blocked">
           <p>{zh ? "加为好友以后才能聊天" : "You can chat once you're friends"}</p>
-          <a className="btn btn-primary" href={`#/u/${id}`}>
+          <a className="btn btn-primary" href={`/u/${id}`}>
             {zh ? "去 TA 的主页" : "Open their profile"}
           </a>
         </div>
@@ -368,7 +368,7 @@ function ChatHead({ onBack, user }: { onBack: () => void; user?: PublicUser | nu
         <ChevronLeft size={22} />
       </button>
       {user && (
-        <a className="chat-who" href={`#/u/${user.id}`}>
+        <a className="chat-who" href={`/u/${user.id}`}>
           <Avatar uid={user.id} name={user.name} av={user.av} ac={user.ac} size={36} frame={user.frame} />
           <span>
             <strong>{user.name}</strong>

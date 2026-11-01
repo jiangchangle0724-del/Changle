@@ -6,6 +6,7 @@ import { useAccount } from "../account/AccountContext";
 import { Avatar } from "../account/Avatar";
 import { useCodeField } from "./codeField";
 import { isCode, newCode, queueGame, saveName, savedName, setIntent } from "./config";
+import { navigate } from "../router";
 
 /** Open a table for everyone's phones (optionally with a game queued), or sit at a friend's. */
 export function OnlineSheet({ open, onClose, game, focusCode }: { open: boolean; onClose: () => void; game?: GameId; focusCode?: boolean }) {
@@ -30,7 +31,7 @@ export function OnlineSheet({ open, onClose, game, focusCode }: { open: boolean;
     setIntent({ code: target, create, name: n });
     if (create && game) queueGame(target, game);
     onClose();
-    window.location.hash = `#/r/${target}`;
+    navigate(`/t/${target}`);
   };
 
   return (

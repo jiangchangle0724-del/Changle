@@ -41,7 +41,7 @@ with sync_playwright() as p:
     if not pg.locator(".game-card").count():
         fails.append("hub: tapping a tile did not open its card")
     pg.locator(".mode-primary").tap(); pg.wait_for_timeout(900)
-    if "#/g/draw" not in pg.url:
+    if "/g/draw-and-guess/play" not in pg.url:
         fails.append("hub: playing on this phone did not open the game")
     done(pg, "hub")
 

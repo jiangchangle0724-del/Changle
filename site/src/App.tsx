@@ -3,8 +3,9 @@ import { StoreProvider, useStore } from "./store";
 import { setSoundEnabled } from "./lib/sound";
 import { initAudio, startMusic, stopMusic } from "./lib/sfx";
 import { gsap, reduced, setLight } from "./lib/anim";
-import { Home, type HomeTab } from "./home/Home";
-import { GAME_BY_ID, isGameId, type GameId } from "./games/registry";
+import { Home } from "./home/Home";
+import { GAME_BY_ID, type GameId } from "./games/registry";
+import { back, go, titleOf, useRoute, type Route } from "./router";
 import { AccountProvider, useAccount } from "./account/AccountContext";
 import { PerkNews } from "./account/PerkNews";
 import { ScreenGuard } from "./components/ScreenGuard";
@@ -40,61 +41,6 @@ const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default:
 const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
 const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default: m.SignInSheet })));
 
-type Route =
-  | { kind: "home"; tab: HomeTab }
-  | { kind: "game"; id: GameId }
-  | { kind: "room"; code: string }
-  | { kind: "me" }
-  | { kind: "admin" }
-  | { kind: "user"; id: string }
-  | { kind: "chat"; id: string }
-  | { kind: "tv"; code?: string; game?: GameId };
-
-// changle.ca/tv is easy to type on a TV remote: it means the big screen
-{
-  const m = /^\/tv(?:\/([A-Za-z0-9]{4}))?\/?$/i.exec(window.location.pathname);
-  if (m) window.history.replaceState(null, "", `/${window.location.search}#/tv${m[1] ? `/${m[1].toUpperCase()}` : ""}`);
-}
-
-function parse(hash: string): Route {
-  const tv = /^#\/tv(?:\/([A-Za-z0-9]{4}))?(?:\?g=([a-z]+))?/.exec(hash);
-  if (tv) return { kind: "tv", code: tv[1]?.toUpperCase(), game: tv[2] && isGameId(tv[2]) ? tv[2] : undefined };
-  const g = /^#\/g\/([a-z]+)/.exec(hash);
-  if (g && isGameId(g[1]) && GAME_BY_ID[g[1]].ready) return { kind: "game", id: g[1] };
-  const r = /^#\/r\/([A-Za-z0-9]{1,8})/.exec(hash);
-  if (r) return { kind: "room", code: r[1].toUpperCase() };
-  if (/^#\/me\b/.test(hash)) return { kind: "me" };
-  if (/^#\/admin\b/.test(hash)) return { kind: "admin" };
-  const u = /^#\/u\/(u[a-z0-9]{6,20})/.exec(hash);
-  if (u) return { kind: "user", id: u[1] };
-  const c = /^#\/chat\/(u[a-z0-9]{6,20})/.exec(hash);
-  if (c) return { kind: "chat", id: c[1] };
-  if (/^#\/tools/.test(hash)) return { kind: "home", tab: "tools" };
-  if (/^#\/wish/.test(hash)) return { kind: "home", tab: "wish" };
-  return { kind: "home", tab: "party" };
-}
-
-function hashOf(r: Route) {
-  switch (r.kind) {
-    case "home":
-      return r.tab === "party" ? "#/" : `#/${r.tab}`;
-    case "room":
-      return `#/r/${r.code}`;
-    case "game":
-      return `#/g/${r.id}`;
-    case "me":
-      return "#/me";
-    case "admin":
-      return "#/admin";
-    case "user":
-      return `#/u/${r.id}`;
-    case "chat":
-      return `#/chat/${r.id}`;
-    case "tv":
-      return `#/tv${r.code ? `/${r.code}` : ""}${r.game ? `?g=${r.game}` : ""}`;
-  }
-}
-
 /** A one-phone game that ran a minute or more goes into the signed-in player's history. */
 function useSoloHistory(route: Route) {
   const { status } = useAccount();
@@ -125,36 +71,32 @@ function useSoloHistory(route: Route) {
   }, [gameId, signedIn]);
 }
 
-function useHashRoute() {
-  const [route, setRoute] = useState<Route>(() => parse(window.location.hash));
-  useEffect(() => {
-    const on = () => setRoute(parse(window.location.hash));
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
-  }, []);
-  const go = (r: Route, replace = false) => {
-    const h = hashOf(r);
-    if (replace) window.location.replace(h);
-    else if (window.location.hash !== h) {
-      window.location.hash = h;
-      // marks a page the site opened itself, so its ‹ can go back to the page before
-      window.history.replaceState({ ...(window.history.state ?? {}), inSite: true }, "");
-    }
-  };
-  return { route, go };
-}
-
 function Shell() {
-  const { route, go } = useHashRoute();
-  const { sound, music, players } = useStore();
+  const route = useRoute();
+  const { sound, music, players, lang } = useStore();
   // a game opened by a link with fewer players than it needs on this phone: its card on the home
   // page first, to add people (or play online), instead of a game that can't work
   const short = route.kind === "game" && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
-  const { signInOpen } = useAccount();
+  const { signInOpen, openSignIn } = useAccount();
   const [signInUsed, setSignInUsed] = useState(false);
   useEffect(() => {
     if (signInOpen) setSignInUsed(true);
   }, [signInOpen]);
+  // the address is the card's, not the game's, while people are missing
+  useEffect(() => {
+    if (short && route.kind === "game") go({ kind: "home", tab: "party", game: route.id }, true);
+  }, [short, route]);
+  // changle.ca/login: the sign-in sheet over home, once
+  const wantsLogin = route.kind === "home" && route.open === "login";
+  const loginShown = useRef(false);
+  useEffect(() => {
+    if (!wantsLogin || loginShown.current) return;
+    loginShown.current = true;
+    openSignIn();
+  }, [wantsLogin, openSignIn]);
+  useEffect(() => {
+    document.title = titleOf(route, lang);
+  }, [route, lang]);
   useSoloHistory(short ? { kind: "home", tab: "party" } : route);
   useEffect(() => initAudio(), []);
   useEffect(() => setSoundEnabled(sound), [sound]);
@@ -176,23 +118,22 @@ function Shell() {
   }, [route]);
 
   // ‹ goes back only to a page of this site: a game opened from a link elsewhere (a chat, another
-  // site) goes to the home page instead of leaving the site
-  const back = () => {
-    if ((window.history.state as { inSite?: boolean } | null)?.inSite) window.history.back();
-    else go({ kind: "home", tab: "party" }, true);
-  };
+  // site) goes to the home page instead of leaving the site (router.ts: back)
 
   let screen: React.ReactNode;
   if (route.kind === "home" || short)
     screen = (
       <Home
         tab={route.kind === "home" ? route.tab : "party"}
+        game={route.kind === "home" ? route.game : route.kind === "game" ? route.id : undefined}
+        openSettings={route.kind === "home" && route.open === "settings"}
         onTab={(tab) => go({ kind: "home", tab }, true)}
-        onOpenGame={(id) => go({ kind: "game", id })}
-        start={short && route.kind === "game" ? route.id : undefined}
+        onCard={(id) => (id ? go({ kind: "home", tab: "party", game: id }) : back())}
+        // the card's entry becomes the game's: ‹ in the game goes home, as before
+        onPlay={(id) => go({ kind: "game", id }, true)}
       />
     );
-  else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => window.location.replace("#/")} />;
+  else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => go({ kind: "home", tab: "party" }, true)} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
@@ -262,7 +203,7 @@ function Shell() {
         ? `room-${route.code}`
         : route.kind === "game"
           ? route.id
-          : route.kind === "me" || route.kind === "admin" || route.kind === "tv"
+          : route.kind === "me" || route.kind === "admin" || route.kind === "tv" || route.kind === "dev"
             ? route.kind
             : `${route.kind}-${route.id}`;
   if (route.kind === "tv")
@@ -274,10 +215,10 @@ function Shell() {
       </SiteGate>
     );
   // development only: the Punchline show with made-up data
-  if (ShowPreview && window.location.hash.startsWith("#/dev/show"))
+  if (ShowPreview && route.kind === "dev")
     return (
       <Suspense fallback={null}>
-        <ShowPreview key={window.location.hash} />
+        <ShowPreview key={route.search} />
       </Suspense>
     );
   return (

@@ -10,7 +10,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 
 | Address | Code | Runs on | Goes live |
 | --- | --- | --- | --- |
-| changle.ca: the party games, tools tab, accounts, big screen at `/tv` | `site/` (Vite, React, TypeScript) | Cloudflare Pages project `changle` | by itself when a PR touching `site/` is merged into `main` |
+| changle.ca: the party games (a game's card at `/g/<slug>`, the game at `/g/<slug>/play`), tables at `/t/<CODE>`, tools tab, accounts, big screen at `/tv` (addresses: `site/src/router.ts`) | `site/` (Vite, React, TypeScript) | Cloudflare Pages project `changle` | by itself when a PR touching `site/` is merged into `main` |
 | rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
@@ -65,6 +65,7 @@ npx tsx tests/trip.test.ts
 npx tsx tests/draw.test.ts
 npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
 npx tsx tests/tokens.test.ts    # design tokens match global.css; src/ui uses tokens only
+npx tsx tests/routes.test.ts    # every page's address, and links from before (#/g/..., #/r/...)
 npm run build
 ```
 
@@ -98,9 +99,11 @@ folder under `site/src/party/`. TypeScript flags most of what's missing.
    builds each phone's own view: whatever must stay secret (words, votes, hands) never goes into
    another player's view.
 3. **Card on the board**: `site/src/games/registry.ts`, the same id in its `GameId` and an entry in
-   `GAMES`: name, blurb and how-to in Chinese and English, min and max players, `gel` (its stage
+   `GAMES`: its `slug` (its address, changle.ca/g/<slug>: English words joined by `-`, never changed
+   once live), name, blurb and how-to in Chinese and English, min and max players, `gel` (its stage
    color; the board runs in spectrum order, so place it by color), a lucide icon, `ready: true`,
-   `isNew: true`, and `solo` if one-phone play differs.
+   `isNew: true`, and `solo` if one-phone play differs. `npm run build` then writes its page for
+   search engines and share cards (`site/scripts/postbuild.ts`).
 4. **One-phone screen**: `site/src/games/<Name>.tsx` or `site/src/party/<id>/<Name>.tsx`; lazy-load it
    and add a `case` in `site/src/App.tsx`.
 5. **Online screen**: `Net<Name>.tsx` beside it; add a `case` in `site/src/online/games/NetGame.tsx`.

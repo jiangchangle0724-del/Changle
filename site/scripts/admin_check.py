@@ -163,10 +163,10 @@ def main():
 
         owner.goto(BASE + "#/me")
         owner.wait_for_selector(".me-head", timeout=10000)
-        check(owner.locator(".me-foot a[href='#/admin']").count() == 1, "the owner's profile links to the back office")
+        check(owner.locator(".me-foot a[href='/admin']").count() == 1, "the owner's profile links to the back office")
         player.goto(BASE + "#/me")
         player.wait_for_selector(".me-head", timeout=10000)
-        check(player.locator(".me-foot a[href='#/admin']").count() == 0, "the player's profile doesn't")
+        check(player.locator(".me-foot a[href='/admin']").count() == 0, "the player's profile doesn't")
 
         # ---- a table: the host's back button goes to the lobby ----
         owner.goto(BASE)
@@ -175,7 +175,7 @@ def main():
         owner.wait_for_selector("#online-name")
         owner.get_by_role("button", name="开一桌", exact=True).click()
         owner.wait_for_selector(".lobby .faces", timeout=10000)
-        code = owner.evaluate("location.hash").split("/")[-1]
+        code = owner.evaluate("location.pathname").split("/")[-1]
         player.goto(BASE + f"#/r/{code}")
         player.wait_for_selector(".join-card, .lobby", timeout=10000)
         if player.locator(".join-card").count():
@@ -195,7 +195,7 @@ def main():
             check(True, "the host's back button ends the game and the whole table is back in the lobby")
         except Exception:
             check(False, "the host's back button ends the game and the whole table is back in the lobby")
-        check(owner.evaluate("location.hash").endswith(code) and player.evaluate("location.hash").endswith(code), "nobody left the table")
+        check(owner.evaluate("location.pathname").endswith(code) and player.evaluate("location.pathname").endswith(code), "nobody left the table")
 
         # ---- the back office: the player is online, at this table ----
         owner.goto(BASE + "#/admin")

@@ -31,7 +31,7 @@
 
 **账号**（可选）：邮箱验证码登录，头像、名字、城市、简介，游戏记录，加好友聊天。不登录也能玩所有游戏。
 
-**戏精大赏的玩家剧本**：设置页的“写一个”让玩家自己写剧本，写好的下一幕先演，编剧亲自上台。登录的人可以同时投稿到公共剧本库：站长在后台（`#/admin`）的“剧本投稿”里通过以后，所有桌都会抽到，剧本上署编剧的名字；不通过或下架的不会出现。投稿每人每天最多 5 个。
+**戏精大赏的玩家剧本**：设置页的“写一个”让玩家自己写剧本，写好的下一幕先演，编剧亲自上台。登录的人可以同时投稿到公共剧本库：站长在后台（`/admin`）的“剧本投稿”里通过以后，所有桌都会抽到，剧本上署编剧的名字；不通过或下架的不会出现。投稿每人每天最多 5 个。
 
 **心愿单**：大家提想玩的游戏和功能，许愿要写名字、介绍（10 到 300 字）和规则（10 到 600 字），大家点赞，票多的先做；做出来的收进下面的「已经做出来了」。许的愿上线后，许愿的人（登录后许的）得到金色头像框和限量服饰。页面最下面有 e-Transfer 打赏。
 
@@ -77,6 +77,8 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 npx tsx tests/engine.test.ts        # 所有游戏的服务器规则
 npx tsx tests/performer.test.ts     # 猜歌名台上两个小人：每个舞步逐帧检查手臂和腿
 npx tsx tests/tokens.test.ts        # 设计 token：和 global.css 同名的值一致，src/ui 里只用 token
+npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的旧链接
+python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字
 python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
 python3 scripts/local_check.py      # 单机回归

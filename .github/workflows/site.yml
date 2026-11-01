@@ -1,7 +1,9 @@
 # Runs every time the changle.ca site changes: types, the room engine's rules (incl. 到此一游's
 # hand-off), the anime avatar's drawing words, Name That Tune's performers (every move, frame by
-# frame), the design tokens (docs/DESIGN.md) and a production build. The phone-in-a-browser scripts in site/scripts need the table
-# server and the site running, so they stay a local step (see site/README.md). Only this folder.
+# frame), the design tokens (docs/DESIGN.md), the site's addresses, and a production build (which
+# also writes one page per game for search engines and share cards). The phone-in-a-browser
+# scripts in site/scripts need the table server and the site running, so they stay a local step
+# (see site/README.md). Only this folder.
 name: site
 
 on:
@@ -32,4 +34,5 @@ jobs:
       - run: npx tsx tests/cutout.test.ts
       - run: npx tsx tests/performer.test.ts
       - run: npx tsx tests/tokens.test.ts
+      - run: npx tsx tests/routes.test.ts
       - run: npm run build

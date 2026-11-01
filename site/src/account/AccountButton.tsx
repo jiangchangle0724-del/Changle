@@ -18,7 +18,7 @@ export function AccountButton() {
   const waiting = unread + requests;
   const label = zh ? `我的主页${waiting ? `，${waiting} 条新消息` : ""}` : `My profile${waiting ? `, ${waiting} new` : ""}`;
   return (
-    <a className="acct-btn acct-me" href="#/me" aria-label={label}>
+    <a className="acct-btn acct-me" href="/me" aria-label={label}>
       <Avatar uid={me.id} name={me.name} av={me.av} ac={me.ac} size={36} frame={me.frame} />
       {waiting > 0 && <span className="badge acct-badge tabular">{waiting > 99 ? "99+" : waiting}</span>}
     </a>
