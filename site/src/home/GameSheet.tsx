@@ -1,6 +1,7 @@
 import { RadioTower, Smartphone, Sparkles, Tv, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
+import { navigate } from "../routes";
 import type { GameId, GameMeta } from "../games/registry";
 import { usePenaltyText, useStore } from "../store";
 
@@ -33,10 +34,9 @@ export function GameSheet({
   // a computer (or a TV browser) can become the big screen right here; a phone gets told where to go
   const bigScreen = () => {
     const wide = window.matchMedia("(min-width: 900px) and (hover: hover)").matches;
-    if (wide && g) {
-      onClose();
-      window.location.hash = `#/tv?g=${g.id}`;
-    } else setTvHelp((x) => !x);
+    // (this computer becomes the big screen: back comes to this card again)
+    if (wide && g) navigate(`/tv?g=${g.id}`);
+    else setTvHelp((x) => !x);
   };
   return (
     <Sheet open={!!g} onClose={onClose} gel={g?.gel}>

@@ -3,13 +3,14 @@ import { StoreProvider, useStore } from "./store";
 import { setSoundEnabled } from "./lib/sound";
 import { initAudio, startMusic, stopMusic } from "./lib/sfx";
 import { gsap, reduced, setLight } from "./lib/anim";
-import { Home, type HomeTab } from "./home/Home";
-import { GAME_BY_ID, isGameId, type GameId } from "./games/registry";
+import { Home } from "./home/Home";
+import { GAME_BY_ID, type GameId } from "./games/registry";
 import { AccountProvider, useAccount } from "./account/AccountContext";
 import { PerkNews } from "./account/PerkNews";
 import { ScreenGuard } from "./components/ScreenGuard";
 import { SiteGate } from "./components/SiteGate";
 import { api } from "./lib/api";
+import { catchLinks, currentRoute, goBack, navigate, onRouteChange, parseLegacyHash, parsePath, pathOf, type Route } from "./routes";
 // each game loads when it is opened: the front door stays light
 const Rogue13 = lazy(() => import("./games/Rogue13").then((m) => ({ default: m.Rogue13 })));
 const TruthDare = lazy(() => import("./games/TruthDare").then((m) => ({ default: m.TruthDare })));
@@ -41,66 +42,14 @@ const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default:
 const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
 const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default: m.SignInSheet })));
 
-type Route =
-  | { kind: "home"; tab: HomeTab }
-  | { kind: "game"; id: GameId }
-  | { kind: "room"; code: string }
-  | { kind: "me" }
-  | { kind: "admin" }
-  | { kind: "user"; id: string }
-  | { kind: "chat"; id: string }
-  | { kind: "tv"; code?: string; game?: GameId }
-  | { kind: "djtest" };
-
-// changle.ca/tv is easy to type on a TV remote: it means the big screen
+// an old address (changle.ca/#/r/ABCD from a QR code, /g/dice, /r/ABCD): shown as the address it is now
 {
-  const m = /^\/tv(?:\/([A-Za-z0-9]{4}))?\/?$/i.exec(window.location.pathname);
-  if (m) window.history.replaceState(null, "", `/${window.location.search}#/tv${m[1] ? `/${m[1].toUpperCase()}` : ""}`);
-  // changle.ca/dj: a big screen with the DJ booth up (it's the speaker); /dj/test checks the sound alone
-  const dj = /^\/dj(\/test)?\/?$/i.exec(window.location.pathname);
-  if (dj) window.history.replaceState(null, "", `/${window.location.search}${dj[1] ? "#/dj/test" : "#/tv?g=dj"}`);
-}
-
-function parse(hash: string): Route {
-  if (/^#\/dj\/test\b/.test(hash)) return { kind: "djtest" };
-  const tv = /^#\/tv(?:\/([A-Za-z0-9]{4}))?(?:\?g=([a-z]+))?/.exec(hash);
-  if (tv) return { kind: "tv", code: tv[1]?.toUpperCase(), game: tv[2] && isGameId(tv[2]) ? tv[2] : undefined };
-  const g = /^#\/g\/([a-z]+)/.exec(hash);
-  if (g && isGameId(g[1]) && GAME_BY_ID[g[1]].ready) return { kind: "game", id: g[1] };
-  const r = /^#\/r\/([A-Za-z0-9]{1,8})/.exec(hash);
-  if (r) return { kind: "room", code: r[1].toUpperCase() };
-  if (/^#\/me\b/.test(hash)) return { kind: "me" };
-  if (/^#\/admin\b/.test(hash)) return { kind: "admin" };
-  const u = /^#\/u\/(u[a-z0-9]{6,20})/.exec(hash);
-  if (u) return { kind: "user", id: u[1] };
-  const c = /^#\/chat\/(u[a-z0-9]{6,20})/.exec(hash);
-  if (c) return { kind: "chat", id: c[1] };
-  if (/^#\/tools/.test(hash)) return { kind: "home", tab: "tools" };
-  if (/^#\/wish/.test(hash)) return { kind: "home", tab: "wish" };
-  return { kind: "home", tab: "party" };
-}
-
-function hashOf(r: Route) {
-  switch (r.kind) {
-    case "home":
-      return r.tab === "party" ? "#/" : `#/${r.tab}`;
-    case "room":
-      return `#/r/${r.code}`;
-    case "game":
-      return `#/g/${r.id}`;
-    case "me":
-      return "#/me";
-    case "admin":
-      return "#/admin";
-    case "user":
-      return `#/u/${r.id}`;
-    case "chat":
-      return `#/chat/${r.id}`;
-    case "tv":
-      return `#/tv${r.code ? `/${r.code}` : ""}${r.game ? `?g=${r.game}` : ""}`;
-    case "djtest":
-      return "#/dj/test";
-  }
+  const legacy = parseLegacyHash(window.location.hash);
+  const first = window.location.pathname.split("/")[1]?.toLowerCase() ?? "";
+  // (an address the site doesn't have shows the home page, so it says / too)
+  const known = ["", "tools", "wish", "t", "me", "admin", "u", "chat", "tv", "dj"].includes(first);
+  const canonical = legacy ? pathOf(legacy) : first === "g" || first === "r" ? pathOf(parsePath(window.location.pathname, window.location.search)) : known ? null : "/";
+  if (canonical !== null && canonical !== window.location.pathname + window.location.search) window.history.replaceState(window.history.state, "", canonical);
 }
 
 /** A one-phone game that ran a minute or more goes into the signed-in player's history. */
@@ -133,31 +82,37 @@ function useSoloHistory(route: Route) {
   }, [gameId, signedIn]);
 }
 
-function useHashRoute() {
-  const [route, setRoute] = useState<Route>(() => parse(window.location.hash));
+function useRoute() {
+  const [route, setRoute] = useState<Route>(currentRoute);
+  useEffect(() => onRouteChange(() => setRoute(currentRoute())), []);
+  // links in the page (<a href="/me">) open like buttons, without a reload
   useEffect(() => {
-    const on = () => setRoute(parse(window.location.hash));
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
+    document.addEventListener("click", catchLinks);
+    return () => document.removeEventListener("click", catchLinks);
   }, []);
-  const go = (r: Route, replace = false) => {
-    const h = hashOf(r);
-    if (replace) window.location.replace(h);
-    else if (window.location.hash !== h) {
-      window.location.hash = h;
-      // marks a page the site opened itself, so its ‹ can go back to the page before
-      window.history.replaceState({ ...(window.history.state ?? {}), inSite: true }, "");
-    }
-  };
-  return { route, go };
+  return route;
+}
+
+/** The tab's title follows the page: the browser's history and tabs say which game it was. */
+function useTitle(route: Route) {
+  const { lang } = useStore();
+  useEffect(() => {
+    const id = route.kind === "game" ? route.id : route.kind === "home" ? route.sheet : undefined;
+    const name = id ? GAME_BY_ID[id].name[lang] : null;
+    document.title = name ? `${name} | 开席 Lazy Susan` : "开席 Lazy Susan";
+  }, [route, lang]);
 }
 
 function Shell() {
-  const { route, go } = useHashRoute();
+  const route = useRoute();
+  useTitle(route);
   const { sound, music, players } = useStore();
   // a game opened by a link with fewer players than it needs on this phone: its card on the home
   // page first, to add people (or play online), instead of a game that can't work
   const short = route.kind === "game" && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
+  useEffect(() => {
+    if (short && route.kind === "game") navigate({ kind: "home", tab: "party", sheet: route.id }, { replace: true });
+  }, [short, route]);
   const { signInOpen } = useAccount();
   const [signInUsed, setSignInUsed] = useState(false);
   useEffect(() => {
@@ -185,22 +140,22 @@ function Shell() {
 
   // ‹ goes back only to a page of this site: a game opened from a link elsewhere (a chat, another
   // site) goes to the home page instead of leaving the site
-  const back = () => {
-    if ((window.history.state as { inSite?: boolean } | null)?.inSite) window.history.back();
-    else go({ kind: "home", tab: "party" }, true);
-  };
+  const back = () => goBack();
 
   let screen: React.ReactNode;
   if (route.kind === "home" || short)
     screen = (
       <Home
         tab={route.kind === "home" ? route.tab : "party"}
-        onTab={(tab) => go({ kind: "home", tab }, true)}
-        onOpenGame={(id) => go({ kind: "game", id })}
-        start={short && route.kind === "game" ? route.id : undefined}
+        onTab={(tab) => navigate({ kind: "home", tab }, { replace: true })}
+        sheet={route.kind === "home" ? route.sheet : short ? route.id : undefined}
+        // a game's card has its own address: closing it is going back to where it was opened
+        onSheet={(id) => (id ? navigate({ kind: "home", tab: "party", sheet: id }) : goBack())}
+        // the card makes way for the game: back from the game is back to where the card was opened
+        onOpenGame={(id) => navigate({ kind: "game", id }, { replace: true })}
       />
     );
-  else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => window.location.replace("#/")} />;
+  else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => navigate("/", { replace: true })} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
@@ -310,7 +265,7 @@ function Shell() {
       <PerkNews />
       <main className="app" style={route.kind === "game" ? ({ ["--gel" as string]: GAME_BY_ID[route.id].gel } as React.CSSProperties) : undefined}>
         <Scene sceneKey={key}>
-          <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>
+          <ScreenGuard key={key} onHome={() => navigate("/")}>
             <Suspense fallback={null}>{screen}</Suspense>
           </ScreenGuard>
         </Scene>

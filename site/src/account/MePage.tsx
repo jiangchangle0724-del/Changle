@@ -19,12 +19,12 @@ export type Stats = { games: number; drinks: number; favorite: string | null; fr
 
 export const GENDER_LABEL: Record<string, [string, string]> = { female: ["女", "Female"], male: ["男", "Male"], nonbinary: ["非二元", "Non-binary"], private: ["", ""] };
 
-/** #/me: your profile, the games you played, your friends. */
+/** /me: your profile, the games you played, your friends. */
 export function MePage({ onBack }: { onBack: () => void }) {
   const { me, status, openSignIn, signOut, setMe } = useAccount();
   const { lang } = useStore();
   const zh = lang === "zh";
-  const [tab, setTab] = useState<"history" | "friends">(() => (window.location.hash.includes("friends") ? "friends" : "history"));
+  const [tab, setTab] = useState<"history" | "friends">(() => (/^\/me\/friends\b/.test(window.location.pathname) ? "friends" : "history"));
   const [hist, setHist] = useState<{ history: HistoryRow[]; stats: Stats } | null>(null);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -171,7 +171,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
 
       <div className="me-foot">
         {me.master && (
-          <a className="btn btn-moon btn-sm" href="#/admin">
+          <a className="btn btn-moon btn-sm" href="/admin">
             <ShieldCheck size={15} />
             {zh ? "后台" : "Back office"}
           </a>

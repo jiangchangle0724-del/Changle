@@ -105,7 +105,9 @@ folder under `site/src/party/`. TypeScript flags most of what's missing.
 3. **Card on the board**: `site/src/games/registry.ts`, the same id in its `GameId` and an entry in
    `GAMES`: name, blurb and how-to in Chinese and English, min and max players, `gel` (its stage
    color; the board runs in spectrum order, so place it by color), a lucide icon, `ready: true`,
-   `isNew: true`, and `solo` if one-phone play differs.
+   `isNew: true`, and `solo` if one-phone play differs. Its address goes in `SLUG` in
+   `site/src/routes.ts`: the English name in lower case with hyphens (`changle.ca/g/<slug>` is its
+   card, `/g/<slug>/play` the one-phone game); the build writes its share card from the registry.
 4. **One-phone screen**: `site/src/games/<Name>.tsx` or `site/src/party/<id>/<Name>.tsx`; lazy-load it
    and add a `case` in `site/src/App.tsx`.
 5. **Online screen**: `Net<Name>.tsx` beside it; add a `case` in `site/src/online/games/NetGame.tsx`.

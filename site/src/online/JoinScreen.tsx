@@ -5,6 +5,7 @@ import { useStore } from "../store";
 import { useAccount } from "../account/AccountContext";
 import { Avatar } from "../account/Avatar";
 import { fetchInfo, savedName, type RoomInfo } from "./config";
+import { navigate } from "../routes";
 
 /**
  * Arriving by link or QR: the table's place card, your name, one button to sit down.
@@ -81,7 +82,7 @@ export function JoinScreen({ code, onJoin, onBack }: { code: string; onJoin: (na
           {ui("takeSeat")}
         </button>
         {!gone && (
-          <button type="button" className="btn btn-ghost btn-block" onClick={() => window.location.replace(`#/tv/${code}`)}>
+          <button type="button" className="btn btn-ghost btn-block" onClick={() => navigate(`/tv/${code}`, { replace: true })}>
             {lang === "zh" ? "只看不玩（投到电视上）" : "Just watch (mirror it to a TV)"}
           </button>
         )}

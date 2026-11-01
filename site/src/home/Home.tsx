@@ -15,7 +15,20 @@ export type HomeTab = "party" | "tools" | "wish";
 const ORDER: HomeTab[] = ["party", "tools", "wish"];
 
 /** The front door: the wordmark, three tabs, and the tip jar in the corner. */
-export function Home({ tab, onTab, onOpenGame, start }: { tab: HomeTab; onTab: (t: HomeTab) => void; onOpenGame: (id: GameId) => void; start?: GameId }) {
+export function Home({
+  tab,
+  onTab,
+  onOpenGame,
+  sheet,
+  onSheet,
+}: {
+  tab: HomeTab;
+  onTab: (t: HomeTab) => void;
+  onOpenGame: (id: GameId) => void;
+  /** the game whose card is open (it has its own address, /g/<game>) */
+  sheet?: GameId;
+  onSheet: (id: GameId | null) => void;
+}) {
   const { ui } = useStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const prev = useRef(tab);
@@ -43,7 +56,7 @@ export function Home({ tab, onTab, onOpenGame, start }: { tab: HomeTab; onTab: (
       </header>
       <Tabs value={tab} onChange={onTab} />
       <Panel key={tab} dir={dir}>
-        {tab === "party" && <PartyTab onOpenGame={onOpenGame} onWishlist={() => onTab("wish")} start={start} />}
+        {tab === "party" && <PartyTab onOpenGame={onOpenGame} onWishlist={() => onTab("wish")} sheet={sheet} onSheet={onSheet} />}
         {tab === "tools" && <ToolsTab />}
         {tab === "wish" && <WishlistTab />}
       </Panel>

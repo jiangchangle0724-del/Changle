@@ -32,7 +32,7 @@ type Ask =
 
 const CONTROL = "#31b9ff";
 
-/** #/admin: the owner's back office. Who is on, at which table; sign someone out, ban them; pause the whole site. */
+/** /admin: the owner's back office. Who is on, at which table; sign someone out, ban them; pause the whole site. */
 export function AdminPage({ onBack }: { onBack: () => void }) {
   const { me, status, openSignIn } = useAccount();
   const { lang } = useStore();

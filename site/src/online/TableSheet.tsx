@@ -128,7 +128,7 @@ export function TableSheet({ open, onClose, onInvite, onLeave }: { open: boolean
           </small>
         </span>
         {!room.screens && window.matchMedia("(min-width: 900px) and (hover: hover)").matches && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.open(`${window.location.origin}/#/tv/${room.code}`, "_blank")}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.open(`${window.location.origin}/tv/${room.code}`, "_blank")}>
             {zh ? "新窗口打开" : "Open it here"}
           </button>
         )}
