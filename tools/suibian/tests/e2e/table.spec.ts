@@ -108,6 +108,27 @@ test("three phones pick a restaurant", async ({ browser }) => {
   for (const p of [host, a, b]) expect(p.errors).toEqual([]);
 });
 
+test("someone who joins after the start fills in a diet card first, then joins the round", async ({ browser }) => {
+  const host = await phone(browser, "host2");
+  const late = await phone(browser, "late");
+  expect((await host.page.request.post("/eat/api/test/login", { data: { sub: `late-host-${Date.now()}`, name: "阿明" } })).ok()).toBeTruthy();
+  await host.page.goto("/eat/");
+  await host.page.getByRole("button", { name: "开一桌" }).click();
+  await expect(host.page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  const code = host.page.url().match(/(\d{4})$/)![1];
+  await dietCard(host.page);
+  // A signed-in host goes by their Google name instead of "朋友 1".
+  await expect(host.page.locator(".people li.mine")).toContainText("阿明");
+  await host.page.getByRole("button", { name: "开始！" }).click();
+  await expect(host.page.locator(".moods")).toBeVisible();
+
+  await late.page.goto(`/eat/r/${code}`);
+  await expect(late.page.getByText("这一桌已经开始了，先填一下饮食卡，再一起选")).toBeVisible();
+  await late.page.locator(".diet .btn.primary").click();
+  await expect(late.page.locator(".moods")).toBeVisible();
+  for (const p of [host, late]) expect(p.errors).toEqual([]);
+});
+
 test("guests can't start a table, or pick alone, when login is on", async ({ request }) => {
   const res = await request.post("/eat/api/rooms", { data: { cid: "abcdef0123456789", center: { lat: 49.28, lng: -123.12 }, range: "walk10" } });
   expect(res.status()).toBe(401);

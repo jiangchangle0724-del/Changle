@@ -17,13 +17,16 @@ export function Table({ home }: { home: () => void }) {
   if (fatal) {
     return (
       <main class="page">
-        <p class="error">{t(fatal === "identity" ? "identity" : "noRoom")}</p>
+        <p class="error">{t(fatal === "identity" ? "identity" : fatal === "full" ? "roomFull" : "noRoom")}</p>
         <Btn onClick={home}>{t("home")}</Btn>
       </main>
     );
   }
   if (!v) return <main class="page center muted">{t("connecting")}</main>;
-  const showDiet = v.phase === "lobby" && !v.you.limits;
+  // Without a diet card, that comes first, in any round before the result: someone who joins late
+  // (or was still filling it in when the host started) can still rule out what they can't eat. The
+  // card stays on screen across phase changes, so nothing typed is lost.
+  const showDiet = !v.you.limits && v.phase !== "spin" && v.phase !== "result";
   return (
     <main class={`page phase-${v.phase}`}>
       <header class="bar">
@@ -42,6 +45,7 @@ export function Table({ home }: { home: () => void }) {
       </header>
       {status === "reconnecting" && <p class="warn">{t("reconnecting")}</p>}
       <DemoBanner demo={v.demo} />
+      {showDiet && v.phase !== "lobby" && <p class="warn">{t("dietLate")}</p>}
       {showDiet ? (
         <DietCard
           initial={me?.card ?? null}
@@ -133,7 +137,7 @@ function Lobby({ v }: { v: RoomView }) {
             </li>
           ))}
         </ul>
-        <TableLimits l={v.table} />
+        {v.members.filter((m) => m.online).every((m) => m.ready) && <TableLimits l={v.table} />}
         <Btn kind="quiet" onClick={() => setEditing(true)}>
           {t("editCard")}
         </Btn>
@@ -176,7 +180,7 @@ function Progress({ v }: { v: RoomView }) {
       <span>{t("waitingOthers", { n: here.filter((m) => m.done).length, m: here.length })}</span>
       <Countdown ends={v.phaseEnds} />
       {host && (
-        <Btn kind="quiet" onClick={() => send({ t: "next" })}>
+        <Btn kind="quiet" onClick={() => send({ t: "next", phase: v.phase })}>
           {t("skipAhead")}
         </Btn>
       )}
@@ -306,7 +310,8 @@ function Spinner({ v }: { v: RoomView }) {
     const id = setInterval(() => setI((n) => n + 1), 140);
     return () => clearInterval(id);
   }, []);
-  const name = v.cards.find((c) => c.place.id === tied[i % tied.length])?.place.name ?? "";
+  const id = tied[i % tied.length];
+  const name = (v.cards.find((c) => c.place.id === id) ?? (v.winner?.place.id === id ? v.winner : undefined))?.place.name ?? "";
   return (
     <section class="spin center">
       <p>{t("spinning")}</p>
@@ -320,12 +325,12 @@ function Spinner({ v }: { v: RoomView }) {
 function Result({ v }: { v: RoomView }) {
   const { me } = useApp();
   const r = v.result;
-  const win = v.cards.find((c) => c.place.id === r?.winner);
+  const win = v.winner ?? v.cards.find((c) => c.place.id === r?.winner);
   useEffect(() => {
     if (v.phase === "result" && win && me?.user) void api("/api/me/last", { method: "POST", body: JSON.stringify({ code: v.code, name: win.place.name }) });
   }, [v.phase, win?.place.id]);
   if (v.phase === "spin") return <Spinner v={v} />;
-  if (!r || !win) return null;
+  if (!r || !win) return <p class="muted center">{t("connecting")}</p>;
   const s = r.scores.find((x) => x.id === r.winner)!;
   const rateUrl = `${location.origin}${BASE}/r/${v.code}/rate`;
   const map = win.place.mapsUrl ?? "";
@@ -348,6 +353,7 @@ function Result({ v }: { v: RoomView }) {
       <PlaceCard c={win}>
         <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
       </PlaceCard>
+      {v.winner?.unsafe && <p class="error">{t("winnerUnsafe")}</p>}
       {needsServer(v) && <p class="warn">{t("tellServer")}</p>}
       <Btn kind="primary" wide onClick={() => void share()}>
         {t("share")}

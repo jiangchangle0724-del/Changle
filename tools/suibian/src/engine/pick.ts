@@ -41,6 +41,8 @@ export const WEIGHTS = {
   distance: 0.35,
   wait: 0.15,
   closingSoon: 0.2,
+  /** Google has no hours for it: maybe open, maybe not, so places known to be open come first. */
+  unknownHours: 0.3,
 };
 const PRIOR_RATING = 4.2;
 const PRIOR_COUNT = 80;
@@ -65,6 +67,7 @@ export function score(p: Place, ctx: ScoreContext): number {
   s -= WEIGHTS.wait * estimateWait(p, vancouverClock(ctx.now)).level;
   const last = minutesToLastOrder(p, ctx.now);
   if (last !== undefined && last < 60) s -= WEIGHTS.closingSoon;
+  if (p.openNow === undefined) s -= WEIGHTS.unknownHours;
   return s;
 }
 

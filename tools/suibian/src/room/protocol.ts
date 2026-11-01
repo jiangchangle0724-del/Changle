@@ -14,7 +14,15 @@ export const TIMING = {
   spin: 4_500,
   /** Rooms stay this long after the last activity, so people can rate the meal. */
   roomTtl: 3 * 24 * 3600_000,
+  /**
+   * A phone that drops off (someone opens the map app or locks the screen) still counts as at the
+   * table this long, so a round doesn't end without them while they look at a card's map.
+   */
+  awayGrace: 60_000,
 };
+
+/** People at one table, at most (a dinner, not a stadium; it also bounds the ratings it can give). */
+export const MAX_MEMBERS = 20;
 
 export type Phase = "lobby" | "finding" | "mood" | "cards" | "spin" | "result";
 
@@ -25,8 +33,8 @@ export type ClientMsg =
   | { t: "start" }
   | { t: "mood"; picks: Partial<Record<CuisineId, MoodPick>>; done: boolean }
   | { t: "ballot"; approve: string[]; veto: string | null; done: boolean }
-  /** Host: end this round now. */
-  | { t: "next" }
+  /** Host: end this round now. `phase` is the round the button was on: a late or second tap is ignored. */
+  | { t: "next"; phase?: Phase }
   /** Host: back to the lobby for a new search (wider range, someone new). */
   | { t: "again"; range?: RangeId }
   | { t: "ping" };
@@ -104,13 +112,17 @@ export interface RoomView {
     rated: boolean;
   };
   members: MemberView[];
-  center: Center;
   range: RangeId;
   /** Everyone's limits merged, with no names. */
   table: Limits;
   chips: { cuisine: CuisineId; count: number; likes: number; bans: number }[];
   cards: CardView[];
   result: { winner: string; tied: string[]; scores: { id: string; yes: number; vetoes: number }[] } | null;
+  /**
+   * The winner's card, kept even if someone who joined afterwards can't eat there (then `unsafe`), so
+   * the result never disappears.
+   */
+  winner: (CardView & { unsafe: boolean }) | null;
   ratings: { n: number; up: number; mid: number; down: number; liked: number };
   /** Why the last search came back empty. */
   error: "nothingNearby" | "nothingFits" | "searchFailed" | null;

@@ -108,6 +108,7 @@ export function PlaceCard({ c, reasons, children }: { c: CardView; reasons?: Sol
           {c.lastOrder !== undefined && <span>{c.lastOrder > 180 ? t("closesLate") : t("lastOrder", { n: Math.max(0, c.lastOrder) })}</span>}
           {p.reservable && <span>{t("reservable")}</span>}
         </p>
+        {p.openNow === undefined && <p class="warn small">{t("hoursUnknown")}</p>}
         {c.relaxed && <p class="warn small">{t("relaxed")}</p>}
         {c.warnings
           .filter((w) => w.k !== "allergy" && w.k !== "custom")

@@ -112,8 +112,10 @@ export default {
         if (typeof body.name !== "string") return json({ error: "bad" }, 400);
         const name = body.name.slice(0, 80);
         if (/^\d{4}$/.test(body.code ?? "")) await user(env, me.sub).setLast({ code: body.code!, name, at: Date.now() });
-        else if (PLACE_ID.test(body.place ?? "")) await user(env, me.sub).setLast({ place: body.place!, name, at: Date.now() });
-        else return json({ error: "bad" }, 400);
+        else if (PLACE_ID.test(body.place ?? "")) {
+          // Only a place your last solo search showed, so the rating can't be pointed at any restaurant.
+          if (!(await user(env, me.sub).chooseSolo(body.place!, name))) return json({ error: "notYours" }, 403);
+        } else return json({ error: "bad" }, 400);
         return json({ ok: true });
       }
     }
@@ -154,7 +156,9 @@ export default {
         const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
         const r = cleanRating(body);
         if (!r || typeof body.cid !== "string") return json({ error: "bad" }, 400);
-        return json({ ok: await stub.rate(body.cid, r) });
+        const status = await stub.rate(body.cid, r);
+        // 409: this phone already rated it. 410: nothing to rate here, or the table's ratings are full.
+        return status === "new" ? json({ ok: true }) : json({ error: status }, status === "again" ? 409 : 410);
       }
       if (parts[3] === "ws") {
         if (req.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("expected websocket", { status: 426 });
@@ -213,6 +217,8 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
     const p = byId.get(id)!;
     return { ...cardView(p, center, range, limits, now), reasons: soloReasons(p, answers, limits, center, range) };
   });
+  // Only one of these can become the pick to rate afterwards (see /api/me/last).
+  if (me) await user(env, me.sub).setSolo(ids);
   return json({ cards, relaxed, demo: !google } satisfies SoloResponse);
 }
 
@@ -230,7 +236,8 @@ export class RoomDO extends DurableObject<Env> {
       const st = await ctx.storage.get<RoomState>("room");
       if (!st) return;
       this.room = new Room(st, this.roomEnv);
-      this.room.presence(ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() as Attachment).id));
+      // A socket refused before it got an attachment has no id: skip it rather than fail to start.
+      this.room.presence(ctx.getWebSockets().flatMap((ws) => (ws.deserializeAttachment() as Attachment | null)?.id ?? []));
       // Restarted in the middle of a search: start it again.
       if (st.phase === "finding") void this.work({ k: "search", center: st.center, range: st.range, lang: st.lang ?? "zh" });
     });
@@ -247,18 +254,19 @@ export class RoomDO extends DurableObject<Env> {
     const r = this.room;
     if (!r || r.expired()) return { exists: false };
     const st = r.st;
-    const winner = st.phase === "result" && st.result ? st.places.find((p) => p.id === st.result!.winner)?.name : undefined;
+    // After "start over", the rate link in the group chat is still about the meal before it.
+    const winner = st.phase === "result" && st.result ? st.places.find((p) => p.id === st.result!.winner)?.name : (st.last?.name ?? undefined);
     const rs = Object.values(st.ratings);
     return { exists: true, phase: st.phase, winner, ratings: { n: rs.length, liked: rs.filter((x) => x.liked).length } };
   }
 
-  async rate(cid: string, rating: Rating): Promise<boolean> {
+  async rate(cid: string, rating: Rating): Promise<"new" | "again" | "closed"> {
     const r = this.room;
-    if (!r || r.expired() || !r.st.result) return false;
-    const fresh = r.rate(cid, rating);
-    if (fresh && !r.st.demo) await this.env.PLACES.get(this.env.PLACES.idFromName(r.st.result.winner)).add(rating);
+    if (!r || r.expired()) return "closed";
+    const { status, winner } = r.rate(cid, rating);
+    if (status === "new" && winner && !r.st.demo) await this.env.PLACES.get(this.env.PLACES.idFromName(winner)).add(rating);
     await this.commit();
-    return true;
+    return status;
   }
 
   async fetch(req: Request): Promise<Response> {
@@ -273,6 +281,7 @@ export class RoomDO extends DurableObject<Env> {
     };
     if (!this.room || this.room.expired()) return refuse("noRoom", 4004);
     const id = q.get("cid") ?? "";
+    if (this.room.full(id)) return refuse("full", 4005);
     if (!this.room.join(id, q.get("key") ?? "", { name: q.get("name") ?? undefined, lang: q.get("lang") === "en" ? "en" : "zh" })) return refuse("identity", 4003);
     server.serializeAttachment({ id } satisfies Attachment);
     await this.commit();
@@ -403,6 +412,20 @@ export class UserDO extends DurableObject<Env> {
     await this.ctx.storage.put("last", last);
   }
 
+  /** The places the last solo search showed (Google ids), replaced by the next search. */
+  async setSolo(ids: string[]) {
+    await this.ctx.storage.put("solo", ids);
+  }
+
+  /** "就它了": becomes the pick to ask about, if the last solo search showed it. Choosing it again keeps it as it was (rated or not). */
+  async chooseSolo(place: string, name: string): Promise<boolean> {
+    const shown = (await this.ctx.storage.get<string[]>("solo")) ?? [];
+    if (!shown.includes(place)) return false;
+    const last = await this.ctx.storage.get<Last>("last");
+    if (last?.place !== place) await this.ctx.storage.put("last", { place, name, at: Date.now() } satisfies Last);
+    return true;
+  }
+
   /** Count a new room against today's limit. False when the limit is reached. */
   async takeRoom(day: string, max: number): Promise<boolean> {
     const q = (await this.ctx.storage.get<{ day: string; n: number }>("quota")) ?? { day, n: 0 };
@@ -412,8 +435,11 @@ export class UserDO extends DurableObject<Env> {
     return true;
   }
 
+  /** "Delete all my data". Today's count stays until the day is over, or deleting would reset the daily limit. */
   async wipe() {
+    const quota = await this.ctx.storage.get("quota");
     await this.ctx.storage.deleteAll();
+    if (quota) await this.ctx.storage.put("quota", quota);
   }
 }
 

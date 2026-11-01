@@ -150,6 +150,14 @@ test("cards: when bans leave almost nothing, the least-banned come back, marked"
   assert.equal(relaxed.length, 3);
 });
 
+test("unknown opening hours: still possible, but after places known to be open", () => {
+  const known = place({ id: "known", openNow: true });
+  const unknown = place({ id: "unknown", openNow: undefined });
+  const base = { likes: {}, bans: {}, members: 2, center, range: "walk20" as const, now: NOW, count: 1 };
+  assert.deepEqual(pick({ ...base, places: [unknown, known] }).ids, ["known"]);
+  assert.deepEqual(pick({ ...base, places: [unknown] }).ids, ["unknown"]);
+});
+
 test("likes pull a cuisine up", () => {
   const a = place({ cuisine: "thai" });
   const b = place({ cuisine: "ramen" });
