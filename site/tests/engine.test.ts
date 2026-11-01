@@ -3,6 +3,7 @@ import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import { ONLINE_GAMES, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
+import { SCENES as DRAMA_SCENES } from "../src/data/drama";
 import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
 
@@ -768,6 +769,8 @@ test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a p
   const s = t.eng.d.game!.s as { cast: string[]; culprit: string; scene: number; votes: Record<string, unknown> };
   v = t.view<V>("p0");
   ok(v.phase === "brief" && v.scene !== null && v.cast.length >= 2 && v.cast.length <= 4, "a scene and a cast");
+  const firstScene = DRAMA_SCENES[s.scene];
+  ok(firstScene.level === "spicy" && firstScene.diff === "hard", "a spicy table gets a spicy scene first, at its difficulty");
   ok(v.cast.length <= 4 && 6 - v.cast.length >= 2, "a table of six puts up to four on stage, at least two still watching");
   const actors = s.cast;
   const watchers = t.ids.filter((id) => !actors.includes(id));
@@ -808,6 +811,7 @@ test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a p
   t.g("p0", "next");
   v = t.view<V>("p0");
   ok(v.round === 2 && v.phase === "brief", "round two");
+  ok(DRAMA_SCENES[s.scene].id !== firstScene.id && DRAMA_SCENES[s.scene].level === "spicy", "a different scene, still spicy");
   const second = (t.eng.d.game!.s as { cast: string[] }).cast;
   ok(watchers.every((w) => second.includes(w)), "those who watched get on stage next");
 });

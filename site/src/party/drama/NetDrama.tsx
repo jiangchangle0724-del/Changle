@@ -1,6 +1,6 @@
 import { Clapperboard, Eye, Play, SkipForward } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { API } from "../../config";
+import { Figure } from "../../components/Figure";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
 import { sfx } from "../../lib/sfx";
@@ -8,10 +8,12 @@ import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
+import { BRIEF_MS } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
+import { perfAt } from "../sensors";
+import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useStore } from "../../store";
-import { Leaderboard } from "../common";
-import { Backdrop, BallotForm, Cast, Curtain, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
 export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) {
@@ -25,12 +27,13 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   const players = seats.filter((s) => !s.watch);
   const acting = v.cast.some((c) => c.pid === me);
   const face: Face = (pid, size) => <SeatFace seat={seat(pid)} size={size} />;
-  const figure = (pid: string) => {
-    const s = seat(pid);
-    return s?.uid && s.fg ? `${API}/figure/${s.uid}/cut?v=${s.fg}` : null;
-  };
+  // on stage, everyone stands: their drawn figure, or their face on a little body
   const actors: Actor[] = useMemo(
-    () => v.cast.map((c) => ({ pid: c.pid, role: c.role, name: nameOf(c.pid), face: (size: number) => face(c.pid, size), figure: figure(c.pid) })),
+    () =>
+      v.cast.map((c) => {
+        const s = seat(c.pid);
+        return { pid: c.pid, role: c.role, name: nameOf(c.pid), face: (size: number) => face(c.pid, size), body: s ? <Figure seat={s} /> : face(c.pid, 56) };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [v.cast, seats],
   );
@@ -39,7 +42,20 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
 
   // the scene has its own sound: the lounge music waits
   useEffect(() => holdBackground(), []);
-  useCue(v.phase === "brief", () => dramaSfx.deal());
+  useCue(v.phase === "brief", () => {
+    dramaSfx.chimes();
+    dramaSfx.deal();
+  });
+  // the house before the curtain, then the set itself; every phone in step
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  useEffect(() => {
+    if (!scape) return;
+    const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
+    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
+    return () => a?.stop(0.8);
+    // once per scene and phase
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scape, v.round]);
   useCue(v.phase === "act", () => {
     setSlate(true);
     setPeek(false);
@@ -50,11 +66,11 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   const audience = players.filter((s) => !v.cast.some((c) => c.pid === s.id)).length;
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
-      <BackdropWith v={v} live={live}>
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={live}>
         <Cast actors={actors} />
         <Curtain open={open} />
         {extra}
-      </BackdropWith>
+      </Backdrop>
     </div>
   );
 
@@ -184,36 +200,5 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
         )}
       </div>
     </NetFrame>
-  );
-}
-
-/** The set behind the cast: the scene's picture, or the duel's two spotlights. */
-export function BackdropWith({ v, live, children }: { v: DramaView; live: boolean; children: ReactNode }) {
-  return (
-    <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={live}>
-      {children}
-    </Backdrop>
-  );
-}
-
-/** The curtain call: points, and who took best actor how many times. */
-export function Finale({ v, ids, nameOf, face, me }: { v: DramaView; ids: string[]; nameOf: (pid: string) => string; face: Face; me: string }) {
-  const { lang } = useStore();
-  const zh = lang === "zh";
-  return (
-    <div className="dm-playbill">
-      <p className="dm-act">{zh ? "谢幕" : "Curtain call"}</p>
-      <h2 className="dm-title">{zh ? "今晚的影帝影后" : "Tonight's stars"}</h2>
-      <Leaderboard
-        rows={ids.map((id) => ({
-          id,
-          name: id === me ? (zh ? `${nameOf(id)}（你）` : `${nameOf(id)} (you)`) : nameOf(id),
-          score: v.scores[id] ?? 0,
-          face: face(id, 38),
-          note: v.awards[id] ? (zh ? `最佳演员 ×${v.awards[id]}` : `Best actor ×${v.awards[id]}`) : undefined,
-        }))}
-        unit={zh ? "分" : "pts"}
-      />
-    </div>
   );
 }

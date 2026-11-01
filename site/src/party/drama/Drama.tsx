@@ -1,15 +1,17 @@
 import { Clapperboard, Play, SkipForward } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Figure } from "../../components/Figure";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
 import { sfx } from "../../lib/sfx";
-import { drama } from "../../shared/engine/games/drama";
+import { BRIEF_MS, drama } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
 import { useStore } from "../../store";
-import { Leaderboard, NameFace, PassCurtain } from "../common";
+import { NameFace, PassCurtain } from "../common";
+import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent } from "./local";
-import { Backdrop, BallotForm, Cast, Curtain, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
 /**
@@ -47,15 +49,29 @@ export function Drama({ onBack }: { onBack: () => void }) {
     if (last.current === round) return;
     last.current = round;
     setStep({ k: "intro" });
-    if (v.phase === "brief") dramaSfx.deal();
+    if (v.phase === "brief") {
+      dramaSfx.chimes();
+      dramaSfx.deal();
+    }
     if (v.phase === "act") setSlate(true);
     if (v.phase === "vote") sfx.applause(1.8, 0.7);
     if (v.phase === "end") sfx.win();
   }, [round, v.phase]);
   useEffect(() => holdBackground(), []);
+  // the house before the curtain, then the set itself
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  useEffect(() => {
+    if (!scape) return;
+    const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
+    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? ""}|${scape}`) });
+    return () => a?.stop(0.8);
+    // once per scene and phase
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scape, v.round]);
 
   const face: Face = (pid, size) => <NameFace name={nameOf(pid)} size={size} />;
-  const actors: Actor[] = v.cast.map((c) => ({ pid: c.pid, role: c.role, name: nameOf(c.pid), face: (size: number) => face(c.pid, size) }));
+  // a face on a little body, in the colour the player's face has everywhere else
+  const actors: Actor[] = v.cast.map((c) => ({ pid: c.pid, role: c.role, name: nameOf(c.pid), face: (size: number) => face(c.pid, size), body: <Figure seat={{ id: nameOf(c.pid), name: nameOf(c.pid), on: true }} /> }));
   const audience = ids.filter((pid) => !v.cast.some((c) => c.pid === pid));
 
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
@@ -183,14 +199,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   } else if (v.phase === "end") {
     body = (
       <>
-        <div className="dm-playbill">
-          <p className="dm-act">{zh ? "谢幕" : "Curtain call"}</p>
-          <h2 className="dm-title">{zh ? "今晚的影帝影后" : "Tonight's stars"}</h2>
-          <Leaderboard
-            rows={ids.map((id) => ({ id, name: nameOf(id), score: (v.scores[id] as number) ?? 0, face: face(id, 38), note: v.awards[id] ? (zh ? `最佳演员 ×${v.awards[id]}` : `Best actor ×${v.awards[id]}`) : undefined }))}
-            unit={zh ? "分" : "pts"}
-          />
-        </div>
+        <Finale v={v} ids={ids} nameOf={nameOf} face={face} />
         <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => act(host, "more")}>
           {zh ? "再演三幕" : "Three more acts"}
         </button>

@@ -147,9 +147,38 @@
 .dm-curtain-r::before {
   transform: scaleX(-1);
 }
-.dm-curtain.has-img .dm-curtain-l::before,
-.dm-curtain.has-img .dm-curtain-r::before {
-  background: url("/drama/curtain.webp") center / cover no-repeat, #6d0d1a;
+/* open, the velvet hangs at the sides, tied back with gold rope */
+.dm-drape {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.dm-drape img {
+  position: absolute;
+  top: -2%;
+  height: 104%;
+  width: auto;
+  max-width: none;
+  filter: drop-shadow(10px 0 16px rgba(0, 0, 0, 0.6));
+}
+.dm-drape-l {
+  left: -4%;
+  transform-origin: 0% 50%;
+}
+.dm-drape-l img {
+  left: 0;
+}
+.dm-drape-r {
+  right: -4%;
+  transform-origin: 100% 50%;
+}
+.dm-drape-r img {
+  right: 0;
+  transform: scaleX(-1);
 }
 .dm-curtain-valance {
   position: absolute;
@@ -166,12 +195,14 @@
 
 /* ---------- the cast on stage ---------- */
 
+/* the cast stands on the apron, in front of the curtain */
 .dm-cast {
+  --fig-h: clamp(78px, 22vw, 132px);
   position: absolute;
   left: 3%;
   right: 3%;
   bottom: 5%;
-  z-index: 2;
+  z-index: 4;
   display: flex;
   justify-content: space-evenly;
   align-items: flex-end;
@@ -215,12 +246,11 @@
 .dm-actor-figure {
   position: relative;
   display: grid;
-  place-items: center;
+  place-items: end center;
+  height: var(--fig-h);
 }
-.dm-actor-figure > img {
-  height: clamp(74px, 22vw, 128px);
-  width: auto;
-  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.55));
+.dm-cast.n4 {
+  --fig-h: clamp(70px, 19.5vw, 122px);
 }
 .dm-actor-face {
   display: grid;
@@ -260,9 +290,10 @@
 }
 .dm-actor-mask {
   position: absolute;
-  top: 6%;
+  z-index: 2;
+  top: calc(var(--fig-h) * 0.07);
   left: 50%;
-  width: 92%;
+  width: calc(var(--fig-h) * 0.52);
   translate: -50% 0;
   display: grid;
   place-items: center;
@@ -296,6 +327,7 @@
 }
 .dm-actor-trophy {
   position: absolute;
+  z-index: 2;
   top: -42px;
   left: 50%;
   width: 46px;
@@ -314,7 +346,7 @@
     transform: translateY(-30px) scale(0.4) rotate(-20deg);
   }
 }
-.dm-cast:has(.is-culprit) .dm-actor:not(.is-culprit),
+.dm-cast:has(.is-culprit) .dm-actor:not(.is-culprit):not(.is-best),
 .dm-cast:has(.is-best) .dm-actor:not(.is-best):not(.is-culprit) {
   opacity: 0.55;
   filter: saturate(0.6);
@@ -328,8 +360,21 @@
   opacity: 1;
   width: 150%;
 }
-.dm-actor.is-picked .dm-actor-face {
-  box-shadow: 0 0 0 3px var(--night-2), 0 0 0 6px var(--gel), 0 0 24px 4px color-mix(in oklab, var(--gel) 60%, transparent);
+.dm-minimask {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+.dm-minimask img {
+  width: 22px !important;
+  height: 22px !important;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+.dm-minimask svg {
+  color: var(--gel);
 }
 
 /* ---------- playbill and roster ---------- */
@@ -527,6 +572,7 @@ li.is-ready .dm-roster-state {
 }
 .dm-card-front {
   transform: rotateY(180deg);
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -540,6 +586,25 @@ li.is-ready .dm-roster-state {
 }
 .dm-card.is-flipped .dm-card-tap {
   display: none;
+}
+/* the mask, large and faint, behind what the card says */
+.dm-card-watermark {
+  position: absolute;
+  right: -14%;
+  top: 4%;
+  width: 70%;
+  z-index: -1;
+  opacity: 0.16;
+  transform: rotate(14deg);
+  pointer-events: none;
+}
+.dm-card-watermark img,
+.dm-card-watermark svg {
+  width: 100%;
+  height: auto;
+}
+.dm-card.is-culprit .dm-card-watermark {
+  opacity: 0.3;
 }
 .dm-card-label {
   display: flex;
@@ -597,7 +662,7 @@ li.is-ready .dm-roster-state {
   position: absolute;
   top: 10px;
   right: 10px;
-  z-index: 4;
+  z-index: 5;
   width: 58px;
   height: 58px;
   display: grid;
@@ -1019,9 +1084,33 @@ li.is-ready .dm-roster-state {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  padding-bottom: 6%;
   text-align: center;
   color: #f3d27a;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.7);
+}
+.dm-marquee-masks {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.dm-marquee-masks > * {
+  width: clamp(54px, 15vw, 76px);
+  height: auto;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.6));
+}
+.dm-marquee-masks > :first-child {
+  transform: rotate(-12deg) translateX(8px);
+  animation: dm-mask-bob 3.4s ease-in-out infinite;
+}
+.dm-marquee-masks > :last-child {
+  transform: rotate(10deg) translateX(-8px);
+  animation: dm-mask-bob 3.4s ease-in-out -1.7s infinite;
+}
+@keyframes dm-mask-bob {
+  50% {
+    translate: 0 -5px;
+  }
 }
 .dm-marquee strong {
   font-family: var(--font-display);
@@ -1040,6 +1129,21 @@ li.is-ready .dm-roster-state {
   text-align: center;
   color: var(--haze);
 }
+.dm-finale {
+  position: relative;
+}
+.dm-finale-trophy {
+  display: block;
+  width: 96px;
+  margin: -4px auto 0;
+  filter: drop-shadow(0 0 22px color-mix(in oklab, var(--gel) 75%, transparent));
+  animation: dm-trophy 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.dm-finale-trophy img,
+.dm-finale-trophy svg {
+  width: 100%;
+  height: auto;
+}
 .dm-trophies {
   display: flex;
   flex-wrap: wrap;
@@ -1057,6 +1161,8 @@ li.is-ready .dm-roster-state {
   .dm-actor-trophy,
   .dm-suspect-mask,
   .dm-card-tap,
+  .dm-marquee-masks > *,
+  .dm-finale-trophy,
   .dm-drum,
   .dm-clock.is-late span {
     animation: none;
@@ -1088,8 +1194,9 @@ li.is-ready .dm-roster-state {
 .tv-game-phone .dm-backdrop.is-tall {
   aspect-ratio: 21 / 8;
 }
-.tv-game-phone .dm-actor-figure > img {
-  height: 150px;
+.tv-game-phone .dm-cast,
+.tv-game-phone .dm-cast.n4 {
+  --fig-h: 150px;
 }
 .tv-game-phone .dm-truths {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

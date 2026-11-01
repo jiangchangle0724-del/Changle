@@ -47,7 +47,7 @@ type S = {
   awards: Record<string, number>;
 };
 
-const BRIEF_MS = 60_000;
+export const BRIEF_MS = 60_000;
 const ACT_MS: Record<DramaDiff, number> = { easy: 90_000, hard: 120_000 };
 const PK_MS = 45_000;
 const VOTE_MS = 50_000;
@@ -69,6 +69,11 @@ function pickScene(s: S, n: number, api: Api): number {
     // everything has been played: start the library over
     s.used = s.used.filter((id) => !pool.some(({ s: sc }) => sc.id === id));
     fresh = fits.length ? fits : pool;
+  }
+  // a spicy table gets the spicy scenes first, then the rest
+  if (s.level === "spicy") {
+    const hot = fresh.filter(({ s: sc }) => sc.level === "spicy");
+    if (hot.length) fresh = hot;
   }
   const { s: sc, i } = fresh[api.int(fresh.length)];
   s.used.push(sc.id);

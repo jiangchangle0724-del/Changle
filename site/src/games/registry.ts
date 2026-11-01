@@ -105,7 +105,8 @@ export const GAMES: GameMeta[] = [
     gel: "#ffb82e",
     icon: Crown,
     ready: true,
-  },  {
+  },
+  {
     id: "drama",
     name: t("戏精大赏", "Drama Queens"),
     blurb: t("演一出狗血剧，揪出谁是小三", "Act out a soap opera. Find the culprit."),

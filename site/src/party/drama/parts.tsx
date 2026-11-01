@@ -7,7 +7,7 @@ import { gsap, reduced } from "../../lib/anim";
 import { haptic, sfx } from "../../lib/sfx";
 import type { DramaCard, DramaView } from "../../shared/protocol";
 import { useStore } from "../../store";
-import { Both } from "../common";
+import { Both, Leaderboard } from "../common";
 import { dramaSfx } from "./sound";
 import "../../styles/party.css";
 import "../../styles/drama.css";
@@ -39,7 +39,10 @@ export function Backdrop({ kind, pk, live, children, tall }: { kind?: string; pk
   );
 }
 
-/** Red velvet that sweeps open when the scene starts and closes when it ends. */
+/**
+ * Red velvet that sweeps open when the scene starts and closes when it ends. Open, it hangs at
+ * the sides, tied back with gold rope (the picture), framing the set.
+ */
 export function Curtain({ open, sound = true }: { open: boolean; sound?: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const first = useRef(true);
@@ -49,20 +52,32 @@ export function Curtain({ open, sound = true }: { open: boolean; sound?: boolean
     if (!el) return;
     const l = el.querySelector(".dm-curtain-l");
     const r = el.querySelector(".dm-curtain-r");
+    const drapes = Array.from(el.querySelectorAll(".dm-drape"));
     const instant = first.current || reduced();
     first.current = false;
-    gsap.killTweensOf([l, r]);
+    gsap.killTweensOf([l, r, ...drapes]);
     if (open) {
-      gsap.to(l, { xPercent: -96, scaleX: 0.55, duration: instant ? 0 : 1.25, ease: "power3.inOut" });
-      gsap.to(r, { xPercent: 96, scaleX: 0.55, duration: instant ? 0 : 1.25, ease: "power3.inOut" });
+      gsap.to(l, { xPercent: -100, scaleX: 0.5, duration: instant ? 0 : 1.25, ease: "power3.inOut" });
+      gsap.to(r, { xPercent: 100, scaleX: 0.5, duration: instant ? 0 : 1.25, ease: "power3.inOut" });
+      if (drapes.length) gsap.fromTo(drapes, { opacity: 0, scaleX: 1.6 }, { opacity: 1, scaleX: 1, duration: instant ? 0 : 0.8, delay: instant ? 0 : 0.55, ease: "power2.out" });
     } else {
+      if (drapes.length) gsap.to(drapes, { opacity: 0, duration: instant ? 0 : 0.2 });
       gsap.to([l, r], { xPercent: 0, scaleX: 1, duration: instant ? 0 : 1.05, ease: "power2.inOut" });
     }
     if (!instant && sound) dramaSfx.curtain(open);
-  }, [open, sound]);
+  }, [open, sound, img]);
   return (
-    <div className={`dm-curtain ${img ? "has-img" : ""}`} ref={root} aria-hidden="true">
-      <img src={art("curtain")} alt="" style={{ display: "none" }} onError={() => setImg(false)} />
+    <div className="dm-curtain" ref={root} aria-hidden="true">
+      {img && (
+        <>
+          <span className="dm-drape dm-drape-l">
+            <img src={art("curtain")} alt="" draggable={false} onError={() => setImg(false)} />
+          </span>
+          <span className="dm-drape dm-drape-r">
+            <img src={art("curtain")} alt="" draggable={false} />
+          </span>
+        </>
+      )}
       <div className="dm-curtain-l" />
       <div className="dm-curtain-r" />
       <div className="dm-curtain-valance" />
@@ -70,23 +85,25 @@ export function Curtain({ open, sound = true }: { open: boolean; sound?: boolean
   );
 }
 
-/** One actor on stage: their figure or face, with a little brass plaque for the role. */
-export type Actor = { pid: string; role: T; name: string; face: (size: number) => ReactNode; figure?: string | null };
-export function Cast({ actors, culprit, best, guess, onPick }: { actors: Actor[]; culprit?: string | null; best?: string[]; guess?: string | null; onPick?: (pid: string) => void }) {
+/**
+ * One actor on stage: standing (their drawn figure, or a face on a little body), with a brass
+ * plaque for the role. `body` is the standing figure; `face` a round face at any size.
+ */
+export type Actor = { pid: string; role: T; name: string; face: (size: number) => ReactNode; body: ReactNode };
+export function Cast({ actors, culprit, best }: { actors: Actor[]; culprit?: string | null; best?: string[] }) {
   const { lang } = useStore();
   return (
     <div className={`dm-cast n${actors.length}`}>
       {actors.map((a, i) => {
         const isCulprit = culprit === a.pid;
         const isBest = best?.includes(a.pid);
-        const picked = guess === a.pid;
-        const body = (
-          <>
+        return (
+          <div key={a.pid} className={`dm-actor ${isCulprit ? "is-culprit" : ""} ${isBest ? "is-best" : ""}`} style={{ ["--i" as string]: i }}>
             <span className="dm-actor-spot" aria-hidden="true" />
             <span className="dm-actor-figure">
-              {a.figure ? <img src={a.figure} alt="" draggable={false} /> : <span className="dm-actor-face">{a.face(56)}</span>}
-              {(isCulprit || picked) && (
-                <span className={`dm-actor-mask ${isCulprit ? "is-culprit" : ""}`} aria-hidden="true">
+              {a.body}
+              {isCulprit && (
+                <span className="dm-actor-mask" aria-hidden="true">
                   <MaskArt culprit />
                 </span>
               )}
@@ -100,15 +117,6 @@ export function Cast({ actors, culprit, best, guess, onPick }: { actors: Actor[]
               <strong>{lang === "zh" ? a.role.zh : a.role.en}</strong>
               <small>{a.name}</small>
             </span>
-          </>
-        );
-        return onPick ? (
-          <button key={a.pid} type="button" className={`dm-actor ${picked ? "is-picked" : ""}`} style={{ ["--i" as string]: i }} aria-pressed={picked} onClick={() => onPick(a.pid)}>
-            {body}
-          </button>
-        ) : (
-          <div key={a.pid} className={`dm-actor ${isCulprit ? "is-culprit" : ""} ${isBest ? "is-best" : ""}`} style={{ ["--i" as string]: i }}>
-            {body}
           </div>
         );
       })}
@@ -116,14 +124,30 @@ export function Cast({ actors, culprit, best, guess, onPick }: { actors: Actor[]
   );
 }
 
-function MaskArt({ culprit }: { culprit: boolean }) {
+/** The masks: red and black for the culprit, laughing gold for everyone innocent. */
+export function MaskArt({ culprit, size }: { culprit: boolean; size?: number }) {
   const [ok, setOk] = useState(true);
-  return ok ? <img src={art(culprit ? "mask-culprit" : "mask-innocent")} alt="" onError={() => setOk(false)} /> : <VenetianMask size={34} strokeWidth={2.2} />;
+  return ok ? (
+    <img src={art(culprit ? "mask-culprit" : "mask-innocent")} alt="" draggable={false} style={size ? { width: size, height: size } : undefined} onError={() => setOk(false)} />
+  ) : culprit ? (
+    <VenetianMask size={size ?? 34} strokeWidth={2.2} />
+  ) : (
+    <DramaIcon size={size ?? 34} strokeWidth={2.2} />
+  );
 }
 
-function TrophyArt() {
+/** A small mask next to a label. */
+export function MiniMask({ culprit = true }: { culprit?: boolean }) {
+  return (
+    <span className="dm-minimask" aria-hidden="true">
+      <MaskArt culprit={culprit} size={20} />
+    </span>
+  );
+}
+
+export function TrophyArt() {
   const [ok, setOk] = useState(true);
-  return ok ? <img src={art("trophy")} alt="" onError={() => setOk(false)} /> : <Sparkles size={30} strokeWidth={2.2} />;
+  return ok ? <img src={art("trophy")} alt="" draggable={false} onError={() => setOk(false)} /> : <Sparkles size={30} strokeWidth={2.2} />;
 }
 
 /* ------------------------------------------------------------------ the playbill */
@@ -161,7 +185,7 @@ export function Playbill({ v }: { v: DramaView }) {
           </h2>
           <p className="dm-setup">{zh ? v.scene.setup.zh : v.scene.setup.en}</p>
           <p className="dm-hunt">
-            <VenetianMask size={16} strokeWidth={2.4} />
+            <MiniMask />
             {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
           </p>
         </>
@@ -232,22 +256,19 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel }: 
             <span className="dm-card-tap">{zh ? "点一下，偷偷看" : "Tap to peek"}</span>
           </button>
           <div className="dm-card-front">
+            {!pk && (
+              <span className="dm-card-watermark" aria-hidden="true">
+                <MaskArt culprit={card.culprit} />
+              </span>
+            )}
             <p className="dm-card-label">{pk ? (zh ? "你的演法" : "Your style") : zh ? "你的角色" : "Your role"}</p>
             <h3 className="dm-card-role">{tx(pk ? card.secret : role)}</h3>
             {!pk && tx(brief) && <p className="dm-card-brief">{tx(brief)}</p>}
             {!pk && (
               <div className={`dm-card-secret ${card.culprit ? "is-culprit" : ""}`}>
                 <p className="dm-card-label">
-                  {card.culprit ? (
-                    <>
-                      <VenetianMask size={15} strokeWidth={2.4} />
-                      {zh ? `你就是「${culprit ? culprit.zh : ""}」` : `You are ${culprit ? culprit.en.replace(/^The /, "the ") : ""}`}
-                    </>
-                  ) : zh ? (
-                    "你的小秘密"
-                  ) : (
-                    "Your little secret"
-                  )}
+                  <MiniMask culprit={card.culprit} />
+                  {card.culprit ? (zh ? `你就是「${culprit ? culprit.zh : ""}」` : `You are ${culprit ? culprit.en.replace(/^The /, "the ") : ""}`) : zh ? "你的小秘密" : "Your little secret"}
                 </p>
                 <p>{tx(card.secret)}</p>
               </div>
@@ -380,7 +401,7 @@ export function BallotForm({ v, actors, onSubmit, submitted }: { v: DramaView; a
       {show && v.scene && (
         <section>
           <p className="dm-ask">
-            <VenetianMask size={18} strokeWidth={2.4} />
+            <MiniMask />
             {zh ? v.scene.ask.zh : v.scene.ask.en}
           </p>
           <div className="dm-suspects">
@@ -479,6 +500,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
     const timers = [
       window.setTimeout(() => {
         setStep(1);
+        dramaSfx.spotlight();
         if (v.mode === "show") dramaSfx.culprit(r.caught);
         else sfx.versus();
       }, 1600),
@@ -548,7 +570,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
                   </strong>
                   {c && v.mode === "show" && (
                     <span className="dm-truth-secret">
-                      {c.culprit && <VenetianMask size={14} strokeWidth={2.4} />}
+                      {c.culprit && <MiniMask />}
                       {tx(c.secret)}
                     </span>
                   )}
@@ -650,19 +672,46 @@ export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange:
   );
 }
 
-/** The poster on the setup screen. */
+/** The poster on the setup screen: an empty stage in its spotlight, waiting. */
 export function Marquee() {
   const { lang } = useStore();
   const zh = lang === "zh";
   return (
-    <Backdrop tall>
-      <Curtain open={false} sound={false} />
+    <Backdrop tall live>
       <div className="dm-marquee">
-        <DramaIcon size={40} strokeWidth={1.8} />
+        <span className="dm-marquee-masks" aria-hidden="true">
+          <MaskArt culprit={false} />
+          <MaskArt culprit />
+        </span>
         <strong>{zh ? "戏精大赏" : "Drama Queens"}</strong>
         <small>{zh ? "演一出狗血剧，揪出藏在台上的坏人" : "Act a soap opera. Unmask the culprit."}</small>
       </div>
     </Backdrop>
+  );
+}
+
+/** The curtain call: the trophy, the points, and who took best actor how many times. */
+export function Finale({ v, ids, nameOf, face, me }: { v: DramaView; ids: string[]; nameOf: (pid: string) => string; face: Face; me?: string }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="dm-playbill dm-finale">
+      <span className="dm-finale-trophy" aria-hidden="true">
+        <TrophyArt />
+      </span>
+      <p className="dm-act">{zh ? "谢幕" : "Curtain call"}</p>
+      <h2 className="dm-title">{zh ? "今晚的影帝影后" : "Tonight's stars"}</h2>
+      <Leaderboard
+        rows={ids.map((id) => ({
+          id,
+          name: id === me ? (zh ? `${nameOf(id)}（你）` : `${nameOf(id)} (you)`) : nameOf(id),
+          score: v.scores[id] ?? 0,
+          face: face(id, 38),
+          note: v.awards[id] ? (zh ? `最佳演员 ×${v.awards[id]}` : `Best actor ×${v.awards[id]}`) : undefined,
+        }))}
+        unit={zh ? "分" : "pts"}
+      />
+    </div>
   );
 }
 
@@ -678,7 +727,7 @@ export function Rules() {
     </>
   ) : (
     <>
-      <p>Each act draws a melodramatic scene. A few players go on stage; the rest are the audience. Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the other woman, the killer, the mole...), and their card says what they did.</p>
+      <p>Each act draws a melodramatic scene. A few players go on stage; the rest are the audience. Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the homewrecker, the killer, the mole...), and their card says what they did.</p>
       <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars.</p>
       <p>Points: a right guess +1; a culprit most people miss +3; every actor gets their average stars. Penalty: the actor with the fewest stars, plus the culprit if caught, or everyone the culprit fooled if not. Most stars wins best actor.</p>
       <p>Acting duel: two players say the same line in two different states; the audience scores, and the lower score pays.</p>

@@ -78,6 +78,13 @@ export const dramaSfx = {
     }
   },
 
+  /** The house bells: three soft chimes, take your seats. */
+  chimes(vol = 1) {
+    const b = bus();
+    if (!b) return;
+    [79, 76, 72].forEach((m, i) => note(b, "bell", { f: midiHz(m), at: i * 0.42, peak: 0.07 * vol }));
+  },
+
   /** A card is dealt to an actor. */
   deal(vol = 1) {
     sfx.cardSlide();
