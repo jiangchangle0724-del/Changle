@@ -1,6 +1,9 @@
-// Public libraries on BiblioCommons (Vancouver Public Library; Burnaby, Richmond and Surrey use it
-// too): their own events listing, as JSON, oldest first. Library programs are free. The library's
-// own labels decide the category and the tags by rule: who it's for, what kind, which language.
+// Public libraries on BiblioCommons: their own events listing, as JSON, oldest first (what's on
+// now first, then what starts next). In Greater Vancouver only Vancouver's (vpl) and Richmond's
+// (yourlibrary) publish events there; Burnaby, Surrey, the North Shore's and the Tri-Cities' don't
+// (and "bpl" is Boston's). Library programs are free. The library's own labels decide the category
+// and the tags by rule: who it's for, what kind, which language. An event given by dates alone (an
+// exhibition, a scavenger hunt over a week) is all-day.
 import { fromVan, vanIso } from "../time";
 import type { Category, Lang, NormalizedEvent, Tag } from "../types";
 import { plainText } from "./ical";
@@ -38,6 +41,7 @@ export interface BcPage {
   };
 }
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const KIDS = /baby|babies|toddler|preschool|school age|tween|family|children|kids/i;
 const NEWCOMERS = /newcomer|esl/i;
 
@@ -67,6 +71,8 @@ export function parseBiblioCommons(page: BcPage, opts: BcOptions): NormalizedEve
     const startMs = fromVan(d.start);
     if (!Number.isFinite(startMs)) continue;
     const endMs = d.end ? fromVan(d.end) : NaN;
+    // dates only ("2026-10-28" to "2026-11-03"): all-day, the end its last day
+    const datesOnly = DATE_ONLY.test(d.start.trim());
     const names = (ids: string[] | undefined, table: Record<string, { name: string }> | undefined) => (ids ?? []).map((x) => table?.[x]?.name).filter((x): x is string => !!x);
     const audiences = names(d.audienceIds, e.eventAudiences);
     const types = names(d.typeIds, e.eventTypes);
@@ -88,9 +94,9 @@ export function parseBiblioCommons(page: BcPage, opts: BcOptions): NormalizedEve
       url: `https://${opts.library}.bibliocommons.com/events/${ev.id}`,
       title: d.title.trim(),
       description: plainText(d.description),
-      start: vanIso(startMs),
-      end: Number.isFinite(endMs) ? vanIso(endMs) : null,
-      allDay: false,
+      start: datesOnly ? d.start.trim() : vanIso(startMs),
+      end: datesOnly ? (d.end && DATE_ONLY.test(d.end.trim()) ? d.end.trim() : null) : Number.isFinite(endMs) ? vanIso(endMs) : null,
+      allDay: datesOnly,
       status: d.isCancelled ? "cancelled" : "scheduled",
       place: online || !loc
         ? null

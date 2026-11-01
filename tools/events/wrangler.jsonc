@@ -15,9 +15,10 @@
     { "pattern": "changle.ca/go/*", "zone_name": "changle.ca" }
   ],
   // Cron runs on UTC. B.C. keeps UTC-7 all year since March 2026, so 13:00 UTC is 06:00 in
-  // Vancouver; 14:00 is there in case the rules ever change back. The run checks the local hour and
-  // goes once.
-  "triggers": { "crons": ["0 13,14 * * *"] },
+  // Vancouver; 14:00 is there in case the rules ever change back. The run checks the local hour.
+  // Three triggers a morning (06:00, 06:20, 06:40), one cron: each takes up to 30 steps, going on
+  // where the last stopped (the free plan's limits; see CONTRACTS.md).
+  "triggers": { "crons": ["0,20,40 13,14 * * *"] },
   // Created by the first deploy (no ids here). The Worker applies migrations/ itself (src/schema.ts).
   "d1_databases": [{ "binding": "DB", "database_name": "changle-events" }],
   "kv_namespaces": [{ "binding": "CACHE" }],
