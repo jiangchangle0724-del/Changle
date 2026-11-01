@@ -1,12 +1,13 @@
 // The parsers on saved feeds (tests/fixtures): what a source said on 2026-10-31.
 import luma from "./fixtures/luma/vancouver-2026-10-31.ics?raw";
 import vpl from "./fixtures/bibliocommons/vpl-2026-10-31-p1.json?raw";
+import rpl from "./fixtures/bibliocommons/rpl-2026-11-01-p1.json?raw";
 import { describe, expect, it } from "vitest";
 import { areaOf } from "../src/area";
 import { parseTicketmaster, tmCategory } from "../src/parsers/ticketmaster";
 import { SOURCE_BY_ID, type Parsed } from "../src/sources";
-import { venueId } from "../src/store";
-import { windowOf } from "../src/time";
+import { endMs, startMs, venueId } from "../src/store";
+import { fromVan, windowOf } from "../src/time";
 
 const w = { runId: "2026-10-31", ...windowOf("2026-10-31") };
 
@@ -47,6 +48,25 @@ describe("Vancouver Public Library (BiblioCommons)", () => {
     expect(story.url).toMatch(/^https:\/\/vpl\.bibliocommons\.com\/events\/[0-9a-f]{24}$/);
     expect(story.place?.postalCode).toMatch(/^V\d[A-Z] \d[A-Z]\d$/);
     for (const e of events) expect(e.description?.length ?? 0).toBeLessThanOrEqual(600);
+  });
+});
+
+describe("Richmond Public Library (BiblioCommons, as yourlibrary)", () => {
+  const { events, more } = SOURCE_BY_ID.rpl.parse(rpl, 0, w) as Parsed;
+  it("reads its page, with Richmond's links and branches", () => {
+    expect(events).toHaveLength(25);
+    expect(more).toBe(true);
+    const chess = events.find((e) => e.title === "Chess for Fun (All Ages)")!;
+    expect(chess.url).toMatch(/^https:\/\/yourlibrary\.bibliocommons\.com\/events\/[0-9a-f]{24}$/);
+    expect(chess.start).toBe("2026-11-01T14:00:00-07:00");
+    expect(chess.place).toMatchObject({ name: "Brighouse", address: "100-7700 Minoru Gate", city: "Richmond", postalCode: "V6Y 1R8" });
+    expect(areaOf(chess.place).area).toBe("richmond");
+  });
+  it("an event given by dates alone is all-day, to the end of its last day", () => {
+    const hunt = events.find((e) => e.title === "Cambie Scavenger Hunt")!;
+    expect(hunt).toMatchObject({ start: "2026-10-28", end: "2026-11-03", allDay: true });
+    expect(startMs(hunt)).toBe(fromVan("2026-10-28"));
+    expect(endMs(hunt)).toBe(fromVan("2026-11-04"));
   });
 });
 

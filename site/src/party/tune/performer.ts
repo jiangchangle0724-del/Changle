@@ -5,18 +5,43 @@
  *
  * A Performer owns one <svg>. Moves tween `pose` and `face` (plain numbers); `render()` turns them into
  * transforms once a frame. Nothing here knows about songs or beats: lib moves.ts decides what to do.
+ *
+ * How the arms stay human: a move sends a hand to a point, and `aim()` works out the arm's joints for
+ * that point once, when the tween starts; the tween then turns the joints (the shoulder the short way
+ * round), so an arm swings like an arm between two poses instead of its elbow being solved afresh every
+ * frame (where it could flip to the other side half way). Elbows bend out and down, keep the way they
+ * bend while that still looks right, and change it only by straightening on the way. Elbows, knees and
+ * wrists stay inside what a body can do, and no joint turns faster than a real one could (a move that
+ * asks for more gets there a moment later). tests/performer.test.ts checks all of it, frame by frame.
  */
 import { gsap } from "../../lib/anim";
 
 export type Kind = "m" | "f";
+export type Side = "L" | "R";
+const SIDES: Side[] = ["L", "R"];
 
 /* ------------------------------------------------------------------ geometry */
 
 // Avatar space: 200 x 300, ground at y = 292, the pelvis at (100, 206).
 export const PELVIS = { x: 100, y: 206 };
 const NECK = { x: 100, y: 144 };
+export const SHOULDER_Y = 149;
 const THIGH = 38, SHIN = 36;
 const ANKLE_Y = 280;
+
+/** How far a body bends, in degrees: an elbow or a knee folds this far from straight at most, a wrist tips this far either way. */
+export const ELBOW_FOLD = 150;
+export const KNEE_FOLD = 140;
+export const WRIST_TIP = 85;
+/** The fastest an arm joint turns on screen, degrees a second. A pose that asks for more arrives a moment later: nothing snaps. */
+export const ARM_SPEED = 720;
+/** Standing legs are never quite locked straight, so a dip bends the knees smoothly (see reach). */
+const LEG_SOFT = 2;
+/** The fastest the hips and the feet move on screen, avatar units a second (the knees follow without a snap, planted feet stay put). */
+export const HIP_SPEED = 90;
+export const FOOT_SPEED = 130;
+/** And the fastest a leg joint turns, degrees a second (a landing straightens the legs from both ends at once). */
+export const LEG_SPEED = 900;
 
 type Look = {
   skin: string; skinShade: string; hair: string; hairHi: string; hairShade: string;
@@ -41,14 +66,27 @@ const LOOKS: Record<Kind, Look> = {
 
 /* ------------------------------------------------------------------ state */
 
-/** Where the body is. Hands are in the torso's own space (they ride along when it leans and bounces);
- *  feet are on the floor. */
+/**
+ * Where the body is. Arms are joints, in degrees as SVG turns a bone drawn hanging straight down: the
+ * upper arm's turn at the shoulder (0 hanging, 90 out to the left of the screen, -90 to the right, 180
+ * up), then the elbow's and the wrist's bend, each against the bone above it. They're in the torso's
+ * own space, so arms ride along when it leans and bounces. Feet are points on the floor; the knees follow.
+ */
 export type Pose = {
   px: number; py: number; lean: number; spin: number;
   headTilt: number; headNod: number; headTurn: number;
-  hLx: number; hLy: number; hRx: number; hRy: number; wristL: number; wristR: number;
+  shL: number; elL: number; wristL: number; shR: number; elR: number; wristR: number;
   fLx: number; fLy: number; fRx: number; fRy: number;
 };
+/**
+ * What a move asks of the arms instead of joints: a hand at a point in the torso's space, and which
+ * way its fingers point, as a turn of a hand hanging down (0 down, 180 up, 90 toward the left of the
+ * screen, -90 toward the right), whatever the arm is doing.
+ */
+export type Aim = { hLx: number; hLy: number; hRx: number; hRy: number; fingL: number; fingR: number };
+/** A pose to move to: any pose numbers, hands aimed at points. */
+export type Target = Partial<Pose & Aim>;
+const AIM_KEYS = new Set<string>(["hLx", "hLy", "hRx", "hRy", "fingL", "fingR"]);
 export type Face = {
   /** 0 open .. 1 shut, each eye */
   lidL: number; lidR: number;
@@ -69,12 +107,30 @@ export type Face = {
   gaze: number;
 };
 
-export function restPose(kind: Kind): Pose {
+/** The pose to move back to: hands hanging by the sides, relaxed. */
+export function restAim(kind: Kind): Target {
   const L = LOOKS[kind];
   return {
     px: 0, py: 0, lean: 0, spin: 1, headTilt: 0, headNod: 0, headTurn: 0,
     hLx: PELVIS.x - L.shoulderX - 3, hLy: 200, hRx: PELVIS.x + L.shoulderX + 3, hRy: 200, wristL: 0, wristR: 0,
     fLx: PELVIS.x - L.hip - 1, fLy: ANKLE_Y, fRx: PELVIS.x + L.hip + 1, fRy: ANKLE_Y,
+  };
+}
+/** Standing at rest, as joints. */
+export function restPose(kind: Kind): Pose {
+  const L = LOOKS[kind];
+  const t = restAim(kind) as Pose & Aim;
+  const arm = (side: Side) => {
+    const dir = side === "L" ? -1 : 1;
+    const sx = PELVIS.x + dir * L.shoulderX;
+    const tx = side === "L" ? t.hLx : t.hRx, ty = side === "L" ? t.hLy : t.hRy;
+    return reach(sx, SHOULDER_Y, tx, ty, L.upper, L.fore, elbowSide(sx, SHOULDER_Y, tx, ty, L.upper, L.fore, dir, 0), ELBOW_FOLD);
+  };
+  const l = arm("L"), r = arm("R");
+  return {
+    px: 0, py: 0, lean: 0, spin: 1, headTilt: 0, headNod: 0, headTurn: 0,
+    shL: l.turn, elL: l.bend, wristL: 0, shR: r.turn, elR: r.bend, wristR: 0,
+    fLx: t.fLx, fLy: t.fLy, fRx: t.fRx, fRy: t.fRy,
   };
 }
 export function restFace(): Face {
@@ -84,28 +140,81 @@ export function restFace(): Face {
 /* ------------------------------------------------------------------ the two-bone solver */
 
 const DEG = 180 / Math.PI;
-/** Aim a two-bone limb from (sx, sy) at (tx, ty). `out` picks the bend: the elbow/knee goes the way that
- *  scores higher. Returns both bones' directions (radians, 0 = +x, y down). */
-function solve(sx: number, sy: number, tx: number, ty: number, a: number, b: number, out: (x: number, y: number) => number) {
-  let dx = tx - sx, dy = ty - sy;
-  let d = Math.hypot(dx, dy);
-  if (d < 1e-4) {
-    dx = 0; dy = 1; d = 1e-4;
-  }
-  const dc = Math.min(a + b - 0.05, Math.max(Math.abs(a - b) + 0.05, d));
-  const ux = dx / d, uy = dy / d;
-  const A = Math.acos(Math.max(-1, Math.min(1, (a * a + dc * dc - b * b) / (2 * a * dc))));
-  const base = Math.atan2(uy, ux);
-  const e1x = sx + a * Math.cos(base + A), e1y = sy + a * Math.sin(base + A);
-  const e2x = sx + a * Math.cos(base - A), e2y = sy + a * Math.sin(base - A);
-  const [ex, ey] = out(e1x, e1y) >= out(e2x, e2y) ? [e1x, e1y] : [e2x, e2y];
-  const hx = sx + ux * dc, hy = sy + uy * dc;
-  return { a1: Math.atan2(ey - sy, ex - sx), a2: Math.atan2(hy - ey, hx - ex) };
-}
-/** A bone drawn pointing down (+y) turned to direction `ang`. */
-const boneRot = (ang: number) => ang * DEG - 90;
-const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
+/** An angle in degrees brought into -180..180: the short way round. */
+export const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+/** A number, or `or` when it isn't one (nothing a move asks for can put NaN on screen). */
+const num = (n: unknown, or: number) => (typeof n === "number" && Number.isFinite(n) ? n : or);
 const f2 = (n: number) => (Math.round(n * 100) / 100).toString();
+
+/**
+ * A two-bone limb from (sx, sy) reaching for (tx, ty), bones `a` and `b` long: the first bone's turn
+ * and the joint's bend, in degrees as SVG turns a bone drawn hanging down. `bend` says which way the
+ * joint goes (the sign of the bend). A point out of reach is reached for with the limb straight; one too
+ * close is held off so the joint folds no further than `fold`. Never NaN: a point that isn't a number
+ * leaves the limb hanging straight down.
+ *
+ * `soft` eases the last stretch: within `soft` of full length the limb straightens ever more slowly
+ * and falls just short (by up to a third of `soft`). A limb pulled straight bends from nothing to a
+ * lot for the first pixel it's pushed in (a standing leg as the body dips): this takes the snap out.
+ */
+export function reach(sx: number, sy: number, tx: number, ty: number, a: number, b: number, bend: 1 | -1, fold: number, soft = 0) {
+  let dx = num(tx, sx) - sx, dy = num(ty, sy + a + b) - sy;
+  let d = Math.hypot(dx, dy);
+  if (!(d > 1e-6)) {
+    dx = 0;
+    dy = 1;
+    d = 1;
+  }
+  const near = Math.sqrt(a * a + b * b - 2 * a * b * Math.cos((180 - fold) / DEG));
+  const easeFrom = a + b - soft;
+  if (soft > 0 && d > easeFrom) d = easeFrom + soft * (1 - Math.exp(-(d - easeFrom) / soft));
+  const dc = clamp(d, near, a + b);
+  // the shoulder's angle off the line to the point, and the joint's inner angle
+  const A = Math.acos(clamp((a * a + dc * dc - b * b) / (2 * a * dc), -1, 1));
+  const inner = Math.acos(clamp((a * a + b * b - dc * dc) / (2 * a * b), -1, 1));
+  const first = Math.atan2(dy, dx) - bend * A;
+  return { turn: first * DEG - 90, bend: bend * (180 - inner * DEG) };
+}
+
+/** Elbows bend out and down: a pole the elbow leans toward, out to the side and a little down. */
+const POLE_DOWN = 0.6;
+/** While both ways look about as right (within this of the even line), an elbow keeps the way it bends. */
+const STICK = 0.15;
+/**
+ * How far inside both its shoulder and its hand an elbow may be before it pokes into the body: a
+ * little, and more the further out the hand is (elbows tucked at the waist, hands out in a shrug).
+ */
+export const elbowRoom = (handOut: number) => 6 + Math.max(0, handOut) / 4;
+/**
+ * Which way an elbow bends for a hand at (tx, ty), from a shoulder at (sx, sy) on side `dir` (-1 left,
+ * 1 right), bones `a` and `b` long. Never into the body. Otherwise the way that puts the elbow nearer
+ * the pole, unless `now` (the elbow's bend now) already goes the other way and both look about as
+ * right, so an arm doesn't flap between keys. And when the fingers are to point somewhere (`fing`),
+ * the way that lets the wrist get them there, if the pole's way can't and the other way isn't wrong.
+ */
+export function elbowSide(sx: number, sy: number, tx: number, ty: number, a: number, b: number, dir: number, now: number, fing?: number): 1 | -1 {
+  const x = num(tx, sx), y = num(ty, sy + 1);
+  const solved = (bend: 1 | -1) => reach(sx, sy, x, y, a, b, bend, ELBOW_FOLD);
+  const inside = (bend: 1 | -1) => {
+    const turn = solved(bend).turn / DEG;
+    const ex = sx - a * Math.sin(turn); // the upper arm, drawn hanging down, turned
+    return dir * (ex - (dir > 0 ? Math.min(sx, x) : Math.max(sx, x))) < -elbowRoom(dir * (x - sx));
+  };
+  const inPlus = inside(1), inMinus = inside(-1);
+  if (inPlus !== inMinus) return inPlus ? -1 : 1;
+  const phi = Math.atan2(y - sy, x - sx);
+  // > 0: bending -1 brings the elbow nearer the pole than bending +1 does
+  const pref = (-dir * Math.sin(phi) + POLE_DOWN * Math.cos(phi)) / Math.hypot(1, POLE_DOWN);
+  const way: 1 | -1 = Math.abs(pref) < STICK && Math.abs(now) > 4 ? (now > 0 ? 1 : -1) : pref > 0 ? -1 : 1;
+  if (fing === undefined || !Number.isFinite(fing) || inPlus) return way;
+  const wrist = (bend: 1 | -1) => {
+    const j = solved(bend);
+    return Math.abs(wrap(fing - j.turn - j.bend));
+  };
+  const here = wrist(way), there = wrist(-way as 1 | -1);
+  return here > WRIST_TIP * 0.7 && there < here - 30 ? (-way as 1 | -1) : way;
+}
 
 /* ------------------------------------------------------------------ the drawing */
 
@@ -388,6 +497,17 @@ export class Performer {
   private lastHeadX = 0;
   private lastPx = 0;
   private wet = 0;
+  /** where each hand was last sent, and the joints that get it there (a key that only turns the fingers needs them) */
+  private goal: Record<Side, { x: number; y: number; sh: number; el: number }>;
+  /** the arm joints as drawn: they follow the pose no faster than ARM_SPEED */
+  readonly drawn: Record<Side, { sh: number; el: number; wrist: number }>;
+  /** the hips and feet as drawn: they follow the pose no faster than HIP_SPEED and FOOT_SPEED */
+  private stance = { px: 0, py: 0, fLx: 0, fLy: 0, fRx: 0, fRy: 0 };
+  /** the leg joints as drawn, no faster than LEG_SPEED */
+  private legs: Record<Side, { turn: number; bend: number }> = { L: { turn: 0, bend: 0 }, R: { turn: 0, bend: 0 } };
+  /** the furthest past what a wrist can do that a move has asked fingers to point, degrees (the tests keep this small) */
+  strain = 0;
+  private fresh = true;
 
   constructor(readonly svg: SVGSVGElement, kind: Kind, inward: number) {
     this.kind = kind;
@@ -409,54 +529,137 @@ export class Performer {
     }
     this.pose = restPose(kind);
     this.face = restFace();
+    const rest = restAim(kind) as Aim;
+    const p = this.pose;
+    this.goal = { L: { x: rest.hLx, y: rest.hLy, sh: p.shL, el: p.elL }, R: { x: rest.hRx, y: rest.hRy, sh: p.shR, el: p.elR } };
+    this.drawn = { L: { sh: p.shL, el: p.elL, wrist: 0 }, R: { sh: p.shR, el: p.elR, wrist: 0 } };
     this.render(0);
   }
 
-  /** Turn pose and face into the drawing. dt in seconds (for the hair and the skirt). */
+  /**
+   * Tween values for a target: hands sent to points become the arm's joints, worked out when the
+   * tween starts (so a delayed or queued one bends from wherever the arm is by then, and turns the
+   * shoulder the short way round from there). Fingers given a direction get the wrist bend that
+   * points them there, as far as a wrist goes. Everything else passes through.
+   */
+  aim(t: Target): Record<string, number | (() => number)> {
+    const vars: Record<string, number | (() => number)> = {};
+    for (const [k, v] of Object.entries(t)) if (!AIM_KEYS.has(k) && typeof v === "number") vars[k] = v;
+    for (const side of SIDES) {
+      const hx = side === "L" ? t.hLx : t.hRx, hy = side === "L" ? t.hLy : t.hRy, fing = side === "L" ? t.fingL : t.fingR;
+      const moves = hx !== undefined || hy !== undefined;
+      if (!moves && fing === undefined) continue;
+      let got: { sh: number; el: number; wrist: number } | null = null;
+      const joints = () => (got ??= this.solveArm(side, hx, hy, fing));
+      if (moves) {
+        vars["sh" + side] = () => joints().sh;
+        vars["el" + side] = () => joints().el;
+      }
+      if (fing !== undefined) vars["wrist" + side] = () => joints().wrist;
+    }
+    return vars;
+  }
+
+  /** Go straight to a target, no tween (for pictures of poses, and tests). */
+  place(t: Target) {
+    const p = this.pose as unknown as Record<string, number>;
+    for (const [k, v] of Object.entries(this.aim(t))) p[k] = typeof v === "function" ? v() : v;
+    this.fresh = true;
+    this.render(0);
+  }
+
+  /** The joints that put a hand at (hx, hy) with its fingers turned to `fing`, from where the arm is now. */
+  private solveArm(side: Side, hx: number | undefined, hy: number | undefined, fing: number | undefined) {
+    const P = this.pose, L = this.look, dir = side === "L" ? -1 : 1;
+    const goal = this.goal[side];
+    const nowSh = num(side === "L" ? P.shL : P.shR, goal.sh), nowEl = num(side === "L" ? P.elL : P.elR, goal.el);
+    if (hx !== undefined || hy !== undefined) {
+      const sx = PELVIS.x + dir * L.shoulderX;
+      const tx = num(hx, goal.x), ty = num(hy, goal.y);
+      const j = reach(sx, SHOULDER_Y, tx, ty, L.upper, L.fore, elbowSide(sx, SHOULDER_Y, tx, ty, L.upper, L.fore, dir, nowEl, fing), ELBOW_FOLD);
+      Object.assign(goal, { x: tx, y: ty, sh: nowSh + wrap(j.turn - nowSh), el: j.bend });
+    }
+    if (fing === undefined) return { sh: goal.sh, el: goal.el, wrist: num(side === "L" ? P.wristL : P.wristR, 0) };
+    const wish = wrap(num(fing, 0) - goal.sh - goal.el);
+    this.strain = Math.max(this.strain, Math.abs(wish) - WRIST_TIP);
+    return { sh: goal.sh, el: goal.el, wrist: clamp(wish, -WRIST_TIP, WRIST_TIP) };
+  }
+
+  /** Turn pose and face into the drawing. dt in seconds (for the hair and the skirt, and how far a joint may turn). */
   render(dt: number) {
     const p = this.pose, F = this.face, L = this.look, e = this.el;
-    const px = p.px, py = p.py;
+    const live = !this.fresh && dt > 0;
+    this.fresh = false;
+
+    // hips and feet, no faster than a body moves them
+    const st = this.stance;
+    const follow = (key: "px" | "py" | "fLx" | "fLy" | "fRx" | "fRy", want: number, speed: number) => {
+      st[key] = live ? st[key] + clamp(want - st[key], -speed * dt, speed * dt) : want;
+    };
+    follow("px", num(p.px, 0), HIP_SPEED);
+    follow("py", num(p.py, 0), HIP_SPEED);
+    const hipY = PELVIS.y + st.py;
+    for (const side of SIDES) {
+      const dir = side === "L" ? -1 : 1;
+      follow(`f${side}x`, num(side === "L" ? p.fLx : p.fRx, PELVIS.x + st.px + dir * L.hip), FOOT_SPEED);
+      follow(`f${side}y`, num(side === "L" ? p.fLy : p.fRy, ANKLE_Y), FOOT_SPEED);
+    }
+    const px = st.px, py = st.py;
 
     // whole body: a spin is a squeeze to nothing and back, mirrored halfway
-    e.root.setAttribute("transform", `translate(100 0) scale(${f2(p.spin)} 1) translate(-100 0)`);
+    e.root.setAttribute("transform", `translate(100 0) scale(${f2(clamp(num(p.spin, 1), -1, 1))} 1) translate(-100 0)`);
 
-    // legs: hips ride the pelvis, feet stay where the move puts them
-    for (const side of ["L", "R"] as const) {
+    // legs: hips ride the pelvis, feet stay where the move puts them, knees always bend outward (and,
+    // when a move is quicker than a leg, the leg follows a moment later, its joints in step)
+    for (const side of SIDES) {
       const dir = side === "L" ? -1 : 1;
-      const hx = PELVIS.x + px + dir * L.hip, hy = PELVIS.y + py;
-      const fx = side === "L" ? p.fLx : p.fRx, fy = side === "L" ? p.fLy : p.fRy;
-      const s = solve(hx, hy, fx, fy, THIGH, SHIN, (x) => dir * x);
-      const r1 = boneRot(s.a1), r2 = wrap(boneRot(s.a2) - r1);
-      e["thigh" + side].setAttribute("transform", `translate(${f2(hx)} ${f2(hy)}) rotate(${f2(r1)})`);
-      e["shin" + side].setAttribute("transform", `translate(0 ${THIGH}) rotate(${f2(r2)})`);
-      e["foot" + side].setAttribute("transform", `translate(0 ${SHIN}) rotate(${f2(-(r1 + r2))})`);
+      const hx = PELVIS.x + px + dir * L.hip;
+      const s = reach(hx, hipY, side === "L" ? st.fLx : st.fRx, side === "L" ? st.fLy : st.fRy, THIGH, SHIN, dir as 1 | -1, KNEE_FOLD, LEG_SOFT);
+      const g = this.legs[side];
+      const dT = wrap(s.turn - g.turn), dB = s.bend - g.bend;
+      const k = live ? Math.min(1, (LEG_SPEED * dt) / Math.max(1e-9, Math.abs(dT), Math.abs(dB))) : 1;
+      g.turn += dT * k;
+      g.bend += dB * k;
+      e["thigh" + side].setAttribute("transform", `translate(${f2(hx)} ${f2(hipY)}) rotate(${f2(g.turn)})`);
+      e["shin" + side].setAttribute("transform", `translate(0 ${THIGH}) rotate(${f2(g.bend)})`);
+      e["foot" + side].setAttribute("transform", `translate(0 ${SHIN}) rotate(${f2(-(g.turn + g.bend))})`);
     }
 
     // torso: carried by the pelvis, leaning about it
-    e.torso.setAttribute("transform", `translate(${f2(px)} ${f2(py)}) rotate(${f2(p.lean)} ${PELVIS.x} ${PELVIS.y})`);
+    e.torso.setAttribute("transform", `translate(${f2(px)} ${f2(py)}) rotate(${f2(num(p.lean, 0))} ${PELVIS.x} ${PELVIS.y})`);
 
-    // arms: hands aimed in the torso's own space, elbows out
-    for (const side of ["L", "R"] as const) {
+    // arms: joints in the torso's own space, kept inside what an arm can do, turning no faster than one
+    // can. A slowed arm keeps its joints in step (all of them the same share of the way), so it moves
+    // through the poses in between just as the tween would, only later.
+    const step = live ? ARM_SPEED * dt : Infinity;
+    for (const side of SIDES) {
       const dir = side === "L" ? -1 : 1;
-      const sx = PELVIS.x + dir * L.shoulderX, sy = 149;
-      const tx = side === "L" ? p.hLx : p.hRx, ty = side === "L" ? p.hLy : p.hRy;
-      const s = solve(sx, sy, tx, ty, L.upper, L.fore, (x, y) => dir * x + y * 0.15);
-      const r1 = boneRot(s.a1), r2 = wrap(boneRot(s.a2) - r1);
-      e["upper" + side].setAttribute("transform", `translate(${f2(sx)} ${sy}) rotate(${f2(r1)})`);
-      e["fore" + side].setAttribute("transform", `translate(0 ${L.upper}) rotate(${f2(r2)})`);
-      e["hand" + side].setAttribute("transform", `translate(0 ${L.fore}) rotate(${f2(side === "L" ? p.wristL : p.wristR)})`);
+      const d = this.drawn[side];
+      const sh = num(side === "L" ? p.shL : p.shR, d.sh);
+      const el = clamp(num(side === "L" ? p.elL : p.elR, d.el), -ELBOW_FOLD, ELBOW_FOLD);
+      const wrist = clamp(num(side === "L" ? p.wristL : p.wristR, d.wrist), -WRIST_TIP, WRIST_TIP);
+      const dSh = wrap(sh - d.sh), dEl = el - d.el, dWr = wrist - d.wrist;
+      const k = Math.min(1, step / Math.max(1e-9, Math.abs(dSh), Math.abs(dEl), Math.abs(dWr)));
+      d.sh += dSh * k;
+      d.el += dEl * k;
+      d.wrist += dWr * k;
+      e["upper" + side].setAttribute("transform", `translate(${f2(PELVIS.x + dir * L.shoulderX)} ${SHOULDER_Y}) rotate(${f2(d.sh)})`);
+      e["fore" + side].setAttribute("transform", `translate(0 ${L.upper}) rotate(${f2(d.el)})`);
+      e["hand" + side].setAttribute("transform", `translate(0 ${L.fore}) rotate(${f2(d.wrist)})`);
     }
 
     // head: tilt about the neck, nod, a little turn (features slide, the hair follows less)
-    const head = `translate(${NECK.x} ${NECK.y + p.headNod}) rotate(${f2(p.headTilt)})`;
+    const head = `translate(${NECK.x} ${f2(NECK.y + num(p.headNod, 0))}) rotate(${f2(num(p.headTilt, 0))})`;
     e.head.setAttribute("transform", head);
     e.headBack.setAttribute("transform", head);
-    e.feat.setAttribute("transform", `translate(${f2(p.headTurn * 4)} 0)`);
-    e.hairFront.setAttribute("transform", `translate(${f2(p.headTurn * 1.6)} 0)`);
+    const turn = clamp(num(p.headTurn, 0), -1, 1);
+    e.feat.setAttribute("transform", `translate(${f2(turn * 4)} 0)`);
+    e.hairFront.setAttribute("transform", `translate(${f2(turn * 1.6)} 0)`);
 
     // springs: the ponytail and the skirt lag behind the motion
     if (dt > 0) {
-      const headX = px + Math.sin(p.lean / DEG) * 60 + p.headTilt * 0.6;
+      const lean = num(p.lean, 0), tilt = num(p.headTilt, 0);
+      const headX = px + Math.sin(lean / DEG) * 60 + tilt * 0.6;
       const vHead = (headX - this.lastHeadX) / dt, vPel = (px - this.lastPx) / dt;
       this.lastHeadX = headX;
       this.lastPx = px;
@@ -465,8 +668,8 @@ export class Performer {
         vel += acc * dt;
         return [ang + vel * dt, vel];
       };
-      [this.tailAng, this.tailVel] = step(this.tailAng, this.tailVel, Math.max(-38, Math.min(38, -vHead * 0.5 - p.lean * 0.6 - p.headTilt * 0.4)), 90, 7);
-      [this.skirtAng, this.skirtVel] = step(this.skirtAng, this.skirtVel, Math.max(-14, Math.min(14, -vPel * 0.25 - p.lean * 0.35)), 140, 9);
+      [this.tailAng, this.tailVel] = step(this.tailAng, this.tailVel, Math.max(-38, Math.min(38, -vHead * 0.5 - lean * 0.6 - tilt * 0.4)), 90, 7);
+      [this.skirtAng, this.skirtVel] = step(this.skirtAng, this.skirtVel, Math.max(-14, Math.min(14, -vPel * 0.25 - lean * 0.35)), 140, 9);
     }
     if (e.tail) e.tail.setAttribute("transform", `translate(31 -108) rotate(${f2(this.tailAng)})`);
     if (e.skirt) e.skirt.setAttribute("transform", `rotate(${f2(this.skirtAng)} 100 186)`);

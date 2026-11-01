@@ -27,19 +27,6 @@ export type BeatMap = {
 
 const FRAME_S = 0.02;
 
-/** Direct-form biquad over a whole signal (in place into `out`). */
-function biquad(x: Float32Array, out: Float32Array, b0: number, b1: number, b2: number, a1: number, a2: number) {
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  for (let i = 0; i < x.length; i++) {
-    const xi = x[i];
-    const y = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-    x2 = x1;
-    x1 = xi;
-    y2 = y1;
-    y1 = y;
-    out[i] = y;
-  }
-}
 function lowpass(f: number, sr: number, q = 0.707) {
   const w = (2 * Math.PI * f) / sr, cs = Math.cos(w), sn = Math.sin(w), al = sn / (2 * q), a0 = 1 + al;
   return [((1 - cs) / 2) / a0, (1 - cs) / a0, ((1 - cs) / 2) / a0, (-2 * cs) / a0, (1 - al) / a0] as const;
@@ -47,18 +34,6 @@ function lowpass(f: number, sr: number, q = 0.707) {
 function highpass(f: number, sr: number, q = 0.707) {
   const w = (2 * Math.PI * f) / sr, cs = Math.cos(w), sn = Math.sin(w), al = sn / (2 * q), a0 = 1 + al;
   return [((1 + cs) / 2) / a0, -(1 + cs) / a0, ((1 + cs) / 2) / a0, (-2 * cs) / a0, (1 - al) / a0] as const;
-}
-
-function frameRms(x: Float32Array, hop: number): Float32Array {
-  const n = Math.floor(x.length / hop);
-  const out = new Float32Array(n);
-  for (let f = 0; f < n; f++) {
-    let s = 0;
-    const base = f * hop;
-    for (let i = 0; i < hop; i++) s += x[base + i] * x[base + i];
-    out[f] = Math.sqrt(s / hop);
-  }
-  return out;
 }
 
 function percentile(a: Float32Array, p: number) {
@@ -69,23 +44,55 @@ function percentile(a: Float32Array, p: number) {
 export function analyzeBuffer(buf: AudioBuffer): BeatMap {
   const sr = buf.sampleRate;
   const n = buf.length;
-  const mono = new Float32Array(n);
-  for (let ch = 0; ch < buf.numberOfChannels; ch++) {
-    const d = buf.getChannelData(ch);
-    for (let i = 0; i < n; i++) mono[i] += d[i] / buf.numberOfChannels;
-  }
-  const low = new Float32Array(n), mid = new Float32Array(n), tmp = new Float32Array(n);
-  const [lb0, lb1, lb2, la1, la2] = lowpass(150, sr);
-  biquad(mono, tmp, lb0, lb1, lb2, la1, la2);
-  biquad(tmp, low, lb0, lb1, lb2, la1, la2); // 4th order: tighter lows
-  const [hb0, hb1, hb2, ha1, ha2] = highpass(280, sr);
-  const [mb0, mb1, mb2, ma1, ma2] = lowpass(3200, sr);
-  biquad(mono, tmp, hb0, hb1, hb2, ha1, ha2);
-  biquad(tmp, mid, mb0, mb1, mb2, ma1, ma2);
-
   const hop = Math.round(sr * FRAME_S);
-  const eLow = frameRms(low, hop), eMid = frameRms(mid, hop), eAll = frameRms(mono, hop);
-  const F = eLow.length;
+  const F = Math.floor(n / hop);
+  // The mono mix, its lows (kick and bass: the same low-pass twice, 4th order, tighter) and its mids
+  // (voices: a high-pass, then a low-pass), as the energy of each 20 ms frame. Worked out a sample at a
+  // time, so the phone never holds whole filtered copies of the song (four of them came to ~20 MB on
+  // top of the song itself). Each filter stage's output is rounded to 32 bits, as the Float32Arrays
+  // the copies used to be stored in rounded it, so the beat map comes out the same to the last bit.
+  const chans = Array.from({ length: buf.numberOfChannels }, (_, ch) => buf.getChannelData(ch));
+  const nch = chans.length, left = chans[0], right = chans[1];
+  const [l0, l1, l2, la1, la2] = lowpass(150, sr);
+  const [h0, h1, h2, ha1, ha2] = highpass(280, sr);
+  const [m0, m1, m2, ma1, ma2] = lowpass(3200, sr);
+  // each stage's last two inputs (x) and outputs (y): low A and B, mid A (high-pass) and B
+  let ax1 = 0, ax2 = 0, ay1 = 0, ay2 = 0, bx1 = 0, bx2 = 0, by1 = 0, by2 = 0;
+  let cx1 = 0, cx2 = 0, cy1 = 0, cy2 = 0, dx1 = 0, dx2 = 0, dy1 = 0, dy2 = 0;
+  const eLow = new Float32Array(F), eMid = new Float32Array(F), eAll = new Float32Array(F);
+  let sLow = 0, sMid = 0, sAll = 0, f = 0, k = 0;
+  for (let i = 0; i < n && f < F; i++) {
+    let mono: number;
+    if (nch === 2) mono = Math.fround(Math.fround(left[i] / 2) + right[i] / 2);
+    else if (nch === 1) mono = left[i];
+    else {
+      mono = 0;
+      for (let ch = 0; ch < nch; ch++) mono = Math.fround(mono + chans[ch][i] / nch);
+    }
+    let y = l0 * mono + l1 * ax1 + l2 * ax2 - la1 * ay1 - la2 * ay2;
+    ax2 = ax1, ax1 = mono, ay2 = ay1, ay1 = y;
+    const lowA = Math.fround(y);
+    y = l0 * lowA + l1 * bx1 + l2 * bx2 - la1 * by1 - la2 * by2;
+    bx2 = bx1, bx1 = lowA, by2 = by1, by1 = y;
+    const low = Math.fround(y);
+    y = h0 * mono + h1 * cx1 + h2 * cx2 - ha1 * cy1 - ha2 * cy2;
+    cx2 = cx1, cx1 = mono, cy2 = cy1, cy1 = y;
+    const midA = Math.fround(y);
+    y = m0 * midA + m1 * dx1 + m2 * dx2 - ma1 * dy1 - ma2 * dy2;
+    dx2 = dx1, dx1 = midA, dy2 = dy1, dy1 = y;
+    const mid = Math.fround(y);
+    sLow += low * low;
+    sMid += mid * mid;
+    sAll += mono * mono;
+    if (++k === hop) {
+      eLow[f] = Math.sqrt(sLow / hop);
+      eMid[f] = Math.sqrt(sMid / hop);
+      eAll[f] = Math.sqrt(sAll / hop);
+      f++;
+      k = 0;
+      sLow = sMid = sAll = 0;
+    }
+  }
 
   // onset curve: rises in the lows count double, rises anywhere count too
   const lowMax = percentile(eLow, 0.98) || 1, allMax = percentile(eAll, 0.98) || 1;

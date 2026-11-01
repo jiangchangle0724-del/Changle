@@ -1,10 +1,10 @@
 import { Check, Disc3, Music, Radio, SkipForward, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
-import { TUNES, type Tune } from "../../data/tunes";
+import type { Tune } from "../../data/tunes";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground, type TuneHandle } from "../../lib/music";
-import { heardSongs, loadPreview, rememberSong } from "../../lib/preview";
+import { forgetPreviews, heardSongs, loadPreview, rememberSong } from "../../lib/preview";
 import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
@@ -16,7 +16,7 @@ import { useStore } from "../../store";
 import { Leaderboard } from "../common";
 import { perfAt } from "../sensors";
 import { chartsForRoom, loadCharts } from "./charts";
-import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, stageNow, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, stageNow, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { tuneCrew } from "./crew";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
@@ -77,6 +77,11 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   useEffect(() => {
     if (songs && v.pre) void loadPreview(v.pre);
   }, [songs, v.pre]);
+  // decoded songs are big: none kept for melodies, after the last song, or once the game is left
+  useEffect(() => {
+    if (!songs || v.phase === "end") forgetPreviews();
+  }, [songs, v.phase]);
+  useEffect(() => () => forgetPreviews(), []);
   const canPlay = audio.status === "ready" || audio.status === "failed";
   // where the beats and the voice are in this preview, so the stage can follow it
   const beats = useMemo(() => (audio.url && audio.buf ? beatsFor(audio.url, audio.buf) : null), [audio.url, audio.buf]);
@@ -258,7 +263,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             {v.phase === "listen" && quiz && (songs ? v.choices : v.options) && (
               <>
                 <QuizChoices
-                  choices={songs ? v.choices! : v.options!.map((o) => ({ id: o, t: zh ? TUNES[o].title.zh : TUNES[o].title.en, a: TUNES[o].title.en, ae: TUNES[o].title.zh }))}
+                  choices={songs ? v.choices! : v.options!.map((o) => tuneChoice(o, zh))}
                   mine={v.mine}
                   answer={null}
                   disabled={!started}
@@ -306,10 +311,10 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
                 </div>
                 {melody && v.options && (
                   <div className="tn-options">
-                    {v.options.map((o) => (
-                      <button key={o} type="button" className="tn-option" disabled={!buzzerIsMe} onClick={() => g("answer", { choice: o })}>
-                        <strong>{zh ? TUNES[o].title.zh : TUNES[o].title.en}</strong>
-                        <small>{zh ? TUNES[o].title.en : TUNES[o].title.zh}</small>
+                    {v.options.map((o) => tuneChoice(o, zh)).map((c) => (
+                      <button key={c.id} type="button" className="tn-option" disabled={!buzzerIsMe} onClick={() => g("answer", { choice: c.id })}>
+                        <strong>{c.t}</strong>
+                        <small>{zh ? c.a : c.ae}</small>
                       </button>
                     ))}
                   </div>
@@ -377,7 +382,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             ) : null}
             {quiz && (songs ? v.choices : v.options) && (
               <QuizChoices
-                choices={songs ? v.choices! : v.options!.map((o) => ({ id: o, t: zh ? TUNES[o].title.zh : TUNES[o].title.en, a: TUNES[o].title.en, ae: TUNES[o].title.zh }))}
+                choices={songs ? v.choices! : v.options!.map((o) => tuneChoice(o, zh))}
                 mine={v.mine}
                 answer={songs ? (v.song?.id ?? null) : v.tune}
               />

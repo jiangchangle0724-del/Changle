@@ -1,6 +1,8 @@
 // The day's run, on the free plan: each source's each part (a page) is one step, and each step is a
-// request of its own (10 ms of CPU each; waiting on the network doesn't count). One run makes at
-// most 31 of them (Cloudflare allows 32 Worker invocations per request): the steps, then publish.
+// request of its own (10 ms of CPU each; waiting on the network doesn't count). One trigger makes at
+// most 31 of them (Cloudflare allows 32 Worker invocations per request): up to 30 steps, then
+// publish. The morning has three triggers (06:00, 06:20, 06:40), each going on where the last
+// stopped, so a run has room for 90 steps.
 import { ensureSchema } from "./schema";
 import { SOURCE_BY_ID, SOURCES, type Window } from "./sources";
 import { endMs, seenAgain, startMs, storeEvents } from "./store";
@@ -13,7 +15,7 @@ export const USER_AGENT = "changle.ca events (+https://changle.ca/go)";
 export const RAW_TTL = 30 * 86_400;
 /** Larger answers than this are refused, not read into memory. */
 const MAX_BYTES = 6_000_000;
-/** Steps in one run, leaving room for publish under Cloudflare's 32. */
+/** Steps in one trigger, leaving room for publish under Cloudflare's 32. */
 export const MAX_STEPS = 30;
 
 export interface StepArgs {
@@ -129,21 +131,59 @@ export interface StepRunner {
   publish(args: { runId: string }): Promise<unknown>;
 }
 
-/** The whole run: every source, part after part, then publish. A step that fails is logged and skipped. */
-export async function runDay(steps: StepRunner, runId: string): Promise<{ steps: number }> {
+export interface RunOptions {
+  /** Steps this trigger may take (default MAX_STEPS). */
+  maxSteps?: number;
+  /** The morning's last trigger: publish even if steps remain (sources not reached keep yesterday's). */
+  final?: boolean;
+}
+export interface RunResult {
+  /** Steps taken by this trigger. */
+  steps: number;
+  /** Every source done. */
+  done: boolean;
+  /** This trigger published the run. */
+  published: boolean;
+}
+type Cursor = { source: string; part: number } | null;
+
+/** After a source's last part: the next source's first, or null when it was the last one. */
+function after(source: string): Cursor {
+  const i = SOURCES.findIndex((s) => s.id === source);
+  const next = i < 0 ? undefined : SOURCES[i + 1];
+  return next ? { source: next.id, part: 0 } : null;
+}
+
+/**
+ * One trigger of the morning's run: every source, part after part, from where the last trigger
+ * stopped (table `runs`), at most `maxSteps` steps; then, once every source is done (or on the
+ * last trigger), publish. A step that fails is logged and skipped. A published run does nothing more.
+ */
+export async function runDay(steps: StepRunner, db: D1Database, runId: string, opts: RunOptions = {}): Promise<RunResult> {
+  const max = opts.maxSteps ?? MAX_STEPS;
+  await ensureSchema(db);
+  const now = new Date().toISOString();
+  await db.prepare("INSERT INTO runs (run_id, next_source, next_part, started_at) VALUES (?1, ?2, 0, ?3) ON CONFLICT(run_id) DO NOTHING")
+    .bind(runId, SOURCES[0]?.id ?? null, now)
+    .run();
+  const row = (await db.prepare("UPDATE runs SET triggers = triggers + 1 WHERE run_id = ?1 RETURNING next_source, next_part, published_at").bind(runId).first<{ next_source: string | null; next_part: number | null; published_at: string | null }>())!;
+  if (row.published_at) return { steps: 0, done: true, published: false };
+  let at: Cursor = row.next_source ? { source: row.next_source, part: row.next_part ?? 0 } : null;
   let n = 0;
-  for (const src of SOURCES) {
-    let part: number | null = 0;
-    while (part !== null && n < MAX_STEPS) {
-      n++;
-      try {
-        part = (await steps.fetchSource({ runId, source: src.id, part })).next;
-      } catch {
-        // (the step logs its own failures; one that couldn't even start ends this source for today)
-        part = null;
-      }
+  while (at && n < max) {
+    n++;
+    let next: number | null = null;
+    try {
+      next = (await steps.fetchSource({ runId, source: at.source, part: at.part })).next;
+    } catch {
+      // (the step logs its own failures; one that couldn't even start ends this source for today)
     }
+    at = next !== null ? { source: at.source, part: next } : after(at.source);
+    await db.prepare("UPDATE runs SET next_source = ?2, next_part = ?3, steps = steps + 1 WHERE run_id = ?1").bind(runId, at?.source ?? null, at?.part ?? null).run();
   }
+  const done = at === null;
+  if (!done && !opts.final) return { steps: n, done, published: false };
   await steps.publish({ runId });
-  return { steps: n };
+  await db.prepare("UPDATE runs SET published_at = ?2 WHERE run_id = ?1").bind(runId, new Date().toISOString()).run();
+  return { steps: n, done, published: true };
 }

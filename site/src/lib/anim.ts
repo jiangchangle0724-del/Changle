@@ -42,4 +42,5 @@ export const LIGHTS = {
 
 export { gsap, Flip, useGSAP };
 
-if (import.meta.env.DEV && typeof window !== "undefined") (window as unknown as { gsap: typeof gsap }).gsap = gsap;
+// (import.meta.env is Vite's; the tests import this under plain Node, where it isn't there)
+if (import.meta.env?.DEV && typeof window !== "undefined") (window as unknown as { gsap: typeof gsap }).gsap = gsap;
