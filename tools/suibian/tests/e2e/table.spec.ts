@@ -120,7 +120,8 @@ test("one person picks alone: five questions, three places with reasons, another
   const page = me.page;
   await page.goto("/eat/");
   await expect(page.getByText("一个人，不知道吃什么？")).toBeVisible();
-  expect((await page.request.post("/eat/api/test/login", { data: { sub: "solo-1", name: "小雨" } })).ok()).toBeTruthy();
+  // A new account each run (a local server keeps accounts between runs).
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `solo-${Date.now()}`, name: "小雨" } })).ok()).toBeTruthy();
   await page.reload();
   await page.getByRole("button", { name: "帮我挑" }).click();
   await expect(page).toHaveURL(/\/eat\/solo$/);
@@ -161,6 +162,9 @@ test("one person picks alone: five questions, three places with reasons, another
   await cards.first().getByRole("button", { name: "就它了" }).click();
   await expect(page.getByRole("heading", { name: "就吃这家！" })).toBeVisible();
   await expect(page.getByRole("button", { name: "发给朋友" })).toBeVisible();
+  // The diet card is saved for next time, but not this search's budget.
+  const saved = (await page.evaluate(() => fetch("/eat/api/me").then((r) => r.json()))) as { card: { budget: number } };
+  expect(saved.card.budget).toBe(0);
   expect(me.errors).toEqual([]);
 });
 

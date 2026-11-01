@@ -40,6 +40,12 @@ export const SOLO_COUNT = 6;
 const SIDE_MIN = 3;
 /** How much a mood match counts, in "people who liked it in round 1" (see pick.ts WEIGHTS.likes). */
 const MOOD_BOOST = 1.5;
+/**
+ * A place with hardly any Google ratings is an unknown, not an average place: one person on their
+ * own has no table to vote it down, so it gives way to places people have rated.
+ */
+const FEW_RATINGS = 20;
+const UNKNOWN_PENALTY = 0.4;
 
 export function cleanAnswers(x: unknown): SoloAnswers {
   const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
@@ -97,7 +103,7 @@ export function soloPick(input: SoloInput): { ids: string[]; relaxed: boolean } 
   if (a.mood !== "any") for (const c of MOOD_CUISINES[a.mood]) likes[c] = MOOD_BOOST;
   const ctx = { likes, members: 1, center: input.center, range: input.range, now: input.now };
   const ranked = pool
-    .map((p) => ({ p, s: score(p, ctx) + (p.recommend ? 0.25 : 0) + (p.badges?.length ? 0.15 : 0) }))
+    .map((p) => ({ p, s: score(p, ctx) + (p.recommend ? 0.25 : 0) + (p.badges?.length ? 0.15 : 0) - ((p.ratings ?? 0) < FEW_RATINGS && !p.recommend ? UNKNOWN_PENALTY : 0) }))
     .sort((x, y) => y.s - x.s || x.p.id.localeCompare(y.p.id))
     .map((x) => x.p);
   const ids: string[] = [];

@@ -28,7 +28,9 @@ How a table goes:
 (mood, which side of the menu, budget, where and how far, diet card) and shows three places at a
 time, each with why it was picked; "show me others" gives three more. It is at
 `changle.ca/eat/solo`, needs the same sign-in as starting a table, and counts toward the same
-10 uses a day. Nothing from the answers is kept.
+10 uses a day. Nothing from the answers is kept; changes to the diet card are saved for next time
+as at a table, except the budget, which is only that search's answer. Places with almost no Google
+ratings rank lower than rated ones here (there's no table to vote them down), unless they're a pick.
 
 **How far** is three tabs: walk (5, 10, 15, 20 or 30 minutes), drive (5, 10, 15, 25 or 40) and
 any distance (Google's widest circle, 50 km, which covers Greater Vancouver from anywhere in the
