@@ -1,5 +1,6 @@
 // Vancouver time. Everything a person reads is in Vancouver's wall-clock time, with the offset in
-// force on that day (-07:00 in summer, -08:00 in winter; the clocks went back on 2026-11-01).
+// force on that day, from the time-zone database: -07:00 all year since B.C. kept daylight time
+// (8 March 2026); -08:00 on older winter dates (the last change back was 2 November 2025).
 
 export const TZ = "America/Vancouver";
 
@@ -51,7 +52,7 @@ export function vanParts(ms: number): LocalParts {
 
 const two = (n: number) => String(Math.abs(n)).padStart(2, "0");
 
-/** "2026-11-01T19:30:00-08:00": an instant as Vancouver wall-clock time with that day's offset. */
+/** "2026-11-01T19:30:00-07:00": an instant as Vancouver wall-clock time with that day's offset. */
 export function vanIso(ms: number): string {
   const p = vanParts(ms);
   const sign = p.offset < 0 ? "-" : "+";

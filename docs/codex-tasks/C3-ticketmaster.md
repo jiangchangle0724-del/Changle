@@ -24,10 +24,11 @@ A first version is there; it isn't running yet (the key isn't set). Make it righ
 | postponed | postponed |
 | rescheduled | rescheduled |
 
+The categories are defined in `CONTRACTS.md` (a music festival is a concert: `shows`).
+
 | Segment | Genre | `category` |
 | --- | --- | --- |
-| Music | Festival | festivals |
-| Music | anything else | shows |
+| Music | any (Festival too) | shows |
 | Sports | any | outdoors |
 | Arts & Theatre | Children's Theatre, Family, Circus & Specialty Acts | family |
 | Arts & Theatre | Fine Art, Film | arts |
@@ -58,7 +59,7 @@ The seven hand-made events come out as follows (and the rest of each by the cont
 | Z7r9jZ1A7aaa2 (SYML) | soldout | shows | 2026-11-05T19:00:00-07:00 | 45.5 |
 | Z7r9jZ1A7aaa3 (Matt Rogers) | rescheduled | shows | 2026-11-09T20:00:00-07:00 | null |
 | Z7r9jZ1A7aaa4 (Paw Patrol) | cancelled | family | 2026-11-08T11:00:00-07:00 | 32 to 120 |
-| Z7r9jZ1A7aaa5 (festival) | postponed | festivals | 2026-11-12, all-day, time TBD | null |
+| Z7r9jZ1A7aaa5 (music festival) | postponed | shows | 2026-11-12, all-day, time TBD | null |
 | Z7r9jZ1A7aaa6 (symphony, USD) | scheduled | shows | 2026-11-13T19:30:00-07:00 | null, no image |
 | Z7r9jZ1A7aaa7 (Giants, 0 to 0) | scheduled | outdoors | 2026-11-10T19:00:00-07:00 | null, `isFree` null |
 
