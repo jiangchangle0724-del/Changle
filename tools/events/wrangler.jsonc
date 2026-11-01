@@ -1,0 +1,27 @@
+// Cloudflare settings for 玩什么 · What's On: its own Worker, one of changle.ca's tools, answering at
+// changle.ca/go. Every morning at 06:00 Vancouver time it gathers Greater Vancouver's events for the
+// next 14 days into D1 and publishes them to KV, where the page and the API read them.
+// It runs on Cloudflare's free plan: the day's run is split into small steps (see CONTRACTS.md).
+// Secrets (dashboard: this Worker > Settings > Variables and Secrets, type "Secret"):
+//   TICKETMASTER_KEY   the Ticketmaster Discovery API key; without it that source is skipped
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "changle-events",
+  "main": "src/worker.ts",
+  // (ctx.exports, through which the day's run calls its own steps, is on by default since 2025-11-17)
+  "compatibility_date": "2026-10-26",
+  "routes": [
+    { "pattern": "changle.ca/go", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/go/*", "zone_name": "changle.ca" }
+  ],
+  // Cron runs on UTC. B.C. keeps UTC-7 all year since March 2026, so 13:00 UTC is 06:00 in
+  // Vancouver; 14:00 is there in case the rules ever change back. The run checks the local hour and
+  // goes once.
+  "triggers": { "crons": ["0 13,14 * * *"] },
+  // Created by the first deploy (no ids here). The Worker applies migrations/ itself (src/schema.ts).
+  "d1_databases": [{ "binding": "DB", "database_name": "changle-events" }],
+  "kv_namespaces": [{ "binding": "CACHE" }],
+  // The schema files are part of the Worker (applied by src/schema.ts).
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
+  "observability": { "enabled": true, "traces": { "enabled": true } }
+}
