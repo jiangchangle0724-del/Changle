@@ -153,7 +153,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
       penalty={penalty.call}
       onPenaltyDone={penalty.done}
       right={
-        <button className="icon-btn" onClick={() => setEditing(true)} aria-label="edit">
+        <button className="icon-btn" onClick={() => setEditing(true)} aria-label={lang === "zh" ? "改转盘" : "Edit the wheel"}>
           <Pencil size={18} />
         </button>
       }
@@ -285,7 +285,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
               type="button"
               className="btn btn-ghost"
               disabled={slices.length >= 12}
-              onClick={() => setSlices((all) => [...all, { id: `custom-${Date.now()}`, kind: "custom", label: { zh: lang === "zh" ? "新惩罚" : "New penalty", en: lang === "zh" ? "新惩罚" : "New penalty" } }])}
+              onClick={() => setSlices((all) => [...all, { id: `custom-${Date.now()}`, kind: "custom", label: { zh: "新惩罚", en: "New penalty" } }])}
             >
               <Plus size={16} /> {lang === "zh" ? "加一格" : "Add a slice"}
             </button>

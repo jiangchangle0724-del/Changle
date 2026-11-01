@@ -223,7 +223,7 @@ function SliceEditor({ open, onClose, slices, onSave, onReset }: { open: boolean
             type="button"
             className="btn btn-ghost"
             disabled={draft.length >= 12}
-            onClick={() => setDraft((all) => [...all, { id: `c${Date.now() % 100000}`, kind: "custom", label: { zh: lang === "zh" ? "新惩罚" : "New penalty", en: lang === "zh" ? "新惩罚" : "New penalty" } }])}
+            onClick={() => setDraft((all) => [...all, { id: `c${Date.now() % 100000}`, kind: "custom", label: { zh: "新惩罚", en: "New penalty" } }])}
           >
             <Plus size={16} /> {lang === "zh" ? "加一格" : "Add a slice"}
           </button>

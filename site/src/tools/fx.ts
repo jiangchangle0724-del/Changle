@@ -92,3 +92,10 @@ export function convert(rates: Rates, amount: number, from: string, to: string) 
   if (!f || !t) return NaN;
   return (amount / f) * t;
 }
+
+/** What a typed amount means: digits and one decimal point ("1.2.3" is 1.23; Chinese 。 and ，work). */
+export const cleanAmount = (s: string) => {
+  const t = s.replace(/[，,\s]/g, "").replace(/[。]/g, ".").replace(/[^0-9.]/g, "");
+  const i = t.indexOf(".");
+  return i < 0 ? t : t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, "");
+};
