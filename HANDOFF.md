@@ -10,7 +10,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 
 | Address | Code | Runs on | Goes live |
 | --- | --- | --- | --- |
-| changle.ca: the party games (a game's card at `/g/<slug>`, the game at `/g/<slug>/play`), tables at `/t/<CODE>`, tools tab, accounts, big screen at `/tv` (addresses: `site/src/router.ts`) | `site/` (Vite, React, TypeScript) | Cloudflare Pages project `changle` | by itself when a PR touching `site/` is merged into `main` |
+| changle.ca: the party games (a game's card at `/g/<slug>`, the game at `/g/<slug>/play`), tables at `/t/<CODE>`, tools tab, accounts, big screen at `/tv`, DJ booth at `/dj` (addresses: `site/src/router.ts`) | `site/` (Vite, React, TypeScript) | Cloudflare Pages project `changle` | by itself when a PR touching `site/` is merged into `main` |
 | rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
@@ -23,10 +23,11 @@ installs on its own. Node 22, as in CI.
 ## How a change reaches changle.ca
 
 1. Branch from `main` (one branch per change), commit, push, open a PR.
-2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip, draw, cutout and
-   performer tests, build), `suibian.yml` and `been-there.yml` (each with browser tests in
-   Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the Workers
-   runtime), and `party.yml` (the party base's tests, the party server's types, tests and build).
+2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, DJ booth, trip, draw,
+   cutout, performer and design-token tests, build), `suibian.yml` and `been-there.yml` (each with
+   browser tests in Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the
+   Workers runtime), and `party.yml` (the party base's tests, the party server's types, tests and
+   build).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
@@ -61,6 +62,7 @@ are proxied there, see `site/vite.config.ts`).
 cd site
 npx tsc --noEmit
 npx tsx tests/engine.test.ts    # every game's rules, as the rooms server runs them
+npx tsx tests/dj.test.ts        # the DJ booth's player (on a pretend audio thread) and stand-in DJ
 npx tsx tests/trip.test.ts
 npx tsx tests/draw.test.ts
 npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
@@ -79,7 +81,10 @@ python3 scripts/party_test.py      # the newer games, one phone and online
 python3 scripts/tv_test.py         # the big screen
 python3 scripts/account_check.py   # sign-in, profile, friends, chat
 python3 scripts/tune_quiz_check.py # Name That Tune's multiple choice, 20 songs, sound on, memory watched
+python3 scripts/dj_check.py        # the DJ booth's speaker in WebKit and Chromium, and a table of phones
 ```
+
+`dj_check.py` needs WebKit too: `playwright install webkit`.
 
 The other apps: `npm run typecheck`, `npm test`, `npm run test:e2e` in `tools/suibian` or
 `games/been-there`.
@@ -113,6 +118,12 @@ folder under `site/src/party/`. TypeScript flags most of what's missing.
    tiles by board position, so add the id to `ORDER` in `site/scripts/net_test.py` and
    `site/scripts/party_test.py`.
 8. **Docs**: the game lists in `site/README.md` and `site/PRODUCT.md`.
+
+Two hooks for a game that a big screen runs (the DJ booth, `site/src/shared/dj/CONTRACTS.md`):
+`GameDef.auto` starts the game when a big screen opens a table for it, and `GameDef.screen` hears
+the game actions a big screen sends (`RoomEngine.screenAct`; a screen never acts for a seat). A
+game not ready for the board yet gets `hidden: true` in the registry: no tile anywhere (not even
+coming soon), only its own address, and a table's lobby shows it only while it is the game up.
 
 House rules for a game (the full set is in `site/PRODUCT.md`): Chinese and English are both
 first-class and switch mid-game; one action per screen, big targets, contrast for a dim room;
@@ -158,6 +169,10 @@ Worker's `wrangler.jsonc`.
 * Stuck? Stop and say what is needed instead of working around it.
 
 ## Open items
+
+* 打碟 · DJ Booth (`docs/dj-booth.md`): the first round is in (the fake DJ: room, speaker, phones,
+  lights, dancers), reachable only at changle.ca/dj and changle.ca/dj/test. Lyria (A2) and the
+  rest of the plan come next; the task cards for Codex aren't written yet.
 
 * The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
   PR #34 (2026-11-01) and deployed fine.

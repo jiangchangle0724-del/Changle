@@ -6,8 +6,11 @@ import { useRoom, useRoomEvent } from "./RoomContext";
  * Things that happen to you are full volume and buzz; things that happen across the table are softer.
  */
 export function useTableSounds() {
-  const { me } = useRoom();
+  const { me, room } = useRoom();
+  // the DJ booth's phones stay silent: the only sound is the speaker's
+  const booth = room?.game?.id === "dj";
   useRoomEvent((e) => {
+    if (booth) return;
     switch (e.k) {
       case "react":
         sfx.reaction(e.r, e.pid === me ? 1 : 0.75);

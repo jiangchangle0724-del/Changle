@@ -22,6 +22,10 @@ ok(new Set(slugs).size === GAMES.length, `${GAMES.length} games, ${new Set(slugs
 ok(slugs.every((s) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s)), "every address is lowercase words joined by -");
 for (const g of GAMES) {
   ok(gameFrom(g.slug) === g.id && gameFrom(g.id) === g.id, `${g.slug} and the old id ${g.id} both find ${g.id}`);
+  if (g.hidden) {
+    ok(same(at(`/g/${g.slug}`), { kind: "home", tab: "party" }), `/g/${g.slug} is home: a hidden game has no card`);
+    continue;
+  }
   ok(same(at(`/g/${g.slug}`), { kind: "home", tab: "party", game: g.id }), `/g/${g.slug} is its card over home`);
   const play = at(`/g/${g.slug}/play`);
   ok(g.ready ? same(play, { kind: "game", id: g.id }) : play.kind === "home", `/g/${g.slug}/play ${g.ready ? "is the game" : "is its card (not playable yet)"}`);
@@ -43,6 +47,8 @@ const pages: Route[] = [
   { kind: "tv" },
   { kind: "tv", code: "WXYZ" },
   { kind: "tv", code: "WXYZ", game: "punchline" },
+  { kind: "tv", game: "dj" },
+  { kind: "djtest" },
 ];
 for (const r of pages) ok(same(at(pathOf(r)), r), `${pathOf(r)} round-trips`);
 
@@ -56,6 +62,9 @@ ok(pathOf(at("/g/no-such-game")) === "/", "a game that doesn't exist is home");
 ok(same(at("/settings"), { kind: "home", tab: "party", open: "settings" }) && pathOf(at("/settings")) === "/", "/settings opens settings over home, at /");
 ok(same(at("/login"), { kind: "home", tab: "party", open: "login" }) && pathOf(at("/login")) === "/", "/login opens sign-in over home, at /");
 ok(at("/dev/show").kind === "home", "the development-only page isn't there outside development");
+ok(pathOf(at("/dj")) === "/dj" && same(at("/dj"), { kind: "tv", game: "dj" }), "/dj is the big screen with the DJ booth up, and keeps its short address");
+ok(pathOf(at("/DJ/test/")) === "/dj/test", "/dj/test is the booth's sound check");
+ok(pathOf(at("/tv?g=dj-booth")) === "/dj", "/tv?g=dj-booth is /dj");
 
 // links from before the change
 const legacy: [string, string | null][] = [
@@ -75,6 +84,8 @@ const legacy: [string, string | null][] = [
   ["#/tools", "/tools"],
   ["#/wish", "/wish"],
   ["#/dev/show?x=1", "/dev/show?x=1"],
+  ["#/tv?g=dj", "/dj"],
+  ["#/dj/test", "/dj/test"],
   ["#anchor", null],
   ["", null],
 ];

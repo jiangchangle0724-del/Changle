@@ -62,6 +62,8 @@ function LobbyBoard() {
     tl.current = runSweep(ONLINE_GAMES.length, from, to, {
       duration,
       onStep: (idx, p) => {
+        // a hidden game has no tile to light (unless it's where the spin lands)
+        if (GAME_BY_ID[ONLINE_GAMES[idx]].hidden && idx !== to) return;
         setLit(idx);
         setLight(GAME_BY_ID[ONLINE_GAMES[idx]].gel, 0.16);
         sfx.tick(1.1 - p * 0.6);
@@ -106,11 +108,13 @@ function LobbyBoard() {
   const players = room.seats.filter((s) => !s.watch).length;
   const enough = players >= need;
   const host = nameOf(room.host);
+  // the board: every game on it, and a hidden one only while it is the game up (the DJ booth)
+  const onBoard = ONLINE_GAMES.map((_, i) => i).filter((i) => !GAME_BY_ID[ONLINE_GAMES[i]].hidden || i === front);
 
   const spin = () => {
     if (sweeping) return;
-    const options = ONLINE_GAMES.map((_, i) => i).filter((i) => players >= ONLINE_MIN[ONLINE_GAMES[i]] && i !== front);
-    const pool = options.length ? options : ONLINE_GAMES.map((_, i) => i);
+    const options = onBoard.filter((i) => players >= ONLINE_MIN[ONLINE_GAMES[i]] && i !== front && !GAME_BY_ID[ONLINE_GAMES[i]].hidden);
+    const pool = options.length ? options : onBoard.filter((i) => !GAME_BY_ID[ONLINE_GAMES[i]].hidden);
     const target = pool[Math.floor(Math.random() * pool.length)];
     haptic(6);
     act({ a: "spin", scope: "lobby", index: target, delta: 1, duration: 3.4 });
@@ -153,10 +157,10 @@ function LobbyBoard() {
         <h2 className="section-title">{isHost ? ui("pickGame") : ui("waitHost", { name: host })}</h2>
       </div>
       <div className={`board ${sweeping ? "is-spinning" : ""}`}>
-        {ONLINE_GAMES.map((gid, i) => (
+        {onBoard.map((i) => (
           <Tile
-            key={gid}
-            g={GAME_BY_ID[gid]}
+            key={ONLINE_GAMES[i]}
+            g={GAME_BY_ID[ONLINE_GAMES[i]].hidden ? { ...GAME_BY_ID[ONLINE_GAMES[i]], ready: true } : GAME_BY_ID[ONLINE_GAMES[i]]}
             i={i}
             lang={lang}
             lit={i === shown}

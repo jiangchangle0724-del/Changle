@@ -71,8 +71,9 @@ export function PartyTab({
     { scope: grid },
   );
 
-  const ready = GAMES.map((g, i) => (g.ready ? i : -1)).filter((i) => i >= 0);
-  const soon = GAMES.map((g, i) => (g.ready ? -1 : i)).filter((i) => i >= 0);
+  // (a hidden game has only its own address, not a tile, even as coming soon)
+  const ready = GAMES.map((g, i) => (g.ready && !g.hidden ? i : -1)).filter((i) => i >= 0);
+  const soon = GAMES.map((g, i) => (g.ready || g.hidden ? -1 : i)).filter((i) => i >= 0);
 
   const spin = () => {
     if (spinning) return;

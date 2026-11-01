@@ -2,6 +2,16 @@
 
 Nov 1, 2026 · @Steve Jiang
 
+> Exported from Steve's doc (tab 打碟 · DJ Booth), the brief both AIs work from.
+>
+> **Decided since (Nov 1, Steve):** the booth is built inside the existing site, not as a new
+> `games/dj` project. So, where this brief says otherwise: the page is changle.ca/dj (the big-screen
+> page with the booth up), the room is the site's rooms server (`site/worker`, already a Durable
+> Object, nothing new to pay for), phones sit down the way they do at every table, and a merge to
+> `main` deploys it like any game (step 1 and A6 below come down to that). The first round is the
+> fake DJ only (A1, A3, A6); Lyria is not connected. How the pieces fit:
+> `site/src/shared/dj/CONTRACTS.md`. The sound check: `docs/dj-booth-sound-check.md`.
+
 changle.ca 新增一个派对游戏「打碟 · DJ Booth」（建议路径 changle.ca/dj）：一台电视或电脑当音箱，AI DJ 用 Google 的 Lyria RealTime 实时生成音乐并按风格混音，玩家用手机点歌、投票、加料，屏幕上几个 3D 舞者跟着节拍跳。第一版要证明的只有三件事：声音不断、切歌像 DJ、舞者踩在拍子上。
 
 姊妹游戏 一起跳 · Dance Along 在第二个 tab，两个游戏共用同一套底座，建议先做它。
@@ -90,7 +100,7 @@ DJ 的脑子，四条规则，全是纯函数，可以不开声音就测：
 
 ## 技术架构
 
-&#91;embedded content: 技术架构 · 6 个部件，一条音乐流\]
+*（原文档这里有一张图：技术架构 · 6 个部件，一条音乐流）*
 
 全部跑在你现有的 Cloudflare 账号里，和「随便」一样合并 main 自动发布。房间服务用 Durable Object（要 Workers Paid，你已经在升），每个房间一个实例，手机和音箱端都用 WebSocket 连它。音箱端从 Lyria 收到的是原始 PCM，用 AudioWorklet 播放，前面垃 2 到 3 秒缓冲防卡顿；Google 的钥匙永远只在 Worker 里，浏览器拿不到。
 
@@ -104,7 +114,7 @@ DJ 的脑子，四条规则，全是纯函数，可以不开声音就测：
 4. 成本上限：一个房间只开一条 Lyria 流，不是一台手机一条；每场派对上限 4 小时，到点淡出；主人账号一个月上限几小时，超了提示。
 5. 版权台账：每一种声音从哪来、按什么条款，写在仓库的 LICENSES.md：Lyria 输出条款、Mixamo 使用条款、YouTube 只嵌入。代码里不留任何「上传 MP3」的入口。
 6. 内容安全：玩家写的风格和歌词先过文字审核；Lyria 自带安全过滤，被拦的提示要告诉玩家为什么。
-7. 频闩限制：舞池灯光每秒不超过 3 次闪烁，这是光敏癫痫的通用红线。
+7. 频闪限制：舞池灯光每秒不超过 3 次闪烁，这是光敏癫痫的通用红线。
 8. 可观测：每场记录卡顿次数、重连次数、切歌次数、反应数；派对结束出一页「今晚回顾」：放了什么风格、谁点了歌、谁最嗨。既是排错数据，也是第二天发小红书的素材。
 9. 先做「假 DJ」：第一周先用一段录好的循环音频跑通房间、手机、舞池、同步，Lyria 最后接。声音链路和房间链路分开排错。
 

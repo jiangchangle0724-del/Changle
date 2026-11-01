@@ -4,6 +4,7 @@
  */
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
+import type { DjPhase, Mix, Source, StyleId, Track } from "./dj/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -26,9 +27,13 @@ export type GameId =
   | "tune"
   | "punchline"
   | "draw"
-  | "trip";
-/** Every game, in the same spectrum order as the front door's board. */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw"];
+  | "trip"
+  | "dj";
+/**
+ * Every game, in the same spectrum order as the front door's board. New games that aren't on the
+ * board yet go on the end (a table's `front` is an index into this list).
+ */
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
   drama: 3,
@@ -47,6 +52,7 @@ export const ONLINE_MIN: Record<GameId, number> = {
   punchline: 3,
   draw: 2,
   trip: 1,
+  dj: 1,
 };
 
 export type PenaltyKind = "sip" | "two" | "full" | "everyone" | "safe";
@@ -82,7 +88,11 @@ export type Fx =
   | "trick"
   | "freeze"
   | "out"
-  | "level";
+  | "level"
+  | "fire"
+  | "cold"
+  | "drop"
+  | "ask";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
 export type PenaltyEvent = { k: "penalty"; id: string; who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T };
@@ -508,7 +518,46 @@ export type DramaView = {
   lib: number;
 };
 
+/** 打碟 · DJ Booth (the shapes behind it: src/shared/dj/types.ts). */
+export type DjView = {
+  id: "dj";
+  phase: DjPhase;
+  /** server time the music started (0 before); the phase's start; when it moves on by itself (0: it doesn't) */
+  liveAt: number;
+  phaseAt: number;
+  nextAt: number;
+  /** the set ends itself here (0 before the music starts) */
+  capAt: number;
+  /** what the speaker plays */
+  mix: Mix;
+  /** 0 to 1: how hard the music should hit now */
+  energy: number;
+  source: Source;
+  /** the latest 🔥 presses (who and when, server time), oldest first */
+  fires: { pid: string; at: number }[];
+  /** 🔥 per player, all night */
+  total: Record<string, number>;
+  /** the latest ❄️ presses (who and when, server time), oldest first */
+  colds: { pid: string; at: number }[];
+  /** everyone's style knobs, -1 (less) to 1 (more); a style at 0 is left out */
+  knobs: Record<string, Partial<Record<StyleId, number>>>;
+  /** the latest drop requests (who and when, server time), oldest first */
+  drops: { pid: string; at: number }[];
+  /** songs asked for, oldest first; see DjTrack */
+  queue: DjTrack[];
+  /** which set this is (a new one after the host says "again") */
+  set: number;
+};
+
+/**
+ * A song in the booth's queue as one phone or screen sees it. What a player wrote (`ask`) is null
+ * for everyone but them and the host until it has passed the text check, and only they and the
+ * host see a refused one at all: nothing a player types reaches the big screen unchecked.
+ */
+export type DjTrack = Omit<Track, "ask"> & { ask: string | null };
+
 export type GameView =
+  | DjView
   | DramaView
   | TripView
   | RogueView

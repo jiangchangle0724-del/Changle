@@ -60,7 +60,7 @@ const write = (file: string, body: string) => {
 write("index.html", page({ title: NAME, description: homeDescription, path: "/", image: picture("default") }));
 
 let n = 0;
-for (const g of GAMES) {
+for (const g of GAMES.filter((g) => !g.hidden)) {
   const players = g.minPlayers === g.maxPlayers ? `${g.minPlayers}` : `${g.minPlayers}–${g.maxPlayers}`;
   write(
     `g/${g.slug}.html`,

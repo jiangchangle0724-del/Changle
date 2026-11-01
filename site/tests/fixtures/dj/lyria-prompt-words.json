@@ -1,0 +1,22 @@
+{
+  "source": "https://ai.google.dev/gemini-api/docs/lyria-prompt-guide",
+  "pageUpdated": "2026-09-17",
+  "saved": "2026-11-01",
+  "note": "The keyword lists in Google's Lyria prompt guide, copied as written. The 12 style presets (task card C1) use only these words as prompt texts. Never edit this file to make a test pass; if the guide changes, save it again with the new dates.",
+  "genres": {
+    "Electronic & Dance": ["Acid House", "Breakbeat", "Chillout", "Chiptune", "Deep House", "Drum & Bass", "Dubstep", "EDM", "Electro Swing", "Glitch Hop", "Hyperpop", "Minimal Techno", "Moombahton", "Psytrance", "Synthpop", "Techno", "Trance", "Trip Hop", "Vaporwave"],
+    "Hip-Hop & R&B": ["808 Hip Hop", "Boom-Bap", "Contemporary R&B", "G-funk", "Grime", "Lo-Fi Hip Hop", "Neo-Soul", "New Jack Swing", "Trap Beat"],
+    "Rock & Alternative": ["Alternative Country", "Blues Rock", "Classic Rock", "Funk Metal", "Garage Rock", "Indie Folk", "Indie Pop", "Post-Punk", "60s Psychedelic Rock", "Shoegaze", "Surf Rock"],
+    "Jazz, Soul & Funk": ["Acid Jazz", "Afrobeat", "Bossa Nova", "Disco Funk", "Funk", "Jazz Fusion", "Latin Jazz"],
+    "Folk & Traditional": ["Bengal Baul", "Bhangra", "Bluegrass", "Celtic Folk", "Cumbia", "Indian Classical", "Irish Folk", "Merengue", "Polka", "Reggae", "Reggaeton", "Renaissance Music", "Salsa"],
+    "Classical & Acoustic": ["Baroque", "Orchestral Score", "Piano Ballad"]
+  },
+  "instruments": {
+    "Keyboards & Synths": ["Buchla Synths", "Clavichord", "Dirty Synths", "Harpsichord", "Mellotron", "Moog Oscillations", "Ragtime Piano", "Rhodes Piano", "Smooth Pianos", "Spacey Synths", "Synth Pads"],
+    "Bass & Drums": ["303 Acid Bass", "808 Hip Hop Beat", "Boomy Bass", "Conga Drums", "Drumline", "Funk Drums", "Precision Bass", "Tabla", "TR-909 Drum Machine"],
+    "Guitars & Strings": ["Banjo", "Balalaika", "Bouzouki", "Cello", "Charango", "Dulcimer", "Fiddle", "Flamenco Guitar", "Guitar", "Harp", "Koto", "Lyre", "Mandolin", "Pipa", "Shamisen", "Shredding Guitar", "Sitar", "Slide Guitar", "Viola Ensemble", "Warm Acoustic Guitar"],
+    "Wind & Brass": ["Alto Saxophone", "Bagpipes", "Bass Clarinet", "Didgeridoo", "Harmonica", "Ocarina", "Trumpet", "Tuba", "Woodwinds"],
+    "Percussion": ["Bongos", "Djembe", "Glockenspiel", "Hang Drum", "Kalimba", "Maracas", "Marimba", "Mbira", "Steel Drum", "Vibraphone"]
+  },
+  "moods": ["Ambient", "Bright", "Chill", "Dark", "Dreamy", "Emotional", "Ethereal", "Euphoric", "Funky", "Groovy", "Melancholic", "Nostalgic", "Ominous", "Psychedelic", "Relaxed", "Soulful", "Triumphant", "Upbeat", "Whimsical"]
+}

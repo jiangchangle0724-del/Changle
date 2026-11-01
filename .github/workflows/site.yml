@@ -1,9 +1,9 @@
 # Runs every time the changle.ca site changes: types, the room engine's rules (incl. 到此一游's
-# hand-off), the anime avatar's drawing words, Name That Tune's performers (every move, frame by
-# frame), the design tokens (docs/DESIGN.md), the site's addresses, and a production build (which
-# also writes one page per game for search engines and share cards). The phone-in-a-browser
-# scripts in site/scripts need the table server and the site running, so they stay a local step
-# (see site/README.md). Only this folder.
+# hand-off), the DJ booth's player and stand-in DJ, the anime avatar's drawing words, Name That
+# Tune's performers (every move, frame by frame), the design tokens (docs/DESIGN.md), the site's
+# addresses, and a production build (which also writes one page per game for search engines and
+# share cards). The phone-in-a-browser scripts in site/scripts need the table server and the
+# site running, so they stay a local step (see site/README.md). Only this folder.
 name: site
 
 on:
@@ -29,6 +29,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx tsx tests/engine.test.ts
+      - run: npx tsx tests/dj.test.ts
       - run: npx tsx tests/trip.test.ts
       - run: npx tsx tests/draw.test.ts
       - run: npx tsx tests/cutout.test.ts

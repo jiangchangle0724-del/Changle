@@ -31,6 +31,7 @@ const Euchre = lazy(() => import("./party/euchre/Euchre").then((m) => ({ default
 const TripSolo = lazy(() => import("./party/trip/TripSolo").then((m) => ({ default: m.TripSolo })));
 // the big screen (a TV or computer showing a table) lives outside the phone frame
 const TvApp = lazy(() => import("./tv/TvApp").then((m) => ({ default: m.TvApp })));
+const DjTestPage = lazy(() => import("./party/dj/TestPage").then((m) => ({ default: m.DjTestPage })));
 const ShowPreview = import.meta.env.DEV ? lazy(() => import("./party/punchline/show/Preview").then((m) => ({ default: m.ShowPreview }))) : null;
 // online tables load only when someone sits at one: the front door stays light
 const OnlineRoom = lazy(() => import("./online/OnlineRoom").then((m) => ({ default: m.OnlineRoom })));
@@ -203,7 +204,7 @@ function Shell() {
         ? `room-${route.code}`
         : route.kind === "game"
           ? route.id
-          : route.kind === "me" || route.kind === "admin" || route.kind === "tv" || route.kind === "dev"
+          : route.kind === "me" || route.kind === "admin" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
             ? route.kind
             : `${route.kind}-${route.id}`;
   if (route.kind === "tv")
@@ -211,6 +212,14 @@ function Shell() {
       <SiteGate signIn={null}>
         <Suspense fallback={null}>
           <TvApp key={`${route.code ?? "new"}:${route.game ?? ""}`} code={route.code} game={route.game} />
+        </Suspense>
+      </SiteGate>
+    );
+  if (route.kind === "djtest")
+    return (
+      <SiteGate signIn={null}>
+        <Suspense fallback={null}>
+          <DjTestPage />
         </Suspense>
       </SiteGate>
     );

@@ -5,6 +5,7 @@
  *   /tools, /wish     the other home tabs   /g/<slug>/play     the game, on one phone
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
  *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts
+ *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
  *   /settings, /login open that sheet over home (the address then goes back to /)
  *
  * Links from before (changle.ca/#/g/truth, /#/r/ABCD, /#/tv/ABCD) are rewritten on arrival, so
@@ -27,6 +28,7 @@ export type Route =
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
   | { kind: "tv"; code?: string; game?: GameId }
+  | { kind: "djtest" }
   | { kind: "dev"; search: string };
 
 /** What the site keeps on each history entry. */
@@ -59,7 +61,8 @@ export function parse(pathname: string, search = ""): Route {
   if (p === "/login") return { kind: "home", tab: "party", open: "login" };
   if ((m = /^\/g\/([A-Za-z0-9-]+)(\/play)?$/.exec(p))) {
     const id = gameFrom(m[1]);
-    if (id) return m[2] && GAME_BY_ID[id].ready ? { kind: "game", id } : { kind: "home", tab: "party", game: id };
+    // (a hidden game, like the DJ booth, has no card: only its own address opens it)
+    if (id && !GAME_BY_ID[id].hidden) return m[2] && GAME_BY_ID[id].ready ? { kind: "game", id } : { kind: "home", tab: "party", game: id };
   }
   if ((m = new RegExp(`^/t/${TABLE}$`).exec(p))) return { kind: "room", code: m[1].toUpperCase() };
   if (p === "/me") return { kind: "me" };
@@ -71,6 +74,9 @@ export function parse(pathname: string, search = ""): Route {
     const g = new URLSearchParams(search).get("g");
     return { kind: "tv", code: m[1]?.toUpperCase(), game: g ? gameFrom(g) : undefined };
   }
+  // changle.ca/dj: a big screen with the DJ booth up (it's the speaker); /dj/test checks the sound alone
+  if (p.toLowerCase() === "/dj") return { kind: "tv", game: "dj" };
+  if (p.toLowerCase() === "/dj/test") return { kind: "djtest" };
   if (p === "/dev/show" && DEV) return { kind: "dev", search };
   // an address that isn't a page: home (and the address bar says so)
   return { kind: "home", tab: "party" };
@@ -93,7 +99,10 @@ export function pathOf(r: Route): string {
     case "chat":
       return `/chat/${r.id}`;
     case "tv":
+      if (r.game === "dj" && !r.code) return "/dj";
       return `/tv${r.code ? `/${r.code}` : ""}${r.game ? `?g=${GAME_BY_ID[r.game].slug}` : ""}`;
+    case "djtest":
+      return "/dj/test";
     case "dev":
       return `/dev/show${r.search}`;
   }
@@ -114,6 +123,7 @@ export function fromLegacyHash(hash: string): string | null {
     const id = g ? gameFrom(g) : undefined;
     return pathOf({ kind: "tv", code: m[1]?.toUpperCase(), game: id });
   }
+  if (/^\/dj\/test\b/.test(path)) return "/dj/test";
   if (/^\/dev\/show/.test(path)) return `/dev/show${query ? `?${query}` : ""}`;
   if (/^\/me\b/.test(path)) return path.includes("friends") ? "/me/friends" : "/me";
   if (/^\/admin\b/.test(path)) return "/admin";
@@ -141,7 +151,9 @@ export function titleOf(r: Route, lang: Lang): string {
     case "room":
       return named(`桌号 ${r.code}`, `Table ${r.code}`);
     case "tv":
-      return named("大屏幕", "Big screen");
+      return r.game === "dj" ? named("打碟", "DJ Booth") : named("大屏幕", "Big screen");
+    case "djtest":
+      return named("打碟试音", "DJ Booth sound check");
     case "me":
     case "admin":
       return named("我的", "Me");
