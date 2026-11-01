@@ -187,6 +187,14 @@ export const euchre: GameDef<S> = {
     if (s.st && s.st.turn === i) schedule(s, api);
   },
 
+  presence(s, pid, _on, api) {
+    // a phone that drops on its turn: the computer plays for it after AWAY_MS, not the 75 s an
+    // open phone gets; back again in time, it gets the open phone's time
+    const st = s.st;
+    if (!st || st.phase === "trick" || st.phase === "hand" || st.phase === "end") return;
+    if (s.seats[st.turn] === pid) schedule(s, api);
+  },
+
   view(s, pid, api): EuchreView {
     const mySeat = s.seats.indexOf(pid);
     const seats = s.seats.map((p, i) => ({ pid: p && api.has(p) ? p : null, bot: p && api.has(p) ? null : BOT_NAMES[i] }));
