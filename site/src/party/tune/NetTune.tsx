@@ -17,6 +17,7 @@ import { Leaderboard } from "../common";
 import { perfAt } from "../sensors";
 import { chartsForRoom, loadCharts } from "./charts";
 import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, stageNow, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { tuneCrew } from "./crew";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
 import "../../styles/party.css";
@@ -163,8 +164,16 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
     </p>
   );
 
+  // everyone at the table, on the stage (the DJ plays the songs, so the DJ isn't up there)
+  const crew = useMemo(
+    () => tuneCrew(seats.filter((s) => !s.watch && (!djMode || s.id !== dj)), me, v),
+    // (the view's pieces that move people about the stage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [seats, me, djMode, dj, v.phase, v.buzzer, v.locked.join(), v.correct, v.quiz, v.right.join(), v.last?.pid, v.last?.ok, v.phase === "end" ? JSON.stringify(v.scores) : ""],
+  );
+
   const scoreRows = seats
-    .filter((s) => !djMode || s.id !== dj)
+    .filter((s) => !s.watch && (!djMode || s.id !== dj))
     .map((s) => ({ id: s.id, name: s.id === me ? (zh ? "你" : "You") : s.name, score: v.scores[s.id] ?? 0, face: <SeatFace seat={s} size={36} /> }));
 
   const modeHint = songs
@@ -229,7 +238,17 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             {djMode ? (
               <Vinyl spinning={v.phase === "listen"} label={recordLabel} />
             ) : (
-              <TuneStage singer={songs ? v.singer : 0} playing={v.phase === "listen" && started} beats={songs ? beats : null} timing={songs ? timing : melodyTiming} fallbackBpm={melody ? (v.clip?.bpm ?? 100) : 100} mood={songs ? v.mood : ""} songKey={songs ? (v.audio ?? "") : `r${v.round}`} cue={missCue}>
+              <TuneStage
+                singer={songs ? v.singer : 0}
+                playing={v.phase === "listen" && started}
+                beats={songs ? beats : null}
+                timing={songs ? timing : melodyTiming}
+                fallbackBpm={melody ? (v.clip?.bpm ?? 100) : 100}
+                mood={songs ? v.mood : ""}
+                songKey={songs ? (v.audio ?? "") : `r${v.round}`}
+                cue={missCue}
+                crew={crew}
+              >
                 <Vinyl spinning={v.phase === "listen" && started} label={recordLabel} />
               </TuneStage>
             )}
@@ -343,13 +362,18 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             {roundLine}
             {songs && v.song ? (
               <>
-                <TuneStage singer={v.singer} playing beats={beats} timing={timing} mood={v.mood} songKey={v.audio ?? v.song.id} cue={revealCue}>
+                <TuneStage singer={v.singer} playing beats={beats} timing={timing} mood={v.mood} songKey={v.audio ?? v.song.id} cue={revealCue} crew={crew}>
                   <Vinyl spinning label={<CoverLabel art={v.song.art} />} />
                 </TuneStage>
                 <SongReveal song={v.song} />
               </>
             ) : melody ? (
-              <TuneTitle tune={v.tune} />
+              <>
+                <TuneStage singer={0} playing={false} beats={null} timing={null} songKey={`r${v.round}`} cue={revealCue} crew={crew}>
+                  <Vinyl spinning={false} label={<Music size={30} strokeWidth={2.4} />} />
+                </TuneStage>
+                <TuneTitle tune={v.tune} />
+              </>
             ) : null}
             {quiz && (songs ? v.choices : v.options) && (
               <QuizChoices
@@ -409,6 +433,10 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
 
         {v.phase === "end" && (
           <>
+            {/* the top three on the podium, everyone else along the edge */}
+            <TuneStage singer={0} playing={false} beats={null} timing={null} songKey="end" crew={crew}>
+              <span />
+            </TuneStage>
             <h2 className="pl-board-title">{zh ? "最终得分" : "Final scores"}</h2>
             <Leaderboard rows={scoreRows} />
             {isHost && (

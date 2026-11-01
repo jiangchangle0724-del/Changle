@@ -272,7 +272,7 @@ export function drawPrompt(ch: Choices, from: "photo" | "figure"): string {
     "Polished modern anime illustration: clean confident line art, soft cel shading with gentle highlights, big expressive eyes with detailed irises and catchlights, finely drawn hair strands, crisp details on the clothes.",
   );
   const bd = BACKDROPS[ch.backdrop] ?? BACKDROPS[0];
-  lines.push(`A plain, flat, solid ${bd.say} background (${bd.hex}) and nothing else: no text, no logo, no frame, no scenery, no floor.`);
+  lines.push(`A plain, flat, solid ${bd.say} background (${bd.hex}) and nothing else: no text, no logo, no frame, no scenery, no floor, no shadow on the ground. Keep the character's clothes and hair clearly different from the background colour, with clean dark outlines.`);
   lines.push("The whole figure fits in the picture with some space around it, centered, with the head in the upper part of the picture.");
   lines.push("Friendly and tasteful, made for a profile picture.");
   return lines.join(" ");

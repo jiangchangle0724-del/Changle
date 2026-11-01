@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { gsap, reduced } from "../../lib/anim";
 import { beatIndexAt, curveAt, type BeatMap } from "../../lib/beats";
 import "../../styles/party.css";
+import { Crew, type Mate } from "./crew";
 import { Choreo, resolveMood, seedOf, type Cue, type Role } from "./moves";
 import { Performer } from "./performer";
 
@@ -32,6 +33,7 @@ export function TuneStage({
   mood = "",
   songKey = "",
   cue = null,
+  crew,
   children,
 }: {
   /** 1 a man sings, 2 a woman, 3 both, 0 nobody knows (both dance) */
@@ -45,6 +47,8 @@ export function TuneStage({
   /** anything that names the song: the dance is picked from it */
   songKey?: string | number;
   cue?: StageCue | null;
+  /** the players, on the stage's front edge (online: their drawn figures) */
+  crew?: Mate[];
   children?: ReactNode;
 }) {
   const left = useRef<SVGSVGElement>(null);
@@ -143,7 +147,7 @@ export function TuneStage({
   }, [cueAt]);
 
   return (
-    <div className={`tn-stage ${playing ? "is-live" : ""}`} ref={root} data-singer={singer} aria-hidden="true">
+    <div className={`tn-stage ${playing ? "is-live" : ""} ${crew?.length ? "has-crew" : ""}`} ref={root} data-singer={singer} aria-hidden="true">
       <div className="tn-stage-lights" />
       <div className="tn-stage-floor" />
       <svg className="tn-avatar tn-avatar-m" viewBox={AVATAR_VIEWBOX} ref={left} />
@@ -152,6 +156,7 @@ export function TuneStage({
       <svg className="tn-stage-notes" viewBox="0 0 400 60">
         <g ref={notes} />
       </svg>
+      {crew?.length ? <Crew mates={crew} /> : null}
     </div>
   );
 }

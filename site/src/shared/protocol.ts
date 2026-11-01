@@ -53,7 +53,8 @@ export const REACTIONS: Reaction[] = ["cheers", "nice", "haha", "drink"];
 export type SpinScope = "lobby" | "truth" | "wheel";
 
 /** uid/av/ac: the seat's changle profile when signed in (avatar version and color). */
-export type SeatView = { id: string; name: string; on: boolean; uid?: string; av?: number; ac?: number };
+/** `fg`: the seat's figure cut out for the stages, by version (at /figure/:uid/cut); 0 or missing for none. */
+export type SeatView = { id: string; name: string; on: boolean; uid?: string; av?: number; ac?: number; fg?: number; watch?: boolean };
 
 export type Fx =
   | "start"
@@ -482,6 +483,8 @@ export type Action =
   | { a: "start"; game: GameId }
   | { a: "end" }
   | { a: "kick"; pid: string }
+  /** just watch (or play again): yourself, or the host for anyone */
+  | { a: "watch"; pid?: string; on: boolean }
   | { a: "leave" }
   | { a: "makeHost"; pid: string }
   | { a: "rename"; name: string }

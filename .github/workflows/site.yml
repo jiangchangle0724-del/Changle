@@ -29,4 +29,5 @@ jobs:
       - run: npx tsx tests/engine.test.ts
       - run: npx tsx tests/trip.test.ts
       - run: npx tsx tests/draw.test.ts
+      - run: npx tsx tests/cutout.test.ts
       - run: npm run build

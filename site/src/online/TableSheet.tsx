@@ -1,4 +1,4 @@
-import { Crown, LogOut, Music, Tv, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { Crown, Eye, LogOut, Music, Tv, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { LangTab } from "../components/TopBar";
@@ -68,6 +68,7 @@ export function TableSheet({ open, onClose, onInvite, onLeave }: { open: boolean
                   </span>
                 )}
                 {isMe && <span className="seat-tag">{ui("you")}</span>}
+                {s.watch && <span className="seat-tag">{zh ? "旁观" : "Watching"}</span>}
                 {!s.on && <span className="seat-tag seat-tag-away">{ui("away")}</span>}
               </span>
               {isHost && !isMe && (
@@ -90,6 +91,9 @@ export function TableSheet({ open, onClose, onInvite, onLeave }: { open: boolean
                     </>
                   ) : (
                     <>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => act({ a: "watch", pid: s.id, on: !s.watch })}>
+                        {s.watch ? (zh ? "上桌" : "Play") : zh ? "旁观" : "Watch"}
+                      </button>
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => act({ a: "makeHost", pid: s.id })}>
                         {ui("makeHost")}
                       </button>
@@ -104,6 +108,8 @@ export function TableSheet({ open, onClose, onInvite, onLeave }: { open: boolean
           );
         })}
       </ul>
+
+      <WatchRow />
 
       <div className="settings-row table-tv">
         <span className="table-tv-text">
@@ -300,5 +306,31 @@ export function LeaveSheet({ open, onClose, onLeave }: { open: boolean; onClose:
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Just watching: you stay at the table but sit out every game (no turns, no penalties), and your
+ * phone shows the game as the big screen does, to mirror to a TV.
+ */
+function WatchRow() {
+  const { room, me, act } = useRoom();
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const watching = !!room?.seats.find((s) => s.id === me)?.watch;
+  return (
+    <div className="settings-row table-watch">
+      <span className="table-tv-text">
+        <span className="table-tv-title">
+          <Eye size={16} />
+          {zh ? "我只看，不参加" : "Just watch"}
+        </span>
+        <small className="hint">{zh ? "留在这桌，但每个游戏都不参加，手机显示给大家看的画面，适合投到电视。" : "Stay at the table but sit out every game. Your phone shows the game as the big screen does, for mirroring to a TV."}</small>
+      </span>
+      <button type="button" className="btn btn-ghost btn-sm" aria-pressed={watching} onClick={() => act({ a: "watch", on: !watching })}>
+        <Eye size={16} />
+        {watching ? (zh ? "旁观中" : "Watching") : zh ? "只看" : "Watch"}
+      </button>
+    </div>
   );
 }

@@ -441,9 +441,9 @@ function TvGame({ room, v }: { room: RoomView; v: GameView }) {
           <NetGame view={v} onLeave={() => {}} />
         </div>
         <aside className="tv-game-side">
-          <h2 className="tv-seats-title tabular">{zh ? `${room.seats.length} 人在玩` : `${room.seats.length} playing`}</h2>
+          <h2 className="tv-seats-title tabular">{zh ? `${room.seats.filter((s) => !s.watch).length} 人在玩` : `${room.seats.filter((s) => !s.watch).length} playing`}</h2>
           <ul className="tv-game-seats">
-            {room.seats.map((s) => (
+            {room.seats.filter((s) => !s.watch).map((s) => (
               <li key={s.id} className={s.on ? "" : "is-away"}>
                 <SeatFace seat={s} size={44} />
                 <span>{s.name}</span>
