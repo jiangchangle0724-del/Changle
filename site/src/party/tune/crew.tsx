@@ -55,7 +55,7 @@ function MateView({ mate, x, i }: { mate: Mate; x: string; i: number }) {
           <Figure seat={seat} />
         </div>
       </div>
-      {state === "win" || state === "first" ? <Confetti key={state} className="tn-confetti" /> : null}
+      {state === "win" || state === "first" ? <Confetti key={`confetti-${state}`} className="tn-confetti" /> : null}
       {named && <span className="tn-mate-name">{seat.name}</span>}
     </div>
   );

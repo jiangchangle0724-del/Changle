@@ -61,8 +61,8 @@
   }
 
   /* ---- the big picture on the left, when the screen has one ---- */
-  .game-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene),
-  .net-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene) {
+  .game-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox),
+  .net-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox) {
     padding-left: calc(44% + 20px);
   }
   .game-body .bottle-stage,
@@ -86,7 +86,9 @@
   .game-body .fz > .floor,
   .net-body .fz > .floor,
   .game-body .lb > .limbo-scene,
-  .net-body .lb > .limbo-scene {
+  .net-body .lb > .limbo-scene,
+  .game-body .dm-stagebox,
+  .net-body .dm-stagebox {
     position: absolute;
     left: 0;
     top: 46px;
@@ -112,7 +114,8 @@
   .net-body .plate-draw,
   .net-body .plate-watch,
   .net-body .fz > .floor,
-  .net-body .lb > .limbo-scene {
+  .net-body .lb > .limbo-scene,
+  .net-body .dm-stagebox {
     bottom: 60px;
   }
   /* sizes that were set for a phone's width now follow its height */
@@ -198,8 +201,8 @@
     justify-content: flex-start;
   }
   /* text-heavy games: one comfortable column instead of a wall of text */
-  .game-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene)) > *,
-  .net-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene)) > * {
+  .game-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox)) > *,
+  .net-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox)) > * {
     max-width: 640px;
     width: 100%;
     margin-left: auto;

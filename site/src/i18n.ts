@@ -164,6 +164,7 @@ export const UI = {
   waitHost: { zh: "等主人 {name} 选游戏", en: "Waiting for {name} to pick a game" },
   needN: { zh: "这局至少 {n} 人，现在 {m} 人", en: "Needs {n} players. {m} seated." },
   iDrank: { zh: "我喝了", en: "I drank" },
+  iDidIt: { zh: "做完了", en: "Done it" },
   callBuddy: { zh: "喊陪酒：{name}", en: "Call my buddy: {name}" },
   later: { zh: "等会儿", en: "Later" },
   drankMark: { zh: "喝了", en: "drank" },

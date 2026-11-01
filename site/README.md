@@ -4,7 +4,7 @@
 
 ## 里面有什么
 
-**聚会游戏**（15 个，每个都能单机也能联机）
+**聚会游戏**（16 个，每个都能单机也能联机）
 
 | 游戏 | 单机怎么玩 | 联机 |
 | --- | --- | --- |
@@ -12,6 +12,7 @@
 | 流氓十三张 Rogue Thirteen | 抽牌，A 到 K 各有规矩 | 2+ |
 | 最佳称号 Superlatives | 传手机偷偷投票 | 3+ |
 | 国王游戏 King's Game | 抽号码，国王下命令 | 3+ |
+| 戏精大赏 Drama Queens | 几个人按剧本演，观众猜谁是坏人、给演技打星，演得最差的受罚；也可以两人飙同一句台词 | 3+ |
 | 额头便利贴 Post-it Note | 手机传一圈偷偷写 | 2+ |
 | 林波舞 Limbo | 手机测后仰角度 | 2+ |
 | 我从来没有 Never Have I Ever | 还有“谁最有可能” | 2+ |
@@ -42,6 +43,7 @@
 - `src/data/undercover.ts` 卧底词组
 - `src/data/drawGuess.ts` 你画我猜词库
 - `src/data/king.ts` 国王命令
+- `src/data/drama.ts` 戏精大赏的剧本、秘密任务、对决台词和惩罚（图片在 `public/drama/`）
 - `src/data/prompts.ts` 我从来没有 / 谁最有可能
 - `src/data/rogue13.ts` 十三张牌的规则
 - `src/data/wheel.ts` 转盘默认的格子

@@ -1,0 +1,1207 @@
+/*
+ * 戏精大赏 · Drama Queens: a little theatre on the phone. A painted set behind a red velvet
+ * curtain, the cast standing on the front edge with brass name plaques, champagne-gold light.
+ * The pictures (public/drama) are optional: every surface paints a fallback of its own.
+ */
+
+.dm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- the set ---------- */
+
+.dm-stagebox {
+  position: relative;
+}
+.dm-backdrop {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  aspect-ratio: 16 / 10.5;
+  border-radius: 22px;
+  background: radial-gradient(120% 80% at 50% 0%, #4a1630 0%, #1c0f2a 55%, var(--night) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 24px 60px -28px color-mix(in oklab, var(--gel) 60%, transparent);
+}
+.dm-backdrop.is-tall {
+  aspect-ratio: 4 / 3.3;
+}
+.dm-backdrop-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+  transform-origin: 50% 60%;
+}
+.dm-backdrop.is-live .dm-backdrop-img {
+  animation: dm-drift 26s ease-in-out infinite alternate;
+}
+@keyframes dm-drift {
+  from {
+    transform: scale(1.02) translate3d(-1%, 0, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(1.5%, -1.5%, 0);
+  }
+}
+.dm-backdrop-light {
+  position: absolute;
+  inset: -20% -10% 0;
+  z-index: -1;
+  background: radial-gradient(38% 55% at var(--spot-x, 50%) 0%, color-mix(in oklab, #fff1c9 42%, transparent), transparent 70%);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.dm-backdrop.is-live .dm-backdrop-light {
+  animation: dm-sweep 9s ease-in-out infinite alternate;
+}
+@keyframes dm-sweep {
+  from {
+    --spot-x: 30%;
+    opacity: 0.45;
+  }
+  to {
+    --spot-x: 70%;
+    opacity: 0.7;
+  }
+}
+@property --spot-x {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+.dm-backdrop-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(to bottom, rgba(10, 6, 20, 0.15) 0%, rgba(10, 6, 20, 0) 35%, rgba(10, 6, 20, 0.55) 72%, rgba(10, 6, 20, 0.88) 100%),
+    radial-gradient(130% 90% at 50% 40%, transparent 55%, rgba(5, 3, 12, 0.6) 100%);
+  pointer-events: none;
+}
+/* painted sets for before the pictures arrive */
+.dm-backdrop[data-kind="family"] {
+  background: radial-gradient(60% 50% at 50% 30%, #ff8a4a55, transparent), radial-gradient(120% 90% at 50% 0%, #6b1a1a, #23101a 60%, var(--night));
+}
+.dm-backdrop[data-kind="love"] {
+  background: radial-gradient(4px 4px at 20% 30%, #ffd9a8, transparent), radial-gradient(3px 3px at 70% 20%, #ffd9a8, transparent), radial-gradient(5px 5px at 82% 40%, #ffb3d2, transparent), radial-gradient(120% 90% at 50% 0%, #5a1446, #1d0f2e 60%, var(--night));
+}
+.dm-backdrop[data-kind="office"] {
+  background: linear-gradient(90deg, transparent 0 24%, #ffffff0d 24% 25%, transparent 25% 49%, #ffffff0d 49% 50%, transparent 50% 74%, #ffffff0d 74% 75%, transparent 75%), radial-gradient(120% 90% at 50% 0%, #17375e, #0f1530 60%, var(--night));
+}
+.dm-backdrop[data-kind="crime"] {
+  background: repeating-linear-gradient(-35deg, transparent 0 18px, #ffd84d22 18px 26px), radial-gradient(120% 90% at 50% 0%, #1d3a3a, #0d1820 60%, var(--night));
+}
+.dm-backdrop[data-kind="palace"] {
+  background: linear-gradient(90deg, transparent 0 14%, #8c1d1d66 14% 19%, transparent 19% 81%, #8c1d1d66 81% 86%, transparent 86%), radial-gradient(120% 90% at 50% 0%, #7a2a12, #2a0e14 60%, var(--night));
+}
+.dm-backdrop[data-kind="show"] {
+  background: radial-gradient(50% 40% at 20% 20%, #e765f055, transparent), radial-gradient(50% 40% at 80% 25%, #31b9ff44, transparent), radial-gradient(120% 90% at 50% 0%, #2a1250, #120c2c 60%, var(--night));
+}
+.dm-backdrop[data-kind="pk"] {
+  background: radial-gradient(30% 70% at 25% 0%, #fff1c944, transparent 70%), radial-gradient(30% 70% at 75% 0%, #fff1c944, transparent 70%), radial-gradient(120% 90% at 50% 0%, #3a1830, #140c26 60%, var(--night));
+}
+
+/* ---------- the curtain ---------- */
+
+.dm-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.dm-curtain-l,
+.dm-curtain-r {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 52%;
+  overflow: hidden;
+  will-change: transform;
+}
+.dm-curtain-l {
+  left: 0;
+  transform-origin: 0% 50%;
+}
+.dm-curtain-r {
+  right: 0;
+  transform-origin: 100% 50%;
+}
+.dm-curtain-l::before,
+.dm-curtain-r::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, transparent 88%, #b8892f 88% 90%, #f3d27a 90% 92%, #8a5f1a 92% 100%),
+    repeating-linear-gradient(90deg, #4d0710 0%, #8e1424 4%, #b0202f 6.5%, #7a0f1d 9%, #4d0710 12%),
+    #6d0d1a;
+  box-shadow: inset -30px 0 40px -20px rgba(0, 0, 0, 0.6);
+}
+.dm-curtain-r::before {
+  transform: scaleX(-1);
+}
+/* open, the velvet hangs at the sides, tied back with gold rope */
+.dm-drape {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.dm-drape img {
+  position: absolute;
+  top: -2%;
+  height: 104%;
+  width: auto;
+  max-width: none;
+  filter: drop-shadow(10px 0 16px rgba(0, 0, 0, 0.6));
+}
+.dm-drape-l {
+  left: -4%;
+  transform-origin: 0% 50%;
+}
+.dm-drape-l img {
+  left: 0;
+}
+.dm-drape-r {
+  right: -4%;
+  transform-origin: 100% 50%;
+}
+.dm-drape-r img {
+  right: 0;
+  transform: scaleX(-1);
+}
+.dm-curtain-valance {
+  position: absolute;
+  top: 0;
+  left: -2%;
+  right: -2%;
+  height: 11%;
+  background:
+    radial-gradient(14px 10px at 50% 100%, transparent 98%, #6d0d1a 100%) 0 0 / 28px 100% repeat-x,
+    linear-gradient(#8e1424, #5a0a14);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+  border-bottom: 2px solid #c9a24a;
+}
+
+/* ---------- the cast on stage ---------- */
+
+/* the cast stands on the apron, in front of the curtain */
+.dm-cast {
+  --fig-h: clamp(78px, 22vw, 132px);
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  bottom: 5%;
+  z-index: 4;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: flex-end;
+  gap: 4px;
+}
+.dm-actor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 0 1 25%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  transition: opacity 0.4s var(--ease-out), transform 0.5s var(--ease-out), filter 0.4s;
+  animation: dm-enter 0.6s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 90ms);
+}
+@keyframes dm-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.dm-actor-spot {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  width: 120%;
+  height: 26px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, #fff1c9 55%, transparent), transparent);
+  opacity: 0.6;
+  z-index: -1;
+}
+.dm-actor-figure {
+  position: relative;
+  display: grid;
+  place-items: end center;
+  height: var(--fig-h);
+}
+.dm-cast.n4 {
+  --fig-h: clamp(70px, 19.5vw, 122px);
+}
+.dm-actor-face {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--night-2), 0 0 0 5px color-mix(in oklab, #f3d27a 70%, transparent), 0 10px 18px rgba(0, 0, 0, 0.5);
+}
+.dm-plaque {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 9px 4px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f6dc92, #c99a3e);
+  color: #241505;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 4px 10px rgba(0, 0, 0, 0.45);
+  line-height: 1.15;
+  text-align: center;
+}
+.dm-plaque strong {
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.dm-plaque small {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.dm-actor-mask {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--fig-h) * 0.07);
+  left: 50%;
+  width: calc(var(--fig-h) * 0.52);
+  translate: -50% 0;
+  display: grid;
+  place-items: center;
+  color: var(--moon);
+  pointer-events: none;
+  animation: dm-mask-on 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.dm-actor-mask > svg,
+.dm-suspect-mask > svg {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border-radius: 50%;
+  background: var(--night);
+  color: var(--gel);
+  box-shadow: 0 0 0 2px var(--gel);
+}
+.dm-actor-mask img {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6));
+}
+@keyframes dm-mask-on {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) rotate(-14deg) scale(1.4);
+  }
+}
+.dm-actor-trophy {
+  position: absolute;
+  z-index: 2;
+  top: -42px;
+  left: 50%;
+  width: 46px;
+  translate: -50% 0;
+  color: var(--gel);
+  filter: drop-shadow(0 0 14px color-mix(in oklab, var(--gel) 80%, transparent));
+  animation: dm-trophy 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.dm-actor-trophy img {
+  width: 100%;
+  height: auto;
+}
+@keyframes dm-trophy {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.4) rotate(-20deg);
+  }
+}
+.dm-cast:has(.is-culprit) .dm-actor:not(.is-culprit):not(.is-best),
+.dm-cast:has(.is-best) .dm-actor:not(.is-best):not(.is-culprit) {
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+.dm-actor.is-culprit,
+.dm-actor.is-best {
+  transform: translateY(-6px) scale(1.08);
+}
+.dm-actor.is-culprit .dm-actor-spot,
+.dm-actor.is-best .dm-actor-spot {
+  opacity: 1;
+  width: 150%;
+}
+.dm-minimask {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+.dm-minimask img {
+  width: 22px !important;
+  height: 22px !important;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+.dm-minimask svg {
+  color: var(--gel);
+}
+
+/* ---------- playbill and roster ---------- */
+
+.dm-playbill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.dm-act {
+  margin: 0;
+  color: var(--gel);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.dm-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.12;
+}
+.dm-title .both {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.dm-title .both-other {
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--haze);
+}
+.dm-setup {
+  margin: 0;
+  color: var(--haze);
+  font-size: 16px;
+  line-height: 1.55;
+  max-width: 34em;
+}
+.dm-hunt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--gel) 16%, var(--dusk));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gel) 45%, transparent);
+  color: var(--moon);
+  font-size: 14px;
+  font-weight: 700;
+}
+.dm-hunt svg {
+  color: var(--gel);
+}
+.dm-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.dm-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  color: var(--haze);
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dm-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.dm-roster li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dm-roster li.is-ready {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--gel) 70%, transparent);
+}
+.dm-roster-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.dm-roster-main strong {
+  font-size: 16px;
+}
+.dm-roster-main strong small {
+  margin-left: 8px;
+  color: var(--haze);
+  font-size: 13px;
+  font-weight: 600;
+}
+.dm-roster-main > span {
+  color: var(--haze);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.dm-roster-state {
+  color: var(--fog);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+li.is-ready .dm-roster-state {
+  color: var(--gel);
+}
+
+/* ---------- the secret card ---------- */
+
+.dm-cardwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.dm-card {
+  width: min(100%, 340px);
+  aspect-ratio: 3 / 4.15;
+  perspective: 1300px;
+}
+.dm-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+.dm-card-back,
+.dm-card-front {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+}
+.dm-card-back {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  color: #f3d27a;
+  background:
+    radial-gradient(circle at 50% 45%, #7a1428, #3a0614 70%),
+    #3a0614;
+  box-shadow:
+    inset 0 0 0 2px #c9a24a,
+    inset 0 0 0 7px #3a0614,
+    inset 0 0 0 8px #c9a24a88,
+    0 22px 50px -18px rgba(0, 0, 0, 0.8);
+}
+.dm-card-back img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dm-card-tap {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  translate: -50% 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(14, 12, 34, 0.72);
+  color: var(--moon);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  animation: dm-breathe 1.8s ease-in-out infinite;
+}
+@keyframes dm-breathe {
+  50% {
+    opacity: 0.6;
+  }
+}
+.dm-card-front {
+  transform: rotateY(180deg);
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px;
+  overflow-y: auto;
+  background: linear-gradient(170deg, #2a2148, #181633 70%);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklab, #f3d27a 70%, transparent),
+    0 22px 50px -18px rgba(0, 0, 0, 0.8);
+  text-align: left;
+}
+.dm-card.is-flipped .dm-card-tap {
+  display: none;
+}
+/* the mask, large and faint, behind what the card says */
+.dm-card-watermark {
+  position: absolute;
+  right: -14%;
+  top: 4%;
+  width: 70%;
+  z-index: -1;
+  opacity: 0.16;
+  transform: rotate(14deg);
+  pointer-events: none;
+}
+.dm-card-watermark img,
+.dm-card-watermark svg {
+  width: 100%;
+  height: auto;
+}
+.dm-card.is-culprit .dm-card-watermark {
+  opacity: 0.3;
+}
+.dm-card-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #f3d27a;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dm-card-role {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.1;
+}
+.dm-card-brief {
+  margin: 0;
+  color: var(--haze);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.dm-card-secret,
+.dm-card-task {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 13px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dm-card-secret p:not(.dm-card-label),
+.dm-card-task p:not(.dm-card-label) {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.dm-card-secret.is-culprit {
+  background: linear-gradient(160deg, #0b0816, #1c0f22);
+  box-shadow:
+    inset 0 0 0 1.5px var(--gel),
+    0 0 28px -6px color-mix(in oklab, var(--gel) 60%, transparent);
+}
+.dm-card-secret.is-culprit .dm-card-label {
+  color: var(--gel);
+  font-size: 14px;
+}
+
+/* ---------- during the scene ---------- */
+
+.dm-clock {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(14, 12, 34, 0.7);
+  backdrop-filter: blur(4px);
+}
+.dm-clock svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+.dm-clock-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 4;
+}
+.dm-clock-arc {
+  fill: none;
+  stroke: var(--gel);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+.dm-clock.is-late .dm-clock-arc {
+  stroke: var(--stop);
+}
+.dm-clock span {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+}
+.dm-clock.is-late span {
+  color: var(--stop);
+  animation: dm-pulse 1s ease-in-out infinite;
+}
+@keyframes dm-pulse {
+  50% {
+    transform: scale(1.15);
+  }
+}
+.dm-twist {
+  position: relative;
+  z-index: 5;
+  padding: 12px 16px 14px;
+  border-radius: 16px;
+  background: var(--gel);
+  color: var(--on-gel, var(--night));
+  transform: rotate(-1.5deg);
+  box-shadow: 0 16px 40px -12px color-mix(in oklab, var(--gel) 80%, transparent);
+}
+.dm-twist-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+.dm-twist p {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.dm-slate {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+.dm-slate-top {
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 34px;
+  border-radius: 6px 6px 0 0;
+  transform-origin: 0% 100%;
+  background: repeating-linear-gradient(-45deg, #f5f4fd 0 14px, #0e0c22 14px 28px);
+  color: transparent;
+}
+.dm-slate strong {
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 68px;
+  border-radius: 0 0 8px 8px;
+  background: #0e0c22;
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 24px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+.dm-stage-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- the ballot ---------- */
+
+.dm-ballot {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.dm-ballot section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dm-ask {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}
+.dm-ask svg {
+  color: var(--gel);
+}
+.dm-suspects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+.dm-suspect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px 10px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--dusk-2);
+  color: var(--moon);
+  font: inherit;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s;
+}
+.dm-suspect strong {
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: center;
+}
+.dm-suspect small {
+  color: var(--haze);
+  font-size: 12.5px;
+}
+.dm-suspect.is-on {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 2px var(--gel),
+    0 14px 30px -14px color-mix(in oklab, var(--gel) 80%, transparent);
+}
+.dm-suspect-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.dm-suspect-mask {
+  position: absolute;
+  inset: -4px -8px;
+  display: grid;
+  place-items: center;
+  color: var(--moon);
+  animation: dm-mask-on 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.dm-suspect-mask img {
+  width: 110%;
+  height: auto;
+}
+.dm-rates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.dm-rates li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dm-rate-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.dm-rate-who > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dm-rate-who strong {
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dm-rate-who small {
+  color: var(--haze);
+  font-size: 12.5px;
+}
+.dm-stars {
+  display: flex;
+  flex-shrink: 0;
+}
+.dm-star {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fog);
+  cursor: pointer;
+  transition: color 0.15s, transform 0.2s var(--ease-out);
+}
+.dm-star.is-on {
+  color: var(--gel);
+}
+.dm-star.is-on svg {
+  fill: currentColor;
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--gel) 70%, transparent));
+}
+.dm-star:active {
+  transform: scale(0.85);
+}
+
+/* ---------- the reveal ---------- */
+
+.dm-reveal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dm-confetti {
+  position: absolute;
+  inset: -40px -16px 0;
+  width: calc(100% + 32px);
+  height: calc(100% + 40px);
+  z-index: 10;
+  pointer-events: none;
+}
+.dm-spot-culprit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(5, 3, 12, 0);
+  transition: background 0.6s;
+  pointer-events: none;
+}
+.dm-spot-culprit.is-on {
+  background: rgba(5, 3, 12, 0.35);
+}
+.dm-verdict {
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+}
+.dm-drum {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  animation: dm-pulse 0.5s ease-in-out infinite;
+}
+.dm-headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.15;
+  animation: dm-slam 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.dm-headline.is-caught {
+  color: var(--gel);
+}
+@keyframes dm-slam {
+  from {
+    opacity: 0;
+    transform: scale(1.7) rotate(-4deg);
+  }
+}
+.dm-count {
+  margin: 0;
+}
+.dm-truths {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.dm-truths li {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  animation: dm-flipin 0.55s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 120ms);
+  transform-origin: 50% 0;
+}
+@keyframes dm-flipin {
+  from {
+    opacity: 0;
+    transform: perspective(700px) rotateX(-70deg);
+  }
+}
+.dm-truths li.is-culprit {
+  box-shadow: inset 0 0 0 1.5px var(--gel);
+  background: linear-gradient(160deg, #0b0816, var(--dusk-2));
+}
+.dm-truths li.is-best {
+  box-shadow:
+    inset 0 0 0 2px var(--gel),
+    0 12px 30px -14px color-mix(in oklab, var(--gel) 80%, transparent);
+}
+.dm-truth-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.dm-truth-main strong {
+  font-size: 15.5px;
+}
+.dm-truth-main strong small {
+  margin-left: 6px;
+  color: var(--haze);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.dm-truth-secret,
+.dm-truth-task {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  color: var(--haze);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.dm-truth-secret svg,
+.dm-truth-task svg {
+  flex-shrink: 0;
+  color: var(--gel);
+  translate: 0 2px;
+}
+.dm-truth-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gel);
+}
+.dm-truth-stars svg {
+  fill: currentColor;
+}
+.dm-outcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.dm-outcome p {
+  margin: 0;
+}
+.dm-best {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+}
+.dm-best svg {
+  color: var(--gel);
+}
+.dm-penalty-line {
+  font-size: 15px;
+}
+
+/* ---------- setup and finale ---------- */
+
+.dm-setup .seg {
+  flex-wrap: wrap;
+}
+.dm-marquee {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-bottom: 6%;
+  text-align: center;
+  color: #f3d27a;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.7);
+}
+.dm-marquee-masks {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.dm-marquee-masks > * {
+  width: clamp(54px, 15vw, 76px);
+  height: auto;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.6));
+}
+.dm-marquee-masks > :first-child {
+  transform: rotate(-12deg) translateX(8px);
+  animation: dm-mask-bob 3.4s ease-in-out infinite;
+}
+.dm-marquee-masks > :last-child {
+  transform: rotate(10deg) translateX(-8px);
+  animation: dm-mask-bob 3.4s ease-in-out -1.7s infinite;
+}
+@keyframes dm-mask-bob {
+  50% {
+    translate: 0 -5px;
+  }
+}
+.dm-marquee strong {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 9vw, 44px);
+  font-weight: 800;
+  color: #fff1c9;
+}
+.dm-marquee small {
+  max-width: 80%;
+  color: var(--moon);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.dm-wait-note {
+  margin: 0;
+  text-align: center;
+  color: var(--haze);
+}
+.dm-finale {
+  position: relative;
+}
+.dm-finale-trophy {
+  display: block;
+  width: 96px;
+  margin: -4px auto 0;
+  filter: drop-shadow(0 0 22px color-mix(in oklab, var(--gel) 75%, transparent));
+  animation: dm-trophy 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.dm-finale-trophy img,
+.dm-finale-trophy svg {
+  width: 100%;
+  height: auto;
+}
+.dm-trophies {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-backdrop.is-live .dm-backdrop-img,
+  .dm-backdrop.is-live .dm-backdrop-light,
+  .dm-actor,
+  .dm-truths li,
+  .dm-headline,
+  .dm-actor-mask,
+  .dm-actor-trophy,
+  .dm-suspect-mask,
+  .dm-card-tap,
+  .dm-marquee-masks > *,
+  .dm-finale-trophy,
+  .dm-drum,
+  .dm-clock.is-late span {
+    animation: none;
+  }
+}
+
+/* a phone held sideways: the stage on the left, the rest on the right (see landscape.css) */
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  .dm-stagebox .dm-backdrop {
+    width: 100%;
+    max-height: 100%;
+    aspect-ratio: 4 / 3.4;
+  }
+  .dm-card {
+    width: min(100%, 300px);
+    aspect-ratio: auto;
+    height: calc(100dvh - 160px);
+    min-height: 220px;
+  }
+  .dm-card-role {
+    font-size: 22px;
+  }
+}
+
+/* the big screen: a wide, shorter stage so the verdict and the cards fit under it */
+.tv-game-phone .dm-backdrop {
+  aspect-ratio: 21 / 8.4;
+}
+.tv-game-phone .dm-backdrop.is-tall {
+  aspect-ratio: 21 / 8;
+}
+.tv-game-phone .dm-cast,
+.tv-game-phone .dm-cast.n4 {
+  --fig-h: 150px;
+}
+.tv-game-phone .dm-truths {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.tv-game-phone .dm-twist {
+  max-width: 640px;
+  align-self: center;
+}
