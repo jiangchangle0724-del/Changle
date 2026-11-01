@@ -1,0 +1,28 @@
+// Cloudflare settings for changle.ca/party: the rooms and pages of 一起跳 · Dance Along (and later
+// 打碟 · DJ Booth), on the shared base in games/party-base. Its own Worker, like 随便
+// (tools/suibian): once Cloudflare is connected to the repository, merging into main builds the
+// pages into dist/client/party and deploys. No secrets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "party",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-19",
+  // The pages are in dist/client/party, so they answer at /party/…; the API and the QR code's short
+  // links go to the Worker first.
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/party/api/*", "/party/r/*"]
+  },
+  // One of changle.ca's games: it answers at changle.ca/party. (The rest of changle.ca is the site.)
+  "routes": [
+    { "pattern": "changle.ca/party", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/party/*", "zone_name": "changle.ca" }
+  ],
+  // One Durable Object per room. SQLite-backed Durable Objects work on Cloudflare's free plan.
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "PartyRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PartyRoom"] }],
+  "build": { "command": "node scripts/build.mjs" },
+  "observability": { "enabled": true, "traces": { "enabled": true } }
+}

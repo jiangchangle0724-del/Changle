@@ -4,7 +4,7 @@ import { Die } from "../../components/Dice";
 import { Glass } from "../../components/Glass";
 import { haptic } from "../../lib/sfx";
 import type { DiceOutcome, DiceView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { UI } from "../../i18n";
 import { NetFrame } from "../NetFrame";
 import { useReached, useRoom } from "../RoomContext";
@@ -15,6 +15,7 @@ const ROLL_MS = 950;
 export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
   const { me, isHost, g, nameOf } = useRoom();
   const { ui, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const mine = v.turn === me;
   const canAct = mine || isHost;
   const landed = useReached(v.rolledAt + ROLL_MS);
@@ -28,6 +29,20 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
   }, [landed, v.level]);
 
   const label = (o: DiceOutcome) => {
+    // with the table's own penalty the shared glass is a pot of that penalty: half of it, or all of it
+    if (custom)
+      switch (o) {
+        case "seven":
+          return lang === "zh" ? "七，罚池加码" : "Seven. The pot grows.";
+        case "eight":
+          return lang === "zh" ? "八，罚一半" : "Eight. Take half the pot.";
+        case "nine":
+          return lang === "zh" ? "九，全罚" : "Nine. Take the whole pot.";
+        case "ones":
+          return lang === "zh" ? "双一，指定一个人全罚" : "Snake eyes. Pick someone to take the whole pot.";
+        case "safe":
+          return lang === "zh" ? "安全，传给下一位" : "Safe. Pass the dice.";
+      }
     switch (o) {
       case "seven":
         return lang === "zh" ? "七，往公杯里加酒" : "Seven. Pour more into the glass.";
@@ -44,9 +59,13 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
 
   const rules = (
     <p>
-      {lang === "zh"
-        ? "桌子中间一个公杯，每部手机上看到的是同一个。轮到你就掷两颗骰子：加起来 7，往公杯里加酒；8，喝掉一半；9，全部喝完；两个 1，指定一个人把公杯喝完。其他点数安全。"
-        : "One shared glass sits in the middle; every phone shows the same one. On your turn, roll two dice: a total of 7 pours more in; 8, drink half; 9, drink it all; double ones, pick someone to finish the glass. Anything else is safe."}
+      {custom
+        ? lang === "zh"
+          ? "屏幕中间是大家共用的罚池，每部手机上看到的是同一个。轮到你就掷两颗骰子：加起来 7，罚池加码；8，罚一半；9，全罚；两个 1，指定一个人全罚。其他点数安全。"
+          : "One shared pot sits in the middle of the screen; every phone shows the same one. On your turn, roll two dice: a total of 7 grows the pot; 8, take half of it; 9, take all of it; double ones, pick someone to take the whole pot. Anything else is safe."
+        : lang === "zh"
+          ? "桌子中间一个公杯，每部手机上看到的是同一个。轮到你就掷两颗骰子：加起来 7，往公杯里加酒；8，喝掉一半；9，全部喝完；两个 1，指定一个人把公杯喝完。其他点数安全。"
+          : "One shared glass sits in the middle; every phone shows the same one. On your turn, roll two dice: a total of 7 pours more in; 8, drink half; 9, drink it all; double ones, pick someone to finish the glass. Anything else is safe."}
     </p>
   );
 
@@ -57,7 +76,7 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
       <TurnLine pid={v.turn} />
 
       <div className="dice-stage">
-        <Glass level={level} size={110} label={lang === "zh" ? "公杯" : "Shared glass"} />
+        <Glass level={level} size={110} label={custom ? (lang === "zh" ? "罚池" : "The pot") : lang === "zh" ? "公杯" : "Shared glass"} />
         <motion.button
           type="button"
           className="bowl"
@@ -89,7 +108,15 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
                 <SeatPicker onPick={(pid) => g("assign", { target: pid })} />
               </>
             ) : (
-              <Waiting>{lang === "zh" ? `${nameOf(v.turn)} 在挑谁喝` : `${nameOf(v.turn)} is choosing who drinks`}</Waiting>
+              <Waiting>
+                {custom
+                  ? lang === "zh"
+                    ? `${nameOf(v.turn)} 在挑谁受罚`
+                    : `${nameOf(v.turn)} is choosing who takes the penalty`
+                  : lang === "zh"
+                    ? `${nameOf(v.turn)} 在挑谁喝`
+                    : `${nameOf(v.turn)} is choosing who drinks`}
+              </Waiting>
             )}
           </motion.div>
         ) : showResult && v.phase === "result" ? (

@@ -1,10 +1,16 @@
 import type { T } from "../i18n";
 
 export type Heat = 1 | 2;
-export type Prompt = T & { heat: Heat };
+/** `custom`: the card when the table plays for its own penalty instead of drinks. */
+export type Prompt = T & { heat: Heat; custom?: T };
 
 const mild = (zh: string, en: string): Prompt => ({ zh, en, heat: 1 });
-const spicy = (zh: string, en: string): Prompt => ({ zh, en, heat: 2 });
+const spicy = (zh: string, en: string, custom?: T): Prompt => ({ zh, en, heat: 2, ...(custom ? { custom } : {}) });
+
+/** A card in the words of the table's penalty: drinking, or the host's own. */
+export function promptText(p: Prompt, custom: boolean): T {
+  return custom && p.custom ? p.custom : { zh: p.zh, en: p.en };
+}
 
 export const TRUTHS: Prompt[] = [
   mild("你手机里最近一次搜索的是什么？当场给大家看。", "What's the last thing you searched on your phone? Show the table."),
@@ -89,5 +95,8 @@ export const DARES: Prompt[] = [
   spicy("贴着一个人的耳朵说句悄悄话，只能说好话。", "Whisper something nice into someone's ear."),
   spicy("让所有人排队抱你一下。", "Everyone lines up to hug you."),
   spicy("用三句话讲你最难忘的一次心动。", "In three sentences, tell the story of your most unforgettable crush."),
-  spicy("给一个人倒酒，碰杯，说一句祝福，一起干了。", "Pour for someone, clink glasses, make a toast and drink together."),
+  spicy("给一个人倒酒，碰杯，说一句祝福，一起干了。", "Pour for someone, clink glasses, make a toast and drink together.", {
+    zh: "挑一个人碰个拳，当着大家对他说一句祝福。",
+    en: "Pick someone, bump fists and give them your best wishes in front of everyone.",
+  }),
 ];

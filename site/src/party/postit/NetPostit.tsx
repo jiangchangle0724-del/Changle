@@ -9,7 +9,7 @@ import { SeatFace } from "../../online/People";
 import { useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "../../online/games/common";
 import type { PostitReply, PostitView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { Forehead, Sticky, tiltFor } from "./parts";
 import "../../styles/party.css";
 import { Figure } from "../../components/Figure";
@@ -19,6 +19,7 @@ const REPLY: Record<PostitReply, [string, string]> = { yes: ["是", "Yes"], no: 
 export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }) {
   const { room, me, g, nameOf } = useRoom();
   const { lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
   const seat = (id: string) => seats.find((s) => s.id === id);
@@ -29,8 +30,8 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
   const rules = (
     <p>
       {zh
-        ? "每个人给下一位写一张便利贴（一个人物、动物或东西），也可以让系统随机出。所有人都能看到别人额头上的字，只有自己的看不到。轮到你时，问一个只能回答是或不是的问题（说出来，或者打在手机上），其他人在手机上回答。然后可以猜，也可以跳过。猜错喝一口，最后一个猜出来的喝一杯。"
-        : "Everyone writes a note for the next player: a person, an animal, a thing (or lets the deck pick). Every phone shows everyone's forehead except your own. On your turn, ask a yes-or-no question (out loud, or typed), and the others answer on their phones. Then guess, or pass. A wrong guess is a sip; the last one to get it drinks a full glass."}
+        ? `每个人给下一位写一张便利贴（一个人物、动物或东西），也可以让系统随机出。所有人都能看到别人额头上的字，只有自己的看不到。轮到你时，问一个只能回答是或不是的问题（说出来，或者打在手机上），其他人在手机上回答。然后可以猜，也可以跳过。${custom ? "猜错受罚，最后一个猜出来的也受罚。" : "猜错喝一口，最后一个猜出来的喝一杯。"}`
+        : `Everyone writes a note for the next player: a person, an animal, a thing (or lets the deck pick). Every phone shows everyone's forehead except your own. On your turn, ask a yes-or-no question (out loud, or typed), and the others answer on their phones. Then guess, or pass. ${custom ? "A wrong guess takes the penalty, and so does the last one to get it." : "A wrong guess is a sip; the last one to get it drinks a full glass."}`}
     </p>
   );
 
@@ -83,7 +84,7 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
                       <span>!</span>
                       <SeatFace seat={seat(id)} size={26} />
                       <strong>{nameOf(id)}</strong>
-                      <small>{zh ? "最后一个，喝一杯" : "Last one: a full glass"}</small>
+                      <small>{custom ? (zh ? "最后一个，受罚" : "Last one: penalty") : zh ? "最后一个，喝一杯" : "Last one: a full glass"}</small>
                     </li>
                   ))}
               </ol>

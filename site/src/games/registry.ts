@@ -28,6 +28,8 @@ export type GameMeta = {
   blurb: T;
   /** two or three lines for the game card */
   how: T;
+  /** the same lines when this phone has its own penalty instead of drinking (games whose lines say drink) */
+  howCustom?: T;
   minPlayers: number;
   maxPlayers: number;
   /** stage gel: the color the room turns when this game is up */
@@ -66,6 +68,7 @@ export const GAMES: GameMeta[] = [
     name: t("流氓十三张", "Rogue Thirteen"),
     blurb: t("抽一张牌，牌面说了算", "Draw a card. The card is the law."),
     how: t("轮流抽牌，A 到 K 每张都有一条规矩：指定喝、陪酒、厕所券、摸鼻子……", "Take turns drawing. Ace to King, every card carries a rule: make someone drink, a drinking buddy, a bathroom pass, touch your nose…"),
+    howCustom: t("轮流抽牌，A 到 K 每张都有一条规矩：指定谁受罚、陪罚、厕所券、摸鼻子……", "Take turns drawing. Ace to King, every card carries a rule: hand someone the penalty, a penalty buddy, a bathroom pass, touch your nose…"),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#ff6b5e",
@@ -93,6 +96,7 @@ export const GAMES: GameMeta[] = [
     name: t("最佳称号", "Superlatives"),
     blurb: t("谁最可能……投票颁奖", "Who's most likely to… Vote, then hand out awards."),
     how: t("每轮一个称号，大家投票选人，票最多的拿奖也喝。最后有颁奖典礼。", "One title a round. Everyone votes for a person; the winner takes the award and the drink. Awards ceremony at the end."),
+    howCustom: t("每轮一个称号，大家投票选人，票最多的拿奖也受罚。最后有颁奖典礼。", "One title a round. Everyone votes for a person; the winner takes the award and the penalty. Awards ceremony at the end."),
     minPlayers: 3,
     maxPlayers: 15,
     gel: "#ff8c42",
@@ -133,6 +137,7 @@ export const GAMES: GameMeta[] = [
     name: t("额头便利贴", "Post-it Note"),
     blurb: t("贴在额头上，猜我是谁", "Stuck to your forehead. Who am I?"),
     how: t("每个人额头上一张便利贴，别人都看得到，只有你看不到。轮流问是非题，猜错喝一口，最后一个猜出来的喝一杯。一部手机就举到额头上，大家给提示。", "A note on every forehead that everyone sees except you. Take turns asking yes or no questions; a wrong guess is a sip, the last to get it drinks a glass. On one phone, hold it to your forehead while the room gives clues."),
+    howCustom: t("每个人额头上一张便利贴，别人都看得到，只有你看不到。轮流问是非题，猜错受罚，最后一个猜出来的也受罚。一部手机就举到额头上，大家给提示。", "A note on every forehead that everyone sees except you. Take turns asking yes or no questions; a wrong guess takes the penalty, and so does the last to get it. On one phone, hold it to your forehead while the room gives clues."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#f5df3b",
@@ -146,6 +151,7 @@ export const GAMES: GameMeta[] = [
     name: t("林波舞", "Limbo"),
     blurb: t("音乐响起，横杆越来越低", "Music on, bar goes lower."),
     how: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局喝一口。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的喝。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (drink). Blind lean: hit a target angle without seeing your own; furthest off drinks. Or use a real bar, and the phone does the music and the score."),
+    howCustom: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局受罚。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的受罚。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (penalty). Blind lean: hit a target angle without seeing your own; furthest off takes the penalty. Or use a real bar, and the phone does the music and the score."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#b6e83a",
@@ -159,6 +165,7 @@ export const GAMES: GameMeta[] = [
     name: t("我从来没有", "Never Have I Ever"),
     blurb: t("做过的喝，谁最有可能", "Done it? Drink. Plus Most Likely To."),
     how: t("念一句“我从来没有……”，做过的人喝。也可以换成“谁最有可能”，大家一起指人。", "Read “Never have I ever…”. Anyone who has, drinks. Switch to Most Likely To and everyone points at once."),
+    howCustom: t("念一句“我从来没有……”，做过的人受罚。也可以换成“谁最有可能”，大家一起指人。", "Read “Never have I ever…”. Anyone who has takes the penalty. Switch to Most Likely To and everyone points at once."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#4be38f",
@@ -183,6 +190,7 @@ export const GAMES: GameMeta[] = [
     name: t("七八九", "Seven Eight Nine"),
     blurb: t("两颗骰子，一个公杯", "Two dice, one shared glass."),
     how: t("掷出七往公杯里倒酒，八喝一半，九全喝，双一指定别人喝完。", "Roll a seven, top up the shared glass. Eight, drink half. Nine, drink it all. Snake eyes, pick someone to finish it."),
+    howCustom: t("掷出七罚池加码，八罚一半，九全罚，双一指定别人全罚。", "Roll a seven and the shared pot grows. Eight, take half of it. Nine, take it all. Snake eyes, pick someone to take the lot."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#2ed3d9",
@@ -194,6 +202,7 @@ export const GAMES: GameMeta[] = [
     name: t("木头人蹦迪", "Freeze Dance"),
     blurb: t("音乐一停，全场定住", "When the music stops, freeze."),
     how: t("音乐响就跳，突然停下时所有人定住不动。动了的人喝。联机时每部手机同时停。", "Dance while it plays. When it cuts out, everyone freezes. Whoever moves, drinks. Online, every phone stops at the same moment."),
+    howCustom: t("音乐响就跳，突然停下时所有人定住不动。动了的人受罚。联机时每部手机同时停。", "Dance while it plays. When it cuts out, everyone freezes. Whoever moves takes the penalty. Online, every phone stops at the same moment."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#31b9ff",
@@ -245,6 +254,7 @@ export const GAMES: GameMeta[] = [
     name: t("神回复", "Punchline"),
     blurb: t("写最好笑的答案，大家投票", "Write the funniest answer. Everyone votes."),
     how: t("每个题目两个人各写一个答案，其他人投票。票少的喝，全票通过有加分。", "Two players answer each prompt, everyone else votes. Fewer votes, you drink. A clean sweep scores a bonus."),
+    howCustom: t("每个题目两个人各写一个答案，其他人投票。票少的受罚，全票通过有加分。", "Two players answer each prompt, everyone else votes. Fewer votes, you take the penalty. A clean sweep scores a bonus."),
     minPlayers: 3,
     maxPlayers: 15,
     gel: "#e765f0",
@@ -258,6 +268,7 @@ export const GAMES: GameMeta[] = [
     name: t("你画我猜", "Draw & Guess"),
     blurb: t("画出来，一分钟内猜", "Draw it, guess it in a minute."),
     how: t("轮到的人看词作画，其他人猜。一分钟没人猜中，画的人喝。", "The drawer sees a word and draws it; everyone else guesses. Nobody gets it in a minute? The drawer drinks."),
+    howCustom: t("轮到的人看词作画，其他人猜。一分钟没人猜中，画的人受罚。", "The drawer sees a word and draws it; everyone else guesses. Nobody gets it in a minute? The drawer takes the penalty."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#ff9cc5",

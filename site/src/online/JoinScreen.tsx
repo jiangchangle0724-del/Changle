@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { TopBar } from "../components/TopBar";
+import { LangTab, TopBar } from "../components/TopBar";
 import { useStore } from "../store";
 import { useAccount } from "../account/AccountContext";
 import { Avatar } from "../account/Avatar";
@@ -35,7 +35,7 @@ export function JoinScreen({ code, onJoin, onBack }: { code: string; onJoin: (na
 
   return (
     <div className="screen join-screen">
-      <TopBar onBack={onBack} />
+      <TopBar onBack={onBack} right={<LangTab />} />
       <motion.form
         className="porcelain join-card"
         initial={{ opacity: 0, y: 24, rotate: -1.5 }}

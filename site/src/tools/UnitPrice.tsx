@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
-import { convert, CURRENCIES, type Code, type FxState } from "./fx";
+import { cleanAmount, convert, CURRENCIES, type Code, type FxState } from "./fx";
 
 type Unit = { id: string; zh: string; en: string; size: number };
 
@@ -45,7 +45,7 @@ export function UnitPrice({ fx }: { fx: FxState }) {
 
   const units = state.kind === "mass" ? MASS : VOLUME;
   const from = units.find((u) => u.id === state.unit) ?? units[0];
-  const price = Number(state.text || "0");
+  const price = Number(cleanAmount(state.text) || "0");
   const perBase = price / from.size;
   const nf = useMemo(() => new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), [lang]);
   const rate = fx.rates ? convert(fx.rates, 1, state.cur, state.alt) : NaN;
@@ -81,7 +81,7 @@ export function UnitPrice({ fx }: { fx: FxState }) {
           inputMode="decimal"
           enterKeyHint="done"
           value={state.text}
-          onChange={(e) => set({ text: e.target.value.replace(/[^0-9.]/g, "").slice(0, 10) })}
+          onChange={(e) => set({ text: cleanAmount(e.target.value).slice(0, 10) })}
           onFocus={(e) => {
             const el = e.currentTarget;
             window.setTimeout(() => el.select(), 0);

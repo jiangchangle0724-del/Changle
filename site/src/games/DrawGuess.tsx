@@ -1,7 +1,7 @@
 import { Eye } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
 import { Deck } from "../lib/random";
 import { DRAW_WORDS, type Difficulty, type DrawWord } from "../data/drawGuess";
 import { sfx } from "../lib/sfx";
@@ -17,6 +17,7 @@ const SECONDS = 60;
 
 export function DrawGuess({ onBack }: { onBack: () => void }) {
   const { players, ui, tr, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const decks = useRef<Record<Difficulty, Deck<DrawWord>>>({
     1: new Deck(DRAW_WORDS.filter((w) => w.d === 1)),
     2: new Deck(DRAW_WORDS.filter((w) => w.d === 2)),
@@ -68,8 +69,8 @@ export function DrawGuess({ onBack }: { onBack: () => void }) {
   const rules = (
     <p>
       {lang === "zh"
-        ? "轮到的人选难度、点开看词，然后在画板上画，一分钟。画的时候不能说话不能写字。有人猜中，画的人和猜中的人都得分（简单 1、中等 2、困难 3）。没人猜中，画的人喝。"
-        : "The drawer picks a difficulty, lifts the lid to see the word and draws on the board for one minute. No talking, no letters. If someone guesses it, drawer and guesser both score (easy 1, medium 2, hard 3). Nobody? The drawer drinks."}
+        ? `轮到的人选难度、点开看词，然后在画板上画，一分钟。画的时候不能说话不能写字。有人猜中，画的人和猜中的人都得分（简单 1、中等 2、困难 3）。没人猜中，画的人${custom ? "受罚" : "喝"}。`
+        : `The drawer picks a difficulty, lifts the lid to see the word and draws on the board for one minute. No talking, no letters. If someone guesses it, drawer and guesser both score (easy 1, medium 2, hard 3). Nobody? The drawer ${custom ? "takes the penalty" : "drinks"}.`}
     </p>
   );
 

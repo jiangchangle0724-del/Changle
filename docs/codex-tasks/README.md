@@ -28,10 +28,41 @@ Always:
 | [C4](C4-dedupe.md) | Titles: normalise, similarity, fingerprint | `src/dedupe.ts` (new) |
 | [C5](C5-areas.md) | Which area a place is in | `src/area.ts` |
 | [C6](C6-ics.md) | The calendar feed (.ics) | `src/ics.ts` |
+| [C12](C12-burnaby.md) | Burnaby Public Library's own feed | `src/parsers/bpl.ts` (new) |
 
 What to send Codex, one card at a time:
 
 ```
 按 docs/codex-tasks/C1-ical-parser.md 做。先读 tools/events/CONTRACTS.md 和 src/types.ts。
 只改卡上写的文件和测试，跑卡上的命令通过后再开 PR，PR 描述里贴测试输出。
+```
+
+---
+
+# Task cards for Codex: the UI plan (`site/`)
+
+The plan is `docs/ui-plan.md`; the rules every card follows are in `docs/DESIGN.md`. Read
+`docs/DESIGN.md`, `site/src/styles/tokens.css` and `site/src/ui/types.ts` before any card.
+
+Always:
+- Node 22, in `site`: `npm ci`, then the card's command. `npx tsc --noEmit`, `npx tsx tests/tokens.test.ts`
+  and `npm run build` pass before the PR. Paste the output into the PR, with the screenshots the card asks for.
+- Colors, font sizes, spacing, corners, shadows and timings come from tokens.css (`var(--…)`), never
+  written out. Everything a player reads exists in Chinese and English.
+- Don't touch `games/`, `tools/`, `site/worker/`, secrets or another card's files. If a card seems to
+  need one of them, say so in the PR.
+
+| Card | What | When |
+| --- | --- | --- |
+| [ui-C1](ui-C1-components.md) | The 12 shared components in `site/src/ui/`, each with a preview page | now |
+| [ui-C4](ui-C4-chinese-type.md) | Chinese line height, pinch-zoom, 44px targets, contrast fixes | after A3 (routing) |
+| [ui-C7](ui-C7-seo-pwa.md) | robots.txt, sitemap, caching, add to home screen (PWA), share images | after A3 (routing) |
+
+The other Codex cards in the plan (C2, C3, C5, C6, C8, C9) are written when their turn comes.
+
+What to send Codex, one card at a time:
+
+```
+按 docs/codex-tasks/ui-C1-components.md 做。先读 docs/DESIGN.md、site/src/ui/types.ts 和 site/src/styles/tokens.css。
+只改卡上写的文件，跑卡上的命令通过后再开 PR，PR 里贴上截图和测试输出。
 ```

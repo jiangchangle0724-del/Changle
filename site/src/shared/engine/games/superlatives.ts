@@ -1,7 +1,7 @@
 import { TITLES } from "../../../data/superlatives";
 import type { T } from "../../../i18n";
 import type { SuperView } from "../../protocol";
-import { clean, range, t, type Api, type GameDef } from "../api";
+import { byPenalty, clean, range, t, type Api, type GameDef } from "../api";
 
 /**
  * Superlatives: one award a round. Everyone votes (not for themselves); whoever gets the
@@ -107,7 +107,7 @@ export const superlatives: GameDef<S> = {
         if (s.round >= s.total) {
           s.phase = "ceremony";
           api.fx("win");
-          api.penalty(api.ids(), "everyone", t("颁奖典礼，全场干杯", "Awards night: everyone drinks"), { delay: 3200 });
+          api.penalty(api.ids(), "everyone", byPenalty(api, t("颁奖典礼，全场干杯", "Awards night: everyone drinks"), t("颁奖典礼，全场一起来", "Awards night: everyone joins in")), { delay: 3200 });
           return;
         }
         s.round += 1;

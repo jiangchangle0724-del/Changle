@@ -82,6 +82,7 @@ const REUSE_AFTER = 10 * 60_000;
 const N_LOBBY = ONLINE_GAMES.length;
 
 const BUDDY_NOTE: T = t("陪酒：谢谢老板！", "Drinking buddy: thank you, boss!");
+const BUDDY_NOTE_CUSTOM: T = t("陪罚：谢谢老板！", "Penalty buddy: thank you, boss!");
 
 /**
  * Player ids become keys in the games' score and vote maps, so they are plain letters, digits,
@@ -171,6 +172,7 @@ export class RoomEngine {
     }
 
     let seat = d.seats.find((s) => s.id === pid);
+    let back = false;
     if (!seat) {
       if (d.seats.length >= MAX_SEATS) return "full";
       seat = { id: pid, name, on: true, at: now };
@@ -180,6 +182,7 @@ export class RoomEngine {
       const g = this.gameDef();
       if (g && d.game) g.def.join?.(d.game.s, pid, this.api());
     } else {
+      back = !seat.on;
       seat.on = true;
       seat.name = name;
       if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
@@ -187,6 +190,7 @@ export class RoomEngine {
     }
     if (!d.host || !d.seats.some((s) => s.id === d.host)) d.host = pid;
     if (pid === d.host) this.clearTimer("host-away");
+    if (back) this.presence(pid, true);
     this.out.changed = true;
     return null;
   }
@@ -229,7 +233,14 @@ export class RoomEngine {
     seat.on = on;
     if (!on && pid === this.d.host) this.setTimer("host-away", this.h.now() + HOST_GRACE);
     if (on && pid === this.d.host) this.clearTimer("host-away");
+    this.presence(pid, on);
     this.out.changed = true;
+  }
+
+  /** The game in play hears when a phone drops or comes back (a turn it waits on can stop waiting). */
+  private presence(pid: string, on: boolean) {
+    const g = this.gameDef();
+    if (g && this.d.game) g.def.presence?.(this.d.game.s, pid, on, this.api());
   }
 
   /**
@@ -383,7 +394,7 @@ export class RoomEngine {
         if (!pen || !pen.who.includes(pid) || !pen.buddy || pen.buddyUsed) return;
         if (!d.seats.some((s) => s.id === pen.buddy)) return;
         pen.buddyUsed = true;
-        this.penalty([pen.buddy], "sip", BUDDY_NOTE);
+        this.penalty([pen.buddy], "sip", (d.penalty ?? "").trim() ? BUDDY_NOTE_CUSTOM : BUDDY_NOTE);
         this.out.persist = true;
         return;
       }
@@ -662,6 +673,7 @@ export class RoomEngine {
     };
     return {
       now: h.now(),
+      customPenalty: !!(this.d.penalty ?? "").trim(),
       rand: () => h.rand(),
       int: (n: number) => Math.floor(h.rand() * n),
       shuffle: <X>(a: X[]) => {

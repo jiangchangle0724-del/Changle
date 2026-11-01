@@ -7,7 +7,7 @@ import { holdBackground } from "../../lib/music";
 import { sfx } from "../../lib/sfx";
 import { BRIEF_MS, drama } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent } from "./local";
@@ -37,7 +37,8 @@ export function Drama({ onBack }: { onBack: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [name, tr],
   );
-  const game = useLocalGame<unknown, DramaView>(drama, ids, onEvent);
+  const custom = usePenaltyText().isCustom;
+  const game = useLocalGame<unknown, DramaView>(drama, ids, onEvent, custom);
   const v = game.view(host);
   const act = (pid: string, x: string, data: Record<string, unknown> = {}) => game.act(pid, { x, ...data });
 

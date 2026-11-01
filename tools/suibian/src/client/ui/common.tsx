@@ -4,7 +4,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { AllergenId, Limits } from "../../engine";
 import { ALLERGENS } from "../../engine";
 import type { MemberView, RoomView } from "../../room/protocol";
-import { getLang, setLang, t, tx } from "../i18n";
+import { CUSTOM_SUGGESTIONS, getLang, setLang, t, tx } from "../i18n";
 import { prefs } from "../prefs";
 import { getState, send, serverNow, update, useApp } from "../store";
 
@@ -78,11 +78,45 @@ export function memberName(v: RoomView, m: MemberView): string {
   return t("friend", { n: v.members.indexOf(m) + 1 });
 }
 
+/** A one-tap suggestion reads in the reader's language, whichever language it was tapped in. */
+function customName(name: string): string {
+  const k = name.trim().toLowerCase();
+  for (const from of ["zh", "en"] as const) {
+    const i = CUSTOM_SUGGESTIONS[from].findIndex((x) => x.toLowerCase() === k);
+    if (i >= 0) return CUSTOM_SUGGESTIONS[getLang()][i];
+  }
+  return name;
+}
+
+/** Mid-sentence in English, a list's own words go lower case ("doesn't eat dairy"); typed words stay as typed. */
+const inSentence = (word: string) => (getLang() === "en" ? word.toLowerCase() : word);
+
+/** The allergens as they read mid-sentence in English ("severely allergic to peanuts"). */
+const EN_IN_SENTENCE: Record<AllergenId, string> = {
+  peanut: "peanuts",
+  treenut: "tree nuts",
+  shellfish: "shellfish",
+  fish: "fish",
+  sesame: "sesame",
+  soy: "soy",
+  chili: "chili",
+  egg: "eggs",
+  dairy: "dairy",
+  gluten: "gluten (wheat)",
+};
+
 /** "This table: someone doesn't eat peanuts · halal · up to $35" — no names. */
 export function TableLimits({ l }: { l: Limits }) {
   const items: string[] = [];
-  for (const [a, level] of Object.entries(l.allergies) as [AllergenId, string][]) items.push(t(level === "severe" ? "someoneSevere" : "someoneAvoids", { what: tx(ALLERGENS[a]) }));
-  for (const c of l.custom) items.push(t(c.level === "severe" ? "someoneSevere" : "someoneAvoids", { what: c.name }));
+  for (const [a, level] of Object.entries(l.allergies) as [AllergenId, string][]) items.push(t(level === "severe" ? "someoneSevere" : "someoneAvoids", { what: getLang() === "en" ? EN_IN_SENTENCE[a] : tx(ALLERGENS[a]) }));
+  const custom = new Map<string, string>();
+  for (const c of l.custom) {
+    const name = customName(c.name);
+    const what = CUSTOM_SUGGESTIONS[getLang()].includes(name) ? inSentence(name) : name;
+    // the same thing tapped in two languages is one line; a severe one wins
+    if (c.level === "severe" || !custom.has(what)) custom.set(what, c.level === "severe" ? "someoneSevere" : "someoneAvoids");
+  }
+  for (const [what, key] of custom) items.push(t(key as "someoneSevere" | "someoneAvoids", { what }));
   if (l.halal) items.push(t("halal"));
   if (l.vegetarian) items.push(t("vegetarian"));
   if (l.budget) items.push(t("budgetUpTo", { n: l.budget }));

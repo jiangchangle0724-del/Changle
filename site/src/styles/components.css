@@ -361,6 +361,9 @@
     rgba(9, 8, 24, 0.97);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  /* a screen too short for the whole stamp scrolls instead of cutting off the top and the button */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .stamp-layer.is-safe {
   background:
@@ -381,6 +384,8 @@
   position: relative;
   width: 100%;
   max-width: 420px;
+  /* centred, and from the top when it is taller than the screen */
+  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -396,12 +401,15 @@
   text-wrap: balance;
 }
 .stamp-seal {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
   min-height: min(56vw, 230px);
+  /* room under the stamp for the glass beside it (PenaltyStamp measures it) */
+  margin-bottom: var(--glass-room, 0px);
   padding: 8px 12px;
   color: var(--stop);
   text-align: center;
@@ -442,7 +450,7 @@
 .stamp-glass {
   position: absolute;
   right: -2px;
-  top: 52%;
+  top: var(--glass-top, 52%);
   transform-origin: 50% 100%;
 }
 .stamp-note {

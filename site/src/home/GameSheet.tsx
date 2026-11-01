@@ -2,7 +2,7 @@ import { RadioTower, Smartphone, Sparkles, Tv, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import type { GameId, GameMeta } from "../games/registry";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
 
 /** A game's card: what it is, how many it takes, and the two ways to play it. */
 export function GameSheet({
@@ -23,6 +23,8 @@ export function GameSheet({
   onWishlist: () => void;
 }) {
   const { ui, tr, lang } = useStore();
+  // this phone's own penalty instead of drinking (settings): the card says so too
+  const custom = usePenaltyText().isCustom;
   const g = game;
   const Icon = g?.icon;
   const [tvHelp, setTvHelp] = useState(false);
@@ -49,7 +51,7 @@ export function GameSheet({
               <p className="game-card-sub">{lang === "zh" ? g.name.en : g.name.zh}</p>
             </div>
           </div>
-          <p className="game-card-how">{tr(g.how)}</p>
+          <p className="game-card-how">{tr(custom && g.howCustom ? g.howCustom : g.how)}</p>
           <p className="game-card-meta">
             {g.minPlayers === g.maxPlayers ? ui("playersExactly", { n: g.minPlayers }) : ui("playersRange", { min: g.minPlayers, max: g.maxPlayers })}
           </p>

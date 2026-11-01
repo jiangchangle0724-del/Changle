@@ -1,0 +1,24 @@
+{
+  "name": "party-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "一起跳 · Dance Along (and later 打碟 · DJ Booth): the room server and pages at changle.ca/party, wiring games/party-base",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && wrangler dev",
+    "typecheck": "wrangler types > /dev/null && tsc --noEmit && tsc --noEmit -p tsconfig.client.json",
+    "test": "tsx --test tests/*.test.ts",
+    "deploy": "node scripts/build.mjs && wrangler deploy"
+  },
+  "dependencies": {
+    "qrcode-generator": "2.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "6.0.2",
+    "wrangler": "4.151.2"
+  }
+}

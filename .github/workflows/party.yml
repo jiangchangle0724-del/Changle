@@ -1,0 +1,46 @@
+# Runs every time the party games' shared base or their room server changes: party-base's 40 tests
+# (clock sync, calibration, scoring, the room state machine), then the server's types, its session
+# tests and the pages' build. Only these folders.
+name: party
+
+on:
+  push:
+    paths: ["games/party-base/**", "games/party-server/**", ".github/workflows/party.yml"]
+  pull_request:
+    paths: ["games/party-base/**", "games/party-server/**", ".github/workflows/party.yml"]
+
+jobs:
+  base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: games/party-base
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/party-base/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: games/party-server
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/party-server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

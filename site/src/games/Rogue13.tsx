@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
-import { useStore, type Player } from "../store";
+import { usePenaltyText, useStore, type Player } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
-import { fullDeck, RULES, RULE_BY_RANK, SUIT_GLYPH, SUIT_RED, type Card, type Rank } from "../data/rogue13";
+import { fullDeck, RULES, RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Rank } from "../data/rogue13";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { UI } from "../i18n";
@@ -20,10 +20,15 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
   const [reshuffled, setReshuffled] = useState(false);
   const turn = useTurnOrder();
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
 
   const rule = card ? RULE_BY_RANK[card.rank] : null;
+  // the card's words: drinking, or the penalty set in settings
+  const words = rule ? ruleWords(rule, custom) : null;
 
   const draw = () => {
+    // one card at a time: a double tap on the deck lands on the card still turning over
+    if (card) return;
     const { card: c, reshuffled: r } = deck.current.draw();
     setReshuffled(r);
     if (r) setHolders({});
@@ -45,23 +50,23 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
   };
 
   const resolve = () => {
-    if (!rule || !card) return;
+    if (!rule || !card || !words) return;
     const me = turn.current;
     switch (rule.kind) {
       case "pick":
         setPhase("pick");
         return;
       case "self-sip":
-        penalty.show({ who: [me.name], kind: "sip", note: tr(rule.title) }, endTurn);
+        penalty.show({ who: [me.name], kind: "sip", note: tr(words.title) }, endTurn);
         return;
       case "self-full":
-        penalty.show({ who: [me.name], kind: "full", note: tr(rule.title) }, endTurn);
+        penalty.show({ who: [me.name], kind: "full", note: tr(words.title) }, endTurn);
         return;
       case "left":
-        penalty.show({ who: [turn.left.name], kind: "sip", note: tr(rule.title) }, endTurn);
+        penalty.show({ who: [turn.left.name], kind: "sip", note: tr(words.title) }, endTurn);
         return;
       case "right":
-        penalty.show({ who: [turn.right.name], kind: "sip", note: tr(rule.title) }, endTurn);
+        penalty.show({ who: [turn.right.name], kind: "sip", note: tr(words.title) }, endTurn);
         return;
       case "group":
         setPhase("group-loser");
@@ -81,9 +86,9 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
         <li key={r.rank}>
           <span className="rule-rank en-display">{r.rank}</span>
           <span>
-            <strong>{tr(r.title)}</strong>
+            <strong>{tr(ruleWords(r, custom).title)}</strong>
             <br />
-            {tr(r.rule)}
+            {tr(ruleWords(r, custom).rule)}
           </span>
         </li>
       ))}
@@ -99,11 +104,11 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="card-stage">
-        <PlayingCard card={card} onDraw={draw} drawLabel={lang === "zh" ? "抽牌" : "Draw"} />
+        <PlayingCard card={card} onDraw={draw} canDraw={!card} drawLabel={lang === "zh" ? "抽牌" : "Draw"} />
       </div>
 
       <AnimatePresence mode="wait">
-        {card && rule && phase === "revealed" && (
+        {card && rule && words && phase === "revealed" && (
           <motion.div
             key={card.rank + card.suit}
             className="porcelain rule-card"
@@ -112,8 +117,8 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
             exit={{ opacity: 0, y: -10 }}
             transition={{ delay: 0.35, duration: 0.3 }}
           >
-            <h2 className={`rule-title ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(rule.title)}</h2>
-            <p className="rule-body">{tr(rule.rule)}</p>
+            <h2 className={`rule-title ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
+            <p className="rule-body">{tr(words.rule)}</p>
             {reshuffled && <p className="hint-ink">{ui("deckReshuffled")}</p>}
             <div className="row" style={{ gap: 10, marginTop: 14 }}>
               <button type="button" className={`btn btn-block ${rule.kind === "hold" ? "btn-primary" : "btn-penalty"}`} onClick={resolve}>
@@ -124,16 +129,16 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
                     : rule.kind === "hold"
                       ? lang === "zh" ? "记住了" : "Got it"
                       : rule.kind === "self-sip" || rule.kind === "self-full"
-                        ? lang === "zh" ? "我喝" : "I drink"
+                        ? custom ? ui("iTakeIt") : lang === "zh" ? "我喝" : "I drink"
                         : rule.kind === "left" || rule.kind === "right"
                           ? lang === "zh" ? "罚" : "Penalty"
-                          : ui("whoDrinks")}
+                          : custom ? ui("whoPenalty") : ui("whoDrinks")}
               </button>
             </div>
           </motion.div>
         )}
 
-        {card && rule && (phase === "pick" || phase === "group-loser") && (
+        {card && rule && words && (phase === "pick" || phase === "group-loser") && (
           <motion.div key="pick" className="porcelain rule-card" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <p className="hint-ink" style={{ marginBottom: 10 }}>
               {phase === "pick" ? ui("chooseTarget") : lang === "zh" ? "点一下输的人。没人输就跳过。" : "Tap whoever lost. Nobody? Skip."}
@@ -141,7 +146,7 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
             <PlayerPicker
               players={players}
               tone="lacquer"
-              onPick={(p) => penalty.show({ who: [p.name], kind: "sip", note: tr(rule.title) }, endTurn)}
+              onPick={(p) => penalty.show({ who: [p.name], kind: "sip", note: tr(words.title) }, endTurn)}
             />
             {phase === "group-loser" && (
               <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 12, color: "var(--haze)" }} onClick={endTurn}>
@@ -157,7 +162,7 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
           {held.map(([rank, p]) => (
             <span key={rank} className="chip">
               <span className="en-display held-rank">{rank}</span>
-              {tr(RULE_BY_RANK[rank].badge!)} · {p.name}
+              {tr(ruleWords(RULE_BY_RANK[rank], custom).badge!)} · {p.name}
             </span>
           ))}
         </div>
