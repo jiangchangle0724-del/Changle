@@ -13,7 +13,7 @@ import { GENDER_LABEL, type Stats } from "./MePage";
 type Relation = "self" | "friends" | "sent" | "received" | "none" | "blocked";
 type Data = { user: PublicUser; relation: Relation; stats: Stats; recent: HistoryRow[] };
 
-/** #/u/:id: someone else's profile, and what you can do about them. */
+/** /u/:id: someone else's profile, and what you can do about them. */
 export function UserPage({ id, onBack }: { id: string; onBack: () => void }) {
   const { me, status, openSignIn } = useAccount();
   const { lang } = useStore();
@@ -123,7 +123,7 @@ export function UserPage({ id, onBack }: { id: string; onBack: () => void }) {
           )}
           {d.relation === "friends" && (
             <>
-              <a className="btn btn-primary btn-lg btn-block" href={`#/chat/${u.id}`}>
+              <a className="btn btn-primary btn-lg btn-block" href={`/chat/${u.id}`}>
                 <MessageCircle size={18} />
                 {zh ? "发消息" : "Message"}
               </a>

@@ -26,5 +26,5 @@ export function useQr(link: string, dark = "#0e0c22") {
 }
 
 /** Where a phone sits down at a table. */
-export const joinLink = (code: string) => `${window.location.origin}/#/r/${code}`;
+export const joinLink = (code: string) => `${window.location.origin}/t/${code}`;
 export const siteHost = () => window.location.host.replace(/^www\./, "");

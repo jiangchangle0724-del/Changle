@@ -166,11 +166,11 @@ def main():
         a.wait_for_selector(".list-title:text-is('好友请求')", timeout=5000)
         shot(a, "friends-request")
         a.click(".people .person .btn-primary")
-        a.wait_for_selector(".people .person-main[href^='#/chat/']", timeout=5000)
+        a.wait_for_selector(".people .person-main[href^='/chat/']", timeout=5000)
         check(True, "A: request accepted, B in friends")
 
         # chat
-        a.click(".people .person-main[href^='#/chat/']")
+        a.click(".people .person-main[href^='/chat/']")
         a.wait_for_selector(".chat-compose, .chat-hello", timeout=8000)
         a.wait_for_timeout(400)
         shot(a, "chat-empty")
@@ -210,7 +210,7 @@ def main():
         b.wait_for_selector(".me-head")
         b.wait_for_timeout(500)
         shot(b, "user-A-from-B")
-        check(b.locator(".user-actions a[href^='#/chat/']").count() == 1, "B: A's page offers Message")
+        check(b.locator(".user-actions a[href^='/chat/']").count() == 1, "B: A's page offers Message")
         check(b.locator(".me-head .me-figure").count() == 0, "B: A's page shows A's photo, not a figure")
         bid = b.evaluate("u => fetch(u + '/me', {headers: {Authorization: 'Bearer ' + localStorage.getItem('changle.session')}}).then(r => r.json()).then(d => d.user.id)", api)
         a.goto(BASE + f"#/u/{bid}")
@@ -228,7 +228,7 @@ def main():
         shot(a, "online-sheet")
         a.get_by_role("button", name="开一桌", exact=True).click()
         a.wait_for_selector(".lobby .faces", timeout=10000)
-        code = a.evaluate("location.hash").split("/")[-1]
+        code = a.evaluate("location.pathname").split("/")[-1]
         b.goto(BASE + f"#/r/{code}")
         b.wait_for_selector(".join-card, .lobby", timeout=10000)
         if b.locator(".join-card").count():

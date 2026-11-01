@@ -88,7 +88,7 @@ export function SiteGate({ children, signIn }: { children: ReactNode; signIn: Re
   return (
     <>
       {paused && master && (
-        <a className="paused-strip" href="#/admin">
+        <a className="paused-strip" href="/admin">
           {zh ? "全站暂停中，只有你能用。去后台恢复" : "The site is paused. Only you can use it. Reopen it in the back office"}
         </a>
       )}

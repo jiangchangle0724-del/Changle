@@ -88,7 +88,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
           {found.length === 0 && <li className="hint">{zh ? "没找到这个人" : "Nobody by that name or code"}</li>}
           {found.map((u) => (
             <li key={u.id} className="person">
-              <a className="person-main" href={`#/u/${u.id}`}>
+              <a className="person-main" href={`/u/${u.id}`}>
                 <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={44} frame={u.frame} />
                 <span>
                   <strong>{u.name}</strong>
@@ -120,7 +120,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
           <ul className="people">
             {lists.incoming.map((u) => (
               <li key={u.id} className="person">
-                <a className="person-main" href={`#/u/${u.id}`}>
+                <a className="person-main" href={`/u/${u.id}`}>
                   <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={44} frame={u.frame} />
                   <span>
                     <strong>{u.name}</strong>
@@ -148,7 +148,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
           <ul className="people">
             {lists?.friends.map((u) => (
               <li key={u.id} className="person">
-                <a className="person-main" href={`#/chat/${u.id}`}>
+                <a className="person-main" href={`/chat/${u.id}`}>
                   <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={46} frame={u.frame} />
                   <span>
                     <strong>{u.name}</strong>
@@ -171,7 +171,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
           <ul className="people">
             {lists.outgoing.map((u) => (
               <li key={u.id} className="person">
-                <a className="person-main" href={`#/u/${u.id}`}>
+                <a className="person-main" href={`/u/${u.id}`}>
                   <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={40} frame={u.frame} />
                   <span>
                     <strong>{u.name}</strong>

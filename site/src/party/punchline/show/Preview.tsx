@@ -114,7 +114,7 @@ function view(scene: string, phaseAt: number): PunchView {
 
 export function ShowPreview() {
   const { lang } = useStore();
-  const params = new URLSearchParams(window.location.hash.split("?")[1] ?? "");
+  const params = new URLSearchParams(window.location.search);
   const scene = params.get("scene") ?? "present";
   const mode = (params.get("mode") as "tv" | "phone") ?? "tv";
   const t = Number(params.get("t") ?? 6);

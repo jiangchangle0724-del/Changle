@@ -15,9 +15,26 @@ export type HomeTab = "party" | "tools" | "wish";
 const ORDER: HomeTab[] = ["party", "tools", "wish"];
 
 /** The front door: the wordmark, three tabs, and the tip jar in the corner. */
-export function Home({ tab, onTab, onOpenGame, start }: { tab: HomeTab; onTab: (t: HomeTab) => void; onOpenGame: (id: GameId) => void; start?: GameId }) {
+export function Home({
+  tab,
+  game,
+  openSettings,
+  onTab,
+  onCard,
+  onPlay,
+}: {
+  tab: HomeTab;
+  /** the game whose card is open (its address is /g/<slug>) */
+  game?: GameId;
+  /** arrived at changle.ca/settings */
+  openSettings?: boolean;
+  onTab: (t: HomeTab) => void;
+  /** open a game's card, or close it (null) */
+  onCard: (id: GameId | null) => void;
+  onPlay: (id: GameId) => void;
+}) {
   const { ui } = useStore();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(!!openSettings);
   const prev = useRef(tab);
   const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
   useEffect(() => {
@@ -43,7 +60,7 @@ export function Home({ tab, onTab, onOpenGame, start }: { tab: HomeTab; onTab: (
       </header>
       <Tabs value={tab} onChange={onTab} />
       <Panel key={tab} dir={dir}>
-        {tab === "party" && <PartyTab onOpenGame={onOpenGame} onWishlist={() => onTab("wish")} start={start} />}
+        {tab === "party" && <PartyTab card={game} onCard={onCard} onPlay={onPlay} onWishlist={() => onTab("wish")} />}
         {tab === "tools" && <ToolsTab />}
         {tab === "wish" && <WishlistTab />}
       </Panel>

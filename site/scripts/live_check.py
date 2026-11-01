@@ -54,8 +54,8 @@ with sync_playwright() as p:
     host.wait_for_timeout(400)
     host.get_by_label("你的名字").fill(names[0])
     host.get_by_role("button", name="开一桌", exact=True).click()
-    host.wait_for_url(re.compile(r"#/r/[A-Z0-9]{4}"), timeout=8000)
-    code = re.search(r"#/r/([A-Z0-9]{4})", host.url).group(1)
+    host.wait_for_url(re.compile(r"/t/[A-Z0-9]{4}"), timeout=8000)
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
     ok(until(lambda: seated(host) == "1"), f"host opened table {code} on the live server")
     host.screenshot(path=f"{OUT}/1-host-lobby.png")
 
@@ -127,7 +127,7 @@ with sync_playwright() as p:
         g.wait_for_timeout(400)
         g.get_by_role("button", name="离开这桌").last.click()
         g.wait_for_timeout(600)
-    ok(all("#/r/" not in g.url for g in everyone), "every phone left the table")
+    ok(all("/t/" not in g.url for g in everyone), "every phone left the table")
 
     errs = [(g._name, e) for g in everyone for e in g._errs if "favicon" not in e]
     ok(not errs, f"no page errors {errs[:4]}")

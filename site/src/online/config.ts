@@ -43,7 +43,7 @@ export function cleanCode(raw: string): string {
 export const isCode = (c: string) => CODE_RE.test(c);
 
 export function inviteLink(code: string) {
-  return `${window.location.origin}${window.location.pathname}#/r/${code}`;
+  return `${window.location.origin}/t/${code}`;
 }
 
 /* ---------- this phone ---------- */

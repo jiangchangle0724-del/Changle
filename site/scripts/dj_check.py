@@ -52,7 +52,7 @@ def speaker_alone(p, engine, mobile):
     settings(pg)
     errs = errs_of(pg)
     pg.goto(BASE + "dj/test", wait_until="load")
-    until(lambda: pg.evaluate("() => location.hash") == "#/dj/test", 4000)
+    until(lambda: pg.evaluate("() => location.pathname") == "/dj/test", 4000)
     ready = until(lambda: pg.evaluate("() => window.__djTest && window.__djTest.ready()"), 30000, 200)
     ok(bool(ready), f"{name}: the music is recorded on the device before the tap")
     pg.screenshot(path=os.path.join(OUT, f"test-{name}-0-before.png"))

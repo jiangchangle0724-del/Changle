@@ -11,11 +11,12 @@ import { useTableSounds } from "./useTableSounds";
 import { NetGame } from "./games/NetGame";
 import { ScreenGuard } from "../components/ScreenGuard";
 import { siteNotice } from "../lib/api";
+import { navigate } from "../router";
 
 type Session = { name: string; create: boolean; n: number };
 
 /**
- * #/r/CODE: one table on the room server. Decides whether this phone sits straight down
+ * /t/CODE: one table on the room server. Decides whether this phone sits straight down
  * (it opened the table, or it was here a moment ago) or sees the place card first.
  */
 export function OnlineRoom({ code, onExit }: { code: string; onExit: () => void }) {
@@ -61,7 +62,7 @@ function Stage({ create, name, onExit, onRejoin, onForget }: { create: boolean; 
     if (stopped?.kind === "error" && stopped.code === "exists" && create) {
       const next = newCode();
       setIntent({ code: next, create: true, name });
-      window.location.replace(`#/r/${next}`);
+      navigate(`/t/${next}`, true);
     }
     if (stopped?.kind === "left") onExit();
     // the whole site paused, or this phone banned: the app shows its own sign
@@ -98,7 +99,7 @@ function Stage({ create, name, onExit, onRejoin, onForget }: { create: boolean; 
             onClick={() => {
               const next = newCode();
               setIntent({ code: next, create: true, name });
-              window.location.replace(`#/r/${next}`);
+              navigate(`/t/${next}`, true);
             }}
           >
             {ui("openTable")}
