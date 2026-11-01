@@ -884,7 +884,8 @@ li.is-ready .dm-roster-state {
   gap: 10px;
   min-width: 0;
 }
-.dm-rate-who > span {
+/* the name and role beside the face (the face is a span too, and keeps its own centring) */
+.dm-rate-who > span:not(.avatar) {
   display: flex;
   flex-direction: column;
   min-width: 0;
