@@ -145,7 +145,7 @@ Worker's `wrangler.jsonc`.
 
 ## Open items
 
-* The rooms Worker was connected to Git on 2026-10-31; its first build from Git comes with the
-  first merge that touches one of its watch paths. Check that build's log once.
+* The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
+  PR #34 (2026-11-01) and deployed fine.
 * 随便: its severe-allergy table is a draft, and two small things showed up once real restaurants
   were on. See `tools/suibian/HANDOFF.md`.
