@@ -474,3 +474,43 @@
 .limbo-people .lineup::before {
   display: none;
 }
+
+/* raising a glass (Never Have I Ever: whoever has done it) */
+.lineup-fig[data-pose="cheers"] {
+  animation: cheers 1.1s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.27s);
+}
+@keyframes cheers {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  35% {
+    transform: translateY(-8%) rotate(5deg);
+  }
+  60% {
+    transform: rotate(2deg);
+  }
+}
+
+/* whose turn it is: their figure beside their name */
+.turn-fig {
+  --fig-h: 58px;
+  display: block;
+  height: var(--fig-h);
+  align-self: flex-end;
+  margin-bottom: -4px;
+  animation: turn-pop 0.5s var(--ease-pop) both;
+}
+@keyframes turn-pop {
+  from {
+    opacity: 0;
+    transform: translateY(30%) scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .turn-fig,
+  .lineup-fig[data-pose="cheers"] {
+    animation: none;
+  }
+}

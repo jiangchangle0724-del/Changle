@@ -5,14 +5,22 @@ import { PlayerPicker } from "../../components/PlayerPicker";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import { useCue, useRoom } from "../RoomContext";
+import { Figure } from "../../components/Figure";
 
 /** Whose move it is, said in words: your own name never appears, "your turn" does. */
 export function TurnLine({ pid, lead, extra, mineText }: { pid: string | null | undefined; lead?: string; extra?: ReactNode; mineText?: string }) {
-  const { me, nameOf } = useRoom();
+  const { me, nameOf, room } = useRoom();
   const { ui } = useStore();
   const mine = !!pid && pid === me;
+  // whoever's turn it is stands beside their name (and pops up when the turn moves on)
+  const seat = pid ? room?.seats.find((s) => s.id === pid) : undefined;
   return (
     <p className="turn-line">
+      {seat && (
+        <span className="turn-fig" key={seat.id} aria-hidden="true">
+          <Figure seat={seat} />
+        </span>
+      )}
       {mine ? (
         <span className="turn-name turn-mine">{mineText ?? ui("yourTurnNow")}</span>
       ) : (

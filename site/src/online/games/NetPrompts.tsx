@@ -9,6 +9,7 @@ import { NetFrame } from "../NetFrame";
 import { useCue, useRoom } from "../RoomContext";
 import { HostButton, HostRow, joinNames, SeatPicker, TurnLine, useYourTurn, Waiting } from "./common";
 import { sfx } from "../../lib/sfx";
+import { Lineup, Moment } from "../../components/Figure";
 
 export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, offset } = useRoom();
@@ -36,6 +37,7 @@ export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void
   );
 
   const result = v.result;
+  const seatOf = (pid: string) => room?.seats.find((s) => s.id === pid);
   const counts = result && result.counts ? Object.entries(result.counts).sort((a, b) => b[1] - a[1]) : [];
 
   return (
@@ -128,6 +130,19 @@ export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void
 
           {v.phase === "reveal" && result && (
             <motion.div key={`reveal-${v.card?.zh}`} className="stack" style={{ gap: 12, alignItems: "center" }} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+              {never ? (
+                <Lineup items={(result.yes ?? []).filter((pid) => seatOf(pid)).map((pid) => ({ seat: seatOf(pid)!, pose: "cheers" as const }))} />
+              ) : (
+                result.top &&
+                result.top.length > 0 && (
+                  <div className="moment-row">
+                    {result.top.slice(0, 3).map((pid) => {
+                      const st = seatOf(pid);
+                      return st ? <Moment key={pid} seat={st} kind="picked" small /> : null;
+                    })}
+                  </div>
+                )
+              )}
               {never ? (
                 <p className="reveal-line">
                   {result.yes && result.yes.length
