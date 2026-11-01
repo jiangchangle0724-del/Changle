@@ -88,7 +88,7 @@ All merged into `main`:
 | #45 | Picking alone keeps the saved budget; places with almost no Google ratings rank below rated ones | `tools/suibian/src/engine/solo.ts`, `src/client/ui/Solo.tsx`, tests |
 | #48 | Rating a solo pick (`/eat/rate`, the home page asks), English descriptions when Google has none in Chinese, the queue quote on a soft panel | `tools/suibian/`: `src/server/worker.ts`, `src/server/places.ts`, `src/room/room.ts`, `src/client/ui/` (`Rate.tsx`, `Solo.tsx`, `Home.tsx`), `src/client/main.tsx`, `src/client/store.ts`, `src/client/i18n.ts`, `src/client/styles.css`, `src/client/privacy.html`, tests, README |
 | #54 | List badges for 132 Greater Vancouver places (by Codex, from issue #42) | `tools/suibian/src/data/lists.json` |
-| (this PR) | List matching copes with Google's two-language names and unit numbers | `tools/suibian/src/server/curated.ts`, `tests/curated.test.ts`, README |
+| #55 | List matching copes with Google's two-language names and unit numbers | `tools/suibian/src/server/curated.ts`, `tests/curated.test.ts`, README |
 
 ## Live state
 
