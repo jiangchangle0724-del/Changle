@@ -82,6 +82,14 @@ export interface Place {
   photoBy?: { name: string; uri?: string };
   /** A Google review that mentions queueing, with its author (shown with attribution). */
   waitQuote?: { text: string; author: string };
+  /** Google's one-line description of the place (its editorial summary), when it has one. */
+  about?: string;
+  /** Google's short address, used to tell branches of the same name apart. */
+  address?: string;
+  /** Greater Vancouver lists it is on (Michelin, Vancouver Magazine…), from src/data/lists.json. */
+  badges?: Badge[];
+  /** Steve's own pick for it: a line of why, and food-blogger posts about it (src/data/picks.json). */
+  recommend?: Recommend;
   /** Our own post-meal numbers for this place. */
   ours?: PlaceStats;
   demo?: boolean;
@@ -95,7 +103,44 @@ export interface PlaceStats {
   waits: number[];
 }
 
-export type RangeId = "walk10" | "walk20" | "drive15" | "drive25";
+export type RangeId =
+  | "walk5"
+  | "walk10"
+  | "walk15"
+  | "walk20"
+  | "walk30"
+  | "drive5"
+  | "drive10"
+  | "drive15"
+  | "drive25"
+  | "drive40"
+  | "any";
+
+/** How the range is measured: on foot, by car, or not at all (all of Greater Vancouver). */
+export type RangeMode = "walk" | "drive" | "any";
+
+/** A list a restaurant is on, e.g. "Michelin Bib Gourmand 2025". Facts only, with where it says so. */
+export interface Badge {
+  /** Which list (an id in lists.json's sources). */
+  source: string;
+  label: Text;
+  year?: number;
+  url?: string;
+}
+
+/** A post about a place on a food-blogger platform (小红书, 抖音, TikTok, Instagram, YouTube, a blog). */
+export interface RecommendLink {
+  platform: string;
+  url: string;
+  title?: string;
+}
+
+/** Someone's own recommendation of a place, written for this app. */
+export interface Recommend {
+  note: Text;
+  by?: string;
+  links: RecommendLink[];
+}
 
 export interface Center {
   lat: number;

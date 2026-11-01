@@ -1,5 +1,6 @@
 // What phones and the server say to each other.
-import type { Ballot, Center, CuisineId, Lang, Limits, MoodPick, Place, RangeId, Rating, WaitEstimate, Warning } from "../engine";
+import { RANGES, check, distanceMeters, estimateWait, minutesToLastOrder, travelMinutes, vancouverClock } from "../engine";
+import type { Ballot, Center, CuisineId, Lang, Limits, MoodPick, Place, RangeId, Rating, SoloReason, WaitEstimate, Warning } from "../engine";
 
 export type { Lang };
 
@@ -57,6 +58,33 @@ export interface CardView {
   warnings: Warning[];
   /** A cuisine someone banned in round 1, brought back because little else was left. */
   relaxed: boolean;
+}
+
+/** A place as a card, seen from the starting point, for the people whose limits are `limits`. */
+export function cardView(p: Place, center: Center, range: RangeId, limits: Limits, now: number, relaxed = false): CardView {
+  const drive = RANGES[range].drive;
+  return {
+    place: p,
+    minutes: travelMinutes(distanceMeters(center, p), drive),
+    drive,
+    wait: estimateWait(p, vancouverClock(now)),
+    lastOrder: minutesToLastOrder(p, now),
+    warnings: check(p, limits).warnings,
+    relaxed,
+  };
+}
+
+/** One person's pick (POST /eat/api/solo): a card and why it was chosen. */
+export interface SoloCard extends CardView {
+  reasons: SoloReason[];
+}
+
+export interface SoloResponse {
+  cards?: SoloCard[];
+  /** The side of the menu asked for had too few places nearby, so others were let in. */
+  relaxed?: boolean;
+  demo?: boolean;
+  error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace";
 }
 
 export interface RoomView {

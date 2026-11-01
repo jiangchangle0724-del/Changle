@@ -102,6 +102,26 @@ test("place from Google: missing fields stay missing, halal from the name or des
   assert.equal(fromGoogle({ id: "y", location: { latitude: 1, longitude: 1 } }), null);
 });
 
+test("place from Google: hotels that Google also calls restaurants are left out", () => {
+  const base = { location: { latitude: 49.28, longitude: -123.12 }, types: ["restaurant", "lodging"] };
+  assert.equal(fromGoogle({ ...base, id: "h", displayName: { text: "Fairmont Hotel Vancouver" }, primaryType: "hotel" }), null);
+  assert.equal(fromGoogle({ ...base, id: "l", displayName: { text: "Some Inn" }, primaryType: "lodging" }), null);
+  assert.ok(fromGoogle({ ...base, id: "r", displayName: { text: "Hotel Bar & Grill" }, primaryType: "restaurant" }));
+});
+
+test("place from Google: its one-line description and short address come along", () => {
+  const p = fromGoogle({
+    id: "d",
+    displayName: { text: "Kissa Tanto" },
+    location: { latitude: 49.28, longitude: -123.1 },
+    editorialSummary: { text: "  Italian-Japanese dishes in a moody 1960s-style room.  " },
+    shortFormattedAddress: "263 E Pender St, Vancouver",
+  })!;
+  assert.equal(p.about, "Italian-Japanese dishes in a moody 1960s-style room.");
+  assert.equal(p.address, "263 E Pender St, Vancouver");
+  assert.equal(fromGoogle({ id: "e", displayName: { text: "X" }, location: { latitude: 49.2, longitude: -123.1 } })!.about, undefined);
+});
+
 test("details: phone, map, a queue review with its author, a photo with its author", async () => {
   mockFetch([
     [/\/media\?/, () => json({ name: "places/ChIJgolden/photos/AbC/media", photoUri: "https://lh3.googleusercontent.com/places/AbC=s480" })],

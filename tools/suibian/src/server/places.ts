@@ -4,6 +4,7 @@
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
 import { RANGES, guessCuisine, mentionsQueue, type Center, type Lang, type Place, type RangeId } from "../engine";
+import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
   "places.id",
@@ -20,6 +21,8 @@ const SEARCH_FIELDS = [
   "places.reservable",
   "places.servesVegetarianFood",
   "places.editorialSummary",
+  // Essentials-tier field: no extra cost next to the others. Tells branches of one name apart.
+  "places.shortFormattedAddress",
 ].join(",");
 
 const DETAIL_FIELDS = ["nationalPhoneNumber", "googleMapsUri", "photos", "reviews"].join(",");
@@ -51,11 +54,16 @@ interface GPlace {
   reservable?: boolean;
   servesVegetarianFood?: boolean;
   editorialSummary?: { text?: string };
+  shortFormattedAddress?: string;
 }
+
+/** Hotels and the like that Google also tags as restaurants (their restaurant is inside). */
+const LODGING = /^(lodging|hotel|motel|resort_hotel|inn|bed_and_breakfast|extended_stay_hotel|hostel|guest_house|campground|rv_park|cottage|farmstay|japanese_inn|budget_japanese_inn|private_guest_room)$/;
 
 export function fromGoogle(g: GPlace): Place | null {
   if (!g.id || !g.location || !g.displayName?.text) return null;
   if (g.businessStatus && g.businessStatus !== "OPERATIONAL") return null;
+  if (g.primaryType && LODGING.test(g.primaryType)) return null;
   const name = g.displayName.text;
   const level = g.priceLevel ? LEVEL_PRICE[g.priceLevel] : undefined;
   const start = g.priceRange?.startPrice?.units ? Number(g.priceRange.startPrice.units) : undefined;
@@ -76,6 +84,9 @@ export function fromGoogle(g: GPlace): Place | null {
     reservable: g.reservable,
     veg: g.servesVegetarianFood,
     halal: /halal|清真|حلال/i.test(halalText) ? "yes" : undefined,
+    about: g.editorialSummary?.text?.trim().slice(0, 160) || undefined,
+    address: g.shortFormattedAddress,
+    ...curatedFor(name, g.shortFormattedAddress),
   };
 }
 
@@ -193,6 +204,24 @@ export function demoPlaces(center: Center, range: RangeId, now: number): Place[]
       reservable: reservable ?? false,
       servesVegetarianFood: type === "vegan_restaurant" || type === "indian_restaurant" || type === "italian_restaurant" ? true : undefined,
     })!;
-    return { ...p, demo: true, phone: "604-555-0" + String(100 + i), mapsUrl: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` };
+    return { ...p, demo: true, phone: "604-555-0" + String(100 + i), mapsUrl: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`, ...DEMO_EXTRA[i] };
   });
 }
+
+/** Made-up descriptions, a list badge and a pick, so the cards show every part in demo mode too. */
+const DEMO_EXTRA: Record<number, Partial<Place>> = {
+  0: {
+    about: "示例：推车点心，周末一早就满座",
+    recommend: {
+      note: { zh: "示例推荐：虾饺皮薄，周末早点去", en: "Demo pick: thin-skinned har gow; go early at weekends" },
+      by: "Steve",
+      links: [{ platform: "小红书", url: "https://www.xiaohongshu.com/", title: "示例探店" }],
+    },
+  },
+  2: { about: "示例：水煮鱼和口水鸡，辣度可以选" },
+  5: {
+    about: "Demo: rich tonkotsu ramen at a quick counter",
+    badges: [{ source: "demo", label: { zh: "示例榜单 · 必吃拉面", en: "Demo list · must-try ramen" }, year: 2026 }],
+  },
+  8: { about: "Demo: pho and banh mi, open late" },
+};

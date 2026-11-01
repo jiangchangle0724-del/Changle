@@ -108,9 +108,60 @@ test("three phones pick a restaurant", async ({ browser }) => {
   for (const p of [host, a, b]) expect(p.errors).toEqual([]);
 });
 
-test("guests can't start a table when login is on", async ({ request }) => {
+test("guests can't start a table, or pick alone, when login is on", async ({ request }) => {
   const res = await request.post("/eat/api/rooms", { data: { cid: "abcdef0123456789", center: { lat: 49.28, lng: -123.12 }, range: "walk10" } });
   expect(res.status()).toBe(401);
+  const solo = await request.post("/eat/api/solo", { data: { center: { lat: 49.28, lng: -123.12 }, range: "any", answers: { mood: "warm", side: "chinese" } } });
+  expect(solo.status()).toBe(401);
+});
+
+test("one person picks alone: five questions, three places with reasons, another three, choose one", async ({ browser }) => {
+  const me = await phone(browser, "solo");
+  const page = me.page;
+  await page.goto("/eat/");
+  await expect(page.getByText("一个人，不知道吃什么？")).toBeVisible();
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: "solo-1", name: "小雨" } })).ok()).toBeTruthy();
+  await page.reload();
+  await page.getByRole("button", { name: "帮我挑" }).click();
+  await expect(page).toHaveURL(/\/eat\/solo$/);
+
+  await expect(page.getByRole("heading", { name: "现在想吃点什么感觉的？" })).toBeVisible();
+  await page.getByRole("button", { name: /热乎乎的/ }).click();
+  await expect(page.getByRole("heading", { name: "想吃哪边的？" })).toBeVisible();
+  await page.getByRole("button", { name: /^中餐/ }).click();
+  await page.getByRole("button", { name: "$35 以内" }).click();
+
+  // Where and how far: the tabs switch the minutes; "any" covers Greater Vancouver.
+  await expect(page.getByRole("heading", { name: "在哪儿，多远？" })).toBeVisible();
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "🌏 不限" }).click();
+  await expect(page.getByText("整个大温都算")).toBeVisible();
+  await page.getByRole("button", { name: "🚗 开车" }).click();
+  await page.getByRole("button", { name: "开车 25 分钟" }).click();
+  await expect(page.getByRole("button", { name: "开车 25 分钟" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "下一步" }).click();
+
+  await expect(page.getByRole("heading", { name: "有什么不吃的吗？" })).toBeVisible();
+  await page.locator(".diet .btn.primary").click();
+
+  await expect(page.getByRole("heading", { name: "给你挑了这几家" })).toBeVisible();
+  const cards = page.locator(".place");
+  await expect(cards).toHaveCount(3);
+  await expect(page.locator(".reason").first()).toBeVisible();
+  // The made-up pick and description show in demo mode, so every part of a card is exercised.
+  await expect(page.getByText("示例推荐：虾饺皮薄，周末早点去")).toBeVisible();
+  await expect(page.getByText("示例：推车点心，周末一早就满座")).toBeVisible();
+  const first = await cards.locator("h3").allTextContents();
+  await page.getByRole("button", { name: "换一批" }).click();
+  await expect(cards).toHaveCount(2);
+  const second = await cards.locator("h3").allTextContents();
+  expect(second.some((n) => first.includes(n))).toBe(false);
+  await expect(page.getByText("附近就这些了")).toBeVisible();
+
+  await cards.first().getByRole("button", { name: "就它了" }).click();
+  await expect(page.getByRole("heading", { name: "就吃这家！" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "发给朋友" })).toBeVisible();
+  expect(me.errors).toEqual([]);
 });
 
 test("the privacy and terms pages are public and linked from the home page", async ({ page, request }) => {

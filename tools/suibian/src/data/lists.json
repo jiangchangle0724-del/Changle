@@ -1,0 +1,11 @@
+{
+  "about": "Greater Vancouver restaurant lists and awards, as facts only: which list, which award, which year, and the page that says so. No reviews or descriptions copied from the sources. Compiled by hand (or by Codex); see README.md, 'Cards: descriptions, lists and picks'.",
+  "updated": "2026-11-01",
+  "sources": {
+    "michelin": { "zh": "米其林指南", "en": "MICHELIN Guide", "url": "https://guide.michelin.com/ca/en/british-columbia/vancouver/restaurants" },
+    "vanmag": { "zh": "Vancouver Magazine 餐厅大奖", "en": "Vancouver Magazine Restaurant Awards", "url": "https://www.vanmag.com/restaurant-awards" },
+    "canada100": { "zh": "加拿大百佳餐厅", "en": "Canada's 100 Best", "url": "https://canadas100best.com" },
+    "cra": { "zh": "温哥华中餐大奖", "en": "Chinese Restaurant Awards", "url": "https://www.chineserestaurantawards.com" }
+  },
+  "places": []
+}
