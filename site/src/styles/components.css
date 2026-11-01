@@ -831,3 +831,8 @@
   align-items: center;
   gap: 12px;
 }
+
+/* a link dressed as a button reads as a button, not as underlined text */
+a.btn {
+  text-decoration: none;
+}

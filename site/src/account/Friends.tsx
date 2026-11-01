@@ -89,7 +89,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
           {found.map((u) => (
             <li key={u.id} className="person">
               <a className="person-main" href={`#/u/${u.id}`}>
-                <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={44} />
+                <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={44} frame={u.frame} />
                 <span>
                   <strong>{u.name}</strong>
                   <small>{u.city}</small>
@@ -121,7 +121,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
             {lists.incoming.map((u) => (
               <li key={u.id} className="person">
                 <a className="person-main" href={`#/u/${u.id}`}>
-                  <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={44} />
+                  <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={44} frame={u.frame} />
                   <span>
                     <strong>{u.name}</strong>
                     <small>{u.city}</small>
@@ -149,7 +149,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
             {lists?.friends.map((u) => (
               <li key={u.id} className="person">
                 <a className="person-main" href={`#/chat/${u.id}`}>
-                  <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={46} />
+                  <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={46} frame={u.frame} />
                   <span>
                     <strong>{u.name}</strong>
                     <small className={u.unread ? "is-unread" : ""}>{u.last ? `${u.last.from === me?.id ? (zh ? "你：" : "You: ") : ""}${u.last.body}` : zh ? "打个招呼" : "Say hi"}</small>
@@ -172,7 +172,7 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
             {lists.outgoing.map((u) => (
               <li key={u.id} className="person">
                 <a className="person-main" href={`#/u/${u.id}`}>
-                  <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={40} />
+                  <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={40} frame={u.frame} />
                   <span>
                     <strong>{u.name}</strong>
                     <small>{u.city}</small>

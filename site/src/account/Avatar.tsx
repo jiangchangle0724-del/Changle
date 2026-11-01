@@ -20,8 +20,10 @@ export function colorFor(seed: string) {
  * A round face: the profile photo when there is one, otherwise the first letter on a gel color.
  * `uid` + `av` (avatar version) point at the photo; `ac` picks the color.
  */
-export function Avatar({ uid, name, av = 0, ac, size = 40, className = "" }: { uid?: string; name: string; av?: number; ac?: number; size?: number; className?: string }) {
+export function Avatar({ uid, name, av = 0, ac, size = 40, className = "", frame }: { uid?: string; name: string; av?: number; ac?: number; size?: number; className?: string; frame?: string }) {
   const [broken, setBroken] = useState(false);
+  // (a reward frame: "gold" for someone whose wished-for game went live)
+  if (frame === "gold") className = `${className} avatar-gold`;
   const color = AV_COLORS[(ac ?? colorFor(uid || name)) % AV_COLORS.length];
   const style = { width: size, height: size, fontSize: Math.round(size * 0.42), ["--av" as string]: color } as React.CSSProperties;
   if (uid && av > 0 && !broken)

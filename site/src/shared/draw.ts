@@ -85,8 +85,14 @@ export const OUTFITS = [
   c("kurta", "库尔塔", "Kurta", "a South Asian kurta with loose trousers"),
   c("ankara", "非洲印花", "Ankara print", "a West African Ankara wax-print outfit"),
   c("kilt", "苏格兰裙", "Kilt", "a Scottish tartan kilt outfit"),
+  // limited: for whoever wished for a game that went live (the wishlist's reward)
+  c("gala", "金色礼服", "Gold gala look", "a dazzling gold sequined gala outfit with a satin sash, red-carpet glamour"),
+  c("streetx", "限量潮牌套装", "Limited streetwear drop", "a limited-edition designer streetwear set: an oversized jacket with bold abstract graphics (no logos or brand names), cargo pants and chunky sneakers"),
+  c("royal", "王室礼服", "Royal attire", "a regal velvet royal outfit with gold embroidery and a short ermine-trimmed cape"),
 ];
 export const EVERYDAY = ["hoodie", "tee", "bomber", "denim", "suit", "sweater", "dress", "track", "puffer", "overalls"];
+/** Outfits only for the wishlist's reward: someone whose wish for a game went live. */
+export const LIMITED = ["gala", "streetx", "royal"];
 export const TRADITIONAL = ["qipao", "tang", "hanfu", "hanbok", "kimono", "aodai", "sari", "kurta", "ankara", "kilt"];
 
 export const CLOTH_COLORS = [

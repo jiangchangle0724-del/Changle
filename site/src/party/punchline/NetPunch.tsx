@@ -13,6 +13,7 @@ import { PromptCard } from "./parts";
 import { Stage, type Who } from "./show/Stage";
 import { useWho } from "./show/who";
 import "../../styles/party.css";
+import { Moment } from "../../components/Figure";
 
 const SIDE = ["#e765f0", "#31b9ff"];
 const FINAL_COLORS = ["#e765f0", "#31b9ff", "#ffb82e", "#4be38f", "#ff6b5e", "#8c86ff", "#2ed3d9", "#f5df3b"];
@@ -242,7 +243,7 @@ function ResultPad({ v, m }: { v: PunchView; m: PunchMatch }) {
 const STANDINGS_AT = 3000; // the TV's score race reorders at 3 seconds
 
 function StandingPad({ v, who, end = false }: { v: PunchView; who: Who; end?: boolean }) {
-  const { me } = useRoom();
+  const { me, room } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
   const out = useReached(v.phaseAt + (end ? 2200 : STANDINGS_AT));
@@ -256,8 +257,10 @@ function StandingPad({ v, who, end = false }: { v: PunchView; who: Who; end?: bo
       </div>
     );
   const leader = ranked[0];
+  const leaderSeat = end && leader ? room?.seats.find((s) => s.id === leader) : undefined;
   return (
     <div className="pc-pad">
+      {leaderSeat && <Moment seat={leaderSeat} kind="winner" />}
       {playing ? (
         <>
           <p className="pc-place tabular">

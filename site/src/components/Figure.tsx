@@ -18,7 +18,7 @@ export function Figure({ seat, className = "" }: { seat: SeatView; className?: s
       ) : (
         <span className="fig-token">
           <span className="fig-token-head">
-            <Avatar uid={seat.uid} name={seat.name} av={seat.av ?? 0} ac={seat.uid ? seat.ac : colorFor(seat.id)} size={64} />
+            <Avatar uid={seat.uid} name={seat.name} av={seat.av ?? 0} ac={seat.uid ? seat.ac : colorFor(seat.id)} size={64} frame={seat.fr} />
           </span>
           <svg className="fig-token-body" viewBox="0 0 60 56" aria-hidden="true">
             <g stroke="rgba(14,12,34,0.55)" strokeWidth="2.2">
@@ -134,8 +134,8 @@ export function RoomFigures({ seats, host }: { seats: SeatView[]; host: string }
 }
 
 /** idle: standing; dance: dancing; frozen: stopped dead, a frosty glint; caught: moved, toppling grey;
- *  lean: leaning back (limbo, by --lean); pass: made it; fail: fell over */
-export type Pose = "idle" | "dance" | "frozen" | "caught" | "lean" | "pass" | "fail";
+ *  lean: leaning back (limbo, by --lean); pass: made it; fail: fell over; cheers: raising a glass */
+export type Pose = "idle" | "dance" | "frozen" | "caught" | "lean" | "pass" | "fail" | "cheers";
 
 /** People in a row, each doing what the game has them doing (dancing, frozen, leaning back...). */
 export function Lineup({ items, lean = 0, className = "" }: { items: { seat: SeatView; pose: Pose }[]; lean?: number; className?: string }) {

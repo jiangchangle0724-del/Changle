@@ -261,7 +261,7 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
             )}
             {lines?.length === 0 && other && (
               <li className="chat-hello">
-                <Avatar uid={other.id} name={other.name} av={other.av} ac={other.ac} size={72} />
+                <Avatar uid={other.id} name={other.name} av={other.av} ac={other.ac} size={72} frame={other.frame} />
                 <p>{zh ? `和 ${other.name} 打个招呼` : `Say hi to ${other.name}`}</p>
                 <div className="picker chat-ideas">
                   {ideas.map((t) => (
@@ -369,7 +369,7 @@ function ChatHead({ onBack, user }: { onBack: () => void; user?: PublicUser | nu
       </button>
       {user && (
         <a className="chat-who" href={`#/u/${user.id}`}>
-          <Avatar uid={user.id} name={user.name} av={user.av} ac={user.ac} size={36} />
+          <Avatar uid={user.id} name={user.name} av={user.av} ac={user.ac} size={36} frame={user.frame} />
           <span>
             <strong>{user.name}</strong>
             <small>{user.city}</small>

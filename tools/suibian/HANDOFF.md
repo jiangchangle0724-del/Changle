@@ -107,8 +107,11 @@ All merged into `main`:
   minutes, last-order times, phone and map links.
 * The two things seen in that check (hotels such as Fairmont Hotel Vancouver coming up as cards, and
   a stray " · " at the end of the wait line) were fixed in #41.
-* Google's one-line descriptions: most places have one only in English, so a Chinese-language table
-  shows the English one (from the details request, at no extra cost) when the search had none.
+* Google's one-line descriptions: well-known places often have one in Chinese too, others only in
+  English, many none at all. A Chinese-language table shows the English one (from the details
+  request, at no extra cost) when the search had none. Checked live on 2026-10-31 with a Downtown
+  solo pick in Chinese: Joe Fortes, Cardero's and Social Corner kept Google's Chinese line, Mr.
+  Shawarma got the English one, Breka and Cactus Club have none.
 
 ## Open items
 
