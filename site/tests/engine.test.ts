@@ -577,6 +577,54 @@ test("limbo: lean to pass, miss and drink, last one wins", () => {
   ok(v.phase === "end" && v.winner === "p1", "time up: p0 misses, p1 wins");
 });
 
+test("limbo blind: lean to the target unseen, furthest off drinks and goes, last one wins", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p1", "mode", { mode: "blind" });
+  ok(t.view<V<"limbo">>("p0").mode === "classic", "only the host picks the mode");
+  t.g("p0", "mode", { mode: "blind" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
+  t.g("p0", "go");
+  let v = t.view<V<"limbo">>("p3");
+  ok(v.phase === "go" && v.mode === "blind", "blind round on");
+  ok(!v.alive.includes("p3") && v.alive.length === 3, "a phone that can't measure watches this game");
+  const target = v.angle;
+  ok(target >= 25 && target <= 60, "a moderate target");
+  t.advance(3600);
+  t.g("p0", "lock", { deg: target - 2 });
+  t.g("p1", "lock", { deg: target + 5 });
+  v = t.view<V<"limbo">>("p2");
+  ok(v.locked.length === 2 && Object.keys(v.locks).length === 0, "who locked shows, how far stays hidden");
+  t.g("p0", "lock", { deg: 10 });
+  t.g("p2", "lock", { deg: target - 12 });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "result" && v.out.includes("p2") && v.locks.p0 === target - 2, "furthest off is out; a second lock doesn't count");
+  t.advance(700);
+  ok(t.pens().some((p) => p.who.includes("p2") && !p.who.includes("p0")), "p2 drinks");
+  t.advance(6400);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "go" && v.angle !== target, "a new target");
+  t.advance(3600);
+  t.g("p0", "lock", { deg: v.angle + 1 });
+  t.advance(16_000);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "end" && v.winner === "p0", "time up: no lock is the furthest off, p0 wins");
+});
+
+test("limbo blind: needs two phones that can measure, and the classic moves don't count", () => {
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "mode", { mode: "blind" });
+  t.g("p0", "sensor", { on: true });
+  t.g("p0", "go");
+  ok(t.view<V<"limbo">>("p0").phase === "ready", "only one phone can measure: no start");
+  t.g("p1", "sensor", { on: true });
+  t.g("p0", "go");
+  t.advance(3600);
+  t.g("p0", "pass", { deg: 80 });
+  ok(t.view<V<"limbo">>("p0").phase === "go", "pass is a classic move, ignored in blind");
+});
+
 test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
