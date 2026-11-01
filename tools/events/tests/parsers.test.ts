@@ -4,14 +4,14 @@ import vpl from "./fixtures/bibliocommons/vpl-2026-10-31-p1.json?raw";
 import { describe, expect, it } from "vitest";
 import { areaOf } from "../src/area";
 import { parseTicketmaster, tmCategory } from "../src/parsers/ticketmaster";
-import { SOURCE_BY_ID } from "../src/sources";
+import { SOURCE_BY_ID, type Parsed } from "../src/sources";
 import { venueId } from "../src/store";
 import { windowOf } from "../src/time";
 
 const w = { runId: "2026-10-31", ...windowOf("2026-10-31") };
 
 describe("Luma (iCal)", () => {
-  const { events } = SOURCE_BY_ID["luma-vancouver"].parse(luma, 0, w);
+  const { events } = SOURCE_BY_ID["luma-vancouver"].parse(luma, 0, w) as Parsed;
   it("reads every event, with the page to send people to", () => {
     expect(events).toHaveLength(15);
     const halloween = events.find((e) => e.title === "Ocean Theme Halloween!")!;
@@ -33,7 +33,7 @@ describe("Luma (iCal)", () => {
 });
 
 describe("Vancouver Public Library (BiblioCommons)", () => {
-  const { events, more } = SOURCE_BY_ID.vpl.parse(vpl, 0, w);
+  const { events, more } = SOURCE_BY_ID.vpl.parse(vpl, 0, w) as Parsed;
   it("reads the page oldest first and asks for the next while still inside the window", () => {
     expect(events).toHaveLength(40);
     expect(more).toBe(true);

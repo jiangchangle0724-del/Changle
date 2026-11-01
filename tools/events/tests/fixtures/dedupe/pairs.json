@@ -1,0 +1,245 @@
+{
+ "about": "30 title pairs for normalize(), similarity() and fingerprint() (task C4), all on the same day at the same venue. expect: same (the sorted normalised words are equal: one fingerprint), suspect (not the same, similarity at least 0.85: the review queue), different. similarity is given to three places; normalizedA/B are the sorted unique words. The exact rules are in docs/codex-tasks/C4-dedupe.md.",
+ "pairs": [
+  {
+   "a": "Vancouver Canucks vs. Calgary Flames",
+   "b": "Vancouver Canucks vs Calgary Flames",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "calgary canucks flames",
+   "normalizedB": "calgary canucks flames"
+  },
+  {
+   "a": "Calgary Flames at Vancouver Canucks",
+   "b": "Vancouver Canucks vs. Calgary Flames",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "calgary canucks flames",
+   "normalizedB": "calgary canucks flames"
+  },
+  {
+   "a": "SYML",
+   "b": "SYML - Tickets",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "syml",
+   "normalizedB": "syml"
+  },
+  {
+   "a": "The Nutcracker 2026",
+   "b": "The Nutcracker",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "nutcracker",
+   "normalizedB": "nutcracker"
+  },
+  {
+   "a": "Diwali Fest Vancouver",
+   "b": "Diwali Fest",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "diwali fest",
+   "normalizedB": "diwali fest"
+  },
+  {
+   "a": "ROCK THE SHORES",
+   "b": "Rock the Shores",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "rock shores",
+   "normalizedB": "rock shores"
+  },
+  {
+   "a": "Café Concert Series",
+   "b": "Cafe Concert Series",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "cafe concert series",
+   "normalizedB": "cafe concert series"
+  },
+  {
+   "a": "Lunar New Year Parade 2027 — Chinatown",
+   "b": "Lunar New Year Parade, Chinatown",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "chinatown lunar new parade year",
+   "normalizedB": "chinatown lunar new parade year"
+  },
+  {
+   "a": "Holiday Market (Indoor)",
+   "b": "Holiday Market Indoor",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "holiday indoor market",
+   "normalizedB": "holiday indoor market"
+  },
+  {
+   "a": "中文 读书会",
+   "b": "中文读书会",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "中文读书会",
+   "normalizedB": "中文读书会"
+  },
+  {
+   "a": "温哥华中文读书会",
+   "b": "中文读书会",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "中文读书会",
+   "normalizedB": "中文读书会"
+  },
+  {
+   "a": "Tickets: Jazz at the Orpheum",
+   "b": "Jazz at the Orpheum",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "jazz orpheum",
+   "normalizedB": "jazz orpheum"
+  },
+  {
+   "a": "Canucks vs Flames",
+   "b": "Vancouver Canucks vs. Calgary Flames",
+   "expect": "suspect",
+   "similarity": 1.0,
+   "normalizedA": "canucks flames",
+   "normalizedB": "calgary canucks flames"
+  },
+  {
+   "a": "SYML: Beard Tour",
+   "b": "SYML",
+   "expect": "suspect",
+   "similarity": 1.0,
+   "normalizedA": "beard syml tour",
+   "normalizedB": "syml"
+  },
+  {
+   "a": "Family Storytime",
+   "b": "Family Story Time",
+   "expect": "suspect",
+   "similarity": 0.97,
+   "normalizedA": "family storytime",
+   "normalizedB": "family story time"
+  },
+  {
+   "a": "Mahjong 101 - Intro to Mahjong",
+   "b": "Lucky Tile Mahjong 101 - Intro to Mahjong",
+   "expect": "suspect",
+   "similarity": 1.0,
+   "normalizedA": "101 intro mahjong to",
+   "normalizedB": "101 intro lucky mahjong tile to"
+  },
+  {
+   "a": "The Funk Hunters - Funk The Halls",
+   "b": "Funk Hunters: Funk the Halls (Night 2)",
+   "expect": "suspect",
+   "similarity": 1.0,
+   "normalizedA": "funk halls hunters",
+   "normalizedB": "2 funk halls hunters night"
+  },
+  {
+   "a": "Arch Enemy & The Black Dahlia Murder",
+   "b": "Arch Enemy and The Black Dahlia Murder: Wrath Tour",
+   "expect": "suspect",
+   "similarity": 1.0,
+   "normalizedA": "arch black dahlia enemy murder",
+   "normalizedB": "arch black dahlia enemy murder tour wrath"
+  },
+  {
+   "a": "Stand-up Comedy Open Mic",
+   "b": "Stand Up Comedy Open-Mic Night",
+   "expect": "suspect",
+   "similarity": 1.0,
+   "normalizedA": "comedy mic open stand up",
+   "normalizedB": "comedy mic night open stand up"
+  },
+  {
+   "a": "Winter Night Market",
+   "b": "Winter Night Markets",
+   "expect": "suspect",
+   "similarity": 0.974,
+   "normalizedA": "market night winter",
+   "normalizedB": "markets night winter"
+  },
+  {
+   "a": "Baby Stay and Play",
+   "b": "Baby Stay & Play",
+   "expect": "same",
+   "similarity": 1.0,
+   "normalizedA": "baby play stay",
+   "normalizedB": "baby play stay"
+  },
+  {
+   "a": "Family Storytime",
+   "b": "Toddler Storytime",
+   "expect": "different",
+   "similarity": 0.72,
+   "normalizedA": "family storytime",
+   "normalizedB": "storytime toddler"
+  },
+  {
+   "a": "Canucks vs Flames",
+   "b": "Canucks vs Oilers",
+   "expect": "different",
+   "similarity": 0.786,
+   "normalizedA": "canucks flames",
+   "normalizedB": "canucks oilers"
+  },
+  {
+   "a": "Mandarin Conversation Circle",
+   "b": "Cantonese Conversation Circle",
+   "expect": "different",
+   "similarity": 0.809,
+   "normalizedA": "circle conversation mandarin",
+   "normalizedB": "cantonese circle conversation"
+  },
+  {
+   "a": "ESL Book Club",
+   "b": "Teen Book Club",
+   "expect": "different",
+   "similarity": 0.818,
+   "normalizedA": "book club esl",
+   "normalizedB": "book club teen"
+  },
+  {
+   "a": "Diwali Fest",
+   "b": "Diwali Lights Walk",
+   "expect": "different",
+   "similarity": 0.706,
+   "normalizedA": "diwali fest",
+   "normalizedB": "diwali lights walk"
+  },
+  {
+   "a": "Halloween Party",
+   "b": "Halloween Pet Parade",
+   "expect": "different",
+   "similarity": 0.8,
+   "normalizedA": "halloween party",
+   "normalizedB": "halloween parade pet"
+  },
+  {
+   "a": "Jazz Night",
+   "b": "Blues Night",
+   "expect": "different",
+   "similarity": 0.667,
+   "normalizedA": "jazz night",
+   "normalizedB": "blues night"
+  },
+  {
+   "a": "Science World After Dark: Space",
+   "b": "Science World After Dark: Oceans",
+   "expect": "suspect",
+   "similarity": 0.889,
+   "normalizedA": "after dark science space world",
+   "normalizedB": "after dark oceans science world"
+  },
+  {
+   "a": "中文读书会",
+   "b": "英文读书会",
+   "expect": "different",
+   "similarity": 0.8,
+   "normalizedA": "中文读书会",
+   "normalizedB": "英文读书会"
+  }
+ ]
+}

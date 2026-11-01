@@ -101,7 +101,7 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
       log.bytes = raw.length;
       log.rawKey = `raw:${args.runId}:${src.id}:${args.part}`;
       await env.CACHE.put(log.rawKey, raw, { expirationTtl: RAW_TTL });
-      const { events, more } = src.parse(raw, args.part, win);
+      const { events, more } = await src.parse(raw, args.part, win);
       log.found = events.length;
       const inWindow = events.filter((e) => startMs(e) < win.toMs && endMs(e) >= win.fromMs);
       log.inWindow = inWindow.length;

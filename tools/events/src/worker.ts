@@ -2,8 +2,10 @@
 // gathers the next 14 days (src/run.ts) and publishes them to KV (src/publish.ts); the API reads
 // that one file, so it answers at once. The page itself comes after gate A (docs/whats-on-v2.md).
 //   GET /go/api/events   the events, filtered: from, to (YYYY-MM-DD), cat, area, tag (comma lists)
+//   GET /go/api/events.ics  the same, as a calendar to subscribe to (task C6)
 //   GET /go/api/status   the last run, step by step (the fetch log), and what's published
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { toIcs } from "./ics";
 import { LIVE_KEY, publish } from "./publish";
 import { fetchStep, runDay, type StepArgs } from "./run";
 import { ensureSchema } from "./schema";
@@ -30,7 +32,7 @@ function pick<T extends string>(value: string | null, allowed: readonly T[]): T[
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-async function listEvents(url: URL, env: Env): Promise<Response> {
+async function listEvents(url: URL, env: Env, ics = false): Promise<Response> {
   const pub = await env.CACHE.get<Published>(LIVE_KEY, { type: "json", cacheTtl: 60 });
   if (!pub) return json({ error: "not ready" }, 503);
   const q = url.searchParams;
@@ -48,6 +50,12 @@ async function listEvents(url: URL, env: Env): Promise<Response> {
       (!areas.length || (e.area && areas.includes(e.area))) &&
       tags.every((t) => (t === "featured" ? e.featured : t === "free" ? e.isFree === true || e.tags.includes("free") : e.tags.includes(t))),
   );
+  if (ics) {
+    const name = ["玩什么 · What's On", ...cats, ...areas, ...tags].join(" · ");
+    const text = toIcs(events, { name, now: new Date() });
+    if (text === null) return json({ error: "not built yet" }, 501);
+    return new Response(text, { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "public, max-age=1800", "access-control-allow-origin": "*" } });
+  }
   return json({ runId: pub.runId, generatedAt: pub.generatedAt, from, to, count: events.length, events }, 200, "public, max-age=300, stale-while-revalidate=3600");
 }
 
@@ -77,6 +85,7 @@ export default {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (path === "/go/api/events") return listEvents(url, env);
+    if (path === "/go/api/events.ics") return listEvents(url, env, true);
     if (path === "/go/api/status") return status(env);
     if (path === "/go") return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
     return json({ error: "not found" }, 404);
