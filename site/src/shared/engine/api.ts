@@ -36,6 +36,8 @@ export interface GameDef<S> {
   timer?(s: S, key: string, data: unknown, api: Api): void;
   join?(s: S, pid: string, api: Api): void;
   leave?(s: S, pid: string, api: Api): void;
+  /** A seated player's phone dropped off (on: false) or came back (on: true) mid-game. */
+  presence?(s: S, pid: string, on: boolean, api: Api): void;
   canStroke?(s: S, pid: string): boolean;
 }
 

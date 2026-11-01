@@ -996,6 +996,33 @@ test("euchre: moving seats, first to five, sorted hands", () => {
   ok(sortHand(["9D", "AC", "KH", "JS", "QS"], "C").join(" ") === "JS AC KH QS 9D", "black trump: clubs, hearts, spades, diamonds");
 });
 
+test("euchre: a phone that drops on its turn gets the computer after 15 s, one that's back gets 75 s", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "euchre" });
+  t.g("p0", "start");
+  const at = () => {
+    const v = t.view<V<"euchre">>("p0");
+    return { phase: v.phase, turn: v.turn, pid: v.seats[v.turn].pid };
+  };
+  const a = at();
+  ok(a.phase === "bid1" && a.pid, "a person bids first");
+  t.advance(20_000);
+  ok(at().turn === a.turn, "an open phone isn't hurried after 20 s");
+  t.eng.setOnline(a.pid!, false);
+  t.eng.flush();
+  t.advance(16_000);
+  const b = at();
+  ok(b.turn !== a.turn, "dropped on its turn: the computer has played for it within 16 s");
+  // the next one drops and comes straight back: the usual time again
+  t.eng.setOnline(b.pid!, false);
+  t.eng.flush();
+  t.advance(5_000);
+  ok(t.eng.hello(b.pid!, "Back", false) === null, "back at the table");
+  t.eng.flush();
+  t.advance(20_000);
+  ok(at().turn === b.turn, "back in time: not hurried");
+});
+
 test("player ids: plain characters, never an object's own key", () => {
   const e = new RoomEngine(freshRoom("ABCD", clock), host);
   ok(e.hello("constructor", "x", true) === "bad", "constructor refused");
