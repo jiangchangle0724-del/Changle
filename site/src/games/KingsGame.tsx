@@ -51,7 +51,12 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
     }, 420);
   };
 
+  // once per player: a double tap on 记住了 (the card still fading out takes the second tap) must
+  // not skip the next player, who would never see their number
+  const confirmed = useRef(-1);
   const confirm = () => {
+    if (confirmed.current === dealIndex) return;
+    confirmed.current = dealIndex;
     setTaken((t) => [...t, pulled!]);
     setPulled(null);
     setRevealed(false);
@@ -70,6 +75,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
 
   const newRound = () => {
     setTokens(deal(players.length));
+    confirmed.current = -1;
     setDealIndex(0);
     setTaken([]);
     setPulled(null);

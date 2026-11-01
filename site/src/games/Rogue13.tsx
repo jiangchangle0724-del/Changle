@@ -24,6 +24,8 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
   const rule = card ? RULE_BY_RANK[card.rank] : null;
 
   const draw = () => {
+    // one card at a time: a double tap on the deck lands on the card still turning over
+    if (card) return;
     const { card: c, reshuffled: r } = deck.current.draw();
     setReshuffled(r);
     if (r) setHolders({});
@@ -99,7 +101,7 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="card-stage">
-        <PlayingCard card={card} onDraw={draw} drawLabel={lang === "zh" ? "抽牌" : "Draw"} />
+        <PlayingCard card={card} onDraw={draw} canDraw={!card} drawLabel={lang === "zh" ? "抽牌" : "Draw"} />
       </div>
 
       <AnimatePresence mode="wait">
