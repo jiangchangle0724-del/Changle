@@ -1,5 +1,9 @@
 {
   // 开席 rooms: the online-table server. Deployed to the same Cloudflare account as the site.
+  // Cloudflare builds it from GitHub on every merge into main that touches worker/, src/shared/,
+  // src/data/, src/i18n.ts or package-lock.json (root /site, deploy command
+  // `npx wrangler deploy -c worker/wrangler.jsonc`). If it starts bundling another file, add that
+  // path to the Worker's build watch paths too.
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "changle-rooms",
   "main": "index.ts",

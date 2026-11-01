@@ -1,0 +1,17 @@
+# Settings for running 随便 on your computer with Google switched on. Copy this file to .dev.vars
+# (git-ignored) and fill in your own values; wrangler dev reads it. Never commit real values: on
+# changle.ca they live only in Cloudflare (Worker suibian → Settings → Variables and Secrets).
+#
+# Leave a value empty (or don't make .dev.vars at all) and the tool runs on made-up demo
+# restaurants with no sign-in, which is the usual way to work on it.
+#
+# Signing in locally also needs http://localhost:8787/eat/auth/callback added to the OAuth
+# client's Authorized redirect URIs in Google Cloud; only the changle.ca address is there now.
+
+# Google sign-in (all three, or none)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SESSION_SECRET=
+
+# Real restaurants (Places API (New)); used only when sign-in is set up too
+GOOGLE_PLACES_KEY=
