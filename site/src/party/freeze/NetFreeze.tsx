@@ -13,6 +13,7 @@ import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useMotionWatch, useSensorStatus, useStillness, useWakeLock } from "../sensors";
 import { DanceFloor, FreezeFlash, StillMeter } from "./parts";
 import "../../styles/party.css";
+import { Lineup, Moment } from "../../components/Figure";
 
 const GRACE_MS = 700;
 
@@ -139,6 +140,14 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
           </>
         )}
 
+        {(v.phase === "dance" || v.phase === "freeze" || v.phase === "result") && (
+          <Lineup
+            items={[...v.alive, ...(v.phase === "result" ? v.moved.filter((id) => !v.alive.includes(id)) : [])]
+              .filter((id) => seat(id))
+              .map((id) => ({ seat: seat(id)!, pose: v.phase === "dance" ? "dance" : v.moved.includes(id) ? "caught" : "frozen" }))}
+          />
+        )}
+
         {v.phase === "dance" && (
           <>
             <DanceFloor groove={v.groove}>
@@ -207,9 +216,9 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
         {v.phase === "end" && (
           <div className="fz-result">
             <p className="fz-result-title">{zh ? "最后的舞王" : "Last one dancing"}</p>
+            {v.winner && seat(v.winner) && <Moment seat={seat(v.winner)!} kind="winner" />}
             {v.winner && (
               <span className="fz-face is-winner">
-                <SeatFace seat={seat(v.winner)} size={96} />
                 <Crown size={22} className="fz-crown" />
                 <strong>{v.winner === me ? (zh ? "你" : "You") : nameOf(v.winner)}</strong>
               </span>

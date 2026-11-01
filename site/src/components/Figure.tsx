@@ -57,15 +57,30 @@ export function Confetti({ n = 14, className = "" }: { n?: number; className?: s
   );
 }
 
-export type MomentKind = "king" | "winner" | "out";
+export type MomentKind = "king" | "winner" | "out" | "picked";
 
 /**
  * One person's moment on a small lit stage: the king on a throne with a crown, an award winner
  * with a sash and confetti, the one voted out under a hard spotlight with what they really were.
  */
-export function Moment({ seat, kind, tag, tagTone = "neutral", caught }: { seat: SeatView; kind: MomentKind; tag?: string; tagTone?: "bad" | "good" | "neutral"; caught?: boolean }) {
+export function Moment({
+  seat,
+  kind,
+  tag,
+  tagTone = "neutral",
+  caught,
+  small,
+}: {
+  seat: SeatView;
+  kind: MomentKind;
+  tag?: string;
+  tagTone?: "bad" | "good" | "neutral";
+  caught?: boolean;
+  /** a smaller stage, where the game needs the room (the bottle's in Truth or Dare) */
+  small?: boolean;
+}) {
   return (
-    <div className={`moment moment-${kind} ${caught ? "is-caught" : ""}`} aria-hidden="true">
+    <div className={`moment moment-${kind} ${caught ? "is-caught" : ""} ${small ? "is-sm" : ""}`} aria-hidden="true">
       <span className="moment-beam" />
       <span className="moment-floor" />
       {kind === "king" && (
@@ -112,6 +127,30 @@ export function RoomFigures({ seats, host }: { seats: SeatView[]; host: string }
             </svg>
           )}
           <Figure seat={s} />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** idle: standing; dance: dancing; frozen: stopped dead, a frosty glint; caught: moved, toppling grey;
+ *  lean: leaning back (limbo, by --lean); pass: made it; fail: fell over */
+export type Pose = "idle" | "dance" | "frozen" | "caught" | "lean" | "pass" | "fail";
+
+/** People in a row, each doing what the game has them doing (dancing, frozen, leaning back...). */
+export function Lineup({ items, lean = 0, className = "" }: { items: { seat: SeatView; pose: Pose }[]; lean?: number; className?: string }) {
+  if (!items.length) return null;
+  return (
+    <div className={`lineup ${items.length > 7 ? "is-crowded" : ""} ${className}`} aria-hidden="true" style={{ ["--lean" as string]: `${-lean}deg` }}>
+      {items.map(({ seat, pose }, i) => (
+        <span key={seat.id} className="lineup-fig" data-pose={pose} style={{ ["--i" as string]: i }}>
+          <Figure seat={seat} />
+          {pose === "pass" && (
+            <svg className="lineup-badge" viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="10" fill="var(--go)" />
+              <path d="M5.5 10.5 L8.6 13.4 L14.5 7" fill="none" stroke="var(--night)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </span>
       ))}
     </div>

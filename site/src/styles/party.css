@@ -3421,3 +3421,22 @@ button.ecard.is-legal:active {
     transform: none;
   }
 }
+
+/* Post-it: the note stuck on a standing figure's forehead */
+.forehead.has-figure {
+  --fig-h: clamp(96px, 28vw, 124px);
+}
+.forehead.has-figure .forehead-face {
+  display: block;
+  height: var(--fig-h);
+  margin-top: calc(var(--fig-h) * -0.2);
+  z-index: 0;
+}
+.forehead.has-figure .sticky {
+  position: relative;
+  z-index: 1;
+}
+.forehead.has-figure .forehead-check {
+  right: 2px;
+  bottom: 4px;
+}
