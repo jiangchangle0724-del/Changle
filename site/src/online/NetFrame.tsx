@@ -1,4 +1,4 @@
-import { ChevronLeft, CircleHelp, Users } from "lucide-react";
+import { ChevronLeft, CircleHelp, Eye, Users } from "lucide-react";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { GAME_BY_ID } from "../games/registry";
 import { setLight } from "../lib/anim";
@@ -37,8 +37,9 @@ export function NetFrame({
   /** The reactions row; the drawer's plate needs the room. */
   dock?: boolean;
 }) {
-  const { room } = useRoom();
-  const { ui } = useStore();
+  const { room, me, act } = useRoom();
+  const { ui, lang } = useStore();
+  const watching = !!room?.game && !!room.seats.find((s) => s.id === me)?.watch;
   const [tableOpen, setTableOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -73,6 +74,15 @@ export function NetFrame({
           </div>
         </header>
         <ConnectionBanner />
+        {watching && (
+          <div className="watch-strip" role="status">
+            <Eye size={15} aria-hidden="true" />
+            <span>{lang === "zh" ? "旁观中：这局你不参加，画面可以投到电视上" : "Watching: you sit this one out. Mirror this screen to a TV"}</span>
+            <button type="button" className="link-btn" onClick={() => act({ a: "watch", on: false })}>
+              {lang === "zh" ? "上桌" : "Play"}
+            </button>
+          </div>
+        )}
         <div className="game-body net-body">{children}</div>
         {dock && <ReactionDock />}
       </div>

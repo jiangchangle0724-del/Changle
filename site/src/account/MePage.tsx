@@ -9,7 +9,7 @@ import { useStore } from "../store";
 import { API } from "../config";
 import { useAccount, useLive, type SelfUser } from "./AccountContext";
 import type { Drawn } from "./avatar/Maker";
-import { blobToB64 } from "./avatar/pics";
+import { figureBody } from "./avatar/pics";
 import { Face } from "./avatar/Face";
 import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
@@ -88,7 +88,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
 
   const keepFigure = async (f: Drawn) => {
     try {
-      const body = { full: await blobToB64(f.full), round: await blobToB64(f.round), mime: "image/jpeg", choices: f.choices };
+      const body = await figureBody(f);
       const d = await api<{ user: SelfUser }>("/me/figure", { method: "PUT", body });
       setMe(d.user);
       sfx.pop();

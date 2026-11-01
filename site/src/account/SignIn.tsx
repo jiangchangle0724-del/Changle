@@ -7,7 +7,7 @@ import { savedName } from "../online/config";
 import { useStore } from "../store";
 import { useAccount, type SelfUser } from "./AccountContext";
 import type { Drawn } from "./avatar/Maker";
-import { blobToB64 } from "./avatar/pics";
+import { figureBody } from "./avatar/pics";
 import { ProfileForm, type FaceKind, type ProfileValues } from "./ProfileForm";
 
 type Step = { k: "email" } | { k: "code"; email: string; dev?: string } | { k: "profile"; email: string; ticket: string };
@@ -124,7 +124,7 @@ export function SignInSheet() {
       // the face: a drawn figure is kept even when the photo is what shows
       try {
         if (drawn) {
-          const body = { full: await blobToB64(drawn.full), round: await blobToB64(drawn.round), mime: "image/jpeg", choices: drawn.choices };
+          const body = await figureBody(drawn);
           signedIn(d.token, (await api<{ user: SelfUser }>("/me/figure", { method: "PUT", body })).user);
         }
         if (show === "photo" && photo) signedIn(d.token, (await api<{ user: SelfUser }>("/me/avatar", { method: "PUT", raw: photo, type: "image/jpeg" })).user);

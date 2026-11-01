@@ -30,8 +30,8 @@ import { b64ToBlob, blobToB64, finishFigure, photoForDrawing } from "./pics";
 /** The maker belongs to "me": the room's rose light. */
 const ROSE = "#ff9cc5";
 
-/** A drawing the player chose: the whole figure, its round crop, and what they picked. */
-export type Drawn = { full: Blob; round: Blob; choices: Choices };
+/** A drawing the player chose: the whole figure, its round crop, the figure alone (for the games' stages), and what they picked. */
+export type Drawn = { full: Blob; round: Blob; cut: Blob | null; choices: Choices };
 
 type Drawing = { blob: Blob; url: string; choices: Choices };
 type Tab = "style" | "hair" | "outfit" | "extras" | "backdrop";
@@ -271,8 +271,8 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
     if (!shown || saving) return;
     setSaving(true);
     try {
-      const { full, round } = await finishFigure(shown.blob);
-      onDone({ full, round, choices: shown.choices });
+      const { full, round, cut } = await finishFigure(shown.blob);
+      onDone({ full, round, cut, choices: shown.choices });
     } catch {
       setErr(zh ? "没存上，再试一次。" : "That didn't save. Try again.");
     } finally {

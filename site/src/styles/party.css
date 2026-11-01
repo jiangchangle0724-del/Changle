@@ -3175,3 +3175,309 @@ button.ecard.is-legal:active {
   align-items: center;
   gap: 6px;
 }
+
+/* ---------- the players on Name That Tune's stage ---------- */
+
+/* the row of players stands along the front edge; with them there the stage gets deeper, so the
+   two performers stand further back, behind them */
+.tn-stage {
+  --mate-h: clamp(62px, 19vw, 96px);
+}
+.tn-stage.has-crew {
+  padding-bottom: calc(16px + var(--mate-h) * 0.62);
+}
+.tn-stage.has-crew .tn-stage-floor {
+  height: calc(30px + var(--mate-h) * 0.55);
+}
+.tn-crew {
+  position: absolute;
+  left: 2%;
+  right: 2%;
+  bottom: 8px;
+  height: var(--mate-h);
+  z-index: 3;
+  pointer-events: none;
+}
+.tn-crew.is-crowded {
+  --mate-h: clamp(46px, 13vw, 70px);
+}
+
+.tn-mate {
+  --s: 1;
+  --lift: 0px;
+  position: absolute;
+  left: var(--x);
+  bottom: 0;
+  height: var(--mate-h);
+  transform: translateX(-50%) translateY(var(--lift)) scale(var(--s));
+  transform-origin: 50% 100%;
+  transition:
+    left 0.65s var(--ease-out),
+    transform 0.65s var(--ease-pop),
+    opacity 0.4s ease,
+    filter 0.4s ease;
+}
+.tn-mate.is-me {
+  z-index: 2;
+}
+/* buzzed in: up into the spotlight, in front of the record */
+.tn-mate[data-state="spot"] {
+  --s: 2.05;
+  --lift: -4px;
+  z-index: 6;
+}
+.tn-mate[data-state="win"] {
+  --s: 1.8;
+  --lift: -6px;
+  z-index: 6;
+}
+.tn-mate[data-state="dim"] {
+  opacity: 0.45;
+  filter: saturate(0.5);
+}
+.tn-mate[data-state="miss"] {
+  opacity: 0.72;
+  filter: grayscale(0.65) brightness(0.85);
+}
+/* the podium: first in the middle and highest */
+.tn-mate[data-state="first"] {
+  --s: 1.75;
+  --lift: calc(var(--mate-h) * -0.42);
+  z-index: 6;
+}
+.tn-mate[data-state="second"] {
+  --s: 1.4;
+  --lift: calc(var(--mate-h) * -0.26);
+  z-index: 5;
+}
+.tn-mate[data-state="third"] {
+  --s: 1.3;
+  --lift: calc(var(--mate-h) * -0.16);
+  z-index: 5;
+}
+
+.tn-mate-hop,
+.tn-mate-bob {
+  height: 100%;
+  transform-origin: 50% 100%;
+}
+/* everyone in the row bounces with the beat (the stage sets --beat every frame), every other one
+   leaning the other way, so the row moves like a crowd and not a drill */
+.tn-mate-bob {
+  transform: translateY(calc(var(--beat) * -7px)) rotate(calc(var(--beat) * 5deg * var(--dir))) scaleY(calc(1 - var(--beat) * 0.05));
+}
+.tn-mate[data-state="dim"] .tn-mate-bob,
+.tn-mate[data-state="miss"] .tn-mate-bob {
+  transform: none;
+}
+.tn-mate[data-state="spot"] .tn-mate-hop {
+  animation: tn-hop-up 0.6s var(--ease-out) both;
+}
+.tn-mate[data-state="win"] .tn-mate-hop,
+.tn-mate[data-state="first"] .tn-mate-hop {
+  animation: tn-cheer 1.3s var(--ease-out) 0.15s both;
+}
+.tn-mate[data-state="miss"] .tn-mate-hop {
+  animation: tn-slump 0.6s var(--ease-out) both;
+}
+@keyframes tn-hop-up {
+  0% {
+    transform: translateY(0) scaleY(0.9);
+  }
+  45% {
+    transform: translateY(-22%) scaleY(1.04);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+@keyframes tn-cheer {
+  0% {
+    transform: translateY(0) rotateY(0deg);
+  }
+  22% {
+    transform: translateY(-26%) rotateY(180deg);
+  }
+  44% {
+    transform: translateY(0) rotateY(360deg) scaleY(0.94);
+  }
+  62% {
+    transform: translateY(-14%) rotateY(360deg) scaleY(1.03);
+  }
+  80%,
+  100% {
+    transform: translateY(0) rotateY(360deg) scaleY(1);
+  }
+}
+@keyframes tn-slump {
+  to {
+    transform: translateY(3%) rotate(calc(-8deg * var(--dir))) scaleY(0.93);
+  }
+}
+
+.tn-mate-fig {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  user-select: none;
+  /* a thin rim of light so a figure reads against the dark stage, and its own shadow */
+  filter: drop-shadow(0 0 1px color-mix(in oklab, var(--moon) 45%, transparent)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.45));
+}
+.tn-mate-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: calc(var(--mate-h) * 0.7);
+  height: calc(var(--mate-h) * 0.12);
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent);
+}
+
+/* the spotlight from above, on whoever is up */
+.tn-mate[data-state="spot"]::before,
+.tn-mate[data-state="win"]::before,
+.tn-mate[data-state="first"]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: calc(var(--mate-h) * 1.5);
+  height: calc(var(--mate-h) * 2.3);
+  transform: translateX(-50%);
+  background: linear-gradient(to bottom, color-mix(in oklab, var(--moon) 2%, transparent), color-mix(in oklab, var(--moon) 26%, transparent));
+  clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+  animation: tn-beam 0.5s ease-out both;
+}
+@keyframes tn-beam {
+  from {
+    opacity: 0;
+  }
+}
+
+/* someone without a drawn figure: their round face on a little body */
+.tn-token {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 0.62;
+}
+.tn-token-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 80%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+.tn-token-head .avatar {
+  width: 100% !important;
+  height: 100% !important;
+  font-size: calc(var(--mate-h) * 0.22) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--moon) 70%, transparent);
+}
+.tn-token-body {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 56%;
+  overflow: visible;
+}
+
+.tn-mate-name {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-top: 3px;
+  padding: 1px 8px 2px;
+  border-radius: 999px;
+  background: var(--gel);
+  color: var(--on-gel);
+  font-family: var(--font-text);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  /* the name stays its own size however big its figure is drawn */
+  transform: translateX(-50%) scale(calc(1 / var(--s)));
+  transform-origin: 50% 0;
+  animation: tn-beam 0.4s ease-out 0.2s both;
+}
+
+/* a burst of confetti behind whoever got it */
+.tn-confetti {
+  position: absolute;
+  left: 50%;
+  bottom: 55%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.tn-confetti i {
+  position: absolute;
+  width: 5px;
+  height: 9px;
+  border-radius: 1px;
+  opacity: 0;
+  animation: tn-confetti 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) var(--d) forwards;
+}
+@keyframes tn-confetti {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--a)) translateY(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(260deg);
+  }
+}
+
+/* the podium at the end */
+.tn-podium {
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  transform: translateX(-50%);
+}
+.tn-step {
+  display: grid;
+  place-items: start center;
+  width: calc(var(--mate-h) * 0.95);
+  padding-top: 3px;
+  border-radius: 8px 8px 2px 2px;
+  background: linear-gradient(var(--dusk-3), var(--dusk-2));
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--moon) 25%, transparent);
+  color: var(--haze);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+}
+.tn-step-1 {
+  height: calc(var(--mate-h) * 0.42);
+  color: var(--gel-amber);
+}
+.tn-step-2 {
+  height: calc(var(--mate-h) * 0.26);
+}
+.tn-step-3 {
+  height: calc(var(--mate-h) * 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tn-mate,
+  .tn-mate-hop,
+  .tn-mate-bob,
+  .tn-mate::before,
+  .tn-confetti i {
+    animation: none !important;
+    transition: none !important;
+  }
+  .tn-mate-bob {
+    transform: none;
+  }
+}

@@ -101,12 +101,14 @@ function LobbyBoard() {
   const id = ONLINE_GAMES[front];
   const game = GAME_BY_ID[id];
   const need = ONLINE_MIN[id];
-  const enough = room.seats.length >= need;
+  // (someone just watching isn't a player)
+  const players = room.seats.filter((s) => !s.watch).length;
+  const enough = players >= need;
   const host = nameOf(room.host);
 
   const spin = () => {
     if (sweeping) return;
-    const options = ONLINE_GAMES.map((_, i) => i).filter((i) => room.seats.length >= ONLINE_MIN[ONLINE_GAMES[i]] && i !== front);
+    const options = ONLINE_GAMES.map((_, i) => i).filter((i) => players >= ONLINE_MIN[ONLINE_GAMES[i]] && i !== front);
     const pool = options.length ? options : ONLINE_GAMES.map((_, i) => i);
     const target = pool[Math.floor(Math.random() * pool.length)];
     haptic(6);
@@ -132,6 +134,7 @@ function LobbyBoard() {
                   )}
                 </button>
                 <span className="face-name">{mine ? ui("you") : s.name}</span>
+                {s.watch && <span className="face-watch">{lang === "zh" ? "旁观" : "Watching"}</span>}
               </li>
             );
           })}
@@ -166,7 +169,7 @@ function LobbyBoard() {
       <div className="lobby-dock" style={{ ["--gel" as string]: game.gel }}>
         {!enough && (
           <p className="lobby-need">
-            {ui("needN", { n: need, m: room.seats.length })}
+            {ui("needN", { n: need, m: players })}
             <button type="button" className="link-btn" onClick={frame.openInvite}>
               {ui("invite")}
             </button>

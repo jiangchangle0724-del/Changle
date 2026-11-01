@@ -19,8 +19,9 @@ import {
 import { clean, intIn, num, t, type Api, type GameDef } from "./api";
 import { GAMES } from "./games";
 
-export type SeatData = { id: string; name: string; on: boolean; at: number; uid?: string; av?: number; ac?: number };
-export type Profile = { uid: string; name: string; av: number; ac: number };
+/** `fg`: the version of the seat's figure cut out for the stages (0 or missing: none). */
+export type SeatData = { id: string; name: string; on: boolean; at: number; uid?: string; av?: number; ac?: number; fg?: number; watch?: boolean };
+export type Profile = { uid: string; name: string; av: number; ac: number; fg?: number };
 export type GameRecord = { game: string; room: string; started: number; ended: number; players: { pid: string; uid?: string; name: string; drinks: number }[] };
 export type TimerData = { at: number; key: string; data?: unknown };
 export type PenRecord = { id: string; who: string[]; buddy?: string; buddyUsed?: boolean; drank: string[]; at: number };
@@ -165,7 +166,7 @@ export class RoomEngine {
     if (!seat) {
       if (d.seats.length >= MAX_SEATS) return "full";
       seat = { id: pid, name, on: true, at: now };
-      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac });
+      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0 });
       d.seats.push(seat);
       this.event({ k: "join", pid });
       const g = this.gameDef();
@@ -173,8 +174,8 @@ export class RoomEngine {
     } else {
       seat.on = true;
       seat.name = name;
-      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac });
-      else if (seat.uid) Object.assign(seat, { uid: undefined, av: undefined, ac: undefined });
+      if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0 });
+      else if (seat.uid) Object.assign(seat, { uid: undefined, av: undefined, ac: undefined, fg: undefined });
     }
     if (!d.host || !d.seats.some((s) => s.id === d.host)) d.host = pid;
     if (pid === d.host) this.clearTimer("host-away");
@@ -276,7 +277,7 @@ export class RoomEngine {
       case "start": {
         if (!host || !(a.game in GAMES)) return;
         const def = GAMES[a.game] as GameDef<unknown>;
-        if (d.seats.length < ONLINE_MIN[a.game]) return;
+        if (this.players().length < ONLINE_MIN[a.game]) return;
         this.clearGameTimers();
         this.finishPlay();
         d.strokes = [];
@@ -296,6 +297,20 @@ export class RoomEngine {
         this.clearGameTimers();
         d.strokes = [];
         this.out.strokesReset = true;
+        this.out.changed = true;
+        return;
+      }
+      case "watch": {
+        // just watching: still at the table, out of the games (no turns, no penalties); the phone
+        // shows the big screen's view. Anyone for themselves, the host for anyone.
+        const target = d.seats.find((x) => x.id === (a.pid ?? pid));
+        if (!target || (target.id !== pid && !host) || !!target.watch === !!a.on) return;
+        target.watch = !!a.on || undefined;
+        const g = this.gameDef();
+        if (g && d.game) {
+          if (a.on) g.def.leave?.(d.game.s, target.id, this.api());
+          else g.def.join?.(d.game.s, target.id, this.api());
+        }
         this.out.changed = true;
         return;
       }
@@ -494,7 +509,10 @@ export class RoomEngine {
       code: d.code,
       you: pid,
       host: d.host,
-      seats: d.seats.map((s) => (s.uid ? { id: s.id, name: s.name, on: s.on, uid: s.uid, av: s.av ?? 0, ac: s.ac ?? 0 } : { id: s.id, name: s.name, on: s.on })),
+      seats: d.seats.map((s) => ({
+        ...(s.uid ? { id: s.id, name: s.name, on: s.on, uid: s.uid, av: s.av ?? 0, ac: s.ac ?? 0, fg: s.fg ?? 0 } : { id: s.id, name: s.name, on: s.on }),
+        ...(s.watch ? { watch: true } : {}),
+      })),
       penalty: d.penalty,
       front: d.front,
       game: detail && gd && d.game ? gd.def.view(d.game.s, pid, this.api()) : null,
@@ -549,7 +567,7 @@ export class RoomEngine {
       room: d.code,
       started: p.started,
       ended: now,
-      players: d.seats.map((s) => ({ pid: s.id, uid: s.uid, name: s.name, drinks: p.tally[s.id] ?? 0 })),
+      players: this.players().map((s) => ({ pid: s.id, uid: s.uid, name: s.name, drinks: p.tally[s.id] ?? 0 })),
     });
   }
 
@@ -559,7 +577,8 @@ export class RoomEngine {
 
   private penalty(who: string[], kind: PenaltyKind, note?: T, opts?: { buddy?: string; delay?: number }) {
     const d = this.d;
-    const ids = new Set(d.seats.map((s) => s.id));
+    // (only players: someone just watching never drinks)
+    const ids = new Set(this.players().map((s) => s.id));
     const list = [...new Set(who)].filter((id) => ids.has(id));
     if (!list.length) return;
     if (opts?.delay && opts.delay > 0) {
@@ -576,9 +595,14 @@ export class RoomEngine {
     this.out.persist = true;
   }
 
+  /** The seats in the games: everyone at the table except those just watching. */
+  private players() {
+    return this.d.seats.filter((s) => !s.watch);
+  }
+
   private api(): Api {
     const h = this.h;
-    const ids = () => this.d.seats.map((s) => s.id);
+    const ids = () => this.players().map((s) => s.id);
     const step = (from: string | null, among: string[] | undefined, dir: 1 | -1) => {
       // turns pass over phones that are away; if everyone is away, nobody is skipped
       const pool = ids().filter((id) => !among || among.includes(id));

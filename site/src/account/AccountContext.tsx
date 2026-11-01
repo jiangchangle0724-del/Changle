@@ -7,7 +7,7 @@ export type Gender = "female" | "male" | "nonbinary" | "private";
 /** `figure`: their face is an AI-drawn anime figure (at /figure/:id), not a photo or a letter. */
 export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; figure?: boolean };
 /** `hasFigure`: you have a drawn figure (kept while a photo shows); `choices`: what you picked for it. `master`: the site's owner. */
-export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null };
+export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null; cut?: boolean };
 export type ChatMsg = { id: number; from: string; body: string; at: number; read: boolean };
 
 export type LiveEvent =
@@ -81,6 +81,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [requests, setRequests] = useState(0);
   const [signInOpen, setSignInOpen] = useState(false);
   const fns = useRef(new Set<(e: LiveEvent) => void>());
+  const cutTried = useRef(false);
 
   const setMe = useCallback((u: SelfUser | null) => {
     setMeState(u);
@@ -119,6 +120,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setMe(d.user);
       setStatus("in");
       keep();
+      // a figure from before the games' stages: cut it out for them now, once
+      if (d.user.figure && d.user.hasFigure && d.user.cut === false && !cutTried.current) {
+        cutTried.current = true;
+        void import("./avatar/backfill")
+          .then((m) => m.cutSavedFigure())
+          .then((u) => u && setMe(u))
+          .catch(() => {});
+      }
     } catch (e) {
       const st = (e as { status?: number }).status;
       if (st === 401) dropLocal();

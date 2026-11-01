@@ -79,6 +79,34 @@ test("leave: seat freed, host handed on, game told", () => {
   ok(t.eng.d.host === "p1", "returning player is not host again");
 });
 
+test("just watching: at the table, out of the game, no turns, no penalties", () => {
+  // (the dice use the shared random sequence: put it back afterwards so later tests see the same)
+  const s0 = seed;
+  const t = setup(3);
+  t.act("p2", { a: "watch", on: true });
+  ok(t.eng.d.seats.find((x) => x.id === "p2")?.watch === true, "p2 watches");
+  ok(t.eng.view("p0").seats.find((x) => x.id === "p2")?.watch === true, "everyone sees p2 is watching");
+  t.act("p1", { a: "watch", pid: "p0", on: true });
+  ok(!t.eng.d.seats.find((x) => x.id === "p0")?.watch, "only the host can set someone else to watch");
+  t.act("p0", { a: "start", game: "dice" });
+  // dice: the turn goes round the players only
+  for (let i = 0; i < 4; i++) {
+    const turn = t.view<{ id: "dice"; turn: string }>("p0").turn;
+    ok(turn !== "p2", `the watcher never gets a turn (${turn})`);
+    t.g(turn, "roll");
+    t.g(turn, "assign", { target: turn === "p0" ? "p1" : "p0" });
+    t.g(turn, "next");
+  }
+  ok(!t.pens().some((e) => e.who.includes("p2")), "and never a penalty");
+  t.act("p2", { a: "watch", on: false });
+  ok(!t.eng.d.seats.find((x) => x.id === "p2")?.watch, "back to playing");
+  const solo = setup(2);
+  solo.act("p1", { a: "watch", on: true });
+  solo.act("p0", { a: "start", game: "dice" });
+  ok(!solo.eng.view("p0").game, "a game that needs two players doesn't start with one player and one watcher");
+  seed = s0;
+});
+
 test("turns pass over phones that are away", () => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "dice" });

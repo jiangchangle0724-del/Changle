@@ -25,7 +25,8 @@ export type Reply = { status: number; json?: unknown; bytes?: ArrayBuffer; type?
 
 export type WishRow = { id: number; text: string; kind: "game" | "feature"; name: string; votes: number; status: "new" | "planned" | "done"; at: number; voted: boolean; mine: boolean };
 export type GameRecord = { game: string; room: string; started: number; ended: number; players: { pid: string; uid?: string; name: string; drinks: number }[] };
-export type Who = { uid: string; name: string; av: number; ac: number };
+/** `fg`: their figure cut out for the games' stages (its version), 0 for none. */
+export type Who = { uid: string; name: string; av: number; ac: number; fg: number };
 /** What a table tells the hub about itself, so the back office can see who is playing where. */
 export type RoomReport = { code: string; game: string; screens: number; seats: { pid: string; name: string; on: boolean; uid?: string }[] };
 /** May this phone sit down? `block` says why not. */
@@ -136,6 +137,11 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE TABLE IF NOT EXISTS rooms_live (code TEXT PRIMARY KEY, game TEXT NOT NULL, seats TEXT NOT NULL, screens INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL)`);
     // AI avatars this month, per person (k: e:<email>): drawings so far, and whether one was chosen
     q(`CREATE TABLE IF NOT EXISTS months (k TEXT PRIMARY KEY, month TEXT NOT NULL, n INTEGER NOT NULL, done INTEGER NOT NULL DEFAULT 0)`);
+    // the figure lifted off its backdrop, for the games' stages, and a version that changes with it
+    const fcols = this.sql.exec(`PRAGMA table_info(figures)`).toArray().map((c) => String(c.name));
+    if (!fcols.includes("cut")) q(`ALTER TABLE figures ADD COLUMN cut BLOB`);
+    if (!fcols.includes("cut_mime")) q(`ALTER TABLE figures ADD COLUMN cut_mime TEXT NOT NULL DEFAULT ''`);
+    if (!fcols.includes("ver")) q(`ALTER TABLE figures ADD COLUMN ver INTEGER NOT NULL DEFAULT 0`);
     this.paused = this.sql.exec(`SELECT v FROM meta WHERE k = 'paused'`).toArray()[0]?.v === "1";
 
     const seeded = this.sql.exec(`SELECT v FROM meta WHERE k = 'seeded'`).toArray();
@@ -191,7 +197,7 @@ export class Hub extends DurableObject<HubEnv> {
     const master = !!me && this.isMaster(me);
     // signing in, and the pictures of people's faces, stay open; the rest is shut to a banned
     // phone, and to everyone but the owner while the site is paused
-    const open = path.startsWith("/auth/") || /^\/(avatar|figure)\/u[a-z0-9]{6,20}$/.test(path);
+    const open = path.startsWith("/auth/") || /^\/(avatar|figure)\/u[a-z0-9]{6,20}(\/cut)?$/.test(path);
     if (!master && !open) {
       if (c.device && this.isBanned(`d:${c.device}`)) return err(403, "banned");
       if (this.paused) return err(503, "paused");
@@ -246,6 +252,13 @@ export class Hub extends DurableObject<HubEnv> {
       if (!r) return err(404, "none");
       return { status: 200, bytes: r.full as ArrayBuffer, type: String(r.mime), cache: "public, max-age=31536000, immutable" };
     }
+    // the figure alone, see-through around it: what the games put on their stages
+    mm = /^\/figure\/(u[a-z0-9]{6,20})\/cut$/.exec(path);
+    if (mm && m === "GET") {
+      const r = this.one(`SELECT cut, cut_mime FROM figures WHERE user_id = ? AND shown = 1 AND cut IS NOT NULL`, mm[1]);
+      if (!r) return err(404, "none");
+      return { status: 200, bytes: r.cut as ArrayBuffer, type: String(r.cut_mime) || "image/png", cache: "public, max-age=31536000, immutable" };
+    }
 
     if (!me) return err(401, "signin");
     this.sql.exec(`UPDATE users SET last_seen = ? WHERE id = ?`, Date.now(), me.id);
@@ -286,19 +299,37 @@ export class Hub extends DurableObject<HubEnv> {
       if (!this.allow(`av:${me.id}`, 20, 3600_000)) return err(429, "slow-down");
       const now = Date.now();
       const choices = JSON.stringify(cleanChoices(b.choices));
+      const cut = this.cutOf(b);
       this.sql.exec(
-        `INSERT INTO figures (user_id, mime, full, round, choices, shown, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?) ON CONFLICT(user_id) DO UPDATE SET mime = excluded.mime, full = excluded.full, round = excluded.round, choices = excluded.choices, shown = 1, updated_at = excluded.updated_at`,
+        `INSERT INTO figures (user_id, mime, full, round, choices, shown, updated_at, cut, cut_mime, ver) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1) ON CONFLICT(user_id) DO UPDATE SET mime = excluded.mime, full = excluded.full, round = excluded.round, choices = excluded.choices, shown = 1, updated_at = excluded.updated_at, cut = excluded.cut, cut_mime = excluded.cut_mime, ver = figures.ver + 1`,
         me.id,
         mime,
         full,
         round,
         choices,
         now,
+        cut?.bytes ?? null,
+        cut?.mime ?? "",
       );
       this.showFigure(me.id);
       // choosing a drawing is this month's AI avatar
       if (!this.drawsFree(me)) this.monthDone(`e:${me.email}`);
       return ok({ user: this.selfView(this.userById(me.id)!) });
+    }
+    // a figure saved before figures were cut out: the phone cuts it out now (no drawing counted)
+    if (path === "/me/figure/cut" && m === "PUT") {
+      const cut = this.cutOf(b);
+      if (!cut) return err(400, "size");
+      if (!this.one(`SELECT user_id FROM figures WHERE user_id = ?`, me.id)) return err(404, "none");
+      if (!this.allow(`av:${me.id}`, 20, 3600_000)) return err(429, "slow-down");
+      this.sql.exec(`UPDATE figures SET cut = ?, cut_mime = ?, ver = ver + 1 WHERE user_id = ?`, cut.bytes, cut.mime, me.id);
+      return ok({ user: this.selfView(this.userById(me.id)!) });
+    }
+    // your own figure, whole (the phone cuts it out from this)
+    if (path === "/me/figure/full" && m === "GET") {
+      const r = this.one(`SELECT mime, full FROM figures WHERE user_id = ?`, me.id);
+      if (!r) return err(404, "none");
+      return { status: 200, bytes: r.full as ArrayBuffer, type: String(r.mime), cache: "no-store" };
     }
     if (path === "/me/figure/use" && m === "POST") {
       if (!this.one(`SELECT user_id FROM figures WHERE user_id = ?`, me.id)) return err(404, "none");
@@ -435,20 +466,33 @@ export class Hub extends DurableObject<HubEnv> {
 
   private selfView(u: U) {
     const f = this.figure(u.id);
-    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices };
+    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices, cut: f.cut };
   }
 
-  /** Someone's AI-drawn figure: whether there is one, whether it's the face they show, and what they chose. */
-  private figure(id: string): { has: boolean; shown: boolean; choices: Choices | null } {
-    const r = this.one(`SELECT shown, choices FROM figures WHERE user_id = ?`, id);
-    if (!r) return { has: false, shown: false, choices: null };
+  /**
+   * Someone's AI-drawn figure: whether there is one, whether it's the face they show, what they
+   * chose, and whether it's cut out for the stages (`fg`, its version, when shown and cut out).
+   */
+  private figure(id: string): { has: boolean; shown: boolean; choices: Choices | null; cut: boolean; fg: number } {
+    const r = this.one(`SELECT shown, choices, cut IS NOT NULL AS has_cut, ver FROM figures WHERE user_id = ?`, id);
+    if (!r) return { has: false, shown: false, choices: null, cut: false, fg: 0 };
     let choices: Choices | null = null;
     try {
       choices = cleanChoices(JSON.parse(String(r.choices)));
     } catch {
       choices = null;
     }
-    return { has: true, shown: Number(r.shown) === 1, choices };
+    const shown = Number(r.shown) === 1;
+    const cut = Number(r.has_cut) === 1;
+    return { has: true, shown, choices, cut, fg: shown && cut ? Math.max(1, Number(r.ver)) : 0 };
+  }
+
+  /** A cut-out figure sent in (base64): a WebP or PNG of a sensible size. */
+  private cutOf(b: Record<string, unknown>): { bytes: ArrayBuffer; mime: string } | null {
+    const bytes = fromB64(b.cut, 400_000);
+    const mime = String(b.cutMime ?? "");
+    if (!bytes || bytes.byteLength < 1000 || !["image/png", "image/webp"].includes(mime) || !isImage(bytes)) return null;
+    return { bytes, mime };
   }
 
   /** Make the figure's round crop the avatar everyone sees. */
@@ -564,7 +608,7 @@ export class Hub extends DurableObject<HubEnv> {
       if (this.paused) return { who: null, block: "paused" };
     }
     if (u) this.noteDevice(u.id, a.pid);
-    return { who: u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac } : null };
+    return { who: u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg } : null };
   }
 
   /** A table says who is at it (only when that changed). An empty table drops off the list. */
@@ -593,7 +637,7 @@ export class Hub extends DurableObject<HubEnv> {
   /** Who holds this session (for the table server). */
   async whoami(token: string): Promise<Who | null> {
     const u = await this.session(token);
-    return u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac } : null;
+    return u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg } : null;
   }
 
   private async sendCode(raw: string, ip: string, lang: "zh" | "en"): Promise<Reply> {
