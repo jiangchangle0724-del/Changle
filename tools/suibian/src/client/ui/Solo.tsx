@@ -39,8 +39,11 @@ export function Solo({ home }: { home: () => void }) {
     if (!center) return setErr(t("noLocation"));
     prefs.start = { center, range: where.range };
     if (me?.user) {
-      void api("/api/me/card", { method: "PUT", body: JSON.stringify(limits) });
-      update({ me: { ...me, card: limits } });
+      // Save allergies and the rest for next time, but not today's budget: that was this search's
+      // answer, and the saved one is what tables start from.
+      const saved = { ...limits, budget: me.card?.budget ?? 0 };
+      void api("/api/me/card", { method: "PUT", body: JSON.stringify(saved) });
+      update({ me: { ...me, card: saved } });
     }
     setStage({ k: "finding" });
     const res = await api<SoloResponse>("/api/solo", {

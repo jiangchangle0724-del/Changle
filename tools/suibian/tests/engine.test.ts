@@ -326,3 +326,12 @@ test("solo: reasons say why, a pick and a list first, at most three", () => {
   const q = place({ cuisine: "italian", price: 20, rating: 4.0, ratings: 20 });
   assert.deepEqual(soloReasons(q, { mood: "any", side: "any" }, { ...noLimits, budget: 35 }, center, "walk20"), ["budget", "near"]);
 });
+
+test("solo: a place nobody has rated gives way to rated ones, unless it is a pick", () => {
+  const unknown = place({ cuisine: "chinese", rating: undefined, ratings: 0 });
+  const rated = place({ cuisine: "cantonese", rating: 4.1, ratings: 300 });
+  const ids = soloPick({ places: [unknown, rated], answers: { mood: "warm", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW, count: 2 }).ids;
+  assert.deepEqual(ids, [rated.id, unknown.id]);
+  const picked = { ...unknown, recommend: { note: { zh: "好吃", en: "Good" }, links: [] } };
+  assert.equal(soloPick({ places: [picked, rated], answers: { mood: "warm", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW, count: 2 }).ids[0], picked.id);
+});
