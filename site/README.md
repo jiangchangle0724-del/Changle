@@ -82,7 +82,7 @@ python3 scripts/account_check.py    # 登录、资料、好友、聊天
 
 网站在 Cloudflare Pages（项目 changle，域名 changle.ca），已经连上 GitHub：PR 合并进 `main` 后自动构建发布（根目录 `site`，构建 `npm run build`，输出 `dist`）。
 
-服务器是 Cloudflare Worker `changle-rooms`（域名 rooms.changle.ca），还没连 GitHub。改了 `worker/` 或 `src/shared/`（游戏规则、协议），合并后要手动部署一次：`npx wrangler login`，再 `npx wrangler deploy -c worker/wrangler.jsonc`；或者在装了这个仓库的 Windows 电脑上双击 `deploy/pc-deploy.cmd`（安装、构建、部署服务器、上传网站）。
+服务器是 Cloudflare Worker `changle-rooms`（域名 rooms.changle.ca），也连上了 GitHub：合并进 `main` 的改动只要碰到 `worker/`、`src/shared/`、`src/data/`、`src/i18n.ts` 或 `package-lock.json`，Cloudflare 就自动部署它（根目录 `/site`，部署命令 `npx wrangler deploy -c worker/wrangler.jsonc`）。要手动部署时：`npx wrangler login`，再 `npx wrangler deploy -c worker/wrangler.jsonc`；或者在装了这个仓库的 Windows 电脑上双击 `deploy/pc-deploy.cmd`（安装、构建、部署服务器、上传网站）。
 
 也可以用 Windows 部署包：`deploy/make_pkg.sh` 会打包出 `changle-deploy.zip`，在 Windows 上解压，双击 `deploy.cmd`，自动部署服务器和网站。登录发验证码用 Resend：双击 `set-email-key.cmd`，粘贴 Resend 的 API key（只需要做一次）。
 

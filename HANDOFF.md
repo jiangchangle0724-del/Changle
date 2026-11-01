@@ -9,7 +9,7 @@ Look and motion: `site/DESIGN.md`. Content files and local scripts: `site/README
 | Address | Code | Runs on | Goes live |
 | --- | --- | --- | --- |
 | changle.ca: the party games, tools tab, accounts, big screen at `/tv` | `site/` (Vite, React, TypeScript) | Cloudflare Pages project `changle` | by itself when a PR touching `site/` is merged into `main` |
-| rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus the game rules in `site/src/shared/` | Cloudflare Worker `changle-rooms` (Durable Objects) | **by hand**, see "How a change reaches changle.ca" |
+| rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 
@@ -21,16 +21,18 @@ installs on its own. Node 22, as in CI.
 1. Branch from `main` (one branch per change), commit, push, open a PR.
 2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip and draw tests, build),
    `suibian.yml` and `been-there.yml` (each with browser tests in Chromium and WebKit).
-3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above.
-4. If the PR changed `site/worker/` or `site/src/shared/` (game rules, the protocol), also deploy
-   the rooms Worker straight after the merge, because online tables run the rules there:
-   `cd site && npx wrangler login && npx wrangler deploy -c worker/wrangler.jsonc` (needs the
-   owner's Cloudflare account). Or, on the owner's Windows PC with this repository checked out,
-   `site/deploy/pc-deploy.cmd` installs, builds, deploys the rooms Worker and uploads the site;
-   `site/deploy/make_pkg.sh` builds the older zip package (`changle-deploy.zip` with `deploy.cmd`).
+3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
+   build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
+4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
+   `npx wrangler deploy -c worker/wrangler.jsonc`, build watch paths `site/worker/*`,
+   `site/src/shared/*`, `site/src/data/*`, `site/src/i18n.ts`, `site/package-lock.json`. If the
+   worker starts bundling another file, add its path there. By hand, if ever needed:
+   `cd site && npx wrangler login && npx wrangler deploy -c worker/wrangler.jsonc`, or on the
+   owner's Windows PC `site/deploy/pc-deploy.cmd` (installs, builds, deploys the rooms Worker and
+   uploads the site).
 
-Access needed: push access to this GitHub repository. A Cloudflare login only to deploy the rooms
-Worker or change settings. Never the values of any secret.
+Access needed: push access to this GitHub repository. A Cloudflare login only to change settings
+or deploy by hand. Never the values of any secret.
 
 ## Run the site locally
 
@@ -81,7 +83,7 @@ folder under `site/src/party/`. TypeScript flags most of what's missing.
 1. **Rules**: `site/src/shared/engine/games/<id>.ts` exports a `GameDef` (`init`, `act`, `view`,
    and `timer`, `join`, `leave` when needed; the `Api` it gets is in
    `site/src/shared/engine/api.ts`). Register it in `site/src/shared/engine/games/index.ts`.
-   Online, these rules run on the rooms server, so it needs a deploy (step 4 above).
+   Online, these rules run on the rooms server, which Cloudflare redeploys when they change.
 2. **Protocol**: in `site/src/shared/protocol.ts`, add the id to `GameId`, `ONLINE_GAMES` (board
    order) and `ONLINE_MIN`; write its view type (`id: "<id>"`) and add it to `GameView`. `view()`
    builds each phone's own view: whatever must stay secret (words, votes, hands) never goes into
@@ -143,8 +145,7 @@ Worker's `wrangler.jsonc`.
 
 ## Open items
 
-* The rooms Worker `changle-rooms` is not connected to Git, so rule changes need the manual deploy
-  above. Connecting it to Workers Builds (root `site`, deploy command
-  `npx wrangler deploy -c worker/wrangler.jsonc`) would make it deploy on merge like the rest.
+* The rooms Worker was connected to Git on 2026-10-31; its first build from Git comes with the
+  first merge that touches one of its watch paths. Check that build's log once.
 * 随便: its severe-allergy table is a draft, and two small things showed up once real restaurants
   were on. See `tools/suibian/HANDOFF.md`.
