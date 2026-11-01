@@ -110,7 +110,16 @@ export function ProfileForm({
     { id: "nonbinary", zh: "非二元", en: "Non-binary" },
     { id: "private", zh: "不透露", en: "Prefer not to say" },
   ];
-  const valid = v.name.trim() && (v.phone.match(/\d/g) ?? []).length >= 7 && v.city.trim() && v.gender && (mode === "edit" || v.bio.trim()) && adult;
+  // what's still needed, said next to the button instead of a button that just won't work
+  const missing = [
+    !v.name.trim() && (zh ? "名字" : "your name"),
+    (v.phone.match(/\d/g) ?? []).length < 7 && (zh ? "手机号" : "a phone number"),
+    !v.city.trim() && (zh ? "城市" : "your city"),
+    !v.gender && (zh ? "性别" : "a gender option"),
+    mode !== "edit" && !v.bio.trim() && (zh ? "简介" : "a line about you"),
+    !adult && (zh ? "确认满 19 岁" : "the 19+ box"),
+  ].filter(Boolean) as string[];
+  const valid = missing.length === 0;
 
   return (
     <form
@@ -237,6 +246,7 @@ export function ProfileForm({
       )}
       <p className="hint pf-privacy">{zh ? "手机号和邮箱只有你自己看得到。名字、头像、城市、性别和简介会显示在你的主页上。" : "Only you can see your phone and email. Your name, photo, city, gender and bio show on your profile."}</p>
       {error && <p className="form-error">{error}</p>}
+      {!valid && (mode === "edit" || !!(v.name || v.phone || v.city || v.gender || v.bio)) && <p className="hint">{zh ? `还差：${missing.join("、")}` : `Still needed: ${missing.join(", ")}`}</p>}
       <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={!valid || busy}>
         {busy ? (zh ? "保存中" : "Saving") : mode === "signup" ? (zh ? "完成注册" : "Create my profile") : zh ? "保存" : "Save"}
       </button>

@@ -12,13 +12,20 @@ import { runSweep } from "../lib/sweep";
 
 const ENTERED = "changle.entered";
 
-export function PartyTab({ onOpenGame, onWishlist }: { onOpenGame: (id: GameId) => void; onWishlist: () => void }) {
+export function PartyTab({ onOpenGame, onWishlist, start }: { onOpenGame: (id: GameId) => void; onWishlist: () => void; start?: GameId }) {
   const { players, ui, lang } = useStore();
   const [playersOpen, setPlayersOpen] = useState(false);
   const [online, setOnline] = useState<{ open: boolean; game?: GameId; join?: boolean }>({ open: false });
   const [sheet, setSheet] = useState<GameMeta | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [lit, setLit] = useState<number | null>(null);
+  // a game's link opened with too few players here: its card, to add people or play online
+  useEffect(() => {
+    const i = start ? GAMES.findIndex((g) => g.id === start) : -1;
+    if (i < 0) return;
+    setLit(i);
+    setSheet(GAMES[i]);
+  }, [start]);
   const grid = useRef<HTMLDivElement>(null);
   const tl = useRef<gsap.core.Timeline | null>(null);
 

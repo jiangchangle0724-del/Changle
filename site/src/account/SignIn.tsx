@@ -158,7 +158,7 @@ export function SignInSheet() {
           </label>
           <div className="field">
             <Mail size={18} className="muted" />
-            <input id="si-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" enterKeyHint="send" />
+            <input id="si-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => (setEmail(e.target.value), setError(""))} placeholder="you@example.com" enterKeyHint="send" />
           </div>
           {error && <p className="form-error">{error}</p>}
           <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={!email.includes("@") || busy}>
@@ -193,6 +193,7 @@ export function SignInSheet() {
               onChange={(e) => {
                 const c = e.target.value.replace(/\D/g, "").slice(0, 6);
                 setCode(c);
+                setError("");
                 if (c.length === 6) void verify(c);
               }}
             />

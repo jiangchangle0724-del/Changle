@@ -146,13 +146,16 @@ function useHashRoute() {
 
 function Shell() {
   const { route, go } = useHashRoute();
-  const { sound, music } = useStore();
+  const { sound, music, players } = useStore();
+  // a game opened by a link with fewer players than it needs on this phone: its card on the home
+  // page first, to add people (or play online), instead of a game that can't work
+  const short = route.kind === "game" && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
   const { signInOpen } = useAccount();
   const [signInUsed, setSignInUsed] = useState(false);
   useEffect(() => {
     if (signInOpen) setSignInUsed(true);
   }, [signInOpen]);
-  useSoloHistory(route);
+  useSoloHistory(short ? { kind: "home", tab: "party" } : route);
   useEffect(() => initAudio(), []);
   useEffect(() => setSoundEnabled(sound), [sound]);
   useEffect(() => {
@@ -180,7 +183,15 @@ function Shell() {
   };
 
   let screen: React.ReactNode;
-  if (route.kind === "home") screen = <Home tab={route.tab} onTab={(tab) => go({ kind: "home", tab }, true)} onOpenGame={(id) => go({ kind: "game", id })} />;
+  if (route.kind === "home" || short)
+    screen = (
+      <Home
+        tab={route.kind === "home" ? route.tab : "party"}
+        onTab={(tab) => go({ kind: "home", tab }, true)}
+        onOpenGame={(id) => go({ kind: "game", id })}
+        start={short && route.kind === "game" ? route.id : undefined}
+      />
+    );
   else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => window.location.replace("#/")} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
@@ -245,7 +256,7 @@ function Shell() {
   }
 
   const key =
-    route.kind === "home"
+    route.kind === "home" || short
       ? "home"
       : route.kind === "room"
         ? `room-${route.code}`
