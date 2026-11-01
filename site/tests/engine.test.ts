@@ -2,7 +2,7 @@
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
-import { ONLINE_GAMES, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
+import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
 import { SCENES as DRAMA_SCENES } from "../src/data/drama";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
@@ -1256,6 +1256,9 @@ test("seven eight nine: with the table's own penalty the glass is a pot, counted
   ok(is(potStep(5, "nine"), 5, 1), "a nine takes it all");
   ok(is(potStep(3, "ones"), 3, 1), "double ones: all of it");
   ok(is(potStep(3, "safe"), 0, 3), "anything else leaves it");
+  // how many times the table's own penalty is done
+  ok(timesOf({ kind: "sip" }) === 1 && timesOf({ kind: "two" }) === 2 && timesOf({ kind: "full", times: 3 }) === 3 && timesOf({ kind: "two", times: 1 }) === 1, "once, twice for two sips, or as the game says");
+  ok(timesOf({ kind: "two", say: { zh: "学一种动物叫三声", en: "Do three animal noises" } }) === 1, "a forfeit the game names is done once");
 
   // a whole game: every penalty is as many times as the pot held, and every phone sees the pot
   const d = setup(3);
