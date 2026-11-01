@@ -4,7 +4,7 @@
  */
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
-import type { DjPhase, Mix, Source } from "./dj/types";
+import type { DjPhase, Mix, Source, StyleId, Track } from "./dj/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -89,7 +89,10 @@ export type Fx =
   | "freeze"
   | "out"
   | "level"
-  | "fire";
+  | "fire"
+  | "cold"
+  | "drop"
+  | "ask";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
 export type PenaltyEvent = { k: "penalty"; id: string; who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T };
@@ -534,9 +537,24 @@ export type DjView = {
   fires: { pid: string; at: number }[];
   /** 🔥 per player, all night */
   total: Record<string, number>;
+  /** the latest ❄️ presses (who and when, server time), oldest first */
+  colds: { pid: string; at: number }[];
+  /** everyone's style knobs, -1 (less) to 1 (more); a style at 0 is left out */
+  knobs: Record<string, Partial<Record<StyleId, number>>>;
+  /** the latest drop requests (who and when, server time), oldest first */
+  drops: { pid: string; at: number }[];
+  /** songs asked for, oldest first; see DjTrack */
+  queue: DjTrack[];
   /** which set this is (a new one after the host says "again") */
   set: number;
 };
+
+/**
+ * A song in the booth's queue as one phone or screen sees it. What a player wrote (`ask`) is null
+ * for everyone but them and the host until it has passed the text check, and only they and the
+ * host see a refused one at all: nothing a player types reaches the big screen unchecked.
+ */
+export type DjTrack = Omit<Track, "ask"> & { ask: string | null };
 
 export type GameView =
   | DjView

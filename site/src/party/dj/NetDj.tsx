@@ -11,6 +11,7 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { NowPlaying, phaseHint, phaseName, TIMES_MIN, useHeat } from "./parts";
 import "../../styles/dj.css";
+import "../../styles/dj-phone.css";
 
 /**
  * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen), one big 🔥 to

@@ -27,7 +27,7 @@ It is built inside the site, not as its own project: the rules run on the site's
 | The speaker's sound chain and clock | `site/src/party/dj/speaker/speaker.ts` |
 | The stand-in DJ | `site/src/party/dj/fake/` (`sections.ts`, `arrange.ts`, `render.ts`, `FakeDj.ts`) |
 | The speaker's screen | `site/src/party/dj/TvDj.tsx` (in the big screen, `site/src/tv/TvApp.tsx`) |
-| The phone | `site/src/party/dj/NetDj.tsx` |
+| The phone | `site/src/party/dj/NetDj.tsx`, `site/src/styles/dj-phone.css` |
 | Lights and dancers | `site/src/party/dj/Floor.tsx`, `site/src/styles/dj.css` |
 | The speaker on its own (no table) | `site/src/party/dj/TestPage.tsx`, at changle.ca/dj/test |
 
@@ -77,10 +77,33 @@ Lyria, it becomes the prompts and config; `ENERGY` in `curve.ts` sets density an
 
 ## Commands (`DjCommand`)
 
-Done: `fire`; the host's `phase` and `again`; the speaker's `live` and `stats`. Agreed and not done
-yet (the rooms server ignores them): `cold` and `knob` and `drop` (A4: reading the room), `ask`
-(A5: a song described by a player). A phone sends a command as a game action:
-`act({ a: "g", g: { x: "fire" } })`, which `useRoom().g("fire")` does.
+A phone sends a command as a game action: `act({ a: "g", g: { x: "fire" } })`, which
+`useRoom().g("fire")` does. The room takes and keeps every command below; the DJ acting on them
+comes later (knobs, ❄️ and drops: A4; songs: A5). The phone's controls for the new ones are task
+card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
+
+| Command | Who | What the room does |
+| --- | --- | --- |
+| `fire` | anyone | 🔥, as above. |
+| `cold` | anyone | ❄️, the other side of 🔥: the latest 40 in `colds`, an `fx` event `cold`. One 🔥 or ❄️ per 300 ms a phone, shared. Light. |
+| `knob` `{ style, value }` | anyone | The player's knob for one of the 12 styles, −1 (less) to 1 (more) on a 0.25 grid; 0 takes it back. Kept in `knobs[pid]`. Light: while a finger drags, send at most one every 250 ms and the last on release. |
+| `drop` `{}` | anyone | A drop request, only while the music plays: the latest 20 in `drops`, an `fx` event `drop`; one per 10 s a phone. Light. |
+| `ask` `{ text, style? }` | anyone | A song described in 2 to 120 characters (one line, invisible characters taken out; an emoji or a Chinese character is one), with a style if they picked one: a `Track` added to `queue` as `queued`, an `fx` event `ask`. One waiting song a player, 12 for the table; more is ignored. |
+| `unask` `{ id }` | its player, or the host | Takes back a song while it is `queued` (or `refused`, `failed`); once it is being checked or made it is the song pipeline's. |
+| `phase` `{ phase }`, `again` | the host | As above. |
+| `live` `{ source }`, `stats` `{ stalls, resets, seconds }` | the speaker | As above. |
+
+- **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
+  `ask` is null for everyone but its player and the host until it has passed the text check
+  (`CHECKED`: status `making` or later); a refused song shows only to them, with `why`. The big
+  screen is nobody, so it sees what the table sees. Until the song pipeline (A5) exists every song
+  stays `queued`: the big screen can show that someone's song is waiting, never what it says.
+- **Another set** keeps the night's 🔥 counts, everyone's knobs and the songs; ❄️ and drops are
+  about the moment and start empty.
+- **Knobs of players who left** stay in `knobs` (they may come back): the DJ and the screens count
+  only the seats at the table.
+- A booth saved before a field existed gets it empty (`norm` in `games/dj.ts`): add new fields the
+  same way.
 
 ## The speaker
 
@@ -134,6 +157,25 @@ section (and so which stretch) the speakers are sounding now: the big screen put
 name across the floor the moment the music gets there, not when the host tapped (that can be up to
 a phrase, 15 seconds, earlier).
 
+## Styles and Lyria RealTime
+
+The 12 styles (`STYLE_IDS`) each get a `Preset` (task card C1, `presets.ts` beside this file). What
+Lyria RealTime takes, from Google's pages as of 2026-11-01 (both last updated 2026-09-17; the
+model is `models/lyria-realtime-exp`, experimental, and every output is watermarked):
+
+- **Prompts:** a list of `{ text, weight }`; a weight can be anything but 0 (1.0 is the usual
+  start). To move between mixes smoothly, send weights in between rather than jumping. Preset
+  prompt texts come only from the guide's keyword lists, saved as
+  `site/tests/fixtures/dj/lyria-prompt-words.json`.
+- **Config:** `bpm` 60 to 200; `density` and `brightness` 0 to 1; `scale` one of the `Scale`
+  values (`SCALE_UNSPECIFIED` lets the model choose); `guidance` 0 to 6 (default 4); `temperature`
+  0 to 3 (default 1.1); `top_k` 1 to 1000 (default 40); `seed`; `mute_bass`, `mute_drums`,
+  `only_bass_and_drums`. Changing `bpm` or `scale` needs `reset_context()`: the stream goes on
+  with a hard cut, so the DJ only does it on a drop.
+- **Out:** raw 16-bit PCM, 48 kHz, stereo (what `Speaker.pushPcm16` takes).
+- The pages say nothing about price, quotas or how long a session can last: A2 checks before
+  anything is switched on.
+
 ## The lights and the dancers
 
 Every frame, from the speaker's clock (no React renders): `--pulse` (the kick), `--flash`,
@@ -152,7 +194,7 @@ every frame changes only opacity or a transform.
 
 ## Tests
 
-- `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`).
+- `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`), the commands above included.
 - `npx tsx tests/dj.test.ts`: the player on a pretend audio thread (prebuffer, fades, stalls,
   resampling, flush, overflow, reports), Lyria's PCM format, the stand-in's sections and order.
 - `python3 scripts/dj_check.py`: with the local servers running, the speaker test page in WebKit
