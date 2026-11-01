@@ -27,13 +27,18 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
   useEffect(() => {
     if (landed) setLevel(v.level);
   }, [landed, v.level]);
+  // with the table's own penalty the glass is a pot of it, counted in times; it moves when the glass does
+  const [pot, setPot] = useState(v.pot ?? 1);
+  useEffect(() => {
+    if (landed) setPot(v.pot ?? 1);
+  }, [landed, v.pot]);
 
   const label = (o: DiceOutcome) => {
     // with the table's own penalty the shared glass is a pot of that penalty: half of it, or all of it
     if (custom)
       switch (o) {
         case "seven":
-          return lang === "zh" ? "七，罚池加码" : "Seven. The pot grows.";
+          return lang === "zh" ? "七，罚池加一次" : "Seven. One more in the pot.";
         case "eight":
           return lang === "zh" ? "八，罚一半" : "Eight. Take half the pot.";
         case "nine":
@@ -61,8 +66,8 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
     <p>
       {custom
         ? lang === "zh"
-          ? "屏幕中间是大家共用的罚池，每部手机上看到的是同一个。轮到你就掷两颗骰子：加起来 7，罚池加码；8，罚一半；9，全罚；两个 1，指定一个人全罚。其他点数安全。"
-          : "One shared pot sits in the middle of the screen; every phone shows the same one. On your turn, roll two dice: a total of 7 grows the pot; 8, take half of it; 9, take all of it; double ones, pick someone to take the whole pot. Anything else is safe."
+          ? "屏幕中间是大家共用的罚池，每部手机上看到的是同一个，上面的数字是惩罚要做几次，从 1 开始。轮到你就掷两颗骰子：加起来 7，罚池加一次；8，罚一半（3 次就罚 2 次）；9，全罚；两个 1，指定一个人全罚。罚空了，罚池回到 1。其他点数安全。"
+          : "One shared pot sits in the middle of the screen; every phone shows the same one. Its number is how many times the penalty is done, starting at 1. On your turn, roll two dice: a total of 7 adds one to the pot; 8, take half of it (half of 3 is 2); 9, take all of it; double ones, pick someone to take the whole pot. An emptied pot goes back to 1. Anything else is safe."
         : lang === "zh"
           ? "桌子中间一个公杯，每部手机上看到的是同一个。轮到你就掷两颗骰子：加起来 7，往公杯里加酒；8，喝掉一半；9，全部喝完；两个 1，指定一个人把公杯喝完。其他点数安全。"
           : "One shared glass sits in the middle; every phone shows the same one. On your turn, roll two dice: a total of 7 pours more in; 8, drink half; 9, drink it all; double ones, pick someone to finish the glass. Anything else is safe."}
@@ -76,7 +81,7 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
       <TurnLine pid={v.turn} />
 
       <div className="dice-stage">
-        <Glass level={level} size={110} label={custom ? (lang === "zh" ? "罚池" : "The pot") : lang === "zh" ? "公杯" : "Shared glass"} />
+        <Glass level={level} size={110} label={custom ? (lang === "zh" ? `罚池 ×${pot}` : `The pot ×${pot}`) : lang === "zh" ? "公杯" : "Shared glass"} />
         <motion.button
           type="button"
           className="bowl"

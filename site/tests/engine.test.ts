@@ -3,6 +3,7 @@ import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import { ONLINE_GAMES, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
+import { potStep } from "../src/shared/engine/games/dice";
 import { SCENES as DRAMA_SCENES } from "../src/data/drama";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -1241,6 +1242,68 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   plain.act("p0", { a: "start", game: "rogue" });
   plain.g("p1", "wc");
   ok(plain.pens().slice(-1)[0]?.note?.zh === "没有 WC 票：先喝再去", "drinking table: drink first");
+  seed = s0;
+});
+
+test("seven eight nine: with the table's own penalty the glass is a pot, counted in times", () => {
+  // (the dice use the shared random sequence: put it back afterwards)
+  const s0 = seed;
+  const is = (x: { take: number; pot: number }, take: number, pot: number) => x.take === take && x.pot === pot;
+  ok(is(potStep(1, "seven"), 0, 2), "a seven adds one");
+  ok(is(potStep(3, "eight"), 2, 1), "an eight takes half, rounded up");
+  ok(is(potStep(4, "eight"), 2, 2), "an eight of 4 leaves 2");
+  ok(is(potStep(1, "eight"), 1, 1), "an eight of 1 takes it, and the pot is back to 1");
+  ok(is(potStep(5, "nine"), 5, 1), "a nine takes it all");
+  ok(is(potStep(3, "ones"), 3, 1), "double ones: all of it");
+  ok(is(potStep(3, "safe"), 0, 3), "anything else leaves it");
+
+  // a whole game: every penalty is as many times as the pot held, and every phone sees the pot
+  const d = setup(3);
+  d.act("p0", { a: "penalty", text: "做十个深蹲" });
+  d.act("p0", { a: "start", game: "dice" });
+  ok(d.view<V<"dice">>("p1").pot === 1, "the pot starts at 1");
+  let pot = 1;
+  let given = 0;
+  let more = 0;
+  for (let i = 0; i < 400 && (given < 6 || more < 1); i++) {
+    const v = d.view<V<"dice">>("p0");
+    const before = d.pens().length;
+    if (v.phase === "roll") d.g(v.turn, "roll");
+    else if (v.phase === "assign") d.g(v.turn, "assign", { target: "p2" });
+    else d.g(v.turn, "next");
+    d.advance(1500);
+    const after = d.view<V<"dice">>("p1");
+    const fresh = d.pens().slice(before);
+    if (v.phase === "roll") {
+      const o = after.outcome!;
+      const step = potStep(pot, o === "ones" ? "safe" : o);
+      if (o === "eight" || o === "nine") {
+        ok(fresh.length === 1 && fresh[0].times === step.take, `${o} with ${pot} in the pot: ${step.take} times (${fresh[0]?.times})`);
+        given++;
+        if (step.take > 1) more++;
+      } else ok(fresh.length === 0, `${o}: nobody takes anything yet`);
+      pot = step.pot;
+    } else if (v.phase === "assign") {
+      ok(fresh.length === 1 && fresh[0].kind === "full" && fresh[0].times === pot && fresh[0].who[0] === "p2", `double ones: the whole pot (${pot}) to the one picked (${fresh[0]?.times})`);
+      given++;
+      if (pot > 1) more++;
+      pot = 1;
+    }
+    ok(after.pot === pot, `the pot reads ${pot} (${after.pot})`);
+  }
+  ok(given >= 6 && more >= 1, `the dice gave out penalties (${given}, ${more} of them more than once)`);
+
+  // a drinking table: the glass is a glass, and no penalty counts times
+  const plain = setup(3);
+  plain.act("p0", { a: "start", game: "dice" });
+  for (let i = 0; i < 200 && plain.pens().length < 3; i++) {
+    const v = plain.view<V<"dice">>("p0");
+    if (v.phase === "roll") plain.g(v.turn, "roll");
+    else if (v.phase === "assign") plain.g(v.turn, "assign", { target: "p2" });
+    else plain.g(v.turn, "next");
+    plain.advance(1500);
+  }
+  ok(plain.pens().length >= 3 && plain.pens().every((p) => p.times === undefined), "drinking: no times on the penalties");
   seed = s0;
 });
 
