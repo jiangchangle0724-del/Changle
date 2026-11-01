@@ -13,6 +13,7 @@ Look and motion: `site/DESIGN.md`. Content files and local scripts: `site/README
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron) | by itself on merge when `tools/events/*` changes, once its Workers Builds connection is made (`tools/events/README.md`) |
+| changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes, once its Workers Builds connection is made (`games/party-server/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
 installs on its own. Node 22, as in CI.
@@ -22,8 +23,8 @@ installs on its own. Node 22, as in CI.
 1. Branch from `main` (one branch per change), commit, push, open a PR.
 2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip, draw, cutout and
    performer tests, build), `suibian.yml` and `been-there.yml` (each with browser tests in
-   Chromium and WebKit), and `events.yml` (What's On: parsers and a whole run, in the Workers
-   runtime).
+   Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the Workers
+   runtime), and `party.yml` (the party base's tests, the party server's types, tests and build).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
