@@ -4,7 +4,7 @@ import { GROUPS, STYLES, type Shape } from "../../engine";
 import type { RoomView, TeamView } from "../../room/protocol";
 import { CharacterArt, type Mood } from "../art/characters";
 import { getLang, money, other, t, type Key } from "../i18n";
-import { serverNow } from "../store";
+import { getState, serverNow } from "../store";
 
 /** Mid-tone team colours that hold up on light and dark backgrounds; the letter is the real identifier. */
 export const TEAM_COLORS = ["#4a6683", "#8a4fc4", "#c23a5e", "#178a7a", "#b8670a", "#3b6fd6"];
@@ -127,7 +127,10 @@ export function useCountdown(until: number | null | undefined): number | null {
     return () => clearInterval(id);
   }, [until]);
   if (!until) return null;
-  return Math.max(0, Math.ceil((until - serverNow()) / 1000));
+  // While the game stands still (paused, or a party forfeit holding it), so does every countdown: the
+  // server moves its clocks on by the time stood still when the game goes on.
+  const now = getState().view?.game?.frozenAt ?? serverNow();
+  return Math.max(0, Math.ceil((until - now) / 1000));
 }
 
 export function Countdown({ until, label }: { until: number | null | undefined; label?: Key }) {

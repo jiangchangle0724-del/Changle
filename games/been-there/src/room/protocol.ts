@@ -32,6 +32,8 @@ export const TIMING = {
   takeover: 15_000,
   /** Open trade offers expire. */
   offer: 90_000,
+  /** A party forfeit holds the game until it's done or skipped, but never longer than this. */
+  forfeitMax: 120_000,
   /** Rooms are deleted after this long with nobody around. */
   roomTtl: 3 * 24 * 3600_000,
 };
@@ -41,6 +43,11 @@ export type PartyWhy = "rent" | "jail" | "broke" | "sound" | "quiz";
 
 /** First right answer in the waiting players' quiz wins this. */
 export const TRIVIA_PRIZE = 20;
+/**
+ * A wrong answer costs this (never more than the team has). Two wrong options to one right one, so
+ * guessing at random breaks even: knowing pays.
+ */
+export const TRIVIA_WRONG = 10;
 
 export const MAX_TEAMS = 6;
 export const MAX_TEAM_SIZE = 3;
@@ -84,6 +91,8 @@ export type ClientMsg =
   | { t: "bet"; yes: boolean }
   | { t: "autoplay"; on: boolean; seat?: number }
   | { t: "pause"; on: boolean }
+  /** The party forfeit `id` is over: done (its team), or skipped (the host). */
+  | { t: "forfeit"; id: number; op: "done" | "skip" }
   | { t: "save" }
   | { t: "again" }
   | { t: "ping" };
@@ -106,6 +115,7 @@ export type FeedItem = { id: number; at: number } & (
   | { t: "offer-done"; from: number; to: number; accepted: boolean; why?: "invalid" | "expired" | "cancelled" }
   | { t: "bets"; seat: number; paidRent: boolean; right: number; wrong: number }
   | { t: "party"; seat: number; why: PartyWhy; /** Index into FORFEITS (party.ts); missing in rooms from before step 6. */ dare?: number }
+  | { t: "party-done"; seat: number; how: "done" | "skip" | "timeout" }
   | { t: "quiz"; seat: number; item: number; bin: number; choice: number | null; right: boolean }
 );
 
@@ -182,6 +192,18 @@ export interface TriviaView {
   source: string | null;
 }
 
+export interface ForfeitView {
+  id: number;
+  seat: number;
+  why: PartyWhy;
+  /** Index into FORFEITS (party.ts). */
+  dare: number;
+  /** Server time it came up. */
+  at: number;
+  /** More forfeits waiting their turn after this one. */
+  waiting: number;
+}
+
 export interface GameView {
   /** The engine state with the secret parts removed (seed, card order, sealed votes and bids). */
   s: GameState;
@@ -191,7 +213,12 @@ export interface GameView {
   startedAt: number;
   endsAt: number | null;
   timeUp: boolean;
+  /** The host paused the game. */
   paused: boolean;
+  /** When the game stopped (a pause, or a party forfeit holding it), or null: countdowns stand still from here. */
+  frozenAt: number | null;
+  /** The party forfeit holding the game until its team has done it (or the host skips it). */
+  forfeit: ForfeitView | null;
   deadline: number | null;
   silenceUntil: number | null;
   auction: AuctionView | null;

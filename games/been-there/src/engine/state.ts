@@ -137,6 +137,8 @@ export type GameEvent =
   | { t: "trade"; a: number; b: number; give: Offer; get: Offer }
   | { t: "bankrupt"; p: number; to: number }
   | { t: "bonus"; p: number; amount: number; why: string }
+  /** Money taken by the bank outside the rules of the board (a wrong answer in the waiting teams' quiz). */
+  | { t: "fine"; p: number; amount: number; why: string }
   | { t: "news"; id: string; on: boolean }
   | { t: "over"; reason: string; winner: number | null };
 

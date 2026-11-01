@@ -5,13 +5,14 @@ import { Stamp } from "../art/stamps";
 import { BUZZ, buzz } from "../controls";
 import { colon, getLang, money, spaceName, t, tx } from "../i18n";
 import { sfx } from "../sound";
-import { getState, send, serverNow, toast } from "../store";
+import { getState, send, serverNow } from "../store";
 import { useWeather, weatherLabel } from "../weather";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion, thisGame } from "./Board";
 import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
-import { dareText, feedText } from "./feedText";
+import { feedText } from "./feedText";
+import { ForfeitHold } from "./Forfeit";
 import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
 import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { NewsBanner } from "./News";
@@ -73,7 +74,6 @@ export function Game({ v }: { v: RoomView }) {
     holdUntil,
   );
   usePhoneSounds(v, myMove, cashShown, ride);
-  usePartyToasts(v);
   useWakeLock(true);
   const myTeam = mySeat !== undefined ? teamOf(v, mySeat) : undefined;
   const wide = useWide();
@@ -218,6 +218,7 @@ export function Game({ v }: { v: RoomView }) {
       <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
+      <ForfeitHold v={v} />
     </div>
   );
 }
@@ -561,19 +562,6 @@ export function Bets({ v }: { v: RoomView }) {
       </p>
     </div>
   );
-}
-
-/** A party forfeit pops up on every phone for a few seconds (the toast never blocks a tap). */
-function usePartyToasts(v: RoomView) {
-  const last = useRef(lastId(v));
-  useEffect(() => {
-    for (const f of v.feed) {
-      if (f.id <= last.current || f.t !== "party") continue;
-      toast(`${t("partyTitle")} · ${seatName(v, f.seat)}${colon()}${dareText(f)}`, 9000);
-      if (v.you.seats.includes(f.seat)) sfx.alert();
-    }
-    last.current = lastId(v) || last.current;
-  });
 }
 
 /** Id of the newest feed item (0 if none). */

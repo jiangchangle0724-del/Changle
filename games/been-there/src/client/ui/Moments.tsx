@@ -9,7 +9,6 @@ import { money, t, tx } from "../i18n";
 import { serverNow } from "../store";
 import { reducedMotion } from "./Board";
 import { SeatChip } from "./common";
-import { recentParty } from "./feedText";
 import { rideUrgent, type RidePlan } from "./ridePlan";
 
 interface Hit<T> {
@@ -57,7 +56,7 @@ const thrown = (roll: Roll) => (roll.steps === sum(roll.dice) ? `${roll.steps}` 
 export function TvDice({ v, played }: { v: RoomView; played?: RidePlan | null }) {
   const hit = useFresh(v, asRollOrCard, 2800);
   const g = v.game!;
-  const busy = !!g.auction || !!g.quiz || (g.silenceUntil ?? 0) > serverNow() || !!recentParty(v);
+  const busy = !!g.auction || !!g.quiz || (g.silenceUntil ?? 0) > serverNow() || !!g.forfeit;
   if (!hit || hit.x.t !== "roll" || busy) return null;
   if (played?.rolled && hit.at >= played.start - 50 && hit.at - played.start <= 1000) return null;
   const roll = hit.x;
@@ -184,6 +183,7 @@ function moneyOf(e: GameEvent): { from: number; to: number; amount: number } | n
   if ((e.t === "rent" || e.t === "pay") && e.amount > 0) return { from: e.p, to: e.to, amount: e.amount };
   if (e.t === "move" && e.salary) return { from: -1, to: e.p, amount: e.salary };
   if ((e.t === "passport" || e.t === "bonus") && e.amount > 0) return { from: -1, to: e.p, amount: e.amount };
+  if (e.t === "fine" && e.amount > 0) return { from: e.p, to: -1, amount: e.amount };
   return null;
 }
 

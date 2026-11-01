@@ -8,6 +8,7 @@ import {
   MAX_TEAM_SIZE,
   TIMING,
   TRIVIA_PRIZE,
+  TRIVIA_WRONG,
   type ClientMsg,
   type FeedItem,
   type GameView,
@@ -108,6 +109,15 @@ interface Bets {
   paidRent: boolean;
 }
 
+/** A party forfeit: who does it, why, which one (an index into FORFEITS), and when it came up. */
+interface HeldForfeit {
+  id: number;
+  seat: number;
+  why: PartyWhy;
+  dare: number;
+  at: number;
+}
+
 interface Game {
   s: E.GameState;
   seats: string[];
@@ -115,8 +125,13 @@ interface Game {
   startedAt: number;
   endsAt: number | null;
   timeUp: boolean;
+  /** The host paused the game. */
   paused: boolean;
+  /** When the game stopped (paused, or held by a forfeit), or null while it runs. */
   pausedAt: number | null;
+  /** The party forfeit holding the game until it's done (see party()), and the ones waiting their turn. Missing in older rooms. */
+  forfeit?: HeldForfeit | null;
+  forfeits?: HeldForfeit[];
   /** Bumped whenever the game waits on a new decision; actions must quote it. */
   decision: number;
   sig: string;
@@ -285,6 +300,8 @@ export class Room {
         endsAt: remaining === null ? null : now + remaining,
         paused: true,
         pausedAt: now,
+        forfeit: null,
+        forfeits: [],
         trades: [],
         awaySince: {},
         covered: {},
@@ -526,9 +543,17 @@ export class Room {
       }
       case "bet":
         return this.bet(m, !!msg.yes);
+      case "forfeit": {
+        const f = g?.forfeit;
+        if (!g || !f || f.id !== msg.id) return;
+        // Its own team says when it's done; the host can move the game on.
+        if (msg.op === "skip" ? !host : !this.seatsFor(m).includes(f.seat)) return this.toast(id, msg.op === "skip" ? "hostOnly" : "notYours");
+        return this.endForfeit(msg.op === "skip" ? "skip" : "done");
+      }
     }
     // Everything below is a move in the running game.
     if (!g || g.s.over) return;
+    if (g.forfeit) return this.toast(id, "forfeitWait");
     if (g.paused) return this.toast(id, "paused");
     const mine = this.seatsFor(m);
     const pickSeat = (want: unknown, fallback: number[]) => (isInt(want) ? (mine.includes(want) ? want : -1) : (fallback[0] ?? -1));
@@ -695,6 +720,8 @@ export class Room {
       timeUp: false,
       paused: false,
       pausedAt: null,
+      forfeit: null,
+      forfeits: [],
       decision: 0,
       sig: "",
       progress: 0,
@@ -718,14 +745,32 @@ export class Room {
   private pause(on: boolean) {
     const g = this.st.game;
     if (!g || g.s.over || g.paused === on) return;
-    const now = this.now;
-    if (on) {
-      g.paused = true;
-      g.pausedAt = now;
-      this.push({ t: "paused" });
-      return;
+    this.stopping(g, () => (g.paused = on));
+    this.push({ t: on ? "paused" : "resumed" });
+  }
+
+  /** Is the game standing still: paused by the host, or held by a party forfeit? */
+  private stopped(g: Game) {
+    return g.paused || !!g.forfeit;
+  }
+
+  /**
+   * Make a change that may stop or restart the game. The clock stops when the first reason to stand
+   * still comes (a pause, a forfeit) and starts again when the last one goes; then every timer moves
+   * on by the time stood still, once, however the reasons overlapped.
+   */
+  private stopping(g: Game, change: () => void) {
+    const was = this.stopped(g);
+    change();
+    const is = this.stopped(g);
+    if (!was && is) g.pausedAt = this.now;
+    else if (was && !is) {
+      this.shiftTimers(g, this.now - (g.pausedAt ?? this.now));
+      g.pausedAt = null;
     }
-    const shift = now - (g.pausedAt ?? now);
+  }
+
+  private shiftTimers(g: Game, shift: number) {
     const later = (x: number | null) => (x === null ? null : x + shift);
     g.endsAt = later(g.endsAt);
     g.deadline = later(g.deadline);
@@ -747,17 +792,14 @@ export class Room {
     }
     for (const t of g.trades) t.createdAt += shift;
     for (const k of Object.keys(g.awaySince)) g.awaySince[Number(k)] += shift;
-    g.paused = false;
-    g.pausedAt = null;
-    this.push({ t: "resumed" });
   }
 
   private exportSave(): SaveFile {
     const g = this.st.game;
     let game: SaveFile["game"] = null;
     if (g) {
-      const { awaySince: _a, covered: _c, trades: _t, ...rest } = g;
-      const now = g.paused && g.pausedAt ? g.pausedAt : this.now;
+      const { awaySince: _a, covered: _c, trades: _t, forfeit: _f, forfeits: _q, ...rest } = g;
+      const now = this.stopped(g) && g.pausedAt ? g.pausedAt : this.now;
       game = { ...clone(rest), remaining: g.endsAt === null ? null : Math.max(0, g.endsAt - now) };
     }
     return { v: 1, savedAt: this.now, settings: { ...this.st.settings }, teams: clone(this.st.teams), game };
@@ -774,7 +816,7 @@ export class Room {
     for (const e of s.events ?? []) {
       this.push({ t: "game", e });
       // Side events don't make anyone's pending decision stale.
-      if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus") g.progress += 1;
+      if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus" && e.t !== "fine") g.progress += 1;
       this.watch(e);
     }
     if (s.events) s.events = [];
@@ -858,8 +900,14 @@ export class Room {
     else if (e.t === "rule" && e.city === "shanghai" && e.right === false) this.party(e.p, "quiz");
   }
 
-  /** A party forfeit, not one of the last few: half the time one about what just happened. */
+  /**
+   * A party forfeit, not one of the last few: half the time one about what just happened. It holds
+   * the game (every clock stops) until the team has done it and says so, or the host skips it; one
+   * that comes up meanwhile waits its turn. (The computer's own teams don't do forfeits.)
+   */
   private party(seat: number, why: PartyWhy) {
+    const g = this.st.game!;
+    if (this.teamAt(seat)?.bot) return;
     const recent = this.st.dares ?? [];
     const all = FORFEITS.map((_, i) => i);
     const own = all.filter((i) => FORFEITS[i].why === why && !recent.includes(i));
@@ -869,6 +917,20 @@ export class Room {
     const dare = pool[Math.floor(this.env.random() * pool.length)];
     this.st.dares = [...recent, dare].slice(-8);
     this.push({ t: "party", seat, why, dare });
+    const held: HeldForfeit = { id: this.st.nextId++, seat, why, dare, at: this.now };
+    if (g.forfeit) (g.forfeits ??= []).push(held);
+    else this.stopping(g, () => (g.forfeit = held));
+  }
+
+  /** The forfeit holding the game is over: the next one waiting comes up, or the game goes on. */
+  private endForfeit(how: "done" | "skip" | "timeout") {
+    const g = this.st.game!;
+    const f = g.forfeit;
+    if (!f) return;
+    this.push({ t: "party-done", seat: f.seat, how });
+    const next = g.forfeits?.shift();
+    this.stopping(g, () => (g.forfeit = next ? { ...next, at: this.now } : null));
+    this.dirty = true;
   }
 
   private bet(m: Member, yes: boolean) {
@@ -983,7 +1045,10 @@ export class Room {
       this.afterMove();
       return;
     }
+    // A wrong answer costs a little (never more than the team has).
+    const fined = tv.order[choice] !== 0 && E.fine(g.s, seat, TRIVIA_WRONG, "trivia") > 0;
     if (tv.eligible.every((x) => x in tv.answers)) this.closeTrivia();
+    if (fined) this.afterMove();
     this.dirty = true;
   }
 
@@ -1075,7 +1140,8 @@ export class Room {
   nextWake(): number | null {
     const times: number[] = [this.st.lastActive + TIMING.roomTtl];
     const g = this.st.game;
-    if (g && !g.s.over && !g.paused) {
+    if (g && !g.s.over && g.forfeit && !g.paused) times.push(g.forfeit.at + this.ms("forfeitMax"));
+    if (g && !g.s.over && !this.stopped(g)) {
       const s = g.s;
       if (g.endsAt !== null && !g.timeUp) times.push(g.endsAt);
       if (g.auction) {
@@ -1128,9 +1194,15 @@ export class Room {
 
   private tickOnce(): boolean {
     const g = this.st.game;
-    if (!g || g.s.over || g.paused) return false;
-    const s = g.s;
+    if (!g || g.s.over) return false;
     const now = this.now;
+    // A forfeit nobody closed lets the game go on after a while (the team may have wandered off).
+    if (g.forfeit && !g.paused && now >= g.forfeit.at + this.ms("forfeitMax")) {
+      this.endForfeit("timeout");
+      return true;
+    }
+    if (this.stopped(g)) return false;
+    const s = g.s;
     if (g.endsAt !== null && !g.timeUp && now >= g.endsAt) {
       g.timeUp = true;
       E.endAfterThisRound(s);
@@ -1341,6 +1413,8 @@ export class Room {
       endsAt: g.endsAt,
       timeUp: g.timeUp,
       paused: g.paused,
+      frozenAt: this.stopped(g) ? g.pausedAt : null,
+      forfeit: g.forfeit ? { ...g.forfeit, waiting: g.forfeits?.length ?? 0 } : null,
       deadline: g.deadline,
       silenceUntil: g.silenceUntil,
       auction: g.auction && { id: g.auction.id, at: g.auction.at, price: g.auction.price, leader: g.auction.leader, endsAt: g.auction.endsAt, bids: g.auction.bids },

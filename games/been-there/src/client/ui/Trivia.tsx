@@ -2,7 +2,7 @@
 // about one of the cities. First right answer wins; a wrong answer locks that team out.
 // When it closes, everyone sees the answer, the real fact it comes from and a link to the source.
 import { CITIES } from "../../engine";
-import { TRIVIA_PRIZE, type RoomView } from "../../room/protocol";
+import { TRIVIA_PRIZE, TRIVIA_WRONG, type RoomView } from "../../room/protocol";
 import { CityGlyph } from "../art/icons";
 import { CODE } from "../art/stamps";
 import { money, t, tx } from "../i18n";
@@ -57,7 +57,7 @@ export function Trivia({ v, big }: { v: RoomView; big?: boolean }) {
               ? t("triviaLocked")
               : can && v.you.seats.length > 1
                 ? t("triviaAs", { team: seatName(v, seat!) })
-                : t("triviaPrize", { amount: money(TRIVIA_PRIZE) })}
+                : t("triviaPrize", { amount: money(TRIVIA_PRIZE), fine: money(TRIVIA_WRONG) })}
           </span>
         </p>
       ) : (
