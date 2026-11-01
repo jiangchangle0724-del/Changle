@@ -44,12 +44,15 @@ puts a flame over its owner and is counted (3 and 1), the host takes the night t
 lights change colour), a guest has no host controls, the host ends the set (the recap shows) and
 starts another (the speaker starts it by itself). No errors on any page.
 
-**Against this PR's preview (the real build on Cloudflare):** the speaker page passes in WebKit at
-both sizes and in Chromium at the phone size (first sound 2.6 to 4.2 s, no stalls, 125 BPM). In
-Chromium at the desktop size the music took 17.7 s to start: the test machine (2 cores) was also
-running two long soaks, and the sections are recorded on the device before they can play (the
-recording starts as the page opens, before anyone taps). How long that takes on a real iPhone and
-Mac is one of the things Steve's check shows.
+**Against this PR's preview (the real build on Cloudflare), with the faster recorder below:** all
+four pass: the music is ready about 2 seconds after the page opens, sound 0.4 to 0.5 s after the
+tap, no stalls, 125 BPM, the drop test one stall and back. Two earlier runs of the same check read
+Chromium's beat at the phone size as 121 to 122 BPM with no stall: the test machine's stand-in sound
+device (headless browsers have no sound card) falling behind under load, since the beat clock
+follows the sound device; it read 125.00 on the four runs after, and the build before this change
+showed a smaller slip once (124.3). A real speaker's clock is its sound hardware. (The first preview
+check, before the faster recorder, took 2.6 to 4.2 s to the first sound and once 17.7 s while the
+machine also ran two soaks.)
 
 ## Recording the sections
 
