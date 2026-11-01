@@ -32,7 +32,8 @@ const STATUS: Record<string, EventStatus> = { onsale: "scheduled", offsale: "sol
 /** Ticketmaster's segment and genre to one of the 8 categories. */
 export function tmCategory(segment?: string, genre?: string): Category | null {
   const g = (genre ?? "").toLowerCase();
-  if (/festival/.test(g)) return "festivals";
+  // (a music festival is a concert: shows; fairs and festivals are festivals)
+  if (/festival/.test(g) && (segment ?? "").toLowerCase() !== "music") return "festivals";
   if (/comedy|theatre|musical|magic|dance/.test(g)) return "shows";
   if (/family|children/.test(g)) return "family";
   if (/fine art|museum|film/.test(g)) return "arts";

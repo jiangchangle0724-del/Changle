@@ -40,7 +40,7 @@ export interface Place {
  * is one NormalizedEvent per date (RRULE expanded within the window).
  *
  * Times: `start` and `end` are Vancouver wall-clock time with the offset in force that day,
- * "2026-11-01T19:30:00-08:00" (src/time.ts makes them). An all-day event has a date only,
+ * "2026-11-01T19:30:00-07:00" (src/time.ts makes them). An all-day event has a date only,
  * "2026-11-01", and `allDay: true`; one with no time yet has its date, `allDay: true` and
  * `timeTBD: true`.
  */
