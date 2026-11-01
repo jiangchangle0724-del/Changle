@@ -17,7 +17,12 @@ const MOOD_EMOJI: Record<SoloMood, string> = { warm: "🍲", bold: "🌶️", li
 const SIDE_EMOJI: Record<SoloSide, string> = { chinese: "🥢", jk: "🍣", asia: "🍜", west: "🍝", any: "🎲" };
 const STEPS = 5;
 
-type Stage = { k: "ask"; step: number } | { k: "finding" } | { k: "picks"; cards: SoloCard[]; relaxed: boolean; batch: number } | { k: "chosen"; card: SoloCard };
+type Stage =
+  | { k: "ask"; step: number }
+  | { k: "finding" }
+  /** `more`: the server has further places for "show me others"; their details are fetched then. */
+  | { k: "picks"; cards: SoloCard[]; relaxed: boolean; batch: number; more: boolean; loading?: boolean }
+  | { k: "chosen"; card: SoloCard };
 
 export function Solo({ home }: { home: () => void }) {
   const { me } = useApp();
@@ -51,10 +56,24 @@ export function Solo({ home }: { home: () => void }) {
       body: JSON.stringify({ center, range: where.range, answers: { mood: mood ?? "any", side: side ?? "any" }, limits, lang: prefs.lang }),
     });
     const d = res.data ?? {};
-    if (res.ok && d.cards?.length) return setStage({ k: "picks", cards: d.cards, relaxed: !!d.relaxed, batch: 0 });
+    if (res.ok && d.cards?.length) return setStage({ k: "picks", cards: d.cards, relaxed: !!d.relaxed, batch: 0, more: !!d.more });
     const why = d.error === "quota" ? "quota" : d.error === "login" ? "soloLogin" : d.error === "nothingNearby" || d.error === "nothingFits" || d.error === "searchFailed" ? d.error : "offline";
     setErr(t(why as Key));
     setStage({ k: "ask", step: 3 });
+  };
+
+  /** "Show me others": the next three, from what's loaded or fetched now. */
+  const others = async () => {
+    if (stage.k !== "picks" || stage.loading) return;
+    const batch = stage.batch + 1;
+    if (stage.cards.length > batch * 3) return setStage({ ...stage, batch });
+    setStage({ ...stage, loading: true });
+    const res = await api<SoloResponse>("/api/solo/more", { method: "POST", body: "{}" });
+    const d = res.data ?? {};
+    if (res.ok && d.cards?.length) return setStage({ ...stage, cards: [...stage.cards, ...d.cards], batch, more: !!d.more, loading: false });
+    setStage({ ...stage, more: false, loading: false });
+    if (d.error === "expired") toast(t("soloExpired"));
+    else if (!res.ok) toast(t("offline"));
   };
 
   /** Remember the pick on the account, so the home page asks how it was (and it can be rated). */
@@ -169,8 +188,8 @@ export function Solo({ home }: { home: () => void }) {
           </section>
           <p class="muted small center">{t("google")}</p>
           <div class="row">
-            {stage.cards.length > (stage.batch + 1) * 3 ? (
-              <Btn wide onClick={() => setStage({ ...stage, batch: stage.batch + 1 })}>
+            {stage.cards.length > (stage.batch + 1) * 3 || stage.more ? (
+              <Btn wide disabled={stage.loading} onClick={() => void others()}>
                 {t("soloMore")}
               </Btn>
             ) : (

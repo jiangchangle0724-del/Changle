@@ -33,9 +33,9 @@ export const SIDE_CUISINES: Record<Exclude<SoloSide, "any">, CuisineId[]> = {
 
 export type SoloReason = "mood" | "side" | "budget" | "near" | "list" | "pick" | "fans" | "topRated";
 
-/** Shown in batches of this many; the second batch is behind "show me others". */
+/** Shown in batches of this many; each further batch is behind "show me others" and fetched then. */
 export const SOLO_BATCH = 3;
-export const SOLO_COUNT = 6;
+export const SOLO_COUNT = 12;
 /** Below this many places on the chosen side, the side is relaxed and the rest come back. */
 const SIDE_MIN = 3;
 /** How much a mood match counts, in "people who liked it in round 1" (see pick.ts WEIGHTS.likes). */
