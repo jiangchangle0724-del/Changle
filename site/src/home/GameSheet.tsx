@@ -2,6 +2,7 @@ import { RadioTower, Smartphone, Sparkles, Tv, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import type { GameId, GameMeta } from "../games/registry";
+import { go } from "../router";
 import { usePenaltyText, useStore } from "../store";
 
 /** A game's card: what it is, how many it takes, and the two ways to play it. */
@@ -33,13 +34,12 @@ export function GameSheet({
   // a computer (or a TV browser) can become the big screen right here; a phone gets told where to go
   const bigScreen = () => {
     const wide = window.matchMedia("(min-width: 900px) and (hover: hover)").matches;
-    if (wide && g) {
-      onClose();
-      window.location.hash = `#/tv?g=${g.id}`;
-    } else setTvHelp((x) => !x);
+    if (wide && g) go({ kind: "tv", game: g.id }, true);
+    else setTvHelp((x) => !x);
   };
   return (
-    <Sheet open={!!g} onClose={onClose} gel={g?.gel}>
+    // the card's own address (/g/<slug>) is its history entry, so the sheet adds none
+    <Sheet open={!!g} onClose={onClose} gel={g?.gel} history={false} label={g ? (lang === "zh" ? g.name.zh : g.name.en) : undefined}>
       {g && Icon && (
         <div className="game-card" style={{ ["--gel" as string]: g.gel }}>
           <div className="game-card-head">

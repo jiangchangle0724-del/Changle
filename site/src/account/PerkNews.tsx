@@ -28,7 +28,7 @@ export function PerkNews() {
         </span>
         <p className="perk-lead">{about ? (zh ? `「${about}」上线了。` : `"${about}" is live.`) : zh ? "你许的游戏上线了。" : "The game you wished for is live."}</p>
         <p className="hint">{zh ? "谢谢你的点子。送你一个金色头像边框，所有人都看得到；AI 头像里的三套限量服饰也归你了。" : "Thank you for the idea. Your face now has a gold frame everyone sees, and the three limited outfits in the AI avatar maker are yours."}</p>
-        <a className="btn btn-primary btn-lg btn-block" href="#/me" onClick={() => setAbout(null)}>
+        <a className="btn btn-primary btn-lg btn-block" href="/me" onClick={() => setAbout(null)}>
           <Sparkles size={18} />
           {zh ? "去穿限量款" : "Try the limited outfits"}
         </a>

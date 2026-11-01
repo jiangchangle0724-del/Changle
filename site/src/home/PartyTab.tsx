@@ -1,7 +1,7 @@
 import { Dices, KeyRound, RadioTower, UserPlus, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PlayersSheet } from "../components/PlayersSheet";
-import { GAMES, type GameId, type GameMeta } from "../games/registry";
+import { GAME_BY_ID, GAMES, type GameId, type GameMeta } from "../games/registry";
 import { gsap, LIGHTS, reduced, setLight, useGSAP } from "../lib/anim";
 import { haptic, sfx } from "../lib/sfx";
 import { OnlineSheet } from "../online/OnlineSheet";
@@ -12,20 +12,34 @@ import { runSweep } from "../lib/sweep";
 
 const ENTERED = "changle.entered";
 
-export function PartyTab({ onOpenGame, onWishlist, start }: { onOpenGame: (id: GameId) => void; onWishlist: () => void; start?: GameId }) {
+export function PartyTab({
+  card,
+  onCard,
+  onPlay,
+  onWishlist,
+}: {
+  /** the game whose card is open: the address says so (/g/<slug>) */
+  card?: GameId;
+  onCard: (id: GameId | null) => void;
+  onPlay: (id: GameId) => void;
+  onWishlist: () => void;
+}) {
   const { players, ui, lang } = useStore();
   const [playersOpen, setPlayersOpen] = useState(false);
   const [online, setOnline] = useState<{ open: boolean; game?: GameId; join?: boolean }>({ open: false });
-  const [sheet, setSheet] = useState<GameMeta | null>(null);
+  const sheet: GameMeta | null = card ? GAME_BY_ID[card] : null;
   const [spinning, setSpinning] = useState(false);
   const [lit, setLit] = useState<number | null>(null);
-  // a game's link opened with too few players here: its card, to add people or play online
+  // a card opened by its address (a shared link, the back button): its tile under the light
   useEffect(() => {
-    const i = start ? GAMES.findIndex((g) => g.id === start) : -1;
+    const i = card ? GAMES.findIndex((g) => g.id === card) : -1;
     if (i < 0) return;
     setLit(i);
-    setSheet(GAMES[i]);
-  }, [start]);
+    setLight(GAMES[i].gel, 0.4);
+  }, [card]);
+  // the card that opens after the light lands: not if this tab has gone by then
+  const landing = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(landing.current), []);
   const grid = useRef<HTMLDivElement>(null);
   const tl = useRef<gsap.core.Timeline | null>(null);
 
@@ -66,8 +80,8 @@ export function PartyTab({ onOpenGame, onWishlist, start }: { onOpenGame: (id: G
     const target = ready[Math.floor(Math.random() * ready.length)];
     if (reduced()) {
       setLit(target);
-      setSheet(GAMES[target]);
       setLight(GAMES[target].gel);
+      onCard(GAMES[target].id);
       return;
     }
     setSpinning(true);
@@ -86,7 +100,7 @@ export function PartyTab({ onOpenGame, onWishlist, start }: { onOpenGame: (id: G
         sfx.settle();
         haptic([10, 40, 18]);
         gsap.fromTo(`[data-tile="${target}"]`, { scale: 1.08 }, { scale: 1, duration: 0.7, ease: "elastic.out(1, 0.45)" });
-        window.setTimeout(() => setSheet(GAMES[target]), 420);
+        landing.current = window.setTimeout(() => onCard(GAMES[target].id), 420);
       },
     });
   };
@@ -96,7 +110,7 @@ export function PartyTab({ onOpenGame, onWishlist, start }: { onOpenGame: (id: G
     setLit(i);
     setLight(g.gel, 0.4);
     sfx.tap();
-    setSheet(g);
+    onCard(g.id);
   };
 
   const need = sheet ? Math.max(0, (sheet.solo?.min ?? sheet.minPlayers) - players.length) : 0;
@@ -178,23 +192,15 @@ export function PartyTab({ onOpenGame, onWishlist, start }: { onOpenGame: (id: G
         {ui("responsible")}
       </p>
 
+      {/* the card steps aside while its online sheet is up; back closes that sheet and shows the card again */}
       <GameSheet
-        game={sheet}
+        game={online.open ? null : sheet}
         need={need}
-        onClose={() => setSheet(null)}
-        onPlay={(id) => {
-          setSheet(null);
-          onOpenGame(id);
-        }}
+        onClose={() => onCard(null)}
+        onPlay={onPlay}
         onAddPeople={() => setPlayersOpen(true)}
-        onOnline={(id) => {
-          setSheet(null);
-          setOnline({ open: true, game: id });
-        }}
-        onWishlist={() => {
-          setSheet(null);
-          onWishlist();
-        }}
+        onOnline={(id) => setOnline({ open: true, game: id })}
+        onWishlist={onWishlist}
       />
       <PlayersSheet open={playersOpen} onClose={() => setPlayersOpen(false)} />
       <OnlineSheet open={online.open} game={online.game} focusCode={online.join} onClose={() => setOnline({ open: false })} />

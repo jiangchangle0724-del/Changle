@@ -1,29 +1,47 @@
 import { X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { gsap, reduced } from "../lib/anim";
+import { useBackCloses } from "../router";
 import { useStore } from "../store";
+
+/** Open sheets, bottom to top: Esc closes only the top one. */
+const stack: number[] = [];
+let sheetIds = 0;
 
 /**
  * A bottom sheet. It rises with a little weight, can be swiped down by its handle, and
- * stays mounted until its exit animation has finished.
+ * stays mounted until its exit animation has finished. The phone's back button closes it.
  */
 export function Sheet({
   open,
   onClose,
   title,
+  label,
   children,
   gel,
+  history = true,
 }: {
   open: boolean;
   onClose: () => void;
   title?: ReactNode;
+  /** names the dialog for screen readers when it has no title */
+  label?: string;
   children: ReactNode;
   /** the game color this sheet belongs to (primary buttons glow in it) */
   gel?: string;
   tone?: string;
+  /** false when the page's own address already stands for the sheet (a game's card at /g/<slug>) */
+  history?: boolean;
 }) {
   const { ui } = useStore();
+  const titleId = useId();
+  useBackCloses(open, onClose, history);
+  const [id] = useState(() => ++sheetIds);
+  // a closing sheet (its exit animation still running) can't be closed a second time
+  const requestClose = () => {
+    if (open) onClose();
+  };
   const [mounted, setMounted] = useState(open);
   const back = useRef<HTMLDivElement>(null);
   const card = useRef<HTMLDivElement>(null);
@@ -56,10 +74,14 @@ export function Sheet({
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    stack.push(id);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && stack[stack.length - 1] === id && onClose();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      stack.splice(stack.indexOf(id), 1);
+    };
+  }, [open, onClose, id]);
 
   // swipe down on the handle area to dismiss
   const drag = useRef<{ y: number; t: number } | null>(null);
@@ -80,26 +102,34 @@ export function Sheet({
     if (dy > 120 || v > 0.6) {
       gsap.set(card.current, { y: 0 });
       gsap.set(card.current, { yPercent: (dy / card.current.offsetHeight) * 100 });
-      onClose();
+      requestClose();
     } else gsap.to(card.current, { y: 0, duration: 0.35, ease: "back.out(1.6)" });
   };
 
   if (!mounted) return null;
   return createPortal(
-    <div className="sheet-backdrop" ref={back} onClick={onClose}>
+    // only a tap on the backdrop itself closes: taps inside the sheet go on to the page (links stay in-page)
+    <div className="sheet-backdrop" ref={back} onClick={(e) => e.target === e.currentTarget && requestClose()}>
       <div
         ref={card}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : label}
         className="sheet"
         style={gel ? ({ ["--gel" as string]: gel } as React.CSSProperties) : undefined}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="sheet-grip" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
           <div className="sheet-handle" aria-hidden="true" />
           <div className="sheet-head">
-            {title ? <h2 className="sheet-title">{title}</h2> : <span />}
-            <button className="icon-btn sheet-close" onClick={onClose} onPointerDown={(e) => e.stopPropagation()} aria-label={ui("close")}>
+            {title ? (
+              <h2 className="sheet-title" id={titleId}>
+                {title}
+              </h2>
+            ) : (
+              <span />
+            )}
+            <button className="icon-btn sheet-close" onClick={requestClose} onPointerDown={(e) => e.stopPropagation()} aria-label={ui("close")}>
               <X size={20} />
             </button>
           </div>

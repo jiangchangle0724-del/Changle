@@ -370,8 +370,8 @@ def seat_table(browser, names):
     host.wait_for_timeout(400)
     host.locator("#online-name").fill(names[0])
     host.get_by_role("button", name="开一桌", exact=True).click()
-    host.wait_for_url(re.compile(r"#/r/[A-Z0-9]{4}"), timeout=8000)
-    code = re.search(r"#/r/([A-Z0-9]{4})", host.url).group(1)
+    host.wait_for_url(re.compile(r"/t/[A-Z0-9]{4}"), timeout=8000)
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
     until(lambda: room(host))
     guests = []
     for n in names[1:]:
@@ -479,8 +479,8 @@ def online_screen(browser):
     host.wait_for_timeout(400)
     host.locator("#online-name").fill("Steve")
     host.get_by_role("button", name="开一桌", exact=True).click()
-    host.wait_for_url(re.compile(r"#/r/[A-Z0-9]{4}"), timeout=8000)
-    code = re.search(r"#/r/([A-Z0-9]{4})", host.url).group(1)
+    host.wait_for_url(re.compile(r"/t/[A-Z0-9]{4}"), timeout=8000)
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
     guests = []
     for n in ["Mia", "Jay"]:
         g = phone(browser, n)
@@ -572,7 +572,7 @@ def stress(browser):
             guests[1].close()
         until(lambda: all(g.locator(".tn-option:not([disabled])").count() == 4 for g in players if not g.is_closed()), 15000)
         if n == 5:
-            code = re.search(r"#/r/([A-Z0-9]{4})", host.url).group(1)
+            code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
             late = phone(browser, "Lin")
             late.goto(BASE + f"#/r/{code}", wait_until="networkidle")
             late.wait_for_timeout(300)

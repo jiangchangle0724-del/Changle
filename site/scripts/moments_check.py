@@ -60,7 +60,7 @@ def main():
         a.wait_for_selector("#online-name")
         a.get_by_role("button", name="开一桌", exact=True).click()
         a.wait_for_selector(".lobby .faces", timeout=10000)
-        code = a.evaluate("location.hash").split("/")[-1]
+        code = a.evaluate("location.pathname").split("/")[-1]
         for page, name in ((b, None), (c, "Cy"), (d, "Dee")):
             page.goto(BASE + f"#/r/{code}")
             page.wait_for_selector(".join-card, .lobby", timeout=10000)

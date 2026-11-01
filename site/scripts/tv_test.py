@@ -110,7 +110,7 @@ def main():
         tv.wait_for_timeout(900)
         code = tv.locator(".tv-code").inner_text().strip()
         ok(re.fullmatch(r"[A-Z0-9]{4}", code) is not None, f"the TV opened table {code}")
-        ok(until(lambda: re.search(r"#/tv/" + code, tv.url) is not None), "the TV's address now names the table (a reload comes back)")
+        ok(until(lambda: re.search(r"/tv/" + code, tv.url) is not None), "the TV's address now names the table (a reload comes back)")
         shot(tv, "01-lobby-empty")
         tv.mouse.click(800, 450)  # the click that lets the TV play sound
         tv.wait_for_timeout(300)
