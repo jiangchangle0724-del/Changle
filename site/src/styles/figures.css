@@ -327,3 +327,150 @@
 .moment-row:has(.moment + .moment) .moment {
   --fig-h: clamp(96px, 28vw, 140px);
 }
+
+/* a smaller stage, where the game needs the room */
+.moment.is-sm {
+  --fig-h: clamp(92px, 26vw, 118px);
+}
+/* picked (the bottle stopped on you): a little hop of surprise */
+.moment-picked .moment-fig {
+  animation:
+    moment-rise 0.75s var(--ease-pop) 0.1s both,
+    picked-hop 0.55s var(--ease-out) 0.95s;
+}
+@keyframes picked-hop {
+  40% {
+    transform: translateY(-12%) scaleY(1.04);
+  }
+}
+
+/* ---------- a row of people doing what the game has them doing ---------- */
+
+.lineup {
+  --fig-h: clamp(70px, 20vw, 100px);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 4px;
+  height: calc(var(--fig-h) + 16px);
+  padding-bottom: 8px;
+  isolation: isolate;
+}
+.lineup::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--gel) 32%, var(--dusk-3)), transparent);
+  z-index: -1;
+}
+.lineup.is-crowded {
+  --fig-h: clamp(54px, 14vw, 80px);
+}
+.lineup-fig {
+  position: relative;
+  height: var(--fig-h);
+  margin: 0 -3px;
+  transform-origin: 50% 100%;
+  transition:
+    transform 0.5s var(--ease-out),
+    filter 0.4s ease,
+    opacity 0.4s ease;
+}
+.lineup-fig[data-pose="idle"] {
+  animation: idle-sway 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.7s);
+}
+.lineup-fig[data-pose="dance"] {
+  animation: dance-bop 0.46s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -0.17s);
+}
+@keyframes dance-bop {
+  0% {
+    transform: translateY(0) rotate(-9deg) scaleY(0.95);
+  }
+  100% {
+    transform: translateY(-14%) rotate(9deg) scaleY(1.03);
+  }
+}
+/* frozen: stopped dead mid-move, with a frosty glint */
+.lineup-fig[data-pose="frozen"] {
+  transform: rotate(calc(var(--i) % 2 * 10deg - 5deg));
+  filter: saturate(0.6) brightness(1.08) drop-shadow(0 0 6px color-mix(in oklab, var(--gel-cyan) 75%, transparent));
+}
+.lineup-fig[data-pose="caught"] {
+  transform: rotate(16deg) translateY(4%);
+  filter: grayscale(0.85) brightness(0.8);
+  opacity: 0.75;
+}
+.lineup-fig[data-pose="lean"] {
+  transform: rotate(var(--lean));
+  animation: lean-wobble 1.5s ease-in-out infinite;
+}
+@keyframes lean-wobble {
+  50% {
+    transform: rotate(calc(var(--lean) + 5deg));
+  }
+}
+.lineup-fig[data-pose="pass"] {
+  transform: translateY(-5%);
+}
+.lineup-fig[data-pose="fail"] {
+  transform: rotate(-80deg) translateY(-12%);
+  filter: grayscale(0.8);
+  opacity: 0.7;
+}
+.lineup-badge {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  width: 22px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lineup-fig {
+    animation: none !important;
+  }
+}
+
+/* limbo: the players between the poles, the bar drawn in front of them */
+.limbo-stage {
+  position: relative;
+  width: min(100%, 292px);
+  aspect-ratio: 320 / 230;
+  margin: 0 auto;
+}
+.limbo-stage .limbo-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+.limbo-bar-front {
+  z-index: 2;
+  pointer-events: none;
+}
+.limbo-people {
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  top: 0;
+  bottom: 7%;
+  z-index: 1;
+}
+.limbo-people .lineup {
+  --fig-h: 64%;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+}
+.limbo-people .lineup::before {
+  display: none;
+}

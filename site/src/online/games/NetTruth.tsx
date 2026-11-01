@@ -10,6 +10,7 @@ import { NetFrame } from "../NetFrame";
 import { useReached, useRoom } from "../RoomContext";
 import { useNetSpin } from "../useNetSpin";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "./common";
+import { Moment } from "../../components/Figure";
 
 export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf } = useRoom();
@@ -27,6 +28,7 @@ export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) 
   const { table, weak } = useNetSpin({ scope: "truth", count, canSpin: mySpin, rest, friction: 1.1, tick: 0.55 });
   const landed = useReached(v.revealAt) && !table.spinning;
   const chosenMe = v.chosen === me;
+  const chosenSeat = v.chosen ? seats.find((s) => s.id === v.chosen) : undefined;
   useYourTurn(mySpin);
   useYourTurn(v.phase === "choose" && landed && chosenMe);
 
@@ -140,6 +142,7 @@ export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) 
                   <Waiting>{ui("spinning")}</Waiting>
                 ) : chosenMe ? (
                   <motion.div className="choose-box" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                    {chosenSeat && <Moment seat={chosenSeat} kind="picked" small />}
                     <p className="choose-who">
                       <span className="turn-name">{ui("yourTurnNow")}</span>
                     </p>
@@ -154,6 +157,7 @@ export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) 
                   </motion.div>
                 ) : (
                   <motion.div className="choose-box" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                    {chosenSeat && <Moment seat={chosenSeat} kind="picked" small />}
                     <p className="choose-who">
                       <span className="turn-name">{nameOf(v.chosen)}</span>
                     </p>

@@ -12,6 +12,7 @@ import type { PostitReply, PostitView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { Forehead, Sticky, tiltFor } from "./parts";
 import "../../styles/party.css";
+import { Figure } from "../../components/Figure";
 
 const REPLY: Record<PostitReply, [string, string]> = { yes: ["是", "Yes"], no: ["不是", "No"], maybe: ["不确定", "Not sure"] };
 
@@ -46,7 +47,8 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
               {v.order.map((id) => (
                 <Forehead
                   key={id}
-                  face={<SeatFace seat={seat(id)} size={46} />}
+                  figure={!!seat(id)}
+                  face={seat(id) ? <Figure seat={seat(id)!} /> : <SeatFace seat={seat(id)} size={46} />}
                   name={id === me ? (zh ? "你" : "You") : nameOf(id)}
                   note={v.notes[id]}
                   tilt={tiltFor(id)}

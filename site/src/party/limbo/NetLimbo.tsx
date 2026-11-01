@@ -13,6 +13,7 @@ import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useSensorStatus, useWakeLock } from "../sensors";
 import { LeanGauge, LimboScene, useLean } from "./parts";
 import "../../styles/party.css";
+import { Lineup } from "../../components/Figure";
 
 export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) {
   // the dance floor has its own music: the lounge music waits
@@ -88,7 +89,19 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   return (
     <NetFrame title={GAME_BY_ID.limbo.name} rules={rules} onLeave={onLeave}>
       <div className="lb">
-        {v.phase !== "end" && <LimboScene angle={v.angle} level={v.level} />}
+        {v.phase !== "end" && (
+          <LimboScene angle={v.angle} level={v.level}>
+            {(v.phase === "go" || v.phase === "result") && (
+              <Lineup
+                lean={v.angle}
+                items={v.alive.filter((id) => seat(id)).map((id) => {
+                  const st = status(id);
+                  return { seat: seat(id)!, pose: st === "pass" ? "pass" : st === "fail" ? "fail" : v.phase === "go" && open ? "lean" : "idle" };
+                })}
+              />
+            )}
+          </LimboScene>
+        )}
         {v.phase !== "end" && (
           <p className="lb-level">
             <strong className="tabular">{v.angle}°</strong>
