@@ -40,7 +40,7 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   room.handle(ids[1], { t: "mood", picks: { ramen: "like" }, done: true });
   room.handle(ids[2], { t: "mood", picks: {}, done: true });
   assert.equal(room.st.phase, "cards");
-  assert.deepEqual(room.flush().want, { k: "details", ids: room.st.cards, lang: "zh" });
+  assert.deepEqual(room.flush().want, { k: "details", ids: room.st.cards });
 
   const cards = room.view(ids[0]).cards;
   assert.ok(cards.length >= 3);
@@ -56,6 +56,17 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   assert.equal(room.rate("dddddddd", { overall: "up", liked: true, wait: 15 }), true);
   assert.equal(room.rate("dddddddd", { overall: "mid", liked: true, wait: 15 }), false);
   assert.deepEqual(room.view(ids[0]).ratings, { n: 1, up: 0, mid: 1, down: 0, liked: 1 });
+});
+
+test("details fill in a card's description only when the search had none", () => {
+  const { room, ids, places } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.found(places().map((p, i) => ({ ...p, about: i % 2 ? undefined : `搜索里的介绍 ${i}` })));
+  const [a, b] = room.st.places;
+  room.enrich({ [a.id]: { phone: "(604) 111-1111", about: "From details" }, [b.id]: { about: "From details" } });
+  assert.equal(a.about, "搜索里的介绍 0");
+  assert.equal(a.phone, "(604) 111-1111");
+  assert.equal(b.about, "From details");
 });
 
 test("rounds end on the clock for people who don't finish", () => {

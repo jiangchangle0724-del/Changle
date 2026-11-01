@@ -25,7 +25,10 @@ const SEARCH_FIELDS = [
   "places.shortFormattedAddress",
 ].join(",");
 
-const DETAIL_FIELDS = ["nationalPhoneNumber", "googleMapsUri", "photos", "reviews"].join(",");
+// editorialSummary rides along at no extra cost (reviews already bill this request at the Atmosphere
+// tier). Details are asked in English: Google has its one-line descriptions mostly in English, the
+// review we quote keeps its original language, and nothing else here depends on the language.
+const DETAIL_FIELDS = ["nationalPhoneNumber", "googleMapsUri", "photos", "reviews", "editorialSummary"].join(",");
 
 /** Names and reviews in the host's language where Google has them. */
 const languageCode = (lang: Lang) => (lang === "zh" ? "zh-CN" : "en");
@@ -127,12 +130,16 @@ interface GDetails {
   googleMapsUri?: string;
   photos?: { name: string; authorAttributions?: { displayName?: string; uri?: string }[] }[];
   reviews?: { text?: { text?: string }; originalText?: { text?: string }; authorAttribution?: { displayName?: string } }[];
+  editorialSummary?: { text?: string };
 }
 
 /** Phone, map link, one photo and any review that mentions queueing, for one card. */
-export async function detailsGoogle(key: string, id: string, lang: Lang): Promise<Partial<Place>> {
-  const d = (await google(key, `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=${languageCode(lang)}`, { fields: DETAIL_FIELDS })) as GDetails;
+export async function detailsGoogle(key: string, id: string): Promise<Partial<Place>> {
+  const d = (await google(key, `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=en`, { fields: DETAIL_FIELDS })) as GDetails;
   const out: Partial<Place> = { phone: d.nationalPhoneNumber, mapsUrl: d.googleMapsUri };
+  // Only used when the search (in the table's language) had no description: see keepAbout().
+  const about = d.editorialSummary?.text?.trim().slice(0, 160);
+  if (about) out.about = about;
   for (const r of d.reviews ?? []) {
     const text = r.originalText?.text ?? r.text?.text ?? "";
     if (mentionsQueue(text)) {
@@ -225,3 +232,8 @@ const DEMO_EXTRA: Record<number, Partial<Place>> = {
   },
   8: { about: "Demo: pho and banh mi, open late" },
 };
+
+/** Details never replace a description the search already gave in the table's own language. */
+export function keepAbout(p: Place, details: Partial<Place>): Partial<Place> {
+  return p.about ? { ...details, about: p.about } : details;
+}

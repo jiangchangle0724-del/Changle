@@ -1,4 +1,4 @@
-# 随便 hand-off (2026-10-30)
+# 随便 hand-off (updated 2026-10-31)
 
 For whoever picks up 随便 · Whatever's Fine at [changle.ca/eat](https://changle.ca/eat) next. How it
 works and how to set it up: [README.md](README.md). Why it works that way: [DESIGN.md](DESIGN.md).
@@ -84,6 +84,9 @@ All merged into `main`:
 | #27 | Privacy and terms pages at `/eat/privacy` and `/eat/terms` (Google needs them) | `tools/suibian/`: `src/client/privacy.html` (new), `src/client/terms.html` (new), `src/client/styles.css`, `src/client/i18n.ts`, `src/client/ui/Home.tsx`, `scripts/build.mjs`, `tests/e2e/table.spec.ts`, `README.md` |
 | #28 | README: the e2e checks include those pages | `tools/suibian/README.md` |
 | #29 | Headings on those pages a clear step above the text | `tools/suibian/src/client/styles.css` |
+| #41 | Picking alone (`/eat/solo`), eleven distances incl. any, cards with descriptions, list badges and picks; hotels left out; no stray " · " on the wait line | `tools/suibian/`: `src/engine/solo.ts`, `src/server/curated.ts`, `src/data/lists.json`, `src/data/picks.json` (all new), `src/engine/clock.ts`, `src/server/places.ts`, `src/server/worker.ts`, `src/client/ui/` (`Solo.tsx`, `PlaceCard.tsx`, `RangePicker.tsx`, `Where.tsx` new), tests, README, privacy and terms |
+| #45 | Picking alone keeps the saved budget; places with almost no Google ratings rank below rated ones | `tools/suibian/src/engine/solo.ts`, `src/client/ui/Solo.tsx`, tests |
+| #48 | Rating a solo pick (`/eat/rate`, the home page asks), English descriptions when Google has none in Chinese, the queue quote on a soft panel | `tools/suibian/`: `src/server/worker.ts`, `src/server/places.ts`, `src/room/room.ts`, `src/client/ui/` (`Rate.tsx`, `Solo.tsx`, `Home.tsx`), `src/client/main.tsx`, `src/client/store.ts`, `src/client/i18n.ts`, `src/client/styles.css`, `src/client/privacy.html`, tests, README |
 
 ## Live state
 
@@ -102,16 +105,18 @@ All merged into `main`:
   `/eat/api/me` says `"demo": false`. Checked on a Downtown table: round 1 listed the cuisines open
   nearby, round 2 six real restaurants with photos credited to their photographers, ratings, walking
   minutes, last-order times, phone and map links.
-* Seen in that check, not fixed yet: Google tags some hotels as restaurants, so Fairmont Hotel
-  Vancouver came up as a card; and when a place has no wait reasons, the wait line ends in a stray
-  " · " (`Table.tsx`, the `wait` paragraph).
+* The two things seen in that check (hotels such as Fairmont Hotel Vancouver coming up as cards, and
+  a stray " · " at the end of the wait line) were fixed in #41.
+* Google's one-line descriptions: most places have one only in English, so a Chinese-language table
+  shows the English one (from the details request, at no extra cost) when the search had none.
 
 ## Open items
 
 * The severe-allergy table `SEVERE_RULES_OUT` in `src/engine/limits.ts` is a **draft** and needs
   review by friends who have those allergies.
-* Design: the left border on `.quote` (the Google review line about queues on round 2 cards,
-  `src/client/styles.css`) is waiting for the owner's call.
+* `src/data/lists.json` (list badges) and `src/data/picks.json` (Steve's picks) are empty. The
+  badges are GitHub issue #42, written for Codex on the owner's computer; the picks wait for the
+  owner's 探店 links. `npm test` checks both files.
 
 ## Working rules
 
