@@ -199,6 +199,8 @@ export class RoomEngine {
       d.tv = { id: sid, at: now };
       const gi = ONLINE_GAMES.indexOf(game as GameId);
       if (gi >= 0) d.front = gi;
+      // a game the screen runs by itself (the DJ booth) is on before anyone sits down
+      if (gi >= 0 && GAMES[game as GameId]?.auto) this.startGame(game as GameId);
     } else if (!create && !this.exists) {
       return "no-room";
     }
@@ -276,18 +278,8 @@ export class RoomEngine {
       }
       case "start": {
         if (!host || !(a.game in GAMES)) return;
-        const def = GAMES[a.game] as GameDef<unknown>;
         if (this.players().length < ONLINE_MIN[a.game]) return;
-        this.clearGameTimers();
-        this.finishPlay();
-        d.strokes = [];
-        this.out.strokesReset = true;
-        d.game = { id: a.game, s: null };
-        d.play = { game: a.game, started: this.h.now(), tally: {} };
-        d.game.s = def.init(this.api());
-        d.front = Math.max(0, ONLINE_GAMES.indexOf(a.game));
-        this.fx("start");
-        this.out.changed = true;
+        this.startGame(a.game);
         return;
       }
       case "end": {
@@ -398,6 +390,35 @@ export class RoomEngine {
         return;
       }
     }
+  }
+
+  /**
+   * A big screen talks to the game it shows: only games that listen to screens (the DJ booth's
+   * speaker saying the music has started), and only game actions; it can't touch the table.
+   */
+  screenAct(sid: string, g: unknown) {
+    const d = this.d;
+    if (!validPid(sid) || d.banned.includes(sid) || d.seats.some((s) => s.id === sid)) return;
+    if (!g || typeof g !== "object" || typeof (g as { x?: unknown }).x !== "string") return;
+    const gd = this.gameDef();
+    if (!gd?.def.screen || !d.game) return;
+    gd.def.screen(d.game.s, sid, g as { x: string; [k: string]: unknown }, this.api());
+    this.out.changed = true;
+  }
+
+  private startGame(id: GameId) {
+    const d = this.d;
+    const def = GAMES[id] as GameDef<unknown>;
+    this.clearGameTimers();
+    this.finishPlay();
+    d.strokes = [];
+    this.out.strokesReset = true;
+    d.game = { id, s: null };
+    d.play = { game: id, started: this.h.now(), tally: {} };
+    d.game.s = def.init(this.api());
+    d.front = Math.max(0, ONLINE_GAMES.indexOf(id));
+    this.fx("start");
+    this.out.changed = true;
   }
 
   private gameAct(pid: string, g: { x: string; [k: string]: unknown }) {

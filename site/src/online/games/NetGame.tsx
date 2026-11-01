@@ -16,6 +16,7 @@ import { NetLimbo } from "../../party/limbo/NetLimbo";
 import { NetTune } from "../../party/tune/NetTune";
 import { NetEuchre } from "../../party/euchre/NetEuchre";
 import { NetTrip } from "../../party/trip/NetTrip";
+import { NetDj } from "../../party/dj/NetDj";
 
 /** The game the server says is on, rendered for this phone. */
 export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void }) {
@@ -54,5 +55,7 @@ export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void
       return <NetEuchre v={view} onLeave={onLeave} />;
     case "trip":
       return <NetTrip v={view} onLeave={onLeave} />;
+    case "dj":
+      return <NetDj v={view} onLeave={onLeave} />;
   }
 }

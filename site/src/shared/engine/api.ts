@@ -30,8 +30,12 @@ export interface Api {
 export interface GameDef<S> {
   id: GameId;
   min: number;
+  /** a big screen opening a table for this game starts it straight away (the DJ booth) */
+  auto?: boolean;
   init(api: Api): S;
   act(s: S, pid: string, g: GameAction, api: Api): void;
+  /** what a big screen showing the table may tell the game (the booth's speaker); seats use `act` */
+  screen?(s: S, sid: string, g: GameAction, api: Api): void;
   view(s: S, pid: string, api: Api): GameView;
   timer?(s: S, key: string, data: unknown, api: Api): void;
   join?(s: S, pid: string, api: Api): void;

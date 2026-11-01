@@ -1,0 +1,1012 @@
+/*
+ * 打碟 · DJ Booth. On the big screen (a 1600x900 canvas): a club seen from the floor, the booth
+ * up top, beams and a grid floor that light with the kick, everyone at the table dancing on the
+ * beat. The page drives four variables every frame (Floor.tsx): --pulse (the kick, 0 to 1),
+ * --flash (at most three a second), --beat (where in the beat) and --spin (the records). Anything
+ * that changes every frame changes opacity or a transform, nothing that repaints the screen.
+ * On a phone: one big flame to press, and the host's controls.
+ */
+
+/* ---------------------------------------------------------------- the big screen */
+
+.dj-stage {
+  --gel: #b072ff;
+  --gel-2: #31b9ff;
+  --pulse: 0;
+  --flash: 0;
+  --beat: 0;
+  --spin: 0deg;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #07040c;
+  color: var(--moon);
+}
+.dj-stage.is-warm {
+  --gel: #ffb82e;
+  --gel-2: #ff5fa2;
+}
+.dj-stage.is-build {
+  --gel: #31b9ff;
+  --gel-2: #b072ff;
+}
+.dj-stage.is-peak {
+  --gel: #ff5ad8;
+  --gel-2: #31b9ff;
+}
+.dj-stage.is-cool {
+  --gel: #5b9bff;
+  --gel-2: #22d3a6;
+}
+
+.dj-sky,
+.dj-sky::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.dj-sky {
+  background:
+    radial-gradient(70% 60% at 50% -5%, color-mix(in oklab, var(--gel) 22%, transparent) 0%, transparent 70%),
+    linear-gradient(to bottom, #0b0614 0%, #07040c 55%, #0d0618 100%);
+  transition: background 1.2s;
+}
+.dj-sky::after {
+  content: "";
+  background:
+    radial-gradient(55% 45% at 50% 0%, color-mix(in oklab, var(--gel) 55%, transparent) 0%, transparent 75%),
+    radial-gradient(35% 45% at 8% 92%, color-mix(in oklab, var(--gel-2) 40%, transparent) 0%, transparent 70%),
+    radial-gradient(35% 45% at 92% 92%, color-mix(in oklab, var(--gel) 40%, transparent) 0%, transparent 70%);
+  opacity: calc(0.15 + var(--pulse) * 0.85);
+  will-change: opacity;
+}
+
+/* moving heads up in the rig: they sweep slowly and flare with the kick */
+.dj-beams {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.dj-beams span {
+  --beam: var(--gel);
+  position: absolute;
+  top: -30px;
+  left: calc(16% + var(--k) * 17%);
+  width: 220px;
+  height: 980px;
+  margin-left: -110px;
+  transform-origin: 50% 0;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--beam) 80%, white) 50%, transparent 100%);
+  clip-path: polygon(47% 0, 53% 0, 100% 100%, 0 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.5) 40%, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.5) 40%, transparent 92%);
+  opacity: calc(0.08 + var(--pulse) * 0.5);
+  animation: dj-sweep calc(6.5s + var(--k) * 1.7s) ease-in-out infinite alternate;
+  animation-delay: calc(var(--k) * -2.3s);
+  will-change: opacity, rotate;
+}
+.dj-beams span:nth-child(even) {
+  --beam: var(--gel-2);
+}
+@keyframes dj-sweep {
+  from {
+    rotate: -22deg;
+  }
+  to {
+    rotate: 22deg;
+  }
+}
+
+/* the dance floor: a grid in perspective that glows on the beat */
+.dj-plane,
+.dj-plane::after {
+  position: absolute;
+  left: -15%;
+  right: -15%;
+  bottom: -40px;
+  height: 430px;
+  pointer-events: none;
+}
+.dj-plane {
+  transform: perspective(520px) rotateX(64deg);
+  transform-origin: 50% 100%;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in oklab, var(--gel) 30%, transparent) 0 2px, transparent 2px 110px),
+    repeating-linear-gradient(0deg, color-mix(in oklab, var(--gel) 30%, transparent) 0 2px, transparent 2px 110px),
+    radial-gradient(70% 90% at 50% 100%, #24103a 0%, #0b0613 75%);
+  -webkit-mask-image: linear-gradient(to top, #000 35%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 35%, transparent 100%);
+}
+.dj-plane::after {
+  content: "";
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background: radial-gradient(60% 70% at 50% 100%, color-mix(in oklab, var(--gel) 75%, transparent) 0%, transparent 70%);
+  opacity: calc(var(--pulse) * 0.75);
+  will-change: opacity;
+}
+
+.dj-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  background: radial-gradient(80% 80% at 50% 30%, #fff 0%, color-mix(in oklab, var(--gel) 60%, transparent) 60%, transparent 100%);
+  mix-blend-mode: screen;
+  opacity: calc(var(--flash) * 0.22);
+  will-change: opacity;
+}
+
+/* top left: the site, the game */
+.dj-head {
+  position: absolute;
+  top: 36px;
+  left: 56px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dj-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.dj-title svg {
+  color: var(--gel);
+  animation: dj-turn 1.8s linear infinite;
+}
+.dj-stage:not(.is-live) .dj-title svg,
+.dj-stage.is-wait .dj-title svg,
+.dj-stage.is-end .dj-title svg {
+  animation: none;
+}
+.dj-title small {
+  color: var(--haze);
+  font-family: var(--font-body, inherit);
+  font-size: 20px;
+  font-weight: 700;
+}
+@keyframes dj-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+
+/* top and centre: the booth */
+.dj-deck {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  width: 700px;
+  padding: 18px 26px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(26, 18, 44, 0.92), rgba(12, 8, 22, 0.92));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 0 1px color-mix(in oklab, var(--gel) 35%, transparent),
+    0 18px 50px rgba(0, 0, 0, 0.55);
+  translate: -50% 0;
+}
+.dj-record {
+  position: relative;
+  flex: none;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, var(--gel) 0 17%, #120a1d 17.5% 19%, transparent 19.5%),
+    repeating-radial-gradient(circle at 50% 50%, #17121f 0 2px, #0c0912 2px 4px);
+  box-shadow:
+    0 0 0 4px #1d1630,
+    0 6px 16px rgba(0, 0, 0, 0.6);
+  transform: rotate(var(--spin));
+  will-change: transform;
+}
+.dj-record::after {
+  /* the light catching the grooves */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 20deg, transparent 0 12%, rgba(255, 255, 255, 0.16) 16%, transparent 22% 62%, rgba(255, 255, 255, 0.1) 66%, transparent 72%);
+}
+.dj-record.is-right {
+  transform: rotate(calc(var(--spin) * -1 + 140deg));
+}
+.dj-deck-mid {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.dj-now {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.dj-now-src {
+  color: var(--gel);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dj-now-mix {
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.dj-meter {
+  display: flex;
+  gap: 5px;
+  height: 22px;
+}
+.dj-meter i {
+  width: 18px;
+  height: 100%;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--gel-2) calc(100% - var(--k) * 6%), var(--gel));
+  opacity: clamp(0.12, calc(var(--pulse) * 15 - var(--k)), 1);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--gel) 50%, transparent);
+}
+
+/* top right: scan in */
+.dj-join {
+  position: absolute;
+  top: 36px;
+  right: 48px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px 10px 10px;
+  border-radius: 22px;
+  background: rgba(7, 4, 12, 0.78);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dj-join-qr {
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  padding: 9px;
+  border-radius: 16px;
+  background: #fff;
+}
+.dj-join-qr span,
+.dj-join-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dj-join-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dj-join-label {
+  color: var(--haze);
+  font-size: 18px;
+  font-weight: 700;
+}
+.dj-join-code {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+.dj-join.is-big {
+  top: 230px;
+  right: 50%;
+  flex-direction: column;
+  gap: 18px;
+  padding: 26px 34px;
+  translate: 50% 0;
+}
+.dj-join.is-big .dj-join-qr {
+  width: 260px;
+  height: 260px;
+  padding: 20px;
+  border-radius: 26px;
+  box-shadow: 0 0 0 8px color-mix(in oklab, var(--gel) 45%, transparent);
+}
+.dj-join.is-big .dj-join-text {
+  align-items: center;
+}
+.dj-join.is-big .dj-join-label {
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.dj-join.is-big .dj-join-code {
+  font-size: 72px;
+}
+
+/* the floor: everyone at the table */
+.dj-floor {
+  --fig-h: 200px;
+  position: absolute;
+  left: 40px;
+  right: 40px;
+  bottom: 128px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  pointer-events: none;
+}
+.dj-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(8px, calc(var(--fig-h) * 0.18), 46px);
+}
+.dj-row.is-back {
+  margin-bottom: calc(var(--fig-h) * -0.28);
+  opacity: 0.86;
+  scale: 0.82;
+  transform-origin: 50% 100%;
+}
+.dj-dancer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.dj-body {
+  position: relative;
+  height: var(--fig-h);
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+.dj-body::after {
+  /* a shadow on the floor that stays put while they jump */
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -6px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), transparent);
+  z-index: -1;
+}
+.dj-dancer.is-away {
+  opacity: 0.42;
+  filter: grayscale(0.7);
+}
+.dj-name {
+  margin-top: 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(7, 4, 12, 0.7);
+  color: var(--moon);
+  font-size: calc(10px + var(--fig-h) * 0.06);
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dj-name.is-host {
+  box-shadow: inset 0 0 0 2px var(--gel-amber);
+}
+.dj-flame {
+  position: absolute;
+  bottom: calc(100% - 20px);
+  left: 50%;
+  font-size: calc(var(--fig-h) * 0.26);
+  line-height: 1;
+  translate: -50% 0;
+  animation: dj-flame 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+@keyframes dj-flame {
+  0% {
+    opacity: 0;
+    transform: translateY(30%) scale(0.4);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(-20%) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-260%) scale(0.9);
+  }
+}
+.dj-empty {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 170px;
+  z-index: 5;
+  color: var(--haze);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* along the bottom: where the night is, and the heat */
+.dj-foot {
+  position: absolute;
+  left: 48px;
+  right: 170px;
+  bottom: 24px;
+  z-index: 6;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+}
+.dj-curve {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dj-curve-steps {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dj-curve-steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 96px;
+}
+.dj-curve-bar {
+  width: 100%;
+  height: calc(var(--h) * 46px);
+  border-radius: 8px 8px 3px 3px;
+  background: var(--dusk-3);
+}
+.dj-curve-steps li.is-past .dj-curve-bar {
+  background: color-mix(in oklab, var(--gel) 35%, var(--dusk-3));
+}
+.dj-curve-steps li.is-on .dj-curve-bar {
+  background: var(--gel);
+  box-shadow: 0 0 22px color-mix(in oklab, var(--gel) 70%, transparent);
+}
+.dj-curve-name {
+  color: var(--fog);
+  font-size: 17px;
+  font-weight: 800;
+}
+.dj-curve-steps li.is-on .dj-curve-name {
+  color: var(--moon);
+}
+.dj-curve-hint {
+  color: var(--haze);
+  font-size: 18px;
+  font-weight: 700;
+}
+.dj-heat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(7, 4, 12, 0.72);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dj-heat-n {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #ffb14a;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 900;
+}
+.dj-heat-label {
+  color: var(--haze);
+  font-size: 17px;
+  font-weight: 700;
+}
+.dj-fans {
+  display: flex;
+  gap: 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-soft);
+}
+.dj-fan {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--moon);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* notes over the stage */
+.dj-buffer {
+  position: absolute;
+  top: 214px;
+  left: 50%;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-size: 20px;
+  font-weight: 800;
+  translate: -50% 0;
+}
+.dj-spin {
+  animation: dj-turn 0.9s linear infinite;
+}
+.dj-stage.is-end .dj-floor {
+  opacity: 0.4;
+}
+.dj-end {
+  position: absolute;
+  top: 200px;
+  left: 50%;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 620px;
+  padding: 34px 50px;
+  border-radius: 32px;
+  background: rgba(10, 6, 18, 0.95);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 0 0 2px color-mix(in oklab, var(--gel) 40%, transparent),
+    0 30px 70px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  translate: -50% 0;
+}
+.dj-end-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 58px;
+  font-weight: 900;
+}
+.dj-end-line {
+  margin: 0;
+  color: var(--moon);
+  font-size: 26px;
+  font-weight: 700;
+}
+.dj-end-note {
+  margin: 8px 0 0;
+  color: var(--haze);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+/* an iPhone or iPad stopped the sound (locked, a call): one tap brings it back */
+.dj-wake {
+  position: absolute;
+  top: 214px;
+  left: 50%;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 84px;
+  padding: 0 40px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--moon);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  translate: -50% 0;
+  cursor: pointer;
+}
+
+/* the first tap: this screen becomes the speaker */
+.dj-start {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 4, 12, 0.74);
+}
+.dj-start-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  max-width: 880px;
+  padding: 50px 60px;
+  border-radius: 36px;
+  background: linear-gradient(180deg, #1a1230, #0f0a1c);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 0 0 2px color-mix(in oklab, var(--gel) 45%, transparent),
+    0 40px 90px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+.dj-start-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.dj-start-text {
+  margin: 0;
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+.dj-start-btn {
+  min-height: 96px;
+  padding: 0 52px;
+  font-size: 34px;
+}
+.dj-start-error {
+  margin: 0;
+  color: var(--gel-coral);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dj-beams span,
+  .dj-title svg {
+    animation: none;
+  }
+  .dj-flash {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- the phones */
+
+.djp {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 24px;
+}
+.djp-now {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 16px;
+  border-radius: 22px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  text-align: center;
+}
+.djp-phase {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--gel);
+}
+.djp-hint {
+  color: var(--haze);
+  font-size: 15px;
+  font-weight: 600;
+}
+.djp .dj-now {
+  margin-top: 6px;
+}
+.djp .dj-now-src {
+  font-size: 12px;
+}
+.djp .dj-now-mix {
+  font-size: 16px;
+  white-space: normal;
+}
+.djp-warn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--warn) 16%, var(--dusk));
+  color: var(--moon);
+  font-size: 15px;
+  font-weight: 700;
+}
+.djp-fire-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+.djp-fire {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(62vw, 240px);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #ffd27a 0%, #ff8c42 38%, #ff3d7f 78%, #b0246a 100%);
+  color: #fff;
+  box-shadow:
+    0 0 0 6px color-mix(in oklab, #ff8c42 30%, transparent),
+    0 0 60px color-mix(in oklab, #ff5a5f 55%, transparent),
+    0 18px 40px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s var(--ease-out, ease-out);
+}
+.djp-fire svg {
+  filter: drop-shadow(0 4px 10px rgba(120, 10, 40, 0.5));
+}
+.djp-fire:active {
+  transform: scale(0.93);
+}
+.djp-fire:focus-visible {
+  outline: 4px solid var(--moon);
+  outline-offset: 6px;
+}
+.djp-pop {
+  position: absolute;
+  left: 50%;
+  top: 20%;
+  font-size: 44px;
+  pointer-events: none;
+  translate: -50% 0;
+  animation: djp-pop 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.djp-pop:nth-child(odd) {
+  --dx: -40px;
+}
+.djp-pop:nth-child(even) {
+  --dx: 40px;
+}
+@keyframes djp-pop {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), -150px) scale(1.2);
+  }
+}
+.djp-count {
+  margin: 0;
+  color: var(--haze);
+  font-size: 15px;
+  font-weight: 700;
+}
+.djp-others {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: 26px;
+  margin: 0;
+}
+.djp-others span {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  font-size: 14px;
+  font-weight: 700;
+  animation: djp-in 0.3s ease-out;
+}
+@keyframes djp-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.djp-host {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.djp-host-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gel-amber);
+  font-size: 14px;
+  font-weight: 800;
+}
+.djp-seg > button {
+  min-height: 48px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .djp-pop,
+  .djp-others span {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- the speaker test page */
+
+.djt {
+  min-height: 100dvh;
+  background: #07040c;
+  color: var(--moon);
+}
+.djt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.djt-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+.djt-lang {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  color: var(--moon);
+  font-weight: 800;
+  cursor: pointer;
+}
+.djt-stage.dj-stage {
+  position: relative;
+  inset: auto;
+  height: clamp(220px, 50vw, 340px);
+  max-width: 760px;
+  margin: 0 auto;
+  border-radius: 0;
+}
+@media (min-width: 760px) {
+  .djt-stage.dj-stage {
+    border-radius: 24px;
+  }
+}
+.djt-stage .dj-floor {
+  --fig-h: clamp(72px, 18vw, 130px) !important;
+  left: 8px;
+  right: 8px;
+  bottom: 18px;
+}
+.djt-stage .dj-name {
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.djt-stage .dj-plane {
+  height: 220px;
+}
+.djt-stage .dj-beams span {
+  height: 420px;
+  width: 120px;
+  margin-left: -60px;
+}
+.djt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 18px 16px 40px;
+}
+.djt-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.djt-intro p {
+  margin: 0;
+  color: var(--haze);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.djt-error {
+  color: var(--gel-coral);
+  font-weight: 700;
+}
+.djt-phases {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.djt-phases .seg > button {
+  min-height: 46px;
+}
+.djt-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.djt-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.djt-stats dt {
+  color: var(--fog);
+  font-size: 13px;
+  font-weight: 700;
+}
+.djt-stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+.djt-state.is-playing {
+  color: var(--go);
+}
+.djt-state.is-buffering {
+  color: var(--warn);
+}
+.djt-meter-row {
+  grid-column: 1 / -1;
+}
+.djt-meter {
+  display: block;
+  height: 14px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gel-cyan), var(--gel-pink)) 0 0 / calc(var(--e) * 100%) 100% no-repeat, var(--dusk-3);
+}
+.djt-mix {
+  margin: 0;
+  color: var(--haze);
+  font-weight: 700;
+  text-align: center;
+}
+.djt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.djt-actions .btn {
+  flex: 1 1 200px;
+}

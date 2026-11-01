@@ -412,8 +412,15 @@ export class Room extends DurableObject<Env> {
       return;
     }
 
-    // a big screen only watches
-    if (!att.pid || att.screen) return;
+    if (!att.pid) return;
+    // a big screen only watches, except what the game on it listens to (the DJ booth's speaker)
+    if (att.screen) {
+      if (msg.t === "act" && msg.a?.a === "g") {
+        engine.screenAct(att.pid, msg.a.g);
+        await this.commit(engine.flush());
+      }
+      return;
+    }
     if (msg.t === "act") {
       engine.act(att.pid, msg.a);
       await this.commit(engine.flush());

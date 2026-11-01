@@ -1,6 +1,7 @@
 import type { GameId } from "../../protocol";
 import type { GameDef } from "../api";
 import { dice } from "./dice";
+import { dj } from "./dj";
 import { drama } from "./drama";
 import { draw } from "./draw";
 import { euchre } from "./euchre";
@@ -19,4 +20,4 @@ import { undercover } from "./undercover";
 import { wheel } from "./wheel";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const GAMES: Record<GameId, GameDef<any>> = { truth, drama, rogue, trip, superlatives, king, postit, limbo, prompts, euchre, dice, freeze, wheel, undercover, tune, punchline, draw };
+export const GAMES: Record<GameId, GameDef<any>> = { truth, drama, rogue, trip, superlatives, king, postit, limbo, prompts, euchre, dice, freeze, wheel, undercover, tune, punchline, draw, dj };

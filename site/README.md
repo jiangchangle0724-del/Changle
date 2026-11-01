@@ -27,6 +27,8 @@
 
 **大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏在手机上玩，大屏幕显示桌号和谁在玩。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。
 
+**打碟 · DJ Booth**（还没放上首页，只有这个地址）：电视或电脑打开 `changle.ca/dj`，这台设备就是音箱。点「开始派对」开始放歌；大家扫码入座，手机按 🔥，大屏上看得到是谁按的，人跟着拍子跳；主人在手机上把一晚拖到暖场、推高、顶点、收尾，每场最长 4 小时。现在放的是「试音版 DJ」：在音箱上用网站自己的乐器现场录的浩室，125 BPM；接 Google 的 Lyria 是下一步。只测声音、不开桌：`changle.ca/dj/test`。方案在仓库根目录的 `docs/dj-booth.md`，各部分怎么接在 `src/shared/dj/CONTRACTS.md`。
+
 **生活工具**：随便 · Whatever's Fine（吃什么？随便。让大家的手机来定：每人一部手机选餐厅，在 `changle.ca/eat`，代码在本仓库的 `tools/suibian`，工具页签里的卡片是 `src/tools/Suibian.tsx`）、实时汇率（加币、人民币、美金、港元）、联动的世界时钟、单价换算（$/kg、$/lb、$/斤、$/oz、$/gal）。
 
 **账号**（可选）：邮箱验证码登录，头像、名字、城市、简介，游戏记录，加好友聊天。不登录也能玩所有游戏。
@@ -75,6 +77,7 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 
 ```bash
 npx tsx tests/engine.test.ts        # 所有游戏的服务器规则
+npx tsx tests/dj.test.ts            # 打碟：音箱的播放器和试音版 DJ
 npx tsx tests/performer.test.ts     # 猜歌名台上两个小人：每个舞步逐帧检查手臂和腿
 python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
 python3 scripts/local_check.py      # 单机回归
@@ -82,6 +85,7 @@ python3 scripts/party_test.py       # 七个新游戏，单机和联机
 python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回复
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
+python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥
 ```
 
 ## 部署
