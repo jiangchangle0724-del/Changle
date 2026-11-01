@@ -1,6 +1,8 @@
 // Things we add to Google's places by hand: the Greater Vancouver lists a place is on
 // (src/data/lists.json) and Steve's own picks with food-blogger links (src/data/picks.json).
 // Matched by name, and by street number when the entry gives an address (branches share names).
+// Google often shows two names at once ("Sea Harbour Seafood Restaurant 海港酒家") and puts a unit
+// before the street number ("150-8888 River Rd"); both still match an entry that has an address.
 import type { Badge, Recommend, RecommendLink, Text } from "../engine";
 import listsData from "../data/lists.json";
 import picksData from "../data/picks.json";
@@ -58,6 +60,15 @@ export function normName(s: string): string {
 }
 
 const streetNumber = (address?: string) => address?.match(/\d+/)?.[0];
+/** Every number in an address from Google: a unit can come before the street number. */
+const numbers = (address?: string): string[] => [...(address?.match(/\d+/g) ?? [])];
+
+const CJK_ONLY = /^[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]{2,}$/u;
+
+/** A listed name inside Google's name: as whole words, or for a Chinese name, as its characters. */
+function within(google: string, listed: string): boolean {
+  return ` ${google} `.includes(` ${listed} `) || (CJK_ONLY.test(listed) && google.includes(listed));
+}
 
 function index<E extends Entry>(entries: E[]): Map<string, E[]> {
   const m = new Map<string, E[]>();
@@ -72,11 +83,19 @@ function index<E extends Entry>(entries: E[]): Map<string, E[]> {
 }
 
 function find<E extends Entry>(idx: Map<string, E[]>, name: string, address?: string): E | undefined {
-  const hits = idx.get(normName(name));
-  if (!hits) return undefined;
-  const num = streetNumber(address);
+  const g = normName(name);
+  const nums = numbers(address);
+  const atNumber = (e: E) => !!e.address && nums.includes(streetNumber(e.address)!);
   // An entry with an address only matches the branch at that street number.
-  return hits.find((e) => !e.address || !num || streetNumber(e.address) === num);
+  const exact = idx.get(g)?.find((e) => !e.address || !nums.length || atNumber(e));
+  if (exact || !nums.length) return exact;
+  // Otherwise a listed name inside Google's longer name, for entries with an address at that number.
+  for (const [k, entries] of idx) {
+    if (!within(g, k)) continue;
+    const e = entries.find(atNumber);
+    if (e) return e;
+  }
+  return undefined;
 }
 
 const LISTS = listsData as unknown as ListsFile;

@@ -74,7 +74,9 @@ https links, known list ids, years), so a bad edit fails CI instead of the app.
 
 Places are matched by name (case, accents, " - Robson St" and words like "Restaurant" don't
 matter; `aliases` covers other names, e.g. Chinese ones). Give `address` when the name has several
-branches: then only the branch at that street number matches.
+branches: then only the branch at that street number matches. With an address, Google's
+two-language names ("Sea Harbour Seafood Restaurant 海港酒家") and unit numbers in front of the
+street number ("150-8888 River Rd") still match.
 
 ## How it sits inside changle.ca
 

@@ -147,5 +147,5 @@ Worker's `wrangler.jsonc`.
 
 * The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
   PR #34 (2026-11-01) and deployed fine.
-* 随便: its severe-allergy table is a draft, and its list badges and picks files are still empty.
+* 随便: its severe-allergy table is a draft, and its picks file is still empty.
   See `tools/suibian/HANDOFF.md`.

@@ -23,6 +23,9 @@ const lists: ListsFile = {
   places: [
     { name: "Kissa Tanto", awards: [{ source: "michelin", label: { zh: "米其林一星", en: "MICHELIN 1 Star" }, year: 2024, url: "https://guide.michelin.com/a" }, { source: "michelin", label: { zh: "米其林一星", en: "MICHELIN 1 Star" }, year: 2025, url: "https://guide.michelin.com/b" }] },
     { name: "Breka Bakery & Café", address: "855 Davie St", awards: [{ source: "michelin", label: { zh: "推荐", en: "Recommended" }, year: 2025, url: "https://guide.michelin.com/c" }] },
+    { name: "Sea Harbour Seafood Restaurant", aliases: ["海港酒家"], address: "8888 River Rd", awards: [{ source: "michelin", label: { zh: "推荐", en: "Recommended" }, year: 2026, url: "https://guide.michelin.com/d" }] },
+    { name: "iDen & QuanJuDe Beijing Duck House", aliases: ["全聚德"], address: "2808 Cambie St", awards: [{ source: "michelin", label: { zh: "米其林一星", en: "MICHELIN 1 Star" }, year: 2026, url: "https://guide.michelin.com/e" }] },
+    { name: "Nook", address: "781 Denman St", awards: [{ source: "michelin", label: { zh: "推荐", en: "Recommended" }, year: 2026, url: "https://guide.michelin.com/f" }] },
   ],
 };
 const picks: PicksFile = {
@@ -43,6 +46,25 @@ test("matching: an entry with an address only matches the branch at that street 
   assert.equal(curatedFor("Breka Bakery & Café - Bute", "818 Bute St, Vancouver", { lists, picks }).badges, undefined);
   // Without an address from Google we can't tell branches apart, so the name decides.
   assert.ok(curatedFor("Breka Bakery & Café", undefined, { lists, picks }).badges);
+});
+
+test("matching: Google's two-language names and unit numbers still find the listed branch", () => {
+  // Unit before the street number, English and Chinese names together, or just the Chinese one.
+  assert.ok(curatedFor("Sea Harbour Seafood Restaurant 海港酒家", "150-8888 River Rd, Richmond", { lists, picks }).badges);
+  assert.ok(curatedFor("海港酒家", "8888 River Rd #150, Richmond", { lists, picks }).badges);
+  assert.ok(curatedFor("全聚德北京烤鸭店", "2808 Cambie St, Vancouver", { lists, picks }).badges);
+  assert.ok(curatedFor("Nook Denman", "781 Denman St, Vancouver", { lists, picks }).badges);
+  // The longer-name match needs the same street number, and never applies to entries without an address.
+  assert.equal(curatedFor("Sea Harbour Seafood Restaurant 海港酒家", "4000 No. 3 Rd, Richmond", { lists, picks }).badges, undefined);
+  assert.equal(curatedFor("Nook Pizza", undefined, { lists, picks }).badges, undefined);
+  assert.equal(curatedFor("Kissa Tanto Bar", "263 E Pender St", { lists, picks }).badges, undefined);
+  // Whole words only: "Nook" isn't inside "Nookie".
+  assert.equal(curatedFor("Nookie Burger", "781 Denman St", { lists, picks }).badges, undefined);
+});
+
+test("matching: every place in lists.json finds its own badges by its own name and address", () => {
+  const missed = LISTS_FILE.places.filter((p) => !curatedFor(p.name, p.address).badges?.length).map((p) => p.name);
+  assert.deepEqual(missed, []);
 });
 
 test("checks: missing sources, years, links and notes are caught", () => {
