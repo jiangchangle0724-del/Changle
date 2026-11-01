@@ -1,0 +1,27 @@
+# Runs every time 玩什么 · What's On changes: the parsers on saved feeds and a whole morning run,
+# inside the Workers runtime (local D1 and KV, no network). Only this folder.
+name: events
+
+on:
+  push:
+    paths: ["tools/events/**", ".github/workflows/events.yml"]
+  pull_request:
+    paths: ["tools/events/**", ".github/workflows/events.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/events
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/events/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

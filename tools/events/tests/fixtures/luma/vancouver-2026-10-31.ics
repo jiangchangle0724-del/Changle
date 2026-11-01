@@ -1,0 +1,358 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Luma//What‘s Happening in Vancouver//EN
+X-WR-CALNAME:What‘s Happening in Vancouver
+X-WR-CALDESC:Luma Calendar
+REFRESH-INTERVAL;VALUE=DURATION:PT12H
+X-PUBLISHED-TTL:PT12H
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTART:20261101T030000Z
+DTEND:20261101T073000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Meme Brooks":MAILTO:calendar-invite@lu.ma
+UID:evt-OH43dsNCPMqRXGZ@events.lu.ma
+SUMMARY:Ocean Theme Halloween!
+DESCRIPTION:Get up-to-date information at: https://luma.com/aw0ess5m\n\nAd
+ dress:\nCheck event page for more details.\n\n🌊⚓ HALLOWEEN AT SEA ⚓
+ 🌊\n\nCostumes. Cocktails. Ocean Vibes. One Epic Night.\nJoin us aboard 
+ a private yacht for an unforgettable Ocean-Themed Halloween Party!\n🛥 S
+ aturday, October 31\n📍 Departing Granville Island\n⏰ Boarding: 8:00 P
+ M\n🌊 Sailing: 9:30 PM\n🎃 Return: 12:30 AM\n\nYour ticket includes:\n
+ 🍹 Welcome drink\n🎧 Live DJ\n🪩 Dance floor under the stars\n🌊 O
+ cean-inspired décor\n🍿 Late-night snacks\n🥂 Cash bar\n👻 Three ho
+ urs of unforgettable Halloween fun At sea\nDress to impress in your best o
+ cean-themed costume. Think mermaids, pirates, sea creatures, sailors, jell
+ yfish, finding Nemo, or…\n\nHosted by Meme Brooks
+LOCATION:https://luma.com/event/evt-OH43dsNCPMqRXGZ
+GEO:49.271821892292955;-123.13880328101781
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261102T153000Z
+DTEND:20261103T020000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Jory":MAILTO:calendar-invite@lu.ma
+UID:evt-p8vDoJ0B9scNUQK@events.lu.ma
+SUMMARY:BIOS SPHERE — Featuring Kent C. Dodds
+DESCRIPTION:Get up-to-date information at: https://luma.com/biossphere\n\n
+ Address:\nScience World\nVancouver, BC\nCanada\n\nMorning workshop · Pres
+ ented by Orchid\n\nAI-Native Product Development with Kent C. Dodds\nKent 
+ leads the Product track at MEGA, where the goal is to direct AI toward mea
+ ningful system changes and verify what ships. This three-hour, hands-on wo
+ rkshop brings that framework into the room: using agents across the full p
+ roduct-development loop without giving up ownership or judgment.\nOrchid i
+ s fully subsidizing the workshop, making it possible for the BIOS SPHERE o
+ rganizers to offer workshop-only admission for CA$100 and a workshop + BIO
+ S SPHERE bundle for CA$125.\nExploration — understand user…\n\nHosted 
+ by Jory & Gavin Ching
+LOCATION:Science World, 1455 Quebec St, Vancouver, BC V6A 3Z7, Canada
+GEO:49.273376;-123.10383399999999
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261107T170000Z
+DTEND:20261108T000000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Jihyun Park":MAILTO:calendar-invite@lu.ma
+UID:evt-HsrPd1hxepF9LDB@events.lu.ma
+SUMMARY:DESIGNERS IN THE PARK: WORK SHARING DAY
+DESCRIPTION:Get up-to-date information at: https://luma.com/fav1cx7j\n\nAd
+ dress:\nEmily Carr University of Art + Design\nRennie Hall\nVancouver, BC
+ \nCanada\n\nHello Designers!\nThrough our past Designers in the Park gathe
+ rings, we’ve had fun sharing food and drinks, playing games, and connect
+ ing with fellow designers. This time, let’s get to know each other bette
+ r by sharing what we do, what we’re working on, and who we are as design
+ ers!\nJoin us for Work Sharing Day on November 7 at Rennie Hall, Emily Car
+ r University of Art + Design! Through hands-on workshops, five-minute work
+  shares, and open group conversations, we’ll exchange ideas, share our c
+ reative processes, and talk about the questions, challenges, mistakes, and
+  discoveries that shape our…\n\nHosted by Jihyun Park & 4 others
+LOCATION:Emily Carr University of Art + Design, 520 E 1st Ave, Vancouver, 
+ BC V5T 0H2, Canada
+GEO:49.2675947;-123.0924308
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261108T170000Z
+DTEND:20261108T190000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Lucky Tile Mahjong":MAILTO:calendar-invite@lu.ma
+UID:evt-aLmHWs4EX5GDmji@events.lu.ma
+SUMMARY:Lucky Tile Mahjong 101 - Intro to Mahjong
+DESCRIPTION:Get up-to-date information at: https://luma.com/hcek95hj\n\nAd
+ dress:\n336 E 1st Ave #108\nVancouver, British Columbia\nCanada\n\nCurious
+  about mahjong? Our Intro to Mahjong class offers a fun and approachable i
+ ntroduction to Hong Kong-style mahjong. This is a great session for people
+  who are completely new to the game or beginners looking to refresh their 
+ skills.\nAt this class, you’ll take part in interactive learning exercis
+ es and try guided practice games using open hands – all with real-time c
+ oaching to help you learn as you play.\nNo experience needed.\nOpen to all
+ , ages 16+.\nCome solo or bring a friend – we’ll have you playing in n
+ o time!\n\nHosted by Lucky Tile Mahjong
+LOCATION:336 E 1st Ave #108, Vancouver, BC V5T 1A9, Canada
+GEO:49.2678431;-123.09678969999999
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261113T000000Z
+DTEND:20261113T030000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Luma Event":MAILTO:calendar-invite@lu.ma
+UID:evt-YiuWJXdHRIrovUy@events.lu.ma
+SUMMARY:Defence in 2027: From Commitment to Capability
+DESCRIPTION:Get up-to-date information at: https://luma.com/ch7sygg0\n\nAd
+ dress:\nThe Stack\n2nd Floor (Conference Centre, accessible from the main 
+ lobby)\nVancouver, BC\nCanada\n\nCanada's defence landscape is evolving ra
+ pidly, shaped by shifting geopolitical realities, new security challenges,
+  and growing expectations for military readiness and investment. How Canad
+ a responds will have significant implications for national security, defen
+ ce innovation, and the future of the Canadian Armed Forces.\nJoin us for D
+ efence in 2027: From Commitment to Capability, an evening of discussion an
+ d networking bringing together perspectives from industry, the Canadian Ar
+ med Forces, and the legal community to explore the future of Canadian defe
+ nce.\nThe event will feature a 40-minute…
+LOCATION:The Stack, 1133 Melville St, Vancouver, BC V6E 4E5, Canada
+GEO:49.2871981;-123.12254770000001
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261114T160000Z
+DTEND:20261114T180000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="The Ripple Room":MAILTO:calendar-invite@lu.ma
+UID:evt-DWtByKGlvgVdfwd@events.lu.ma
+SUMMARY:Ladies Cafe Chat
+DESCRIPTION:Get up-to-date information at: https://luma.com/0nzmub1t\n\nAd
+ dress:\nFresco Café\nVancouver, BC\nCanada\n\n☕️ CAFE CHATS IS BACK! 
+ 🤎\nJoin us on Saturday, November 14, from 9–11 AM at Fresco Café for
+  a cozy morning of coffee, conversation, and connection!\n📍 Fresco Caf
+ é\n1156 Bute St, Vancouver, BC V6E 1Z6\nWest End / Davie Village\n✨ Mee
+ t new people and network\n🏡 Connect with your neighbourhood\n🫶 Make 
+ new friends and build community\n☕️ A little treat! Fresco Café is of
+ fering 10% off all food and drinks for Cafe Chats attendees! 💛\nCome so
+ lo or bring a friend — everyone’s welcome! 💌\nCan’t wait to see y
+ ou there! 🌷\n\nHosted by The Ripple Room
+LOCATION:Fresco Café, 1156 Bute St, Vancouver, BC V6E 1Z6, Canada
+GEO:49.2820124;-123.1328348
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261114T213000Z
+DTEND:20261114T233000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Tricia Jose":MAILTO:calendar-invite@lu.ma
+UID:evt-bAWNUU3Tp89sqvY@events.lu.ma
+SUMMARY:Vol. 004: One Day Choir x Vancouver
+DESCRIPTION:Get up-to-date information at: https://luma.com/p1wzft31\n\nAd
+ dress:\nCheck event page for more details.\n\nCome and join the mighty mig
+ hty chorus!\nLove to sing? Hungry for an opportunity to be in community wi
+ th others? The world could use some more joy, and it could certainly use y
+ our voice. Come spend a few hours with wonderful people and sing joyfully 
+ in harmony!\n\nWhat we're singing:\nWeak - SWV\n\nWhat to expect:\nOptiona
+ l prep: Sheet music will be shared ahead of time for anyone who wants to r
+ ead or listen in advance (totally optional).\nIn person: We’ll warm up t
+ ogether, learn the parts, sing our hearts out, and celebrate the sound we 
+ create.\nAfterwards: Light refreshments and time to linger,…\n\nHosted b
+ y Tricia Jose & Mikey Jose
+LOCATION:https://luma.com/event/evt-bAWNUU3Tp89sqvY
+GEO:49.22077987689893;-123.1475185506564
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261115T200000Z
+DTEND:20261116T000000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="A Story Of Thoughts":MAILTO:calendar-invite@lu.ma
+UID:evt-gJLPAbGusJJX6WC@events.lu.ma
+SUMMARY:Films for Lebanon
+DESCRIPTION:Get up-to-date information at: https://luma.com/g81y0mg7\n\nAd
+ dress:\nRed Gate\nVancouver, BC\nCanada\n\nSOLD OUT - accepting DONATION O
+ NLY ticket purchases now. Please send an email to astoryofthoughts@gmail.c
+ om if you would like to be informed about the additional date for this scr
+ eening.\nJoin us November 15th for a screening of short films and to raise
+  money for our kin in the South of Lebanon.\nThis matinee screening will f
+ eature two bundles of short films, with films from and about the South and
+  a program from Beirut Animation Nights with a curated showcase of author 
+ animation from across the region. Exploring censorship, memory, exile, lov
+ e and resistance. From intimate personal stories to…\n\nHosted by A Stor
+ y Of Thoughts & Alissar Kobeissi
+LOCATION:Red Gate, 1965 Main St, Vancouver, BC V5T 3C1, Canada
+GEO:49.2676842;-123.10099659999999
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261119T020000Z
+DTEND:20261119T040000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Lucky Tile Mahjong":MAILTO:calendar-invite@lu.ma
+UID:evt-TF8SCu3hlZlvZhd@events.lu.ma
+SUMMARY:Time Out Market Vancouver - An Intro to Mahjong Hosted by Lucky Ti
+ le Mahjong Events
+DESCRIPTION:Get up-to-date information at: https://luma.com/fvjswhwy\n\nAd
+ dress:\nTime Out Market Vancouver\nVancouver, BC\nCanada\n\nTime Out Marke
+ t Vancouver is bringing mahjong to the table – literally. And, we’re e
+ xcited to host a Lucky Tile Mahjong 101: Intro to Mahjong class right in t
+ he heart of the market!\nOur session offers a fun and approachable introdu
+ ction to Hong Kong-style mahjong. This is a great class for people who are
+  completely new to the game or beginners looking to refresh their skills.
+ \nAt this session, you’ll take part in interactive learning exercises an
+ d try guided practice games using open hands – all with real-time coachi
+ ng to help you learn as you play.\nWhat's included:\nA 2-hour Intro to Mah
+ jong…\n\nHosted by Lucky Tile Mahjong
+LOCATION:Time Out Market Vancouver, 650 W 41st Ave, Vancouver, BC V5Z 2M9,
+  Canada
+GEO:49.231740099999996;-123.11961699999999
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261120T030000Z
+DTEND:20261120T060000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Bongani Moyo":MAILTO:calendar-invite@lu.ma
+UID:evt-o2YD9nDcSQkPrii@events.lu.ma
+SUMMARY:Fairways & Friends | Vol. 02
+DESCRIPTION:Get up-to-date information at: https://luma.com/tyngzys7\n\nAd
+ dress:\nHideout Golf\nVancouver, BC\nCanada\n\nFairways & Friends is back 
+ for Vol. 02.\nJoin STICK at Hideout for a night where golf, music and comm
+ unity share the same space. Come hit a few balls, meet good people and exp
+ erience the game in a way that feels more social, expressive and welcoming
+  than the traditional golf scene.\nWhether you play every week, are just g
+ etting into golf or have never picked up a club, you belong here. No handi
+ cap required—just pull up ready to play, connect and have a good time.\n
+ STICK brings people together through golf, creating space for new connecti
+ ons and making the game feel more accessible to everyone.\n\nHosted by Bon
+ gani Moyo
+LOCATION:Hideout Golf, 1755 Davie St, Vancouver, BC V6G 1W5, Canada
+GEO:49.286943799999996;-123.14073719999999
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261121T150000Z
+DTEND:20261122T010000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Software Systems Student Society":MAILTO:calendar-invite@lu.ma
+UID:evt-lvQBlPzE8XufHWA@events.lu.ma
+SUMMARY:Patch the System!!!
+DESCRIPTION:Get up-to-date information at: https://luma.com/o2mu5wyl\n\nAd
+ dress:\nTechnology and Science Complex 1\nBurnaby, BC\nCanada\n\nWelcome t
+ o Patch the System!\nAn AI-Assisted Defensive CTF Brought To You By SSSS x
+  SFU Cybersecurity Club\nPatch the System is a hands-on cybersecurity comp
+ etition where you’ll use AI coding agents to find and fix vulnerabilitie
+ s in open-source software. No security background required! If you're comf
+ ortable with code, the workshops will cover the rest!\nWhether you’re in
+ terested in cybersecurity, AI, or software engineering, Patch the System o
+ ffers a chance to gain practical experience at the intersection of AI and 
+ security.\nRegistration closes Monday, October 26, 2026. Spots are limited
+  and…\n\nHosted by Software Systems Student Society & SFU Cybersecurity 
+ Club
+LOCATION:Technology and Science Complex 1, Burnaby, BC V5A 1S6, Canada
+GEO:49.2767215;-122.91411249999997
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261121T203000Z
+DTEND:20261121T220000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Create in Vancouver":MAILTO:calendar-invite@lu.ma
+UID:evt-IQhhL95RAO9xoyV@events.lu.ma
+SUMMARY:Bedazzling Workshop: Craft Sparkle & Connect | Vancouver
+DESCRIPTION:Get up-to-date information at: https://luma.com/l2ltg616\n\nAd
+ dress:\nG3 Kitchen and Bar\nVancouver, BC\nCanada\n\nA little afternoon to
+  heal your inner child. Join Create In Vancouver for a bedazzling workshop
+  at G3 Bar & Restaurant in Yaletown!\n🎨 Bedazzle a beautiful hair clip
+ \n💎 All materials provided\n🎁 Take home your creation + a goodie bag
+  packed with love from local businesses\n🥂  Discounts on appetizers & d
+ rinks to support local host business\n💗 Meet new people and make sweet 
+ memories!\nCome make a friend, bring one or turn it into a mother daughter
+  date! 🫶\n📍 G3 Bar & Restaurant, Yaletown\n⏰ 2.5 hours\n🎟️ Li
+ mited to 15 spots\nCome for the crafts, stay for the connections. ✨\nHos
+ ted by Natasha from…\n\nHosted by Create in Vancouver
+LOCATION:G3 Kitchen and Bar, 496 Drake St, Vancouver, BC V6Z 2P6, Canada
+GEO:49.274492099999996;-123.1257423
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261121T210000Z
+DTEND:20261121T233000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="The Ripple Room":MAILTO:calendar-invite@lu.ma
+UID:evt-VO2oPbW7yuhAB6E@events.lu.ma
+SUMMARY:✨Ladies ✨Book Swap & Good Coffee ☕
+DESCRIPTION:Get up-to-date information at: https://luma.com/0v6ebbtu\n\nAd
+ dress:\nCheck event page for more details.\n\n📚 Book Swap & Good Coffee
+ \nCalling all book lovers! 🤍 Join The Ripple Room for a cozy afternoon 
+ of book swapping, good coffee, sweet treats, and meeting new people in the
+  heart of Gastown.\nBring books you love, discover your next read, and con
+ nect with fellow book lovers. Come with a friend or solo—we’d love to 
+ have you! ✨\n✨ What’s included\n📚 Book swap\n☕️ Coffee includ
+ ed through our collaboration with Bee & Bee Coffee, with a menu to choose 
+ from\n🍪 Sweet treats\n🎁 Raffle entry for a chance to win a gift bask
+ et\n🤍 Little goodies to take home\n📸 Professional photography\n📖 
+ How it works\nBring…\n\nHosted by The Ripple Room & Bee and Bee Coffee
+LOCATION:https://luma.com/event/evt-VO2oPbW7yuhAB6E
+GEO:49.28394118550851;-123.10085029591757
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261129T020000Z
+DTEND:20261129T070000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Richard Lam":MAILTO:calendar-invite@lu.ma
+UID:evt-KmtxRvqp4K8t7KF@events.lu.ma
+SUMMARY:VFC 26: Year-End Wrap Party
+DESCRIPTION:Get up-to-date information at: https://luma.com/2e489zeo\n\nAd
+ dress:\nCheck event page for more details.\n\nFreelance creatives don’t 
+ get holiday parties. No team dinner, no end-of-year toast, no one thanking
+  us for a good year.\nSo we’re throwing our own again, and we’d love t
+ o have you there for our last event of 2026.\nCome celebrate the work you 
+ made this year, catch up with people who get what you do, and unwind with 
+ the community.\nWhat’s Happening\n🎥 Screenings\nWe’ll be showing wo
+ rk from members of our community and they'll be in the room.\n🍿 Free Po
+ pcorn\nThere’s a popcorn machine, and it’s unlimited.\n☕ Hot Chocola
+ te Bar\nA cozy, chill option for anyone not drinking, or wanting a bit of 
+ both.\n🏓…\n\nHosted by Richard Lam, Joon Rho & Big Baby Studios
+LOCATION:https://luma.com/event/evt-KmtxRvqp4K8t7KF
+GEO:49.27680573169922;-123.07870668378646
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261202T010000Z
+DTEND:20261202T020000Z
+DTSTAMP:20261101T051536Z
+ORGANIZER;CN="Full Indie Society":MAILTO:calendar-invite@lu.ma
+UID:evt-8IPtNTfkkIaR9cJ@events.lu.ma
+SUMMARY:Full Indie Game Dev December Meet Up (at LaSalle)
+DESCRIPTION:Get up-to-date information at: https://luma.com/hr1knqbx\n\nAd
+ dress:\nLaSalle College Vancouver\nVancouver, BC\nCanada\n\nCome meet fell
+ ow game developers at LaSalle College Vancouver!\nA majority of the time w
+ ill be reserved for mingling and trying out each other's games. The schedu
+ le usually goes as follows:\n6:00pm - 7:15pm: Mingling\n7:15pm - 7:45pm: G
+ uest speakers\n7:45pm - 9:00pm: Mingling continues\nThis month's meetup wi
+ ll be held at LaSalle College, in the main lobby. You can access the lobby
+  through the main entrance on the south side of the building. Upon enterin
+ g the front door, check-in will be on your right, and the main event will 
+ be on your left.\nThe college is right next to Renfrew Station, and the…
+ \n\nHosted by Full Indie Society
+LOCATION:LaSalle College Vancouver, 2808 Bradfield Court, Vancouver, BC V5
+ M 0E3, Canada
+GEO:49.260039299999995;-123.0462753
+SEQUENCE:215673336
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR
