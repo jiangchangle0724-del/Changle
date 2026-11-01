@@ -1,6 +1,5 @@
 import { Crown, Volume2, VolumeX } from "lucide-react";
-import QRCode from "qrcode";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { GAME_BY_ID, type GameId } from "../games/registry";
 import { gsap, reduced } from "../lib/anim";
 import { holdBackground, startGroove } from "../lib/music";
@@ -18,6 +17,9 @@ import { ONLINE_GAMES, ONLINE_MIN, type GameView, type PenaltyEvent, type PunchV
 import { TablePenalty, useStore } from "../store";
 import "../styles/tv.css";
 import { useCodeField } from "../online/codeField";
+import { joinLink, siteHost, useQr, Wordmark } from "./parts";
+// the DJ booth brings the speaker (its own sound chain and music): only DJ tables load it
+const TvDj = lazy(() => import("../party/dj/TvDj"));
 
 /**
  * changle.ca/tv: a TV or a computer becomes the table's big screen. It opens a table (or shows
@@ -86,6 +88,12 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   else if (!room) body = <TvNotice title={status === "reconnecting" ? (zh ? "正在重新连接…" : "Reconnecting…") : zh ? "正在开桌…" : "Opening the table…"} spinning />;
   else if (room.game?.id === "punchline") body = <TvPunch v={room.game} audio={gate.armed} />;
   else if (room.game?.id === "trip") body = <TvTrip v={room.game} table={code} />;
+  else if (room.game?.id === "dj")
+    body = (
+      <Suspense fallback={<TvNotice title={zh ? "正在打开 DJ 台…" : "Opening the DJ booth…"} spinning />}>
+        <TvDj v={room.game} />
+      </Suspense>
+    );
   else if (room.game) body = <TvGame room={room} v={room.game} />;
   else if (room.playing) body = <TvNowPlaying room={room} id={room.playing} />;
   else body = <TvLobby room={room} audio={gate.armed} onJoin={onJoin} />;
@@ -94,10 +102,11 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
     <Fit>
       <TablePenalty value={room?.penalty ?? ""}>
         {body}
-        {room?.playing && <TvCorner code={code} />}
+        {room?.playing && room.playing !== "dj" && <TvCorner code={code} />}
         {room && <TvReactions />}
         {room && <TvPenalties room={room} audio={gate.armed} />}
-        <TvControls gate={gate} game={!!room?.playing} />
+        {/* the DJ booth asks for its own tap (it starts the speaker) */}
+        <TvControls gate={gate} game={!!room?.playing} noGate={room?.playing === "dj"} />
       </TablePenalty>
     </Fit>
   );
@@ -155,7 +164,7 @@ function useSoundGate(): Gate {
   return { armed, sound, setSound };
 }
 
-function TvControls({ gate, game }: { gate: Gate; game: boolean }) {
+function TvControls({ gate, game, noGate }: { gate: Gate; game: boolean; noGate?: boolean }) {
   const { lang, setLang } = useStore();
   const zh = lang === "zh";
   // during a game the buttons sit low in a corner and fade out until the mouse moves
@@ -187,7 +196,7 @@ function TvControls({ gate, game }: { gate: Gate; game: boolean }) {
           {gate.sound ? <Volume2 size={22} /> : <VolumeX size={22} />}
         </button>
       </div>
-      {!gate.armed && gate.sound && (
+      {!gate.armed && gate.sound && !noGate && (
         <div className="tv-gate" role="status">
           <Volume2 size={22} />
           {zh ? "点一下屏幕，打开声音" : "Click anywhere to turn the sound on"}
@@ -200,30 +209,6 @@ function TvControls({ gate, game }: { gate: Gate; game: boolean }) {
 
 /* ------------------------------------------------------------------ pieces */
 
-function Wordmark() {
-  return (
-    <span className="tv-wordmark" aria-label="changle">
-      changle<span className="tv-wordmark-dot">.</span>
-    </span>
-  );
-}
-
-function useQr(link: string, dark = "#0e0c22") {
-  const [svg, setSvg] = useState("");
-  useEffect(() => {
-    let live = true;
-    QRCode.toString(link, { type: "svg", margin: 0, errorCorrectionLevel: "M", color: { dark, light: "#00000000" } })
-      .then((s) => live && setSvg(s))
-      .catch(() => live && setSvg(""));
-    return () => {
-      live = false;
-    };
-  }, [link, dark]);
-  return svg;
-}
-
-const joinLink = (code: string) => `${window.location.origin}/#/r/${code}`;
-const siteHost = () => window.location.host.replace(/^www\./, "");
 
 /**
  * 到此一游 plays on its own big-screen page at changle.ca/trip: the TV goes there by itself once the
@@ -364,7 +349,11 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
           </span>
           <span className="tv-front-need">{need > 0 ? (zh ? `还差 ${need} 人` : `${need} more to start`) : zh ? "人够了，等主持人开始" : "Ready when the host is"}</span>
         </div>
-        {gid !== "punchline" && <span className="tv-front-note">{zh ? "神回复会在大屏幕上整场演出，其他游戏在手机上玩" : "Punchline plays as a full show here. Other games play on the phones."}</span>}
+        {gid === "dj" ? (
+          <span className="tv-front-note">{zh ? "打碟的音乐从这块屏幕出来，手机按 🔥" : "The DJ booth's music comes out of this screen; the phones press 🔥"}</span>
+        ) : (
+          gid !== "punchline" && <span className="tv-front-note">{zh ? "神回复会在大屏幕上整场演出，其他游戏在手机上玩" : "Punchline plays as a full show here. Other games play on the phones."}</span>
+        )}
         {!room.seats.length &&
           (joining ? (
             <JoinForm onJoin={onJoin} />

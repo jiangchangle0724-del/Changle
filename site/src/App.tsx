@@ -30,6 +30,7 @@ const Euchre = lazy(() => import("./party/euchre/Euchre").then((m) => ({ default
 const TripSolo = lazy(() => import("./party/trip/TripSolo").then((m) => ({ default: m.TripSolo })));
 // the big screen (a TV or computer showing a table) lives outside the phone frame
 const TvApp = lazy(() => import("./tv/TvApp").then((m) => ({ default: m.TvApp })));
+const DjTestPage = lazy(() => import("./party/dj/TestPage").then((m) => ({ default: m.DjTestPage })));
 const ShowPreview = import.meta.env.DEV ? lazy(() => import("./party/punchline/show/Preview").then((m) => ({ default: m.ShowPreview }))) : null;
 // online tables load only when someone sits at one: the front door stays light
 const OnlineRoom = lazy(() => import("./online/OnlineRoom").then((m) => ({ default: m.OnlineRoom })));
@@ -48,15 +49,20 @@ type Route =
   | { kind: "admin" }
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
-  | { kind: "tv"; code?: string; game?: GameId };
+  | { kind: "tv"; code?: string; game?: GameId }
+  | { kind: "djtest" };
 
 // changle.ca/tv is easy to type on a TV remote: it means the big screen
 {
   const m = /^\/tv(?:\/([A-Za-z0-9]{4}))?\/?$/i.exec(window.location.pathname);
   if (m) window.history.replaceState(null, "", `/${window.location.search}#/tv${m[1] ? `/${m[1].toUpperCase()}` : ""}`);
+  // changle.ca/dj: a big screen with the DJ booth up (it's the speaker); /dj/test checks the sound alone
+  const dj = /^\/dj(\/test)?\/?$/i.exec(window.location.pathname);
+  if (dj) window.history.replaceState(null, "", `/${window.location.search}${dj[1] ? "#/dj/test" : "#/tv?g=dj"}`);
 }
 
 function parse(hash: string): Route {
+  if (/^#\/dj\/test\b/.test(hash)) return { kind: "djtest" };
   const tv = /^#\/tv(?:\/([A-Za-z0-9]{4}))?(?:\?g=([a-z]+))?/.exec(hash);
   if (tv) return { kind: "tv", code: tv[1]?.toUpperCase(), game: tv[2] && isGameId(tv[2]) ? tv[2] : undefined };
   const g = /^#\/g\/([a-z]+)/.exec(hash);
@@ -92,6 +98,8 @@ function hashOf(r: Route) {
       return `#/chat/${r.id}`;
     case "tv":
       return `#/tv${r.code ? `/${r.code}` : ""}${r.game ? `?g=${r.game}` : ""}`;
+    case "djtest":
+      return "#/dj/test";
   }
 }
 
@@ -262,7 +270,7 @@ function Shell() {
         ? `room-${route.code}`
         : route.kind === "game"
           ? route.id
-          : route.kind === "me" || route.kind === "admin" || route.kind === "tv"
+          : route.kind === "me" || route.kind === "admin" || route.kind === "tv" || route.kind === "djtest"
             ? route.kind
             : `${route.kind}-${route.id}`;
   if (route.kind === "tv")
@@ -270,6 +278,14 @@ function Shell() {
       <SiteGate signIn={null}>
         <Suspense fallback={null}>
           <TvApp key={`${route.code ?? "new"}:${route.game ?? ""}`} code={route.code} game={route.game} />
+        </Suspense>
+      </SiteGate>
+    );
+  if (route.kind === "djtest")
+    return (
+      <SiteGate signIn={null}>
+        <Suspense fallback={null}>
+          <DjTestPage />
         </Suspense>
       </SiteGate>
     );

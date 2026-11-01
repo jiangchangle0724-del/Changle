@@ -32,6 +32,7 @@ type Attachment = { pid: string; screen?: boolean };
 
 const IDLE_FORGET = 8 * 60 * 60 * 1000; // a table nobody has touched for eight hours is cleared
 const IDLE_RECHECK = 30 * 60 * 1000; // past that, while someone is still connected, check every half hour
+const LIGHT_SAVE_MS = 10_000; // a light change (a 🔥) is stored with the next save, or after this long
 const ORIGINS = [
   /^https:\/\/(www\.)?changle\.ca$/,
   /^https:\/\/([a-z0-9-]+\.)?changle-ets\.pages\.dev$/,
@@ -308,6 +309,8 @@ export default {
 
 export class Room extends DurableObject<Env> {
   private engine: RoomEngine | null = null;
+  /** when the table was last stored (light changes wait for the next save, or this long) */
+  private savedAt = 0;
 
   private async load(code?: string): Promise<RoomEngine> {
     if (this.engine) return this.engine;
@@ -412,8 +415,17 @@ export class Room extends DurableObject<Env> {
       return;
     }
 
-    // a big screen only watches
-    if (!att.pid || att.screen) return;
+    if (!att.pid) return;
+    // a big screen only watches, except what the game on it listens to (the DJ booth's speaker);
+    // anything the game didn't take costs nothing
+    if (att.screen) {
+      if (msg.t === "act" && msg.a?.a === "g") {
+        const took = engine.screenAct(att.pid, msg.a.g);
+        const out = engine.flush();
+        if (took) await this.commit(out);
+      }
+      return;
+    }
     if (msg.t === "act") {
       engine.act(att.pid, msg.a);
       await this.commit(engine.flush());
@@ -531,7 +543,13 @@ export class Room extends DurableObject<Env> {
         }
       }
     }
-    if (out.changed || out.persist) await this.ctx.storage.put("room", engine.d);
+    // a light change (a 🔥) goes out at once but is stored at most every LIGHT_SAVE_MS: a party
+    // pressing it all night mustn't write to storage every time
+    const save = out.changed || out.persist || (out.light && Date.now() - this.savedAt >= LIGHT_SAVE_MS);
+    if (save) {
+      await this.ctx.storage.put("room", engine.d);
+      this.savedAt = Date.now();
+    }
 
     const socks = this.sockets();
     if (out.kicked.length) {
@@ -547,7 +565,7 @@ export class Room extends DurableObject<Env> {
     }
     const live = socks.filter((s) => !out.kicked.includes(s.pid));
     const now = Date.now();
-    if (out.changed) for (const s of live) this.send(s.ws, { t: "room", room: engine.view(s.pid), now });
+    if (out.changed || out.light) for (const s of live) this.send(s.ws, { t: "room", room: engine.view(s.pid), now });
     for (const e of out.events) {
       const msg: ServerMsg = { t: "event", e, now };
       for (const s of live) this.send(s.ws, msg);
@@ -558,6 +576,8 @@ export class Room extends DurableObject<Env> {
     }
     if (out.strokesReset) for (const s of live) this.send(s.ws, { t: "strokes", list: [] });
     if (out.changed) this.report();
+    // a light change that wasn't stored leaves the alarm as it was
+    if (out.light && !save) return;
 
     const next = engine.nextAlarm();
     let forget = engine.d.touched + IDLE_FORGET;

@@ -1126,6 +1126,172 @@ test("到此一游: only the host opens the room, the table and the big screen l
   ok(e.view("p2").game === null, "the host ends it: back to the lobby");
 });
 
+test("dj: changle.ca/dj opens the booth, the speaker starts the music, the night moves on by its clock", () => {
+  const e = new RoomEngine(freshRoom("DJDJ", clock), host);
+  const events: RoomEvent[] = [];
+  const run = () => events.push(...e.flush().events);
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    run();
+  };
+  ok(e.screenHello("tv-dj1", true, "dj") === null, "a screen at /dj opens a table");
+  e.setScreens(1);
+  const opened = e.flush();
+  ok(!opened.events.some((x) => x.k === "fx" && x.fx === "start"), "the booth opens without the table's start sound (the phones stay silent)");
+  ok(e.view("tv-dj1").playing === "dj" && dv("tv-dj1").phase === "wait", "the booth is open before anyone sits down, no music yet");
+  ok(e.d.front === ONLINE_GAMES.indexOf("dj"), "the booth is the game up");
+  ok(e.hello("p1", "Amy", false) === null && e.d.host === "p1", "the first phone sits down and hosts");
+  e.hello("p2", "Ben", false);
+  run();
+  ok(dv("p2").phase === "wait", "a phone that sits down lands in the booth");
+
+  e.act("p1", { a: "g", g: { x: "phase", phase: "peak" } });
+  run();
+  ok(dv("p1").phase === "wait", "the host can't skip ahead before the music starts");
+
+  e.act("p2", { a: "g", g: { x: "fire" } });
+  const fired = e.flush();
+  events.push(...fired.events);
+  ok(events.some((x) => x.k === "fx" && x.fx === "fire" && x.pid === "p2"), "🔥 tells the room who pressed it");
+  ok(fired.light && !fired.changed, "🔥 is a light change: sent at once, stored with the next save");
+  e.act("p2", { a: "g", g: { x: "fire" } });
+  run();
+  ok(dv("p1").total.p2 === 1, "a second 🔥 at once doesn't count");
+  advance(310);
+  e.act("p2", { a: "g", g: { x: "fire" } });
+  run();
+  ok(dv("p1").total.p2 === 2 && dv("p1").fires.length === 2, "after the gap it counts again");
+
+  const t0 = clock;
+  e.screenAct("tv-dj1", { x: "live", source: "fake" });
+  run();
+  let v = dv("p1");
+  ok(v.phase === "warm" && v.liveAt === t0 && v.capAt === t0 + 4 * 3600_000, "the speaker plays: the warm-up starts and the 4-hour cap with it");
+  ok(v.nextAt === t0 + 15 * 60_000 && v.energy > 0 && v.mix.bpm === 125, "the warm-up has a clock, an energy and a tempo");
+  ok(!e.screenAct("tv-dj1", { x: "live", source: "fake" }) && !e.flush().changed, "saying it again changes nothing, and costs nothing");
+  ok(dv("p1").liveAt === t0, "the set's start stays put");
+
+  advance(15 * 60_000);
+  ok(dv("p1").phase === "build" && dv("p1").energy > v.energy, "15 minutes in: the build, harder than the warm-up");
+  const built = dv("p1").energy;
+  advance(15 * 60_000);
+  v = dv("p1");
+  ok(v.phase === "peak" && v.nextAt === 0 && v.energy > built, "then the peak, the hardest, which waits for the host");
+  advance(60 * 60_000);
+  ok(dv("p1").phase === "peak", "an hour later, still the peak");
+
+  e.act("p2", { a: "g", g: { x: "phase", phase: "cool" } });
+  run();
+  ok(dv("p1").phase === "peak", "only the host moves the night");
+  e.act("p1", { a: "g", g: { x: "phase", phase: "warm" } });
+  run();
+  ok(dv("p1").phase === "warm" && dv("p1").nextAt === clock + 15 * 60_000, "the host drags it back to the warm-up, with a fresh clock");
+  e.act("p1", { a: "g", g: { x: "phase", phase: "sideways" } });
+  run();
+  ok(dv("p1").phase === "warm", "a phase that doesn't exist is ignored");
+  e.act("p1", { a: "g", g: { x: "phase", phase: "cool" } });
+  run();
+  ok(dv("p1").phase === "cool", "the host winds it down");
+  advance(15 * 60_000);
+  ok(dv("p1").phase === "end", "15 minutes later the set is over");
+  e.act("p1", { a: "g", g: { x: "phase", phase: "peak" } });
+  run();
+  ok(dv("p1").phase === "end", "an ended set stays ended");
+
+  e.act("p2", { a: "g", g: { x: "again" } });
+  run();
+  ok(dv("p1").phase === "end", "only the host starts another set");
+  e.act("p1", { a: "g", g: { x: "again" } });
+  run();
+  v = dv("p1");
+  ok(v.phase === "wait" && v.set === 2 && v.liveAt === 0 && v.total.p2 === 2, "another set: waiting for the speaker again, the night's 🔥 kept");
+  const t1 = clock;
+  e.screenAct("tv-dj1", { x: "live", source: "fake" });
+  run();
+  ok(dv("p1").phase === "warm" && dv("p1").capAt === t1 + 4 * 3600_000, "the speaker starts it, with a new cap");
+  advance(15 * 60_000);
+  advance(15 * 60_000);
+  advance(3 * 3600_000 + 14 * 60_000);
+  ok(dv("p1").phase === "peak", "3 h 44 in: still the peak");
+  advance(60_000);
+  ok(dv("p1").phase === "cool", "15 minutes before the cap: the wind-down");
+  advance(15 * 60_000);
+  ok(dv("p1").phase === "end", "at 4 hours the set ends itself");
+
+  ok(e.hello("p3", "Cat", false) === null && dv("p3").phase === "end", "someone arriving late lands in the booth too");
+  e.act("p1", { a: "g", g: { x: "again" } });
+  e.screenAct("tv-dj1", { x: "live", source: "fake" });
+  run();
+  for (const pid of ["p1", "p2", "p3"]) e.act(pid, { a: "leave" });
+  run();
+  ok(e.d.seats.length === 0 && dv("tv-dj1").phase === "warm", "every phone leaves: the booth plays on for the speaker");
+  ok(e.hello("p4", "Dan", false) === null && e.d.host === "p4" && dv("p4").phase === "warm", "the next phone lands in the booth, and hosts");
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  run();
+  e.act("p4", { a: "end" });
+  run();
+  ok(e.view("p1").game === null && e.d.front === ONLINE_GAMES.indexOf("dj"), "the host closes the booth: the lobby, with the booth still up front");
+  e.act("p4", { a: "start", game: "dj" });
+  run();
+  ok(dv("p2").phase === "wait" && dv("p2").set === 1, "and can open it again from there");
+});
+
+test("dj: the speaker can't play host, a phone can't speak for the speaker", () => {
+  const e = new RoomEngine(freshRoom("DJDK", clock), host);
+  ok(e.screenHello("tv-dj2", true, "dj") === null, "a screen opens the booth");
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  e.act("p1", { a: "g", g: { x: "live", source: "fake" } });
+  e.flush();
+  ok(dv("p1").phase === "wait", "a phone saying the music started does nothing");
+  e.screenAct("p1", { x: "live", source: "fake" });
+  e.flush();
+  ok(dv("p1").phase === "wait", "a seated id can't talk as a screen");
+  e.screenAct("tv-dj2", { x: "phase", phase: "peak" });
+  e.screenAct("tv-dj2", { x: "again" });
+  e.screenAct("tv-dj2", { x: "fire" });
+  e.flush();
+  ok(dv("p1").phase === "wait" && Object.keys(dv("p1").total).length === 0, "the screen can't move the night or press 🔥");
+  e.screenAct("tv-dj2", { x: "live", source: "lyria" });
+  e.flush();
+  ok(dv("p1").phase === "warm" && dv("p1").source === "lyria", "the screen starts the music (and says where it comes from)");
+  const st = () => (e.d.game?.s as { speaker: { stalls: number; resets: number; seconds: number } }).speaker;
+  ok(e.screenAct("tv-dj2", { x: "stats", stalls: 2, resets: 1, seconds: 60 }), "the speaker's minute report is taken");
+  ok(!e.screenAct("tv-dj2", { x: "stats", stalls: 9, resets: 0, seconds: 60 }), "another straight after is not (a screen can't be kicked: it can't flood the room)");
+  clock += 31_000;
+  ok(!e.screenAct("tv-dj2", { x: "stats", stalls: "lots", resets: 0, seconds: 1 }), "a garbled one is dropped");
+  e.screenAct("tv-dj2", { x: "stats", stalls: 1, resets: 0, seconds: 99_999 });
+  e.flush();
+  ok(st().stalls === 3 && st().resets === 1 && st().seconds === 180, "the reports add up, each no more than a report's worth");
+  ok(!e.screenAct("tv-dj2", null) && !e.screenAct("tv-dj2", { y: 1 }) && !e.screenAct("tv-dj2", { x: "nonsense" }), "junk from a screen is ignored");
+  ok(!e.flush().changed && dv("p1").phase === "warm", "and costs nothing");
+  e.act("p1", { a: "g", g: { x: "phase", phase: "end" } });
+  e.act("p1", { a: "g", g: { x: "again" } });
+  e.flush();
+  ok(st().stalls === 3 && dv("p1").set === 2, "another set keeps the speaker's record for the night");
+
+  const p = new RoomEngine(freshRoom("PUNC", clock), host);
+  p.screenHello("tv-p1", true, "punchline");
+  p.hello("p1", "Amy", false);
+  p.hello("p2", "Ben", false);
+  p.hello("p3", "Cat", false);
+  p.act("p1", { a: "start", game: "punchline" });
+  p.flush();
+  const before = JSON.stringify(p.d.game?.s);
+  p.screenAct("tv-p1", { x: "next" });
+  p.flush();
+  ok(JSON.stringify(p.d.game?.s) === before, "a game that doesn't listen to screens hears nothing from them");
+  const q = new RoomEngine(freshRoom("PUND", clock), host);
+  q.screenHello("tv-q1", true, "punchline");
+  q.flush();
+  ok(q.view("tv-q1").game === null, "only the booth opens by itself; other games wait for the host");
+});
+
 test("custom penalty: no card, command or note tells anyone to drink", () => {
   // (dice rolls and decks use the shared random sequence: put it back afterwards)
   const s0 = seed;

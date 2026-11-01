@@ -255,6 +255,29 @@ export function bus(): Bus | null {
   }
 }
 
+/**
+ * The same voices on an OfflineAudioContext, to render music ahead of time (the DJ booth's
+ * stand-in tracks): the mix, the room reverb and the music bus, without the live master chain
+ * (whatever plays the result brings its own). `out` goes to the context's destination.
+ */
+export function offlineBus(oc: OfflineAudioContext): Bus {
+  // the voices only create nodes and read the clock, which an offline context does the same way
+  const c = oc as unknown as AudioContext;
+  const out = c.createGain();
+  out.connect(c.destination);
+  const dry = c.createGain();
+  dry.connect(out);
+  const conv = c.createConvolver();
+  conv.buffer = impulse(c, 1.5, 3);
+  const verb = c.createGain();
+  verb.gain.value = 0.28;
+  verb.connect(conv).connect(out);
+  const music = c.createGain();
+  music.gain.value = 0.8;
+  music.connect(out);
+  return { c, out, verb, music, dry };
+}
+
 /** Seconds on the audio clock for a moment on the performance.now() clock. */
 export function ctxTimeAt(b: Bus, perfMs: number) {
   return b.c.currentTime + (perfMs - performance.now()) / 1000;

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Drama, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import type { T } from "../i18n";
 
 export type GameId =
@@ -19,7 +19,8 @@ export type GameId =
   | "tune"
   | "punchline"
   | "draw"
-  | "trip";
+  | "trip"
+  | "dj";
 
 export type GameMeta = {
   id: GameId;
@@ -36,6 +37,11 @@ export type GameMeta = {
   icon: LucideIcon;
   /** built and playable today; the rest show as coming soon */
   ready: boolean;
+  /**
+   * not on any board yet (not even as coming soon): only its own address opens it, and a table's
+   * lobby shows it only while it is the game up (the DJ booth, at changle.ca/dj)
+   */
+  hidden?: boolean;
   isNew?: boolean;
   /** one-phone play needs a different number of names, or works differently */
   solo?: { min: number; hint: T };
@@ -268,6 +274,21 @@ export const GAMES: GameMeta[] = [
     gel: "#ff9cc5",
     icon: PenLine,
     ready: true,
+  },
+  {
+    id: "dj",
+    name: t("打碟", "DJ Booth"),
+    blurb: t("电视当音箱，AI 当 DJ，手机是旋钮", "The TV is the speaker, the AI is the DJ, your phone is a knob."),
+    how: t(
+      "电视或电脑打开 changle.ca/dj 当音箱，点「开始派对」放歌。大家扫码入座，手机按 🔥 给 DJ 加油，大屏上看得到谁在嗨。主人可以把整晚拖到暖场、推高、顶点、收尾。",
+      "Open changle.ca/dj on a TV or computer: that's the speaker. Press Start the party and the music begins. Everyone scans in; press 🔥 on your phone to push the DJ, and the big screen shows who's into it. The host can move the night between warm-up, build, peak and wind-down.",
+    ),
+    minPlayers: 1,
+    maxPlayers: 15,
+    gel: "#ff5ad8",
+    icon: Disc3,
+    ready: false,
+    hidden: true,
   },
 ];
 

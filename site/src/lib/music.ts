@@ -7,11 +7,11 @@
 import { bus, clap, ctxTimeAt, hat, kick, midiHz, note, shaker, snare, tom, burst, type Bus, type Inst } from "./audio/engine";
 
 type Hits = number[]; // 16 velocities (0 = silent)
-const v = (s: string): Hits => s.split("").map((ch) => (ch === "." ? 0 : ch === "x" ? 1 : ch === "o" ? 0.55 : ch === "-" ? 0.3 : 0));
+export const v = (s: string): Hits => s.split("").map((ch) => (ch === "." ? 0 : ch === "x" ? 1 : ch === "o" ? 0.55 : ch === "-" ? 0.3 : 0));
 
 export type GrooveId = "house" | "disco" | "funk" | "calypso" | "electro" | "hiphop" | "lofi" | "lounge";
 
-type Style = {
+export type Style = {
   bpm: number;
   swing?: number;
   kick?: Hits;
@@ -38,7 +38,7 @@ function m(name: string): number {
   if (!mm) throw new Error(name);
   return 12 * (Number(mm[2]) + 1) + NOTES[mm[1]];
 }
-function line(s: string): (number | null)[] {
+export function line(s: string): (number | null)[] {
   const out = s
     .trim()
     .split(/\s+/)
@@ -46,7 +46,7 @@ function line(s: string): (number | null)[] {
   while (out.length < 16) out.push(N);
   return out.slice(0, 16);
 }
-const chord = (...names: string[]) => names.map(m);
+export const chord = (...names: string[]) => names.map(m);
 
 export const GROOVES: Record<GrooveId, Style> = {
   house: {
@@ -204,7 +204,7 @@ export function startGroove(id: GrooveId, opts: { startPerf?: number; volume?: n
         return;
       }
       const swing = step % 2 === 1 ? (s.swing ?? 0) * stepS : 0;
-      play(b, s, step, nextTime + swing, stepS, out);
+      playStep(b, s, step, nextTime + swing, stepS, out);
       step++;
       nextTime = originCtx + step * stepS;
     }
@@ -238,7 +238,8 @@ export function startGroove(id: GrooveId, opts: { startPerf?: number; volume?: n
   return handle;
 }
 
-function play(b: Bus, s: Style, step: number, t: number, stepS: number, dest: AudioNode) {
+/** One sixteenth of a groove at audio time `t` (a 4-bar loop: `step` counts on from 0). */
+export function playStep(b: Bus, s: Style, step: number, t: number, stepS: number, dest: AudioNode) {
   const i = step % 16;
   const bar = Math.floor(step / 16) % 4;
   const o = { at: t, abs: true, dest };
