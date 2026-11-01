@@ -5,6 +5,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { useCue, useReached, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
+import { bringIntoView } from "../../online/useActionsInView";
 import type { PunchMatch, PunchView } from "../../shared/protocol";
 import { RESULT_BEATS } from "../../shared/punchline";
 import { useStore } from "../../store";
@@ -309,6 +310,18 @@ function WritePanel({ v }: { v: PunchView }) {
   );
 }
 
+/** One answer is in: the box for the next prompt still to answer comes up above the reactions bar. */
+function nextPrompt(from: HTMLElement) {
+  const list = from.closest(".pl-writes");
+  const card = from.closest(".pl-write");
+  if (!list || !card) return;
+  window.setTimeout(() => {
+    const open = [...list.querySelectorAll<HTMLElement>(".pl-write")].filter((c) => c !== card && c.querySelector("form textarea"));
+    const next = open.find((c) => card.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) ?? open[0];
+    if (next) bringIntoView([...next.querySelectorAll<HTMLElement>("form textarea, form button[type='submit']")]);
+  }, 120);
+}
+
 function HostControls({ v }: { v: PunchView }) {
   const { g, isHost } = useRoom();
   const { lang } = useStore();
@@ -404,6 +417,7 @@ function WriteCard({
             setEditing(false);
             sfx.pop();
             haptic(8);
+            nextPrompt(e.currentTarget);
           }}
         >
           <div className="field">
@@ -415,10 +429,11 @@ function WriteCard({
           <button
             type="button"
             className="link-btn"
-            onClick={() => {
+            onClick={(e) => {
               onSafety();
               setEditing(false);
               sfx.pop();
+              nextPrompt(e.currentTarget);
             }}
           >
             {zh ? "想不出来？给我一个（分数减半）" : "Stuck? Give me one (half points)"}

@@ -47,6 +47,17 @@
     gap: 10px;
     padding-top: 0;
   }
+  /* online, nothing in the column squeezes to fit: it scrolls instead (a squeezed box spilled
+     over whatever came next), and its end can scroll up clear of the reactions row below it */
+  .net-body > *,
+  .net-body > .bottle-stage > * {
+    flex-shrink: 0;
+  }
+  .net-body::after {
+    content: "";
+    flex: none;
+    height: 6px;
+  }
   .game-body > .tn,
   .net-body > .tn,
   .game-body > .fz,
@@ -117,6 +128,27 @@
   .net-body .lb > .limbo-scene,
   .net-body .dm-stagebox {
     bottom: 60px;
+  }
+  /* online, only the bottle stands on the left; what to do about it (spin, truth or dare) goes on
+     the right, where the column scrolls, instead of under the bottle and off the bottom edge */
+  .net-body .bottle-stage {
+    display: contents;
+  }
+  .net-body .bottle-stage > .bottle-svg {
+    position: absolute;
+    left: 0;
+    top: 46px;
+    width: 44%;
+    height: calc(100% - 106px);
+  }
+  /* online, the four titles two by two, so they all fit beside the stage */
+  .net-body .tn-quiz,
+  .net-body .tn-options {
+    grid-template-columns: 1fr 1fr;
+  }
+  /* online, the comedy club grows to hold every answer while people vote (it can scroll then) */
+  .net-body .sh-stage.is-phone[data-phase="vote"] {
+    max-height: none;
   }
   /* sizes that were set for a phone's width now follow its height */
   .vinyl-disc {
@@ -207,6 +239,32 @@
     width: 100%;
     margin-left: auto;
     margin-right: auto;
+  }
+  /* online, a card under a cover (your word, your dare): the card on the left and what to do about
+     it beside it, so the word stays in sight while you tap and the reactions row has the bottom */
+  .net-body > .card-flow:has(> .cloche-wrap) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 34%);
+    align-items: center;
+    gap: 10px 16px;
+  }
+  .net-body > .card-flow:has(> .cloche-wrap) > * {
+    grid-column: 1 / -1;
+  }
+  .net-body > .card-flow > .cloche-wrap {
+    grid-column: 1;
+    min-height: 150px !important;
+  }
+  .net-body > .card-flow > .cloche-wrap .prompt-card {
+    min-height: 150px;
+  }
+  .net-body > .card-flow > .cloche-wrap ~ * {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .net-body > .card-flow > .cloche-wrap ~ .row {
+    flex-direction: column;
+    align-items: stretch;
   }
   /* "pass the phone to …": a short wide card instead of a tall one, so the button stays on screen */
   .screen .pass-curtain {
