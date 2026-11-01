@@ -43,10 +43,11 @@ for (const [label, device] of [
     await expect(buy).toBeVisible();
     // (a first landing in a city plays its scene over everything for a few seconds; a tap skips it)
     const scene = a.page.locator(".touchdown");
-    await scene.waitFor({ state: "visible", timeout: 3000 }).then(
-      () => scene.click(),
-      () => {},
-    );
+    // (it may fade or finish under the tap: then there's nothing left to skip)
+    await scene
+      .waitFor({ state: "visible", timeout: 3000 })
+      .then(() => scene.click({ timeout: 2000 }))
+      .catch(() => {});
     await expect(scene).toHaveCount(0, { timeout: 8000 });
     await a.page.waitForTimeout(500);
     // in sight as it is, without scrolling the window: inside the window's visible part and the screen
