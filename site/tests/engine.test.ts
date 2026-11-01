@@ -1292,6 +1292,121 @@ test("dj: the speaker can't play host, a phone can't speak for the speaker", () 
   ok(q.view("tv-q1").game === null, "only the booth opens by itself; other games wait for the host");
 });
 
+test("dj: ❄️, knobs, drops and songs are kept and limited; nobody else reads a song before it's checked", () => {
+  const e = new RoomEngine(freshRoom("DJDQ", clock), host);
+  const events: RoomEvent[] = [];
+  e.screenHello("tv-dj3", true, "dj");
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  e.hello("p3", "Cat", false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    const o = e.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const fx = (name: string, pid: string) => events.filter((x) => x.k === "fx" && x.fx === name && x.pid === pid).length;
+
+  // ❄️: like 🔥, and one of either per 300 ms a phone
+  const cold = g("p2", "cold");
+  ok(cold.light && !cold.changed && fx("cold", "p2") === 1 && dv("p1").colds.length === 1, "❄️ is kept, told to the room, and light");
+  g("p2", "fire");
+  ok(dv("p1").fires.length === 0 && !dv("p1").total.p2, "🔥 straight after a ❄️ from the same phone doesn't count");
+  clock += 310;
+  g("p2", "fire");
+  g("p3", "cold");
+  ok(dv("p1").total.p2 === 1 && dv("p1").colds.length === 2, "after the gap both count, and other phones have their own");
+
+  // knobs: on the grid, -1 to 1, a style that exists, 0 takes it back
+  const k = g("p1", "knob", { style: "latin", value: 0.6 });
+  ok(k.light && dv("p2").knobs.p1?.latin === 0.5, "a knob turned to 0.6 sits on the grid at 0.5, and everyone sees it");
+  g("p1", "knob", { style: "techno", value: -7 });
+  ok(dv("p2").knobs.p1?.techno === -1, "past the end it stops at -1");
+  g("p1", "knob", { style: "polka", value: 1 });
+  g("p1", "knob", { style: "house", value: "loud" });
+  ok(Object.keys(dv("p1").knobs.p1 ?? {}).sort().join() === "latin,techno", "a style that isn't one of the 12, or a value that isn't a number, is ignored");
+  g("p1", "knob", { style: "latin", value: 0.1 });
+  g("p1", "knob", { style: "techno", value: 0 });
+  ok(!("p1" in dv("p1").knobs), "back to 0 (0.1 rounds there) takes them back, and a player with none is left out");
+
+  // drops: only while the music plays, one per 10 s a phone
+  g("p2", "drop");
+  ok(dv("p1").drops.length === 0, "no drop before the music starts");
+  e.screenAct("tv-dj3", { x: "live", source: "fake" });
+  e.flush();
+  const d = g("p2", "drop");
+  ok(d.light && dv("p1").drops.length === 1 && fx("drop", "p2") === 1, "a drop request is kept and told to the room");
+  clock += 5_000;
+  g("p2", "drop");
+  ok(dv("p1").drops.length === 1, "a second within 10 seconds isn't");
+  clock += 5_100;
+  g("p2", "drop");
+  ok(dv("p1").drops.length === 2, "after 10 seconds it is");
+
+  // songs: cleaned, limited, and unread by others until the text check passes
+  g("p2", "ask", { text: "  a reggaeton for\nJackie's   birthday‮  ", style: "latin" });
+  let q = dv("p2").queue;
+  ok(q.length === 1 && q[0].ask === "a reggaeton for Jackie's birthday" && q[0].style === "latin" && q[0].status === "queued" && q[0].by === "p2", "a song is kept on one line, without the invisible characters, with its style");
+  ok(fx("ask", "p2") === 1, "and the room hears someone asked");
+  ok(dv("p3").queue[0].ask === null && dv("tv-dj3").queue[0].ask === null, "another phone and the big screen see that a song is waiting, not what it says");
+  ok(dv("p1").queue[0].ask === "a reggaeton for Jackie's birthday", "the host reads it (to take it back if needed)");
+  g("p2", "ask", { text: "another one" });
+  ok(dv("p2").queue.length === 1, "one song waiting a player");
+  g("p3", "ask", { text: "x" });
+  g("p3", "ask", { text: "🎉".repeat(300), style: "polka" });
+  q = dv("p3").queue;
+  ok(q.length === 2 && Array.from(q[1].ask ?? "").length === 120 && q[1].style === null, "too short is ignored; too long is cut at 120 characters (an emoji is one); an unknown style is none");
+  for (let i = 4; i <= 14; i++) {
+    e.hello(`p${i}`, `P${i}`, false);
+    g(`p${i}`, "ask", { text: `song ${i}` });
+  }
+  ok(dv("p1").queue.length === 12, "12 songs waiting at most, the whole table");
+
+  // the song pipeline's statuses (A5): checked songs show to all, refused ones only to their own
+  const st = e.d.game?.s as { queue: { id: string; by: string; status: string; why?: unknown }[] };
+  const mine = st.queue.find((t) => t.by === "p2")!;
+  mine.status = "making";
+  ok(dv("p3").queue.find((t) => t.by === "p2")?.ask === "a reggaeton for Jackie's birthday", "once it passes the check, everyone can read it");
+  const theirs = st.queue.find((t) => t.by === "p3")!;
+  theirs.status = "refused";
+  theirs.why = { zh: "这句不行", en: "Not that line" };
+  ok(!dv("p2").queue.some((t) => t.by === "p3") && dv("tv-dj3").queue.every((t) => t.by !== "p3" || t.status !== "refused"), "a refused song is hidden from everyone else");
+  ok(dv("p3").queue.find((t) => t.id === theirs.id)?.status === "refused", "its player sees it, with why");
+
+  // taking a song back
+  const waiting = st.queue.find((t) => t.by === "p4")!;
+  g("p5", "unask", { id: waiting.id });
+  ok(st.queue.some((t) => t.id === waiting.id), "only its player (or the host) can take a song back");
+  g("p4", "unask", { id: waiting.id });
+  ok(!st.queue.some((t) => t.id === waiting.id), "its player can");
+  g("p2", "unask", { id: mine.id });
+  ok(st.queue.some((t) => t.id === mine.id), "not once it's being made");
+  const other = st.queue.find((t) => t.by === "p6")!;
+  g("p1", "unask", { id: other.id });
+  ok(!st.queue.some((t) => t.id === other.id), "the host can take back anyone's");
+  g("p3", "unask", { id: theirs.id });
+  ok(!st.queue.some((t) => t.id === theirs.id), "a refused one can be cleared");
+
+  // another set keeps the knobs and the songs, not the moment's ❄️ and drops
+  g("p1", "knob", { style: "house", value: 1 });
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  const v = dv("p1");
+  ok(v.knobs.p1?.house === 1 && v.queue.length > 0 && v.colds.length === 0 && v.drops.length === 0, "another set keeps the knobs and the songs, and clears ❄️ and drops");
+
+  // a booth saved before these existed still works
+  const old = e.d.game?.s as Record<string, unknown>;
+  delete old.colds;
+  delete old.knobs;
+  delete old.drops;
+  ok(Array.isArray(dv("p1").colds) && typeof dv("p1").knobs === "object", "a booth saved before ❄️ and knobs existed gets them empty");
+  clock += 400;
+  g("p2", "cold");
+  ok(dv("p1").colds.length === 1, "and takes them");
+});
+
 test("custom penalty: no card, command or note tells anyone to drink", () => {
   // (dice rolls and decks use the shared random sequence: put it back afterwards)
   const s0 = seed;
