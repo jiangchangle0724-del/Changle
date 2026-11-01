@@ -9,6 +9,8 @@ import { NetPenaltyLayer, ReactionLayer, ToastLayer } from "./Overlays";
 import { RoomProvider, useRoom } from "./RoomContext";
 import { useTableSounds } from "./useTableSounds";
 import { NetGame } from "./games/NetGame";
+import { ScreenGuard } from "../components/ScreenGuard";
+import { siteNotice } from "../lib/api";
 
 type Session = { name: string; create: boolean; n: number };
 
@@ -62,6 +64,8 @@ function Stage({ create, name, onExit, onRejoin, onForget }: { create: boolean; 
       window.location.replace(`#/r/${next}`);
     }
     if (stopped?.kind === "left") onExit();
+    // the whole site paused, or this phone banned: the app shows its own sign
+    if (stopped?.kind === "error" && (stopped.code === "paused" || stopped.code === "banned")) siteNotice(stopped.code);
   }, [stopped, create, name, onExit]);
 
   // after a while without ever getting in, say so (the socket keeps trying underneath)
@@ -73,7 +77,18 @@ function Stage({ create, name, onExit, onRejoin, onForget }: { create: boolean; 
   }, [room]);
 
   if (stopped && stopped.kind === "error" && !(stopped.code === "exists" && create)) {
-    const text = stopped.code === "kicked" ? ui("errKicked") : stopped.code === "full" ? ui("errFull") : stopped.code === "exists" ? ui("errBusy") : ui("errNoRoom");
+    const text =
+      stopped.code === "kicked"
+        ? ui("errKicked")
+        : stopped.code === "full"
+          ? ui("errFull")
+          : stopped.code === "exists"
+            ? ui("errBusy")
+            : stopped.code === "paused"
+              ? ui("errPaused")
+              : stopped.code === "banned"
+                ? ui("errBanned")
+                : ui("errNoRoom");
     return (
       <Notice title={text} onBack={onExit}>
         {stopped.code === "no-room" && (
@@ -129,7 +144,9 @@ function Stage({ create, name, onExit, onRejoin, onForget }: { create: boolean; 
 
   return (
     <MotionConfig reducedMotion="user">
-      {room.game ? <NetGame view={room.game} onLeave={leave} /> : <Lobby onLeave={leave} />}
+      <ScreenGuard key={room.game?.id ?? "lobby"} compact>
+        {room.game ? <NetGame view={room.game} onLeave={leave} /> : <Lobby onLeave={leave} />}
+      </ScreenGuard>
       <ReactionLayer />
       <ToastLayer />
       <NetPenaltyLayer />

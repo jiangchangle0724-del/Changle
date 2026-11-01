@@ -221,6 +221,34 @@ export class RoomEngine {
     this.out.changed = true;
   }
 
+  /**
+   * The site owner takes someone off the table (from the back office): their seat goes, as if
+   * they had left, and banned, they can't sit at this table again.
+   */
+  adminKick(pid: string, ban: boolean): boolean {
+    const d = this.d;
+    if (ban && validPid(pid) && !d.banned.includes(pid)) d.banned.push(pid);
+    if (!d.seats.some((s) => s.id === pid)) return false;
+    const g = this.gameDef();
+    d.seats = d.seats.filter((s) => s.id !== pid);
+    if (g && d.game) g.def.leave?.(d.game.s, pid, this.api());
+    this.out.kicked.push(pid);
+    this.event({ k: "left", pid });
+    if (d.host === pid) {
+      const next = d.seats.find((s) => s.on) ?? d.seats[0];
+      d.host = next?.id ?? "";
+      this.clearTimer("host-away");
+      if (next) this.event({ k: "host", pid: next.id });
+    }
+    if (!d.seats.length && d.game) {
+      this.finishPlay();
+      d.game = null;
+      this.clearGameTimers();
+    }
+    this.out.changed = true;
+    return true;
+  }
+
   /* ---------------- actions ---------------- */
 
   act(pid: string, a: Action) {

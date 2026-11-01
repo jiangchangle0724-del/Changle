@@ -1,4 +1,4 @@
-import { Copy, LogOut, Pencil, Trash2 } from "lucide-react";
+import { Copy, LogOut, Pencil, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { TopBar } from "../components/TopBar";
@@ -170,6 +170,12 @@ export function MePage({ onBack }: { onBack: () => void }) {
       {tab === "history" ? <HistoryList rows={hist?.history ?? []} /> : <FriendsPanel lists={lists} reload={() => void load()} />}
 
       <div className="me-foot">
+        {me.master && (
+          <a className="btn btn-moon btn-sm" href="#/admin">
+            <ShieldCheck size={15} />
+            {zh ? "后台" : "Back office"}
+          </a>
+        )}
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
           <LogOut size={15} />
           {zh ? "退出登录" : "Sign out"}

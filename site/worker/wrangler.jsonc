@@ -18,6 +18,8 @@
   ],
   "vars": {
     "ADMIN_EMAILS": "jiangchangle0724@gmail.com,jiangchangle0724@hotmail.com",
+    // the owner's account: the back office (#/admin), and the one way in while the site is paused
+    "MASTER_EMAIL": "jiangchangle0724@hotmail.com",
     "MAIL_FROM": "changle <hello@changle.ca>"
   },
   "observability": { "enabled": true }

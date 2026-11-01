@@ -4,8 +4,8 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { freshRoom, RoomEngine, type Output, type Profile, type RoomData } from "../src/shared/engine/room";
-import { CODE_RE, type ClientMsg, type ServerMsg } from "../src/shared/protocol";
-import { drawPicture, drawReady } from "./draw";
+import { CODE_RE, type ClientMsg, type ErrorCode, type ServerMsg } from "../src/shared/protocol";
+import { drawPicture, drawReady, type Pic } from "./draw";
 import { Hub, type Reply } from "./hub";
 import { cleanChoices, drawPrompt } from "../src/shared/draw";
 
@@ -17,6 +17,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
   ADMIN_EMAILS?: string;
+  /** the owner's account: the back office, and the one way in while the site is paused */
+  MASTER_EMAIL?: string;
   DEV_SHOW_CODES?: string;
   /** Google AI key for drawing anime avatars (a secret: set-ai-key.cmd) */
   GEMINI_API_KEY?: string;
@@ -42,18 +44,46 @@ function originOk(req: Request) {
   return ORIGINS.some((r) => r.test(o));
 }
 
-function cors(res: Response, req: Request, cache = "no-store") {
+/**
+ * Who may read a response. A picture of someone's face is public: any page may draw it (`*`).
+ * Everything else answers our own pages only, with their sign-in cookie; and says it varies by
+ * page, so a copy cached for an <img> is never handed to a script that needs permission.
+ */
+function cors(res: Response, req: Request, cache = "no-store", open = false) {
   const h = new Headers(res.headers);
   const o = req.headers.get("Origin");
-  if (o && ORIGINS.some((r) => r.test(o))) {
-    h.set("Access-Control-Allow-Origin", o);
+  if (open) h.set("Access-Control-Allow-Origin", "*");
+  else {
     h.set("Vary", "Origin");
+    if (o && ORIGINS.some((r) => r.test(o))) {
+      h.set("Access-Control-Allow-Origin", o);
+      h.set("Access-Control-Allow-Credentials", "true");
+    }
   }
   h.set("Cache-Control", cache);
   return new Response(res.body, { status: res.status, headers: h });
 }
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
+
+/* ---------------- staying signed in ---------------- */
+
+// A phone keeps its session in local storage, which Safari wipes after a week away. The same
+// session also rides in a cookie only this server can read (HttpOnly, sent only to /api/auth), so
+// a wiped phone gets its sign-in back without a new code.
+const SESSION_COOKIE = "cs";
+
+function cookieOf(req: Request, name: string) {
+  const m = new RegExp(`(?:^|;\\s*)${name}=([A-Za-z0-9_-]{20,80})`).exec(req.headers.get("Cookie") ?? "");
+  return m ? m[1] : "";
+}
+
+function withSessionCookie(res: Response, req: Request, token: string | null) {
+  const secure = new URL(req.url).protocol === "https:" ? "; Secure" : "";
+  const h = new Headers(res.headers);
+  h.append("Set-Cookie", `${SESSION_COOKIE}=${token ?? ""}; Max-Age=${token ? 400 * 86400 : 0}; Path=/api/auth; HttpOnly; SameSite=Lax${secure}`);
+  return new Response(res.body, { status: res.status, headers: h });
+}
 
 /* ---------------- exchange rates ---------------- */
 
@@ -121,6 +151,42 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
   const type = req.headers.get("Content-Type") ?? "";
   // (the largest body is a photo for drawing, as base64: about 1 MB)
   if (Number(req.headers.get("Content-Length") ?? 0) > 1_500_000) return cors(json({ error: "size" }, 413), req);
+
+  // is the site open? every phone asks now and then: answered from the edge for 10 seconds
+  if (path === "/status" && req.method === "GET") {
+    const cache = (caches as unknown as { default: Cache }).default;
+    const key = new Request("https://rooms.changle.ca/__status/v1");
+    const hit = await cache.match(key);
+    if (hit) return cors(hit, req);
+    const res = json(await hub.status());
+    const keep = new Response(res.clone().body, { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=10" } });
+    ctx.waitUntil(cache.put(key, keep));
+    return cors(res, req);
+  }
+  // a sign-in kept in the cookie, for a phone whose storage was wiped (no body, no headers:
+  // asked without a preflight)
+  if (path === "/auth/restore" && req.method === "POST") {
+    // (nothing kept is the usual answer for a visitor: 204, not an error)
+    const kept = cookieOf(req, SESSION_COOKIE);
+    if (!kept) return cors(new Response(null, { status: 204 }), req);
+    const r = await hub.restore(kept);
+    return cors(withSessionCookie(r ? json(r) : new Response(null, { status: 204 }), req, r ? kept : null), req);
+  }
+  // a phone signed in from before the cookie (or whose cookie is getting old) asks for a fresh one
+  if (path === "/auth/keep" && req.method === "POST") {
+    const r = token ? await hub.restore(token) : null;
+    return cors(r ? withSessionCookie(json({ ok: true }), req, token) : json({ error: "signin" }, 401), req);
+  }
+  if (path === "/avatar/allowance" && req.method === "POST") {
+    let b: Record<string, unknown> = {};
+    try {
+      b = (await req.json()) as Record<string, unknown>;
+    } catch {
+      /* none */
+    }
+    const r = await hub.drawAllowance({ token, ticket: typeof b.ticket === "string" ? b.ticket : "" });
+    return cors("error" in r ? json(r, 401) : json(r), req);
+  }
   if (path === "/avatar/draw" && req.method === "POST") return cors(await drawAvatar(req, env, hub, token), req);
   let body: unknown = undefined;
   let bytes: ArrayBuffer | undefined;
@@ -137,24 +203,39 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
       body = {};
     }
   }
+  // signing out ends the session in the cookie too, even when the phone had lost its own copy
+  const kept = path === "/auth/logout" ? cookieOf(req, SESSION_COOKIE) : "";
   const r = (await hub.call({
     method: req.method,
     path,
-    token,
+    token: token || kept,
     device: (req.headers.get("X-Device") ?? "").slice(0, 48),
     ip: req.headers.get("CF-Connecting-IP") ?? "",
     body,
     bytes,
     type,
   })) as unknown as Reply;
-  if (r.bytes) return cors(new Response(r.bytes, { status: r.status, headers: { "Content-Type": r.type ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" } }), req, r.cache ?? "no-store");
-  return cors(json(r.json ?? {}, r.status), req);
+  if (r.bytes)
+    return cors(
+      new Response(r.bytes, { status: r.status, headers: { "Content-Type": r.type ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" } }),
+      req,
+      r.cache ?? "no-store",
+      r.status === 200 && /^\/(avatar|figure)\//.test(path),
+    );
+  let res = json(r.json ?? {}, r.status);
+  // a new session (signed in, or signed up) goes into the cookie as well; signing out clears it
+  const fresh = (r.json as { token?: unknown } | undefined)?.token;
+  if ((path === "/auth/verify" || path === "/auth/signup") && typeof fresh === "string") res = withSessionCookie(res, req, fresh);
+  if (path === "/auth/logout") res = withSessionCookie(res, req, null);
+  return cors(res, req);
 }
 
 /**
- * POST /api/avatar/draw: { image (base64), mime, from: "photo" | "figure", choices, ticket? }.
- * The hub says whether this person may draw again today; the picture goes to the image model with
- * words built only from the choice lists, and the drawing comes straight back. Nothing is kept.
+ * POST /api/avatar/draw: { image (base64), mime, from, choices, ticket? }. `from` is "photo" (a
+ * photo of you), "figure" (a drawing, sent back to change it) or "saved" (the figure you chose
+ * before: no image sent, the hub has it). The hub says whether this person may draw now; the
+ * picture goes to the image model with words built only from the choice lists, and the drawing
+ * comes straight back. Nothing is kept.
  */
 async function drawAvatar(req: Request, env: Env, hub: DurableObjectStub<Hub>, token: string): Promise<Response> {
   let b: Record<string, unknown>;
@@ -163,20 +244,32 @@ async function drawAvatar(req: Request, env: Env, hub: DurableObjectStub<Hub>, t
   } catch {
     return json({ error: "bad" }, 400);
   }
-  const image = typeof b.image === "string" ? b.image : "";
-  const mime = typeof b.mime === "string" && /^image\/(jpeg|png|webp)$/.test(b.mime) ? b.mime : "";
-  if (!image || !mime || image.length > 1_400_000 || !/^[A-Za-z0-9+/]+=*$/.test(image)) return json({ error: "size" }, 400);
   if (!drawReady(env)) return json({ error: "not-ready" }, 503);
+  const from = b.from === "figure" || b.from === "saved" ? b.from : "photo";
+  let pic: Pic;
+  if (from === "saved") {
+    const saved = token ? await hub.savedFigure(token) : null;
+    if (!saved) return json({ error: "signin" }, 401);
+    pic = saved;
+  } else {
+    const image = typeof b.image === "string" ? b.image : "";
+    const mime = typeof b.mime === "string" && /^image\/(jpeg|png|webp)$/.test(b.mime) ? b.mime : "";
+    if (!image || !mime || image.length > 1_400_000 || !/^[A-Za-z0-9+/]+=*$/.test(image)) return json({ error: "size" }, 400);
+    pic = { mime, b64: image };
+  }
   const ip = req.headers.get("CF-Connecting-IP") ?? "";
   const gate = await hub.drawGate({ token, ticket: typeof b.ticket === "string" ? b.ticket : "", ip });
-  if ("error" in gate) return json({ error: gate.error }, gate.error === "signin" ? 401 : 429);
-  const from = b.from === "figure" ? "figure" : "photo";
-  const r = await drawPicture(env, { mime, b64: image }, drawPrompt(cleanChoices(b.choices), from));
+  if ("error" in gate) {
+    const status = gate.error === "signin" ? 401 : gate.error === "paused" ? 503 : gate.error === "banned" ? 403 : 429;
+    return json({ error: gate.error }, status);
+  }
+  const r = await drawPicture(env, pic, drawPrompt(cleanChoices(b.choices), from === "photo" ? "photo" : "figure"));
   if (!r.ok) {
     // (a refusal still counts: the same photo would be refused again)
     if (r.code !== "blocked") await hub.drawRefund({ key: gate.key, ip });
     console.log("draw failed", r.code, r.detail ?? "");
-    return json({ error: r.code, left: gate.left + (r.code === "blocked" ? 0 : 1) }, r.code === "blocked" ? 422 : 502);
+    const left = gate.left === null ? null : gate.left + (r.code === "blocked" ? 0 : 1);
+    return json({ error: r.code, left }, r.code === "blocked" ? 422 : 502);
   }
   return json({ image: r.pic.b64, mime: r.pic.mime, left: gate.left });
 }
@@ -281,15 +374,17 @@ export class Room extends DurableObject<Env> {
     if (msg.t === "hello") {
       const pid = String(msg.pid ?? "").slice(0, 48);
       let who: Profile | null = null;
-      if (typeof msg.auth === "string" && msg.auth) {
-        try {
-          who = await this.env.HUB.get(this.env.HUB.idFromName("hub")).whoami(msg.auth);
-        } catch {
-          who = null;
-        }
+      let block: ErrorCode | undefined;
+      // who this is, and whether they may sit down (the site paused, a banned phone)
+      try {
+        const a = await this.hub().admit({ auth: typeof msg.auth === "string" ? msg.auth : "", pid });
+        who = a.who;
+        block = a.block;
+      } catch {
+        who = null;
       }
       const screen = msg.screen === true;
-      const err = screen ? engine.screenHello(pid, !!msg.create, typeof msg.game === "string" ? msg.game : undefined) : engine.hello(pid, String(msg.name ?? ""), !!msg.create, who);
+      const err = block ?? (screen ? engine.screenHello(pid, !!msg.create, typeof msg.game === "string" ? msg.game : undefined) : engine.hello(pid, String(msg.name ?? ""), !!msg.create, who));
       if (err) {
         this.send(ws, { t: "error", code: err });
         try {
@@ -362,11 +457,63 @@ export class Room extends DurableObject<Env> {
     const out = engine.flush();
     const idle = Date.now() - engine.d.touched > IDLE_FORGET && engine.onlineCount() === 0 && !(engine.d.screens ?? 0);
     if (idle && !out.changed) {
+      const code = engine.d.code;
       await this.ctx.storage.deleteAll();
       this.engine = null;
+      if (code) await this.hub().roomReport({ code, game: "", screens: 0, seats: [] }).catch(() => {});
       return;
     }
     await this.commit(out);
+  }
+
+  private hub() {
+    return this.env.HUB.get(this.env.HUB.idFromName("hub"));
+  }
+
+  /** The owner's back office takes someone off this table (and, banned, keeps them off it). */
+  async adminKick(pid: string, ban: boolean): Promise<boolean> {
+    const engine = await this.load();
+    const gone = engine.adminKick(pid, ban);
+    await this.commit(engine.flush());
+    return gone;
+  }
+
+  /** The site is paused: everyone leaves the table, except the owner. */
+  async pauseAll(keepUid: string) {
+    const engine = await this.load();
+    for (const s of this.sockets()) {
+      const seat = engine.d.seats.find((x) => x.id === s.pid);
+      if (!s.screen && seat?.uid && seat.uid === keepUid) continue;
+      this.send(s.ws, { t: "error", code: "paused" });
+      try {
+        s.ws.serializeAttachment({ pid: "" } satisfies Attachment);
+        s.ws.close(4004, "paused");
+      } catch {
+        /* gone */
+      }
+      if (s.screen) continue;
+      if (seat) engine.setOnline(seat.id, false);
+    }
+    engine.setScreens(this.screenCount());
+    await this.commit(engine.flush());
+  }
+
+  /** Tell the hub who is at this table, whenever that changes (for the back office). */
+  private lastReport = "";
+  private report() {
+    const d = this.engine?.d;
+    if (!d?.code) return;
+    const seats = d.seats.map((s) => ({ pid: s.id, name: s.name, on: s.on, ...(s.uid ? { uid: s.uid } : {}) }));
+    const game = d.game?.id ?? "";
+    const screens = d.screens ?? 0;
+    const sig = JSON.stringify([game, seats, screens]);
+    if (sig === this.lastReport) return;
+    this.lastReport = sig;
+    void this.hub()
+      .roomReport({ code: d.code, game, screens, seats })
+      .catch(() => {
+        this.lastReport = "";
+      });
   }
 
   /** Persist, broadcast, relay, and re-arm the alarm after any change. */
@@ -409,6 +556,7 @@ export class Room extends DurableObject<Env> {
       for (const s of live) if (s.pid !== r.from) this.send(s.ws, msg);
     }
     if (out.strokesReset) for (const s of live) this.send(s.ws, { t: "strokes", list: [] });
+    if (out.changed) this.report();
 
     const next = engine.nextAlarm();
     let forget = engine.d.touched + IDLE_FORGET;

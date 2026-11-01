@@ -1,0 +1,193 @@
+/* The owner's back office (#/admin): a control room. One switch for the whole site, then the
+   people and the tables, then search and the banned list. */
+
+.adm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: calc(40px + var(--safe-bottom));
+}
+
+/* the site switch: a lamp, what it means, one button */
+.adm-switch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--r-panel);
+  background: color-mix(in oklab, var(--go) 9%, var(--dusk-2));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--go) 30%, transparent);
+}
+.adm-switch.is-paused {
+  background: color-mix(in oklab, var(--stop) 14%, var(--dusk-2));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--stop) 45%, transparent);
+}
+.adm-lamp {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--go);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--go) 22%, transparent), 0 0 18px var(--go);
+}
+.is-paused .adm-lamp {
+  background: var(--stop);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--stop) 22%, transparent), 0 0 18px var(--stop);
+  animation: adm-blink 1.6s ease-in-out infinite;
+}
+@keyframes adm-blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-paused .adm-lamp {
+    animation: none;
+  }
+}
+.adm-switch-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.adm-switch-text strong {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.adm-switch-text span {
+  color: var(--haze);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.adm-switch .btn {
+  flex: none;
+}
+
+.adm-h {
+  margin: 14px 0 0;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--haze);
+}
+.adm-empty {
+  margin: 0;
+}
+
+.adm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.adm-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 58px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.adm-row.is-away .adm-name {
+  color: var(--fog);
+}
+.adm-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.adm-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 15.5px;
+}
+.adm-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--fog);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.adm-where {
+  color: var(--haze);
+  font-weight: 600;
+}
+.adm-where.is-playing {
+  color: var(--gel);
+}
+.adm-tag-ban {
+  color: var(--stop);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--stop) 55%, transparent);
+}
+.adm-danger {
+  color: var(--stop);
+}
+.adm-device {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--fog);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* a table: its code like the plaque on the door, the game, who's at it */
+.adm-table {
+  padding: 4px 14px 2px;
+  border-radius: var(--r-panel);
+  background: var(--dusk-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.adm-table-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0 6px;
+}
+.adm-table-head strong {
+  flex: 1;
+  min-width: 0;
+}
+.adm-code {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--gel);
+}
+.adm-table .adm-row:last-child {
+  border-bottom: 0;
+}
+
+.adm-search {
+  gap: 8px;
+}
+.adm-search input {
+  flex: 1;
+  min-width: 0;
+}
+.adm-ask {
+  margin: 0 0 18px;
+  font-size: 15.5px;
+}
+
+@media (max-width: 380px) {
+  .adm-switch {
+    flex-wrap: wrap;
+  }
+  .adm-switch .btn {
+    width: 100%;
+  }
+}

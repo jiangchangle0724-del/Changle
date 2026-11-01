@@ -4,14 +4,15 @@ import { GAME_BY_ID, type GameId } from "../games/registry";
 import { useStore } from "../store";
 import { useAccount } from "../account/AccountContext";
 import { Avatar } from "../account/Avatar";
-import { cleanCode, isCode, newCode, queueGame, saveName, savedName, setIntent } from "./config";
+import { useCodeField } from "./codeField";
+import { isCode, newCode, queueGame, saveName, savedName, setIntent } from "./config";
 
 /** Open a table for everyone's phones (optionally with a game queued), or sit at a friend's. */
 export function OnlineSheet({ open, onClose, game, focusCode }: { open: boolean; onClose: () => void; game?: GameId; focusCode?: boolean }) {
   const { ui, lang } = useStore();
   const { me, status, openSignIn } = useAccount();
   const [name, setName] = useState(() => savedName() || me?.name.slice(0, 14) || "");
-  const [code, setCode] = useState("");
+  const { code, field: codeField } = useCodeField();
   const codeRef = useRef<HTMLInputElement>(null);
   const g = game ? GAME_BY_ID[game] : null;
 
@@ -67,8 +68,7 @@ export function OnlineSheet({ open, onClose, game, focusCode }: { open: boolean;
           <input
             id="online-code"
             ref={codeRef}
-            value={code}
-            onChange={(e) => setCode(cleanCode(e.target.value))}
+            {...codeField}
             placeholder={ui("codePlaceholder")}
             maxLength={4}
             autoCapitalize="characters"

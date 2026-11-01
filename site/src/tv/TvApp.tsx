@@ -5,7 +5,7 @@ import { GAME_BY_ID, type GameId } from "../games/registry";
 import { gsap, reduced } from "../lib/anim";
 import { holdBackground, startGroove } from "../lib/music";
 import { sfx, unlockAudio } from "../lib/sfx";
-import { cleanCode, isCode, newCode } from "../online/config";
+import { isCode, newCode } from "../online/config";
 import { REACTION_KEY } from "../online/Overlays";
 import { SeatFace } from "../online/People";
 import { NetGame } from "../online/games/NetGame";
@@ -17,6 +17,7 @@ import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
 import { ONLINE_GAMES, ONLINE_MIN, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
 import { useStore } from "../store";
 import "../styles/tv.css";
+import { useCodeField } from "../online/codeField";
 
 /**
  * changle.ca/tv: a TV or a computer becomes the table's big screen. It opens a table (or shows
@@ -270,7 +271,7 @@ function TvNotice({ title, spinning, children }: { title: string; spinning?: boo
 function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const [v, setV] = useState("");
+  const { code: v, field } = useCodeField();
   return (
     <form
       className="tv-join"
@@ -281,7 +282,7 @@ function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
     >
       <label htmlFor="tv-join-code">{zh ? "已经开了桌？输入桌号" : "Table already open? Enter its code"}</label>
       <div className="tv-join-row">
-        <input id="tv-join-code" value={v} onChange={(e) => setV(cleanCode(e.target.value))} placeholder="ABCD" autoComplete="off" spellCheck={false} maxLength={4} inputMode="text" />
+        <input id="tv-join-code" {...field} placeholder="ABCD" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={4} inputMode="text" style={{ textTransform: "uppercase" }} />
         <button type="submit" className="tv-btn" disabled={!isCode(v)}>
           {zh ? "显示这桌" : "Show it"}
         </button>

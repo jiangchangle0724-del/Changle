@@ -230,6 +230,59 @@ export function TableSheet({ open, onClose, onInvite, onLeave }: { open: boolean
   );
 }
 
+/**
+ * Back, from inside a game. For the host it ends the game and the whole table goes back to the
+ * lobby to pick the next one (nobody leaves the table); leaving the table is the quieter choice.
+ * Anyone else is asked whether they want to leave the table, and told the host can end the game.
+ */
+export function GameExitSheet({ open, onClose, onLeave }: { open: boolean; onClose: () => void; onLeave: () => void }) {
+  const { ui, lang } = useStore();
+  const { isHost, act } = useRoom();
+  const zh = lang === "zh";
+  if (!isHost)
+    return (
+      <Sheet open={open} onClose={onClose} title={ui("leaveTable")}>
+        <p className="hint" style={{ fontSize: 16, marginBottom: 18 }}>
+          {zh ? "想换个游戏的话，主人点左上角的返回，结束这局，大家会一起回到大厅。" : "Want a different game? The host taps back to end this one, and everyone goes back to the lobby together."}
+        </p>
+        <div className="row" style={{ gap: 10 }}>
+          <button type="button" className="btn btn-primary btn-block" onClick={onClose}>
+            {ui("stay")}
+          </button>
+          <button type="button" className="btn btn-ghost btn-block" onClick={onLeave}>
+            <LogOut size={16} />
+            {ui("leaveTable")}
+          </button>
+        </div>
+      </Sheet>
+    );
+  return (
+    <Sheet open={open} onClose={onClose} title={zh ? "结束这局？" : "End this game?"}>
+      <p className="hint" style={{ fontSize: 16, marginBottom: 18 }}>
+        {zh ? "大家一起回到大厅，选下一个游戏。没有人会离开这桌。" : "Everyone goes back to the lobby to pick the next game. Nobody leaves the table."}
+      </p>
+      <div className="row" style={{ gap: 10 }}>
+        <button type="button" className="btn btn-ghost btn-block" onClick={onClose}>
+          {zh ? "接着玩" : "Keep playing"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-block"
+          onClick={() => {
+            act({ a: "end" });
+            onClose();
+          }}
+        >
+          {zh ? "回大厅" : "To the lobby"}
+        </button>
+      </div>
+      <button type="button" className="link-btn" style={{ marginTop: 16, alignSelf: "center" }} onClick={onLeave}>
+        <LogOut size={14} /> {zh ? "我要离开这桌" : "I'm leaving the table"}
+      </button>
+    </Sheet>
+  );
+}
+
 export function LeaveSheet({ open, onClose, onLeave }: { open: boolean; onClose: () => void; onLeave: () => void }) {
   const { ui } = useStore();
   return (

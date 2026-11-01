@@ -40,13 +40,26 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
     body = JSON.stringify(opts.body);
     headers["Content-Type"] = "application/json";
   }
-  const res = await fetch(`${API}${path}`, { method: opts.method ?? (body ? "POST" : "GET"), headers, body, signal: opts.signal, cache: "no-store" });
+  // (signing in and out also sets the sign-in cookie, which only /api/auth ever sees)
+  const credentials: RequestCredentials = path.startsWith("/auth/") ? "include" : "same-origin";
+  const res = await fetch(`${API}${path}`, { method: opts.method ?? (body ? "POST" : "GET"), headers, body, signal: opts.signal, cache: "no-store", credentials });
   let data: unknown = null;
   try {
     data = await res.json();
   } catch {
     /* empty */
   }
-  if (!res.ok) throw new ApiError(res.status, ((data as { error?: string } | null)?.error as string) ?? String(res.status));
+  if (!res.ok) {
+    const code = ((data as { error?: string } | null)?.error as string) ?? String(res.status);
+    // the whole site paused by its owner, or this phone banned: the app shows it, wherever it was asked
+    if (code === "paused" || code === "banned") siteNotice(code);
+    throw new ApiError(res.status, code);
+  }
   return data as T;
+}
+
+export type SiteNotice = "paused" | "banned" | "open";
+/** Tell the app the site is paused (or open again), or that this phone was banned. */
+export function siteNotice(n: SiteNotice) {
+  window.dispatchEvent(new CustomEvent<SiteNotice>("changle:site", { detail: n }));
 }

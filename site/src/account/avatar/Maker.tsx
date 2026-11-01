@@ -49,8 +49,11 @@ const same = (a: Choices, b: Choices) => JSON.stringify(a) === JSON.stringify(b)
 function sorry(e: unknown, zh: boolean): string {
   const code = e instanceof ApiError ? e.code : "network";
   const say: Record<string, [string, string]> = {
-    limit: ["今天画够了，明天再来。", "That's today's drawings. Come back tomorrow."],
+    month: ["这个月的 AI 头像做过了，下个月 1 号再来。", "That's this month's AI avatar. Come back on the 1st."],
+    limit: ["这个网络今天画得太多了，明天再来。", "Lots of drawing from this network today. Try tomorrow."],
     closed: ["今天大家画得太多了，明天再来。", "Everyone's drawn a lot today. Come back tomorrow."],
+    paused: ["网站暂停中，过一会儿再来。", "The site is paused. Come back in a while."],
+    banned: ["这个账号已被停用。", "This account has been blocked."],
     "not-ready": ["AI 画头像还没开通。", "AI avatars aren't switched on yet."],
     blocked: ["这张照片 AI 画不了，换一张试试。", "The AI won't draw this photo. Try another."],
     busy: ["AI 现在太忙，过一会儿再试。", "The AI is busy. Try again in a moment."],
@@ -137,7 +140,10 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
   const [sel, setSel] = useState(-1);
   const [busy, setBusy] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [left, setLeft] = useState<number | null>(null);
+  // drawings left this month: undefined until asked, null for no limit (the owner)
+  const [left, setLeft] = useState<number | null | undefined>(undefined);
+  const [per, setPer] = useState(6);
+  const [mode, setMode] = useState<"photo" | "edit" | "saved">("photo");
   const [tab, setTab] = useState<Tab>("style");
   const [leaving, setLeaving] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -165,6 +171,23 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
     return u;
   };
 
+  // how many drawings this month's go has left, before anyone takes a photo
+  useEffect(() => {
+    let gone = false;
+    void api<{ left: number | null; per: number }>("/avatar/allowance", { body: { ticket } }).then(
+      (r) => {
+        if (gone) return;
+        setLeft(r.left);
+        setPer(r.per);
+      },
+      () => {},
+    );
+    return () => {
+      gone = true;
+    };
+  }, [ticket]);
+  const spent = left === 0;
+
   // what the next drawing starts from: a new photo, or the figure you have
   const from: "photo" | "figure" | null = photo ? "photo" : figureUrl ? "figure" : null;
   const shown = sel >= 0 ? drawings[sel] : null;
@@ -184,27 +207,33 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
   }, [leaving, requestClose]);
 
   const draw = async (src?: { blob: Blob; kind: "photo" | "figure" }) => {
-    if (abort.current) return;
+    if (abort.current || spent) return;
     setErr(null);
-    let pic = src;
+    const asked = chNow.current;
+    // What the drawing starts from. A new photo; or, when you changed what you picked while
+    // looking at a drawing, that drawing (the same character, changed only as asked); or your
+    // photo again; or, with no photo this time, the figure you chose before (the server has it,
+    // nothing to fetch and send back).
+    let pic: { blob: Blob; kind: "photo" | "figure" } | null = src ?? null;
+    let how: "photo" | "edit" | "saved" = "photo";
     try {
-      if (!pic && photo) pic = { blob: photo.blob, kind: "photo" };
-      if (!pic && figureUrl) pic = { blob: await (await fetch(figureUrl)).blob(), kind: "figure" };
+      if (!pic && shown && !same(shown.choices, asked)) {
+        pic = { blob: await photoForDrawing(shown.blob), kind: "figure" };
+        how = "edit";
+      } else if (!pic && photo) pic = { blob: photo.blob, kind: "photo" };
     } catch {
-      setErr(sorry(null, zh));
+      setErr(zh ? "这张图打不开，再试一次。" : "That picture didn't open. Try again.");
       return;
     }
-    if (!pic) return;
-    const asked = chNow.current;
+    if (!pic && !figureUrl) return;
+    if (!pic) how = "saved";
     const ac = new AbortController();
     abort.current = ac;
+    setMode(how);
     setBusy(performance.now());
     try {
-      const image = await blobToB64(pic.blob);
-      const r = await api<{ image: string; mime: string; left: number }>("/avatar/draw", {
-        body: { image, mime: pic.blob.type || "image/jpeg", from: pic.kind, choices: asked, ticket },
-        signal: ac.signal,
-      });
+      const body = pic ? { image: await blobToB64(pic.blob), mime: pic.blob.type || "image/jpeg", from: pic.kind, choices: asked, ticket } : { from: "saved", choices: asked, ticket };
+      const r = await api<{ image: string; mime: string; left: number | null }>("/avatar/draw", { body, signal: ac.signal });
       const blob = b64ToBlob(r.image, r.mime);
       const d = { blob, url: keep(blob), choices: asked };
       fresh.current = true;
@@ -213,6 +242,8 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
       setLeft(r.left);
     } catch (e) {
       if (!ac.signal.aborted) setErr(sorry(e, zh));
+      // a failed drawing says what is left (it was given back), and "this month's is done" means none
+      if (e instanceof ApiError && e.code === "month") setLeft(0);
     } finally {
       if (abort.current === ac) {
         abort.current = null;
@@ -313,12 +344,13 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
                 ? "拍一张正脸照，AI 照着你的样子画一个 Q 版全身形象。风格、发型、穿搭、配饰都能挑。"
                 : "Take a photo and an AI draws you as a chibi anime figure. Pick the style, hair, clothes and extras."}
             </p>
+            {left !== null && left !== undefined && <MonthNote left={left} per={per} zh={zh} />}
           </div>
           <div className="mk-start-acts">
-            <button className="btn btn-primary btn-lg btn-block" onClick={() => camera.current?.click()}>
+            <button className="btn btn-primary btn-lg btn-block" disabled={spent} onClick={() => camera.current?.click()}>
               <Camera size={20} /> {zh ? "拍一张照片" : "Take a photo"}
             </button>
-            <button className="btn btn-quiet btn-block" onClick={() => library.current?.click()}>
+            <button className="btn btn-quiet btn-block" disabled={spent} onClick={() => library.current?.click()}>
               <ImagePlus size={19} /> {zh ? "从相册选" : "Choose a photo"}
             </button>
             {err && <p className="form-error">{err}</p>}
@@ -342,7 +374,7 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
         <figure className={`mk-card ${shown ? "is-art" : "is-source"} ${busy !== null ? "is-busy" : ""}`}>
           {shown ? <img ref={art} key={shown.url} src={shown.url} alt={zh ? "AI 画的你" : "You, drawn by AI"} /> : <img src={source.url} alt="" />}
           {!shown && busy === null && <figcaption className="mk-card-tag">{source.label}</figcaption>}
-          {busy !== null && <DrawingNow t0={busy} zh={zh} from={from} />}
+          {busy !== null && <DrawingNow t0={busy} zh={zh} mode={mode} />}
         </figure>
         {(drawings.length > 0 || photo) && (
           <div className="mk-strip" role="group" aria-label={zh ? "画过的" : "Drawings"}>
@@ -364,7 +396,7 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
                 <img src={d.url} alt="" />
               </button>
             ))}
-            <button className="mk-thumb mk-thumb-add" onClick={() => library.current?.click()} aria-label={zh ? "换一张照片" : "Use another photo"} disabled={busy !== null}>
+            <button className="mk-thumb mk-thumb-add" onClick={() => library.current?.click()} aria-label={zh ? "换一张照片" : "Use another photo"} disabled={busy !== null || spent}>
               <ImagePlus size={18} />
             </button>
           </div>
@@ -390,7 +422,7 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
           )}
           {canUse ? (
             <div className="mk-acts">
-              <button className="btn btn-quiet" onClick={() => void draw()}>
+              <button className="btn btn-quiet" disabled={spent} onClick={() => void draw()}>
                 <RefreshCw size={17} /> {zh ? "再画一张" : "Draw again"}
               </button>
               <button className="btn btn-primary" onClick={() => void use()} disabled={saving}>
@@ -398,12 +430,12 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
               </button>
             </div>
           ) : (
-            <button className="btn btn-primary btn-block" onClick={() => void draw()} disabled={busy !== null}>
+            <button className="btn btn-primary btn-block" onClick={() => void draw()} disabled={busy !== null || spent}>
               <Sparkles size={18} />
-              {busy !== null ? (zh ? "正在画" : "Drawing") : drawings.length ? (zh ? "按新选择画一张" : "Draw with these") : zh ? "AI 画一张" : "Draw me"}
+              {busy !== null ? (zh ? "正在画" : "Drawing") : shown ? (zh ? "按新选择改一张" : "Change it") : drawings.length ? (zh ? "按新选择画一张" : "Draw with these") : zh ? "AI 画一张" : "Draw me"}
             </button>
           )}
-          {left !== null && <p className="mk-left tabular">{zh ? `今天还能画 ${left} 张` : `${left} more drawings today`}</p>}
+          {left !== null && left !== undefined && <MonthNote left={left} per={per} zh={zh} />}
         </div>
       </div>
       {leave}
@@ -411,8 +443,18 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
   );
 }
 
+/** This month's go: how many drawings are left, or that it's used up. */
+function MonthNote({ left, per, zh }: { left: number; per: number; zh: boolean }) {
+  if (left <= 0) return <p className="mk-left">{zh ? "这个月的 AI 头像做过了，下个月 1 号再来。" : "You've made this month's AI avatar. Come back on the 1st."}</p>;
+  return (
+    <p className="mk-left tabular">
+      {zh ? `每月一次：这个月还能画 ${left} 张（共 ${per} 张），选好一张就算用完` : `Once a month: ${left} of ${per} drawings left, and choosing one uses it up`}
+    </p>
+  );
+}
+
 /** While the AI draws: light passes over the picture, and the seconds count up honestly. */
-function DrawingNow({ t0, zh, from }: { t0: number; zh: boolean; from: "photo" | "figure" | null }) {
+function DrawingNow({ t0, zh, mode }: { t0: number; zh: boolean; mode: "photo" | "edit" | "saved" }) {
   const [s, setS] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => setS(Math.floor((performance.now() - t0) / 1000)), 250);
@@ -424,7 +466,7 @@ function DrawingNow({ t0, zh, from }: { t0: number; zh: boolean; from: "photo" |
     <div className="mk-drawing" role="status" aria-live="polite">
       <span className="mk-beam" aria-hidden="true" />
       <div className="mk-drawing-note">
-        <span>{from === "figure" ? (zh ? "AI 正在重画" : "Redrawing") : zh ? "AI 正在照着你的照片画" : "Drawing you from your photo"}</span>
+        <span>{mode === "photo" ? (zh ? "AI 正在照着你的照片画" : "Drawing you from your photo") : mode === "edit" ? (zh ? "AI 正在按你选的改" : "Changing what you picked") : zh ? "AI 正在重画" : "Redrawing"}</span>
         <span className="tabular">{zh ? `${s} 秒` : `${s}s`}</span>
       </div>
       <span className="mk-progress" style={{ transform: `scaleX(${0.04 + p * 0.9})` }} aria-hidden="true" />

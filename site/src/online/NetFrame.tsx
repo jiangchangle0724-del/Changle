@@ -9,7 +9,7 @@ import { useStore } from "../store";
 import { InviteSheet } from "./Invite";
 import { ConnectionBanner, ReactionDock } from "./Overlays";
 import { useRoom } from "./RoomContext";
-import { LeaveSheet, TableSheet } from "./TableSheet";
+import { GameExitSheet, LeaveSheet, TableSheet } from "./TableSheet";
 
 type Frame = { openInvite: () => void; openTable: () => void };
 const FrameCtx = createContext<Frame>({ openInvite: () => {}, openTable: () => {} });
@@ -84,7 +84,8 @@ export function NetFrame({
       )}
       <TableSheet open={tableOpen} onClose={() => setTableOpen(false)} onInvite={() => setInviteOpen(true)} onLeave={() => setLeaveOpen(true)} />
       {room && <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} code={room.code} />}
-      <LeaveSheet open={leaveOpen} onClose={() => setLeaveOpen(false)} onLeave={onLeave} />
+      {/* in a game, back means "back to the lobby" (for the host); in the lobby it means leaving */}
+      {gid ? <GameExitSheet open={leaveOpen} onClose={() => setLeaveOpen(false)} onLeave={onLeave} /> : <LeaveSheet open={leaveOpen} onClose={() => setLeaveOpen(false)} onLeave={onLeave} />}
     </FrameCtx.Provider>
   );
 }
