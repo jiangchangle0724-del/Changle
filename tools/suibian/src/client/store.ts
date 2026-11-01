@@ -11,7 +11,8 @@ export interface Me {
   loginEnabled: boolean;
   demo: boolean;
   card: Limits | null;
-  last: { code: string; name: string; at: number } | null;
+  /** The last table (code) or solo pick (place id), to ask how it was. */
+  last: { code?: string; place?: string; name: string; at: number; rated?: boolean } | null;
 }
 
 export interface AppState {

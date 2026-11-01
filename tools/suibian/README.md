@@ -31,6 +31,9 @@ time, each with why it was picked; "show me others" gives three more. It is at
 10 uses a day. Nothing from the answers is kept; changes to the diet card are saved for next time
 as at a table, except the budget, which is only that search's answer. Places with almost no Google
 ratings rank lower than rated ones here (there's no table to vote them down), unless they're a pick.
+Once you choose one, the home page asks how it was for the next three days (or open
+`changle.ca/eat/rate`): three taps, once per pick, counted in that place's "our users" numbers
+like a table's rating.
 
 **How far** is three tabs: walk (5, 10, 15, 20 or 30 minutes), drive (5, 10, 15, 25 or 40) and
 any distance (Google's widest circle, 50 km, which covers Greater Vancouver from anywhere in the
@@ -40,8 +43,10 @@ city; places are then picked by popularity and distance).
 
 Each card can carry more than Google's numbers, all from free sources:
 
-* **A one-line description**: Google's own editorial summary of the place, when it has one. It
-  comes with the search we already make, at no extra cost.
+* **A one-line description**: Google's own editorial summary of the place, when it has one: from
+  the search, in the table's language; when Google has none in that language (most places have
+  theirs only in English), the English one from the details request each card already makes.
+  Neither costs anything extra.
 * **List badges** (🏅 Michelin, Vancouver Magazine Restaurant Awards, Canada's 100 Best, the
   Chinese Restaurant Awards…): from `src/data/lists.json`, kept by hand. Facts only: which list,
   which award, which year, and the page that says so; nothing copied from the source's write-ups.
@@ -76,8 +81,9 @@ branches: then only the branch at that street number matches.
 * **Addresses.** The Worker answers `changle.ca/eat` and `changle.ca/eat/*` (the routes in
   `wrangler.jsonc`); the rest of changle.ca is the site. Everything is under `/eat`: the home page
   (`/eat/`), a phone at a table (`/eat/r/1234`, which is also what the QR code and the invite link
-  say), rating the meal afterwards (`/eat/r/1234/rate`), the API (`/eat/api/…`), sign-in
-  (`/eat/auth/…`) and the files (`/eat/app.js`, `/eat/app.css`, built into `dist/client/eat`).
+  say), picking alone (`/eat/solo`), rating the meal afterwards (`/eat/r/1234/rate`, or
+  `/eat/rate` for your last solo pick), the API (`/eat/api/…`), sign-in (`/eat/auth/…`) and the
+  files (`/eat/app.js`, `/eat/app.css`, built into `dist/client/eat`).
   `BASE` in `src/base.ts` is the one place that says `/eat`; the server strips it off incoming
   paths and the pages put it in front of theirs. The session cookie's `Path` is `/eat` too, so
   the rest of the site never sees it.

@@ -528,8 +528,9 @@ select {
 }
 .quote {
   margin: 0;
-  padding: 6px 10px;
-  border-left: 3px solid var(--line);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg);
   font-size: 0.85rem;
   color: var(--muted);
 }

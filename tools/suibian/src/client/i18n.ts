@@ -139,6 +139,7 @@ const S = {
   thanks: ["谢谢！", "Thanks!"],
   tableScore: ["本桌满意度：{n}/{m} 人吃到了喜欢的", "{n} of {m} got something they liked"],
   rateNotYet: ["这一桌还没选好餐厅", "This table hasn't picked a place yet"],
+  rateNoPick: ["最近没有要评的餐厅", "Nothing to rate right now"],
   home: ["回首页", "Home"],
   lang: ["English", "中文"],
   // how far
