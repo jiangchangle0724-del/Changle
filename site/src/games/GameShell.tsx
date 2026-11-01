@@ -1,5 +1,5 @@
 import { MotionConfig } from "motion/react";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import type { T } from "../i18n";
 import { useStore } from "../store";
 import { TopBar } from "../components/TopBar";
@@ -8,16 +8,19 @@ import { PenaltyStamp, type PenaltyCall } from "../components/PenaltyStamp";
 
 export function usePenalty() {
   const [call, setCall] = useState<PenaltyCall | null>(null);
-  const [after, setAfter] = useState<(() => void) | null>(null);
+  // What happens after the stamp runs once: a second tap on Continue as the stamp leaves (a quick
+  // double tap) finds nothing left to do. Kept in a ref so the stamp on its way out sees it too.
+  const after = useRef<(() => void) | null>(null);
   const show = useCallback((c: PenaltyCall, then?: () => void) => {
+    after.current = then ?? null;
     setCall(c);
-    setAfter(() => then ?? null);
   }, []);
   const done = useCallback(() => {
+    const then = after.current;
+    after.current = null;
     setCall(null);
-    after?.();
-    setAfter(null);
-  }, [after]);
+    then?.();
+  }, []);
   return { call, show, done };
 }
 
@@ -57,10 +60,16 @@ export function GameShell({
 /** Rotate through players for "whose turn" games. */
 export function useTurnOrder() {
   const { players } = useStore();
-  const [i, setI] = useState(0);
-  const current = players[i % Math.max(1, players.length)];
-  const next = () => setI((n) => (n + 1) % Math.max(1, players.length));
-  const left = players[(i - 1 + players.length) % Math.max(1, players.length)];
-  const right = players[(i + 1) % Math.max(1, players.length)];
-  return { current, next, left, right, index: i, setIndex: setI };
+  // `n` counts the turns taken, so each turn passes once: a second tap on a button that is already
+  // leaving the screen (a quick double tap, or the old screen still fading out) calls next() from
+  // the turn that has already ended, and must not skip the next player.
+  const [turn, setTurn] = useState({ i: 0, n: 0 });
+  const len = Math.max(1, players.length);
+  const i = turn.i;
+  const current = players[i % len];
+  const next = () => setTurn((t) => (t.n === turn.n ? { i: (t.i + 1) % len, n: t.n + 1 } : t));
+  const setIndex = (k: number) => setTurn((t) => ({ i: k, n: t.n + 1 }));
+  const left = players[(i - 1 + players.length) % len];
+  const right = players[(i + 1) % len];
+  return { current, next, left, right, index: i, setIndex };
 }

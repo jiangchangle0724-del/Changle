@@ -1,6 +1,6 @@
 import { Minus, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useStore, type Player } from "../store";
 import { pick, shuffle } from "../lib/random";
 import { WORD_PAIRS, type WordPair } from "../data/undercover";
@@ -37,16 +37,23 @@ export function Undercover({ onBack }: { onBack: () => void }) {
   const penalty = usePenalty();
 
   const maxUndercovers = Math.max(1, Math.min(3, players.length - 3));
+  // the blank sits on the undercover's side, so it needs the room a side that size has online
+  const blankFits = Math.min(undercovers, maxUndercovers) + 1 <= Math.max(1, Math.floor((players.length - 1) / 3));
+  const blankNeeds = 3 * (Math.min(undercovers, maxUndercovers) + 1) + 1;
+  const dealt = useRef(-1);
+  const revealed = useRef(-1);
 
   const start = () => {
     const p = pick(WORD_PAIRS);
     const order = shuffle(players);
     const uc = Math.min(undercovers, maxUndercovers);
     const roles: Role[] = [];
-    for (let i = 0; i < players.length; i++) roles.push(i < uc ? "undercover" : i === uc && withBlank ? "blank" : "civilian");
+    for (let i = 0; i < players.length; i++) roles.push(i < uc ? "undercover" : i === uc && withBlank && blankFits ? "blank" : "civilian");
     const byId = new Map(order.map((pl, i) => [pl.id, roles[i]]));
     setPair(p);
     setSeats(players.map((pl) => ({ player: pl, role: byId.get(pl.id)!, alive: true })));
+    dealt.current = -1;
+    revealed.current = -1;
     setDealIndex(0);
     setLidOpen(false);
     setRound(1);
@@ -70,15 +77,20 @@ export function Undercover({ onBack }: { onBack: () => void }) {
     setSeats(next);
     setEliminated(out);
     const aliveNext = next.filter((s) => s.alive);
-    const uc = aliveNext.filter((s) => s.role === "undercover").length;
-    const civ = aliveNext.length - uc;
-    if (uc === 0) setWinner("civilians");
-    else if (uc >= civ) setWinner("undercovers");
+    // the blank plays on the undercover's side, as at an online table: civilians win only once the
+    // undercovers and the blank are all out
+    const side = aliveNext.filter((s) => s.role !== "civilian").length;
+    const civ = aliveNext.length - side;
+    if (side === 0) setWinner("civilians");
+    else if (side >= civ) setWinner("undercovers");
     setPhase("reveal");
     sfx.reveal();
   };
 
   const afterReveal = () => {
+    // once per reveal: a double tap must not skip a round
+    if (revealed.current === round) return;
+    revealed.current = round;
     if (winner) {
       setPhase("end");
       sfx.win();
@@ -99,6 +111,8 @@ export function Undercover({ onBack }: { onBack: () => void }) {
       {lang === "zh"
         ? "每人点开看自己的词，大多数人拿同一个词，卧底拿一个相近的词。轮流用一句话描述自己的词，不能说出来。每轮讨论后投票淘汰一个人。卧底全部出局，平民赢；卧底人数追平平民，卧底赢。输的一方喝。"
         : "Everyone lifts the lid to see their word. Most players share one word; the undercover gets a similar one. Take turns describing your word in a sentence without saying it. After each round, vote someone out. All undercovers out: civilians win. Undercovers match civilians: undercovers win. The losing side drinks."}
+      {lang === "zh" ? "" : " "}
+      {lang === "zh" ? "加了白板的话：白板没有词，跟卧底一伙，白板也出局平民才赢。" : "With a blank: it gets no word and plays on the undercover's side, so civilians also have to vote it out."}
     </p>
   );
 
@@ -124,11 +138,14 @@ export function Undercover({ onBack }: { onBack: () => void }) {
               </div>
               <div className="settings-row ink">
                 <span>{lang === "zh" ? "加一个白板" : "Add a blank"}</span>
-                <button type="button" className={`btn btn-sm ${withBlank ? "btn-jade" : "btn-ghost ink"}`} aria-pressed={withBlank} onClick={() => setWithBlank((v) => !v)}>
-                  {withBlank ? (lang === "zh" ? "有" : "Yes") : lang === "zh" ? "无" : "No"}
+                <button type="button" className={`btn btn-sm ${withBlank && blankFits ? "btn-jade" : "btn-ghost ink"}`} aria-pressed={withBlank && blankFits} disabled={!blankFits} onClick={() => setWithBlank((v) => !v)}>
+                  {withBlank && blankFits ? (lang === "zh" ? "有" : "Yes") : lang === "zh" ? "无" : "No"}
                 </button>
               </div>
-              <p className="hint-ink">{lang === "zh" ? `${players.length} 人在座。白板没有词，猜出平民的词就赢。` : `${players.length} at the table. A blank has no word and wins by guessing the civilians' word.`}</p>
+              <p className="hint-ink">
+                {lang === "zh" ? `${players.length} 人在座。白板没有词，跟卧底一伙：白板也出局，平民才赢。` : `${players.length} at the table. A blank gets no word and plays on the undercover's side: civilians win only when the blank is out too.`}
+                {!blankFits && (lang === "zh" ? `${Math.min(undercovers, maxUndercovers)} 个卧底时，${blankNeeds} 人以上才能加白板。` : ` With ${Math.min(undercovers, maxUndercovers)} undercover${Math.min(undercovers, maxUndercovers) > 1 ? "s" : ""}, a blank needs ${blankNeeds} or more players.`)}
+              </p>
             </div>
             <button type="button" className="btn btn-primary btn-lg btn-block" onClick={start}>
               {lang === "zh" ? "发词" : "Deal the words"}
@@ -159,9 +176,13 @@ export function Undercover({ onBack }: { onBack: () => void }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
                 onClick={() => {
+                  // once per player: this card fades out after the first tap and can take a second
+                  // one (a quick double tap), which must not skip the next player's word
+                  if (dealt.current === dealIndex) return;
+                  dealt.current = dealIndex;
                   setLidOpen(false);
                   if (dealIndex + 1 >= seats.length) startTalk();
-                  else setDealIndex((i) => i + 1);
+                  else setDealIndex(dealIndex + 1);
                 }}
               >
                 {ui("gotIt")}
