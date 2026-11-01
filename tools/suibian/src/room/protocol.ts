@@ -102,6 +102,8 @@ export interface SoloResponse {
   demo?: boolean;
   /** More places are waiting: POST /api/solo/more fetches the next batch. */
   more?: boolean;
+  /** Without accounts (sign-in off): what finds this search's other places; send it back with "more". */
+  run?: string;
   error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace" | "expired";
 }
 

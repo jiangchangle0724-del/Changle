@@ -137,7 +137,7 @@ export default {
     }
 
     if (parts[1] === "solo" && parts.length === 2 && req.method === "POST") return solo(req, env, me);
-    if (parts[1] === "solo" && parts[2] === "more" && parts.length === 3 && req.method === "POST") return soloMore(env, me);
+    if (parts[1] === "solo" && parts[2] === "more" && parts.length === 3 && req.method === "POST") return soloMore(req, env, me);
 
     // One person's pick, rated after the meal: only your own last pick, once.
     if (parts[1] === "places" && parts[3] === "rate" && parts.length === 4 && req.method === "POST") {
@@ -213,9 +213,16 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
   if (!ids.length) return json({ error: "nothingFits", demo: !google } satisfies SoloResponse);
   const run: SoloRun = { places: ids.map((id) => places.find((p) => p.id === id)!), center, range, limits, answers, google };
   const cards = await soloCards(env, run, 0);
+  const more = ids.length > cards.length;
   // The rest wait for "show me others"; only places shown can become the pick to rate (/api/me/last).
+  // Without sign-in (no accounts on this deployment) they wait under a one-off token instead.
+  let token: string | undefined;
   if (me) await user(env, me.sub).setSolo(ids, cards.length, run);
-  return json({ cards, relaxed, demo: !google, more: ids.length > cards.length } satisfies SoloResponse);
+  else if (more) {
+    token = crypto.randomUUID();
+    await user(env, soloKey(token)).setSolo(ids, cards.length, run);
+  }
+  return json({ cards, relaxed, demo: !google, more, run: token } satisfies SoloResponse);
 }
 
 /** What "show me others" needs from the first search, kept on the account until the next one. */
@@ -231,6 +238,10 @@ export interface SoloRun {
 /** How long a solo search's other batches stay available. */
 const SOLO_RUN_MS = 30 * 60_000;
 
+/** Without accounts, a solo search's other places wait under a random token (never an account's name). */
+const SOLO_TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const soloKey = (token: string) => `solo:${token}`;
+
 /** The batch of cards starting at `from`: details (phone, photo, map, review) fetched just for them. */
 async function soloCards(env: Env, run: SoloRun, from: number): Promise<SoloCard[]> {
   const batch = run.places.slice(from, from + SOLO_BATCH).map((p) => ({ ...p }));
@@ -244,9 +255,15 @@ async function soloCards(env: Env, run: SoloRun, from: number): Promise<SoloCard
 }
 
 /** "Show me others": the next batch of the last solo search, if it's recent. Not another use of the day's ten. */
-async function soloMore(env: Env, me: { sub: string } | null): Promise<Response> {
-  if (!me) return json({ error: "login" } satisfies SoloResponse, 401);
-  const u = user(env, me.sub);
+async function soloMore(req: Request, env: Env, me: { sub: string } | null): Promise<Response> {
+  let key = me?.sub;
+  if (!key) {
+    if (loginEnabled(env)) return json({ error: "login" } satisfies SoloResponse, 401);
+    const body = (await req.json().catch(() => ({}))) as { run?: unknown };
+    if (typeof body.run !== "string" || !SOLO_TOKEN.test(body.run)) return json({ error: "expired" } satisfies SoloResponse, 410);
+    key = soloKey(body.run);
+  }
+  const u = user(env, key);
   const s = await u.solo();
   if (!s?.run || Date.now() - s.at > SOLO_RUN_MS) return json({ error: "expired" } satisfies SoloResponse, 410);
   const cards = await soloCards(env, s.run, s.shown);
