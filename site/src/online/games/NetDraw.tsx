@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { UI } from "../../i18n";
 import type { DrawView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { NetPlate } from "../NetPlate";
 import { useRoom } from "../RoomContext";
@@ -15,6 +15,7 @@ const ROUND_S = 80;
 export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, offset } = useRoom();
   const { ui, tr, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const drawer = v.drawer === me;
   const solved = v.solved.includes(me);
   useYourTurn(drawer && v.phase === "pick");
@@ -37,8 +38,8 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   const rules = (
     <p>
       {lang === "zh"
-        ? "轮到的人选难度，只有他的手机能看到词，然后在画板上画，八十秒。他画的每一笔都实时出现在大家的手机上。其他人在自己手机上打字猜，第一个猜中的得分最多，画的人也得分。没人猜中，画的人喝。"
-        : "The drawer picks a difficulty; only their phone shows the word. They draw on the board for eighty seconds and every stroke appears live on every phone. Everyone else types guesses on their own phone. The first right guess scores most, and the drawer scores too. Nobody gets it? The drawer drinks."}
+        ? `轮到的人选难度，只有他的手机能看到词，然后在画板上画，八十秒。他画的每一笔都实时出现在大家的手机上。其他人在自己手机上打字猜，第一个猜中的得分最多，画的人也得分。没人猜中，画的人${custom ? "受罚" : "喝"}。`
+        : `The drawer picks a difficulty; only their phone shows the word. They draw on the board for eighty seconds and every stroke appears live on every phone. Everyone else types guesses on their own phone. The first right guess scores most, and the drawer scores too. Nobody gets it? The drawer ${custom ? "takes the penalty" : "drinks"}.`}
     </p>
   );
 
@@ -155,8 +156,8 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                     ? `猜中：${v.solved.map(nameOf).join("、")}`
                     : `Got it: ${v.solved.map(nameOf).join(", ")}`
                   : lang === "zh"
-                    ? `没人猜中，${nameOf(v.drawer)} 喝`
-                    : `Nobody got it. ${nameOf(v.drawer)} drinks.`}
+                    ? `没人猜中，${nameOf(v.drawer)} ${custom ? "受罚" : "喝"}`
+                    : `Nobody got it. ${nameOf(v.drawer)} ${custom ? "takes the penalty" : "drinks"}.`}
               </p>
             </div>
             <NetPlate canDraw={false} />

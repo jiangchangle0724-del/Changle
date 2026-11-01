@@ -5,7 +5,7 @@ import { gsap, reduced } from "../lib/anim";
 import { holdBackground, startGroove } from "../lib/music";
 import { sfx, unlockAudio } from "../lib/sfx";
 import { isCode, newCode } from "../online/config";
-import { REACTION_KEY } from "../online/Overlays";
+import { useReactionLabel } from "../online/Overlays";
 import { SeatFace } from "../online/People";
 import { NetGame } from "../online/games/NetGame";
 import { RoomProvider, useRoom, useRoomEvent } from "../online/RoomContext";
@@ -14,7 +14,7 @@ import { Stage } from "../party/punchline/show/Stage";
 import { useWho } from "../party/punchline/show/who";
 import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
 import { ONLINE_GAMES, ONLINE_MIN, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
-import { useStore } from "../store";
+import { TablePenalty, useStore } from "../store";
 import "../styles/tv.css";
 import { useCodeField } from "../online/codeField";
 import { joinLink, siteHost, useQr, Wordmark } from "./parts";
@@ -100,12 +100,14 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
 
   return (
     <Fit>
-      {body}
-      {room?.playing && room.playing !== "dj" && <TvCorner code={code} />}
-      {room && <TvReactions />}
-      {room && <TvPenalties room={room} audio={gate.armed} />}
-      {/* the DJ booth asks for its own tap (it starts the speaker) */}
-      <TvControls gate={gate} game={!!room?.playing} noGate={room?.playing === "dj"} />
+      <TablePenalty value={room?.penalty ?? ""}>
+        {body}
+        {room?.playing && room.playing !== "dj" && <TvCorner code={code} />}
+        {room && <TvReactions />}
+        {room && <TvPenalties room={room} audio={gate.armed} />}
+        {/* the DJ booth asks for its own tap (it starts the speaker) */}
+        <TvControls gate={gate} game={!!room?.playing} noGate={room?.playing === "dj"} />
+      </TablePenalty>
     </Fit>
   );
 }
@@ -499,7 +501,8 @@ type Float = { id: number; r: Reaction; name: string; x: number };
 
 function TvReactions() {
   const { nameOf } = useRoom();
-  const { ui, lang } = useStore();
+  const { lang } = useStore();
+  const label = useReactionLabel();
   const [items, setItems] = useState<Float[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
@@ -513,7 +516,7 @@ function TvReactions() {
     <div className="tv-reacts" aria-hidden="true">
       {items.map((f) => (
         <span key={f.id} className={`tv-react tv-react-${f.r}`} style={{ left: `${f.x}%` }}>
-          <span className={lang === "zh" ? "zh-display" : "en-display"}>{ui(REACTION_KEY[f.r])}</span>
+          <span className={lang === "zh" ? "zh-display" : "en-display"}>{label(f.r)}</span>
           <small>{f.name}</small>
         </span>
       ))}
@@ -546,13 +549,15 @@ function TvPenalties({ room, audio }: { room: RoomView; audio: boolean }) {
       : cur.kind === "full"
         ? custom || ui("finish")
         : cur.kind === "everyone"
-          ? ui("everyoneDrinks")
+          ? custom || ui("everyoneDrinks")
           : cur.kind === "two"
             ? custom
               ? `${custom} ×2`
               : ui("twoSips")
             : custom || ui("sip");
   const seats = cur.kind === "everyone" ? [] : cur.who.map((pid) => room.seats.find((s) => s.id === pid)).filter(Boolean) as SeatView[];
+  // the whole table: with drinking the line says so ("everyone drinks"); with the host's own penalty, name the table
+  const who = cur.kind === "everyone" && custom ? ui("everyone") : seats.map((s) => s.name).join(lang === "zh" ? "、" : ", ");
   return (
     <div className={`tv-pen ${cur.kind === "safe" ? "is-safe" : ""}`} ref={ref} role="status">
       <span className="tv-pen-faces">
@@ -561,7 +566,7 @@ function TvPenalties({ room, audio }: { room: RoomView; audio: boolean }) {
         ))}
       </span>
       <span className="tv-pen-text">
-        <span className="tv-pen-who">{seats.map((s) => s.name).join(lang === "zh" ? "、" : ", ")}</span>
+        <span className="tv-pen-who">{who}</span>
         <span className={`tv-pen-what ${lang === "zh" ? "zh-display" : "en-display"}`}>{what}</span>
       </span>
     </div>

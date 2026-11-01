@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
 import { randInt } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
@@ -20,6 +20,7 @@ export function Dice789({ onBack }: { onBack: () => void }) {
   const [assigning, setAssigning] = useState(false);
   const turn = useTurnOrder();
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
   const me = turn.current;
 
   const roll = () => {
@@ -79,6 +80,20 @@ export function Dice789({ onBack }: { onBack: () => void }) {
   };
 
   function outcomeLabel(o: Outcome) {
+    // with a penalty of its own the shared glass is a pot of that penalty: half of it, or all of it
+    if (custom)
+      switch (o) {
+        case "seven":
+          return lang === "zh" ? "七，罚池加码" : "Seven. The pot grows.";
+        case "eight":
+          return lang === "zh" ? "八，罚一半" : "Eight. Take half the pot.";
+        case "nine":
+          return lang === "zh" ? "九，全罚" : "Nine. Take the whole pot.";
+        case "ones":
+          return lang === "zh" ? "双一，指定一人全罚" : "Snake eyes. Pick someone to take the whole pot.";
+        case "safe":
+          return lang === "zh" ? "安全，下一位" : "Safe. Next.";
+      }
     switch (o) {
       case "seven":
         return lang === "zh" ? "七，加酒" : "Seven. Pour more in.";
@@ -95,9 +110,13 @@ export function Dice789({ onBack }: { onBack: () => void }) {
 
   const rules = (
     <p>
-      {lang === "zh"
-        ? "桌子中间放一个公杯。轮流掷两颗骰子：点数加起来是 7，往公杯里加酒；8，喝掉一半；9，全部喝完；掷出两个 1，指定一个人把公杯喝完。其他点数安全，传给下一位。"
-        : "A shared glass sits in the middle. Take turns rolling two dice: a total of 7 pours more into the glass; 8, drink half of it; 9, drink all of it. Double ones: pick someone to finish the glass. Anything else is safe, pass the dice."}
+      {custom
+        ? lang === "zh"
+          ? "屏幕中间是大家共用的罚池。轮流掷两颗骰子：点数加起来是 7，罚池加码；8，罚一半；9，全罚；掷出两个 1，指定一个人全罚。其他点数安全，传给下一位。"
+          : "A shared pot sits in the middle of the screen. Take turns rolling two dice: a total of 7 grows the pot; 8, take half of it; 9, take all of it. Double ones: pick someone to take the whole pot. Anything else is safe, pass the dice."
+        : lang === "zh"
+          ? "桌子中间放一个公杯。轮流掷两颗骰子：点数加起来是 7，往公杯里加酒；8，喝掉一半；9，全部喝完；掷出两个 1，指定一个人把公杯喝完。其他点数安全，传给下一位。"
+          : "A shared glass sits in the middle. Take turns rolling two dice: a total of 7 pours more into the glass; 8, drink half of it; 9, drink all of it. Double ones: pick someone to finish the glass. Anything else is safe, pass the dice."}
     </p>
   );
 
@@ -109,7 +128,7 @@ export function Dice789({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="dice-stage">
-        <Glass level={level} size={110} label={lang === "zh" ? "公杯" : "Shared glass"} />
+        <Glass level={level} size={110} label={custom ? (lang === "zh" ? "罚池" : "The pot") : lang === "zh" ? "公杯" : "Shared glass"} />
         <div className="bowl">
           <div className="bowl-dice">
             <Die value={dice[0]} rolling={rolling} size={84} />
@@ -141,7 +160,7 @@ export function Dice789({ onBack }: { onBack: () => void }) {
             </p>
             <p className="dice-outcome">{outcomeLabel(outcome)}</p>
             <button type="button" className={`btn btn-lg btn-block ${outcome === "safe" || outcome === "seven" ? "btn-porcelain" : "btn-penalty"}`} onClick={resolve}>
-              {outcome === "safe" || outcome === "seven" ? ui("next") : outcome === "ones" ? ui("pickOne") : ui("drink")}
+              {outcome === "safe" || outcome === "seven" ? ui("next") : outcome === "ones" ? ui("pickOne") : custom ? ui("takePenalty") : ui("drink")}
             </button>
           </motion.div>
         ) : (

@@ -8,7 +8,7 @@ import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { FreezeView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useMotionWatch, useSensorStatus, useStillness, useWakeLock } from "../sensors";
 import { DanceFloor, FreezeFlash, StillMeter } from "./parts";
@@ -23,6 +23,7 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
   const { room, me, isHost, g, nameOf, now } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
+  const custom = usePenaltyText().isCustom;
   const seats = room?.seats ?? [];
   const seat = (id: string) => seats.find((s) => s.id === id);
   const sensors = useSensorStatus();
@@ -86,9 +87,13 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
 
   const rules = (
     <p>
-      {zh
-        ? "所有手机同时放同一首歌。音乐响就跳，音乐一停所有人定住。把手机拿在手里跳，手机会自己感觉你有没有动；没开动作感应的，主人当裁判抓人，自己动了也可以自首。淘汰赛：动了就出局，最后站着的人赢。喝酒版：动了喝一口，继续跳。"
-        : "Every phone plays the same track. Dance while it plays; when it cuts out, freeze. Hold your phone while you dance and it can feel whether you moved. Without motion sensing, the host judges (or own up). Knockout: move and you're out, last one standing wins. Drinking: move and drink, then keep dancing."}
+      {custom
+        ? zh
+          ? "所有手机同时放同一首歌。音乐响就跳，音乐一停所有人定住。把手机拿在手里跳，手机会自己感觉你有没有动；没开动作感应的，主人当裁判抓人，自己动了也可以自首。淘汰赛：动了就出局，最后站着的人赢。惩罚版：动了就受罚，继续跳。"
+          : "Every phone plays the same track. Dance while it plays; when it cuts out, freeze. Hold your phone while you dance and it can feel whether you moved. Without motion sensing, the host judges (or own up). Knockout: move and you're out, last one standing wins. Penalty: move and take the penalty, then keep dancing."
+        : zh
+          ? "所有手机同时放同一首歌。音乐响就跳，音乐一停所有人定住。把手机拿在手里跳，手机会自己感觉你有没有动；没开动作感应的，主人当裁判抓人，自己动了也可以自首。淘汰赛：动了就出局，最后站着的人赢。喝酒版：动了喝一口，继续跳。"
+          : "Every phone plays the same track. Dance while it plays; when it cuts out, freeze. Hold your phone while you dance and it can feel whether you moved. Without motion sensing, the host judges (or own up). Knockout: move and you're out, last one standing wins. Drinking: move and drink, then keep dancing."}
     </p>
   );
 
@@ -115,10 +120,22 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
                 {zh ? "淘汰赛" : "Knockout"}
               </button>
               <button type="button" aria-pressed={!knockout} disabled={!isHost} onClick={() => g("mode", { mode: "drink" })}>
-                {zh ? "喝酒版" : "Drinking"}
+                {custom ? (zh ? "惩罚版" : "Penalty") : zh ? "喝酒版" : "Drinking"}
               </button>
             </div>
-            <p className="hint fz-mode-note">{knockout ? (zh ? "动了就出局，最后站着的人赢" : "Move and you're out. Last one standing wins.") : zh ? "动了喝一口，然后接着跳" : "Move and you drink, then keep dancing"}</p>
+            <p className="hint fz-mode-note">
+              {knockout
+                ? zh
+                  ? "动了就出局，最后站着的人赢"
+                  : "Move and you're out. Last one standing wins."
+                : custom
+                  ? zh
+                    ? "动了就受罚，然后接着跳"
+                    : "Move and take the penalty, then keep dancing"
+                  : zh
+                    ? "动了喝一口，然后接着跳"
+                    : "Move and you drink, then keep dancing"}
+            </p>
             {sensorButton}
             <ul className="fz-roster">
               {seats.map((s) => (
@@ -189,7 +206,25 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
             {v.moved.length ? (
               <>
                 <p className="fz-result-title">
-                  {knockout && v.moved.every((id) => v.alive.includes(id)) ? (zh ? "全都动了，喝一口再来" : "Everyone moved. Drink and go again") : knockout ? (zh ? "出局" : "Out") : zh ? "动了，喝" : "Moved: drink"}
+                  {knockout && v.moved.every((id) => v.alive.includes(id))
+                    ? custom
+                      ? zh
+                        ? "全都动了，受罚再来"
+                        : "Everyone moved. Penalty, then go again"
+                      : zh
+                        ? "全都动了，喝一口再来"
+                        : "Everyone moved. Drink and go again"
+                    : knockout
+                      ? zh
+                        ? "出局"
+                        : "Out"
+                      : custom
+                        ? zh
+                          ? "动了，受罚"
+                          : "Moved: penalty"
+                        : zh
+                          ? "动了，喝"
+                          : "Moved: drink"}
                 </p>
                 <div className="fz-faces">
                   {v.moved.map((id) => (

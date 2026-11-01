@@ -96,6 +96,52 @@ export function PenaltyStamp({
     };
   }, [call]);
 
+  // Upright, the glass stands at the stage's right edge beside the stamp. It goes as high as it can
+  // without covering a word of the stamp, and whatever comes next (the note, the buttons) moves down
+  // until it is clear of the glass. Held sideways the stamp is laid out in columns instead (see
+  // landscape.css) and none of this applies.
+  const glassShown = !!call && call.kind !== "safe" && !penalty.isCustom;
+  useLayoutEffect(() => {
+    const root = layer.current;
+    if (!glassShown || !root) return;
+    const stage = root.querySelector<HTMLElement>(".stamp-stage");
+    const seal = root.querySelector<HTMLElement>(".stamp-seal");
+    const glass = root.querySelector<HTMLElement>(".stamp-glass");
+    if (!stage || !seal || !glass) return;
+    const words = Array.from(seal.children) as HTMLElement[];
+    let last = "";
+    const fit = () => {
+      let top = "";
+      let room = "";
+      if (getComputedStyle(glass).position === "absolute") {
+        // layout boxes, so the seal's slam (scale, rotation) doesn't move the measurements
+        const sealTop = seal.offsetTop;
+        const sealBottom = sealTop + seal.offsetHeight;
+        const height = glass.offsetHeight;
+        // the drawn glass starts a little inside its box
+        const glassLeft = stage.clientWidth + 2 - glass.offsetWidth + 10;
+        let t = sealBottom - height;
+        for (const w of words) {
+          if (seal.offsetLeft + w.offsetLeft + w.offsetWidth > glassLeft) t = Math.max(t, sealTop + w.offsetTop + w.offsetHeight);
+        }
+        t = Math.max(t, sealTop);
+        // what follows the seal starts a gap below it; it must start 8px below the glass instead
+        const gap = parseFloat(getComputedStyle(stage).rowGap) || 0;
+        top = `${Math.round(t)}px`;
+        room = `${Math.max(0, Math.round(t + height + 8 - sealBottom - gap))}px`;
+      }
+      if (top + room === last) return;
+      last = top + room;
+      stage.style.setProperty("--glass-top", top);
+      stage.style.setProperty("--glass-room", room);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(stage);
+    words.forEach((w) => ro.observe(w));
+    return () => ro.disconnect();
+  }, [call, glassShown, lang]);
+
   if (!call) return null;
 
   const safe = call.kind === "safe";
@@ -114,7 +160,7 @@ export function PenaltyStamp({
             ? ui("twoSips")
             : ui("sip");
 
-  const names = call.who.length ? call.who.join(lang === "zh" ? "、" : ", ") : ui("everyoneDrinks");
+  const names = call.who.length ? call.who.join(lang === "zh" ? "、" : ", ") : penalty.isCustom ? ui("everyone") : ui("everyoneDrinks");
 
   return createPortal(
     <div className={`stamp-layer ${safe ? "is-safe" : ""}`} ref={layer} role="alertdialog" aria-live="assertive">

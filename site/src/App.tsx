@@ -143,20 +143,27 @@ function useHashRoute() {
   const go = (r: Route, replace = false) => {
     const h = hashOf(r);
     if (replace) window.location.replace(h);
-    else window.location.hash = h;
+    else if (window.location.hash !== h) {
+      window.location.hash = h;
+      // marks a page the site opened itself, so its ‹ can go back to the page before
+      window.history.replaceState({ ...(window.history.state ?? {}), inSite: true }, "");
+    }
   };
   return { route, go };
 }
 
 function Shell() {
   const { route, go } = useHashRoute();
-  const { sound, music } = useStore();
+  const { sound, music, players } = useStore();
+  // a game opened by a link with fewer players than it needs on this phone: its card on the home
+  // page first, to add people (or play online), instead of a game that can't work
+  const short = route.kind === "game" && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
   const { signInOpen } = useAccount();
   const [signInUsed, setSignInUsed] = useState(false);
   useEffect(() => {
     if (signInOpen) setSignInUsed(true);
   }, [signInOpen]);
-  useSoloHistory(route);
+  useSoloHistory(short ? { kind: "home", tab: "party" } : route);
   useEffect(() => initAudio(), []);
   useEffect(() => setSoundEnabled(sound), [sound]);
   useEffect(() => {
@@ -176,13 +183,23 @@ function Shell() {
     if (route.kind === "game") setLight(GAME_BY_ID[route.id].gel);
   }, [route]);
 
+  // ‹ goes back only to a page of this site: a game opened from a link elsewhere (a chat, another
+  // site) goes to the home page instead of leaving the site
   const back = () => {
-    if (window.history.length > 1 && window.location.hash !== "" && window.location.hash !== "#/") window.history.back();
-    else go({ kind: "home", tab: "party" });
+    if ((window.history.state as { inSite?: boolean } | null)?.inSite) window.history.back();
+    else go({ kind: "home", tab: "party" }, true);
   };
 
   let screen: React.ReactNode;
-  if (route.kind === "home") screen = <Home tab={route.tab} onTab={(tab) => go({ kind: "home", tab }, true)} onOpenGame={(id) => go({ kind: "game", id })} />;
+  if (route.kind === "home" || short)
+    screen = (
+      <Home
+        tab={route.kind === "home" ? route.tab : "party"}
+        onTab={(tab) => go({ kind: "home", tab }, true)}
+        onOpenGame={(id) => go({ kind: "game", id })}
+        start={short && route.kind === "game" ? route.id : undefined}
+      />
+    );
   else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => window.location.replace("#/")} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
@@ -247,7 +264,7 @@ function Shell() {
   }
 
   const key =
-    route.kind === "home"
+    route.kind === "home" || short
       ? "home"
       : route.kind === "room"
         ? `room-${route.code}`
@@ -313,7 +330,8 @@ function Scene({ sceneKey, children }: { sceneKey: string; children: React.React
     }
     if (reduced() || !ref.current) return;
     window.scrollTo(0, 0);
-    gsap.fromTo(ref.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45 });
+    // no transform may stay behind: it would pin every full-screen layer in the game to this box
+    gsap.fromTo(ref.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45, clearProps: "transform,opacity" });
   }, [sceneKey]);
   return (
     <div className="screen" ref={ref} key={sceneKey}>

@@ -1,12 +1,12 @@
 import { Pencil, Plus, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { useSpinSound } from "../lib/useSpinSound";
 import { useTurntable } from "../lib/useTurntable";
-import { DEFAULT_SLICES, type Slice } from "../data/wheel";
+import { DEFAULT_SLICES, sliceLabel, type Slice } from "../data/wheel";
 import { DARES, TRUTHS, type Prompt } from "../data/truthDare";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { Sheet } from "../components/Sheet";
@@ -43,6 +43,9 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
   const dares = useRef(new Deck(DARES.filter((p) => p.heat === 1)));
   const turn = useTurnOrder();
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
+  // a built-in drinking slice reads as the penalty set in settings, when there is one
+  const label = (s: Slice) => tr(sliceLabel(s, custom));
 
   useEffect(() => {
     try {
@@ -92,7 +95,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
 
   const act = () => {
     if (!result) return;
-    const note = tr(result.label);
+    const note = label(result);
     const finish = () => {
       setResult(null);
       setPicking(false);
@@ -153,7 +156,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
       penalty={penalty.call}
       onPenaltyDone={penalty.done}
       right={
-        <button className="icon-btn" onClick={() => setEditing(true)} aria-label="edit">
+        <button className="icon-btn" onClick={() => setEditing(true)} aria-label={lang === "zh" ? "改转盘" : "Edit the wheel"}>
           <Pencil size={18} />
         </button>
       }
@@ -184,7 +187,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
                 fontWeight={800}
                 fill="var(--night)"
               >
-                {trim(tr(w.s.label), lang === "zh" ? (slices.length > 10 ? 5 : 6) : slices.length > 10 ? 10 : 12)}
+                {trim(label(w.s), lang === "zh" ? (slices.length > 10 ? 5 : 6) : slices.length > 10 ? 10 : 12)}
               </text>
             </g>
           ))}
@@ -198,7 +201,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
       <AnimatePresence mode="wait">
         {prompt && result ? (
           <motion.div key="prompt" className="porcelain rule-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <p className="hint-ink">{tr(result.label)}</p>
+            <p className="hint-ink">{label(result)}</p>
             <p className="prompt-text">{tr(prompt)}</p>
             <p className="hint-ink prompt-other">{lang === "zh" ? prompt.en : prompt.zh}</p>
             <div className="row" style={{ gap: 10, marginTop: 12 }}>
@@ -237,7 +240,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
             <PlayerPicker
               players={players}
               onPick={(p) =>
-                penalty.show({ who: [p.name], kind: "sip", note: result ? tr(result.label) : undefined }, () => {
+                penalty.show({ who: [p.name], kind: "sip", note: result ? label(result) : undefined }, () => {
                   setResult(null);
                   setPicking(false);
                   turn.next();
@@ -247,7 +250,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
           </motion.div>
         ) : result ? (
           <motion.div key="result" className="stack" style={{ gap: 10, alignItems: "center" }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <p className={`wheel-result ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(result.label)}</p>
+            <p className={`wheel-result ${lang === "zh" ? "zh-display" : "en-display"}`}>{label(result)}</p>
             <button type="button" className={`btn btn-lg btn-block ${result.kind === "safe" ? "btn-jade" : result.kind === "drink" || result.kind === "custom" ? "btn-penalty" : "btn-primary"}`} onClick={act}>
               {result.kind === "again" ? ui("spin") : ui("continue")}
             </button>
@@ -267,7 +270,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
             <div key={s.id + i} className="field">
               <span className="wedge-dot" style={{ background: COLORS[i % COLORS.length] }} />
               <input
-                value={tr(s.label)}
+                value={label(s)}
                 maxLength={16}
                 onChange={(e) =>
                   setSlices((all) =>
@@ -285,7 +288,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
               type="button"
               className="btn btn-ghost"
               disabled={slices.length >= 12}
-              onClick={() => setSlices((all) => [...all, { id: `custom-${Date.now()}`, kind: "custom", label: { zh: lang === "zh" ? "新惩罚" : "New penalty", en: lang === "zh" ? "新惩罚" : "New penalty" } }])}
+              onClick={() => setSlices((all) => [...all, { id: `custom-${Date.now()}`, kind: "custom", label: { zh: "新惩罚", en: "New penalty" } }])}
             >
               <Plus size={16} /> {lang === "zh" ? "加一格" : "Add a slice"}
             </button>

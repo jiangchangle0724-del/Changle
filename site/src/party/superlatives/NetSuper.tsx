@@ -8,7 +8,7 @@ import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { SuperView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { AwardCard, AwardReveal, Ceremony } from "./parts";
 import "../../styles/party.css";
 import { Moment } from "../../components/Figure";
@@ -16,6 +16,7 @@ import { Moment } from "../../components/Figure";
 export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, offset } = useRoom();
   const { lang } = useStore();
+  const ownPenalty = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
   const seat = (id: string) => seats.find((s) => s.id === id);
@@ -26,9 +27,13 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
 
   const rules = (
     <p>
-      {zh
-        ? "每轮一个称号。每个人在自己手机上偷偷投给最配这个称号的人（不能投自己），全部投完或者时间到就揭晓。票最多的人拿奖，喝一口；平票一起喝。最后开颁奖典礼，看谁拿的奖最多。主人可以换题，也可以自己出称号。"
-        : "One award a round. Everyone secretly votes on their own phone for whoever deserves it most (not yourself). When all votes are in, or time runs out, the winner is revealed and drinks; a tie means they all drink. At the end, an awards ceremony. The host can skip a title or write their own."}
+      {ownPenalty
+        ? zh
+          ? "每轮一个称号。每个人在自己手机上偷偷投给最配这个称号的人（不能投自己），全部投完或者时间到就揭晓。票最多的人拿奖，也要受罚；平票一起受罚。最后开颁奖典礼，看谁拿的奖最多。主人可以换题，也可以自己出称号。"
+          : "One award a round. Everyone secretly votes on their own phone for whoever deserves it most (not yourself). When all votes are in, or time runs out, the winner is revealed and takes the penalty; a tie means they all do. At the end, an awards ceremony. The host can skip a title or write their own."
+        : zh
+          ? "每轮一个称号。每个人在自己手机上偷偷投给最配这个称号的人（不能投自己），全部投完或者时间到就揭晓。票最多的人拿奖，喝一口；平票一起喝。最后开颁奖典礼，看谁拿的奖最多。主人可以换题，也可以自己出称号。"
+          : "One award a round. Everyone secretly votes on their own phone for whoever deserves it most (not yourself). When all votes are in, or time runs out, the winner is revealed and drinks; a tie means they all drink. At the end, an awards ceremony. The host can skip a title or write their own."}
     </p>
   );
 

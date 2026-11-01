@@ -2,7 +2,9 @@
 
 For the next engineer or coding assistant working on [changle.ca](https://changle.ca): adding
 games, changing the site, or the tools. Written 2026-10-30. Product rules: `site/PRODUCT.md`.
-Look and motion: `site/DESIGN.md`. Content files and local scripts: `site/README.md` (Chinese).
+Look and motion: `site/DESIGN.md` (what is live) and `docs/DESIGN.md` (the shared design system it is
+moving to: tokens in `site/src/styles/tokens.css`, component interfaces in `site/src/ui/types.ts`).
+Content files and local scripts: `site/README.md` (Chinese).
 
 ## What changle.ca is made of
 
@@ -13,6 +15,7 @@ Look and motion: `site/DESIGN.md`. Content files and local scripts: `site/README
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron) | by itself on merge when `tools/events/*` changes, once its Workers Builds connection is made (`tools/events/README.md`) |
+| changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes, once its Workers Builds connection is made (`games/party-server/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
 installs on its own. Node 22, as in CI.
@@ -21,9 +24,10 @@ installs on its own. Node 22, as in CI.
 
 1. Branch from `main` (one branch per change), commit, push, open a PR.
 2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, DJ booth, trip, draw,
-   cutout and performer tests, build), `suibian.yml` and `been-there.yml` (each with browser tests in
-   Chromium and WebKit), and `events.yml` (What's On: parsers and a whole run, in the Workers
-   runtime).
+   cutout, performer and design-token tests, build), `suibian.yml` and `been-there.yml` (each with
+   browser tests in Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the
+   Workers runtime), and `party.yml` (the party base's tests, the party server's types, tests and
+   build).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
@@ -62,6 +66,7 @@ npx tsx tests/dj.test.ts        # the DJ booth's player (on a pretend audio thre
 npx tsx tests/trip.test.ts
 npx tsx tests/draw.test.ts
 npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
+npx tsx tests/tokens.test.ts    # design tokens match global.css; src/ui uses tokens only
 npm run build
 ```
 
@@ -120,7 +125,9 @@ coming soon), only its own address, and a table's lobby shows it only while it i
 House rules for a game (the full set is in `site/PRODUCT.md`): Chinese and English are both
 first-class and switch mid-game; one action per screen, big targets, contrast for a dim room;
 every round ends in a penalty moment, made with `api.penalty(...)`, which the penalty stamp shows
-in the host's chosen penalty (drinking unless changed in settings); reduced motion respected;
+in the host's chosen penalty (drinking unless changed in settings), and with a custom penalty no
+line or button says drink (on the phone `usePenaltyText().isCustom` or `.line(drink, custom)`, on
+the rooms server `byPenalty(api, drink, custom)`); reduced motion respected;
 playable without sound and without motion sensors; nothing needs a sign-in.
 
 ## A bigger game with its own Worker (the 到此一游 pattern)

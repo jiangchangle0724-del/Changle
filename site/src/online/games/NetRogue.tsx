@@ -2,12 +2,12 @@ import { Camera, DoorOpen, Hand, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
-import { RULES, RULE_BY_RANK, type Rank } from "../../data/rogue13";
+import { RULES, RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
 import { PlayingCard } from "../../games/Rogue13";
 import { UI, type T } from "../../i18n";
 import { haptic } from "../../lib/sfx";
 import type { RogueHolders, RogueView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useReached, useRoom, useRoomEvent } from "../RoomContext";
 import { HostButton, HostRow, SeatPicker, TurnLine, useYourTurn, Waiting } from "./common";
@@ -26,12 +26,26 @@ const ONLINE_HOW: Partial<Record<Rank, T>> = {
   "10": t("谁接了你的话，就在你的手机上点他，他喝。", "Whoever answers you: tap them on your phone and they drink."),
 };
 
+/** The same, when the host has set the table's own penalty instead of drinking. */
+const ONLINE_HOW_CUSTOM: Partial<Record<Rank, T>> = {
+  "2": t("以后谁被罚，他的手机上会多一个喊陪罚的按钮，一按你就得陪他一起受罚。", "From now on, anyone who gets a penalty can call you from their phone, and you take it with them."),
+  "4": t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都受罚；最后没抢到的也受罚。", "Everyone races to tap the next number. Two on the same number both take the penalty, and so does whoever is left."),
+  "6": t("你的手机上多了一个摸鼻子按钮。你一按，所有人都要在手机上摸鼻子，最慢的受罚。", "Your phone now has a nose button. Press it and everyone must tap theirs; the slowest takes the penalty."),
+  "8": t("别人要去厕所，得先在手机上按上厕所，受完罚再去。", "Anyone else who needs the bathroom taps it on their phone and takes the penalty first."),
+  "10": t("谁接了你的话，就在你的手机上点他，他受罚。", "Whoever answers you: tap them on your phone and they take the penalty."),
+};
+
+const onlineHow = (rank: Rank, custom: boolean) => (custom ? ONLINE_HOW_CUSTOM[rank] ?? ONLINE_HOW[rank] : ONLINE_HOW[rank]);
+
 const GARDENS: T[] = [t("蔬菜园", "Vegetables"), t("水果园", "Fruits"), t("动物园", "Animals")];
 
 export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) {
   const { me, isHost, g } = useRoom();
   const { ui, tr, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const rule = v.card ? RULE_BY_RANK[v.card.rank] : null;
+  const words = rule ? ruleWords(rule, custom) : null;
+  const how = v.card ? onlineHow(v.card.rank, custom) : undefined;
   const myTurn = v.turn === me;
   const drawer = v.drawer === me;
   const drawerActs = drawer || isHost;
@@ -45,13 +59,13 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
         <li key={r.rank}>
           <span className="rule-rank en-display">{r.rank}</span>
           <span>
-            <strong>{tr(r.title)}</strong>
+            <strong>{tr(ruleWords(r, custom).title)}</strong>
             <br />
-            {tr(r.rule)}
+            {tr(ruleWords(r, custom).rule)}
             {ONLINE_HOW[r.rank] && (
               <>
                 <br />
-                <span style={{ color: "var(--lamp)" }}>{tr(ONLINE_HOW[r.rank]!)}</span>
+                <span style={{ color: "var(--lamp)" }}>{tr(onlineHow(r.rank, custom)!)}</span>
               </>
             )}
           </span>
@@ -82,7 +96,7 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
       </div>
 
       <AnimatePresence mode="wait">
-        {v.card && rule && (
+        {v.card && rule && words && (
           <motion.div
             key={`${v.card.rank}${v.card.suit}-${v.left}`}
             className="porcelain rule-card"
@@ -91,9 +105,9 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
             exit={{ opacity: 0, y: -10 }}
             transition={{ delay: 0.35, duration: 0.3 }}
           >
-            <h2 className={`rule-title ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(rule.title)}</h2>
-            {!live && <p className="rule-body">{tr(rule.rule)}</p>}
-            {ONLINE_HOW[v.card.rank] && <p className={`hint-ink ${live ? "" : "rule-online"}`}>{tr(ONLINE_HOW[v.card.rank]!)}</p>}
+            <h2 className={`rule-title ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
+            {!live && <p className="rule-body">{tr(words.rule)}</p>}
+            {how && <p className={`hint-ink ${live ? "" : "rule-online"}`}>{tr(how)}</p>}
             {v.reshuffled && <p className="hint-ink">{ui("deckReshuffled")}</p>}
           </motion.div>
         )}
@@ -124,6 +138,7 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
 function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
   const { me, g, nameOf, offset, isHost } = useRoom();
   const { ui, tr, lang } = useStore();
+  const pen = usePenaltyText();
   const drawerName = nameOf(v.drawer);
 
   switch (v.phase) {
@@ -136,7 +151,7 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
           <SeatPicker exclude={v.drawer ? [v.drawer] : []} onPick={(pid) => g("pick", { target: pid })} />
         </div>
       ) : (
-        <Waiting>{lang === "zh" ? `${drawerName} 在指定谁喝` : `${drawerName} is choosing who drinks`}</Waiting>
+        <Waiting>{pen.line(t(`${drawerName} 在指定谁喝`, `${drawerName} is choosing who drinks`), t(`${drawerName} 在指定谁受罚`, `${drawerName} is choosing who takes the penalty`))}</Waiting>
       );
 
     case "done": {
@@ -152,7 +167,7 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
 
     case "garden-pick":
       return drawerActs ? (
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row garden-pick" style={{ gap: 8 }}>
           {GARDENS.map((name, kind) => (
             <button key={kind} type="button" className="btn btn-block btn-porcelain" onClick={() => g("garden", { kind })}>
               {tr(name)}
@@ -304,7 +319,8 @@ const BADGE: Record<keyof RogueHolders, Rank> = { buddy: "2", camera: "5", nose:
 
 function Powers({ v }: { v: RogueView }) {
   const { me, g, nameOf } = useRoom();
-  const { tr, lang } = useStore();
+  const { ui, tr, lang } = useStore();
+  const pen = usePenaltyText();
   const [troubleOpen, setTroubleOpen] = useState(false);
   const [wcAsk, setWcAsk] = useState(false);
   const held = (Object.keys(BADGE) as (keyof RogueHolders)[]).filter((k) => v.holders[k]);
@@ -319,7 +335,7 @@ function Powers({ v }: { v: RogueView }) {
           {held.map((k) => (
             <span key={k} className={`chip ${v.holders[k] === me ? "chip-selected" : ""}`}>
               <span className="en-display held-rank">{BADGE[k]}</span>
-              {tr(RULE_BY_RANK[BADGE[k]].badge!)} · {v.holders[k] === me ? (lang === "zh" ? "你" : "you") : nameOf(v.holders[k])}
+              {tr(ruleWords(RULE_BY_RANK[BADGE[k]], pen.isCustom).badge!)} · {v.holders[k] === me ? (lang === "zh" ? "你" : "you") : nameOf(v.holders[k])}
               {k === "wc" && v.wcUsed && <span className="hint" style={{ fontSize: 12 }}>{lang === "zh" ? "已用" : "used"}</span>}
             </span>
           ))}
@@ -354,7 +370,7 @@ function Powers({ v }: { v: RogueView }) {
       <AnimatePresence>
         {troubleOpen && (
           <motion.div key="trouble" className="stack" style={{ gap: 8 }} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-            <p className="hint">{lang === "zh" ? "点接了你话的人，他喝" : "Tap whoever answered you. They drink."}</p>
+            <p className="hint">{pen.line(t("点接了你话的人，他喝", "Tap whoever answered you. They drink."), t("点接了你话的人，他受罚", "Tap whoever answered you. They take the penalty."))}</p>
             <SeatPicker
               exclude={[me]}
               onPick={(pid) => {
@@ -366,7 +382,19 @@ function Powers({ v }: { v: RogueView }) {
         )}
         {wcAsk && !myWc && (
           <motion.div key="wc" className="wc-ask" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <span>{lang === "zh" ? (v.holders.wc ? `WC 票在 ${nameOf(v.holders.wc)} 手上，先喝一口再去？` : "没人有 WC 票，先喝一口再去？") : "No pass for you. Drink first, then go?"}</span>
+            <span>
+              {pen.isCustom
+                ? lang === "zh"
+                  ? v.holders.wc
+                    ? `WC 票在 ${nameOf(v.holders.wc)} 手上，先受罚再去？`
+                    : "没人有 WC 票，先受罚再去？"
+                  : "No pass for you. Penalty first, then go?"
+                : lang === "zh"
+                  ? v.holders.wc
+                    ? `WC 票在 ${nameOf(v.holders.wc)} 手上，先喝一口再去？`
+                    : "没人有 WC 票，先喝一口再去？"
+                  : "No pass for you. Drink first, then go?"}
+            </span>
             <div className="row" style={{ gap: 8 }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setWcAsk(false)}>
                 {lang === "zh" ? "不去了" : "Never mind"}
@@ -379,7 +407,7 @@ function Powers({ v }: { v: RogueView }) {
                   setWcAsk(false);
                 }}
               >
-                {lang === "zh" ? "我喝" : "I'll drink"}
+                {pen.isCustom ? ui("iTakeIt") : lang === "zh" ? "我喝" : "I'll drink"}
               </button>
             </div>
           </motion.div>
@@ -394,6 +422,7 @@ function Powers({ v }: { v: RogueView }) {
 function Interrupts({ v }: { v: RogueView }) {
   const { me, g, nameOf, offset } = useRoom();
   const { lang } = useStore();
+  const pen = usePenaltyText();
   const it = v.interrupt;
   const [flash, setFlash] = useState(0);
   useRoomEvent((e) => {
@@ -435,14 +464,16 @@ function Interrupts({ v }: { v: RogueView }) {
               ) : (
                 <div className="interrupt-stage">
                   <Camera size={36} />
-                  <p className="interrupt-sub">{lang === "zh" ? `${nameOf(it.by)} 在看照片，谁动了谁喝` : `${nameOf(it.by)} is checking the photo`}</p>
+                  <p className="interrupt-sub">{lang === "zh" ? `${nameOf(it.by)} 在看照片，谁动了谁${pen.isCustom ? "受罚" : "喝"}` : `${nameOf(it.by)} is checking the photo`}</p>
                 </div>
               )
             ) : it.by === me ? (
               <div className="interrupt-stage">
                 <Hand size={44} />
                 <p className={`interrupt-big ${lang === "zh" ? "zh-display" : "en-display"}`}>{lang === "zh" ? "摸鼻子" : "Nose"}</p>
-                <p className="interrupt-sub tabular">{lang === "zh" ? `已经摸到 ${it.tapped.length} 个，最慢的喝` : `${it.tapped.length} touched. The slowest drinks.`}</p>
+                <p className="interrupt-sub tabular">
+                  {pen.line(t(`已经摸到 ${it.tapped.length} 个，最慢的喝`, `${it.tapped.length} touched. The slowest drinks.`), t(`已经摸到 ${it.tapped.length} 个，最慢的受罚`, `${it.tapped.length} touched. The slowest takes the penalty.`))}
+                </p>
                 <TimerArc seconds={6} running endsAt={it.endsAt} offset={offset} size={72} />
               </div>
             ) : (

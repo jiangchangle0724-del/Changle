@@ -67,7 +67,7 @@ const S = {
   you: ["你", "you"],
   friend: ["朋友 {n}", "Friend {n}"],
   away: ["离开了", "away"],
-  tableLimits: ["本桌", "This table"],
+  tableLimits: ["本桌", "At this table:"],
   noLimits: ["没有忌口", "No restrictions"],
   someoneAvoids: ["有人不吃{what}", "someone doesn't eat {what}"],
   someoneSevere: ["有人对{what}严重过敏", "someone is severely allergic to {what}"],

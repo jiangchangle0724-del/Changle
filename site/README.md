@@ -79,6 +79,8 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 npx tsx tests/engine.test.ts        # 所有游戏的服务器规则
 npx tsx tests/dj.test.ts            # 打碟：音箱的播放器和试音版 DJ
 npx tsx tests/performer.test.ts     # 猜歌名台上两个小人：每个舞步逐帧检查手臂和腿
+npx tsx tests/tokens.test.ts        # 设计 token：和 global.css 同名的值一致，src/ui 里只用 token
+python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字
 python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
 python3 scripts/local_check.py      # 单机回归
 python3 scripts/party_test.py       # 七个新游戏，单机和联机

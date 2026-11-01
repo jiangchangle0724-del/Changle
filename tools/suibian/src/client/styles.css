@@ -368,6 +368,18 @@ select {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  /* the address in "or enter the code at changle.ca/eat" breaks where it must */
+  overflow-wrap: anywhere;
+}
+/* a narrow phone: the code and its line under the QR, not squeezed beside it */
+@media (max-width: 359px) {
+  .invite {
+    flex-direction: column;
+    text-align: center;
+  }
+  .invite > div {
+    align-items: center;
+  }
 }
 .qr {
   flex: none;

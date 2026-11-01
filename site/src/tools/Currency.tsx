@@ -2,13 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { gsap, reduced } from "../lib/anim";
 import { useStore } from "../store";
-import { convert, CURRENCIES, type Code, type FxState } from "./fx";
-
-const clean = (s: string) => {
-  const t = s.replace(/[，,\s]/g, "").replace(/[。]/g, ".").replace(/[^0-9.]/g, "");
-  const i = t.indexOf(".");
-  return i < 0 ? t : t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, "");
-};
+import { cleanAmount as clean, convert, CURRENCIES, type Code, type FxState } from "./fx";
 
 /** CAD = CNY = USD = HKD: type in any row, the others follow. */
 export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {

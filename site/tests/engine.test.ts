@@ -4,6 +4,10 @@ import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import { ONLINE_GAMES, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { SCENES as DRAMA_SCENES } from "../src/data/drama";
+import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
+import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
+import { DARES, promptText } from "../src/data/truthDare";
+import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
 
@@ -996,6 +1000,33 @@ test("euchre: moving seats, first to five, sorted hands", () => {
   ok(sortHand(["9D", "AC", "KH", "JS", "QS"], "C").join(" ") === "JS AC KH QS 9D", "black trump: clubs, hearts, spades, diamonds");
 });
 
+test("euchre: a phone that drops on its turn gets the computer after 15 s, one that's back gets 75 s", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "euchre" });
+  t.g("p0", "start");
+  const at = () => {
+    const v = t.view<V<"euchre">>("p0");
+    return { phase: v.phase, turn: v.turn, pid: v.seats[v.turn].pid };
+  };
+  const a = at();
+  ok(a.phase === "bid1" && a.pid, "a person bids first");
+  t.advance(20_000);
+  ok(at().turn === a.turn, "an open phone isn't hurried after 20 s");
+  t.eng.setOnline(a.pid!, false);
+  t.eng.flush();
+  t.advance(16_000);
+  const b = at();
+  ok(b.turn !== a.turn, "dropped on its turn: the computer has played for it within 16 s");
+  // the next one drops and comes straight back: the usual time again
+  t.eng.setOnline(b.pid!, false);
+  t.eng.flush();
+  t.advance(5_000);
+  ok(t.eng.hello(b.pid!, "Back", false) === null, "back at the table");
+  t.eng.flush();
+  t.advance(20_000);
+  ok(at().turn === b.turn, "back in time: not hurried");
+});
+
 test("player ids: plain characters, never an object's own key", () => {
   const e = new RoomEngine(freshRoom("ABCD", clock), host);
   ok(e.hello("constructor", "x", true) === "bad", "constructor refused");
@@ -1259,6 +1290,124 @@ test("dj: the speaker can't play host, a phone can't speak for the speaker", () 
   q.screenHello("tv-q1", true, "punchline");
   q.flush();
   ok(q.view("tv-q1").game === null, "only the booth opens by itself; other games wait for the host");
+});
+
+test("custom penalty: no card, command or note tells anyone to drink", () => {
+  // (dice rolls and decks use the shared random sequence: put it back afterwards)
+  const s0 = seed;
+  // "act out someone drunk" is acting, not a penalty
+  const drinks = (x: { zh: string; en: string } | undefined) => !!x && (/喝(?!醉)|酒|干杯/.test(x.zh) || /\b(drinks?|drank|drinking|sips?|glass|downs?)\b/i.test(x.en));
+  for (const r of ROGUE_RULES) {
+    const w = ruleWords(r, true);
+    ok(!drinks(w.title) && !drinks(w.rule) && !drinks(w.badge), `rogue ${r.rank} reads without drinking (${w.rule.zh})`);
+    ok(ruleWords(r, false).rule === r.rule, `rogue ${r.rank} unchanged when drinking`);
+  }
+  for (const c of KING_COMMANDS) ok(!drinks(commandText(c, true)), `king command without drinking (${commandText(c, true).zh})`);
+  for (const sl of DEFAULT_SLICES) ok(!drinks(sliceLabel(sl, true)), `wheel slice ${sl.id} without drinking (${sliceLabel(sl, true).zh})`);
+  for (const d of DARES) if (d.custom) ok(!drinks(promptText(d, true)), `dare without drinking (${promptText(d, true).zh})`);
+
+  const PEN = "做十个深蹲";
+  const notes = (t: ReturnType<typeof setup>, from = 0) => t.pens().slice(from).map((p) => p.note);
+
+  // seven eight nine: every penalty the dice give out, and the shared glass is a pot
+  const d = setup(3);
+  d.act("p0", { a: "penalty", text: PEN });
+  d.act("p0", { a: "start", game: "dice" });
+  for (let i = 0; i < 200 && d.pens().length < 3; i++) {
+    const v = d.view<V<"dice">>("p0");
+    if (v.phase === "roll") d.g(v.turn, "roll");
+    else if (v.phase === "assign") d.g(v.turn, "assign", { target: "p2" });
+    else d.g(v.turn, "next");
+    d.advance(1500);
+  }
+  ok(d.pens().length >= 3, `the dice gave out penalties (${d.pens().length})`);
+  ok(notes(d).every((n) => n && !drinks(n) && /罚/.test(n.zh)), `dice notes speak of the penalty: ${notes(d).map((n) => n?.zh).join(" / ")}`);
+
+  // wheel: the built-in slices read as the penalty, the notes too
+  const w = setup(3);
+  w.act("p0", { a: "penalty", text: PEN });
+  w.act("p0", { a: "start", game: "wheel" });
+  w.act("p0", { a: "spin", scope: "wheel", index: 0, delta: 900, duration: 2 }); // "sip"
+  w.advance(2500);
+  let last = w.pens().slice(-1)[0];
+  ok(last?.kind === "sip" && last.note?.zh === "自己罚" && last.note.en === "You", `a sip slice is "you take the penalty" (${last?.note?.zh})`);
+  w.g("p0", "next");
+  w.act("p1", { a: "spin", scope: "wheel", index: 4, delta: 900, duration: 2 }); // "all"
+  w.advance(2500);
+  last = w.pens().slice(-1)[0];
+  ok(last?.kind === "everyone" && last.note?.zh === "全桌罚", `the whole table slice (${last?.note?.zh})`);
+  ok(w.view<V<"wheel">>("p0").slices[0].label.zh === "喝一口", "the slices themselves are kept: each phone words them");
+
+  // rogue: the card's title, the bathroom pass and the buddy
+  const r = setup(3);
+  r.act("p0", { a: "penalty", text: PEN });
+  r.act("p0", { a: "start", game: "rogue" });
+  const rs = r.eng.d.game!.s as { deck: number[]; holders: Record<string, string> };
+  rs.deck.push(8); // the nine of spades, "drink yourself"
+  r.g("p0", "draw");
+  r.advance(1200);
+  ok(r.pens().slice(-1)[0]?.note?.zh === "自罚", `a nine is 自罚 (${r.pens().slice(-1)[0]?.note?.zh})`);
+  r.g("p1", "wc");
+  ok(r.pens().slice(-1)[0]?.note?.zh === "没有 WC 票：先受罚再去", "no bathroom pass: penalty first");
+  rs.holders.buddy = "p2";
+  rs.holders.trouble = "p0";
+  r.g("p0", "trouble", { target: "p1" });
+  r.act("p1", { a: "buddy", pen: r.pens().slice(-1)[0].id });
+  ok(r.pens().slice(-1)[0]?.note?.zh === "陪罚：谢谢老板！", "the buddy takes the penalty too");
+  ok(notes(r).every((n) => !drinks(n)), "no rogue note says drink");
+
+  // king: the command on every phone
+  const k = setup(4);
+  k.act("p0", { a: "penalty", text: PEN });
+  k.act("p0", { a: "start", game: "king" });
+  const ks = k.eng.d.game!.s as { cmd: { c: number; nums: number[] } | null; phase: string };
+  ks.cmd = { c: KING_COMMANDS.findIndex((c) => c.zh.startsWith("{a}号喝一口")), nums: [1, 2] };
+  ks.phase = "command";
+  ok(k.view<V<"king">>("p1").cmd?.text.zh === "1号受罚一次，2号受罚两次。", `one sip and two sips become once and twice (${k.view<V<"king">>("p1").cmd?.text.zh})`);
+  k.act("p0", { a: "penalty", text: "" });
+  ok(k.view<V<"king">>("p1").cmd?.text.zh === "1号喝一口，2号喝两口。", "back to drinking, the command drinks again");
+
+  // truth or dare: the one dare that is a drink
+  const td = setup(3);
+  td.act("p0", { a: "penalty", text: PEN });
+  td.act("p0", { a: "start", game: "truth" });
+  const ts = td.eng.d.game!.s as { kind: string | null; prompt: number | null; phase: string };
+  Object.assign(ts, { kind: "dare", prompt: DARES.findIndex((x) => !!x.custom), phase: "card" });
+  ok(!drinks(td.view<V<"truth">>("p1").prompt ?? undefined), `the drinking dare has a dry version (${td.view<V<"truth">>("p1").prompt?.zh})`);
+
+  // superlatives: the ceremony
+  const su = setup(4);
+  su.act("p0", { a: "penalty", text: PEN });
+  su.act("p0", { a: "start", game: "superlatives" });
+  for (const [a, b] of [["p0", "p2"], ["p1", "p2"], ["p2", "p3"], ["p3", "p2"]]) su.g(a, "vote", { target: b });
+  (su.eng.d.game!.s as { round: number; total: number }).round = (su.eng.d.game!.s as { total: number }).total;
+  su.g("p0", "next");
+  su.advance(3500);
+  last = su.pens().slice(-1)[0];
+  ok(last?.kind === "everyone" && last.note?.zh === "颁奖典礼，全场一起来", `the ceremony (${last?.note?.zh})`);
+
+  // punchline: fewer votes
+  const pl = setup(5);
+  pl.act("p0", { a: "penalty", text: PEN });
+  pl.act("p0", { a: "start", game: "punchline" });
+  for (const pid of pl.ids) for (const m of pl.view<V<"punchline">>(pid).mine) pl.g(pid, "answer", { k: m.k, text: `${pid} ${m.k}` });
+  pl.advance(presentMs(2, false) + 50);
+  const voters = pl.ids.filter((pid) => pl.view<V<"punchline">>(pid).match?.canVote);
+  voters.forEach((pid, i) => pl.g(pid, "vote", { slot: i === voters.length - 1 ? 1 : 0 }));
+  pl.advance(5600);
+  last = pl.pens().slice(-1)[0];
+  ok(voters.length === 3 && last?.note?.zh === "神回复：票少的受罚", `fewer votes takes the penalty (${last?.note?.zh})`);
+
+  // and with no penalty of the table's own, the same moments still drink
+  const plain = setup(3);
+  plain.act("p0", { a: "start", game: "wheel" });
+  plain.act("p0", { a: "spin", scope: "wheel", index: 0, delta: 900, duration: 2 });
+  plain.advance(2500);
+  ok(plain.pens().slice(-1)[0]?.note?.zh === "喝一口", "drinking table: a sip");
+  plain.act("p0", { a: "start", game: "rogue" });
+  plain.g("p1", "wc");
+  ok(plain.pens().slice(-1)[0]?.note?.zh === "没有 WC 票：先喝再去", "drinking table: drink first");
+  seed = s0;
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

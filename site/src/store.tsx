@@ -13,14 +13,28 @@ type Settings = {
 
 const KEY = "lazysusan.settings.v1";
 
+/**
+ * A first visit opens in the phone's language: Chinese if Chinese is anywhere in its list (many
+ * Chinese readers here keep their phone in English), English otherwise. After that, the reader's
+ * own choice (中 / EN) is kept.
+ */
+function phoneLang(): Lang {
+  try {
+    const list = navigator.languages?.length ? navigator.languages : [navigator.language];
+    return list.some((l) => /^zh\b/i.test(l)) ? "zh" : "en";
+  } catch {
+    return "zh";
+  }
+}
+
 function load(): Settings {
-  const fallback: Settings = { lang: "zh", sound: true, music: false, customPenalty: "", players: [] };
+  const fallback: Settings = { lang: phoneLang(), sound: true, music: false, customPenalty: "", players: [] };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     return {
-      lang: parsed.lang === "en" ? "en" : "zh",
+      lang: parsed.lang === "en" || parsed.lang === "zh" ? parsed.lang : fallback.lang,
       sound: parsed.sound !== false,
       music: parsed.music === true,
       customPenalty: typeof parsed.customPenalty === "string" ? parsed.customPenalty : "",
@@ -114,12 +128,32 @@ export function useStore() {
   return ctx;
 }
 
-/** The penalty line every game ends on. */
+/** Online: the table's penalty, which the host sets for every phone at the table ("" is drinking). */
+const TablePenaltyContext = createContext<string | null>(null);
+
+export function TablePenalty({ value, children }: { value: string; children: ReactNode }) {
+  return <TablePenaltyContext.Provider value={value}>{children}</TablePenaltyContext.Provider>;
+}
+
+/**
+ * The penalty every game ends on: this phone's own setting, or online the table's. With a custom
+ * penalty no line may tell anyone to drink, so `line` picks the words that fit: the drinking line
+ * by default, the other one when the host has set their own penalty.
+ */
 export function usePenaltyText() {
-  const { customPenalty, ui } = useStore();
-  return {
-    sip: customPenalty.trim() ? customPenalty.trim() : ui("sip"),
-    full: customPenalty.trim() ? customPenalty.trim() : ui("finish"),
-    isCustom: !!customPenalty.trim(),
-  };
+  const { customPenalty, ui, lang } = useStore();
+  const table = useContext(TablePenaltyContext);
+  const text = (table ?? customPenalty).trim();
+  const isCustom = !!text;
+  return useMemo(
+    () => ({
+      sip: isCustom ? text : ui("sip"),
+      full: isCustom ? text : ui("finish"),
+      isCustom,
+      /** the custom penalty itself, "" when it's drinking */
+      text,
+      line: (drink: T, custom: T) => t(lang, isCustom ? custom : drink),
+    }),
+    [isCustom, text, ui, lang],
+  );
 }

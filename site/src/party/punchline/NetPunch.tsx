@@ -5,9 +5,10 @@ import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { useCue, useReached, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
+import { bringIntoView } from "../../online/useActionsInView";
 import type { PunchMatch, PunchView } from "../../shared/protocol";
 import { RESULT_BEATS } from "../../shared/punchline";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { useWakeLock } from "../sensors";
 import { PromptCard } from "./parts";
 import { Stage, type Who } from "./show/Stage";
@@ -26,6 +27,7 @@ const FINAL_COLORS = ["#e765f0", "#31b9ff", "#ffb82e", "#4be38f", "#ff6b5e", "#8
 export function NetPunch({ v, onLeave }: { v: PunchView; onLeave: () => void }) {
   const { room, me, g, now } = useRoom();
   const { lang, sound } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   // a TV that blinks off (a reload, a Wi-Fi hiccup) doesn't flip every phone into the show and back
   const tv = useLagOff((room?.screens ?? 0) > 0, 5000);
@@ -46,9 +48,13 @@ export function NetPunch({ v, onLeave }: { v: PunchView; onLeave: () => void }) 
 
   const rules = (
     <p>
-      {zh
-        ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的喝一杯。超过 8 个人时，多出来的人当观众，一起投票。有电视或电脑当大屏幕时，手机就是遥控器。"
-        : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if they got swept. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total drinks a full glass. Past eight players, the rest are the audience and vote too. With a TV or computer as the big screen, the phones are the controllers."}
+      {custom
+        ? zh
+          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人受罚。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的受罚。超过 8 个人时，多出来的人当观众，一起投票。有电视或电脑当大屏幕时，手机就是遥控器。"
+          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser takes the penalty. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total takes the penalty. Past eight players, the rest are the audience and vote too. With a TV or computer as the big screen, the phones are the controllers."
+        : zh
+          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的喝一杯。超过 8 个人时，多出来的人当观众，一起投票。有电视或电脑当大屏幕时，手机就是遥控器。"
+          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if they got swept. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total drinks a full glass. Past eight players, the rest are the audience and vote too. With a TV or computer as the big screen, the phones are the controllers."}
     </p>
   );
 
@@ -245,6 +251,7 @@ const STANDINGS_AT = 3000; // the TV's score race reorders at 3 seconds
 function StandingPad({ v, who, end = false }: { v: PunchView; who: Who; end?: boolean }) {
   const { me, room } = useRoom();
   const { lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const out = useReached(v.phaseAt + (end ? 2200 : STANDINGS_AT));
   const ranked = v.players.slice().sort((a, b) => (v.scores[b] ?? 0) - (v.scores[a] ?? 0));
@@ -277,7 +284,9 @@ function StandingPad({ v, who, end = false }: { v: PunchView; who: Who; end?: bo
           </p>
         )
       )}
-      {end && !!v.last?.length && v.last.includes(me) && <p className="hint">{zh ? "最后一名喝一杯" : "Last place drinks a full glass"}</p>}
+      {end && !!v.last?.length && v.last.includes(me) && (
+        <p className="hint">{custom ? (zh ? "最后一名受罚" : "Last place takes the penalty") : zh ? "最后一名喝一杯" : "Last place drinks a full glass"}</p>
+      )}
     </div>
   );
 }
@@ -307,6 +316,18 @@ function WritePanel({ v }: { v: PunchView }) {
       ))}
     </div>
   );
+}
+
+/** One answer is in: the box for the next prompt still to answer comes up above the reactions bar. */
+function nextPrompt(from: HTMLElement) {
+  const list = from.closest(".pl-writes");
+  const card = from.closest(".pl-write");
+  if (!list || !card) return;
+  window.setTimeout(() => {
+    const open = [...list.querySelectorAll<HTMLElement>(".pl-write")].filter((c) => c !== card && c.querySelector("form textarea"));
+    const next = open.find((c) => card.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) ?? open[0];
+    if (next) bringIntoView([...next.querySelectorAll<HTMLElement>("form textarea, form button[type='submit']")]);
+  }, 120);
 }
 
 function HostControls({ v }: { v: PunchView }) {
@@ -404,6 +425,7 @@ function WriteCard({
             setEditing(false);
             sfx.pop();
             haptic(8);
+            nextPrompt(e.currentTarget);
           }}
         >
           <div className="field">
@@ -415,10 +437,11 @@ function WriteCard({
           <button
             type="button"
             className="link-btn"
-            onClick={() => {
+            onClick={(e) => {
               onSafety();
               setEditing(false);
               sfx.pop();
+              nextPrompt(e.currentTarget);
             }}
           >
             {zh ? "想不出来？给我一个（分数减半）" : "Stuck? Give me one (half points)"}

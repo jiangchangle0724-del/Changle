@@ -21,7 +21,7 @@ type Stage =
   | { k: "ask"; step: number }
   | { k: "finding" }
   /** `more`: the server has further places for "show me others"; their details are fetched then. */
-  | { k: "picks"; cards: SoloCard[]; relaxed: boolean; batch: number; more: boolean; loading?: boolean }
+  | { k: "picks"; cards: SoloCard[]; relaxed: boolean; batch: number; more: boolean; loading?: boolean; run?: string }
   | { k: "chosen"; card: SoloCard };
 
 export function Solo({ home }: { home: () => void }) {
@@ -56,7 +56,7 @@ export function Solo({ home }: { home: () => void }) {
       body: JSON.stringify({ center, range: where.range, answers: { mood: mood ?? "any", side: side ?? "any" }, limits, lang: prefs.lang }),
     });
     const d = res.data ?? {};
-    if (res.ok && d.cards?.length) return setStage({ k: "picks", cards: d.cards, relaxed: !!d.relaxed, batch: 0, more: !!d.more });
+    if (res.ok && d.cards?.length) return setStage({ k: "picks", cards: d.cards, relaxed: !!d.relaxed, batch: 0, more: !!d.more, run: d.run });
     const why = d.error === "quota" ? "quota" : d.error === "login" ? "soloLogin" : d.error === "nothingNearby" || d.error === "nothingFits" || d.error === "searchFailed" ? d.error : "offline";
     setErr(t(why as Key));
     setStage({ k: "ask", step: 3 });
@@ -68,7 +68,7 @@ export function Solo({ home }: { home: () => void }) {
     const batch = stage.batch + 1;
     if (stage.cards.length > batch * 3) return setStage({ ...stage, batch });
     setStage({ ...stage, loading: true });
-    const res = await api<SoloResponse>("/api/solo/more", { method: "POST", body: "{}" });
+    const res = await api<SoloResponse>("/api/solo/more", { method: "POST", body: JSON.stringify(stage.run ? { run: stage.run } : {}) });
     const d = res.data ?? {};
     if (res.ok && d.cards?.length) return setStage({ ...stage, cards: [...stage.cards, ...d.cards], batch, more: !!d.more, loading: false });
     setStage({ ...stage, more: false, loading: false });

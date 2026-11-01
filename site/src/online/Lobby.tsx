@@ -26,7 +26,7 @@ export function Lobby({ onLeave }: { onLeave: () => void }) {
     </span>
   );
   return (
-    <NetFrame center={center} onLeave={onLeave} className="lobby-screen">
+    <NetFrame center={center} onLeave={onLeave} className="lobby-screen" follow={false}>
       <LobbyBoard />
     </NetFrame>
   );
