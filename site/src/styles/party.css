@@ -1785,6 +1785,21 @@ button.pl-answer:disabled {
 .gauge.is-over .gauge-note {
   color: var(--gel);
 }
+/* blind lean: the target big, the lean never shown */
+.lb-blind {
+  padding: 8px 0 4px;
+}
+.lb-blind-target {
+  font-family: var(--font-display);
+  font-size: 76px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--gel);
+}
+.lb-blind .hint {
+  margin-top: 6px;
+  text-align: center;
+}
 
 /* ---------- name that tune ---------- */
 .tn {

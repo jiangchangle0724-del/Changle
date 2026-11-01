@@ -334,8 +334,14 @@ export type FreezeView = {
 export type LimboView = {
   id: "limbo";
   phase: "ready" | "go" | "result" | "end";
+  /** classic: lean past the bar; blind: lean to the target without seeing your own angle */
+  mode: "classic" | "blind";
+  /** blind: who has locked an angle this round */
+  locked: string[];
+  /** blind: everyone's locked angle, shown once the round is over */
+  locks: Record<string, number>;
   level: number;
-  /** how far back each player must lean, in degrees */
+  /** how far back each player must lean, in degrees (blind: this round's target) */
   angle: number;
   /** the calypso started here (server time) and keeps going level after level */
   musicAt: number;

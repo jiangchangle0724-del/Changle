@@ -139,7 +139,7 @@ export const GAMES: GameMeta[] = [
     id: "limbo",
     name: t("林波舞", "Limbo"),
     blurb: t("音乐响起，横杆越来越低", "Music on, bar goes lower."),
-    how: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局喝一口。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (drink). Or use a real bar, and the phone does the music and the score."),
+    how: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局喝一口。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的喝。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (drink). Blind lean: hit a target angle without seeing your own; furthest off drinks. Or use a real bar, and the phone does the music and the score."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#b6e83a",
