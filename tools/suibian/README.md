@@ -44,8 +44,8 @@ city; places are then picked by popularity and distance).
 Each card can carry more than Google's numbers, all from free sources:
 
 * **A one-line description**: Google's own editorial summary of the place, when it has one: from
-  the search, in the table's language; when Google has none in that language (most places have
-  theirs only in English), the English one from the details request each card already makes.
+  the search, in the table's language; when Google has none in that language (some places only
+  have an English one), the English one from the details request each card already makes.
   Neither costs anything extra.
 * **List badges** (🏅 Michelin, Vancouver Magazine Restaurant Awards, Canada's 100 Best, the
   Chinese Restaurant Awards…): from `src/data/lists.json`, kept by hand. Facts only: which list,
