@@ -86,6 +86,7 @@ All merged into `main`:
 | #29 | Headings on those pages a clear step above the text | `tools/suibian/src/client/styles.css` |
 | #41 | Picking alone (`/eat/solo`), eleven distances incl. any, cards with descriptions, list badges and picks; hotels left out; no stray " · " on the wait line | `tools/suibian/`: `src/engine/solo.ts`, `src/server/curated.ts`, `src/data/lists.json`, `src/data/picks.json` (all new), `src/engine/clock.ts`, `src/server/places.ts`, `src/server/worker.ts`, `src/client/ui/` (`Solo.tsx`, `PlaceCard.tsx`, `RangePicker.tsx`, `Where.tsx` new), tests, README, privacy and terms |
 | #45 | Picking alone keeps the saved budget; places with almost no Google ratings rank below rated ones | `tools/suibian/src/engine/solo.ts`, `src/client/ui/Solo.tsx`, tests |
+| #48 | Rating a solo pick (`/eat/rate`, the home page asks), English descriptions when Google has none in Chinese, the queue quote on a soft panel | `tools/suibian/`: `src/server/worker.ts`, `src/server/places.ts`, `src/room/room.ts`, `src/client/ui/` (`Rate.tsx`, `Solo.tsx`, `Home.tsx`), `src/client/main.tsx`, `src/client/store.ts`, `src/client/i18n.ts`, `src/client/styles.css`, `src/client/privacy.html`, tests, README |
 
 ## Live state
 
