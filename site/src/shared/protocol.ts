@@ -545,6 +545,11 @@ export type DjView = {
   drops: { pid: string; at: number }[];
   /** songs asked for, oldest first; see DjTrack */
   queue: DjTrack[];
+  /**
+   * This table may try Lyria RealTime: one of the site owner's accounts has a seat at it (the
+   * private test, CONTRACTS.md "Lyria"). The rooms server checks again before it opens a stream.
+   */
+  lab: boolean;
   /** which set this is (a new one after the host says "again") */
   set: number;
 };

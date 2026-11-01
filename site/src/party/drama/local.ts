@@ -45,6 +45,7 @@ export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string
       has: (pid) => list().includes(pid),
       online: (pid) => list().includes(pid),
       isHost: (pid) => pid === list()[0],
+      isOwner: () => false,
       next: (after, among) => {
         const l = among?.length ? list().filter((x) => among.includes(x)) : list();
         const i = after ? l.indexOf(after) : -1;

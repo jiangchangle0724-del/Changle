@@ -6,6 +6,12 @@ import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
 import { pcm16ToFloat } from "../src/party/dj/speaker/pcm";
 import type { Speaker } from "../src/party/dj/speaker/speaker";
+import { KickClock } from "../src/party/dj/lyria/beat";
+import { LyriaDj, pcmChunk } from "../src/party/dj/lyria/LyriaDj";
+import { FALLBACK_PROMPTS, lyriaFor } from "../src/party/dj/lyria/prompts";
+import { FAKE_MIX, mixFor } from "../src/shared/dj/curve";
+import { toGoogle } from "../worker/lyria";
+import WORDS from "./fixtures/dj/lyria-prompt-words.json";
 
 let failures = 0;
 function ok(cond: unknown, msg: string) {
@@ -253,6 +259,158 @@ await test("fake DJ: sections in turn on the bar, the ring-out over the next, th
   ok(sp.flushes === 3 && fresh.every((x) => x === NUM.warm1), "a new set starts from the first section again");
   ok(Math.abs(dj.beat()) < 1e-9, "and its own first downbeat");
   dj.stop();
+});
+
+/* ------------------------------------------------------------------ Lyria (A2), without Google */
+
+await test("lyria relay: only Lyria's own controls get through, inside its ranges", () => {
+  const p = toGoogle({ prompts: [{ text: "Deep House", weight: 1 }, { text: "Chill", weight: 0.5 }] }) as { clientContent: { weightedPrompts: { text: string; weight: number }[] } };
+  ok(p?.clientContent.weightedPrompts.length === 2 && p.clientContent.weightedPrompts[0].text === "Deep House", "prompts pass as Lyria's clientContent");
+  const many = toGoogle({ prompts: Array.from({ length: 12 }, (_, i) => ({ text: `p${i}`, weight: 1 })) }) as typeof p;
+  ok(many.clientContent.weightedPrompts.length === 8, "at most 8");
+  const odd = toGoogle({ prompts: [{ text: "  a\nb\u0000c  ", weight: 2 }, { text: "x".repeat(300), weight: 99 }, { text: "zero", weight: 0 }, { text: "", weight: 1 }, { text: "nan", weight: "1" }] }) as typeof p;
+  const w = odd.clientContent.weightedPrompts;
+  ok(w.length === 2 && w[0].text === "a b c" && w[1].text.length === 120 && w[1].weight === 10, "cleaned to one line, cut at 120, weights inside ±10; a 0, an empty or a non-number weight is dropped");
+  ok(toGoogle({ prompts: [{ text: "x", weight: 0 }] }) === null, "nothing left: nothing sent");
+  const c = toGoogle({ config: { bpm: 300, density: -1, brightness: 0.5, scale: "H_MAJOR", muteDrums: true, guidance: 9, topK: 0.4, seed: -5, temperature: "hot", evil: 1 } }) as { musicGenerationConfig: Record<string, unknown> };
+  const m = c.musicGenerationConfig;
+  ok(m.bpm === 200 && m.density === 0 && m.brightness === 0.5 && m.guidance === 6 && m.topK === 1 && m.seed === 0, "every setting kept inside Lyria's range");
+  ok(!("scale" in m) && !("temperature" in m) && !("evil" in m) && m.muteDrums === true, "an unknown key, a scale that isn't one, a setting that isn't a number: dropped");
+  ok((toGoogle({ config: { bpm: 59.6, scale: "C_MAJOR_A_MINOR" } }) as typeof c).musicGenerationConfig.bpm === 60, "the tempo is a whole number");
+  ok(toGoogle({ config: { nothing: true } }) === null, "a config with nothing in it isn't sent");
+  ok((toGoogle({ play: "PAUSE" }) as { playbackControl: string }).playbackControl === "PAUSE", "the four playback controls pass");
+  ok(toGoogle({ play: "EXPLODE" }) === null && toGoogle({ setup: { model: "models/other" } }) === null && toGoogle(null) === null && toGoogle("PLAY") === null, "anything else (another model above all: the relay sets it) is dropped");
+});
+
+/** Seconds of a four-on-the-floor at `bpm`, its first kick `offMs` in, as 16-bit stereo. */
+function kicks(seconds: number, bpm: number, offMs: number, from = 0, kick = true) {
+  const n = Math.round(seconds * 48000);
+  const beat = (48000 * 60) / bpm;
+  const off = (offMs / 1000) * 48000;
+  const out = new Int16Array(n * 2);
+  let seed = 3;
+  for (let i = 0; i < n; i++) {
+    const f = from + i;
+    const t = ((((f - off) % beat) + beat) % beat) / 48000;
+    const k = kick && f >= off ? Math.sin(2 * Math.PI * (55 + 90 * Math.exp(-t * 30)) * t) * Math.exp(-t * 9) * 0.8 : 0;
+    seed = (seed * 16807) % 2147483647;
+    const noise = (seed / 2147483647 - 0.5) * 0.1;
+    const pad = Math.sin(2 * Math.PI * 220 * (f / 48000)) * 0.08;
+    const v = Math.round((k + noise + pad) * 30000);
+    out[i * 2] = v;
+    out[i * 2 + 1] = v;
+  }
+  return out.buffer;
+}
+
+await test("lyria beat: the kick gives the beat's place in the stream; no kick, no answer", () => {
+  const clock = new KickClock(48000, 125);
+  for (let k = 0; k < 10; k++) {
+    const { l, r } = pcmChunk(kicks(2, 125, 137, k * 96000), 48000);
+    clock.feed(l, r, k * 96000);
+  }
+  const off = clock.offset();
+  ok(off !== null && Math.abs(off - 0.137 * 48000) < 0.02 * 23040, `the first beat 137 ms in (${off === null ? "none" : ((off / 48000) * 1000).toFixed(1)} ms)`);
+  ok(clock.sure() > 0.8, `and sure of it (${clock.sure().toFixed(2)})`);
+  const quiet = new KickClock(48000, 125);
+  const { l, r } = pcmChunk(kicks(10, 125, 137, 0, false), 48000);
+  quiet.feed(l, r, 0);
+  ok(quiet.offset() === null, "a stretch with no kick gives no answer");
+  const half = pcmChunk(kicks(1, 125, 0), 24000);
+  ok(half.l.length === 96000, "a chunk at another rate comes out at 48 kHz");
+});
+
+await test("lyria prompts: each stretch's mood, the curve's energy, the mix's tempo and key, words from the guide", () => {
+  const all = new Set([...Object.values(WORDS.genres).flat(), ...Object.values(WORDS.instruments).flat(), ...WORDS.moods]);
+  const warm = lyriaFor("warm", mixFor("warm", FAKE_MIX));
+  ok(warm.prompts[0].text === "Deep House" && warm.prompts[0].weight === 1 && warm.prompts.some((p) => p.text === "Chill"), "the warm-up: deep house, chill");
+  ok(warm.config.bpm === 125 && warm.config.scale === "C_MAJOR_A_MINOR" && warm.config.density === 0.35, "at the stand-in's tempo and key, the warm-up's density");
+  const peak = lyriaFor("peak", mixFor("peak", FAKE_MIX));
+  ok(peak.prompts.some((p) => p.text === "Euphoric") && peak.config.density === 0.9 && peak.config.brightness === 0.8, "the peak: euphoric, dense and bright");
+  ok(lyriaFor("end", mixFor("end", FAKE_MIX)).prompts.every((p) => p.text !== "Chill" && p.text !== "Euphoric"), "no mood when no music plays");
+  const used = [...Object.values(FALLBACK_PROMPTS).flat().map((p) => p!.text), ...["warm", "build", "peak", "cool"].flatMap((ph) => lyriaFor(ph as "warm", mixFor(ph as "warm", FAKE_MIX)).prompts.map((p) => p.text))];
+  ok(used.every((t) => all.has(t)), `every prompt word is in Google's guide (${used.filter((t) => !all.has(t)).join(", ") || "all"})`);
+});
+
+/** A WebSocket the test drives: what LyriaDj sends, and the relay's messages delivered by hand. */
+class MockWS {
+  static OPEN = 1;
+  static made: MockWS[] = [];
+  readyState = 1;
+  sent: Record<string, unknown>[] = [];
+  onmessage: ((e: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  constructor(public url: string) {
+    MockWS.made.push(this);
+  }
+  send(s: string) {
+    this.sent.push(JSON.parse(s));
+  }
+  close() {
+    this.readyState = 3;
+  }
+  say(m: unknown) {
+    this.onmessage?.({ data: typeof m === "string" ? m : JSON.stringify(m) });
+  }
+  audio(seconds: number, from: number) {
+    const data = Buffer.from(kicks(seconds, 125, 137, from)).toString("base64");
+    this.say({ serverContent: { audioChunks: [{ data, mimeType: "audio/l16;rate=48000;channels=2" }] } });
+  }
+  drop() {
+    this.readyState = 3;
+    this.onclose?.();
+  }
+}
+
+await test("lyria DJ: gathers, hands over, keeps a few seconds ahead, holds Lyria back when it races, follows the night, says why it stops", async () => {
+  g.window = globalThis;
+  g.WebSocket = MockWS;
+  const dj = new LyriaDj("ws://relay/room/ABCD/lyria?sid=tv1");
+  let ready = 0;
+  const fails: string[] = [];
+  dj.onReady = () => ready++;
+  dj.onFail = (why) => fails.push(why);
+  dj.begin("warm", mixFor("warm", FAKE_MIX));
+  const ws = MockWS.made[0];
+  ok(ws?.url.endsWith("/lyria?sid=tv1"), "it asks the table's relay, as this screen");
+  ok(ws.sent.length === 0, "nothing is sent before the relay says Lyria is ready");
+  ws.say({ t: "ready" });
+  const kinds = ws.sent.map((m) => Object.keys(m)[0]);
+  ok(kinds.join() === "config,prompts,play" && (ws.sent[2] as { play: string }).play === "PLAY", "then the stretch's config, its prompts, and play");
+  ws.audio(2, 0);
+  ok(ready === 0 && dj.inHand === 2, "two seconds in hand: not enough to start");
+  ws.audio(2, 96000);
+  ok(ready === 1, "four: enough, it says so (the booth hands over from the stand-in)");
+  const sp = mockSpeaker();
+  sp.push(new Float32Array(12000)); // the stand-in's last quarter second, still waiting to play
+  dj.go(sp as unknown as Speaker);
+  ok(sp.sent >= 12000 + 4 * 48000 - 12000 && sp.buffered() <= 4.26, `it keeps four seconds waiting in the speaker, after what's there (${sp.buffered().toFixed(2)} s)`);
+  for (let k = 0; k < 4; k++) ws.audio(2, (2 + k) * 96000);
+  ok(ws.sent.some((m) => (m as { play?: string }).play === "PAUSE"), `more than 8 seconds in hand: Lyria is paused (${dj.inHand.toFixed(1)} s)`);
+  for (let k = 0; k < 40 && !ws.sent.slice(3).some((m) => (m as { play?: string }).play === "PLAY"); k++) sp.play(12000);
+  ok(dj.inHand < 3 && ws.sent.slice(3).some((m) => (m as { play?: string }).play === "PLAY"), "under 3: played again");
+  const b = dj.beat();
+  ok(Math.abs(b - (sp.played - 12000 - 0.137 * 48000) / 23040) < 0.02, `the beat from the kick, counted from where Lyria's music starts (${b.toFixed(3)})`);
+  const before = ws.sent.length;
+  dj.setPhase("peak", mixFor("peak", FAKE_MIX));
+  const asked = ws.sent.slice(before);
+  ok(asked.some((m) => JSON.stringify(m).includes("Euphoric")) && asked.some((m) => (m as { config?: { density: number } }).config?.density === 0.9), "the peak: new prompts and config at once");
+  ok(dj.heardSection()?.phase === "warm", "the speakers still sound the warm-up");
+  await sleep(1600);
+  const at = sp.sent + Math.round(dj.inHand * 48000);
+  ws.audio(2, 12 * 96000);
+  while (sp.played < at + 1000) sp.play(12000);
+  ok(dj.heardSection()?.phase === "peak", "once Lyria's music after the change reaches the speakers, they sound the peak");
+  ws.drop();
+  await sleep(600);
+  ok(MockWS.made.length === 2, "the relay's socket drops: it comes straight back");
+  MockWS.made[1].say({ t: "ready" });
+  ok(MockWS.made[1].sent.some((m) => JSON.stringify(m).includes("Euphoric")), "and sets Lyria up for the stretch it's in");
+  MockWS.made[1].say({ t: "end", why: "cap" });
+  ok(fails.join() === "cap" && MockWS.made[1].sent.some((m) => (m as { play?: string }).play === "STOP"), "the relay ends it (the month's cap): it stops and says why");
+  const n = sp.sent;
+  sp.play(48000 * 6);
+  ok(sp.sent === n, "and sends nothing more");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

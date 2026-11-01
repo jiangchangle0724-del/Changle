@@ -88,3 +88,49 @@ low buffer came 4 to 6 minutes in, while the same 2-core test machine was also r
 browsers for the preview check and the code review's tests; the other 25 minutes ran clean in
 both. The beat clock follows the music: Chromium's 124.86 is the stall's 2.5 seconds of waiting
 spread over the half hour.
+
+## Lyria RealTime (A2)
+
+Steve's choice on Nov 1: connect Lyria RealTime as planned, as a private test (only a table where
+one of the owner's accounts has a seat; everyone else hears the stand-in). Real Lyria can only be
+heard at Steve's table after the merge: the rooms server deploys from `main`, and local runs never
+reach Google. Here `site/scripts/fake_lyria.mjs` stands in for Google: the same protocol, 48 kHz
+stereo, twice as fast as real time (Lyria also makes music faster than it plays), a kick on every
+beat, its JSON in binary frames as Google's may be.
+
+### Steve's table (real Lyria)
+
+| Device | Seconds to AI DJ · 实验 | Seams (each time Lyria is paused and played again) | 顶点: heard after | Stalls in 10 min | Notes |
+| --- | --- | --- | --- | --- | --- |
+| TV or Mac | | | | | |
+
+What to try: on the phone, sign in with one of the owner's emails and sit down at the table of
+changle.ca/dj. The TV starts the night with the stand-in and switches to Lyria a few seconds later
+(the TV and the phones say AI DJ · 实验 instead of 试音版 DJ). Lyria makes music faster than it plays, so the speaker
+pauses it about every 10 seconds and plays it again: listen for a seam there. Press 顶点: the
+music gets there after what's already queued plays (about 10 seconds). Leave the table: the
+stand-in takes the music back. 20 hours a month for all tables together (`DJ_LYRIA_HOURS`).
+
+### The chain, against the stand-in Lyria (automated)
+
+`site/scripts/dj_lyria_check.py`, the TV in WebKit and in Chromium (the phone in Chromium), Nov 1,
+2026: 22 of 22 checks pass in each, no errors on any page. Nobody at the table: Lyria isn't asked.
+A phone sits down: the table's relay opens one session, and the warm-up's prompts, 125 BPM and
+density reach Lyria before PLAY. Lyria takes over once it has 3 seconds in hand (the phones see AI
+DJ), on the beat (125.00 BPM, found from the kick), no stall, and is paused when it gets ahead. The
+host's 顶点 reaches Lyria at once; the lights follow when the speakers get there. Lyria's side
+drops: the relay opens a new session, set up where it was (the peak), and the music carries on
+with no stall. The phone leaves: the stand-in takes the music back and the session closes.
+
+Found on the way: the rooms server received binary frames as a Blob (the runtime's default),
+which reads only asynchronously, and dropped them, so a Google that answers in binary frames would
+never have started; it now asks for bytes, and the fake sends binary frames to keep it that way.
+
+### The 30-minute soak, through the relay
+
+The TV in WebKit, the night's stretches in turn every 4 minutes, Lyria's side dropped at 10 and 20
+minutes.
+
+| Run | Stalls | Lowest buffer | Beat clock | On Lyria | Sessions (drops) | PAUSE / PLAY |
+| --- | --- | --- | --- | --- | --- | --- |
+| Before the code review's fixes | 0 | 3.95 s | 124.983 BPM | 100% | 3 (2) | 179 / 182 |

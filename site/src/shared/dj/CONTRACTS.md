@@ -10,7 +10,8 @@ A table opened at **changle.ca/dj** is a DJ booth. That big screen (a Mac or iPa
 TV) is the **speaker**: the only device that makes a sound. Phones sit down the way they do at any
 table and get a 🔥 button; the host also gets the night's controls. The music is the **stand-in DJ**
 (`site/src/party/dj/fake/`): house at 125 BPM recorded on the speaker itself with the site's own
-instruments. Lyria is not connected yet (A2): it will replace the stand-in and nothing else.
+instruments. At one of the site owner's own tables, Lyria RealTime takes over from it (A2, a
+private test: "Lyria" below); everywhere else the stand-in plays.
 
 It is built inside the site, not as its own project: the rules run on the site's rooms server
 (`site/worker`, a Durable Object per table) and deploy with it; there is no new setting or secret.
@@ -30,6 +31,9 @@ It is built inside the site, not as its own project: the rules run on the site's
 | The phone | `site/src/party/dj/NetDj.tsx`, `site/src/styles/dj-phone.css` |
 | Lights and dancers | `site/src/party/dj/Floor.tsx`, `site/src/styles/dj.css` |
 | The speaker on its own (no table) | `site/src/party/dj/TestPage.tsx`, at changle.ca/dj/test |
+| Lyria: the relay on the rooms server | `site/worker/lyria.ts` (in the table's Durable Object, `index.ts`) |
+| Lyria: the speaker's side | `site/src/party/dj/lyria/` (`LyriaDj.ts`, `prompts.ts`, `beat.ts`), switched in `useBooth.ts` |
+| A fake Lyria for local runs | `site/scripts/fake_lyria.mjs`; the chain's check `site/scripts/dj_lyria_check.py` |
 
 ## The night (`RoomState`, the rules in `games/dj.ts`)
 
@@ -92,6 +96,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `unask` `{ id }` | its player, or the host | Takes back a song while it is `queued` (or `refused`, `failed`); once it is being checked or made it is the song pipeline's. |
 | `phase` `{ phase }`, `again` | the host | As above. |
 | `live` `{ source }`, `stats` `{ stalls, resets, seconds }` | the speaker | As above. |
+| `src` `{ source }` | the speaker | Its music changed hands mid-set (Lyria took over, or the stand-in came back): `source` follows, so every phone shows which DJ plays. Only while music plays, only a real change. |
 
 - **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
   `ask` is null for everyone but its player and the host until it has passed the text check
@@ -176,6 +181,71 @@ model is `models/lyria-realtime-exp`, experimental, and every output is watermar
 - The pages say nothing about price, quotas or how long a session can last: A2 checks before
   anything is switched on.
 
+## Lyria (A2): the private test
+
+**Why private.** Lyria RealTime is an experimental model (`models/lyria-realtime-exp`). Google's
+terms keep experimental and preview models out of production use, it has no published price, and
+Google can change it or take it away without notice. Steve decided (Nov 1, 2026) to connect it as
+planned but only for his own tests; everyone else hears the stand-in. Lyria 3.5 (stable, $0.08 a
+song) was the other road, left for later.
+
+**Who.** A table where one of the site owner's accounts (`ADMIN_EMAILS`, which takes in
+`MASTER_EMAIL`) has a seat. The hub says so when a phone sits down (`Admit.owner`); the table
+keeps it on the seat (`SeatData.owner`, `setOwner`) and never shows it to a phone; the booth's view
+says only `lab: true`. A phone that locks keeps its seat, so the music stays; leaving the table, or
+signing out of that account, ends it.
+
+**How.**
+
+```
+TV (speaker) ──/room/CODE/lyria?sid=<its screen id>──▶ the table's Durable Object ──wss──▶ Google
+             ◀── Google's audio, untouched ────────────  (worker/lyria.ts)           ◀── Lyria
+```
+
+- The stand-in always starts the night (instant sound). With `lab`, the speaker asks the table's
+  relay; the relay checks (a big screen at this table, the booth up, an owner seated, a key, under
+  the month's cap) and answers `{ t: "no", why }` or opens the one session for the table: setup
+  with the model fixed on the server, the key from Cloudflare (`LYRIA_API_KEY`, else the avatars'
+  `GEMINI_API_KEY`), never seen by a browser (Lyria takes no short-lived browser tokens: they work
+  only with the Live API). It's a plain socket, not a hibernating one: a table stays awake while
+  its stream plays.
+- The speaker sends `{ prompts: [{ text, weight }] }`, `{ config: { bpm, density, brightness,
+  scale, guidance, … } }` and `{ play: "PLAY" | "PAUSE" | "STOP" | "RESET_CONTEXT" }`; the relay
+  turns them into Lyria's own messages only if they're inside its ranges (`toGoogle`: 8 prompts of
+  120 characters at most, weights never 0, every setting clamped), at most 10 a second. It answers
+  `{ t: "ready" }`, `{ t: "state", s: "reconnecting" | "live" }`, `{ t: "filtered", text, why }`,
+  `{ t: "end", why }`, and passes Google's `serverContent` messages (base64 16-bit stereo,
+  `audio/l16;rate=48000;channels=2`) straight through.
+- **The speaker's side** (`LyriaDj`, same face as the stand-in's `FakeDj`): once 3 seconds are in
+  hand the stand-in steps aside and Lyria plays after what the speaker already has (no gap, a cut).
+  It keeps 4 seconds in the speaker; Lyria sends faster than real time, so it pauses Lyria above 8
+  seconds in hand and plays it again under 3. The stretch of the night becomes prompts and config
+  (`lyria/prompts.ts`: house in the guide's words, a mood per stretch, the curve's density and
+  brightness; C1's presets and A4's choices come later), sent the moment the host moves the night;
+  the screen takes the new stretch as heard about 1.5 seconds after the first music Lyria makes
+  after it. The beat: 125 BPM as asked, its place found from the kick drum (`lyria/beat.ts`).
+  `src` tells the room when the music changes hands.
+- **When Lyria stops for good** (not one of the owner's tables, no key, the month's cap, the set
+  over, the connection gone after 4 tries), the speaker gets `no` or `end` with the reason and the
+  stand-in comes back with a fresh stream (2.5 seconds quiet). A reason that won't change by trying
+  again isn't tried again at that table until it stops being the owner's and becomes it again.
+- **Guards.** One session per table. The month's hours (`DJ_LYRIA_HOURS`, default 20, every table
+  together) are counted by the hub every minute while a session is open; at the cap the session
+  ends and new ones are refused. The set's 4-hour cap and its end close the session, and so does
+  the booth closing. Google's side dropping is reopened (after 0.3, 0.8, 1.6, 3.2, 6.4 s) and set up
+  the way the speaker last left it; the speaker dropping keeps the session 20 seconds. At most 12
+  new sessions a table in 10 minutes (a speaker opening and closing in a loop gets `busy`). The key
+  goes in a header (`x-goog-api-key`), in the URL only if Google won't take it there, and never into
+  a log. Google may answer in binary frames: the relay asks for them as bytes (a Worker's default is
+  a Blob, which reads only asynchronously) and passes them on as text.
+- **Local runs** never reach Google: `node scripts/fake_lyria.mjs` speaks the same protocol (music
+  twice as fast as real time, a kick on every beat 137 ms in), and `DEV_LYRIA_URL=ws://127.0.0.1:8790`
+  with `DEV_LYRIA_ANYONE=1` in `site/worker/.dev.vars` points the rooms server at it and lets any
+  table try. `scripts/dj_lyria_check.py` runs the whole chain.
+- **Not yet:** a change of tempo or key (needs `RESET_CONTEXT`, a hard cut: A4 does it on a drop);
+  a smooth hand-over from the stand-in; Lyria's own price (Steve's tests and Google's bill will
+  tell). A Workers WebSocket message is at most 1 MiB; Lyria's chunks are far below.
+
 ## The lights and the dancers
 
 Every frame, from the speaker's clock (no React renders): `--pulse` (the kick), `--flash`,
@@ -189,14 +259,20 @@ every frame changes only opacity or a transform.
 
 - One stream per table, from the speaker. A second big screen on the same table would play it too:
   open the booth on one screen. (A2 sends the stream to one screen.)
-- Every set ends 4 hours after its music starts. The monthly Lyria cap (20 hours) comes with A2.
+- Every set ends 4 hours after its music starts. Lyria stops at 20 hours a month, all tables together.
 - No way to upload or play an MP3 anywhere: every sound is made here (later: by Lyria).
 
 ## Tests
 
-- `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`), the commands above included.
+- `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`), the commands above included, and
+  the private Lyria test's `lab` and `src`.
 - `npx tsx tests/dj.test.ts`: the player on a pretend audio thread (prebuffer, fades, stalls,
-  resampling, flush, overflow, reports), Lyria's PCM format, the stand-in's sections and order.
+  resampling, flush, overflow, reports), Lyria's PCM format, the stand-in's sections and order;
+  Lyria's side without Google: what the relay lets through, the beat from the kick, the prompts
+  for each stretch (every word from the guide), the Lyria DJ (hand-over, seconds ahead, pausing
+  Lyria, the stretch heard, reconnecting, stopping with a reason).
 - `python3 scripts/dj_check.py`: with the local servers running, the speaker test page in WebKit
   and Chromium (phone and desktop sizes) and a whole table (a TV, two phones). Results:
   `docs/dj-booth-sound-check.md`.
+- `python3 scripts/dj_lyria_check.py [chromium|webkit]`: with the fake Lyria too, the whole chain
+  (relay, hand-over, the beat, the peak, a dropped stream, the stand-in back).

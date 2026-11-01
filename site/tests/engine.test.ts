@@ -1407,6 +1407,44 @@ test("dj: ❄️, knobs, drops and songs are kept and limited; nobody else reads
   ok(dv("p1").colds.length === 1, "and takes them");
 });
 
+test("dj: the private Lyria test: only with one of the owner's accounts at the table, never shown; the speaker says when its music changes hands", () => {
+  const e = new RoomEngine(freshRoom("DJLB", clock), host);
+  e.screenHello("tv-lb", true, "dj");
+  e.hello("p1", "Steve", false, { uid: "u1", name: "Steve", av: 0, ac: 0 });
+  e.hello("p2", "Ben", false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  ok(dv("tv-lb").lab === false, "nobody is the owner: no Lyria");
+  e.setOwner("p1", true);
+  ok(e.flush().changed && dv("tv-lb").lab === true && dv("p2").lab === true, "the rooms server finds one of the owner's accounts at the table: Lyria may play");
+  ok(!e.view("p2").seats.some((x) => "owner" in x), "which seat it is, no phone is told");
+  e.setOnline("p1", false);
+  e.flush();
+  ok(dv("tv-lb").lab === true, "the owner's phone locks: it keeps its seat, and Lyria");
+  e.setOnline("p1", true);
+  e.setOwner("p1", false);
+  e.flush();
+  ok(dv("tv-lb").lab === false, "signed out of that account: no more Lyria");
+  e.setOwner("p1", true);
+  e.hello("p3", "Cat", false, { uid: "u3", name: "Cat", av: 0, ac: 0 });
+  e.setOwner("p3", true);
+  e.act("p3", { a: "leave" });
+  e.flush();
+  ok(dv("tv-lb").lab === true && !e.d.seats.some((x) => x.id === "p3"), "another owner's account leaving changes nothing while one is still seated");
+  ok(!e.screenAct("tv-lb", { x: "src", source: "lyria" }), "before the music starts there's nothing to hand over");
+  e.screenAct("tv-lb", { x: "live", source: "fake" });
+  e.flush();
+  ok(dv("p2").source === "fake", "the stand-in starts the night");
+  ok(e.screenAct("tv-lb", { x: "src", source: "lyria" }) && dv("p2").source === "lyria", "Lyria takes over: every phone sees it");
+  ok(!e.screenAct("tv-lb", { x: "src", source: "lyria" }) && !e.screenAct("tv-lb", { x: "src", source: "radio" }), "saying it again, or a source that isn't one, changes nothing");
+  e.act("p1", { a: "g", g: { x: "src", source: "fake" } });
+  e.flush();
+  ok(dv("p2").source === "lyria", "a phone can't say it");
+  e.act("p1", { a: "g", g: { x: "phase", phase: "end" } });
+  e.flush();
+  ok(!e.screenAct("tv-lb", { x: "src", source: "fake" }), "after the set, nothing to say");
+});
+
 test("custom penalty: no card, command or note tells anyone to drink", () => {
   // (dice rolls and decks use the shared random sequence: put it back afterwards)
   const s0 = seed;

@@ -193,6 +193,8 @@ export type DjCommand =
   // the speaker (a big screen; it has no seat)
   /** the music started on the speaker: the set begins */
   | { x: "live"; source: Source }
+  /** the speaker's music now comes from elsewhere, mid-set (Lyria came in, or it fell back) */
+  | { x: "src"; source: Source }
   /** how the playing has gone since the last report */
   | { x: "stats"; stalls: number; resets: number; seconds: number };
 

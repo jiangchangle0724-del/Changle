@@ -62,7 +62,7 @@ export function mixLine(mix: Mix, zh: boolean) {
   return parts.join(" · ");
 }
 
-export const sourceName = (s: Source, zh: boolean) => (s === "fake" ? (zh ? "试音版 DJ" : "Sound-check DJ") : zh ? "AI DJ" : "AI DJ");
+export const sourceName = (s: Source, zh: boolean) => (s === "fake" ? (zh ? "试音版 DJ" : "Sound-check DJ") : zh ? "AI DJ · 实验" : "AI DJ · lab");
 
 /** What's playing, in one line. */
 export function NowPlaying({ v }: { v: { mix: Mix; source: Source } }) {
