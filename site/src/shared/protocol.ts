@@ -494,6 +494,12 @@ export type DramaView = {
   scores: Record<string, number>;
   /** best-actor awards so far */
   awards: Record<string, number>;
+  /** who wrote the scene on now: someone at the table (`pid`), or a name from the public library */
+  credit: { pid: string | null; name: string } | null;
+  /** scenes written at this table: titles only until they are played */
+  mine: { id: string; title: T; by: string | null; played: boolean }[];
+  /** how many public-library scenes this table has drawn */
+  lib: number;
 };
 
 export type GameView =

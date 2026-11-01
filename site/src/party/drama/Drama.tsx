@@ -11,6 +11,7 @@ import { useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent } from "./local";
+import { loadLibrary, SceneWriter, TableScenes } from "./writer";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
@@ -43,6 +44,17 @@ export function Drama({ onBack }: { onBack: () => void }) {
   // who holds the phone right now, inside a phase: the card readers and the voters take turns
   const [step, setStep] = useState<{ k: "intro" } | { k: "pass"; i: number } | { k: "card"; i: number }>({ k: "intro" });
   const [slate, setSlate] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const credit = v.credit?.pid ? nameOf(v.credit.pid) : v.credit?.name ?? null;
+  // a dozen scenes from the public library, whenever the setup screen has none
+  const libAsked = useRef(-1);
+  useEffect(() => {
+    if (v.phase !== "setup" || v.lib > 0 || libAsked.current === v.round) return;
+    libAsked.current = v.round;
+    void loadLibrary(zh ? "zh" : "en").then((chunks) => chunks.forEach((scenes) => act(host, "lib", { scenes })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v.phase, v.lib, v.round]);
+  const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} />;
   const round = `${v.round}-${v.phase}`;
   const last = useRef("");
   useEffect(() => {
@@ -92,6 +104,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
           <Marquee />
         </div>
         <SetupPanel cfg={v} onChange={(c) => act(host, "config", c)} />
+        {tableScenes}
         <button type="button" className="btn btn-primary btn-lg btn-block" disabled={ids.length < 3} onClick={() => act(host, "start")}>
           <Play size={18} />
           {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : zh ? "开演" : "Curtain up"}
@@ -104,7 +117,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
       body = (
         <>
           {stage(false, false)}
-          <Playbill v={v} />
+          <Playbill v={v} credit={credit} />
           <Roster v={v} nameOf={nameOf} face={face} />
           <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setStep({ k: "pass", i: 0 })}>
             {zh ? "发身份牌" : "Deal the cards"}
@@ -151,7 +164,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
           </>
         ))}
         <TwistBanner twist={v.twist} />
-        <Playbill v={v} />
+        <Playbill v={v} credit={credit} />
         <p className="dm-wait-note">{v.mode === "show" ? (zh ? "手机放桌上，演到一半会有剧情反转，大声念出来！" : "Phone on the table. Halfway through, a plot twist lands: read it out loud!") : zh ? "两人轮流用自己的状态说这句台词" : "Each says the line in their own style"}</p>
         <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => act(host, "cut")}>
           <Clapperboard size={18} />
@@ -194,6 +207,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
         <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => act(host, "next")}>
           {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
         </button>
+        {tableScenes}
       </>
     );
   } else if (v.phase === "end") {
@@ -213,6 +227,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   return (
     <GameShell title={GAME_BY_ID.drama.name} rules={<Rules />} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
       <div className="dm">{body}</div>
+      <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} writers={players.map((p) => ({ id: p.id, name: p.name }))} onAdd={(scene, by) => act(by && ids.includes(by) ? by : host, "write", { scene })} />
     </GameShell>
   );
 }

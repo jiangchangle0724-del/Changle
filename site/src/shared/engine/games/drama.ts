@@ -1,7 +1,8 @@
-import { PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaLevel, type DramaScene } from "../../../data/drama";
+import { ANY_SECRETS, ANY_TWISTS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaLevel, type DramaScene } from "../../../data/drama";
 import type { T } from "../../../i18n";
+import { cleanScene, hasText } from "../../dramaScene";
 import type { DramaCard, DramaView } from "../../protocol";
-import { intIn, t, type Api, type GameDef } from "../api";
+import { clean, intIn, t, type Api, type GameDef } from "../api";
 
 /**
  * 戏精大赏 · Drama Queens. Each round a few players act: in a scene, one of them is secretly the
@@ -12,11 +13,17 @@ import { intIn, t, type Api, type GameDef } from "../api";
  * Points: a right guess 1; a culprit nobody pins 3; each actor their average stars, rounded.
  * The penalty: the actor(s) with the fewest stars, plus the culprit if caught, or else everyone
  * the culprit fooled. Best actor (most stars) takes a trophy.
+ *
+ * Players can write scenes too: one written at the table is played next (its writer on stage, so
+ * they never guess their own story); the host's phone also brings scenes from the public library
+ * (written by players, approved by the site's owner), which mix in with the built-in ones.
  */
 
 type Mode = "show" | "pk";
 type Pen = "drink" | "move" | "prank";
 type Vote = { guess: string | null; stars: Record<string, number> };
+/** A scene a player wrote: here at the table (`by` is their seat) or for the public library (`credit`). */
+type Written = { id: string; scene: DramaScene; by: string | null; credit: string };
 type S = {
   phase: DramaView["phase"];
   mode: Mode;
@@ -27,7 +34,18 @@ type S = {
   round: number;
   /** scene ids already played, so none comes back until the library runs out */
   used: string[];
+  /** a built-in scene (its index), or a written one in `cur` */
   scene: number | null;
+  cur: Written | null;
+  /** written at this table, played first, in order */
+  mine: Written[];
+  /** from the public library, mixed in with the built-in scenes */
+  lib: Written[];
+  /** how many scenes have been written here (for their ids) */
+  wn: number;
+  /** a generic secret for each role its writer left blank, and a generic twist */
+  fill: Record<string, number>;
+  twistPick: number;
   cast: string[];
   /** cast[i] plays roles[i] of the scene */
   roles: number[];
@@ -57,33 +75,51 @@ export function castSize(n: number) {
   return Math.max(2, Math.min(4, n - 2));
 }
 
-const scenesFor = (level: DramaLevel, diff: DramaDiff) => SCENES.map((s, i) => ({ s, i })).filter(({ s }) => s.diff === diff && (level === "spicy" || s.level === "all"));
+/** One scene the table could play: built in (its index) or written. */
+type Option = { s: DramaScene; i: number | null; w: Written | null };
 
-function pickScene(s: S, n: number, api: Api): number {
+const fitsTable = (sc: DramaScene, level: DramaLevel, diff: DramaDiff) => sc.diff === diff && (level === "spicy" || sc.level === "all");
+
+/** The scene on now, wherever it came from. */
+function current(s: S): DramaScene | null {
+  if (s.cur) return s.cur.scene;
+  return s.scene !== null ? SCENES[s.scene] : null;
+}
+
+function pickScene(s: S, n: number, api: Api): Option {
+  // a scene written here tonight goes first
+  const mine = s.mine.find((w) => !s.used.includes(w.id));
+  if (mine) {
+    s.used.push(mine.id);
+    return { s: mine.scene, i: null, w: mine };
+  }
   const max = castSize(n);
-  let pool = scenesFor(s.level, s.diff);
-  if (!pool.length) pool = SCENES.map((x, i) => ({ s: x, i }));
-  const fits = pool.filter(({ s: sc }) => sc.roles.length <= max);
-  let fresh = (fits.length ? fits : pool).filter(({ s: sc }) => !s.used.includes(sc.id));
+  const all: Option[] = [...SCENES.map((x, i) => ({ s: x, i, w: null })), ...s.lib.map((w) => ({ s: w.scene, i: null, w }))];
+  const key = (o: Option) => o.w?.id ?? o.s.id;
+  let pool = all.filter((o) => fitsTable(o.s, s.level, s.diff));
+  if (!pool.length) pool = all;
+  const fits = pool.filter((o) => o.s.roles.length <= max);
+  let fresh = (fits.length ? fits : pool).filter((o) => !s.used.includes(key(o)));
   if (!fresh.length) {
     // everything has been played: start the library over
-    s.used = s.used.filter((id) => !pool.some(({ s: sc }) => sc.id === id));
+    s.used = s.used.filter((id) => !pool.some((o) => key(o) === id));
     fresh = fits.length ? fits : pool;
   }
   // a spicy table gets the spicy scenes first, then the rest
   if (s.level === "spicy") {
-    const hot = fresh.filter(({ s: sc }) => sc.level === "spicy");
+    const hot = fresh.filter((o) => o.s.level === "spicy");
     if (hot.length) fresh = hot;
   }
-  const { s: sc, i } = fresh[api.int(fresh.length)];
-  s.used.push(sc.id);
-  return i;
+  const pick = fresh[api.int(fresh.length)];
+  s.used.push(key(pick));
+  return pick;
 }
 
-/** Whoever has acted least goes on next (ties at random). */
-function pickCast(s: S, k: number, api: Api): string[] {
+/** Whoever has acted least goes on next (ties at random); a scene's writer is always in it. */
+function pickCast(s: S, k: number, api: Api, must: string | null = null): string[] {
   const ids = api.shuffle(api.ids());
   ids.sort((a, b) => (s.acted[a] ?? 0) - (s.acted[b] ?? 0));
+  if (must && ids.includes(must)) return [must, ...ids.filter((x) => x !== must)].slice(0, k);
   return ids.slice(0, k);
 }
 
@@ -98,6 +134,8 @@ function newRound(s: S, api: Api) {
   s.culprit = null;
   s.pk = null;
   s.scene = null;
+  s.cur = null;
+  s.fill = {};
   s.roles = [];
   if (s.mode === "pk") {
     s.cast = pickCast(s, 2, api);
@@ -111,17 +149,26 @@ function newRound(s: S, api: Api) {
     const styles = api.shuffle(PK_STYLES.map((x, i) => ({ x, i })).filter(({ x }) => s.level === "spicy" || x.level === "all")).slice(0, 2);
     s.pk = { line, styles: Object.fromEntries(s.cast.map((pid, j) => [pid, styles[j % styles.length].i])) };
   } else {
-    const idx = pickScene(s, n, api);
-    const scene = SCENES[idx];
+    const pick = pickScene(s, n, api);
+    const scene = pick.s;
     const k = Math.min(scene.roles.length, castSize(n));
-    s.scene = idx;
-    s.cast = pickCast(s, k, api);
+    s.scene = pick.i;
+    s.cur = pick.w;
+    // whoever wrote it plays in it, so nobody guesses a story they wrote
+    const writer = pick.w?.by && api.ids().includes(pick.w.by) ? pick.w.by : null;
+    s.cast = pickCast(s, k, api, writer);
     // which roles are on tonight (all of them, unless the table is too small), in a random order
     s.roles = api.shuffle(scene.roles.map((_, i) => i)).slice(0, k).sort((a, b) => a - b);
     s.cast = api.shuffle(s.cast);
     s.culprit = s.cast[api.int(s.cast.length)];
     const tasks = api.shuffle(TASKS[s.diff].map((_, i) => i));
     s.cast.forEach((pid, j) => (s.tasks[pid] = tasks[j % tasks.length]));
+    // a role whose writer left its secret blank gets a generic one (no two the same)
+    const secrets = api.shuffle(ANY_SECRETS.map((_, i) => i));
+    s.cast.forEach((pid, j) => {
+      if (!hasText(scene.roles[s.roles[j]].alibi)) s.fill[pid] = secrets[j % secrets.length];
+    });
+    s.twistPick = api.int(ANY_TWISTS.length);
   }
   for (const pid of s.cast) s.acted[pid] = (s.acted[pid] ?? 0) + 1;
   s.phase = "brief";
@@ -172,11 +219,24 @@ function penaltyText(s: S, api: Api): T | null {
 function card(s: S, pid: string): DramaCard | null {
   if (!s.cast.includes(pid)) return null;
   if (s.mode === "pk" && s.pk) return { secret: PK_STYLES[s.pk.styles[pid]].s, culprit: false, task: t("", "") };
-  if (s.scene === null) return null;
-  const scene: DramaScene = SCENES[s.scene];
+  const scene = current(s);
+  if (!scene) return null;
   const role = scene.roles[s.roles[s.cast.indexOf(pid)]];
   const culprit = s.culprit === pid;
-  return { secret: culprit ? scene.culpritCard : role.alibi, culprit, task: TASKS[s.diff][s.tasks[pid] ?? 0] };
+  const alibi = hasText(role.alibi) ? role.alibi : ANY_SECRETS[s.fill[pid] ?? 0];
+  return { secret: culprit ? scene.culpritCard : alibi, culprit, task: TASKS[s.diff][s.tasks[pid] ?? 0] };
+}
+
+/** The twist: the writer's, or a generic one. */
+function twistOf(s: S, scene: DramaScene): T {
+  return hasText(scene.twist) ? scene.twist : ANY_TWISTS[s.twistPick % ANY_TWISTS.length];
+}
+
+/** What a written scene arrives as from a phone (the form, or the public library). */
+function written(raw: unknown, id: string, by: string | null, credit: string): Written | null {
+  const r = cleanScene(raw);
+  if ("error" in r) return null;
+  return { id, scene: { ...r.scene, id }, by, credit };
 }
 
 function reveal(s: S, api: Api) {
@@ -244,7 +304,8 @@ function reveal(s: S, api: Api) {
   api.fx(caught || s.mode === "pk" ? "reveal" : "wrong", s.culprit ?? undefined);
   if (best.length) api.fx("award", best[0]);
   if (losers.size) {
-    const note = s.mode === "show" && s.scene !== null ? SCENES[s.scene].title : PK_LINES[s.pk?.line ?? 0];
+    const sc = current(s);
+    const note = s.mode === "show" && sc ? sc.title : PK_LINES[s.pk?.line ?? 0];
     // after the reveal has played (drum roll, mask, cards, trophy) and been read
     api.penalty([...losers], "sip", note, { delay: s.mode === "show" ? 8000 : 5500, ...(say ? { say } : {}) });
   }
@@ -276,6 +337,12 @@ export const drama: GameDef<S> = {
       round: 0,
       used: [],
       scene: null,
+      cur: null,
+      mine: [],
+      lib: [],
+      wn: 0,
+      fill: {},
+      twistPick: 0,
       cast: [],
       roles: [],
       culprit: null,
@@ -378,6 +445,43 @@ export const drama: GameDef<S> = {
         newRound(s, api);
         return;
       }
+      case "write": {
+        // anyone at the table may add a scene; it's played next
+        if (!api.ids().includes(pid)) return;
+        const waiting = s.mine.filter((w) => !s.used.includes(w.id));
+        if (waiting.length >= 8 || waiting.filter((w) => w.by === pid).length >= 4) return;
+        const w = written(g.scene, `w${++s.wn}`, pid, "");
+        if (!w) return;
+        s.mine.push(w);
+        // a long night keeps the table small: the oldest played scenes go
+        while (s.mine.length > 16) {
+          const old = s.mine.findIndex((x) => s.used.includes(x.id) && x !== s.cur);
+          if (old < 0) break;
+          s.mine.splice(old, 1);
+        }
+        return;
+      }
+      case "unwrite": {
+        // its writer or the host takes back a scene that hasn't been played
+        const w = s.mine.find((x) => x.id === g.id);
+        if (!w || s.used.includes(w.id) || (w.by !== pid && !host)) return;
+        s.mine = s.mine.filter((x) => x !== w);
+        return;
+      }
+      case "lib": {
+        // the host's phone brings scenes from the public library
+        if (!host || !Array.isArray(g.scenes)) return;
+        for (const raw of g.scenes.slice(0, 6)) {
+          if (s.lib.length >= 16 || !raw || typeof raw !== "object") break;
+          const o = raw as { id?: unknown; scene?: unknown; name?: unknown; by?: unknown };
+          const id = `l${clean(o.id, 12)}`;
+          if (id === "l" || s.lib.some((x) => x.id === id)) continue;
+          const by = typeof o.by === "string" && api.ids().includes(o.by) ? o.by : null;
+          const w = written(o.scene, id, by, clean(o.name, 24));
+          if (w) s.lib.push(w);
+        }
+        return;
+      }
     }
   },
 
@@ -404,7 +508,7 @@ export const drama: GameDef<S> = {
   },
 
   view(s, pid): DramaView {
-    const scene = s.scene !== null ? SCENES[s.scene] : null;
+    const scene = current(s);
     const live = s.phase !== "setup" && s.phase !== "end";
     return {
       id: "drama",
@@ -423,12 +527,16 @@ export const drama: GameDef<S> = {
       endsAt: s.endsAt,
       actMs: s.actMs,
       twistAt: s.twistAt,
-      twist: scene && (s.twisted || s.phase === "vote" || s.phase === "reveal") ? scene.twist : null,
+      twist: scene && (s.twisted || s.phase === "vote" || s.phase === "reveal") ? twistOf(s, scene) : null,
       voted: Object.keys(s.votes),
       myVote: s.votes[pid] ?? null,
       result: s.phase === "reveal" ? s.result : null,
       scores: s.scores,
       awards: s.awards,
+      credit: live && s.cur ? { pid: s.cur.by, name: s.cur.credit } : null,
+      // what's been written here: titles only, the cards stay secret until played
+      mine: s.mine.map((w) => ({ id: w.id, title: w.scene.title, by: w.by, played: s.used.includes(w.id) })),
+      lib: s.lib.length,
     };
   },
 };

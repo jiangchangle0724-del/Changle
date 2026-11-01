@@ -855,6 +855,54 @@ def t_drama_single(browser):
     pg.context.close()
 
 
+def write_scene(pg, title, by=None):
+    """Fill in 戏精大赏's scene form and add it to the table."""
+    pg.locator(".dm-written .btn").click()
+    pg.wait_for_selector("#dw-title")
+    pg.locator("#dw-title").fill(title)
+    pg.locator("#dw-setup").fill("中秋家宴上，最贵的那盒月饼只剩一个空盒子。")
+    roles = pg.locator(".dw-role")
+    for i, n in enumerate(["外婆", "表弟", "新女婿"]):
+        roles.nth(i).locator("input").nth(0).fill(n)
+    pg.locator("#dw-culprit").fill("偷月饼的人")
+    pg.locator("#dw-card").fill("月饼是你偷吃的，盒子是你放回去的。要比谁都生气。")
+    if by:
+        pg.locator(".dm-writer .chip", has_text=by).click()
+    pg.get_by_role("button", name="加到这一桌").click()
+    ok(until(lambda: pg.locator(".dw-note").count() == 1, 3000), "the scene is added to the table")
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(700)
+
+
+def t_drama_written(browser):
+    """Scenes players write: on one phone (Jay wrote it), then at an online table (a guest's)."""
+    pg = phone(browser, "writer", players=PLAYERS)
+    pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+    pg.wait_for_selector(".dm-marquee")
+    write_scene(pg, "空月饼盒", by="Jay")
+    ok(pg.locator(".dm-written li", has_text="空月饼盒").count() == 1, "one phone: the scene waits on the setup screen")
+    pg.get_by_role("button", name="开演").click()
+    pg.wait_for_selector(".dm-roster")
+    ok(pg.locator(".dm-title", has_text="空月饼盒").count() == 1 and pg.locator(".dm-credit", has_text="Jay").count() == 1, "one phone: it's played first, credited to Jay")
+    ok(pg.locator(".dm-roster li", has_text="Jay").count() == 1, "one phone: Jay is on stage in it")
+    errors([pg])
+    pg.context.close()
+
+    host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay"])
+    everyone = [host] + guests
+    start_game(host, everyone, "drama")
+    write_scene(guests[1], "空月饼盒")
+    ok(all(until(lambda g=g: g.locator(".dm-written li", has_text="空月饼盒").count() == 1, 5000) for g in everyone), "online: everyone sees the scene a guest wrote")
+    ok("偷吃" not in json.dumps(view(host), ensure_ascii=False), "online: its cards stay secret until it's played")
+    host.get_by_role("button", name="开演").click()
+    ok(until(lambda: (view(host) or {}).get("phase") == "brief", 5000), "online: curtain up")
+    v = view(host)
+    ok(v["scene"]["title"]["zh"] == "空月饼盒" and any(c["pid"] == me(guests[1]) for c in v["cast"]), "online: the guest's scene is first, with them on stage")
+    errors(everyone)
+    for g in everyone:
+        g.context.close()
+
+
 def t_drama_online(browser):
     host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay", "Kev", "Lu"])
     everyone = [host] + guests
@@ -910,7 +958,7 @@ def t_drama_online(browser):
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
     "superlatives": [t_superlatives_single, t_superlatives_online],
-    "drama": [t_drama_single, t_drama_online],
+    "drama": [t_drama_single, t_drama_online, t_drama_written],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],
