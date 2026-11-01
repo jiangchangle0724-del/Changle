@@ -23,6 +23,7 @@ import {
   soloReasons,
   SIDE_CUISINES,
   tally,
+  travelMinutes,
   type AllergenId,
   type CuisineId,
   type Limits,
@@ -149,6 +150,14 @@ test("cards: when bans leave almost nothing, the least-banned come back, marked"
   assert.equal(relaxed.length, 3);
 });
 
+test("unknown opening hours: still possible, but after places known to be open", () => {
+  const known = place({ id: "known", openNow: true });
+  const unknown = place({ id: "unknown", openNow: undefined });
+  const base = { likes: {}, bans: {}, members: 2, center, range: "walk20" as const, now: NOW, count: 1 };
+  assert.deepEqual(pick({ ...base, places: [unknown, known] }).ids, ["known"]);
+  assert.deepEqual(pick({ ...base, places: [unknown] }).ids, ["unknown"]);
+});
+
 test("likes pull a cuisine up", () => {
   const a = place({ cuisine: "thai" });
   const b = place({ cuisine: "ramen" });
@@ -166,6 +175,27 @@ test("wait: dinner peak at a very popular place is red; quiet afternoon is green
   assert.equal(e.level, 2);
   assert.equal(e.ours, 30);
   assert.equal(estimateWait(ours, { dow: 2, minutes: 15 * 60 }).level, 1);
+});
+
+test("wait: a green estimate doesn't list what would make a queue, only what helps", () => {
+  const quietButFamous = place({ ratings: 3000, reservable: true });
+  const e = estimateWait(quietButFamous, { dow: 2, minutes: 15 * 60 });
+  assert.equal(e.level, 0);
+  assert.deepEqual(e.reasons, ["reservable"]);
+  const dinner = estimateWait(place({ ratings: 3000 }), { dow: 5, minutes: 19 * 60 });
+  assert.ok(dinner.level > 0 && dinner.reasons.includes("peak") && dinner.reasons.includes("veryPopular"));
+});
+
+test("travel minutes: city streets nearby, faster roads for longer drives", () => {
+  assert.equal(travelMinutes(800, false), 13);
+  assert.equal(travelMinutes(2000, true), 7);
+  // The edge of each drive circle stays within its label.
+  for (const id of ["drive5", "drive10", "drive15", "drive25", "drive40"] as const) {
+    assert.ok(travelMinutes(RANGES[id].meters, true) <= RANGES[id].minutes! + 1, id);
+  }
+  // Richmond Centre to Coquitlam Centre, about 25 km in a straight line: around 40 minutes.
+  const m = travelMinutes(25000, true);
+  assert.ok(m >= 35 && m <= 45, String(m));
 });
 
 test("weekend dim sum time is peak for Cantonese", () => {

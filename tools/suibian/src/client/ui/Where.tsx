@@ -1,5 +1,5 @@
 // Where to start from (my location or an area) and how far: the home page and the solo picker.
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { NEIGHBOURHOODS, type Center, type RangeId } from "../../engine";
 import { t, tx } from "../i18n";
 import { prefs } from "../prefs";
@@ -23,8 +23,13 @@ export interface Where {
 export function useWhere(say: (msg: string) => void): Where {
   const last = prefs.start;
   const [hood, setHood] = useState<string>(last?.center.label ?? (last ? "gps" : NEIGHBOURHOODS[0].en));
-  const [gps, setGps] = useState<Center | null>(last && !last.center.label ? last.center : null);
+  // A saved GPS position is wherever the phone was last time: ask for a fresh one instead.
+  const [gps, setGps] = useState<Center | null>(null);
   const [range, setRange] = useState<RangeId>(last?.range ?? "walk20");
+  // What's chosen right now, for answers that arrive later: a GPS fix (or a failure) that lands after
+  // someone picked an area must not switch them back.
+  const chosen = useRef(hood);
+  chosen.current = hood;
 
   const locate = () => {
     if (!navigator.geolocation) return say(t("noLocation"));
@@ -32,6 +37,7 @@ export function useWhere(say: (msg: string) => void): Where {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (chosen.current !== "gps") return say("");
         if (!inVancouver(c)) {
           say(t("outsideVancouver"));
           setHood(NEIGHBOURHOODS[0].en);
@@ -39,15 +45,19 @@ export function useWhere(say: (msg: string) => void): Where {
         }
         say("");
         setGps(c);
-        setHood("gps");
       },
       () => {
+        if (chosen.current !== "gps") return say("");
         say(t("noLocation"));
         setHood(NEIGHBOURHOODS[0].en);
       },
       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 120_000 },
     );
   };
+
+  useEffect(() => {
+    if (last && !last.center.label) locate();
+  }, []);
 
   return {
     hood,

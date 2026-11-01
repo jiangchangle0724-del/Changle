@@ -51,10 +51,17 @@ export function distanceMeters(a: { lat: number; lng: number }, b: { lat: number
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-/** Rough minutes to get there: streets aren't straight (×1.3), city driving ~30 km/h. */
+/**
+ * Rough minutes to get there: streets aren't straight (×1.3); walking ~4.8 km/h; driving ~30 km/h
+ * for the first 5 km of city streets and ~60 km/h beyond (arterials, bridges, highways), plus 2
+ * minutes to park. So a "40 min drive" place shows about 33 minutes at the edge of its circle, and
+ * Richmond Centre to Coquitlam Centre about 40, not the hour and more a flat city speed gave.
+ */
 export function travelMinutes(meters: number, drive: boolean): number {
   const m = meters * 1.3;
-  return Math.max(1, Math.round(drive ? m / 500 + 2 : m / 80));
+  if (!drive) return Math.max(1, Math.round(m / 80));
+  const city = Math.min(m, 5000);
+  return Math.max(1, Math.round(city / 500 + (m - city) / 1000 + 2));
 }
 
 /** Day of week (0 = Sunday) and minutes since midnight, in Vancouver. */

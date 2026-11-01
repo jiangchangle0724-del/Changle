@@ -29,6 +29,11 @@ export function connectWs(code: string, info: JoinInfo, h: Handlers): Conn {
   let tries = 0;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let lastMsg = 0;
+  // What was sent while the socket was down (the latest of each kind), sent again once it's back,
+  // so a diet card saved while reconnecting isn't lost. Only what someone *is* (name, card, votes so
+  // far), never a button press: a "start over" replayed minutes later would wipe a fresh result.
+  const outbox = new Map<ClientMsg["t"], ClientMsg>();
+  const KEEP: ClientMsg["t"][] = ["name", "lang", "limits", "mood", "ballot"];
 
   const open = () => {
     if (closed) return;
@@ -42,6 +47,8 @@ export function connectWs(code: string, info: JoinInfo, h: Handlers): Conn {
       tries = 0;
       lastMsg = Date.now();
       h.onStatus("open");
+      for (const m of outbox.values()) sock.send(JSON.stringify(m));
+      outbox.clear();
     };
     sock.onmessage = (e) => {
       lastMsg = Date.now();
@@ -97,7 +104,10 @@ export function connectWs(code: string, info: JoinInfo, h: Handlers): Conn {
   open();
   return {
     send(msg) {
-      if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+      if (ws && ws.readyState === 1) return ws.send(JSON.stringify(msg));
+      if (!KEEP.includes(msg.t)) return;
+      outbox.delete(msg.t);
+      outbox.set(msg.t, msg);
     },
     close() {
       closed = true;

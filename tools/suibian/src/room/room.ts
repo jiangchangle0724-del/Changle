@@ -2,7 +2,7 @@
 // (server/worker.ts) passes messages in, fetches places when `want` asks, calls tick() when
 // nextWake() comes due, and sends each person their view().
 import * as E from "../engine";
-import { TIMING, cardView, type CardView, type ClientMsg, type Lang, type Phase, type RoomView, type ServerMsg } from "./protocol";
+import { MAX_MEMBERS, MAX_SEARCHES, RATING_SLACK, TIMING, cardView, type CardView, type ClientMsg, type Lang, type Phase, type RoomView, type ServerMsg } from "./protocol";
 
 export interface RoomEnv {
   now(): number;
@@ -21,6 +21,8 @@ interface Member {
   moodDone: boolean;
   ballot: E.Ballot;
   ballotDone: boolean;
+  /** When the last of this person's phones dropped off (see TIMING.awayGrace). */
+  leftAt?: number;
 }
 
 export interface RoomState {
@@ -44,6 +46,12 @@ export interface RoomState {
   members: Record<string, Member>;
   /** One rating per device. */
   ratings: Record<string, E.Rating>;
+  /** The meal before "start over", so the rate link sent to the group chat still works for it. */
+  last?: { winner: string; name: string; raters: string[] } | null;
+  /** Every device that has rated anything at this table (capped: see RATING_SLACK). */
+  raters?: string[];
+  /** Google searches run so far (capped: see MAX_SEARCHES). */
+  searches?: number;
   error: RoomView["error"];
 }
 
@@ -107,7 +115,9 @@ export class Room {
       if (m.key !== key) return false;
       m.online += 1;
       m.lang = o.lang;
+      delete m.leftAt;
     } else {
+      if (this.full(id)) return false;
       const late = this.st.phase === "cards" || this.st.phase === "spin" || this.st.phase === "result";
       this.st.members[id] = {
         id,
@@ -127,12 +137,23 @@ export class Room {
     return true;
   }
 
+  /** A new person can't sit down: the table already has MAX_MEMBERS. */
+  full(id: string): boolean {
+    return !this.st.members[id] && Object.keys(this.st.members).length >= MAX_MEMBERS;
+  }
+
   leave(id: string) {
     const m = this.st.members[id];
     if (!m) return;
     m.online = Math.max(0, m.online - 1);
+    if (!m.online) m.leftAt = this.env.now();
     this.touch();
     this.maybeAdvance();
+  }
+
+  /** At the table: a phone connected, or one that dropped off less than TIMING.awayGrace ago. */
+  private present(m: Member): boolean {
+    return m.online > 0 || (m.leftAt !== undefined && this.env.now() - m.leftAt < TIMING.awayGrace);
   }
 
   /** After a restart: these ids have open sockets, nobody else does. */
@@ -143,8 +164,9 @@ export class Room {
 
   private isHost(id: string): boolean {
     if (id === this.st.hostId) return true;
-    // Host's phone gone: anyone can move things along.
-    return !this.st.members[this.st.hostId]?.online;
+    // Host's phone gone (for longer than a look at the map): anyone can move things along.
+    const host = this.st.members[this.st.hostId];
+    return !host || !this.present(host);
   }
 
   // ---- messages ----
@@ -168,14 +190,21 @@ export class Room {
         break;
       case "start":
         if (ph !== "lobby" || !this.isHost(id)) return;
+        if ((this.st.searches ?? 0) >= MAX_SEARCHES) {
+          this.st.error = "searchLimit";
+          break;
+        }
         this.search();
         break;
-      case "again":
+      case "again": {
         if (ph !== "result" && ph !== "lobby" && !this.st.error) return;
         if (!this.isHost(id)) return;
         if (E.isRange(msg.range)) this.st.range = msg.range;
+        const won = ph === "result" && this.st.result ? this.st.places.find((p) => p.id === this.st.result!.winner) : undefined;
+        if (won) this.st.last = { winner: won.id, name: won.name, raters: Object.keys(this.st.ratings) };
         this.toLobby();
         break;
+      }
       case "mood": {
         if (ph !== "mood") return;
         const picks: Member["mood"] = {};
@@ -192,6 +221,9 @@ export class Room {
         break;
       case "next":
         if (!this.isHost(id)) return;
+        // A tap meant for round 1 that arrives after round 1 ended (two taps, or everyone just
+        // finished) must not skip round 2.
+        if (msg.phase !== undefined && msg.phase !== ph) return;
         if (ph === "mood") this.toCards();
         else if (ph === "cards") this.count();
         else return;
@@ -231,17 +263,40 @@ export class Room {
     this.changed = true;
   }
 
-  rate(cid: string, r: E.Rating): boolean {
-    if (this.st.phase !== "result" || !/^[a-f0-9]{8,64}$/.test(cid)) return false;
-    const fresh = !this.st.ratings[cid];
-    this.st.ratings[cid] = r;
+  /**
+   * A rating after the meal, for the result on screen or, after "start over", the meal before it.
+   * "new" counts toward that restaurant; "again" is a device rating twice (its new answer replaces
+   * the old one on the table's own score only); "closed" means there's nothing to rate, or the table
+   * already has as many ratings as people. That cap keeps a shared link from being used to pump a
+   * restaurant's numbers.
+   */
+  rate(cid: string, r: E.Rating): { status: "new" | "again" | "closed"; winner?: string } {
+    if (!/^[a-f0-9]{8,64}$/.test(cid)) return { status: "closed" };
+    const now = this.st.phase === "result" && this.st.result ? this.st.result.winner : undefined;
+    const last = now ? undefined : this.st.last;
+    const winner = now ?? last?.winner;
+    if (!winner) return { status: "closed" };
+    if (now ? this.st.ratings[cid] : last!.raters.includes(cid)) {
+      if (now) this.st.ratings[cid] = r;
+      this.touch();
+      return { status: "again", winner };
+    }
+    // Over the table's whole life, however many rounds it plays.
+    const raters = (this.st.raters ??= []);
+    if (!raters.includes(cid)) {
+      if (raters.length >= Object.keys(this.st.members).length + RATING_SLACK) return { status: "closed" };
+      raters.push(cid);
+    }
+    if (now) this.st.ratings[cid] = r;
+    else last!.raters.push(cid);
     this.touch();
-    return fresh;
+    return { status: "new", winner };
   }
 
   // ---- flow ----
 
   private search() {
+    this.st.searches = (this.st.searches ?? 0) + 1;
     this.st.phase = "finding";
     this.st.phaseEnds = null;
     this.st.error = null;
@@ -311,6 +366,7 @@ export class Room {
     const ballots = Object.values(this.st.members).map((m) => E.cleanBallot(m.ballot, cards));
     const t = E.tally(cards, ballots, this.env.random);
     this.st.result = t;
+    this.st.last = null;
     for (const m of Object.values(this.st.members)) m.ballotDone = true;
     if (t.tied.length > 1) {
       this.st.phase = "spin";
@@ -324,13 +380,22 @@ export class Room {
 
   /** Everyone whose phone is here has finished the round: no need to wait for the clock. */
   private maybeAdvance() {
-    const here = Object.values(this.st.members).filter((m) => m.online > 0);
+    const here = Object.values(this.st.members).filter((m) => this.present(m));
     if (!here.length) return;
     if (this.st.phase === "mood" && here.every((m) => m.moodDone)) this.toCards();
     else if (this.st.phase === "cards" && here.every((m) => m.ballotDone)) this.count();
   }
 
   tick() {
+    // A phone gone for longer than the grace: now it counts as away (the host's buttons pass on, a
+    // round no longer waits for it), and everyone's screen is told.
+    for (const m of Object.values(this.st.members)) {
+      if (!m.online && m.leftAt !== undefined && this.env.now() - m.leftAt >= TIMING.awayGrace) {
+        delete m.leftAt;
+        this.changed = true;
+      }
+    }
+    if (this.changed) this.maybeAdvance();
     const ends = this.st.phaseEnds;
     if (ends === null || this.env.now() < ends) return;
     if (this.st.phase === "mood") this.toCards();
@@ -344,7 +409,10 @@ export class Room {
 
   nextWake(): number | null {
     const expiry = this.st.lastActive + TIMING.roomTtl + 1000;
-    return this.st.phaseEnds === null ? expiry : Math.min(this.st.phaseEnds, expiry);
+    const graceEnds = Object.values(this.st.members)
+      .filter((m) => !m.online && m.leftAt !== undefined)
+      .map((m) => m.leftAt! + TIMING.awayGrace);
+    return Math.min(expiry, ...(this.st.phaseEnds === null ? [] : [this.st.phaseEnds]), ...graceEnds);
   }
 
   private touch() {
@@ -375,6 +443,7 @@ export class Room {
     });
     const rs = Object.values(st.ratings);
     const phaseDone = (m: Member) => (st.phase === "mood" ? m.moodDone : st.phase === "cards" ? m.ballotDone : false);
+    const won = (st.phase === "result" || st.phase === "spin") && st.result ? st.places.find((x) => x.id === st.result!.winner) : undefined;
     return {
       code: st.code,
       now,
@@ -392,13 +461,13 @@ export class Room {
       },
       members: Object.values(st.members)
         .sort((a, b) => a.joinedAt - b.joinedAt)
-        .map((m) => ({ id: m.id, name: m.name, online: m.online > 0, host: m.id === st.hostId, ready: m.limits !== null, done: phaseDone(m) })),
-      center: st.center,
+        .map((m) => ({ id: m.id, name: m.name, online: this.present(m), host: m.id === st.hostId, ready: m.limits !== null, done: phaseDone(m) })),
       range: st.range,
-      table,
+      table: st.phase === "result" || st.phase === "spin" ? table : E.NO_LIMITS,
       chips: st.phase === "mood" || st.phase === "cards" || st.phase === "spin" || st.phase === "result" ? E.chips(this.eligible()).map((c) => ({ ...c, likes: showCounts ? (counts.likes[c.cuisine] ?? 0) : 0, bans: showCounts ? (counts.bans[c.cuisine] ?? 0) : 0 })) : [],
       cards,
       result: st.phase === "result" || st.phase === "spin" ? st.result : null,
+      winner: won ? { ...cardView(won, st.center, st.range, table, now), unsafe: !E.check(won, table).ok } : null,
       ratings: {
         n: rs.length,
         up: rs.filter((r) => r.overall === "up").length,

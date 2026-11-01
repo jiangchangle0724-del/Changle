@@ -36,10 +36,11 @@ export function Rate({ code, home }: { code?: string; home: () => void }) {
     const res = code
       ? await api<{ ok?: boolean }>(`/api/rooms/${code}/rate`, { method: "POST", body: rating })
       : await api<{ ok?: boolean }>(`/api/places/${encodeURIComponent(pick!.place!)}/rate`, { method: "POST", body: rating });
-    // A table says ok: false when this phone already rated it; a solo pick answers 403 when it was
-    // already rated (maybe on another phone) or is no longer the last pick. Either way, done.
-    const done = res.ok || (!code && res.status === 403);
-    if (!done) return toast(t("offline"));
+    // Already rated counts as done: a table answers 409 for this phone's second rating; a solo pick
+    // answers 403 when it was rated already (maybe on another phone) or is no longer the last pick.
+    // A table that answers 410 has nothing left to rate, or as many ratings as people.
+    const done = res.ok || res.status === (code ? 409 : 403);
+    if (!done) return toast(t(res.status === 410 ? "rateClosed" : "offline"));
     prefs.markRated(key);
     setSent(true);
     if (code) void load();
