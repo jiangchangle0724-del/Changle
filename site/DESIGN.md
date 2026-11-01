@@ -201,6 +201,8 @@ components:
 
 # Design System: changle
 
+> **Moving to a shared system.** The values are being gathered into `src/styles/tokens.css`, with the rules in [docs/DESIGN.md](../docs/DESIGN.md), shared with /eat and the tools to come. Until that migration is done, this file describes what is live; anything new follows docs/DESIGN.md.
+
 ## Overview
 
 **Creative North Star: "The Gel-Lit Room"**
