@@ -135,7 +135,11 @@ function useHashRoute() {
   const go = (r: Route, replace = false) => {
     const h = hashOf(r);
     if (replace) window.location.replace(h);
-    else window.location.hash = h;
+    else if (window.location.hash !== h) {
+      window.location.hash = h;
+      // marks a page the site opened itself, so its ‹ can go back to the page before
+      window.history.replaceState({ ...(window.history.state ?? {}), inSite: true }, "");
+    }
   };
   return { route, go };
 }
@@ -168,9 +172,11 @@ function Shell() {
     if (route.kind === "game") setLight(GAME_BY_ID[route.id].gel);
   }, [route]);
 
+  // ‹ goes back only to a page of this site: a game opened from a link elsewhere (a chat, another
+  // site) goes to the home page instead of leaving the site
   const back = () => {
-    if (window.history.length > 1 && window.location.hash !== "" && window.location.hash !== "#/") window.history.back();
-    else go({ kind: "home", tab: "party" });
+    if ((window.history.state as { inSite?: boolean } | null)?.inSite) window.history.back();
+    else go({ kind: "home", tab: "party" }, true);
   };
 
   let screen: React.ReactNode;
