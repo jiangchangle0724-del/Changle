@@ -307,7 +307,7 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
           <p class="ask">{t("buyAsk", { space: spaceName(pd.at) })}</p>
           <CityBrief v={v} at={pd.at} />
           {pd.price !== priceOf(s, pd.at) && <p class="muted">{t("pointsNote")}</p>}
-          <div class="choices">
+          <div class="choices answers">
             <HapticBtn kind="primary" disabled={me.cash < pd.price} onClick={() => act({ yes: true })}>
               {t("buyYes", { price: money(pd.price) })}
             </HapticBtn>

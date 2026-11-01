@@ -26,6 +26,8 @@ import { SpeedMeter } from "./SpeedMeter";
 import { SambaLesson, useDanceClock } from "./Samba";
 
 type Panel = "mine" | "trade" | "log";
+/** The parts of the play window, in the order they stack (see `asks` in Game). */
+type Part = "arrival" | "card" | "decision" | "news" | "trivia";
 
 /**
  * A player's screen. The board is always there; what the team has to do comes up over it in a
@@ -46,7 +48,8 @@ export function Game({ v }: { v: RoomView }) {
     (!!g.auction && v.you.seats.length > 0) ||
     (!!g.quiz && v.you.seats.includes(g.quiz.visitor));
   // Something for this phone to answer: its move, or the quiz the waiting teams race to answer.
-  const needs = myMove || (!!g.trivia?.open && g.trivia.answerFor !== null);
+  const quizMine = !!g.trivia?.open && g.trivia.answerFor !== null;
+  const needs = myMove || quizMine;
   const incoming = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
   // The team's own move plays on the board (ridePlan.ts): first-person, or flat. The decision window
   // and the money that changed hands come back with the stamp (sooner when the ride is skipped).
@@ -83,6 +86,28 @@ export function Game({ v }: { v: RoomView }) {
   const dance = useDanceClock(v);
   const dancingHere = !!dance && !dance.over && v.you.seats.includes(dance.seat);
   const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
+  // What this phone has to answer comes first in the window, above the arrival card and the turn's
+  // card: on a phone the window is short, and a buy button under a poster is one nobody finds. Each
+  // part is keyed, so it keeps its state (a half-made bid, a chosen option) as it moves.
+  const parts: Record<Part, preact.JSX.Element> = {
+    arrival: <Arrival key="arrival" v={v} after={arriveAt} />,
+    card: <TurnCard key="card" v={v} />,
+    decision: <Decision key="decision" v={v} />,
+    news: <NewsBanner key="news" v={v} />,
+    trivia: <Trivia key="trivia" v={v} />,
+  };
+  const asks: Part[] = myMove
+    ? ["decision", "trivia", "arrival", "card", "news"]
+    : quizMine
+      ? ["trivia", "arrival", "card", "decision", "news"]
+      : ["arrival", "card", "decision", "news", "trivia"];
+  // A new question goes back to the top of the window, where it is (the player may have scrolled
+  // down to read the arrival card during the last one).
+  const playBody = useRef<HTMLDivElement>(null);
+  const askKey = myMove ? `d${g.decision}` : quizMine ? `q${g.trivia!.id}` : "";
+  useEffect(() => {
+    if (askKey && playBody.current) playBody.current.scrollTop = 0;
+  }, [askKey]);
   return (
     <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}${ride ? " riding" : ""}`}>
       <header class="top">
@@ -137,12 +162,8 @@ export function Game({ v }: { v: RoomView }) {
             </button>
           </header>
         )}
-        <div class="playwin-body">
-          <Arrival v={v} after={arriveAt} />
-          <TurnCard v={v} />
-          <Decision v={v} />
-          <NewsBanner v={v} />
-          <Trivia v={v} />
+        <div class="playwin-body" ref={playBody}>
+          {asks.map((k) => parts[k])}
           {mySeat === undefined && <Bets v={v} />}
         </div>
       </section>

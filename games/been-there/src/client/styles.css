@@ -993,6 +993,27 @@ button.banner {
   padding-top: 12px;
   border-top: 2px dashed var(--line);
 }
+/* On a phone the window can be shorter than the question (held sideways, a city with a long rule):
+   its answers stay in sight at the foot of the window, and the question scrolls up under them. (The
+   bar reaches 12px into the panel's own padding, so the panel is the same height either way.) */
+.playwin-body .decide > .choices.answers {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+  padding-bottom: 12px;
+  margin-bottom: -12px;
+  background: var(--surface);
+}
+.playwin-body .decide > .choices.answers::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 2px);
+  height: 12px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
+}
 .decide .ask {
   font-weight: 600;
   font-size: 1.05rem;
