@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { verticalFovForWidth } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
 import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
@@ -50,6 +52,11 @@ const ARENA_PANORAMAS: Record<ArenaId, string> = {
   metro: "/art/metro-station.jpg",
   gallery: "/art/gallery-courtyard.jpg"
 };
+const ARENA_DRESSING: Record<ArenaId, string> = {
+  plaza: "/art/seawall-dressing.glb",
+  metro: "/art/transit-dressing.glb",
+  gallery: "/art/courtyard-dressing.glb"
+};
 const SPRITE_ATLAS_COLUMNS = SPRITE_ARCHETYPES * SPRITE_FRAMES;
 const SPRITE_ATLAS_CELL = 192;
 const SPRITE_ATLAS_PITCH = 200;
@@ -60,6 +67,20 @@ const SPRITE_ATLAS_HEIGHT = SPRITE_DIRECTIONS * SPRITE_ATLAS_PITCH;
 function backgroundIntensity(palette: Palette): number {
   const color = new THREE.Color(palette.bg);
   return color.r + color.g + color.b < 1.2 ? 0.46 : 0.94;
+}
+
+function disposeTree(root: THREE.Object3D): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  root.traverse((object) => {
+    if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {
+      geometries.add(object.geometry);
+      const list = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of list) materials.add(material);
+    }
+  });
+  for (const geometry of geometries) geometry.dispose();
+  for (const material of materials) material.dispose();
 }
 
 function createSpriteCellGeometry(column: number, row: number): THREE.PlaneGeometry {
@@ -514,8 +535,41 @@ export function Arena3D(props: Props) {
     fill.position.set(8, 9, -11);
     scene.add(fill);
 
+    const environmentStart = new Set(scene.children);
     const groundTexture = addVenue(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
     addEnvironmentalLandmarks(scene, props.arena, palette);
+    const fallbackVenue = new THREE.Group();
+    fallbackVenue.name = "procedural venue fallback";
+    for (const object of [...scene.children]) {
+      if (!environmentStart.has(object)) {
+        scene.remove(object);
+        fallbackVenue.add(object);
+      }
+    }
+    scene.add(fallbackVenue);
+    let loadedVenue: THREE.Object3D | null = null;
+    const venueLoader = new GLTFLoader();
+    venueLoader.setMeshoptDecoder(MeshoptDecoder);
+    venueLoader.load(ARENA_DRESSING[props.arena], (gltf) => {
+      if (disposed) {
+        disposeTree(gltf.scene);
+        return;
+      }
+      loadedVenue = gltf.scene;
+      loadedVenue.name = "original Blender arena dressing";
+      loadedVenue.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.castShadow = false;
+          object.receiveShadow = false;
+          object.frustumCulled = true;
+        }
+      });
+      scene.remove(fallbackVenue);
+      disposeTree(fallbackVenue);
+      scene.add(loadedVenue);
+    }, undefined, () => {
+      // Keep the procedural venue visible if an asset fails to load.
+    });
     const impactRingGeometry = new THREE.RingGeometry(0.42, 0.51, 24);
     impactRingGeometry.rotateX(-Math.PI / 2);
     const shadowGeometry = new THREE.PlaneGeometry(1.8, 1.25);
@@ -595,6 +649,7 @@ export function Arena3D(props: Props) {
           if (token && "color" in material) (material as THREE.MeshStandardMaterial).color.set(palette[token]);
         }
       });
+      if (loadedVenue) disposeTree(loadedVenue);
       scene.background = panoramaLoaded ? panorama : new THREE.Color(palette.bg);
       scene.backgroundIntensity = backgroundIntensity(palette);
       if (scene.fog) scene.fog.color.set(palette.bg);
@@ -826,5 +881,7 @@ export function Arena3D(props: Props) {
     {fpsBadge}
   </div>;
 }
+
+
 
 
