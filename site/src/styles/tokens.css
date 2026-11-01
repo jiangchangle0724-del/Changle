@@ -1,0 +1,167 @@
+/*
+ * changle design tokens: the only place a color, size, shadow or timing is defined.
+ * Rules and reasons: docs/DESIGN.md. Old values and where they map: docs/ui-inventory.md.
+ *
+ * Not imported anywhere yet: no page changes until the components in src/ui/ use it (Codex card C1).
+ * Names that also exist in global.css carry exactly the same values (tests/tokens.test.ts checks),
+ * so loading this file next to global.css changes nothing on screen.
+ *
+ * Components use the semantic names (--color-*, --type-*, --text-*, --space-*, --shadow-*, --dur-*).
+ * The palette below is for this file and for game art; new UI code doesn't reach for it directly.
+ */
+:root {
+  /* ---------- palette: the room (same values as global.css) ---------- */
+  --night: #0e0c22;
+  --night-2: #131030;
+  --dusk: #181633;
+  --dusk-2: #221f44;
+  --dusk-3: #2c2955;
+  --line: #35325a;
+  --line-soft: rgba(181, 178, 220, 0.14);
+  --moon: #f5f4fd;
+  --haze: #b6b4d0;
+  --fog: #7f7c9d;
+
+  /* ---------- palette: the gels, one per game (same values as global.css) ---------- */
+  --gel-pink: #ff5fa2;
+  --gel-coral: #ff6b5e;
+  --gel-tangerine: #ff8c42;
+  --gel-amber: #ffb82e;
+  --gel-lemon: #f5df3b;
+  --gel-lime: #b6e83a;
+  --gel-mint: #4be38f;
+  --gel-jade: #22d3a6;
+  --gel-aqua: #2ed3d9;
+  --gel-cyan: #31b9ff;
+  --gel-blue: #5b9bff;
+  --gel-periwinkle: #8c86ff;
+  --gel-violet: #b072ff;
+  --gel-orchid: #e765f0;
+  --gel-rose: #ff9cc5;
+  /* new: the two game colors that only lived in games/registry.ts (trip, drama) */
+  --gel-vermilion: #ff8a6b;
+  --gel-honey: #ffcf6b;
+
+  /* signals (same values as global.css) */
+  --go: var(--gel-mint);
+  --stop: #ff4d6d;
+  --warn: var(--gel-amber);
+
+  /* runtime light: setLight() tweens --light; a game's container sets --gel (same defaults as global.css) */
+  --light: #8c86ff;
+  --gel: var(--moon);
+  --on-gel: var(--night);
+
+  /* ---------- color roles ---------- */
+  --color-bg: var(--night); /* the page */
+  --color-sheet: var(--dusk); /* sheets, fields, tracks */
+  --color-surface: var(--dusk-2); /* panels, cards, chips */
+  --color-raised: var(--dusk-3); /* quiet buttons, a disabled primary */
+  --color-text: var(--moon);
+  --color-text-2: var(--haze); /* secondary lines, the second language */
+  --color-text-3: var(--fog); /* placeholders and disabled only: under 4.5:1 on any surface but the page */
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-accent: var(--gel-violet); /* the house purple: home's room light, focus, links */
+  --color-on-accent: var(--night); /* text on the accent, on any gel and on any type color */
+  --color-success: var(--gel-mint);
+  --color-warning: var(--gel-amber);
+  --color-danger: var(--stop);
+  --color-on-danger: var(--night); /* 5.97:1; white on Stop Red is 3.2:1, too low for button text */
+  --color-scrim: rgba(6, 5, 18, 0.62); /* behind a sheet */
+  --color-paper: #ffffff; /* QR codes and card stock only */
+
+  /* ---------- type colors: games and tools colored by what kind they are ---------- */
+  --type-drink: var(--gel-coral); /* 喝酒局 */
+  --type-brain: var(--gel-violet); /* 动脑 */
+  --type-body: var(--gel-lime); /* 动身体 */
+  --type-online: var(--gel-aqua); /* 线上 */
+  --type-tool: var(--gel-amber); /* 工具 */
+
+  /* ---------- fonts ---------- */
+  /* Chinese has no web font of its own (too big): each device's system face, in this order */
+  --font-zh: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  /* same values as global.css: Latin face first, Chinese falls through to the system faces above */
+  --font-display: "Unbounded Variable", "Unbounded", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-text: "Figtree Variable", "Figtree", -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  --leading-zh: 1.65; /* Chinese running text */
+  --leading-en: 1.5; /* English running text */
+  --leading: var(--leading-zh); /* running text in the page's language: follows <html lang>, see below */
+  --leading-tight: 1.1; /* titles, scores, codes */
+
+  /* ---------- type scale: 12 14 16 18 22 28 40, plus TV and poster ---------- */
+  /* rem, so a guest's larger browser font setting still applies; px in the comments */
+  --text-xs: 0.75rem; /* 12: tags, fine print; nothing is smaller */
+  --text-sm: 0.875rem; /* 14: hints, secondary lines */
+  --text-md: 1rem; /* 16: body, buttons, fields */
+  --text-lg: 1.125rem; /* 18: large buttons, lead lines */
+  /* the three title steps grow smoothly from a 370px phone to a 1440px desktop (1.2x at the top) */
+  --text-xl: clamp(1.375rem, 1.2886rem + 0.3738vw, 1.625rem); /* 22 to 26: sheet titles, prompts */
+  --text-2xl: clamp(1.75rem, 1.6203rem + 0.5607vw, 2.125rem); /* 28 to 34: page titles, scores */
+  --text-3xl: clamp(2.5rem, 2.3271rem + 0.7477vw, 3rem); /* 40 to 48: hero titles, table codes */
+  --text-4xl: 4rem; /* 64: the TV view (?view=tv) and giant numerals */
+  --text-poster: clamp(5.5rem, 34vw, 9.75rem); /* 88 to 156: the penalty stamp and countdowns only */
+
+  /* ---------- space: multiples of 4 ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --gutter: var(--space-4); /* page sides */
+  --pad-card: var(--space-4); /* inside a card or panel */
+  --gap-section: var(--space-6); /* between blocks */
+
+  /* ---------- corners (the first five as in global.css) ---------- */
+  --r-small: 10px;
+  --r-field: 14px;
+  --r-panel: 20px;
+  --r-tile: 24px;
+  --r-sheet: 28px;
+  --r-pill: 999px;
+
+  /* ---------- depth: three levels, plus light ---------- */
+  --shadow-flat: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px var(--line-soft); /* panels and chips at rest */
+  --shadow-float: 0 12px 30px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06); /* things lifted off the page: a dragged card, a toast */
+  --shadow-sheet: 0 -20px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06); /* sheets and dialogs */
+  /* not a shadow: light cast by a lit thing, always in its own color */
+  --glow: 0 10px 30px -12px color-mix(in oklab, var(--gel) 70%, transparent);
+  /* glass: sheets and the top bar only, never more than two on one screen */
+  --blur-scrim: blur(6px);
+  --blur-glass: blur(16px) saturate(1.2);
+
+  /* ---------- motion ---------- */
+  --dur-enter: 200ms;
+  --dur-exit: 150ms;
+  --dur-emphasis: 400ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* how far things slide on enter and exit; zero under reduced motion, so every move becomes a fade */
+  --motion-shift: 12px;
+
+  /* ---------- touch, icons, layout ---------- */
+  --tap: 44px; /* the smallest thing you can press */
+  --tap-crowded: 48px; /* where targets sit close together */
+  --icon-sm: 24px;
+  --icon-lg: 48px;
+  --page-max: 560px; /* one column on phones; wider layouts start at 720 and 1200 (see docs/DESIGN.md) */
+  --bar-h: 56px; /* a game's top bar, plus the top safe area */
+  --dock-h: 72px; /* a game's bottom actions, plus the bottom safe area */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* the language switch sets <html lang> (store.tsx); English pages read at the English line height */
+:root:lang(en) {
+  --leading: var(--leading-en);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-shift: 0px;
+    --dur-emphasis: var(--dur-enter);
+  }
+}

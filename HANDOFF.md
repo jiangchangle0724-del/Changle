@@ -2,7 +2,9 @@
 
 For the next engineer or coding assistant working on [changle.ca](https://changle.ca): adding
 games, changing the site, or the tools. Written 2026-10-30. Product rules: `site/PRODUCT.md`.
-Look and motion: `site/DESIGN.md`. Content files and local scripts: `site/README.md` (Chinese).
+Look and motion: `site/DESIGN.md` (what is live) and `docs/DESIGN.md` (the shared design system it is
+moving to: tokens in `site/src/styles/tokens.css`, component interfaces in `site/src/ui/types.ts`).
+Content files and local scripts: `site/README.md` (Chinese).
 
 ## What changle.ca is made of
 
@@ -62,6 +64,7 @@ npx tsx tests/engine.test.ts    # every game's rules, as the rooms server runs t
 npx tsx tests/trip.test.ts
 npx tsx tests/draw.test.ts
 npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
+npx tsx tests/tokens.test.ts    # design tokens match global.css; src/ui uses tokens only
 npm run build
 ```
 
