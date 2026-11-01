@@ -6,7 +6,11 @@
  */
 import { bus, ctxTimeAt } from "./audio/engine";
 
-/** a decoded preview is ~10 MB of samples: keep the one playing, the next one and the last one */
+/**
+ * A decoded preview is ~11 MB of samples, and a phone tab that holds too many is closed by the phone:
+ * keep the one playing and the next one. Whichever was asked for longest ago goes first, so the song
+ * about to play is never dropped for the one after it (and then fetched and decoded all over again).
+ */
 const KEEP = 2;
 const loads = new Map<string, Promise<AudioBuffer | null>>();
 
@@ -21,18 +25,27 @@ function decode(c: BaseAudioContext, data: ArrayBuffer): Promise<AudioBuffer> {
 /** Fetch and decode a preview (once per URL). Resolves null when it can't be played this way. */
 export function loadPreview(url: string): Promise<AudioBuffer | null> {
   let p = loads.get(url);
-  if (!p) {
-    p = (async () => {
-      const b = bus();
-      if (!b) return null;
-      const r = await fetch(url, { mode: "cors", credentials: "omit" });
-      if (!r.ok) throw new Error(String(r.status));
-      return await decode(b.c, await r.arrayBuffer());
-    })().catch(() => null);
+  if (p) {
+    // asked for again: now the most recent
+    loads.delete(url);
     loads.set(url, p);
-    while (loads.size > KEEP) loads.delete(loads.keys().next().value as string);
+    return p;
   }
+  p = (async () => {
+    const b = bus();
+    if (!b) return null;
+    const r = await fetch(url, { mode: "cors", credentials: "omit" });
+    if (!r.ok) throw new Error(String(r.status));
+    return await decode(b.c, await r.arrayBuffer());
+  })().catch(() => null);
+  loads.set(url, p);
+  while (loads.size > KEEP) loads.delete(loads.keys().next().value as string);
   return p;
+}
+
+/** Let go of the decoded previews (the game is over, or switched to melodies). */
+export function forgetPreviews() {
+  loads.clear();
 }
 
 export type PreviewHandle = { stop: (fade?: number) => void };
@@ -48,26 +61,36 @@ export function playPreview(buf: AudioBuffer, opts: { startPerf?: number; offset
   const now = c.currentTime;
   let at = opts.startPerf !== undefined ? ctxTimeAt(b, opts.startPerf) : now + 0.03;
   let offset = Math.max(0, opts.offset ?? 0);
+  // a start time that isn't a number would make the browser throw (and take the screen with it)
+  if (!Number.isFinite(at)) at = now + 0.03;
+  if (!Number.isFinite(offset)) offset = 0;
   if (at < now + 0.03) {
     offset += now + 0.03 - at;
     at = now + 0.03;
   }
   if (offset >= buf.duration - 0.25) return null;
   const src = c.createBufferSource();
-  src.buffer = buf;
   const g = c.createGain();
-  src.connect(g).connect(b.music);
   const vol = opts.volume ?? 0.6;
   const fade = opts.fadeIn ?? 0.05;
-  g.gain.setValueAtTime(0, at);
-  g.gain.linearRampToValueAtTime(vol, at + fade);
   const end = Math.min(buf.duration - offset, opts.seconds ?? Infinity);
-  if (Number.isFinite(end)) {
-    g.gain.setValueAtTime(vol, at + Math.max(fade, end - 0.8));
-    g.gain.linearRampToValueAtTime(0, at + end);
+  try {
+    src.buffer = buf;
+    src.connect(g).connect(b.music);
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(vol, at + fade);
+    if (Number.isFinite(end)) {
+      g.gain.setValueAtTime(vol, at + Math.max(fade, end - 0.8));
+      g.gain.linearRampToValueAtTime(0, at + end);
+    }
+    src.start(at, offset);
+    if (Number.isFinite(end)) src.stop(at + end + 0.05);
+  } catch {
+    // this phone's audio said no: the round goes on without the song instead of the screen going blank
+    src.disconnect();
+    g.disconnect();
+    return null;
   }
-  src.start(at, offset);
-  if (Number.isFinite(end)) src.stop(at + end + 0.05);
   let stopped = false;
   return {
     stop(f = 0.15) {

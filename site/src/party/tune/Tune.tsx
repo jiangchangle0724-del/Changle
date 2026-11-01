@@ -5,13 +5,13 @@ import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
 import { AV_COLORS, colorFor } from "../../account/Avatar";
 import { holdBackground, type TuneHandle } from "../../lib/music";
-import { heardSongs, loadPreview, rememberSong, type PreviewHandle } from "../../lib/preview";
+import { forgetPreviews, heardSongs, loadPreview, rememberSong, type PreviewHandle } from "../../lib/preview";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
 import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, type Song, type SongPool } from "../../shared/songs";
 import { useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
-import { AnswerPicker, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { AnswerPicker, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
 import { loadSongbook } from "./songbook";
@@ -184,11 +184,12 @@ function SongRounds({
     setNext(pick(book, [first.id]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book]);
+  // the song playing first, then the next one loads early (in that order: the phone keeps two)
+  const audio = useSongAudio(song ? previewUrl(song.p) : null);
   useEffect(() => {
     if (next) void loadPreview(previewUrl(next.p));
   }, [next]);
-
-  const audio = useSongAudio(song ? previewUrl(song.p) : null);
+  useEffect(() => () => forgetPreviews(), []);
   const canPlay = audio.status === "ready" || audio.status === "failed";
   const beats = useMemo(() => (audio.url && audio.buf ? beatsFor(audio.url, audio.buf) : null), [audio.url, audio.buf]);
   useEffect(() => {
@@ -435,7 +436,7 @@ function MelodyRounds({
       <StageDots stage={revealed ? revealedAt : stage} />
       {quiz && (
         <QuizChoices
-          choices={options.map((o) => ({ id: o, t: zh ? TUNES[o].title.zh : TUNES[o].title.en, a: TUNES[o].title.en, ae: TUNES[o].title.zh }))}
+          choices={options.map((o) => tuneChoice(o, zh))}
           mine={revealed ? tune : tried[tried.length - 1] ?? null}
           answer={revealed ? tune : null}
           onPick={(id) => {
