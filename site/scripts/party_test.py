@@ -403,6 +403,34 @@ def t_freeze_online(browser):
 
 # ------------------------------------------------------------------ limbo
 
+# A stand-in motion sensor: the page hears an orientation reading every 50 ms, with the phone held
+# at window.__beta (90 = upright; leaning back L degrees is 90 - L). Headless Chromium has no sensor
+# and its DeviceOrientationEvent ignores the values it's given, so a plain event carries them.
+FAKE_TILT = """() => {
+  if (window.__tilt) return;
+  window.__beta = 90;
+  window.__tilt = setInterval(() => {
+    const e = new Event('deviceorientation');
+    Object.defineProperty(e, 'beta', { value: window.__beta });
+    Object.defineProperty(e, 'gamma', { value: 0 });
+    window.dispatchEvent(e);
+  }, 50);
+}"""
+
+
+def fake_sensor(pg):
+    # newer Chromium asks DeviceOrientationEvent.requestPermission(), like iOS; let it say yes
+    pg.context.grant_permissions(["accelerometer", "gyroscope", "magnetometer"])
+    pg.evaluate(FAKE_TILT)
+
+
+def lean_to(pg, deg):
+    pg.evaluate("(d) => { window.__beta = 90 - d; }", deg)
+
+
+def target_of(pg):
+    return int(pg.locator(".lb-blind-target").inner_text().strip().rstrip("°"))
+
 def t_limbo_single(browser):
     pg = phone(browser, "solo", players=PLAYERS[:2])
     pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
@@ -428,6 +456,67 @@ def t_limbo_single(browser):
     shot(pg, "lb-end")
     errors([pg])
     pg.context.close()
+
+
+def t_limbo_blind_single(browser):
+    pg = phone(browser, "blind", players=PLAYERS[:2])
+    pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
+    pg.wait_for_selector(".limbo-scene")
+    fake_sensor(pg)
+    pg.get_by_role("button", name="盲仰").click()
+    pg.get_by_role("button", name="放音乐，开始").click()
+    pg.wait_for_selector(".pass-curtain", timeout=6000)
+    pg.get_by_role("button", name="准备好了").click()
+    pg.wait_for_selector(".lb-blind", timeout=6000)
+    shot(pg, "lb-blind-try")
+    ok(pg.locator(".gauge-read").count() == 0, "blind: the live angle isn't on screen")
+    target = target_of(pg)
+    lean_to(pg, target)
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 5000), "holding still locks the lean")
+    ok("正好" in pg.locator(".lb-verdict").inner_text(), "Steve spot on")
+    shot(pg, "lb-blind-verdict")
+    lean_to(pg, 0)
+    pg.get_by_role("button", name=re.compile("下一个")).click()
+    pg.get_by_role("button", name="准备好了").click()
+    pg.wait_for_selector(".lb-blind", timeout=6000)
+    lean_to(pg, target + 20 if target + 20 <= 85 else target - 20)
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 5000), "Mia's lean locks too")
+    pg.get_by_role("button", name="看看谁差得最远").click()
+    pg.wait_for_timeout(600)
+    clear_stamps([pg])
+    ok(until(lambda: pg.locator(".fz-face.is-winner").count() == 1, 4000), "Mia furthest off: Steve wins blind lean")
+    ok("最有手感" in pg.locator(".fz-result-title").inner_text(), "blind winner's title")
+    shot(pg, "lb-blind-end")
+    errors([pg])
+    pg.context.close()
+
+
+def t_limbo_blind_online(browser):
+    host, guests, _ = seat_table(browser, ["Steve", "Mia"])
+    everyone = [host] + guests
+    start_game(host, everyone, "limbo")
+    host.get_by_role("button", name="盲仰").click()
+    ok(until(lambda: view(guests[0])["mode"] == "blind"), "the host picks blind lean for everyone")
+    for g in everyone:
+        fake_sensor(g)
+        g.get_by_role("button", name="开启动作感应").click()
+    ok(until(lambda: len(view(host)["sensors"]) == 2), "both phones can measure")
+    shot(host, "lb-blind-net-ready")
+    host.get_by_role("button", name="开始", exact=True).click()
+    ok(until(lambda: view(guests[0])["phase"] == "go"), "blind round on both phones")
+    ok(until(lambda: host.locator(".lb-blind").count() == 1, 6000), "the target shows after the count-in")
+    target = view(host)["angle"]
+    lean_to(host, target - 1)
+    lean_to(guests[0], target + 15 if target + 15 <= 85 else target - 15)
+    ok(until(lambda: view(host)["phase"] == "end", 8000), "both locked: one round decides two players")
+    host.wait_for_timeout(700)
+    clear_stamps(everyone)
+    shot(host, "lb-blind-net-end")
+    v = view(host)
+    ok(v["winner"] == me(host) and v["locks"][me(host)] == target - 1, "Steve closest wins, angles revealed")
+    errors(everyone)
+    for g in everyone:
+        g.context.close()
 
 
 def t_limbo_online(browser):
@@ -962,7 +1051,7 @@ TESTS = {
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],
-    "limbo": [t_limbo_single, t_limbo_online],
+    "limbo": [t_limbo_single, t_limbo_online, t_limbo_blind_single, t_limbo_blind_online],
     "tune": [t_tune_single, t_tune_songs_online, t_tune_online],
     "euchre": [t_euchre_single, t_euchre_online],
 }

@@ -27,6 +27,33 @@ export interface SourceDef extends Source {
 
 const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 
+/**
+ * A public library's events on BiblioCommons (`lib`: its name there). 25 a page keeps a step well
+ * inside its 10 ms of CPU (a page is 250 to 420 KB of JSON); two weeks is 7 to 12 pages. (It serves
+ * at most 50 a page whatever the limit: never ask for more.)
+ */
+function library(id: string, name: string, lib: string): SourceDef {
+  return {
+    id,
+    name,
+    kind: "bibliocommons",
+    tier: 1,
+    lang: "en",
+    url: `https://gateway.bibliocommons.com/v2/libraries/${lib}/events/search`,
+    maxParts: 24,
+    request(part) {
+      return `${this.url}?limit=25&page=${part + 1}`;
+    },
+    parse(raw, _part, w) {
+      const page = JSON.parse(raw) as BcPage;
+      const events = parseBiblioCommons(page, { source: this.id, library: lib });
+      const p = page.events.pagination;
+      const more = !!p && p.page < p.pages && lastStartMs(page) < w.toMs;
+      return { events, more };
+    },
+  };
+}
+
 export const SOURCES: SourceDef[] = [
   {
     id: "luma-vancouver",
@@ -44,27 +71,8 @@ export const SOURCES: SourceDef[] = [
       return { events, more: false };
     },
   },
-  {
-    id: "vpl",
-    name: "Vancouver Public Library",
-    kind: "bibliocommons",
-    tier: 1,
-    lang: "en",
-    url: "https://gateway.bibliocommons.com/v2/libraries/vpl/events/search",
-    // 25 a page keeps a step well inside its 10 ms of CPU (a page is ~250 KB of JSON); two weeks is
-    // about a dozen pages. (It serves at most 50 a page whatever the limit: never ask for more.)
-    maxParts: 24,
-    request(part) {
-      return `${this.url}?limit=25&page=${part + 1}`;
-    },
-    parse(raw, _part, w) {
-      const page = JSON.parse(raw) as BcPage;
-      const events = parseBiblioCommons(page, { source: this.id, library: "vpl" });
-      const p = page.events.pagination;
-      const more = !!p && p.page < p.pages && lastStartMs(page) < w.toMs;
-      return { events, more };
-    },
-  },
+  library("vpl", "Vancouver Public Library", "vpl"),
+  library("rpl", "Richmond Public Library", "yourlibrary"),
   {
     id: "ticketmaster",
     name: "Ticketmaster",

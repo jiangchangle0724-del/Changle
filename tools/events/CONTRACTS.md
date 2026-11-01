@@ -18,7 +18,12 @@ The Worker runs on Cloudflare's free plan (Steve's decision, Oct 31). Per invoca
 - **A run is many small steps.** The scheduled handler (`src/worker.ts`) calls `runDay`
   (`src/run.ts`), which calls each step through `ctx.exports.Steps`, a request of its own with its
   own 10 ms. One step = one part (a page) of one source: fetch, keep the raw answer, parse, store.
-  Then one publish step. At most 31 calls a run (Cloudflare allows 32 invocations per request).
+  Then one publish step. At most 31 calls a trigger (Cloudflare allows 32 invocations per request):
+  30 steps and publish.
+- **A morning has three triggers**, at 06:00, 06:20 and 06:40 (one cron). Each goes on where the
+  last stopped (table `runs`: the next source and part), so a run has room for 90 steps. It
+  publishes once every source is done; the 06:40 trigger publishes whatever it has, and sources not
+  reached that day keep yesterday's events. Today (1 November) a run is 22 steps.
 - **A step stays well under 10 ms of CPU.** Measure a parser on its biggest saved page: at most
   about 5 ms warm. Page sizes are chosen for that (the library: 25 events a page).
 - **One statement per table per step.** Rows go to D1 as one JSON parameter through `json_each`
@@ -62,9 +67,9 @@ Fields follow schema.org/Event: `start`/`end` = startDate/endDate, `status` = ev
 
 ## Storage
 
-D1 (`migrations/0001_init.sql`; the Worker applies new migration files itself, `src/schema.ts`):
-`events`, `venues`, `sources`, `fetch_log`, `review_queue`. Never edit a migration that has gone
-out; add the next number and list it in `src/schema.ts`.
+D1 (`migrations/`; the Worker applies new migration files itself, `src/schema.ts`): `events`,
+`venues`, `sources`, `fetch_log`, `review_queue`, and `runs` (how far each morning's run has got).
+Never edit a migration that has gone out; add the next number and list it in `src/schema.ts`.
 
 KV: `events:live` (the published `Published`), `raw:<runId>:<source>:<part>` (the raw answer of
 every step, kept 30 days: rerun a parser without fetching again).
