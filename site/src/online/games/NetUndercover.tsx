@@ -9,11 +9,13 @@ import { useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
 import { HostButton, HostRow, SeatPicker, useYourTurn, Waiting } from "./common";
+import { Moment } from "../../components/Figure";
 
 export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, offset } = useRoom();
   const { ui, tr, lang } = useStore();
   const seats = room?.seats ?? [];
+  const outSeat = v.phase === "reveal" && v.out ? seats.find((s) => s.id === v.out!.pid) : undefined;
   const inGame = v.inGame.includes(me);
   const alive = v.alive.includes(me);
   const speaker = v.order[v.speaker] ?? null;
@@ -205,6 +207,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
 
         {v.phase === "reveal" && (
           <motion.div key={`reveal-${v.round}`} className="stack" style={{ gap: 14, alignItems: "center" }} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+            {v.out && outSeat && <Moment seat={outSeat} kind="out" tag={roleName(v.out.role)} tagTone={v.out.role === "civ" ? "neutral" : "bad"} caught={v.out.role !== "civ"} />}
             <div className="porcelain reveal-card" style={{ width: "100%" }}>
               {v.out ? (
                 <>

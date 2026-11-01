@@ -13,6 +13,7 @@ import { PersonSheet, SeatFace } from "./People";
 import { useRoom, useRoomEvent } from "./RoomContext";
 import { useAccount } from "../account/AccountContext";
 import type { SeatView } from "../shared/protocol";
+import { RoomFigures } from "../components/Figure";
 
 /** The online lobby: everyone at the table, the board of games, the host picks or spins. */
 export function Lobby({ onLeave }: { onLeave: () => void }) {
@@ -117,6 +118,7 @@ function LobbyBoard() {
 
   return (
     <div className="lobby">
+      <RoomFigures seats={room.seats} host={room.host} />
       <section className="lobby-seats" aria-label={ui("atTable", { n: room.seats.length })}>
         <ul className="faces">
           {room.seats.map((s) => {

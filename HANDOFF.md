@@ -19,7 +19,7 @@ installs on its own. Node 22, as in CI.
 ## How a change reaches changle.ca
 
 1. Branch from `main` (one branch per change), commit, push, open a PR.
-2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip and draw tests, build),
+2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, trip, draw and cutout tests, build),
    `suibian.yml` and `been-there.yml` (each with browser tests in Chromium and WebKit).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").

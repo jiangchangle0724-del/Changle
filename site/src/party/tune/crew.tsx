@@ -1,6 +1,4 @@
-import { useMemo, useState } from "react";
-import { AV_COLORS, Avatar, colorFor } from "../../account/Avatar";
-import { API } from "../../config";
+import { Confetti, Figure } from "../../components/Figure";
 import type { SeatView } from "../../shared/protocol";
 
 /**
@@ -48,66 +46,18 @@ export function Crew({ mates }: { mates: Mate[] }) {
 
 function MateView({ mate, x, i }: { mate: Mate; x: string; i: number }) {
   const { seat, state, me } = mate;
-  const [broken, setBroken] = useState(false);
-  const fig = seat.uid && seat.fg && !broken ? `${API}/figure/${seat.uid}/cut?v=${seat.fg}` : null;
-  const color = AV_COLORS[(seat.uid ? (seat.ac ?? 0) : colorFor(seat.id)) % AV_COLORS.length];
   const named = RAISED.includes(state);
   return (
-    <div
-      className={`tn-mate ${me ? "is-me" : ""}`}
-      data-state={state}
-      style={{ ["--x" as string]: x, ["--dir" as string]: i % 2 ? -1 : 1, ["--tc" as string]: color }}
-    >
+    <div className={`tn-mate ${me ? "is-me" : ""}`} data-state={state} style={{ ["--x" as string]: x, ["--dir" as string]: i % 2 ? -1 : 1 }}>
       <span className="tn-mate-shadow" />
       <div className="tn-mate-hop" key={state}>
         <div className="tn-mate-bob">
-          {fig ? <img className="tn-mate-fig" src={fig} alt="" draggable={false} decoding="async" onError={() => setBroken(true)} /> : <Token seat={seat} />}
+          <Figure seat={seat} />
         </div>
       </div>
-      {state === "win" || state === "first" ? <Confetti key={state} /> : null}
+      {state === "win" || state === "first" ? <Confetti key={state} className="tn-confetti" /> : null}
       {named && <span className="tn-mate-name">{seat.name}</span>}
     </div>
-  );
-}
-
-/** Someone without a drawn figure: their round face on a little body, in their colour. */
-function Token({ seat }: { seat: SeatView }) {
-  return (
-    <div className="tn-token">
-      <div className="tn-token-head">
-        <Avatar uid={seat.uid} name={seat.name} av={seat.av ?? 0} ac={seat.uid ? seat.ac : colorFor(seat.id)} size={64} />
-      </div>
-      <svg className="tn-token-body" viewBox="0 0 60 56" aria-hidden="true">
-        <g stroke="rgba(14,12,34,0.55)" strokeWidth="2.2">
-          <rect x="3" y="9" width="10" height="25" rx="5" fill="var(--tc)" />
-          <rect x="47" y="9" width="10" height="25" rx="5" fill="var(--tc)" />
-          <rect x="11" y="2" width="38" height="44" rx="16" fill="var(--tc)" />
-          <ellipse cx="22" cy="50" rx="8.5" ry="5" fill="#f5f4fd" />
-          <ellipse cx="38" cy="50" rx="8.5" ry="5" fill="#f5f4fd" />
-        </g>
-        <rect x="21" y="13" width="18" height="25" rx="9" fill="rgba(255,255,255,0.22)" />
-      </svg>
-    </div>
-  );
-}
-
-function Confetti() {
-  const bits = useMemo(
-    () =>
-      Array.from({ length: 14 }, (_, k) => ({
-        a: (k / 14) * 360 + Math.random() * 20,
-        r: 38 + Math.random() * 34,
-        c: ["var(--gel-amber)", "var(--gel-pink)", "var(--gel-cyan)", "var(--gel-mint)", "var(--moon)"][k % 5],
-        d: Math.random() * 0.12,
-      })),
-    [],
-  );
-  return (
-    <span className="tn-confetti">
-      {bits.map((b, k) => (
-        <i key={k} style={{ ["--a" as string]: `${b.a}deg`, ["--r" as string]: `${b.r}px`, ["--d" as string]: `${b.d}s`, background: b.c }} />
-      ))}
-    </span>
   );
 }
 

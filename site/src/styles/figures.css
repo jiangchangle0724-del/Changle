@@ -1,0 +1,329 @@
+/* People standing in the games: an AI-drawn figure cut out of its backdrop, or a round face on a
+   little body (components/Figure.tsx). A figure is as tall as its box. */
+
+.fig {
+  position: relative;
+  display: block;
+  height: 100%;
+}
+.fig-img {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  user-select: none;
+  /* a thin rim of light so a figure reads on the dark room, and its own shadow */
+  filter: drop-shadow(0 0 1px color-mix(in oklab, var(--moon) 45%, transparent)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.45));
+}
+.fig-token {
+  position: relative;
+  display: block;
+  height: 100%;
+  aspect-ratio: 0.62;
+}
+.fig-token-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 80%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+.fig-token-head .avatar {
+  width: 100% !important;
+  height: 100% !important;
+  font-size: calc(var(--fig-h, 80px) * 0.22) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--moon) 70%, transparent);
+}
+.fig-token-body {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 56%;
+  overflow: visible;
+}
+
+/* a burst of confetti from a point */
+.confetti {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.confetti i {
+  position: absolute;
+  width: 5px;
+  height: 9px;
+  border-radius: 1px;
+  opacity: 0;
+  animation: confetti-burst 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) var(--d) forwards;
+}
+@keyframes confetti-burst {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--a)) translateY(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(260deg);
+  }
+}
+
+/* ---------- one person's moment: a small lit stage ---------- */
+
+.moment {
+  --fig-h: clamp(128px, 40vw, 176px);
+  position: relative;
+  display: grid;
+  place-items: end center;
+  width: 100%;
+  height: calc(var(--fig-h) * 1.22);
+  isolation: isolate;
+}
+.moment-floor {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: calc(var(--fig-h) * 1.5);
+  height: calc(var(--fig-h) * 0.2);
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--gel) 55%, var(--dusk-3)), color-mix(in oklab, var(--gel) 8%, transparent));
+  z-index: -1;
+}
+.moment-beam {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--fig-h) * 0.06);
+  width: calc(var(--fig-h) * 1.25);
+  height: calc(var(--fig-h) * 1.3);
+  transform: translateX(-50%);
+  background: linear-gradient(to bottom, color-mix(in oklab, var(--moon) 2%, transparent), color-mix(in oklab, var(--moon) 24%, transparent));
+  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
+  z-index: -2;
+  animation: moment-in 0.6s ease-out both;
+}
+.moment-fig {
+  position: relative;
+  display: block;
+  height: var(--fig-h);
+  margin-bottom: calc(var(--fig-h) * 0.07);
+  animation: moment-rise 0.75s var(--ease-pop) 0.1s both;
+}
+@keyframes moment-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes moment-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18%) scale(0.9);
+  }
+}
+
+/* the king: a throne behind, a crown on the head */
+.moment-throne {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--fig-h) * 0.05);
+  width: calc(var(--fig-h) * 0.9);
+  transform: translateX(-50%);
+  z-index: -1;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.5));
+  animation: moment-in 0.5s ease-out both;
+}
+.moment-crown {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--fig-h) * -0.16);
+  width: calc(var(--fig-h) * 0.36);
+  transform: translateX(-50%) rotate(-6deg);
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45));
+  animation: crown-drop 0.7s var(--ease-pop) 0.55s both;
+}
+@keyframes crown-drop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-120%) rotate(-20deg);
+  }
+}
+
+/* an award: a gold sash across the body, a medal, confetti */
+.moment-sash {
+  position: absolute;
+  left: 22%;
+  top: 50%;
+  width: 62%;
+  height: calc(var(--fig-h) * 0.07);
+  background: linear-gradient(90deg, #ffcf5a, #fff1b8 50%, #e2a92c);
+  border-radius: 3px;
+  transform: rotate(-28deg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  animation: moment-in 0.4s ease-out 0.7s both;
+}
+.moment-medal {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  width: calc(var(--fig-h) * 0.11);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff4c4, #ffcf5a 55%, #b9861d);
+  box-shadow: 0 0 0 2px #7a1530, 0 3px 6px rgba(0, 0, 0, 0.45);
+  transform: translateX(-50%);
+  animation: moment-in 0.4s ease-out 0.85s both;
+}
+.moment-confetti {
+  left: 50%;
+  bottom: 70%;
+}
+
+/* voted out: a hard white spotlight; caught (the undercover) shakes, a wrong guess slumps grey */
+.moment-out .moment-beam {
+  background: linear-gradient(to bottom, color-mix(in oklab, var(--moon) 6%, transparent), color-mix(in oklab, var(--moon) 38%, transparent));
+}
+.moment-out:not(.is-caught) .moment-fig {
+  filter: grayscale(0.55);
+  animation:
+    moment-rise 0.75s var(--ease-pop) 0.1s both,
+    slump 0.6s var(--ease-out) 1.2s forwards;
+}
+.moment-out.is-caught .moment-fig {
+  animation:
+    moment-rise 0.75s var(--ease-pop) 0.1s both,
+    busted 0.5s ease-in-out 1.1s 2;
+}
+@keyframes slump {
+  to {
+    transform: translateY(3%) rotate(-7deg) scaleY(0.94);
+  }
+}
+@keyframes busted {
+  25% {
+    transform: translateX(-4%) rotate(-4deg);
+  }
+  75% {
+    transform: translateX(4%) rotate(4deg);
+  }
+}
+.moment-tag {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  padding: 3px 14px 4px;
+  border-radius: 999px;
+  transform: translateX(-50%) rotate(-4deg);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
+  background: var(--dusk-3);
+  color: var(--moon);
+  box-shadow: 0 6px 16px -6px #000;
+  animation: tag-stamp 0.45s var(--ease-pop) 1s both;
+}
+.moment-tag.is-bad {
+  background: var(--stop);
+  color: var(--night);
+}
+.moment-tag.is-good {
+  background: var(--go);
+  color: var(--night);
+}
+@keyframes tag-stamp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(2.2) rotate(-14deg);
+  }
+}
+
+/* ---------- the lobby: everyone at the table, standing together ---------- */
+
+.room-figs {
+  --fig-h: clamp(76px, 22vw, 108px);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 2px;
+  height: calc(var(--fig-h) + 18px);
+  padding-bottom: 10px;
+  margin: 2px 0 6px;
+  isolation: isolate;
+}
+.room-figs::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--light) 30%, var(--dusk-3)), transparent);
+  z-index: -1;
+}
+.room-figs.is-crowded {
+  --fig-h: clamp(58px, 15vw, 84px);
+}
+.room-fig {
+  position: relative;
+  height: var(--fig-h);
+  margin: 0 -4px;
+  transform-origin: 50% 100%;
+  animation: idle-sway 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.7s);
+}
+.room-fig.is-away {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  animation: none;
+}
+.room-fig.is-watching {
+  opacity: 0.6;
+}
+.room-fig-crown {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--fig-h) * -0.1);
+  width: calc(var(--fig-h) * 0.26);
+  transform: translateX(-50%) rotate(-8deg);
+  z-index: 2;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+@keyframes idle-sway {
+  0%,
+  100% {
+    transform: rotate(-1.6deg);
+  }
+  50% {
+    transform: rotate(1.6deg) translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-fig,
+  .moment-fig,
+  .moment-beam,
+  .moment-crown,
+  .moment-tag,
+  .confetti i {
+    animation: none !important;
+  }
+}
+
+/* several winners at once (a tie): side by side */
+.moment-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.moment-row .moment {
+  flex: 1;
+  min-width: 0;
+}
+.moment-row:has(.moment + .moment) .moment {
+  --fig-h: clamp(96px, 28vw, 140px);
+}
