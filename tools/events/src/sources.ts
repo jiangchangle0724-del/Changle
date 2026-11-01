@@ -3,6 +3,7 @@
 import { parseBiblioCommons, lastStartMs, type BcPage } from "./parsers/bibliocommons";
 import { parseIcal } from "./parsers/ical";
 import { parseTicketmaster, type TmPage } from "./parsers/ticketmaster";
+import { fromVan, vanIso } from "./time";
 import type { NormalizedEvent, Source } from "./types";
 
 export interface Window {
@@ -26,6 +27,9 @@ export interface SourceDef extends Source {
 }
 
 const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+const DAY = 86_400_000;
+/** "2026-11-01": a Vancouver date, for the sources that take one. */
+const vanDay = (ms: number) => vanIso(ms).slice(0, 10);
 
 /**
  * A public library's events on BiblioCommons (`lib`: its name there). 25 a page keeps a step well
@@ -74,6 +78,25 @@ export const SOURCES: SourceDef[] = [
   library("vpl", "Vancouver Public Library", "vpl"),
   library("rpl", "Richmond Public Library", "yourlibrary"),
   {
+    id: "ubc",
+    name: "UBC",
+    kind: "ical",
+    tier: 1,
+    lang: "en",
+    url: "https://events.ubc.ca/events/list/?ical=1",
+    // its export lists about 30 events from a date on: two days of the window at a time, until an
+    // answer reaches past the window (or is empty)
+    maxParts: 7,
+    request(part, _env, w) {
+      return `${this.url}&tribe-bar-date=${vanDay(w.fromMs + part * UBC_DAYS * DAY)}`;
+    },
+    parse(raw, _part, w) {
+      const all = parseIcal(raw, { source: this.id, fromMs: w.fromMs, toMs: w.toMs });
+      const last = Math.max(...all.map((e) => (e.allDay ? fromVan(e.start) : Date.parse(e.start))));
+      return { events: ubcOpen(raw, all), more: all.length > 0 && last < w.toMs };
+    },
+  },
+  {
     id: "ticketmaster",
     name: "Ticketmaster",
     kind: "ticketmaster",
@@ -111,4 +134,30 @@ function luma(ev: NormalizedEvent): NormalizedEvent {
     .replace(/^Address:\s*\n[^\n]*\n?/, "")
     .trim();
   return { ...ev, url: link ?? ev.url, description: description || null, tags: ev.tags ?? [], lang: ev.lang ?? null };
+}
+
+const UBC_DAYS = 2;
+
+/**
+ * UBC's calendar has everything from thesis defences to staff training. What's On keeps what anyone
+ * can walk into (Steve, 1 November 2026): an audience of "All" or "Community" (UBC tags each event),
+ * at a real place on the Vancouver campus, not online, hybrid, "See Description" or in the
+ * Okanagan. That also leaves out the courses for doctors and nurses (UBC CPD), which name no
+ * audience. The audiences aren't in the parsed events, so they're read from the file by UID.
+ */
+export function ubcOpen(raw: string, events: NormalizedEvent[]): NormalizedEvent[] {
+  const open = new Set<string>();
+  for (const block of raw.replace(/\r?\n[ \t]/g, "").split(/^BEGIN:VEVENT\s*$/m).slice(1)) {
+    const uid = /^UID:(.+)$/m.exec(block)?.[1]?.trim();
+    const categories = [...block.matchAll(/^CATEGORIES[^:]*:(.+)$/gm)].flatMap((m) => m[1].split(/(?<!\\),/));
+    const everyone = categories.some((c) => /^audience\s*[-\u2013\u2014]\s*(all|community)$/i.test(c.trim()));
+    if (uid && everyone) open.add(uid);
+  }
+  return events
+    .filter((e) => open.has(e.sourceEventId.replace(/@\d{4}-\d{2}-\d{2}$/, "")))
+    .filter((e) => {
+      const where = [e.place?.name, e.place?.address].filter(Boolean).join(", ");
+      return !!e.place && !/^(online|hybrid|see description)/i.test(e.place.name ?? "") && !/kelowna|okanagan/i.test(where);
+    })
+    .map((e) => (e.place && !e.place.city && /\bvancouver\b/i.test(e.place.address ?? "") ? { ...e, place: { ...e.place, city: "Vancouver" } } : e));
 }
