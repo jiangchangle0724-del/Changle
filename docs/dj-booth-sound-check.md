@@ -134,3 +134,9 @@ minutes.
 | Run | Stalls | Lowest buffer | Beat clock | On Lyria | Sessions (drops) | PAUSE / PLAY |
 | --- | --- | --- | --- | --- | --- | --- |
 | Before the code review's fixes | 0 | 3.95 s | 124.983 BPM | 100% | 3 (2) | 179 / 182 |
+| This version (binary frames) | 0 | 2.47 s (the restart) | 124.978 BPM | 100% | 4 (2, and the restart) | 176 / 181 |
+
+Four minutes into the second run the rooms server restarted (an edit reloaded it, as a deploy
+would): the speaker played on from what it had in hand, down to 2.5 seconds, the speaker opened
+the new relay and set Lyria up where it was, and nothing stalled. Lyria was paused and played again about every
+10 seconds (the fake makes music twice as fast as it plays; real Lyria's pace will set how often).
