@@ -5,7 +5,7 @@ import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground, startGroove, type GrooveHandle } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { BLIND_TARGETS, LIMBO_ANGLES, blindError } from "../../shared/engine/games/limbo";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NameFace } from "../common";
 import { enableSensors, sensorStatus, useSensorStatus, useWakeLock } from "../sensors";
 import { BlindMeter, LeanGauge, LimboScene, blindLine, useBlindLock, useLean } from "./parts";
@@ -40,6 +40,7 @@ export function Limbo({ onBack }: { onBack: () => void }) {
   const blind = mode === "blind";
   const sensors = useSensorStatus();
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
   const music = useRef<GrooveHandle | null>(null);
   const angle = blind ? target : LIMBO_ANGLES[Math.min(level, LIMBO_ANGLES.length - 1)];
   const newTarget = () => {
@@ -161,7 +162,24 @@ export function Limbo({ onBack }: { onBack: () => void }) {
       sfx.drum(0.8);
       setPhase({ k: "ready", i: 0 });
     };
-    penalty.show({ who: losers.map((id) => name[id]), kind: "sip", note: tie ? (zh ? `大家差得一样多（${worst}°），一起喝，再来一轮` : `All ${worst}° off: everyone drinks, another round`) : zh ? `盲仰差了 ${worst}°` : `Blind lean: ${worst}° off` }, after);
+    penalty.show(
+      {
+        who: losers.map((id) => name[id]),
+        kind: "sip",
+        note: tie
+          ? custom
+            ? zh
+              ? `大家差得一样多（${worst}°），一起受罚，再来一轮`
+              : `All ${worst}° off: everyone takes the penalty, another round`
+            : zh
+              ? `大家差得一样多（${worst}°），一起喝，再来一轮`
+              : `All ${worst}° off: everyone drinks, another round`
+          : zh
+            ? `盲仰差了 ${worst}°`
+            : `Blind lean: ${worst}° off`,
+      },
+      after,
+    );
   };
 
   const settle = (fails: string[], passes: string[]) => {
@@ -237,8 +255,8 @@ export function Limbo({ onBack }: { onBack: () => void }) {
   const rules = (
     <p>
       {zh
-        ? "手机测角度：手机竖着贴在胸口，屏幕朝自己，往后仰到横杆的角度并坚持一秒多就算过，手机传给下一个人。每一杆要仰得更多，没过的出局喝一口，最后剩下的人赢。盲仰：每轮一个目标角度，看不到自己仰了多少，凭感觉仰到位，停住不动一秒半就锁定，轮流来，离目标最远的出局喝一口。真杆子：两个人拉一根杆子或绳子，手机放音乐、记分，裁判点谁过了谁没过。"
-        : "Phone measures: hold the phone upright against your chest, screen facing you, lean back to the bar's angle and hold it for a second, then pass the phone on. Every bar needs a deeper lean. Miss and you're out (drink). Last one standing wins. Blind lean: each round has a target angle and you can't see your own lean; lean to what feels right and hold still for a second and a half to lock it, taking turns. Furthest from the target is out (drink). Real bar: two people hold a stick or a rope, the phone plays the music and keeps score, and the judge taps who made it."}
+        ? `手机测角度：手机竖着贴在胸口，屏幕朝自己，往后仰到横杆的角度并坚持一秒多就算过，手机传给下一个人。每一杆要仰得更多，没过的出局${custom ? "受罚" : "喝一口"}，最后剩下的人赢。盲仰：每轮一个目标角度，看不到自己仰了多少，凭感觉仰到位，停住不动一秒半就锁定，轮流来，离目标最远的出局${custom ? "受罚" : "喝一口"}。真杆子：两个人拉一根杆子或绳子，手机放音乐、记分，裁判点谁过了谁没过。`
+        : `Phone measures: hold the phone upright against your chest, screen facing you, lean back to the bar's angle and hold it for a second, then pass the phone on. Every bar needs a deeper lean. Miss and you're out (${custom ? "penalty" : "drink"}). Last one standing wins. Blind lean: each round has a target angle and you can't see your own lean; lean to what feels right and hold still for a second and a half to lock it, taking turns. Furthest from the target is out (${custom ? "penalty" : "drink"}). Real bar: two people hold a stick or a rope, the phone plays the music and keeps score, and the judge taps who made it.`}
     </p>
   );
 
@@ -270,7 +288,7 @@ export function Limbo({ onBack }: { onBack: () => void }) {
               {mode === "phone"
                 ? zh ? "手机贴在胸口往后仰，它来判你过没过。" : "Phone on your chest, lean back: it judges whether you made it."
                 : blind
-                  ? zh ? "每轮一个目标角度，看不到自己仰了多少，凭感觉停住。离得最远的出局喝一口。" : "A target angle each round, and you can't see your own lean: stop where it feels right. Furthest off is out and drinks."
+                  ? zh ? `每轮一个目标角度，看不到自己仰了多少，凭感觉停住。离得最远的出局${custom ? "受罚" : "喝一口"}。` : `A target angle each round, and you can't see your own lean: stop where it feels right. Furthest off is out and ${custom ? "takes the penalty" : "drinks"}.`
                   : zh ? "拿根杆子或绳子，手机负责放音乐和记分。" : "Grab a stick or a rope. The phone does the music and the scorecard."}
             </p>
             {people.length < 2 && <p className="hint" style={{ textAlign: "center" }}>{zh ? "盲仰要两个人以上" : "Blind lean needs two or more players"}</p>}

@@ -4,7 +4,7 @@ import { TimerArc } from "../../components/TimerArc";
 import { UI } from "../../i18n";
 import { haptic } from "../../lib/sfx";
 import type { PromptsView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useCue, useRoom } from "../RoomContext";
 import { HostButton, HostRow, joinNames, SeatPicker, TurnLine, useYourTurn, Waiting } from "./common";
@@ -14,6 +14,7 @@ import { Lineup, Moment } from "../../components/Figure";
 export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, offset } = useRoom();
   const { ui, tr, lang } = useStore();
+  const pen = usePenaltyText();
   const seats = room?.seats ?? [];
   const reader = v.reader === me;
   const never = v.mode === "never";
@@ -30,9 +31,16 @@ export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void
 
   const rules = (
     <p>
-      {lang === "zh"
-        ? "我从来没有：念卡的人抽一张，每个人在自己手机上偷偷选做过还是没做过，最后一起亮出来，做过的都喝。谁最有可能：每个人在手机上投一个人，票最多的喝。三十秒没选完就直接亮。"
-        : "Never Have I Ever: the reader draws a card; everyone secretly answers on their own phone, then all answers flip at once and everyone who has done it drinks. Most Likely To: everyone votes for someone on their phone; the most votes drinks. After thirty seconds the answers flip anyway."}
+      {pen.line(
+        {
+          zh: "我从来没有：念卡的人抽一张，每个人在自己手机上偷偷选做过还是没做过，最后一起亮出来，做过的都喝。谁最有可能：每个人在手机上投一个人，票最多的喝。三十秒没选完就直接亮。",
+          en: "Never Have I Ever: the reader draws a card; everyone secretly answers on their own phone, then all answers flip at once and everyone who has done it drinks. Most Likely To: everyone votes for someone on their phone; the most votes drinks. After thirty seconds the answers flip anyway.",
+        },
+        {
+          zh: "我从来没有：念卡的人抽一张，每个人在自己手机上偷偷选做过还是没做过，最后一起亮出来，做过的都受罚。谁最有可能：每个人在手机上投一个人，票最多的受罚。三十秒没选完就直接亮。",
+          en: "Never Have I Ever: the reader draws a card; everyone secretly answers on their own phone, then all answers flip at once and everyone who has done it takes the penalty. Most Likely To: everyone votes for someone on their phone; the most votes takes the penalty. After thirty seconds the answers flip anyway.",
+        },
+      )}
     </p>
   );
 
@@ -149,9 +157,7 @@ export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void
                     ? lang === "zh"
                       ? `做过的：${joinNames(result.yes.map(nameOf), "zh")}`
                       : `Done it: ${joinNames(result.yes.map(nameOf), "en")}`
-                    : lang === "zh"
-                      ? "没人做过，都不用喝"
-                      : "Nobody has. Nobody drinks."}
+                    : pen.line({ zh: "没人做过，都不用喝", en: "Nobody has. Nobody drinks." }, { zh: "没人做过，都不用罚", en: "Nobody has. No penalty." })}
                 </p>
               ) : (
                 <ul className="vote-list">

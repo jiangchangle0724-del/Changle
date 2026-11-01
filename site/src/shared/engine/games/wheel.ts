@@ -1,4 +1,4 @@
-import { DEFAULT_SLICES } from "../../../data/wheel";
+import { DEFAULT_SLICES, sliceLabel } from "../../../data/wheel";
 import { DARES, TRUTHS } from "../../../data/truthDare";
 import type { WheelSliceKind, WheelSliceView, WheelView } from "../../protocol";
 import { clean, intIn, num, range, type Api, type GameDef } from "../api";
@@ -25,7 +25,7 @@ function apply(s: S, api: Api) {
   if (s.phase !== "spinning" || s.result === null) return;
   const slice = s.slices[s.result];
   const me = s.turn;
-  const note = slice.label;
+  const note = sliceLabel(slice, api.customPenalty);
   s.phase = "result";
   switch (slice.kind) {
     case "safe":
@@ -97,7 +97,7 @@ export const wheel: GameDef<S> = {
       case "pick": {
         const target = String(g.target ?? "");
         if (s.phase !== "pick" || (pid !== s.turn && !host) || !api.has(target) || s.result === null) return;
-        api.penalty([target], "sip", s.slices[s.result].label);
+        api.penalty([target], "sip", sliceLabel(s.slices[s.result], api.customPenalty));
         s.phase = "result";
         return;
       }

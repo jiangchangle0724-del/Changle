@@ -3,10 +3,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PorcelainDefs } from "../../components/Dish";
 import { Sheet } from "../../components/Sheet";
+import { sliceLabel } from "../../data/wheel";
 import { polar } from "../../lib/geom";
 import { UI } from "../../i18n";
 import type { WheelSliceView, WheelView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useReached, useRoom } from "../RoomContext";
 import { useNetSpin } from "../useNetSpin";
@@ -22,6 +23,9 @@ function trim(s: string, n: number) {
 export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) {
   const { me, isHost, g, nameOf } = useRoom();
   const { ui, tr, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
+  // a built-in drinking slice reads as the table's own penalty, when the host set one
+  const label = (s: WheelSliceView) => tr(sliceLabel(s, custom));
   const mine = v.turn === me;
   const canAct = mine || isHost;
   const count = v.slices.length;
@@ -99,7 +103,7 @@ export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) 
                 fontWeight={800}
                 fill="var(--night)"
               >
-                {trim(tr(w.s.label), lang === "zh" ? (count > 10 ? 5 : 6) : count > 10 ? 10 : 12)}
+                {trim(label(w.s), lang === "zh" ? (count > 10 ? 5 : 6) : count > 10 ? 10 : 12)}
               </text>
             </g>
           ))}
@@ -113,7 +117,7 @@ export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) 
       <AnimatePresence mode="wait">
         {showResult && v.phase === "prompt" && v.prompt ? (
           <motion.div key="prompt" className="porcelain rule-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <p className="hint-ink">{result ? tr(result.label) : ""}</p>
+            <p className="hint-ink">{result ? label(result) : ""}</p>
             <p className="prompt-text">{tr(v.prompt)}</p>
             <p className="hint-ink prompt-other">{lang === "zh" ? v.prompt.en : v.prompt.zh}</p>
             {canAct ? (
@@ -135,7 +139,7 @@ export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) 
           </motion.div>
         ) : showResult && v.phase === "pick" ? (
           <motion.div key="pick" className="stack" style={{ gap: 10 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <p className={`wheel-result ${lang === "zh" ? "zh-display" : "en-display"}`}>{result ? tr(result.label) : ""}</p>
+            <p className={`wheel-result ${lang === "zh" ? "zh-display" : "en-display"}`}>{result ? label(result) : ""}</p>
             {canAct ? (
               <>
                 <p className="hint" style={{ textAlign: "center" }}>
@@ -144,12 +148,20 @@ export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) 
                 <SeatPicker exclude={[v.turn]} onPick={(pid) => g("pick", { target: pid })} />
               </>
             ) : (
-              <Waiting>{lang === "zh" ? `${nameOf(v.turn)} 在挑谁喝` : `${nameOf(v.turn)} is choosing who drinks`}</Waiting>
+              <Waiting>
+                {custom
+                  ? lang === "zh"
+                    ? `${nameOf(v.turn)} 在挑谁受罚`
+                    : `${nameOf(v.turn)} is choosing who takes the penalty`
+                  : lang === "zh"
+                    ? `${nameOf(v.turn)} 在挑谁喝`
+                    : `${nameOf(v.turn)} is choosing who drinks`}
+              </Waiting>
             )}
           </motion.div>
         ) : showResult && v.phase === "result" ? (
           <motion.div key={`result-${v.result}`} className="stack" style={{ gap: 10, alignItems: "center" }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <p className={`wheel-result ${lang === "zh" ? "zh-display" : "en-display"}`}>{result ? tr(result.label) : ""}</p>
+            <p className={`wheel-result ${lang === "zh" ? "zh-display" : "en-display"}`}>{result ? label(result) : ""}</p>
             {canAct ? (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("next")}>
                 {ui("next")}
@@ -197,6 +209,7 @@ export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) 
 
 function SliceEditor({ open, onClose, slices, onSave, onReset }: { open: boolean; onClose: () => void; slices: WheelSliceView[]; onSave: (s: WheelSliceView[]) => void; onReset: () => void }) {
   const { ui, tr, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const [draft, setDraft] = useState(slices);
   useEffect(() => {
     if (open) setDraft(slices);
@@ -208,7 +221,7 @@ function SliceEditor({ open, onClose, slices, onSave, onReset }: { open: boolean
           <div key={s.id + i} className="field">
             <span className="wedge-dot" style={{ background: COLORS[i % COLORS.length] }} />
             <input
-              value={tr(s.label)}
+              value={tr(sliceLabel(s, custom))}
               maxLength={16}
               aria-label={`${i + 1}`}
               onChange={(e) => setDraft((all) => all.map((x, k) => (k === i ? { id: x.kind === "custom" ? x.id : `c${i}`, kind: "custom", label: { zh: e.target.value, en: e.target.value } } : x)))}

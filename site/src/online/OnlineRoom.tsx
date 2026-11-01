@@ -1,7 +1,7 @@
 import { MotionConfig } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { TopBar } from "../components/TopBar";
-import { useStore } from "../store";
+import { TablePenalty, useStore } from "../store";
 import { isCode, lastRoom, newCode, readIntent, savedName, setIntent } from "./config";
 import { JoinScreen } from "./JoinScreen";
 import { Lobby } from "./Lobby";
@@ -144,12 +144,15 @@ function Stage({ create, name, onExit, onRejoin, onForget }: { create: boolean; 
 
   return (
     <MotionConfig reducedMotion="user">
-      <ScreenGuard key={room.game?.id ?? "lobby"} compact>
-        {room.game ? <NetGame view={room.game} onLeave={leave} /> : <Lobby onLeave={leave} />}
-      </ScreenGuard>
-      <ReactionLayer />
-      <ToastLayer />
-      <NetPenaltyLayer />
+      {/* every phone at the table plays for the host's penalty, whatever its own settings say */}
+      <TablePenalty value={room.penalty ?? ""}>
+        <ScreenGuard key={room.game?.id ?? "lobby"} compact>
+          {room.game ? <NetGame view={room.game} onLeave={leave} /> : <Lobby onLeave={leave} />}
+        </ScreenGuard>
+        <ReactionLayer />
+        <ToastLayer />
+        <NetPenaltyLayer />
+      </TablePenalty>
     </MotionConfig>
   );
 }

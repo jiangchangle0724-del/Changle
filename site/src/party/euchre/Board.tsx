@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { gsap, reduced } from "../../lib/anim";
 import { isRed, isTrump, rankOf, suitOf, team, trickWinner, type EMove } from "../../shared/euchre";
 import type { ECard, EPlay, ESuit, EuchreView } from "../../shared/protocol";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 
 /** Suit glyphs, forced to text so phones don't swap in a red heart emoji. */
 export const SUIT_GLYPH: Record<ESuit, string> = { S: "♠︎", H: "♥︎", D: "♦︎", C: "♣︎" };
@@ -392,6 +392,7 @@ function HandResult({ v, usTeam, watching, onNext, nextNote, who }: { v: EuchreV
 /** The rules sheet, shared by the online table and the one-phone game. */
 export function EuchreRules() {
   const { lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const H = SUIT_GLYPH.H;
   const D = SUIT_GLYPH.D;
   if (lang === "zh")
@@ -403,7 +404,7 @@ export function EuchreRules() {
           主牌的大小：比如{H}做主，最大是 J{H}，其次是同颜色的 J{D}，然后 A{H} K{H} Q{H} 10{H} 9{H}。有同花色必须跟，没有可以出主牌毙。
         </p>
         <p>计分：叫主的一方拿到三墩得 1 分，五墩全拿 2 分，单干（队友不出牌）全拿 4 分。拿不到三墩就是“被尤克”，对方得 2 分。先到目标分数的队赢。</p>
-        <p>罚酒：被尤克的一方喝一口，最后输的队喝两口。</p>
+        <p>{custom ? "惩罚：被尤克的一方受罚，最后输的队也受罚。" : "罚酒：被尤克的一方喝一口，最后输的队喝两口。"}</p>
       </>
     );
   return (
@@ -414,7 +415,7 @@ export function EuchreRules() {
         Trump order, say {H} is trump: J{H} is highest, then the other red jack J{D}, then A{H} K{H} Q{H} 10{H} 9{H}. Follow suit if you can; if you can't, you may trump.
       </p>
       <p>Scoring: the team that named trump needs three tricks for 1 point, all five for 2, all five alone (partner sits out) for 4. Fall short and you're euchred: 2 points to the other team. First to the target wins.</p>
-      <p>Drinks: get euchred, take a sip. The losing team drinks two.</p>
+      <p>{custom ? "Penalties: get euchred and take the penalty. So does the team that loses the game." : "Drinks: get euchred, take a sip. The losing team drinks two."}</p>
     </>
   );
 }

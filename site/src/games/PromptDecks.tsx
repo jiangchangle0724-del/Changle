@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { LIKELY, NEVER } from "../data/prompts";
@@ -21,6 +21,7 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
   const [guilty, setGuilty] = useState<string[]>([]);
   const [remaining, setRemaining] = useState({ never: never.current.remaining, likely: likely.current.remaining });
   const penalty = usePenalty();
+  const pen = usePenaltyText();
 
   const draw = () => {
     const d = mode === "never" ? never.current : likely.current;
@@ -46,9 +47,16 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
 
   const rules = (
     <p>
-      {lang === "zh"
-        ? "我从来没有：念出卡片，做过这件事的人都喝。谁最有可能：念出卡片，数到三大家一起指人，被指最多的喝。"
-        : "Never Have I Ever: read the card. Anyone who has done it drinks. Most Likely To: read the card, count to three, everyone points. The most pointed-at drinks."}
+      {pen.line(
+        {
+          zh: "我从来没有：念出卡片，做过这件事的人都喝。谁最有可能：念出卡片，数到三大家一起指人，被指最多的喝。",
+          en: "Never Have I Ever: read the card. Anyone who has done it drinks. Most Likely To: read the card, count to three, everyone points. The most pointed-at drinks.",
+        },
+        {
+          zh: "我从来没有：念出卡片，做过这件事的人都受罚。谁最有可能：念出卡片，数到三大家一起指人，被指最多的受罚。",
+          en: "Never Have I Ever: read the card. Anyone who has done it takes the penalty. Most Likely To: read the card, count to three, everyone points. The most pointed-at takes the penalty.",
+        },
+      )}
     </p>
   );
 
@@ -120,7 +128,7 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
                     penalty.show({ who: players.filter((p) => guilty.includes(p.id)).map((p) => p.name), kind: "sip", note: card ? tr(card) : undefined }, draw)
                   }
                 >
-                  {ui("drink")}
+                  {pen.isCustom ? ui("takePenalty") : ui("drink")}
                 </button>
               </div>
             </motion.div>

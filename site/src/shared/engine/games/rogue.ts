@@ -1,6 +1,6 @@
-import { fullDeck, RULE_BY_RANK, type Rank } from "../../../data/rogue13";
+import { fullDeck, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
 import type { RogueHolders, RoguePhase, RogueView } from "../../protocol";
-import { intIn, range, t, type Api, type GameDef } from "../api";
+import { byPenalty, intIn, range, t, type Api, type GameDef } from "../api";
 
 const DECK = fullDeck();
 
@@ -38,6 +38,7 @@ const N = {
   noseMiss: t("摸鼻子：没摸", "Nose: never touched it"),
   trouble: t("神经病：接了话", "Troublemaker: you answered"),
   wc: t("没有 WC 票：先喝再去", "No bathroom pass: drink first"),
+  wcCustom: t("没有 WC 票：先受罚再去", "No bathroom pass: penalty first"),
 };
 
 const GARDEN_MS = 7000;
@@ -46,11 +47,12 @@ const COLLIDE_MS = 400;
 
 const isSeven = (n: number) => n % 7 === 0 || String(n).includes("7");
 
-function noteFor(s: S) {
-  return s.card !== null ? RULE_BY_RANK[DECK[s.card].rank].title : undefined;
+/** The card's title, in the words of the table's penalty. */
+function noteFor(s: S, api: Api) {
+  return s.card !== null ? ruleWords(RULE_BY_RANK[DECK[s.card].rank], api.customPenalty).title : undefined;
 }
 
-function pen(s: S, api: Api, who: string[], kind: "sip" | "full", note = noteFor(s), delay = 0) {
+function pen(s: S, api: Api, who: string[], kind: "sip" | "full", note = noteFor(s, api), delay = 0) {
   api.penalty(who, kind, note, { buddy: s.holders.buddy, delay });
 }
 
@@ -134,24 +136,25 @@ export const rogue: GameDef<S> = {
         api.fx("card", drawer);
         const rank = DECK[s.card].rank;
         const rule = RULE_BY_RANK[rank];
+        const title = ruleWords(rule, api.customPenalty).title;
         switch (rule.kind) {
           case "pick":
             s.phase = "pick";
             return;
           case "self-sip":
-            pen(s, api, [drawer], "sip", rule.title, 1100);
+            pen(s, api, [drawer], "sip", title, 1100);
             s.phase = "done";
             return;
           case "self-full":
-            pen(s, api, [drawer], "full", rule.title, 1100);
+            pen(s, api, [drawer], "full", title, 1100);
             s.phase = "done";
             return;
           case "left":
-            pen(s, api, [api.prev(drawer)], "sip", rule.title, 1100);
+            pen(s, api, [api.prev(drawer)], "sip", title, 1100);
             s.phase = "done";
             return;
           case "right":
-            pen(s, api, [api.next(drawer)], "sip", rule.title, 1100);
+            pen(s, api, [api.next(drawer)], "sip", title, 1100);
             s.phase = "done";
             return;
           case "hold": {
@@ -324,7 +327,7 @@ export const rogue: GameDef<S> = {
           api.fx("wc", pid);
           return;
         }
-        pen(s, api, [pid], "sip", N.wc);
+        pen(s, api, [pid], "sip", byPenalty(api, N.wc, N.wcCustom));
         return;
       }
     }

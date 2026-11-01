@@ -1,4 +1,4 @@
-import { COMMANDS } from "../../../data/king";
+import { COMMANDS, commandText } from "../../../data/king";
 import { fill } from "../../../i18n";
 import type { KingView } from "../../protocol";
 import { range, t, type Api, type GameDef } from "../api";
@@ -39,9 +39,10 @@ function crown(s: S, api: Api) {
   api.fx("crown", king ?? undefined);
 }
 
-function cmdText(s: S) {
+/** The command as the phones read it, in the words of the table's penalty (it can change mid-round). */
+function cmdText(s: S, custom: boolean) {
   if (!s.cmd) return null;
-  const c = COMMANDS[s.cmd.c];
+  const c = commandText(COMMANDS[s.cmd.c], custom);
   const [a, b, cc] = s.cmd.nums;
   const vars = { a: a ?? 1, b: b ?? a ?? 1, c: cc ?? b ?? a ?? 1 };
   return { zh: fill(c.zh, vars), en: fill(c.en, vars) };
@@ -133,7 +134,7 @@ export const king: GameDef<S> = {
     if (s.phase === "deal" && Object.keys(s.tokens).length && Object.keys(s.tokens).every((id) => s.ready.includes(id))) crown(s, api);
   },
 
-  view(s, pid): KingView {
+  view(s, pid, api): KingView {
     const pulled = s.pulled.includes(pid);
     return {
       id: "king",
@@ -143,7 +144,7 @@ export const king: GameDef<S> = {
       ready: s.ready,
       pulledIds: s.pulled,
       king: s.phase === "deal" ? null : s.king,
-      cmd: s.cmd ? { text: cmdText(s)!, nums: s.cmd.nums } : null,
+      cmd: s.cmd ? { text: cmdText(s, api.customPenalty)!, nums: s.cmd.nums } : null,
       stepped: s.stepped,
       refused: s.refused,
       myToken: pulled ? s.tokens[pid] ?? null : null,

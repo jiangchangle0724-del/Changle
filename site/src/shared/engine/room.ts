@@ -77,6 +77,7 @@ const REUSE_AFTER = 10 * 60_000;
 const N_LOBBY = ONLINE_GAMES.length;
 
 const BUDDY_NOTE: T = t("陪酒：谢谢老板！", "Drinking buddy: thank you, boss!");
+const BUDDY_NOTE_CUSTOM: T = t("陪罚：谢谢老板！", "Penalty buddy: thank you, boss!");
 
 /**
  * Player ids become keys in the games' score and vote maps, so they are plain letters, digits,
@@ -382,7 +383,7 @@ export class RoomEngine {
         if (!pen || !pen.who.includes(pid) || !pen.buddy || pen.buddyUsed) return;
         if (!d.seats.some((s) => s.id === pen.buddy)) return;
         pen.buddyUsed = true;
-        this.penalty([pen.buddy], "sip", BUDDY_NOTE);
+        this.penalty([pen.buddy], "sip", (d.penalty ?? "").trim() ? BUDDY_NOTE_CUSTOM : BUDDY_NOTE);
         this.out.persist = true;
         return;
       }
@@ -621,6 +622,7 @@ export class RoomEngine {
     };
     return {
       now: h.now(),
+      customPenalty: !!(this.d.penalty ?? "").trim(),
       rand: () => h.rand(),
       int: (n: number) => Math.floor(h.rand() * n),
       shuffle: <X>(a: X[]) => {

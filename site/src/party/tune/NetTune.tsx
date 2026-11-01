@@ -12,7 +12,7 @@ import { useCue, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { TuneView } from "../../shared/protocol";
 import type { SongRow } from "../../shared/songs";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard } from "../common";
 import { perfAt } from "../sensors";
 import { chartsForRoom, loadCharts } from "./charts";
@@ -25,6 +25,7 @@ import "../../styles/party.css";
 export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, now, offset } = useRoom();
   const { lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
   const seat = (id: string) => seats.find((s) => s.id === id);
@@ -164,8 +165,8 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   const rules = (
     <p>
       {zh
-        ? "真歌模式：所有手机同时放同一首歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。抢答：知道就抢，从四个歌名里选，答错喝一口，这首就不能再抢。选择题：四个歌名从一开始就在每个人手机上，各选各的，越早选对分越高，没选对的喝一口。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓时可以去 Apple Music 听完整版。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的喝两口。"
-        : "Real songs: every phone plays the same 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV). The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Buzz in: know it? Buzz and pick the title from four; a wrong answer is a sip and locks you out of that song. Multiple choice: the four titles are on every phone from the start, everyone picks their own, the sooner the right one the more points, and whoever misses drinks. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. The reveal links to the full song on Apple Music. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score drinks two."}
+        ? `真歌模式：所有手机同时放同一首歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。抢答：知道就抢，从四个歌名里选，答错${custom ? "受罚" : "喝一口"}，这首就不能再抢。选择题：四个歌名从一开始就在每个人手机上，各选各的，越早选对分越高，没选对的${custom ? "受罚" : "喝一口"}。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓时可以去 Apple Music 听完整版。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的${custom ? "受罚" : "喝两口"}。`
+        : `Real songs: every phone plays the same 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV). The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Buzz in: know it? Buzz and pick the title from four; a wrong answer ${custom ? "takes the penalty" : "is a sip"} and locks you out of that song. Multiple choice: the four titles are on every phone from the start, everyone picks their own, the sooner the right one the more points, and whoever misses ${custom ? "takes the penalty" : "drinks"}. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. The reveal links to the full song on Apple Music. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score ${custom ? "takes the penalty" : "drinks two"}.`}
     </p>
   );
 
@@ -347,7 +348,17 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
 
             {v.last && !v.last.ok && v.phase === "listen" && (
               <p className="tn-miss">
-                {v.last.pid === me ? (zh ? "答错了，喝一口" : "Wrong. Take a sip.") : zh ? `${nameOf(v.last.pid)} 答错了` : `${nameOf(v.last.pid)} got it wrong`}
+                {v.last.pid === me
+                  ? custom
+                    ? zh
+                      ? "答错了，受罚"
+                      : "Wrong. Take the penalty."
+                    : zh
+                      ? "答错了，喝一口"
+                      : "Wrong. Take a sip."
+                  : zh
+                    ? `${nameOf(v.last.pid)} 答错了`
+                    : `${nameOf(v.last.pid)} got it wrong`}
               </p>
             )}
 
@@ -400,7 +411,9 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
                     ))}
                   </>
                 ) : zh ? (
-                  "这首没人答对，都喝一口"
+                  custom ? "这首没人答对，都受罚" : "这首没人答对，都喝一口"
+                ) : custom ? (
+                  "Nobody got this one. Everyone takes the penalty."
                 ) : (
                   "Nobody got this one. Everyone drinks."
                 )}

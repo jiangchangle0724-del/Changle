@@ -7,7 +7,7 @@ import type { T } from "../../i18n";
 import { gsap, reduced } from "../../lib/anim";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
 import { enableSensors, useSensorStatus, useTilt, useWakeLock } from "../sensors";
 import "../../styles/party.css";
@@ -37,6 +37,7 @@ export function Postit({ onBack }: { onBack: () => void }) {
   const ends = useRef(0);
   const sensors = useSensorStatus();
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
   const playing = phase.k === "play";
   const tilt = useTilt(playing && sensors === "on");
   useWakeLock(phase.k === "count" || playing);
@@ -146,8 +147,8 @@ export function Postit({ onBack }: { onBack: () => void }) {
   const rules = (
     <p>
       {zh
-        ? "轮到的人把手机举到额头上，屏幕朝外。大家看着屏幕上的词给提示（可以说、可以比划，不能直接说出那个词）。猜对了就低头点一下手机，想跳过就仰头。没有动作感应的话，点屏幕右边算猜对，左边跳过。每人一轮，猜得最少的喝。"
-        : "Whoever's up holds the phone to their forehead, screen facing out. Everyone else gives clues for the word on screen (talk, act it out, just don't say it). Got it? Nod the phone down. Pass? Tip it back. No motion sensor? Tap the right side for got it, the left to pass. One round each; fewest right drinks."}
+        ? `轮到的人把手机举到额头上，屏幕朝外。大家看着屏幕上的词给提示（可以说、可以比划，不能直接说出那个词）。猜对了就低头点一下手机，想跳过就仰头。没有动作感应的话，点屏幕右边算猜对，左边跳过。每人一轮，猜得最少的${custom ? "受罚" : "喝"}。`
+        : `Whoever's up holds the phone to their forehead, screen facing out. Everyone else gives clues for the word on screen (talk, act it out, just don't say it). Got it? Nod the phone down. Pass? Tip it back. No motion sensor? Tap the right side for got it, the left to pass. One round each; fewest right ${custom ? "takes the penalty" : "drinks"}.`}
     </p>
   );
 

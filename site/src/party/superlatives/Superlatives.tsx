@@ -6,7 +6,7 @@ import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { Deck } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { AwardCard, AwardReveal, Ceremony } from "./parts";
 import "../../styles/party.css";
@@ -28,6 +28,7 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [awards, setAwards] = useState<Record<string, T[]>>({});
   const penalty = usePenalty();
+  const custom = usePenaltyText().isCustom;
   const name = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p.name])), [players]);
   const face = (id: string) => (size: number) => <NameFace name={name[id] ?? "?"} size={size} />;
 
@@ -76,9 +77,13 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
 
   const rules = (
     <p>
-      {zh
-        ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人喝一口，平票一起喝。最后开颁奖典礼。"
-        : "One award a round. Secret ballot: pass the phone round and everyone votes in private (not for themselves); the reveal comes when the last vote is in. Point together: count to three, everyone points, then tap whoever got the most fingers. The winner drinks; ties all drink. An awards ceremony at the end."}
+      {custom
+        ? zh
+          ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人受罚，平票一起受罚。最后开颁奖典礼。"
+          : "One award a round. Secret ballot: pass the phone round and everyone votes in private (not for themselves); the reveal comes when the last vote is in. Point together: count to three, everyone points, then tap whoever got the most fingers. The winner takes the penalty; ties all take it. An awards ceremony at the end."
+        : zh
+          ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人喝一口，平票一起喝。最后开颁奖典礼。"
+          : "One award a round. Secret ballot: pass the phone round and everyone votes in private (not for themselves); the reveal comes when the last vote is in. Point together: count to three, everyone points, then tap whoever got the most fingers. The winner drinks; ties all drink. An awards ceremony at the end."}
     </p>
   );
 

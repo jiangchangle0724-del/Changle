@@ -9,7 +9,7 @@ import { forgetPreviews, heardSongs, loadPreview, rememberSong, type PreviewHand
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
 import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, type Song, type SongPool } from "../../shared/songs";
-import { useStore } from "../../store";
+import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
 import { AnswerPicker, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
@@ -26,6 +26,7 @@ type Mode = "songs" | "melody" | "pads";
  */
 export function Tune({ onBack }: { onBack: () => void }) {
   const { players, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const people = useMemo(() => (players.length ? players : [{ id: "me", name: zh ? "你" : "You" }]), [players, zh]);
   const [mode, setMode] = useState<Mode>("songs");
@@ -53,8 +54,8 @@ export function Tune({ onBack }: { onBack: () => void }) {
   const rules = (
     <p>
       {zh
-        ? "真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，错了喝一口。最后得分最低的喝两口。"
-        : "Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: right is a point, wrong is a sip. Lowest score drinks two."}
+        ? `真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，${custom ? "错了受罚。最后得分最低的受罚。" : "错了喝一口。最后得分最低的喝两口。"}`
+        : `Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: ${custom ? "right is a point, wrong takes the penalty. Lowest score takes the penalty." : "right is a point, wrong is a sip. Lowest score drinks two."}`}
     </p>
   );
 
@@ -124,6 +125,12 @@ export function Tune({ onBack }: { onBack: () => void }) {
 }
 
 /** Real songs on one phone: the preview plays, the table shouts, you reveal and tap who got it. */
+/** Multiple choice, wrong so far: take the table's penalty (a sip, or the one set in settings) and guess again. */
+function missLine(n: number, zh: boolean, custom: boolean) {
+  if (custom) return zh ? `猜错 ${n} 次了，受罚再猜` : `${n} wrong so far. Penalty, then try again.`;
+  return zh ? `猜错 ${n} 次了，喝一口再猜` : `${n} wrong so far. Sip and try again.`;
+}
+
 function SongRounds({
   total,
   pool,
@@ -146,6 +153,7 @@ function SongRounds({
   onEmpty: () => void;
 }) {
   const { lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const [book, setBook] = useState<Song[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -314,7 +322,7 @@ function SongRounds({
           }}
         />
       )}
-      {quiz && !revealed && tried.length > 0 && <p className="tn-miss">{zh ? `猜错 ${tried.length} 次了，喝一口再猜` : `${tried.length} wrong so far. Sip and try again.`}</p>}
+      {quiz && !revealed && tried.length > 0 && <p className="tn-miss">{missLine(tried.length, zh, custom)}</p>}
       {revealed ? (
         <>
           <SongReveal song={card} />
@@ -363,6 +371,7 @@ function MelodyRounds({
   onEnd: (final: Record<string, number>) => void;
 }) {
   const { lang } = useStore();
+  const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const deck = useRef<number[]>(shuffle(TUNES.map((_, i) => i)));
   const [round, setRound] = useState(1);
@@ -451,7 +460,7 @@ function MelodyRounds({
           }}
         />
       )}
-      {quiz && !revealed && tried.length > 0 && <p className="tn-miss">{zh ? `猜错 ${tried.length} 次了，喝一口再猜` : `${tried.length} wrong so far. Sip and try again.`}</p>}
+      {quiz && !revealed && tried.length > 0 && <p className="tn-miss">{missLine(tried.length, zh, custom)}</p>}
       {revealed ? (
         <>
           <TuneTitle tune={tune} />

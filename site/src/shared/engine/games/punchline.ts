@@ -16,7 +16,7 @@ import {
   VOTE_MS,
   WRITE_MS,
 } from "../../punchline";
-import { clean, range, t, type Api, type GameDef } from "../api";
+import { byPenalty, clean, range, t, type Api, type GameDef } from "../api";
 
 /**
  * Punchline (a Quiplash-style game), staged as a show. Rounds 1 and 2: every prompt goes to two
@@ -181,7 +181,12 @@ function settle(s: S, api: Api, forfeit = false) {
     if (r.winner >= 0) {
       const loser = 1 - r.winner;
       if (api.has(m.authors[loser]))
-        api.penalty([m.authors[loser]], r.sweep >= 0 ? "two" : "sip", r.sweep >= 0 ? t("神回复：一票都没有", "Punchline: not a single vote") : t("神回复：票少的喝", "Punchline: fewer votes drinks"), { delay: 5200 });
+        api.penalty(
+          [m.authors[loser]],
+          r.sweep >= 0 ? "two" : "sip",
+          r.sweep >= 0 ? t("神回复：一票都没有", "Punchline: not a single vote") : byPenalty(api, t("神回复：票少的喝", "Punchline: fewer votes drinks"), t("神回复：票少的受罚", "Punchline: fewer votes takes the penalty")),
+          { delay: 5200 },
+        );
     }
   }
   m.authors.forEach((pid, i) => {

@@ -1,5 +1,5 @@
 import type { DiceOutcome, DiceView } from "../../protocol";
-import { t, type GameDef } from "../api";
+import { byPenalty, t, type GameDef } from "../api";
 
 type S = {
   turn: string;
@@ -16,6 +16,12 @@ const NOTE: Record<"eight" | "nine" | "ones", ReturnType<typeof t>> = {
   eight: t("七八九：八，喝一半", "Seven Eight Nine: eight, drink half"),
   nine: t("七八九：九，全喝", "Seven Eight Nine: nine, drink it all"),
   ones: t("七八九：双一，指定你喝完", "Seven Eight Nine: snake eyes, you finish the glass"),
+};
+/** With the table's own penalty, the shared glass is a pot of it. */
+const NOTE_CUSTOM: typeof NOTE = {
+  eight: t("七八九：八，罚一半", "Seven Eight Nine: eight, half the pot"),
+  nine: t("七八九：九，全罚", "Seven Eight Nine: nine, the whole pot"),
+  ones: t("七八九：双一，指定你全罚", "Seven Eight Nine: snake eyes, the whole pot is yours"),
 };
 
 export const dice: GameDef<S> = {
@@ -41,11 +47,11 @@ export const dice: GameDef<S> = {
         api.fx("dice", s.turn, [a, b]);
         if (o === "seven") s.level = Math.min(1, s.level + 0.25);
         if (o === "eight") {
-          api.penalty([s.turn], "two", NOTE.eight, { delay: ROLL_MS + 300 });
+          api.penalty([s.turn], "two", byPenalty(api, NOTE.eight, NOTE_CUSTOM.eight), { delay: ROLL_MS + 300 });
           s.level = s.level / 2;
         }
         if (o === "nine") {
-          api.penalty([s.turn], "full", NOTE.nine, { delay: ROLL_MS + 300 });
+          api.penalty([s.turn], "full", byPenalty(api, NOTE.nine, NOTE_CUSTOM.nine), { delay: ROLL_MS + 300 });
           s.level = 0.3;
         }
         s.phase = o === "ones" ? "assign" : "result";
@@ -54,7 +60,7 @@ export const dice: GameDef<S> = {
       case "assign": {
         const target = String(g.target ?? "");
         if (s.phase !== "assign" || (pid !== s.turn && !host) || !api.has(target)) return;
-        api.penalty([target], "full", NOTE.ones);
+        api.penalty([target], "full", byPenalty(api, NOTE.ones, NOTE_CUSTOM.ones));
         s.level = 0.3;
         s.phase = "result";
         return;
