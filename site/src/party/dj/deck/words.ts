@@ -35,6 +35,8 @@ export function hintText(h: Hint, side: DeckSide, zh: boolean): string {
       return zh ? `${deck} 碟正在准备下一首，几秒钟` : `Deck ${deck} is getting the next one ready. A few seconds`;
     case "pick":
       return zh ? "在下面选下一首放什么" : "Pick what plays next, below";
+    case "ask":
+      return zh ? "在下面点歌，点中了下一首就放" : "Ask for a song below. It plays next";
     case "pads":
       return zh ? "试试效果键：警笛、搓碟、倒带……" : "Try the pads: siren, scratch, rewind and more";
     case "dropped":
@@ -56,12 +58,16 @@ export function reqLine(r: { text: string | null; artist?: string }, who: string
   return song ? `${who} asked for ${song}` : `${who} asked for a song`;
 }
 
-/** The remix on the air: "正在放：周杰伦《晴天》 Remix，Amy 点的". */
-export function nowLine(r: { text: string | null; artist?: string }, who: string, zh: boolean): string {
+/** What's on the air for whoever asked: "正在放：周杰伦《晴天》 Remix，Amy 点的" (the host's own song itself, no remix). */
+export function nowLine(r: { text: string | null; artist?: string; local?: string }, who: string, zh: boolean): string {
   const song = songName(r, zh);
+  if (r.local && song) return zh ? `正在放：${song}，${who} 点的` : `Now: ${song}, for ${who}`;
   if (zh) return song ? `正在放：${song} Remix，${who} 点的` : `正在放：${who} 点的歌的 Remix`;
   return song ? `Now: a remix of ${song}, for ${who}` : `Now: a remix of ${who}'s song`;
 }
+
+/** One of the host's songs, in a line: "周杰伦《晴天》", or "晴天 (周杰伦)". */
+export const localName = (s: { t: string; a: string }, zh: boolean) => (zh ? `${s.a ? `${s.a} ` : ""}《${s.t}》` : s.a ? `${s.t} (${s.a})` : s.t);
 
 export const DROP_WORDS = {
   perfect: t("完美", "Perfect"),

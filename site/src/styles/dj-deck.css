@@ -524,6 +524,20 @@
   background: var(--color-raised);
   color: var(--color-text);
 }
+.djk-next {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .djk-req-mine {
   display: flex;
   flex-direction: column;
@@ -611,6 +625,16 @@
   color: var(--color-text);
   font-size: var(--text-xl);
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dk-artist {
+  max-width: 100%;
+  margin-top: calc(-1 * var(--space-2));
+  overflow: hidden;
+  color: var(--color-text-2);
+  font-size: var(--text-md);
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -729,7 +753,8 @@
 
 .dk-chips {
   position: absolute;
-  top: 236px;
+  /* below the board, which grows a line for each song asked for it shows */
+  top: calc(236px + var(--lines, 0) * 40px);
   left: 50%;
   z-index: 6;
   display: flex;
@@ -896,4 +921,136 @@
   .dk-dropped-word {
     animation: none;
   }
+}
+
+/* ------------------------------------------------------------------ the host's own songs (the TV) */
+
+.dj-local-btn {
+  position: absolute;
+  top: 150px;
+  left: 56px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--color-bg) 80%, transparent);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 800;
+  cursor: pointer;
+}
+.dj-local-btn.is-on {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.dj-local {
+  position: absolute;
+  top: 290px;
+  left: 56px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(560px, calc(100% - 112px));
+  max-height: calc(100% - 320px);
+  padding: var(--space-5);
+  border-radius: var(--r-sheet);
+  background: color-mix(in oklab, var(--color-bg) 94%, transparent);
+  box-shadow:
+    var(--shadow-flat),
+    var(--shadow-float);
+  color: var(--color-text);
+  overflow: hidden;
+}
+.dj-local.is-over {
+  outline: 3px dashed var(--color-accent);
+  outline-offset: -6px;
+}
+.dj-local-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.dj-local-head h2 {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 800;
+}
+.dj-local-x {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-raised);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.dj-local-note,
+.dj-local-drop,
+.dj-local-busy,
+.dj-local-state {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-md);
+}
+.dj-local-busy {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.dj-local-add,
+.dj-local-go {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.dj-local-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.dj-local-list li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-small);
+  background: var(--color-surface);
+}
+.dj-local-t {
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dj-local-a {
+  overflow: hidden;
+  color: var(--color-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dj-local-bpm {
+  margin-left: auto;
+  flex: none;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.dj-local-failed {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
 }

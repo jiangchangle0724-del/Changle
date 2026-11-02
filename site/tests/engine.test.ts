@@ -1854,6 +1854,157 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   void beat;
 });
 
+test("dj: a night of the host's songs: their names from the speaker, a song on each deck, asked for by name, the DJ drops into the next as one ends", () => {
+  const e = new RoomEngine(freshRoom("DJLC", clock), host);
+  e.screenHello("tv-lc", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const deck = () => dv("p3").deck;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-lc", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const songs = [
+    ["s1", "One", "Artist A", 128, 200],
+    ["s2", "Two", "", 124, 190],
+    ["s3", "Three", "B", 100, 180],
+    ["s4", "Four", "", 126.04, 210],
+    ["s5", "Five", "", 130, 200],
+    ["bad id", "Six", "", 120, 200],
+    ["s7", "", "", 120, 200],
+    ["s8", "Eight", "", 900, 200],
+  ];
+
+  // the speaker's computer has songs: their names reach the room (the files stay there)
+  ok(sc("crate", { songs }), "the speaker says which songs it has");
+  ok(dv("p1").crateN === 5 && dv("p1").crateV === 1 && !("crate" in dv("p1")), "five of them make sense (a bad id, no title, a tempo that isn't one are left out); the list isn't in the view");
+  const data = e.gameData() as { v: number; crate: { id: string; t: string; a: string; bpm: number; s: number }[] };
+  ok(data.v === 1 && data.crate.length === 5 && data.crate[3].bpm === 126 && data.crate[0].a === "Artist A", "it's fetched apart from the view (GET /room/CODE/data), tempos to a tenth");
+  advance(1100);
+  ok(!sc("crate", { songs }), "the same list again is nothing new");
+
+  // the night starts on them
+  sc("live", { source: "local" });
+  sc("grid", { at: clock, bar: 0, bpm: 128 });
+  let d = deck();
+  ok(dv("p1").source === "local" && d.local && !!d.songs.a && !!d.songs.b && d.songs.a !== d.songs.b, `a night of the host's songs: one on each deck (${d.songs.a}, ${d.songs.b})`);
+  ok(d.played.includes(d.songs.a!) && dv("p2").onDecks.a?.t === data.crate.find((x) => x.id === d.songs.a)?.t, "the one on the air is counted as played, and named for the phones");
+  ok(nothing(g("p1", "vote", { style: "techno" })), "no styles to pick");
+  ok(nothing(g("p2", "req", { text: "something else" })) && nothing(g("p2", "req", { local: "nope" })), "a name typed in, or a song that isn't there, isn't asked for");
+
+  // asked for by name: it goes on the deck off the air
+  const s3on = d.songs.a === "s3" || d.songs.b === "s3";
+  const want = s3on ? "s5" : "s3";
+  g("p2", "req", { local: want });
+  d = deck();
+  ok(d.up?.local === want && d.up?.by === "p2" && d.songs.b === want, `Ben asks for ${want}: up next, on deck B`);
+  ok(dv("p3").deck.up?.text === data.crate.find((x) => x.id === want)?.t && (e.view("tv-lc").game as V<"dj">).deck.up?.text !== null, "named for everyone, the big screen too (they're the host's songs)");
+  ok(cued(deck()) === null, "cued once the speaker says deck B has it");
+  advance(1100);
+  ok(sc("decks", { a: d.a, b: d.b ?? "house", sa: d.songs.a, sb: want }) && cued(deck()) === "b", "it does: cued");
+
+  // the table drops into it
+  for (let i = 0; i < 30 && !deck().drop; i++) {
+    advance(250);
+    g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+  }
+  const dr = deck().drop!;
+  ok(dr.to === "b", "the build-up full: the drop goes to B");
+  clock = dr.cue + 20;
+  g("p1", "drop", { c: clock });
+  advance(dr.at - clock + 5);
+  d = deck();
+  ok(d.fader === 1 && d.now?.local === want && d.up === null, `it lands: ${want} on the air, named for Ben`);
+  ok(!!d.songs.a && d.songs.a !== want && !d.played.slice(0, -1).includes(d.songs.a) && d.played.includes(want), `the deck now off the air (A) takes the next, one not played yet (${d.songs.a})`);
+
+  // the song on the air nearly over: the DJ drops into the next
+  ok(!sc("ending", { id: d.songs.a }), "the speaker can only say the one on the air is ending");
+  ok(sc("ending", { id: want }) && deck().ending === want && !deck().drop, "it says so; the deck off the air isn't ready yet: the DJ waits");
+  advance(1100);
+  sc("decks", { a: d.a, b: d.b ?? "house", sa: d.songs.a, sb: want });
+  advance(3000);
+  const auto = deck().drop!;
+  ok(auto && auto.auto && auto.to === "a", "then it starts the countdown into A itself");
+  advance(auto.at - clock + 5);
+  d = deck();
+  ok(d.fader === 0 && d.ending === null && d.now === null && d.last?.auto === true, "and drops: A on the air, nothing ending");
+
+  // back to the stand-in, and on again
+  advance(1100);
+  sc("src", { source: "fake" });
+  ok(!deck().local && dv("p1").source === "fake", "the speaker goes back to the stand-in: no longer a night of the host's songs");
+  ok(!nothing(g("p1", "vote", { style: "techno" })), "the picks are back");
+  advance(1100);
+  sc("src", { source: "local" });
+  ok(deck().local && Object.keys(deck().votes).length === 0, "and on again");
+  advance(1300);
+  g("p2", "fader", { value: 0.4 });
+  ok(deck().fader === 0.4, "the fader works: deck B has a song (no style needed)");
+  advance(1300);
+  g("p2", "fader", { value: 0 });
+
+  // the speaker's songs change: one on a deck that's gone is replaced
+  advance(1100);
+  const offId = deck().songs.b!;
+  ok(sc("crate", { songs: songs.filter((x) => x[0] !== offId) }), "a song taken off the speaker's list");
+  ok(deck().songs.b !== offId && !!deck().songs.b && dv("p1").crateV === 2, "leaves its deck for another");
+
+  // the end of the set keeps the songs for the next
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p1").crateN === 4 && (e.gameData() as { crate: unknown[] }).crate.length === 4, "another set keeps the host's songs");
+  sc("live", { source: "local" });
+  ok(deck().local && !!deck().songs.a, "and plays them again");
+  ok(!sc("live", { source: "local" }), "(once)");
+  // two songs take turns
+  const e3 = new RoomEngine(freshRoom("DJLE", clock), host);
+  e3.screenHello("tv-le", true, "dj");
+  e3.hello("q1", "Q1", false);
+  e3.flush();
+  const s3 = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e3.screenAct("tv-le", { x, ...rest });
+    e3.flush();
+    return took;
+  };
+  const d3 = () => (e3.view("q1").game as V<"dj">).deck;
+  s3("crate", { songs: [["t1", "One", "", 128, 200], ["t2", "Two", "", 126, 200]] });
+  s3("live", { source: "local" });
+  s3("grid", { at: clock, bar: 0, bpm: 128 });
+  const first = d3().songs.a;
+  ok(!!first && !!d3().songs.b && d3().songs.b !== first, "two songs: one on each deck");
+  clock += 1100;
+  s3("decks", { a: d3().a, b: d3().b ?? "house", sa: d3().songs.a, sb: d3().songs.b });
+  s3("ending", { id: first });
+  const dr3 = d3().drop!;
+  clock = dr3.at + 5;
+  e3.due();
+  e3.flush();
+  ok(d3().fader === 1 && d3().songs.a === first, `the next plays, and the one before comes round again on the deck off the air (${d3().songs.a})`);
+  const e2 = new RoomEngine(freshRoom("DJLD", clock), host);
+  e2.screenHello("tv-ld", true, "dj");
+  e2.flush();
+  e2.screenAct("tv-ld", { x: "live", source: "local" });
+  e2.flush();
+  ok((e2.view("tv-ld").game as V<"dj">).source === "fake", "no songs on the speaker: a night of them can't start (the stand-in plays)");
+});
+
 test("dj: the private Lyria test: only with one of the owner's accounts at the table, never shown; the speaker says when its music changes hands", () => {
   const e = new RoomEngine(freshRoom("DJLB", clock), host);
   e.screenHello("tv-lb", true, "dj");

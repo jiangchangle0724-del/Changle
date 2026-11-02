@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { T } from "../../i18n";
 import { useRoom, useRoomEvent } from "../../online/RoomContext";
-import { DJ_TIMES, SET_PHASES, type DjPhase, type Mix, type Scale, type Source, type StyleId } from "../../shared/dj/types";
+import { DJ_TIMES, SET_PHASES, type CrateSong, type DjPhase, type Mix, type Scale, type Source, type StyleId } from "../../shared/dj/types";
 import { useStore } from "../../store";
 
 const t = (zh: string, en: string): T => ({ zh, en });
@@ -62,16 +62,17 @@ export function mixLine(mix: Mix, zh: boolean) {
   return parts.join(" · ");
 }
 
-export const sourceName = (s: Source, zh: boolean) => (s === "fake" ? (zh ? "试音版 DJ" : "Sound-check DJ") : zh ? "AI DJ · 实验" : "AI DJ · lab");
+export const sourceName = (s: Source, zh: boolean) => (s === "fake" ? (zh ? "试音版 DJ" : "Sound-check DJ") : s === "local" ? (zh ? "你的歌" : "Your songs") : zh ? "AI DJ · 实验" : "AI DJ · lab");
 
 /** What's playing, in one line. */
-export function NowPlaying({ v }: { v: { mix: Mix; source: Source } }) {
+export function NowPlaying({ v, song }: { v: { mix: Mix; source: Source }; song?: CrateSong | null }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   return (
     <span className="dj-now">
       <span className="dj-now-src">{sourceName(v.source, zh)}</span>
-      <span className="dj-now-mix">{mixLine(v.mix, zh)}</span>
+      {/* the host's song on the air, or the styles the DJ plays */}
+      <span className="dj-now-mix">{song ? `${song.a ? `${song.a} · ` : ""}${song.t} · ${Math.round(song.bpm)} BPM` : mixLine(v.mix, zh)}</span>
     </span>
   );
 }

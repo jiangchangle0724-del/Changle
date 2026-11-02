@@ -593,6 +593,12 @@ export class RoomEngine {
     };
   }
 
+  /** The game's big, rarely changing data (its `data`), for GET /room/CODE/data; null without one. */
+  gameData(): unknown {
+    const gd = this.gameDef();
+    return gd && this.d.game && gd.def.data ? gd.def.data(this.d.game.s) : null;
+  }
+
   info() {
     const d = this.d;
     const hostSeat = d.seats.find((s) => s.id === d.host);

@@ -6,6 +6,8 @@ export const ROOMS_URL = (ENV || "wss://rooms.changle.ca").replace(/\/$/, "");
 
 export const wsUrl = (code: string) => `${ROOMS_URL.replace(/^http/, "ws")}/room/${code}/ws`;
 export const infoUrl = (code: string) => `${ROOMS_URL.replace(/^ws/, "http")}/room/${code}/info`;
+/** A game's big, rarely changing data (the DJ booth's song list). */
+export const dataUrl = (code: string) => `${ROOMS_URL.replace(/^ws/, "http")}/room/${code}/data`;
 /** The DJ booth's Lyria stream for a table, asked for by one of its big screens (`sid`). */
 export const lyriaUrl = (code: string, sid: string) => `${ROOMS_URL.replace(/^http/, "ws")}/room/${code}/lyria?sid=${encodeURIComponent(sid)}`;
 

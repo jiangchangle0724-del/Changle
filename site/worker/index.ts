@@ -299,7 +299,7 @@ export default {
     }
     if (url.pathname.startsWith("/api/")) return api(req, env, ctx, url);
     if (url.pathname === "/" || url.pathname === "/health") return cors(new Response("changle rooms ok"), req);
-    const m = /^\/room\/([A-Za-z0-9]{4})\/(ws|info|lyria)$/.exec(url.pathname);
+    const m = /^\/room\/([A-Za-z0-9]{4})\/(ws|info|lyria|data)$/.exec(url.pathname);
     if (!m) return cors(new Response("not found", { status: 404 }), req);
     if (!originOk(req)) return new Response("forbidden", { status: 403 });
     const code = m[1].toUpperCase();
@@ -308,7 +308,7 @@ export default {
     const inner = new URL(req.url);
     inner.searchParams.set("code", code);
     const res = await stub.fetch(new Request(inner.toString(), req));
-    return m[2] === "info" ? cors(res, req) : res;
+    return m[2] === "info" || m[2] === "data" ? cors(res, req) : res;
   },
 } satisfies ExportedHandler<Env>;
 
@@ -361,6 +361,8 @@ export class Room extends DurableObject<Env> {
     const code = url.searchParams.get("code") ?? "";
     const engine = await this.load(code);
     if (url.pathname.endsWith("/lyria")) return this.lyriaSocket(req, url);
+    // a game's big data (the DJ booth's song list): fetched once, not sent with every view
+    if (url.pathname.endsWith("/data")) return Response.json(engine.gameData(), { headers: { "Cache-Control": "no-store" } });
     if (req.headers.get("Upgrade") !== "websocket") return Response.json(engine.info());
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];

@@ -35,13 +35,16 @@ export function DeckBoard({ v }: { v: DjView }) {
   const loading = cue ? null : loaded(d);
   const deck = (side: DeckSide) => {
     const style = side === "a" ? d.a : d.b;
+    // (a night of the host's songs: the deck's song by name)
+    const song = d.local ? v.onDecks[side] : null;
     const gain = side === "a" ? Math.cos((d.fader * Math.PI) / 2) : Math.sin((d.fader * Math.PI) / 2);
     return (
       <div className={`dk-deck ${on === side ? "is-on" : ""} ${cue === side ? "is-cued" : ""}`} style={{ ["--gain" as string]: gain } as CSSProperties}>
         <span className="dk-record" aria-hidden="true" />
         <span className="dk-style">
-          <span className="dk-side">{side.toUpperCase()}</span> {style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}
+          <span className="dk-side">{side.toUpperCase()}</span> {d.local ? (song ? song.t : zh ? "准备中" : "Loading") : style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}
         </span>
+        {song?.a && <span className="dk-artist">{song.a}</span>}
         {cue === side && <span className="dk-cued">{zh ? "下一首" : "Up next"}</span>}
         {loading === side && <span className="dk-cued is-loading">{zh ? "准备中" : "Loading"}</span>}
       </div>
@@ -51,7 +54,7 @@ export function DeckBoard({ v }: { v: DjView }) {
     <div className={`dk-board ${live ? "is-live" : ""}`}>
       {deck("a")}
       <div className="dk-mid">
-        <NowPlaying v={v} />
+        <NowPlaying v={v} song={d.local ? v.onDecks[on] : null} />
         {d.now && (
           <span className="dk-req is-now">
             <Music2 size={24} aria-hidden="true" />
@@ -169,9 +172,10 @@ export function usePadEvents(play: (pad: PadId) => void) {
   return chips;
 }
 
-export function PadChips({ chips }: { chips: Chip[] }) {
+/** `lines`: the songs-asked-for lines the board has now (each makes it taller: the chips sit below it). */
+export function PadChips({ chips, lines = 0 }: { chips: Chip[]; lines?: number }) {
   return (
-    <div className="dk-chips" aria-live="polite">
+    <div className="dk-chips" aria-live="polite" style={{ ["--lines" as string]: lines } as CSSProperties}>
       {chips.map((c) => {
         const Icon = c.icon;
         return (

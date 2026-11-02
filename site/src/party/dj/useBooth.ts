@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FAKE_MIX, mixFor, playing } from "../../shared/dj/curve";
-import type { DjPhase, Mix, PadId, Source, StyleId } from "../../shared/dj/types";
+import { onAir } from "../../shared/dj/deck";
+import type { DeckSide, DjPhase, Mix, PadId, Source, StyleId } from "../../shared/dj/types";
 import type { DeckView } from "../../shared/protocol";
 import { DeckDriver, type Grid } from "./deck/driver";
 import { FakeDj } from "./fake/FakeDj";
+import { CRATE_MAX, readSong, songId, SONG_FILES, type NotAdded } from "./local/crate";
+import { LocalDj, type LocalSong } from "./local/LocalDj";
 import { FINAL, LyriaDj, type LyriaWhy } from "./lyria/LyriaDj";
 import { Speaker } from "./speaker/speaker";
 
@@ -26,7 +29,12 @@ export type BoothDj = {
   beatFrame(b: number): number | null;
   heardSection(): { id: string; phase: DjPhase } | null;
   holdFor(ms: number): void;
+  /** a drop on its way into deck `side` at the night's beat `beat` (the host's songs: its loud part lands there) */
+  cue(side: DeckSide, beat: number): void;
 };
+
+/** The host's songs being added: how far along, and the ones that couldn't be. */
+export type Adding = { done: number; total: number; name: string };
 
 /**
  * One booth per page: the speaker (with the tap that woke its sound), the stand-in DJ (with the
@@ -37,6 +45,14 @@ export type BoothDj = {
 type PageBooth = {
   fake: FakeDj;
   lyria: LyriaDj | null;
+  /** the host's own songs (a night of them): the DJ that plays them, the songs on this computer, the
+   *  ones being added and the ones that couldn't be, and whether the host wants them played */
+  local: LocalDj;
+  crate: LocalSong[];
+  adding: Adding | null;
+  failed: { name: string; why: NotAdded }[];
+  wantLocal: boolean;
+  queue: Promise<void>;
   /** which one the speaker is playing */
   using: Source;
   /** Lyria said no for good at this table (not the owner's, no key, the month's cap) */
@@ -50,8 +66,23 @@ type PageBooth = {
 let page: PageBooth | null = null;
 function pageBooth(): PageBooth {
   if (!page) {
-    const b = { fake: new FakeDj(), lyria: null, using: "fake", blocked: null, speaker: null, starting: false, error: false, listeners: new Set() } as unknown as PageBooth;
-    const now = () => (b.using === "lyria" && b.lyria ? b.lyria : b.fake);
+    const b = {
+      fake: new FakeDj(),
+      lyria: null,
+      local: new LocalDj(),
+      crate: [],
+      adding: null,
+      failed: [],
+      wantLocal: false,
+      queue: Promise.resolve(),
+      using: "fake",
+      blocked: null,
+      speaker: null,
+      starting: false,
+      error: false,
+      listeners: new Set(),
+    } as unknown as PageBooth;
+    const now = () => (b.using === "lyria" && b.lyria ? b.lyria : b.using === "local" ? b.local : b.fake);
     b.dj = {
       get ready() {
         return b.fake.ready;
@@ -63,12 +94,15 @@ function pageBooth(): PageBooth {
         return now().bpm;
       },
       get epoch() {
-        return (b.using === "lyria" ? 1_000_000 : 0) + now().epoch;
+        return (b.using === "lyria" ? 1_000_000 : b.using === "local" ? 2_000_000 : 0) + now().epoch;
       },
       beat: () => now().beat(),
       beatFrame: (n) => now().beatFrame(n),
       heardSection: () => now().heardSection(),
       holdFor: (ms) => now().holdFor(ms),
+      cue: (side, beat) => {
+        if (b.using === "local") b.local.cue(side, beat);
+      },
     };
     page = b;
   }
@@ -76,6 +110,35 @@ function pageBooth(): PageBooth {
 }
 const statusOf = (b: PageBooth): BoothStatus => (b.speaker ? "on" : b.starting ? "starting" : b.error ? "error" : "idle");
 const tell = (b: PageBooth) => b.listeners.forEach((fn) => fn());
+
+/**
+ * The host's song files, listened to one at a time (each is decoded and its beat found: a second
+ * or two a song), added to the night's list as they're done; one already there isn't added again.
+ */
+function addSongs(b: PageBooth, files: File[]) {
+  const todo = files.filter((f) => SONG_FILES.test(f.name) || f.type.startsWith("audio/"));
+  b.queue = b.queue.then(async () => {
+    for (let i = 0; i < todo.length; i++) {
+      const f = todo[i];
+      if (b.crate.length >= CRATE_MAX) break;
+      const id = songId(f);
+      if (b.crate.some((s) => s.id === id)) continue;
+      b.adding = { done: i, total: todo.length, name: f.name };
+      tell(b);
+      const r = await readSong(f, id);
+      if (typeof r === "string") b.failed = [...b.failed, { name: f.name, why: r }].slice(-20);
+      else {
+        b.crate = [...b.crate, r];
+        b.local.setCrate(b.crate);
+      }
+      tell(b);
+      // a breath for the page between songs
+      await new Promise((ok) => window.setTimeout(ok, 30));
+    }
+    b.adding = null;
+    tell(b);
+  });
+}
 
 /** Where the speaker may stream Lyria from (the table's relay), when the table may (`v.lab`). */
 export type LyriaAt = { url: string; key: string };
@@ -96,6 +159,8 @@ export function useBooth({
   now,
   onGrid,
   onDecks,
+  roomSource,
+  onEnding,
 }: {
   phase: DjPhase;
   mix?: Mix;
@@ -107,14 +172,22 @@ export function useBooth({
   /** the server's clock (ms), and where to tell the room the speaker's bars fall */
   now?: () => number;
   onGrid?: (g: Grid) => void;
-  /** tells the room the styles the decks really sound (a drop only swaps to a deck that plays its pick) */
-  onDecks?: (d: { a: StyleId; b: StyleId | null }) => void;
+  /** tells the room the styles the decks really sound (a drop only swaps to a deck that plays its pick),
+   *  and on a night of the host's songs which songs they have */
+  onDecks?: (d: { a: StyleId; b: StyleId | null; sa?: string | null; sb?: string | null }) => void;
+  /** where the room says the music comes from: `local`, the host's songs, takes the speaker once the
+   *  song on the air is ready */
+  roomSource?: Source;
+  /** the host's song on the air is nearly over (the room drops into the next) */
+  onEnding?: (id: string) => void;
 }) {
   const booth = pageBooth();
   const { fake } = booth;
   const [status, setStatus] = useState<BoothStatus>(() => statusOf(booth));
   const [source, setSource] = useState<Source>(booth.using);
   const [prepared, setPrepared] = useState(fake.ready);
+  // the host's songs change as they're added (the page's booth keeps them)
+  const [, setTick] = useState(0);
   const speaker = status === "on" ? booth.speaker : null;
   const report = useRef(onReport);
   report.current = onReport;
@@ -124,6 +197,7 @@ export function useBooth({
     const sync = () => {
       setStatus(statusOf(booth));
       setSource(booth.using);
+      setTick((n) => n + 1);
     };
     booth.listeners.add(sync);
     sync();
@@ -191,7 +265,8 @@ export function useBooth({
     // the table stopped being one of the owner's: a later return may try Lyria again
     if (!lyria) booth.blocked = null;
     const blocked = !!booth.blocked && booth.blocked.key === lyriaKey;
-    const want = !!speaker && !!lyria && playing(phase) && !blocked;
+    // (never on a night of the host's songs)
+    const want = !!speaker && !!lyria && playing(phase) && !blocked && roomSource !== "local";
     if (want && lyria && !booth.lyria) {
       const l = new LyriaDj(lyria.url);
       booth.lyria = l;
@@ -236,7 +311,7 @@ export function useBooth({
       tell(booth);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booth, fake, speaker, phase, lyriaKey]);
+  }, [booth, fake, speaker, phase, lyriaKey, roomSource]);
 
   // the screen goes (the booth closed, another table): Lyria goes with it, the stand-in stays
   // quiet until a booth is up again
@@ -272,6 +347,49 @@ export function useBooth({
   useEffect(() => {
     if (reqId && reqTrack) fake.playTrack(reqTrack);
   }, [fake, reqId, reqTrack]);
+  // the host's songs: the room's decks to the local DJ (it decodes a song as soon as it's on a deck);
+  // once the room plays them and the song on the air is ready, the local DJ takes the speaker (and
+  // gives it back to the stand-in when the room no longer does)
+  const local = booth.local;
+  const songA = deck?.songs?.a ?? null;
+  const songB = deck?.songs?.b ?? null;
+  const air = deck ? onAir(deck) : "a";
+  const fader = deck?.fader ?? 0;
+  useEffect(() => local.setDecks(songA, songB, air, fader), [local, songA, songB, air, fader]);
+  useEffect(() => local.setPhase(phase), [local, phase]);
+  const [localTick, setLocalTick] = useState(0);
+  const ending = useRef(onEnding);
+  ending.current = onEnding;
+  useEffect(() => {
+    local.onChange = () => setLocalTick((n) => n + 1);
+    local.onEnding = (id) => ending.current?.(id);
+    return () => {
+      local.onChange = null;
+      local.onEnding = null;
+    };
+  }, [local]);
+  useEffect(() => {
+    const sp = booth.speaker;
+    if (!sp || !speaker) return;
+    const wantLocal = roomSource === "local";
+    if (wantLocal && booth.using !== "local" && local.ready) {
+      if (booth.lyria) {
+        const l = booth.lyria;
+        booth.lyria = null;
+        l.stop();
+      }
+      fake.detach();
+      local.attach(sp);
+      booth.using = "local";
+      tell(booth);
+    } else if (!wantLocal && booth.using === "local") {
+      local.detach();
+      booth.using = "fake";
+      fake.attach(sp);
+      tell(booth);
+    }
+  }, [booth, fake, local, speaker, roomSource, localTick]);
+
   const clock = useRef(now);
   clock.current = now;
   const grid = useRef(onGrid);
@@ -288,19 +406,28 @@ export function useBooth({
   decksTo.current = onDecks;
   const roomHas = useRef(deck?.sounding ?? null);
   roomHas.current = deck?.sounding ?? null;
+  // (a night of the host's songs: the decks' styles as the room has them, and the songs the local DJ has)
+  const srcNow = useRef(roomSource);
+  srcNow.current = roomSource;
+  const styles = useRef({ a: deckA, b: deckB });
+  styles.current = { a: deckA, b: deckB };
   useEffect(() => {
     if (!speaker) return;
     let saidAt = -Infinity;
     const id = window.setInterval(() => {
-      const hd = booth.using === "fake" ? fake.heardDecks() : null;
+      let hd: { a: StyleId; b: StyleId | null; sa?: string | null; sb?: string | null } | null = null;
+      if (srcNow.current === "local") {
+        const s = local.sounding();
+        hd = { ...styles.current, sa: s.a, sb: s.b };
+      } else if (booth.using === "fake") hd = fake.heardDecks();
       const has = roomHas.current;
-      if (!hd || (has && has.a === hd.a && has.b === hd.b)) return;
+      if (!hd || (has && has.a === hd.a && has.b === hd.b && (has.sa ?? null) === (hd.sa ?? null) && (has.sb ?? null) === (hd.sb ?? null))) return;
       if (performance.now() - saidAt < 1500) return;
       saidAt = performance.now();
       decksTo.current?.(hd);
     }, 500);
     return () => window.clearInterval(id);
-  }, [speaker, booth, fake]);
+  }, [speaker, booth, fake, local]);
 
   // the phone or tablet stopped the sound (the screen locked, a call): it takes a tap to wake it
   const [stopped, setStopped] = useState(false);
@@ -342,5 +469,38 @@ export function useBooth({
     };
   }, [speaker]);
 
-  return { start, status, prepared, speaker, dj: booth.dj, source, stopped, wake, pad, driver };
+  const addFiles = useCallback((files: File[]) => addSongs(booth, files), [booth]);
+  const setWantLocal = useCallback(
+    (on: boolean) => {
+      booth.wantLocal = on;
+      tell(booth);
+    },
+    [booth],
+  );
+  const clearSongs = useCallback(() => {
+    booth.crate = [];
+    booth.failed = [];
+    booth.wantLocal = false;
+    booth.local.setCrate([]);
+    tell(booth);
+  }, [booth]);
+  return {
+    start,
+    status,
+    prepared,
+    speaker,
+    dj: booth.dj,
+    source,
+    stopped,
+    wake,
+    pad,
+    driver,
+    crate: booth.crate,
+    adding: booth.adding,
+    failed: booth.failed,
+    wantLocal: booth.wantLocal,
+    addFiles,
+    setWantLocal,
+    clearSongs,
+  };
 }

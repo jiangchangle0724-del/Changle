@@ -11,12 +11,13 @@
  */
 import { SONG_ROWS } from "../../../data/songs";
 import { ENERGY, FAKE_MIX, mixFor, playing } from "../../dj/curve";
-import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, leader, offAir, onAir, reaim, styleOn } from "../../dj/deck";
+import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, styleOn } from "../../dj/deck";
 import { hintOf, styleForRequest, trackFor } from "../../dj/requests";
 import {
   ASK_CHARS,
   ASKS_EACH,
   CHECKED,
+  CRATE_MAX,
   DECK,
   DJ_TIMES,
   FIRE_TAKE_MS,
@@ -29,6 +30,7 @@ import {
   SET_PHASES,
   STYLE_IDS,
   WAITING,
+  type CrateSong,
   type DjPhase,
   type PadId,
   type RoomState,
@@ -65,6 +67,8 @@ function fresh(set: number): RoomState {
     speaker: { at: 0, stalls: 0, resets: 0, seconds: 0 },
     set,
     deck: freshDeck(),
+    crate: [],
+    crateV: 0,
   };
 }
 
@@ -74,6 +78,8 @@ function norm(s: RoomState): RoomState {
   s.knobs ??= {};
   s.drops ??= [];
   s.queue ??= [];
+  s.crate ??= [];
+  s.crateV ??= 0;
   // a deck saved before a field existed gets it fresh
   s.deck = { ...freshDeck(), ...s.deck };
   return s;
@@ -139,6 +145,9 @@ function land(s: RoomState, api: Api) {
   // the drop didn't go into the song up next (its deck wasn't playing it yet): it waits again
   if (d.up) api.timer("req", api.now + DECK.reqWaitMs);
   else nextReq(s, api);
+  refill(s, api);
+  // a host's song still ending (the drop stayed on it): the DJ tries again in a moment
+  if (d.ending) api.timer("end", api.now + 3000);
 }
 
 /**
@@ -149,6 +158,8 @@ function land(s: RoomState, api: Api) {
 function swapped(s: RoomState, api: Api) {
   const d = s.deck;
   d.votes = {};
+  d.ending = null;
+  api.clear("end");
   if (d.up) {
     d.now = d.up;
     d.up = null;
@@ -168,14 +179,93 @@ function swapped(s: RoomState, api: Api) {
 function nextReq(s: RoomState, api: Api) {
   const d = s.deck;
   if (d.up || d.drop || !playing(s.phase) || !d.reqs.length) return;
-  const r = d.reqs.shift()!;
+  // a night of the host's songs plays the ones asked for from them (the others wait for the stand-in)
+  const i = d.local ? d.reqs.findIndex((r) => !!r.local && s.crate.some((x) => x.id === r.local)) : 0;
+  if (i < 0) return;
+  const r = d.reqs.splice(i, 1)[0];
   d.up = r;
-  if (offAir(d) === "b") d.b = r.style;
+  if (d.local) d.songs[offAir(d)] = r.local!;
+  else if (offAir(d) === "b") d.b = r.style;
   else d.a = r.style;
   d.votes = {};
   syncMix(s);
   api.timer("req", api.now + DECK.reqWaitMs);
 }
+
+/**
+ * The DJ starts the countdown itself (an `auto` drop: anyone can still press for a grade) into the
+ * deck off the air, once that deck really plays what it should; else it tries again in a moment.
+ */
+function autoDrop(s: RoomState, api: Api, key: "req" | "end") {
+  const d = s.deck;
+  if (d.drop) return;
+  const side = cued(d, s.source === "lyria");
+  if (!side) {
+    api.timer(key, api.now + (key === "end" ? 3000 : 5000));
+    return;
+  }
+  const t = aim(d.grid, api.now);
+  d.drop = { ...t, misses: 0, auto: true, hits: [], to: side };
+  d.charge = 1;
+  d.chargeAt = api.now;
+  api.timer("drop", t.at);
+}
+
+/* ------------------------------------------------------------------ a night of the host's songs */
+
+/**
+ * The next of the host's songs: one not played tonight, other than `not` (the one on the other deck);
+ * all played, they start over (so two songs take turns; one alone has nothing to follow it).
+ */
+function pickSong(s: RoomState, api: Api, not: string | null): string | null {
+  const d = s.deck;
+  let pool = s.crate.filter((x) => x.id !== not && !d.played.includes(x.id));
+  if (!pool.length) {
+    d.played = not ? [not] : [];
+    pool = s.crate.filter((x) => x.id !== not);
+  }
+  return pool.length ? pool[api.int(pool.length)].id : null;
+}
+
+/**
+ * On a night of the host's songs every deck has one: the deck on the air keeps its own (counted as
+ * played), and the deck off the air the next (the one asked for, when one is up next; a fresh pick
+ * when it still holds the one that just went off the air).
+ */
+function refill(s: RoomState, api: Api) {
+  const d = s.deck;
+  if (!d.local) return;
+  const has = (id: string | null): id is string => !!id && s.crate.some((x) => x.id === id);
+  const on = onAir(d);
+  const off = offAir(d);
+  if (!has(d.songs[on])) d.songs[on] = pickSong(s, api, d.songs[off]);
+  const playingNow = d.songs[on];
+  if (playingNow && !d.played.includes(playingNow)) d.played = [...d.played, playingNow].slice(-CRATE_MAX);
+  if (d.up?.local) return;
+  const next = d.songs[off];
+  if (!has(next) || d.played.includes(next)) d.songs[off] = pickSong(s, api, d.songs[on]);
+}
+
+/** The music now comes from the host's songs, or no longer does. */
+function setLocal(s: RoomState, on: boolean, api: Api) {
+  const d = s.deck;
+  if (d.local === on) return;
+  d.local = on;
+  d.ending = null;
+  api.clear("end");
+  // what's up next was for the other kind of night: back to the front of the line
+  if (d.up && !!d.up.local !== on && on) {
+    d.reqs.unshift(d.up);
+    d.up = null;
+    api.clear("req");
+  }
+  d.votes = {};
+  refill(s, api);
+  nextReq(s, api);
+}
+
+/** The host's songs a view shows: the two on the decks, by name. */
+const crateSong = (s: RoomState, id: string | null): CrateSong | null => (id ? (s.crate.find((x) => x.id === id) ?? null) : null);
 
 /** The song list by id (made the first time a song is asked for from it). */
 let LIBRARY: Map<number, (typeof SONG_ROWS)[number]> | null = null;
@@ -188,7 +278,7 @@ function listed(id: unknown): Song | null {
 
 /** A song asked for, as `pid` sees it: a name the player typed shows only to them and the host. */
 function reqFor(r: SongReq, pid: string, host: boolean): ReqView {
-  return r.song !== undefined || r.by === pid || host ? r : { ...r, text: null };
+  return r.song !== undefined || r.local !== undefined || r.by === pid || host ? r : { ...r, text: null };
 }
 
 /** No music: nothing building, nothing on its way (a song up next waits, first in line). */
@@ -200,9 +290,11 @@ function calm(s: RoomState, api: Api) {
   if (d.up) d.reqs.unshift(d.up);
   d.up = null;
   d.now = null;
+  d.ending = null;
   api.clear("drop");
   api.clear("req");
   api.clear("now");
+  api.clear("end");
 }
 
 /** Move the night to `phase` now, and set when it moves on by itself. */
@@ -234,6 +326,8 @@ function begin(s: RoomState, api: Api) {
   api.timer("wind", s.capAt - DJ_TIMES.cool);
   api.timer("cap", s.capAt);
   goTo(s, "warm", api);
+  // a night of the host's songs: the decks take them
+  setLocal(s, s.source === "local", api);
   // a song asked for before the music started goes on first
   nextReq(s, api);
 }
@@ -361,13 +455,21 @@ export const dj: GameDef<RoomState> = {
         const now = api.now;
         if (s.phase === "end" || (d.reqAt[pid] ?? -Infinity) > now - DECK.reqGapMs) return api.quiet();
         if (d.reqs.length >= DECK.reqMax || d.up?.by === pid || d.reqs.some((r) => r.by === pid)) return api.quiet();
-        // picked from the song list: its title and artist, the list's (the whole table reads them);
-        // or the name they typed
-        const song = listed(g.song);
-        const text = song ? song.t : cleanAsk(g.text, REQ_CHARS.max);
-        if (Array.from(text).length < REQ_CHARS.min) return api.quiet();
-        const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(text);
-        const r: SongReq = { id: trackId(s, api), by: pid, text, ...(song ? { artist: song.a, song: song.id } : {}), style, track: trackFor(text), at: now };
+        let r: SongReq;
+        if (d.local) {
+          // a night of the host's songs: one of them (named for everyone: they're the host's)
+          const c = typeof g.local === "string" ? s.crate.find((x) => x.id === g.local) : undefined;
+          if (!c) return api.quiet();
+          r = { id: trackId(s, api), by: pid, text: c.t, ...(c.a ? { artist: c.a } : {}), local: c.id, style: styleForRequest(`${c.t} ${c.a}`), track: trackFor(c.t), at: now };
+        } else {
+          // picked from the song list: its title and artist, the list's (the whole table reads
+          // them); or the name they typed
+          const song = listed(g.song);
+          const text = song ? song.t : cleanAsk(g.text, REQ_CHARS.max);
+          if (Array.from(text).length < REQ_CHARS.min) return api.quiet();
+          const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(text);
+          r = { id: trackId(s, api), by: pid, text, ...(song ? { artist: song.a, song: song.id } : {}), style, track: trackFor(text), at: now };
+        }
         d.reqAt[pid] = now;
         d.reqs.push(r);
         api.fx("req", pid);
@@ -440,7 +542,7 @@ export const dj: GameDef<RoomState> = {
         const d = s.deck;
         // (while a drop is on its way the picks wait: it lands on the deck the floor had cued; and
         // while a song asked for is up next: the deck off the air is its)
-        if (s.phase === "end" || d.drop || d.up || !STYLE_IDS.includes(style) || (d.voteAt[pid] ?? -Infinity) > api.now - DECK.voteGapMs) return api.quiet();
+        if (s.phase === "end" || d.drop || d.up || d.local || !STYLE_IDS.includes(style) || (d.voteAt[pid] ?? -Infinity) > api.now - DECK.voteGapMs) return api.quiet();
         d.voteAt[pid] = api.now;
         const mine = d.votes[pid];
         delete d.votes[pid];
@@ -453,7 +555,7 @@ export const dj: GameDef<RoomState> = {
         const d = s.deck;
         const v = num(g.value, 0, 1);
         // nothing to blend into while deck B is empty
-        if (!playing(s.phase) || v === null || !d.b) return api.quiet();
+        if (!playing(s.phase) || v === null || !hasB(d)) return api.quiet();
         const now = api.now;
         // the fader is whoever's moving it: the others wait for them to let go
         if (d.faderBy && d.faderBy !== pid && now - d.faderAt < DECK.faderHoldMs) return api.quiet();
@@ -471,6 +573,7 @@ export const dj: GameDef<RoomState> = {
         if (onAir(d) !== was) {
           swapped(s, api);
           nextReq(s, api);
+          refill(s, api);
         } else api.light();
         syncMix(s);
         return;
@@ -495,7 +598,10 @@ export const dj: GameDef<RoomState> = {
         next.speaker = s.speaker;
         // the decks as the floor left them, and the night's perfect drops
         const k = s.deck;
-        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt, speakerAt: k.speakerAt, reqs: k.reqs };
+        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt, speakerAt: k.speakerAt, reqs: k.reqs, songs: k.songs, played: k.played };
+        // the host's songs stay on the speaker's computer: the next set can play them again
+        next.crate = s.crate;
+        next.crateV = s.crateV;
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -504,6 +610,7 @@ export const dj: GameDef<RoomState> = {
         api.clear("drop");
         api.clear("req");
         api.clear("now");
+        api.clear("end");
         return;
       }
       default:
@@ -517,7 +624,8 @@ export const dj: GameDef<RoomState> = {
     switch (g.x) {
       case "live": {
         if (s.phase !== "wait") return false;
-        s.source = g.source === "lyria" ? "lyria" : "fake";
+        // (a night of the host's songs needs some)
+        s.source = g.source === "lyria" ? "lyria" : g.source === "local" && s.crate.length ? "local" : "fake";
         begin(s, api);
         return true;
       }
@@ -526,10 +634,11 @@ export const dj: GameDef<RoomState> = {
         // the stand-in): only while music plays, only a real change, only from the speaker, at most
         // once a second (it says it again until the room has it)
         if (!fromSpeaker(s, sid, api) || s.phase === "wait" || s.phase === "end") return false;
-        const source = g.source === "lyria" ? "lyria" : g.source === "fake" ? "fake" : null;
+        const source = g.source === "lyria" ? "lyria" : g.source === "fake" ? "fake" : g.source === "local" && s.crate.length ? "local" : null;
         if (!source || source === s.source || api.now - s.deck.srcAt < DECK.gridGapMs) return false;
         s.source = source;
         s.deck.srcAt = api.now;
+        setLocal(s, source === "local", api);
         return true;
       }
       case "stats": {
@@ -595,9 +704,57 @@ export const dj: GameDef<RoomState> = {
         const b = g.b === null ? null : (g.b as StyleId);
         if (!STYLE_IDS.includes(a) || (b !== null && !STYLE_IDS.includes(b))) return false;
         const d = s.deck;
-        if ((d.sounding?.a === a && d.sounding?.b === b) || api.now - d.decksAt < DECK.gridGapMs) return false;
-        d.sounding = { a, b };
+        // (on a night of the host's songs: which of them each deck really has)
+        const song = (v: unknown) => (typeof v === "string" && SONG_ID.test(v) ? v : null);
+        const next = g.sa !== undefined || g.sb !== undefined ? { a, b, sa: song(g.sa), sb: song(g.sb) } : { a, b };
+        if (JSON.stringify(d.sounding) === JSON.stringify(next) || api.now - d.decksAt < DECK.gridGapMs) return false;
+        d.sounding = next;
         d.decksAt = api.now;
+        return true;
+      }
+      case "crate": {
+        // the host's songs on the speaker's computer (their names; the files stay there), at most
+        // once a second from the speaker
+        const d = s.deck;
+        if (!fromSpeaker(s, sid, api) || api.now - d.crateAt < DECK.gridGapMs || !Array.isArray(g.songs)) return false;
+        const seen = new Set<string>();
+        const crate: CrateSong[] = [];
+        for (const row of (g.songs as unknown[]).slice(0, CRATE_MAX)) {
+          if (!Array.isArray(row)) continue;
+          const [id, t, a, bpm, sec] = row as unknown[];
+          if (typeof id !== "string" || !SONG_ID.test(id) || seen.has(id)) continue;
+          const title = cleanAsk(t, 40);
+          const b = within(bpm, 40, 250);
+          const len = within(sec, 20, 1800);
+          if (!title || b === null || len === null) continue;
+          seen.add(id);
+          crate.push({ id, t: title, a: cleanAsk(a, 30), bpm: Math.round(b * 10) / 10, s: Math.round(len) });
+        }
+        if (JSON.stringify(crate) === JSON.stringify(s.crate)) return false;
+        s.crate = crate;
+        s.crateV += 1;
+        d.crateAt = api.now;
+        // songs no longer there leave the line and the decks
+        const has = new Set(crate.map((x) => x.id));
+        d.reqs = d.reqs.filter((r) => !r.local || has.has(r.local));
+        if (d.up?.local && !has.has(d.up.local)) {
+          d.up = null;
+          api.clear("req");
+        }
+        for (const side of ["a", "b"] as const) if (d.songs[side] && !has.has(d.songs[side]!)) d.songs[side] = null;
+        d.played = d.played.filter((id) => has.has(id));
+        refill(s, api);
+        nextReq(s, api);
+        return true;
+      }
+      case "ending": {
+        // the host's song on the air is nearly over: the DJ drops into the next
+        const d = s.deck;
+        if (!fromSpeaker(s, sid, api) || !d.local || !playing(s.phase)) return false;
+        const id = typeof g.id === "string" ? g.id : "";
+        if (!id || id !== d.songs[onAir(d)] || d.ending === id) return false;
+        d.ending = id;
+        autoDrop(s, api, "end");
         return true;
       }
     }
@@ -625,16 +782,13 @@ export const dj: GameDef<RoomState> = {
       // DROP for a grade; nobody pressing, it drops anyway), once its deck really plays it
       const d = s.deck;
       if (!d.up || d.drop) return;
-      const side = cued(d, s.source === "lyria");
-      if (!side) {
-        api.timer("req", api.now + 5000);
-        return;
-      }
-      const t = aim(d.grid, api.now);
-      d.drop = { ...t, misses: 0, auto: true, hits: [], to: side };
-      d.charge = 1;
-      d.chargeAt = api.now;
-      api.timer("drop", t.at);
+      autoDrop(s, api, "req");
+      return;
+    }
+    if (key === "end") {
+      const d = s.deck;
+      if (!d.ending || d.ending !== d.songs[onAir(d)] || d.drop) return;
+      autoDrop(s, api, "end");
       return;
     }
     if (key === "now") {
@@ -686,16 +840,29 @@ export const dj: GameDef<RoomState> = {
       lab: api.ids().some((p) => api.isOwner(p)),
       set: s.set,
       deck: deckView(s, pid, host),
+      crateN: s.crate.length,
+      crateV: s.crateV,
+      onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },
     };
   },
+
+  // the host's song list is big and rarely changes: phones fetch it (GET /room/CODE/data) when they
+  // need it, instead of it coming with every view
+  data(s) {
+    norm(s);
+    return { v: s.crateV, crate: s.crate };
+  },
 };
+
+/** A host's song's id, as the speaker names it. */
+const SONG_ID = /^[a-z0-9]{1,12}$/i;
 
 /**
  * The deck as `pid` reads it: the taps the room is about to add stay in the room, and so does its
  * bookkeeping; a song's name a player typed shows only to them and the host.
  */
 function deckView(s: RoomState, pid: string, host: boolean): DeckView {
-  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, reqAt: _reqAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, ...rest } = s.deck;
+  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, reqAt: _reqAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, crateAt: _crateAt, ...rest } = s.deck;
   const see = (r: SongReq | null) => (r ? reqFor(r, pid, host) : null);
   return { ...rest, reqs: rest.reqs.map((r) => reqFor(r, pid, host)), up: see(rest.up), now: see(rest.now) };
 }

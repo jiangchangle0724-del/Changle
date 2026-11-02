@@ -85,7 +85,16 @@ export type Mix = {
 };
 
 /** Where the music comes from: the recorded stand-in (now), or Lyria RealTime (A2). */
-export type Source = "fake" | "lyria";
+export type Source = "fake" | "lyria" | "local";
+
+/**
+ * One of the host's own songs on a night of them (`local`: Steve's ask on Nov 2), as the room keeps
+ * it: the big screen's computer has the file and plays it (nothing is uploaded); the room has its
+ * name, to show and to ask for. `t` its title, `a` its artist, `bpm` its tempo, `s` its seconds.
+ */
+export type CrateSong = { id: string; t: string; a: string; bpm: number; s: number };
+/** the host's songs a night keeps at most (their names go to the room in one message) */
+export const CRATE_MAX = 200;
 
 /* ------------------------------------------------------------------ songs players ask for */
 
@@ -222,6 +231,8 @@ export type SongReq = {
   artist?: string;
   /** the song list's id for it (Apple's track id) */
   song?: number;
+  /** one of the host's own songs (a night of them): its id in the room's `crate` */
+  local?: string;
   /** the style its remix is made in (requests.ts) */
   style: StyleId;
   /** the stand-in's song for the remix (requests.ts `trackFor`): the same name, the same remix */
@@ -263,7 +274,17 @@ export type DeckState = {
    * The styles the speaker's decks are sounding now, as it says (a deck takes a new style at its
    * next section, once recorded): a drop swaps to the floor's pick only once it really plays there.
    */
-  sounding: { a: StyleId; b: StyleId | null } | null;
+  sounding: { a: StyleId; b: StyleId | null; sa?: string | null; sb?: string | null } | null;
+  /**
+   * A night of the host's own songs (the room's source is `local`): each deck has one of them
+   * (`songs`, ids in the room's `crate`) instead of a style; the ones already on the air tonight
+   * (`played`); the one on the air the speaker says is nearly over (`ending`: the DJ drops into the
+   * next). The speaker says which songs its decks really have (`sounding.sa`, `sounding.sb`).
+   */
+  local: boolean;
+  songs: { a: string | null; b: string | null };
+  played: string[];
+  ending: string | null;
   /**
    * Songs asked for by name (`req`): the ones waiting their turn, oldest first; the one up next,
    * its style on the deck off the air (the picks wait for it: the next drop onto that deck plays
@@ -285,6 +306,7 @@ export type DeckState = {
   speakerAt: number;
   decksAt: number;
   srcAt: number;
+  crateAt: number;
 };
 
 /** The beginner deck's numbers. */
@@ -367,8 +389,9 @@ export type DjCommand =
   | { x: "ask"; text: string; style?: StyleId }
   /** take back a song that isn't being checked or made yet (the host can take back anyone's) */
   | { x: "unask"; id: string }
-  /** ask for a song by name (the deck): `song`, the song list's id when they picked it there */
-  | { x: "req"; text: string; song?: number }
+  /** ask for a song by name (the deck): `song`, the song list's id when they picked it there;
+   *  on a night of the host's songs, `local`: one of them */
+  | { x: "req"; text?: string; song?: number; local?: string }
   /** take back a song asked for by name, waiting or up next (the host can take back anyone's) */
   | { x: "unreq"; id: string }
   /** DROP, pressed during the countdown; `c`: when, on this phone's estimate of the server's clock */
@@ -395,8 +418,12 @@ export type DjCommand =
   | { x: "stats"; stalls: number; resets: number; seconds: number }
   /** where the speaker's bars fall: bar `bar` starts at server time `at`, at `bpm` */
   | { x: "grid"; at: number; bar: number; bpm: number }
-  /** the styles its two decks are sounding now */
-  | { x: "decks"; a: StyleId; b: StyleId | null };
+  /** the styles its two decks are sounding now (and on a night of the host's songs, which songs) */
+  | { x: "decks"; a: StyleId; b: StyleId | null; sa?: string | null; sb?: string | null }
+  /** the host's own songs on this computer: [id, title, artist, bpm, seconds] each */
+  | { x: "crate"; songs: [string, string, string, number, number][] }
+  /** the host's song on the air is nearly over */
+  | { x: "ending"; id: string };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;
@@ -441,4 +468,7 @@ export type RoomState = {
   set: number;
   /** the beginner deck: what the table is doing to the music */
   deck: DeckState;
+  /** the host's own songs, when the speaker has some (a night of them: source `local`); `crateV` counts their changes */
+  crate: CrateSong[];
+  crateV: number;
 };
