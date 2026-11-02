@@ -128,6 +128,8 @@ export class RoomEngine {
   private lastReact = new Map<string, number>();
   /** the game action being run asked to be light (see Output.light) */
   private lightAct = false;
+  /** the game action being run changed nothing to send now (see Api.quiet) */
+  private quietAct = false;
 
   constructor(
     public d: RoomData,
@@ -467,12 +469,16 @@ export class RoomEngine {
     const gd = this.gameDef();
     if (!gd || !this.d.game) return;
     this.lightAct = false;
+    this.quietAct = false;
     gd.def.act(this.d.game.s, pid, g, this.api());
     // games mutate in place; assume a change whenever an action reached them (a light one if the
-    // game said so)
-    if (this.lightAct) this.out.light = true;
+    // game said so, none if it said quiet)
+    if (this.quietAct) {
+      /* nothing to send: what it kept goes out with the next change */
+    } else if (this.lightAct) this.out.light = true;
     else this.out.changed = true;
     this.lightAct = false;
+    this.quietAct = false;
   }
 
   /* ---------------- drawing ---------------- */
@@ -715,6 +721,9 @@ export class RoomEngine {
       },
       light: () => {
         this.lightAct = true;
+      },
+      quiet: () => {
+        this.quietAct = true;
       },
     };
   }

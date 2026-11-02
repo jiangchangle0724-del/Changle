@@ -74,6 +74,7 @@ export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string
       resetStrokes: () => {},
       // one phone saves nothing: every change is shown at once anyway
       light: () => {},
+      quiet: () => {},
     };
     return self;
   }, []);

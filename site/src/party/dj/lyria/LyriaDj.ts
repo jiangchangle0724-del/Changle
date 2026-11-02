@@ -36,6 +36,8 @@ const LOW_S = 3;
 /** a change of stretch is heard this long after it's sent, about (Lyria's own lag) */
 const LAG_MS = 1500;
 const RETRY_MS = [500, 1000, 2000, 4000];
+/** Lyria hears the mix at most this often */
+const ASK_GAP_MS = 500;
 
 type Part = { l: Float32Array; r: Float32Array };
 
@@ -73,6 +75,9 @@ export function pcmChunk(buf: ArrayBuffer, rate: number): Part {
 
 export class LyriaDj {
   bpm = 125;
+  /** one stream: the beginner deck's crossfader stays on A (the fader moves Lyria's prompts instead) */
+  readonly decks = false;
+  private goes = 0;
   /** there is enough music in hand to start playing it */
   onReady: (() => void) | null = null;
   /** Lyria can't or won't play any more; the booth goes back to the stand-in */
@@ -102,6 +107,9 @@ export class LyriaDj {
   private pendingPhase: { phase: DjPhase; at: number } | null = null;
   private said = false;
   private pausedAt = 0;
+  private lastAsk = -Infinity;
+  private askTimer = 0;
+  private askedPhase: DjPhase = "wait";
 
   constructor(private url: string) {}
 
@@ -134,6 +142,7 @@ export class LyriaDj {
     if (this.done) return;
     this.speaker = speaker;
     this.start = speaker.sentFrames;
+    this.goes += 1;
     this.marks = [{ frame: speaker.sentFrames, id: `lyria-${this.phase}`, phase: this.phase }];
     this.stopTick?.();
     this.stopTick = speaker.onTick(() => this.feed());
@@ -152,8 +161,39 @@ export class LyriaDj {
       this.clock.setBpm(mix.bpm);
     }
     if (!changed) return;
+    if (phase === this.askedPhase) {
+      // the same stretch, a new blend (the fader): soon
+      this.askSoon();
+      return;
+    }
+    // a new stretch of the night: at once
     if (playing(phase)) this.pendingPhase = { phase, at: performance.now() };
+    window.clearTimeout(this.askTimer);
+    this.askTimer = 0;
     this.ask();
+  }
+
+  /** The beginner deck's fader moves the mix many times a second: Lyria hears the latest, twice a second at most. */
+  private askSoon() {
+    const wait = ASK_GAP_MS - (performance.now() - this.lastAsk);
+    if (wait <= 0) this.ask();
+    else if (!this.askTimer)
+      this.askTimer = window.setTimeout(() => {
+        this.askTimer = 0;
+        this.ask();
+      }, wait);
+  }
+
+  /** Counts the beat clocks: a new stream, or the kick found for the first time, starts the bars over. */
+  get epoch() {
+    return this.goes * 2 + (this.clock.offset() === null ? 0 : 1);
+  }
+
+  /** The frame (the speaker's count) where beat `b` falls, once the kick has given the beat's place. */
+  beatFrame(b: number): number | null {
+    const off = this.clock.offset();
+    if (!this.speaker || off === null) return null;
+    return this.start + off + b * ((RATE * 60) / this.bpm);
   }
 
   /** Beats since the stream's first beat, at what the speakers sound now. */
@@ -182,6 +222,7 @@ export class LyriaDj {
   /** Done: close the stream (the booth went back to the stand-in, or the set ended). */
   stop() {
     this.done = true;
+    window.clearTimeout(this.askTimer);
     this.stopTick?.();
     this.stopTick = null;
     window.clearInterval(this.timer);
@@ -232,6 +273,8 @@ export class LyriaDj {
   /** What Lyria should play for the stretch now, and play or stop. */
   private ask() {
     if (!this.mix) return;
+    this.lastAsk = performance.now();
+    this.askedPhase = this.phase;
     if (!playing(this.phase)) {
       this.send({ play: "STOP" });
       return;

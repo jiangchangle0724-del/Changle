@@ -10,6 +10,8 @@ import { chord, line, v, type Style } from "../../../lib/music";
 import type { SetPhase } from "../../../shared/dj/types";
 
 export type Extra = "crash" | "roll" | "riser" | "fill";
+/** More of the drum kit than a Style has (render.ts DRUMS): a key, 16 steps of strengths, how loud. */
+export type Perc = { key: string; hits: number[]; peak: number };
 
 export type Section = {
   id: string;
@@ -23,6 +25,8 @@ export type Section = {
   noKick?: number[];
   /** what happens at the edges of the phrase */
   extras?: Extra[];
+  /** congas, a clave, a dhol: the other styles' own percussion (styles.ts) */
+  perc?: Perc[];
 };
 
 export const BPM = 125;

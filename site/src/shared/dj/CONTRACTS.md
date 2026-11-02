@@ -8,10 +8,12 @@ where this file and the brief differ, this file says how the brief is being done
 
 A table opened at **changle.ca/dj** is a DJ booth. That big screen (a Mac or iPad mirrored to the
 TV) is the **speaker**: the only device that makes a sound. Phones sit down the way they do at any
-table and get a 🔥 button; the host also gets the night's controls. The music is the **stand-in DJ**
-(`site/src/party/dj/fake/`): house at 125 BPM recorded on the speaker itself with the site's own
-instruments. At one of the site owner's own tables, Lyria RealTime takes over from it (A2, a
-private test: "Lyria" below); everywhere else the stand-in plays.
+table; every phone is a **beginner deck** (everyone DJs at once, below) with a 🔥 button, and the
+host also gets the night's controls. The music is the **stand-in DJ** (`site/src/party/dj/fake/`):
+12 styles at 125 BPM in A minor, recorded on the speaker itself with the site's own instruments,
+on two decks in step. At one of the site owner's own tables, Lyria RealTime takes over from it
+(A2, a private test: "Lyria" below); everywhere else the stand-in plays. The booth is on the home
+page's list (Nov 1): its card sends a computer to changle.ca/dj and tells a phone where to go.
 
 It is built inside the site, not as its own project: the rules run on the site's rooms server
 (`site/worker`, a Durable Object per table) and deploy with it; there is no new setting or secret.
@@ -26,7 +28,11 @@ It is built inside the site, not as its own project: the rules run on the site's
 | What a phone or screen is sent | `DjView` in `site/src/shared/protocol.ts` |
 | The speaker's player (audio thread) | `site/src/party/dj/speaker/player.worklet.js` |
 | The speaker's sound chain and clock | `site/src/party/dj/speaker/speaker.ts` |
-| The stand-in DJ | `site/src/party/dj/fake/` (`sections.ts`, `arrange.ts`, `render.ts`, `FakeDj.ts`) |
+| The stand-in DJ | `site/src/party/dj/fake/` (`sections.ts` house, `styles.ts` the other 11, `arrange.ts`, `render.ts`, `FakeDj.ts`) |
+| The beginner deck: shared rules (pure) | `site/src/shared/dj/deck.ts` |
+| The beginner deck on the speaker | `site/src/party/dj/deck/driver.ts`, the sounds in `speaker/fx.ts`, the screen in `deck/TvDeck.tsx` |
+| The beginner deck on a phone | `site/src/party/dj/phone/DeckPad.tsx`; words in `deck/words.ts`; styles `site/src/styles/dj-deck.css` |
+| The 12 styles' Lyria presets | `site/src/shared/dj/presets.ts` (C1) |
 | The speaker's screen | `site/src/party/dj/TvDj.tsx` (in the big screen, `site/src/tv/TvApp.tsx`) |
 | The phone | `site/src/party/dj/NetDj.tsx`, `site/src/styles/dj-phone.css` |
 | Lights and dancers | `site/src/party/dj/Floor.tsx`, `site/src/styles/dj.css` |
@@ -47,7 +53,8 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   the game at once (`GameDef.auto`): the booth is on before anyone sits down, and it stays on when
   every phone has left (the music plays on for whoever comes next). The first phone to sit down
   hosts. The host can close the booth (back to the lobby, the booth still up front) and open it
-  again from there. The booth is hidden everywhere else (`hidden` in `site/src/games/registry.ts`).
+  again from there. On the home list its card plays at its big screen (`speaker: "/dj"` in
+  `site/src/games/registry.ts`): no one-phone mode, and a table's spin never lands on it.
   Its phones make no sound at all: no start sound, no table sounds (`useTableSounds`).
 - **wait.** No music yet. Nothing moves until the speaker says it is playing.
 - **The set** starts when the speaker sends `live`: `liveAt` and `capAt = liveAt + 4 h` are set,
@@ -91,7 +98,9 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `fire` | anyone | 🔥, as above. |
 | `cold` | anyone | ❄️, the other side of 🔥: the latest 40 in `colds`, an `fx` event `cold`. One 🔥 or ❄️ per 300 ms a phone, shared. Light. |
 | `knob` `{ style, value }` | anyone | The player's knob for one of the 12 styles, −1 (less) to 1 (more) on a 0.25 grid; 0 takes it back. Kept in `knobs[pid]`. Light: while a finger drags, send at most one every 250 ms and the last on release. |
-| `drop` `{}` | anyone | A drop request, only while the music plays: the latest 20 in `drops`, an `fx` event `drop`; one per 10 s a phone. Light. |
+| `drop` `{ c? }` | anyone | DROP, pressed in a drop's countdown (the beginner deck, below): counts once a phone, graded by `c`, the phone's estimate of the server's clock (never later than now, never more than a second earlier); the latest 20 that counted in `drops`, an `fx` event `drop` (`data: [1]` when perfect). Anything else is quiet. Light. |
+| `pad` `{ pad }`, `charge` `{ n }`, `vote` `{ style }`, `fader` `{ value }` | anyone | The beginner deck, below. |
+| `grid` `{ at, bar, bpm }` | the speaker | Where its bars fall, below. |
 | `ask` `{ text, style? }` | anyone | A song described in 2 to 120 characters (one line, invisible characters taken out; an emoji or a Chinese character is one), with a style if they picked one: a `Track` added to `queue` as `queued`, an `fx` event `ask`. One waiting song a player, 12 for the table; more is ignored. |
 | `unask` `{ id }` | its player, or the host | Takes back a song while it is `queued` (or `refused`, `failed`); once it is being checked or made it is the song pipeline's. |
 | `phase` `{ phase }`, `again` | the host | As above. |
@@ -103,8 +112,10 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
   (`CHECKED`: status `making` or later); a refused song shows only to them, with `why`. The big
   screen is nobody, so it sees what the table sees. Until the song pipeline (A5) exists every song
   stays `queued`: the big screen can show that someone's song is waiting, never what it says.
-- **Another set** keeps the night's 🔥 counts, everyone's knobs and the songs; ❄️ and drops are
-  about the moment and start empty.
+- **Another set** keeps the night's 🔥 counts, everyone's knobs, the songs, the decks' styles and
+  the night's perfect drops; ❄️, drops, pads, the build-up start empty.
+- **Quiet** (`api.quiet()`): a command the room turns away, or a tap it keeps to add a moment later,
+  sends and stores nothing (the engine's `Api.quiet`); what it kept goes out with the next change.
 - **Knobs of players who left** stay in `knobs` (they may come back): the DJ and the screens count
   only the seats at the table.
 - A booth saved before a field existed gets it empty (`norm` in `games/dj.ts`): add new fields the
@@ -161,6 +172,73 @@ over the start of the next. The end of a set fades out over 3 seconds. `heardSec
 section (and so which stretch) the speakers are sounding now: the big screen puts the stretch's
 name across the floor the moment the music gets there, not when the host tapped (that can be up to
 a phrase, 15 seconds, earlier).
+
+## The beginner deck (Nov 1: everyone DJs at once)
+
+Steve's ask: beginners can DJ too. His choices: everyone presses at once; effect pads, a build-up
+and drop, a pick for the next style, two decks and a crossfader; hints on the screens. The rule
+that makes it safe: **everything lands on the beat**, and the room keeps everyone's presses in
+order, so nothing a beginner presses can trainwreck.
+
+**The decks.** Deck A and deck B (`DeckState` in `types.ts`, the rules in `games/dj.ts` with the
+pure parts in `deck.ts`). The stand-in plays both in step: the same section of the night, frame for
+frame on the same bars, each in its own style, and every style at 125 BPM in A minor over the same
+four chords (`fake/styles.ts`: the other 11 as kits, house as it was), so any two blend in key and
+on the beat (like a game that fits every song to one tempo and key). The speaker's player holds
+both and blends them at equal power as they play (`xfade`), so the crossfader answers at once
+however far ahead the music waits. A deck that changes style changes at its next section (8 bars),
+once that style is recorded; until then it plays on in the style it had. Lyria plays one stream:
+the fader there blends the two styles' prompts (C1's presets) instead, a few seconds behind.
+
+| Command | What the room does |
+| --- | --- |
+| `pad` `{ pad }` | `echo`, `sweep`, `horn` or `brake`, while music plays: one a phone per 600 ms, the same pad once for the room per 150 ms (two people on the horn at once is one horn), a brake once per 4 s and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
+| `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Full arms the drop. |
+| `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
+| `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
+
+**The drop.** When the build-up fills, the room aims the drop (`aim`): the first bar that's a
+multiple of 4 at least 4 beats away on the speaker's bars, the **cue** one beat before it. The
+screens count 3, 2, 1 and DROP over that last bar (`countdown`); DROP is on the cue beat. A press
+counts from the start of the countdown until 200 ms before the bar (so the word reaches the
+speaker in time): within a quarter beat of the cue it's **perfect**, else good (`grade`). At the
+bar (a room timer) it lands (`last`, the night's `perfects`): the fader jumps to the deck the drop
+was for, the build-up and the picks start over. It swaps to the deck off the air when the floor
+has **cued** its pick there (`cued`); otherwise it drops on the deck that's on. Nobody pressed:
+another countdown 4 bars on; after 2 misses the DJ drops it by itself (`auto`). The end of a set
+clears it.
+
+**The speaker's bars** (`grid`). The speaker tells the room where its bars fall: bar `bar` of its
+stream starts at server time `at` (when it's *heard*), at `bpm`, sent again when its stream starts
+over, its DJ changes, or its clock drifts by more than 25 ms (at most every 5 s). The room ignores
+the same bars within a twentieth of a beat; new bars re-aim a drop on its way. Phones count down
+on the server's clock (`useRoom().now()`), so every phone, the TV and what the room hears agree.
+
+**On the speaker** (`deck/driver.ts`, the sounds in `speaker/fx.ts`), every effect at an audio
+time on the beat grid (`BoothDj.beatFrame`, `Speaker.timeOfFrame`):
+
+```
+deck A ┐                                                     ┌─ echo send (¾ beat, dying away) ─┐
+       ├ player (crossfader, brake) → high-pass (build-up) → low-pass (sweep) ─────────────────┴→ master
+deck B ┘                                                       horn, riser, roll, impact ────────┘
+```
+
+- **echo:** a bar of the music repeating every ¾ beat, dying away. **sweep:** the music closes
+  down to a murmur over a bar and opens over the next. **horn:** two short blasts and a long one, on
+  the eighths. **brake:** the music slows to a stop over ¾ of a beat (pitch with it), quiet until
+  the next bar line, back on the downbeat exactly where the stream has got to (the player's own
+  clock never stops). Each plays from the speaker's next beat; one of a kind at a time.
+- **The build-up:** the high-pass rises with the charge (the bottom falls away), a noise riser
+  climbs, and a snare roll runs on the grid (quarters, eighths, sixteenths as it fills; sixteenths
+  in the countdown). **The drop:** at its bar everything lets go at once with a boom, a crash and
+  a whoosh, and the crossfader jumps with it. The big screen celebrates when the room says it
+  landed: a perfect one with confetti and the names.
+- **The screens:** the TV shows the two decks (the one on the air bright, the cued one "up next"),
+  the fader and who has it, the build-up's meter, who pressed which pad, the countdown, the landed
+  drop, and a hint (`hintFor`: the countdown, keep tapping, build up and drop into the cued deck,
+  slide the fader, pick the next style, try the pads). A phone has the same hint above its deck,
+  the decks, the fader, four pads, the build-up button that turns into DROP with the count, and
+  the 12 styles to pick from.
 
 ## Styles and Lyria RealTime
 
@@ -264,10 +342,12 @@ every frame changes only opacity or a transform.
 
 ## Tests
 
-- `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`), the commands above included, and
-  the private Lyria test's `lab` and `src`.
+- `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`), the commands above included, the
+  beginner deck (pads on a leash, the build-up, the countdown, DROP on the cue, misses and the DJ's
+  own drop, picks, the fader held, new bars), and the private Lyria test's `lab` and `src`.
 - `npx tsx tests/dj.test.ts`: the player on a pretend audio thread (prebuffer, fades, stalls,
-  resampling, flush, overflow, reports), Lyria's PCM format, the stand-in's sections and order;
+  resampling, flush, overflow, reports, two decks and the crossfader, the brake), Lyria's PCM
+  format, the stand-in's sections and order, every style's sections, the two decks in step;
   Lyria's side without Google: what the relay lets through, the beat from the kick, the prompts
   for each stretch (every word from the guide), the Lyria DJ (hand-over, seconds ahead, pausing
   Lyria, the stretch heard, reconnecting, stopping with a reason).
@@ -276,3 +356,8 @@ every frame changes only opacity or a transform.
   `docs/dj-booth-sound-check.md`.
 - `python3 scripts/dj_lyria_check.py [chromium|webkit]`: with the fake Lyria too, the whole chain
   (relay, hand-over, the beat, the peak, a dropped stream, the stand-in back).
+- `npx tsx tests/dj-presets.test.ts`: the 12 Lyria presets (C1).
+- `python3 scripts/dj_deck_check.py [chromium|webkit]`: the beginner deck in browsers, a TV and
+  three phones playing at once: pads on the beat to the millisecond, picks loading deck B, the
+  fader held, the build-up, the countdown, DROP on the cue, the drop on its bar exactly and perfect.
+  Needs a table that isn't the owner's (`DEV_LYRIA_ANYONE` off), so the stand-in plays both decks.

@@ -261,10 +261,18 @@ export function bus(): Bus | null {
  * (whatever plays the result brings its own). `out` goes to the context's destination.
  */
 export function offlineBus(oc: OfflineAudioContext): Bus {
-  // the voices only create nodes and read the clock, which an offline context does the same way
-  const c = oc as unknown as AudioContext;
+  return busTo(oc, oc.destination);
+}
+
+/**
+ * The same voices into any node of any context (the DJ booth's speaker plays its effects into its
+ * own chain): the mix, the room reverb and the music bus, ending in `dest`.
+ */
+export function busTo(ctx: BaseAudioContext, dest: AudioNode): Bus {
+  // the voices only create nodes and read the clock, which every context does the same way
+  const c = ctx as unknown as AudioContext;
   const out = c.createGain();
-  out.connect(c.destination);
+  out.connect(dest);
   const dry = c.createGain();
   dry.connect(out);
   const conv = c.createConvolver();

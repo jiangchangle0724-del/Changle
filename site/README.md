@@ -73,6 +73,8 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 打碟的 Lyria 本地不连 Google：先跑 `node scripts/fake_lyria.mjs`（一个假的 Lyria），再在 `worker/.dev.vars` 里写
 `DEV_LYRIA_URL=ws://127.0.0.1:8790` 和 `DEV_LYRIA_ANYONE=1`（任何桌子都能试），整条链路用
 `python3 scripts/dj_lyria_check.py` 检查。
+打碟的新手打碟台（两个碟、推子、效果键、蓄力和 Drop）用 `python3 scripts/dj_deck_check.py` 检查：
+它要试音版 DJ 放两个碟，所以 `worker/.dev.vars` 里 `DEV_LYRIA_ANYONE` 要关掉（不写，或写 0）。
 
 到此一游和 随便 各自是独立的 Worker（本仓库的 `games/been-there` 和 `tools/suibian`）。本地要连着试，在它们的文件夹里分别跑 `npx wrangler dev --port 8799` 和 `npx wrangler dev --port 8798`，网站的 `/trip` 和 `/eat` 会代理过去（`vite.config.ts`）。
 

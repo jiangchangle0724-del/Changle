@@ -44,6 +44,12 @@ export type GameMeta = {
    * lobby shows it only while it is the game up (the DJ booth, at changle.ca/dj)
    */
   hidden?: boolean;
+  /**
+   * it plays from a big screen at this address (the DJ booth's speaker, /dj): its card sends a
+   * computer straight there and tells a phone where to go; there is no one-phone mode, and a
+   * table's spin never lands on it (it needs that screen first)
+   */
+  speaker?: string;
   isNew?: boolean;
   /** one-phone play needs a different number of names, or works differently */
   solo?: { min: number; hint: T };
@@ -298,17 +304,18 @@ export const GAMES: GameMeta[] = [
     id: "dj",
     slug: "dj-booth",
     name: t("打碟", "DJ Booth"),
-    blurb: t("电视当音箱，AI 当 DJ，手机是旋钮", "The TV is the speaker, the AI is the DJ, your phone is a knob."),
+    blurb: t("电视当音箱，大家用手机一起打碟", "The TV is the speaker. Everyone DJs from their phone."),
     how: t(
-      "电视或电脑打开 changle.ca/dj 当音箱，点「开始派对」放歌。大家扫码入座，手机按 🔥 给 DJ 加油，大屏上看得到谁在嗨。主人可以把整晚拖到暖场、推高、顶点、收尾。",
-      "Open changle.ca/dj on a TV or computer: that's the speaker. Press Start the party and the music begins. Everyone scans in; press 🔥 on your phone to push the DJ, and the big screen shows who's into it. The host can move the night between warm-up, build, peak and wind-down.",
+      "电视或电脑打开 changle.ca/dj 当音箱，点「开始派对」放歌，大家扫码入座。每台手机都是打碟台：推子在两个碟之间混，效果键卡在拍子上，一起狂点蓄力，跟着倒数按 DROP，踩准了就是完美 Drop。新手也不会乱。",
+      "Open changle.ca/dj on a TV or computer: that's the speaker. Press Start the party and everyone scans in. Every phone is a deck: the crossfader mixes two decks, the pads land on the beat, everyone taps the build-up together and presses DROP on the count. Hit it right for a perfect drop. Nothing a beginner presses can go wrong.",
     ),
     minPlayers: 1,
     maxPlayers: 15,
     gel: "#ff5ad8",
     icon: Disc3,
-    ready: false,
-    hidden: true,
+    ready: true,
+    speaker: "/dj",
+    isNew: true,
   },
 ];
 

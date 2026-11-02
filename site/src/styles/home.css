@@ -511,6 +511,9 @@
   font-size: 14px;
   line-height: 1.5;
 }
+.mode-help p {
+  margin: 0 0 12px;
+}
 .mode-primary {
   background: var(--gel);
   color: var(--night);

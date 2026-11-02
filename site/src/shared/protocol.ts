@@ -4,7 +4,7 @@
  */
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
-import type { DjPhase, Mix, Source, StyleId, Track } from "./dj/types";
+import type { DeckState, DjPhase, Mix, Source, StyleId, Track } from "./dj/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -92,7 +92,8 @@ export type Fx =
   | "fire"
   | "cold"
   | "drop"
-  | "ask";
+  | "ask"
+  | "pad";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
 /** `times`: with the table's own penalty, how many times it's done (7-8-9's pot); none is once ("two" is twice). */
@@ -562,7 +563,12 @@ export type DjView = {
   lab: boolean;
   /** which set this is (a new one after the host says "again") */
   set: number;
+  /** the beginner deck: the two decks, the fader, the pads, the build-up and the drop */
+  deck: DeckView;
 };
+
+/** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
+export type DeckView = Omit<DeckState, "pending">;
 
 /**
  * A song in the booth's queue as one phone or screen sees it. What a player wrote (`ask`) is null

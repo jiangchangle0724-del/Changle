@@ -10,7 +10,7 @@
  * parts (bass, chords, melody) are played by the instruments themselves. And every sound is written
  * into the recording a beat before it plays rather than all at the start (see renderSection).
  */
-import { burst, clap, crash, hat, kick, offlineBus, shaker, snare, tom, type Bus } from "../../../lib/audio/engine";
+import { burst, clap, clave, crash, hat, kick, offlineBus, shaker, snare, tom, type Bus } from "../../../lib/audio/engine";
 import { playStep, type Style } from "../../../lib/music";
 import { BARS, beatFrames, sectionFrames, type Section } from "./sections";
 
@@ -65,6 +65,7 @@ export async function renderSection(sec: Section, rate = 48000): Promise<Rendere
       if (st.ohat?.[i]) play("ohat", t, 0.06 * st.ohat[i]);
       if (st.shaker?.[i]) play("shaker", t, 0.06 * st.shaker[i]);
       if (st.tom?.[i]) play("tom1.3", t, 0.3 * st.tom[i]);
+      for (const pc of sec.perc ?? []) if (pc.hits[i]) play(pc.key, t, pc.peak * pc.hits[i]);
       // the roll: eighths, then sixteenths, getting louder
       if (bar === BARS - 1 && extras.includes("roll") && (i >= 8 || i % 2 === 0)) play("snare", t, 0.1 + 0.25 * (i / 15));
       if (bar === BARS - 1 && extras.includes("fill") && i >= 12) play(`tom${[1.45, 1.25, 1.05, 0.88][i - 12]}`, t, 0.32);
@@ -141,6 +142,9 @@ const DRUMS: { key: string; takes: number; len: number; hit: (b: Bus, at: number
   { key: "ohat", takes: 2, len: 0.6, hit: (b, at) => hat(b, { at, abs: true, peak: 1, open: true }) },
   { key: "shaker", takes: 4, len: 0.3, hit: (b, at) => shaker(b, { at, abs: true, peak: 1 }) },
   ...[1.3, 1.45, 1.25, 1.05, 0.88].map((pitch) => ({ key: `tom${pitch}`, takes: 1, len: 0.8, hit: (b: Bus, at: number) => tom(b, { at, abs: true, peak: 1, pitch }) })),
+  // the other styles' percussion: congas, a low dhol, a clave
+  ...[1.6, 0.8, 0.62].map((pitch) => ({ key: `tom${pitch}`, takes: 2, len: 0.8, hit: (b: Bus, at: number) => tom(b, { at, abs: true, peak: 1, pitch }) })),
+  { key: "clave", takes: 2, len: 0.2, hit: (b, at) => clave(b, { at, abs: true, peak: 1 }) },
   { key: "crash", takes: 1, len: 3.4, hit: (b, at) => crash(b, { at, abs: true, peak: 1, decay: 2.2 }) },
 ];
 

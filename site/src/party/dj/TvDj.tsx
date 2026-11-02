@@ -9,7 +9,8 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
-import { NightCurve, NowPlaying, phaseName, useHeardPhase, useHeat } from "./parts";
+import { Countdown, DeckBoard, DropParty, HintLine, PadChips, usePadEvents } from "./deck/TvDeck";
+import { NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { useBooth } from "./useBooth";
 import "../../styles/dj.css";
 
@@ -25,8 +26,10 @@ export default function TvDj({ v }: { v: DjView }) {
   // at one of the owner's tables this screen may stream Lyria (the private test)
   const sid = room?.you ?? "";
   const lyria = useMemo(() => (v.lab && sid ? { url: lyriaUrl(code, sid), key: `${code}:${sid}` } : null), [v.lab, sid, code]);
-  const booth = useBooth({ phase: v.phase, mix: v.mix, muted: !sound, onReport: (r) => g("stats", r), lyria });
+  const booth = useBooth({ phase: v.phase, mix: v.mix, muted: !sound, onReport: (r) => g("stats", r), lyria, deck: v.deck, now, onGrid: (grid) => g("grid", grid) });
   const { speaker, dj } = booth;
+  // the beginner deck: every pad pressed at the table plays here, on the next beat
+  const chips = usePadEvents(booth.pad);
 
   // the music starts here: the room's set begins when this screen says it's playing (said again
   // every few seconds until the room has heard it: a message can be lost on a dropping connection)
@@ -44,8 +47,14 @@ export default function TvDj({ v }: { v: DjView }) {
   // local runs: what the checks read (scripts/dj_lyria_check.py)
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    (window as unknown as { __djBooth: unknown }).__djBooth = { stats: () => speaker?.stats() ?? null, source: booth.source, beat: () => dj.beat() };
-  }, [speaker, booth.source, dj]);
+    (window as unknown as { __djBooth: unknown }).__djBooth = {
+      stats: () => speaker?.stats() ?? null,
+      source: booth.source,
+      beat: () => dj.beat(),
+      // what the deck played, with audio times, and the audio time now: the checks line them up with the beat
+      deck: () => ({ log: booth.driver?.log ?? [], now: speaker?.ctx.currentTime ?? 0, beatAt: (b: number) => (dj.beatFrame(b) === null ? null : speaker?.timeOfFrame(dj.beatFrame(b)!)) }),
+    };
+  }, [speaker, booth.source, booth.driver, dj]);
 
   const fires = useRef(new Map<string, number>());
   const [flames, setFlames] = useState<Flame[]>([]);
@@ -129,13 +138,17 @@ export default function TvDj({ v }: { v: DjView }) {
         </span>
       </header>
 
-      <Deck v={v} />
+      <DeckBoard v={v} />
       <JoinCard code={code} big={!seats.length} />
 
       <Floor seats={seats} flames={flames} host={room?.host} />
       {!seats.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
+      <PadChips chips={chips} />
+      <Countdown v={v} />
+      <DropParty v={v} />
+      {live && <HintLine v={v} />}
 
       <footer className="dj-foot">
         <NightCurve v={v} now={now()} />
@@ -197,24 +210,6 @@ function DropBanner({ phase }: { phase: DjPhase }) {
     <div className={`dj-drop is-${phase}`} role="status">
       <span className="dj-drop-name">{phaseName(phase, zh)}</span>
       <span className="dj-drop-line">{zh ? DROP_LINES[phase].zh : DROP_LINES[phase].en}</span>
-    </div>
-  );
-}
-
-/** The booth itself, top and centre: two records turning while the music plays, a level meter, what's on. */
-function Deck({ v }: { v: DjView }) {
-  return (
-    <div className="dj-deck">
-      <span className="dj-record" aria-hidden="true" />
-      <div className="dj-deck-mid">
-        <NowPlaying v={v} />
-        <span className="dj-meter" aria-hidden="true">
-          {Array.from({ length: 14 }, (_, k) => (
-            <i key={k} style={{ ["--k" as string]: k }} />
-          ))}
-        </span>
-      </div>
-      <span className="dj-record is-right" aria-hidden="true" />
     </div>
   );
 }
