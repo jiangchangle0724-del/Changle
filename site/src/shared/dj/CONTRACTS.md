@@ -315,6 +315,50 @@ picked from the list shows its title and artist to everyone (they're the list's)
 only to its player and the host: the others, and the big screen, see that a song was asked for
 (`ReqView.text` null). Nothing a player types reaches the big screen unchecked.
 
+## A night of the host's songs (`local`, Nov 2)
+
+Steve's ask: "can I connect Apple Music, like rekordbox does". Apple only lets the DJ apps it has
+deals with mix its songs (rekordbox, Serato, djay, Engine DJ), and MusicKit can't put effects on
+them; so the booth plays the host's own song files instead (bought ones, CD rips: not a music
+app's protected downloads), on the big screen's computer. Nothing is uploaded: the files stay
+there, and only their names reach the room.
+
+**On the TV** (`local/LocalPanel.tsx`): 我的歌, files or a folder (or dropped in). Each is decoded
+once at 22,050 Hz and listened to (`local/beats.ts` `analyzeSong`): its tempo (the onsets, the low
+end counted more, a rough period from how they repeat, then every tempo and phase near it tried
+against the whole song: within a hundredth of a beat a minute on the checks' songs, a few ms per
+beat), its first downbeat (the beat of four the low end hits hardest), its loud part (`cue`: the
+first 8 bars nearly as loud as the loudest 8, on a 4-bar line from the first downbeat when one is
+loud too, leaving 40 s), where it stops being worth playing (`end`) and how clear its beat is
+(`sure`). Named from its tags (an MP3's ID3, an M4A's iTunes tags) or its file name ("Artist -
+Title"). 200 songs at most, 45 s to 15 minutes each. 用我的歌放 makes the night theirs: said to the
+room as the source (`live`/`src` with `local`), and the stand-in comes back with 换回试音版 DJ.
+
+**The room** (`games/dj.ts`): the speaker's list as `crate` (`{ x: "crate", songs: [id, title,
+artist, bpm, seconds][] }`, once a second at most, from the speaker; kept with the next set too),
+fetched by the phones over HTTP (`GET /room/CODE/data`: it's big, so it doesn't come with every
+view; the view has `crateN` and `crateV`, and `onDecks`, the two songs on the decks by name). On a
+night of them (`deck.local`) each deck has one of the songs (`deck.songs`): the one on the air
+keeps its own, and the deck off the air the next, one not played tonight (`played`; all played,
+they start over), or the one asked for (`req` with `local`: named for everyone, they're the host's;
+a name typed in isn't taken). There are no styles to pick. A drop swaps to the deck off the air
+once the speaker says it has that song (`decks` with `sa`/`sb`: `cued`). The speaker says when the
+song on the air is nearly over (`ending`, 40 s before its end): the DJ starts the countdown into the
+next itself, once that deck has it (else 3 s later).
+
+**On the speaker** (`local/LocalDj.ts`), two decks in step like the stand-in, streamed a few
+seconds ahead: the night's bars are the first song's (it plays at its own speed from its top). A
+song that comes in after plays a little faster or slower so its beats fall on the night's (up to
+8 % either way, the pitch with it, as a DJ's pitch fader does; half or twice its tempo counts), or,
+too far off, at its own speed, and then the night's bars become its bars once it's on the air (a
+new `epoch`: the room takes the new bars). A deck off the air waits at its song's start (the player
+plays the other deck there, never silence) until the fader leans towards it (it starts on the next
+bar line) or a drop is on its way into it: the driver tells it the drop's bar as the countdown
+starts (`BoothDj.cue`), and its loud part lands on that bar, the bars before it played into it
+unheard. The song on the air run out with nothing after it: its loud part again, on the next bar.
+Songs are decoded at 48 kHz when they're on a deck, the latest three kept (about 90 MB a
+four-minute song). No room reverb (`setRoom` off): the songs bring their own.
+
 ## Styles and Lyria RealTime
 
 The 12 styles (`STYLE_IDS`) each get a `Preset` (task card C1, `presets.ts` beside this file). What
@@ -413,7 +457,7 @@ every frame changes only opacity or a transform.
 - One stream per table, from the speaker. A second big screen on the same table would play it too:
   open the booth on one screen. (A2 sends the stream to one screen.)
 - Every set ends 4 hours after its music starts. Lyria stops at 20 hours a month, all tables together.
-- No way to upload or play an MP3 anywhere: every sound is made here (later: by Lyria).
+- Nothing is uploaded or streamed from a music service: the music is made here (the stand-in, Lyria), or it's the host's own song files, played from the big screen's computer (a night of them, above: 200 songs, 45 s to 15 minutes each; a music app's protected downloads can't be played).
 
 ## Tests
 
@@ -434,6 +478,13 @@ every frame changes only opacity or a transform.
 - `python3 scripts/dj_lyria_check.py [chromium|webkit]`: with the fake Lyria too, the whole chain
   (relay, hand-over, the beat, the peak, a dropped stream, the stand-in back).
 - `npx tsx tests/dj-presets.test.ts`: the 12 Lyria presets (C1).
+- `python3 scripts/dj_local_check.py [chromium|webkit]`: a night of the host's songs in browsers:
+  three made-up song files added on the TV (their tempos heard), the switch to them, the phones'
+  decks and the next song by name, pads on the song's beat, a song asked for from them up next and
+  dropped into (its loud part on the drop's bar, the player's crossfader there), the DJ dropping
+  into the next as one ends, and back to the stand-in. `tests/dj.test.ts` has the beat finder on
+  made-up songs, the tags, and the local DJ on a pretend speaker; `tests/engine.test.ts` the room's
+  rules for them.
 - `python3 scripts/dj_deck_check.py [chromium|webkit]`: the beginner deck in browsers, a TV and
   three phones playing at once: pads on the beat to the millisecond, picks loading deck B, the
   fader thrown to B before B has music (deck A plays on, never silence), the fader held, the
