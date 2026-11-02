@@ -1,6 +1,7 @@
 """Check a production build with Vite preview running (Python Playwright, Chromium).
 
 Usage: python scripts/pwa_check.py [--base http://127.0.0.1:4173]
+For an already-deployed Pages preview, add --skip-update (update lifecycle is local).
 The update check temporarily adds an index.html head marker, rebuilds, then restores
 the source and rebuilds in finally. Do not edit index.html while this check runs.
 External account/status responses and a disconnected table socket are local fixtures;
@@ -33,6 +34,7 @@ def build():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', default='http://127.0.0.1:4173')
+    parser.add_argument('--skip-update', action='store_true', help='Read-only deployed-preview check; skip local rebuild/update test')
     args = parser.parse_args()
     base = args.base.rstrip('/')
     errors = []
@@ -101,7 +103,9 @@ def main():
         await_assets = """async () => { await document.fonts.ready; const c=await caches.open((await caches.keys()).find(k=>k.startsWith('changle-shell-'))); return (await c.keys()).map(r=>new URL(r.url).pathname); }"""
         first_keys = pg.evaluate(await_assets)
         assert '/index.html' in first_keys and any(k.endswith('.js') for k in first_keys) and any(k.endswith('.css') for k in first_keys)
+        assert pg.evaluate("caches.keys().then(async ks => !(await (await caches.open(ks.find(k=>k.startsWith('changle-shell-')))).match('/index.html')).redirected)")
         passed('service worker controls after visit/reload; entry JS/CSS and shell cached')
+        passed('cached shell has no redirect flag (Pages /index.html clean-URL redirect is safe)')
         pg.goto(base + '/g/wheel-of-fate/play')
         spin = pg.locator('.game-screen .btn-primary.btn-lg').last
         expect(spin).to_be_enabled()
@@ -127,6 +131,12 @@ def main():
         assert all(path == '/index.html' or path.startswith('/assets/') for path in keys)
         passed('offline table shows existing connection error; no APIs, tables or Worker pages cached')
         ctx.set_offline(False)
+        if args.skip_update:
+            assert not errors, '\n'.join(errors)
+            browser.close()
+            passed('zero console errors and page errors')
+            passed('ALL DEPLOYED PWA CHECKS (update lifecycle checked locally)')
+            return
         pg.goto(base + '/')
         old_cache = pg.evaluate("caches.keys().then(ks=>ks.find(k=>k.startsWith('changle-shell-')))")
         index = SITE / 'index.html'

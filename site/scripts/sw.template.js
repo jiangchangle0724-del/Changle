@@ -7,6 +7,17 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
     await cache.addAll(SHELL.map((url) => new Request(url, { cache: "reload" })));
+    // Pages redirects /index.html to /. A redirected Response cannot satisfy a
+    // navigation whose redirect mode is manual; store an ordinary shell response.
+    const index = await cache.match("/index.html");
+    if (index.redirected) {
+      const headers = new Headers(index.headers);
+      headers.delete("Content-Encoding");
+      headers.delete("Content-Length");
+      await cache.put("/index.html", new Response(await index.arrayBuffer(), {
+        status: index.status, statusText: index.statusText, headers,
+      }));
+    }
   })());
 });
 
