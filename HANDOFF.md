@@ -14,8 +14,8 @@ Content files and local scripts: `site/README.md` (Chinese).
 | rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
-| changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron) | by itself on merge when `tools/events/*` changes, once its Workers Builds connection is made (`tools/events/README.md`) |
-| changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes, once its Workers Builds connection is made (`games/party-server/README.md`) |
+| changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
+| changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes (connected 2026-11-01, `games/party-server/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
 installs on its own. Node 22, as in CI.

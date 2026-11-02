@@ -45,16 +45,14 @@ phones): each phone's clock error against the truth, calibration with taps 180 m
 clicks, the flashes against the beats, 我在, a phone reloaded mid-dance, the end. It prints the
 numbers and OK or FAILED. Results: `docs/field-notes/`.
 
-## Going live (once, by Steve)
+## Live
 
-Like 随便: merging into `main` deploys it once Cloudflare is connected.
-
-1. Cloudflare dashboard > Workers & Pages > Create > Import a repository > `changle-ca`.
-   Project name `party` (it must match `name` in `wrangler.jsonc`), root directory
-   `games/party-server`, build command `npm run build`,
-   deploy command `npx wrangler deploy`, build watch paths `games/party-server/*` and
-   `games/party-base/*`.
-2. Nothing else: no secrets, no database to make (the Durable Object comes with the deploy).
+Connected to Cloudflare on 1 November 2026: like 随便, merging into `main` deploys it. The Worker
+`party` (Workers Builds; the name must match `name` in `wrangler.jsonc`): root directory
+`/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy`, build
+watch paths `games/party-server/*` and `games/party-base/*`, API token "suibian build token". No
+secrets, no database (the Durable Object comes with the deploy). `changle.ca/party/screen` and
+`changle.ca/party/join` answer.
 
 It runs on the free plan (SQLite-backed Durable Objects). The speaker's clock report every second
 stays in memory; the room writes to storage only when something changes.

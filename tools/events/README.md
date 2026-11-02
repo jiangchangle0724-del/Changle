@@ -25,16 +25,18 @@ curl "http://127.0.0.1:8787/go/api/events?tag=free&cat=family"
 A trigger takes up to 30 steps; call it again and it goes on. A day's run is done once: to run the
 same day again, delete `.wrangler/state`.
 
-## Going live (once, by Steve)
+## Live
 
-Merging into `main` deploys it, once Cloudflare is connected:
+Connected to Cloudflare on 1 November 2026: merging into `main` deploys it. The Worker
+`changle-events` (Workers Builds): root directory `/tools/events`, no build command, deploy command
+`npx wrangler deploy`, build watch paths `tools/events/*`, API token "suibian build token".
 
-1. Cloudflare dashboard > Workers & Pages > Create > Import a repository > `changle-ca`.
-   Project name `changle-events`, root directory `tools/events`, deploy command
-   `npx wrangler deploy`, build watch paths `tools/events/*`.
-2. The first deploy makes the D1 database and the KV namespace by itself (they're in
-   `wrangler.jsonc` without ids), and the Worker sets up its tables on its first run.
-3. Ticketmaster: on the Worker, Settings > Variables and Secrets > add a Secret named
-   `TICKETMASTER_KEY` (from developer.ticketmaster.com). Without it that source is skipped.
+- The first deploy made the D1 database `changle-events` and the KV namespace
+  `changle-events-cache` by itself (they're in `wrangler.jsonc` without ids); the Worker sets up
+  its tables on its first run.
+- Until the first morning run, `/go/api/events` answers 503 "not ready" and `/go/api/status` has
+  no run.
+- Ticketmaster (Steve, once): on the Worker, Settings > Variables and Secrets > add a Secret named
+  `TICKETMASTER_KEY` (from developer.ticketmaster.com). Without it that source is skipped.
 
 It runs on the free plan: nothing here costs money.
