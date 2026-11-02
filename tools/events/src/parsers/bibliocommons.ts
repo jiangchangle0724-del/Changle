@@ -46,7 +46,7 @@ const KIDS = /baby|babies|toddler|preschool|school age|tween|family|children|kid
 const NEWCOMERS = /newcomer|esl/i;
 
 /** The library's types and audiences to one of the 8 categories, or null (left to the AI). */
-function categoryOf(types: string[], audiences: string[]): Category | null {
+export function categoryOf(types: string[], audiences: string[]): Category | null {
   if (types.some((t) => /storytime/i.test(t)) || (audiences.length > 0 && audiences.every((a) => KIDS.test(a)))) return "family";
   if (types.some((t) => /performing arts/i.test(t))) return "shows";
   if (types.some((t) => /film|author|talks|arts & culture|indigenous|book club|writing/i.test(t))) return "arts";
