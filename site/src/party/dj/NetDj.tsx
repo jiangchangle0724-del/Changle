@@ -68,8 +68,8 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
       </p>
       <p>
         {zh
-          ? "每个人的手机都是打碟台，大家可以同时按，什么都卡在拍子上，不会乱：推子在 A、B 两个碟之间混，四个效果键（回声、扫频、喇叭、刹车）下一拍响，大家一起狂点「蓄力」，满了跟着倒数在 DROP 那一下按，踩准了就是完美 Drop。下面选下一首放什么，票最多的放到没在放的那个碟上，Drop 的时候直接换过去。"
-          : "Every phone is a deck and everyone can play at once; it all lands on the beat, so nothing goes wrong. The crossfader mixes decks A and B, the four pads (echo, sweep, horn, brake) play from the next beat, everyone taps Build up together, and when it's full you press DROP on the count: right on it is a perfect drop. Below, pick what plays next; the most picked goes on the deck that isn't playing, and a drop switches straight to it."}
+          ? "每个人的手机都是打碟台，大家可以同时按，什么都卡在拍子上，不会乱：推子在 A、B 两个碟之间混，八个效果键（回声、扫频、喇叭、刹车、警笛、激光、搓碟、倒带）下一拍响，大家一起狂点「蓄力」，满了倒数 8 秒，在 DROP 那一下按，踩准了就是完美 Drop。下面选下一首放什么，票最多的放到没在放的那个碟上，Drop 的时候直接换过去。"
+          : "Every phone is a deck and everyone can play at once; it all lands on the beat, so nothing goes wrong. The crossfader mixes decks A and B, the eight pads (echo, sweep, horn, brake, siren, laser, scratch, rewind) play from the next beat, everyone taps Build up together, and when it's full an 8-second count starts: press DROP on it, right on it is a perfect drop. Below, pick what plays next; the most picked goes on the deck that isn't playing, and a drop switches straight to it."}
       </p>
       <p>
         {zh

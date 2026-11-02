@@ -17,7 +17,7 @@ const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
 /**
  * 打碟 · DJ Booth: the beginner deck on a phone. Everyone at the table has one and plays at once;
  * the room keeps it in order and the big screen plays it on the beat, so no press can trainwreck:
- * the crossfader between the two decks, four effect pads, the build-up everyone taps together, DROP
+ * the crossfader between the two decks, eight effect pads, the build-up everyone taps together, DROP
  * on the count, and the pick for what plays next.
  */
 export function DeckPad({ v }: { v: DjView }) {
