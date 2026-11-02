@@ -108,6 +108,10 @@ with sync_playwright() as p:
     ok(until(lambda: deck(tv).get("fader", 1) == 0, 3000), "and back to A")
     tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-1.png"))
 
+    # deck B plays latin from its next section, once it's recorded: then it's cued
+    ok(until(lambda: (deck(tv).get("sounding") or {}).get("b") == "latin", 25000, 250), "the speaker says deck B really plays latin now (from its next section)")
+    ok(until(lambda: tv.locator(".dk-cued").filter(has_text="Up next").count() + tv.locator(".dk-cued").filter(has_text="下一首").count() == 1, 3000), "and the TV marks it up next")
+
     # the build-up: everyone taps
     end = time.time() + 20
     while time.time() < end and not deck(tv).get("drop"):

@@ -1,7 +1,7 @@
 import { ChevronsUp, Disc3 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
-import { chargeNow, countdown, cued, grade, hintFor, offAir, onAir, tally } from "../../../shared/dj/deck";
+import { chargeNow, countdown, cued, grade, hintFor, loaded, offAir, onAir, tally } from "../../../shared/dj/deck";
 import { DECK, PAD_IDS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
@@ -13,6 +13,8 @@ import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
 
 const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
+/** how long a DROP press takes to reach the room, about (it has to get there DECK.leadMs before the bar) */
+const PRESS_TRIP_MS = 100;
 
 /**
  * 打碟 · DJ Booth: the beginner deck on a phone. Everyone at the table has one and plays at once;
@@ -28,10 +30,11 @@ export function DeckPad({ v }: { v: DjView }) {
   const live = v.phase !== "wait" && v.phase !== "end";
   const t = now();
   // smooth while something moves: the countdown, the build-up falling back
-  useTicker(live && (!!d.drop || d.charge > 0), d.drop ? 50 : 200);
+  useTicker(live && (!!d.drop || chargeNow(d, t) > 0), d.drop ? 50 : 200);
   useTicker(live, 4000);
 
-  const hint = hintFor({ ...d, pending: 0 }, t, live);
+  const lyria = v.source === "lyria";
+  const hint = hintFor(d, t, live, lyria);
   const off = offAir(d);
   const on = onAir(d);
 
@@ -56,7 +59,7 @@ export function DeckPad({ v }: { v: DjView }) {
       <p className="djk-hint" aria-live="polite">
         {hint ? hintText(hint, off, zh) : zh ? "音乐开始后就能打碟" : "The deck opens when the music starts"}
       </p>
-      <Decks v={v} on={on} zh={zh} />
+      <Decks v={v} on={on} zh={zh} lyria={lyria} />
       <Fader v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
       <div className="djk-pads">
         {PAD_IDS.map((p) => (
@@ -77,9 +80,10 @@ export function DeckPad({ v }: { v: DjView }) {
 type G = (x: string, data?: Record<string, unknown>) => void;
 
 /** The two decks: their styles, the one on the air lit. */
-function Decks({ v, on, zh }: { v: DjView; on: DeckSide; zh: boolean }) {
+function Decks({ v, on, zh, lyria }: { v: DjView; on: DeckSide; zh: boolean; lyria: boolean }) {
   const d = v.deck;
-  const next = cued(d);
+  const next = cued(d, lyria);
+  const loading = next ? null : loaded(d);
   const deck = (side: DeckSide) => {
     const style = side === "a" ? d.a : d.b;
     return (
@@ -89,6 +93,7 @@ function Decks({ v, on, zh }: { v: DjView; on: DeckSide; zh: boolean }) {
         <span className="djk-deck-style">{style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}</span>
         {on === side && <span className="djk-deck-on">{zh ? "在放" : "On"}</span>}
         {next === side && <span className="djk-deck-on is-next">{zh ? "下一首" : "Next"}</span>}
+        {loading === side && <span className="djk-deck-on is-loading">{zh ? "准备中" : "Loading"}</span>}
       </div>
     );
   };
@@ -141,7 +146,7 @@ function Fader({ v, me, now, g, nameOf, zh, live }: { v: DjView; me: string; now
         max={100}
         step={1}
         value={Math.round(x * 100)}
-        disabled={!live || held}
+        disabled={!live || held || !d.b}
         aria-label={zh ? "推子：A 到 B" : "Crossfader, A to B"}
         onChange={(e) => move(Number(e.target.value) / 100)}
         onPointerUp={end}
@@ -150,7 +155,9 @@ function Fader({ v, me, now, g, nameOf, zh, live }: { v: DjView; me: string; now
         style={{ ["--x" as string]: x } as CSSProperties}
       />
       <span className="djk-fader-end">B</span>
-      <span className="djk-fader-who">{held ? (zh ? `${nameOf(d.faderBy!)} 在推` : `${nameOf(d.faderBy!)} has it`) : zh ? "推子" : "Crossfader"}</span>
+      <span className="djk-fader-who">
+        {held ? (zh ? `${nameOf(d.faderBy!)} 在推` : `${nameOf(d.faderBy!)} has it`) : !d.b ? (zh ? "先选下一首，B 碟有歌才能推" : "Pick the next one first: deck B needs a song") : zh ? "推子" : "Crossfader"}
+      </span>
     </div>
   );
 }
@@ -202,8 +209,10 @@ function BuildDrop({ v, now, g, zh, live }: { v: DjView; now: () => number; g: G
     if (!timer.current)
       timer.current = window.setInterval(() => {
         if (!taps.current) {
+          // the taps stopped: one last word, so the room adds what it's holding
           window.clearInterval(timer.current);
           timer.current = 0;
+          g("charge", { n: 0 });
           return;
         }
         flush();
@@ -216,7 +225,8 @@ function BuildDrop({ v, now, g, zh, live }: { v: DjView; now: () => number; g: G
     const press = () => {
       if (pressed.current === key) return;
       const tNow = now();
-      const gr = grade(d.drop!, d.grid, tNow, tNow);
+      // judged here as the room will, with room for the trip there: a press shown as counting does
+      const gr = grade(d.drop!, d.grid, tNow, tNow + PRESS_TRIP_MS);
       if (!gr) {
         const early = tNow < d.drop!.at;
         setResult((r) => ({ text: L(early ? DROP_WORDS.early : DROP_WORDS.late, zh), good: false, n: (r?.n ?? 0) + 1 }));

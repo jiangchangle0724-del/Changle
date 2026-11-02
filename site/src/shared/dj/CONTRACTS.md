@@ -115,7 +115,9 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 - **Another set** keeps the night's 🔥 counts, everyone's knobs, the songs, the decks' styles and
   the night's perfect drops; ❄️, drops, pads, the build-up start empty.
 - **Quiet** (`api.quiet()`): a command the room turns away, or a tap it keeps to add a moment later,
-  sends and stores nothing (the engine's `Api.quiet`); what it kept goes out with the next change.
+  sends and stores nothing (the engine's `Api.quiet`; the rooms server then writes nothing at all,
+  not even its alarm); what it kept goes out with the next change. A light change that moves a game
+  timer still re-arms the alarm.
 - **Knobs of players who left** stay in `knobs` (they may come back): the DJ and the screens count
   only the seats at the table.
 - A booth saved before a field existed gets it empty (`norm` in `games/dj.ts`): add new fields the
@@ -192,27 +194,36 @@ the fader there blends the two styles' prompts (C1's presets) instead, a few sec
 
 | Command | What the room does |
 | --- | --- |
-| `pad` `{ pad }` | `echo`, `sweep`, `horn` or `brake`, while music plays: one a phone per 600 ms, the same pad once for the room per 150 ms (two people on the horn at once is one horn), a brake once per 4 s and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
-| `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Full arms the drop. |
-| `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
-| `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
+| `pad` `{ pad }` | `echo`, `sweep`, `horn` or `brake`, while music plays: a phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn), a brake once per 4 s (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
+| `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
+| `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
+| `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
+| `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`): a new style plays from its deck's next section once it's recorded, and until then a deck with nothing of its own plays deck A's music, never silence. |
 
 **The drop.** When the build-up fills, the room aims the drop (`aim`): the first bar that's a
 multiple of 4 at least 4 beats away on the speaker's bars, the **cue** one beat before it. The
 screens count 3, 2, 1 and DROP over that last bar (`countdown`); DROP is on the cue beat. A press
-counts from the start of the countdown until 200 ms before the bar (so the word reaches the
-speaker in time): within a quarter beat of the cue it's **perfect**, else good (`grade`). At the
-bar (a room timer) it lands (`last`, the night's `perfects`): the fader jumps to the deck the drop
-was for, the build-up and the picks start over. It swaps to the deck off the air when the floor
-has **cued** its pick there (`cued`); otherwise it drops on the deck that's on. Nobody pressed:
-another countdown 4 bars on; after 2 misses the DJ drops it by itself (`auto`). The end of a set
-clears it.
+counts from the start of the countdown until 200 ms before the bar (so the room's word reaches the
+speaker in time; a word that reaches it a moment late lands at once, not a beat later; a phone
+judges its own press with a little more room, so a press it shows as counting does): within a
+quarter beat of the cue it's
+**perfect**, else good (`grade`). At the bar (a room timer) it lands (`last`, the night's
+`perfects`): the fader jumps to the deck the drop was for, the build-up and the picks start over.
+It swaps to the deck off the air when the floor has **cued** its pick there (`cued`: loaded there,
+and the speaker says that deck really plays it; with Lyria, loaded is enough); a pick still
+loading shows as such and the drop stays on the deck that's on. Which deck it lands on is decided
+when the build-up fills. Nobody pressed: another countdown 4 bars on; after 2 misses the DJ drops
+it by itself (`auto`). The end of a set clears it.
 
 **The speaker's bars** (`grid`). The speaker tells the room where its bars fall: bar `bar` of its
 stream starts at server time `at` (when it's *heard*), at `bpm`, sent again when its stream starts
-over, its DJ changes, or its clock drifts by more than 25 ms (at most every 5 s). The room ignores
-the same bars within a twentieth of a beat; new bars re-aim a drop on its way. Phones count down
-on the server's clock (`useRoom().now()`), so every phone, the TV and what the room hears agree.
+over, its DJ changes, or its clock drifts by more than 25 ms (at most every 5 s, and not during a
+countdown on the same stream). The room takes the bars from one screen (`gridFrom`, at most once a
+second; another can take over after 30 s of quiet), and the speaker's `stats`, `src` and `decks`
+only from that screen too. It ignores the same bars within a twentieth of a beat. A drop on its
+way keeps its bar and its presses when the same stream's clock drifts (its time is corrected);
+only new bars (a new stream) start its countdown over. Phones count down on the server's clock
+(`useRoom().now()`), so every phone, the TV and what the room hears agree.
 
 **On the speaker** (`deck/driver.ts`, the sounds in `speaker/fx.ts`), every effect at an audio
 time on the beat grid (`BoothDj.beatFrame`, `Speaker.timeOfFrame`):
@@ -223,6 +234,8 @@ deck A ┐                                                     ┌─ echo send 
 deck B ┘                                                       horn, riser, roll, impact ────────┘
 ```
 
+- **The drop on the speaker** is one per bar of a stream, however its time is corrected, and the
+  speaker holds its fader jump until the room says the drop landed (3 s at most).
 - **echo:** a bar of the music repeating every ¾ beat, dying away. **sweep:** the music closes
   down to a murmur over a bar and opens over the next. **horn:** two short blasts and a long one, on
   the eighths. **brake:** the music slows to a stop over ¾ of a beat (pitch with it), quiet until

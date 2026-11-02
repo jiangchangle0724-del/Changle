@@ -8,7 +8,7 @@
  * drop requests and described songs. Turning those into the music is the DJ's (A4, A5), not this.
  */
 import { ENERGY, FAKE_MIX, mixFor, playing } from "../../dj/curve";
-import { aim, beatAt, chargeNow, cued, deckWeights, freshDeck, grade, leader, offAir, onAir, reaim, styleOn } from "../../dj/deck";
+import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, leader, offAir, onAir, reaim, styleOn } from "../../dj/deck";
 import {
   ASK_CHARS,
   ASKS_EACH,
@@ -66,7 +66,8 @@ function norm(s: RoomState): RoomState {
   s.knobs ??= {};
   s.drops ??= [];
   s.queue ??= [];
-  s.deck ??= freshDeck();
+  // a deck saved before a field existed gets it fresh
+  s.deck = { ...freshDeck(), ...s.deck };
   return s;
 }
 
@@ -104,8 +105,8 @@ function fold(s: RoomState, api: Api) {
 function arm(s: RoomState, api: Api) {
   const d = s.deck;
   const t = aim(d.grid, api.now);
-  // a swap when the floor has cued its pick on the deck off the air
-  d.drop = { ...t, misses: 0, auto: false, hits: [], to: cued(d) ?? onAir(d) };
+  // a swap when the floor's pick is cued on the deck off the air (and really plays there)
+  d.drop = { ...t, misses: 0, auto: false, hits: [], to: cued(d, s.source === "lyria") ?? onAir(d) };
   d.charge = 1;
   api.timer("drop", t.at);
 }
@@ -175,6 +176,15 @@ function lastAt(list: { pid: string; at: number }[], pid: string) {
 }
 
 const keep = <X>(list: X[], n: number) => (list.length > n ? list.slice(-n) : list);
+
+/**
+ * The screen that is the speaker: the one giving the bars (any screen until one has, or once it has
+ * gone quiet for 30 seconds). Another screen with the table's code can't speak for it.
+ */
+function fromSpeaker(s: RoomState, sid: string, api: Api) {
+  const d = s.deck;
+  return !d.gridFrom || d.gridFrom === sid || api.now - d.gridSetAt >= 30_000;
+}
 
 /** A number inside the range, or null (outside it is nonsense, not something to clamp). */
 function within(v: unknown, lo: number, hi: number): number | null {
@@ -290,36 +300,37 @@ export const dj: GameDef<RoomState> = {
         const pad = g.pad as PadId;
         if (!playing(s.phase) || !PAD_IDS.includes(pad)) return api.quiet();
         const now = api.now;
-        // one a phone per padGapMs, and the same pad once for the whole room per roomPadGapMs (two
+        // a phone's per padTakeMs, and the same pad once for the whole room per roomPadGapMs (two
         // people on the horn at the same moment is one horn): a table mashing can't pile them up
-        if (lastAt(d.pads, pid) > now - DECK.padGapMs) return api.quiet();
+        if ((d.padAt[pid] ?? -Infinity) > now - DECK.padTakeMs) return api.quiet();
         if (d.pads.some((p) => p.pad === pad && p.at > now - DECK.roomPadGapMs)) return api.quiet();
-        if (pad === "brake") {
-          // the brake stops the music for a beat: not while a drop is on its way, and not often
-          if (d.drop) return api.quiet();
-          const braked = d.pads.filter((p) => p.pad === "brake").pop()?.at ?? -Infinity;
-          if (braked > now - DECK.brakeGapMs) return api.quiet();
-        }
+        // the brake stops the music for a beat: not while a drop is on its way, and not often
+        if (pad === "brake" && (d.drop || d.brakeAt > now - DECK.brakeGapMs)) return api.quiet();
         api.light();
+        d.padAt[pid] = now;
+        if (pad === "brake") d.brakeAt = now;
         d.pads = keep([...d.pads, { pid, pad, at: now }], DECK.keepPads);
         api.fx("pad", pid, [PAD_IDS.indexOf(pad)]);
         return;
       }
       case "charge": {
         const d = s.deck;
-        const n = num(g.n, 1, DECK.maxTaps);
+        const n = num(g.n, 0, DECK.maxTaps);
         if (!playing(s.phase) || d.drop || n === null) return api.quiet();
         d.pending += Math.round(n);
-        // the taps are added a few times a second, and only then does the table hear about it
-        if (api.now - d.chargeAt < DECK.foldMs) return api.quiet();
-        api.light();
+        // the taps are added a few times a second, and only then does the table hear about it (a
+        // phone says 0 once its taps stop, so the last ones are never left waiting)
+        if (!d.pending || api.now - d.chargeAt < DECK.foldMs) return api.quiet();
         fold(s, api);
+        // full arms the drop and sets its timer: a real change; filling is light
+        if (!d.drop) api.light();
         return;
       }
       case "vote": {
         const style = g.style as StyleId;
-        if (s.phase === "end" || !STYLE_IDS.includes(style)) return api.quiet();
         const d = s.deck;
+        if (s.phase === "end" || !STYLE_IDS.includes(style) || (d.voteAt[pid] ?? -Infinity) > api.now - DECK.voteGapMs) return api.quiet();
+        d.voteAt[pid] = api.now;
         const mine = d.votes[pid];
         delete d.votes[pid];
         // the same one again takes it back; a new one counts as the latest
@@ -330,7 +341,8 @@ export const dj: GameDef<RoomState> = {
       case "fader": {
         const d = s.deck;
         const v = num(g.value, 0, 1);
-        if (!playing(s.phase) || v === null) return api.quiet();
+        // nothing to blend into while deck B is empty
+        if (!playing(s.phase) || v === null || !d.b) return api.quiet();
         const now = api.now;
         // the fader is whoever's moving it: the others wait for them to let go
         if (d.faderBy && d.faderBy !== pid && now - d.faderAt < DECK.faderHoldMs) return api.quiet();
@@ -350,15 +362,16 @@ export const dj: GameDef<RoomState> = {
         return;
       }
       case "phase": {
-        if (!host || s.phase === "wait" || s.phase === "end") return;
+        // (anything turned away costs nothing: Api.quiet)
+        if (!host || s.phase === "wait" || s.phase === "end") return api.quiet();
         const to = g.phase as SetPhase | "end";
-        if (to !== "end" && !SET_PHASES.includes(to as SetPhase)) return;
-        if (to === s.phase) return;
+        if (to !== "end" && !SET_PHASES.includes(to as SetPhase)) return api.quiet();
+        if (to === s.phase) return api.quiet();
         goTo(s, to, api);
         return;
       }
       case "again": {
-        if (!host || s.phase !== "end") return;
+        if (!host || s.phase !== "end") return api.quiet();
         const next = fresh(s.set + 1);
         // the night's 🔥 count, everyone's knobs, the songs asked for and the speaker's record
         // carry on into the next set (❄️ and drops are about the moment)
@@ -367,7 +380,8 @@ export const dj: GameDef<RoomState> = {
         next.queue = s.queue;
         next.speaker = s.speaker;
         // the decks as the floor left them, and the night's perfect drops
-        next.deck = { ...freshDeck(), a: s.deck.a, b: s.deck.b, fader: s.deck.fader, votes: s.deck.votes, grid: s.deck.grid, perfects: s.deck.perfects };
+        const k = s.deck;
+        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt };
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -376,10 +390,13 @@ export const dj: GameDef<RoomState> = {
         api.clear("drop");
         return;
       }
+      default:
+        // a command the booth doesn't know: nothing to send or store
+        return api.quiet();
     }
   },
 
-  screen(s, _sid, g, api) {
+  screen(s, sid, g, api) {
     norm(s);
     switch (g.x) {
       case "live": {
@@ -390,15 +407,15 @@ export const dj: GameDef<RoomState> = {
       }
       case "src": {
         // the speaker switched where its music comes from mid-set (Lyria came in, or fell back to
-        // the stand-in): only while music plays, and only a real change
-        if (s.phase === "wait" || s.phase === "end") return false;
+        // the stand-in): only while music plays, only a real change, only from the speaker
+        if (s.phase === "wait" || s.phase === "end" || !fromSpeaker(s, sid, api)) return false;
         const source = g.source === "lyria" ? "lyria" : g.source === "fake" ? "fake" : null;
         if (!source || source === s.source) return false;
         s.source = source;
         return true;
       }
       case "stats": {
-        if (s.speaker.at && api.now - s.speaker.at < STATS_GAP_MS) return false;
+        if (!fromSpeaker(s, sid, api) || (s.speaker.at && api.now - s.speaker.at < STATS_GAP_MS)) return false;
         // a minute's worth at most (a report covers the minute since the last one)
         const stalls = num(g.stalls, 0, 600);
         const resets = num(g.resets, 0, 60);
@@ -419,16 +436,42 @@ export const dj: GameDef<RoomState> = {
         const bpm = within(g.bpm, 60, 200);
         if (at === null || bar === null || bpm === null) return false;
         const d = s.deck;
+        // one screen gives the bars (another can take over once they've gone quiet), not too often
+        if (!fromSpeaker(s, sid, api)) return false;
+        if (d.gridFrom === sid && api.now - d.gridSetAt < DECK.gridGapMs) return false;
         const next = { at: Math.round(at), bar: Math.round(bar), bpm: Math.round(bpm * 100) / 100 };
+        const was = d.grid;
         // the same bars, near enough (a twentieth of a beat): nothing to tell
-        if (d.grid && d.grid.bpm === next.bpm && Math.abs(beatAt(d.grid, next.at) - next.bar * 4) < 0.05) return false;
+        if (was && was.bpm === next.bpm && Math.abs(beatAt(was, next.at) - next.bar * 4) < 0.05) return false;
         d.grid = next;
-        // a drop on its way counts down to the new bars
-        if (d.drop) {
-          const t = aim(d.grid, api.now);
-          d.drop = { ...d.drop, ...t, hits: [] };
-          api.timer("drop", t.at);
+        d.gridFrom = sid;
+        d.gridSetAt = api.now;
+        const dr = d.drop;
+        if (dr) {
+          // the same stream a few milliseconds off: the same bar at its corrected time, every press kept
+          const drift = was && was.bpm === next.bpm && Math.abs(beatAt(was, next.at) - next.bar * 4) < 1;
+          const atNow = dr.bar >= 0 ? next.at + (dr.bar - next.bar) * 4 * beatMsOf(next) : dr.at;
+          if (drift && dr.bar >= 0 && atNow - api.now >= DECK.leadMs) {
+            d.drop = { ...dr, at: atNow, cue: atNow - beatMsOf(next) };
+            api.timer("drop", atNow);
+          } else {
+            // new bars (a new stream): the countdown starts over on them
+            const t = aim(d.grid, api.now);
+            d.drop = { ...dr, ...t, hits: [] };
+            api.timer("drop", t.at);
+          }
         }
+        return true;
+      }
+      case "decks": {
+        // the styles the speaker's two decks really sound now
+        if (!fromSpeaker(s, sid, api)) return false;
+        const a = g.a as StyleId;
+        const b = g.b === null ? null : (g.b as StyleId);
+        if (!STYLE_IDS.includes(a) || (b !== null && !STYLE_IDS.includes(b))) return false;
+        const d = s.deck;
+        if (d.sounding?.a === a && d.sounding?.b === b) return false;
+        d.sounding = { a, b };
         return true;
       }
     }
@@ -502,6 +545,6 @@ export const dj: GameDef<RoomState> = {
 
 /** The deck as the screens read it (the taps the room is about to add stay in the room). */
 function deckView(s: RoomState): DeckView {
-  const { pending: _pending, ...rest } = s.deck;
+  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, gridFrom: _gridFrom, ...rest } = s.deck;
   return rest;
 }

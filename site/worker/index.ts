@@ -318,6 +318,8 @@ export class Room extends DurableObject<Env> {
   private lyria: LyriaRelay | null = null;
   /** when the table was last stored (light changes wait for the next save, or this long) */
   private savedAt = 0;
+  /** the game's earliest timer when the alarm was last set (a light change re-arms only if it moved) */
+  private alarmFor: number | null | undefined = undefined;
 
   private async load(code?: string): Promise<RoomEngine> {
     if (this.engine) return this.engine;
@@ -599,6 +601,9 @@ export class Room extends DurableObject<Env> {
   private async commit(out: Output) {
     const engine = this.engine;
     if (!engine) return;
+    // nothing happened (a tap the game turned away, or kept to add a moment later: Api.quiet):
+    // nothing to send, store or re-arm
+    if (!out.changed && !out.light && !out.persist && !out.events.length && !out.relay.length && !out.kicked.length && !out.strokesReset && !out.records.length) return;
     if (out.records.length) {
       const hub = this.env.HUB.get(this.env.HUB.idFromName("hub"));
       for (const rec of out.records) {
@@ -647,10 +652,10 @@ export class Room extends DurableObject<Env> {
       const why = this.lyriaWhyNot();
       if (why) this.lyria.end(why);
     }
-    // a light change that wasn't stored leaves the alarm as it was
-    if (out.light && !save) return;
-
+    // a light change that wasn't stored leaves the alarm as it was, unless the game's timers moved
     const next = engine.nextAlarm();
+    if (out.light && !save && next === this.alarmFor) return;
+    this.alarmFor = next;
     let forget = engine.d.touched + IDLE_FORGET;
     // someone is still here (a phone, or a TV left on overnight): look again later instead of
     // re-arming the alarm in the past, which would fire it over and over

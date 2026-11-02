@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FAKE_MIX, mixFor, playing } from "../../shared/dj/curve";
-import type { DjPhase, Mix, PadId, Source } from "../../shared/dj/types";
+import type { DjPhase, Mix, PadId, Source, StyleId } from "../../shared/dj/types";
 import type { DeckView } from "../../shared/protocol";
 import { DeckDriver, type Grid } from "./deck/driver";
 import { FakeDj } from "./fake/FakeDj";
@@ -95,6 +95,7 @@ export function useBooth({
   deck,
   now,
   onGrid,
+  onDecks,
 }: {
   phase: DjPhase;
   mix?: Mix;
@@ -106,6 +107,8 @@ export function useBooth({
   /** the server's clock (ms), and where to tell the room the speaker's bars fall */
   now?: () => number;
   onGrid?: (g: Grid) => void;
+  /** tells the room the styles the decks really sound (a drop only swaps to a deck that plays its pick) */
+  onDecks?: (d: { a: StyleId; b: StyleId | null }) => void;
 }) {
   const booth = pageBooth();
   const { fake } = booth;
@@ -270,6 +273,22 @@ export function useBooth({
     if (driver && deck) driver.update(deck, playing(phase));
   }, [driver, deck, phase]);
   const pad = useCallback((p: PadId) => driver?.pad(p), [driver]);
+  // what the stand-in's decks sound now, told to the room when it changes
+  const decksTo = useRef(onDecks);
+  decksTo.current = onDecks;
+  useEffect(() => {
+    if (!speaker) return;
+    let said = "";
+    const id = window.setInterval(() => {
+      const hd = booth.using === "fake" ? fake.heardDecks() : null;
+      if (!hd) return;
+      const key = `${hd.a}:${hd.b}`;
+      if (key === said) return;
+      said = key;
+      decksTo.current?.(hd);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [speaker, booth, fake]);
 
   // the phone or tablet stopped the sound (the screen locked, a call): it takes a tap to wake it
   const [stopped, setStopped] = useState(false);

@@ -1,4 +1,5 @@
 /* Engine flow tests: run with `npx tsx tests/engine.test.ts` */
+import { cued, loaded } from "../src/shared/dj/deck";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
@@ -1460,15 +1461,23 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   ok(deck().pads.filter((x) => x.pad === "brake").length === 1, "one brake per 4 seconds");
 
   // picks: the off-air deck takes the floor's choice
+  // the fader has nothing to blend into while deck B is empty
+  const empty = g("p2", "fader", { value: 0.6 });
+  ok(deck().fader === 0 && !empty.light && !empty.changed, "no fader while deck B is empty");
   g("p1", "vote", { style: "latin" });
   ok(deck().b === "latin" && deck().votes.p1 === "latin", "a pick goes on deck B (off the air)");
   g("p2", "vote", { style: "techno" });
   g("p3", "vote", { style: "techno" });
   ok(deck().b === "techno", "the most picked wins");
+  const fast = g("p3", "vote", { style: "techno" });
+  ok(deck().votes.p3 === "techno" && !fast.changed, "a phone's picks wait 300 ms between them");
+  advance(310);
   g("p3", "vote", { style: "techno" });
   ok(!("p3" in deck().votes) && deck().b === "techno", "picking it again takes it back; a tie goes to the one picked last (Ben's techno, after Amy's latin)");
+  advance(310);
   g("p3", "vote", { style: "house" });
   ok(deck().b === "techno", "what's on the air already isn't loaded again");
+  advance(310);
   g("p3", "vote", { style: "jazz" });
   ok(deck().votes.p3 === "house", "a style that isn't one of the 12 is ignored");
   ok(dv("p1").mix.weights.house === 1 && !dv("p1").mix.weights.latin, "the fader on A: the mix is all house");
@@ -1490,6 +1499,12 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   g("p2", "vote", { style: "bass" });
   ok(deck().b === "bass", "and the next pick loads B");
 
+  // the speaker says what its decks really sound (a new style waits for its next section)
+  ok(cued(deck()) === null && loaded(deck()) === "b", "B has the pick loaded, but the speaker hasn't said it plays it yet");
+  ok(e.screenAct("tv-bd", { x: "decks", a: "afro", b: "bass" }) && cued(deck()) === "b", "once it does, B is cued");
+  ok(!e.screenAct("tv-bd", { x: "decks", a: "afro", b: "bass" }) && !e.screenAct("tv-bd", { x: "decks", a: "afro", b: "polka" }), "the same again, or a style that isn't one, is nothing");
+  e.flush();
+
   // the build-up: taps add up a few times a second, never faster than a quarter a second
   advance(1300);
   const quiet = g("p1", "charge", { n: 5 });
@@ -1501,16 +1516,22 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   g("p3", "charge", { n: 8 });
   const c1 = deck().charge;
   ok(Math.abs(c1 - c0 - 0.25 * 0.21) < 1e-9, "the waiting taps go in with the next, no faster than a quarter a second");
+  g("p1", "charge", { n: 3 });
+  advance(250);
+  const nudge = g("p1", "charge", { n: 0 });
+  ok(nudge.light && deck().charge > c1, "a phone's last word (0 taps) adds what was waiting");
   advance(3000);
   g("p1", "charge", { n: 1 });
   ok(deck().charge < c1 + 0.03, "left alone it falls back after a moment");
   // fill it
+  let armedWith: ReturnType<typeof g> | null = null;
   for (let i = 0; i < 30 && !deck().drop; i++) {
     advance(250);
-    g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+    armedWith = g(`p${(i % 3) + 1}`, "charge", { n: 8 });
   }
   const dr = deck().drop!;
   ok(!!dr && deck().charge === 1 && dr.hits.length === 0 && !dr.auto, "full: a drop is on its way");
+  ok(armedWith?.changed === true, "the tap that fills it is a real change: stored, with the drop's timer");
   const beatNow = (clock - deck().grid!.at) / beat;
   ok(dr.bar % 4 === 0 && dr.bar * 4 >= beatNow + 4 && dr.bar * 4 < beatNow + 4 + 16, "it lands on the next 4-bar line at least 4 beats away");
   ok(dr.at === deck().grid!.at + dr.bar * 4 * beat && dr.cue === dr.at - beat, "at that bar's time, the cue a beat before");
@@ -1521,30 +1542,41 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   g("p3", "pad", { pad: "brake" });
   ok(deck().pads[deck().pads.length - 1].pad !== "brake" || deck().pads.filter((x) => x.pad === "brake").length === 1, "no brake while a drop is on its way");
 
+  // the speaker's clock drifts a little mid-countdown: the same bar, its time corrected, presses kept
+  advance(1100);
+  const was = deck().drop!;
+  ok(e.screenAct("tv-bd", { x: "grid", at: deck().grid!.at + 30, bar: deck().grid!.bar, bpm: 125 }), "the speaker's bars, 30 ms later");
+  e.flush();
+  const after = deck().drop!;
+  ok(after.bar === was.bar && after.at === was.at + 30 && after.cue === was.cue + 30, "the drop keeps its bar, 30 ms later too");
+  ok(!e.screenAct("tv-other", { x: "grid", at: clock, bar: 5000, bpm: 64 }) && deck().grid!.bpm === 125, "another screen can't move the bars");
+  ok(!e.screenAct("tv-bd", { x: "grid", at: deck().grid!.at + 60, bar: deck().grid!.bar, bpm: 125 }), "nor the speaker itself more than once a second");
+  const dr2 = deck().drop!;
+
   // DROP: too early, on the cue, good, too late
-  clock = dr.at - 5 * beat;
+  clock = dr2.at - 5 * beat;
   g("p1", "drop", { c: clock });
   ok(deck().drop!.hits.length === 0, "before the countdown it doesn't count");
-  clock = dr.cue + 60;
-  const hit = g("p2", "drop", { c: dr.cue + 40 });
+  clock = dr2.cue + 60;
+  const hit = g("p2", "drop", { c: dr2.cue + 40 });
   ok(hit.light && deck().drop!.hits[0]?.pid === "p2" && deck().drop!.hits[0].grade === "perfect", "on the cue (40 ms off): perfect");
   ok(events.some((x) => x.k === "fx" && x.fx === "drop" && x.pid === "p2" && x.data?.[0] === 1), "the room hears it, perfect");
   g("p2", "drop", { c: clock });
   ok(deck().drop!.hits.length === 1, "once a phone");
-  clock = dr.at - 2.5 * beat;
-  g("p3", "drop", { c: dr.at - 2.6 * beat });
+  clock = dr2.at - 2.5 * beat;
+  g("p3", "drop", { c: dr2.at - 2.6 * beat });
   ok(deck().drop!.hits[1]?.grade === "good", "earlier in the countdown: good");
-  clock = dr.at - 100;
+  clock = dr2.at - 100;
   g("p1", "drop", { c: clock });
   ok(deck().drop!.hits.length === 2, "too close to the bar for the speaker: it doesn't count");
-  clock = dr.at - 10;
+  clock = dr2.at - 10;
   g("p1", "drop", { c: clock + 5000 });
   ok(deck().drop!.hits.length === 2, "a phone's clock can't make a late press early");
 
   // it lands
   advance(20);
   let last = deck().last!;
-  ok(!deck().drop && last.bar === dr.bar && last.hits.length === 2 && !last.auto && last.to === "b" && last.style === "bass", "at the bar it lands on deck B, with who pressed");
+  ok(!deck().drop && last.bar === dr2.bar && last.hits.length === 2 && !last.auto && last.to === "b" && last.style === "bass", "at the bar it lands on deck B, with who pressed");
   ok(deck().fader === 1 && deck().charge === 0 && Object.keys(deck().votes).length === 0 && deck().perfects.p2 === 1, "the fader jumps to B, the build-up and the picks start over, a perfect is counted");
   ok(dv("p1").mix.weights.bass === 1, "the mix is the new deck");
 

@@ -228,6 +228,18 @@ export type DeckState = {
   pads: { pid: string; pad: PadId; at: number }[];
   /** perfect drops per player, all night */
   perfects: Record<string, number>;
+  /**
+   * The styles the speaker's decks are sounding now, as it says (a deck takes a new style at its
+   * next section, once recorded): a drop swaps to the floor's pick only once it really plays there.
+   */
+  sounding: { a: StyleId; b: StyleId | null } | null;
+  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad and a
+   *  pick taken, the last brake, and which screen gives the bars and when it last did */
+  padAt: Record<string, number>;
+  voteAt: Record<string, number>;
+  brakeAt: number;
+  gridFrom: string | null;
+  gridSetAt: number;
 };
 
 /** The beginner deck's numbers. */
@@ -247,17 +259,25 @@ export const DECK = {
   /** a phone sends its taps at most this often, this many at most */
   chargeSendMs: 250,
   maxTaps: 8,
-  /** an effect pad: one per phone per `padGapMs`, the same pad once for the whole room per
+  /** an effect pad: a phone sends one per `padGapMs` and the room takes one per `padTakeMs` (a
+   *  little under, as the network bunches presses up); the same pad once for the whole room per
    *  `roomPadGapMs`, a brake once per `brakeGapMs` (and never while a drop is on its way) */
   padGapMs: 600,
+  padTakeMs: 500,
   roomPadGapMs: 150,
   brakeGapMs: 4000,
+  /** a phone's picks: one per this long */
+  voteGapMs: 300,
+  /** the speaker's bars: taken at most this often, from the screen that gives them */
+  gridGapMs: 1000,
   /** a drop lands on a bar that's a multiple of this, at least `minBeats` beats after the build-up is full */
   every: 4,
   minBeats: 4,
   /** countdowns nobody pressed before the DJ drops it by itself */
   maxMisses: 2,
-  /** a DROP press has to reach the room this long before the bar, so the speaker can land it */
+  /** a DROP press has to reach the room this long before the bar, so the speaker can land it (a
+   *  press at the end of the perfect window, a quarter beat after the cue, still makes it; a word
+   *  that reaches the speaker a moment late lands at once, not a beat later) */
   leadMs: 200,
   /** within this much of a beat of the cue: perfect */
   perfect: 0.25,
@@ -288,7 +308,7 @@ export type DjCommand =
   // the beginner deck (anyone at the table)
   /** an effect pad */
   | { x: "pad"; pad: PadId }
-  /** taps on the build-up since the last send (1 to DECK.maxTaps) */
+  /** taps on the build-up since the last send (1 to DECK.maxTaps; 0 once the taps stop: add what's waiting) */
   | { x: "charge"; n: number }
   /** pick a style for the deck that's off the air (the same one again takes the pick back) */
   | { x: "vote"; style: StyleId }
@@ -306,7 +326,9 @@ export type DjCommand =
   /** how the playing has gone since the last report */
   | { x: "stats"; stalls: number; resets: number; seconds: number }
   /** where the speaker's bars fall: bar `bar` starts at server time `at`, at `bpm` */
-  | { x: "grid"; at: number; bar: number; bpm: number };
+  | { x: "grid"; at: number; bar: number; bpm: number }
+  /** the styles its two decks are sounding now */
+  | { x: "decks"; a: StyleId; b: StyleId | null };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;

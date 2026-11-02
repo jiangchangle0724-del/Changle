@@ -24,8 +24,7 @@ function drive(k: number) {
 
 export class DeckFx {
   private bus: Bus;
-  private riser: { bp: BiquadFilterNode; gain: GainNode } | null = null;
-  private echoUntil = 0;
+  private riser: { src: AudioBufferSourceNode; bp: BiquadFilterNode; gain: GainNode } | null = null;
   private sweepUntil = 0;
   private hornUntil = 0;
 
@@ -43,8 +42,7 @@ export class DeckFx {
     delay.delayTime.setValueAtTime(Math.min(1.9, 0.75 * beat), at);
     send.gain.cancelScheduledValues(at);
     send.gain.setTargetAtTime(0.55, at, 0.008);
-    this.echoUntil = at + 4 * beat;
-    send.gain.setTargetAtTime(0, this.echoUntil, 0.04);
+    send.gain.setTargetAtTime(0, at + 4 * beat, 0.04);
     return true;
   }
 
@@ -119,7 +117,7 @@ export class DeckFx {
     gain.gain.value = 0;
     src.connect(bp).connect(gain).connect(this.sp.fxNodes.synth);
     src.start();
-    this.riser = { bp, gain };
+    this.riser = { src, bp, gain };
     return this.riser;
   }
 
@@ -153,6 +151,19 @@ export class DeckFx {
     burst(this.bus, { at, abs: true, dur: 0.9, attack: 0.004, type: "bandpass", f: 5200, f2: 240, q: 1, peak: 0.07, wet: 0.3 });
   }
 
+  /** Done with this speaker (the booth's screen went): everything off, and its own sounds unplugged. */
+  dispose() {
+    this.reset();
+    try {
+      this.riser?.src.stop();
+      this.riser?.gain.disconnect();
+      this.bus.out.disconnect();
+    } catch {
+      /* already gone */
+    }
+    this.riser = null;
+  }
+
   /** Everything off, now (a new stream, the end of a set). */
   reset() {
     const now = this.ctx.currentTime;
@@ -166,6 +177,6 @@ export class DeckFx {
       this.riser.gain.gain.cancelScheduledValues(now);
       this.riser.gain.gain.setTargetAtTime(0, now, 0.05);
     }
-    this.echoUntil = this.sweepUntil = this.hornUntil = 0;
+    this.sweepUntil = this.hornUntil = 0;
   }
 }

@@ -9,7 +9,28 @@ import { DECK, STYLE_IDS, type DeckSide, type DeckState, type DropGrade, type Dr
 export const DECK_BPM = 125;
 
 export function freshDeck(): DeckState {
-  return { a: "house", b: null, fader: 0, faderBy: null, faderAt: 0, votes: {}, charge: 0, chargeAt: 0, pending: 0, drop: null, last: null, grid: null, pads: [], perfects: {} };
+  return {
+    a: "house",
+    b: null,
+    fader: 0,
+    faderBy: null,
+    faderAt: 0,
+    votes: {},
+    charge: 0,
+    chargeAt: 0,
+    pending: 0,
+    drop: null,
+    last: null,
+    grid: null,
+    pads: [],
+    perfects: {},
+    sounding: null,
+    padAt: {},
+    voteAt: {},
+    brakeAt: 0,
+    gridFrom: null,
+    gridSetAt: 0,
+  };
 }
 
 /** The deck that's on the air: the one the fader leans to (A at the middle). */
@@ -17,15 +38,27 @@ export const onAir = (d: { fader: number }): DeckSide => (d.fader > 0.5 ? "b" : 
 export const offAir = (d: { fader: number }): DeckSide => (onAir(d) === "a" ? "b" : "a");
 export const styleOn = (d: { a: StyleId; b: StyleId | null }, side: DeckSide): StyleId | null => (side === "a" ? d.a : d.b);
 
+type Cueable = { a: StyleId; b: StyleId | null; fader: number; votes: Record<string, StyleId>; sounding?: { a: StyleId; b: StyleId | null } | null };
+
 /**
- * The deck the floor has cued: the one off the air, when the floor's pick is on it and isn't what's
- * on the air (a drop swaps to it). Picks start over whenever the decks swap, so the old deck left
- * behind is never cued by itself.
+ * The deck the floor's pick is loaded on: the one off the air, when the pick is on it and isn't
+ * what's on the air. Picks start over whenever the decks swap, so the old deck left behind never
+ * counts by itself.
  */
-export function cued(d: { a: StyleId; b: StyleId | null; fader: number; votes: Record<string, StyleId> }): DeckSide | null {
+export function loaded(d: Cueable): DeckSide | null {
   const pick = leader(d.votes);
   const off = offAir(d);
   return pick && styleOn(d, off) === pick && pick !== styleOn(d, onAir(d)) ? off : null;
+}
+
+/**
+ * The deck the floor has cued: loaded, and really sounding the pick on the speaker (`lyria`: one
+ * stream that blends the styles' prompts, so a pick counts at once). A drop swaps to it.
+ */
+export function cued(d: Cueable, lyria = false): DeckSide | null {
+  const side = loaded(d);
+  if (!side) return null;
+  return lyria || d.sounding?.[side] === styleOn(d, side) ? side : null;
 }
 
 /** The build-up now: as it stood at `chargeAt`, less what it fell back since nobody pushed. */
@@ -125,13 +158,14 @@ export function grade(drop: DropState, grid: DeckState["grid"], at: number, now:
 }
 
 /** What a beginner might do next, for the hint line on the screens. */
-export type Hint = "countdown" | "charge" | "charging" | "fade" | "pick" | "pads" | "dropped";
+export type Hint = "countdown" | "charge" | "charging" | "fade" | "loading" | "pick" | "pads" | "dropped";
 
-export function hintFor(d: DeckState, now: number, playing: boolean): Hint | null {
+export function hintFor(d: Cueable & { drop: DropState | null; last: { at: number } | null; charge: number; chargeAt: number }, now: number, playing: boolean, lyria = false): Hint | null {
   if (!playing) return null;
   if (d.drop) return "countdown";
   if (d.last && now - d.last.at < 4000) return "dropped";
   if (chargeNow(d, now) > 0) return "charging";
-  if (cued(d)) return Math.floor(now / 12_000) % 2 ? "fade" : "charge";
+  if (cued(d, lyria)) return Math.floor(now / 12_000) % 2 ? "fade" : "charge";
+  if (loaded(d)) return "loading";
   return Math.floor(now / 12_000) % 2 ? "pick" : "pads";
 }

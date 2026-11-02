@@ -26,7 +26,17 @@ export default function TvDj({ v }: { v: DjView }) {
   // at one of the owner's tables this screen may stream Lyria (the private test)
   const sid = room?.you ?? "";
   const lyria = useMemo(() => (v.lab && sid ? { url: lyriaUrl(code, sid), key: `${code}:${sid}` } : null), [v.lab, sid, code]);
-  const booth = useBooth({ phase: v.phase, mix: v.mix, muted: !sound, onReport: (r) => g("stats", r), lyria, deck: v.deck, now, onGrid: (grid) => g("grid", grid) });
+  const booth = useBooth({
+    phase: v.phase,
+    mix: v.mix,
+    muted: !sound,
+    onReport: (r) => g("stats", r),
+    lyria,
+    deck: v.deck,
+    now,
+    onGrid: (grid) => g("grid", grid),
+    onDecks: (decks) => g("decks", decks),
+  });
   const { speaker, dj } = booth;
   // the beginner deck: every pad pressed at the table plays here, on the next beat
   const chips = usePadEvents(booth.pad);

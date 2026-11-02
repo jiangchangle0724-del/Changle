@@ -82,6 +82,10 @@
 .djk-deck-on.is-next {
   background: var(--gel-cyan);
 }
+.djk-deck-on.is-loading {
+  background: var(--color-raised);
+  color: var(--color-text-2);
+}
 .djk-deck.is-cued {
   box-shadow:
     var(--shadow-flat),
@@ -465,6 +469,10 @@
   color: var(--color-on-accent);
   font-size: var(--text-sm);
   font-weight: 800;
+}
+.dk-cued.is-loading {
+  background: var(--color-raised);
+  color: var(--color-text-2);
 }
 .dk-mid {
   display: flex;

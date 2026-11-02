@@ -27,6 +27,8 @@ export function hintText(h: Hint, side: DeckSide, zh: boolean): string {
       return zh ? `蓄满力再 Drop，直接换到 ${deck} 那首` : `Build up, then drop straight into deck ${deck}`;
     case "fade":
       return zh ? `也可以慢慢把推子推向 ${deck}` : `Or slide the crossfader over to ${deck}`;
+    case "loading":
+      return zh ? `${deck} 碟正在准备下一首，几秒钟` : `Deck ${deck} is getting the next one ready. A few seconds`;
     case "pick":
       return zh ? "在下面选下一首放什么" : "Pick what plays next, below";
     case "pads":

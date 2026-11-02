@@ -1,7 +1,7 @@
 import { Disc3 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
-import { chargeNow, countdown, cued, hintFor, offAir, onAir } from "../../../shared/dj/deck";
+import { chargeNow, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
 import { DECK, PAD_IDS, type DeckSide, type PadId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
@@ -26,11 +26,12 @@ export function DeckBoard({ v }: { v: DjView }) {
   const d = v.deck;
   const live = v.phase !== "wait" && v.phase !== "end";
   const t = now();
-  useTicker(live && (d.charge > 0 || !!d.drop || (!!d.faderBy && t - d.faderAt < DECK.faderHoldMs)), 100);
+  useTicker(live && (chargeNow(d, t) > 0 || !!d.drop || (!!d.faderBy && t - d.faderAt < DECK.faderHoldMs)), 100);
   const on = onAir(d);
   const level = chargeNow(d, t);
   const held = !!d.faderBy && t - d.faderAt < DECK.faderHoldMs;
-  const cue = cued(d);
+  const cue = cued(d, v.source === "lyria");
+  const loading = cue ? null : loaded(d);
   const deck = (side: DeckSide) => {
     const style = side === "a" ? d.a : d.b;
     const gain = side === "a" ? Math.cos((d.fader * Math.PI) / 2) : Math.sin((d.fader * Math.PI) / 2);
@@ -41,6 +42,7 @@ export function DeckBoard({ v }: { v: DjView }) {
           <span className="dk-side">{side.toUpperCase()}</span> {style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}
         </span>
         {cue === side && <span className="dk-cued">{zh ? "下一首" : "Up next"}</span>}
+        {loading === side && <span className="dk-cued is-loading">{zh ? "准备中" : "Loading"}</span>}
       </div>
     );
   };
@@ -168,7 +170,7 @@ export function HintLine({ v }: { v: DjView }) {
   const live = v.phase !== "wait" && v.phase !== "end";
   useTicker(live, 3000);
   const d = v.deck;
-  const h = hintFor({ ...d, pending: 0 }, now(), live);
+  const h = hintFor(d, now(), live, v.source === "lyria");
   if (!h || h === "countdown") return null;
   return (
     <p className="dk-hint">

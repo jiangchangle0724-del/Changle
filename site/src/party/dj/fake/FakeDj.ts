@@ -59,8 +59,8 @@ export class FakeDj {
   private dead = false;
   private sets = 0;
   private heldUntil = 0;
-  /** where each of the last few sections starts in the stream (the speaker's frame count) */
-  private marks: { frame: number; id: string; phase: DjPhase }[] = [];
+  /** where each of the last few sections starts in the stream (the speaker's frame count), and the styles its decks play */
+  private marks: { frame: number; id: string; phase: DjPhase; a: StyleId; b: StyleId | null }[] = [];
   /** called once the first section is ready to play */
   onReady: (() => void) | null = null;
 
@@ -141,6 +141,12 @@ export class FakeDj {
     return null;
   }
 
+  /** The styles the two decks are sounding now (what the speakers play, not what's waiting), or null between sets. */
+  heardDecks(): { a: StyleId; b: StyleId | null } | null {
+    const m = this.heardSection() as { a: StyleId; b: StyleId | null } | null;
+    return m ? { a: m.a, b: m.b } : null;
+  }
+
   /**
    * Stop feeding the speaker (Lyria plays instead); what has been recorded stays. Attaching again
    * starts a fresh stream.
@@ -176,26 +182,44 @@ export class FakeDj {
   }
 
   /**
-   * What to record, in order: for each section of the night (this phase's first, then every other
-   * stretch's first, then the rest), deck A's style, then deck B's.
+   * What to record, in order: the section that plays next (a new style is heard as soon as it can
+   * be), then for each section of the night (this phase's first, then every other stretch's first,
+   * then the rest), deck A's style, then deck B's.
    */
   private wish(phase: DjPhase) {
+    const bases = renderOrder(phase);
+    const next = this.streaming && playing(this.phase) ? nextSection(this.phase, this.prev) : null;
+    if (next) bases.unshift(next);
     const ids: string[] = [];
-    for (const base of renderOrder(phase)) {
+    for (const base of bases) {
       ids.push(sectionOf(this.styleA, base));
       if (this.styleB) ids.push(sectionOf(this.styleB, base));
     }
-    this.wanted = ids.filter((id) => !this.made.has(id));
+    this.wanted = [...new Set(ids)].filter((id) => !this.made.has(id));
     this.makeNext();
   }
 
-  /** Recordings of styles neither deck plays go first when there are too many. */
+  /**
+   * At most KEEP_MADE recordings (about 7 MB each): the ones playing now stay; then the decks'
+   * styles for this stretch of the night, then their other stretches' first sections; the rest go,
+   * oldest first.
+   */
   private trim() {
     if (this.made.size <= KEEP_MADE) return;
-    const keep = (id: string) => [this.styleA, this.styleB, this.playedA, this.playedB].some((st) => st && ANY_SECTION[id] && sectionOf(st, id.split(":").pop()!) === id);
-    for (const id of [...this.made.keys()]) {
-      if (this.made.size <= KEEP_MADE) break;
-      if (!keep(id)) this.made.delete(id);
+    const base = (id: string) => id.split(":").pop()!;
+    const mine = (id: string) => [this.styleA, this.styleB].some((st) => st && sectionOf(st, base(id)) === id);
+    const order = renderOrder(playing(this.phase) ? this.phase : "warm");
+    const rank = (id: string) => {
+      if (id === this.cur?.a.id || id === this.cur?.b?.id) return 0;
+      if (!mine(id)) return 4;
+      const i = order.indexOf(base(id));
+      return ANY_SECTION[id]?.phase === this.phase ? 1 : i >= 0 && i < 4 ? 2 : 3;
+    };
+    // the least wanted first; Map keys are oldest first, and the sort keeps that within a rank
+    const victims = [...this.made.keys()].sort((x, y) => rank(y) - rank(x));
+    for (const id of victims) {
+      if (this.made.size <= KEEP_MADE || rank(id) === 0) break;
+      this.made.delete(id);
     }
   }
 
@@ -249,8 +273,9 @@ export class FakeDj {
           a = this.pick(this.prev, this.styleA, this.playedA);
         }
         if (!a) return;
-        // deck B plays the same section of the night, in its own style
-        const b = this.styleB ? this.pick(at, this.styleB, this.playedB) : null;
+        // deck B plays the same section of the night in its own style, or the one it had; a style
+        // not recorded yet plays deck A's music meanwhile (never silence on a deck with a style)
+        const b = this.styleB ? (this.pick(at, this.styleB, this.playedB) ?? a) : null;
         if (!this.streaming) {
           // a new stream: whatever is left of the last one goes, and this one's first downbeat is here
           this.streaming = true;
@@ -260,10 +285,12 @@ export class FakeDj {
           sp.restore();
         }
         this.playedA = a.style;
-        this.playedB = b?.style ?? null;
+        // (deck A's music standing in for B doesn't count as B's style)
+        this.playedB = b && b !== a ? b.style : this.playedB;
         this.cur = { base: at, a: a.r, b: b?.r ?? null };
         this.off = 0;
-        this.marks = [...this.marks.slice(-5), { frame: sp.sentFrames, id: a.r.id, phase: ANY_SECTION[a.r.id]?.phase ?? this.phase }];
+        const bStyle = b && b !== a ? b.style : null;
+        this.marks = [...this.marks.slice(-5), { frame: sp.sentFrames, id: a.r.id, phase: ANY_SECTION[a.r.id]?.phase ?? this.phase, a: a.style, b: bStyle }];
       }
       this.push(sp, this.cur);
     }

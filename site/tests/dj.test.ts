@@ -344,6 +344,29 @@ await test("fake DJ: two decks in step: B in its own style on the same bars, a n
   dj.stop();
 });
 
+await test("fake DJ: a deck whose new style isn't recorded yet plays deck A's music, never silence, and says so", async () => {
+  const F = sectionFrames(48000);
+  const dj = new FakeDj(fakeRender);
+  dj.prepare("warm");
+  await sleep(500);
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  dj.setPhase("warm");
+  ok(dj.heardDecks()?.a === "house" && dj.heardDecks()?.b === null, "house on A, nothing on B");
+  // a pick lands moments before the section's end: no time to record it
+  for (let k = 0; k < 40; k++) sp.play(12000);
+  dj.setDecks("house", "trance");
+  for (let k = 0; k < 30; k++) sp.play(12000);
+  // deck B frame for frame beside A (a chunk without B is silence there)
+  const B = sp.chunks.flatMap((c, i) => (sp.chunksB[i].length ? sp.chunksB[i] : c.map(() => 0)));
+  ok(B.length > F + TAIL + 1000 && B[F - 1] === 0 && Math.abs(B[F + TAIL + 100] - NUM.warm2) < 1e-4, "B not recorded in time: it plays deck A's section meanwhile (no silence)");
+  ok(dj.heardDecks()?.b === null, "and doesn't claim trance yet");
+  await sleep(500);
+  for (let k = 0; k < 70; k++) sp.play(12000);
+  ok(dj.heardDecks()?.b === "trance", `the next section: trance, and it says so (${JSON.stringify(dj.heardDecks())})`);
+  dj.stop();
+});
+
 /* ------------------------------------------------------------------ Lyria (A2), without Google */
 
 await test("lyria relay: only Lyria's own controls get through, inside its ranges", () => {

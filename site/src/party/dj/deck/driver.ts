@@ -26,9 +26,10 @@ export class DeckDriver {
   private on = false;
   private timer = 0;
   private dropKey = "";
-  /** when the drop lands (0: none on its way), and until when the room's fader waits for it */
+  /** when the drop lands (0: none on its way); the room's fader waits until the room says it landed */
   private dropT = 0;
   private holdFader = 0;
+  private holdBar: number | null = null;
   private fader = -1;
   private level = -1;
   private rollBeat = -Infinity;
@@ -51,8 +52,13 @@ export class DeckDriver {
 
   stop() {
     window.clearInterval(this.timer);
-    this.fx.reset();
+    this.fx.dispose();
     this.sp.setXfade(0);
+  }
+
+  private note(k: string, at: number, beat: number) {
+    this.log.push({ k, at, beat });
+    if (this.log.length > 300) this.log.splice(0, this.log.length - 300);
   }
 
   /** The room's deck changed (or the night did). */
@@ -90,7 +96,7 @@ export class DeckDriver {
       this.brakeUntil = until;
       done = true;
     }
-    if (done) this.log.push({ k: pad, at: nb.at, beat: nb.b });
+    if (done) this.note(pad, nb.at, nb.b);
   }
 
   /* ------------------------------------------------------------------ the beat grid */
@@ -130,9 +136,11 @@ export class DeckDriver {
     const ctxNow = this.sp.ctx.currentTime;
     this.reportGrid();
 
-    // the crossfader: the room's, except while a drop's jump is on its way (Lyria: one deck, A)
-    const want = this.dj.decks ? d.fader : 0;
-    if (ctxNow >= this.holdFader && want !== this.fader) {
+    // the crossfader: the room's (Lyria, or no deck B: deck A alone), except from a drop's jump
+    // until the room says it landed (or a few seconds, if that word never comes)
+    if (this.holdBar !== null && (!d.drop || d.last?.bar === this.holdBar || ctxNow > this.holdFader)) this.holdBar = null;
+    const want = this.dj.decks && d.b ? d.fader : 0;
+    if (this.holdBar === null && want !== this.fader) {
       this.sp.setXfade(want);
       this.fader = want;
     }
@@ -141,7 +149,8 @@ export class DeckDriver {
 
     // the drop: once someone pressed in time (or the DJ will), on its bar
     if (d.drop && (d.drop.hits.length || d.drop.auto)) {
-      const key = `${d.drop.bar}:${d.drop.at}`;
+      // the same bar of the same stream is the same drop, however its time is corrected
+      const key = d.drop.bar >= 0 ? `${d.drop.bar}:${this.dj.epoch}` : `t${d.drop.at}`;
       if (key !== this.dropKey) this.land(d.drop, key);
     }
     // landed: the room says so a moment later, until then the build-up stays down
@@ -180,8 +189,11 @@ export class DeckDriver {
   private land(drop: DropState, key: string) {
     const ctxNow = this.sp.ctx.currentTime;
     let at: number | null = drop.bar >= 0 ? this.timeOfBeat(drop.bar * 4) : null;
-    // the bars it was aimed at aren't this stream's (it started over), or the word came late:
-    // the next bar line, or failing that the next beat
+    // the word came a moment late (a slow network, a speaker that works far ahead): at once, which
+    // the ear takes as on the bar; later than that, the next beat
+    if (at !== null && at < ctxNow + 0.01 && at > ctxNow - 0.15) at = ctxNow + 0.01;
+    // the bars it was aimed at aren't this stream's (it started over), or it's long gone: the next
+    // bar line, or failing that the next beat
     if (at === null || at > ctxNow + 20 || at < ctxNow + 0.01) {
       const nb = this.nextBeat(0.01);
       if (!nb) return;
@@ -191,14 +203,14 @@ export class DeckDriver {
     this.dropT = at;
     this.fx.drop(at);
     if (this.dj.decks) {
-      const to = drop.to === "b" ? 1 : 0;
+      const to = drop.to === "b" && this.deck?.b ? 1 : 0;
       this.sp.setXfade(to, at);
       this.fader = to;
-      this.holdFader = at + 0.3;
+      this.holdBar = drop.bar;
+      this.holdFader = at + 3;
     }
-    const bn = this.beatNow();
     const t0 = this.timeOfBeat(0);
-    this.log.push({ k: "drop", at, beat: t0 === null || bn === null ? NaN : (at - t0) / (60 / this.dj.bpm) });
+    this.note("drop", at, t0 === null ? NaN : (at - t0) / (60 / this.dj.bpm));
   }
 
   /** Where the speaker's bars fall, on the server's clock: told to the room when it changes. */
@@ -219,8 +231,8 @@ export class DeckDriver {
     const s = this.sent;
     if (s && s.epoch === epoch && s.bpm === bpm) {
       const predicted = s.at + ((bar - s.bar) * 4 * 60_000) / bpm;
-      // near enough, or told only a moment ago: the room has it
-      if (Math.abs(predicted - at) < 25 || nowMs - s.when < 5000) return;
+      // near enough, told only a moment ago, or a drop counting down on these bars: the room has it
+      if (Math.abs(predicted - at) < 25 || nowMs - s.when < 5000 || this.deck?.drop) return;
     }
     this.sent = { at, bar, bpm, epoch, when: nowMs };
     this.sendGrid({ at: Math.round(at), bar, bpm });
