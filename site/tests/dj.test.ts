@@ -525,6 +525,22 @@ await test("fake DJ: a new song every eight sections, both decks in it together;
 
 /* ------------------------------------------------------------------ Lyria (A2), without Google */
 
+await test("songs asked for: the style of a song's remix, from the song list or from its name", async () => {
+  const { hintOf, styleForRequest } = await import("../src/shared/dj/requests");
+  const { SONG_ROWS } = await import("../src/data/songs");
+  const { fromRow } = await import("../src/shared/songs");
+  const row = (t: string, a?: string) => fromRow(SONG_ROWS.find((r) => r[1] === t && (!a || r[2] === a))!);
+  const of = (t: string, a?: string) => {
+    const s = row(t, a);
+    return styleForRequest(`${s.t} ${s.a} ${s.ae}`, hintOf(s));
+  };
+  ok(of("晴天", "周杰伦") === "cpop" && of("HUMBLE.") === "hiphop", "from the song list: Jay Chou is C-pop, Kendrick Lamar hip-hop");
+  ok(styleForRequest("Despacito") === "latin" && styleForRequest("some techno please") === "techno" && styleForRequest("drum and bass") === "dnb" && styleForRequest("BLACKPINK") === "kpop", "a genre or an artist in the name says it outright");
+  ok(styleForRequest("사랑") === "kpop" && styleForRequest("夜に駆ける") === "kpop" && styleForRequest("月亮代表我的心") === "cpop" && styleForRequest("canción de mi niñez") === "latin", "otherwise the script it's written in: Korean and Japanese K-pop, Chinese C-pop, Spanish latin");
+  ok(styleForRequest("some song") === "house" && styleForRequest("x", { lang: "en", cats: 16 }) === "hiphop" && styleForRequest("x", { lang: "ko", cats: 0 }) === "kpop", "nothing to go on: house; the list's language and kinds when it has them");
+  ok(hintOf({ l: 3, k: 2 }).lang === "ko" && hintOf({ l: 99, k: 0 }).lang === "other", "a list row's language by its index");
+});
+
 await test("lyria relay: only Lyria's own controls get through, inside its ranges", () => {
   const p = toGoogle({ prompts: [{ text: "Deep House", weight: 1 }, { text: "Chill", weight: 0.5 }] }) as { clientContent: { weightedPrompts: { text: string; weight: number }[] } };
   ok(p?.clientContent.weightedPrompts.length === 2 && p.clientContent.weightedPrompts[0].text === "Deep House", "prompts pass as Lyria's clientContent");

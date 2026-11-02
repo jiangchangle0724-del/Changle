@@ -77,8 +77,19 @@ export class FakeDj {
   /** called once the first section is ready to play */
   onReady: (() => void) | null = null;
 
+  /** sections recorded so far (the checks read it) */
+  renders = 0;
+
+  /** the sound of recordings that have gone, to record the next ones into (see renderSection) */
+  private spare: { l: Float32Array; r: Float32Array }[] = [];
+  /** the slot that just went out (its ring-out may still be playing over the next) */
+  private last: Slot | null = null;
+
   /** `render` records a section (the tests hand in their own) */
-  constructor(private render: (sec: Section, rate: number) => Promise<Rendered> = renderSection) {}
+  constructor(private render: (sec: Section, rate: number, spare?: () => { l: Float32Array; r: Float32Array } | undefined) => Promise<Rendered> = renderSection) {
+    // local runs: the checks look inside (scripts/dj_deck_check.py)
+    if (typeof window !== "undefined" && import.meta.env?.DEV) (window as unknown as { __fakeDj: FakeDj }).__fakeDj = this;
+  }
 
   /** Start recording the sections (no tap needed): the warm-up's first, so it can start soon. */
   prepare(phase: DjPhase = "warm") {
@@ -196,6 +207,7 @@ export class FakeDj {
   private restart() {
     this.streaming = false;
     this.cur = null;
+    this.last = null;
     this.carryA = null;
     this.carryB = null;
     this.prev = null;
@@ -236,12 +248,15 @@ export class FakeDj {
    */
   private trim() {
     if (this.made.size <= KEEP_MADE) return;
-    const rank = (id: string) => (id === this.cur?.a.id || id === this.cur?.b?.id ? 0 : this.need.has(id) ? 1 : 4);
+    // (the slot playing and the one whose ring-out may still be over it stay)
+    const rank = (id: string) => (id === this.cur?.a.id || id === this.cur?.b?.id || id === this.last?.a.id || id === this.last?.b?.id ? 0 : this.need.has(id) ? 1 : 4);
     // the least wanted first; Map keys are oldest first, and the sort keeps that within a rank
     const victims = [...this.made.keys()].sort((x, y) => rank(y) - rank(x));
     for (const id of victims) {
       if (this.made.size <= KEEP_MADE || rank(id) === 0) break;
+      const gone = this.made.get(id);
       this.made.delete(id);
+      if (gone && this.spare.length < 4) this.spare.push({ l: gone.l, r: gone.r });
     }
   }
 
@@ -256,8 +271,9 @@ export class FakeDj {
     const tooLong = new Promise<never>((_, no) => {
       timer = window.setTimeout(() => no(new Error("too long")), RENDER_TIMEOUT_MS);
     });
-    this.making = Promise.race([this.render(sec, RATE), tooLong])
+    this.making = Promise.race([this.render(sec, RATE, () => this.spare.pop()), tooLong])
       .then((r) => {
+        this.renders += 1;
         this.made.set(id, r);
         this.trim();
         if (this.made.size === 1) this.onReady?.();
@@ -348,6 +364,7 @@ export class FakeDj {
       this.carryA = { l: cur.a.l.subarray(cur.a.frames), r: cur.a.r.subarray(cur.a.frames), at: 0 };
       this.carryB = cur.b ? { l: cur.b.l.subarray(cur.b.frames), r: cur.b.r.subarray(cur.b.frames), at: 0 } : null;
       this.prev = cur.base;
+      this.last = cur;
       this.cur = null;
     }
     sp.push(l, r, l2, r2, ownB);

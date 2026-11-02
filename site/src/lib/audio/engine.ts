@@ -187,7 +187,7 @@ export function isEnabled() {
 
 /* ---------------- the bus ---------------- */
 
-function impulse(c: AudioContext, seconds: number, decay: number) {
+export function impulse(c: BaseAudioContext, seconds: number, decay: number) {
   const rate = c.sampleRate;
   const len = Math.floor(rate * seconds);
   const buf = c.createBuffer(2, len, rate);
@@ -257,29 +257,35 @@ export function bus(): Bus | null {
 
 /**
  * The same voices on an OfflineAudioContext, to render music ahead of time (the DJ booth's
- * stand-in tracks): the mix, the room reverb and the music bus, without the live master chain
- * (whatever plays the result brings its own). `out` goes to the context's destination.
+ * stand-in tracks): the mix and the music bus, without the live master chain (whatever plays the
+ * result brings its own) and without the room reverb: WebKit keeps every offline context that had a
+ * reverb (a convolver) in memory for good, about 5 to 10 MB a recording, and the stand-in records
+ * one every half minute or so through a night. The speaker adds the room to the stand-in instead
+ * (speaker.ts `setRoom`). `out` goes to the context's destination.
  */
 export function offlineBus(oc: OfflineAudioContext): Bus {
-  return busTo(oc, oc.destination);
+  return busTo(oc, oc.destination, false);
 }
 
 /**
  * The same voices into any node of any context (the DJ booth's speaker plays its effects into its
- * own chain): the mix, the room reverb and the music bus, ending in `dest`.
+ * own chain): the mix, the room reverb (unless `room` is false: the send goes nowhere) and the
+ * music bus, ending in `dest`.
  */
-export function busTo(ctx: BaseAudioContext, dest: AudioNode): Bus {
+export function busTo(ctx: BaseAudioContext, dest: AudioNode, room = true): Bus {
   // the voices only create nodes and read the clock, which every context does the same way
   const c = ctx as unknown as AudioContext;
   const out = c.createGain();
   out.connect(dest);
   const dry = c.createGain();
   dry.connect(out);
-  const conv = c.createConvolver();
-  conv.buffer = impulse(c, 1.5, 3);
   const verb = c.createGain();
   verb.gain.value = 0.28;
-  verb.connect(conv).connect(out);
+  if (room) {
+    const conv = c.createConvolver();
+    conv.buffer = impulse(c, 1.5, 3);
+    verb.connect(conv).connect(out);
+  }
   const music = c.createGain();
   music.gain.value = 0.8;
   music.connect(out);

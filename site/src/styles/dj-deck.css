@@ -400,6 +400,137 @@
   font-size: var(--text-xs);
 }
 
+/* songs asked for by name */
+.djk-req {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.djk-req-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+.djk-req-title svg {
+  color: var(--color-accent);
+}
+.djk-req-note {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.djk-req-input {
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--r-field);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+}
+.djk-req-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.djk-req-hits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.djk-req-hit {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.djk-req-hit-t {
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djk-req-hit-a {
+  overflow: hidden;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djk-req-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--color-accent) 18%, var(--color-surface));
+  font-weight: 800;
+}
+.djk-req-pick > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djk-req-pick button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-2);
+  cursor: pointer;
+}
+.djk-req-send,
+.djk-req-cancel {
+  min-height: var(--tap);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.djk-req-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.djk-req-cancel {
+  align-self: flex-start;
+  background: var(--color-raised);
+  color: var(--color-text);
+}
+.djk-req-mine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+
 /* the 🔥 shrinks to make room for the deck */
 .djp-fire-wrap.is-small .djp-fire {
   width: min(40vw, 150px);
@@ -508,6 +639,37 @@
   gap: var(--space-3);
   width: 100%;
 }
+.dk-req {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--dk-drop) 18%, var(--color-surface));
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+.dk-req > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dk-req svg {
+  flex: none;
+  color: var(--dk-drop);
+}
+.dk-req.is-now {
+  background: color-mix(in oklab, var(--dk-perfect) 22%, var(--color-surface));
+}
+.dk-req.is-now svg {
+  color: var(--dk-perfect);
+}
+.dk-req small {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
 .dk-fader-end {
   font-family: var(--font-display);
   font-size: var(--text-lg);
@@ -594,6 +756,9 @@
 }
 .dk-chip.is-sweep {
   --pad: var(--dk-sweep);
+}
+.dk-chip.is-req {
+  --pad: var(--dk-drop);
 }
 .dk-chip.is-horn {
   --pad: var(--dk-horn);

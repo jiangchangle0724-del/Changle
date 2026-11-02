@@ -181,6 +181,8 @@ export function useBooth({
   }, [fake, booth, phase, mixKey]);
   useEffect(() => () => fake.setPhase("wait"), [fake]);
   useEffect(() => speaker?.setVolume(muted ? 0 : 1), [speaker, muted]);
+  // the stand-in's recordings are dry: the speaker's room is theirs (Lyria brings its own)
+  useEffect(() => speaker?.setRoom(source === "fake"), [speaker, source]);
 
   // Lyria, at one of the owner's tables, while music plays: the stand-in starts the night and
   // hands over once Lyria has a few seconds in hand; back to the stand-in if Lyria stops for good
@@ -263,6 +265,13 @@ export function useBooth({
   const deckA = deck?.a ?? "house";
   const deckB = deck?.b ?? null;
   useEffect(() => fake.setDecks(deckA, deckB), [fake, deckA, deckB]);
+  // a song asked for by name went on the air: the stand-in's next song is its remix (the same name,
+  // the same remix), from its next section (Lyria plays its style: the decks above)
+  const reqId = deck?.now?.id ?? "";
+  const reqTrack = deck?.now?.track ?? 0;
+  useEffect(() => {
+    if (reqId && reqTrack) fake.playTrack(reqTrack);
+  }, [fake, reqId, reqTrack]);
   const clock = useRef(now);
   clock.current = now;
   const grid = useRef(onGrid);

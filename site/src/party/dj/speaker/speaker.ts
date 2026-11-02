@@ -9,8 +9,12 @@
  * Its own AudioContext at 48 kHz (Lyria's rate), tuned for steady playback rather than quick
  * reactions. Open it from inside a tap: iPhone and Safari start audio only from one.
  */
+import { impulse } from "../../../lib/audio/engine";
 import { pcm16ToFloat } from "./pcm";
 import workletUrl from "./player.worklet.js?url";
+
+/** How loud the stand-in's room is (measured: about the reverb its recordings carried, on the mix above 350 Hz). */
+const ROOM_WET = 0.12;
 
 export type PlayerState = "waiting" | "playing" | "buffering";
 /** The speaker's effect nodes, for fx.ts. */
@@ -33,6 +37,7 @@ export class Speaker {
   private opts: Required<SpeakerOptions>;
   private node: AudioWorkletNode | null = null;
   private master: GainNode;
+  private room: GainNode;
   /** the beginner deck's effects (fx.ts plays them): the filters the music passes through, the echo's send, and where its own sounds go */
   readonly fxNodes: FxNodes;
   private analyser: AnalyserNode;
@@ -123,8 +128,26 @@ export class Speaker {
     darker.connect(this.master);
     const synth = ctx.createGain();
     synth.connect(this.master);
+    // the stand-in's room: a short reverb on the mix above the bass, about as loud as the one its
+    // recordings used to carry (offlineBus: WebKit keeps an offline reverb in memory for good)
+    const roomHp = ctx.createBiquadFilter();
+    roomHp.type = "highpass";
+    roomHp.frequency.value = 350;
+    const conv = ctx.createConvolver();
+    conv.buffer = impulse(ctx, 1.5, 3);
+    this.room = ctx.createGain();
+    this.room.gain.value = 0;
+    lp.connect(roomHp).connect(conv).connect(this.room).connect(this.master);
     this.fxNodes = { hp, lp, send, delay, synth };
     document.addEventListener("visibilitychange", this.wake);
+  }
+
+  /** The room reverb: on for the stand-in (its recordings are dry), off for music that brings its own. */
+  setRoom(on: boolean) {
+    const g = this.room.gain;
+    const t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(on ? ROOM_WET : 0, t, 0.3);
   }
 
   /** Load the player into the audio thread. */

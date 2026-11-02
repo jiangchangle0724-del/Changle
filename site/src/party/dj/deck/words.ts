@@ -42,6 +42,27 @@ export function hintText(h: Hint, side: DeckSide, zh: boolean): string {
   }
 }
 
+/** A song asked for, named: the artist and title the song list gives, or what its player typed; null when it's hidden from this screen. */
+export function songName(r: { text: string | null; artist?: string }, zh: boolean): string | null {
+  if (r.text === null) return null;
+  if (zh) return `${r.artist ? `${r.artist} ` : ""}《${r.text}》`;
+  return r.artist ? `${r.text} (${r.artist})` : `"${r.text}"`;
+}
+
+/** "Amy 点的 周杰伦《晴天》", or "Amy 点了一首歌" when the name is hidden here. */
+export function reqLine(r: { text: string | null; artist?: string }, who: string, zh: boolean): string {
+  const song = songName(r, zh);
+  if (zh) return song ? `${who} 点的 ${song}` : `${who} 点了一首歌`;
+  return song ? `${who} asked for ${song}` : `${who} asked for a song`;
+}
+
+/** The remix on the air: "正在放：周杰伦《晴天》 Remix，Amy 点的". */
+export function nowLine(r: { text: string | null; artist?: string }, who: string, zh: boolean): string {
+  const song = songName(r, zh);
+  if (zh) return song ? `正在放：${song} Remix，${who} 点的` : `正在放：${who} 点的歌的 Remix`;
+  return song ? `Now: a remix of ${song}, for ${who}` : `Now: a remix of ${who}'s song`;
+}
+
 export const DROP_WORDS = {
   perfect: t("完美", "Perfect"),
   good: t("好", "Good"),

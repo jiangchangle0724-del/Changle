@@ -65,6 +65,8 @@ export default function TvDj({ v }: { v: DjView }) {
       level: () => speaker?.level() ?? 0,
       source: booth.source,
       beat: () => dj.beat(),
+      // the section the speakers sound now (the stand-in's: with its song's track number)
+      heard: () => dj.heardSection(),
       // what the deck played, with audio times, and the audio time now: the checks line them up with the beat
       deck: () => ({ log: booth.driver?.log ?? [], now: speaker?.ctx.currentTime ?? 0, beatAt: (b: number) => (dj.beatFrame(b) === null ? null : speaker?.timeOfFrame(dj.beatFrame(b)!)) }),
     };
