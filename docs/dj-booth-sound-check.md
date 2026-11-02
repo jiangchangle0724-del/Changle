@@ -149,12 +149,14 @@ the next of 12 styles. The rule that keeps it from ever sounding wrong is that e
 the beat, so these checks are mostly about timing.
 
 **`site/scripts/dj_deck_check.py`**, a TV and three phones playing at once, the TV in Chromium and
-in WebKit: 30 of 30 checks pass in each, no errors on any page. Three pads pressed at once by three
-phones all play, each on a beat to the millisecond. The brake stops the music and brings it back on
-the bar with no stall. Two picks for latin and one for techno load latin on deck B. The phone that
-moves the fader holds it, and the others wait and see who has it. Everyone taps the build-up full,
-the countdown runs on the TV and the phones, and a press 15 to 20 ms after the cue is perfect. The
-drop lands exactly on its bar (beat 64.0 for bar 16), swaps to deck B, and the TV celebrates.
+in WebKit: 32 of 32 checks pass in each (after the code review's fixes), no errors on any page.
+Three pads pressed at once by three phones all play, each on a beat to the millisecond. The brake
+stops the music and brings it back on the bar with no stall. Two picks for latin and one for techno
+load latin on deck B, and once the speaker's deck B really plays it (from its next section) the TV
+marks it up next. The phone that moves the fader holds it, and the others wait and see who has it.
+Everyone taps the build-up full, the countdown runs on the TV and the phones, and a press 15 to 40
+ms after the cue is perfect. The drop lands exactly on its bar (beat 112.0 for bar 28 in the last
+run), swaps to deck B, and the TV celebrates.
 
 **A busy table** (the TV in WebKit, two phones): a pad every 2.5 to 6 seconds, a new pick every
 30 s, the fader swept across and back every 45 s, a build-up and a drop on the cue every minute.
