@@ -81,7 +81,7 @@
   /* ---------- fonts ---------- */
   /* Chinese has no web font of its own (too big): each device's system face, in this order */
   --font-zh: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
-  /* same values as global.css: Latin face first, Chinese falls through to the system faces above */
+  /* Latin face first, Chinese falls through to the system faces above (tokens.css alone sets these) */
   --font-display: "Unbounded Variable", "Unbounded", var(--font-zh);
   --font-text: "Figtree Variable", "Figtree", -apple-system, var(--font-zh);
 
