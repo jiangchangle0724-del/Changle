@@ -9,7 +9,7 @@ export interface TimelineEntry {
   beat: number;
   phase: SessionPhase;
   move: Move | null;
-  /** Index in routine.sections, or null outside the choreography. */
+  /** Index in routine.sections; learning points to the move's first appearance. */
   section: number | null;
   /** Original choreography beat, shared by watch/follow and the corresponding dance beat. */
   routineBeat: number | null;
@@ -27,25 +27,27 @@ export interface TimelineEntry {
 export interface TimelineOptions {
   /** learn includes instruction before the full dance; dance skips instruction. */
   mode: 'learn' | 'dance';
-  learnSpeed: 0.7;
+  learnSpeed?: number;
 }
 
 function positiveFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be finite and positive`);
 }
 
-/** A fresh grid at 70% tempo; speaker-time origin and routine length are unchanged. */
-export function practiceMap(map: BeatMap, learnSpeed: number): BeatMap {
+/** A fresh practice grid (default 70%); speaker-time origin and length are unchanged. */
+export function practiceMap(map: BeatMap, learnSpeed = 0.7): BeatMap {
   positiveFinite(map.bpm, 'bpm');
-  if (learnSpeed !== 0.7) throw new RangeError('learnSpeed must be 0.7');
+  positiveFinite(learnSpeed, 'learnSpeed');
+  if (learnSpeed > 1) throw new RangeError('learnSpeed must be at most 1');
   return { ...map, bpm: map.bpm * learnSpeed };
 }
 
 /**
- * Warmup → optional watch/follow for every eight-count → four-count → dance → cooldown.
- * Warmup/cooldown last exactly 60 seconds at the selected gentle move's native tempo;
- * their final beat may be shorter. Each stage starts its own phrase grid, so instruction
- * and dance always start on count 1 regardless of the preceding stage's tempo/duration.
+ * Warmup → optional watch/follow once per distinct move → four-count → dance → cooldown.
+ * Teach moves in first-appearance order, retaining their original section/beat offsets.
+ * Warmup/cooldown use complete eight-counts at the selected move's native tempo,
+ * rounded up to at least 60 seconds. Each stage starts its own phrase grid, so
+ * instruction and dance always start on count 1 with no shortened beats.
  * The exclusive end (last.atMs + last.durationMs) is when the caller sends FINISH/results;
  * there is no extra scored beat for results. No room state or input is mutated here.
  */
@@ -79,9 +81,10 @@ export function buildTimeline(
   let elapsedMs = 0;
   const append = (
     phase: SessionPhase, move: Move | null, map: BeatMap, phaseBeat: number,
-    section: number | null, routineBeat: number | null, durationMs = beatTime(map, 1) - map.startAt,
+    section: number | null, routineBeat: number | null,
   ) => {
     const atMs = beatTime(map, phaseBeat);
+    const durationMs = beatTime(map, phaseBeat + 1) - atMs;
     timeline.push({
       beat: timeline.length, phase, move, section, routineBeat,
       count: phase === 'countdown' ? 4 - phaseBeat : countInPhrase(map, phaseBeat),
@@ -95,17 +98,20 @@ export function buildTimeline(
   const gentleMinute = (phase: 'warmup' | 'cooldown', move: Move) => {
     positiveFinite(move.native_bpm, 'native_bpm');
     const map = { ...danceMap, bpm: move.native_bpm, startAt: elapsedMs };
-    const endMs = map.startAt + 60000;
-    for (let beat = 0; beat < Math.ceil(move.native_bpm); beat++) {
-      append(phase, move, map, beat, null, null, Math.min(beatTime(map, beat + 1), endMs) - beatTime(map, beat));
+    const totalBeats = Math.ceil(move.native_bpm / 8) * 8;
+    for (let beat = 0; beat < totalBeats; beat++) {
+      append(phase, move, map, beat, null, null);
     }
   };
   const choreography = (learning: boolean) => {
     const map = { ...(learning ? learningMap : danceMap), startAt: elapsedMs };
     let phaseBeat = 0;
     let routineBeat = 0;
+    const taught = new Set<string>();
     sections.forEach((section, index) => {
-      for (let repeat = 0; repeat < section.repeat; repeat++) {
+      const repeats = learning ? (taught.has(section.move.id) ? 0 : 1) : section.repeat;
+      taught.add(section.move.id);
+      for (let repeat = 0; repeat < repeats; repeat++) {
         const phases: SessionPhase[] = learning ? ['watch', 'follow'] : ['dance'];
         for (const phase of phases) {
           // Ask for the boundary after the preceding beat, avoiding floating-point
@@ -113,12 +119,12 @@ export function buildTimeline(
           const startAt = nextPhraseStart(map, beatTime(map, Math.max(0, phaseBeat - 1)));
           const phraseMap = { ...map, startAt };
           for (let beat = 0; beat < 8; beat++) {
-            append(phase, section.move, phraseMap, beat, index, routineBeat + beat);
+            append(phase, section.move, phraseMap, beat, index, routineBeat + repeat * 8 + beat);
           }
           phaseBeat += 8;
         }
-        routineBeat += 8;
       }
+      routineBeat += section.repeat * 8;
     });
   };
 
