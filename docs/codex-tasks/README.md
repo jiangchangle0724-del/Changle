@@ -28,6 +28,7 @@ Always:
 | [C4](C4-dedupe.md) | Titles: normalise, similarity, fingerprint | `src/dedupe.ts` (new) |
 | [C5](C5-areas.md) | Which area a place is in | `src/area.ts` |
 | [C6](C6-ics.md) | The calendar feed (.ics) | `src/ics.ts` |
+| [C9](C9-golden-eval.md) | Score the pipeline against the golden set | `src/eval.ts`, `scripts/eval.ts` (new) |
 | [C12](C12-burnaby.md) | Burnaby Public Library's own feed | `src/parsers/bpl.ts` (new) |
 
 What to send Codex, one card at a time:
