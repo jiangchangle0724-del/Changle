@@ -1,13 +1,14 @@
-# Runs every time the party games' shared base or their room server changes: party-base's 40 tests
-# (clock sync, calibration, scoring, the room state machine), then the server's types, its session
-# tests and the pages' build. Only these folders.
+# Runs every time the party games' shared base, their room server or 一起跳's move library changes:
+# party-base's 40 tests (clock sync, calibration, scoring, the room state machine), the server's
+# types, its session tests and the pages' build, and the dance library's schema and data checks
+# (games/dance, which reads party-base's types). Only these folders.
 name: party
 
 on:
   push:
-    paths: ["games/party-base/**", "games/party-server/**", ".github/workflows/party.yml"]
+    paths: ["games/party-base/**", "games/party-server/**", "games/dance/**", ".github/workflows/party.yml"]
   pull_request:
-    paths: ["games/party-base/**", "games/party-server/**", ".github/workflows/party.yml"]
+    paths: ["games/party-base/**", "games/party-server/**", "games/dance/**", ".github/workflows/party.yml"]
 
 jobs:
   base:
@@ -44,3 +45,20 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  dance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: games/dance
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/dance/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
