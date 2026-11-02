@@ -189,6 +189,10 @@ def t_superlatives_online(browser):
         if (view(host) or {}).get("phase") == "ceremony":
             break
         if view(host)["phase"] == "reveal":
+            # the winner's stamp lands 2.6 s after the reveal and covers their phone, the host's
+            # too when the host won: let it land and clear it before the host moves on
+            host.wait_for_timeout(2800)
+            clear_stamps(everyone)
             host.get_by_role("button", name=re.compile("下一个奖|开颁奖典礼")).click()
             host.wait_for_timeout(300)
         for g in everyone:
