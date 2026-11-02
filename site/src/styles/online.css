@@ -25,7 +25,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 42px;
+  height: var(--tap);
   padding: 0 14px 0 12px;
   border-radius: 999px;
   color: var(--moon);
@@ -36,6 +36,7 @@
   transition:
     background-color 0.18s,
     transform 0.18s var(--ease-out);
+  min-height: var(--tap);
 }
 .table-btn:hover {
   background: var(--dusk-3);
@@ -74,7 +75,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: var(--tap);
   padding: 0 12px;
   border-radius: 999px;
   background: var(--warn);
@@ -253,7 +254,7 @@
   border-bottom: 1px solid var(--line-soft);
 }
 .seat-row.is-away .seat-row-name {
-  color: var(--fog);
+  color: var(--color-text-2);
 }
 .seat-dot {
   flex: none;
@@ -293,7 +294,7 @@
   box-shadow: none;
 }
 .seat-tag-away {
-  color: var(--fog);
+  color: var(--color-text-2);
 }
 .seat-row-actions {
   display: flex;
@@ -301,7 +302,7 @@
   flex: none;
 }
 .seat-row-actions .btn-sm {
-  min-height: 34px;
+  min-height: var(--tap);
   padding: 0 11px;
   font-size: 13px;
 }
@@ -373,7 +374,7 @@
 }
 .invite-link {
   font-size: 13px;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-variant-numeric: tabular-nums;
   word-break: break-all;
   text-align: center;
@@ -835,7 +836,7 @@ button.bowl:disabled {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: var(--tap);
   padding: 0 16px;
   border-radius: 999px;
   background: var(--moon);

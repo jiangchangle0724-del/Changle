@@ -157,17 +157,36 @@ export function MePage({ onBack }: { onBack: () => void }) {
       </div>
       <FavoriteGame id={hist?.stats.favorite ?? null} />
 
-      <div className="seg me-tabs" role="tablist">
-        <button type="button" role="tab" aria-pressed={tab === "history"} onClick={() => setTab("history")}>
+      <div
+        className="seg me-tabs"
+        role="tablist"
+        aria-label={zh ? "个人主页" : "Profile"}
+        onKeyDown={(e) => {
+          const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+          const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+          if (current < 0) return;
+          const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : e.key === "ArrowRight" ? (current + 1) % tabs.length : e.key === "ArrowLeft" ? (current + tabs.length - 1) % tabs.length : -1;
+          if (next < 0) return;
+          e.preventDefault();
+          tabs[next].focus();
+          setTab(next === 0 ? "history" : "friends");
+        }}
+      >
+        <button type="button" role="tab" id="me-history-tab" aria-controls="me-history-panel" aria-selected={tab === "history"} tabIndex={tab === "history" ? 0 : -1} onClick={() => setTab("history")}>
           {zh ? "游戏记录" : "Games"}
         </button>
-        <button type="button" role="tab" aria-pressed={tab === "friends"} onClick={() => setTab("friends")}>
+        <button type="button" role="tab" id="me-friends-tab" aria-controls="me-friends-panel" aria-selected={tab === "friends"} tabIndex={tab === "friends" ? 0 : -1} onClick={() => setTab("friends")}>
           {zh ? "好友" : "Friends"}
           {incoming + unread > 0 && <span className="badge">{incoming + unread}</span>}
         </button>
       </div>
 
-      {tab === "history" ? <HistoryList rows={hist?.history ?? []} /> : <FriendsPanel lists={lists} reload={() => void load()} />}
+      <div role="tabpanel" id="me-history-panel" aria-labelledby="me-history-tab" hidden={tab !== "history"} tabIndex={0}>
+        {tab === "history" && <HistoryList rows={hist?.history ?? []} />}
+      </div>
+      <div role="tabpanel" id="me-friends-panel" aria-labelledby="me-friends-tab" hidden={tab !== "friends"} tabIndex={0}>
+        {tab === "friends" && <FriendsPanel lists={lists} reload={() => void load()} />}
+      </div>
 
       <div className="me-foot">
         {me.master && (

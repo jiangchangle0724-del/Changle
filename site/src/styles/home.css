@@ -39,7 +39,7 @@
 /* a 320px phone: the wordmark, the language switch, settings and the account button in one row */
 @media (max-width: 345px) {
   .wordmark {
-    font-size: 22px;
+    font-size: var(--text-lg);
   }
   .home-head-right {
     gap: 0;
@@ -256,7 +256,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 42px;
+  height: var(--tap);
   padding: 0 16px;
   border-radius: 999px;
   background: var(--moon);
@@ -267,6 +267,7 @@
   transition:
     transform 0.16s var(--ease-out),
     opacity 0.2s;
+  min-height: var(--tap);
 }
 .spin-btn:active {
   transform: scale(0.95);
@@ -462,7 +463,7 @@
 .game-card-how {
   margin: 18px 0 8px;
   font-size: 16px;
-  line-height: 1.6;
+  line-height: var(--leading);
 }
 .game-card-meta {
   color: var(--haze);
@@ -509,7 +510,7 @@
   background: color-mix(in oklab, var(--gel) 14%, var(--dusk-2));
   color: var(--moon);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: var(--leading);
 }
 .mode-primary {
   background: var(--gel);
@@ -563,7 +564,7 @@
 }
 .tip-body {
   font-size: 16px;
-  line-height: 1.55;
+  line-height: var(--leading);
 }
 .tip-card {
   display: flex;
@@ -623,7 +624,7 @@
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 12.5px;
   font-weight: 600;
 }
@@ -632,9 +633,9 @@
 }
 .wish-field-hint {
   margin: 0 0 7px 2px;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 13px;
-  line-height: 1.4;
+  line-height: var(--leading);
 }
 .wish-form-row {
   display: flex;
@@ -664,7 +665,7 @@
 .wish-reward-text {
   min-width: 0;
   font-size: 14px;
-  line-height: 1.45;
+  line-height: var(--leading);
 }
 .wish-reward-signin {
   margin-top: 2px;
@@ -754,7 +755,7 @@
 }
 .wish-text {
   font-size: 15.5px;
-  line-height: 1.45;
+  line-height: var(--leading);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -762,7 +763,7 @@
   margin-top: 3px;
   color: var(--haze);
   font-size: 14.5px;
-  line-height: 1.5;
+  line-height: var(--leading);
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
@@ -771,7 +772,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 40px;
+  min-height: var(--tap);
   margin: 0 0 -6px;
   padding: 0 10px 0 0;
   color: var(--moon);
@@ -795,7 +796,7 @@
   background: var(--dusk-2);
   color: var(--haze);
   font-size: 14px;
-  line-height: 1.55;
+  line-height: var(--leading);
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
@@ -805,7 +806,7 @@
   align-items: center;
   gap: 6px 10px;
   margin-top: 7px;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 12.5px;
   font-weight: 600;
 }
@@ -857,7 +858,7 @@
   height: 26px;
 }
 .wish-made-n {
-  color: var(--fog);
+  color: var(--color-text-2);
 }
 .wish-made-head .wish-chev {
   margin-left: auto;
