@@ -11,11 +11,11 @@
     "clip": "clap-2x.glb",
     "template": [
       0.6,
-      0,
       0.6,
       0,
       0,
-      0,
+      0.6,
+      0.6,
       0,
       0
     ],
@@ -68,7 +68,7 @@
   {
     "id": "handkerchief-flower",
     "name_zh": "手绢花",
-    "name_en": "Handkerchief flower",
+    "name_en": "Hanky twirls",
     "difficulty": "easy",
     "beats": 8,
     "body": "arms",
@@ -134,7 +134,7 @@
   {
     "id": "open-arms",
     "name_zh": "扩胸展臂",
-    "name_en": "Open the arms",
+    "name_en": "Chest opener",
     "difficulty": "easy",
     "beats": 8,
     "body": "arms",
@@ -222,7 +222,7 @@
   {
     "id": "cross-step",
     "name_zh": "十字步",
-    "name_en": "Cross step",
+    "name_en": "Box step",
     "difficulty": "medium",
     "beats": 8,
     "body": "arms+steps",
@@ -310,7 +310,7 @@
   {
     "id": "step-knee-lift",
     "name_zh": "踏步提膝",
-    "name_en": "Step and lift the knee",
+    "name_en": "Knee lifts",
     "difficulty": "medium",
     "beats": 8,
     "body": "arms+steps",
@@ -352,15 +352,15 @@
     "native_bpm": 132
   },
   {
-    "id": "kemusan-sway",
-    "name_zh": "科目三摇摆步",
-    "name_en": "Kemusan sway step",
+    "id": "kemusan-hand-twirl",
+    "name_zh": "科目三摇花手",
+    "name_en": "Kemusan hand twirls",
     "difficulty": "hard",
     "beats": 8,
     "body": "full",
     "seated_ok": false,
-    "icon": "kemusan-sway.png",
-    "clip": "kemusan-sway.glb",
+    "icon": "kemusan-hand-twirl.png",
+    "clip": "kemusan-hand-twirl.glb",
     "template": [
       0.7,
       0.8,
@@ -397,8 +397,8 @@
   },
   {
     "id": "squat-reach",
-    "name_zh": "屈膝上举",
-    "name_en": "Knee bend and reach",
+    "name_zh": "下蹲上举",
+    "name_en": "Squat and reach",
     "difficulty": "hard",
     "beats": 8,
     "body": "full",

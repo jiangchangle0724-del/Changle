@@ -106,6 +106,8 @@ export const librarySchema = z.object({ moves: movesSchema, routines: routinesSc
       const path = ['routines', index, ...reference.path];
       if (!move) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: `Unknown move: ${reference.id}` });
+      } else if (reference.path[0] !== 'sections' && (move.difficulty !== 'easy' || !move.seated_ok)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: 'Warmup and cooldown require easy seated moves' });
       } else if (difficultyRank[move.difficulty] > difficultyRank[routine.difficulty]) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: 'Move exceeds routine difficulty' });
       } else if (routine.difficulty === 'easy' && !move.seated_ok) {

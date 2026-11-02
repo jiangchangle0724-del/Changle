@@ -29,9 +29,9 @@ describe('shipped dance library', () => {
     expect(moves.filter(move => move.difficulty === 'easy').every(move => move.seated_ok && move.body === 'arms')).toBe(true);
   });
 
-  it('includes familiar square dance and Kemusan moves by their Chinese names', () => {
+  it('includes familiar Plaza dance and Kemusan moves by their Chinese names', () => {
     const names = movesData.map(move => move.name_zh);
-    for (const name of ['手绢花', '十字步', '扭秧歌', '八步摇', '科目三摇摆步']) {
+    for (const name of ['手绢花', '十字步', '扭秧歌', '八步摇', '科目三摇花手']) {
       expect(names).toContain(name);
     }
   });
@@ -59,13 +59,31 @@ describe('shipped dance library', () => {
 
   it('uses every move and selects gentle seated moves for warmup/cooldown', () => {
     const { moves, routines } = freshLibrary();
-    const used = new Set(routines.flatMap(routine => routine.sections.map(section => section.move)));
+    const used = new Set(routines.flatMap(routine => [
+      ...routine.sections.map(section => section.move), routine.warmup, routine.cooldown,
+    ]));
     expect(moves.every(move => used.has(move.id))).toBe(true);
     for (const routine of routines) {
       for (const id of [routine.warmup, routine.cooldown]) {
-        expect(moves.find(move => move.id === id)).toMatchObject({ difficulty: 'easy', seated_ok: true, native_bpm: 90 });
+        expect(moves.find(move => move.id === id)).toMatchObject({ difficulty: 'easy', seated_ok: true });
       }
     }
+  });
+
+  it('uses shoulder rolls only for warmup and gives pop-easy an active seated replacement', () => {
+    const { moves, routines } = freshLibrary();
+    const popEasy = routines.find(routine => routine.id === 'pop-easy')!;
+    expect(popEasy.warmup).toBe('shoulder-roll');
+    expect(popEasy.sections[0]!.move).toBe('side-wave');
+    expect(popEasy.sections.every(section => moves.find(move => move.id === section.move)?.seated_ok)).toBe(true);
+    for (const routine of routines) {
+      expect(routine.sections.some(section => section.move === 'shoulder-roll')).toBe(false);
+      expect(routine.cooldown).not.toBe('shoulder-roll');
+    }
+  });
+
+  it('gives clap-2x two pairs of energy peaks across the eight beats', () => {
+    expect(movesData.find(move => move.id === 'clap-2x')!.template).toEqual([0.6, 0.6, 0, 0, 0.6, 0.6, 0, 0]);
   });
 });
 
@@ -174,7 +192,7 @@ describe('cross-file reference validation', () => {
   });
 
   it.each(referenceCases)('rejects harder moves in easy and medium %s references', field => {
-    for (const [index, id] of [[0, 'side-step-touch'], [2, 'kemusan-sway']] as const) {
+    for (const [index, id] of [[0, 'side-step-touch'], [2, 'kemusan-hand-twirl']] as const) {
       const library = freshLibrary();
       setReference(library.routines[index]!, field, id);
       expect(librarySchema.safeParse(library).success).toBe(false);
@@ -188,11 +206,46 @@ describe('cross-file reference validation', () => {
     expect(librarySchema.safeParse(library).success).toBe(false);
   });
 
-  it.each(referenceCases)('accepts same-level and lower-level %s references', field => {
+  it('accepts same-level and lower-level scored section references', () => {
     const library = freshLibrary();
-    setReference(library.routines[0]!, field, 'clap-2x');
-    setReference(library.routines[2]!, field, 'side-step-touch');
-    setReference(library.routines[4]!, field, 'kemusan-sway');
+    setReference(library.routines[0]!, 'section', 'clap-2x');
+    setReference(library.routines[2]!, 'section', 'side-step-touch');
+    setReference(library.routines[4]!, 'section', 'kemusan-hand-twirl');
+    expect(librarySchema.safeParse(library).success).toBe(true);
+  });
+
+  it.each(['warmup', 'cooldown'] as const)('rejects non-easy %s even within the routine difficulty and with seated support', field => {
+    for (const [index, id] of [[2, 'side-step-touch'], [4, 'side-step-touch'], [4, 'kemusan-hand-twirl']] as const) {
+      const library = freshLibrary();
+      library.moves.find(move => move.id === id)!.seated_ok = true;
+      setReference(library.routines[index]!, field, id);
+      const result = librarySchema.safeParse(library);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(expect.objectContaining({
+          path: ['routines', index, field],
+          message: 'Warmup and cooldown require easy seated moves',
+        }));
+      }
+    }
+  });
+
+  it.each(['warmup', 'cooldown'] as const)('rejects non-seated %s at every routine difficulty', field => {
+    for (const index of [0, 2, 4]) {
+      const library = freshLibrary();
+      const move = library.moves.find(move => move.id === library.routines[index]![field])!;
+      move.seated_ok = false;
+      expect(librarySchema.safeParse(library).success).toBe(false);
+    }
+  });
+
+  it.each(['warmup', 'cooldown'] as const)('accepts easy seated %s with updated recording BPMs at every routine difficulty', field => {
+    const library = freshLibrary();
+    library.moves.find(move => move.id === 'shoulder-roll')!.native_bpm = 84.5;
+    library.moves.find(move => move.id === 'open-arms')!.native_bpm = 92;
+    for (const routine of library.routines) {
+      expect(library.moves.find(move => move.id === routine[field])).toMatchObject({ difficulty: 'easy', seated_ok: true });
+    }
     expect(librarySchema.safeParse(library).success).toBe(true);
   });
 });

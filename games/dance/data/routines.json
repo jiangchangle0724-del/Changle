@@ -2,7 +2,7 @@
   {
     "id": "square-easy",
     "name_zh": "广场初体验",
-    "name_en": "First steps in the square",
+    "name_en": "First steps in Plaza dance",
     "difficulty": "easy",
     "bpm": 96,
     "style": "square",
@@ -44,7 +44,7 @@
     "style": "pop",
     "sections": [
       {
-        "move": "shoulder-roll",
+        "move": "side-wave",
         "repeat": 4
       },
       {
@@ -73,8 +73,8 @@
   },
   {
     "id": "square-medium",
-    "name_zh": "秧歌踏起来",
-    "name_en": "Yangge step party",
+    "name_zh": "秧歌扭起来",
+    "name_en": "Yangge twist party",
     "difficulty": "medium",
     "bpm": 112,
     "style": "square",
@@ -210,7 +210,7 @@
   {
     "id": "square-hard",
     "name_zh": "广场摇摆串烧",
-    "name_en": "Square dance sway medley",
+    "name_en": "Plaza dance sway medley",
     "difficulty": "hard",
     "bpm": 132,
     "style": "square",
@@ -232,7 +232,7 @@
         "repeat": 1
       },
       {
-        "move": "kemusan-sway",
+        "move": "kemusan-hand-twirl",
         "repeat": 1
       },
       {
@@ -276,7 +276,7 @@
         "repeat": 1
       },
       {
-        "move": "kemusan-sway",
+        "move": "kemusan-hand-twirl",
         "repeat": 1
       },
       {
@@ -320,7 +320,7 @@
         "repeat": 1
       },
       {
-        "move": "kemusan-sway",
+        "move": "kemusan-hand-twirl",
         "repeat": 1
       },
       {
@@ -388,7 +388,7 @@
         "repeat": 1
       },
       {
-        "move": "kemusan-sway",
+        "move": "kemusan-hand-twirl",
         "repeat": 1
       },
       {
@@ -432,7 +432,7 @@
         "repeat": 1
       },
       {
-        "move": "kemusan-sway",
+        "move": "kemusan-hand-twirl",
         "repeat": 1
       },
       {
@@ -476,7 +476,7 @@
         "repeat": 1
       },
       {
-        "move": "kemusan-sway",
+        "move": "kemusan-hand-twirl",
         "repeat": 1
       },
       {
