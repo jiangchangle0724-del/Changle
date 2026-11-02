@@ -13,8 +13,8 @@ export interface BplFeed {
     title: string;
     url: string;
     group: string;
-    startDate: { date: string };
-    startTime: { date: string };
+    startDate?: { date?: string | null } | null;
+    startTime?: { date?: string | null } | null;
     eventStatus?: string;
     location?: (BplLabel & { slug: string })[];
     type?: BplLabel[];
@@ -34,10 +34,22 @@ export function parseBpl(feed: BplFeed, source: string): NormalizedEvent[] {
   const out: NormalizedEvent[] = [];
   for (const ev of feed.data) {
     if (ev.group === "past") continue;
+    const date = ev.startDate?.date?.slice(0, 10);
+    if (!date) continue;
     // startTime's day belongs to the series, not this occurrence. Its timezone is also
     // misleading after November 2026: both parts are Vancouver wall-clock values.
-    const startMs = fromVan(`${ev.startDate.date.slice(0, 10)}T${ev.startTime.date.slice(11, 19)}`);
+    const time = ev.startTime?.date?.slice(11, 19);
+    const timeTBD = !time;
+    const startMs = fromVan(time ? `${date}T${time}` : date);
     if (!Number.isFinite(startMs)) continue;
+    let sourceEventId: string | undefined;
+    try {
+      sourceEventId = new URL(ev.url).pathname.split("/").filter(Boolean).at(-1);
+    } catch {
+      continue;
+    }
+    if (!sourceEventId) continue;
+    const status = ev.eventStatus?.toLowerCase();
 
     const types = (ev.type ?? []).map((x) => x.title);
     const audiences = (ev.audience ?? []).map((x) => x.title);
@@ -57,15 +69,15 @@ export function parseBpl(feed: BplFeed, source: string): NormalizedEvent[] {
 
     out.push({
       source,
-      sourceEventId: ev.url.slice(ev.url.lastIndexOf("/") + 1),
+      sourceEventId,
       url: ev.url,
       title: ev.title.trim(),
       description: null,
-      start: vanIso(startMs),
+      start: timeTBD ? date : vanIso(startMs),
       end: null,
-      allDay: false,
-      timeTBD: false,
-      status: ev.eventStatus === "cancelled" || ev.eventStatus === "rescheduled" ? ev.eventStatus : "scheduled",
+      allDay: timeTBD,
+      timeTBD,
+      status: status === "cancelled" || status === "canceled" ? "cancelled" : status === "rescheduled" || status === "postponed" ? status : "scheduled",
       place,
       online,
       priceMin: 0,

@@ -26,9 +26,61 @@ describe("Burnaby Public Library's own feed", () => {
       const display = /^(\d{1,2}):(\d{2})(am|pm)$/.exec(program.startDisplayTime)!;
       expect(display, program.url).not.toBeNull();
       const hour = +display[1] % 12 + (display[3] === "pm" ? 12 : 0);
-      const expected = `${program.startDate.date.slice(0, 10)}T${String(hour).padStart(2, "0")}:${display[2]}:00-07:00`;
+      const expected = `${program.startDate!.date!.slice(0, 10)}T${String(hour).padStart(2, "0")}:${display[2]}:00-07:00`;
       expect(events[i].start, program.url).toBe(expected);
     }
+  });
+
+  it.each([undefined, null, {}, { date: null }, { date: "" }])("skips a program with no day (%j) and continues parsing", (startDate) => {
+    const input = variant({ startDate });
+    input.data.push(upcoming[0]);
+    expect(parseBpl(input, "burnaby")).toEqual([events[0]]);
+  });
+
+  it.each([undefined, null, {}, { date: null }, { date: "" }])("emits a date-only time-TBD program when the time is missing (%j)", (startTime) => {
+    const input = variant({ startTime });
+    input.data.push(upcoming[0]);
+    const parsed = parseBpl(input, "burnaby");
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]).toEqual({ ...events[0], start: "2026-11-03", allDay: true, timeTBD: true });
+    expect(parsed[1]).toEqual(events[0]);
+  });
+
+  it.each([
+    "https://bpl.bc.ca/events/program/",
+    "https://bpl.bc.ca/events/program///",
+    "https://bpl.bc.ca/events/program?view=details",
+    "https://bpl.bc.ca/events/program#details",
+    "https://bpl.bc.ca/events/program/?view=details#details",
+  ])("extracts the last non-empty pathname segment from %s", (url) => {
+    const [event] = parseBpl(variant({ url }), "burnaby");
+    expect(event.sourceEventId).toBe("program");
+    expect(event.url).toBe(url);
+  });
+
+  it.each([
+    "https://bpl.bc.ca",
+    "https://bpl.bc.ca/",
+    "https://bpl.bc.ca///?program=123#details",
+    "not a URL",
+    "",
+  ])("skips an unidentifiable URL (%s) and continues parsing", (url) => {
+    const input = variant({ url });
+    input.data.push(upcoming[0]);
+    expect(parseBpl(input, "burnaby")).toEqual([events[0]]);
+  });
+
+  it.each([
+    ["CANCELLED", "cancelled"],
+    ["canceled", "cancelled"],
+    ["CaNcElEd", "cancelled"],
+    ["postponed", "postponed"],
+    ["POSTPONED", "postponed"],
+    ["ReScHeDuLeD", "rescheduled"],
+    ["SCHEDULED", "scheduled"],
+    ["unknown", "scheduled"],
+  ])("normalizes eventStatus %s to %s", (eventStatus, status) => {
+    expect(parseBpl(variant({ eventStatus }), "burnaby")[0].status).toBe(status);
   });
 
   it("reads Smartphone Tips and Tricks with all normalized fields", () => {
