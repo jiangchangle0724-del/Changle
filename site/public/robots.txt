@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /eat/api/
+Disallow: /go/api/
+Disallow: /trip/api/
+Sitemap: https://changle.ca/sitemap.xml
