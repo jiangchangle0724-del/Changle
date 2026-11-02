@@ -4,13 +4,16 @@
 //   GET /go/api/events   the events, filtered: from, to (YYYY-MM-DD), cat, area, tag (comma lists)
 //   GET /go/api/events.ics  the same, as a calendar to subscribe to (task C6)
 //   GET /go/api/status   the last run, step by step (the fetch log), and what's published
+//   GET /go/preview      what's published, day by day: unlisted and not indexed, to check the run
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { toIcs } from "./ics";
+import { renderPreview } from "./preview";
 import { LIVE_KEY, publish } from "./publish";
+import { filterEvents, readQuery } from "./query";
 import { fetchStep, runDay, type StepArgs } from "./run";
 import { ensureSchema } from "./schema";
 import { vanParts } from "./time";
-import { AREAS, CATEGORIES, TAGS, type PublicEvent, type Published } from "./types";
+import type { Published } from "./types";
 
 /** The run's steps, each called through the loopback binding as a request of its own. */
 export class Steps extends WorkerEntrypoint<Env> {
@@ -25,33 +28,16 @@ export class Steps extends WorkerEntrypoint<Env> {
 const json = (body: unknown, status = 200, cache = "no-store") =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": cache, "access-control-allow-origin": "*" } });
 
-/** A comma list from the query, keeping only the allowed values. */
-function pick<T extends string>(value: string | null, allowed: readonly T[]): T[] {
-  return (value ?? "").split(",").map((s) => s.trim()).filter((s): s is T => (allowed as readonly string[]).includes(s));
-}
-
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const published = (env: Env) => env.CACHE.get<Published>(LIVE_KEY, { type: "json", cacheTtl: 60 });
 
 async function listEvents(url: URL, env: Env, ics = false): Promise<Response> {
-  const pub = await env.CACHE.get<Published>(LIVE_KEY, { type: "json", cacheTtl: 60 });
+  const pub = await published(env);
   if (!pub) return json({ error: "not ready" }, 503);
-  const q = url.searchParams;
-  const from = DATE.test(q.get("from") ?? "") ? q.get("from")! : pub.from;
-  const to = DATE.test(q.get("to") ?? "") ? q.get("to")! : pub.to;
-  const cats = pick(q.get("cat"), CATEGORIES);
-  const areas = pick(q.get("area"), AREAS);
-  const tags = pick(q.get("tag"), TAGS);
-  const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null);
-  const events = pub.events.filter(
-    (e: PublicEvent) =>
-      day(e.start)! <= to &&
-      (day(e.end) ?? day(e.start)!) >= from &&
-      (!cats.length || (e.category && cats.includes(e.category))) &&
-      (!areas.length || (e.area && areas.includes(e.area))) &&
-      tags.every((t) => (t === "featured" ? e.featured : t === "free" ? e.isFree === true || e.tags.includes("free") : e.tags.includes(t))),
-  );
+  const q = readQuery(url.searchParams, pub);
+  const { from, to } = q;
+  const events = filterEvents(pub.events, q);
   if (ics) {
-    const name = ["玩什么 · What's On", ...cats, ...areas, ...tags].join(" · ");
+    const name = ["玩什么 · What's On", ...q.cats, ...q.areas, ...q.tags].join(" · ");
     const text = toIcs(events, { name, now: new Date() });
     if (text === null) return json({ error: "not built yet" }, 501);
     return new Response(text, { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "public, max-age=1800", "access-control-allow-origin": "*" } });
@@ -92,6 +78,10 @@ export default {
     if (path === "/go/api/events.ics") return listEvents(url, env, true);
     if (path === "/go/api/status") return status(env);
     if (path === "/go") return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
+    if (path === "/go/preview")
+      return new Response(renderPreview(await published(env), url.searchParams), {
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" },
+      });
     return json({ error: "not found" }, 404);
   },
 
