@@ -165,13 +165,20 @@ exactly on its bar (beat 80 for bar 20 in the last run), swaps to deck B, and th
 
 | Run | Stalls | Lowest buffer | Pads pressed / played | Drops / perfect | Off the beat | WebKit's memory |
 | --- | --- | --- | --- | --- | --- | --- |
-| 8 minutes | 0 | 4.97 s | 95 / 95 | 7 / 7 | 0 | steady, about 1 GB |
-| 12 minutes | 0 | 4.96 s | 142 / 138 | 10 / 10 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, first version | 0 | 4.97 s | 95 / 95 | 7 / 7 | 0 | steady, about 1 GB |
+| 12 minutes, first version | 0 | 4.96 s | 142 / 138 | 10 / 10 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, first review's fixes | 0 | 4.97 s | 93 / 91 | 7 / 6 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, the same, each drop's grade kept | 0 | 4.96 s | 96 / 94 | 7 / 7 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, second review's fixes (this version) | 0 | 4.88 s | 91 / 90 | 7 / 7 | 0 | steady, 1.0 to 1.1 GB |
 
-The four pads that didn't play were the deck's own limits at work: a pad of the same kind still
-sounding (a sweep lasts two bars, a horn two beats), or a brake within 4 seconds of the last. An
-earlier 12-minute run lost its WebKit page partway (the test browser's page process went away, with
-no error in the page itself); the two runs after it, watching the memory, ran clean. Worth an eye
-on a real Mac and iPad: if the TV's page ever reloads by itself mid-set, that's the one to tell me
-about.
+The pads that didn't play were the deck's own limits at work: a pad of the same kind still
+sounding (a sweep lasts two bars, a horn two beats), or a brake within 4 seconds of the last. In
+the third run the rooms server restarted 3.5 minutes in (an edit reloaded it, as a deploy would):
+the TV and both phones were back within a second and the music never stopped. One of its seven
+drops wasn't perfect, and that run didn't keep why; the two runs after it keep each drop's grade:
+14 of 14 perfect, the test phone pressing 10 to 62 ms after the cue (its timers on a busy 2-core
+machine; perfect is within 120 ms either side). An earlier 12-minute run lost its WebKit page
+partway (the test browser's page process went away, with no error in the page itself); the runs
+after it, watching the memory, ran clean. Worth an eye on a real Mac and iPad: if the TV's page
+ever reloads by itself mid-set, that's the one to tell me about.
 
