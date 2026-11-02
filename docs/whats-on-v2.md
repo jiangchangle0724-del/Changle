@@ -181,7 +181,7 @@ Oct 31, 2026 · Steve Jiang
 第一版方案里的 5 件（名字、范围、审核、AI、抓取次数）都按默认走了。新的只有这 3 件：
 
 1. 升级 Workers Paid，约 7 加元一个月。建议升。不升，定时任务 10 毫秒 CPU 跑不完一轮，整个架构要绕路。（Oct 31：Steve 定了先不升，第一版按免费版做。）
-2. 黄金集 60 条谁来标。建议你标 20 条华人圈的活动，我标 40 条英文的，周一前标完，它是验收门 A 的尺子。
+2. 黄金集 60 条谁来标。建议你标 20 条华人圈的活动，我标 40 条英文的，周一前标完，它是验收门 A 的尺子。（Nov 1：Claude 标的 40 条已进仓库，Steve 定了 40 条就够，华人圈的 20 条不标了。）
 3. 主办方确认邮件用哪个邮箱发。建议用 changle.ca 域名的邮箱（Resend 已验证），不用公司邮箱。
 
 参考：[Workers 限额](https://developers.cloudflare.com/workers/platform/limits/)（免费版定时任务 10 毫秒 CPU，付费版每小时以上间隔 15 分钟）、[Workflows 定价](https://developers.cloudflare.com/workflows/reference/pricing)（免费版同样 10 毫秒 CPU）。

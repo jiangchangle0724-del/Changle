@@ -14,9 +14,10 @@ dev dependency (and its `package-lock.json`).
 
 ## Inputs
 
-- `tools/events/golden/golden.csv`: 40 rows today (`G01` to `G40`; Steve's `G41` to `G60` come
-  later). RFC 4180: a field in double quotes may hold commas and doubled quotes `""`; no line
-  breaks inside a field. Columns as in the contract; `same_as` to `sameAs` in `GoldenRow`.
+- `tools/events/golden/golden.csv`: 40 rows (`G01` to `G40`), the whole set (Steve, 1 November;
+  rows added later go on from `G41`). RFC 4180: a field in double quotes may hold commas and
+  doubled quotes `""`; no line breaks inside a field. Columns as in the contract; `same_as` to
+  `sameAs` in `GoldenRow`.
 - `tools/events/tests/fixtures/eval/stored-handmade.json`: **hand-made** (see its `_note`): the
   shape `wrangler d1 execute --json` prints for the query below, `{ results: StoredEvent[] }`: 23
   stored events for the rows of six sources, with deliberate mistakes, and three that aren't in

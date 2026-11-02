@@ -112,15 +112,16 @@ run has under half of yesterday's events, yesterday's stay up and the log says s
 
 ## The golden set (黄金集)
 
-The answer key gate A is scored against: 60 real events labelled by hand, 40 by Claude from English
-sources (`G01` to `G40`) and 20 by Steve from the Chinese community (`G41` to `G60`), in
-`golden/golden.csv`. Every value comes from the event's own page, read by a person, never from the
+The answer key gate A is scored against: 40 real events labelled by hand by Claude from the
+sources the pipeline reads or will (`G01` to `G40`), in `golden/golden.csv`. The plan had 20 more
+from Steve (Chinese community events); on 1 November he decided the 40 are enough. Rows added later
+go on from `G41`. Every value comes from the event's own page, read by a person, never from the
 pipeline. The events are dated within three weeks of labelling; once most have passed, a new set is
 labelled the same way.
 
 | Column | What |
 | --- | --- |
-| `id` | `G01` to `G60` |
+| `id` | `G01` to `G40` (later rows go on from `G41`) |
 | `by` | `claude` or `steve` |
 | `kind` | how the pipeline reads its source: `ticketmaster`, `ical`, `bibliocommons`, `jsonld`, or `submitted` (an organiser's calendar or the form) |
 | `source` | the site, short: `ticketmaster`, `luma`, `vpl`, `eventbrite`… |
