@@ -8,6 +8,7 @@ import { Glass } from "../components/Glass";
 import { Die } from "../components/Dice";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { UI } from "../i18n";
+import { potStep } from "../shared/engine/games/dice";
 
 type Outcome = "seven" | "eight" | "nine" | "ones" | "safe";
 
@@ -16,6 +17,8 @@ export function Dice789({ onBack }: { onBack: () => void }) {
   const [dice, setDice] = useState<[number, number]>([3, 4]);
   const [rolling, setRolling] = useState(false);
   const [level, setLevel] = useState(0.3);
+  // with the table's own penalty the glass is a pot of it, counted in times (from 1)
+  const [pot, setPot] = useState(1);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [assigning, setAssigning] = useState(false);
   const turn = useTurnOrder();
@@ -43,7 +46,10 @@ export function Dice789({ onBack }: { onBack: () => void }) {
         else sfx.drum();
       }
       setOutcome(o);
-      if (o === "seven") setLevel((l) => Math.min(1, l + 0.25));
+      if (o === "seven") {
+        setLevel((l) => Math.min(1, l + 0.25));
+        setPot((p) => potStep(p, "seven").pot);
+      }
     }, 950);
   };
 
@@ -56,17 +62,15 @@ export function Dice789({ onBack }: { onBack: () => void }) {
         nextTurn();
         return;
       case "eight":
-        penalty.show({ who: [me.name], kind: "two", note }, () => {
-          setLevel((l) => l / 2);
+      case "nine": {
+        const step = potStep(pot, outcome);
+        penalty.show({ who: [me.name], kind: outcome === "eight" ? "two" : "full", note, times: custom ? step.take : undefined }, () => {
+          setLevel((l) => (outcome === "eight" ? l / 2 : 0.3));
+          setPot(step.pot);
           nextTurn();
         });
         return;
-      case "nine":
-        penalty.show({ who: [me.name], kind: "full", note }, () => {
-          setLevel(0.3);
-          nextTurn();
-        });
-        return;
+      }
       case "ones":
         setAssigning(true);
         return;
@@ -84,7 +88,7 @@ export function Dice789({ onBack }: { onBack: () => void }) {
     if (custom)
       switch (o) {
         case "seven":
-          return lang === "zh" ? "七，罚池加码" : "Seven. The pot grows.";
+          return lang === "zh" ? "七，罚池加一次" : "Seven. One more in the pot.";
         case "eight":
           return lang === "zh" ? "八，罚一半" : "Eight. Take half the pot.";
         case "nine":
@@ -112,8 +116,8 @@ export function Dice789({ onBack }: { onBack: () => void }) {
     <p>
       {custom
         ? lang === "zh"
-          ? "屏幕中间是大家共用的罚池。轮流掷两颗骰子：点数加起来是 7，罚池加码；8，罚一半；9，全罚；掷出两个 1，指定一个人全罚。其他点数安全，传给下一位。"
-          : "A shared pot sits in the middle of the screen. Take turns rolling two dice: a total of 7 grows the pot; 8, take half of it; 9, take all of it. Double ones: pick someone to take the whole pot. Anything else is safe, pass the dice."
+          ? "屏幕中间是大家共用的罚池，上面的数字是惩罚要做几次，从 1 开始。轮流掷两颗骰子：点数加起来是 7，罚池加一次；8，罚一半（3 次就罚 2 次）；9，全罚；掷出两个 1，指定一个人全罚。罚空了，罚池回到 1。其他点数安全，传给下一位。"
+          : "A shared pot sits in the middle of the screen. Its number is how many times the penalty is done, starting at 1. Take turns rolling two dice: a total of 7 adds one to the pot; 8, take half of it (half of 3 is 2); 9, take all of it. Double ones: pick someone to take the whole pot. An emptied pot goes back to 1. Anything else is safe, pass the dice."
         : lang === "zh"
           ? "桌子中间放一个公杯。轮流掷两颗骰子：点数加起来是 7，往公杯里加酒；8，喝掉一半；9，全部喝完；掷出两个 1，指定一个人把公杯喝完。其他点数安全，传给下一位。"
           : "A shared glass sits in the middle. Take turns rolling two dice: a total of 7 pours more into the glass; 8, drink half of it; 9, drink all of it. Double ones: pick someone to finish the glass. Anything else is safe, pass the dice."}
@@ -128,7 +132,7 @@ export function Dice789({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="dice-stage">
-        <Glass level={level} size={110} label={custom ? (lang === "zh" ? "罚池" : "The pot") : lang === "zh" ? "公杯" : "Shared glass"} />
+        <Glass level={level} size={110} label={custom ? (lang === "zh" ? `罚池 ×${pot}` : `The pot ×${pot}`) : lang === "zh" ? "公杯" : "Shared glass"} />
         <div className="bowl">
           <div className="bowl-dice">
             <Die value={dice[0]} rolling={rolling} size={84} />
@@ -146,8 +150,9 @@ export function Dice789({ onBack }: { onBack: () => void }) {
             <PlayerPicker
               players={players}
               onPick={(p) =>
-                penalty.show({ who: [p.name], kind: "full", note: outcomeLabel("ones") }, () => {
+                penalty.show({ who: [p.name], kind: "full", note: outcomeLabel("ones"), times: custom ? potStep(pot, "ones").take : undefined }, () => {
                   setLevel(0.3);
+                  setPot(1);
                   nextTurn();
                 })
               }

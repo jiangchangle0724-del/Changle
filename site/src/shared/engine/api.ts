@@ -22,7 +22,7 @@ export interface Api {
   /** The id before `before` in seat order. */
   prev(before: string, among?: string[]): string;
   /** `say`: what to do instead of drinking, when the game names it (push-ups, a dare). */
-  penalty(who: string[], kind: PenaltyKind, note?: T, opts?: { buddy?: string; delay?: number; say?: T }): void;
+  penalty(who: string[], kind: PenaltyKind, note?: T, opts?: { buddy?: string; delay?: number; say?: T; times?: number }): void;
   fx(fx: Fx, pid?: string, data?: number[]): void;
   spin(scope: SpinScope, by: string, index: number, delta: number, duration: number): void;
   /** Set (or replace) a game timer; it fires `timer(key)` on the game. */

@@ -13,7 +13,7 @@ import { useWakeLock } from "../party/sensors";
 import { Stage } from "../party/punchline/show/Stage";
 import { useWho } from "../party/punchline/show/who";
 import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
-import { ONLINE_GAMES, ONLINE_MIN, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
+import { ONLINE_GAMES, ONLINE_MIN, timesOf, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
 import { TablePenalty, useStore } from "../store";
 import "../styles/tv.css";
 import { useCodeField } from "../online/codeField";
@@ -543,18 +543,19 @@ function TvPenalties({ room, audio }: { room: RoomView; audio: boolean }) {
   }, [cur?.id]);
   if (!cur) return null;
   const custom = room.penalty;
+  // the host's own penalty: once, twice for two sips, or as many times as the game says (7-8-9's pot)
+  const n = timesOf(cur);
+  const own = custom ? (n > 1 ? `${custom} ×${n}` : custom) : "";
   const what =
     cur.kind === "safe"
       ? ui("safe")
       : cur.kind === "full"
-        ? custom || ui("finish")
+        ? own || ui("finish")
         : cur.kind === "everyone"
-          ? custom || ui("everyoneDrinks")
+          ? own || ui("everyoneDrinks")
           : cur.kind === "two"
-            ? custom
-              ? `${custom} ×2`
-              : ui("twoSips")
-            : custom || ui("sip");
+            ? own || ui("twoSips")
+            : own || ui("sip");
   const seats = cur.kind === "everyone" ? [] : cur.who.map((pid) => room.seats.find((s) => s.id === pid)).filter(Boolean) as SeatView[];
   // the whole table: with drinking the line says so ("everyone drinks"); with the host's own penalty, name the table
   const who = cur.kind === "everyone" && custom ? ui("everyone") : seats.map((s) => s.name).join(lang === "zh" ? "、" : ", ");

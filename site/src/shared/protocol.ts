@@ -95,7 +95,15 @@ export type Fx =
   | "ask";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
-export type PenaltyEvent = { k: "penalty"; id: string; who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T };
+/** `times`: with the table's own penalty, how many times it's done (7-8-9's pot); none is once ("two" is twice). */
+export type PenaltyEvent = { k: "penalty"; id: string; who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T; times?: number };
+/**
+ * How many times the table's own penalty is done: as the game says, else twice for two sips, once
+ * otherwise. A forfeit the game names itself (`say`, Drama's "10 squats") is done once.
+ */
+export function timesOf(p: { kind: PenaltyKind; times?: number; say?: unknown }): number {
+  return p.times ?? (p.kind === "two" && !p.say ? 2 : 1);
+}
 export type RoomEvent =
   | PenaltyEvent
   | { k: "drank"; pid: string; pen: string }
@@ -212,6 +220,8 @@ export type DiceView = {
   id: "dice";
   turn: string;
   level: number;
+  /** With the table's own penalty the glass is a pot of it: how many times it holds (from 1). */
+  pot: number;
   phase: "roll" | "result" | "assign";
   dice: [number, number];
   roll: number;
