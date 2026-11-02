@@ -2,7 +2,8 @@
 sit down and play at once. Every pad lands on a beat; picks load deck B; the fader thrown to B
 before B has music of its own plays deck A on, never silence; whoever moves the fader holds it;
 everyone taps the build-up full, the countdown runs on the TV and the phones (the picks wait), one
-phone presses DROP on the cue, and the drop lands exactly on its bar, swaps to deck B and is perfect.
+phone presses DROP on the cue, one a quarter second after it (it counts), one too late (it says so),
+and the drop lands exactly on its bar, swaps to deck B and is perfect.
 
 Needs the two local servers (site/README.md); a table that isn't the owner's (DEV_LYRIA_ANYONE off
 in site/worker/.dev.vars), so the stand-in plays both decks.
@@ -46,6 +47,22 @@ def set_fader(pg, value, let_go=False):
         if (up) el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); }""",
         [value, let_go],
     )
+
+
+def arm_press(pg, selector, when_ms):
+    """Set a phone to press a button at a moment of the server's clock (locally, the page's own
+    clock), without waiting for it: `pressed_at` says when it did."""
+    pg.evaluate(
+        """([sel, when]) => { window.__pressedAt = null;
+          const go = () => { const b = document.querySelector(sel); if (!b) return;
+            b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, isPrimary: true })); window.__pressedAt = Date.now(); };
+          const wait = when - Date.now(); if (wait <= 0) go(); else setTimeout(go, wait); }""",
+        [selector, when_ms],
+    )
+
+
+def pressed_at(pg):
+    return pg.evaluate("() => window.__pressedAt")
 
 
 def press_at(pg, selector, when_ms, event="pointerdown"):
@@ -119,7 +136,8 @@ with sync_playwright() as p:
     for _ in range(15):
         levels.append(tv.evaluate("() => window.__djBooth.level()"))
         tv.wait_for_timeout(100)
-    ok(min(levels) > 0.01, f"the music plays on, never silence (quietest {min(levels):.3f}, loudest {max(levels):.3f})")
+    # (silence would be all of them near 0; a sparse bar can have one quiet moment)
+    ok(sorted(levels)[len(levels) // 2] > 0.02 and min(levels) > 0.002, f"the music plays on, never silence (quietest {min(levels):.3f}, middle {sorted(levels)[len(levels) // 2]:.3f}, loudest {max(levels):.3f})")
     amy.wait_for_timeout(1300)
     set_fader(amy, 0, let_go=True)
     ok(until(lambda: deck(tv).get("fader", 1) == 0, 3000), "back to A (each swap starts the picks over)")
@@ -149,7 +167,12 @@ with sync_playwright() as p:
         amy.wait_for_timeout(150)
     dr = deck(tv).get("drop")
     ok(bool(dr) and dr["to"] == "b", f"everyone taps: the build-up fills and a drop is on its way, to deck B ({dr and dr['bar']})")
-    ok(until(lambda: amy.locator(".djk-drop").count() == 1, 2000), "the phones' button turns into DROP")
+    ok(until(lambda: amy.locator(".djk-drop").count() == 1 and ben.locator(".djk-drop").count() == 1 and cat.locator(".djk-drop").count() == 1, 2000), "the phones' button turns into DROP")
+    # three presses, set now so nothing below can make them late: Ben on the cue, Amy a quarter
+    # second after it (she saw DROP, then pressed), Cat too late for the speaker
+    arm_press(ben, ".djk-drop", dr["cue"] + 15)
+    arm_press(amy, ".djk-drop", dr["cue"] + 200)
+    arm_press(cat, ".djk-drop", dr["at"] - 140)
     ok(cat.locator(".djk-pick:not([disabled])").count() == 0, "and the picks wait for the drop")
     g = deck(tv)["grid"]
     beat_ms = 60000 / g["bpm"]
@@ -157,15 +180,23 @@ with sync_playwright() as p:
     ok(until(lambda: tv.locator(".dk-count").count() == 1, (dr["at"] - time.time() * 1000) + 2000, 50), "the countdown shows on the TV")
     tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-2-count.png"))
     amy.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-phone-2-drop.png"))
-    # Ben presses DROP on the cue
-    t = press_at(ben, ".djk-drop", dr["cue"] + 15)
+    t = until(lambda: pressed_at(ben), 4000, 10)
     ok(bool(t), f"Ben presses DROP {round(t - dr['cue']) if t else '?'} ms after the cue")
+    ta = until(lambda: pressed_at(amy), 4000, 10)
+    tc = until(lambda: pressed_at(cat), 4000, 10)
+    said = lambda ph: ph.locator(".djk-result").inner_text() if ph.locator(".djk-result").count() else ""
+    # (a phone's timer on this busy test machine can fire late: past `pressBy` her press is late too)
+    amy_counts = bool(ta) and ta <= dr["at"] - 200
+    ok(until(lambda: said(amy) == ("好" if amy_counts else "晚了一点"), 1200, 20), f"Amy, {round(ta - dr['cue']) if ta else '?'} ms after the cue: " + ("her phone says it counts, good" if amy_counts else "her timer fired late, so her phone says late") + f" ({said(amy)})")
+    ok(until(lambda: said(cat) == "晚了一点", 1200, 20), f"Cat, {round(dr['at'] - tc) if tc else '?'} ms before the bar: her phone says she's late, not early, and it stays up after the drop ({said(cat)})")
     ok(until(lambda: any(e["k"] == "drop" for e in log(tv)["log"]), 3000), "the speaker sets the drop up")
-    d_e = [e for e in log(tv)["log"] if e["k"] == "drop"][-1]
-    ok(abs(d_e["beat"] - dr["bar"] * 4) < 1e-6 and on_beat(d_e), f"on its bar exactly (beat {round(d_e['beat'], 3)} = bar {dr['bar']})")
+    drops = [e for e in log(tv)["log"] if e["k"] == "drop"]
+    d_e = drops[-1]
+    ok(len(drops) == 1 and abs(d_e["beat"] - dr["bar"] * 4) < 1e-6 and on_beat(d_e), f"once, on its bar exactly (beat {round(d_e['beat'], 3)} = bar {dr['bar']}; {[round(e['beat'], 3) for e in drops]})")
     ok(until(lambda: (deck(tv).get("last") or {}).get("bar") == dr["bar"], 6000), "it lands")
     last = deck(tv)["last"]
-    ok(last["hits"] and last["hits"][0]["grade"] == "perfect" and last["to"] == "b" and deck(tv)["fader"] == 1, f"perfect, on deck B, the fader there ({last['hits']})")
+    want = ["perfect", "good"] if amy_counts else ["perfect"]
+    ok([h["grade"] for h in last["hits"]] == want and last["to"] == "b" and deck(tv)["fader"] == 1, f"perfect (Ben)" + (" and good (Amy)" if amy_counts else "") + f", Cat's didn't count, on deck B, the fader there ({last['hits']})")
     ok(until(lambda: tv.locator(".dk-dropped.is-perfect").count() == 1, 2000), "the TV celebrates a perfect drop")
     tv.wait_for_timeout(300)
     tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-3-perfect.png"))

@@ -149,6 +149,9 @@ export function countdown(drop: { at: number } | null, grid: DeckState["grid"], 
   return r > 3 ? "3" : r > 2 ? "2" : r > 1 ? "1" : "drop";
 }
 
+/** The last moment (server time) a phone's DROP press still counts: it has to reach the room in time. */
+export const pressBy = (drop: { at: number }) => drop.at - DECK.leadMs - DECK.pressTripMs;
+
 /**
  * A DROP press at `at` (server time): null when it doesn't count (before the countdown, or too
  * late for the speaker to land it), else how well it hit the cue.

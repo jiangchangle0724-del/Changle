@@ -149,7 +149,8 @@ the next of 12 styles. The rule that keeps it from ever sounding wrong is that e
 the beat, so these checks are mostly about timing.
 
 **`site/scripts/dj_deck_check.py`**, a TV and three phones playing at once, the TV in Chromium and
-in WebKit: 37 of 37 checks pass in each (after both code reviews' fixes), no errors on any page.
+in WebKit: 39 of 39 checks pass in each (after both code reviews' fixes and the DROP window's), no
+errors on any page.
 Three pads pressed at once by three phones all play, each on a beat to the millisecond. The brake
 stops the music and brings it back on the bar with no stall. Two picks for latin and one for techno
 load latin on deck B. Thrown all the way to B before B has any music of its own, the fader leaves
@@ -157,8 +158,10 @@ deck A playing (its quietest moment 0.03 to 0.04 RMS: never silence; before the 
 fix this was silence until B's next section, up to about 20 seconds). Once the speaker's deck B
 really plays latin the TV marks it up next. The phone that moves the fader holds it, and the others
 wait and see who has it. Everyone taps the build-up full, the countdown runs on the TV and the
-phones while the picks wait, and a press 15 to 40 ms after the cue is perfect. The drop lands
-exactly on its bar (beat 80 for bar 20 in the last run), swaps to deck B, and the TV celebrates.
+phones while the picks wait, and a press 15 to 60 ms after the cue is perfect; one about a quarter
+second after it counts as good, and one too late for the speaker says so ("晚了一点", not "还没到"),
+and stays up after the drop. The drop lands once, exactly on its bar (beat 80 for bar 20 in the
+last run), swaps to deck B, and the TV celebrates.
 
 **A busy table** (the TV in WebKit, two phones): a pad every 2.5 to 6 seconds, a new pick every
 30 s, the fader swept across and back every 45 s, a build-up and a drop on the cue every minute.
@@ -182,3 +185,14 @@ partway (the test browser's page process went away, with no error in the page it
 after it, watching the memory, ran clean. Worth an eye on a real Mac and iPad: if the TV's page
 ever reloads by itself mid-set, that's the one to tell me about.
 
+### Live, after the merge (Nov 1)
+
+Every deploy from the merge succeeded (the site, the rooms server, and the other Workers). On
+changle.ca, the TV in WebKit and two phones in Chromium: the booth's table flow (14 of 14, as
+before) and the deck: the deck on the TV and both phones, a pad shown on the TV, two picks loading
+latin on deck B, the fader and who has it, the build-up, the countdown with the picks waiting, no
+page errors. One thing it found: pressed when the TV showed DROP, a press only counted for the
+first 0.18 s of it, and a later one was told "还没到，看倒数" (not yet) instead of late; nobody's
+press counted, so the DJ dropped it two countdowns later. Fixed after: a press counts until about
+0.28 s after the cue (`DECK.leadMs` 120 ms, `pressTripMs` 80), the phone says "就是现在" only while a
+press still counts, a later one is late, and its word stays up after the drop.
