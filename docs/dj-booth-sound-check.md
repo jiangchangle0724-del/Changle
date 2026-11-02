@@ -140,3 +140,24 @@ Four minutes into the second run the rooms server restarted (an edit reloaded it
 would): the speaker played on from what it had in hand, down to 2.5 seconds, the speaker opened
 the new relay and set Lyria up where it was, and nothing stalled. Lyria was paused and played again about every
 10 seconds (the fake makes music twice as fast as it plays; real Lyria's pace will set how often).
+
+## The beginner deck (Nov 1)
+
+Everyone at the table DJs at once from their phone (CONTRACTS.md, "The beginner deck"): two decks
+and a crossfader, four pads, a build-up the table taps together and DROP on the count, a pick for
+the next of 12 styles. The rule that keeps it from ever sounding wrong is that everything lands on
+the beat, so these checks are mostly about timing.
+
+**`site/scripts/dj_deck_check.py`**, a TV and three phones playing at once, the TV in Chromium and
+in WebKit: 30 of 30 checks pass in each, no errors on any page. Three pads pressed at once by three
+phones all play, each on a beat to the millisecond. The brake stops the music and brings it back on
+the bar with no stall. Two picks for latin and one for techno load latin on deck B. The phone that
+moves the fader holds it, and the others wait and see who has it. Everyone taps the build-up full,
+the countdown runs on the TV and the phones, and a press 15 to 20 ms after the cue is perfect. The
+drop lands exactly on its bar (beat 64.0 for bar 16), swaps to deck B, and the TV celebrates.
+
+**A busy table, 8 minutes** (the TV in WebKit, two phones): a pad every 2.5 to 6 seconds (95), a
+new pick every 30 s, the fader swept across and back every 45 s, a build-up and a drop on the cue
+every minute (7). No stall, the lowest buffer 4.97 s, every one of the 95 pads and 7 drops played,
+none off the beat, all 7 drops perfect, WebKit's memory steady at about 1 GB over the run.
+
