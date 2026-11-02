@@ -5,6 +5,7 @@ import luma from "./fixtures/luma/vancouver-2026-10-31.ics?raw";
 import vpl from "./fixtures/bibliocommons/vpl-2026-10-31-p1.json?raw";
 import rpl from "./fixtures/bibliocommons/rpl-2026-11-01-p1.json?raw";
 import ubc from "./fixtures/ical/ubc-2026-10-31.ics?raw";
+import bpl from "./fixtures/bpl/events-2026-11-01.json?raw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LIVE_KEY, publish } from "../src/publish";
 import { fetchStep, runDay, type StepRunner } from "../src/run";
@@ -23,6 +24,7 @@ function sources(opts: { lumaDown?: boolean } = {}) {
       const first = url.endsWith("tribe-bar-date=2026-10-31");
       return new Response(first ? ubc : "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n", { headers: { "content-type": "text/calendar" } });
     }
+    if (url.includes("bpl.bc.ca")) return new Response(bpl, { headers: { "content-type": "application/json" } });
     if (url.includes("lu.ma")) return opts.lumaDown ? new Response("busy", { status: 503 }) : new Response(luma, { headers: { "content-type": "text/calendar", etag: '"luma-1"' } });
     const lib = /\/libraries\/(\w+)\/events/.exec(url)?.[1];
     if (lib) {
@@ -59,8 +61,8 @@ describe("a morning run", () => {
   it("fetches every source part by part, keeps the raw answers, stores and publishes the next 14 days", async () => {
     const calls = sources();
     const r = await runDay(steps, env.DB, "2026-10-31");
-    // Luma, Vancouver's two pages, Richmond's two, UBC's two, Ticketmaster (skipped: no key)
-    expect(r).toEqual({ steps: 8, done: true, published: true });
+    // Luma, Vancouver's two pages, Richmond's two, Burnaby's feed, UBC's two, Ticketmaster (skipped: no key)
+    expect(r).toEqual({ steps: 9, done: true, published: true });
     expect(calls.some((u) => u.includes("ticketmaster"))).toBe(false);
     const log = await logOf("2026-10-31");
     expect(log).toMatchObject([
@@ -69,6 +71,8 @@ describe("a morning run", () => {
       { source: "vpl", part: 1, http_status: 200, found: 0, error: null },
       { source: "rpl", part: 0, http_status: 200, found: 25, in_window: 25, added: 25, error: null },
       { source: "rpl", part: 1, http_status: 200, found: 0, error: null },
+      // Burnaby: 113 programs still to come, 27 of them in the window
+      { source: "bpl", part: 0, http_status: 200, found: 113, in_window: 27, added: 27, error: null },
       // UBC: 30 in its answer, 6 anyone can walk into (5 in the window), then an empty answer
       { source: "ubc", part: 0, http_status: 200, found: 6, in_window: 5, added: 5, error: null },
       { source: "ubc", part: 1, http_status: 200, found: 0, error: null },
@@ -79,7 +83,7 @@ describe("a morning run", () => {
     expect((log[0] as { in_window: number }).in_window).toBe(5);
     expect(await env.CACHE.get("raw:2026-10-31:luma-vancouver:0")).toContain("BEGIN:VCALENDAR");
     const pub = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
-    expect(pub.count).toBe(75);
+    expect(pub.count).toBe(102);
     expect(pub.from).toBe("2026-10-31");
     expect(pub.to).toBe("2026-11-13");
     const bios = pub.events.find((e) => e.title.startsWith("BIOS SPHERE"))!;
@@ -104,15 +108,16 @@ describe("a morning run", () => {
     expect(await env.CACHE.get(LIVE_KEY)).toBeNull();
     expect(await morning()).toEqual({ steps: 2, done: false, published: false });
     expect(await morning()).toEqual({ steps: 2, done: false, published: false });
-    expect(await morning()).toEqual({ steps: 2, done: true, published: true });
+    expect(await morning()).toEqual({ steps: 2, done: false, published: false });
+    expect(await morning()).toEqual({ steps: 1, done: true, published: true });
     expect(await morning({ final: true })).toEqual({ steps: 0, done: true, published: false });
     // each step once, in order, then one publish
     const log = await logOf("2026-10-31");
-    expect(log.map((l) => `${l.source}:${l.part}`)).toEqual(["luma-vancouver:0", "vpl:0", "vpl:1", "rpl:0", "rpl:1", "ubc:0", "ubc:1", "ticketmaster:0", "publish:0"]);
+    expect(log.map((l) => `${l.source}:${l.part}`)).toEqual(["luma-vancouver:0", "vpl:0", "vpl:1", "rpl:0", "rpl:1", "bpl:0", "ubc:0", "ubc:1", "ticketmaster:0", "publish:0"]);
     const run = (await env.DB.prepare("SELECT next_source, steps, triggers, published_at FROM runs WHERE run_id = '2026-10-31'").first())!;
-    expect(run).toMatchObject({ next_source: null, steps: 8, triggers: 5 });
+    expect(run).toMatchObject({ next_source: null, steps: 9, triggers: 6 });
     expect(run.published_at).toBeTruthy();
-    expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.count).toBe(75);
+    expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.count).toBe(102);
   });
 
   it("the morning's last trigger publishes what it has; the sources not reached keep yesterday's", async () => {
@@ -156,7 +161,9 @@ describe("the API", () => {
     const kids = await api("/go/api/events?tag=kids&cat=family");
     expect((kids.body.events as { tags: string[] }[]).every((e) => e.tags.includes("kids"))).toBe(true);
     const burnaby = await api("/go/api/events?area=burnaby");
-    expect(burnaby.body.count).toBe(0); // (Patch the System is on the 21st: past the window)
+    // Burnaby's library: 27 in the window, 2 of them online (no area); the 5 at the temporary
+    // Cameron branch count too, though its postal code is Coquitlam's
+    expect(burnaby.body.count).toBe(25);
     const richmond = await api("/go/api/events?area=richmond");
     expect(richmond.body.count).toBe(24); // (one of its 25 has no branch: no area)
     // a day: everything on it, the week-long scavenger hunt (28 October to 3 November) too
@@ -166,8 +173,8 @@ describe("the API", () => {
     expect(onDay.some((e) => e.title === "Cambie Scavenger Hunt")).toBe(true);
     const status = await api("/go/api/status");
     expect(status.body.run).toBe("2026-10-31");
-    expect((status.body.steps as unknown[]).length).toBe(9);
-    expect(status.body.progress).toMatchObject({ nextSource: null, steps: 8, triggers: 1 });
+    expect((status.body.steps as unknown[]).length).toBe(10);
+    expect(status.body.progress).toMatchObject({ nextSource: null, steps: 9, triggers: 1 });
   });
   it("is honest before the first run", async () => {
     expect((await api("/go/api/events")).status).toBe(503);

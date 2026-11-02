@@ -1,0 +1,2 @@
+# Migrations are read as text by the Worker (src/schema.ts): keep them LF on every checkout.
+*.sql text eol=lf

@@ -98,7 +98,8 @@ export interface Source {
   id: string;
   /** Shown on each card as where it came from. */
   name: string;
-  kind: "ical" | "ticketmaster" | "bibliocommons" | "jsonld" | "rss";
+  /** How it's read; "json": a site's own feed, with a parser of its own (Burnaby's library). */
+  kind: "ical" | "ticketmaster" | "bibliocommons" | "jsonld" | "json" | "rss";
   /** What is fetched (without any key). */
   url: string;
   /** 1 official API or feed, 2 structured data on pages, 3 articles, 4 the Chinese community. */
