@@ -2,7 +2,8 @@
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
-import { ONLINE_GAMES, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
+import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
+import { potStep } from "../src/shared/engine/games/dice";
 import { SCENES as DRAMA_SCENES } from "../src/data/drama";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -1407,6 +1408,44 @@ test("dj: ❄️, knobs, drops and songs are kept and limited; nobody else reads
   ok(dv("p1").colds.length === 1, "and takes them");
 });
 
+test("dj: the private Lyria test: only with one of the owner's accounts at the table, never shown; the speaker says when its music changes hands", () => {
+  const e = new RoomEngine(freshRoom("DJLB", clock), host);
+  e.screenHello("tv-lb", true, "dj");
+  e.hello("p1", "Steve", false, { uid: "u1", name: "Steve", av: 0, ac: 0 });
+  e.hello("p2", "Ben", false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  ok(dv("tv-lb").lab === false, "nobody is the owner: no Lyria");
+  e.setOwner("p1", true);
+  ok(e.flush().changed && dv("tv-lb").lab === true && dv("p2").lab === true, "the rooms server finds one of the owner's accounts at the table: Lyria may play");
+  ok(!e.view("p2").seats.some((x) => "owner" in x), "which seat it is, no phone is told");
+  e.setOnline("p1", false);
+  e.flush();
+  ok(dv("tv-lb").lab === true, "the owner's phone locks: it keeps its seat, and Lyria");
+  e.setOnline("p1", true);
+  e.setOwner("p1", false);
+  e.flush();
+  ok(dv("tv-lb").lab === false, "signed out of that account: no more Lyria");
+  e.setOwner("p1", true);
+  e.hello("p3", "Cat", false, { uid: "u3", name: "Cat", av: 0, ac: 0 });
+  e.setOwner("p3", true);
+  e.act("p3", { a: "leave" });
+  e.flush();
+  ok(dv("tv-lb").lab === true && !e.d.seats.some((x) => x.id === "p3"), "another owner's account leaving changes nothing while one is still seated");
+  ok(!e.screenAct("tv-lb", { x: "src", source: "lyria" }), "before the music starts there's nothing to hand over");
+  e.screenAct("tv-lb", { x: "live", source: "fake" });
+  e.flush();
+  ok(dv("p2").source === "fake", "the stand-in starts the night");
+  ok(e.screenAct("tv-lb", { x: "src", source: "lyria" }) && dv("p2").source === "lyria", "Lyria takes over: every phone sees it");
+  ok(!e.screenAct("tv-lb", { x: "src", source: "lyria" }) && !e.screenAct("tv-lb", { x: "src", source: "radio" }), "saying it again, or a source that isn't one, changes nothing");
+  e.act("p1", { a: "g", g: { x: "src", source: "fake" } });
+  e.flush();
+  ok(dv("p2").source === "lyria", "a phone can't say it");
+  e.act("p1", { a: "g", g: { x: "phase", phase: "end" } });
+  e.flush();
+  ok(!e.screenAct("tv-lb", { x: "src", source: "fake" }), "after the set, nothing to say");
+});
+
 test("custom penalty: no card, command or note tells anyone to drink", () => {
   // (dice rolls and decks use the shared random sequence: put it back afterwards)
   const s0 = seed;
@@ -1522,6 +1561,71 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   plain.act("p0", { a: "start", game: "rogue" });
   plain.g("p1", "wc");
   ok(plain.pens().slice(-1)[0]?.note?.zh === "没有 WC 票：先喝再去", "drinking table: drink first");
+  seed = s0;
+});
+
+test("seven eight nine: with the table's own penalty the glass is a pot, counted in times", () => {
+  // (the dice use the shared random sequence: put it back afterwards)
+  const s0 = seed;
+  const is = (x: { take: number; pot: number }, take: number, pot: number) => x.take === take && x.pot === pot;
+  ok(is(potStep(1, "seven"), 0, 2), "a seven adds one");
+  ok(is(potStep(3, "eight"), 2, 1), "an eight takes half, rounded up");
+  ok(is(potStep(4, "eight"), 2, 2), "an eight of 4 leaves 2");
+  ok(is(potStep(1, "eight"), 1, 1), "an eight of 1 takes it, and the pot is back to 1");
+  ok(is(potStep(5, "nine"), 5, 1), "a nine takes it all");
+  ok(is(potStep(3, "ones"), 3, 1), "double ones: all of it");
+  ok(is(potStep(3, "safe"), 0, 3), "anything else leaves it");
+  // how many times the table's own penalty is done
+  ok(timesOf({ kind: "sip" }) === 1 && timesOf({ kind: "two" }) === 2 && timesOf({ kind: "full", times: 3 }) === 3 && timesOf({ kind: "two", times: 1 }) === 1, "once, twice for two sips, or as the game says");
+  ok(timesOf({ kind: "two", say: { zh: "学一种动物叫三声", en: "Do three animal noises" } }) === 1, "a forfeit the game names is done once");
+
+  // a whole game: every penalty is as many times as the pot held, and every phone sees the pot
+  const d = setup(3);
+  d.act("p0", { a: "penalty", text: "做十个深蹲" });
+  d.act("p0", { a: "start", game: "dice" });
+  ok(d.view<V<"dice">>("p1").pot === 1, "the pot starts at 1");
+  let pot = 1;
+  let given = 0;
+  let more = 0;
+  for (let i = 0; i < 400 && (given < 6 || more < 1); i++) {
+    const v = d.view<V<"dice">>("p0");
+    const before = d.pens().length;
+    if (v.phase === "roll") d.g(v.turn, "roll");
+    else if (v.phase === "assign") d.g(v.turn, "assign", { target: "p2" });
+    else d.g(v.turn, "next");
+    d.advance(1500);
+    const after = d.view<V<"dice">>("p1");
+    const fresh = d.pens().slice(before);
+    if (v.phase === "roll") {
+      const o = after.outcome!;
+      const step = potStep(pot, o === "ones" ? "safe" : o);
+      if (o === "eight" || o === "nine") {
+        ok(fresh.length === 1 && fresh[0].times === step.take, `${o} with ${pot} in the pot: ${step.take} times (${fresh[0]?.times})`);
+        given++;
+        if (step.take > 1) more++;
+      } else ok(fresh.length === 0, `${o}: nobody takes anything yet`);
+      pot = step.pot;
+    } else if (v.phase === "assign") {
+      ok(fresh.length === 1 && fresh[0].kind === "full" && fresh[0].times === pot && fresh[0].who[0] === "p2", `double ones: the whole pot (${pot}) to the one picked (${fresh[0]?.times})`);
+      given++;
+      if (pot > 1) more++;
+      pot = 1;
+    }
+    ok(after.pot === pot, `the pot reads ${pot} (${after.pot})`);
+  }
+  ok(given >= 6 && more >= 1, `the dice gave out penalties (${given}, ${more} of them more than once)`);
+
+  // a drinking table: the glass is a glass, and no penalty counts times
+  const plain = setup(3);
+  plain.act("p0", { a: "start", game: "dice" });
+  for (let i = 0; i < 200 && plain.pens().length < 3; i++) {
+    const v = plain.view<V<"dice">>("p0");
+    if (v.phase === "roll") plain.g(v.turn, "roll");
+    else if (v.phase === "assign") plain.g(v.turn, "assign", { target: "p2" });
+    else plain.g(v.turn, "next");
+    plain.advance(1500);
+  }
+  ok(plain.pens().length >= 3 && plain.pens().every((p) => p.times === undefined), "drinking: no times on the penalties");
   seed = s0;
 });
 

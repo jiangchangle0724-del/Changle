@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { gsap, reduced } from "../lib/anim";
 import { haptic, sfx } from "../lib/sfx";
+import { timesOf } from "../shared/protocol";
 import { usePenaltyText, useStore } from "../store";
 import { Glass } from "./Glass";
 
@@ -15,6 +16,8 @@ export type PenaltyCall = {
   note?: string;
   /** The penalty itself when the game names it ("15 push-ups"): shown instead of the drink. */
   say?: string;
+  /** With a penalty of the table's own: how many times (7-8-9's pot). Two sips is twice anyway. */
+  times?: number;
 };
 
 /**
@@ -151,7 +154,10 @@ export function PenaltyStamp({
       ? "Safe"
       : "免罪"
     : penalty.isCustom
-      ? ""
+      ? // a penalty of the table's own is done once, twice for two sips, or as many times as the game says
+        timesOf(call) > 1
+        ? `×${timesOf(call)}`
+        : ""
       : call.kind === "full"
         ? ui("finish")
         : call.kind === "everyone"

@@ -26,7 +26,7 @@ export function NetPenaltyLayer() {
   // object on every render replayed the whole stamp each time someone tapped "I drank".
   const penId = pen?.id ?? "";
   const call = useMemo(
-    () => (pen ? { who: pen.kind === "everyone" ? [] : pen.who.map((pid) => nameOf(pid)), kind: pen.kind, note: pen.note ? tr(pen.note) : undefined, say: pen.say ? tr(pen.say) : undefined } : null),
+    () => (pen ? { who: pen.kind === "everyone" ? [] : pen.who.map((pid) => nameOf(pid)), kind: pen.kind, note: pen.note ? tr(pen.note) : undefined, say: pen.say ? tr(pen.say) : undefined, times: pen.times } : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [penId],
   );

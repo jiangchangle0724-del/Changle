@@ -19,6 +19,8 @@ export type HubEnv = {
   MASTER_EMAIL?: string;
   DEV_SHOW_CODES?: string;
   ROOMS?: DurableObjectNamespace;
+  /** the DJ booth's Lyria test: hours a month, all tables together (default 20) */
+  DJ_LYRIA_HOURS?: string;
 };
 
 export type Call = { method: string; path: string; token: string; device: string; ip: string; body?: unknown; bytes?: ArrayBuffer; type?: string };
@@ -31,8 +33,8 @@ export type GameRecord = { game: string; room: string; started: number; ended: n
 export type Who = { uid: string; name: string; av: number; ac: number; fg: number; fr?: string };
 /** What a table tells the hub about itself, so the back office can see who is playing where. */
 export type RoomReport = { code: string; game: string; screens: number; seats: { pid: string; name: string; on: boolean; uid?: string }[] };
-/** May this phone sit down? `block` says why not. */
-export type Admit = { who: Who | null; block?: "paused" | "banned" };
+/** May this phone sit down? `block` says why not. `owner`: one of the site owner's accounts. */
+export type Admit = { who: Who | null; block?: "paused" | "banned"; owner?: boolean };
 
 // the first wishes; every one of these games is on the site now, so they count as made
 const SEEDS: [string, string][] = [
@@ -671,7 +673,30 @@ export class Hub extends DurableObject<HubEnv> {
       if (this.paused) return { who: null, block: "paused" };
     }
     if (u) this.noteDevice(u.id, a.pid);
-    return { who: u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg, ...(u.perks.includes("wish") ? { fr: "gold" } : {}) } : null };
+    return {
+      who: u ? { uid: u.id, name: u.name, av: u.av, ac: u.ac, fg: this.figure(u.id).fg, ...(u.perks.includes("wish") ? { fr: "gold" } : {}) } : null,
+      ...(u && this.isAdmin(u) ? { owner: true } : {}),
+    };
+  }
+
+  /**
+   * The DJ booth's Lyria test, all tables together this month: adds `add` seconds streamed and
+   * says how much is used of the cap (an experimental model with no published price: the cap is
+   * the guard). A table stops its stream when the cap is reached.
+   */
+  async lyriaMeter(add: number): Promise<{ used: number; cap: number }> {
+    // DJ_LYRIA_HOURS=0 switches Lyria off; unset (or not a number) is 20
+    const h = Number(this.env.DJ_LYRIA_HOURS ?? "");
+    const cap = Math.round((this.env.DJ_LYRIA_HOURS !== undefined && this.env.DJ_LYRIA_HOURS !== "" && Number.isFinite(h) ? Math.max(0, h) : 20) * 3600);
+    const month = new Date().toISOString().slice(0, 7);
+    const secs = Math.max(0, Math.min(3600, Math.round(Number(add) || 0)));
+    this.sql.exec(
+      `INSERT INTO months (k, month, n, done) VALUES ('lyria', ?, ?, 0) ON CONFLICT(k) DO UPDATE SET n = CASE WHEN month = excluded.month THEN n + excluded.n ELSE excluded.n END, month = excluded.month`,
+      month,
+      secs,
+    );
+    const r = this.one(`SELECT n FROM months WHERE k = 'lyria' AND month = ?`, month);
+    return { used: Number(r?.n ?? 0), cap };
   }
 
   /** A table says who is at it (only when that changed). An empty table drops off the list. */

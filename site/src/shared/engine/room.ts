@@ -19,8 +19,12 @@ import {
 import { clean, intIn, num, t, type Api, type GameDef } from "./api";
 import { GAMES } from "./games";
 
-/** `fg`: the version of the seat's figure cut out for the stages (0 or missing: none). */
-export type SeatData = { id: string; name: string; on: boolean; at: number; uid?: string; av?: number; ac?: number; fg?: number; fr?: string; watch?: boolean };
+/**
+ * `fg`: the version of the seat's figure cut out for the stages (0 or missing: none). `owner`: signed
+ * in with one of the site owner's accounts, as the rooms server found (`setOwner`); never sent to
+ * a phone (the DJ booth's private Lyria test listens to it).
+ */
+export type SeatData = { id: string; name: string; on: boolean; at: number; uid?: string; av?: number; ac?: number; fg?: number; fr?: string; watch?: boolean; owner?: boolean };
 export type Profile = { uid: string; name: string; av: number; ac: number; fg?: number; fr?: string };
 export type GameRecord = { game: string; room: string; started: number; ended: number; players: { pid: string; uid?: string; name: string; drinks: number }[] };
 export type TimerData = { at: number; key: string; data?: unknown };
@@ -224,6 +228,15 @@ export class RoomEngine {
   setScreens(n: number) {
     if ((this.d.screens ?? 0) === n) return;
     this.d.screens = n;
+    this.out.changed = true;
+  }
+
+  /** Whether a seat is signed in with one of the site owner's accounts (the rooms server checks). */
+  setOwner(pid: string, owner: boolean) {
+    const seat = this.d.seats.find((s) => s.id === pid);
+    if (!seat || !!seat.owner === owner) return;
+    if (owner) seat.owner = true;
+    else delete seat.owner;
     this.out.changed = true;
   }
 
@@ -537,8 +550,8 @@ export class RoomEngine {
         continue;
       }
       if (ready.key.startsWith("pen:")) {
-        const p = ready.data as { who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T };
-        this.penalty(p.who, p.kind, p.note, { buddy: p.buddy, say: p.say });
+        const p = ready.data as { who: string[]; kind: PenaltyKind; note?: T; buddy?: string; say?: T; times?: number };
+        this.penalty(p.who, p.kind, p.note, { buddy: p.buddy, say: p.say, times: p.times });
         continue;
       }
       if (ready.key.startsWith("g:")) {
@@ -627,14 +640,14 @@ export class RoomEngine {
     this.d.timers = this.d.timers.filter((x) => !x.key.startsWith("g:") && !x.key.startsWith("pen:"));
   }
 
-  private penalty(who: string[], kind: PenaltyKind, note?: T, opts?: { buddy?: string; delay?: number; say?: T }) {
+  private penalty(who: string[], kind: PenaltyKind, note?: T, opts?: { buddy?: string; delay?: number; say?: T; times?: number }) {
     const d = this.d;
     // (only players: someone just watching never drinks)
     const ids = new Set(this.players().map((s) => s.id));
     const list = [...new Set(who)].filter((id) => ids.has(id));
     if (!list.length) return;
     if (opts?.delay && opts.delay > 0) {
-      this.setTimer(`pen:${++d.seq}`, this.h.now() + opts.delay, { who: list, kind, note, buddy: opts.buddy, say: opts.say });
+      this.setTimer(`pen:${++d.seq}`, this.h.now() + opts.delay, { who: list, kind, note, buddy: opts.buddy, say: opts.say, times: opts.times });
       this.out.changed = true;
       return;
     }
@@ -643,7 +656,7 @@ export class RoomEngine {
     const buddy = opts?.buddy && ids.has(opts.buddy) && !list.includes(opts.buddy) && kind !== "safe" ? opts.buddy : undefined;
     d.pens.push({ id, who: list, buddy, drank: [], at: this.h.now() });
     if (d.pens.length > 30) d.pens = d.pens.slice(-30);
-    this.event({ k: "penalty", id, who: list, kind, note, buddy, ...(opts?.say ? { say: opts.say } : {}) });
+    this.event({ k: "penalty", id, who: list, kind, note, buddy, ...(opts?.say ? { say: opts.say } : {}), ...(opts?.times && opts.times >= 1 ? { times: Math.floor(opts.times) } : {}) });
     this.out.persist = true;
   }
 
@@ -688,6 +701,7 @@ export class RoomEngine {
       has: (pid: string) => this.d.seats.some((s) => s.id === pid),
       online: (pid: string) => this.d.seats.some((s) => s.id === pid && s.on),
       isHost: (pid: string) => pid === this.d.host,
+      isOwner: (pid: string) => this.d.seats.some((s) => s.id === pid && !!s.owner),
       next: (after, among) => step(after, among, 1),
       prev: (before, among) => step(before, among, -1),
       penalty: (who, kind, note, opts) => this.penalty(who, kind, note, opts),

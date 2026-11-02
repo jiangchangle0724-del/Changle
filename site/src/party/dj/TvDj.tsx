@@ -1,5 +1,6 @@
 import { Disc3, Flame as FlameIcon, Loader2, Play } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { lyriaUrl } from "../../online/config";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
 import { SeatFace } from "../../online/People";
 import { ENERGY } from "../../shared/dj/curve";
@@ -21,17 +22,30 @@ export default function TvDj({ v }: { v: DjView }) {
   const { room, code, g, now } = useRoom();
   const { lang, sound } = useStore();
   const zh = lang === "zh";
-  const booth = useBooth({ phase: v.phase, muted: !sound, onReport: (r) => g("stats", r) });
+  // at one of the owner's tables this screen may stream Lyria (the private test)
+  const sid = room?.you ?? "";
+  const lyria = useMemo(() => (v.lab && sid ? { url: lyriaUrl(code, sid), key: `${code}:${sid}` } : null), [v.lab, sid, code]);
+  const booth = useBooth({ phase: v.phase, mix: v.mix, muted: !sound, onReport: (r) => g("stats", r), lyria });
   const { speaker, dj } = booth;
 
   // the music starts here: the room's set begins when this screen says it's playing (said again
   // every few seconds until the room has heard it: a message can be lost on a dropping connection)
   useEffect(() => {
     if (booth.status !== "on" || v.phase !== "wait") return;
-    g("live", { source: "fake" });
-    const id = window.setInterval(() => g("live", { source: "fake" }), 3000);
+    g("live", { source: booth.source });
+    const id = window.setInterval(() => g("live", { source: booth.source }), 3000);
     return () => window.clearInterval(id);
-  }, [booth.status, v.phase, v.set, g]);
+  }, [booth.status, booth.source, v.phase, v.set, g]);
+  // and when its music changes hands mid-set (Lyria took over, or the stand-in came back)
+  useEffect(() => {
+    if (booth.status !== "on" || v.phase === "wait" || v.phase === "end" || booth.source === v.source) return;
+    g("src", { source: booth.source });
+  }, [booth.status, booth.source, v.phase, v.source, g]);
+  // local runs: what the checks read (scripts/dj_lyria_check.py)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __djBooth: unknown }).__djBooth = { stats: () => speaker?.stats() ?? null, source: booth.source, beat: () => dj.beat() };
+  }, [speaker, booth.source, dj]);
 
   const fires = useRef(new Map<string, number>());
   const [flames, setFlames] = useState<Flame[]>([]);

@@ -116,6 +116,22 @@ export class FakeDj {
     return null;
   }
 
+  /**
+   * Stop feeding the speaker (Lyria plays instead); what has been recorded stays. Attaching again
+   * starts a fresh stream.
+   */
+  detach() {
+    this.stopTick?.();
+    this.stopTick = null;
+    window.clearInterval(this.timer);
+    this.speaker = null;
+    this.streaming = false;
+    this.cur = null;
+    this.carry = null;
+    this.prev = null;
+    this.marks = [];
+  }
+
   /** Stop sending for a while, as a dropped connection would (the speaker test page's button). */
   holdFor(ms: number) {
     this.heldUntil = performance.now() + ms;
