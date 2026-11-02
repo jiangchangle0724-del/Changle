@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import raw from "../fixtures/bpl/events-2026-11-01.json?raw";
+import { resolveArea } from "../../src/area";
 import { parseBpl, type BplFeed } from "../../src/parsers/bpl";
 
 type Program = BplFeed["data"][number];
@@ -95,7 +96,7 @@ describe("Burnaby Public Library's own feed", () => {
       allDay: false,
       timeTBD: false,
       status: "scheduled",
-      place: { name: "Bob Prittie Metrotown", address: "6100 Willingdon Avenue", city: "Burnaby", postalCode: "V5H 4N5", lat: null, lon: null },
+      place: { name: "Bob Prittie Metrotown", address: "6100 Willingdon Avenue", city: "Burnaby", postalCode: "V5H 4N5", lat: 49.2281, lon: -123.0064 },
       online: false,
       priceMin: 0,
       priceMax: 0,
@@ -110,17 +111,19 @@ describe("Burnaby Public Library's own feed", () => {
   });
 
   it.each([
-    ["bob-prittie-metrotown", "Bob Prittie Metrotown", "6100 Willingdon Avenue", "V5H 4N5"],
-    ["tommy-douglas", "Tommy Douglas", "7311 Kingsway", "V5E 1G8"],
-    ["mcgill", "McGill", "4595 Albert Street", "V5C 2G6"],
-    ["cameron", "Temporary Cameron", "110 - 9855 Austin Avenue", "V3J 1N4"],
-  ])("maps the %s branch for every occurrence", (slug, name, address, postalCode) => {
+    ["bob-prittie-metrotown", "Bob Prittie Metrotown", "6100 Willingdon Avenue", "V5H 4N5", 49.2281, -123.0064],
+    ["tommy-douglas", "Tommy Douglas", "7311 Kingsway", "V5E 1G8", 49.219, -122.9523],
+    ["mcgill", "McGill", "4595 Albert Street", "V5C 2G6", 49.2826, -123.0005],
+    ["cameron", "Temporary Cameron", "110 - 9855 Austin Avenue", "V3J 1N4", 49.2503, -122.8962],
+  ])("maps the %s branch for every occurrence, in Burnaby", (slug, name, address, postalCode, lat, lon) => {
     const programs = upcoming.filter((e) => e.location?.[0]?.slug === slug);
     expect(programs.length).toBeGreaterThan(0);
     for (const program of programs) {
       const event = events.find((e) => e.url === program.url)!;
-      expect(event.place).toEqual({ name, address, city: "Burnaby", postalCode, lat: null, lon: null });
+      expect(event.place).toEqual({ name, address, city: "Burnaby", postalCode, lat, lon });
       expect(event.organizer).toBe(name);
+      // (Cameron's V3J postal code alone would say the Tri-Cities: the coordinates decide)
+      expect(resolveArea(event.place)).toEqual({ area: "burnaby", check: false, outside: false });
     }
   });
 

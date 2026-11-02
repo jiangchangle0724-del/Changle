@@ -6,7 +6,7 @@ Cloudflare Worker, like 随便 (`tools/suibian`). The plan is `docs/whats-on-v2.
 works is [CONTRACTS.md](CONTRACTS.md).
 
 Where it is: the foundation (gate A's tasks A1, A2, A5). Each morning's run reads Luma's
-Vancouver calendar, the Vancouver and Richmond public libraries' events, UBC's calendar (only what
+Vancouver calendar, the Vancouver and Richmond public libraries' events, Burnaby's library's own feed, UBC's calendar (only what
 anyone can walk into: open to all or the community, in person on the Vancouver campus), and
 Ticketmaster once its key is set; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
 `/go/api/events` and `/go/api/status` answer, and `/go/preview` shows what's published day by day
