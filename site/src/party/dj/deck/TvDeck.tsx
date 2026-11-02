@@ -1,4 +1,4 @@
-import { Disc3 } from "lucide-react";
+import { Disc3, ListMusic, Music2, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { chargeNow, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
@@ -7,7 +7,7 @@ import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
 import { useStore } from "../../../store";
 import { NowPlaying, STYLE_NAMES } from "../parts";
-import { hintText, PADS } from "./words";
+import { hintText, nowLine, PADS, reqLine } from "./words";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -16,8 +16,9 @@ const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
 
 /**
  * 打碟 · DJ Booth: the beginner deck on the big screen. The two decks with their styles (the one
- * on the air turning), the crossfader and who has it, the build-up's meter, the countdown to the
- * drop, who did what, and the next thing a beginner could try.
+ * on the air turning), the songs asked for (the one playing, the one up next), the crossfader and
+ * who has it, the build-up's meter, the countdown to the drop, who did what, and the next thing a
+ * beginner could try.
  */
 export function DeckBoard({ v }: { v: DjView }) {
   const { now, nameOf } = useRoom();
@@ -51,6 +52,21 @@ export function DeckBoard({ v }: { v: DjView }) {
       {deck("a")}
       <div className="dk-mid">
         <NowPlaying v={v} />
+        {d.now && (
+          <span className="dk-req is-now">
+            <Music2 size={24} aria-hidden="true" />
+            <span>{nowLine(d.now, nameOf(d.now.by), zh)}</span>
+          </span>
+        )}
+        {d.up && (
+          <span className="dk-req is-up">
+            <ListMusic size={24} aria-hidden="true" />
+            <span>
+              {zh ? `下一首：${reqLine(d.up, nameOf(d.up.by), zh)}` : `Up next: ${reqLine(d.up, nameOf(d.up.by), zh)}`}
+              {d.reqs.length > 0 && <small>{zh ? ` · 后面还有 ${d.reqs.length} 首` : ` · ${d.reqs.length} more waiting`}</small>}
+            </span>
+          </span>
+        )}
         <div className="dk-fader" aria-hidden="true">
           <span className="dk-fader-end">A</span>
           <span className="dk-fader-track">
@@ -127,32 +143,39 @@ export function DropParty({ v }: { v: DjView }) {
   );
 }
 
-/** Who pressed which pad, for a moment, and the pad itself played on the speaker. */
+type Chip = { id: number; text: string; kind: PadId | "req"; icon: LucideIcon };
+
+/** Who pressed which pad (the pad itself played on the speaker) or asked for a song, for a moment. */
 export function usePadEvents(play: (pad: PadId) => void) {
   const { nameOf } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
-  const [chips, setChips] = useState<{ id: number; text: string; pad: PadId }[]>([]);
+  const [chips, setChips] = useState<Chip[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
-    if (e.k !== "fx" || e.fx !== "pad" || !e.pid) return;
-    const pad = PAD_IDS[e.data?.[0] ?? -1];
-    if (!pad) return;
-    play(pad);
+    if (e.k !== "fx" || !e.pid || (e.fx !== "pad" && e.fx !== "req")) return;
+    let chip: Omit<Chip, "id">;
+    if (e.fx === "req") chip = { text: zh ? `${nameOf(e.pid)} 点了一首歌` : `${nameOf(e.pid)} asked for a song`, kind: "req", icon: ListMusic };
+    else {
+      const pad = PAD_IDS[e.data?.[0] ?? -1];
+      if (!pad) return;
+      play(pad);
+      chip = { text: `${nameOf(e.pid)} · ${L(PADS[pad].name, zh)}`, kind: pad, icon: PADS[pad].icon };
+    }
     const id = ++seq.current;
-    setChips((l) => [...l.slice(-3), { id, text: `${nameOf(e.pid!)} · ${L(PADS[pad].name, zh)}`, pad }]);
-    window.setTimeout(() => setChips((l) => l.filter((c) => c.id !== id)), 2200);
+    setChips((l) => [...l.slice(-3), { id, ...chip }]);
+    window.setTimeout(() => setChips((l) => l.filter((c) => c.id !== id)), chip.kind === "req" ? 3200 : 2200);
   });
   return chips;
 }
 
-export function PadChips({ chips }: { chips: { id: number; text: string; pad: PadId }[] }) {
+export function PadChips({ chips }: { chips: Chip[] }) {
   return (
     <div className="dk-chips" aria-live="polite">
       {chips.map((c) => {
-        const Icon = PADS[c.pad].icon;
+        const Icon = c.icon;
         return (
-          <span key={c.id} className={`dk-chip is-${c.pad}`}>
+          <span key={c.id} className={`dk-chip is-${c.kind}`}>
             <Icon size={24} aria-hidden="true" />
             {c.text}
           </span>

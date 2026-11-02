@@ -205,6 +205,34 @@ export type DropState = {
 /** A drop that landed: what the screens celebrate, and the night's record. */
 export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: DropGrade }[]; auto: boolean; to: DeckSide; style: StyleId };
 
+/**
+ * A song asked for by name on the beginner deck (Steve's ask on Nov 1): the booth can't play the
+ * song itself, so the DJ makes the next track in its style, named for it on the big screen. One
+ * the player picked from the site's song list (`song`) shows its title and artist, the list's, to
+ * the whole table; a name they typed themself only they and the host read (the others see that
+ * they asked for a song): nothing a player types reaches the big screen unchecked.
+ */
+export type SongReq = {
+  id: string;
+  /** who asked for it */
+  by: string;
+  /** the song's title (from the song list), or what the player typed */
+  text: string;
+  /** its artist, from the song list */
+  artist?: string;
+  /** the song list's id for it (Apple's track id) */
+  song?: number;
+  /** the style its remix is made in (requests.ts) */
+  style: StyleId;
+  /** the stand-in's song for the remix (requests.ts `trackFor`): the same name, the same remix */
+  track: number;
+  /** server time it was asked for */
+  at: number;
+};
+
+/** A song's name typed in: 1 to 60 characters (an emoji or a Chinese character counts as one). */
+export const REQ_CHARS = { min: 1, max: 60 } as const;
+
 /** The beginner deck's part of the booth. */
 export type DeckState = {
   /** the two decks' styles; B stays empty until the floor picks a style */
@@ -236,12 +264,21 @@ export type DeckState = {
    * next section, once recorded): a drop swaps to the floor's pick only once it really plays there.
    */
   sounding: { a: StyleId; b: StyleId | null } | null;
-  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad and a
-   *  pick taken, the last brake, which screen gives the bars, when it last moved them and when it
-   *  last said anything at all (it says the bars every 10 s while it plays), and when the decks
-   *  and the source were last taken from it */
+  /**
+   * Songs asked for by name (`req`): the ones waiting their turn, oldest first; the one up next,
+   * its style on the deck off the air (the picks wait for it: the next drop onto that deck plays
+   * its remix); and the one whose remix is on the air.
+   */
+  reqs: SongReq[];
+  up: SongReq | null;
+  now: SongReq | null;
+  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick
+   *  and a song asked for taken, the last brake, which screen gives the bars, when it last moved
+   *  them and when it last said anything at all (it says the bars every 10 s while it plays), and
+   *  when the decks and the source were last taken from it */
   padAt: Record<string, number>;
   voteAt: Record<string, number>;
+  reqAt: Record<string, number>;
   brakeAt: number;
   gridFrom: string | null;
   gridSetAt: number;
@@ -292,6 +329,14 @@ export const DECK = {
   minBeats: 17,
   /** countdowns nobody pressed before the DJ drops it by itself */
   maxMisses: 1,
+  /** songs asked for by name: `reqMax` waiting for the whole table, one each (waiting or up
+   *  next), a phone's taken one per `reqGapMs`. Up next: if the table hasn't dropped into it
+   *  `reqWaitMs` after it's ready, the DJ starts the countdown itself (and drops it if nobody
+   *  presses); its remix is named on the screens for `reqPlayMs` after its drop */
+  reqMax: 8,
+  reqGapMs: 5000,
+  reqWaitMs: 40_000,
+  reqPlayMs: 90_000,
   /** a DROP press has to reach the room this long before the bar, so the speaker can land it; a
    *  phone counts `pressTripMs` for getting there. So a press counts until a little over a quarter
    *  second after the cue (people press a moment after they see DROP), and a word that reaches the
@@ -322,6 +367,10 @@ export type DjCommand =
   | { x: "ask"; text: string; style?: StyleId }
   /** take back a song that isn't being checked or made yet (the host can take back anyone's) */
   | { x: "unask"; id: string }
+  /** ask for a song by name (the deck): `song`, the song list's id when they picked it there */
+  | { x: "req"; text: string; song?: number }
+  /** take back a song asked for by name, waiting or up next (the host can take back anyone's) */
+  | { x: "unreq"; id: string }
   /** DROP, pressed during the countdown; `c`: when, on this phone's estimate of the server's clock */
   | { x: "drop"; c?: number }
   // the beginner deck (anyone at the table)

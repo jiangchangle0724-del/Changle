@@ -30,6 +30,10 @@ export function freshDeck(): DeckState {
     brakeAt: 0,
     gridFrom: null,
     gridSetAt: 0,
+    reqs: [],
+    up: null,
+    now: null,
+    reqAt: {},
     speakerAt: 0,
     decksAt: 0,
     srcAt: 0,
@@ -41,16 +45,19 @@ export const onAir = (d: { fader: number }): DeckSide => (d.fader > 0.5 ? "b" : 
 export const offAir = (d: { fader: number }): DeckSide => (onAir(d) === "a" ? "b" : "a");
 export const styleOn = (d: { a: StyleId; b: StyleId | null }, side: DeckSide): StyleId | null => (side === "a" ? d.a : d.b);
 
-type Cueable = { a: StyleId; b: StyleId | null; fader: number; votes: Record<string, StyleId>; sounding?: { a: StyleId; b: StyleId | null } | null };
+type Cueable = { a: StyleId; b: StyleId | null; fader: number; votes: Record<string, StyleId>; sounding?: { a: StyleId; b: StyleId | null } | null; up?: { style: StyleId } | null };
 
 /**
  * The deck the floor's pick is loaded on: the one off the air, when the pick is on it and isn't
  * what's on the air. Picks start over whenever the decks swap, so the old deck left behind never
- * counts by itself.
+ * counts by itself. A song asked for, up next, is loaded there instead (even in the style on the
+ * air: its remix is a new song).
  */
 export function loaded(d: Cueable): DeckSide | null {
-  const pick = leader(d.votes);
   const off = offAir(d);
+  // a song asked for owns the deck off the air until its remix plays
+  if (d.up) return styleOn(d, off) === d.up.style ? off : null;
+  const pick = leader(d.votes);
   return pick && styleOn(d, off) === pick && pick !== styleOn(d, onAir(d)) ? off : null;
 }
 

@@ -165,7 +165,12 @@ Six 8-bar sections (`sections.ts`): warm1 and warm2, build1 (a snare roll and a 
 drop), peak1 (opens with a crash) and peak2, cool1 (a breakdown, the kick back halfway). Each is
 recorded on the device with an OfflineAudioContext (`render.ts`, no tap needed, before anyone
 presses start) as exactly 8 bars plus 2 seconds of ring-out, levelled to its own loudness (warm
-−19 dB RMS up to peak −15). Recording is kept quick, since the night can't move on until the next
+−19 dB RMS up to peak −15). They're recorded dry: WebKit keeps every offline context that had a
+reverb (a convolver, or a loop of delays) in memory for good, 5 to 12 MB a recording, and a night
+records one every half minute or so. The speaker adds the room instead (`Speaker.setRoom`): one
+reverb on the mix above 350 Hz at 0.12, about as loud as the recordings' own was, for the stand-in
+only (Lyria and the host's songs bring their own). A recording that has gone is recorded over by
+the next (its memory reused). Recording is kept quick, since the night can't move on until the next
 section exists: the drums are recorded once as a kit and played back hit by hit, every sound is
 written in a beat before it plays, the first section of every stretch is made before the rest
 (`renderOrder`), and a recording that takes over 90 seconds is given up on and asked for again
@@ -176,6 +181,17 @@ over the start of the next. The end of a set fades out over 3 seconds. `heardSec
 section (and so which stretch) the speakers are sounding now: the big screen puts the stretch's
 name across the floor the moment the music gets there, not when the host tapped (that can be up to
 a phrase, 15 seconds, earlier).
+
+**Songs** (`fake/tracks.ts`, Steve's ask on Nov 1: "it's always the same song"). Every 8 sections
+(about two minutes) the night moves on to a new song: the same sections over another chord
+progression in A minor (12 of them), with the melody turned its own way. Every part the styles
+wrote over Am, F, C, G is moved bar by bar along the A minor scale onto the song's chords, so
+everything stays in key and both decks play the same chords at the same time (any two styles
+still blend). A song is a number (`trackOf`; 0 is the night as written), recorded as sections of
+their own (`sectionOf(style, base, track)`); the next song's sections are recorded while this one
+has two sections left, and the night moves on once they are (until then this song plays on). A
+song asked for by name gets its number from the name (`trackFor`: the same name, the same remix)
+and comes in at the next section once its sections are recorded (`playTrack`).
 
 ## The beginner deck (Nov 1: everyone DJs at once)
 
@@ -204,6 +220,8 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
 | `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
+| `req` `{ text, song? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed). One each (waiting or up next), 8 waiting for the table, a phone's taken once per 5 s, none after the end. An `fx` event `req`. |
+| `unreq` `{ id }` | Its player, or the host: takes back a song waiting or up next (the next one comes up). One whose remix plays already stays. |
 | `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`; `b` null while B has nothing of its own): a new style plays from its deck's next section once it's recorded. Taken at most once a second; the speaker says it again every 1.5 s until the room has it. |
 
 **The drop.** When the build-up fills, the room aims the drop (`aim`): the first bar that's a
@@ -275,6 +293,27 @@ deck B ┘                                                       horn, riser, ro
   slide the fader, pick the next style, try the pads). A phone has the same hint above its deck,
   the decks, the fader, eight pads in two rows, the build-up button that turns into DROP with the count, and
   the 12 styles to pick from.
+
+**Songs asked for by name** (`req`, Steve's ask on Nov 1: "players type the song they want, and it's
+remixed into the next track"; his choice: a new song in that song's style, not the song itself).
+The booth can't play the song (someone's recording, and a web page can't mix one in on the beat):
+the DJ makes the next track in its style, named for whoever asked. A phone types a song or an
+artist and gets suggestions from the site's song list (`src/data/songs.ts`, loaded the first time
+someone types: it's big). The room works out the style (`requests.ts` `styleForRequest`: words that
+name a genre or an artist first, then the list's language and kinds, then the script the name is
+written in) and the stand-in's song for the remix (`trackFor`). The requests wait in `reqs`; the
+oldest goes **up next** (`up`) once music plays and no drop is on its way: its style goes on the
+deck off the air, the picks wait for it (they're quiet), and the deck is loaded for it even in the
+style on the air (`loaded`: its remix is a new song). The next drop onto that deck (or the fader
+across the middle) puts it on the air (`now`, named on the screens for 90 s, or until the decks
+swap away or the next one plays); the speaker plays its remix from the stand-in's next section. If
+the table hasn't dropped into it 40 s after it went up, the DJ starts the countdown itself (an
+`auto` drop: anyone can still press for a grade), once that deck really plays it (else 5 s later).
+A drop that didn't go into it (its deck was still loading) gives it another 40 s. The end of a set
+puts the one up next back at the front of the line; another set keeps the line. What shows: a song
+picked from the list shows its title and artist to everyone (they're the list's); a name typed in
+only to its player and the host: the others, and the big screen, see that a song was asked for
+(`ReqView.text` null). Nothing a player types reaches the big screen unchecked.
 
 ## Styles and Lyria RealTime
 
@@ -380,7 +419,9 @@ every frame changes only opacity or a transform.
 
 - `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`), the commands above included, the
   beginner deck (pads on a leash, the build-up, the countdown, DROP on the cue, misses and the DJ's
-  own drop, picks, the fader held, new bars), and the private Lyria test's `lab` and `src`.
+  own drop, picks, the fader held, new bars), songs asked for by name (one each, up next on the deck
+  off the air, the drop or the fader plays it, the DJ's own drop into it, taking back, the end of a
+  set, who reads a typed name), and the private Lyria test's `lab` and `src`.
 - `npx tsx tests/dj.test.ts`: the player on a pretend audio thread (prebuffer, fades, stalls,
   resampling, flush, overflow, reports, two decks and the crossfader, the brake), Lyria's PCM
   format, the stand-in's sections and order, every style's sections, the two decks in step;
@@ -397,5 +438,7 @@ every frame changes only opacity or a transform.
   three phones playing at once: pads on the beat to the millisecond, picks loading deck B, the
   fader thrown to B before B has music (deck A plays on, never silence), the fader held, the
   build-up, the countdown (the picks waiting), DROP on the cue, the drop on its bar exactly and
-  perfect.
+  perfect; then a song picked from the suggestions up next and named on the TV, dropped into, its
+  remix played (the stand-in's song changes to its track), and a typed one the TV never names,
+  dropped into by the DJ when nobody does.
   Needs a table that isn't the owner's (`DEV_LYRIA_ANYONE` off), so the stand-in plays both decks.

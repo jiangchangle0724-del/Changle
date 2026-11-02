@@ -201,3 +201,47 @@ first 0.18 s of it, and a later one was told "还没到，看倒数" (not yet) i
 press counted, so the DJ dropped it two countdowns later. Fixed after: a press counts until about
 0.28 s after the cue (`DECK.leadMs` 120 ms, `pressTripMs` 80), the phone says "就是现在" only while a
 press still counts, a later one is late, and its word stays up after the drop.
+
+## Songs, and songs asked for by name (Nov 2)
+
+The stand-in moves to a new song every 8 sections (about two minutes), and a song asked for by
+name goes on the deck off the air in its style for the next drop (CONTRACTS.md, "Songs" and "Songs
+asked for by name").
+
+**`site/scripts/dj_deck_check.py`**, now with the requests at the end: 66 of 66 checks pass with the
+TV in Chromium and in WebKit, no errors on any page (one WebKit run started straight after the
+Chromium one didn't get its music going within the check's 8 seconds; run again, it passed). Ben
+types 晴天, the song list suggests Jay Chou's, he picks it: it's up next with C-pop on the deck off
+the air, the TV says "Up next: Ben asked for 晴天 (周杰伦)", his phone says it's his, the picks wait. Cat
+types a name that isn't on the list: it waits its turn, her phone says one is ahead of hers, and the
+TV never shows what she typed. The table drops into 晴天, the TV says "Now: a remix of 晴天 (周杰伦), for
+Ben", and the stand-in plays its remix (the track for its name) from its next section. Nobody drops
+into Cat's: the DJ starts the countdown itself and drops it.
+
+**The stand-in's memory.** With a new song every two minutes the stand-in records a section every
+half minute or so, all night. A first 12-minute run (the TV in WebKit) climbed from 0.77 to 1.9 GB
+in 6.5 minutes and kept going. Measured one kind of recording at a time (60 in a row, WebKit):
+
+| What each recording had | WebKit's memory after 60 |
+| --- | --- |
+| an offline context with 200 oscillators | flat (0.60 → 0.66 GB) |
+| the same with a reverb (a convolver) | 0.60 → 0.88 GB, and not given back |
+| a delay-line reverb instead (feedback loops) | 0.60 → 1.20 GB |
+| one of the stand-in's sections, as it was | 0.60 → 1.29 GB |
+| the same without its reverb | flat (0.60 → 0.64 GB) |
+
+WebKit keeps every offline context that had a convolver (or a feedback loop) in memory for good,
+about 5 to 12 MB a recording; Chromium grew too and gave some back under pressure. So the sections
+are recorded dry now, and the speaker adds the room itself: one reverb on the mix above 350 Hz,
+for the stand-in only, at 0.12, which is about as loud as the reverb in the recordings was (measured
+on five sections: the recordings' reverb sat 35 to 38 dB under the music). A recording that has
+gone is recorded over by the next (its memory reused). After: a new song every 20 seconds for 5
+minutes, 47 recordings, the TV's memory flat at about 0.83 to 0.86 GB. This may also be what took
+the test's WebKit page away in the earlier 12-minute run (above): every style picked was recorded
+then, too.
+
+**A busy table** (as above: pads, picks, the fader, a drop a minute, and now a song asked for every
+80 seconds), the TV in WebKit, with the fix: 10 minutes, no stalls, the buffer never under 4.96 s,
+111 pads pressed and 107 played (the deck's own limits), 8 drops, all 8 perfect, 9 landed (one the
+DJ's own, into a song asked for), none off the beat, 7 songs asked for and 7 different songs heard;
+WebKit's memory 0.77 to 1.0 GB.

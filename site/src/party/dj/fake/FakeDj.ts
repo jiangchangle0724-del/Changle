@@ -9,23 +9,30 @@
  * blend them at any moment. A deck that changes style changes on the next section (8 bars), once
  * that style's section is recorded; until then it plays on in the style it had.
  *
+ * Tracks (tracks.ts): every TRACK_SECTIONS sections (about two minutes) the night moves on to a new
+ * song, its own chords and its own turn on the melody, both decks together; a song asked for by
+ * name (`playTrack`) comes in at the next section. The first track is the night as written.
+ *
  * Lyria replaces this class (A2): the speaker, the clock and the screen stay the same.
  */
 import { playing } from "../../../shared/dj/curve";
-import type { DjPhase, StyleId } from "../../../shared/dj/types";
+import { SET_PHASES, type DjPhase, type SetPhase, type StyleId } from "../../../shared/dj/types";
 import type { Speaker } from "../speaker/speaker";
-import { nextSection, renderOrder } from "./arrange";
+import { BY_PHASE, nextSection } from "./arrange";
 import { renderSection, type Rendered } from "./render";
 import { BPM, beatFrames, type Section } from "./sections";
-import { ANY_SECTION, sectionOf } from "./styles";
+import { sectionById, sectionOf } from "./styles";
+import { newTrack } from "./tracks";
 
 const RATE = 48000;
 const CHUNK = RATE / 4;
 const AHEAD_S = 5;
 /** a section that takes longer than this to record is given up on for now */
 const RENDER_TIMEOUT_MS = 90_000;
-/** recordings kept (about 7 MB each): both decks' six sections and a couple more */
-const KEEP_MADE = 14;
+/** recordings kept (about 7 MB each): what both decks play this stretch and the next song's start, and a few more */
+const KEEP_MADE = 16;
+/** a song lasts this many sections (8 bars each: about two minutes) */
+export const TRACK_SECTIONS = 8;
 
 type Carry = { l: Float32Array; r: Float32Array; at: number };
 type Slot = { base: string; a: Rendered; b: Rendered | null };
@@ -37,6 +44,12 @@ export class FakeDj {
   private made = new Map<string, Rendered>();
   private making: Promise<void> | null = null;
   private wanted: string[] = [];
+  /** every recording the plan wants, made or not (what to keep) */
+  private need = new Set<string>();
+  /** the song playing (tracks.ts; 0 is the night as written), the one after it, and how many of its sections have started */
+  private track = 0;
+  private nextN = newTrack();
+  private parts = 0;
   private phase: DjPhase = "wait";
   private styleA: StyleId = "house";
   private styleB: StyleId | null = null;
@@ -60,12 +73,23 @@ export class FakeDj {
   private sets = 0;
   private heldUntil = 0;
   /** where each of the last few sections starts in the stream (the speaker's frame count), and the styles its decks play */
-  private marks: { frame: number; id: string; phase: DjPhase; a: StyleId; b: StyleId | null }[] = [];
+  private marks: { frame: number; id: string; phase: DjPhase; a: StyleId; b: StyleId | null; track: number }[] = [];
   /** called once the first section is ready to play */
   onReady: (() => void) | null = null;
 
+  /** sections recorded so far (the checks read it) */
+  renders = 0;
+
+  /** the sound of recordings that have gone, to record the next ones into (see renderSection) */
+  private spare: { l: Float32Array; r: Float32Array }[] = [];
+  /** the slot that just went out (its ring-out may still be playing over the next) */
+  private last: Slot | null = null;
+
   /** `render` records a section (the tests hand in their own) */
-  constructor(private render: (sec: Section, rate: number) => Promise<Rendered> = renderSection) {}
+  constructor(private render: (sec: Section, rate: number, spare?: () => { l: Float32Array; r: Float32Array } | undefined) => Promise<Rendered> = renderSection) {
+    // local runs: the checks look inside (scripts/dj_deck_check.py)
+    if (typeof window !== "undefined" && import.meta.env?.DEV) (window as unknown as { __fakeDj: FakeDj }).__fakeDj = this;
+  }
 
   /** Start recording the sections (no tap needed): the warm-up's first, so it can start soon. */
   prepare(phase: DjPhase = "warm") {
@@ -82,6 +106,14 @@ export class FakeDj {
     if (a === this.styleA && b === this.styleB) return;
     this.styleA = a;
     this.styleB = b;
+    this.wish(playing(this.phase) ? this.phase : "warm");
+  }
+
+  /** A song asked for by name: its track (tracks.ts `trackFor`) comes in at the next section, once recorded. */
+  playTrack(n: number) {
+    if (n === this.track || (n === this.nextN && this.parts >= TRACK_SECTIONS)) return;
+    this.nextN = n;
+    this.parts = TRACK_SECTIONS;
     this.wish(playing(this.phase) ? this.phase : "warm");
   }
 
@@ -133,7 +165,7 @@ export class FakeDj {
    * The section the speakers are sounding right now (null between sets): the screen times its
    * moments to the music, not to the tap that asked for them.
    */
-  heardSection(): { id: string; phase: DjPhase } | null {
+  heardSection(): { id: string; phase: DjPhase; track: number } | null {
     const sp = this.speaker;
     if (!sp || !this.streaming) return null;
     const at = sp.heardFrame();
@@ -175,52 +207,56 @@ export class FakeDj {
   private restart() {
     this.streaming = false;
     this.cur = null;
+    this.last = null;
     this.carryA = null;
     this.carryB = null;
     this.prev = null;
     this.marks = [];
+    // a new stream starts its song from the top
+    this.parts = 0;
   }
 
   /**
-   * What to record, in order: the section that plays next (a new style is heard as soon as it can
-   * be), then for each section of the night (this phase's first, then every other stretch's first,
-   * then the rest), deck A's style, then deck B's.
+   * What to record, in order, deck A's style before deck B's: the section that plays next (a new
+   * style or song is heard as soon as it can be), this stretch's sections in this song, the next
+   * song's when this one is nearly over, and every other stretch's first in this song (so the host
+   * can go anywhere; deck A's only, B catches up).
    */
   private wish(phase: DjPhase) {
-    const bases = renderOrder(phase);
+    const ids: string[] = [];
+    const add = (base: string | null | undefined, track: number, both = true) => {
+      if (!base) return;
+      ids.push(sectionOf(this.styleA, base, track));
+      if (both && this.styleB) ids.push(sectionOf(this.styleB, base, track));
+    };
+    const here = (BY_PHASE[phase as SetPhase] ?? BY_PHASE.warm) as string[];
     // (the one after the section going out now: that one's decks were settled when it began)
     const next = this.streaming && playing(this.phase) ? nextSection(this.phase, this.cur?.base ?? this.prev) : null;
-    if (next) bases.unshift(next);
-    const ids: string[] = [];
-    for (const base of bases) {
-      ids.push(sectionOf(this.styleA, base));
-      if (this.styleB) ids.push(sectionOf(this.styleB, base));
-    }
-    this.wanted = [...new Set(ids)].filter((id) => !this.made.has(id));
+    const turning = this.parts >= TRACK_SECTIONS;
+    add(next, turning ? this.nextN : this.track);
+    for (const base of here) add(base, this.track);
+    if (this.parts >= TRACK_SECTIONS - 2) for (const base of here) add(base, this.nextN);
+    for (const p of SET_PHASES) add(BY_PHASE[p][0], this.track, false);
+    this.need = new Set(ids);
+    this.wanted = [...this.need].filter((id) => !this.made.has(id));
     this.makeNext();
   }
 
   /**
-   * At most KEEP_MADE recordings (about 7 MB each): the ones playing now stay; then the decks'
-   * styles for this stretch of the night, then their other stretches' first sections; the rest go,
-   * oldest first.
+   * At most KEEP_MADE recordings (about 7 MB each): the ones playing now stay, then what the plan
+   * wants (`wish`); the rest go, oldest first.
    */
   private trim() {
     if (this.made.size <= KEEP_MADE) return;
-    const base = (id: string) => id.split(":").pop()!;
-    const mine = (id: string) => [this.styleA, this.styleB].some((st) => st && sectionOf(st, base(id)) === id);
-    const order = renderOrder(playing(this.phase) ? this.phase : "warm");
-    const rank = (id: string) => {
-      if (id === this.cur?.a.id || id === this.cur?.b?.id) return 0;
-      if (!mine(id)) return 4;
-      const i = order.indexOf(base(id));
-      return ANY_SECTION[id]?.phase === this.phase ? 1 : i >= 0 && i < 4 ? 2 : 3;
-    };
+    // (the slot playing and the one whose ring-out may still be over it stay)
+    const rank = (id: string) => (id === this.cur?.a.id || id === this.cur?.b?.id || id === this.last?.a.id || id === this.last?.b?.id ? 0 : this.need.has(id) ? 1 : 4);
     // the least wanted first; Map keys are oldest first, and the sort keeps that within a rank
     const victims = [...this.made.keys()].sort((x, y) => rank(y) - rank(x));
     for (const id of victims) {
       if (this.made.size <= KEEP_MADE || rank(id) === 0) break;
+      const gone = this.made.get(id);
       this.made.delete(id);
+      if (gone && this.spare.length < 4) this.spare.push({ l: gone.l, r: gone.r });
     }
   }
 
@@ -228,14 +264,16 @@ export class FakeDj {
     if (this.making || this.dead) return;
     const id = this.wanted.shift();
     if (!id) return;
-    if (this.made.has(id) || !ANY_SECTION[id]) return this.makeNext();
+    const sec = sectionById(id);
+    if (this.made.has(id) || !sec) return this.makeNext();
     // a recording that never finishes must not hold up the rest (it is asked for again later)
     let timer = 0;
     const tooLong = new Promise<never>((_, no) => {
       timer = window.setTimeout(() => no(new Error("too long")), RENDER_TIMEOUT_MS);
     });
-    this.making = Promise.race([this.render(ANY_SECTION[id], RATE), tooLong])
+    this.making = Promise.race([this.render(sec, RATE, () => this.spare.pop()), tooLong])
       .then((r) => {
+        this.renders += 1;
         this.made.set(id, r);
         this.trim();
         if (this.made.size === 1) this.onReady?.();
@@ -250,10 +288,10 @@ export class FakeDj {
       });
   }
 
-  /** A deck's section for this slot: its style's if recorded, else the style it played last, else nothing. */
-  private pick(base: string, want: StyleId | null, played: StyleId | null): { r: Rendered; style: StyleId } | null {
+  /** A deck's section for this slot in song `track`: its style's if recorded, else the style it played last, else nothing. */
+  private pick(base: string, want: StyleId | null, played: StyleId | null, track: number): { r: Rendered; style: StyleId } | null {
     for (const st of [want, played]) {
-      const r = st ? this.made.get(sectionOf(st, base)) : undefined;
+      const r = st ? this.made.get(sectionOf(st, base, track)) : undefined;
       if (r && st) return { r, style: st };
     }
     return null;
@@ -266,18 +304,31 @@ export class FakeDj {
       if (!this.cur) {
         const base = nextSection(this.phase, this.prev);
         if (!base) return;
-        // deck A must have something: its style, the one it had, or the last section again
+        // the next song once this one has had its sections (or one was asked for), if it's recorded;
+        // until then this one plays on. Deck A must have something: its style, the one it had, or
+        // the last section again
+        let track = this.parts >= TRACK_SECTIONS ? this.nextN : this.track;
         let at = base;
-        let a = this.pick(base, this.styleA, this.playedA);
+        let a = this.pick(base, this.styleA, this.playedA, track);
+        if (!a && track !== this.track) {
+          track = this.track;
+          a = this.pick(base, this.styleA, this.playedA, track);
+        }
         if (!a && this.prev) {
           at = this.prev;
-          a = this.pick(this.prev, this.styleA, this.playedA);
+          a = this.pick(this.prev, this.styleA, this.playedA, track);
         }
         if (!a) return;
-        // deck B plays the same section of the night in its own style, or the one it had; with
-        // neither recorded it has nothing this section, and the player plays deck A alone,
-        // wherever the fader is (never silence)
-        const b = this.styleB ? this.pick(at, this.styleB, this.playedB) : null;
+        // deck B plays the same section of the same song (the same chords) in its own style, or the
+        // one it had; with neither recorded it has nothing this section, and the player plays deck
+        // A alone, wherever the fader is (never silence)
+        const b = this.styleB ? this.pick(at, this.styleB, this.playedB, track) : null;
+        if (track !== this.track) {
+          this.track = track;
+          this.parts = 0;
+          this.nextN = newTrack(track);
+        }
+        this.parts += 1;
         if (!this.streaming) {
           // a new stream: whatever is left of the last one goes, and this one's first downbeat is here
           this.streaming = true;
@@ -290,7 +341,9 @@ export class FakeDj {
         if (b) this.playedB = b.style;
         this.cur = { base: at, a: a.r, b: b?.r ?? null };
         this.off = 0;
-        this.marks = [...this.marks.slice(-5), { frame: sp.sentFrames, id: a.r.id, phase: ANY_SECTION[a.r.id]?.phase ?? this.phase, a: a.style, b: b?.style ?? null }];
+        this.marks = [...this.marks.slice(-5), { frame: sp.sentFrames, id: a.r.id, phase: sectionById(a.r.id)?.phase ?? this.phase, a: a.style, b: b?.style ?? null, track }];
+        // plan the recordings again: the next section, and the next song's when it's near
+        this.wish(this.phase);
       }
       this.push(sp, this.cur);
     }
@@ -311,6 +364,7 @@ export class FakeDj {
       this.carryA = { l: cur.a.l.subarray(cur.a.frames), r: cur.a.r.subarray(cur.a.frames), at: 0 };
       this.carryB = cur.b ? { l: cur.b.l.subarray(cur.b.frames), r: cur.b.r.subarray(cur.b.frames), at: 0 } : null;
       this.prev = cur.base;
+      this.last = cur;
       this.cur = null;
     }
     sp.push(l, r, l2, r2, ownB);

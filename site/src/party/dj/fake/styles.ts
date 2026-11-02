@@ -13,6 +13,7 @@ import type { Inst } from "../../../lib/audio/engine";
 import { chord, line, v, type Style } from "../../../lib/music";
 import type { StyleId } from "../../../shared/dj/types";
 import { BPM, SECTIONS, type Perc, type Section } from "./sections";
+import { asTrack, TRACK_MAX, trackOf } from "./tracks";
 
 type Notes = (number | null)[];
 type Part = { inst: Inst; bars: Notes[]; len?: number; peak: number };
@@ -273,5 +274,32 @@ export function kitSections(k: Kit): Section[] {
 /** Every style's sections, house's first. */
 export const ALL_SECTIONS: Section[] = [...SECTIONS, ...KITS.flatMap(kitSections)];
 export const ANY_SECTION: Record<string, Section> = Object.fromEntries(ALL_SECTIONS.map((s) => [s.id, s]));
-/** A style's take on one of the night's sections (`warm1` … `cool1`, house's ids). */
-export const sectionOf = (style: StyleId, base: string) => (style === "house" ? base : `${style}:${base}`);
+/**
+ * A style's take on one of the night's sections (`warm1` … `cool1`, house's ids), in track `track`
+ * (tracks.ts; 0 is the night as written): `latin:peak1`, or `latin:peak1~1234` in track 1234.
+ */
+export const sectionOf = (style: StyleId, base: string, track = 0) => {
+  const id = style === "house" ? base : `${style}:${base}`;
+  return track ? `${id}~${track}` : id;
+};
+
+const TRACKED = new Map<string, Section>();
+/** A section by its id, in any track (made the first time it's asked for); undefined: no such section. */
+export function sectionById(id: string): Section | undefined {
+  const cut = id.indexOf("~");
+  if (cut < 0) return ANY_SECTION[id];
+  const head = id.slice(0, cut);
+  const n = Number(id.slice(cut + 1));
+  const sec = ANY_SECTION[head];
+  if (!sec || !Number.isInteger(n) || n < 1 || n > TRACK_MAX) return undefined;
+  let made = TRACKED.get(id);
+  if (!made) {
+    const t = trackOf(n);
+    // a track that swaps the peak's two melodies plays each peak section with the other's
+    const twin = t.swap && /peak[12]$/.test(head) ? ANY_SECTION[head.replace(/peak([12])$/, (_, d: string) => `peak${d === "1" ? "2" : "1"}`)] : undefined;
+    made = asTrack(sec, t, id, twin?.style.lead ?? sec.style.lead);
+    TRACKED.set(id, made);
+    if (TRACKED.size > 96) TRACKED.delete(TRACKED.keys().next().value!);
+  }
+  return made;
+}

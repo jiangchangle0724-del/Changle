@@ -1,5 +1,7 @@
 /* Engine flow tests: run with `npx tsx tests/engine.test.ts` */
 import { countdown, cued, loaded, pressBy } from "../src/shared/dj/deck";
+import { trackFor } from "../src/shared/dj/requests";
+import { DECK } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
@@ -1706,6 +1708,150 @@ test("dj: the beginner deck: picks wait for a drop; one screen speaks, said agai
   advance(150);
   const last = deck().last!;
   ok(!deck().drop && last.bar === dr.bar && last.to === "b" && last.style === "latin" && last.hits.length === 2, "and lands on latin");
+});
+
+test("dj: songs asked for by name: one each, up next on the deck off the air, the drop plays its remix, the DJ drops it itself; a typed name shows only to its player", () => {
+  const e = new RoomEngine(freshRoom("DJRQ", clock), host);
+  const events: RoomEvent[] = [];
+  e.screenHello("tv-rq", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+    ["p4", "Dan"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const deck = () => dv("p4").deck;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    const o = e.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-rq", { x, ...rest });
+    events.push(...e.flush().events);
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    events.push(...e.flush().events);
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const sunny = SONG_ROWS.find((r) => r[1] === "晴天" && r[2] === "周杰伦")!;
+  const humble = SONG_ROWS.find((r) => r[1] === "HUMBLE.")!;
+  const beat = 480;
+
+  // before the music: asked for, waiting
+  g("p2", "req", { text: "qing tian", song: sunny[0] });
+  let r = deck().reqs[0];
+  ok(deck().reqs.length === 1 && r.by === "p2" && r.text === "晴天" && r.artist === "周杰伦" && r.song === sunny[0] && r.style === "cpop" && r.track === trackFor("晴天"), "a song picked from the song list: its title and artist (the list's, not what was typed), in its style (Jay Chou: C-pop), its remix's track from its name");
+  ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === "p2") && deck().up === null, "the room hears it; nothing is up before the music");
+  ok(nothing(g("p2", "req", { text: "another" })), "one each");
+  ok(nothing(g("p3", "req", { text: "   " })) && nothing(g("p3", "req", {})), "an empty name isn't a song");
+  g("p3", "req", { text: "  reggaeton para\nmi prima‮ ", song: 12 });
+  r = deck().reqs[1];
+  ok(r.by === "p3" && r.song === undefined && r.style === "latin" && r.text === null, "a name typed in (a number that isn't on the list is ignored): its style from its words; another phone doesn't read it");
+  ok(dv("p3").deck.reqs[1].text === "reggaeton para mi prima" && dv("p1").deck.reqs[1].text === "reggaeton para mi prima", "its player reads it, on one line without the invisible characters, and so does the host");
+  ok((e.view("tv-rq").game as V<"dj">).deck.reqs[1].text === null && (e.view("tv-rq").game as V<"dj">).deck.reqs[0].text === "晴天", "the big screen shows the listed song by name, the typed one as a song asked for");
+  ok(!("reqAt" in deck()), "the room's bookkeeping stays in the room");
+  advance(6000);
+  g("p4", "req", { text: "流".repeat(80) });
+  ok(Array.from(dv("p4").deck.reqs[2].text ?? "").length === 60, "a typed name is cut at 60 characters");
+  g("p4", "unreq", { id: dv("p4").deck.reqs[2].id });
+  ok(deck().reqs.length === 2, "and taken back");
+  ok(nothing(g("p4", "req", { text: "again" })), "a phone asks at most once every 5 seconds");
+
+  // the music starts: the oldest goes on the deck off the air
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(deck().up?.text === "晴天" && deck().b === "cpop" && deck().reqs.length === 1, "the music starts: 晴天 is up next, C-pop on deck B (off the air)");
+  ok(dv("p1").mix.weights.house === 1, "the fader is still on A");
+  const pick = g("p1", "vote", { style: "techno" });
+  ok(nothing(pick) && deck().b === "cpop", "the picks wait for it");
+  ok(loaded(deck()) === "b" && cued(deck()) === null, "loaded on B; cued once the speaker plays it there");
+  advance(1000);
+  sc("decks", { a: "house", b: "cpop" });
+  ok(cued(deck()) === "b", "now it does");
+
+  // the table drops into it
+  for (let i = 0; i < 30 && !deck().drop; i++) {
+    advance(250);
+    g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+  }
+  const dr = deck().drop!;
+  ok(dr.to === "b" && !dr.auto, "the build-up full: the drop goes to B");
+  clock = dr.cue + 20;
+  g("p1", "drop", { c: clock });
+  advance(dr.at - clock + 5);
+  ok(deck().last?.to === "b" && deck().now?.text === "晴天" && deck().now?.by === "p2", "it lands: 晴天's remix is on the air, named for Ben");
+  ok(deck().up?.by === "p3" && deck().a === "latin" && deck().fader === 1, "the next one asked for goes on the deck now off the air (A): latin");
+
+  // nobody drops into it: the DJ does, 40 s on, once A really plays it
+  advance(40_000);
+  ok(!deck().drop, "40 s on, but A isn't playing latin yet: it waits");
+  advance(1000);
+  sc("decks", { a: "latin", b: "cpop" });
+  advance(5000);
+  const auto = deck().drop!;
+  ok(auto && auto.auto && auto.to === "a" && auto.hits.length === 0 && deck().charge === 1, "then the DJ starts the countdown into it itself");
+  clock = auto.cue + 30;
+  g("p4", "drop", { c: clock });
+  ok(deck().drop!.hits[0]?.pid === "p4", "anyone can still press DROP for a grade");
+  advance(auto.at - clock + 5);
+  ok(deck().last?.to === "a" && deck().now?.by === "p3" && deck().up === null && deck().reqs.length === 0, "it lands on A: Cat's song plays, nothing waiting");
+  ok(!nothing(g("p1", "vote", { style: "techno" })) && deck().b === "techno", "with nothing up the picks are back");
+  advance(DECK.reqPlayMs + 10);
+  ok(deck().now === null, "the screens name the remix for a minute and a half");
+
+  // taking back, and the host
+  advance(6000);
+  g("p2", "req", { song: humble[0] });
+  ok(deck().up?.text === "HUMBLE." && deck().up?.style === "hiphop" && deck().b === "hiphop", "Kendrick Lamar: hip-hop, straight up next on B (it replaces the pick)");
+  g("p3", "req", { song: sunny[0] });
+  ok(nothing(g("p3", "unreq", { id: deck().up!.id })), "only its player or the host takes one back");
+  g("p2", "unreq", { id: deck().up!.id });
+  ok(deck().up?.by === "p3" && deck().up?.text === "晴天" && deck().reqs.length === 0, "Ben takes his back: the next one comes up");
+  g("p1", "unreq", { id: deck().up!.id });
+  ok(deck().up === null, "the host can take back anyone's");
+
+  // the fader across the middle plays it too
+  advance(6000);
+  g("p4", "req", { song: sunny[0] });
+  ok(deck().up?.by === "p4" && deck().b === "cpop", "Dan's 晴天 up next on B");
+  advance(1300);
+  g("p2", "fader", { value: 0.8 });
+  ok(deck().now?.by === "p4" && deck().up === null && Object.keys(deck().votes).length === 0, "Ben slides the fader over: it plays now");
+  advance(1300);
+  g("p2", "fader", { value: 0.1 });
+  ok(deck().now === null, "and back: it's off the air");
+
+  // up to 8 waiting; the end of the set keeps them for the next
+  for (const [i, pid] of ["p1", "p2", "p3"].entries()) {
+    advance(6000);
+    g(pid, "req", { text: `song ${i}` });
+  }
+  ok(deck().up?.by === "p1" && deck().reqs.length === 2, "one up next, two waiting");
+  g("p1", "phase", { phase: "end" });
+  ok(deck().up === null && deck().now === null && deck().reqs.length === 3 && deck().reqs[0].by === "p1", "the set ends: the one up next goes back to the front of the line");
+  ok(nothing(g("p4", "req", { text: "late" })), "no asking after the end");
+  g("p1", "again");
+  ok(deck().reqs.length === 3 && deck().up === null, "another set keeps them");
+  sc("live", { source: "fake" });
+  ok(deck().up?.by === "p1" && deck().reqs.length === 2, "and its music starts with the first");
+  const e2 = new RoomEngine(freshRoom("DJRM", clock), host);
+  e2.screenHello("tv-m", true, "dj");
+  for (let i = 1; i <= 10; i++) e2.hello(`q${i}`, `Q${i}`, false);
+  e2.flush();
+  for (let i = 1; i <= 10; i++) {
+    e2.act(`q${i}`, { a: "g", g: { x: "req", text: `song ${i}` } });
+    e2.flush();
+  }
+  ok((e2.view("q1").game as V<"dj">).deck.reqs.length === 8, "8 waiting at most, the whole table");
+  void beat;
 });
 
 test("dj: the private Lyria test: only with one of the owner's accounts at the table, never shown; the speaker says when its music changes hands", () => {

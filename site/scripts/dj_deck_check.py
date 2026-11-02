@@ -4,7 +4,9 @@ rewind); picks load deck B; the fader thrown to B before B has music of its own 
 never silence; whoever moves the fader holds it; everyone taps the build-up full, the 8-second
 countdown runs on the TV and the phones (the picks wait), one phone presses DROP on the cue, one a
 quarter second after it (it counts), one too late (it says so), and the drop lands exactly on its
-bar, swaps to deck B and is perfect.
+bar, swaps to deck B and is perfect. Then songs asked for by name: one picked from the song list goes
+on the deck off the air in its style, named on the TV, and its drop plays its remix; one typed in
+waits its turn, its name only on its own phone, and the DJ drops into it when nobody does.
 
 Needs the two local servers (site/README.md); a table that isn't the owner's (DEV_LYRIA_ANYONE off
 in site/worker/.dev.vars), so the stand-in plays both decks.
@@ -221,6 +223,49 @@ with sync_playwright() as p:
     tv.wait_for_timeout(300)
     tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-3-perfect.png"))
     ok(deck(tv)["perfects"].get(ben.evaluate("() => window.__room.you"), 0) == 1, "and counts Ben's perfect drop")
+    st = tv.evaluate("() => window.__djBooth.stats()")
+    ok(st["state"] == "playing" and st["stalls"] == 0, f"the music never stopped ({st})")
+
+    # a song asked for by name: Ben picks 晴天 from the song list, it goes on the deck off the air
+    # (A) in its style, the TV names it, the table drops into it and the stand-in plays its remix
+    ben.locator(".djk-req-input").fill("晴天")
+    ok(until(lambda: ben.locator(".djk-req-hit").filter(has_text="周杰伦").count() >= 1, 15000, 100), "Ben types 晴天: the song list suggests Jay Chou's")
+    ben.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-phone-3-ask.png"), full_page=True)
+    ben.locator(".djk-req-hit").filter(has_text="周杰伦").first.click()
+    ben.locator(".djk-req-send").click()
+    ok(until(lambda: ((deck(tv).get("up") or {}).get("text") == "晴天" and deck(tv).get("a") == "cpop"), 4000), "晴天 is up next, C-pop on deck A (off the air)")
+    ok(until(lambda: "晴天" in (tv.locator(".dk-req.is-up").inner_text() if tv.locator(".dk-req.is-up").count() else "") and "Ben" in tv.locator(".dk-req.is-up").inner_text(), 3000), f"the TV says who asked for what ({tv.locator('.dk-req.is-up').inner_text() if tv.locator('.dk-req.is-up').count() else ''})")
+    ok(until(lambda: "下一首就是你点的" in (ben.locator(".djk-req-mine").inner_text() if ben.locator(".djk-req-mine").count() else ""), 3000), "Ben's phone says his is up next")
+    ok(amy.locator(".djk-pick:not([disabled])").count() == 0, "the picks wait for it")
+    cat.locator(".djk-req-input").fill("my cousin's song")
+    cat.locator(".djk-req-send").click()
+    ok(until(lambda: len(deck(tv).get("reqs") or []) == 1, 3000), "Cat types a name that isn't on the list: it waits its turn")
+    ok(until(lambda: "前面还有 1 首" in (cat.locator(".djk-req-mine").inner_text() if cat.locator(".djk-req-mine").count() else ""), 3000), "her phone says one is ahead of hers")
+    ok("cousin" not in tv.locator(".dj-stage, body").first.inner_text() and (deck(tv)["reqs"][0].get("text") is None), "the TV never shows what she typed")
+    tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-4-ask.png"))
+    ok(until(lambda: (deck(tv).get("sounding") or {}).get("a") == "cpop", 30000, 250), "the speaker plays C-pop on deck A")
+    end = time.time() + 20
+    while time.time() < end and not deck(tv).get("drop"):
+        for ph in phones:
+            ph.evaluate("() => { const b = document.querySelector('.djk-charge'); if (b) for (let i = 0; i < 3; i++) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }")
+        amy.wait_for_timeout(150)
+    dr = deck(tv).get("drop")
+    ok(bool(dr) and dr["to"] == "a", "the table builds it up: the drop goes to deck A")
+    arm_press(amy, ".djk-drop", dr["cue"] + 15)
+    ok(until(lambda: (deck(tv).get("last") or {}).get("bar") == dr["bar"], wait_ms(dr["at"]) + 4000), "it lands")
+    now_req = deck(tv).get("now") or {}
+    ok(now_req.get("text") == "晴天" and deck(tv)["fader"] == 0, "晴天's remix is on the air")
+    ok(until(lambda: "晴天" in (tv.locator(".dk-req.is-now").inner_text() if tv.locator(".dk-req.is-now").count() else ""), 3000), f"the TV says so ({tv.locator('.dk-req.is-now').inner_text() if tv.locator('.dk-req.is-now').count() else ''})")
+    heard = lambda: (tv.evaluate("() => window.__djBooth.heard()") or {}).get("track")
+    ok(until(lambda: heard() == now_req.get("track"), 40000, 250), f"the stand-in plays its remix, a song of its own, from its next section (track {heard()})")
+    ok(until(lambda: (deck(tv).get("up") or {}).get("by") is not None and deck(tv)["up"].get("text") is None and deck(tv).get("b") == "house", 3000), "Cat's comes up next, on deck B: the TV knows a song was asked for, not its name")
+    tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-5-remix.png"))
+    # nobody drops into Cat's: 40 seconds on, the DJ does
+    up_at = time.time()
+    ok(until(lambda: (deck(tv).get("drop") or {}).get("auto") is True, 75000, 250), f"nobody drops into it: the DJ starts the countdown itself, {round(time.time() - up_at)} s on")
+    dr = deck(tv)["drop"]
+    ok(until(lambda: (deck(tv).get("last") or {}).get("bar") == dr["bar"], wait_ms(dr["at"]) + 4000), "and drops it")
+    ok(deck(tv)["last"]["auto"] and deck(tv)["last"]["to"] == "b" and (deck(tv).get("now") or {}).get("by") == cat.evaluate("() => window.__room.you"), "Cat's song plays now")
     st = tv.evaluate("() => window.__djBooth.stats()")
     ok(st["state"] == "playing" and st["stalls"] == 0, f"the music never stopped ({st})")
 
