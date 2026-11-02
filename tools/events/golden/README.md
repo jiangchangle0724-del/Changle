@@ -10,8 +10,9 @@ read from the event's own page, never from the pipeline. Its columns and how it'
   Every category at least 3 rows, every area at least 4. Four pairs of the same event in two
   sources (G05/G06, G09/G10, G21/G22, G23/G24) and four look-alike pairs that are different events
   (G01/G02, G11/G12, G13/G14, G27/G28). One sold out (G12), one cancelled (G40).
-- **G41 to G60**, Steve: 20 events from the Chinese community, entered on his labelling page;
-  Claude copies them here.
+- The plan had 20 more, G41 to G60, from Steve (Chinese community events). On 1 November he
+  decided the 40 are enough for gate A, so the set is G01 to G40. Rows added later go on from G41,
+  with `by` saying who labelled them.
 
 What labelling turned up, for the sources and the parsers:
 

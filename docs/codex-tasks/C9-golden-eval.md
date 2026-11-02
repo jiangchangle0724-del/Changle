@@ -14,9 +14,10 @@ dev dependency (and its `package-lock.json`).
 
 ## Inputs
 
-- `tools/events/golden/golden.csv`: 40 rows today (`G01` to `G40`; Steve's `G41` to `G60` come
-  later). RFC 4180: a field in double quotes may hold commas and doubled quotes `""`; no line
-  breaks inside a field. Columns as in the contract; `same_as` to `sameAs` in `GoldenRow`.
+- `tools/events/golden/golden.csv`: 40 rows (`G01` to `G40`), the whole set (Steve, 1 November;
+  rows added later go on from `G41`). RFC 4180: a field in double quotes may hold commas and
+  doubled quotes `""`; no line breaks inside a field. Columns as in the contract; `same_as` to
+  `sameAs` in `GoldenRow`.
 - `tools/events/tests/fixtures/eval/stored-handmade.json`: **hand-made** (see its `_note`): the
   shape `wrangler d1 execute --json` prints for the query below, `{ results: StoredEvent[] }`: 23
   stored events for the rows of six sources, with deliberate mistakes, and three that aren't in
@@ -101,9 +102,10 @@ With the fixture and `read = ["ticketmaster", "luma", "vpl", "rpl", "rogersforum
   trailing slash; G10 picks the Commodore event on 12 November, not the one on the 14th; G11 and
   G16 have the right venue.
 
-And with `read = readSources(SOURCES.map((s) => s.id))` (luma, vpl, rpl, ticketmaster today):
-18 rows read, 17 matched; date, venue, category and area 16/17 94.1%; false merges 2/17 11.8%;
-missed merges `null` (no pair has both rows read); `gateA` false.
+And with `read = readSources(SOURCES.map((s) => s.id))` (luma, vpl, rpl, ubc, ticketmaster since
+UBC joined on 1 November): 21 rows read, 17 matched (`notFound` G04, G05, G07, G08: the fixture
+has no UBC events); date, venue, category and area 16/17 94.1%; false merges 2/17 11.8%; missed
+merges `null` (no pair has both rows read); `gateA` false.
 
 Plus small tests of your own for each rule: a date-only row (all-day, TBD, a timed event that
 day), a venue with no golden address, a `duplicate_of` loop. `npm run eval -- <a dump made from the

@@ -18,8 +18,11 @@ have the store call `resolveArea` (that's the only line you may change in `src/s
 ## In this order
 
 1. No place: `{ area: null, check: false, outside: false }`.
-2. Coordinates: the polygon it's in (even-odd rule over each ring). In none: outside the box
-   49.0 to 49.45 N, 123.3 to 122.2 W is `outside`; inside it, fall through to 3.
+2. Coordinates: the polygon it's in (even-odd rule over each ring). In none: inside the box
+   49.0 to 49.45 N, 123.3 to 122.2 W, fall through to 3; outside it, only a postal code from the
+   table in 3 can still place it (the Fraser Valley reaches past the box, and coordinates can be
+   wrong), otherwise it's `outside`. (Changed in review of #98: the box used to win over the
+   postal code.) A postal code is read with its spaces and hyphens removed.
 3. A Canadian postal code: its first three characters in this table (anything else falls through):
    - vancouver: V5K V5L V5M V5N V5P V5R V5S V5T V5V V5W V5X V5Y V5Z V6A V6B V6C V6E V6G V6H V6J
      V6K V6L V6M V6N V6P V6R V6S V6T V6Z V7X V7Y
@@ -32,7 +35,8 @@ have the store call `resolveArea` (that's the only line you may change in `src/s
    - langley (and the Fraser Valley): V1M V2Y V2Z V3A V4W V2W V2X V4R V3Y V2S V2T V3G V4X V2V
      V4S V2P V2R V4Z
 4. The city name (the table now in `src/area.ts`).
-5. A US state or ZIP code (`WA`, five digits): `outside`.
+5. A US state or ZIP code (`WA` or `Washington` after a comma, so not a street called Washington;
+   five digits): `outside`.
 6. Nothing told: `{ area: "vancouver", check: true, outside: false }` (shown in Vancouver, flagged).
 
 ## Done when
