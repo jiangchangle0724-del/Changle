@@ -209,13 +209,14 @@ name goes on the deck off the air in its style for the next drop (CONTRACTS.md, 
 asked for by name").
 
 **`site/scripts/dj_deck_check.py`**, now with the requests at the end: 66 of 66 checks pass with the
-TV in Chromium and in WebKit, no errors on any page. Ben types 晴天, the song list suggests Jay
-Chou's, he picks it: it's up next with C-pop on the deck off the air, the TV says "Up next: Ben
-asked for 晴天 (周杰伦)", his phone says it's his, the picks wait. Cat types a name that isn't on the
-list: it waits its turn, her phone says one is ahead of hers, and the TV never shows what she typed.
-The table drops into 晴天, the TV says "Now: a remix of 晴天 (周杰伦), for Ben", and the stand-in plays its
-remix (the track for its name) from its next section. Nobody drops into Cat's: the DJ starts the
-countdown itself and drops it.
+TV in Chromium and in WebKit, no errors on any page (one WebKit run started straight after the
+Chromium one didn't get its music going within the check's 8 seconds; run again, it passed). Ben
+types 晴天, the song list suggests Jay Chou's, he picks it: it's up next with C-pop on the deck off
+the air, the TV says "Up next: Ben asked for 晴天 (周杰伦)", his phone says it's his, the picks wait. Cat
+types a name that isn't on the list: it waits its turn, her phone says one is ahead of hers, and the
+TV never shows what she typed. The table drops into 晴天, the TV says "Now: a remix of 晴天 (周杰伦), for
+Ben", and the stand-in plays its remix (the track for its name) from its next section. Nobody drops
+into Cat's: the DJ starts the countdown itself and drops it.
 
 **The stand-in's memory.** With a new song every two minutes the stand-in records a section every
 half minute or so, all night. A first 12-minute run (the TV in WebKit) climbed from 0.77 to 1.9 GB
