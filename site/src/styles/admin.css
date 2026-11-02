@@ -60,7 +60,7 @@
 .adm-switch-text span {
   color: var(--haze);
   font-size: 13.5px;
-  line-height: 1.4;
+  line-height: var(--leading);
 }
 .adm-switch .btn {
   flex: none;
@@ -93,7 +93,7 @@
   border-bottom: 1px solid var(--line-soft);
 }
 .adm-row.is-away .adm-name {
-  color: var(--fog);
+  color: var(--color-text-2);
 }
 .adm-who {
   flex: 1;
@@ -115,7 +115,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 8px;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -140,7 +140,7 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  color: var(--fog);
+  color: var(--color-text-2);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
@@ -224,7 +224,7 @@
 }
 .adm-scene p {
   margin: 0;
-  line-height: 1.5;
+  line-height: var(--leading);
 }
 .adm-scene-tags {
   display: flex;

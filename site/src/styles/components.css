@@ -508,6 +508,45 @@
   color: var(--stop);
 }
 
+/* ---------- a dare's countdown (DareTimer) ---------- */
+.dare-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line-soft);
+}
+.dare-timer-side {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.dare-timer-status {
+  margin: 0;
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+}
+.dare-timer.is-paused .dare-timer-status {
+  color: var(--color-text-2);
+}
+.dare-timer.is-done .dare-timer-status {
+  color: var(--color-warning);
+}
+.dare-timer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* inside a card that is already a surface (the wheel's prompt): sits a step lower */
+.porcelain .dare-timer {
+  margin-top: var(--space-3);
+  background: var(--color-sheet);
+}
+
 /* ---------- dice ---------- */
 .dice-stage {
   display: flex;

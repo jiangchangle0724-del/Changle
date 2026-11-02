@@ -8,7 +8,8 @@
  *
  * A share picture is used when there is one: public/og/<slug>.png, else public/og/default.png.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GAMES } from "../src/games/registry";
@@ -75,3 +76,20 @@ for (const g of GAMES.filter((g) => !g.hidden)) {
 }
 write("tools.html", page({ title: `工具 Tools · ${NAME}`, description: "随便吃什么、汇率、单价、世界时钟。What to eat, currency, unit price, world clock.", path: "/tools", image: picture("default") }));
 console.log(`postbuild: ${n} game pages and the tools page in dist/`);
+
+const paths = ["/", "/tools", ...GAMES.filter((g) => g.ready && !g.hidden).map((g) => `/g/${g.slug}`), "/eat", "/trip", "/go"];
+write("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((path) => `  <url><loc>${SITE}${esc(path)}</loc></url>`).join("\n")}\n</urlset>\n`);
+
+// Include content revisions as well as names: changing only the HTML must also update the worker.
+const files = (dir: string): string[] => readdirSync(join(dist, dir), { withFileTypes: true }).flatMap((entry) => {
+  const path = dir ? `${dir}/${entry.name}` : entry.name;
+  return entry.isDirectory() ? files(path) : path === "sw.js" ? [] : [path];
+});
+const revisions = files("").sort().map((path) => [path, createHash("sha256").update(readFileSync(join(dist, path))).digest("hex")]);
+const version = createHash("sha256").update(JSON.stringify(revisions)).update(readFileSync(join(root, "scripts/sw.template.js"))).digest("hex").slice(0, 20);
+const shell = ["/index.html", ...Array.from(html.matchAll(/<(?:script|link)\b[^>]*(?:src|href)="(\/assets\/[^\"]+\.(?:js|css))"/g), (match) => match[1])];
+const worker = readFileSync(join(root, "scripts/sw.template.js"), "utf8")
+  .replace("__VERSION__", JSON.stringify(version))
+  .replace("__SHELL__", JSON.stringify([...new Set(shell)]));
+write("sw.js", worker);
+console.log(`postbuild: sitemap (${paths.length} URLs), service worker ${version} (${shell.length} shell files)`);

@@ -698,6 +698,7 @@ p {
   overscroll-behavior: contain;
   padding: 4px 2px 6px;
   margin: 0 -2px;
+  line-height: var(--leading);
 }
 
 .rules-text {
@@ -743,57 +744,12 @@ p {
   }
 }
 
-/* Language-aware reading text in styles outside C4's file scope. */
-.tool .tool-blurb,
-.sheet-body,
-:root .adm-switch-text span,
-:root .adm-scene p,
-:root .djp-host-note,
-:root .dj-start-text,
-:root .djt-intro p,
-:root .dm-setup,
-:root .dm-roster-main > span,
-:root .dm-card-brief,
-:root .dm-card-secret p:not(.dm-card-label),
-:root .dm-card-task p:not(.dm-card-label),
-:root .dm-twist p,
-:root .dm-truth-secret,
-:root .dm-truth-task,
-:root .dw-share,
-:root .dw-note,
-:root .pl-tally-text,
-:root .tv-code-help,
-:root .tv-front-note {
-  line-height: var(--leading);
-}
-
-/* These controls live in tools.css, outside C4's editable stylesheet list. */
-.tool .tool-meta,
-.tool .clock-time,
-.tool .fx-input,
-.tool select {
-  min-height: var(--tap);
-  min-width: var(--tap);
-}
-
+/* Information text on a panel, sheet or quiet button reads in haze, not fog (docs/DESIGN.md, contrast). */
 .panel .muted,
 .porcelain .muted,
 .sheet .muted,
 .btn-quiet .muted,
-.btn-porcelain .muted,
-.tool .fx-rate,
-.tool .clock-diff,
-.tool .price-alt,
-:root .adm-row.is-away .adm-name,
-:root .adm-sub,
-:root .adm-device,
-:root .djp-rank,
-:root .djp-host-note,
-:root .dj-curve-name,
-:root .djt-stats dt,
-:root .dm-roster-state,
-:root .dw-status.is-no,
-:root .tv-game-note {
+.btn-porcelain .muted {
   color: var(--color-text-2);
 }
 

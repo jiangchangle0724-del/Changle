@@ -1,7 +1,7 @@
 import { ChevronsUp, Disc3 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
-import { chargeNow, countdown, cued, grade, hintFor, loaded, offAir, onAir, tally } from "../../../shared/dj/deck";
+import { chargeNow, countdown, cued, grade, hintFor, loaded, offAir, onAir, pressBy, tally } from "../../../shared/dj/deck";
 import { DECK, PAD_IDS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
@@ -13,8 +13,6 @@ import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
 
 const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
-/** how long a DROP press takes to reach the room, about (it has to get there DECK.leadMs before the bar) */
-const PRESS_TRIP_MS = 100;
 
 /**
  * 打碟 · DJ Booth: the beginner deck on a phone. Everyone at the table has one and plays at once;
@@ -226,9 +224,10 @@ function BuildDrop({ v, now, g, zh, live }: { v: DjView; now: () => number; g: G
       if (pressed.current === key) return;
       const tNow = now();
       // judged here as the room will, with room for the trip there: a press shown as counting does
-      const gr = grade(d.drop!, d.grid, tNow, tNow + PRESS_TRIP_MS);
+      const gr = grade(d.drop!, d.grid, tNow, tNow + DECK.pressTripMs);
       if (!gr) {
-        const early = tNow < d.drop!.at;
+        // (before the countdown: not yet; after the cue: too late for this one)
+        const early = tNow < d.drop!.cue;
         setResult((r) => ({ text: L(early ? DROP_WORDS.early : DROP_WORDS.late, zh), good: false, n: (r?.n ?? 0) + 1 }));
         return;
       }
@@ -237,12 +236,14 @@ function BuildDrop({ v, now, g, zh, live }: { v: DjView; now: () => number; g: G
       haptic(gr === "perfect" ? [20, 40, 60] : 25);
       setResult((r) => ({ text: L(DROP_WORDS[gr], zh), good: true, n: (r?.n ?? 0) + 1 }));
     };
+    // "now" only while a press still counts (it has to reach the room before the bar)
+    const open = c === "drop" && t <= pressBy(d.drop);
     return (
       <div className="djk-build is-armed">
-        <button type="button" className={`djk-drop ${c === "drop" ? "is-now" : ""}`} onPointerDown={press} disabled={!live} aria-label="DROP">
+        <button type="button" className={`djk-drop ${open ? "is-now" : ""}`} onPointerDown={press} disabled={!live} aria-label="DROP">
           <span className="djk-drop-word">DROP</span>
           <span className="djk-drop-count tabular" aria-live="assertive">
-            {c === null ? (zh ? "等倒数" : "Wait for the count") : c === "drop" ? (zh ? "就是现在" : "Now") : c}
+            {c === null ? (zh ? "等倒数" : "Wait for the count") : c === "drop" ? (open ? (zh ? "就是现在" : "Now") : "") : c}
           </span>
         </button>
         {result && (
@@ -270,7 +271,14 @@ function BuildDrop({ v, now, g, zh, live }: { v: DjView; now: () => number; g: G
         <span className="djk-charge-word">{zh ? "蓄力" : "Build up"}</span>
         <span className="djk-charge-pct tabular">{Math.round(level * 100)}%</span>
       </button>
-      <span className="djk-build-note">{zh ? "大家一起狂点，满了倒数 Drop" : "Everyone tap fast. Full starts the count to the drop"}</span>
+      {/* a press just before the drop landed: its word stays up a moment, not gone with the countdown */}
+      {result ? (
+        <span key={result.n} className={`djk-result ${result.good ? "is-good" : ""}`}>
+          {result.text}
+        </span>
+      ) : (
+        <span className="djk-build-note">{zh ? "大家一起狂点，满了倒数 Drop" : "Everyone tap fast. Full starts the count to the drop"}</span>
+      )}
     </div>
   );
 }

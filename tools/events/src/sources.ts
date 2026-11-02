@@ -1,6 +1,7 @@
 // Where the events come from, and how each is fetched and read, part by part (a page of a listing).
 // Adding a source: an entry here, a parser in src/parsers/, a saved response in tests/fixtures/.
 import { parseBiblioCommons, lastStartMs, type BcPage } from "./parsers/bibliocommons";
+import { parseBpl, type BplFeed } from "./parsers/bpl";
 import { parseIcal } from "./parsers/ical";
 import { parseTicketmaster, type TmPage } from "./parsers/ticketmaster";
 import { fromVan, vanIso } from "./time";
@@ -77,6 +78,23 @@ export const SOURCES: SourceDef[] = [
   },
   library("vpl", "Vancouver Public Library", "vpl"),
   library("rpl", "Richmond Public Library", "yourlibrary"),
+  {
+    // Burnaby's library has its own feed (on BiblioCommons, "bpl" is Boston's): the season's
+    // programs in one answer, 220 KB on 1 November, read in about 2 ms (task C12)
+    id: "bpl",
+    name: "Burnaby Public Library",
+    kind: "json",
+    tier: 1,
+    lang: "en",
+    url: "https://bpl.bc.ca/events.json",
+    maxParts: 1,
+    request() {
+      return this.url;
+    },
+    parse(raw) {
+      return { events: parseBpl(JSON.parse(raw) as BplFeed, this.id), more: false };
+    },
+  },
   {
     id: "ubc",
     name: "UBC",

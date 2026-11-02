@@ -2,6 +2,8 @@ import { Crown } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { PorcelainDefs } from "../../components/Dish";
+import { DareTimer } from "../../components/DareTimer";
+import { durationOf } from "../../lib/duration";
 import { UI } from "../../i18n";
 import { haptic, sfx } from "../../lib/sfx";
 import type { KingView } from "../../shared/protocol";
@@ -210,6 +212,7 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
               <p className="prompt-text">{tr(v.cmd.text)}</p>
               <p className="hint-ink prompt-other">{lang === "zh" ? v.cmd.text.en : v.cmd.text.zh}</p>
             </div>
+            {durationOf(v.cmd.text) !== null && <DareTimer seconds={durationOf(v.cmd.text)!} lang={lang} resetKey={v.round} />}
             <div className="called-row">
               {v.cmd.nums.map((n) => {
                 const who = v.stepped[String(n)];

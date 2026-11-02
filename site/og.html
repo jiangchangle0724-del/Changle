@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>分享图 · Share cards</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-text); }
+      /* Export geometry is fixed by Open Graph; all design values come from tokens.css. */
+      .card { width: 1200px; height: 630px; position: relative; overflow: hidden; display: grid; place-items: center; background: var(--color-bg); }
+      .card::before, .card::after { content: ""; position: absolute; width: 24%; height: 80%; border: var(--space-1) solid var(--card-color); border-radius: var(--r-pill); opacity: .25; transform: rotate(25deg); }
+      .card::before { left: -12%; } .card::after { right: -12%; }
+      .safe { width: 570px; height: 570px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-6); text-align: center; }
+      .icon { color: var(--card-color); width: 120px; height: 120px; display: grid; place-items: center; }
+      .icon svg { width: 100%; height: 100%; stroke-width: 1.5; }
+      h1 { font: 800 var(--text-4xl)/var(--leading-tight) var(--font-display); margin: 0; text-wrap: balance; }
+      .english { font: 600 var(--text-2xl)/var(--leading-tight) var(--font-display); color: var(--color-text-2); margin: 0; text-wrap: balance; }
+      .wordmark { font: 700 var(--text-2xl)/var(--leading-tight) var(--font-display); color: var(--card-color); margin-top: var(--space-4); }
+      .address { font-size: var(--text-lg); color: var(--color-text-2); }
+    </style>
+  </head>
+  <body>
+    <main id="cards"></main>
+    <script type="module">
+      import '@fontsource-variable/unbounded/wght.css';
+      import '@fontsource-variable/figtree/wght.css';
+      import './src/styles/tokens.css';
+      import React from 'react';
+      import { renderToStaticMarkup } from 'react-dom/server';
+      import { Disc3 } from 'lucide-react';
+      import { GAMES } from './src/games/registry';
+
+      // Presentation-only grouping until A4 supplies the registry's Steve-approved categories.
+      // Prefer that field automatically when it arrives; this does not alter game metadata.
+      const body = new Set(['limbo', 'freeze']);
+      const drink = new Set(['truth', 'rogue', 'king', 'prompts', 'dice', 'wheel']);
+      const category = g => g.category ?? (body.has(g.id) ? 'body' : drink.has(g.id) ? 'drink' : g.id === 'punchline' ? 'online' : 'brain');
+      const cards = [{ slug: 'default', name: { zh: '开席', en: 'Lazy Susan' }, icon: Disc3, category: 'brain' }, ...GAMES.filter(g => g.ready && !g.hidden)];
+      for (const g of cards) {
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.dataset.slug = g.slug;
+        card.style.setProperty('--card-color', `var(--type-${category(g)})`);
+        const safe = document.createElement('div');
+        safe.className = 'safe';
+        const icon = document.createElement('div');
+        icon.className = 'icon';
+        icon.innerHTML = renderToStaticMarkup(React.createElement(g.icon));
+        safe.append(icon);
+        for (const [tag, cls, lang, content] of [
+          ['h1', '', 'zh-CN', g.name.zh], ['p', 'english', 'en', g.name.en],
+          ['div', 'wordmark', 'en', 'changle'], ['div', 'address', 'en', 'changle.ca'],
+        ]) {
+          const el = document.createElement(tag);
+          el.className = cls; el.lang = lang; el.textContent = content; safe.append(el);
+        }
+        card.append(safe);
+        document.querySelector('#cards').append(card);
+      }
+      await document.fonts.ready;
+      document.documentElement.dataset.ready = 'true';
+    </script>
+  </body>
+</html>

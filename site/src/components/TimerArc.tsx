@@ -15,6 +15,7 @@ export function TimerArc({
   endsAt,
   offset = 0,
   ticking = true,
+  clock = false,
 }: {
   seconds: number;
   running: boolean;
@@ -26,6 +27,8 @@ export function TimerArc({
   offset?: number;
   /** Knock the last ten seconds. */
   ticking?: boolean;
+  /** A minute or more reads as a clock (1:00, 0:45) instead of seconds. */
+  clock?: boolean;
 }) {
   const [left, setLeft] = useState(seconds);
   const endRef = useRef(onEnd);
@@ -66,6 +69,8 @@ export function TimerArc({
   const c = 2 * Math.PI * r;
   const frac = seconds > 0 ? left / seconds : 0;
   const urgent = left <= 10 && running;
+  const whole = Math.ceil(left);
+  const shown = clock && seconds >= 60 ? `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}` : whole;
 
   return (
     <div className={`timer-arc ${size < 100 ? "timer-small" : ""}`} style={{ width: size, height: size }}>
@@ -85,7 +90,7 @@ export function TimerArc({
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
-      <div className={`timer-text tabular ${urgent ? "timer-urgent" : ""}`}>{Math.ceil(left)}</div>
+      <div className={`timer-text tabular ${urgent ? "timer-urgent" : ""}`}>{shown}</div>
     </div>
   );
 }

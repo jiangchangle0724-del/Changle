@@ -320,7 +320,7 @@ html.tv-mode .room-light {
   color: var(--haze);
   font-size: 24px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: var(--leading);
 }
 .tv-host-note {
   margin-top: 34px;
@@ -467,7 +467,7 @@ html.tv-mode .room-light {
   color: var(--haze);
   font-size: 19px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: var(--leading);
 }
 .tv-front .tv-join,
 .tv-front .tv-link {
@@ -814,7 +814,7 @@ html.tv-mode .room-light {
 }
 .tv-game-note {
   margin: 0;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 16px;
 }
 /* Name That Tune on the big screen: a bigger stage, the titles side by side */

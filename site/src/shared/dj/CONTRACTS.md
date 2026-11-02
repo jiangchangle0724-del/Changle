@@ -209,10 +209,12 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 **The drop.** When the build-up fills, the room aims the drop (`aim`): the first bar that's a
 multiple of 4 at least 4 beats away on the speaker's bars, the **cue** one beat before it. The
 screens count 3, 2, 1 and DROP over that last bar (`countdown`); DROP is on the cue beat. A press
-counts from the start of the countdown until 200 ms before the bar (so the room's word reaches the
-speaker in time; a word that reaches it a moment late lands at once, not a beat later; a phone
-judges its own press with a little more room, so a press it shows as counting does): within a
-quarter beat of the cue it's
+counts from the start of the countdown until it reaches the room 120 ms before the bar (so the
+room's word reaches the speaker in time; a word that reaches it a moment late lands at once, not a
+beat later). A phone judges its own press as the room will, counting 80 ms to get there
+(`pressBy`): a press counts until about 280 ms after the cue (people press a moment after they see
+DROP), the phone says "now" only while a press still counts, and a press after that is late, not
+early. Within a quarter beat of the cue it's
 **perfect**, else good (`grade`). At the bar (a room timer) it lands (`last`, the night's
 `perfects`): the fader jumps to the deck the drop was for, the build-up and the picks start over.
 It swaps to the deck off the air when the floor has **cued** its pick there (`cued`: loaded there,

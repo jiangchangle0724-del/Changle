@@ -283,10 +283,12 @@ export const DECK = {
   minBeats: 4,
   /** countdowns nobody pressed before the DJ drops it by itself */
   maxMisses: 2,
-  /** a DROP press has to reach the room this long before the bar, so the speaker can land it (a
-   *  press at the end of the perfect window, a quarter beat after the cue, still makes it; a word
-   *  that reaches the speaker a moment late lands at once, not a beat later) */
-  leadMs: 200,
+  /** a DROP press has to reach the room this long before the bar, so the speaker can land it; a
+   *  phone counts `pressTripMs` for getting there. So a press counts until a little over a quarter
+   *  second after the cue (people press a moment after they see DROP), and a word that reaches the
+   *  speaker a moment late lands at once, not a beat later */
+  leadMs: 120,
+  pressTripMs: 80,
   /** within this much of a beat of the cue: perfect */
   perfect: 0.25,
   /** pads kept */

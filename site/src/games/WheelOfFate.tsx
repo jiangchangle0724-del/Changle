@@ -10,6 +10,8 @@ import { DEFAULT_SLICES, sliceLabel, type Slice } from "../data/wheel";
 import { DARES, TRUTHS, type Prompt } from "../data/truthDare";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { Sheet } from "../components/Sheet";
+import { DareTimer } from "../components/DareTimer";
+import { durationOf } from "../lib/duration";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { PorcelainDefs } from "../components/Dish";
 import { polar } from "../lib/geom";
@@ -39,6 +41,8 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
   const [result, setResult] = useState<Slice | null>(null);
   const [picking, setPicking] = useState(false);
   const [prompt, setPrompt] = useState<Prompt | null>(null);
+  /** each card drawn gets a fresh countdown */
+  const [drawn, setDrawn] = useState(0);
   const truths = useRef(new Deck(TRUTHS.filter((p) => p.heat === 1)));
   const dares = useRef(new Deck(DARES.filter((p) => p.heat === 1)));
   const turn = useTurnOrder();
@@ -126,9 +130,11 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
         return;
       case "truth":
         setPrompt(truths.current.draw().card);
+        setDrawn((n) => n + 1);
         return;
       case "dare":
         setPrompt(dares.current.draw().card);
+        setDrawn((n) => n + 1);
         return;
       case "again":
         setResult(null);
@@ -204,6 +210,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
             <p className="hint-ink">{label(result)}</p>
             <p className="prompt-text">{tr(prompt)}</p>
             <p className="hint-ink prompt-other">{lang === "zh" ? prompt.en : prompt.zh}</p>
+            {durationOf(prompt) !== null && <DareTimer seconds={durationOf(prompt)!} lang={lang} resetKey={drawn} />}
             <div className="row" style={{ gap: 10, marginTop: 12 }}>
               <button
                 type="button"

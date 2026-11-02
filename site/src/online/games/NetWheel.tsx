@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PorcelainDefs } from "../../components/Dish";
 import { Sheet } from "../../components/Sheet";
+import { DareTimer } from "../../components/DareTimer";
+import { durationOf } from "../../lib/duration";
 import { sliceLabel } from "../../data/wheel";
 import { polar } from "../../lib/geom";
 import { UI } from "../../i18n";
@@ -120,6 +122,7 @@ export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) 
             <p className="hint-ink">{result ? label(result) : ""}</p>
             <p className="prompt-text">{tr(v.prompt)}</p>
             <p className="hint-ink prompt-other">{lang === "zh" ? v.prompt.en : v.prompt.zh}</p>
+            {durationOf(v.prompt) !== null && <DareTimer seconds={durationOf(v.prompt)!} lang={lang} resetKey={v.prompt.zh} />}
             {canAct ? (
               <div className="row" style={{ gap: 10, marginTop: 12 }}>
                 {mine && (

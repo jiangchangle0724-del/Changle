@@ -58,6 +58,8 @@
   font-size: 12.5px;
   font-weight: 600;
   text-align: right;
+  min-height: var(--tap);
+  min-width: var(--tap);
 }
 .tool-meta:hover {
   background: var(--line-soft);
@@ -88,7 +90,7 @@
 .tool-blurb {
   font-size: 17px;
   font-weight: 600;
-  line-height: 1.45;
+  line-height: var(--leading);
   letter-spacing: -0.005em;
   text-wrap: balance;
 }
@@ -138,7 +140,7 @@
 .fx-input {
   grid-area: input;
   width: 100%;
-  min-width: 0;
+  min-width: var(--tap);
   border: 0;
   outline: none;
   background: transparent;
@@ -147,11 +149,12 @@
   font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.025em;
+  min-height: var(--tap);
 }
 .fx-rate {
   grid-area: rate;
   text-align: right;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -220,7 +223,7 @@
   color: var(--light);
 }
 .clock-diff {
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 13px;
   font-weight: 700;
 }
@@ -237,6 +240,7 @@
   letter-spacing: -0.035em;
   line-height: 1.15;
   transition: background-color 0.2s;
+  min-height: var(--tap);
 }
 .clock-time:hover {
   background: var(--line-soft);
@@ -342,7 +346,8 @@
   background: var(--dusk-3);
   color: var(--moon);
   font-weight: 700;
-  font-size: 14px;
+  /* 16px or more: iPhone zooms into a smaller field when it's tapped, now that pages can zoom */
+  font-size: var(--text-md);
 }
 .price-amount {
   flex: 1;
@@ -398,7 +403,7 @@
   letter-spacing: -0.025em;
 }
 .price-alt {
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 13px;
   font-weight: 600;
 }
@@ -411,4 +416,10 @@
   color: var(--haze);
   font-size: 13.5px;
   font-weight: 600;
+}
+
+/* every drop-down in a tool is big enough to tap */
+.tool select {
+  min-height: var(--tap);
+  min-width: var(--tap);
 }

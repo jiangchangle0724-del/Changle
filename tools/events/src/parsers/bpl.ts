@@ -23,11 +23,15 @@ export interface BplFeed {
   }[];
 }
 
+// With coordinates, so the boundaries decide the area: the temporary Cameron branch, in Lougheed
+// Town Centre on the Burnaby side of North Road, has a V3J postal code, which is Coquitlam's (the
+// table in src/area.ts would put it in the Tri-Cities). The three others are Wikipedia's
+// ("Burnaby Public Library"); Cameron's is the mall's (geocoder.ca).
 const BRANCHES = new Map<string, Place>([
-  ["bob-prittie-metrotown", { name: "Bob Prittie Metrotown", address: "6100 Willingdon Avenue", city: "Burnaby", postalCode: "V5H 4N5", lat: null, lon: null }],
-  ["tommy-douglas", { name: "Tommy Douglas", address: "7311 Kingsway", city: "Burnaby", postalCode: "V5E 1G8", lat: null, lon: null }],
-  ["mcgill", { name: "McGill", address: "4595 Albert Street", city: "Burnaby", postalCode: "V5C 2G6", lat: null, lon: null }],
-  ["cameron", { name: "Temporary Cameron", address: "110 - 9855 Austin Avenue", city: "Burnaby", postalCode: "V3J 1N4", lat: null, lon: null }],
+  ["bob-prittie-metrotown", { name: "Bob Prittie Metrotown", address: "6100 Willingdon Avenue", city: "Burnaby", postalCode: "V5H 4N5", lat: 49.2281, lon: -123.0064 }],
+  ["tommy-douglas", { name: "Tommy Douglas", address: "7311 Kingsway", city: "Burnaby", postalCode: "V5E 1G8", lat: 49.219, lon: -122.9523 }],
+  ["mcgill", { name: "McGill", address: "4595 Albert Street", city: "Burnaby", postalCode: "V5C 2G6", lat: 49.2826, lon: -123.0005 }],
+  ["cameron", { name: "Temporary Cameron", address: "110 - 9855 Austin Avenue", city: "Burnaby", postalCode: "V3J 1N4", lat: 49.2503, lon: -122.8962 }],
 ]);
 
 export function parseBpl(feed: BplFeed, source: string): NormalizedEvent[] {

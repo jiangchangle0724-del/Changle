@@ -8,6 +8,8 @@ import { useTurntable } from "../lib/useTurntable";
 import { DARES, promptText, TRUTHS, type Heat, type Prompt } from "../data/truthDare";
 import { GameShell, usePenalty } from "./GameShell";
 import { Cloche } from "../components/Cloche";
+import { DareTimer } from "../components/DareTimer";
+import { durationOf } from "../lib/duration";
 import { PorcelainDefs } from "../components/Dish";
 import { polar } from "../lib/geom";
 import { UI } from "../i18n";
@@ -22,6 +24,8 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [lidOpen, setLidOpen] = useState(false);
   const [chosen, setChosen] = useState<number | null>(null);
+  /** each card drawn gets a fresh countdown */
+  const [drawn, setDrawn] = useState(0);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
 
@@ -64,6 +68,7 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
     const deck = k === "truth" ? truthDeck.current : dareDeck.current;
     setKind(k);
     setPrompt(deck.draw().card);
+    setDrawn((n) => n + 1);
     setLidOpen(false);
     setPhase("card");
   };
@@ -75,6 +80,8 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
   };
 
   const who = chosen !== null ? players[chosen] : null;
+  // a dare that names a time ("对视 20 秒") gets a countdown once the lid is off
+  const seconds = prompt ? durationOf(promptText(prompt, custom)) : null;
 
   const rules = (
     <p>
@@ -189,8 +196,13 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
               </div>
             </Cloche>
             <AnimatePresence>
+              {lidOpen && seconds !== null && (
+                <motion.div key="timer" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                  <DareTimer seconds={seconds} lang={lang} resetKey={drawn} />
+                </motion.div>
+              )}
               {lidOpen && (
-                <motion.div className="row" style={{ gap: 10 }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                <motion.div key="actions" className="row" style={{ gap: 10 }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
                   <button type="button" className="btn btn-penalty btn-block" onClick={() => penalty.show({ who: [who.name], kind: "sip" }, nextRound)}>
                     {ui("pass")}
                   </button>
