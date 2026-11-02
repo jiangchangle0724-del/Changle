@@ -85,7 +85,7 @@
   gap: 12px;
   align-items: start;
   font-size: 15px;
-  line-height: 1.5;
+  line-height: var(--leading);
 }
 .rule-rank {
   display: inline-flex;
@@ -136,7 +136,7 @@
 }
 .rule-body {
   font-size: 16px;
-  line-height: 1.6;
+  line-height: var(--leading);
 }
 .held {
   display: flex;
@@ -146,7 +146,7 @@
 }
 .held .chip {
   font-size: 13px;
-  min-height: 32px;
+  min-height: var(--tap);
 }
 .held-rank {
   display: inline-flex;
@@ -178,7 +178,7 @@
 }
 .kind-tag.dare {
   background: var(--stop);
-  color: #fff;
+  color: var(--color-on-danger);
 }
 
 .prompt-card {
@@ -193,7 +193,7 @@
 }
 .prompt-text {
   font-size: 22px;
-  line-height: 1.45;
+  line-height: var(--leading);
   font-weight: 800;
   text-wrap: balance;
 }
@@ -769,7 +769,7 @@
 .deck-text {
   font-size: 24px;
   font-weight: 800;
-  line-height: 1.4;
+  line-height: var(--leading);
   text-wrap: balance;
 }
 
@@ -843,4 +843,9 @@
 /* a link dressed as a button reads as a button, not as underlined text */
 a.btn {
   text-decoration: none;
+}
+
+/* Only drag surfaces suppress browser gestures; the rest of the page can zoom. */
+.sheet-grip {
+  touch-action: none;
 }

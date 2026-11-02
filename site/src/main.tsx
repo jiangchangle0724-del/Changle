@@ -1,5 +1,6 @@
 import "@fontsource-variable/unbounded/wght.css";
 import "@fontsource-variable/figtree/wght.css";
+import "./styles/tokens.css";
 import "./styles/global.css";
 import "./styles/components.css";
 import "./styles/online.css";

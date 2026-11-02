@@ -42,9 +42,6 @@
   --gel: var(--moon);
   --on-gel: var(--night);
 
-  --font-display: "Unbounded Variable", "Unbounded", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
-  --font-text: "Figtree Variable", "Figtree", -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
-
   --r-tile: 24px;
   --r-panel: 20px;
   --r-field: 14px;
@@ -94,7 +91,7 @@ body {
   margin: 0;
   font-family: var(--font-text);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: var(--leading);
   color: var(--moon);
   background: var(--night);
   -webkit-font-smoothing: antialiased;
@@ -208,13 +205,13 @@ p {
 .hint {
   color: var(--haze);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: var(--leading);
 }
 
 .hint-ink {
   color: var(--haze);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: var(--leading);
 }
 
 .muted {
@@ -304,7 +301,7 @@ p {
 }
 
 .btn-sm {
-  min-height: 40px;
+  min-height: var(--tap);
   font-size: 14.5px;
   padding: 0 16px;
 }
@@ -351,7 +348,7 @@ p {
 
 .btn-penalty {
   background: var(--stop);
-  color: #fff;
+  color: var(--color-on-danger);
   box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--stop) 70%, transparent);
 }
 
@@ -370,6 +367,9 @@ p {
   transition:
     background-color 0.2s,
     transform 0.16s var(--ease-out);
+  flex-shrink: 0;
+  min-width: var(--tap);
+  min-height: var(--tap);
 }
 .icon-btn:hover {
   background: var(--line-soft);
@@ -386,6 +386,11 @@ p {
   text-decoration-color: var(--line);
   text-underline-offset: 4px;
   padding: 8px 4px;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ---------- chips ---------- */
@@ -393,7 +398,8 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: var(--tap);
+  min-width: var(--tap);
   padding: 0 14px;
   border-radius: 999px;
   background: var(--dusk-2);
@@ -406,12 +412,13 @@ p {
     color 0.2s,
     box-shadow 0.2s,
     transform 0.15s var(--ease-out);
+  line-height: 1.2;
 }
 .chip:active:not(:disabled) {
   transform: scale(0.96);
 }
 .chip-sm {
-  min-height: 32px;
+  min-height: var(--tap);
   padding: 0 11px;
   font-size: 13.5px;
 }
@@ -431,11 +438,14 @@ p {
 .chip-x {
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: var(--tap);
+  height: var(--tap);
   border-radius: 999px;
-  margin-right: -6px;
+  margin-right: calc(-1 * var(--space-4));
+  margin-left: calc(-1 * var(--space-3));
   color: var(--haze);
+  flex-shrink: 0;
+  margin-block: calc(-1 * var(--space-1));
 }
 .chip:disabled {
   opacity: 0.4;
@@ -489,7 +499,7 @@ p {
 }
 .field textarea {
   resize: none;
-  line-height: 1.45;
+  line-height: var(--leading);
 }
 .field-ink {
   background: var(--dusk);
@@ -517,7 +527,7 @@ p {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: var(--tap-crowded);
   padding: 0 12px;
   border-radius: 999px;
   font-weight: 700;
@@ -526,8 +536,11 @@ p {
   transition:
     background-color 0.2s,
     color 0.2s;
+  min-width: var(--tap-crowded);
+  line-height: 1.2;
 }
-.seg > button[aria-pressed="true"] {
+.seg > button[aria-pressed="true"],
+.seg > button[aria-selected="true"] {
   background: var(--moon);
   color: var(--night);
 }
@@ -536,7 +549,7 @@ p {
 }
 .seg-sm > button {
   flex: 0 1 auto;
-  min-height: 34px;
+  min-height: var(--tap-crowded);
   padding: 0 14px;
   font-size: 13.5px;
 }
@@ -615,8 +628,8 @@ p {
   box-shadow: inset 0 0 0 1px var(--line-soft);
 }
 .lang-tab button {
-  min-width: 38px;
-  height: 32px;
+  min-width: var(--tap);
+  height: var(--tap);
   padding: 0 9px;
   border-radius: 999px;
   font-weight: 700;
@@ -625,6 +638,7 @@ p {
   transition:
     background-color 0.2s,
     color 0.2s;
+  line-height: 1.2;
 }
 .lang-tab button[aria-pressed="true"] {
   background: var(--moon);
@@ -692,7 +706,7 @@ p {
   gap: 12px;
   color: var(--haze);
   font-size: 15.5px;
-  line-height: 1.6;
+  line-height: var(--leading);
 }
 .rules-text strong,
 .rules-text b {
@@ -726,5 +740,65 @@ p {
   from {
     opacity: 0;
     scale: 0.6;
+  }
+}
+
+/* Language-aware reading text in styles outside C4's file scope. */
+.tool .tool-blurb,
+.sheet-body,
+:root .adm-switch-text span,
+:root .adm-scene p,
+:root .djp-host-note,
+:root .dj-start-text,
+:root .djt-intro p,
+:root .dm-setup,
+:root .dm-roster-main > span,
+:root .dm-card-brief,
+:root .dm-card-secret p:not(.dm-card-label),
+:root .dm-card-task p:not(.dm-card-label),
+:root .dm-twist p,
+:root .dm-truth-secret,
+:root .dm-truth-task,
+:root .dw-share,
+:root .dw-note,
+:root .pl-tally-text,
+:root .tv-code-help,
+:root .tv-front-note {
+  line-height: var(--leading);
+}
+
+/* These controls live in tools.css, outside C4's editable stylesheet list. */
+.tool .tool-meta,
+.tool .clock-time,
+.tool .fx-input,
+.tool select {
+  min-height: var(--tap);
+  min-width: var(--tap);
+}
+
+.panel .muted,
+.porcelain .muted,
+.sheet .muted,
+.btn-quiet .muted,
+.btn-porcelain .muted,
+.tool .fx-rate,
+.tool .clock-diff,
+.tool .price-alt,
+:root .adm-row.is-away .adm-name,
+:root .adm-sub,
+:root .adm-device,
+:root .djp-rank,
+:root .djp-host-note,
+:root .dj-curve-name,
+:root .djt-stats dt,
+:root .dm-roster-state,
+:root .dw-status.is-no,
+:root .tv-game-note {
+  color: var(--color-text-2);
+}
+
+@supports (text-autospace: normal) {
+  html {
+    text-autospace: normal;
   }
 }

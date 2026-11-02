@@ -648,7 +648,7 @@ button.pl-answer:disabled {
 .pl-answer-text {
   font-size: 19px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: var(--leading);
   overflow-wrap: anywhere;
 }
 .pl-answer-text.is-empty {
@@ -1104,7 +1104,7 @@ button.pl-answer:disabled {
   font-size: 12.5px;
 }
 .deck-sample {
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 12.5px;
 }
 .deck-pick.is-on {
@@ -1254,7 +1254,7 @@ button.pl-answer:disabled {
 }
 .heads-list li small {
   margin-left: auto;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-weight: 600;
 }
 .heads-list li.is-ok {
@@ -1382,7 +1382,7 @@ button.pl-answer:disabled {
   font-weight: 700;
 }
 .floor-track small {
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 12px;
 }
 .fz-round {
@@ -1626,7 +1626,7 @@ button.pl-answer:disabled {
   background: var(--dusk-2);
   color: var(--haze);
   font-size: 15px;
-  line-height: 1.7;
+  line-height: var(--leading);
 }
 .lb-steps li::marker {
   color: var(--gel);
@@ -1687,7 +1687,7 @@ button.pl-answer:disabled {
 }
 .lb-person-state {
   min-width: 52px;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 13px;
   font-weight: 700;
   text-align: right;
@@ -2078,7 +2078,7 @@ button.pl-answer:disabled {
 }
 .song-credit {
   margin: -4px 0 0;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 12px;
   text-align: center;
 }
@@ -2196,7 +2196,7 @@ button.pl-answer:disabled {
 }
 .eu-team strong em {
   margin-left: 3px;
-  color: var(--fog);
+  color: var(--color-text-2);
   font-family: var(--font-text);
   font-size: 12.5px;
   font-style: normal;
@@ -2679,7 +2679,7 @@ button.ecard.is-legal:active {
 .eu-prompt {
   font-size: 15.5px;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: var(--leading);
   text-align: center;
   text-wrap: balance;
 }
@@ -2743,6 +2743,8 @@ button.ecard.is-legal:active {
   cursor: pointer;
   box-shadow: 0 12px 22px -14px rgba(0, 0, 0, 0.85);
   transition: transform 0.15s var(--ease-out);
+  min-height: var(--tap-crowded);
+  min-width: var(--tap-crowded);
 }
 .eu-suit b {
   font-size: 30px;
@@ -2831,7 +2833,7 @@ button.ecard.is-legal:active {
 .eu-alone-text small {
   color: var(--haze);
   font-size: 12px;
-  line-height: 1.3;
+  line-height: var(--leading);
 }
 
 .eu-result {
@@ -3120,7 +3122,7 @@ button.ecard.is-legal:active {
   cursor: default;
 }
 .tn-pool-cats .chip {
-  min-height: 32px;
+  min-height: var(--tap-crowded);
   padding: 5px 11px;
   font-size: 13px;
 }
