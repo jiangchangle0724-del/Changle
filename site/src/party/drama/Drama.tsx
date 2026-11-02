@@ -11,9 +11,32 @@ import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent } from "./local";
-import { loadLibrary, SceneWriter, TableScenes } from "./writer";
+import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
+
+/** Scenes written on this phone and not played yet: kept, so leaving the game doesn't lose them. */
+const WAITING = "changle.drama.waiting";
+type Waiting = { id: string; scene: Draft; by: string };
+
+function loadWaiting(): Waiting[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(WAITING) ?? "[]") as Waiting[];
+    if (!Array.isArray(list)) return [];
+    return list.filter((w) => w && typeof w.by === "string" && w.scene && typeof w.scene.title === "string" && Array.isArray(w.scene.roles));
+  } catch {
+    return [];
+  }
+}
+
+function saveWaiting(list: Waiting[]) {
+  try {
+    if (list.length) localStorage.setItem(WAITING, JSON.stringify(list));
+    else localStorage.removeItem(WAITING);
+  } catch {
+    /* storage can be unavailable: the scene still plays tonight */
+  }
+}
 
 /**
  * One phone: the same rules as online, run on this phone. The phone goes round the actors so
@@ -41,6 +64,38 @@ export function Drama({ onBack }: { onBack: () => void }) {
   const game = useLocalGame<unknown, DramaView>(drama, ids, onEvent, custom);
   const v = game.view(host);
   const act = (pid: string, x: string, data: Record<string, unknown> = {}) => game.act(pid, { x, ...data });
+
+  // a scene written here waits on the phone until it's played: leaving the game doesn't lose it
+  const waiting = useRef<Waiting[]>([]);
+  const write = (scene: Draft, by?: string) => {
+    const who = by && ids.includes(by) ? by : host;
+    const before = new Set(game.view(host).mine.map((w) => w.id));
+    act(who, "write", { scene });
+    const added = game.view(host).mine.find((w) => !before.has(w.id));
+    if (!added) return;
+    waiting.current = [...waiting.current, { id: added.id, scene, by: who }];
+    saveWaiting(waiting.current);
+  };
+  // once there's a table: the scenes written last time and never played come back, first in line
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !host) return;
+    restored.current = true;
+    for (const w of loadWaiting()) write(w.scene, w.by);
+    saveWaiting(waiting.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host]);
+  // played, or taken back: no longer waiting
+  const mineKey = v.mine.map((w) => `${w.id}${w.played ? "+" : ""}`).join(",");
+  useEffect(() => {
+    if (!restored.current) return;
+    const mine = game.view(host).mine;
+    const left = waiting.current.filter((w) => mine.some((m) => m.id === w.id && !m.played));
+    if (left.length === waiting.current.length) return;
+    waiting.current = left;
+    saveWaiting(left);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mineKey]);
 
   // who holds the phone right now, inside a phase: the card readers and the voters take turns
   const [step, setStep] = useState<{ k: "intro" } | { k: "pass"; i: number } | { k: "card"; i: number }>({ k: "intro" });
@@ -228,7 +283,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   return (
     <GameShell title={GAME_BY_ID.drama.name} rules={<Rules />} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
       <div className="dm">{body}</div>
-      <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} writers={players.map((p) => ({ id: p.id, name: p.name }))} onAdd={(scene, by) => act(by && ids.includes(by) ? by : host, "write", { scene })} />
+      <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} writers={players.map((p) => ({ id: p.id, name: p.name }))} onAdd={write} />
     </GameShell>
   );
 }

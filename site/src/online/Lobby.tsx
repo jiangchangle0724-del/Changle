@@ -125,6 +125,13 @@ function LobbyBoard() {
       <RoomFigures seats={room.seats} host={room.host} />
       <section className="lobby-seats" aria-label={ui("atTable", { n: room.seats.length })}>
         <ul className="faces">
+          {/* first, so it's on screen however long the table gets */}
+          <li className="face face-add">
+            <button type="button" className="face-dot" onClick={frame.openInvite} aria-label={ui("invite")}>
+              <UserPlus size={18} />
+            </button>
+            <span className="face-name">{ui("invite")}</span>
+          </li>
           {room.seats.map((s) => {
             const mine = s.id === me;
             const tap = mine ? (account.status === "in" ? undefined : () => account.openSignIn()) : () => setPerson(s);
@@ -144,12 +151,6 @@ function LobbyBoard() {
               </li>
             );
           })}
-          <li className="face face-add">
-            <button type="button" className="face-dot" onClick={frame.openInvite} aria-label={ui("invite")}>
-              <UserPlus size={18} />
-            </button>
-            <span className="face-name">{ui("invite")}</span>
-          </li>
         </ul>
       </section>
 
