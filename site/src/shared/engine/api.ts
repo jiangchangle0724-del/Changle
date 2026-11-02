@@ -62,6 +62,8 @@ export interface GameDef<S> {
   /** A seated player's phone dropped off (on: false) or came back (on: true) mid-game. */
   presence?(s: S, pid: string, on: boolean, api: Api): void;
   canStroke?(s: S, pid: string): boolean;
+  /** A game's big, rarely changing data (the DJ booth's song list), fetched over HTTP instead of sent with every view. */
+  data?(s: S): unknown;
 }
 
 export const t = (zh: string, en: string): T => ({ zh, en });

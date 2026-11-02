@@ -1,12 +1,14 @@
 import { ChevronsUp, Disc3, ListMusic, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
-import { chargeNow, countdown, cued, grade, hintFor, loaded, offAir, onAir, pressBy, tally } from "../../../shared/dj/deck";
+import { chargeNow, countdown, cued, grade, hasB, hintFor, loaded, offAir, onAir, pressBy, tally } from "../../../shared/dj/deck";
 import { DECK, MOVES, PAD_IDS, REQ_CHARS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
 import type { DjView, ReqView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
 import { useStore } from "../../../store";
-import { DROP_WORDS, hintText, PADS, songName } from "../deck/words";
+import { dataUrl } from "../../../online/config";
+import type { CrateSong } from "../../../shared/dj/types";
+import { DROP_WORDS, hintText, localName, PADS, songName } from "../deck/words";
 import { STYLE_NAMES } from "../parts";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
@@ -86,11 +88,13 @@ function Decks({ v, on, zh, lyria }: { v: DjView; on: DeckSide; zh: boolean; lyr
   const loading = next ? null : loaded(d);
   const deck = (side: DeckSide) => {
     const style = side === "a" ? d.a : d.b;
+    // (a night of the host's songs: the deck's song by name)
+    const song = d.local ? v.onDecks[side] : null;
     return (
       <div className={`djk-deck ${on === side ? "is-on" : ""} ${next === side ? "is-cued" : ""}`}>
         <span className="djk-deck-side">{side.toUpperCase()}</span>
         <Disc3 size={24} className="djk-deck-disc" aria-hidden="true" />
-        <span className="djk-deck-style">{style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}</span>
+        <span className="djk-deck-style">{d.local ? (song ? song.t : zh ? "准备中" : "Loading") : style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}</span>
         {on === side && <span className="djk-deck-on">{zh ? "在放" : "On"}</span>}
         {next === side && <span className="djk-deck-on is-next">{zh ? "下一首" : "Next"}</span>}
         {loading === side && <span className="djk-deck-on is-loading">{zh ? "准备中" : "Loading"}</span>}
@@ -146,7 +150,7 @@ function Fader({ v, me, now, g, nameOf, zh, live }: { v: DjView; me: string; now
         max={100}
         step={1}
         value={Math.round(x * 100)}
-        disabled={!live || held || !d.b}
+        disabled={!live || held || !hasB(d)}
         aria-label={zh ? "推子：A 到 B" : "Crossfader, A to B"}
         onChange={(e) => move(Number(e.target.value) / 100)}
         onPointerUp={end}
@@ -156,7 +160,7 @@ function Fader({ v, me, now, g, nameOf, zh, live }: { v: DjView; me: string; now
       />
       <span className="djk-fader-end">B</span>
       <span className="djk-fader-who">
-        {held ? (zh ? `${nameOf(d.faderBy!)} 在推` : `${nameOf(d.faderBy!)} has it`) : !d.b ? (zh ? "先选下一首，B 碟有歌才能推" : "Pick the next one first: deck B needs a song") : zh ? "推子" : "Crossfader"}
+        {held ? (zh ? `${nameOf(d.faderBy!)} 在推` : `${nameOf(d.faderBy!)} has it`) : !hasB(d) ? (zh ? "先选下一首，B 碟有歌才能推" : "Pick the next one first: deck B needs a song") : zh ? "推子" : "Crossfader"}
       </span>
     </div>
   );
@@ -288,6 +292,16 @@ function BuildDrop({ v, now, g, zh, live }: { v: DjView; now: () => number; g: G
 /** What plays next: everyone picks, the most picked goes on the deck that's off the air. */
 function Picks({ v, me, g, zh, side }: { v: DjView; me: string; g: G; zh: boolean; side: DeckSide }) {
   const d = v.deck;
+  if (d.local) {
+    // a night of the host's songs: the next one is on the deck off the air (asked for, or the DJ's pick)
+    const song = v.onDecks[side];
+    return (
+      <div className="djk-picks">
+        <span className="djk-picks-title">{zh ? `下一首（放到 ${side.toUpperCase()}）` : `Next up (on deck ${side.toUpperCase()})`}</span>
+        <span className="djk-next">{song ? localName(song, zh) : zh ? "准备中" : "Getting it ready"}</span>
+      </div>
+    );
+  }
   const n = tally(d.votes);
   const mine = d.votes[me];
   const onStyle = side === "a" ? d.b : d.a;
@@ -322,8 +336,8 @@ function Picks({ v, me, g, zh, side }: { v: DjView; me: string; g: G; zh: boolea
 
 /* ------------------------------------------------------------------ songs asked for by name */
 
-/** A song on the site's list, ready to search: its title and the whole line folded the same way. */
-type Entry = { id: number; t: string; a: string; c: number; tk: string; key: string };
+/** A song on the site's list (or one of the host's: `local`), ready to search: its title and the whole line folded the same way. */
+type Entry = { id: number; t: string; a: string; c: number; tk: string; key: string; local?: string };
 type Book = { list: Entry[]; fold: (x: string) => string };
 let book: Promise<Book> | null = null;
 
@@ -339,6 +353,16 @@ function loadBook(): Promise<Book> {
     throw e;
   });
   return book;
+}
+
+/** The host's songs (a night of them), from the room, folded for searching like the song list. */
+async function loadCrate(code: string, ver: number): Promise<{ v: number; book: Book }> {
+  const [res, { toSimplified }] = await Promise.all([fetch(dataUrl(code), { cache: "no-store" }), import("../../../data/t2s")]);
+  if (!res.ok) throw new Error(String(res.status));
+  const data = (await res.json()) as { v?: number; crate?: CrateSong[] } | null;
+  const fold = (x: string) => toSimplified(x.toLowerCase()).replace(/[\s'"’.,!?·・\-_/()（）《》「」【】]+/g, "");
+  const list = (data?.crate ?? []).map((s, i) => ({ id: i, t: s.t, a: s.a, c: 1, tk: fold(s.t), key: fold(`${s.t} ${s.a}`), local: s.id }));
+  return { v: data?.v ?? ver, book: { list, fold } };
 }
 
 /** The songs a few typed letters could mean: the title itself first, then titles that start so, then the rest; chart songs first. */
@@ -361,14 +385,20 @@ function search(b: Book, q: string): Entry[] {
  */
 function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
   const d = v.deck;
+  const { code } = useRoom();
   const [q, setQ] = useState("");
   const [pick, setPick] = useState<Entry | null>(null);
   const [b, setB] = useState<Book | null>(null);
   const [failed, setFailed] = useState(false);
+  // a night of the host's songs: those, fetched from the room (again when they change)
+  const [crate, setCrate] = useState<{ v: number; book: Book } | null>(null);
   const open = () => {
-    if (!b) loadBook().then(setB, () => setFailed(true));
+    if (d.local) {
+      if (!crate || crate.v !== v.crateV) loadCrate(code, v.crateV).then(setCrate, () => setFailed(true));
+    } else if (!b) loadBook().then(setB, () => setFailed(true));
   };
-  const hits = useMemo(() => (b && !pick && q.trim() ? search(b, q) : []), [b, q, pick]);
+  const using = d.local ? (crate?.book ?? null) : b;
+  const hits = useMemo(() => (using && !pick && q.trim() ? search(using, q) : []), [using, q, pick]);
   const waitAt = d.reqs.findIndex((r) => r.by === me);
   const mine: { r: ReqView; at: "now" | "up" | "wait"; ahead: number } | null =
     d.now?.by === me ? { r: d.now, at: "now", ahead: 0 } : d.up?.by === me ? { r: d.up, at: "up", ahead: 0 } : waitAt >= 0 ? { r: d.reqs[waitAt], at: "wait", ahead: waitAt + (d.up ? 1 : 0) } : null;
@@ -378,7 +408,13 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   const send = (e: FormEvent) => {
     e.preventDefault();
     if (ended || full) return;
-    if (pick) g("req", { song: pick.id, text: pick.t });
+    if (d.local) {
+      // one of the host's songs: picked, or typed out exactly (else it isn't one of them)
+      const k = using ? using.fold(q.trim()) : "";
+      const hit = pick ?? using?.list.find((x) => x.tk === k || x.key === k);
+      if (!hit) return;
+      g("req", { local: hit.local });
+    } else if (pick) g("req", { song: pick.id, text: pick.t });
     else {
       const text = q.trim();
       if (!text) return;
@@ -428,15 +464,19 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
       <span className="djk-req-note">
         {mine?.at === "now"
           ? zh
-            ? `正在放你点的 ${songName(mine.r, zh) ?? ""} Remix，还可以再点一首`
-            : `Your song's remix is on: ${songName(mine.r, zh) ?? ""}. You can ask for another`
+            ? `正在放你点的 ${songName(mine.r, zh) ?? ""}${mine.r.local ? "" : " Remix"}，还可以再点一首`
+            : `${mine.r.local ? "Your song is on" : "Your song's remix is on"}: ${songName(mine.r, zh) ?? ""}. You can ask for another`
           : full
             ? zh
               ? `点歌排满了（${DECK.reqMax} 首），放掉几首再点`
               : `The line is full (${DECK.reqMax} songs). Try again in a bit`
-            : zh
-              ? "输入歌名或歌手，DJ 按这首歌的风格现做一首 Remix，下一首就放"
-              : "Type a song or an artist. The DJ makes a remix in its style, up next"}
+            : d.local
+              ? zh
+                ? `搜主人的这 ${v.crateN} 首歌，点中了下一首就放原曲`
+                : `Search the host's ${v.crateN} songs. The one you pick plays next`
+              : zh
+                ? "输入歌名或歌手，DJ 按这首歌的风格现做一首 Remix，下一首就放"
+                : "Type a song or an artist. The DJ makes a remix in its style, up next"}
       </span>
       {pick ? (
         <span className="djk-req-pick">
@@ -464,7 +504,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
         />
       )}
       {hits.length > 0 && (
-        <ul className="djk-req-hits" aria-label={zh ? "曲库里的歌" : "Songs on the list"}>
+        <ul className="djk-req-hits" aria-label={d.local ? (zh ? "主人的歌" : "The host's songs") : zh ? "曲库里的歌" : "Songs on the list"}>
           {hits.map((h) => (
             <li key={h.id}>
               <button type="button" className="djk-req-hit" onClick={() => setPick(h)}>
@@ -475,7 +515,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           ))}
         </ul>
       )}
-      {failed && !b && <span className="djk-req-note">{zh ? "曲库没加载出来，直接输入歌名也行" : "The song list didn't load. Typing the name works too"}</span>}
+      {failed && !using && <span className="djk-req-note">{d.local ? (zh ? "歌单没加载出来，等一下再点" : "The song list didn't load. Try again in a moment") : zh ? "曲库没加载出来，直接输入歌名也行" : "The song list didn't load. Typing the name works too"}</span>}
       <button type="submit" className="djk-req-send" disabled={ended || full || (!pick && !q.trim())}>
         {zh ? "点这首" : "Ask for it"}
       </button>

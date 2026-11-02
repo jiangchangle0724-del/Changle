@@ -10,6 +10,7 @@ import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
 import { Countdown, DeckBoard, DropParty, HintLine, PadChips, usePadEvents } from "./deck/TvDeck";
+import { LocalPanel } from "./local/LocalPanel";
 import { NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { useBooth } from "./useBooth";
 import "../../styles/dj.css";
@@ -36,7 +37,27 @@ export default function TvDj({ v }: { v: DjView }) {
     now,
     onGrid: (grid) => g("grid", grid),
     onDecks: (decks) => g("decks", decks),
+    roomSource: v.source,
+    onEnding: (id) => g("ending", { id }),
   });
+  // where the music should come from: the host's songs when they want them and there are some,
+  // else whichever DJ plays (the stand-in, or Lyria at one of the owner's tables)
+  const want = booth.wantLocal && booth.crate.length ? "local" : booth.source === "local" ? "fake" : booth.source;
+  // the host's songs on this computer, by name, for the room (said again until it has them all)
+  const crateN = useRef(v.crateN);
+  crateN.current = v.crateN;
+  const crateKey = booth.crate.map((s) => s.id).join(",");
+  useEffect(() => {
+    if (!booth.crate.length) return;
+    const list = booth.crate;
+    const send = () => g("crate", { songs: list.map((s) => [s.id, s.title, s.artist, Math.round(s.beat.bpm * 10) / 10, Math.round(s.seconds)]) });
+    send();
+    const id = window.setInterval(() => {
+      if (crateN.current !== list.length) send();
+    }, 3000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crateKey, g]);
   const { speaker, dj } = booth;
   // the beginner deck: every pad pressed at the table plays here, on the next beat
   const chips = usePadEvents(booth.pad);
@@ -45,18 +66,18 @@ export default function TvDj({ v }: { v: DjView }) {
   // every few seconds until the room has heard it: a message can be lost on a dropping connection)
   useEffect(() => {
     if (booth.status !== "on" || v.phase !== "wait") return;
-    g("live", { source: booth.source });
-    const id = window.setInterval(() => g("live", { source: booth.source }), 3000);
+    g("live", { source: want });
+    const id = window.setInterval(() => g("live", { source: want }), 3000);
     return () => window.clearInterval(id);
-  }, [booth.status, booth.source, v.phase, v.set, g]);
+  }, [booth.status, want, v.phase, v.set, g]);
   // and when its music changes hands mid-set (Lyria took over, or the stand-in came back), said
   // again every few seconds until the room has it
   useEffect(() => {
-    if (booth.status !== "on" || v.phase === "wait" || v.phase === "end" || booth.source === v.source) return;
-    g("src", { source: booth.source });
-    const id = window.setInterval(() => g("src", { source: booth.source }), 3000);
+    if (booth.status !== "on" || v.phase === "wait" || v.phase === "end" || want === v.source) return;
+    g("src", { source: want });
+    const id = window.setInterval(() => g("src", { source: want }), 3000);
     return () => window.clearInterval(id);
-  }, [booth.status, booth.source, v.phase, v.source, g]);
+  }, [booth.status, want, v.phase, v.source, g]);
   // local runs: what the checks read (scripts/dj_lyria_check.py)
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -162,7 +183,7 @@ export default function TvDj({ v }: { v: DjView }) {
       {!seats.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
-      <PadChips chips={chips} />
+      <PadChips chips={chips} lines={(v.deck?.up ? 1 : 0) + (v.deck?.now ? 1 : 0)} />
       {v.deck && <Countdown v={v} />}
       {v.deck && <DropParty v={v} />}
       {live && v.deck && <HintLine v={v} />}
@@ -199,6 +220,7 @@ export default function TvDj({ v }: { v: DjView }) {
 
       {v.phase === "end" && <EndCard v={v} />}
 
+      <LocalPanel booth={booth} v={v} />
       {!live && <StartCard status={booth.status} midSet={v.phase !== "wait" && v.phase !== "end"} onStart={booth.start} />}
       {live && booth.stopped && (
         <button type="button" className="dj-wake" onClick={booth.wake}>

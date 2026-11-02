@@ -6,6 +6,7 @@ import { haptic } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
+import { onAir } from "../../shared/dj/deck";
 import { FIRE_GAP_MS, SET_PHASES, type SetPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
@@ -85,7 +86,7 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
         <section className="djp-now">
           <span className="djp-phase">{phaseName(v.phase, zh)}</span>
           <span className="djp-hint">{phaseHint(v, now(), zh)}</span>
-          {v.phase !== "wait" && v.phase !== "end" && <NowPlaying v={v} />}
+          {v.phase !== "wait" && v.phase !== "end" && <NowPlaying v={v} song={v.deck?.local ? v.onDecks?.[onAir(v.deck)] : null} />}
         </section>
 
         {noSpeaker && (

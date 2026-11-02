@@ -34,6 +34,11 @@ export function freshDeck(): DeckState {
     up: null,
     now: null,
     reqAt: {},
+    local: false,
+    songs: { a: null, b: null },
+    played: [],
+    ending: null,
+    crateAt: 0,
     speakerAt: 0,
     decksAt: 0,
     srcAt: 0,
@@ -44,8 +49,19 @@ export function freshDeck(): DeckState {
 export const onAir = (d: { fader: number }): DeckSide => (d.fader > 0.5 ? "b" : "a");
 export const offAir = (d: { fader: number }): DeckSide => (onAir(d) === "a" ? "b" : "a");
 export const styleOn = (d: { a: StyleId; b: StyleId | null }, side: DeckSide): StyleId | null => (side === "a" ? d.a : d.b);
+/** Deck B has music to blend into: a style (picked), or on a night of the host's songs a song. */
+export const hasB = (d: { b: StyleId | null; local?: boolean; songs?: { b: string | null } }) => (d.local ? !!d.songs?.b : !!d.b);
 
-type Cueable = { a: StyleId; b: StyleId | null; fader: number; votes: Record<string, StyleId>; sounding?: { a: StyleId; b: StyleId | null } | null; up?: { style: StyleId } | null };
+type Cueable = {
+  a: StyleId;
+  b: StyleId | null;
+  fader: number;
+  votes: Record<string, StyleId>;
+  sounding?: { a: StyleId; b: StyleId | null; sa?: string | null; sb?: string | null } | null;
+  up?: { style: StyleId; local?: string } | null;
+  local?: boolean;
+  songs?: { a: string | null; b: string | null };
+};
 
 /**
  * The deck the floor's pick is loaded on: the one off the air, when the pick is on it and isn't
@@ -55,6 +71,12 @@ type Cueable = { a: StyleId; b: StyleId | null; fader: number; votes: Record<str
  */
 export function loaded(d: Cueable): DeckSide | null {
   const off = offAir(d);
+  // a night of the host's songs: the deck off the air has the next one (the one asked for, if any)
+  if (d.local) {
+    const song = d.songs?.[off] ?? null;
+    if (!song || song === d.songs?.[onAir(d)] || (d.up?.local && song !== d.up.local)) return null;
+    return off;
+  }
   // a song asked for owns the deck off the air until its remix plays
   if (d.up) return styleOn(d, off) === d.up.style ? off : null;
   const pick = leader(d.votes);
@@ -68,6 +90,7 @@ export function loaded(d: Cueable): DeckSide | null {
 export function cued(d: Cueable, lyria = false): DeckSide | null {
   const side = loaded(d);
   if (!side) return null;
+  if (d.local) return d.sounding?.[side === "a" ? "sa" : "sb"] === d.songs?.[side] ? side : null;
   return lyria || d.sounding?.[side] === styleOn(d, side) ? side : null;
 }
 
@@ -180,7 +203,7 @@ export function grade(drop: DropState, grid: DeckState["grid"], at: number, now:
 }
 
 /** What a beginner might do next, for the hint line on the screens. */
-export type Hint = "countdown" | "charge" | "charging" | "fade" | "loading" | "pick" | "pads" | "dropped";
+export type Hint = "countdown" | "charge" | "charging" | "fade" | "loading" | "pick" | "ask" | "pads" | "dropped";
 
 export function hintFor(d: Cueable & { drop: DropState | null; last: { at: number } | null; charge: number; chargeAt: number }, now: number, playing: boolean, lyria = false): Hint | null {
   if (!playing) return null;
@@ -189,5 +212,6 @@ export function hintFor(d: Cueable & { drop: DropState | null; last: { at: numbe
   if (chargeNow(d, now) > 0) return "charging";
   if (cued(d, lyria)) return Math.floor(now / 12_000) % 2 ? "fade" : "charge";
   if (loaded(d)) return "loading";
-  return Math.floor(now / 12_000) % 2 ? "pick" : "pads";
+  // (a night of the host's songs has no styles to pick: ask for one of the songs)
+  return Math.floor(now / 12_000) % 2 ? (d.local ? "ask" : "pick") : "pads";
 }

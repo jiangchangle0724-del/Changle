@@ -4,7 +4,7 @@
  */
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
-import type { DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
+import type { CrateSong, DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -566,10 +566,15 @@ export type DjView = {
   set: number;
   /** the beginner deck: the two decks, the fader, the pads, the build-up and the drop */
   deck: DeckView;
+  /** the host's own songs on the speaker's computer: how many, a count of their changes (the list
+   *  itself: GET /room/CODE/data), and the two on the decks by name (a night of them) */
+  crateN: number;
+  crateV: number;
+  onDecks: { a: CrateSong | null; b: CrateSong | null };
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
-export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "reqs" | "up" | "now"> & {
+export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "reqs" | "up" | "now"> & {
   reqs: ReqView[];
   up: ReqView | null;
   now: ReqView | null;

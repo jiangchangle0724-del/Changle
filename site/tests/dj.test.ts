@@ -523,6 +523,160 @@ await test("fake DJ: a new song every eight sections, both decks in it together;
   dj.stop();
 });
 
+/* ------------------------------------------------------------------ the host's own songs */
+
+await test("your songs: the beat of a made-up song, to a hundredth of a beat a minute; its bar and its loud part", async () => {
+  const { analyzeSong, matchRate } = await import("../src/party/dj/local/beats");
+  // a made-up song: a kick (heavier on the bar's first beat), a snare on 2 and 4, hats, a bass in the loud part
+  const song = (bpm: number, first: number, downAt: number, bars: number, loudFrom: number, rate = 44100) => {
+    const beat = 60 / bpm;
+    const len = Math.ceil((first + bars * 4 * beat + 2) * rate);
+    const x = new Float32Array(len);
+    let seed = 3;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    const add = (t: number, dur: number, f: (u: number) => number) => {
+      const s0 = Math.floor(t * rate);
+      for (let i = 0; i < dur * rate && s0 + i < len; i++) x[s0 + i] += f(i / rate);
+    };
+    for (let k = 0; k < bars * 4; k++) {
+      const t = first + k * beat;
+      const inBar = (((k - downAt) % 4) + 4) % 4;
+      const bar = Math.floor((k - downAt) / 4);
+      const loud = bar >= loudFrom;
+      if (bar >= 0) add(t, 0.18, (u) => (inBar === 0 ? 1 : 0.7) * (loud ? 1 : 0.5) * Math.sin(2 * Math.PI * (55 + 90 * Math.exp(-u * 30)) * u) * Math.exp(-u * 18));
+      if (inBar === 1 || inBar === 3) add(t, 0.12, (u) => (loud ? 0.4 : 0.2) * rnd() * Math.exp(-u * 30));
+      for (const h of [0, 0.5]) add(t + h * beat, 0.03, (u) => 0.08 * rnd() * Math.exp(-u * 120));
+      if (loud && bar >= 0) add(t, beat * 0.9, (u) => 0.25 * Math.sin(2 * Math.PI * 49 * u) * Math.exp(-u * 3));
+    }
+    return { x, rate };
+  };
+  const wrap = (a: number, m: number) => Math.min(((a % m) + m) % m, m - (((a % m) + m) % m));
+  for (const [bpm, first, downAt, bars, loudFrom] of [
+    [128, 0.37, 2, 96, 32],
+    [95, 1.1, 0, 64, 16],
+    [140, 0.05, 1, 110, 24],
+  ] as const) {
+    const s = song(bpm, first, downAt, bars, loudFrom);
+    const r = analyzeSong(s.x, s.rate)!;
+    const beat = 60 / bpm;
+    const down = first + downAt * beat;
+    ok(Math.abs(r.bpm - bpm) < 0.02, `${bpm} BPM: found ${r.bpm.toFixed(3)}`);
+    ok(wrap(r.first - first, beat) < 0.012 && wrap(r.down - down, 4 * beat) < 0.02, `  its beats within 12 ms (${r.first.toFixed(3)} s) and its bar (${r.down.toFixed(3)} s)`);
+    ok(Math.abs(r.cue - (down + loudFrom * 4 * beat)) < 0.05, `  where it gets loud: ${r.cue.toFixed(2)} s`);
+    ok(r.sure > 0.3, `  a clear beat (${r.sure.toFixed(2)})`);
+  }
+  const noise = new Float32Array(22050 * 60);
+  let seed = 7;
+  for (let i = 0; i < noise.length; i++) noise[i] = ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 0.3;
+  ok(analyzeSong(noise, 22050)!.sure < 0.3, "noise has no clear beat");
+  ok(analyzeSong(new Float32Array(44100 * 10), 44100) === null, "under 20 seconds: can't tell");
+  ok(Math.abs(matchRate(124, 128)! - 128 / 124) < 1e-9 && matchRate(64, 128) === 1 && matchRate(100, 128) === null, "matched a little faster; half-time counts double; too far off isn't matched");
+});
+
+await test("your songs: names from tags or the file name", async () => {
+  const { nameOfFile, tagsOf, songId } = await import("../src/party/dj/local/crate");
+  ok(JSON.stringify(nameOfFile("01 Jay Chou - 晴天.mp3")) === JSON.stringify({ artist: "Jay Chou", title: "晴天" }) && nameOfFile("07. Dynamite.m4a").title === "Dynamite" && nameOfFile("track_one.wav").title === "track one", "from the file name: a track number and the ending go, \"Artist - Title\" splits");
+  // an MP3's ID3v2.3 title and artist (latin-1 and UTF-16)
+  const frame = (id: string, body: number[]) => [...Array.from(id, (c) => c.charCodeAt(0)), 0, 0, 0, body.length, 0, 0, ...body];
+  const utf16 = (s: string) => [1, 0xff, 0xfe, ...Array.from(s).flatMap((c) => [c.charCodeAt(0) & 0xff, c.charCodeAt(0) >> 8])];
+  const frames = [...frame("TIT2", [0, ...Array.from("Shape of You", (c) => c.charCodeAt(0))]), ...frame("TPE1", utf16("周杰伦"))];
+  const id3 = new Uint8Array([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, frames.length, ...frames, 0xff, 0xfb]);
+  const t = tagsOf(id3, "x.mp3");
+  ok(t.title === "Shape of You" && t.artist === "周杰伦", `an MP3's tags (${t.title}, ${t.artist})`);
+  // an M4A's: moov › udta › meta › ilst › ©nam / ©ART › data
+  const atom = (type: string, body: number[]) => {
+    const n = 8 + body.length;
+    return [n >> 24, (n >> 16) & 255, (n >> 8) & 255, n & 255, ...Array.from(type, (c) => c.charCodeAt(0)), ...body];
+  };
+  const text = (s: string) => atom("data", [0, 0, 0, 1, 0, 0, 0, 0, ...new TextEncoder().encode(s)]);
+  const ilst = atom("ilst", [...atom("©nam", text("夜曲")), ...atom("©ART", text("Jay"))]);
+  const m4a = new Uint8Array([...atom("ftyp", Array.from("M4A ", (c) => c.charCodeAt(0))), ...atom("moov", atom("udta", atom("meta", [0, 0, 0, 0, ...ilst])))]);
+  const m = tagsOf(m4a, "01 Track.m4a");
+  ok(m.title === "夜曲" && m.artist === "Jay", `an M4A's tags (${m.title}, ${m.artist})`);
+  ok(tagsOf(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]), "Artist - Song.wav").artist === "Artist", "no tags: the file name");
+  ok(songId({ name: "a.mp3", size: 10, lastModified: 1 }) === songId({ name: "a.mp3", size: 10, lastModified: 1 }) && songId({ name: "a.mp3", size: 11, lastModified: 1 }) !== songId({ name: "a.mp3", size: 10, lastModified: 1 }), "the same file is the same song");
+});
+
+await test("your songs: the local DJ plays the song on the air from its top, starts the next on a bar line, cues a drop on its loud part, follows a song too far off the beat", async () => {
+  const { LocalDj, ENDING_S } = await import("../src/party/dj/local/LocalDj");
+  const R = 48000;
+  // a song's samples say where in it they are: sample i is i / 1e8
+  const pcm = (seconds: number) => {
+    const l = new Float32Array(Math.round(seconds * R));
+    for (let i = 0; i < l.length; i++) l[i] = i / 1e8;
+    return { l, r: l };
+  };
+  const beat = (bpm: number, down: number, cue: number, end: number) => ({ bpm, first: down % (60 / bpm), down, cue, end, sure: 1 });
+  const songs = [
+    { id: "s1", title: "One", artist: "", file: { name: "s1" } as File, beat: beat(128, 0.1, 30.1, 200), seconds: 210 },
+    { id: "s2", title: "Two", artist: "", file: { name: "s2" } as File, beat: beat(124, 0.2, 60.2, 180), seconds: 190 },
+    { id: "s3", title: "Three", artist: "", file: { name: "s3" } as File, beat: beat(100, 0.3, 40.3, 150), seconds: 160 },
+  ];
+  const decoded: Record<string, ReturnType<typeof pcm>> = { s1: pcm(210), s2: pcm(190), s3: pcm(160) };
+  const dj = new LocalDj(async (f) => decoded[f.name]);
+  const endings: string[] = [];
+  dj.onEnding = (id) => endings.push(id);
+  dj.setCrate(songs);
+  dj.setPhase("warm");
+  dj.setDecks("s1", "s2", "a", 0);
+  await sleep(20);
+  ok(dj.ready && JSON.stringify(dj.sounding()) === JSON.stringify({ a: "s1", b: "s2" }), "both songs decoded: it says so");
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  const at = (chunks: number[][], f: number) => chunks[Math.floor(f / 12000)][f % 12000] * 1e8;
+  // play on, a chunk at a time (the DJ tops up as the speaker plays)
+  const run = (frames: number) => {
+    for (let left = frames; left > 0; left -= 12000) sp.play(Math.min(12000, left));
+  };
+  ok(Math.abs(dj.bpm - 128) < 1e-9 && dj.beatFrame(0) === 0.1 * R, "the first song sets the night's bars: its tempo, its first downbeat beat 0");
+  ok(Math.abs(at(sp.chunks, 0)) < 1e-3 && Math.abs(at(sp.chunks, 30000) - 30000) < 3, "deck A plays it from the top at its own speed");
+  ok(sp.ownB.every((x) => !x), "deck B waits at its start (the player plays A alone)");
+  // the fader towards B: it starts on the next bar line, a little faster to fall on the night's beat
+  run(48000);
+  dj.setDecks("s1", "s2", "a", 0.3);
+  const from = sp.sent;
+  run(48000 * 2);
+  const k = sp.ownB.findIndex((x, i) => x && i * 12000 >= from);
+  ok(k >= 0, "the fader leans towards B: B plays");
+  const barF = 4 * (60 / 128) * R;
+  // where B's first downbeat (0.2 s into it) is heard: on a bar line
+  let downAt = -1;
+  for (let f = k * 12000; f < sp.chunksB.length * 12000; f++) {
+    const v = sp.chunksB[Math.floor(f / 12000)][f % 12000] * 1e8;
+    if (v >= 0.2 * R) {
+      downAt = f;
+      break;
+    }
+  }
+  ok(downAt > 0 && Math.abs(((downAt - 0.1 * R) / barF) % 1) * barF < 2, `its first downbeat on a bar line (frame ${downAt})`);
+  const f2 = downAt + 48000;
+  while (sp.sent < f2 + 12000) run(12000);
+  const step = (at(sp.chunksB, f2) - at(sp.chunksB, downAt)) / 48000;
+  ok(Math.abs(step - 128 / 124) < 1e-4, `a little faster: ${step.toFixed(4)} (128/124)`);
+  // a drop on its way into B at beat 64: B's loud part lands on it
+  dj.cue("b", 64);
+  run(48000 * 4);
+  const dropF = 0.1 * R + 64 * (60 / 128) * R;
+  run(Math.max(0, dropF + 24000 - sp.played));
+  const v = at(sp.chunksB, dropF);
+  ok(Math.abs(v - 60.2 * R) < 3, `the drop's bar plays B's loud part (${(v / R).toFixed(3)} s in)`);
+  // the drop lands: B on the air; A gets the next song, too far off the beat to match (100 BPM)
+  dj.setDecks("s3", "s2", "b", 1);
+  await sleep(20);
+  ok(dj.bpm === 128 && JSON.stringify(dj.sounding()) === JSON.stringify({ a: "s3", b: "s2" }), "B on the air (matched: the bars stay), A has the next");
+  const epoch = dj.epoch;
+  dj.cue("a", 128);
+  dj.setDecks("s3", "s2", "a", 0);
+  ok(dj.epoch === epoch + 1 && Math.abs(dj.bpm - 100) < 1e-9, "dropped into a song too far off the beat: the night's bars become its bars");
+  ok(endings.length === 0, "nothing ending yet");
+  // play on to its drop, then to near its end: the room hears it's ending, once
+  run(Math.max(0, 0.1 * R + 128 * (60 / 128) * R - sp.played));
+  ok(endings.length === 0, "not before");
+  run((150 - 40.3 - ENDING_S + 2) * R);
+  ok(endings.join() === "s3", `the song on the air nearly over: the room hears once (${endings})`);
+  dj.stop();
+});
+
 /* ------------------------------------------------------------------ Lyria (A2), without Google */
 
 await test("songs asked for: the style of a song's remix, from the song list or from its name", async () => {

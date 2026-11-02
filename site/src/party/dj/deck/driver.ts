@@ -8,13 +8,14 @@
  * Times here are audio times (the speaker's context) unless they say server.
  */
 import { beatsLeft, chargeNow, COUNT_SPAN } from "../../../shared/dj/deck";
-import type { DropState, PadId } from "../../../shared/dj/types";
+import { hasB, onAir } from "../../../shared/dj/deck";
+import type { DeckSide, DropState, PadId } from "../../../shared/dj/types";
 import type { DeckView } from "../../../shared/protocol";
 import { DeckFx } from "../speaker/fx";
 import type { Speaker } from "../speaker/speaker";
 
 /** Whichever DJ plays, as far as the deck needs it (useBooth's BoothDj). */
-export type DeckDj = { readonly decks: boolean; readonly bpm: number; readonly epoch: number; beat(): number; beatFrame(b: number): number | null };
+export type DeckDj = { readonly decks: boolean; readonly bpm: number; readonly epoch: number; beat(): number; beatFrame(b: number): number | null; cue?(side: DeckSide, beat: number): void };
 export type Grid = { at: number; bar: number; bpm: number };
 
 /** How far ahead the roll is written, seconds. */
@@ -37,6 +38,8 @@ export class DeckDriver {
   private on = false;
   private timer = 0;
   private dropKey = "";
+  /** the drop the DJ was last told is on its way (the host's songs: the song it goes into is cued for its bar) */
+  private cueKey = "";
   /** when the drop lands (0: none on its way); the room's fader waits until the room says it landed */
   private dropT = 0;
   private holdFader = 0;
@@ -154,7 +157,7 @@ export class DeckDriver {
     // the crossfader: the room's (Lyria, or no deck B: deck A alone), except from a drop's jump
     // until the room says it landed (or a few seconds, if that word never comes)
     if (this.holdBar !== null && (!d.drop || d.last?.bar === this.holdBar || ctxNow > this.holdFader)) this.holdBar = null;
-    const want = this.dj.decks && d.b ? d.fader : 0;
+    const want = this.dj.decks && hasB(d) ? d.fader : 0;
     if (this.holdBar === null && want !== this.fader) {
       this.sp.setXfade(want);
       this.fader = want;
@@ -162,6 +165,15 @@ export class DeckDriver {
 
     if (!this.on) return;
 
+    // a drop on its way into the deck off the air: the DJ cues that deck for its bar (a host's
+    // song's loud part lands on it), as soon as the countdown starts and again if it's moved
+    if (d.drop && d.drop.bar >= 0 && d.drop.to !== onAir(d)) {
+      const key = this.keyOf(d.drop);
+      if (key !== this.cueKey) {
+        this.cueKey = key;
+        this.dj.cue?.(d.drop.to, d.drop.bar * 4);
+      }
+    }
     // the drop: once someone pressed in time (or the DJ will), on its bar
     if (d.drop && (d.drop.hits.length || d.drop.auto)) {
       const key = this.keyOf(d.drop);
@@ -228,7 +240,7 @@ export class DeckDriver {
     this.dropT = at;
     this.fx.drop(at);
     if (this.dj.decks) {
-      const to = drop.to === "b" && this.deck?.b ? 1 : 0;
+      const to = drop.to === "b" && this.deck && hasB(this.deck) ? 1 : 0;
       this.sp.setXfade(to, at);
       this.fader = to;
       this.holdBar = drop.bar;
