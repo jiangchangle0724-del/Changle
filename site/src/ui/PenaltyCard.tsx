@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Glass } from "../components/Glass";
+import { timesOf } from "../shared/protocol";
 import { Button } from "./Button";
 import { labels } from "./labels";
 import type { PenaltyCardProps } from "./types";
@@ -47,15 +48,26 @@ export function PenaltyCard({
   if (!call) return null;
   const safe = call.kind === "safe";
   const custom = call.say || customText?.trim();
-  const detail =
-    safe || custom
-      ? null
+  // a penalty of the table's own is done once, twice for two sips, or as many times as the game
+  // says (7-8-9's pot), as on today's stamp
+  const times = custom ? timesOf(call) : 1;
+  const count = times > 1 ? `×${times}` : null;
+  const detail = safe
+    ? null
+    : custom
+      ? count
       : call.kind === "everyone"
         ? `${labels.everyone[lang]} · ${labels.sip[lang]}`
         : labels[call.kind][lang];
   const word = safe
     ? labels.safe[lang]
-    : custom || (presentation === "card" ? detail : labels.drink[lang]);
+    : custom
+      ? presentation === "card" && count
+        ? `${custom} ${count}`
+        : custom
+      : presentation === "card"
+        ? detail
+        : labels.drink[lang];
   const target = call.kind === "full" ? 0.02 : call.kind === "two" ? 0.5 : 0.72;
   const names = call.who.length
     ? call.who.join(lang === "zh" ? "、" : ", ")

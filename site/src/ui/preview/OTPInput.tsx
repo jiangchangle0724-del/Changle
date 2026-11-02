@@ -3,7 +3,7 @@ import type { Lang } from "../../i18n";
 import { OTPInput } from "../OTPInput";
 export function OTPInputPreview({ lang }: { lang: Lang }) {
   const [digits, setDigits] = useState("");
-  const [letters, setLetters] = useState("");
+  const [table, setTable] = useState("");
   const [errorValue, setErrorValue] = useState("123456");
   const [complete, setComplete] = useState("");
   return (
@@ -16,12 +16,12 @@ export function OTPInputPreview({ lang }: { lang: Lang }) {
         label={lang === "zh" ? "验证码" : "Verification code"}
         autoFocus
       />
-      <h2>{lang === "zh" ? "四位桌号" : "Four-letter table code"}</h2>
+      <h2>{lang === "zh" ? "四位桌号" : "Four-character table code"}</h2>
       <OTPInput
-        value={letters}
-        onChange={setLetters}
+        value={table}
+        onChange={setTable}
         length={4}
-        charset="letters"
+        charset="table"
         label={lang === "zh" ? "桌号" : "Table code"}
       />
       <h2>{lang === "zh" ? "验证码已过期" : "Expired code"}</h2>

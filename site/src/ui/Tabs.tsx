@@ -28,6 +28,8 @@ export function Tabs<K extends string = string>({
           type="button"
           className="ui-tab"
           role={variant === "tabs" ? "tab" : "radio"}
+          id={variant === "tabs" && item.panelId ? `${item.panelId}-tab` : undefined}
+          aria-controls={variant === "tabs" ? item.panelId : undefined}
           aria-selected={variant === "tabs" ? item.key === value : undefined}
           aria-checked={
             variant === "segmented" ? item.key === value : undefined

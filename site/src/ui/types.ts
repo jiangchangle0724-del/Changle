@@ -89,6 +89,12 @@ export type SheetProps = {
   /** the sheet takes this color for its primary button; a game's sheet passes the game's */
   category?: Category;
   gel?: string;
+  /**
+   * The phone's back button (or a swipe back) closes the sheet instead of leaving the page: while it
+   * is open it keeps an entry of its own on the history (router.ts, useBackCloses). Default true.
+   * False when the page's own address already stands for the sheet (a game's card at /g/<slug>).
+   */
+  history?: boolean;
 } & (
   | {
       /** the visible title, which also names the dialog for screen readers */
@@ -111,6 +117,12 @@ export type TabsProps<K extends string = string> = {
     sub?: ReactNode;
     /** a count on the tab */
     badge?: number;
+    /**
+     * tabs only: the id of the element this tab shows, which has role="tabpanel"; the tab points at
+     * it (aria-controls) and gets the id `${panelId}-tab`, so the panel can name itself with
+     * aria-labelledby={`${panelId}-tab`}
+     */
+    panelId?: string;
   }[];
   value: K;
   onChange: (key: K) => void;
@@ -159,7 +171,7 @@ export type RosterChipProps = {
   onRemove?: () => void;
 };
 
-/** OTPInput 验证码: the 6-digit sign-in code, or a 4-letter table code, in separate boxes; typing, pasting and autofill all work. */
+/** OTPInput 验证码: the 6-digit sign-in code, or a 4-character table code, in separate boxes; typing, pasting and autofill all work. */
 export type OTPInputProps = {
   value: string;
   onChange: (value: string) => void;
@@ -167,8 +179,12 @@ export type OTPInputProps = {
   onComplete?: (value: string) => void;
   /** 6 for sign-in codes (default), 4 for table codes */
   length?: number;
-  /** digits: the emailed code (number pad, one-time-code autofill); letters: a table code, uppercased */
-  charset?: "digits" | "letters";
+  /**
+   * digits: the emailed code (number pad, one-time-code autofill, the default); table: a table code,
+   * uppercased, made of what codes are made of (A to Z without I, L and O, and 2 to 9:
+   * CODE_ALPHABET in shared/protocol.ts), no autofill
+   */
+  charset?: "digits" | "table";
   /** names the field for screen readers (验证码) */
   label: string;
   /** shown under the boxes and read out */
@@ -245,12 +261,20 @@ export type PenaltyCall = {
   note?: string;
   /** the penalty itself when the game names one ("15 push-ups"), shown instead of the drink */
   say?: string;
+  /** with a penalty of the table's own: how many times (7-8-9's pot); two sips is twice anyway */
+  times?: number;
 };
 
-/** Fails to compile if the two PenaltyCall shapes drift apart (drop it once PenaltyStamp is gone). */
+/**
+ * Fails to compile if the two PenaltyCall shapes drift apart (drop it once PenaltyStamp is gone):
+ * the same fields with the same types, optional ones included. (Each shape fits the other even when
+ * one has an optional field the other lacks, so the fields are also compared with every one required.)
+ */
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type Assert<_ extends true> = never;
-export type PenaltyCallMatchesToday = Assert<Same<PenaltyCall, LivePenaltyCall>>;
+export type PenaltyCallMatchesToday =
+  | Assert<Same<PenaltyCall, LivePenaltyCall>>
+  | Assert<Same<Required<PenaltyCall>, Required<LivePenaltyCall>>>;
 
 /** PenaltyCard 惩罚卡: the one way every game hands out a penalty (a sip, 5 push-ups, a performance), same look and motion everywhere. */
 export type PenaltyCardProps = {

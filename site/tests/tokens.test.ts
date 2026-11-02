@@ -7,6 +7,7 @@
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -17,7 +18,8 @@ function ok(cond: unknown, msg: string) {
   }
 }
 
-const here = new URL("..", import.meta.url).pathname;
+// a file path on every system (a URL's pathname is /C:/... on Windows)
+const here = fileURLToPath(new URL("..", import.meta.url));
 const read = (p: string) => readFileSync(join(here, p), "utf8");
 
 /** custom properties declared in a file's first :root block, comments stripped */
