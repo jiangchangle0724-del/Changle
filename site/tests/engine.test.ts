@@ -1973,6 +1973,30 @@ test("dj: a night of the host's songs: their names from the speaker, a song on e
   sc("live", { source: "local" });
   ok(deck().local && !!deck().songs.a, "and plays them again");
   ok(!sc("live", { source: "local" }), "(once)");
+  // two songs take turns
+  const e3 = new RoomEngine(freshRoom("DJLE", clock), host);
+  e3.screenHello("tv-le", true, "dj");
+  e3.hello("q1", "Q1", false);
+  e3.flush();
+  const s3 = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e3.screenAct("tv-le", { x, ...rest });
+    e3.flush();
+    return took;
+  };
+  const d3 = () => (e3.view("q1").game as V<"dj">).deck;
+  s3("crate", { songs: [["t1", "One", "", 128, 200], ["t2", "Two", "", 126, 200]] });
+  s3("live", { source: "local" });
+  s3("grid", { at: clock, bar: 0, bpm: 128 });
+  const first = d3().songs.a;
+  ok(!!first && !!d3().songs.b && d3().songs.b !== first, "two songs: one on each deck");
+  clock += 1100;
+  s3("decks", { a: d3().a, b: d3().b ?? "house", sa: d3().songs.a, sb: d3().songs.b });
+  s3("ending", { id: first });
+  const dr3 = d3().drop!;
+  clock = dr3.at + 5;
+  e3.due();
+  e3.flush();
+  ok(d3().fader === 1 && d3().songs.a === first, `the next plays, and the one before comes round again on the deck off the air (${d3().songs.a})`);
   const e2 = new RoomEngine(freshRoom("DJLD", clock), host);
   e2.screenHello("tv-ld", true, "dj");
   e2.flush();

@@ -245,3 +245,33 @@ then, too.
 111 pads pressed and 107 played (the deck's own limits), 8 drops, all 8 perfect, 9 landed (one the
 DJ's own, into a song asked for), none off the beat, 7 songs asked for and 7 different songs heard;
 WebKit's memory 0.77 to 1.0 GB.
+
+## Your songs (Nov 2)
+
+A night of the host's own song files (CONTRACTS.md, "A night of the host's songs"), played from the
+TV's computer. To try it on the Mac or PC that's the TV: open changle.ca/dj, press 开始派对, then 我的歌
+(top left), 选一个文件夹 (a folder of MP3s or M4As you own), wait for the list to show each song's BPM,
+then 用我的歌放. On the phones, 点歌 now searches those songs.
+
+**The beat finder** (`local/beats.ts`, in `tests/dj.test.ts`): made-up songs at 128, 95 and 140 BPM,
+each with a kick heavier on the bar's first beat, a snare, hats and a bass that comes in partway.
+Found within 0.01 BPM (127.997, 94.994, 139.998; a 122.4 BPM one 122.399), every beat within 3 to 8
+ms, the right beat of the bar, the loud part to the bar, and noise found to have no clear beat.
+About 0.1 to 1 second a song on this machine.
+
+**`site/scripts/dj_local_check.py`**, the TV in Chromium and in WebKit, two phones: 32 of 32 in
+each, no errors. The three made-up songs are heard at 128, 124 and 100 BPM and named from their file
+names; the switch to them plays on with no gap; pads land on the song's own beat to the millisecond;
+a song asked for from them goes up next on the deck off the air, and once the table drops into it,
+its loud part is what plays (read a moment after the drop: 20.0 s into a song whose loud part starts
+at 19.8 s, and 31.4 s into one at 31.2 s), the drop on its bar exactly and the player's crossfader
+on that deck; as the song ends the DJ drops into the next by itself; and the stand-in comes back
+when the host switches.
+
+**A busy night of six songs** (two of them too far off the others' tempo to match), the TV in
+WebKit: pads every 3 to 6 seconds, a song asked for every minute, a build-up and a drop every 70
+seconds, the DJ dropping into the next as each ends: 10 minutes, no stalls, never not playing, the
+buffer never under 4.98 s, all six songs heard, 118 of 129 pads played (the deck's own limits), 12
+drops landed (8 the table's, 4 the DJ's own as songs ended), 7 songs asked for, the night's tempo
+following the songs too far off to match (it sat at 126, 124, 100 and 95 BPM at different times), no
+page errors; WebKit's memory 0.80 to 0.93 GB (1.03 at most).

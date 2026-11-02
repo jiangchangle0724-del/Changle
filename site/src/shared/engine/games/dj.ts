@@ -213,14 +213,16 @@ function autoDrop(s: RoomState, api: Api, key: "req" | "end") {
 
 /* ------------------------------------------------------------------ a night of the host's songs */
 
-/** The next of the host's songs: one not on a deck nor played tonight (all played: they start over). */
-function pickSong(s: RoomState, api: Api): string | null {
+/**
+ * The next of the host's songs: one not played tonight, other than `not` (the one on the other deck);
+ * all played, they start over (so two songs take turns; one alone has nothing to follow it).
+ */
+function pickSong(s: RoomState, api: Api, not: string | null): string | null {
   const d = s.deck;
-  const on = new Set([d.songs.a, d.songs.b]);
-  let pool = s.crate.filter((x) => !on.has(x.id) && !d.played.includes(x.id));
+  let pool = s.crate.filter((x) => x.id !== not && !d.played.includes(x.id));
   if (!pool.length) {
-    d.played = [];
-    pool = s.crate.filter((x) => !on.has(x.id));
+    d.played = not ? [not] : [];
+    pool = s.crate.filter((x) => x.id !== not);
   }
   return pool.length ? pool[api.int(pool.length)].id : null;
 }
@@ -236,12 +238,12 @@ function refill(s: RoomState, api: Api) {
   const has = (id: string | null): id is string => !!id && s.crate.some((x) => x.id === id);
   const on = onAir(d);
   const off = offAir(d);
-  if (!has(d.songs[on])) d.songs[on] = pickSong(s, api);
+  if (!has(d.songs[on])) d.songs[on] = pickSong(s, api, d.songs[off]);
   const playingNow = d.songs[on];
   if (playingNow && !d.played.includes(playingNow)) d.played = [...d.played, playingNow].slice(-CRATE_MAX);
   if (d.up?.local) return;
   const next = d.songs[off];
-  if (!has(next) || d.played.includes(next)) d.songs[off] = pickSong(s, api);
+  if (!has(next) || d.played.includes(next)) d.songs[off] = pickSong(s, api, d.songs[on]);
 }
 
 /** The music now comes from the host's songs, or no longer does. */
