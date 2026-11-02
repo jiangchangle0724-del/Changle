@@ -102,9 +102,10 @@ With the fixture and `read = ["ticketmaster", "luma", "vpl", "rpl", "rogersforum
   trailing slash; G10 picks the Commodore event on 12 November, not the one on the 14th; G11 and
   G16 have the right venue.
 
-And with `read = readSources(SOURCES.map((s) => s.id))` (luma, vpl, rpl, ticketmaster today):
-18 rows read, 17 matched; date, venue, category and area 16/17 94.1%; false merges 2/17 11.8%;
-missed merges `null` (no pair has both rows read); `gateA` false.
+And with `read = readSources(SOURCES.map((s) => s.id))` (luma, vpl, rpl, ubc, ticketmaster since
+UBC joined on 1 November): 21 rows read, 17 matched (`notFound` G04, G05, G07, G08: the fixture
+has no UBC events); date, venue, category and area 16/17 94.1%; false merges 2/17 11.8%; missed
+merges `null` (no pair has both rows read); `gateA` false.
 
 Plus small tests of your own for each rule: a date-only row (all-day, TBD, a timed event that
 day), a venue with no golden address, a `duplicate_of` loop. `npm run eval -- <a dump made from the
