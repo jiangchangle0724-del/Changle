@@ -7,11 +7,12 @@ import { freshRoom, RoomEngine, type Output, type Profile, type RoomData } from 
 import { CODE_RE, type ClientMsg, type ErrorCode, type ServerMsg } from "../src/shared/protocol";
 import { drawPicture, drawReady, type Pic } from "./draw";
 import { Hub, type Reply } from "./hub";
+import { LyriaRelay, type LyriaEnv, type LyriaWhy, type RelayMsg } from "./lyria";
 import { cleanChoices, drawPrompt, LIMITED } from "../src/shared/draw";
 
 export { Hub };
 
-export interface Env {
+export interface Env extends LyriaEnv {
   ROOMS: DurableObjectNamespace<Room>;
   HUB: DurableObjectNamespace<Hub>;
   RESEND_API_KEY?: string;
@@ -25,6 +26,10 @@ export interface Env {
   GEMINI_IMAGE_MODEL?: string;
   /** local runs without a key: "drawing" answers with the picture it was sent */
   DEV_FAKE_DRAW?: string;
+  /** local runs only: every table may try Lyria (the DJ booth's private test), not just the owner's */
+  DEV_LYRIA_ANYONE?: string;
+  /** the DJ booth's Lyria test: hours a month, all tables together (default 20) */
+  DJ_LYRIA_HOURS?: string;
 }
 
 /** `screen`: a TV or computer showing the table, with no seat at it */
@@ -294,7 +299,7 @@ export default {
     }
     if (url.pathname.startsWith("/api/")) return api(req, env, ctx, url);
     if (url.pathname === "/" || url.pathname === "/health") return cors(new Response("changle rooms ok"), req);
-    const m = /^\/room\/([A-Za-z0-9]{4})\/(ws|info)$/.exec(url.pathname);
+    const m = /^\/room\/([A-Za-z0-9]{4})\/(ws|info|lyria)$/.exec(url.pathname);
     if (!m) return cors(new Response("not found", { status: 404 }), req);
     if (!originOk(req)) return new Response("forbidden", { status: 403 });
     const code = m[1].toUpperCase();
@@ -303,12 +308,14 @@ export default {
     const inner = new URL(req.url);
     inner.searchParams.set("code", code);
     const res = await stub.fetch(new Request(inner.toString(), req));
-    return m[2] === "ws" ? res : cors(res, req);
+    return m[2] === "info" ? cors(res, req) : res;
   },
 } satisfies ExportedHandler<Env>;
 
 export class Room extends DurableObject<Env> {
   private engine: RoomEngine | null = null;
+  /** the DJ booth's Lyria stream for this table, while there is one (worker/lyria.ts) */
+  private lyria: LyriaRelay | null = null;
   /** when the table was last stored (light changes wait for the next save, or this long) */
   private savedAt = 0;
 
@@ -351,6 +358,7 @@ export class Room extends DurableObject<Env> {
     const url = new URL(req.url);
     const code = url.searchParams.get("code") ?? "";
     const engine = await this.load(code);
+    if (url.pathname.endsWith("/lyria")) return this.lyriaSocket(req, url);
     if (req.headers.get("Upgrade") !== "websocket") return Response.json(engine.info());
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
@@ -379,11 +387,13 @@ export class Room extends DurableObject<Env> {
       const pid = String(msg.pid ?? "").slice(0, 48);
       let who: Profile | null = null;
       let block: ErrorCode | undefined;
+      let owner = false;
       // who this is, and whether they may sit down (the site paused, a banned phone)
       try {
         const a = await this.hub().admit({ auth: typeof msg.auth === "string" ? msg.auth : "", pid });
         who = a.who;
         block = a.block;
+        owner = !!a.owner;
       } catch {
         who = null;
       }
@@ -400,6 +410,8 @@ export class Room extends DurableObject<Env> {
         return;
       }
       ws.serializeAttachment({ pid, screen } satisfies Attachment);
+      // one of the site owner's accounts (the DJ booth's private Lyria test listens to it)
+      if (!screen) engine.setOwner(pid, owner || this.env.DEV_LYRIA_ANYONE === "1");
       // one socket per phone (or screen): an older one for the same id is retired
       for (const s of this.sockets()) if (s.pid === pid && s.ws !== ws) {
         try {
@@ -481,6 +493,60 @@ export class Room extends DurableObject<Env> {
 
   private hub() {
     return this.env.HUB.get(this.env.HUB.idFromName("hub"));
+  }
+
+  /**
+   * Why this table may not stream Lyria now (null: it may): the DJ booth up with music playing,
+   * one of the owner's accounts seated, and the asking speaker a big screen at this table.
+   */
+  private lyriaWhyNot(sid?: string): LyriaWhy | null {
+    const d = this.engine?.d;
+    if (!d || d.game?.id !== "dj") return "game";
+    const phase = (d.game.s as { phase?: string }).phase;
+    if (phase === "wait" || phase === "end") return "set";
+    const owner = this.env.DEV_LYRIA_ANYONE === "1" ? d.seats.length > 0 : d.seats.some((s) => s.owner);
+    if (!owner) return "private";
+    if (sid !== undefined && !this.sockets().some((s) => s.screen && s.pid === sid)) return "screen";
+    return null;
+  }
+
+  /**
+   * A big screen at this table asking for the Lyria stream (the DJ booth's speaker): checked here,
+   * then handed to the relay. A plain socket, not a hibernating one: while a stream plays, the
+   * table stays awake anyway.
+   */
+  private async lyriaSocket(req: Request, url: URL): Promise<Response> {
+    if (req.headers.get("Upgrade") !== "websocket") return new Response("websocket only", { status: 426 });
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
+    server.accept();
+    const no = (why: LyriaWhy) => {
+      try {
+        server.send(JSON.stringify({ t: "no", why } satisfies RelayMsg));
+        server.close(1000, "no");
+      } catch {
+        /* gone */
+      }
+      return new Response(null, { status: 101, webSocket: client });
+    };
+    const sid = url.searchParams.get("sid") ?? "";
+    const why = sid ? this.lyriaWhyNot(sid) : "screen";
+    if (why) return no(why);
+    if (!LyriaRelay.configured(this.env)) return no("off");
+    // the month's cap: without an answer from the meter, no new stream (an experimental model with
+    // no published price)
+    try {
+      const m = await this.hub().lyriaMeter(0);
+      if (m.used >= m.cap) return no("cap");
+    } catch {
+      return no("off");
+    }
+    this.lyria ??= new LyriaRelay(this.env, {
+      whyNot: (s) => this.lyriaWhyNot(s),
+      meter: (add) => this.hub().lyriaMeter(add),
+    });
+    this.lyria.join(server, sid);
+    return new Response(null, { status: 101, webSocket: client });
   }
 
   /** The owner's back office takes someone off this table (and, banned, keeps them off it). */
@@ -576,6 +642,11 @@ export class Room extends DurableObject<Env> {
     }
     if (out.strokesReset) for (const s of live) this.send(s.ws, { t: "strokes", list: [] });
     if (out.changed) this.report();
+    // the booth closed, its set ended, the owner left: its Lyria stream goes with it
+    if (this.lyria?.open && out.changed) {
+      const why = this.lyriaWhyNot();
+      if (why) this.lyria.end(why);
+    }
     // a light change that wasn't stored leaves the alarm as it was
     if (out.light && !save) return;
 

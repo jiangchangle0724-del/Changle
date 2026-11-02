@@ -153,7 +153,7 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 
 | App | Secrets (Cloudflare) | Other variables |
 | --- | --- | --- |
-| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`); `GEMINI_IMAGE_MODEL` (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW` (local only) |
+| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |

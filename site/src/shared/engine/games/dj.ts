@@ -237,6 +237,15 @@ export const dj: GameDef<RoomState> = {
         begin(s, api);
         return true;
       }
+      case "src": {
+        // the speaker switched where its music comes from mid-set (Lyria came in, or fell back to
+        // the stand-in): only while music plays, and only a real change
+        if (s.phase === "wait" || s.phase === "end") return false;
+        const source = g.source === "lyria" ? "lyria" : g.source === "fake" ? "fake" : null;
+        if (!source || source === s.source) return false;
+        s.source = source;
+        return true;
+      }
       case "stats": {
         if (s.speaker.at && api.now - s.speaker.at < STATS_GAP_MS) return false;
         // a minute's worth at most (a report covers the minute since the last one)
@@ -299,6 +308,9 @@ export const dj: GameDef<RoomState> = {
       knobs: s.knobs,
       drops: s.drops,
       queue,
+      // the private Lyria test: one of the site owner's accounts has a seat at the table (a phone
+      // that locks keeps its seat, and the music)
+      lab: api.ids().some((p) => api.isOwner(p)),
       set: s.set,
     };
   },

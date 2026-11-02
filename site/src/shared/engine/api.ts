@@ -15,6 +15,8 @@ export interface Api {
   /** Seated and with the app open right now. */
   online(pid: string): boolean;
   isHost(pid: string): boolean;
+  /** Signed in with one of the site owner's accounts (only the rooms server knows; false elsewhere). */
+  isOwner(pid: string): boolean;
   /** The id after `after` in seat order (restricted to `among` when given). */
   next(after: string | null, among?: string[]): string;
   /** The id before `before` in seat order. */
