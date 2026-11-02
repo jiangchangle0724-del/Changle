@@ -1616,6 +1616,83 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   ok(deck().fader === 1, "no fader before the music");
 });
 
+test("dj: the beginner deck: picks wait for a drop; one screen speaks, said again until the room has it; corrections keep a drop; turned-away words cost nothing", () => {
+  const e = new RoomEngine(freshRoom("DJBE", clock), host);
+  e.screenHello("tv-a", true, "dj");
+  e.screenHello("tv-b", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const deck = () => (e.view("p2").game as V<"dj">).deck;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (sid: string, x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct(sid, { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+
+  // turned away: nothing to send or store
+  ok(nothing(g("p1", "knob", { style: "polka", value: 1 })) && nothing(g("p1", "knob", { style: "house", value: 0 })), "a knob that isn't one, or one turned to where it already is, costs nothing");
+  ok(nothing(g("p1", "ask", { text: "x" })) && nothing(g("p1", "unask", { id: "nope" })), "a song too short, or taking back one that isn't there, costs nothing");
+  sc("tv-a", "live", { source: "fake" });
+  g("p1", "fire");
+  ok(nothing(g("p1", "fire")), "a 🔥 too soon after the last costs nothing");
+
+  // one screen speaks for the speaker: the one giving the bars, while it keeps saying them
+  ok(sc("tv-a", "grid", { at: clock, bar: 0, bpm: 125 }), "the speaker gives the bars");
+  advance(40_000);
+  ok(!sc("tv-a", "grid", { at: clock - 40_000, bar: 0, bpm: 125 }), "40 s on, the same bars again: nothing new (it shows it's still there)");
+  ok(!sc("tv-b", "grid", { at: clock, bar: 7, bpm: 125 }) && !sc("tv-b", "decks", { a: "house", b: null }) && !sc("tv-b", "src", { source: "lyria" }), "another screen can't speak for it, however long since the bars last moved");
+  ok(sc("tv-a", "decks", { a: "house", b: null }) && deck().sounding?.b === null, "the speaker says what its decks sound");
+  ok(!sc("tv-a", "decks", { a: "house", b: "latin" }), "and at most once a second");
+  advance(1000);
+  ok(sc("tv-a", "decks", { a: "house", b: "latin" }) && deck().sounding?.b === "latin", "a second later it's taken");
+  ok(sc("tv-a", "src", { source: "lyria" }) && !sc("tv-a", "src", { source: "fake" }), "the source too: once a second");
+  advance(1000);
+  ok(sc("tv-a", "src", { source: "fake" }), "then again");
+  advance(31_000);
+  ok(sc("tv-b", "grid", { at: clock, bar: 9, bpm: 125 }) && !sc("tv-a", "grid", { at: clock, bar: 0, bpm: 125 }), "the speaker quiet for 30 s: another screen can take over (and then it speaks)");
+
+  // picks wait while a drop is on its way: it lands on the deck the floor had cued
+  advance(1000);
+  sc("tv-b", "grid", { at: clock, bar: 0, bpm: 125 });
+  g("p1", "vote", { style: "latin" });
+  advance(1000);
+  sc("tv-b", "decks", { a: "house", b: "latin" });
+  ok(cued(deck()) === "b", "latin loaded on B, and the speaker plays it there");
+  for (let i = 0; i < 30 && !deck().drop; i++) {
+    advance(250);
+    g(`p${(i % 2) + 1}`, "charge", { n: 8 });
+  }
+  const dr = deck().drop!;
+  ok(!!dr && dr.to === "b", "a drop on its way, to B");
+  const pick = g("p2", "vote", { style: "techno" });
+  ok(nothing(pick) && deck().b === "latin" && !deck().votes.p2, "a pick in the countdown waits: B stays latin");
+
+  // a correction moments before it lands leaves the drop where it is, presses and all
+  clock = dr.cue + 20;
+  g("p2", "drop", { c: clock });
+  ok(deck().drop!.hits.length === 1, "Ben pressed on the cue");
+  clock = dr.at - 150;
+  ok(sc("tv-b", "grid", { at: deck().grid!.at + 40, bar: deck().grid!.bar, bpm: 125 }), "the bars, 40 ms later, 150 ms before the drop");
+  ok(deck().drop!.at === dr.at && deck().drop!.bar === dr.bar && deck().drop!.hits.length === 1, "the drop stays where it is, with its press");
+  advance(200);
+  const last = deck().last!;
+  ok(!deck().drop && last.bar === dr.bar && last.to === "b" && last.style === "latin" && last.hits.length === 1, "and lands on latin");
+});
+
 test("dj: the private Lyria test: only with one of the owner's accounts at the table, never shown; the speaker says when its music changes hands", () => {
   const e = new RoomEngine(freshRoom("DJLB", clock), host);
   e.screenHello("tv-lb", true, "dj");

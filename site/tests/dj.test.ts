@@ -177,7 +177,26 @@ await test("player: two decks in step; the crossfader blends them at equal power
   P.send({ t: "pcm", l: new Float32Array(9600).fill(0.4) });
   P.setX(1);
   const none = P.run(128 * 260);
-  ok(Math.abs(none.l[128 * 260 - 1]) < 1e-6 && Math.abs(none.l[128 * 200] + 0.3) < 1e-3, "a chunk without deck B is silence on B");
+  ok(Math.abs(none.l[128 * 260 - 1] - 0.4) < 1e-3 && Math.abs(none.l[128 * 200] + 0.3) < 1e-3, "a chunk without deck B plays deck A alone, even with the fader on B");
+});
+
+await test("player: deck B with nothing of its own is never silence; its start and its ring-out are smoothed", () => {
+  const P = player({ rate: 48000, prebuffer: 0.1, resume: 0.1, seconds: 4 });
+  const n = 9600;
+  const a = (k: number) => sine(n, 220, 48000, k * n, 0.4);
+  const b = () => new Float32Array(n).fill(-0.3);
+  // the fader on B all along: A alone, then B's own music, then only B's ring-out, then A alone
+  P.send({ t: "pcm", l: a(0), r: a(0) });
+  P.send({ t: "pcm", l: a(1), r: a(1), l2: b(), r2: b() });
+  P.send({ t: "pcm", l: a(2), r: a(2), l2: b(), r2: b(), own: false });
+  P.send({ t: "pcm", l: a(3), r: a(3) });
+  P.setX(1);
+  const out = P.run(128 * 300).l;
+  const peak = (from: number, to: number) => Math.max(...Array.from(out.subarray(from, to), Math.abs));
+  ok(peak(4000, 9000) > 0.38, `no deck B yet: deck A plays, not silence (peak ${peak(4000, 9000).toFixed(3)})`);
+  ok(Math.abs(out[n + 4000] + 0.3) < 1e-3, "B's own music starts: the fader's blend from that frame");
+  ok(peak(2 * n + 4000, 3 * n - 100) > 0.38 && Math.abs(out[2 * n + 4000] - a(2)[4000]) < 1e-3, "only its ring-out: deck A again, the tail faded under it");
+  ok(maxJump(out.subarray(2000)) < 0.02, `no clicks where B comes and goes (biggest step ${maxJump(out.subarray(2000)).toFixed(4)})`);
 });
 
 await test("player: the brake slows the music to a stop, waits, and comes back where the stream has got to", () => {
@@ -236,8 +255,9 @@ async function fakeRender(sec: Section, rate: number): Promise<Rendered> {
 
 function mockSpeaker() {
   const got: number[][] = [];
-  /** deck B's frames beside each chunk (empty: none) */
+  /** deck B's frames beside each chunk (empty: none), and whether they're B's own music (false: only its ring-out) */
   const gotB: number[][] = [];
+  const ownB: boolean[] = [];
   let tick: (() => void) | null = null;
   const m = {
     sent: 0,
@@ -246,12 +266,14 @@ function mockSpeaker() {
     fades: 0,
     chunks: got,
     chunksB: gotB,
+    ownB,
     get sentFrames() {
       return m.sent;
     },
-    push(l: Float32Array, _r?: Float32Array, l2?: Float32Array) {
+    push(l: Float32Array, _r?: Float32Array, l2?: Float32Array, _r2?: Float32Array, own = true) {
       got.push(Array.from(l));
       gotB.push(l2 ? Array.from(l2) : []);
+      ownB.push(!!l2 && own);
       m.sent += l.length;
     },
     buffered: () => Math.max(0, m.sent - m.played) / 48000,
@@ -339,12 +361,13 @@ await test("fake DJ: two decks in step: B in its own style on the same bars, a n
   for (let k = 0; k < 80; k++) sp.play(12000);
   const B2 = flat("chunksB");
   const lastB = sp.chunksB[sp.chunksB.length - 1];
-  ok(Math.abs(B2[2 * F] - NUM["techno:warm2"] / 10) < 1e-4 && lastB.length === 0, "B emptied: its ring-out fades out, then no deck B at all");
+  const tailChunk = sp.chunks.findIndex((_, i) => sp.chunks.slice(0, i + 1).reduce((x, c) => x + c.length, 0) > 2 * F);
+  ok(Math.abs(B2[2 * F] - NUM["techno:warm2"] / 10) < 1e-4 && sp.ownB[tailChunk] === false && lastB.length === 0, "B emptied: only its ring-out, under deck A (not B's own music), then no deck B at all");
   ok(dj.beatFrame(8) === 8 * 23040 && dj.decks, "beat 8 is 8 beats into the stream");
   dj.stop();
 });
 
-await test("fake DJ: a deck whose new style isn't recorded yet plays deck A's music, never silence, and says so", async () => {
+await test("fake DJ: a deck whose first style isn't recorded yet has nothing of its own (the player plays A alone), and says so", async () => {
   const F = sectionFrames(48000);
   const dj = new FakeDj(fakeRender);
   dj.prepare("warm");
@@ -357,13 +380,33 @@ await test("fake DJ: a deck whose new style isn't recorded yet plays deck A's mu
   for (let k = 0; k < 40; k++) sp.play(12000);
   dj.setDecks("house", "trance");
   for (let k = 0; k < 30; k++) sp.play(12000);
-  // deck B frame for frame beside A (a chunk without B is silence there)
+  // deck B frame for frame beside A (0 where a chunk has none)
   const B = sp.chunks.flatMap((c, i) => (sp.chunksB[i].length ? sp.chunksB[i] : c.map(() => 0)));
-  ok(B.length > F + TAIL + 1000 && B[F - 1] === 0 && Math.abs(B[F + TAIL + 100] - NUM.warm2) < 1e-4, "B not recorded in time: it plays deck A's section meanwhile (no silence)");
+  const second = sp.chunks.map((_, i) => i).filter((i) => sp.chunks.slice(0, i).reduce((x, c) => x + c.length, 0) >= F);
+  ok(B.length > F + TAIL + 1000 && B[F - 1] === 0 && B[F + TAIL + 100] === 0 && second.length > 0 && second.every((i) => !sp.ownB[i]), "B not recorded in time: nothing of its own that section (the player plays deck A alone there)");
   ok(dj.heardDecks()?.b === null, "and doesn't claim trance yet");
   await sleep(500);
   for (let k = 0; k < 70; k++) sp.play(12000);
   ok(dj.heardDecks()?.b === "trance", `the next section: trance, and it says so (${JSON.stringify(dj.heardDecks())})`);
+  dj.stop();
+});
+
+await test("fake DJ: a new pick is recorded first for the section after the one going out", async () => {
+  const order: string[] = [];
+  const dj = new FakeDj(async (sec: Section, rate: number) => {
+    order.push(sec.id);
+    return fakeRender(sec, rate);
+  });
+  dj.prepare("warm");
+  await sleep(500);
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  dj.setPhase("warm");
+  for (let k = 0; k < 20; k++) sp.play(12000);
+  const from = order.length;
+  dj.setDecks("house", "trance");
+  await sleep(400);
+  ok(order[from] === "trance:warm2", `warm1 is going out: trance's warm2 first (${order.slice(from, from + 3).join(", ")})`);
   dj.stop();
 });
 

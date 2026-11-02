@@ -105,7 +105,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `unask` `{ id }` | its player, or the host | Takes back a song while it is `queued` (or `refused`, `failed`); once it is being checked or made it is the song pipeline's. |
 | `phase` `{ phase }`, `again` | the host | As above. |
 | `live` `{ source }`, `stats` `{ stalls, resets, seconds }` | the speaker | As above. |
-| `src` `{ source }` | the speaker | Its music changed hands mid-set (Lyria took over, or the stand-in came back): `source` follows, so every phone shows which DJ plays. Only while music plays, only a real change. |
+| `src` `{ source }` | the speaker | Its music changed hands mid-set (Lyria took over, or the stand-in came back): `source` follows, so every phone shows which DJ plays. Only while music plays, only a real change, at most once a second; the speaker says it again every 3 seconds until the room has it. |
 
 - **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
   `ask` is null for everyone but its player and the host until it has passed the text check
@@ -114,10 +114,12 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
   stays `queued`: the big screen can show that someone's song is waiting, never what it says.
 - **Another set** keeps the night's 🔥 counts, everyone's knobs, the songs, the decks' styles and
   the night's perfect drops; ❄️, drops, pads, the build-up start empty.
-- **Quiet** (`api.quiet()`): a command the room turns away, or a tap it keeps to add a moment later,
-  sends and stores nothing (the engine's `Api.quiet`; the rooms server then writes nothing at all,
-  not even its alarm); what it kept goes out with the next change. A light change that moves a game
-  timer still re-arms the alarm.
+- **Quiet** (`api.quiet()`): a command the room turns away (any of them: a 🔥 too soon, a knob
+  already where it is, a song too short or one too many, a take-back that isn't allowed, the deck's
+  own), or a tap it keeps to add a moment later, sends and stores nothing (the engine's
+  `Api.quiet`; the rooms server then writes nothing at all, not even its alarm); what it kept goes
+  out with the next change. A light change that moves a game timer still re-arms the alarm, and the
+  alarm itself always sets the next one.
 - **Knobs of players who left** stay in `knobs` (they may come back): the DJ and the screens count
   only the seats at the table.
 - A booth saved before a field existed gets it empty (`norm` in `games/dj.ts`): add new fields the
@@ -189,16 +191,20 @@ four chords (`fake/styles.ts`: the other 11 as kits, house as it was), so any tw
 on the beat (like a game that fits every song to one tempo and key). The speaker's player holds
 both and blends them at equal power as they play (`xfade`), so the crossfader answers at once
 however far ahead the music waits. A deck that changes style changes at its next section (8 bars),
-once that style is recorded; until then it plays on in the style it had. Lyria plays one stream:
-the fader there blends the two styles' prompts (C1's presets) instead, a few seconds behind.
+once that style is recorded; until then it plays on in the style it had. A deck with nothing of
+its own yet (B before its first style is recorded) sends nothing: the player plays deck A alone
+there, wherever the fader is (never silence), and B comes in on its section's first bar at the
+fader's blend; its last section's ring-out fades under A rather than cutting. The section after
+the one going out is recorded first. Lyria plays one stream: the fader there blends the two
+styles' prompts (C1's presets) instead, a few seconds behind.
 
 | Command | What the room does |
 | --- | --- |
 | `pad` `{ pad }` | `echo`, `sweep`, `horn` or `brake`, while music plays: a phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn), a brake once per 4 s (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
-| `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
+| `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
-| `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`): a new style plays from its deck's next section once it's recorded, and until then a deck with nothing of its own plays deck A's music, never silence. |
+| `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`; `b` null while B has nothing of its own): a new style plays from its deck's next section once it's recorded. Taken at most once a second; the speaker says it again every 1.5 s until the room has it. |
 
 **The drop.** When the build-up fills, the room aims the drop (`aim`): the first bar that's a
 multiple of 4 at least 4 beats away on the speaker's bars, the **cue** one beat before it. The
@@ -216,14 +222,18 @@ when the build-up fills. Nobody pressed: another countdown 4 bars on; after 2 mi
 it by itself (`auto`). The end of a set clears it.
 
 **The speaker's bars** (`grid`). The speaker tells the room where its bars fall: bar `bar` of its
-stream starts at server time `at` (when it's *heard*), at `bpm`, sent again when its stream starts
-over, its DJ changes, or its clock drifts by more than 25 ms (at most every 5 s, and not during a
-countdown on the same stream). The room takes the bars from one screen (`gridFrom`, at most once a
-second; another can take over after 30 s of quiet), and the speaker's `stats`, `src` and `decks`
-only from that screen too. It ignores the same bars within a twentieth of a beat. A drop on its
-way keeps its bar and its presses when the same stream's clock drifts (its time is corrected);
-only new bars (a new stream) start its countdown over. Phones count down on the server's clock
-(`useRoom().now()`), so every phone, the TV and what the room hears agree.
+stream starts at server time `at` (when it's *heard*), at `bpm`. It compares them with the room's
+every second and says them whenever the room's put the next bar more than 0.06 of a beat from where
+it hears it (a new stream, its DJ changed, a drift, a stall, a word lost or turned away), at most
+every 1.5 s, countdown or not; and every 10 s anyway, which shows the room it's still the speaker.
+The room takes the bars from one screen (`gridFrom`, at most once a second), and the speaker's
+`stats`, `src` and `decks` only from that screen too; another screen can take over once that one
+has said nothing at all for 30 s (`speakerAt`, kept in memory: whatever it says counts, taken or
+not). It ignores the same bars within a twentieth of a beat. A drop on its way keeps its bar and
+its presses when the same stream is corrected (its time moves with it, except in its last 200 ms:
+then it stays put, and the speaker lands it on its own bar anyway); only new bars (a new stream)
+start its countdown over. Phones count down on the server's clock (`useRoom().now()`), so every
+phone, the TV and what the room hears agree.
 
 **On the speaker** (`deck/driver.ts`, the sounds in `speaker/fx.ts`), every effect at an audio
 time on the beat grid (`BoothDj.beatFrame`, `Speaker.timeOfFrame`):
@@ -235,7 +245,8 @@ deck B ┘                                                       horn, riser, ro
 ```
 
 - **The drop on the speaker** is one per bar of a stream, however its time is corrected, and the
-  speaker holds its fader jump until the room says the drop landed (3 s at most).
+  speaker holds its fader jump until the room says the drop landed (3 s at most). If the room
+  moves that drop to new bars instead (a new stream), the build-up comes back for its countdown.
 - **echo:** a bar of the music repeating every ¾ beat, dying away. **sweep:** the music closes
   down to a murmur over a bar and opens over the next. **horn:** two short blasts and a long one, on
   the eighths. **brake:** the music slows to a stop over ¾ of a beat (pitch with it), quiet until
@@ -372,5 +383,7 @@ every frame changes only opacity or a transform.
 - `npx tsx tests/dj-presets.test.ts`: the 12 Lyria presets (C1).
 - `python3 scripts/dj_deck_check.py [chromium|webkit]`: the beginner deck in browsers, a TV and
   three phones playing at once: pads on the beat to the millisecond, picks loading deck B, the
-  fader held, the build-up, the countdown, DROP on the cue, the drop on its bar exactly and perfect.
+  fader thrown to B before B has music (deck A plays on, never silence), the fader held, the
+  build-up, the countdown (the picks waiting), DROP on the cue, the drop on its bar exactly and
+  perfect.
   Needs a table that isn't the owner's (`DEV_LYRIA_ANYONE` off), so the stand-in plays both decks.

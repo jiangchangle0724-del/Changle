@@ -568,7 +568,7 @@ export type DjView = {
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
-export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "gridFrom">;
+export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt">;
 
 /**
  * A song in the booth's queue as one phone or screen sees it. What a player wrote (`ask`) is null

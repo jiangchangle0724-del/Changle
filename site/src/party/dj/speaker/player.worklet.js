@@ -11,13 +11,17 @@
  * Two decks, in step (the beginner deck): every chunk can carry deck B's frames beside deck A's,
  * for the same stretch of the stream, and the `xfade` parameter (0 all A, 1 all B) blends them at
  * equal power as they play, so the crossfader answers at once, however far ahead the music waits.
- * A chunk without deck B is silence on B.
+ * A chunk without deck B (B has nothing of its own yet: no style, or not recorded in time), or
+ * with only the ring-out of B's last section (`own: false`), plays deck A alone wherever the fader
+ * is, never silence; where B's own music starts or stops, the blend follows from that frame on,
+ * smoothed like a move of the fader (so a tail fades rather than clicks).
  *
  * The brake (a tape stop): from audio time `at` the music slows to a stop over `dur` seconds, its
  * pitch with it, and stays quiet until `until`, where it comes back exactly where it would have been
  * (the stream's clock never stops: the beat, and everything waiting, stay where they were).
  *
- * In (port):  { t: "pcm", l, r, l2?, r2? }   one chunk, planar, at `rate` (l2/r2: deck B)
+ * In (port):  { t: "pcm", l, r, l2?, r2?, own? }   one chunk, planar, at `rate` (l2/r2: deck B;
+ *             own false: only B's ring-out)
  *             { t: "flush" }   drop what is waiting (a new stream starts with a full prebuffer)
  *             { t: "brake", at, dur, until }   audio times, seconds
  * Out:        { t: "tick", pos, written, time, state, stalls, drops }   about 23 times a second:
@@ -45,9 +49,10 @@ class DjPlayer extends AudioWorkletProcessor {
     this.cap = Math.ceil((o.seconds || 16) * this.rate);
     this.L = new Float32Array(this.cap);
     this.R = new Float32Array(this.cap);
-    // deck B, frame for frame beside deck A
+    // deck B, frame for frame beside deck A, and whether B has music of its own at that frame
     this.L2 = new Float32Array(this.cap);
     this.R2 = new Float32Array(this.cap);
+    this.HB = new Uint8Array(this.cap);
     this.written = 0; // source frames that have arrived, all told
     this.pos = 0; // the next source frame to play (fractional when resampling)
     this.vpos = 0; // where the stream would be without the brake (the same, but in a brake)
@@ -71,7 +76,7 @@ class DjPlayer extends AudioWorkletProcessor {
 
   onMessage(m) {
     if (!m || typeof m !== "object") return;
-    if (m.t === "pcm") this.push(m.l, m.r, m.l2, m.r2);
+    if (m.t === "pcm") this.push(m.l, m.r, m.l2, m.r2, m.own !== false);
     else if (m.t === "flush") {
       this.pos = this.written;
       this.vpos = this.written;
@@ -83,11 +88,12 @@ class DjPlayer extends AudioWorkletProcessor {
     }
   }
 
-  push(l, r, l2, r2) {
+  push(l, r, l2, r2, own = true) {
     if (!(l instanceof Float32Array)) return;
     const right = r instanceof Float32Array && r.length === l.length ? r : l;
     const b = l2 instanceof Float32Array && l2.length === l.length ? l2 : null;
     const bR = b && r2 instanceof Float32Array && r2.length === l.length ? r2 : b;
+    const mine = b && own ? 1 : 0;
     let n = l.length;
     let from = 0;
     if (n > this.cap) {
@@ -107,6 +113,7 @@ class DjPlayer extends AudioWorkletProcessor {
       this.R[k] = right[from + i];
       this.L2[k] = b ? b[from + i] : 0;
       this.R2[k] = b ? bR[from + i] : 0;
+      this.HB[k] = mine;
     }
     this.written += n;
   }
@@ -149,7 +156,9 @@ class DjPlayer extends AudioWorkletProcessor {
         this.state = "buffering";
         this.stalls += 1;
       }
-      this.xs += (xf - this.xs) * this.xk;
+      // the fader, except where deck B has nothing: deck A alone there
+      const x = this.HB[Math.floor(this.pos) % this.cap] ? xf : 0;
+      this.xs += (x - this.xs) * this.xk;
       if (this.state !== "playing") {
         this.gain = 0;
         oL[j] = 0;

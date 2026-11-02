@@ -234,12 +234,17 @@ export type DeckState = {
    */
   sounding: { a: StyleId; b: StyleId | null } | null;
   /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad and a
-   *  pick taken, the last brake, and which screen gives the bars and when it last did */
+   *  pick taken, the last brake, which screen gives the bars, when it last moved them and when it
+   *  last said anything at all (it says the bars every 10 s while it plays), and when the decks
+   *  and the source were last taken from it */
   padAt: Record<string, number>;
   voteAt: Record<string, number>;
   brakeAt: number;
   gridFrom: string | null;
   gridSetAt: number;
+  speakerAt: number;
+  decksAt: number;
+  srcAt: number;
 };
 
 /** The beginner deck's numbers. */
@@ -266,10 +271,13 @@ export const DECK = {
   padTakeMs: 500,
   roomPadGapMs: 150,
   brakeGapMs: 4000,
-  /** a phone's picks: one per this long */
+  /** a phone's picks: one per this long (and none while a drop is on its way: it lands on the deck
+   *  the floor had cued) */
   voteGapMs: 300,
-  /** the speaker's bars: taken at most this often, from the screen that gives them */
+  /** the speaker's bars, decks and source: each taken at most this often, from the screen that
+   *  gives the bars (another screen can take over once it has said nothing for `speakerQuietMs`) */
   gridGapMs: 1000,
+  speakerQuietMs: 30_000,
   /** a drop lands on a bar that's a multiple of this, at least `minBeats` beats after the build-up is full */
   every: 4,
   minBeats: 4,

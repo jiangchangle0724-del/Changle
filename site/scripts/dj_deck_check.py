@@ -1,7 +1,8 @@
 """打碟 · DJ Booth, the beginner deck, in browsers: a TV opens /dj and starts the night; three phones
-sit down and play at once. Every pad lands on a beat; picks load deck B; whoever moves the fader
-holds it; everyone taps the build-up full, the countdown runs on the TV and the phones, one phone
-presses DROP on the cue, and the drop lands exactly on its bar, swaps to deck B and is perfect.
+sit down and play at once. Every pad lands on a beat; picks load deck B; the fader thrown to B
+before B has music of its own plays deck A on, never silence; whoever moves the fader holds it;
+everyone taps the build-up full, the countdown runs on the TV and the phones (the picks wait), one
+phone presses DROP on the cue, and the drop lands exactly on its bar, swaps to deck B and is perfect.
 
 Needs the two local servers (site/README.md); a table that isn't the owner's (DEV_LYRIA_ANYONE off
 in site/worker/.dev.vars), so the stand-in plays both decks.
@@ -35,6 +36,16 @@ def log(tv):
 def on_beat(e):
     """An effect is on the beat when its beat is whole and its time is that beat's time (to a millisecond)."""
     return e["want"] is not None and abs(e["beat"] - round(e["beat"])) < 1e-6 and abs(e["at"] - e["want"]) < 0.001
+
+
+def set_fader(pg, value, let_go=False):
+    """Drag a phone's crossfader to `value` (0 to 100), as a finger would."""
+    pg.locator(".djk-fader input").evaluate(
+        """(el, [v, up]) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        set.call(el, String(v)); el.dispatchEvent(new Event('input', { bubbles: true }));
+        if (up) el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); }""",
+        [value, let_go],
+    )
 
 
 def press_at(pg, selector, when_ms, event="pointerdown"):
@@ -98,13 +109,31 @@ with sync_playwright() as p:
     ok(until(lambda: deck(tv).get("b") == "latin", 4000), "two picks for latin, one for techno: latin goes on deck B")
     ok(until(lambda: any(w in tv.locator(".dk-deck").nth(1).inner_text() for w in ("拉丁", "Latin")), 3000), "the TV's deck B says so")
 
+    # deck B has nothing of its own until latin is recorded for its next section: the fader thrown
+    # all the way to B plays deck A on, never silence
+    empty = (deck(tv).get("sounding") or {}).get("b") is None
+    set_fader(amy, 100, let_go=True)
+    ok(until(lambda: deck(tv).get("fader", 0) == 1, 3000), "Amy throws the fader all the way to B" + (" while B has nothing to play yet" if empty else " (B already plays latin)"))
+    tv.wait_for_timeout(400)
+    levels = []
+    for _ in range(15):
+        levels.append(tv.evaluate("() => window.__djBooth.level()"))
+        tv.wait_for_timeout(100)
+    ok(min(levels) > 0.01, f"the music plays on, never silence (quietest {min(levels):.3f}, loudest {max(levels):.3f})")
+    amy.wait_for_timeout(1300)
+    set_fader(amy, 0, let_go=True)
+    ok(until(lambda: deck(tv).get("fader", 1) == 0, 3000), "back to A (each swap starts the picks over)")
+    amy.locator(".djk-pick").nth(0).click()  # latin again
+    ben.locator(".djk-pick").nth(0).click()
+    ok(until(lambda: len([v for v in (deck(tv).get("votes") or {}).values() if v == "latin"]) == 2 and deck(tv).get("b") == "latin", 3000), "the floor picks latin again")
+
     # the fader: Amy holds it, Ben waits
-    fader = amy.locator(".djk-fader input")
-    fader.evaluate("(el) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(el, '40'); el.dispatchEvent(new Event('input', { bubbles: true })); }")
+    amy.wait_for_timeout(1300)
+    set_fader(amy, 40)
     ok(until(lambda: abs(deck(tv).get("fader", 0) - 0.4) < 0.011, 3000), "Amy moves the crossfader to 0.4")
     ok(until(lambda: ben.locator(".djk-fader input").is_disabled(), 2000), "Ben's waits while Amy has it")
     ok("Amy" in ben.locator(".djk-fader-who").inner_text(), "and says who has it")
-    fader.evaluate("(el) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(el, '0'); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); }")
+    set_fader(amy, 0, let_go=True)
     ok(until(lambda: deck(tv).get("fader", 1) == 0, 3000), "and back to A")
     tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-1.png"))
 
@@ -121,6 +150,7 @@ with sync_playwright() as p:
     dr = deck(tv).get("drop")
     ok(bool(dr) and dr["to"] == "b", f"everyone taps: the build-up fills and a drop is on its way, to deck B ({dr and dr['bar']})")
     ok(until(lambda: amy.locator(".djk-drop").count() == 1, 2000), "the phones' button turns into DROP")
+    ok(cat.locator(".djk-pick:not([disabled])").count() == 0, "and the picks wait for the drop")
     g = deck(tv)["grid"]
     beat_ms = 60000 / g["bpm"]
     ok(dr["bar"] % 4 == 0 and abs(dr["at"] - (g["at"] + (dr["bar"] - g["bar"]) * 4 * beat_ms)) < 2, "it lands on a 4-bar line of the speaker's bars")

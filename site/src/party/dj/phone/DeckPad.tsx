@@ -281,12 +281,14 @@ function Picks({ v, me, g, zh, side }: { v: DjView; me: string; g: G; zh: boolea
   const n = tally(d.votes);
   const mine = d.votes[me];
   const onStyle = side === "a" ? d.b : d.a;
+  // while a drop is on its way the picks wait (it lands on the deck the floor had cued)
+  const wait = !!d.drop;
   return (
     <div className="djk-picks">
-      <span className="djk-picks-title">{zh ? `下一首（放到 ${side.toUpperCase()}）` : `Next up (on deck ${side.toUpperCase()})`}</span>
+      <span className="djk-picks-title">{wait ? (zh ? "下一首（Drop 之后再选）" : "Next up (after the drop)") : zh ? `下一首（放到 ${side.toUpperCase()}）` : `Next up (on deck ${side.toUpperCase()})`}</span>
       <div className="djk-picks-grid">
         {STYLE_IDS.map((s: StyleId) => (
-          <button key={s} type="button" className={`djk-pick ${mine === s ? "is-mine" : ""}`} aria-pressed={mine === s} disabled={v.phase === "end" || s === onStyle} onClick={() => g("vote", { style: s })}>
+          <button key={s} type="button" className={`djk-pick ${mine === s ? "is-mine" : ""}`} aria-pressed={mine === s} disabled={v.phase === "end" || wait || s === onStyle} onClick={() => g("vote", { style: s })}>
             <span>{L(STYLE_NAMES[s], zh)}</span>
             {(n[s] ?? 0) > 0 && <span className="djk-pick-n tabular">{n[s]}</span>}
           </button>

@@ -273,18 +273,21 @@ export function useBooth({
     if (driver && deck) driver.update(deck, playing(phase));
   }, [driver, deck, phase]);
   const pad = useCallback((p: PadId) => driver?.pad(p), [driver]);
-  // what the stand-in's decks sound now, told to the room when it changes
+  // what the stand-in's decks sound now, told to the room whenever the room has it otherwise (said
+  // again every 1.5 s until it has: a word can be lost, or turned away)
   const decksTo = useRef(onDecks);
   decksTo.current = onDecks;
+  const roomHas = useRef(deck?.sounding ?? null);
+  roomHas.current = deck?.sounding ?? null;
   useEffect(() => {
     if (!speaker) return;
-    let said = "";
+    let saidAt = -Infinity;
     const id = window.setInterval(() => {
       const hd = booth.using === "fake" ? fake.heardDecks() : null;
-      if (!hd) return;
-      const key = `${hd.a}:${hd.b}`;
-      if (key === said) return;
-      said = key;
+      const has = roomHas.current;
+      if (!hd || (has && has.a === hd.a && has.b === hd.b)) return;
+      if (performance.now() - saidAt < 1500) return;
+      saidAt = performance.now();
       decksTo.current?.(hd);
     }, 500);
     return () => window.clearInterval(id);

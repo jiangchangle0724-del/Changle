@@ -164,12 +164,14 @@ export class Speaker {
 
   /**
    * One chunk of the stream (planar, at `rate`), with deck B's frames for the same stretch when
-   * deck B plays. The arrays are handed over, not copied.
+   * deck B plays. `ownB` false: B's frames are only the ring-out of its last section (B has nothing
+   * of its own now), so the player plays deck A alone and lets that tail fade under it. The arrays
+   * are handed over, not copied.
    */
-  push(l: Float32Array, r: Float32Array, l2?: Float32Array, r2?: Float32Array) {
+  push(l: Float32Array, r: Float32Array, l2?: Float32Array, r2?: Float32Array, ownB = true) {
     if (!this.node) return;
     this.sent += l.length;
-    if (l2 && r2) this.node.port.postMessage({ t: "pcm", l, r, l2, r2 }, [l.buffer, r.buffer, l2.buffer, r2.buffer]);
+    if (l2 && r2) this.node.port.postMessage({ t: "pcm", l, r, l2, r2, own: ownB }, [l.buffer, r.buffer, l2.buffer, r2.buffer]);
     else this.node.port.postMessage({ t: "pcm", l, r }, [l.buffer, r.buffer]);
   }
 
@@ -285,6 +287,15 @@ export class Speaker {
     this.peak = Math.max(mag, this.peak * 0.9993);
     const x = mag / this.peak;
     return Math.min(1, Math.max(0, (x - 0.3) / 0.7));
+  }
+
+  /** How loud it plays right now: the RMS of the last 40 ms or so, after the volume (the checks' ear). */
+  level(): number {
+    const buf = new Float32Array(this.analyser.fftSize);
+    this.analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (const x of buf) sum += x * x;
+    return Math.sqrt(sum / buf.length);
   }
 
   setVolume(v: number) {

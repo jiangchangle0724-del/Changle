@@ -188,7 +188,8 @@ export class FakeDj {
    */
   private wish(phase: DjPhase) {
     const bases = renderOrder(phase);
-    const next = this.streaming && playing(this.phase) ? nextSection(this.phase, this.prev) : null;
+    // (the one after the section going out now: that one's decks were settled when it began)
+    const next = this.streaming && playing(this.phase) ? nextSection(this.phase, this.cur?.base ?? this.prev) : null;
     if (next) bases.unshift(next);
     const ids: string[] = [];
     for (const base of bases) {
@@ -273,9 +274,10 @@ export class FakeDj {
           a = this.pick(this.prev, this.styleA, this.playedA);
         }
         if (!a) return;
-        // deck B plays the same section of the night in its own style, or the one it had; a style
-        // not recorded yet plays deck A's music meanwhile (never silence on a deck with a style)
-        const b = this.styleB ? (this.pick(at, this.styleB, this.playedB) ?? a) : null;
+        // deck B plays the same section of the night in its own style, or the one it had; with
+        // neither recorded it has nothing this section, and the player plays deck A alone,
+        // wherever the fader is (never silence)
+        const b = this.styleB ? this.pick(at, this.styleB, this.playedB) : null;
         if (!this.streaming) {
           // a new stream: whatever is left of the last one goes, and this one's first downbeat is here
           this.streaming = true;
@@ -285,12 +287,10 @@ export class FakeDj {
           sp.restore();
         }
         this.playedA = a.style;
-        // (deck A's music standing in for B doesn't count as B's style)
-        this.playedB = b && b !== a ? b.style : this.playedB;
+        if (b) this.playedB = b.style;
         this.cur = { base: at, a: a.r, b: b?.r ?? null };
         this.off = 0;
-        const bStyle = b && b !== a ? b.style : null;
-        this.marks = [...this.marks.slice(-5), { frame: sp.sentFrames, id: a.r.id, phase: ANY_SECTION[a.r.id]?.phase ?? this.phase, a: a.style, b: bStyle }];
+        this.marks = [...this.marks.slice(-5), { frame: sp.sentFrames, id: a.r.id, phase: ANY_SECTION[a.r.id]?.phase ?? this.phase, a: a.style, b: b?.style ?? null }];
       }
       this.push(sp, this.cur);
     }
@@ -302,7 +302,10 @@ export class FakeDj {
     const [l, r] = this.slice(cur.a, n, this.carryA);
     let l2: Float32Array | undefined;
     let r2: Float32Array | undefined;
+    // (B with nothing this section but its last one's ring-out: the player lets the tail fade
+    // under deck A rather than cutting it)
     if (cur.b || this.carryB) [l2, r2] = this.slice(cur.b, n, this.carryB);
+    const ownB = !!cur.b;
     this.off += n;
     if (this.off >= cur.a.frames) {
       this.carryA = { l: cur.a.l.subarray(cur.a.frames), r: cur.a.r.subarray(cur.a.frames), at: 0 };
@@ -310,7 +313,7 @@ export class FakeDj {
       this.prev = cur.base;
       this.cur = null;
     }
-    sp.push(l, r, l2, r2);
+    sp.push(l, r, l2, r2, ownB);
   }
 
   private slice(rec: Rendered | null, n: number, c: Carry | null): [Float32Array, Float32Array] {

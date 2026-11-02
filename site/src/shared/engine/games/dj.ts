@@ -179,11 +179,14 @@ const keep = <X>(list: X[], n: number) => (list.length > n ? list.slice(-n) : li
 
 /**
  * The screen that is the speaker: the one giving the bars (any screen until one has, or once it has
- * gone quiet for 30 seconds). Another screen with the table's code can't speak for it.
+ * said nothing at all for DECK.speakerQuietMs: it says the bars every 10 s while it plays). Another
+ * screen with the table's code can't speak for it. Whatever the speaker says, taken or not, shows
+ * it's still there (kept in memory only: nothing to store for it).
  */
 function fromSpeaker(s: RoomState, sid: string, api: Api) {
   const d = s.deck;
-  return !d.gridFrom || d.gridFrom === sid || api.now - d.gridSetAt >= 30_000;
+  if (d.gridFrom === sid) d.speakerAt = api.now;
+  return !d.gridFrom || d.gridFrom === sid || api.now - d.speakerAt >= DECK.speakerQuietMs;
 }
 
 /** A number inside the range, or null (outside it is nonsense, not something to clamp). */
@@ -232,7 +235,7 @@ export const dj: GameDef<RoomState> = {
         api.light();
         // one 🔥 or ❄️ per FIRE_TAKE_MS a phone: a held thumb can't flood the room
         const since = api.now - FIRE_TAKE_MS;
-        if (lastAt(s.fires, pid) > since || lastAt(s.colds, pid) > since) return;
+        if (lastAt(s.fires, pid) > since || lastAt(s.colds, pid) > since) return api.quiet();
         if (g.x === "fire") {
           s.fires = keep([...s.fires, { pid, at: api.now }], KEEP_REACTS);
           s.total[pid] = (s.total[pid] ?? 0) + 1;
@@ -247,13 +250,13 @@ export const dj: GameDef<RoomState> = {
         // a knob can be turned a lot: light, like 🔥
         api.light();
         const style = g.style as StyleId;
-        if (!STYLE_IDS.includes(style)) return;
+        if (!STYLE_IDS.includes(style)) return api.quiet();
         const v = num(g.value, -1, 1);
-        if (v === null) return;
+        if (v === null) return api.quiet();
         // on the grid; `|| 0` keeps -0 out
         const value = Math.round(v / KNOB_STEP) * KNOB_STEP || 0;
         const mine = { ...s.knobs[pid] };
-        if ((mine[style] ?? 0) === value) return;
+        if ((mine[style] ?? 0) === value) return api.quiet();
         if (value) mine[style] = value;
         else delete mine[style];
         if (Object.keys(mine).length) s.knobs[pid] = mine;
@@ -261,11 +264,12 @@ export const dj: GameDef<RoomState> = {
         return;
       }
       case "ask": {
+        // (turned away: nothing to send or store)
         const text = cleanAsk(g.text);
-        if (Array.from(text).length < ASK_CHARS.min) return;
+        if (Array.from(text).length < ASK_CHARS.min) return api.quiet();
         const waiting = s.queue.filter((t) => WAITING.includes(t.status));
-        if (waiting.length >= QUEUE_MAX) return;
-        if (waiting.filter((t) => t.by === pid).length >= ASKS_EACH) return;
+        if (waiting.length >= QUEUE_MAX) return api.quiet();
+        if (waiting.filter((t) => t.by === pid).length >= ASKS_EACH) return api.quiet();
         const style = STYLE_IDS.includes(g.style as StyleId) ? (g.style as StyleId) : null;
         s.queue = trimDone([...s.queue, { id: trackId(s, api), by: pid, ask: text, style, status: "queued", at: api.now }]);
         api.fx("ask", pid);
@@ -273,11 +277,11 @@ export const dj: GameDef<RoomState> = {
       }
       case "unask": {
         const i = s.queue.findIndex((t) => t.id === g.id);
-        if (i < 0) return;
+        if (i < 0) return api.quiet();
         const t = s.queue[i];
-        if (t.by !== pid && !host) return;
+        if (t.by !== pid && !host) return api.quiet();
         // once it's being checked or made, it's the song pipeline's (A5)
-        if (t.status !== "queued" && t.status !== "refused" && t.status !== "failed") return;
+        if (t.status !== "queued" && t.status !== "refused" && t.status !== "failed") return api.quiet();
         s.queue.splice(i, 1);
         return;
       }
@@ -329,7 +333,8 @@ export const dj: GameDef<RoomState> = {
       case "vote": {
         const style = g.style as StyleId;
         const d = s.deck;
-        if (s.phase === "end" || !STYLE_IDS.includes(style) || (d.voteAt[pid] ?? -Infinity) > api.now - DECK.voteGapMs) return api.quiet();
+        // (while a drop is on its way the picks wait: it lands on the deck the floor had cued)
+        if (s.phase === "end" || d.drop || !STYLE_IDS.includes(style) || (d.voteAt[pid] ?? -Infinity) > api.now - DECK.voteGapMs) return api.quiet();
         d.voteAt[pid] = api.now;
         const mine = d.votes[pid];
         delete d.votes[pid];
@@ -381,7 +386,7 @@ export const dj: GameDef<RoomState> = {
         next.speaker = s.speaker;
         // the decks as the floor left them, and the night's perfect drops
         const k = s.deck;
-        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt };
+        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt, speakerAt: k.speakerAt };
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -407,11 +412,13 @@ export const dj: GameDef<RoomState> = {
       }
       case "src": {
         // the speaker switched where its music comes from mid-set (Lyria came in, or fell back to
-        // the stand-in): only while music plays, only a real change, only from the speaker
-        if (s.phase === "wait" || s.phase === "end" || !fromSpeaker(s, sid, api)) return false;
+        // the stand-in): only while music plays, only a real change, only from the speaker, at most
+        // once a second (it says it again until the room has it)
+        if (!fromSpeaker(s, sid, api) || s.phase === "wait" || s.phase === "end") return false;
         const source = g.source === "lyria" ? "lyria" : g.source === "fake" ? "fake" : null;
-        if (!source || source === s.source) return false;
+        if (!source || source === s.source || api.now - s.deck.srcAt < DECK.gridGapMs) return false;
         s.source = source;
+        s.deck.srcAt = api.now;
         return true;
       }
       case "stats": {
@@ -436,24 +443,30 @@ export const dj: GameDef<RoomState> = {
         const bpm = within(g.bpm, 60, 200);
         if (at === null || bar === null || bpm === null) return false;
         const d = s.deck;
-        // one screen gives the bars (another can take over once they've gone quiet), not too often
+        // one screen gives the bars (another can take over once it's gone quiet), not too often
         if (!fromSpeaker(s, sid, api)) return false;
         if (d.gridFrom === sid && api.now - d.gridSetAt < DECK.gridGapMs) return false;
         const next = { at: Math.round(at), bar: Math.round(bar), bpm: Math.round(bpm * 100) / 100 };
         const was = d.grid;
-        // the same bars, near enough (a twentieth of a beat): nothing to tell
+        // the same bars, near enough (a twentieth of a beat): nothing to tell (the speaker saying
+        // so every 10 s just shows it's still there)
         if (was && was.bpm === next.bpm && Math.abs(beatAt(was, next.at) - next.bar * 4) < 0.05) return false;
         d.grid = next;
         d.gridFrom = sid;
         d.gridSetAt = api.now;
+        d.speakerAt = api.now;
         const dr = d.drop;
         if (dr) {
-          // the same stream a few milliseconds off: the same bar at its corrected time, every press kept
+          // the same stream a little off (a drift, a stall): the same bar at its corrected time,
+          // every press kept; moments before it lands, it stays where it is (the speaker lands it
+          // on its own bar anyway)
           const drift = was && was.bpm === next.bpm && Math.abs(beatAt(was, next.at) - next.bar * 4) < 1;
           const atNow = dr.bar >= 0 ? next.at + (dr.bar - next.bar) * 4 * beatMsOf(next) : dr.at;
-          if (drift && dr.bar >= 0 && atNow - api.now >= DECK.leadMs) {
-            d.drop = { ...dr, at: atNow, cue: atNow - beatMsOf(next) };
-            api.timer("drop", atNow);
+          if (drift && dr.bar >= 0) {
+            if (atNow - api.now >= DECK.leadMs && dr.at - api.now >= DECK.leadMs) {
+              d.drop = { ...dr, at: atNow, cue: atNow - beatMsOf(next) };
+              api.timer("drop", atNow);
+            }
           } else {
             // new bars (a new stream): the countdown starts over on them
             const t = aim(d.grid, api.now);
@@ -464,14 +477,16 @@ export const dj: GameDef<RoomState> = {
         return true;
       }
       case "decks": {
-        // the styles the speaker's two decks really sound now
+        // the styles the speaker's two decks really sound now (at most once a second: it says it
+        // again until the room has it)
         if (!fromSpeaker(s, sid, api)) return false;
         const a = g.a as StyleId;
         const b = g.b === null ? null : (g.b as StyleId);
         if (!STYLE_IDS.includes(a) || (b !== null && !STYLE_IDS.includes(b))) return false;
         const d = s.deck;
-        if (d.sounding?.a === a && d.sounding?.b === b) return false;
+        if ((d.sounding?.a === a && d.sounding?.b === b) || api.now - d.decksAt < DECK.gridGapMs) return false;
         d.sounding = { a, b };
+        d.decksAt = api.now;
         return true;
       }
     }
@@ -545,6 +560,6 @@ export const dj: GameDef<RoomState> = {
 
 /** The deck as the screens read it (the taps the room is about to add stay in the room). */
 function deckView(s: RoomState): DeckView {
-  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, gridFrom: _gridFrom, ...rest } = s.deck;
+  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, ...rest } = s.deck;
   return rest;
 }

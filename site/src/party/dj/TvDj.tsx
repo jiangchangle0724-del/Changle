@@ -49,16 +49,20 @@ export default function TvDj({ v }: { v: DjView }) {
     const id = window.setInterval(() => g("live", { source: booth.source }), 3000);
     return () => window.clearInterval(id);
   }, [booth.status, booth.source, v.phase, v.set, g]);
-  // and when its music changes hands mid-set (Lyria took over, or the stand-in came back)
+  // and when its music changes hands mid-set (Lyria took over, or the stand-in came back), said
+  // again every few seconds until the room has it
   useEffect(() => {
     if (booth.status !== "on" || v.phase === "wait" || v.phase === "end" || booth.source === v.source) return;
     g("src", { source: booth.source });
+    const id = window.setInterval(() => g("src", { source: booth.source }), 3000);
+    return () => window.clearInterval(id);
   }, [booth.status, booth.source, v.phase, v.source, g]);
   // local runs: what the checks read (scripts/dj_lyria_check.py)
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     (window as unknown as { __djBooth: unknown }).__djBooth = {
       stats: () => speaker?.stats() ?? null,
+      level: () => speaker?.level() ?? 0,
       source: booth.source,
       beat: () => dj.beat(),
       // what the deck played, with audio times, and the audio time now: the checks line them up with the beat

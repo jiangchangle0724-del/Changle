@@ -19,6 +19,15 @@ export type Grid = { at: number; bar: number; bpm: number };
 
 /** How far ahead the roll is written, seconds. */
 const ROLL_AHEAD = 0.3;
+/**
+ * The bars: the room's are these when they put the next bar within this much of a beat of where
+ * the speaker hears it (the room itself takes a twentieth as the same). Said again at most every
+ * GRID_AGAIN_MS until the room has them (a word lost, or turned away), and every GRID_STILL_MS
+ * anyway, which tells the room this screen is still the speaker.
+ */
+const GRID_SAME = 0.06;
+const GRID_AGAIN_MS = 1500;
+const GRID_STILL_MS = 10_000;
 
 export class DeckDriver {
   private fx: DeckFx;
@@ -34,7 +43,7 @@ export class DeckDriver {
   private level = -1;
   private rollBeat = -Infinity;
   private brakeUntil = 0;
-  private sent: (Grid & { epoch: number; when: number }) | null = null;
+  private sentAt = 0;
   private checked = 0;
   /** what the deck did, for the checks (scripts/dj_deck_check.py): kind and audio time */
   readonly log: { k: string; at: number; beat: number }[] = [];
@@ -149,12 +158,12 @@ export class DeckDriver {
 
     // the drop: once someone pressed in time (or the DJ will), on its bar
     if (d.drop && (d.drop.hits.length || d.drop.auto)) {
-      // the same bar of the same stream is the same drop, however its time is corrected
-      const key = d.drop.bar >= 0 ? `${d.drop.bar}:${this.dj.epoch}` : `t${d.drop.at}`;
+      const key = this.keyOf(d.drop);
       if (key !== this.dropKey) this.land(d.drop, key);
     }
-    // landed: the room says so a moment later, until then the build-up stays down
-    if (this.dropT && ctxNow >= this.dropT && !d.drop) this.dropT = 0;
+    // landed: the room says so a moment later, until then the build-up stays down (or the room
+    // moved that drop to new bars, a new stream: its countdown builds up again)
+    if (this.dropT && ctxNow >= this.dropT && (!d.drop || this.keyOf(d.drop) !== this.dropKey)) this.dropT = 0;
     const landing = this.dropT > 0;
     const level = landing ? (ctxNow < this.dropT ? 1 : 0) : chargeNow(d, this.now());
     if (Math.abs(level - this.level) > 0.004) {
@@ -162,6 +171,11 @@ export class DeckDriver {
       this.level = level;
     }
     this.roll(level, !!d.drop);
+  }
+
+  /** The same bar of the same stream is the same drop, however its time is corrected. */
+  private keyOf(drop: DropState) {
+    return drop.bar >= 0 ? `${drop.bar}:${this.dj.epoch}` : `t${drop.at}`;
   }
 
   /** The snare roll under the build-up: quarters, then eighths, then sixteenths as it fills. */
@@ -213,7 +227,11 @@ export class DeckDriver {
     this.note("drop", at, t0 === null ? NaN : (at - t0) / (60 / this.dj.bpm));
   }
 
-  /** Where the speaker's bars fall, on the server's clock: told to the room when it changes. */
+  /**
+   * Where the speaker's bars fall, on the server's clock, told to the room whenever the room's bars
+   * aren't these (a new stream, a drift, a stall, a word that never arrived), countdown or not: the
+   * room keeps a drop's bar and its presses through a correction.
+   */
   private reportGrid() {
     const nowMs = performance.now();
     if (nowMs - this.checked < 1000 || !this.on) return;
@@ -227,14 +245,11 @@ export class DeckDriver {
     if (t === null) return;
     const at = this.now() + (t - this.sp.heardTime()) * 1000;
     const bpm = this.dj.bpm;
-    const epoch = this.dj.epoch;
-    const s = this.sent;
-    if (s && s.epoch === epoch && s.bpm === bpm) {
-      const predicted = s.at + ((bar - s.bar) * 4 * 60_000) / bpm;
-      // near enough, told only a moment ago, or a drop counting down on these bars: the room has it
-      if (Math.abs(predicted - at) < 25 || nowMs - s.when < 5000 || this.deck?.drop) return;
-    }
-    this.sent = { at, bar, bpm, epoch, when: nowMs };
+    const beatMs = 60_000 / bpm;
+    const room = this.deck?.grid;
+    const same = !!room && room.bpm === bpm && Math.abs(room.at + (bar - room.bar) * 4 * beatMs - at) < GRID_SAME * beatMs;
+    if (nowMs - this.sentAt < (same ? GRID_STILL_MS : GRID_AGAIN_MS)) return;
+    this.sentAt = nowMs;
     this.sendGrid({ at: Math.round(at), bar, bpm });
   }
 }

@@ -30,6 +30,9 @@ export function freshDeck(): DeckState {
     brakeAt: 0,
     gridFrom: null,
     gridSetAt: 0,
+    speakerAt: 0,
+    decksAt: 0,
+    srcAt: 0,
   };
 }
 
