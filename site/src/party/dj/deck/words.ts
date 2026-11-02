@@ -1,7 +1,7 @@
 /**
  * 打碟 · DJ Booth: the beginner deck's words, in both languages, for the phones and the big screen.
  */
-import { AudioWaveform, Megaphone, OctagonPause, Repeat2, type LucideIcon } from "lucide-react";
+import { AudioWaveform, Disc2, Megaphone, OctagonPause, Repeat2, Rewind, Siren, Zap, type LucideIcon } from "lucide-react";
 import type { T } from "../../../i18n";
 import type { Hint } from "../../../shared/dj/deck";
 import type { DeckSide, PadId } from "../../../shared/dj/types";
@@ -13,6 +13,10 @@ export const PADS: Record<PadId, { name: T; icon: LucideIcon; what: T }> = {
   sweep: { name: t("扫频", "Sweep"), icon: AudioWaveform, what: t("闷下去再亮起来", "Muffled, then open again") },
   horn: { name: t("喇叭", "Horn"), icon: Megaphone, what: t("嘟嘟嘟", "Air horn") },
   brake: { name: t("刹车", "Brake"), icon: OctagonPause, what: t("音乐停一下，下一小节回来", "The music stops, back on the next bar") },
+  siren: { name: t("警笛", "Siren"), icon: Siren, what: t("两拍的警笛声", "Two beats of siren") },
+  laser: { name: t("激光", "Laser"), icon: Zap, what: t("啾啾啾三下", "Three laser zaps") },
+  scratch: { name: t("搓碟", "Scratch"), icon: Disc2, what: t("把音乐来回搓一拍", "Scratches the music for a beat") },
+  rewind: { name: t("倒带", "Rewind"), icon: Rewind, what: t("音乐往回倒，下一小节接回来", "The music spins back, back on the next bar") },
 };
 
 /** What a beginner could do now, for the hint line (`side`: the deck off the air). */
@@ -32,7 +36,7 @@ export function hintText(h: Hint, side: DeckSide, zh: boolean): string {
     case "pick":
       return zh ? "在下面选下一首放什么" : "Pick what plays next, below";
     case "pads":
-      return zh ? "试试效果键：回声、扫频、喇叭、刹车" : "Try the pads: echo, sweep, horn, brake";
+      return zh ? "试试效果键：警笛、搓碟、倒带……" : "Try the pads: siren, scratch, rewind and more";
     case "dropped":
       return zh ? "Drop 了" : "Dropped";
   }

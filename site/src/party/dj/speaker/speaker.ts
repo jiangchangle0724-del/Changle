@@ -1,7 +1,7 @@
 /**
  * 打碟 · DJ Booth: the speaker's sound chain, on the one device that plays the music.
  *
- *   PCM chunks (deck A, deck B) → player (AudioWorklet: ring buffer, crossfader, brake)
+ *   PCM chunks (deck A, deck B) → player (AudioWorklet: ring buffer, crossfader, brake, rewind, scratch)
  *     → high-pass (the build-up) → low-pass (the sweep) → master gain → glue compressor → limiter → speakers
  *                                                  ↘ echo ↗              ↗                    ↘ analyser (the lights)
  *     the deck's own sounds (horn, riser, roll, impact: fx.ts) ──────────┘
@@ -190,9 +190,13 @@ export class Speaker {
     }
   }
 
-  /** The brake: from audio time `at` the music slows to a stop over `dur` seconds and is quiet until `until`. */
-  brake(at: number, dur: number, until: number) {
-    this.node?.port.postMessage({ t: "brake", at, dur, until });
+  /**
+   * A move of the music itself (player.worklet.js), from audio time `at` for `dur` seconds, back at
+   * `until` where the stream has got to: the brake (a tape stop, then quiet), a rewind (spun back,
+   * then quiet), a scratch (back and forth).
+   */
+  move(kind: "brake" | "rewind" | "scratch", at: number, dur: number, until: number) {
+    this.node?.port.postMessage({ t: "move", kind, at, dur, until });
   }
 
   /** The audio time stream frame `f` plays at (null while the player isn't playing). */

@@ -174,8 +174,11 @@ export type DancerMove = {
  * style at 125 BPM in A minor); the crossfader blends them; the effect pads, the build-up and the
  * drop all land on the beat. CONTRACTS.md, "The beginner deck".
  */
-export type PadId = "echo" | "sweep" | "horn" | "brake";
-export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake"];
+export type PadId = "echo" | "sweep" | "horn" | "brake" | "siren" | "laser" | "scratch" | "rewind";
+/** in this order on the phones (two rows of four); the room's `pad` event names a pad by its place here */
+export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake", "siren", "laser", "scratch", "rewind"];
+/** the pads that move the music itself (the brake, a scratch, a rewind): one at a time, never into a drop */
+export const MOVES: PadId[] = ["brake", "scratch", "rewind"];
 
 export type DeckSide = "a" | "b";
 
@@ -266,7 +269,8 @@ export const DECK = {
   maxTaps: 8,
   /** an effect pad: a phone sends one per `padGapMs` and the room takes one per `padTakeMs` (a
    *  little under, as the network bunches presses up); the same pad once for the whole room per
-   *  `roomPadGapMs`, a brake once per `brakeGapMs` (and never while a drop is on its way) */
+   *  `roomPadGapMs`; a move (MOVES: brake, scratch, rewind) once per `brakeGapMs` for the room, and
+   *  never while a drop is on its way */
   padGapMs: 600,
   padTakeMs: 500,
   roomPadGapMs: 150,
@@ -278,11 +282,16 @@ export const DECK = {
    *  gives the bars (another screen can take over once it has said nothing for `speakerQuietMs`) */
   gridGapMs: 1000,
   speakerQuietMs: 30_000,
-  /** a drop lands on a bar that's a multiple of this, at least `minBeats` beats after the build-up is full */
-  every: 4,
-  minBeats: 4,
+  /** the countdown: `countFrom` down to 1, `countBeats` beats each (about a second), then DROP for
+   *  the cue's beat, the beat before the bar: 17 beats, about 8 seconds at 125 BPM */
+  countFrom: 8,
+  countBeats: 2,
+  /** a drop lands on a bar that's a multiple of this, at least `minBeats` beats after the build-up
+   *  is full (the whole countdown fits) */
+  every: 2,
+  minBeats: 17,
   /** countdowns nobody pressed before the DJ drops it by itself */
-  maxMisses: 2,
+  maxMisses: 1,
   /** a DROP press has to reach the room this long before the bar, so the speaker can land it; a
    *  phone counts `pressTripMs` for getting there. So a press counts until a little over a quarter
    *  second after the cue (people press a moment after they see DROP), and a word that reaches the

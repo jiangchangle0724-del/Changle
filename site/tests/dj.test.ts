@@ -221,6 +221,48 @@ await test("player: the brake slows the music to a stop, waits, and comes back w
   ok(Math.abs(tick.pos - (s0 + 400 * 128 - 16 * 128)) <= 16 * 128, "and its clock never stopped");
 });
 
+await test("player: a rewind spins the music back, goes quiet, and comes back where the stream has got to", () => {
+  const P = player({ rate: 48000, prebuffer: 0.1, resume: 0.1, seconds: 8 });
+  const ramp = Float32Array.from({ length: 4 * 48000 }, (_, i) => i / 1e6);
+  P.push(ramp);
+  // (well into the stream: a rewind goes back over a second of it)
+  P.run(128 * 700);
+  const t0 = g.currentTime as number;
+  P.send({ t: "move", kind: "rewind", at: t0 + 0.1, dur: 0.48, until: t0 + 1 });
+  const out = P.run(128 * 400);
+  const at = (sec: number) => out.l[Math.round(sec * 48000)];
+  const s0 = 128 * 700;
+  ok(Math.abs(at(0.05) * 1e6 - s0 - 0.05 * 48000) < 2, "before it: the stream at full speed");
+  const back = (at(0.4) - at(0.38)) * 1e6;
+  ok(back < -0.02 * 48000 * 2, `then backwards, fast (${back.toFixed(0)} frames in 20 ms)`);
+  ok(Math.abs(at(0.7)) < 1e-9 && Math.abs(at(0.95)) < 1e-9, "spun out: quiet until it comes back");
+  const again = at(1.05) * 1e6 - s0;
+  ok(Math.abs(again - 1.05 * 48000) < 4, `then exactly where the stream would have been (${again.toFixed(0)} vs ${1.05 * 48000})`);
+  ok(Math.abs(P.last().pos - (s0 + 400 * 128 - 16 * 128)) <= 16 * 128, "and its clock never stopped");
+});
+
+await test("player: a scratch goes back and forth over a beat and comes back on the next one", () => {
+  const P = player({ rate: 48000, prebuffer: 0.1, resume: 0.1, seconds: 8 });
+  const ramp = Float32Array.from({ length: 4 * 48000 }, (_, i) => i / 1e6);
+  P.push(ramp);
+  P.run(128 * 100);
+  const t0 = g.currentTime as number;
+  P.send({ t: "move", kind: "scratch", at: t0 + 0.1, dur: 0.48, until: t0 + 0.58 });
+  const out = P.run(128 * 300);
+  const at = (sec: number) => out.l[Math.round(sec * 48000)] * 1e6;
+  const s0 = 128 * 100;
+  // the hand: forwards fast, then back, then forwards, then back (two strokes in the beat)
+  const fwd = at(0.14) - at(0.12);
+  const rev = at(0.26) - at(0.24);
+  ok(fwd > 0.02 * 48000 * 1.5 && rev < -0.02 * 48000 * 1.5, `back and forth, faster than the music (${fwd.toFixed(0)}, ${rev.toFixed(0)} frames in 20 ms)`);
+  const start = s0 + 0.1 * 48000;
+  // (where it turns the sound is cut, so those moments read low: the farthest it gets is the top)
+  const top = Math.max(...Array.from({ length: 40 }, (_, k) => at(0.1 + (k * 0.48) / 40)));
+  ok(top - start > 0.1 * 48000 && top - start < 0.3 * 48000 && Math.abs(at(0.33) - start) < 1500 && Math.abs(at(0.57) - start) < 1500, `around the place it began: a fifth of a second ahead at most, back to it between strokes (${Math.round(top - start)} frames)`);
+  const again = at(0.65) - s0;
+  ok(Math.abs(again - 0.65 * 48000) < 4, `then on the next beat exactly where the stream would have been (${again.toFixed(0)} vs ${0.65 * 48000})`);
+});
+
 await test("speaker: Lyria's 16-bit chunks become two channels of floats", () => {
   const buf = new Int16Array([32767, -32768, 0, 16384]).buffer;
   const { l, r } = pcm16ToFloat(buf);

@@ -144,15 +144,18 @@ the new relay and set Lyria up where it was, and nothing stalled. Lyria was paus
 ## The beginner deck (Nov 1)
 
 Everyone at the table DJs at once from their phone (CONTRACTS.md, "The beginner deck"): two decks
-and a crossfader, four pads, a build-up the table taps together and DROP on the count, a pick for
+and a crossfader, eight pads (four at first; the siren, laser, scratch and rewind from Nov 1), a
+build-up the table taps together and DROP after an 8-second count (2 seconds at first), a pick for
 the next of 12 styles. The rule that keeps it from ever sounding wrong is that everything lands on
 the beat, so these checks are mostly about timing.
 
 **`site/scripts/dj_deck_check.py`**, a TV and three phones playing at once, the TV in Chromium and
-in WebKit: 39 of 39 checks pass in each (after both code reviews' fixes and the DROP window's), no
-errors on any page.
+in WebKit: 47 of 47 checks pass in each (after both code reviews' fixes, the DROP window's, and with
+the 8-second count and the eight pads), no errors on any page.
 Three pads pressed at once by three phones all play, each on a beat to the millisecond. The brake
-stops the music and brings it back on the bar with no stall. Two picks for latin and one for techno
+stops the music and brings it back on the bar with no stall; a siren and a laser from two phones at
+once both play on beats, then a scratch, and a rewind 4 seconds later, and the music comes back with
+no stall. Two picks for latin and one for techno
 load latin on deck B. Thrown all the way to B before B has any music of its own, the fader leaves
 deck A playing (its quietest moment 0.03 to 0.04 RMS: never silence; before the second review's
 fix this was silence until B's next section, up to about 20 seconds). Once the speaker's deck B
@@ -172,10 +175,12 @@ last run), swaps to deck B, and the TV celebrates.
 | 12 minutes, first version | 0 | 4.96 s | 142 / 138 | 10 / 10 | 0 | steady, 1.0 to 1.1 GB |
 | 8 minutes, first review's fixes | 0 | 4.97 s | 93 / 91 | 7 / 6 | 0 | steady, 1.0 to 1.1 GB |
 | 8 minutes, the same, each drop's grade kept | 0 | 4.96 s | 96 / 94 | 7 / 7 | 0 | steady, 1.0 to 1.1 GB |
-| 8 minutes, second review's fixes (this version) | 0 | 4.88 s | 91 / 90 | 7 / 7 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, second review's fixes | 0 | 4.88 s | 91 / 90 | 7 / 7 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, the 8-second count and eight pads (this version) | 0 | 4.97 s | 89 / 87 | 7 / 7 | 0 | steady, about 1 GB |
 
 The pads that didn't play were the deck's own limits at work: a pad of the same kind still
-sounding (a sweep lasts two bars, a horn two beats), or a brake within 4 seconds of the last. In
+sounding (a sweep lasts two bars, a horn or a siren two beats), or a move (brake, scratch, rewind)
+within 4 seconds of the last. The last run pressed all eight pads (a quarter of them moves). In
 the third run the rooms server restarted 3.5 minutes in (an edit reloaded it, as a deploy would):
 the TV and both phones were back within a second and the music never stopped. One of its seven
 drops wasn't perfect, and that run didn't keep why; the two runs after it keep each drop's grade:

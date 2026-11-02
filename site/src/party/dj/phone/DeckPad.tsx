@@ -2,7 +2,7 @@ import { ChevronsUp, Disc3 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { chargeNow, countdown, cued, grade, hintFor, loaded, offAir, onAir, pressBy, tally } from "../../../shared/dj/deck";
-import { DECK, PAD_IDS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
+import { DECK, MOVES, PAD_IDS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
 import { useStore } from "../../../store";
@@ -17,7 +17,7 @@ const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
 /**
  * 打碟 · DJ Booth: the beginner deck on a phone. Everyone at the table has one and plays at once;
  * the room keeps it in order and the big screen plays it on the beat, so no press can trainwreck:
- * the crossfader between the two decks, four effect pads, the build-up everyone taps together, DROP
+ * the crossfader between the two decks, eight effect pads, the build-up everyone taps together, DROP
  * on the count, and the pick for what plays next.
  */
 export function DeckPad({ v }: { v: DjView }) {
@@ -61,7 +61,7 @@ export function DeckPad({ v }: { v: DjView }) {
       <Fader v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
       <div className="djk-pads">
         {PAD_IDS.map((p) => (
-          <Pad key={p} pad={p} live={live} braking={p === "brake" && !!d.drop} g={g} zh={zh} />
+          <Pad key={p} pad={p} live={live} braking={MOVES.includes(p) && !!d.drop} g={g} zh={zh} />
         ))}
       </div>
       <BuildDrop v={v} now={now} g={g} zh={zh} live={live} />

@@ -7,7 +7,7 @@
  *
  * Times here are audio times (the speaker's context) unless they say server.
  */
-import { chargeNow } from "../../../shared/dj/deck";
+import { beatsLeft, chargeNow, COUNT_SPAN } from "../../../shared/dj/deck";
 import type { DropState, PadId } from "../../../shared/dj/types";
 import type { DeckView } from "../../../shared/protocol";
 import { DeckFx } from "../speaker/fx";
@@ -19,6 +19,8 @@ export type Grid = { at: number; bar: number; bpm: number };
 
 /** How far ahead the roll is written, seconds. */
 const ROLL_AHEAD = 0.3;
+/** How far up the build-up goes as the table fills it; the countdown takes it the rest of the way. */
+const FILLED = 0.85;
 /**
  * The bars: the room's are these when they put the next bar within this much of a beat of where
  * the speaker hears it (the room itself takes a twentieth as the same). Said again at most every
@@ -95,13 +97,17 @@ export class DeckDriver {
     if (pad === "echo") done = this.fx.echo(nb.at, beat);
     else if (pad === "sweep") done = this.fx.sweep(nb.at, beat);
     else if (pad === "horn") done = this.fx.horn(nb.at, beat);
-    else if (pad === "brake") {
-      // never into a drop, never on top of another brake: slow to a stop over most of a beat,
-      // quiet until the next bar line, back on the downbeat
+    else if (pad === "siren") done = this.fx.siren(nb.at, beat);
+    else if (pad === "laser") done = this.fx.laser(nb.at, beat);
+    else if (pad === "brake" || pad === "rewind" || pad === "scratch") {
+      // a move of the music itself: never into a drop, never on top of another. The brake slows to
+      // a stop over most of a beat and the rewind spins back over a beat, both quiet until the next
+      // bar line and back on its downbeat; the scratch goes back and forth for a beat and comes
+      // back on the next one
       if (this.dropT > this.sp.ctx.currentTime || nb.at < this.brakeUntil) return;
-      const until = this.timeOfBeat(Math.ceil((nb.b + 1) / 4) * 4);
+      const until = pad === "scratch" ? nb.at + beat : this.timeOfBeat(Math.ceil((nb.b + 1) / 4) * 4);
       if (until === null) return;
-      this.sp.brake(nb.at, 0.75 * beat, until);
+      this.sp.move(pad, nb.at, pad === "brake" ? 0.75 * beat : beat, until);
       this.brakeUntil = until;
       done = true;
     }
@@ -165,12 +171,18 @@ export class DeckDriver {
     // moved that drop to new bars, a new stream: its countdown builds up again)
     if (this.dropT && ctxNow >= this.dropT && (!d.drop || this.keyOf(d.drop) !== this.dropKey)) this.dropT = 0;
     const landing = this.dropT > 0;
-    const level = landing ? (ctxNow < this.dropT ? 1 : 0) : chargeNow(d, this.now());
+    // the build-up: most of the way as the table taps it full, the countdown the rest of the way to
+    // the drop; the roll in quarters, eighths once it's half full and through the count, sixteenths
+    // in the count's last two bars
+    const charge = chargeNow(d, this.now());
+    const left = d.drop ? beatsLeft(d.drop, d.grid, this.now()) : Infinity;
+    const counted = Math.max(0, Math.min(1, 1 - left / COUNT_SPAN));
+    const level = landing ? (ctxNow < this.dropT ? 1 : 0) : d.drop ? FILLED + (1 - FILLED) * counted : FILLED * charge;
     if (Math.abs(level - this.level) > 0.004) {
       this.fx.build(level);
       this.level = level;
     }
-    this.roll(level, !!d.drop);
+    this.roll(level, landing || left <= 8 ? 0.25 : d.drop || charge >= 0.5 ? 0.5 : 1);
   }
 
   /** The same bar of the same stream is the same drop, however its time is corrected. */
@@ -178,8 +190,8 @@ export class DeckDriver {
     return drop.bar >= 0 ? `${drop.bar}:${this.dj.epoch}` : `t${drop.at}`;
   }
 
-  /** The snare roll under the build-up: quarters, then eighths, then sixteenths as it fills. */
-  private roll(level: number, armed: boolean) {
+  /** The snare roll under the build-up, every `step` beats, louder as it climbs. */
+  private roll(level: number, step: number) {
     const ctxNow = this.sp.ctx.currentTime;
     if (level < 0.05) {
       this.rollBeat = -Infinity;
@@ -187,7 +199,6 @@ export class DeckDriver {
     }
     const bn = this.beatNow();
     if (bn === null) return;
-    const step = armed || level >= 0.75 ? 0.25 : level >= 0.4 ? 0.5 : 1;
     let x = Math.max(this.rollBeat + step, Math.ceil((bn + 0.05) / step) * step);
     for (let guard = 0; guard < 32; guard++, x += step) {
       const at = this.timeOfBeat(x);

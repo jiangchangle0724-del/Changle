@@ -10,6 +10,10 @@
   --dk-sweep: var(--gel-violet);
   --dk-horn: var(--gel-amber);
   --dk-brake: var(--gel-coral);
+  --dk-siren: var(--gel-vermilion);
+  --dk-laser: var(--gel-lime);
+  --dk-scratch: var(--gel-orchid);
+  --dk-rewind: var(--gel-blue);
   --dk-build: var(--gel-tangerine);
   --dk-drop: var(--gel-pink);
   --dk-perfect: var(--gel-honey);
@@ -187,7 +191,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
-  min-height: 76px;
+  min-height: 64px;
   padding: var(--space-2) var(--space-1);
   border: 0;
   border-radius: var(--r-tile);
@@ -225,6 +229,18 @@
 }
 .djk-pad.is-brake {
   --pad: var(--dk-brake);
+}
+.djk-pad.is-siren {
+  --pad: var(--dk-siren);
+}
+.djk-pad.is-laser {
+  --pad: var(--dk-laser);
+}
+.djk-pad.is-scratch {
+  --pad: var(--dk-scratch);
+}
+.djk-pad.is-rewind {
+  --pad: var(--dk-rewind);
 }
 @keyframes djk-hit {
   from {
@@ -391,7 +407,12 @@
 
 @media (max-width: 359px) {
   .djk-pads {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-1);
+  }
+  .djk-pad {
+    min-height: 56px;
+    font-size: var(--text-xs);
   }
   .djk-picks-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -580,6 +601,18 @@
 .dk-chip.is-brake {
   --pad: var(--dk-brake);
 }
+.dk-chip.is-siren {
+  --pad: var(--dk-siren);
+}
+.dk-chip.is-laser {
+  --pad: var(--dk-laser);
+}
+.dk-chip.is-scratch {
+  --pad: var(--dk-scratch);
+}
+.dk-chip.is-rewind {
+  --pad: var(--dk-rewind);
+}
 
 /* above the dancers' heads: between the deck and the floor */
 .dk-count,
@@ -604,6 +637,15 @@
   line-height: 1;
   text-shadow: 0 0 40px var(--gel);
   animation: dk-beat 0.4s var(--ease-out);
+}
+/* the long count: the early numbers sit lower, the last three and DROP at full size */
+.dk-count.is-8 .dk-count-n,
+.dk-count.is-7 .dk-count-n,
+.dk-count.is-6 .dk-count-n,
+.dk-count.is-5 .dk-count-n,
+.dk-count.is-4 .dk-count-n {
+  font-size: var(--text-4xl);
+  opacity: 0.85;
 }
 .dk-count.is-drop .dk-count-n {
   color: var(--dk-perfect);

@@ -1,9 +1,10 @@
 /**
  * 打碟 · DJ Booth: the beginner deck's effects, on the speaker. Each one starts at an audio time the
- * caller picked on the beat (deck/driver.ts): the echo, the sweep, the horn, the build-up (the music
- * thins out from the bottom, a riser climbs, a snare rolls) and the drop (it all slams back with a
- * boom). They play through the speaker's own chain (speaker.ts), so the stand-in and Lyria get them
- * alike; the brake and the crossfader live in the player itself.
+ * caller picked on the beat (deck/driver.ts): the echo, the sweep, the horn, the siren, the laser,
+ * the build-up (the music thins out from the bottom, a riser climbs, a snare rolls) and the drop (it
+ * all slams back with a boom). They play through the speaker's own chain (speaker.ts), so the
+ * stand-in and Lyria get them alike; the moves of the music itself (the brake, a rewind, a scratch)
+ * and the crossfader live in the player.
  */
 import { burst, busTo, crash, kick, noise, snare, type Bus } from "../../../lib/audio/engine";
 import type { Speaker } from "./speaker";
@@ -27,6 +28,7 @@ export class DeckFx {
   private riser: { src: AudioBufferSourceNode; bp: BiquadFilterNode; gain: GainNode } | null = null;
   private sweepUntil = 0;
   private hornUntil = 0;
+  private sirenUntil = 0;
 
   constructor(private sp: Speaker) {
     this.bus = busTo(sp.ctx, sp.fxNodes.synth);
@@ -100,6 +102,67 @@ export class DeckFx {
     }
     this.hornUntil = end;
     window.setTimeout(() => g.disconnect(), (end - c.currentTime + 1) * 1000);
+    return true;
+  }
+
+  /** The dub siren: a square wave whooping up and down, twice a beat, for two beats. */
+  siren(at: number, beat: number) {
+    if (at < this.sirenUntil) return false;
+    const c = this.ctx;
+    const end = at + 2 * beat;
+    const o = c.createOscillator();
+    o.type = "square";
+    o.frequency.value = 620;
+    const lfo = c.createOscillator();
+    lfo.type = "triangle";
+    lfo.frequency.value = 2 / beat;
+    const depth = c.createGain();
+    depth.gain.value = 380;
+    lfo.connect(depth).connect(o.frequency);
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 2600;
+    lp.Q.value = 0.8;
+    const g = c.createGain();
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.07, at + 0.02);
+    g.gain.setValueAtTime(0.07, end - 0.08);
+    g.gain.linearRampToValueAtTime(0, end);
+    o.connect(lp).connect(g).connect(this.sp.fxNodes.synth);
+    for (const x of [o, lfo]) {
+      x.start(at);
+      x.stop(end + 0.05);
+    }
+    this.sirenUntil = end;
+    window.setTimeout(() => g.disconnect(), (end - c.currentTime + 1) * 1000);
+    return true;
+  }
+
+  /** Three laser zaps on the sixteenths, each a quick fall from high to low. */
+  laser(at: number, beat: number) {
+    const c = this.ctx;
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1800;
+    bp.Q.value = 0.5;
+    bp.connect(this.sp.fxNodes.synth);
+    const len = Math.min(0.16, (beat / 4) * 0.9);
+    for (let k = 0; k < 3; k++) {
+      const t0 = at + (k * beat) / 4;
+      const o = c.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(3200, t0);
+      o.frequency.exponentialRampToValueAtTime(180, t0 + len);
+      const e = c.createGain();
+      e.gain.setValueAtTime(0, t0);
+      e.gain.linearRampToValueAtTime(0.09, t0 + 0.004);
+      e.gain.exponentialRampToValueAtTime(0.001, t0 + len);
+      o.connect(e).connect(bp);
+      o.start(t0);
+      o.stop(t0 + len + 0.02);
+    }
+    window.setTimeout(() => bp.disconnect(), (at + beat - c.currentTime + 1) * 1000);
     return true;
   }
 
@@ -177,6 +240,6 @@ export class DeckFx {
       this.riser.gain.gain.cancelScheduledValues(now);
       this.riser.gain.gain.setTargetAtTime(0, now, 0.05);
     }
-    this.sweepUntil = this.hornUntil = 0;
+    this.sweepUntil = this.hornUntil = this.sirenUntil = 0;
   }
 }

@@ -1,9 +1,10 @@
 """打碟 · DJ Booth, the beginner deck, in browsers: a TV opens /dj and starts the night; three phones
-sit down and play at once. Every pad lands on a beat; picks load deck B; the fader thrown to B
-before B has music of its own plays deck A on, never silence; whoever moves the fader holds it;
-everyone taps the build-up full, the countdown runs on the TV and the phones (the picks wait), one
-phone presses DROP on the cue, one a quarter second after it (it counts), one too late (it says so),
-and the drop lands exactly on its bar, swaps to deck B and is perfect.
+sit down and play at once. Every pad lands on a beat (the club ones too: siren, laser, scratch,
+rewind); picks load deck B; the fader thrown to B before B has music of its own plays deck A on,
+never silence; whoever moves the fader holds it; everyone taps the build-up full, the 8-second
+countdown runs on the TV and the phones (the picks wait), one phone presses DROP on the cue, one a
+quarter second after it (it counts), one too late (it says so), and the drop lands exactly on its
+bar, swaps to deck B and is perfect.
 
 Needs the two local servers (site/README.md); a table that isn't the owner's (DEV_LYRIA_ANYONE off
 in site/worker/.dev.vars), so the stand-in plays both decks.
@@ -95,7 +96,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 4, 10000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-pad").count() == 8, 10000), f"{name}'s phone shows the deck, eight pads")
         phones.append(ph)
     amy, ben, cat = phones
     amy.wait_for_timeout(800)
@@ -118,6 +119,23 @@ with sync_playwright() as p:
     tv.wait_for_timeout(4000)
     st = tv.evaluate("() => window.__djBooth.stats()")
     ok(st and st["state"] == "playing" and st["stalls"] == 0, f"and the music comes back on the bar: playing, no stall ({st})")
+
+    # the club pads: a siren and a laser from two phones at once, then a scratch, then a rewind
+    ben.locator(".djk-pad.is-siren").click()
+    cat.locator(".djk-pad.is-laser").click()
+    ok(until(lambda: {"siren", "laser"} <= {e["k"] for e in log(tv)["log"]}, 3000), "a siren and a laser at once: both play")
+    ok(all(on_beat(e) for e in log(tv)["log"] if e["k"] in ("siren", "laser")), "each on a beat")
+    tv.wait_for_timeout(600)
+    cat.locator(".djk-pad.is-scratch").click()
+    ok(until(lambda: any(e["k"] == "scratch" for e in log(tv)["log"]), 3000), "a scratch")
+    ok(on_beat([e for e in log(tv)["log"] if e["k"] == "scratch"][0]), "on a beat")
+    tv.wait_for_timeout(4200)
+    ben.locator(".djk-pad.is-rewind").click()
+    ok(until(lambda: any(e["k"] == "rewind" for e in log(tv)["log"]), 3000), "and 4 seconds on, a rewind")
+    ok(on_beat([e for e in log(tv)["log"] if e["k"] == "rewind"][0]), "on a beat")
+    tv.wait_for_timeout(4000)
+    st = tv.evaluate("() => window.__djBooth.stats()")
+    ok(st and st["state"] == "playing" and st["stalls"] == 0, f"the music comes back on the bar: playing, no stall ({st})")
 
     # picks: deck B takes the floor's style
     amy.locator(".djk-pick").nth(0).click()  # latin
@@ -178,12 +196,14 @@ with sync_playwright() as p:
     beat_ms = 60000 / g["bpm"]
     ok(dr["bar"] % 4 == 0 and abs(dr["at"] - (g["at"] + (dr["bar"] - g["bar"]) * 4 * beat_ms)) < 2, "it lands on a 4-bar line of the speaker's bars")
     ok(until(lambda: tv.locator(".dk-count").count() == 1, (dr["at"] - time.time() * 1000) + 2000, 50), "the countdown shows on the TV")
+    ok(tv.locator(".dk-count.is-8, .dk-count.is-7").count() == 1 and dr["at"] - time.time() * 1000 > 6500, f"from 8, about 8 seconds before the drop ({tv.locator('.dk-count-n').inner_text()})")
     tv.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-tv-2-count.png"))
     amy.screenshot(path=os.path.join(OUT, f"deck-{WHICH}-phone-2-drop.png"))
-    t = until(lambda: pressed_at(ben), 4000, 10)
+    wait_ms = lambda when: max(0, when - time.time() * 1000) + 2000
+    t = until(lambda: pressed_at(ben), wait_ms(dr["cue"]), 10)
     ok(bool(t), f"Ben presses DROP {round(t - dr['cue']) if t else '?'} ms after the cue")
-    ta = until(lambda: pressed_at(amy), 4000, 10)
-    tc = until(lambda: pressed_at(cat), 4000, 10)
+    ta = until(lambda: pressed_at(amy), wait_ms(dr["cue"]), 10)
+    tc = until(lambda: pressed_at(cat), wait_ms(dr["at"]), 10)
     said = lambda ph: ph.locator(".djk-result").inner_text() if ph.locator(".djk-result").count() else ""
     # (a phone's timer on this busy test machine can fire late: past `pressBy` her press is late too)
     amy_counts = bool(ta) and ta <= dr["at"] - 200
