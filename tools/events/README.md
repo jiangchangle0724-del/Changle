@@ -30,7 +30,9 @@ same day again, delete `.wrangler/state`.
 
 Connected to Cloudflare on 1 November 2026: merging into `main` deploys it. The Worker
 `changle-events` (Workers Builds): root directory `/tools/events`, no build command, deploy command
-`npx wrangler deploy`, build watch paths `tools/events/*`, API token "suibian build token".
+`npx wrangler deploy`, build watch paths `tools/events/*`, API token "suibian build token". Builds
+for preview branches are off: `wrangler preview` (beta) would need a `previews` block in
+`wrangler.jsonc`, so every PR touching this folder got a failed check.
 
 - The first deploy made the D1 database `changle-events` and the KV namespace
   `changle-events-cache` by itself (they're in `wrangler.jsonc` without ids); the Worker sets up

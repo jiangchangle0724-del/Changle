@@ -50,7 +50,9 @@ numbers and OK or FAILED. Results: `docs/field-notes/`.
 Connected to Cloudflare on 1 November 2026: like 随便, merging into `main` deploys it. The Worker
 `party` (Workers Builds; the name must match `name` in `wrangler.jsonc`): root directory
 `/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy`, build
-watch paths `games/party-server/*` and `games/party-base/*`, API token "suibian build token". No
+watch paths `games/party-server/*` and `games/party-base/*`, API token "suibian build token".
+Builds for preview branches are off (`wrangler preview` needs a `previews` block, and the Durable
+Object isn't in previews), so PRs get no failed Cloudflare check. No
 secrets, no database (the Durable Object comes with the deploy). `changle.ca/party/screen` and
 `changle.ca/party/join` answer.
 
