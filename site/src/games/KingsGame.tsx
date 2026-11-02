@@ -6,6 +6,8 @@ import { haptic, sfx } from "../lib/sfx";
 import { COMMANDS, commandText, type Command } from "../data/king";
 import { GameShell, usePenalty } from "./GameShell";
 import { Cloche } from "../components/Cloche";
+import { DareTimer } from "../components/DareTimer";
+import { durationOf } from "../lib/duration";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { PorcelainDefs } from "../components/Dish";
 import { UI, fill } from "../i18n";
@@ -24,7 +26,8 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (phase === "king" && sound) sfx.crown();
   }, [phase, sound]);
-  const [command, setCommand] = useState<{ text: string; other: string } | null>(null);
+  /** `seconds`: the command names a time ("对视 30 秒"), so it gets a countdown; `n` tells draws apart */
+  const [command, setCommand] = useState<{ text: string; other: string; seconds: number | null; n: number } | null>(null);
   const [lidOpen, setLidOpen] = useState(false);
   const [taken, setTaken] = useState<number[]>([]);
   const penalty = usePenalty();
@@ -70,7 +73,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
     const nums = shuffle(Array.from({ length: players.length - 1 }, (_, i) => i + 1)).slice(0, c.people);
     const vars = { a: nums[0] ?? randInt(1, players.length - 1), b: nums[1] ?? randInt(1, players.length - 1), c: nums[2] ?? randInt(1, players.length - 1) };
     const words = commandText(c, custom);
-    setCommand({ text: fill(tr(words), vars), other: fill(lang === "zh" ? words.en : words.zh, vars) });
+    setCommand((prev) => ({ text: fill(tr(words), vars), other: fill(lang === "zh" ? words.en : words.zh, vars), seconds: durationOf(words), n: (prev?.n ?? 0) + 1 }));
     setLidOpen(false);
     setPhase("command");
   };
@@ -199,6 +202,11 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
                 <p className="hint-ink prompt-other">{command.other}</p>
               </div>
             </Cloche>
+            {lidOpen && command.seconds !== null && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                <DareTimer seconds={command.seconds} lang={lang} resetKey={command.n} />
+              </motion.div>
+            )}
             {lidOpen && (
               <motion.div className="row" style={{ gap: 10 }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
                 <button type="button" className="btn btn-ghost btn-block" onClick={() => setPhase("refusers")}>

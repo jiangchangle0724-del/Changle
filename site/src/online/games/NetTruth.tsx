@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Cloche } from "../../components/Cloche";
+import { DareTimer } from "../../components/DareTimer";
+import { durationOf } from "../../lib/duration";
 import { PorcelainDefs } from "../../components/Dish";
 import { polar } from "../../lib/geom";
 import { UI } from "../../i18n";
@@ -179,6 +181,12 @@ export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) 
                   <p className="hint-ink prompt-other">{lang === "zh" ? v.prompt.en : v.prompt.zh}</p>
                 </div>
               </Cloche>
+              {/* a dare that names a time: each phone can count it down on its own */}
+              {lid && durationOf(v.prompt) !== null && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                  <DareTimer seconds={durationOf(v.prompt)!} lang={lang} resetKey={v.prompt.zh} />
+                </motion.div>
+              )}
               <AnimatePresence>
                 {lid &&
                   (chosenMe ? (
