@@ -1,5 +1,5 @@
 /* Engine flow tests: run with `npx tsx tests/engine.test.ts` */
-import { cued, loaded } from "../src/shared/dj/deck";
+import { cued, loaded, pressBy } from "../src/shared/dj/deck";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
@@ -1685,12 +1685,16 @@ test("dj: the beginner deck: picks wait for a drop; one screen speaks, said agai
   clock = dr.cue + 20;
   g("p2", "drop", { c: clock });
   ok(deck().drop!.hits.length === 1, "Ben pressed on the cue");
-  clock = dr.at - 150;
-  ok(sc("tv-b", "grid", { at: deck().grid!.at + 40, bar: deck().grid!.bar, bpm: 125 }), "the bars, 40 ms later, 150 ms before the drop");
-  ok(deck().drop!.at === dr.at && deck().drop!.bar === dr.bar && deck().drop!.hits.length === 1, "the drop stays where it is, with its press");
-  advance(200);
+  clock = dr.cue + 260;
+  g("p1", "drop", { c: clock });
+  ok(deck().drop!.hits[1]?.pid === "p1" && deck().drop!.hits[1].grade === "good", "Amy a quarter second after the cue (she saw DROP, then pressed): it counts, good");
+  ok(pressBy(dr) === dr.at - 200 && pressBy(dr) - dr.cue === 280, "a phone's press counts until 280 ms after the cue (80 ms to reach the room, 120 ms before the bar)");
+  clock = dr.at - 100;
+  ok(sc("tv-b", "grid", { at: deck().grid!.at + 40, bar: deck().grid!.bar, bpm: 125 }), "the bars, 40 ms later, 100 ms before the drop");
+  ok(deck().drop!.at === dr.at && deck().drop!.bar === dr.bar && deck().drop!.hits.length === 2, "the drop stays where it is, with its presses");
+  advance(150);
   const last = deck().last!;
-  ok(!deck().drop && last.bar === dr.bar && last.to === "b" && last.style === "latin" && last.hits.length === 1, "and lands on latin");
+  ok(!deck().drop && last.bar === dr.bar && last.to === "b" && last.style === "latin" && last.hits.length === 2, "and lands on latin");
 });
 
 test("dj: the private Lyria test: only with one of the owner's accounts at the table, never shown; the speaker says when its music changes hands", () => {
