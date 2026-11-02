@@ -1,0 +1,498 @@
+[
+  {
+    "id": "square-easy",
+    "name_zh": "广场初体验",
+    "name_en": "First steps in Plaza dance",
+    "difficulty": "easy",
+    "bpm": 96,
+    "style": "square",
+    "sections": [
+      {
+        "move": "clap-2x",
+        "repeat": 4
+      },
+      {
+        "move": "raise-arms",
+        "repeat": 4
+      },
+      {
+        "move": "side-wave",
+        "repeat": 4
+      },
+      {
+        "move": "handkerchief-flower",
+        "repeat": 4
+      },
+      {
+        "move": "clap-2x",
+        "repeat": 4
+      },
+      {
+        "move": "handkerchief-flower",
+        "repeat": 4
+      }
+    ],
+    "warmup": "shoulder-roll",
+    "cooldown": "open-arms"
+  },
+  {
+    "id": "pop-easy",
+    "name_zh": "坐着也能嗨",
+    "name_en": "Seated pop party",
+    "difficulty": "easy",
+    "bpm": 100,
+    "style": "pop",
+    "sections": [
+      {
+        "move": "side-wave",
+        "repeat": 4
+      },
+      {
+        "move": "forward-push",
+        "repeat": 4
+      },
+      {
+        "move": "open-arms",
+        "repeat": 4
+      },
+      {
+        "move": "alternating-reach",
+        "repeat": 4
+      },
+      {
+        "move": "forward-push",
+        "repeat": 4
+      },
+      {
+        "move": "alternating-reach",
+        "repeat": 4
+      }
+    ],
+    "warmup": "shoulder-roll",
+    "cooldown": "open-arms"
+  },
+  {
+    "id": "square-medium",
+    "name_zh": "秧歌扭起来",
+    "name_en": "Yangge twist party",
+    "difficulty": "medium",
+    "bpm": 112,
+    "style": "square",
+    "sections": [
+      {
+        "move": "side-step-touch",
+        "repeat": 2
+      },
+      {
+        "move": "cross-step",
+        "repeat": 2
+      },
+      {
+        "move": "yangge-twist",
+        "repeat": 2
+      },
+      {
+        "move": "march-clap",
+        "repeat": 2
+      },
+      {
+        "move": "handkerchief-flower",
+        "repeat": 2
+      },
+      {
+        "move": "raise-arms",
+        "repeat": 2
+      },
+      {
+        "move": "side-wave",
+        "repeat": 2
+      },
+      {
+        "move": "side-step-touch",
+        "repeat": 2
+      },
+      {
+        "move": "cross-step",
+        "repeat": 2
+      },
+      {
+        "move": "yangge-twist",
+        "repeat": 2
+      },
+      {
+        "move": "march-clap",
+        "repeat": 2
+      },
+      {
+        "move": "handkerchief-flower",
+        "repeat": 2
+      },
+      {
+        "move": "raise-arms",
+        "repeat": 2
+      },
+      {
+        "move": "side-wave",
+        "repeat": 2
+      }
+    ],
+    "warmup": "shoulder-roll",
+    "cooldown": "open-arms"
+  },
+  {
+    "id": "pop-medium",
+    "name_zh": "流行踏步派对",
+    "name_en": "Pop step party",
+    "difficulty": "medium",
+    "bpm": 120,
+    "style": "pop",
+    "sections": [
+      {
+        "move": "side-step-touch",
+        "repeat": 2
+      },
+      {
+        "move": "march-clap",
+        "repeat": 2
+      },
+      {
+        "move": "heel-tap",
+        "repeat": 2
+      },
+      {
+        "move": "v-step",
+        "repeat": 2
+      },
+      {
+        "move": "step-knee-lift",
+        "repeat": 2
+      },
+      {
+        "move": "forward-push",
+        "repeat": 2
+      },
+      {
+        "move": "alternating-reach",
+        "repeat": 2
+      },
+      {
+        "move": "side-step-touch",
+        "repeat": 2
+      },
+      {
+        "move": "march-clap",
+        "repeat": 2
+      },
+      {
+        "move": "heel-tap",
+        "repeat": 2
+      },
+      {
+        "move": "v-step",
+        "repeat": 2
+      },
+      {
+        "move": "step-knee-lift",
+        "repeat": 2
+      },
+      {
+        "move": "forward-push",
+        "repeat": 2
+      },
+      {
+        "move": "alternating-reach",
+        "repeat": 2
+      }
+    ],
+    "warmup": "shoulder-roll",
+    "cooldown": "open-arms"
+  },
+  {
+    "id": "square-hard",
+    "name_zh": "广场摇摆串烧",
+    "name_en": "Plaza dance sway medley",
+    "difficulty": "hard",
+    "bpm": 132,
+    "style": "square",
+    "sections": [
+      {
+        "move": "handkerchief-flower",
+        "repeat": 1
+      },
+      {
+        "move": "cross-step",
+        "repeat": 1
+      },
+      {
+        "move": "yangge-twist",
+        "repeat": 1
+      },
+      {
+        "move": "eight-step-sway",
+        "repeat": 1
+      },
+      {
+        "move": "kemusan-hand-twirl",
+        "repeat": 1
+      },
+      {
+        "move": "side-step-touch",
+        "repeat": 1
+      },
+      {
+        "move": "grapevine-turn",
+        "repeat": 1
+      },
+      {
+        "move": "march-clap",
+        "repeat": 1
+      },
+      {
+        "move": "squat-reach",
+        "repeat": 1
+      },
+      {
+        "move": "side-lunge-punch",
+        "repeat": 1
+      },
+      {
+        "move": "raise-arms",
+        "repeat": 1
+      },
+      {
+        "move": "handkerchief-flower",
+        "repeat": 1
+      },
+      {
+        "move": "cross-step",
+        "repeat": 1
+      },
+      {
+        "move": "yangge-twist",
+        "repeat": 1
+      },
+      {
+        "move": "eight-step-sway",
+        "repeat": 1
+      },
+      {
+        "move": "kemusan-hand-twirl",
+        "repeat": 1
+      },
+      {
+        "move": "side-step-touch",
+        "repeat": 1
+      },
+      {
+        "move": "grapevine-turn",
+        "repeat": 1
+      },
+      {
+        "move": "march-clap",
+        "repeat": 1
+      },
+      {
+        "move": "squat-reach",
+        "repeat": 1
+      },
+      {
+        "move": "side-lunge-punch",
+        "repeat": 1
+      },
+      {
+        "move": "raise-arms",
+        "repeat": 1
+      },
+      {
+        "move": "handkerchief-flower",
+        "repeat": 1
+      },
+      {
+        "move": "cross-step",
+        "repeat": 1
+      },
+      {
+        "move": "yangge-twist",
+        "repeat": 1
+      },
+      {
+        "move": "eight-step-sway",
+        "repeat": 1
+      },
+      {
+        "move": "kemusan-hand-twirl",
+        "repeat": 1
+      },
+      {
+        "move": "side-step-touch",
+        "repeat": 1
+      },
+      {
+        "move": "grapevine-turn",
+        "repeat": 1
+      },
+      {
+        "move": "march-clap",
+        "repeat": 1
+      },
+      {
+        "move": "squat-reach",
+        "repeat": 1
+      },
+      {
+        "move": "side-lunge-punch",
+        "repeat": 1
+      },
+      {
+        "move": "raise-arms",
+        "repeat": 1
+      }
+    ],
+    "warmup": "shoulder-roll",
+    "cooldown": "open-arms"
+  },
+  {
+    "id": "pop-hard",
+    "name_zh": "全身节拍挑战",
+    "name_en": "Full body pop challenge",
+    "difficulty": "hard",
+    "bpm": 128,
+    "style": "pop",
+    "sections": [
+      {
+        "move": "alternating-reach",
+        "repeat": 1
+      },
+      {
+        "move": "v-step",
+        "repeat": 1
+      },
+      {
+        "move": "heel-tap",
+        "repeat": 1
+      },
+      {
+        "move": "step-knee-lift",
+        "repeat": 1
+      },
+      {
+        "move": "squat-reach",
+        "repeat": 1
+      },
+      {
+        "move": "side-lunge-punch",
+        "repeat": 1
+      },
+      {
+        "move": "grapevine-turn",
+        "repeat": 1
+      },
+      {
+        "move": "kemusan-hand-twirl",
+        "repeat": 1
+      },
+      {
+        "move": "eight-step-sway",
+        "repeat": 1
+      },
+      {
+        "move": "march-clap",
+        "repeat": 1
+      },
+      {
+        "move": "forward-push",
+        "repeat": 1
+      },
+      {
+        "move": "alternating-reach",
+        "repeat": 1
+      },
+      {
+        "move": "v-step",
+        "repeat": 1
+      },
+      {
+        "move": "heel-tap",
+        "repeat": 1
+      },
+      {
+        "move": "step-knee-lift",
+        "repeat": 1
+      },
+      {
+        "move": "squat-reach",
+        "repeat": 1
+      },
+      {
+        "move": "side-lunge-punch",
+        "repeat": 1
+      },
+      {
+        "move": "grapevine-turn",
+        "repeat": 1
+      },
+      {
+        "move": "kemusan-hand-twirl",
+        "repeat": 1
+      },
+      {
+        "move": "eight-step-sway",
+        "repeat": 1
+      },
+      {
+        "move": "march-clap",
+        "repeat": 1
+      },
+      {
+        "move": "forward-push",
+        "repeat": 1
+      },
+      {
+        "move": "alternating-reach",
+        "repeat": 1
+      },
+      {
+        "move": "v-step",
+        "repeat": 1
+      },
+      {
+        "move": "heel-tap",
+        "repeat": 1
+      },
+      {
+        "move": "step-knee-lift",
+        "repeat": 1
+      },
+      {
+        "move": "squat-reach",
+        "repeat": 1
+      },
+      {
+        "move": "side-lunge-punch",
+        "repeat": 1
+      },
+      {
+        "move": "grapevine-turn",
+        "repeat": 1
+      },
+      {
+        "move": "kemusan-hand-twirl",
+        "repeat": 1
+      },
+      {
+        "move": "eight-step-sway",
+        "repeat": 1
+      },
+      {
+        "move": "march-clap",
+        "repeat": 1
+      },
+      {
+        "move": "forward-push",
+        "repeat": 1
+      }
+    ],
+    "warmup": "shoulder-roll",
+    "cooldown": "open-arms"
+  }
+]
