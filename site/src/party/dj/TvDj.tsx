@@ -152,7 +152,8 @@ export default function TvDj({ v }: { v: DjView }) {
         </span>
       </header>
 
-      <DeckBoard v={v} />
+      {/* (a rooms server a moment behind the site, mid-deploy, sends no deck yet) */}
+      {v.deck && <DeckBoard v={v} />}
       <JoinCard code={code} big={!seats.length} />
 
       <Floor seats={seats} flames={flames} host={room?.host} />
@@ -160,9 +161,9 @@ export default function TvDj({ v }: { v: DjView }) {
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
       <PadChips chips={chips} />
-      <Countdown v={v} />
-      <DropParty v={v} />
-      {live && <HintLine v={v} />}
+      {v.deck && <Countdown v={v} />}
+      {v.deck && <DropParty v={v} />}
+      {live && v.deck && <HintLine v={v} />}
 
       <footer className="dj-foot">
         <NightCurve v={v} now={now()} />

@@ -95,7 +95,8 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
           </p>
         )}
 
-        <DeckPad v={v} />
+        {/* (a rooms server a moment behind the site, mid-deploy, sends no deck yet) */}
+        {v.deck && <DeckPad v={v} />}
 
         <div className="djp-fire-wrap is-small">
           <button type="button" className="djp-fire" onClick={press} aria-label={zh ? "给 DJ 加油" : "Fire up the DJ"}>
