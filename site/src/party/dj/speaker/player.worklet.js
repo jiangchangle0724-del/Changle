@@ -16,14 +16,18 @@
  * is, never silence; where B's own music starts or stops, the blend follows from that frame on,
  * smoothed like a move of the fader (so a tail fades rather than clicks).
  *
- * The brake (a tape stop): from audio time `at` the music slows to a stop over `dur` seconds, its
- * pitch with it, and stays quiet until `until`, where it comes back exactly where it would have been
- * (the stream's clock never stops: the beat, and everything waiting, stay where they were).
+ * Moves of the music itself, each from audio time `at`, back at `until` exactly where the stream
+ * would have been (its clock never stops: the beat, and everything waiting, stay where they were):
+ *   brake    a tape stop: slower and lower to a stop over `dur`, quiet until `until`
+ *   rewind   pulled back: it slows, spins backwards faster and faster for `dur`, fading, quiet
+ *            until `until`
+ *   scratch  a hand on the record: back and forth twice over `dur`, the sound cut where it turns
  *
  * In (port):  { t: "pcm", l, r, l2?, r2?, own? }   one chunk, planar, at `rate` (l2/r2: deck B;
  *             own false: only B's ring-out)
  *             { t: "flush" }   drop what is waiting (a new stream starts with a full prebuffer)
- *             { t: "brake", at, dur, until }   audio times, seconds
+ *             { t: "move", kind, at, dur, until }   a move, audio times in seconds ("brake" works
+ *             as kind "brake")
  * Out:        { t: "tick", pos, written, time, state, stalls, drops }   about 23 times a second:
  *             at audio time `time` the next frame out is source frame `pos` (frames since the
  *             stream began); `written` frames have arrived in all.
@@ -36,6 +40,26 @@ const TICK_QUANTA = 16;
 const HALF_PI = Math.PI / 2;
 /** the crossfader is smoothed over about this long: no zipper noise, still at once to the ear */
 const XFADE_S = 0.006;
+const MOVE_KINDS = ["brake", "rewind", "scratch"];
+/** the rewind's top speed backwards, and the scratch's forwards and back */
+const REWIND_SPEED = 3.5;
+const SCRATCH_SPEED = 2.6;
+
+/**
+ * A move's playback rate and loudness `u` of the way through it (0 to 1; past 1: the quiet until
+ * it comes back). The loudness also dips wherever the rate passes through nothing.
+ */
+function moveAt(kind, u) {
+  if (kind === "brake") return u >= 1 ? [0, 0] : [Math.max(0, 1 - u), 1];
+  if (kind === "rewind") {
+    if (u >= 1) return [0, 0];
+    const rate = u < 0.3 ? 1 - (1 + REWIND_SPEED) * (u / 0.3) : -REWIND_SPEED;
+    return [rate, u > 0.6 ? Math.max(0, 1 - (u - 0.6) / 0.4) : 1];
+  }
+  // scratch: twice back and forth, ending where it began
+  if (u >= 1) return [1, 1];
+  return [SCRATCH_SPEED * Math.sin(2 * Math.PI * 2 * u), 1];
+}
 
 class DjPlayer extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -55,9 +79,9 @@ class DjPlayer extends AudioWorkletProcessor {
     this.HB = new Uint8Array(this.cap);
     this.written = 0; // source frames that have arrived, all told
     this.pos = 0; // the next source frame to play (fractional when resampling)
-    this.vpos = 0; // where the stream would be without the brake (the same, but in a brake)
-    this.brake = null;
-    this.back = 1; // the fade back in after a brake
+    this.vpos = 0; // where the stream would be without a move (the same, but in one)
+    this.move = null;
+    this.back = 1; // the fade back in after a move
     this.xs = 0; // the crossfader, smoothed
     this.xk = 1 - Math.exp(-1 / (XFADE_S * sampleRate));
     this.step = this.rate / sampleRate;
@@ -80,11 +104,12 @@ class DjPlayer extends AudioWorkletProcessor {
     else if (m.t === "flush") {
       this.pos = this.written;
       this.vpos = this.written;
-      this.brake = null;
+      this.move = null;
       this.state = "waiting";
       this.gain = 0;
-    } else if (m.t === "brake" && Number.isFinite(m.at) && Number.isFinite(m.until) && m.until > m.at) {
-      this.brake = { at: m.at, dur: Math.max(0.01, Number(m.dur) || 0.3), until: m.until };
+    } else if ((m.t === "move" || m.t === "brake") && Number.isFinite(m.at) && Number.isFinite(m.until) && m.until > m.at) {
+      const kind = m.t === "brake" ? "brake" : MOVE_KINDS.includes(m.kind) ? m.kind : null;
+      if (kind) this.move = { kind, at: m.at, dur: Math.max(0.01, Number(m.dur) || 0.3), until: m.until };
     }
   }
 
@@ -165,16 +190,17 @@ class DjPlayer extends AudioWorkletProcessor {
         if (oR !== oL) oR[j] = 0;
         continue;
       }
-      // the brake: slower and lower to a stop, quiet, then back where the stream has got to
+      // a move: the brake, a rewind, a scratch; then back where the stream has got to
       let rate = 1;
-      const br = this.brake;
-      if (br) {
+      let loud = 1;
+      const mv = this.move;
+      if (mv) {
         const t = time0 + j / sampleRate;
-        if (t >= br.until) {
+        if (t >= mv.until) {
           this.pos = Math.min(this.vpos, this.written - guard);
-          this.brake = null;
+          this.move = null;
           this.back = 0;
-        } else if (t >= br.at) rate = Math.max(0, 1 - (t - br.at) / br.dur);
+        } else if (t >= mv.at) [rate, loud] = moveAt(mv.kind, (t - mv.at) / mv.dur);
       }
       // fade in after a start; fade out as the last frames drain, reaching 0 as they run out
       this.gain = Math.min(1, this.gain + this.gainStep);
@@ -182,9 +208,11 @@ class DjPlayer extends AudioWorkletProcessor {
       const left = this.written - this.pos;
       const drain = (left - guard) / this.fadeFrames;
       let g = drain < 1 ? Math.min(this.gain, Math.max(0, drain)) : this.gain;
-      // the last moment of the brake fades to nothing rather than crawling
-      if (rate < 0.08) g *= rate / 0.08;
-      g *= this.back;
+      // the last moment of a slowing move fades to nothing rather than crawling (and a scratch's
+      // turns cut the sound, as a hand on the record does)
+      const speed = Math.abs(rate);
+      if (speed < 0.08) g *= speed / 0.08;
+      g *= this.back * loud;
       const p = this.pos;
       const gA = Math.cos(this.xs * HALF_PI);
       const gB = Math.sin(this.xs * HALF_PI);
@@ -196,8 +224,9 @@ class DjPlayer extends AudioWorkletProcessor {
       }
       oL[j] = l * g;
       if (oR !== oL) oR[j] = r * g;
-      this.pos = p + this.step * rate;
-      this.vpos = br && this.brake ? this.vpos + this.step : this.pos;
+      // (backwards never past what the ring still holds, nor before the stream began)
+      this.pos = Math.max(1, this.written - this.cap + 8, p + this.step * rate);
+      this.vpos = mv && this.move ? this.vpos + this.step : this.pos;
     }
     if (++this.quanta % TICK_QUANTA === 0) this.port.postMessage({ t: "tick", pos: pos0, written: this.written, time: time0, state: this.state, stalls: this.stalls, drops: this.drops });
     return true;

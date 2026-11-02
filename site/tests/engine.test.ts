@@ -1,5 +1,5 @@
 /* Engine flow tests: run with `npx tsx tests/engine.test.ts` */
-import { cued, loaded, pressBy } from "../src/shared/dj/deck";
+import { countdown, cued, loaded, pressBy } from "../src/shared/dj/deck";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
@@ -1459,6 +1459,16 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   advance(700);
   g("p1", "pad", { pad: "brake" });
   ok(deck().pads.filter((x) => x.pad === "brake").length === 1, "one brake per 4 seconds");
+  advance(700);
+  g("p2", "pad", { pad: "scratch" });
+  ok(!deck().pads.some((x) => x.pad === "scratch"), "a scratch or a rewind moves the music too: not within 4 seconds of the brake");
+  advance(700);
+  g("p1", "pad", { pad: "siren" });
+  g("p2", "pad", { pad: "laser" });
+  ok(deck().pads.slice(-2).map((x) => x.pad).join() === "siren,laser" && pads("p1").some((x) => x.data?.[0] === 4) && pads("p2").some((x) => x.data?.[0] === 5), "the siren and the laser from two phones at once both play (pads 4 and 5)");
+  advance(2600);
+  g("p3", "pad", { pad: "rewind" });
+  ok(deck().pads[deck().pads.length - 1].pad === "rewind" && pads("p3").some((x) => x.data?.[0] === 7), "4 seconds on, a rewind (pad 7)");
 
   // picks: the off-air deck takes the floor's choice
   // the fader has nothing to blend into while deck B is empty
@@ -1533,7 +1543,8 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   ok(!!dr && deck().charge === 1 && dr.hits.length === 0 && !dr.auto, "full: a drop is on its way");
   ok(armedWith?.changed === true, "the tap that fills it is a real change: stored, with the drop's timer");
   const beatNow = (clock - deck().grid!.at) / beat;
-  ok(dr.bar % 4 === 0 && dr.bar * 4 >= beatNow + 4 && dr.bar * 4 < beatNow + 4 + 16, "it lands on the next 4-bar line at least 4 beats away");
+  ok(dr.bar % 2 === 0 && dr.bar * 4 >= beatNow + 17 && dr.bar * 4 < beatNow + 17 + 8, "it lands on the next 2-bar line that leaves room for the whole count (8, 7 … 1 two beats each, then DROP: 17 beats)");
+  ok(countdown(dr, deck().grid, dr.at - 17 * beat + 1) === "8" && countdown(dr, deck().grid, dr.at - 15 * beat + 1) === "7" && countdown(dr, deck().grid, dr.at - 2 * beat) === "1" && countdown(dr, deck().grid, dr.cue + 1) === "drop" && countdown(dr, deck().grid, dr.at - 17 * beat - 1) === null, "the count: 8 at 17 beats out, 7 two beats on, 1, then DROP on the cue's beat");
   ok(dr.at === deck().grid!.at + dr.bar * 4 * beat && dr.cue === dr.at - beat, "at that bar's time, the cue a beat before");
   ok(dr.to === "b", "B has a new style loaded: the drop swaps to it");
   g("p1", "charge", { n: 8 });
@@ -1541,6 +1552,9 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   advance(700);
   g("p3", "pad", { pad: "brake" });
   ok(deck().pads[deck().pads.length - 1].pad !== "brake" || deck().pads.filter((x) => x.pad === "brake").length === 1, "no brake while a drop is on its way");
+  advance(600);
+  g("p2", "pad", { pad: "scratch" });
+  ok(!deck().pads.some((x) => x.pad === "scratch"), "no scratch either");
 
   // the speaker's clock drifts a little mid-countdown: the same bar, its time corrected, presses kept
   advance(1100);
@@ -1556,7 +1570,7 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   // DROP: too early, on the cue, good, too late
   clock = dr2.at - 5 * beat;
   g("p1", "drop", { c: clock });
-  ok(deck().drop!.hits.length === 0, "before the countdown it doesn't count");
+  ok(deck().drop!.hits.length === 0, "before the count gets to 1 it doesn't count");
   clock = dr2.cue + 60;
   const hit = g("p2", "drop", { c: dr2.cue + 40 });
   ok(hit.light && deck().drop!.hits[0]?.pid === "p2" && deck().drop!.hits[0].grade === "perfect", "on the cue (40 ms off): perfect");
@@ -1565,7 +1579,7 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   ok(deck().drop!.hits.length === 1, "once a phone");
   clock = dr2.at - 2.5 * beat;
   g("p3", "drop", { c: dr2.at - 2.6 * beat });
-  ok(deck().drop!.hits[1]?.grade === "good", "earlier in the countdown: good");
+  ok(deck().drop!.hits[1]?.grade === "good", "on the count's 1: good");
   clock = dr2.at - 100;
   g("p1", "drop", { c: clock });
   ok(deck().drop!.hits.length === 2, "too close to the bar for the speaker: it doesn't count");
@@ -1589,11 +1603,8 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   ok(d2.to === "b", "nothing new loaded: the drop stays on the deck that's on");
   advance(d2.at - clock + 5);
   const d3 = deck().drop!;
-  ok(d3 && d3.misses === 1 && d3.bar === d2.bar + 4 && d3.at === d2.at + 16 * beat && !d3.auto, "nobody pressed: another countdown 4 bars on");
+  ok(d3 && d3.misses === 1 && d3.bar === d2.bar + 6 && d3.at === d2.at + 24 * beat && d3.auto, "nobody pressed: another whole countdown (the next 2-bar line 17 beats on), and this time the DJ will drop it");
   advance(d3.at - clock + 5);
-  const d4 = deck().drop!;
-  ok(d4.misses === 2 && d4.auto, "after two misses the DJ will drop it");
-  advance(d4.at - clock + 5);
   last = deck().last!;
   ok(!deck().drop && last.auto && last.hits.length === 0, "and does");
 
@@ -1605,7 +1616,7 @@ test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP 
   e.screenAct("tv-bd", { x: "grid", at: clock + 100, bar: 1000, bpm: 125 });
   e.flush();
   const d5 = deck().drop!;
-  ok(d5.bar % 4 === 0 && d5.bar >= 1000 && d5.at === clock + 100 + (d5.bar - 1000) * 4 * beat, "a new stream's bars: the drop is aimed at them");
+  ok(d5.bar % 2 === 0 && d5.bar >= 1000 && d5.at === clock + 100 + (d5.bar - 1000) * 4 * beat && d5.at - clock >= 17 * beat, "a new stream's bars: the drop is aimed at them, a whole count away");
 
   // the end of the set: nothing on its way; another set keeps the decks and the perfects
   g("p1", "phase", { phase: "end" });

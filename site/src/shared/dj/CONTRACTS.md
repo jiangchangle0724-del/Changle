@@ -200,18 +200,21 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 
 | Command | What the room does |
 | --- | --- |
-| `pad` `{ pad }` | `echo`, `sweep`, `horn` or `brake`, while music plays: a phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn), a brake once per 4 s (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
+| `pad` `{ pad }` | One of the eight (`PAD_IDS`, in their order on the phones): `echo`, `sweep`, `horn`, `brake`, `siren`, `laser`, `scratch`, `rewind`, while music plays (the last four Steve's ask on Nov 1, for more club sounds). A phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn); a move of the music itself (`MOVES`: the brake, a scratch, a rewind) once per 4 s for the room (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
 | `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
 | `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`; `b` null while B has nothing of its own): a new style plays from its deck's next section once it's recorded. Taken at most once a second; the speaker says it again every 1.5 s until the room has it. |
 
 **The drop.** When the build-up fills, the room aims the drop (`aim`): the first bar that's a
-multiple of 4 at least 4 beats away on the speaker's bars, the **cue** one beat before it. The
-screens count 3, 2, 1 and DROP over that last bar (`countdown`); DROP is on the cue beat. A press
-counts from the start of the countdown until it reaches the room 120 ms before the bar (so the
-room's word reaches the speaker in time; a word that reaches it a moment late lands at once, not a
-beat later). A phone judges its own press as the room will, counting 80 ms to get there
+multiple of 2 at least 17 beats away on the speaker's bars, the **cue** one beat before it. The
+screens count 8, 7 … 1, two beats each (about a second at 125 BPM), then DROP on the cue's beat
+(`countdown`): about 8 seconds, Steve's ask on Nov 1, so the whole table can get ready (the early
+numbers sit smaller on the TV). The speaker's build-up climbs through the count (the high-pass and
+the riser the rest of the way up, the snare roll in eighths, sixteenths in the last two bars). A
+press counts from the count's 1 until it reaches the room 120 ms before the bar (so the room's
+word reaches the speaker in time; a word that reaches it a moment late lands at once, not a beat
+later); before the 1 it's "not yet". A phone judges its own press as the room will, counting 80 ms to get there
 (`pressBy`): a press counts until about 280 ms after the cue (people press a moment after they see
 DROP), the phone says "now" only while a press still counts, and a press after that is late, not
 early. Within a quarter beat of the cue it's
@@ -220,8 +223,8 @@ early. Within a quarter beat of the cue it's
 It swaps to the deck off the air when the floor has **cued** its pick there (`cued`: loaded there,
 and the speaker says that deck really plays it; with Lyria, loaded is enough); a pick still
 loading shows as such and the drop stays on the deck that's on. Which deck it lands on is decided
-when the build-up fills. Nobody pressed: another countdown 4 bars on; after 2 misses the DJ drops
-it by itself (`auto`). The end of a set clears it.
+when the build-up fills. Nobody pressed: another whole countdown (`reaim`: the next 2-bar line at
+least 17 beats on), and that one the DJ drops by itself (`auto`). The end of a set clears it.
 
 **The speaker's bars** (`grid`). The speaker tells the room where its bars fall: bar `bar` of its
 stream starts at server time `at` (when it's *heard*), at `bpm`. It compares them with the room's
@@ -251,9 +254,16 @@ deck B ┘                                                       horn, riser, ro
   moves that drop to new bars instead (a new stream), the build-up comes back for its countdown.
 - **echo:** a bar of the music repeating every ¾ beat, dying away. **sweep:** the music closes
   down to a murmur over a bar and opens over the next. **horn:** two short blasts and a long one, on
-  the eighths. **brake:** the music slows to a stop over ¾ of a beat (pitch with it), quiet until
-  the next bar line, back on the downbeat exactly where the stream has got to (the player's own
-  clock never stops). Each plays from the speaker's next beat; one of a kind at a time.
+  the eighths. **siren:** a dub siren, a square wave whooping up and down twice a beat for two
+  beats. **laser:** three zaps on the sixteenths, each a quick fall from high to low. Each plays
+  from the speaker's next beat; one of a kind at a time.
+- **The moves of the music itself**, in the player (`player.worklet.js`), each back exactly where
+  the stream has got to (the player's own clock never stops): **brake**, the music slows to a stop
+  over ¾ of a beat (pitch with it), quiet until the next bar line, back on its downbeat;
+  **rewind**, it slows, spins backwards faster and faster (3.5 times) for a beat, fading, quiet
+  until the next bar line, back on its downbeat; **scratch**, a hand on the record: the music back
+  and forth twice in a beat (up to 2.6 times as fast), the sound cut where it turns, back on the
+  next beat. One at a time.
 - **The build-up:** the high-pass rises with the charge (the bottom falls away), a noise riser
   climbs, and a snare roll runs on the grid (quarters, eighths, sixteenths as it fills; sixteenths
   in the countdown). **The drop:** at its bar everything lets go at once with a boom, a crash and
@@ -263,7 +273,7 @@ deck B ┘                                                       horn, riser, ro
   the fader and who has it, the build-up's meter, who pressed which pad, the countdown, the landed
   drop, and a hint (`hintFor`: the countdown, keep tapping, build up and drop into the cued deck,
   slide the fader, pick the next style, try the pads). A phone has the same hint above its deck,
-  the decks, the fader, four pads, the build-up button that turns into DROP with the count, and
+  the decks, the fader, eight pads in two rows, the build-up button that turns into DROP with the count, and
   the 12 styles to pick from.
 
 ## Styles and Lyria RealTime

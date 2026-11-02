@@ -130,36 +130,45 @@ export function aim(grid: DeckState["grid"], now: number): { bar: number; at: nu
   return { bar, at, cue: at - beat };
 }
 
-/** The next countdown after one that passed (DECK.every bars on). */
+/** The next countdown after one that passed with nobody pressing: a whole one, aimed from its bar. */
 export function reaim(drop: DropState, grid: DeckState["grid"]): { bar: number; at: number; cue: number } {
-  const beat = beatMsOf(grid);
-  const bar = drop.bar < 0 ? -1 : drop.bar + DECK.every;
-  const at = drop.at + DECK.every * 4 * beat;
-  return { bar, at, cue: at - beat };
+  if (drop.bar < 0 || !grid) {
+    const at = drop.at + DECK.minBeats * beatMsOf(grid);
+    return { bar: -1, at, cue: at - beatMsOf(grid) };
+  }
+  return aim(grid, drop.at);
 }
 
-/** Beats left before the drop lands (0 at the bar). The countdown shows 3, 2, 1, DROP over the last 4. */
+/** Beats left before the drop lands (0 at the bar). */
 export const beatsLeft = (drop: { at: number }, grid: DeckState["grid"], now: number) => (drop.at - now) / beatMsOf(grid);
 
-/** What the countdown says now: "3", "2", "1", "drop" (the cue beat), or null outside it. */
-export function countdown(drop: { at: number } | null, grid: DeckState["grid"], now: number): "3" | "2" | "1" | "drop" | null {
+/** The countdown's beats: 8 down to 1, then DROP. */
+export const COUNT_SPAN = DECK.countFrom * DECK.countBeats + 1;
+export type Count = "8" | "7" | "6" | "5" | "4" | "3" | "2" | "1" | "drop";
+
+/**
+ * What the countdown says now: 8 down to 1 (DECK.countBeats beats each), "drop" on the cue's beat
+ * (the beat before the bar), or null outside it.
+ */
+export function countdown(drop: { at: number } | null, grid: DeckState["grid"], now: number): Count | null {
   if (!drop) return null;
   const r = beatsLeft(drop, grid, now);
-  if (r > 4 || r <= 0) return null;
-  return r > 3 ? "3" : r > 2 ? "2" : r > 1 ? "1" : "drop";
+  if (r > COUNT_SPAN || r <= 0) return null;
+  if (r <= 1) return "drop";
+  return String(Math.min(DECK.countFrom, Math.ceil((r - 1) / DECK.countBeats - 1e-9))) as Count;
 }
 
 /** The last moment (server time) a phone's DROP press still counts: it has to reach the room in time. */
 export const pressBy = (drop: { at: number }) => drop.at - DECK.leadMs - DECK.pressTripMs;
 
 /**
- * A DROP press at `at` (server time): null when it doesn't count (before the countdown, or too
+ * A DROP press at `at` (server time): null when it doesn't count (before the count's "1", or too
  * late for the speaker to land it), else how well it hit the cue.
  */
 export function grade(drop: DropState, grid: DeckState["grid"], at: number, now: number): DropGrade | null {
   const beat = beatMsOf(grid);
   if (now > drop.at - DECK.leadMs) return null;
-  if (at < drop.at - 4 * beat) return null;
+  if (at < drop.cue - DECK.countBeats * beat) return null;
   return Math.abs(at - drop.cue) <= DECK.perfect * beat ? "perfect" : "good";
 }
 

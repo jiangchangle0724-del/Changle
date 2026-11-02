@@ -144,15 +144,18 @@ the new relay and set Lyria up where it was, and nothing stalled. Lyria was paus
 ## The beginner deck (Nov 1)
 
 Everyone at the table DJs at once from their phone (CONTRACTS.md, "The beginner deck"): two decks
-and a crossfader, four pads, a build-up the table taps together and DROP on the count, a pick for
+and a crossfader, eight pads (four at first; the siren, laser, scratch and rewind from Nov 1), a
+build-up the table taps together and DROP after an 8-second count (2 seconds at first), a pick for
 the next of 12 styles. The rule that keeps it from ever sounding wrong is that everything lands on
 the beat, so these checks are mostly about timing.
 
 **`site/scripts/dj_deck_check.py`**, a TV and three phones playing at once, the TV in Chromium and
-in WebKit: 39 of 39 checks pass in each (after both code reviews' fixes and the DROP window's), no
-errors on any page.
+in WebKit: 47 of 47 checks pass in each (after both code reviews' fixes, the DROP window's, and with
+the 8-second count and the eight pads), no errors on any page.
 Three pads pressed at once by three phones all play, each on a beat to the millisecond. The brake
-stops the music and brings it back on the bar with no stall. Two picks for latin and one for techno
+stops the music and brings it back on the bar with no stall; a siren and a laser from two phones at
+once both play on beats, then a scratch, and a rewind 4 seconds later, and the music comes back with
+no stall. Two picks for latin and one for techno
 load latin on deck B. Thrown all the way to B before B has any music of its own, the fader leaves
 deck A playing (its quietest moment 0.03 to 0.04 RMS: never silence; before the second review's
 fix this was silence until B's next section, up to about 20 seconds). Once the speaker's deck B

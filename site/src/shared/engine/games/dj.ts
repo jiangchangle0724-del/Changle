@@ -18,6 +18,7 @@ import {
   FIRE_TAKE_MS,
   KEEP_DONE,
   KNOB_STEP,
+  MOVES,
   PAD_IDS,
   QUEUE_MAX,
   SET_PHASES,
@@ -308,11 +309,12 @@ export const dj: GameDef<RoomState> = {
         // people on the horn at the same moment is one horn): a table mashing can't pile them up
         if ((d.padAt[pid] ?? -Infinity) > now - DECK.padTakeMs) return api.quiet();
         if (d.pads.some((p) => p.pad === pad && p.at > now - DECK.roomPadGapMs)) return api.quiet();
-        // the brake stops the music for a beat: not while a drop is on its way, and not often
-        if (pad === "brake" && (d.drop || d.brakeAt > now - DECK.brakeGapMs)) return api.quiet();
+        // a move (the brake, a scratch, a rewind) takes the music itself: one at a time for the
+        // room, not while a drop is on its way, and not often
+        if (MOVES.includes(pad) && (d.drop || d.brakeAt > now - DECK.brakeGapMs)) return api.quiet();
         api.light();
         d.padAt[pid] = now;
-        if (pad === "brake") d.brakeAt = now;
+        if (MOVES.includes(pad)) d.brakeAt = now;
         d.pads = keep([...d.pads, { pid, pad, at: now }], DECK.keepPads);
         api.fx("pad", pid, [PAD_IDS.indexOf(pad)]);
         return;
@@ -501,7 +503,7 @@ export const dj: GameDef<RoomState> = {
       if (!d.drop) return;
       if (d.drop.hits.length || d.drop.auto) land(s, api);
       else {
-        // nobody pressed: another countdown DECK.every bars on, and after maxMisses the DJ drops it
+        // nobody pressed: another whole countdown, and after DECK.maxMisses the DJ drops it
         const misses = d.drop.misses + 1;
         const t = reaim(d.drop, d.grid);
         d.drop = { ...d.drop, ...t, misses, auto: misses >= DECK.maxMisses, hits: [] };
