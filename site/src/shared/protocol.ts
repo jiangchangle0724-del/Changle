@@ -4,7 +4,7 @@
  */
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
-import type { DeckState, DjPhase, Mix, Source, StyleId, Track } from "./dj/types";
+import type { DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -93,6 +93,7 @@ export type Fx =
   | "cold"
   | "drop"
   | "ask"
+  | "req"
   | "pad";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
@@ -568,7 +569,15 @@ export type DjView = {
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
-export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt">;
+export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "reqs" | "up" | "now"> & {
+  reqs: ReqView[];
+  up: ReqView | null;
+  now: ReqView | null;
+};
+
+/** A song asked for by name, as a phone or screen reads it: a name the player typed (not picked from
+ *  the song list) is null to everyone but them and the host. */
+export type ReqView = Omit<SongReq, "text"> & { text: string | null };
 
 /**
  * A song in the booth's queue as one phone or screen sees it. What a player wrote (`ask`) is null

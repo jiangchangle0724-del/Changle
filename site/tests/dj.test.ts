@@ -5,6 +5,7 @@ import { FakeDj } from "../src/party/dj/fake/FakeDj";
 import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
 import { ALL_SECTIONS, ANY_SECTION, KITS, sectionOf } from "../src/party/dj/fake/styles";
+import { line } from "../src/lib/music";
 import { pcm16ToFloat } from "../src/party/dj/speaker/pcm";
 import type { Speaker } from "../src/party/dj/speaker/speaker";
 import { KickClock } from "../src/party/dj/lyria/beat";
@@ -449,6 +450,76 @@ await test("fake DJ: a new pick is recorded first for the section after the one 
   dj.setDecks("house", "trance");
   await sleep(400);
   ok(order[from] === "trance:warm2", `warm1 is going out: trance's warm2 first (${order.slice(from, from + 3).join(", ")})`);
+  dj.stop();
+});
+
+await test("tracks: each its own chords in A minor, every part moved onto them, both decks on the same chords", async () => {
+  const { PROGS, asTrack, shiftNote, stepTo, trackFor, trackOf, newTrack } = await import("../src/party/dj/fake/tracks");
+  const M = (n: string) => line(n)[0]!;
+  ok(shiftNote(M("A4"), 3) === M("D5") && shiftNote(M("C5"), 3) === M("F5") && shiftNote(M("G4"), -3) === M("D4") && shiftNote(M("E4"), 0) === M("E4"), "a note moves along A minor: A up three steps is D, C is F, G down three is D");
+  ok(stepTo(0, 5) === -2 && stepTo(5, 2) === -3 && stepTo(2, 6) === -3 && stepTo(6, 0) === 1, "the shortest way between two chords: Am to F is two steps down, G to Am one up");
+  ok(trackOf(0).prog.join() === "0,5,2,6" && trackOf(123).prog.join() === trackOf(123).prog.join() && new Set(Array.from({ length: 60 }, (_, i) => trackOf(i + 1).prog.join())).size >= 8, "track 0 is the night as written; a track number is always the same track; sixty tracks use most of the progressions");
+  ok(trackFor("Despacito") === trackFor("  despacito ") && trackFor("Despacito") !== trackFor("See You Again") && trackFor("x") >= 1, "a song asked for by name: the same words, the same remix");
+  ok(newTrack(5, () => 0.5) !== 5 && newTrack(0, () => 0) === 1, "a new track is any but the one playing");
+  const minor = (m: number | null) => m === null || [9, 11, 0, 2, 4, 5, 7].includes(m % 12);
+  for (const n of [7, 31, 4242, 99999]) {
+    const t = trackOf(n);
+    for (const base of ALL_SECTIONS) {
+      const s = asTrack(base, t, `${base.id}~${n}`);
+      const notes = [...(s.style.bass ?? []).flat(), ...(s.style.chords?.prog ?? []).flat(), ...(s.style.lead?.bars ?? []).flat()];
+      if (!notes.every(minor)) ok(false, `${s.id}: everything in A minor`);
+      if (!(s.style.bass ?? []).flat().every((m) => m === null || (m >= 28 && m <= 52))) ok(false, `${s.id}: the bass between E1 and E3`);
+      // each bar's chord is the same kind of chord as written (the same steps above its root, however
+      // it's voiced), now on the track's chord for that bar
+      const deg = (m: number) => [9, 11, 0, 2, 4, 5, 7].indexOf(m % 12);
+      const shape = (c: number[], root: number) => c.map((m) => (deg(m) - root + 7) % 7).sort().join();
+      const was = base.style.chords?.prog ?? [];
+      const now = s.style.chords?.prog ?? [];
+      if (!now.every((c, i) => shape(c, t.prog[i]) === shape(was[i], [0, 5, 2, 6][i]))) ok(false, `${s.id}: its chords are the written ones moved onto the track's`);
+    }
+  }
+  ok(true, "every style's every section, as four different tracks: in A minor, the bass in range, the chords the track's");
+  // latin and techno both voice their chords from the root: the same track gives both the same roots
+  const two = ["latin:peak1", "techno:peak1"].map((id) => asTrack(ANY_SECTION[id], trackOf(31), `${id}~31`).style.chords!.prog.map((c) => Math.min(...c) % 12).join());
+  ok(two[0] === two[1] && two[0] === trackOf(31).prog.map((d) => [9, 11, 0, 2, 4, 5, 7][d]).join(), `two decks in different styles, the same track: the same chords bar for bar (${two[0]})`);
+  ok(asTrack(ANY_SECTION.peak1, trackOf(0), "peak1") === ANY_SECTION.peak1, "track 0 is left as it is");
+});
+
+await test("fake DJ: a new song every eight sections, both decks in it together; a song asked for comes in next", async () => {
+  const F = sectionFrames(48000);
+  const dj = new FakeDj(fakeRender);
+  dj.setDecks("house", "latin");
+  dj.prepare("warm");
+  await sleep(500);
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  dj.setPhase("warm");
+  const at: { id: string; track: number; b: boolean }[] = [];
+  // a section's worth of playing, then a look at what's heard: from the middle of one section to the middle of the next
+  const play = async (frames: number) => {
+    for (let left = frames, k = 0; left > 0; left -= 12000, k++) {
+      sp.play(Math.min(12000, left));
+      if (k % 20 === 0) await sleep(2);
+    }
+    await sleep(10);
+  };
+  const section = async () => {
+    await play(F);
+    const h = dj.heardSection();
+    at.push({ id: h?.id ?? "", track: h?.track ?? -1, b: sp.ownB[sp.ownB.length - 1] });
+  };
+  await play(F / 2);
+  at.push({ id: dj.heardSection()?.id ?? "", track: dj.heardSection()?.track ?? -1, b: false });
+  for (let i = 0; i < 9; i++) await section();
+  ok(at.slice(0, 8).every((x) => x.track === 0 && !x.id.includes("~")), `the first song is the night as written, eight sections (${at.slice(0, 8).map((x) => x.id)})`);
+  const song = at[8].track;
+  ok(song > 0 && at[8].id === `warm1~${song}` && at[9].id === `warm2~${song}`, `then the next song, from its first section (${at[8].id}, ${at[9].id})`);
+  ok(at[8].b && at[9].b, "deck B in it too, its own music: the same song, the same chords");
+  ok(at.slice(1, 8).every((x) => x.b), "(and in the first song)");
+  dj.playTrack(777);
+  await section();
+  await section();
+  ok(at[11].track === 777 && at[11].id.endsWith("~777"), `a song asked for comes in at the next section (${at[10].id}, ${at[11].id})`);
   dj.stop();
 });
 
