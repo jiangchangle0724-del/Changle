@@ -21,6 +21,15 @@ window.addEventListener("vite:preloadError", () => {
   loadNewVersion();
 });
 
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  const register = () => {
+    // Installation is optional: a browser that cannot store an offline copy still opens the site.
+    void navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
+  };
+  if (document.readyState === "complete") register();
+  else window.addEventListener("load", register, { once: true });
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
