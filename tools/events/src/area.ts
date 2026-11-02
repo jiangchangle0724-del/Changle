@@ -13,7 +13,7 @@ const POSTAL_PREFIXES: [Area, string][] = [
   ["langley", "V1M V2Y V2Z V3A V4W V2W V2X V4R V3Y V2S V2T V3G V4X V2V V4S V2P V2R V4Z"],
 ];
 const BY_POSTAL = new Map(POSTAL_PREFIXES.flatMap(([area, prefixes]) => prefixes.split(" ").map((p) => [p, area] as const)));
-const CANADIAN_POSTAL = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/;
+const CANADIAN_POSTAL = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]\d[ABCEGHJ-NPRSTV-Z]\d$/;
 
 // Cache each polygon's box once, so most rings never need a point-in-polygon test.
 const POLYGONS = boundaries.features.flatMap(({ properties, geometry }) => geometry.coordinates.map((rings) => {
@@ -54,23 +54,27 @@ const BY_CITY: [RegExp, Area][] = [
 export function resolveArea(place: Place | null): { area: Area | null; check: boolean; outside: boolean } {
   if (!place) return { area: null, check: false, outside: false };
   const { lat, lon } = place;
+  let beyondBox = false;
   if (lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon)) {
     for (const p of POLYGONS) {
       if (lon >= p.west && lon <= p.east && lat >= p.south && lat <= p.north && inPolygon(lon, lat, p.rings)) {
         return { area: p.area, check: false, outside: false };
       }
     }
-    if (lat < 49 || lat > 49.45 || lon < -123.3 || lon > -122.2) return { area: null, check: false, outside: true };
+    beyondBox = lat < 49 || lat > 49.45 || lon < -123.3 || lon > -122.2;
   }
   const postal = place.postalCode?.trim().toUpperCase();
-  if (postal && CANADIAN_POSTAL.test(postal)) {
-    const area = BY_POSTAL.get(postal.slice(0, 3));
+  const compactPostal = postal?.replace(/[\s-]/g, ""); // Includes non-breaking spaces.
+  if (compactPostal && CANADIAN_POSTAL.test(compactPostal)) {
+    const area = BY_POSTAL.get(compactPostal.slice(0, 3));
     if (area) return { area, check: false, outside: false };
   }
+  // Only a known postal code can rescue coordinates beyond the box, not a city name.
+  if (beyondBox) return { area: null, check: false, outside: true };
   const city = place.city?.trim();
   if (city) for (const [re, area] of BY_CITY) if (re.test(city)) return { area, check: false, outside: false };
-  if (/^\d{5}(?:-\d{4})?$/.test(postal ?? "") || /\b(?:WA|Washington)\b|\b\d{5}(?:-\d{4})?\s*$/i.test(place.address ?? "")
-    || /\b(?:WA|Washington)\b/i.test(city ?? "")) return { area: null, check: false, outside: true };
+  if (/^\d{5}(?:-\d{4})?$/.test(postal ?? "") || /,\s*(WA|Washington)\b|\b\d{5}(?:-\d{4})?\s*$/i.test(place.address ?? "")
+    || /,\s*(WA|Washington)\b/i.test(city ?? "")) return { area: null, check: false, outside: true };
   return { area: "vancouver", check: true, outside: false };
 }
 

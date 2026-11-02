@@ -38,6 +38,12 @@ describe("the 50 saved places (no network)", () => {
     expect(resolveArea({ name: null, postalCode: " v5h4m1 ", city: "Richmond" })).toEqual(known("burnaby"));
   });
 
+  it("removes spaces, hyphens and non-breaking spaces before matching postal codes", () => {
+    for (const postalCode of ["V6B  1A1", "V6B-1A1", "V6B\u00a01A1", " v6b -\u00a0 1a1 "]) {
+      expect(resolveArea({ name: null, postalCode, city: "Richmond" }), postalCode).toEqual(known("vancouver"));
+    }
+  });
+
   it("resolves all 48 by city when coordinates and postal codes are removed", () => {
     for (const { area, lat: _lat, lon: _lon, postalCode: _postal, ...place } of local) {
       expect(resolveArea(place), place.name).toEqual(known(area as Area));
@@ -63,10 +69,17 @@ describe("coordinates and fallback order", () => {
     expect(resolveArea({ name: null, lat: 49.03, lon: -122.15 })).toEqual(known("langley"));
   });
 
-  it("rejects coordinates outside the box before postal/city fallback", () => {
+  it("uses known postal codes outside the box, otherwise rejects before city fallback", () => {
     for (const [lat, lon] of [[48.99, -123.1], [49.46, -123.1], [49.2, -123.4], [49.2, -122.0]]) {
-      expect(resolveArea({ name: null, lat, lon, postalCode: "V5H 4M1", city: "Burnaby" })).toEqual(outside);
+      expect(resolveArea({ name: null, lat, lon, postalCode: "V2P 1A1", city: "Burnaby" })).toEqual(known("langley"));
+      expect(resolveArea({ name: null, lat, lon, city: "Burnaby" })).toEqual(outside);
+      expect(resolveArea({ name: null, lat, lon, postalCode: "M5V 3A8", city: "Burnaby" })).toEqual(outside);
     }
+    expect(resolveArea({ name: null, lat: 49.16, lon: -121.95, postalCode: "V2P-1A1", city: "Chilliwack" })).toEqual(known("langley"));
+    for (const [lat, lon] of [[0, 0], [-123.1, 49.2]]) {
+      expect(resolveArea({ name: null, lat, lon, postalCode: "V6B 6G1", city: "Vancouver" })).toEqual(known("vancouver"));
+    }
+    expect(resolveArea({ name: "Vancouver Mall", lat: 45.6567, lon: -122.5838, postalCode: "98662", city: "Vancouver", address: "Vancouver, WA 98662" })).toEqual(outside);
   });
 
   it("falls through for gaps inside the box and includes its limits", () => {
@@ -107,6 +120,18 @@ describe("coordinates and fallback order", () => {
       { address: "Portland, OR 97201" }, { city: "Vancouver, WA" },
     ]) expect(resolveArea({ name: null, ...place })).toEqual(outside);
     expect(resolveArea({ name: null, address: "12345 Main St" })).toEqual(unknown);
+  });
+
+  it("requires a comma before a Washington state name, not a street name", () => {
+    for (const address of ["123 Washington Ave", "123 WA Ave", "123 Washington Ave, Unknown City"]) {
+      expect(resolveArea({ name: null, address }), address).toEqual(unknown);
+    }
+    expect(resolveArea({ name: null, city: "Washington" })).toEqual(unknown);
+    expect(resolveArea({ name: null, address: "123 Washington Ave", city: "Unknown" })).toEqual(unknown);
+    for (const state of ["WA", "Washington", "washington"]) {
+      expect(resolveArea({ name: null, address: `123 Main St, ${state}` })).toEqual(outside);
+      expect(resolveArea({ name: null, city: `Vancouver, ${state}` })).toEqual(outside);
+    }
   });
 
   it("distinguishes no place from a place with only a name", () => {
