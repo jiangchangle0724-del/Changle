@@ -82,8 +82,8 @@
   /* Chinese has no web font of its own (too big): each device's system face, in this order */
   --font-zh: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
   /* same values as global.css: Latin face first, Chinese falls through to the system faces above */
-  --font-display: "Unbounded Variable", "Unbounded", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
-  --font-text: "Figtree Variable", "Figtree", -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-display: "Unbounded Variable", "Unbounded", var(--font-zh);
+  --font-text: "Figtree Variable", "Figtree", -apple-system, var(--font-zh);
 
   --leading-zh: 1.65; /* Chinese running text */
   --leading-en: 1.5; /* English running text */
