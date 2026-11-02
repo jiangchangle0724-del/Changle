@@ -35,6 +35,12 @@ export interface Api {
    * and give no penalty.
    */
   light(): void;
+  /**
+   * This action changed nothing the table needs to hear now: send nothing, store nothing (a tap the
+   * game turned away, or one it keeps to add a moment later). Anything it did keep goes out with
+   * the next change.
+   */
+  quiet(): void;
 }
 
 export interface GameDef<S> {

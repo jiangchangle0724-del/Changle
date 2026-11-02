@@ -140,3 +140,45 @@ Four minutes into the second run the rooms server restarted (an edit reloaded it
 would): the speaker played on from what it had in hand, down to 2.5 seconds, the speaker opened
 the new relay and set Lyria up where it was, and nothing stalled. Lyria was paused and played again about every
 10 seconds (the fake makes music twice as fast as it plays; real Lyria's pace will set how often).
+
+## The beginner deck (Nov 1)
+
+Everyone at the table DJs at once from their phone (CONTRACTS.md, "The beginner deck"): two decks
+and a crossfader, four pads, a build-up the table taps together and DROP on the count, a pick for
+the next of 12 styles. The rule that keeps it from ever sounding wrong is that everything lands on
+the beat, so these checks are mostly about timing.
+
+**`site/scripts/dj_deck_check.py`**, a TV and three phones playing at once, the TV in Chromium and
+in WebKit: 37 of 37 checks pass in each (after both code reviews' fixes), no errors on any page.
+Three pads pressed at once by three phones all play, each on a beat to the millisecond. The brake
+stops the music and brings it back on the bar with no stall. Two picks for latin and one for techno
+load latin on deck B. Thrown all the way to B before B has any music of its own, the fader leaves
+deck A playing (its quietest moment 0.03 to 0.04 RMS: never silence; before the second review's
+fix this was silence until B's next section, up to about 20 seconds). Once the speaker's deck B
+really plays latin the TV marks it up next. The phone that moves the fader holds it, and the others
+wait and see who has it. Everyone taps the build-up full, the countdown runs on the TV and the
+phones while the picks wait, and a press 15 to 40 ms after the cue is perfect. The drop lands
+exactly on its bar (beat 80 for bar 20 in the last run), swaps to deck B, and the TV celebrates.
+
+**A busy table** (the TV in WebKit, two phones): a pad every 2.5 to 6 seconds, a new pick every
+30 s, the fader swept across and back every 45 s, a build-up and a drop on the cue every minute.
+
+| Run | Stalls | Lowest buffer | Pads pressed / played | Drops / perfect | Off the beat | WebKit's memory |
+| --- | --- | --- | --- | --- | --- | --- |
+| 8 minutes, first version | 0 | 4.97 s | 95 / 95 | 7 / 7 | 0 | steady, about 1 GB |
+| 12 minutes, first version | 0 | 4.96 s | 142 / 138 | 10 / 10 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, first review's fixes | 0 | 4.97 s | 93 / 91 | 7 / 6 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, the same, each drop's grade kept | 0 | 4.96 s | 96 / 94 | 7 / 7 | 0 | steady, 1.0 to 1.1 GB |
+| 8 minutes, second review's fixes (this version) | 0 | 4.88 s | 91 / 90 | 7 / 7 | 0 | steady, 1.0 to 1.1 GB |
+
+The pads that didn't play were the deck's own limits at work: a pad of the same kind still
+sounding (a sweep lasts two bars, a horn two beats), or a brake within 4 seconds of the last. In
+the third run the rooms server restarted 3.5 minutes in (an edit reloaded it, as a deploy would):
+the TV and both phones were back within a second and the music never stopped. One of its seven
+drops wasn't perfect, and that run didn't keep why; the two runs after it keep each drop's grade:
+14 of 14 perfect, the test phone pressing 10 to 62 ms after the cue (its timers on a busy 2-core
+machine; perfect is within 120 ms either side). An earlier 12-minute run lost its WebKit page
+partway (the test browser's page process went away, with no error in the page itself); the runs
+after it, watching the memory, ran clean. Worth an eye on a real Mac and iPad: if the TV's page
+ever reloads by itself mid-set, that's the one to tell me about.
+

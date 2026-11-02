@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FAKE_MIX, mixFor, playing } from "../../shared/dj/curve";
-import type { DjPhase, Mix, Source } from "../../shared/dj/types";
+import type { DjPhase, Mix, PadId, Source, StyleId } from "../../shared/dj/types";
+import type { DeckView } from "../../shared/protocol";
+import { DeckDriver, type Grid } from "./deck/driver";
 import { FakeDj } from "./fake/FakeDj";
 import { FINAL, LyriaDj, type LyriaWhy } from "./lyria/LyriaDj";
 import { Speaker } from "./speaker/speaker";
@@ -14,7 +16,14 @@ export type BoothReport = { stalls: number; resets: number; seconds: number };
 export type BoothDj = {
   /** the stand-in has music recorded (it always starts the night) */
   readonly ready: boolean;
+  /** it plays two decks in step (the stand-in) or one (Lyria) */
+  readonly decks: boolean;
+  readonly bpm: number;
+  /** changes whenever its bars start over (a new stream, the other DJ) */
+  readonly epoch: number;
   beat(): number;
+  /** the speaker's frame where beat `b` of the stream falls, or null while it doesn't know */
+  beatFrame(b: number): number | null;
   heardSection(): { id: string; phase: DjPhase } | null;
   holdFor(ms: number): void;
 };
@@ -47,7 +56,17 @@ function pageBooth(): PageBooth {
       get ready() {
         return b.fake.ready;
       },
+      get decks() {
+        return now().decks;
+      },
+      get bpm() {
+        return now().bpm;
+      },
+      get epoch() {
+        return (b.using === "lyria" ? 1_000_000 : 0) + now().epoch;
+      },
       beat: () => now().beat(),
+      beatFrame: (n) => now().beatFrame(n),
       heardSection: () => now().heardSection(),
       holdFor: (ms) => now().holdFor(ms),
     };
@@ -67,7 +86,30 @@ export type LyriaAt = { url: string; key: string };
  * the music; at one of the owner's tables Lyria takes over once it has a few seconds in hand, and
  * if it stops for good the stand-in comes back.
  */
-export function useBooth({ phase, mix, muted, onReport, lyria }: { phase: DjPhase; mix?: Mix; muted: boolean; onReport?: (r: BoothReport) => void; lyria?: LyriaAt | null }) {
+export function useBooth({
+  phase,
+  mix,
+  muted,
+  onReport,
+  lyria,
+  deck,
+  now,
+  onGrid,
+  onDecks,
+}: {
+  phase: DjPhase;
+  mix?: Mix;
+  muted: boolean;
+  onReport?: (r: BoothReport) => void;
+  lyria?: LyriaAt | null;
+  /** the beginner deck, as the room has it (the speaker plays it) */
+  deck?: DeckView;
+  /** the server's clock (ms), and where to tell the room the speaker's bars fall */
+  now?: () => number;
+  onGrid?: (g: Grid) => void;
+  /** tells the room the styles the decks really sound (a drop only swaps to a deck that plays its pick) */
+  onDecks?: (d: { a: StyleId; b: StyleId | null }) => void;
+}) {
   const booth = pageBooth();
   const { fake } = booth;
   const [status, setStatus] = useState<BoothStatus>(() => statusOf(booth));
@@ -216,6 +258,41 @@ export function useBooth({ phase, mix, muted, onReport, lyria }: { phase: DjPhas
     [booth, fake],
   );
 
+  // the beginner deck: the decks' styles to the stand-in (Lyria follows the mix), the rest to the
+  // driver, which plays it on the beat
+  const deckA = deck?.a ?? "house";
+  const deckB = deck?.b ?? null;
+  useEffect(() => fake.setDecks(deckA, deckB), [fake, deckA, deckB]);
+  const clock = useRef(now);
+  clock.current = now;
+  const grid = useRef(onGrid);
+  grid.current = onGrid;
+  const driver = useMemo(() => (speaker ? new DeckDriver(speaker, booth.dj, () => (clock.current ? clock.current() : Date.now()), (g) => grid.current?.(g)) : null), [speaker, booth]);
+  useEffect(() => () => driver?.stop(), [driver]);
+  useEffect(() => {
+    if (driver && deck) driver.update(deck, playing(phase));
+  }, [driver, deck, phase]);
+  const pad = useCallback((p: PadId) => driver?.pad(p), [driver]);
+  // what the stand-in's decks sound now, told to the room whenever the room has it otherwise (said
+  // again every 1.5 s until it has: a word can be lost, or turned away)
+  const decksTo = useRef(onDecks);
+  decksTo.current = onDecks;
+  const roomHas = useRef(deck?.sounding ?? null);
+  roomHas.current = deck?.sounding ?? null;
+  useEffect(() => {
+    if (!speaker) return;
+    let saidAt = -Infinity;
+    const id = window.setInterval(() => {
+      const hd = booth.using === "fake" ? fake.heardDecks() : null;
+      const has = roomHas.current;
+      if (!hd || (has && has.a === hd.a && has.b === hd.b)) return;
+      if (performance.now() - saidAt < 1500) return;
+      saidAt = performance.now();
+      decksTo.current?.(hd);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [speaker, booth, fake]);
+
   // the phone or tablet stopped the sound (the screen locked, a call): it takes a tap to wake it
   const [stopped, setStopped] = useState(false);
   const wakes = useRef(0);
@@ -256,5 +333,5 @@ export function useBooth({ phase, mix, muted, onReport, lyria }: { phase: DjPhas
     };
   }, [speaker]);
 
-  return { start, status, prepared, speaker, dj: booth.dj, source, stopped, wake };
+  return { start, status, prepared, speaker, dj: booth.dj, source, stopped, wake, pad, driver };
 }

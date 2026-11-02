@@ -63,6 +63,7 @@ cd site
 npx tsc --noEmit
 npx tsx tests/engine.test.ts    # every game's rules, as the rooms server runs them
 npx tsx tests/dj.test.ts        # the DJ booth's player (on a pretend audio thread) and stand-in DJ
+npx tsx tests/dj-presets.test.ts # the DJ booth's 12 style presets for Lyria
 npx tsx tests/trip.test.ts
 npx tsx tests/draw.test.ts
 npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
@@ -170,9 +171,12 @@ Worker's `wrangler.jsonc`.
 
 ## Open items
 
-* 打碟 · DJ Booth (`docs/dj-booth.md`): the first round is in (the fake DJ: room, speaker, phones,
-  lights, dancers), reachable only at changle.ca/dj and changle.ca/dj/test. Lyria (A2) and the
-  rest of the plan come next; the task cards for Codex aren't written yet.
+* 打碟 · DJ Booth (`docs/dj-booth.md`, `site/src/shared/dj/CONTRACTS.md`): on the home list since
+  Nov 1 (its card plays at changle.ca/dj). The stand-in DJ plays 12 styles on two decks; every
+  phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style), all of
+  it on the beat. Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
+  the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
+  `docs/codex-tasks/dj/` (C1 presets is done).
 
 * The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
   PR #34 (2026-11-01) and deployed fine.

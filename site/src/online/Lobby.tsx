@@ -113,8 +113,10 @@ function LobbyBoard() {
 
   const spin = () => {
     if (sweeping) return;
-    const options = onBoard.filter((i) => players >= ONLINE_MIN[ONLINE_GAMES[i]] && i !== front && !GAME_BY_ID[ONLINE_GAMES[i]].hidden);
-    const pool = options.length ? options : onBoard.filter((i) => !GAME_BY_ID[ONLINE_GAMES[i]].hidden);
+    // (never onto a game that needs its big screen first, like the DJ booth: that's picked on purpose)
+    const spinnable = (i: number) => !GAME_BY_ID[ONLINE_GAMES[i]].hidden && !GAME_BY_ID[ONLINE_GAMES[i]].speaker;
+    const options = onBoard.filter((i) => players >= ONLINE_MIN[ONLINE_GAMES[i]] && i !== front && spinnable(i));
+    const pool = options.length ? options : onBoard.filter(spinnable);
     const target = pool[Math.floor(Math.random() * pool.length)];
     haptic(6);
     act({ a: "spin", scope: "lobby", index: target, delta: 1, duration: 3.4 });

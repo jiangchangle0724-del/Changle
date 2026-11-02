@@ -1,5 +1,12 @@
 # C5: the big screen (the songs, ❄️ and drops, what the floor wants, readable from 3 m)
 
+> **Changed Nov 1:** the big screen now has the beginner deck (`site/src/party/dj/deck/TvDeck.tsx`
+> and `dj-deck.css`, CONTRACTS.md "The beginner deck"): the two decks and the fader in place of the
+> old record pair at the top, the build-up meter, who pressed which pad, the countdown and the drop.
+> `fx` `drop` now means a DROP press that counted in a countdown, not a request, so item 2 below
+> is gone (the deck shows the drop). Leave `TvDeck.tsx`, `deck/driver.ts` and `dj-deck.css` alone,
+> and keep the deck's board, chips, countdown and hint clear when you lay out the rest.
+
 **Files:** `site/src/party/dj/TvDj.tsx`, `site/src/party/dj/Floor.tsx`, new components in
 `site/src/party/dj/screen/`, `site/src/styles/dj.css` (the big screen's rules; the phone's are in
 `dj-phone.css`, not yours), and a new browser check, `site/scripts/dj_screen_check.py`.
@@ -20,10 +27,7 @@ now send, and makes everything readable from the sofa.
 1. **❄️ over the dancer** who pressed it (`fx` `cold`), the way 🔥 shows now (`Floor.tsx`: the
    flames become reactions of either kind), cooler and quieter than the flame. The heat stays 🔥;
    ❄️ this minute can sit beside it, smaller.
-2. **Drops:** when someone asks (`fx` `drop`), a short line for 3 seconds, 「Ben 想要 drop」/
-   "Ben wants the drop". When two or more players seated now asked within 30 seconds:
-   「全场在等 drop」/ "The floor wants the drop", for up to 10 seconds. The screen shows it; doing
-   the drop is the DJ's (A4).
+2. ~~**Drops**~~: now the beginner deck's countdown and drop (see the note at the top).
 3. **The songs** (歌单): a panel with the songs waiting and the one playing, in order: the
    player's face and name, the text when the view has it (`ask` not null), otherwise
    「一首歌在审核」/ "A song being checked", and its status in a word. At most 5, then
@@ -35,7 +39,7 @@ now send, and makes everything readable from the sofa.
    wants: Latin, House". Nothing when no knob is up.
 5. **Readable from 3 metres** on a 1080p TV (the canvas is 1600×900, so 1 px here is 1.2 px
    there), with the type scale in `tokens.css`: anything a guest needs to read (names, the songs,
-   the floor's choice, the drop lines, the night's stretches and the time to the next one, the
+   the floor's choice, the night's stretches and the time to the next one, the
    heat) at `--text-xl` or bigger (26 px on the canvas); labels never under `--text-lg` (18 px);
    the join code `--text-4xl` (64 px). Text over the moving lights sits on a plate, as the deck and
    the join card do, and passes DESIGN.md's contrast (4.5:1, or 3:1 from 24 px). This is the one
@@ -50,8 +54,7 @@ now send, and makes everything readable from the sofa.
 `dj_screen_check.py` passes with the TV at 1600×900 (once in Chromium, once in WebKit) and three
 phones (Chromium):
 
-- a phone's ❄️ shows over that phone's dancer; its drop shows the line with its name; two drops
-  within 30 seconds show the floor's line;
+- a phone's ❄️ shows over that phone's dancer;
 - knobs turned up on two phones show the right names in the floor's choice; turned back to 0,
   it's gone;
 - songs asked from the phones show in the panel as 「一首歌在审核」/ "A song being checked"

@@ -37,6 +37,7 @@ export function GameSheet({
     if (wide && g) go({ kind: "tv", game: g.id }, true);
     else setTvHelp((x) => !x);
   };
+  const where = g?.speaker ? `${window.location.host}${g.speaker}` : `${window.location.host}/tv`;
   return (
     // the card's own address (/g/<slug>) is its history entry, so the sheet adds none
     <Sheet open={!!g} onClose={onClose} gel={g?.gel} history={false} label={g ? (lang === "zh" ? g.name.zh : g.name.en) : undefined}>
@@ -56,7 +57,33 @@ export function GameSheet({
             {g.minPlayers === g.maxPlayers ? ui("playersExactly", { n: g.minPlayers }) : ui("playersRange", { min: g.minPlayers, max: g.maxPlayers })}
           </p>
 
-          {g.ready ? (
+          {g.ready && g.speaker ? (
+            // played from a big screen (the DJ booth): that screen first, then everyone's phone
+            <div className="game-card-modes">
+              <button type="button" className="mode-btn mode-primary" onClick={bigScreen} aria-expanded={tvHelp}>
+                <Tv size={22} />
+                <span>
+                  <strong>{zh ? "电视或电脑当音箱" : "A TV or computer is the speaker"}</strong>
+                  <small>{zh ? "音乐从那里放，大家用手机打碟" : "The music plays there. Everyone DJs from their phone."}</small>
+                </span>
+              </button>
+              {tvHelp && (
+                <div className="mode-help">
+                  <p>{zh ? `在电视或电脑的浏览器里打开 ${where}，点「开始派对」。屏幕上有二维码，大家扫码进舞池。` : `On the TV or computer, open ${where} in the browser and press Start the party. A QR code comes up; everyone scans it to get on the floor.`}</p>
+                  <button type="button" className="btn btn-ghost btn-block" onClick={() => go({ kind: "tv", game: g.id }, true)}>
+                    {zh ? "就用这台设备当音箱" : "Use this device as the speaker"}
+                  </button>
+                </div>
+              )}
+              <button type="button" className="mode-btn" onClick={() => onOnline(g.id)}>
+                <RadioTower size={22} />
+                <span>
+                  <strong>{ui("everyonePhone")}</strong>
+                  <small>{ui("everyonePhoneHint")}</small>
+                </span>
+              </button>
+            </div>
+          ) : g.ready ? (
             <div className="game-card-modes">
               {need > 0 ? (
                 <button type="button" className="mode-btn mode-primary" onClick={onAddPeople}>
@@ -93,7 +120,7 @@ export function GameSheet({
               )}
               {tvHelp && (
                 <p className="mode-help">
-                  {zh ? `在电视或电脑的浏览器里打开 ${window.location.host}/tv，屏幕上会出现二维码，大家扫码入座。` : `On the TV or computer, open ${window.location.host}/tv in the browser. A QR code comes up; everyone scans it to sit down.`}
+                  {zh ? `在电视或电脑的浏览器里打开 ${where}，屏幕上会出现二维码，大家扫码入座。` : `On the TV or computer, open ${where} in the browser. A QR code comes up; everyone scans it to sit down.`}
                 </p>
               )}
             </div>

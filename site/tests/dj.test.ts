@@ -4,6 +4,7 @@ import { BY_PHASE, nextSection, renderOrder } from "../src/party/dj/fake/arrange
 import { FakeDj } from "../src/party/dj/fake/FakeDj";
 import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
+import { ALL_SECTIONS, ANY_SECTION, KITS, sectionOf } from "../src/party/dj/fake/styles";
 import { pcm16ToFloat } from "../src/party/dj/speaker/pcm";
 import type { Speaker } from "../src/party/dj/speaker/speaker";
 import { KickClock } from "../src/party/dj/lyria/beat";
@@ -35,7 +36,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /* ------------------------------------------------------------------ the player, on a pretend audio thread */
 
 type Msg = { t: string; pos: number; written: number; time: number; state: string; stalls: number; drops: number };
-type Proc = { port: { onmessage: ((e: { data: unknown }) => void) | null; posted: Msg[] }; process: (i: unknown[], o: Float32Array[][]) => boolean };
+type Proc = { port: { onmessage: ((e: { data: unknown }) => void) | null; posted: Msg[] }; process: (i: unknown[], o: Float32Array[][], p?: Record<string, Float32Array>) => boolean };
 const g = globalThis as unknown as Record<string, unknown>;
 const procs: Record<string, new (o: unknown) => Proc> = {};
 g.sampleRate = 48000;
@@ -60,6 +61,11 @@ function player(opts: Record<string, number>, sr = 48000) {
   const p = new procs["dj-player"]({ processorOptions: opts });
   const send = (m: unknown) => p.port.onmessage?.({ data: m });
   const push = (l: Float32Array, r?: Float32Array) => send({ t: "pcm", l, r: r ?? l });
+  /** the crossfader, as the page would set it (0 all deck A, 1 all deck B) */
+  let xfade = 0;
+  const setX = (x: number) => {
+    xfade = x;
+  };
   /** run `frames` (a multiple of 128) through the player */
   const run = (frames: number) => {
     const l = new Float32Array(frames);
@@ -67,7 +73,7 @@ function player(opts: Record<string, number>, sr = 48000) {
     for (let k = 0; k < frames; k += 128) {
       const ol = new Float32Array(128);
       const or = new Float32Array(128);
-      p.process([], [[ol, or]]);
+      p.process([], [[ol, or]], { xfade: new Float32Array([xfade]) });
       l.set(ol, k);
       r.set(or, k);
       g.currentTime = (g.currentTime as number) + 128 / sr;
@@ -75,7 +81,7 @@ function player(opts: Record<string, number>, sr = 48000) {
     return { l, r };
   };
   const last = () => p.port.posted[p.port.posted.length - 1];
-  return { p, push, run, send, last };
+  return { p, push, run, send, last, setX };
 }
 
 const sine = (n: number, hz: number, rate: number, from = 0, amp = 0.5) => Float32Array.from({ length: n }, (_, i) => amp * Math.sin((2 * Math.PI * hz * (from + i)) / rate));
@@ -154,6 +160,67 @@ await test("player: every report says which frame plays when", () => {
   ok(b.written === 48000 && b.state === "playing", "and it says how much has arrived");
 });
 
+await test("player: two decks in step; the crossfader blends them at equal power, at once", () => {
+  const P = player({ rate: 48000, prebuffer: 0.1, resume: 0.1, seconds: 4 });
+  const a = new Float32Array(48000).fill(0.4);
+  const b = new Float32Array(48000).fill(-0.3);
+  P.send({ t: "pcm", l: a, r: a, l2: b, r2: b });
+  const allA = P.run(12800);
+  ok(Math.abs(allA.l[12000] - 0.4) < 1e-6, "the fader on A: deck A alone");
+  P.setX(1);
+  const toB = P.run(2560);
+  ok(Math.abs(toB.l[2000] + 0.3) < 1e-3, "on B: deck B alone, within a few milliseconds");
+  ok(maxJump(toB.l) < 0.02, `the move is smoothed: no click (biggest step ${maxJump(toB.l).toFixed(4)})`);
+  P.setX(0.5);
+  const mid = P.run(2560);
+  ok(Math.abs(mid.l[2400] - (0.4 + -0.3) * Math.SQRT1_2) < 1e-3, "in the middle: both at equal power");
+  P.send({ t: "pcm", l: new Float32Array(9600).fill(0.4) });
+  P.setX(1);
+  const none = P.run(128 * 260);
+  ok(Math.abs(none.l[128 * 260 - 1] - 0.4) < 1e-3 && Math.abs(none.l[128 * 200] + 0.3) < 1e-3, "a chunk without deck B plays deck A alone, even with the fader on B");
+});
+
+await test("player: deck B with nothing of its own is never silence; its start and its ring-out are smoothed", () => {
+  const P = player({ rate: 48000, prebuffer: 0.1, resume: 0.1, seconds: 4 });
+  const n = 9600;
+  const a = (k: number) => sine(n, 220, 48000, k * n, 0.4);
+  const b = () => new Float32Array(n).fill(-0.3);
+  // the fader on B all along: A alone, then B's own music, then only B's ring-out, then A alone
+  P.send({ t: "pcm", l: a(0), r: a(0) });
+  P.send({ t: "pcm", l: a(1), r: a(1), l2: b(), r2: b() });
+  P.send({ t: "pcm", l: a(2), r: a(2), l2: b(), r2: b(), own: false });
+  P.send({ t: "pcm", l: a(3), r: a(3) });
+  P.setX(1);
+  const out = P.run(128 * 300).l;
+  const peak = (from: number, to: number) => Math.max(...Array.from(out.subarray(from, to), Math.abs));
+  ok(peak(4000, 9000) > 0.38, `no deck B yet: deck A plays, not silence (peak ${peak(4000, 9000).toFixed(3)})`);
+  ok(Math.abs(out[n + 4000] + 0.3) < 1e-3, "B's own music starts: the fader's blend from that frame");
+  ok(peak(2 * n + 4000, 3 * n - 100) > 0.38 && Math.abs(out[2 * n + 4000] - a(2)[4000]) < 1e-3, "only its ring-out: deck A again, the tail faded under it");
+  ok(maxJump(out.subarray(2000)) < 0.02, `no clicks where B comes and goes (biggest step ${maxJump(out.subarray(2000)).toFixed(4)})`);
+});
+
+await test("player: the brake slows the music to a stop, waits, and comes back where the stream has got to", () => {
+  const P = player({ rate: 48000, prebuffer: 0.1, resume: 0.1, seconds: 8 });
+  // a ramp: each frame's value is its place in the stream
+  const ramp = Float32Array.from({ length: 4 * 48000 }, (_, i) => i / 1e6);
+  P.push(ramp);
+  P.run(128 * 100);
+  const t0 = g.currentTime as number;
+  P.send({ t: "brake", at: t0 + 0.1, dur: 0.4, until: t0 + 1 });
+  const out = P.run(128 * 400);
+  const at = (sec: number) => out.l[Math.round(sec * 48000)];
+  const s0 = 128 * 100;
+  const before = at(0.05) * 1e6 - s0;
+  ok(Math.abs(before - 0.05 * 48000) < 2, "before it: the stream at full speed");
+  const slow = (at(0.32) - at(0.3)) * 1e6;
+  ok(slow > 0 && slow < 0.02 * 48000 * 0.6, `halfway down it plays slower (${slow.toFixed(0)} frames in 20 ms)`);
+  ok(Math.abs(at(0.6)) < 1e-9 && Math.abs(at(0.95)) < 1e-9, "stopped: quiet until it comes back");
+  const back = at(1.05) * 1e6 - s0;
+  ok(Math.abs(back - 1.05 * 48000) < 4, `then exactly where the stream would have been (${back.toFixed(0)} vs ${1.05 * 48000})`);
+  const tick = P.last();
+  ok(Math.abs(tick.pos - (s0 + 400 * 128 - 16 * 128)) <= 16 * 128, "and its clock never stopped");
+});
+
 await test("speaker: Lyria's 16-bit chunks become two channels of floats", () => {
   const buf = new Int16Array([32767, -32768, 0, 16384]).buffer;
   const { l, r } = pcm16ToFloat(buf);
@@ -175,8 +242,8 @@ await test("fake DJ: exact sizes, music for every stretch of the night, the peak
   ok(Object.values(BY_PHASE).every((list) => list.length > 0), "every stretch has music");
 });
 
-/** Sections that sound like their number: the body at n, the ring-out at n / 10. */
-const NUM: Record<string, number> = Object.fromEntries(SECTIONS.map((s, i) => [s.id, i + 1]));
+/** Sections that sound like their number: the body at n, the ring-out at n / 10 (other styles' from 100). */
+const NUM: Record<string, number> = Object.fromEntries(ALL_SECTIONS.map((s, i) => [s.id, i < SECTIONS.length ? i + 1 : 100 + i]));
 const TAIL = 96000;
 async function fakeRender(sec: Section, rate: number): Promise<Rendered> {
   const frames = sectionFrames(rate);
@@ -188,6 +255,9 @@ async function fakeRender(sec: Section, rate: number): Promise<Rendered> {
 
 function mockSpeaker() {
   const got: number[][] = [];
+  /** deck B's frames beside each chunk (empty: none), and whether they're B's own music (false: only its ring-out) */
+  const gotB: number[][] = [];
+  const ownB: boolean[] = [];
   let tick: (() => void) | null = null;
   const m = {
     sent: 0,
@@ -195,11 +265,15 @@ function mockSpeaker() {
     flushes: 0,
     fades: 0,
     chunks: got,
+    chunksB: gotB,
+    ownB,
     get sentFrames() {
       return m.sent;
     },
-    push(l: Float32Array) {
+    push(l: Float32Array, _r?: Float32Array, l2?: Float32Array, _r2?: Float32Array, own = true) {
       got.push(Array.from(l));
+      gotB.push(l2 ? Array.from(l2) : []);
+      ownB.push(!!l2 && own);
       m.sent += l.length;
     },
     buffered: () => Math.max(0, m.sent - m.played) / 48000,
@@ -258,6 +332,81 @@ await test("fake DJ: sections in turn on the bar, the ring-out over the next, th
   const fresh = sp.chunks.slice(-1)[0];
   ok(sp.flushes === 3 && fresh.every((x) => x === NUM.warm1), "a new set starts from the first section again");
   ok(Math.abs(dj.beat()) < 1e-9, "and its own first downbeat");
+  dj.stop();
+});
+
+await test("fake DJ: two decks in step: B in its own style on the same bars, a new style from the next section", async () => {
+  ok(KITS.length === 11 && ALL_SECTIONS.length === 72, "eleven more styles, six sections each, house's as it was");
+  ok(ALL_SECTIONS.every((s) => s.style.bpm === 125 && s.style.bass?.length === 4 && (s.style.chords?.prog.length ?? 0) === 4), "every style at 125, over the same four bars");
+  ok(sectionOf("house", "peak1") === "peak1" && sectionOf("latin", "peak1") === "latin:peak1" && !!ANY_SECTION["bhangra:cool1"], "a style's take on a section of the night");
+  const F = sectionFrames(48000);
+  const dj = new FakeDj(fakeRender);
+  dj.setDecks("house", "latin");
+  dj.prepare("warm");
+  await sleep(600);
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  dj.setPhase("warm");
+  const flat = (k: "chunks" | "chunksB") => sp[k].flat();
+  ok(flat("chunks").every((x) => x === NUM.warm1) && flat("chunksB").every((x) => x === NUM["latin:warm1"]), "deck A house, deck B latin: the same section, frame for frame");
+  ok(sp.chunks.every((c, i) => sp.chunksB[i].length === c.length), "every chunk carries both decks");
+  dj.setDecks("house", "techno");
+  await sleep(600);
+  for (let k = 0; k < 80; k++) sp.play(12000);
+  const A = flat("chunks");
+  const B = flat("chunksB");
+  ok(B[F - 1] === NUM["latin:warm1"] && Math.abs(B[F] - (NUM["techno:warm2"] + NUM["latin:warm1"] / 10)) < 1e-4, "B's new style waits for the next section, with the old one's ring-out over its start");
+  ok(A[F] !== undefined && Math.abs(A[F] - (NUM.warm2 + NUM.warm1 / 10)) < 1e-6, "A carries on as before");
+  dj.setDecks("house", null);
+  for (let k = 0; k < 80; k++) sp.play(12000);
+  const B2 = flat("chunksB");
+  const lastB = sp.chunksB[sp.chunksB.length - 1];
+  const tailChunk = sp.chunks.findIndex((_, i) => sp.chunks.slice(0, i + 1).reduce((x, c) => x + c.length, 0) > 2 * F);
+  ok(Math.abs(B2[2 * F] - NUM["techno:warm2"] / 10) < 1e-4 && sp.ownB[tailChunk] === false && lastB.length === 0, "B emptied: only its ring-out, under deck A (not B's own music), then no deck B at all");
+  ok(dj.beatFrame(8) === 8 * 23040 && dj.decks, "beat 8 is 8 beats into the stream");
+  dj.stop();
+});
+
+await test("fake DJ: a deck whose first style isn't recorded yet has nothing of its own (the player plays A alone), and says so", async () => {
+  const F = sectionFrames(48000);
+  const dj = new FakeDj(fakeRender);
+  dj.prepare("warm");
+  await sleep(500);
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  dj.setPhase("warm");
+  ok(dj.heardDecks()?.a === "house" && dj.heardDecks()?.b === null, "house on A, nothing on B");
+  // a pick lands moments before the section's end: no time to record it
+  for (let k = 0; k < 40; k++) sp.play(12000);
+  dj.setDecks("house", "trance");
+  for (let k = 0; k < 30; k++) sp.play(12000);
+  // deck B frame for frame beside A (0 where a chunk has none)
+  const B = sp.chunks.flatMap((c, i) => (sp.chunksB[i].length ? sp.chunksB[i] : c.map(() => 0)));
+  const second = sp.chunks.map((_, i) => i).filter((i) => sp.chunks.slice(0, i).reduce((x, c) => x + c.length, 0) >= F);
+  ok(B.length > F + TAIL + 1000 && B[F - 1] === 0 && B[F + TAIL + 100] === 0 && second.length > 0 && second.every((i) => !sp.ownB[i]), "B not recorded in time: nothing of its own that section (the player plays deck A alone there)");
+  ok(dj.heardDecks()?.b === null, "and doesn't claim trance yet");
+  await sleep(500);
+  for (let k = 0; k < 70; k++) sp.play(12000);
+  ok(dj.heardDecks()?.b === "trance", `the next section: trance, and it says so (${JSON.stringify(dj.heardDecks())})`);
+  dj.stop();
+});
+
+await test("fake DJ: a new pick is recorded first for the section after the one going out", async () => {
+  const order: string[] = [];
+  const dj = new FakeDj(async (sec: Section, rate: number) => {
+    order.push(sec.id);
+    return fakeRender(sec, rate);
+  });
+  dj.prepare("warm");
+  await sleep(500);
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  dj.setPhase("warm");
+  for (let k = 0; k < 20; k++) sp.play(12000);
+  const from = order.length;
+  dj.setDecks("house", "trance");
+  await sleep(400);
+  ok(order[from] === "trance:warm2", `warm1 is going out: trance's warm2 first (${order.slice(from, from + 3).join(", ")})`);
   dj.stop();
 });
 

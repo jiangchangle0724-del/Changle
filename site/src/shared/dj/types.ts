@@ -166,6 +166,133 @@ export type DancerMove = {
   energy: "low" | "mid" | "drop";
 };
 
+/* ------------------------------------------------------------------ the beginner deck */
+
+/**
+ * The beginner deck: everyone at the table DJs at once from their phone, and nothing they press
+ * can trainwreck. Two decks play in step, at one tempo and in one key (the stand-in plays every
+ * style at 125 BPM in A minor); the crossfader blends them; the effect pads, the build-up and the
+ * drop all land on the beat. CONTRACTS.md, "The beginner deck".
+ */
+export type PadId = "echo" | "sweep" | "horn" | "brake";
+export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake"];
+
+export type DeckSide = "a" | "b";
+
+/** How a DROP press landed: on the cue beat (perfect), or anywhere else in the countdown (good). */
+export type DropGrade = "perfect" | "good";
+
+/** A drop on its way: the build-up is full and the countdown runs to a bar. */
+export type DropState = {
+  /** the bar it lands on (the speaker's count, see `grid`; -1: the speaker hasn't said) and when, server time */
+  bar: number;
+  at: number;
+  /** the cue, one beat before: press DROP on it (server time) */
+  cue: number;
+  /** countdowns that came and went with nobody pressing */
+  misses: number;
+  /** after DECK.maxMisses the DJ drops it by itself */
+  auto: boolean;
+  /** who pressed in time, first first */
+  hits: { pid: string; grade: DropGrade }[];
+  /** the deck it lands on: the one off the air when the floor has loaded a new style there (a swap) */
+  to: DeckSide;
+};
+
+/** A drop that landed: what the screens celebrate, and the night's record. */
+export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: DropGrade }[]; auto: boolean; to: DeckSide; style: StyleId };
+
+/** The beginner deck's part of the booth. */
+export type DeckState = {
+  /** the two decks' styles; B stays empty until the floor picks a style */
+  a: StyleId;
+  b: StyleId | null;
+  /** the crossfader: 0 is all deck A, 1 all deck B */
+  fader: number;
+  /** who has the fader: whoever moved it last, until DECK.faderHoldMs after their last move */
+  faderBy: string | null;
+  faderAt: number;
+  /** each phone's pick for the next style; it goes on the deck that's off the air */
+  votes: Record<string, StyleId>;
+  /** the build-up, 0 to 1, as it stood at `chargeAt` (it falls back by itself when nobody pushes) */
+  charge: number;
+  chargeAt: number;
+  /** taps the room hasn't added yet (it adds them a few times a second) */
+  pending: number;
+  drop: DropState | null;
+  /** the latest drop that landed */
+  last: LandedDrop | null;
+  /** where the speaker's bars fall: bar `bar` starts at server time `at`, at `bpm` (sent by the speaker) */
+  grid: { at: number; bar: number; bpm: number } | null;
+  /** effect pads pressed lately, oldest first (the latest 12) */
+  pads: { pid: string; pad: PadId; at: number }[];
+  /** perfect drops per player, all night */
+  perfects: Record<string, number>;
+  /**
+   * The styles the speaker's decks are sounding now, as it says (a deck takes a new style at its
+   * next section, once recorded): a drop swaps to the floor's pick only once it really plays there.
+   */
+  sounding: { a: StyleId; b: StyleId | null } | null;
+  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad and a
+   *  pick taken, the last brake, which screen gives the bars, when it last moved them and when it
+   *  last said anything at all (it says the bars every 10 s while it plays), and when the decks
+   *  and the source were last taken from it */
+  padAt: Record<string, number>;
+  voteAt: Record<string, number>;
+  brakeAt: number;
+  gridFrom: string | null;
+  gridSetAt: number;
+  speakerAt: number;
+  decksAt: number;
+  srcAt: number;
+};
+
+/** The beginner deck's numbers. */
+export const DECK = {
+  /** the fader stays with whoever moved it for this long after their last move */
+  faderHoldMs: 1200,
+  /** a phone sends the fader at most this often while a finger drags it */
+  faderSendMs: 120,
+  /** the build-up: each tap adds this much, the room at most `maxRise` a second; this long after
+   *  the last tap it falls back `fall` a second */
+  tapStep: 0.03,
+  maxRise: 0.25,
+  idleMs: 1500,
+  fall: 0.12,
+  /** the room adds waiting taps at most this often (and only then tells the table) */
+  foldMs: 200,
+  /** a phone sends its taps at most this often, this many at most */
+  chargeSendMs: 250,
+  maxTaps: 8,
+  /** an effect pad: a phone sends one per `padGapMs` and the room takes one per `padTakeMs` (a
+   *  little under, as the network bunches presses up); the same pad once for the whole room per
+   *  `roomPadGapMs`, a brake once per `brakeGapMs` (and never while a drop is on its way) */
+  padGapMs: 600,
+  padTakeMs: 500,
+  roomPadGapMs: 150,
+  brakeGapMs: 4000,
+  /** a phone's picks: one per this long (and none while a drop is on its way: it lands on the deck
+   *  the floor had cued) */
+  voteGapMs: 300,
+  /** the speaker's bars, decks and source: each taken at most this often, from the screen that
+   *  gives the bars (another screen can take over once it has said nothing for `speakerQuietMs`) */
+  gridGapMs: 1000,
+  speakerQuietMs: 30_000,
+  /** a drop lands on a bar that's a multiple of this, at least `minBeats` beats after the build-up is full */
+  every: 4,
+  minBeats: 4,
+  /** countdowns nobody pressed before the DJ drops it by itself */
+  maxMisses: 2,
+  /** a DROP press has to reach the room this long before the bar, so the speaker can land it (a
+   *  press at the end of the perfect window, a quarter beat after the cue, still makes it; a word
+   *  that reaches the speaker a moment late lands at once, not a beat later) */
+  leadMs: 200,
+  /** within this much of a beat of the cue: perfect */
+  perfect: 0.25,
+  /** pads kept */
+  keepPads: 12,
+} as const;
+
 /* ------------------------------------------------------------------ what the table can say */
 
 /**
@@ -184,8 +311,17 @@ export type DjCommand =
   | { x: "ask"; text: string; style?: StyleId }
   /** take back a song that isn't being checked or made yet (the host can take back anyone's) */
   | { x: "unask"; id: string }
-  /** ask for a drop */
-  | { x: "drop" }
+  /** DROP, pressed during the countdown; `c`: when, on this phone's estimate of the server's clock */
+  | { x: "drop"; c?: number }
+  // the beginner deck (anyone at the table)
+  /** an effect pad */
+  | { x: "pad"; pad: PadId }
+  /** taps on the build-up since the last send (1 to DECK.maxTaps; 0 once the taps stop: add what's waiting) */
+  | { x: "charge"; n: number }
+  /** pick a style for the deck that's off the air (the same one again takes the pick back) */
+  | { x: "vote"; style: StyleId }
+  /** the crossfader, 0 (deck A) to 1 (deck B) */
+  | { x: "fader"; value: number }
   // the host
   | { x: "phase"; phase: SetPhase | "end" }
   /** a new set after the end */
@@ -196,14 +332,16 @@ export type DjCommand =
   /** the speaker's music now comes from elsewhere, mid-set (Lyria came in, or it fell back) */
   | { x: "src"; source: Source }
   /** how the playing has gone since the last report */
-  | { x: "stats"; stalls: number; resets: number; seconds: number };
+  | { x: "stats"; stalls: number; resets: number; seconds: number }
+  /** where the speaker's bars fall: bar `bar` starts at server time `at`, at `bpm` */
+  | { x: "grid"; at: number; bar: number; bpm: number }
+  /** the styles its two decks are sounding now */
+  | { x: "decks"; a: StyleId; b: StyleId | null };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;
 /** The room takes one (🔥 or ❄️) per this many ms a phone: a little under, as the network bunches taps up. */
 export const FIRE_TAKE_MS = 300;
-/** One drop request per this many ms a phone. */
-export const DROP_GAP_MS = 10_000;
 /** Knobs move in steps of this much. */
 export const KNOB_STEP = 0.25;
 
@@ -233,7 +371,7 @@ export type RoomState = {
   colds: { pid: string; at: number }[];
   /** each player's knobs, -1 (less) to 1 (more); a style at 0 is left out, and a player with none */
   knobs: Record<string, Partial<Record<StyleId, number>>>;
-  /** drop requests, oldest first (the latest 20) */
+  /** DROP presses that counted, oldest first (the latest 20) */
   drops: { pid: string; at: number }[];
   /** songs asked for, oldest first: the waiting ones (QUEUE_MAX at most) and the latest KEEP_DONE done */
   queue: Track[];
@@ -241,4 +379,6 @@ export type RoomState = {
   speaker: { at: number; stalls: number; resets: number; seconds: number };
   /** how many sets this table has started (a new one after "again") */
   set: number;
+  /** the beginner deck: what the table is doing to the music */
+  deck: DeckState;
 };

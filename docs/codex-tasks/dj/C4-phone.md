@@ -1,10 +1,17 @@
-# C4: the phone (❄️, drop, style knobs, asking for a song)
+# C4: the phone (❄️, style knobs, asking for a song)
+
+> **Changed Nov 1:** the phone now has the beginner deck (`site/src/party/dj/phone/DeckPad.tsx`,
+> CONTRACTS.md "The beginner deck"): the crossfader, the pads, the build-up and DROP, and picking
+> the next style. `drop` is no longer a request: it's DROP in a drop's countdown, and it lives in
+> the deck. So item 2 below is gone, and the knobs (item 3) wait for Steve to say whether the
+> deck's picks are enough; do 1, 4 and 5. Put them below the deck, and leave `DeckPad.tsx` and
+> `dj-deck.css` alone.
 
 **Files:** `site/src/party/dj/NetDj.tsx`, new components in `site/src/party/dj/phone/`,
 `site/src/styles/dj-phone.css`, and a new browser check, `site/scripts/dj_phone_check.py`.
 **Uses:** `useRoom()` (`g(x, data)`, `me`, `isHost`, `room.seats`, `nameOf`, `useRoomEvent` for
 the `fx` events), the view `DjView` (`colds`, `knobs`, `drops`, `queue`, as `DjTrack`), the
-constants in `types.ts` (`FIRE_GAP_MS`, `DROP_GAP_MS`, `KNOB_STEP`, `ASK_CHARS`, `ASKS_EACH`,
+constants in `types.ts` (`FIRE_GAP_MS`, `KNOB_STEP`, `ASK_CHARS`, `ASKS_EACH`,
 `QUEUE_MAX`, `WAITING`, `STYLE_IDS`), the style names from C1's `PRESETS`.
 **Command:** with the two local servers running (`site/README.md`, 本地开发):
 `python3 scripts/dj_phone_check.py` (reuse the helpers in `scripts/party_test.py`, as
@@ -20,9 +27,7 @@ phone the controls. Keep the 🔥 the first and biggest thing on the screen.
    with its own burst.
    One press of 🔥 or ❄️ per `FIRE_GAP_MS` from this phone, shared (the room shares it too).
    Others' ❄️ shows with their name, as others' 🔥 does.
-2. **Drop:** a button beside the ❄️ (「要 Drop」/ "Drop it") that sends `drop`, then counts down
-   `DROP_GAP_MS` before it can be pressed again; off while there's no music (`wait`, `end`).
-   Someone else's request shows for a moment: 「Ben 想要 drop」/ "Ben wants the drop".
+2. ~~**Drop**~~: now DROP in the beginner deck (see the note at the top).
 3. **Style knobs,** in a section that starts closed (「调风格」/ "Steer the style"): the 12 styles,
    each a control from −1 to 1 in steps of `KNOB_STEP` (「少」 at one end, 「多」 at the other,
    0 in the middle and easy to get back to). It shows this phone's values from `knobs[me]`, so a
@@ -62,8 +67,6 @@ phone the controls. Keep the 🔥 the first and biggest thing on the screen.
 - the guest asks for a song: the host's phone shows its text, the TV's `queue` has it with `ask`
   null, the guest's phone shows 「In the queue」 and no form; the guest takes it back and it's gone;
   the guest asks again and the host removes it;
-- drop is off before the music starts; after, the guest's press reaches the TV's `drops` and the
-  button counts down from 10;
 - no page errors on any page; no sideways scroll on either phone size;
 - screenshots of both phones (each section open) go to `$SHOTS` and into the PR.
 

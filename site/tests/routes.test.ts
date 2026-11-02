@@ -28,6 +28,10 @@ for (const g of GAMES) {
   }
   ok(same(at(`/g/${g.slug}`), { kind: "home", tab: "party", game: g.id }), `/g/${g.slug} is its card over home`);
   const play = at(`/g/${g.slug}/play`);
+  if (g.speaker) {
+    ok(same(play, { kind: "tv", game: g.id }) && pathOf(play) === g.speaker, `/g/${g.slug}/play is its big screen, ${g.speaker}`);
+    continue;
+  }
   ok(g.ready ? same(play, { kind: "game", id: g.id }) : play.kind === "home", `/g/${g.slug}/play ${g.ready ? "is the game" : "is its card (not playable yet)"}`);
 }
 

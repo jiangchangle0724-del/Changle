@@ -1,8 +1,10 @@
 /**
  * 打碟 · DJ Booth: the speaker's sound chain, on the one device that plays the music.
  *
- *   PCM chunks → player (AudioWorklet, ring buffer) → master gain → glue compressor → limiter → speakers
- *                                                                                  ↘ analyser (the lights)
+ *   PCM chunks (deck A, deck B) → player (AudioWorklet: ring buffer, crossfader, brake)
+ *     → high-pass (the build-up) → low-pass (the sweep) → master gain → glue compressor → limiter → speakers
+ *                                                  ↘ echo ↗              ↗                    ↘ analyser (the lights)
+ *     the deck's own sounds (horn, riser, roll, impact: fx.ts) ──────────┘
  *
  * Its own AudioContext at 48 kHz (Lyria's rate), tuned for steady playback rather than quick
  * reactions. Open it from inside a tap: iPhone and Safari start audio only from one.
@@ -11,6 +13,8 @@ import { pcm16ToFloat } from "./pcm";
 import workletUrl from "./player.worklet.js?url";
 
 export type PlayerState = "waiting" | "playing" | "buffering";
+/** The speaker's effect nodes, for fx.ts. */
+export type FxNodes = { hp: BiquadFilterNode; lp: BiquadFilterNode; send: GainNode; delay: DelayNode; synth: GainNode };
 type Tick = { pos: number; written: number; time: number; state: PlayerState; stalls: number; drops: number };
 
 export type SpeakerOptions = {
@@ -29,6 +33,8 @@ export class Speaker {
   private opts: Required<SpeakerOptions>;
   private node: AudioWorkletNode | null = null;
   private master: GainNode;
+  /** the beginner deck's effects (fx.ts plays them): the filters the music passes through, the echo's send, and where its own sounds go */
+  readonly fxNodes: FxNodes;
   private analyser: AnalyserNode;
   private bins: Float32Array<ArrayBuffer>;
   private lo = 2;
@@ -94,6 +100,30 @@ export class Speaker {
     this.hi = Math.max(this.lo, Math.round(140 / hz));
     this.master.connect(glue).connect(limit).connect(ctx.destination);
     limit.connect(this.analyser);
+    // the beginner deck's effects: both filters wide open, the echo silent, until fx.ts moves them
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 10;
+    hp.Q.value = 0.7;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 22000;
+    lp.Q.value = 0.7;
+    hp.connect(lp).connect(this.master);
+    const send = ctx.createGain();
+    send.gain.value = 0;
+    const delay = ctx.createDelay(2);
+    delay.delayTime.value = 0.36;
+    const darker = ctx.createBiquadFilter();
+    darker.type = "lowpass";
+    darker.frequency.value = 3200;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.45;
+    lp.connect(send).connect(delay).connect(darker).connect(feedback).connect(delay);
+    darker.connect(this.master);
+    const synth = ctx.createGain();
+    synth.connect(this.master);
+    this.fxNodes = { hp, lp, send, delay, synth };
     document.addEventListener("visibilitychange", this.wake);
   }
 
@@ -111,7 +141,7 @@ export class Speaker {
       this.last = e.data;
       for (const fn of this.listeners) fn(e.data);
     };
-    node.connect(this.master);
+    node.connect(this.fxNodes.hp);
     this.node = node;
   }
 
@@ -132,11 +162,44 @@ export class Speaker {
     }
   }
 
-  /** One chunk of the stream (planar, at `rate`). The arrays are handed over, not copied. */
-  push(l: Float32Array, r: Float32Array) {
+  /**
+   * One chunk of the stream (planar, at `rate`), with deck B's frames for the same stretch when
+   * deck B plays. `ownB` false: B's frames are only the ring-out of its last section (B has nothing
+   * of its own now), so the player plays deck A alone and lets that tail fade under it. The arrays
+   * are handed over, not copied.
+   */
+  push(l: Float32Array, r: Float32Array, l2?: Float32Array, r2?: Float32Array, ownB = true) {
     if (!this.node) return;
     this.sent += l.length;
-    this.node.port.postMessage({ t: "pcm", l, r }, [l.buffer, r.buffer]);
+    if (l2 && r2) this.node.port.postMessage({ t: "pcm", l, r, l2, r2, own: ownB }, [l.buffer, r.buffer, l2.buffer, r2.buffer]);
+    else this.node.port.postMessage({ t: "pcm", l, r }, [l.buffer, r.buffer]);
+  }
+
+  /**
+   * The crossfader: 0 all deck A, 1 all deck B. Now (smoothed by the player), or at an audio time
+   * (a drop's bar). Moving it now leaves a jump already set for later alone.
+   */
+  setXfade(value: number, at?: number) {
+    const p = this.node?.parameters.get("xfade");
+    if (!p) return;
+    const v = Math.max(0, Math.min(1, value));
+    if (at === undefined) p.value = v;
+    else {
+      p.cancelScheduledValues(at);
+      p.setValueAtTime(v, Math.max(at, this.ctx.currentTime));
+    }
+  }
+
+  /** The brake: from audio time `at` the music slows to a stop over `dur` seconds and is quiet until `until`. */
+  brake(at: number, dur: number, until: number) {
+    this.node?.port.postMessage({ t: "brake", at, dur, until });
+  }
+
+  /** The audio time stream frame `f` plays at (null while the player isn't playing). */
+  timeOfFrame(f: number): number | null {
+    const t = this.last;
+    if (!t || t.state !== "playing") return null;
+    return t.time + (f - t.pos) / this.rate;
   }
 
   /** Lyria's own format. */
@@ -224,6 +287,15 @@ export class Speaker {
     this.peak = Math.max(mag, this.peak * 0.9993);
     const x = mag / this.peak;
     return Math.min(1, Math.max(0, (x - 0.3) / 0.7));
+  }
+
+  /** How loud it plays right now: the RMS of the last 40 ms or so, after the volume (the checks' ear). */
+  level(): number {
+    const buf = new Float32Array(this.analyser.fftSize);
+    this.analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (const x of buf) sum += x * x;
+    return Math.sqrt(sum / buf.length);
   }
 
   setVolume(v: number) {

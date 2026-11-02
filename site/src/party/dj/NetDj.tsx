@@ -10,12 +10,14 @@ import { FIRE_GAP_MS, SET_PHASES, type SetPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { NowPlaying, phaseHint, phaseName, TIMES_MIN, useHeat } from "./parts";
+import { DeckPad } from "./phone/DeckPad";
 import "../../styles/dj.css";
 import "../../styles/dj-phone.css";
 
 /**
- * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen), one big 🔥 to
- * push the DJ, and for the host, the night's four stretches and the end of the set.
+ * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The beginner deck
+ * (everyone DJs at once: the crossfader, the pads, the build-up and the drop, what plays next), a 🔥
+ * to push the DJ, and for the host, the night's four stretches and the end of the set.
  */
 export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   // the speaker is the only music: the lounge loop stays off on this phone
@@ -66,6 +68,11 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
       </p>
       <p>
         {zh
+          ? "每个人的手机都是打碟台，大家可以同时按，什么都卡在拍子上，不会乱：推子在 A、B 两个碟之间混，四个效果键（回声、扫频、喇叭、刹车）下一拍响，大家一起狂点「蓄力」，满了跟着倒数在 DROP 那一下按，踩准了就是完美 Drop。下面选下一首放什么，票最多的放到没在放的那个碟上，Drop 的时候直接换过去。"
+          : "Every phone is a deck and everyone can play at once; it all lands on the beat, so nothing goes wrong. The crossfader mixes decks A and B, the four pads (echo, sweep, horn, brake) play from the next beat, everyone taps Build up together, and when it's full you press DROP on the count: right on it is a perfect drop. Below, pick what plays next; the most picked goes on the deck that isn't playing, and a drop switches straight to it."}
+      </p>
+      <p>
+        {zh
           ? `一晚分四段：暖场 ${TIMES_MIN.warm} 分钟，推高 ${TIMES_MIN.build} 分钟，然后是顶点，主人决定什么时候收尾，收尾 ${TIMES_MIN.cool} 分钟后结束。主人随时可以把它拖到任何一段。每场最长 ${TIMES_MIN.cap} 小时。`
           : `A night in four stretches: ${TIMES_MIN.warm} minutes of warm-up, ${TIMES_MIN.build} of build, then the peak until the host winds it down, and ${TIMES_MIN.cool} minutes later it's over. The host can move it to any stretch at any time. A set runs ${TIMES_MIN.cap} hours at most.`}
       </p>
@@ -88,9 +95,12 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
           </p>
         )}
 
-        <div className="djp-fire-wrap">
+        {/* (a rooms server a moment behind the site, mid-deploy, sends no deck yet) */}
+        {v.deck && <DeckPad v={v} />}
+
+        <div className="djp-fire-wrap is-small">
           <button type="button" className="djp-fire" onClick={press} aria-label={zh ? "给 DJ 加油" : "Fire up the DJ"}>
-            <Flame size={74} strokeWidth={2.2} />
+            <Flame size={48} strokeWidth={2.2} />
             {pops.map((id) => (
               <span key={id} className="djp-pop" aria-hidden="true">
                 🔥
