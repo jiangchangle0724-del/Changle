@@ -1,0 +1,116 @@
+.ui-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap);
+  min-height: calc(var(--tap) + var(--space-3) / 2);
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-radius: var(--r-pill);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  cursor: pointer;
+  transition:
+    transform var(--dur-exit) var(--ease-out),
+    background var(--dur-exit) var(--ease-out);
+}
+.ui-button-content {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+}
+.ui-button svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex-shrink: 0;
+}
+.ui-button-primary {
+  color: var(--on-gel);
+  background: var(--gel);
+  box-shadow: var(--glow);
+}
+.ui-button-quiet {
+  color: var(--color-text);
+  background: var(--color-raised);
+}
+.ui-button-danger {
+  color: var(--color-on-danger);
+  background: var(--color-danger);
+}
+.ui-button-icon {
+  color: var(--color-text);
+  background: transparent;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  flex-shrink: 0;
+}
+.ui-button-icon:hover,
+.ui-button-icon[aria-pressed="true"] {
+  background: var(--color-line-soft);
+}
+.ui-button-sm {
+  min-height: var(--tap);
+}
+.ui-button-lg {
+  min-height: calc(var(--tap) + var(--space-4));
+  font-size: var(--text-lg);
+}
+.ui-button-block {
+  width: 100%;
+}
+.ui-button:active:not(:disabled) {
+  transform: scale(0.965);
+}
+.ui-button:disabled {
+  cursor: default;
+  background: var(--color-raised);
+  color: var(--color-text-3);
+  box-shadow: none;
+}
+.ui-button[aria-busy="true"] {
+  color: var(--color-text-2);
+}
+.ui-button-progress {
+  position: absolute;
+  width: var(--text-lg);
+  height: var(--text-lg);
+  border: 2px solid var(--color-line);
+  border-top-color: currentColor;
+  border-radius: var(--r-pill);
+  animation: ui-button-spin calc(var(--dur-emphasis) * 2) linear infinite;
+}
+.ui-button-progress i {
+  display: none;
+}
+@keyframes ui-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-button-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    width: auto;
+    height: auto;
+    border: 0;
+    animation: none;
+  }
+  .ui-button-progress i {
+    display: block;
+    width: var(--space-1);
+    height: var(--space-1);
+    border-radius: var(--r-pill);
+    background: currentColor;
+  }
+  .ui-button:active:not(:disabled) {
+    transform: none;
+  }
+}

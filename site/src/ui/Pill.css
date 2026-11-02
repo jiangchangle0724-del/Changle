@@ -1,0 +1,63 @@
+.ui-pill {
+  --ui-tone: var(--color-text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--space-6);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--ui-tone);
+  border-radius: var(--r-pill);
+  color: var(--ui-tone);
+  background: var(--color-sheet);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--leading);
+  overflow-wrap: anywhere;
+}
+.ui-pill svg {
+  width: var(--text-sm);
+  height: var(--text-sm);
+  flex-shrink: 0;
+}
+.ui-pill-toggle {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding-inline: var(--space-4);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.ui-pill-toggle[aria-pressed="true"] {
+  background: var(--ui-tone);
+  color: var(--color-on-accent);
+}
+.ui-pill-neutral {
+  --ui-tone: var(--color-text-2);
+}
+.ui-pill-accent {
+  --ui-tone: var(--color-accent);
+}
+.ui-pill-success {
+  --ui-tone: var(--color-success);
+}
+.ui-pill-warning {
+  --ui-tone: var(--color-warning);
+}
+.ui-pill-danger {
+  --ui-tone: var(--color-danger);
+}
+.ui-pill-drink {
+  --ui-tone: var(--type-drink);
+}
+.ui-pill-brain {
+  --ui-tone: var(--type-brain);
+}
+.ui-pill-body {
+  --ui-tone: var(--type-body);
+}
+.ui-pill-online {
+  --ui-tone: var(--type-online);
+}
+.ui-pill-tool {
+  --ui-tone: var(--type-tool);
+}

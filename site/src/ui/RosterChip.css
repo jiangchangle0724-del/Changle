@@ -1,0 +1,106 @@
+.ui-roster {
+  --ui-face-size: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text);
+}
+.ui-roster-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--r-field);
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  font-size: var(--text-md);
+}
+button.ui-roster-person {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  cursor: pointer;
+}
+.ui-roster-face {
+  display: grid;
+  place-items: center;
+  width: var(--ui-face-size);
+  height: var(--ui-face-size);
+  flex-shrink: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  overflow: hidden;
+  font-weight: 800;
+}
+.ui-roster-face > * {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ui-roster-info {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ui-roster-name {
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+.ui-roster-marks,
+.ui-roster-marks > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+}
+.ui-roster-marks:empty {
+  display: none;
+}
+.ui-roster-marks svg {
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
+.ui-roster-drinks {
+  display: flex;
+  gap: var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.ui-roster-drinks i {
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--gel);
+}
+.ui-roster-sm {
+  --ui-face-size: var(--space-8);
+}
+.ui-roster-lg {
+  --ui-face-size: var(--bar-h);
+}
+.ui-roster-lg .ui-roster-person {
+  flex-direction: column;
+  text-align: center;
+}
+.ui-roster-turn .ui-roster-face {
+  width: calc(var(--ui-face-size) + var(--space-2));
+  height: calc(var(--ui-face-size) + var(--space-2));
+  outline: 2px solid var(--gel);
+  outline-offset: 3px;
+}
+.ui-roster-out .ui-roster-person {
+  opacity: 0.4;
+}
+.ui-roster-out .ui-roster-name {
+  text-decoration: line-through;
+}
+.ui-roster-away .ui-roster-person,
+.ui-roster-gone .ui-roster-person {
+  opacity: 0.6;
+}

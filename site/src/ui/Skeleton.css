@@ -1,0 +1,67 @@
+.ui-skeleton-region {
+  min-width: 0;
+}
+.ui-skeleton {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+.ui-skeleton-shape {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  height: var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--r-small);
+}
+.ui-skeleton-shape::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-line-soft),
+    transparent
+  );
+  animation: ui-skeleton-shimmer calc(var(--dur-emphasis) * 5) var(--ease-out)
+    infinite;
+}
+.ui-skeleton-line .ui-skeleton-shape:last-child {
+  width: 70%;
+}
+.ui-skeleton-block .ui-skeleton-shape {
+  height: calc(var(--tap) * 3);
+  border-radius: var(--r-panel);
+}
+.ui-skeleton-circle {
+  width: var(--bar-h);
+}
+.ui-skeleton-circle .ui-skeleton-shape {
+  width: 100%;
+  height: var(--bar-h);
+  border-radius: var(--r-pill);
+}
+.ui-skeleton-tile .ui-skeleton-shape {
+  height: calc(var(--tap) * 4);
+  border-radius: var(--r-tile);
+}
+.ui-skeleton-slow {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+@keyframes ui-skeleton-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton-shape::after {
+    animation: none;
+  }
+}
