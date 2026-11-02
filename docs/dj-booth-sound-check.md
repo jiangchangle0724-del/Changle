@@ -156,8 +156,18 @@ moves the fader holds it, and the others wait and see who has it. Everyone taps 
 the countdown runs on the TV and the phones, and a press 15 to 20 ms after the cue is perfect. The
 drop lands exactly on its bar (beat 64.0 for bar 16), swaps to deck B, and the TV celebrates.
 
-**A busy table, 8 minutes** (the TV in WebKit, two phones): a pad every 2.5 to 6 seconds (95), a
-new pick every 30 s, the fader swept across and back every 45 s, a build-up and a drop on the cue
-every minute (7). No stall, the lowest buffer 4.97 s, every one of the 95 pads and 7 drops played,
-none off the beat, all 7 drops perfect, WebKit's memory steady at about 1 GB over the run.
+**A busy table** (the TV in WebKit, two phones): a pad every 2.5 to 6 seconds, a new pick every
+30 s, the fader swept across and back every 45 s, a build-up and a drop on the cue every minute.
+
+| Run | Stalls | Lowest buffer | Pads pressed / played | Drops / perfect | Off the beat | WebKit's memory |
+| --- | --- | --- | --- | --- | --- | --- |
+| 8 minutes | 0 | 4.97 s | 95 / 95 | 7 / 7 | 0 | steady, about 1 GB |
+| 12 minutes | 0 | 4.96 s | 142 / 138 | 10 / 10 | 0 | steady, 1.0 to 1.1 GB |
+
+The four pads that didn't play were the deck's own limits at work: a pad of the same kind still
+sounding (a sweep lasts two bars, a horn two beats), or a brake within 4 seconds of the last. An
+earlier 12-minute run lost its WebKit page partway (the test browser's page process went away, with
+no error in the page itself); the two runs after it, watching the memory, ran clean. Worth an eye
+on a real Mac and iPad: if the TV's page ever reloads by itself mid-set, that's the one to tell me
+about.
 
