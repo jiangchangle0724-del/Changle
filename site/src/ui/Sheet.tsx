@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useBackCloses } from "../router";
 import { Button } from "./Button";
 import { labels } from "./labels";
 import type { CSSProperties } from "react";
@@ -10,8 +11,17 @@ import "./Sheet.css";
 export function Sheet(props: SheetProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const close = useRef(props.onClose);
-  close.current = props.onClose;
+  // the phone's back button closes the sheet, and closing it any other way takes its entry off again
+  useBackCloses(props.open, props.onClose, props.history ?? true);
+  const shown = useRef(props.open);
+  shown.current = props.open;
+  const onClose = useRef(props.onClose);
+  onClose.current = props.onClose;
+  // a sheet on its way out (still fading) can't be closed a second time: a swipe on the handle is
+  // followed by a click on it, and Esc or the backdrop still work during the exit
+  const close = useRef(() => {
+    if (shown.current) onClose.current();
+  });
   const start = useRef<{ x: number; y: number } | null>(null);
   const restore = useRef<(() => void) | null>(null);
   useEffect(() => {
@@ -100,7 +110,7 @@ export function Sheet(props: SheetProps) {
         className="ui-sheet-handle"
         type="button"
         aria-label={labels.close[props.lang]}
-        onClick={props.onClose}
+        onClick={() => close.current()}
         onPointerDown={(event) => {
           start.current = { x: event.clientX, y: event.clientY };
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -127,7 +137,7 @@ export function Sheet(props: SheetProps) {
           tone="icon"
           icon={X}
           label={labels.close[props.lang]}
-          onClick={props.onClose}
+          onClick={() => close.current()}
         />
       </div>
       <div className="ui-sheet-body" tabIndex={0}>

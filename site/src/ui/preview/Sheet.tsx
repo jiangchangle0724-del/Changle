@@ -61,6 +61,10 @@ export function SheetPreview({ lang }: { lang: Lang }) {
         open={open}
         onClose={() => setOpen(false)}
         lang={lang}
+        // The phone's back button closes the others. The long sheet keeps no history entry: the
+        // screenshot script leaves it open and moves to the next preview by changing the address,
+        // which the app itself never does with a sheet open (navigate() closes sheets first).
+        history={mode !== "long"}
         {...(mode === "label"
           ? { label: lang === "zh" ? "今晚的设置" : "Tonight’s settings" }
           : {

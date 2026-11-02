@@ -58,6 +58,9 @@ def keyboard_checks(page):
     assert home_tabs.get_by_role("tab").last.get_attribute("aria-selected") == "true"
     page.keyboard.press("Home")
     assert first.get_attribute("aria-selected") == "true"
+    panel = page.get_by_role("tabpanel")
+    assert first.get_attribute("aria-controls") == panel.get_attribute("id"), "tab points at its panel"
+    assert panel.get_attribute("aria-labelledby") == first.get_attribute("id"), "panel is named after its tab"
     radio = page.get_by_role("radio").first
     radio.focus()
     page.keyboard.press("ArrowLeft")
@@ -80,9 +83,15 @@ def keyboard_checks(page):
     page.keyboard.press("End")
     page.keyboard.press("Backspace")
     assert code.input_value() == "12345"
-    letters = page.get_by_role("textbox", name="桌号", exact=True)
-    letters.fill("ab1cd")
-    assert letters.input_value() == "ABCD"
+    table = page.get_by_role("textbox", name="桌号", exact=True)
+    table.fill("ab1cd")
+    assert table.input_value() == "ABCD"
+    table.fill("ab 3d")
+    assert table.input_value() == "AB3D", "table codes keep 2 to 9"
+    table.fill("oil0x7")
+    assert table.input_value() == "X7", "I, L, O, 0 and 1 are never in a table code"
+    assert table.get_attribute("autocomplete") == "off", "no one-time-code autofill on a table code"
+    assert code.get_attribute("autocomplete") == "one-time-code"
     expired = page.get_by_role("textbox", name="重试验证码")
     assert expired.get_attribute("aria-invalid") == "true"
     assert page.locator('[id="' + expired.get_attribute("aria-describedby") + '"]').inner_text()
@@ -124,8 +133,17 @@ def keyboard_checks(page):
     page.wait_for_function("!document.querySelector('.ui-sheet').open")
     page.get_by_role("button", name="无标题 / 无底栏").click()
     assert page.get_by_role("dialog").get_attribute("aria-label") == "今晚的设置"
+    page.wait_for_function("history.state && history.state.sheet")
     page.keyboard.press("Escape")
     page.wait_for_function("!document.querySelector('.ui-sheet').open")
+    page.wait_for_function("!(history.state && history.state.sheet)")
+    depth = page.evaluate("history.length")
+    page.get_by_role("button", name="无标题 / 无底栏").click()
+    page.wait_for_function("history.state && history.state.sheet")
+    page.evaluate("history.back()")
+    page.wait_for_function("!document.querySelector('.ui-sheet').open")
+    assert page.evaluate("location.hash") == "#Sheet", "back closes the sheet and stays on the page"
+    assert page.evaluate("history.length") == depth, "no entries pile up"
 
     open_preview(page, "GameHeader")
     for header in page.locator(".ui-game-header").all():
@@ -157,8 +175,9 @@ def keyboard_checks(page):
     assert page.get_by_role("dialog").count() == 0
     page.get_by_role("button", name="房间惩罚 + 自定义动作").click()
     assert "喝" not in page.get_by_role("dialog").inner_text(), "custom penalties contain no drinking copy"
+    assert "×3" in page.get_by_role("dialog").inner_text(), "the table's own penalty shows how many times"
     page.get_by_role("button", name="我完成了", exact=True).click()
-    print("PASS keyboard, focus trap/restore, backdrop, swipe, footer, OTP paste/backspace, toast lifecycle, penalty actions")
+    print("PASS keyboard, focus trap/restore, backdrop, swipe, back button, footer, tab panels, OTP paste/backspace/table codes, toast lifecycle, penalty actions")
 
 
 def reduced_checks(page):

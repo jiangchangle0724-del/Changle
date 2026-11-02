@@ -1,6 +1,14 @@
 import { useId, useRef } from "react";
+import { CODE_ALPHABET } from "../shared/protocol";
 import type { OTPInputProps } from "./types";
 import "./OTPInput.css";
+/** What a person types or pastes, kept to what the code is made of: "ab 3d" becomes AB3D. */
+const keep = (raw: string, charset: "digits" | "table") =>
+  charset === "digits"
+    ? raw.replace(/[^0-9]/g, "")
+    : Array.from(raw.toUpperCase())
+        .filter((ch) => CODE_ALPHABET.includes(ch))
+        .join("");
 export function OTPInput({
   value,
   onChange,
@@ -14,11 +22,7 @@ export function OTPInput({
 }: OTPInputProps) {
   const id = useId();
   const completed = useRef<string | null>(null);
-  const clean = (raw: string) =>
-    raw
-      .toUpperCase()
-      .replace(charset === "digits" ? /[^0-9]/g : /[^A-Z]/g, "")
-      .slice(0, length);
+  const clean = (raw: string) => keep(raw, charset).slice(0, length);
   const change = (raw: string) => {
     const next = clean(raw);
     onChange(next);
@@ -55,9 +59,11 @@ export function OTPInput({
             event.preventDefault();
             change(event.clipboardData.getData("text"));
           }}
-          autoComplete="one-time-code"
+          // a table code isn't a code sent by text message: no autofill offering one
+          autoComplete={charset === "digits" ? "one-time-code" : "off"}
           inputMode={charset === "digits" ? "numeric" : "text"}
-          autoCapitalize={charset === "letters" ? "characters" : "off"}
+          autoCapitalize={charset === "table" ? "characters" : "off"}
+          autoCorrect="off"
           spellCheck={false}
           disabled={disabled}
           autoFocus={autoFocus}

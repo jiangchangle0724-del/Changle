@@ -56,7 +56,7 @@ export function PenaltyCardPreview({ lang }: { lang: Lang }) {
         onClick={() => {
           setCustom(true);
           setActions(true);
-          setCall({ who: [], kind: "full" });
+          setCall({ who: [], kind: "full", times: 3 });
         }}
       >
         {lang === "zh"
