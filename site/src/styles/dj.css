@@ -478,7 +478,7 @@
   box-shadow: 0 0 22px color-mix(in oklab, var(--gel) 70%, transparent);
 }
 .dj-curve-name {
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 17px;
   font-weight: 800;
 }
@@ -719,7 +719,7 @@
   color: var(--haze);
   font-size: 24px;
   font-weight: 600;
-  line-height: 1.55;
+  line-height: var(--leading);
 }
 .dj-start-btn {
   min-height: 96px;
@@ -826,7 +826,7 @@
   margin: 0;
   color: var(--haze);
   font-size: 16px;
-  line-height: 1.6;
+  line-height: var(--leading);
 }
 .djt-error {
   color: var(--gel-coral);
@@ -856,7 +856,7 @@
   box-shadow: inset 0 0 0 1px var(--line-soft);
 }
 .djt-stats dt {
-  color: var(--fog);
+  color: var(--color-text-2);
   font-size: 13px;
   font-weight: 700;
 }
