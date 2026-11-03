@@ -63,6 +63,7 @@
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
 - 2026-11-03 到此一游: a second visit plays a local hit; the arrival card's local time, weather and hello; prices in local money
+- 2026-11-03 到此一游 e2e: the quiz test never waits on a closed question; a busy page may sleep through a landing
 - 2026-11-02 到此一游: the quiz pops up at the top, answerable or skipped, never twice; 176 questions; a turn clock
 - 2026-10-31 到此一游 e2e: the optional tap that skips the landing scene can't hang the buy test
 - 2026-10-31 到此一游: party forfeits hold the game until they're done; a wrong quiz answer costs a little
@@ -76,4 +77,5 @@
 - 2026-11-02 建档案。
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
 - 2026-11-02 弹题改版（issue #36）、题库扩到 176 道、回合计时，以及 11-01 试玩的三处小修：英文默认名 Player 1、英文「(you)」括号、iPhone SE 上城市名换行不截断。
+- 2026-11-03 PR #146 的 CI 在 WebKit 上各挂了一个测试，都是测试等错了东西：抢答测试点「这题不答」时题已经到时间关了，就一直等到超时（现在只点还剩 3 秒以上的题，点不到就等下一题）；「同一掷」测试里一部手机忙得一帧都没画，游戏按时钟收掉了这一步，印章没机会出来（10-30 起 main 上就失败过，现在认这种情况，只要那段时间页面真的没画）。
 - 2026-11-03 issue #44 的第 2、3 部分：第二次到访放当地热歌（104 首，只在一台设备上放：有大屏就大屏，没有就落地那队的手机），到达卡加了当地时间、天气、问候语的读法和意思、当地货币，价格旁边加了当地货币。卫星地图（第 1 部分）还没做。
