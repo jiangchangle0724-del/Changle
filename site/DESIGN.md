@@ -17,6 +17,7 @@ colors:
   gel-vermilion: "#ff8a6b"
   gel-tangerine: "#ff8c42"
   gel-amber: "#ffb82e"
+  gel-honey: "#ffcf6b"
   gel-lemon: "#f5df3b"
   gel-lime: "#b6e83a"
   gel-mint: "#4be38f"
@@ -66,12 +67,12 @@ typography:
     fontFamily: "Figtree Variable, Figtree, -apple-system, PingFang SC, Hiragino Sans GB, Noto Sans SC, Noto Sans CJK SC, Source Han Sans SC, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "16px"
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: "var(--leading)"
   hint:
     fontFamily: "Figtree Variable, Figtree, -apple-system, PingFang SC, Hiragino Sans GB, Noto Sans SC, Noto Sans CJK SC, Source Han Sans SC, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "14px"
     fontWeight: 400
-    lineHeight: 1.45
+    lineHeight: "var(--leading)"
   label:
     fontFamily: "Figtree Variable, Figtree, -apple-system, PingFang SC, Hiragino Sans GB, Noto Sans SC, Noto Sans CJK SC, Source Han Sans SC, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "16px"
@@ -129,7 +130,7 @@ components:
     height: "50px"
   button-penalty:
     backgroundColor: "{colors.stop}"
-    textColor: "{colors.card-face}"
+    textColor: "{colors.night}"
     rounded: "{rounded.pill}"
     padding: "0 22px"
     height: "50px"
@@ -148,13 +149,13 @@ components:
     textColor: "{colors.moon}"
     rounded: "{rounded.pill}"
     padding: "0 14px"
-    height: "40px"
+    minHeight: "44px"
   chip-selected:
-    backgroundColor: "{colors.moon}"
+    backgroundColor: "var(--gel)"
     textColor: "{colors.night}"
     rounded: "{rounded.pill}"
     padding: "0 14px"
-    height: "40px"
+    minHeight: "44px"
   field:
     backgroundColor: "{colors.dusk}"
     textColor: "{colors.moon}"
@@ -170,12 +171,12 @@ components:
     backgroundColor: "{colors.moon}"
     textColor: "{colors.night}"
     rounded: "{rounded.pill}"
-    height: "40px"
+    minHeight: "48px"
   lang-tab:
     backgroundColor: "{colors.dusk}"
     textColor: "{colors.haze}"
     rounded: "{rounded.pill}"
-    height: "32px"
+    minHeight: "44px"
   panel:
     backgroundColor: "{colors.dusk-2}"
     textColor: "{colors.moon}"
@@ -186,11 +187,11 @@ components:
     rounded: "{rounded.sheet}"
     padding: "8px 18px 18px"
   game-tile:
-    backgroundColor: "{colors.gel-pink}"
+    backgroundColor: "var(--gel)"
     textColor: "{colors.night}"
     rounded: "{rounded.tile}"
-    padding: "14px 14px 12px"
-    height: "148px"
+    padding: "16px"
+    minHeight: "176px"
   playing-card:
     backgroundColor: "{colors.card-face}"
     textColor: "{colors.night}"
@@ -201,40 +202,40 @@ components:
 
 # Design System: changle
 
-> **Moving to a shared system.** The values are being gathered into `src/styles/tokens.css`, with the rules in [docs/DESIGN.md](../docs/DESIGN.md), shared with /eat and the tools to come. Until that migration is done, this file describes what is live; anything new follows docs/DESIGN.md.
+这份文件记录已实现的游戏灯光（gel）和外观；要遵守的设计规则在 [docs/DESIGN.md](../docs/DESIGN.md)，两份有分歧时以它为准。设计值已在 `src/styles/tokens.css`，12 个共用组件已在 `src/ui/`，旧页面仍在逐步迁移。This file records the gels and the look as built; follow docs/DESIGN.md for the rules, and where the two differ, docs/DESIGN.md wins.
 
 ## Overview
 
 **Creative North Star: "The Gel-Lit Room"**
 
-The app is a dark room at a party, and the only color in it is light. The ground is a deep blue-violet night; surfaces are slightly lifted dusk tones; text is moonlight. Each of the sixteen games owns one stage gel, and when a game is up the room turns that color: a wash spills down from the top of the screen, the primary button glows in it, the timer arc draws in it, the active seat is ringed in it. Leave the game and the light crossfades to the next one. Nothing on screen is colored for decoration.
+The app is a dark room at a party, and the only color in it is light. The ground is a deep blue-violet night; surfaces are slightly lifted dusk tones; text is moonlight. Each game owns a stage gel, and when a game is up the room turns that color: a wash spills down from the top of the screen, the primary button glows in it, the timer arc draws in it, the active seat is ringed in it. Leave the game and the light crossfades to the next one. Nothing on screen is colored for decoration.
 
-Density is low and the type is big because the phone is a prop passed around a dim table, read at arm's length, tapped with one thumb. Every screen is bilingual: titles show both languages at once, the reader's language leading large and the other riding beneath it smaller, and a 中 / EN toggle switches every string in place. Motion is GSAP throughout, settled and weighted for ordinary moves, and saved up for the penalty, which is the loudest thing the app ever does: the room flashes, one huge word slams down, a glass slides in and drains.
+Density is low and the type is big because the phone is a prop passed around a dim table, read at arm's length, tapped with one thumb. Every screen is bilingual: titles show both languages at once, the reader's language leading large and the other riding beneath it smaller, and a 中 / EN toggle switches every string in place. Shared components use CSS motion; GSAP remains in the home page, legacy sheets and game sequences. Motion is settled and weighted for ordinary moves, and saved up for the penalty, which is the loudest thing the app ever does: the room flashes, one huge word slams down, a glass slides in and drains.
 
 When a game brings its own physical objects, they render as themselves inside the room: Euchre's playing cards are white card stock with real suit marks, lit from above by the jade gel. 到此一游 brings a whole printed world (a round board, city posters, passport stamps, boarding passes, six characters): it plays at changle.ca/trip from its own code (`games/been-there` in the changle-ca repository), and its frame, from the top bar to the sheets, is this system, lit by its vermilion gel.
 
 **Key Characteristics:**
 - Night ground, moonlight text, one current gel per screen.
-- Color always means "this game" or "this state" (go, stop, warn, your turn).
+- Color means a game's kind on a home card, its own gel inside the game, or a state (go, stop, warn, your turn).
 - Bilingual titles: both languages visible, the current one leads.
 - One primary action per screen, pill-shaped, 50 to 60px tall.
-- Settled GSAP motion; the penalty stamp is the single most animated moment.
+- Settled motion; the penalty stamp is the single most animated moment.
 - Flat tonal surfaces with hairline insets; glow only comes from light.
 
 ## Colors
 
-A near-black violet room, three steps of lifted dusk, a moonlight text ramp, and sixteen saturated gels bright enough to carry night-colored text.
+A near-black violet room, three steps of lifted dusk, a moonlight text ramp, and saturated gels bright enough to carry night-colored text.
 
 ### Primary
-- **The current gel** (runtime `--gel`, one of the sixteen below): set on the app frame from the game's registry entry, and on sheets, tiles, history rows and online screens that belong to a game. It fills the primary button, the selected chip, the game tile, the timer arc, the turn ring, "our team" scores. Off a game it defaults to Moonlight, with Night text (`--on-gel`).
+- **The current gel** (runtime `--gel`): set on the app frame from the game's registry entry, and on sheets, history rows and online screens that belong to a game. It fills the primary button, the selected chip, the timer arc, the turn ring, "our team" scores. Off a game it defaults to Moonlight, with Night text (`--on-gel`). Home game tiles set their own `--gel` from `category`: drink Coral, brain Violet, body Lime, online Aqua; the shared Tile's tool category is Amber (`--type-tool`). The tools tab still uses its existing panels.
 - **The room light** (runtime `--light`): the same idea at room scale. `setLight()` tweens it over 0.9s (`power2.inOut`); it feeds the top-of-screen wash, focus rings on fields, the caret, text selection and link underlines. Non-game sections use fixed tones: party Violet, wish Amber, me Rose.
 
 ### Secondary (the gels)
-The sixteen gels, in spectrum order as the game grid reads: **Hot Pink** (truth), **Coral** (rogue), **Vermilion** (trip, 到此一游's own ink), **Tangerine** (superlatives), **Amber** (king), **Lemon** (post-it), **Lime** (limbo), **Mint** (never have I ever), **Jade** (euchre), **Aqua** (dice), **Cyan** (freeze), **Cornflower Blue** (wheel), **Periwinkle** (undercover), **Violet** (tune), **Orchid** (punchline), **Rose** (draw). Fifteen of them (all but Vermilion), reordered, are the avatar palette: a letter avatar takes a gel hashed from the user's id.
+The game's own gels, in registry order: **Hot Pink** (truth), **Coral** (rogue), **Vermilion** (trip, 到此一游's own ink), **Tangerine** (superlatives), **Amber** (king), **Honey** (drama), **Lemon** (post-it), **Lime** (limbo), **Mint** (never have I ever), **Jade** (euchre), **Aqua** (dice), **Cyan** (freeze), **Cornflower Blue** (wheel), **Periwinkle** (undercover), **Violet** (tune), **Orchid** (punchline), **Rose** (draw), **Magenta** (`#ff5ad8`, DJ). Home cards use kind colors rather than this spectrum. Fifteen gels (all but Vermilion, Honey and DJ's Magenta), reordered, are the avatar palette: a letter avatar takes a gel hashed from the user's id.
 
 ### Tertiary (signals)
 - **Go Mint** (`gel-mint`, as `--go`): safe outcomes, confirm, correct.
-- **Stop Red** (`stop`): the penalty, timer under ten seconds, errors. White text on it.
+- **Stop Red** (`stop`): the penalty, timer under ten seconds, errors. Night text on it.
 - **Warn Amber** (`gel-amber`, as `--warn`): caution states.
 
 ### Neutral
@@ -250,7 +251,7 @@ The sixteen gels, in spectrum order as the game grid reads: **Hot Pink** (truth)
 - **Card Face** / **Card Red** (`card-face`, `card-red`): playing-card stock and red suits. Euchre only; ink is Night.
 
 ### Named Rules
-**The Color Is Light Rule.** Every hue on screen comes from the current gel, the room light, or a signal. If a color can't answer "which game, or which state?", it does not belong.
+**The Color Is Light Rule.** Every hue on screen comes from a kind color on a card, the current game's gel, the room light, or a signal. If a color can't answer "which kind, game, or state?", it does not belong.
 
 **The Bright Gel Rule.** Gels carry Night text, never white. A gel faded or desaturated reads as mud on the night ground; a resting primary goes to Dusk High with Fog text instead of dimming its gel.
 
@@ -268,8 +269,8 @@ The sixteen gels, in spectrum order as the game grid reads: **Hot Pink** (truth)
 - **Display** (700, 34px, 1.08, -0.02em): large bilingual titles. When Chinese leads, weight goes to 800 and tracking to 0.
 - **Headline** (700, 24px, 1.1): medium bilingual titles, scores (25px in Euchre), prompt text (23px at 800).
 - **Title** (700, 21px): sheet titles, notice titles. Top-bar titles are the small bilingual pair (16px over 12px).
-- **Body** (400, 16px, 1.5): running text. Rules text is 15.5px at 1.6 in Haze with Moonlight emphasis.
-- **Hint** (400, 14px, 1.45): Haze secondary lines.
+- **Body** (400, 16px, `var(--leading)`): running text, 1.65 in Chinese and 1.5 in English, following the page language. Rules text is 15.5px at the same `--leading` in Haze with Moonlight emphasis.
+- **Hint** (400, 14px, `var(--leading)`): Haze secondary lines.
 - **Label** (700, 16px, 0.005em): buttons (18px large, 14.5px small); chips at 15px/600; field labels 13.5px/600 Haze.
 
 ### Named Rules
@@ -279,11 +280,11 @@ The sixteen gels, in spectrum order as the game grid reads: **Hot Pink** (truth)
 
 ## Layout
 
-Portrait phone, one column. The app frame is centered with a 560px max width and a 16px side gutter, padded by the safe-area insets. Each screen is a top bar (a three-column grid: 96px sides, back on the left, help and extras on the right, the small bilingual title centered), then the stage, then the actions toward the bottom where the thumb is. Menus, players, settings and rules come up as bottom sheets, never as new pages.
+Portrait phone, one column. The app frame is centered with a 560px max width and a 16px side gutter, padded by the safe-area insets; the party home expands to 1120px from 720px wide. Each screen is a top bar (a three-column grid: 96px sides, back on the left, help and extras on the right, the small bilingual title centered), then the stage, then the actions toward the bottom where the thumb is. Menus, players, settings and rules come up as bottom sheets; the phone's back button closes a sheet first. Pages keep their addresses, including `/settings`, `/login` and a game's card at `/g/<slug>`. Pages allow pinch-zoom.
 
 Online, the reactions row rides along the bottom edge of every game screen. When something new to press appears under it or below the screen, the screen scrolls just far enough to bring it up clear of the row (`useActionsInView`, in the online frame); while the screen runs on below, the row fades the edge it covers. A new online screen gets this for free as long as its actions are real buttons and fields.
 
-The home grid is three columns of gel tiles in spectrum order (two columns below 370px wide), so the whole screen reads as one sweep of stage light. Spacing runs on small steps: 8px is the default gap, with 4, 6, 10, 12, 14 and 16 around it; 24px separates blocks. Touch targets are 44px minimum, 50px for buttons, 60px for the main move on a stage.
+The home grid has two columns of kind-colored tiles on phones, three from 720px wide, four from 1200px; from 720px, tonight's people and the suggested game sit to its left. Spacing runs on small steps: 8px is the default gap, with 4, 6, 10, 12, 14 and 16 around it; 24px separates blocks. Touch targets are 44px minimum (48px for crowded segmented controls), 50px for buttons, 60px for the main move on a stage.
 
 ## Elevation & Depth
 
@@ -291,7 +292,7 @@ Surfaces are flat tonal layers: Night, then Dusk, then Dusk Raised, then Dusk Hi
 
 ### Shadow Vocabulary
 - **Gel glow** (`box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--gel) 70%, transparent)`): under the primary and penalty buttons, in their own color.
-- **Lit tile** (`box-shadow: 0 0 0 3px var(--moon), 0 18px 50px -12px var(--gel)`): the tile currently under the light.
+- **Lit tile**: the shared home tile lifts 2px with a 2px Moonlight outline at 3px offset; reduced motion removes the lift.
 - **Turn ring** (`box-shadow: 0 0 0 3px var(--night-2), 0 0 0 5.5px var(--gel), 0 0 24px 4px color-mix(in oklab, var(--gel) 50%, transparent)`): whose turn it is.
 - **Panel hairline** (`box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px var(--line-soft)`): panels and chips at rest.
 - **Sheet** (`box-shadow: 0 -20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)`) over a 6px blurred Night backdrop.
@@ -308,17 +309,17 @@ Everything you press is a pill (999px): buttons, chips, segmented controls, the 
 
 ### Buttons
 Big, round and lit; pressing one shrinks it to 96.5% on a 0.16s settle.
-- **Shape:** full pill (999px), 50px tall; large 60px, small 40px.
+- **Shape:** full pill (999px), 50px tall; large 60px, small 44px minimum.
 - **Primary:** the current gel with Night text and a gel glow underneath. One per screen. Disabled goes to Dusk High with Fog text at full opacity.
 - **Quiet:** Dusk High with Moonlight text, for secondary moves.
 - **Ghost:** transparent with a 1.5px Line inset; hover raises the stroke to Fog.
-- **Go / Penalty:** Mint with Night text for safe or confirm; Stop Red with white text and a red glow for the move that sends someone to the penalty.
+- **Go / Penalty:** Mint with Night text for safe or confirm; Stop Red with Night text and a red glow for the move that sends someone to the penalty.
 - **Moonlight:** solid Moonlight, Night text; the Continue under the penalty stamp, where the gel is out of the picture.
 - **Icon button:** 44px round, Moonlight icon (lucide), Line Soft wash on hover, 92% on press.
 - **Focus:** a 2px Moonlight outline at 3px offset everywhere.
 
 ### Chips
-- **Style:** Dusk Raised pill, 40px tall (32px small), 15px/600 Moonlight, Line Soft hairline.
+- **Style:** Dusk Raised pill, 44px minimum tall in both sizes, 15px/600 Moonlight (13.5px small), Line Soft hairline.
 - **State:** selected or pressed fills with the gel and Night text, hairline dropped. Out players fade to 40% and strike through. New chips pop in on the overshoot ease.
 
 ### Cards / Containers
@@ -334,12 +335,12 @@ Big, round and lit; pressing one shrinks it to 96.5% on a 0.16s settle.
 
 ### Navigation
 - **Top bar:** back chevron, centered small bilingual title, help icon; no fill.
-- **Segmented control:** Dusk track with a 4px inset, 40px pill segments in Haze 14.5px/700; the selected segment is solid Moonlight with Night text.
-- **Language toggle:** 中 / EN in a Dusk track, 32px segments, selected in Moonlight.
+- **Segmented control:** Dusk track with a 4px inset, 48px minimum pill segments in Haze 14.5px/700; the selected segment is solid Moonlight with Night text.
+- **Language toggle:** 中 / EN in a Dusk track, 44px segments, selected in Moonlight.
 - **Sheet:** Dusk, 28px top corners, grab handle, rises on `expo.out` over 0.55s, swipes down by its handle, exits on `power2.in` over 0.28s. A sheet that belongs to a game takes that game's gel.
 
 ### Game Tile
-A full block of gel, 24px corners, 148px tall, Night text, the game's lucide icon. The tile under the light lifts 2px with a Moonlight ring and a gel bloom. Random pick runs the light across the tiles in a decelerating sweep and lands on one.
+A full block of its kind's color, 24px corners, 176px minimum tall, 16px padding, Night text, the game's lucide icon. The home suggestion is 220px minimum tall. The tile under the light lifts 2px with a Moonlight outline; reduced motion removes the lift. Random pick runs the light across the tiles in a decelerating sweep and lands on one.
 
 ### Penalty Stamp
 A full-screen Night layer (97%) with a red bloom, over a 14px blur. Names drop in, the screen flashes Stop Red and fades, the word (喝 / Drink) slams from 2.6x scale and -16 degrees to -5 degrees on `back.out(2.2)` then wobbles to -3 on an elastic, the stage shakes sideways, the glass slides in from the right and its level drains to the call (a sip, two, finish). The stamp word carries a double glow in its own color. A safe call swaps red for Mint and drops the shake.
@@ -353,12 +354,12 @@ A 34px-rounded table lit from above by the gel (a 24% gel pool over a dusk-to-ni
 ## Do's and Don'ts
 
 ### Do:
-- **Do** take every hue from the current gel (`--gel`), the room light (`--light`), or a signal (`--go`, `--stop`, `--warn`).
+- **Do** take card colors from kind tokens (`--type-*`); inside a game use its gel (`--gel`), the room light (`--light`), or a signal (`--go`, `--stop`, `--warn`).
 - **Do** set `--gel` on any container that belongs to a game, and call `setLight()` when a screen changes, so the room crossfades.
 - **Do** put Night text on gels and Moonlight text on dusk surfaces.
 - **Do** show every title in both languages, the reader's language leading in the display face.
 - **Do** keep one primary (gel) button per screen, 50px or taller, near the bottom.
-- **Do** animate with GSAP on the house `settle` ease (`0.16, 1, 0.3, 1`, 0.5s default) and check `reduced()` before every tween, jumping straight to the end state when it is true.
+- **Do** use token durations and easings for new UI motion, as the shared components do in CSS. Existing GSAP motion uses the house `settle` ease (`0.16, 1, 0.3, 1`, 0.5s default); check `reduced()` before a tween and jump straight to the end state when it is true. Reduced motion must not slide or shake.
 - **Do** keep the penalty stamp the most animated moment on any screen; everything else settles.
 - **Do** use lucide icons or authored SVG; playing-card suit marks are the cards' own text.
 
