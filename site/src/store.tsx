@@ -14,14 +14,14 @@ type Settings = {
 const KEY = "lazysusan.settings.v1";
 
 /**
- * A first visit opens in the phone's language: Chinese if Chinese is anywhere in its list (many
- * Chinese readers here keep their phone in English), English otherwise. After that, the reader's
- * own choice (中 / EN) is kept.
+ * A first visit opens in the phone's own language, the first one in its list (Steve's call,
+ * 2026-11-02): Chinese if that is Chinese, English otherwise. 到此一游, 随便 and 一起跳 decide
+ * the same way. After that, the reader's own choice (中 / EN) is kept.
  */
 function phoneLang(): Lang {
   try {
-    const list = navigator.languages?.length ? navigator.languages : [navigator.language];
-    return list.some((l) => /^zh\b/i.test(l)) ? "zh" : "en";
+    const first = navigator.languages?.[0] ?? navigator.language;
+    return first ? (/^zh\b/i.test(first) ? "zh" : "en") : "zh";
   } catch {
     return "zh";
   }
