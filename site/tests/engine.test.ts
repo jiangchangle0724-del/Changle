@@ -117,6 +117,35 @@ test("start: a second tap on Start doesn't deal the game again", () => {
   ok(t.eng.d.game?.id === "dice", "another game still takes over");
 });
 
+test("skip: the host's second tap on Skip doesn't skip the next player too", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "dice" });
+  t.g("p0", "skip", { at: "roll:p0" });
+  ok(t.view<V<"dice">>("p0").turn === "p1", "dice: skip moves the turn on");
+  t.g("p0", "skip", { at: "roll:p0" });
+  ok(t.view<V<"dice">>("p0").turn === "p1", "dice: the same skip again does nothing");
+  t.g("p0", "skip");
+  ok(t.view<V<"dice">>("p0").turn === "p2", "dice: a skip that names no turn still works");
+  t.act("p0", { a: "start", game: "truth" });
+  const tv = t.view<V<"truth">>("p0");
+  t.g("p0", "skip", { at: `spin:${tv.spinner}` });
+  const next = t.view<V<"truth">>("p0").spinner;
+  t.g("p0", "skip", { at: `spin:${tv.spinner}` });
+  ok(next !== tv.spinner && t.view<V<"truth">>("p0").spinner === next, "truth: one skip, not two");
+  t.act("p0", { a: "start", game: "wheel" });
+  const wv = t.view<V<"wheel">>("p0");
+  t.g("p0", "skip", { at: `${wv.phase}:${wv.turn}` });
+  const wt = t.view<V<"wheel">>("p0").turn;
+  t.g("p0", "skip", { at: `${wv.phase}:${wv.turn}` });
+  ok(wt !== wv.turn && t.view<V<"wheel">>("p0").turn === wt, "wheel: one skip, not two");
+  t.act("p0", { a: "start", game: "rogue" });
+  const rv = t.view<V<"rogue">>("p0");
+  t.g("p0", "skip", { at: `${rv.phase}:${rv.turn}` });
+  const rt = t.view<V<"rogue">>("p0").turn;
+  t.g("p0", "skip", { at: `${rv.phase}:${rv.turn}` });
+  ok(rt !== rv.turn && t.view<V<"rogue">>("p0").turn === rt, "rogue: one skip, not two");
+});
+
 test("leave: seat freed, host handed on, game told", () => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "dice" });

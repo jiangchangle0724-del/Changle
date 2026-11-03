@@ -44,12 +44,23 @@ export function Waiting({ children }: { children: ReactNode }) {
   );
 }
 
+/** When a host button was last pressed (any of them: the one tapped may be gone and another in its place). */
+let hostTapAt = -Infinity;
+/** A quick double tap is one press: the second half would land on whatever the first one put there (skip the next player too). */
+const HOST_TAP_GAP = 600;
+
 /** Host-only buttons carry the crown, so everyone knows why only one phone has them. */
 export function HostButton({ onClick, children, disabled }: { onClick: () => void; children: ReactNode; disabled?: boolean }) {
   const { isHost } = useRoom();
   if (!isHost) return null;
+  const press = () => {
+    const now = performance.now();
+    if (now - hostTapAt < HOST_TAP_GAP) return;
+    hostTapAt = now;
+    onClick();
+  };
   return (
-    <button type="button" className="btn btn-ghost btn-sm host-btn" onClick={onClick} disabled={disabled}>
+    <button type="button" className="btn btn-ghost btn-sm host-btn" onClick={press} disabled={disabled}>
       <Crown size={14} strokeWidth={2.4} />
       {children}
     </button>
