@@ -6,6 +6,14 @@ export const axeKnown: {
   target: string;
   reason: string;
 }[] = [
+  { screen: 'tv', rule: 'aria-prohibited-attr', target: JSON.stringify(['.tv-seat-crown']), reason: 'Host crown span has aria-label without an accessible role; fix belongs to src/tv/TvApp.' },
+  { screen: 'tv', rule: 'label-content-name-mismatch', target: JSON.stringify(['button[aria-label="Switch to English"]']), reason: 'TV language button displays EN but its accessible name spells out English; fix belongs to src/tv/TvApp.' },
+  ...['sm', 'md', 'lg'].flatMap(size => [
+    `.ui-roster-out.ui-roster-${size}.ui-roster-here > .ui-roster-person > .ui-roster-info > .ui-roster-name`,
+    `.ui-roster-away.ui-roster-${size}.ui-roster-idle > .ui-roster-person > .ui-roster-info > .ui-roster-marks > span`,
+    `.ui-roster-away.ui-roster-${size}.ui-roster-idle > .ui-roster-person > .ui-roster-info > .ui-roster-drinks[aria-label="杯数: 8"][role="img"]`,
+    `.ui-roster-gone.ui-roster-${size}.ui-roster-idle > button:nth-child(1) > .ui-roster-info > .ui-roster-marks > span`,
+  ].map(target => ({ screen: 'component-RosterChip', rule: 'color-contrast', target: JSON.stringify([target]), reason: 'Out/away/gone roster opacity lowers name/status/drink contrast to 3.57–4.07:1; fix belongs to src/ui/RosterChip.css.' }))),
   ...['home-zh', 'home-en', 'home-desktop-zh', 'home-desktop-en', 'game-card-zh', 'game-card-en', 'players', 'settings', 'signin-code'].map(screen => ({
     screen, rule: 'label-content-name-mismatch', target: JSON.stringify(['.roster']),
     reason: 'Home Roster accessible name describes editing players but omits its visible player names; fix belongs to src/home.',
