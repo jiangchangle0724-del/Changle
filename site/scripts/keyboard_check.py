@@ -4,7 +4,7 @@ focus back to whatever opened them (components/Sheet.tsx, components/PenaltyStam
 usage: python3 scripts/keyboard_check.py [base_url]
 needs the site running (npm run dev).
 """
-import json, sys
+import json, re, sys
 from playwright.sync_api import sync_playwright
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:5173").rstrip("/")
@@ -34,7 +34,9 @@ with sync_playwright() as p:
     pg.wait_for_timeout(800)
 
     # a sheet: the rules
-    pg.get_by_role("button", name="How to play").focus()
+    # (the game's top bar: on a wide screen its rules button sits in the bar, not behind a menu)
+    RULES = re.compile(r"^(Rules|How to play)$")
+    pg.get_by_role("button", name=RULES).first.focus()
     pg.keyboard.press("Enter")
     pg.wait_for_timeout(700)
     ok(inside(pg, "[role=dialog]"), "a sheet takes focus as it opens")
@@ -46,8 +48,8 @@ with sync_playwright() as p:
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(700)
     ok(pg.locator("[role=dialog]").count() == 0, "Esc closes the sheet")
-    back = pg.evaluate("() => document.activeElement && document.activeElement.getAttribute('aria-label')")
-    ok(back == "How to play", f"focus goes back to the button that opened it ({back})")
+    back = pg.evaluate("() => document.activeElement && (document.activeElement.getAttribute('aria-label') || document.activeElement.textContent.trim())")
+    ok(bool(back and RULES.match(back)), f"focus goes back to the button that opened it ({back})")
 
     # the penalty stamp: spin, take truth, pass on it
     pg.get_by_role("button", name="Spin the bottle").click()
