@@ -4,6 +4,7 @@
  * the song pipeline. CONTRACTS.md beside this file says how they fit together.
  */
 import type { T } from "../../i18n";
+import type { Dancer } from "./dance";
 
 /* ------------------------------------------------------------------ the night */
 
@@ -497,6 +498,7 @@ export type DjCommand =
   /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
   | { x: "mine"; on: boolean }
   | { x: "voice"; on: boolean }
+  | { x: "dance"; bar: number; n: number; of: number }
   // the mixer (anyone at the table)
   /** a knob, -1 to 1 (0: as the music plays) */
   | { x: "mix"; knob: MixKnob; value: number }
@@ -557,6 +559,10 @@ export type RoomState = {
   mine: boolean;
   /** 报幕: the big screen says who a song asked for is from as the countdown into it starts (the host can turn it off) */
   voice: boolean;
+  /** 跟着跳 (shared/dj/dance.ts): each dancer's night, the bar the floor is being counted on, and the floor's combo (0 to 1) */
+  dance: Record<string, Dancer>;
+  danceBar: { bar: number; n: number; good: number };
+  combo: number;
 };
 
 /**

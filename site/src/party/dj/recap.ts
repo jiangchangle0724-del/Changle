@@ -4,6 +4,7 @@
  * most fired up, who dropped perfectly, how the sound held up. Plain functions: the TV's end card
  * and the phones read the same numbers.
  */
+import { danceShare } from "../../shared/dj/dance";
 import type { StyleId } from "../../shared/dj/types";
 import type { DjView, ReqView } from "../../shared/protocol";
 
@@ -21,6 +22,9 @@ export type Recap = {
   perfect: { pid: string; n: number }[];
   /** the speaker's stalls this night (0: the sound never broke) */
   stalls: number;
+  /** 跟着跳: the best on the beat (four bars or more danced: the share of beats) and who danced the most beats */
+  onBeat: { pid: string; share: number } | null;
+  mostDanced: { pid: string; hits: number } | null;
 };
 
 const top = (counts: Record<string, number>) =>
@@ -59,5 +63,14 @@ export function recapOf(v: DjView, now: number): Recap {
     fans: top(v.total),
     perfect: top(v.deck?.perfects ?? {}),
     stalls: v.speaker?.stalls ?? 0,
+    ...dancing(v),
   };
+}
+
+/** The night's dancers: the best on the beat (four bars or more), and who danced the most beats. */
+function dancing(v: DjView): Pick<Recap, "onBeat" | "mostDanced"> {
+  const all = Object.entries(v.dance ?? {});
+  const best = all.filter(([, d]) => d.bars >= 4).sort((a, b) => danceShare(b[1]) - danceShare(a[1]))[0];
+  const most = all.filter(([, d]) => d.hits > 0).sort((a, b) => b[1].hits - a[1].hits)[0];
+  return { onBeat: best ? { pid: best[0], share: danceShare(best[1]) } : null, mostDanced: most ? { pid: most[0], hits: most[1].hits } : null };
 }

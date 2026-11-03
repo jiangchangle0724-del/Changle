@@ -95,6 +95,20 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   every phone show the same recap (`recap.ts`): minutes of music, 🔥, the styles played longest,
   the songs asked for, who was most fired up, the perfect drops, whether the sound held up (the
   speaker's `stats`, now in the view as `speaker`); a phone adds the player's own line.
+- **跟着跳, dancing along** (Steve on Nov 2: "电视那边是要玩家进行与舞蹈相匹配的舞蹈"; his plan's 一起跳,
+  `docs/dance-along.md`, easy mode). The TV shows a coach (Name That Tune's performer, `Coach.tsx`)
+  dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
+  16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
+  the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand
+  (`phone/DancePad.tsx`; iOS and newer Chrome ask for the motion sensor on the start tap) reads its
+  motion with gravity taken out; a beat is danced when the hand moves at least 2.5 m/s² within
+  150 ms of it (`danced`, the plan's easy mode: you moved, near the beat). The phone says how each
+  beat went, and sends each whole bar it listened to (`dance`). The room keeps every dancer's
+  night (beats danced of beats sent, bars, a streak of bars with 3 of 4 or more) and the floor's
+  combo: a bar where 70% of those dancing hit 3 of 4 lifts it by an eighth, any other bar drops it a
+  quarter; full, the TV sets off fireworks (an `fx` event `dance`) and it starts again. The TV
+  shows a meter under each dancer (lit while they keep it up) and how many are dancing; the recap
+  names the best on the beat (four bars or more) and who danced the most beats.
 - **The speaker** is a big screen, so it has no seat: it talks to the game through
   `RoomEngine.screenAct` (the rooms server passes a screen's game actions there; only games with a
   `screen` handler listen, and a screen can never act for a seat). A screen can't be kicked and
@@ -130,6 +144,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `src` `{ source }` | the speaker | Its music changed hands mid-set (Lyria took over, or the stand-in came back): `source` follows, so every phone shows which DJ plays. Only while music plays, only a real change, at most once a second; the speaker says it again every 3 seconds until the room has it. |
 | `mine` `{ on }` | the host, or the speaker | The night on the host's songs, or back to the stand-in (below): `mine` in the view; the speaker switches once it has songs. |
 | `voice` `{ on }` | the host | 报幕 on the big screen, on (the default) or off: `voice` in the view (below). |
+| `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
 | `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
 
 - **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
@@ -624,6 +639,13 @@ every frame changes only opacity or a transform.
   the switch to her songs from her phone (the TV hands the music over, no gap) and back.
   `tests/dj.test.ts` has the pieces (read back byte for byte, every bad one turned away);
   `tests/engine.test.ts` the switch and the word back.
+- `python3 scripts/dj_dance_check.py [chromium|webkit]`: dancing along in browsers, a TV and two
+  phones: the coach drawn, moving, named, the next move called, then changing; two phones dancing
+  with a pretend hand on their own clock (Amy's moving on the beats, Ben's between them): each
+  phone's word for its beats and bars, the room's counts (Amy about all, Ben none), the TV's
+  meters, then both on the beat filling the combo to fireworks; the recap's best on the beat.
+  `tests/dj.test.ts` has the routine, the beat times and a danced beat; `tests/engine.test.ts`
+  the room's counts, the combo and its fireworks.
 - `python3 scripts/dj_turntable_check.py [chromium|webkit]`: the phone as a DJ controller, in
   browsers, a TV and two phones: the four club sounds rendered offline in the TV's browser and
   measured (the record's pops over its hiss for two bars, the boom's low pitch, the reverse cymbal

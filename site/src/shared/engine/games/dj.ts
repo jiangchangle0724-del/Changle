@@ -11,6 +11,7 @@
  */
 import { SONG_ROWS } from "../../../data/songs";
 import { ENERGY, FAKE_MIX, heatLean, LEAN_MS, mixFor, playing } from "../../dj/curve";
+import { DANCE } from "../../dj/dance";
 import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, styleOn } from "../../dj/deck";
 import { hintOf, styleForRequest, trackFor } from "../../dj/requests";
 import {
@@ -78,6 +79,9 @@ function fresh(set: number): RoomState {
     crateV: 0,
     mine: false,
     voice: true,
+    dance: {},
+    danceBar: { bar: -1, n: 0, good: 0 },
+    combo: 0,
   };
 }
 
@@ -91,6 +95,9 @@ function norm(s: RoomState): RoomState {
   s.crateV ??= 0;
   s.mine ??= false;
   s.voice ??= true;
+  s.dance ??= {};
+  s.danceBar ??= { bar: -1, n: 0, good: 0 };
+  s.combo ??= 0;
   // a deck saved before a field existed gets it fresh
   s.deck = { ...freshDeck(), ...s.deck };
   return s;
@@ -689,6 +696,8 @@ export const dj: GameDef<RoomState> = {
         next.crateV = s.crateV;
         next.mine = s.mine;
         next.voice = s.voice;
+        // the night's dancing, like its 🔥
+        next.dance = s.dance;
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -755,6 +764,38 @@ export const dj: GameDef<RoomState> = {
         const on = g.on === true;
         if (!host || s.mine === on) return api.quiet();
         s.mine = on;
+        return;
+      }
+      case "dance": {
+        // 跟着跳: a phone's count of the beats its player danced in one bar (shared/dj/dance.ts).
+        // Light: every dancer sends one a bar
+        const d = s.deck;
+        const grid = d.grid;
+        const bar = typeof g.bar === "number" && Number.isSafeInteger(g.bar) ? g.bar : null;
+        const of = typeof g.of === "number" && Number.isInteger(g.of) && g.of >= 1 && g.of <= 4 ? g.of : null;
+        const n = typeof g.n === "number" && Number.isInteger(g.n) && of !== null && g.n >= 0 && g.n <= of ? g.n : null;
+        if (!playing(s.phase) || !grid || bar === null || of === null || n === null) return api.quiet();
+        // a bar that's over (as the room counts the speaker's bars), not long ago, and not sent before
+        const now = grid.bar + Math.floor((api.now - grid.at) / (240_000 / grid.bpm));
+        const me = s.dance[pid];
+        if (bar > now || bar < now - DANCE.lateBars || (me && bar <= me.bar)) return api.quiet();
+        const good = n / of >= 0.75;
+        s.dance[pid] = { hits: (me?.hits ?? 0) + n, of: (me?.of ?? 0) + of, bars: (me?.bars ?? 0) + 1, bar, streak: good ? (me?.streak ?? 0) + 1 : 0 };
+        // the floor's combo: a bar settles when the first count for a later one arrives
+        const f = s.danceBar;
+        if (bar > f.bar) {
+          if (f.bar >= 0 && f.n > 0) {
+            s.combo = f.good / f.n >= DANCE.goodShare ? Math.min(1, s.combo + DANCE.comboUp) : Math.max(0, s.combo - DANCE.comboDown);
+            if (s.combo >= 1) {
+              // the whole floor danced it: fireworks on the big screen, and the combo starts again
+              api.fx("dance", pid, [f.bar]);
+              s.combo = 0;
+            }
+          }
+          s.danceBar = { bar, n: 0, good: 0 };
+        }
+        if (bar === s.danceBar.bar) s.danceBar = { bar, n: s.danceBar.n + 1, good: s.danceBar.good + (good ? 1 : 0) };
+        api.light();
         return;
       }
       case "voice": {
@@ -1025,6 +1066,8 @@ export const dj: GameDef<RoomState> = {
       crateV: s.crateV,
       mine: s.mine,
       voice: s.voice,
+      dance: s.dance,
+      combo: s.combo,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },
       speaker: { stalls: s.speaker.stalls, resets: s.speaker.resets, seconds: s.speaker.seconds },
     };

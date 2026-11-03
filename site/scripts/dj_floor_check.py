@@ -153,7 +153,7 @@ with sync_playwright() as p:
     ok(until(lambda: (view(tv) or {}).get("phase") == "end", 5000), "the host ends the set")
     ok(until(lambda: "Tonight's recap" in text(tv, ".dj-end"), 4000), "the TV shows the night's recap")
     end_text = text(tv, ".dj-end")
-    ok("minutes of music" in end_text and "Played most:" in end_text and "Techno" in end_text and "Latin" in end_text, f"how long, and the styles played most ({end_text!r})")
+    ok("of music" in end_text and "Played most:" in end_text and "Techno" in end_text and "Latin" in end_text, f"how long, and the styles played most ({end_text!r})")
     ok("2 songs asked for played" in end_text and "Ben asked for a song" in end_text and "reggaeton" not in end_text, "the songs that played: who asked, never what they typed")
     perfect = (deck(tv).get("perfects") or {}).get(pid["Amy"], 0)
     ok("Most fired up: Amy" in end_text and (("Perfect drops: Amy" in end_text) == (perfect > 0)), f"who was most fired up, and Amy's perfect drops ({perfect})")

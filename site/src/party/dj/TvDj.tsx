@@ -16,6 +16,8 @@ import { NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
 import { useBooth } from "./useBooth";
 import { primeVoice, useAnnounce } from "./announce";
+import { Coach } from "./Coach";
+import { danceShare } from "../../shared/dj/dance";
 import "../../styles/dj.css";
 
 /**
@@ -134,6 +136,10 @@ export default function TvDj({ v }: { v: DjView }) {
   const heard = useHeardPhase(dj, booth.status === "on");
   const stage: DjPhase = v.phase === "end" || v.phase === "wait" ? v.phase : (heard ?? v.phase);
   useFloorLoop(root, clock, ENERGY[stage].density, fires);
+  // 跟着跳: the coach dances on the same clock, at the speaker's tempo
+  const bpmNow = useRef(125);
+  bpmNow.current = v.deck?.grid?.bpm ?? 125;
+  const coachClock = useMemo(() => ({ ...clock, bpm: () => bpmNow.current }), [clock]);
 
   // the player's state, for the buffering note
   const [state, setState] = useState("waiting");
@@ -157,6 +163,15 @@ export default function TvDj({ v }: { v: DjView }) {
   const chills = v.colds.filter((c) => now() - c.at < 60_000).length;
   const lean = heatLean(v.fires, v.colds, now());
   const reads = v.source === "lyria" && Math.abs(lean) >= 0.2 ? (lean > 0 ? (zh ? "DJ 读到了：大家很嗨，加劲" : "The DJ reads the floor: hot, pushing on") : zh ? "DJ 读到了：有点冷，收一收" : "The DJ reads the floor: cold, easing off") : null;
+  // 跟着跳: who's dancing now (a bar sent in the last four), how well, and who's keeping it up
+  const grid = v.deck?.grid;
+  const barNow = grid ? grid.bar + Math.floor((now() - grid.at) / (240_000 / grid.bpm)) : -1;
+  const dancing = { n: 0, floor: {} as Record<string, { share: number; hot: boolean }> };
+  for (const [pid, d] of Object.entries(v.dance ?? {})) {
+    if (barNow - d.bar > 4) continue;
+    dancing.n++;
+    dancing.floor[pid] = { share: danceShare(d), hot: d.streak >= 2 };
+  }
   // 报幕: who the song coming in is from, as its countdown starts
   useAnnounce(v, speaker, nameOf, zh, live && v.voice !== false);
 
@@ -202,7 +217,8 @@ export default function TvDj({ v }: { v: DjView }) {
       {v.deck && <DeckBoard v={v} clip={booth.clipOn} />}
       <JoinCard code={code} big={!seats.length} />
 
-      <Floor seats={seats} flames={flames} host={room?.host} />
+      <Floor seats={seats} flames={flames} host={room?.host} dance={dancing.floor} />
+      {live && v.phase !== "end" && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
       {!seats.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}

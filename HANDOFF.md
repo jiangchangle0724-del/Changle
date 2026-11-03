@@ -176,6 +176,8 @@ Worker's `wrangler.jsonc`.
   phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style) and a
   mixer (a three-band EQ, a filter, four effects), all of it on the beat; 🔥 and ❄️ lean the energy
   (读场), the big screen announces songs asked for (报幕) and shows the night's recap at the end.
+  Every phone is a DJ controller (turntables, round knobs, 12 pads); the TV has a dancing coach and
+  phones held in hand score dancing along on the beat (跟着跳, the plan's easy mode).
   Where every sound comes from: `LICENSES.md` (Apple's preview terms are open for the owner, #113). Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
   the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
   `docs/codex-tasks/dj/` (C1 presets is done).

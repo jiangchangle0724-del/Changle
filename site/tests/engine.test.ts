@@ -1992,6 +1992,64 @@ test("dj: the mixer (混音台): knobs anyone turns (held a moment by whoever mo
   ok(Object.keys(mx().fx).length === 0, "the end of the set: the mixer as the music plays");
 });
 
+test("dj: dancing along (跟着跳): each dancer's bars, late or twice turned away, the floor's combo and its fireworks", () => {
+  const e = new RoomEngine(freshRoom("DJDN", clock), host);
+  e.screenHello("tv-dn", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const events: RoomEvent[] = [];
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    const o = e.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    e.screenAct("tv-dn", { x, ...rest });
+    e.flush();
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    events.push(...e.flush().events);
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const BAR = 1920;
+  ok(nothing(g("p1", "dance", { bar: 0, n: 4, of: 4 })), "before the music: nothing to dance to");
+  sc("live", { source: "fake" });
+  const t0 = clock;
+  sc("grid", { at: t0, bar: 0, bpm: 125 });
+  ok(nothing(g("p1", "dance", { bar: 1, n: 4, of: 4 })), "a bar that hasn't come yet: turned away");
+  ok(nothing(g("p1", "dance", { bar: 0, n: 5, of: 4 })) && nothing(g("p1", "dance", { bar: 0, n: 1, of: 9 })) && nothing(g("p1", "dance", { bar: 0.5, n: 1, of: 4 })), "counts that can't be: turned away");
+  const o = g("p1", "dance", { bar: 0, n: 4, of: 4 });
+  ok(o.light && !o.persist && dv("p2").dance.p1?.hits === 4 && dv("p2").dance.p1?.bars === 1 && dv("p2").dance.p1?.streak === 1, "Amy's first bar, all four beats: light, and everyone sees it");
+  ok(nothing(g("p1", "dance", { bar: 0, n: 4, of: 4 })), "the same bar again: turned away");
+  g("p2", "dance", { bar: 0, n: 1, of: 4 });
+  ok(dv("p1").dance.p2?.streak === 0 && dv("p1").danceBar === undefined, "Ben's: one of four (no streak); the floor's count stays in the room");
+  clock = t0 + 2 * BAR + 100;
+  g("p1", "dance", { bar: 1, n: 4, of: 4 });
+  ok(dv("p1").combo === 0, "bar 0 settles: half the floor danced it, the combo stays down");
+  clock = t0 + 9 * BAR + 100;
+  ok(nothing(g("p2", "dance", { bar: 4, n: 4, of: 4 })), "five bars late: turned away");
+  // eight bars the whole floor dances: fireworks
+  for (let k = 2; k <= 10; k++) {
+    clock = t0 + (k + 1) * BAR - 300;
+    g("p1", "dance", { bar: k, n: 4, of: 4 });
+    g("p2", "dance", { bar: k, n: 3, of: 4 });
+  }
+  ok(events.some((x) => x.k === "fx" && x.fx === "dance"), "eight bars the whole floor danced: fireworks on the big screen");
+  ok(dv("p1").combo < 0.5, `and the combo starts again (${dv("p1").combo})`);
+  ok(dv("p1").dance.p1?.streak === 11 && dv("p1").dance.p2?.bars === 10, "Amy's eleven in a row; Ben's ten bars");
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p1").dance.p1?.hits === 44, "another set: the night's dancing carries on");
+});
+
 test("dj: the plan's floor: ❄️ and reading the room (读场), one person's two songs 10 minutes apart, the night's recap (今晚回顾), 报幕's switch", () => {
   const e = new RoomEngine(freshRoom("DJFL", clock), host);
   e.screenHello("tv-fl", true, "dj");

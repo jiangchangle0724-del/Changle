@@ -1,5 +1,6 @@
 /* 打碟 · DJ Booth: the speaker's player and the stand-in DJ, without a sound card.
    Run with `npx tsx tests/dj.test.ts`. The booth's room rules are in engine.test.ts. */
+import { beatOf, beatTime, DANCE_MOVES, danced, moveAt } from "../src/shared/dj/dance";
 import { BY_PHASE, nextSection, renderOrder } from "../src/party/dj/fake/arrange";
 import { FakeDj } from "../src/party/dj/fake/FakeDj";
 import type { Rendered } from "../src/party/dj/fake/render";
@@ -1120,3 +1121,12 @@ await test("apple: Apple's search answer, as songs the DJ can play; the room tak
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);
+
+await test("dance along: the routine on the beat count, a beat danced near it, the speaker's bars as times", () => {
+  ok(moveAt(0).move.id === "stepClap" && moveAt(15).left === 1 && moveAt(16).move.id === "raiseRoof" && moveAt(15).next.id === "raiseRoof", "a move for 16 beats, then the next");
+  ok(moveAt(-1).move.id === DANCE_MOVES[DANCE_MOVES.length - 1].id && moveAt(16 * DANCE_MOVES.length).move.id === "stepClap", "the routine goes round (before the first beat too)");
+  const gr = { at: 10_000, bar: 5, bpm: 125 };
+  ok(beatTime(gr, 20) === 10_000 && beatTime(gr, 21) === 10_480 && Math.abs(beatOf(gr, 10_240) - 20.5) < 1e-9, "beats as server times, and back");
+  const near = [{ t: 10_000 + 120, a: 4 }, { t: 10_480 - 200, a: 9 }, { t: 10_960, a: 1.5 }];
+  ok(danced(near, [10_000, 10_480, 10_960]).join() === "true,false,false", "a beat is danced with a real move within 150 ms of it (too far, or too gentle, isn't)");
+});

@@ -380,6 +380,127 @@
   opacity: 0.42;
   filter: grayscale(0.7);
 }
+/* 跟着跳: how well each dancer follows the coach, under their name; lit while they keep it up */
+.dj-dance-meter {
+  width: calc(var(--fig-h) * 0.5);
+  height: 8px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(7, 4, 12, 0.7);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dj-dance-meter span {
+  display: block;
+  width: calc(var(--share) * 100%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gel-mint);
+  transition: width 0.6s var(--ease-out);
+}
+.dj-dance-meter.is-hot span {
+  background: linear-gradient(90deg, var(--gel-mint), var(--gel-lemon));
+  box-shadow: 0 0 12px var(--gel-lemon);
+}
+
+/* 跟着跳: the coach on the left of the floor, the move's name, the next, the floor together */
+.dj-coach {
+  position: absolute;
+  top: 232px;
+  left: 40px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  padding: 16px 18px 18px;
+  border-radius: 28px;
+  background: rgba(10, 6, 18, 0.72);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  text-align: center;
+}
+.dj-coach-confetti {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  pointer-events: none;
+}
+.dj-coach-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gel);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+.dj-coach-svg {
+  height: 250px;
+  width: auto;
+  aspect-ratio: 112 / 286;
+  overflow: visible;
+}
+.dj-coach-moves {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dj-coach-now {
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.dj-coach-next {
+  color: var(--haze);
+  font-size: 19px;
+  font-weight: 800;
+}
+.dj-coach-next.is-soon {
+  color: var(--gel-lemon);
+  animation: dj-coach-soon 0.48s ease-out infinite alternate;
+}
+@keyframes dj-coach-soon {
+  to {
+    opacity: 0.55;
+  }
+}
+.dj-coach-combo {
+  position: relative;
+  width: 100%;
+  height: 34px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.dj-coach-combo-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gel-mint), var(--gel-lemon));
+  transition: width 0.6s var(--ease-out);
+}
+.dj-coach-combo-text {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--moon);
+  font-size: 14px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dj-coach-next.is-soon {
+    animation: none;
+  }
+}
+
 .dj-name {
   margin-top: 10px;
   padding: 4px 12px;

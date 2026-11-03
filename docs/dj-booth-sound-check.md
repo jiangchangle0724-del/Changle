@@ -382,3 +382,22 @@ and 口哨 each on a beat to the millisecond, the music under the record darkeni
 beat. Amy rubs record A back and forth: a scratch on a beat; Ben spins it back 280°: a rewind; Amy holds
 record B still: the brake, the music back on the bar, no stall. A knob dragged up 70 px: the bass at +0.5
 in the room, its cap turned 67.5°; a double tap centres it.
+
+## Dancing along (跟着跳, Nov 2, night)
+
+Steve: "电视那边是要玩家进行与舞蹈相匹配的舞蹈" (CONTRACTS.md, "跟着跳"). Built from his plan's 一起跳,
+easy mode: the phone held in the dancing hand, scored on the beat.
+
+**`site/scripts/dj_dance_check.py`**, the TV in Chromium and in WebKit, two phones: 22 of 22 in each, no
+errors. The TV's coach is drawn and moving, names its move (Step and clap), calls the next in its last
+four beats (In 4: Raise the roof) and changes to it on its beat. Two phones start dancing (the check
+allows the motion sensor, as a phone's tap would) with a pretend hand on each phone's own clock: Amy's
+moves within 40 ms of every beat, Ben's half a beat later. Amy's phone says 踩准了 and 这一小节 4/4;
+Ben's 0/4. The room counts them (with the TV in WebKit: Amy 11 of 12 beats, Ben 0 of 8); the TV shows
+a meter under each, Amy's lit, and "2 dancing". Then Ben finds the beat too: the combo fills to 0.875
+and goes off (fireworks), starting again. The host ends the set: the recap names Amy best on the beat
+(and says "1 minute" now, not "1 minutes").
+
+The first run found the check's own pretend hand on the computer's clock rather than the phone's
+(the phone's estimate of the room's clock was about 40 ms off): a hand half a beat off grazed the
+150 ms window. The check now moves it on the phone's clock, as a real hand is timed by the phone.

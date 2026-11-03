@@ -12,6 +12,7 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { NowPlaying, phaseHint, phaseName, TIMES_MIN, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
+import { DancePad } from "./phone/DancePad";
 import { DeckPad } from "./phone/DeckPad";
 import { MySongs } from "./phone/MySongs";
 import "../../styles/dj.css";
@@ -124,6 +125,9 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
             {zh ? `没有音箱在线：在电视或电脑上打开 changle.ca/tv/${code}` : `No speaker on: open changle.ca/tv/${code} on a TV or computer`}
           </p>
         )}
+
+        {/* 跟着跳: the phone in the dancing hand, following the coach on the TV */}
+        {v.phase !== "end" && <DancePad v={v} g={g} zh={zh} />}
 
         {/* (a rooms server a moment behind the site, mid-deploy, sends no deck yet) */}
         {v.deck && <DeckPad v={v} />}

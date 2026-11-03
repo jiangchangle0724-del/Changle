@@ -21,7 +21,7 @@ export function RecapLines({ v, zh, line, note }: { v: DjView; zh: boolean; line
   const more = r.songs.length - songs.length;
   return (
     <>
-      <p className={`${line} tabular`}>{zh ? `放了 ${r.minutes} 分钟，🔥 一共 ${r.fires} 次` : `${r.minutes} minutes of music, ${r.fires} 🔥 in all`}</p>
+      <p className={`${line} tabular`}>{zh ? `放了 ${r.minutes} 分钟，🔥 一共 ${r.fires} 次` : `${r.minutes} ${r.minutes === 1 ? "minute" : "minutes"} of music, ${r.fires} 🔥 in all`}</p>
       {r.styles.length > 0 && (
         <p className={line}>
           {zh ? "放得最久：" : "Played most: "}
@@ -45,6 +45,12 @@ export function RecapLines({ v, zh, line, note }: { v: DjView; zh: boolean; line
         <p className={line}>
           {zh ? "完美 Drop：" : "Perfect drops: "}
           {r.perfect.map((f) => (zh ? `${nameOf(f.pid)} ${f.n} 次` : `${nameOf(f.pid)} ×${f.n}`)).join(sep)}
+        </p>
+      )}
+      {r.onBeat && (
+        <p className={line}>
+          {zh ? `跳得最准：${nameOf(r.onBeat.pid)}，${Math.round(r.onBeat.share * 100)}% 踩在拍子上` : `Best on the beat: ${nameOf(r.onBeat.pid)}, ${Math.round(r.onBeat.share * 100)}% of beats`}
+          {r.mostDanced && r.mostDanced.pid !== r.onBeat.pid && (zh ? ` · 跳得最多：${nameOf(r.mostDanced.pid)}，${r.mostDanced.hits} 拍` : ` · Danced the most: ${nameOf(r.mostDanced.pid)}, ${r.mostDanced.hits} beats`)}
         </p>
       )}
       {v.speaker && v.speaker.seconds > 0 && (

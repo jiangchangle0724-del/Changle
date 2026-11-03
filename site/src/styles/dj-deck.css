@@ -926,6 +926,81 @@
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
+/* 跟着跳 on a phone: start it, then the move, a word on every beat, the bar's count */
+.djk-dance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--r-sheet);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.djk-dance.is-on {
+  box-shadow: inset 0 0 0 2px var(--gel-mint);
+}
+.djk-dance-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--gel-mint);
+  font-size: var(--text-md);
+  font-weight: 900;
+}
+.djk-dance-note {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.djk-dance-move {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+.djk-dance-now {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 900;
+}
+.djk-dance-next {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.djk-dance-beat {
+  display: grid;
+  place-items: center;
+  min-height: 64px;
+  border-radius: var(--r-panel);
+  background: var(--color-raised);
+  color: var(--color-text-2);
+  font-size: var(--text-lg);
+  font-weight: 900;
+}
+.djk-dance-beat.is-hit {
+  background: color-mix(in oklab, var(--gel-mint) 30%, var(--color-raised));
+  color: var(--color-text);
+  animation: djk-dance-hit 0.3s var(--ease-out);
+}
+.djk-dance-beat.is-miss {
+  color: var(--color-text-2);
+}
+@keyframes djk-dance-hit {
+  from {
+    scale: 1.06;
+  }
+}
+.djk-dance-score {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+}
+
 /* the night's recap (今晚回顾) on a phone, once the set is over */
 .djp-recap {
   display: flex;
