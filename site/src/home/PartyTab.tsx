@@ -1,16 +1,67 @@
 import { Dices, KeyRound, RadioTower, UserPlus, Users } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PlayersSheet } from "../components/PlayersSheet";
-import { GAME_BY_ID, GAMES, type GameId, type GameMeta } from "../games/registry";
-import { gsap, LIGHTS, reduced, setLight, useGSAP } from "../lib/anim";
+import { GAME_BY_ID, GAMES, isNewGame, type GameId, type GameMeta } from "../games/registry";
+import type { T } from "../i18n";
+import { LIGHTS, reduced, setLight } from "../lib/anim";
 import { haptic, sfx } from "../lib/sfx";
 import { OnlineSheet } from "../online/OnlineSheet";
-import { useStore } from "../store";
+import { usePenaltyText, useStore } from "../store";
+import { Pill } from "../ui/Pill";
+import { Tile } from "../ui/Tile";
+import "../ui/base.css";
 import { GameSheet } from "./GameSheet";
-import { Tile } from "./Tile";
 import { runSweep } from "../lib/sweep";
 
 const ENTERED = "changle.entered";
+/** the last few games played on this phone, newest first: 现在玩这个 suggests something else */
+const PLAYED = "changle.played";
+
+/*
+ * The party tab, top to bottom (UI plan A4): tonight's people, 现在玩这个 (one game picked for this
+ * many people, not the one just played), the filters, every game colored by its kind, coming soon.
+ */
+type Filter = "all" | "drink" | "dry" | "body" | "online";
+const FILTERS: { key: Filter; label: T; drinkWord?: boolean }[] = [
+  { key: "all", label: { zh: "全部", en: "All" } },
+  { key: "drink", label: { zh: "喝酒局", en: "Drinking" }, drinkWord: true },
+  { key: "dry", label: { zh: "不喝酒", en: "No drinking" }, drinkWord: true },
+  { key: "body", label: { zh: "动身体", en: "On your feet" } },
+  { key: "online", label: { zh: "线上", en: "Online" } },
+];
+const passes = (g: GameMeta, f: Filter) => f === "all" || (f === "drink" ? !!g.drinking : f === "dry" ? !g.drinking : g.category === f);
+/** playable on one phone by this many people */
+const fits = (g: GameMeta, n: number) => n >= (g.solo?.min ?? g.minPlayers) && n <= g.maxPlayers;
+/** the order 现在玩这个 suggests in: easy to start, fun at any size */
+const STARTERS: GameId[] = ["truth", "undercover", "king", "superlatives", "prompts", "draw", "rogue", "postit", "wheel", "dice", "tune", "drama", "punchline", "limbo", "freeze", "euchre", "trip"];
+
+function readPlayed(): GameId[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(PLAYED) ?? "[]");
+    return Array.isArray(list) ? list.filter((id): id is GameId => typeof id === "string" && id in GAME_BY_ID) : [];
+  } catch {
+    return [];
+  }
+}
+function rememberPlayed(id: GameId) {
+  try {
+    localStorage.setItem(PLAYED, JSON.stringify([id, ...readPlayed().filter((x) => x !== id)].slice(0, 5)));
+  } catch {
+    /* private window: nothing to remember with */
+  }
+}
+/** Games to suggest for this many people (0: nobody added yet), freshest first. */
+function suggestions(n: number, played: GameId[]): GameMeta[] {
+  const pool = STARTERS.map((id) => GAME_BY_ID[id]).filter((g) => g && g.ready && !g.hidden && !g.speaker && (n < 2 || fits(g, n)));
+  const recent = played.slice(0, 2);
+  return [...pool.filter((g) => !recent.includes(g.id)), ...pool.filter((g) => recent.includes(g.id))];
+}
+
+/** elastic.out(1, 0.45) as CSS: the landed tile's little bounce */
+const BOUNCE =
+  typeof CSS !== "undefined" && CSS.supports("animation-timing-function", "linear(0, 1)")
+    ? "linear(0, 0.53 7%, 1.07 14%, 1.18 19%, 1.09 26%, 0.97 33%, 0.96 39%, 1.01 50%, 1.005 62%, 1)"
+    : "cubic-bezier(0.34, 1.56, 0.64, 1)";
 
 export function PartyTab({
   card,
@@ -25,6 +76,9 @@ export function PartyTab({
   onWishlist: () => void;
 }) {
   const { players, ui, lang } = useStore();
+  const custom = usePenaltyText().isCustom;
+  const zh = lang === "zh";
+  const n = players.length;
   const [playersOpen, setPlayersOpen] = useState(false);
   const [online, setOnline] = useState<{ open: boolean; game?: GameId; join?: boolean }>({ open: false });
   const sheet: GameMeta | null = card ? GAME_BY_ID[card] : null;
@@ -41,7 +95,7 @@ export function PartyTab({
   const landing = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(landing.current), []);
   const grid = useRef<HTMLDivElement>(null);
-  const tl = useRef<gsap.core.Timeline | null>(null);
+  const tl = useRef<ReturnType<typeof runSweep> | null>(null);
 
   const [entrance] = useState(() => {
     try {
@@ -63,21 +117,47 @@ export function PartyTab({
   }, []);
 
   // first visit of the session: the lights come up across the board
-  useGSAP(
-    () => {
-      if (!entrance || reduced()) return;
-      gsap.fromTo(".tile", { y: 26, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, stagger: { each: 0.035, from: "start" }, duration: 0.6, delay: 0.25, clearProps: "transform,opacity" });
-    },
-    { scope: grid },
-  );
+  useEffect(() => {
+    if (!entrance || reduced() || !grid.current) return;
+    grid.current.querySelectorAll<HTMLElement>(".ui-tile").forEach((el, k) =>
+      el.animate([{ transform: "translateY(26px) scale(0.94)", opacity: 0 }, { transform: "none", opacity: 1 }], {
+        duration: 600,
+        delay: 250 + k * 35,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        fill: "backwards",
+      }),
+    );
+  }, [entrance]);
+
+  // the filters; drinking ones step aside when this phone plays for its own penalty
+  const [filter, setFilter] = useState<Filter>("all");
+  const [fit, setFit] = useState(false);
+  const filters = FILTERS.filter((f) => !(custom && f.drinkWord));
+  const activeFilter: Filter = filters.some((f) => f.key === filter) ? filter : "all";
+  const useFit = fit && n >= 2;
 
   // (a hidden game has only its own address, not a tile, even as coming soon)
   const ready = GAMES.map((g, i) => (g.ready && !g.hidden ? i : -1)).filter((i) => i >= 0);
+  const shown = ready.filter((i) => passes(GAMES[i], activeFilter) && (!useFit || fits(GAMES[i], n)));
   const soon = GAMES.map((g, i) => (g.ready || g.hidden ? -1 : i)).filter((i) => i >= 0);
 
+  // 现在玩这个: one game for this many people, and another on request
+  const [played, setPlayed] = useState(readPlayed);
+  const picks = useMemo(() => suggestions(n, played), [n, played]);
+  const [pickAt, setPickAt] = useState(0);
+  useEffect(() => setPickAt(0), [n]);
+  const pick = picks.length ? picks[pickAt % picks.length] : null;
+  const play = (id: GameId) => {
+    rememberPlayed(id);
+    setPlayed(readPlayed());
+    onPlay(id);
+  };
+
+  // 转一个 picks among the games on show (all of them, or the filtered ones)
   const spin = () => {
-    if (spinning) return;
-    const target = ready[Math.floor(Math.random() * ready.length)];
+    if (spinning || !shown.length) return;
+    const pool = shown;
+    const target = pool[Math.floor(Math.random() * pool.length)];
     if (reduced()) {
       setLit(target);
       setLight(GAMES[target].gel);
@@ -86,11 +166,11 @@ export function PartyTab({
     }
     setSpinning(true);
     haptic(6);
-    // walk the light across the whole board twice, slowing into the target
-    const from = Math.max(0, ready.indexOf(lit ?? ready[0]));
-    tl.current = runSweep(ready.length, from, ready.indexOf(target), {
+    // walk the light across the board twice, slowing into the target
+    const from = Math.max(0, pool.indexOf(lit ?? pool[0]));
+    tl.current = runSweep(pool.length, from, pool.indexOf(target), {
       onStep: (k, p) => {
-        const idx = ready[k];
+        const idx = pool[k];
         setLit(idx);
         setLight(GAMES[idx].gel, 0.18);
         sfx.tick(1.1 - p * 0.6);
@@ -99,7 +179,7 @@ export function PartyTab({
         setSpinning(false);
         sfx.settle();
         haptic([10, 40, 18]);
-        gsap.fromTo(`[data-tile="${target}"]`, { scale: 1.08 }, { scale: 1, duration: 0.7, ease: "elastic.out(1, 0.45)" });
+        document.querySelector<HTMLElement>(`[data-tile="${target}"] .ui-tile`)?.animate([{ transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 700, easing: BOUNCE });
         landing.current = window.setTimeout(() => onCard(GAMES[target].id), 420);
       },
     });
@@ -115,89 +195,165 @@ export function PartyTab({
 
   const need = sheet ? Math.max(0, (sheet.solo?.min ?? sheet.minPlayers) - players.length) : 0;
 
+  const tile = (i: number, size?: "hero") => {
+    const g = GAMES[i];
+    return (
+      <Tile
+        name={g.name}
+        lang={lang}
+        icon={g.icon}
+        category={g.category}
+        players={{ min: g.minPlayers, max: g.maxPlayers }}
+        minutes={g.minutes}
+        drinking={g.drinking && !custom}
+        isNew={isNewGame(g)}
+        soon={!g.ready}
+        lit={size ? false : lit === i}
+        size={size}
+        onOpen={() => open(g, i)}
+      />
+    );
+  };
+
   return (
     <div className="party">
-      <section className="tonight" aria-label={ui("tonight")}>
-        <div className="tonight-head">
-          <h2 className="section-title">{ui("tonight")}</h2>
-          {players.length > 0 && (
-            <button type="button" className="link-btn" onClick={() => setPlayersOpen(true)}>
-              {ui("editPlayers")}
+      <div className="party-side">
+        <section className="tonight" aria-label={ui("tonight")}>
+          <div className="tonight-head">
+            <h2 className="section-title">{ui("tonight")}</h2>
+            {players.length > 0 && (
+              <button type="button" className="link-btn" onClick={() => setPlayersOpen(true)}>
+                {ui("editPlayers")}
+              </button>
+            )}
+          </div>
+          {players.length ? (
+            <button type="button" className="roster" onClick={() => setPlayersOpen(true)} aria-label={ui("players")}>
+              {players.slice(0, 8).map((p, i) => (
+                <span key={p.id} className="roster-face" style={{ ["--i" as string]: i }}>
+                  {initials(p.name)}
+                </span>
+              ))}
+              {players.length > 8 && <span className="roster-face roster-more">+{players.length - 8}</span>}
+              <span className="roster-count">{ui("playersCount", { n: players.length })}</span>
+            </button>
+          ) : (
+            <button type="button" className="btn btn-quiet btn-block roster-empty" onClick={() => setPlayersOpen(true)}>
+              <UserPlus size={18} />
+              {ui("addPeople")}
             </button>
           )}
-        </div>
-        {players.length ? (
-          <button type="button" className="roster" onClick={() => setPlayersOpen(true)} aria-label={ui("players")}>
-            {players.slice(0, 8).map((p, i) => (
-              <span key={p.id} className="roster-face" style={{ ["--i" as string]: i }}>
-                {initials(p.name)}
+          <div className="online-row">
+            <button type="button" className="online-btn" onClick={() => setOnline({ open: true })}>
+              <RadioTower size={18} />
+              <span>
+                <strong>{ui("playOnline")}</strong>
+                <small>{ui("onlineStrip")}</small>
               </span>
-            ))}
-            {players.length > 8 && <span className="roster-face roster-more">+{players.length - 8}</span>}
-            <span className="roster-count">{ui("playersCount", { n: players.length })}</span>
-          </button>
-        ) : (
-          <button type="button" className="btn btn-quiet btn-block roster-empty" onClick={() => setPlayersOpen(true)}>
-            <UserPlus size={18} />
-            {ui("addPeople")}
-          </button>
-        )}
-        <div className="online-row">
-          <button type="button" className="online-btn" onClick={() => setOnline({ open: true })}>
-            <RadioTower size={18} />
-            <span>
-              <strong>{ui("playOnline")}</strong>
-              <small>{ui("onlineStrip")}</small>
-            </span>
-          </button>
-          <button type="button" className="icon-btn online-code" onClick={() => setOnline({ open: true, join: true })} aria-label={ui("joinWithCode")}>
-            <KeyRound size={19} />
-          </button>
-        </div>
-      </section>
-
-      <div className="board-head">
-        <h2 className="section-title">{ui("allGames", { n: ready.length })}</h2>
-        <button type="button" className="spin-btn" onClick={spin} disabled={spinning} aria-label={ui("spin")}>
-          <Dices size={18} />
-          {spinning ? ui("spinning") : ui("spin")}
-        </button>
-      </div>
-
-      <div className={`board ${spinning ? "is-spinning" : ""}`} ref={grid}>
-        {ready.map((i) => (
-          <Tile key={GAMES[i].id} g={GAMES[i]} i={i} lit={lit === i} lang={lang} onOpen={() => open(GAMES[i], i)} onPress={() => !spinning && setLight(GAMES[i].gel, 0.35)} />
-        ))}
-      </div>
-
-      {soon.length > 0 && (
-        <>
-          <div className="board-head board-head-soon">
-            <h2 className="section-title">{ui("soon")}</h2>
-            <button type="button" className="link-btn" onClick={onWishlist}>
-              {ui("toWishlist")}
+            </button>
+            <button type="button" className="icon-btn online-code" onClick={() => setOnline({ open: true, join: true })} aria-label={ui("joinWithCode")}>
+              <KeyRound size={19} />
             </button>
           </div>
-          <div className="board board-soon">
-            {soon.map((i) => (
-              <Tile key={GAMES[i].id} g={GAMES[i]} i={i} lit={lit === i} lang={lang} compact onOpen={() => open(GAMES[i], i)} />
+        </section>
+
+        {pick && (
+          <section className="now" aria-labelledby="now-title">
+            <div className="board-head">
+              <h2 className="section-title" id="now-title">
+                {zh ? "现在玩这个" : "Play this now"}
+              </h2>
+              {picks.length > 1 && (
+                <button type="button" className="link-btn" onClick={() => setPickAt((k) => k + 1)}>
+                  {zh ? "换一个" : "Another"}
+                </button>
+              )}
+            </div>
+            <p className="hint now-why">
+              {n >= 2
+                ? zh
+                  ? `${n} 个人，先来一局${pick.name.zh}`
+                  : `${n} of you: start with ${pick.name.en}`
+                : zh
+                  ? `先来一局${pick.name.zh}`
+                  : `Start with ${pick.name.en}`}
+            </p>
+            {tile(GAMES.indexOf(pick), "hero")}
+          </section>
+        )}
+      </div>
+
+      <div className="party-main">
+        <div className="filters" role="group" aria-label={zh ? "筛选游戏" : "Filter games"}>
+          {filters.map((f) => (
+            <Pill
+              key={f.key}
+              kind="toggle"
+              selected={activeFilter === f.key}
+              tone={f.key === "drink" || f.key === "body" || f.key === "online" ? f.key : undefined}
+              onToggle={(on) => setFilter(on ? f.key : "all")}
+            >
+              {f.label[lang]}
+            </Pill>
+          ))}
+          {n >= 2 && (
+            <Pill kind="toggle" selected={useFit} icon={Users} onToggle={setFit}>
+              {zh ? `适合 ${n} 人` : `Fits ${n}`}
+            </Pill>
+          )}
+        </div>
+
+        <div className="board-head">
+          <h2 className="section-title">{ui("allGames", { n: shown.length })}</h2>
+          <button type="button" className="spin-btn" onClick={spin} disabled={spinning || !shown.length} aria-label={ui("spin")}>
+            <Dices size={18} />
+            {spinning ? ui("spinning") : ui("spin")}
+          </button>
+        </div>
+
+        {shown.length ? (
+          <div className={`board ${spinning ? "is-spinning" : ""}`} ref={grid}>
+            {shown.map((i) => (
+              <div key={GAMES[i].id} className="board-cell" data-tile={i}>
+                {tile(i)}
+              </div>
             ))}
           </div>
-        </>
-      )}
+        ) : (
+          <p className="hint board-empty">{zh ? "没有合适的游戏，换个筛选试试。" : "Nothing fits. Try another filter."}</p>
+        )}
 
-      <p className="board-foot hint">
-        <Users size={14} /> {ui("adultsOnly")}
-        {lang === "zh" ? "。" : ". "}
-        {ui("responsible")}
-      </p>
+        {soon.length > 0 && (
+          <>
+            <div className="board-head board-head-soon">
+              <h2 className="section-title">{ui("soon")}</h2>
+              <button type="button" className="link-btn" onClick={onWishlist}>
+                {ui("toWishlist")}
+              </button>
+            </div>
+            <div className="board board-soon">
+              {soon.map((i) => (
+                <div key={GAMES[i].id} className="board-cell" data-tile={i}>
+                  {tile(i)}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <p className="board-foot hint">
+          <Users size={14} /> {ui("adultsOnly")}
+          {lang === "zh" ? "。" : ". "}
+          {ui("responsible")}
+        </p>
+      </div>
 
       {/* the card steps aside while its online sheet is up; back closes that sheet and shows the card again */}
       <GameSheet
         game={online.open ? null : sheet}
         need={need}
         onClose={() => onCard(null)}
-        onPlay={onPlay}
+        onPlay={play}
         onAddPeople={() => setPlayersOpen(true)}
         onOnline={(id) => setOnline({ open: true, game: id })}
         onWishlist={onWishlist}

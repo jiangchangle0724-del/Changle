@@ -69,9 +69,9 @@
   width: var(--text-sm);
   height: var(--text-sm);
 }
-.ui-tile:disabled {
+/* not playable yet: dimmed, but its card still opens (when it's coming, the wishlist) */
+.ui-tile-soon {
   opacity: 0.55;
-  cursor: default;
 }
 .ui-tile-lit {
   outline: 2px solid var(--color-text);
