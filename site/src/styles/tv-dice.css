@@ -1,0 +1,164 @@
+/*
+ * 七八九 on the big screen (online/games/TvDice.tsx): the shared glass, the two dice in the aqua
+ * gel, what the roll means, and the rules along the bottom.
+ */
+
+/* ---------- the glass ---------- */
+.tvdc-glass {
+  position: absolute;
+  left: 90px;
+  top: 200px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.tvdc-glass > svg,
+.tvdc-glass > div {
+  filter: drop-shadow(0 0 40px color-mix(in oklab, var(--gel) 35%, transparent));
+}
+.tvdc-glass-name {
+  margin: 0;
+}
+.tvdc-glass-name .tvx-bi {
+  align-items: center;
+  font-size: 40px;
+}
+
+/* ---------- the dice ---------- */
+.tvdc-bowl {
+  position: absolute;
+  left: 420px;
+  top: 220px;
+  width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+}
+.tvdc-dice {
+  display: flex;
+  gap: 44px;
+  padding: 50px 56px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--gel) 22%, var(--dusk-2)), color-mix(in oklab, var(--gel) 6%, var(--dusk)) 80%, transparent);
+}
+.tvdc-sum {
+  margin: 0;
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 120px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 40px color-mix(in oklab, var(--gel) 60%, transparent);
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvdc-sum.is-hot {
+  color: var(--stop);
+  text-shadow: 0 0 40px color-mix(in oklab, var(--stop) 55%, transparent);
+}
+
+/* ---------- the side ---------- */
+.tvdc-side {
+  position: absolute;
+  left: 1000px;
+  right: 60px;
+  top: 140px;
+  bottom: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  text-align: center;
+  animation: tvx-enter 0.45s var(--ease-out) both;
+}
+.tvdc-head {
+  margin: 0;
+}
+.tvdc-head .tvx-bi {
+  align-items: center;
+  font-size: 56px;
+}
+.tvdc-head.is-eight .tvx-bi-main,
+.tvdc-head.is-nine .tvx-bi-main,
+.tvdc-head.is-ones .tvx-bi-main {
+  color: var(--stop);
+}
+.tvdc-head.is-seven .tvx-bi-main {
+  color: var(--gel);
+}
+.tvdc-head.is-safe .tvx-bi-main {
+  color: var(--go);
+}
+.tvdc-who {
+  margin-top: 40px;
+}
+.tvdc-line {
+  margin: 0;
+  color: var(--moon);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+/* ---------- the rules, along the bottom ---------- */
+.tvdc-rules {
+  position: absolute;
+  left: 90px;
+  right: 340px;
+  bottom: 44px;
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvdc-rules li {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--dusk-2) 88%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background 0.3s,
+    color 0.3s,
+    scale 0.3s var(--ease-pop);
+}
+.tvdc-rules b {
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 900;
+}
+.tvdc-rules li.is-now {
+  background: var(--gel);
+  color: var(--night);
+  scale: 1.06;
+}
+.tvdc-rules li.is-now b {
+  color: var(--night);
+}
+.tvdc.is-hot .tvdc-rules li.is-now {
+  background: var(--stop);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvdc-sum,
+  .tvdc-side {
+    animation: none;
+  }
+  .tvdc-rules li {
+    transition: none;
+  }
+}

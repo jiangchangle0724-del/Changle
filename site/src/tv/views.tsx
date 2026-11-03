@@ -17,6 +17,10 @@ const VIEWS: { [K in GameId]?: ViewOf<K> } = {
   undercover: lazy(() => import("../online/games/TvUndercover")),
   tune: lazy(() => import("../party/tune/TvTune")),
   drama: lazy(() => import("../party/drama/TvDrama")),
+  truth: lazy(() => import("../online/games/TvTruth")),
+  wheel: lazy(() => import("../online/games/TvWheel")),
+  dice: lazy(() => import("../online/games/TvDice")),
+  rogue: lazy(() => import("../online/games/TvRogue")),
 };
 
 export const hasTvView = (id: GameId | null | undefined): boolean => !!id && !!VIEWS[id];
@@ -55,6 +59,9 @@ export function publicView(v: GameView): GameView {
       return { ...v, me: null, myVote: null };
     case "tune":
       return { ...v, mine: null };
+    case "truth":
+      // (not one phone's, but not the room's yet either: the card is read out at the table first)
+      return { ...v, prompt: null };
     case "punchline":
       return { ...v, mine: [], match: v.match ? { ...v.match, mine: null, myVotes: [], canVote: false, maxVotes: 0 } : null };
     default:
