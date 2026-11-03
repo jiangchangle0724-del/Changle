@@ -96,8 +96,11 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   the songs asked for, who was most fired up, the perfect drops, whether the sound held up (the
   speaker's `stats`, now in the view as `speaker`); a phone adds the player's own line.
 - **跟着跳, dancing along** (Steve on Nov 2: "电视那边是要玩家进行与舞蹈相匹配的舞蹈"; his plan's 一起跳,
-  `docs/dance-along.md`, easy mode). The TV shows a coach (Name That Tune's performer, `Coach.tsx`)
-  dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
+  `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`): a 3D robot (`Coach3D.tsx`,
+  three.js loaded only there, a CC0 model in `public/models/robot.glb` with its own dances, each
+  animation stretched to whole beats and set to the speaker's beat every frame), or Name That
+  Tune's drawn performer while it loads and on a screen without WebGL, dancing the routine on the
+  speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
   16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
   the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand
   (`phone/DancePad.tsx`; iOS and newer Chrome ask for the motion sensor on the start tap) reads its

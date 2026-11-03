@@ -54,6 +54,16 @@ with sync_playwright() as p:
     first = text(tv, ".dj-coach-now")
     ok(first in NAMES, f"the move, by name ({first})")
     ok(tv.evaluate("() => document.querySelector('.dj-coach-svg').childElementCount") > 0, "the coach is drawn")
+    # the robot in 3D: where the browser has WebGL (else the drawn coach stays)
+    gl = tv.evaluate("() => { try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; } }")
+    if gl:
+        ok(until(lambda: tv.locator(".dj-coach-3d canvas").count() == 1 and tv.locator(".dj-coach-svg.is-off").count() == 1, 20000), "the 3D robot loads and takes over from the drawn coach")
+        c1 = tv.evaluate("() => window.__coach3d")
+        tv.wait_for_timeout(400)
+        c2 = tv.evaluate("() => window.__coach3d")
+        ok(c1 and c2 and c1["at"] != c2["at"] and c2["clip"] in ("Dance", "ThumbsUp", "Punch", "Wave", "Jump", "Running", "Yes"), f"and dances on the beat ({c2})")
+    else:
+        print("     (no WebGL in this browser: the drawn coach stays)")
     pose = lambda: tv.evaluate("() => document.querySelector('.dj-coach-svg').innerHTML.length + ':' + document.querySelector('.dj-coach-svg').innerHTML.slice(0, 4000)")
     p0 = pose()
     tv.wait_for_timeout(700)

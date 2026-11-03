@@ -494,6 +494,26 @@
   font-weight: 900;
   letter-spacing: 0.06em;
 }
+.dj-coach-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 280px;
+}
+/* the robot (Coach3D.tsx): over the drawn coach, which hides once the robot is in */
+.dj-coach-3d {
+  position: absolute;
+  inset: 0;
+}
+.dj-coach-3d canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.dj-coach-svg.is-off {
+  visibility: hidden;
+}
 .dj-coach-svg {
   height: 250px;
   width: auto;
