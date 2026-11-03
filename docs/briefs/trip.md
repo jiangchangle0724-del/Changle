@@ -87,6 +87,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 到此一游: the big screen puts the world on between moves; flight tests that count where the token goes
 - 2026-11-03 到此一游: the real world in the middle of the board (NASA's day and night); flights flown by the team's token
 - 2026-11-03 到此一游 e2e: the screens test gives every phone a quiet moment
 - 2026-11-03 到此一游 e2e: the screens test checks each phone's question before it passes on it

@@ -180,16 +180,11 @@ export function GlobeLayer({
     if (!on || !flight || flight.key === before.current) return;
     // (once: a flight held back while a token walks, then handed back, isn't flown twice)
     before.current = flight.key;
-    let gone = false;
     const { from, to, kind } = flight;
-    // (the token's picture takes a moment to make; the flight waits for it, never long)
+    // (the token's picture takes a moment to make; the flight waits for it, never long, even if the next
+    // move has begun meanwhile: api.current is gone only with the globe)
     const pic = kind === undefined ? Promise.resolve(null) : tokenPicture(kind);
-    void pic.then((c) => {
-      if (!gone) api.current?.fly(from, to, c);
-    });
-    return () => {
-      gone = true;
-    };
+    void pic.then((c) => api.current?.fly(from, to, c));
   }, [on, flight?.key]);
   return <canvas ref={ref} class={`globe${on ? " on" : ""}`} aria-hidden="true" />;
 }
