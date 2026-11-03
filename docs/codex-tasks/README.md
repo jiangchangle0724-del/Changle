@@ -59,7 +59,7 @@ Always:
 | [ui-C4](ui-C4-chinese-type.md) | Chinese line height, pinch-zoom, 44px targets, contrast fixes | done (#93, #94) |
 | [ui-C7](ui-C7-seo-pwa.md) | robots.txt, sitemap, caching, add to home screen (PWA), share images | done (#104) |
 | [ui-C9](design/ui-C9-design-rules.md) | The design rules in AGENTS.md; docs/DESIGN.md and site/DESIGN.md say one thing | now |
-| [ui-C6](design/ui-C6-visual-regression.md) | 40 reference screenshots and axe accessibility checks, in CI | after A4 (#120) |
+| [ui-C6](design/ui-C6-visual-regression.md) | 40 reference screenshots and axe accessibility checks, in CI | in progress: `codex/ui-c6-visual-regression` (CI references + regression proof pending) |
 
 New cards go in `docs/codex-tasks/design/` (one folder per chat, docs/briefs/README.md). The other Codex
 cards in the plan (C2, C3, C5, C8) are written when their turn comes: C2 after A5 (the game shell).
