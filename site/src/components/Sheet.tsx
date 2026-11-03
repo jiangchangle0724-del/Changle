@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { gsap, reduced } from "../lib/anim";
+import { EASE, play } from "../lib/motion";
 import { useBackCloses } from "../router";
 import { useStore } from "../store";
 
@@ -49,8 +49,12 @@ export function Sheet({
   const kept = useRef<ReactNode>(children);
   if (open) kept.current = children;
 
+  const exit = useRef<(Animation | null)[]>([]);
   useEffect(() => {
     if (open) {
+      // opened again while it was still leaving: stop the exit (a cancelled exit doesn't unmount it)
+      exit.current.forEach((a) => a?.cancel());
+      exit.current = [];
       closing.current = false;
       setMounted(true);
     } else if (mounted && !closing.current) {
@@ -59,17 +63,20 @@ export function Sheet({
         closing.current = false;
         setMounted(false);
       };
-      if (reduced() || !card.current) return done();
-      gsap.to(back.current, { opacity: 0, duration: 0.22, ease: "power1.in" });
-      gsap.to(card.current, { yPercent: 100, duration: 0.28, ease: "power2.in", onComplete: done });
+      // it leaves from wherever it is, a swipe partway down included; held there until it unmounts
+      const fade = play(back.current, [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in", fill: "forwards" });
+      const drop = play(card.current, [{ transform: card.current?.style.transform || "none" }, { transform: "translateY(100%)" }], { duration: 280, easing: EASE.leave, fill: "forwards" });
+      exit.current = [fade, drop];
+      if (drop) drop.onfinish = done;
+      else done();
     }
   }, [open, mounted]);
 
   useLayoutEffect(() => {
     if (!mounted || !open || !card.current) return;
-    if (reduced()) return;
-    gsap.fromTo(back.current, { opacity: 0 }, { opacity: 1, duration: 0.25 });
-    gsap.fromTo(card.current, { yPercent: 100 }, { yPercent: 0, duration: 0.55, ease: "expo.out" });
+    card.current.style.transform = "";
+    play(back.current, [{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: "ease-out" });
+    play(card.current, [{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 550, easing: EASE.settle });
   }, [mounted, open]);
 
   useEffect(() => {
@@ -87,23 +94,26 @@ export function Sheet({
   const drag = useRef<{ y: number; t: number } | null>(null);
   const onDown = (e: React.PointerEvent) => {
     drag.current = { y: e.clientY, t: performance.now() };
+    // the finger takes over from the rise, if it's still going
+    card.current?.getAnimations().forEach((a) => a.finish());
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onMove = (e: React.PointerEvent) => {
     if (!drag.current || !card.current) return;
     const dy = Math.max(0, e.clientY - drag.current.y);
-    gsap.set(card.current, { y: dy });
+    card.current.style.transform = `translateY(${dy}px)`;
   };
   const onUp = (e: React.PointerEvent) => {
     if (!drag.current || !card.current) return;
     const dy = Math.max(0, e.clientY - drag.current.y);
     const v = dy / Math.max(1, performance.now() - drag.current.t);
     drag.current = null;
-    if (dy > 120 || v > 0.6) {
-      gsap.set(card.current, { y: 0 });
-      gsap.set(card.current, { yPercent: (dy / card.current.offsetHeight) * 100 });
-      requestClose();
-    } else gsap.to(card.current, { y: 0, duration: 0.35, ease: "back.out(1.6)" });
+    // far or fast enough: it goes on down from where the finger left it
+    if (dy > 120 || v > 0.6) requestClose();
+    else {
+      card.current.style.transform = "";
+      play(card.current, [{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 350, easing: EASE.pop });
+    }
   };
 
   if (!mounted) return null;
