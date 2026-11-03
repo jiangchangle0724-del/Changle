@@ -57,12 +57,15 @@
 ## 交给别的对话
 
 - 做 issue #44（中间换成卫星地图）的对话注意：大屏的 3D 地球现在在棋盘下面（`Board.tsx` 的 `.board-under`），地球出来以后平面地图藏起来（`styles.css` 的 `.globe-on`），棋子画在地球上面。
+- 写到此一游的浏览器测试：开局的座位是随机的，电脑队可能先走，它走棋时手机上的地图跟着它的棋子动，轮到你时行动窗口自己打开。要量一个不动的屏幕，先等到轮到自己掷骰（`phone.spec.ts` 里的 `untilOurThrow`），地图等 `.board-pan` 没有 `.moving` 再量，弹出的窗口和单子等它滑进来停下再量。
 - 本机同时有好几个对话在跑 `wrangler dev`：`playwright.config.ts` 写死 8787 端口、不在 CI 上会复用已经开着的服务器，可能测到别的工作目录的代码。各自用不提交的 `playwright.local.config.ts`（已经在 git 的 exclude 里）换一个端口、`reuseExistingServer: false`；两个服务器从同一个目录开会抢同一个本地数据库（SQLITE_BUSY），第二个加 `--persist-to` 另找地方。
 
 ## 最近的改动
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 到此一游 e2e: the phone checks measure a settled screen
+- 2026-11-03 到此一游 e2e: the phone checks lighter (three teams on one city, a two-round game); CI gets 45 minutes
 - 2026-11-03 到此一游 on phones: pick the map's size, bigger tokens, every screen fits; the big screen's log
 - 2026-11-03 到此一游 e2e: the quiz test never waits on a closed question; a busy page may sleep through a landing
 - 2026-11-02 到此一游: the quiz pops up at the top, answerable or skipped, never twice; 176 questions; a turn clock
@@ -80,3 +83,4 @@
 - 2026-11-02 弹题改版（issue #36）、题库扩到 176 道、回合计时，以及 11-01 试玩的三处小修：英文默认名 Player 1、英文「(you)」括号、iPhone SE 上城市名换行不截断。
 - 2026-11-03 PR #146 的 CI 在 WebKit 上各挂了一个测试，都是测试等错了东西：抢答测试点「这题不答」时题已经到时间关了，就一直等到超时（现在只点还剩 3 秒以上的题，点不到就等下一题）；「同一掷」测试里一部手机忙得一帧都没画，游戏按时钟收掉了这一步，印章没机会出来（10-30 起 main 上就失败过，现在认这种情况，只要那段时间页面真的没画）。
 - 2026-11-03 手机版（issue #37 第 2 到 4 条）：地图大小三档（手机默认「中」）、拖地图、地图跟着轮到的队走、第一视角从地图接过镜头再交回；棋子放大、同一格两两并排带字母；大屏地球挪到棋盘下面，停着的棋子看得见了；手机逐屏修 44px、小字、单子标题固定、键盘、窄屏交易；大屏记录修好。新测试 `tests/e2e/phone.spec.ts`（地图大小、同一座城的棋子、三种手机尺寸逐屏、键盘）和 `tv.spec.ts` 里的记录。包含 PR #146，要在它后面合并。
+- 2026-11-03 PR #156 的 CI 各挂过一个手机测试，都是测试量得太早：地图大小的测试里电脑队先走，地图跟着它的棋子动、行动窗口在拖地图的半路打开（现在先等到轮到自己掷骰、地图停下再拖）；逐屏测试在行动窗口滑进来的半路量了关闭键（现在等它停下，按排好的大小量）。手机测试也改轻了一点（同一座城三队、两轮的游戏），GitHub 上这些测试的时间上限从 30 分钟改成 45 分钟（`.github/workflows/been-there.yml`）。
