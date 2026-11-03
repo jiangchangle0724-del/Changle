@@ -59,7 +59,7 @@ Always:
 | [ui-C4](ui-C4-chinese-type.md) | Chinese line height, pinch-zoom, 44px targets, contrast fixes | done (#93, #94) |
 | [ui-C7](ui-C7-seo-pwa.md) | robots.txt, sitemap, caching, add to home screen (PWA), share images | done (#104) |
 | [ui-C9](design/ui-C9-design-rules.md) | The design rules in AGENTS.md; docs/DESIGN.md and site/DESIGN.md say one thing | done (#126) |
-| [ui-C6](design/ui-C6-visual-regression.md) | 40 reference screenshots and axe accessibility checks, in CI | with Codex |
+| [ui-C6](design/ui-C6-visual-regression.md) | 40 reference screenshots and axe accessibility checks, in CI | done (#128) |
 | [ui-C2](design/ui-C2-game-shell.md) | The other 13 one-phone games onto the shell's bottom buttons and people row, one PR per game | now (A5 is #131) |
 
 New cards go in `docs/codex-tasks/design/` (one folder per chat, docs/briefs/README.md). The other Codex

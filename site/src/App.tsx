@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "re
 import { StoreProvider, useStore } from "./store";
 import { setSoundEnabled } from "./lib/sound";
 import { initAudio, startMusic, stopMusic } from "./lib/sfx";
-import { gsap, reduced, setLight } from "./lib/anim";
+import { EASE, play, setLight } from "./lib/motion";
 import { Home } from "./home/Home";
 import { GAME_BY_ID, type GameId } from "./games/registry";
 import { back, go, titleOf, useRoute, type Route } from "./router";
@@ -262,10 +262,10 @@ function Scene({ sceneKey, children }: { sceneKey: string; children: React.React
       first.current = false;
       return;
     }
-    if (reduced() || !ref.current) return;
+    if (!ref.current) return;
     window.scrollTo(0, 0);
-    // no transform may stay behind: it would pin every full-screen layer in the game to this box
-    gsap.fromTo(ref.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45, clearProps: "transform,opacity" });
+    // no transform may stay behind (play() leaves none): it would pin every full-screen layer in the game to this box
+    play(ref.current, [{ opacity: 0, transform: "translateY(18px)" }, { opacity: 1, transform: "none" }], { duration: 450, easing: EASE.settle });
   }, [sceneKey]);
   return (
     <div className="screen" ref={ref} key={sceneKey}>

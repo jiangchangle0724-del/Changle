@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-const BUDGET = { js: 150, css: 22 }; // KB, gzip
+const BUDGET = { js: 118, css: 22 }; // KB, gzip (JS was 150 until A6 step 2 took GSAP out: 147.7 → 115.7)
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const html = readFileSync(join(dist, "index.html"), "utf8");

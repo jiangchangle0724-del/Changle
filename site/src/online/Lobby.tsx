@@ -2,7 +2,7 @@ import { Crown, Dices, Play, UserPlus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GAME_BY_ID } from "../games/registry";
 import { Tile } from "../home/Tile";
-import { setLight, reduced } from "../lib/anim";
+import { setLight, reduced } from "../lib/motion";
 import { haptic, sfx } from "../lib/sfx";
 import { runSweep } from "../lib/sweep";
 import { ONLINE_GAMES, ONLINE_MIN } from "../shared/protocol";
@@ -40,7 +40,7 @@ function LobbyBoard() {
   const [sweeping, setSweeping] = useState(false);
   const [person, setPerson] = useState<SeatView | null>(null);
   const account = useAccount();
-  const tl = useRef<gsap.core.Timeline | null>(null);
+  const tl = useRef<ReturnType<typeof runSweep> | null>(null);
   const front = room?.front ?? 0;
   const shown = sweeping && lit !== null ? lit : front;
 
