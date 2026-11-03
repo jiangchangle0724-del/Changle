@@ -6,7 +6,6 @@ import { BUZZ, buzz } from "../controls";
 import { colon, getLang, money, spaceName, t, tx } from "../i18n";
 import { sfx } from "../sound";
 import { getState, send, serverNow } from "../store";
-import { useWeather, weatherLabel } from "../weather";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion, thisGame } from "./Board";
 import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
@@ -16,6 +15,7 @@ import { ForfeitHold } from "./Forfeit";
 import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
 import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { NewsBanner } from "./News";
+import { ArrivalLocal, LocalSong, NowPlaying } from "./Local";
 import { ArrivalFrame } from "./Photo";
 import { moveInPlay, planMove, rideEnd, rideLand, rideMode, rideReady, rideUrgent, useRide, type RidePlan } from "./ridePlan";
 import { SettingsSheet } from "./Settings";
@@ -216,6 +216,7 @@ export function Game({ v }: { v: RoomView }) {
       <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
+      <LocalSong v={v} />
       <QuizPop v={v} />
       <ForfeitHold v={v} />
     </div>
@@ -490,7 +491,6 @@ export function Arrival({ v, big, after = 0 }: { v: RoomView; big?: boolean; aft
   const seat = s.turn;
   const pos = s.ps[seat]?.pos ?? -1;
   const city = CITY_AT[pos];
-  const wx = useWeather(city?.id);
   if (!city || after > serverNow()) return null;
   let land: { id: number; at: number } | null = null;
   for (let i = v.feed.length - 1; i >= 0 && !land; i--) {
@@ -512,11 +512,7 @@ export function Arrival({ v, big, after = 0 }: { v: RoomView; big?: boolean; aft
         <h3>
           {tx(city.name)} <small>{lang === "zh" ? city.name.en : city.name.zh}</small>
         </h3>
-        <p class="arrival-hello">
-          <span lang="und">{city.greeting.text}</span>
-          {city.greeting.roman && <i>{city.greeting.roman}</i>} · {tx(city.currency)}
-          {wx && <span class="arrival-wx"> · {t("wxNow", { wx: weatherLabel(wx) })}</span>}
-        </p>
+        <ArrivalLocal v={v} city={city.id} land={landId} seat={seat} big={big} />
         <p class="arrival-rule">
           <b>{tx(city.rule.title)}</b>
           {colon()}
@@ -531,6 +527,8 @@ export function Arrival({ v, big, after = 0 }: { v: RoomView; big?: boolean; aft
           </p>
         )}
       </div>
+      {/* (on the big screen it has a place of its own: TvNowPlaying) */}
+      {!big && <NowPlaying v={v} land={landId} />}
       {stamped && (
         <div class="arrival-stamp">
           <Stamp id={city.id} size={big ? 120 : 64} turn={-10} lang={lang} fresh />

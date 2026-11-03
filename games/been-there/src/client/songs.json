@@ -1,0 +1,1449 @@
+{
+ "made": "2026-11-03",
+ "source": "Apple iTunes Search and Lookup APIs (scripts/songs.mjs)",
+ "cities": {
+  "cairo": [
+   {
+    "id": 878251626,
+    "cc": "eg",
+    "title": "Noor Al Ain",
+    "artist": "Amr Diab",
+    "year": 1996,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/ae/19/51/ae1951e7-fb94-f734-d68f-8a5955c8c6d9/mzaf_14930287996363580653.plus.aac.p.m4a",
+    "url": "https://music.apple.com/eg/album/noor-al-ain/878251612?i=878251626",
+    "show": {
+     "zh": "Nour El Ain（你是我眼中的光）",
+     "en": "Nour El Ain"
+    }
+   },
+   {
+    "id": 880940097,
+    "cc": "eg",
+    "title": "Tamly Maak",
+    "artist": "Amr Diab",
+    "year": 2000,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/5e/df/09/5edf0981-ce52-4740-f0b2-f6ad0760afcb/mzaf_17144740537777531434.plus.aac.p.m4a",
+    "url": "https://music.apple.com/eg/album/tamly-maak/880940009?i=880940097",
+    "show": {
+     "zh": "Tamally Maak（永远和你在一起）",
+     "en": "Tamally Maak (Always With You)"
+    }
+   },
+   {
+    "id": 1775884497,
+    "cc": "eg",
+    "title": "Wala Ala Baloh",
+    "artist": "Amr Diab",
+    "year": 2001,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/99/eb/eb/99ebeb13-13a3-d747-7049-06477bc8b2ad/mzaf_6219425478126652561.plus.aac.p.m4a",
+    "url": "https://music.apple.com/eg/album/wala-ala-baloh/1775884496?i=1775884497"
+   },
+   {
+    "id": 1775897050,
+    "cc": "eg",
+    "title": "Al Qahira (feat. Mohamed Mounir)",
+    "artist": "Amr Diab",
+    "year": 2016,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/0e/f0/93/0ef0935d-b12a-39b8-5e10-864386a7b7f9/mzaf_14509520211629936139.plus.aac.p.m4a",
+    "url": "https://music.apple.com/eg/album/al-qahira-feat-mohamed-mounir/1775897046?i=1775897050",
+    "show": {
+     "zh": "Al Qahira（开罗）",
+     "en": "Al Qahira (Cairo)"
+    },
+    "by": {
+     "zh": "Amr Diab、Mohamed Mounir",
+     "en": "Amr Diab & Mohamed Mounir"
+    }
+   }
+  ],
+  "capetown": [
+   {
+    "id": 1522899953,
+    "cc": "za",
+    "title": "Jerusalema (feat. Nomcebo Zikode)",
+    "artist": "Master KG",
+    "year": 2019,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/65/3e/55/653e55b8-aca4-7f86-1a89-ad7fab17e230/mzaf_12595946775408013912.plus.aac.p.m4a",
+    "url": "https://music.apple.com/za/album/jerusalema-feat-nomcebo-zikode/1522899663?i=1522899953",
+    "show": {
+     "zh": "Jerusalema",
+     "en": "Jerusalema"
+    },
+    "by": {
+     "zh": "Master KG、Nomcebo Zikode",
+     "en": "Master KG & Nomcebo Zikode"
+    }
+   },
+   {
+    "id": 1472550501,
+    "cc": "za",
+    "title": "Pata Pata",
+    "artist": "Miriam Makeba",
+    "year": 1967,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/5e/b9/ab/5eb9abd6-31d6-2087-725d-1d8ce19ae92b/mzaf_16110543828209424552.plus.aac.p.m4a",
+    "url": "https://music.apple.com/za/album/pata-pata-stereo-version/1472549617?i=1472550501"
+   },
+   {
+    "id": 371784883,
+    "cc": "za",
+    "title": "Waka Waka (This Time for Africa) [The Official 2010 FIFA World Cup (TM) Song] [feat. Freshlyground]",
+    "artist": "Shakira",
+    "year": 2010,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/98/88/e5/9888e55d-4daf-0e96-480b-a38259013586/mzaf_9048311608369053538.plus.aac.p.m4a",
+    "url": "https://music.apple.com/za/album/waka-waka-this-time-for-africa-the-official-2010-fifa/371784865?i=371784883",
+    "show": {
+     "zh": "Waka Waka（2010 南非世界杯主题曲）",
+     "en": "Waka Waka (This Time for Africa)"
+    },
+    "by": {
+     "zh": "夏奇拉、Freshlyground",
+     "en": "Shakira & Freshlyground"
+    }
+   },
+   {
+    "id": 1616151714,
+    "cc": "za",
+    "title": "Scatterlings of Africa",
+    "artist": "Johnny Clegg & Juluka",
+    "year": 1982,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/8d/96/ca/8d96cadd-0b31-e709-99ac-3d1338e92309/mzaf_15570125618539140652.plus.aac.p.m4a",
+    "url": "https://music.apple.com/za/album/scatterlings-of-africa/1616151713?i=1616151714"
+   },
+   {
+    "id": 401533640,
+    "cc": "za",
+    "title": "Doo Be Doo",
+    "artist": "Freshlyground",
+    "year": 2004,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/6d/5a/3c/6d5a3c62-e8f1-cfdf-90cb-7f2e258e7482/mzaf_5395396339777913207.plus.aac.p.m4a",
+    "url": "https://music.apple.com/za/album/doo-be-doo/401533630?i=401533640"
+   }
+  ],
+  "buenosaires": [
+   {
+    "id": 1041957220,
+    "cc": "ar",
+    "title": "Por una Cabeza",
+    "artist": "Carlos Gardel",
+    "year": 1995,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/9c/38/d7/9c38d744-ba0e-83ba-3745-cad955d48bf7/mzaf_10724622335420172423.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ar/album/por-una-cabeza/1041957175?i=1041957220",
+    "show": {
+     "zh": "Por una Cabeza（一步之遥）"
+    },
+    "by": {
+     "zh": "卡洛斯·加德尔"
+    }
+   },
+   {
+    "id": 435222105,
+    "cc": "ar",
+    "title": "Mi Buenos Aires Querido",
+    "artist": "Carlos Gardel",
+    "year": 1930,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/91/a0/f6/91a0f656-8317-fc1f-9efa-0499617735b0/mzaf_6094456943646009983.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ar/album/mi-buenos-aires-querido/435221771?i=435222105",
+    "show": {
+     "zh": "Mi Buenos Aires Querido（我亲爱的布宜诺斯艾利斯）"
+    },
+    "by": {
+     "zh": "卡洛斯·加德尔"
+    }
+   },
+   {
+    "id": 689435154,
+    "cc": "ar",
+    "title": "Volver",
+    "artist": "Carlos Gardel",
+    "year": 1946,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/64/e5/13/64e51371-9a91-0b66-9c73-484fe4bea519/mzaf_6210031594167796962.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ar/album/volver/689435060?i=689435154",
+    "show": {
+     "zh": "Volver（归来）"
+    },
+    "by": {
+     "zh": "卡洛斯·加德尔"
+    }
+   },
+   {
+    "id": 376141820,
+    "cc": "ar",
+    "title": "Libertango",
+    "artist": "Astor Piazzolla",
+    "year": 1997,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/6c/f6/92/6cf692c3-fbab-7794-0a4b-5c36e6f6bda9/mzaf_2209387271080923862.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ar/album/libertango/376141813?i=376141820",
+    "show": {
+     "zh": "Libertango（自由探戈）"
+    },
+    "by": {
+     "zh": "阿斯托尔·皮亚佐拉"
+    }
+   },
+   {
+    "id": 278035379,
+    "cc": "ar",
+    "title": "Santa María (Del Buen Ayre)",
+    "artist": "Gotan Project",
+    "year": 2001,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/2f/2a/51/2f2a5159-caa2-5815-0ea7-41b410ab9651/mzaf_6822215553982784562.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ar/album/santa-mar%C3%ADa-del-buen-ayre/278035282?i=278035379"
+   }
+  ],
+  "mexicocity": [
+   {
+    "id": 322077972,
+    "cc": "mx",
+    "title": "Volver Volver",
+    "artist": "Vicente Fernández",
+    "year": 1967,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/ad/d6/b9/add6b921-2442-5f10-46c3-79aee84ec4c2/mzaf_3657937127561661018.plus.aac.p.m4a",
+    "url": "https://music.apple.com/mx/album/volver-volver/322077828?i=322077972"
+   },
+   {
+    "id": 201871230,
+    "cc": "mx",
+    "title": "El Rey",
+    "artist": "José Alfredo Jiménez",
+    "year": 1971,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/82/cc/2c/82cc2cce-2d30-0a65-0f84-1295cf1389d7/mzaf_6517793047754280277.plus.aac.p.m4a",
+    "url": "https://music.apple.com/mx/album/el-rey/201871145?i=201871230",
+    "show": {
+     "zh": "El Rey（国王）"
+    }
+   },
+   {
+    "id": 404411106,
+    "cc": "mx",
+    "title": "Querida",
+    "artist": "Juan Gabriel",
+    "year": 1972,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/56/24/a4/5624a4a6-69f9-7b4a-a7f0-7540739d3b96/mzaf_8741394133806100989.plus.aac.p.m4a",
+    "url": "https://music.apple.com/mx/album/querida/404411092?i=404411106",
+    "by": {
+     "zh": "胡安·加布里埃尔"
+    }
+   },
+   {
+    "id": 469437607,
+    "cc": "mx",
+    "title": "El Noa Noa",
+    "artist": "Juan Gabriel",
+    "year": 1980,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/86/e2/ea/86e2ea96-7035-ba05-db61-05924fc9a097/mzaf_17912848402924503195.plus.aac.p.m4a",
+    "url": "https://music.apple.com/mx/album/el-noa-noa/469437438?i=469437607",
+    "by": {
+     "zh": "胡安·加布里埃尔"
+    }
+   },
+   {
+    "id": 1444184596,
+    "cc": "mx",
+    "title": "Eres",
+    "artist": "Café Tacvba",
+    "year": 2003,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/ca/b6/88/cab68811-39fe-97bb-47da-7903fb274e07/mzaf_4817666131173906366.plus.aac.p.m4a",
+    "url": "https://music.apple.com/mx/album/eres/1444184083?i=1444184596"
+   }
+  ],
+  "rio": [
+   {
+    "id": 1422656474,
+    "cc": "br",
+    "title": "The Girl from Ipanema",
+    "artist": "Stan Getz & João Gilberto",
+    "year": 1964,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/e9/3b/27/e93b2721-7cac-6bdf-99ff-3a8d82bfb047/mzaf_5923480656059840825.plus.aac.p.m4a",
+    "url": "https://music.apple.com/br/album/the-girl-from-ipanema/1422655717?i=1422656474",
+    "show": {
+     "zh": "The Girl from Ipanema（伊帕内玛的女孩）"
+    }
+   },
+   {
+    "id": 1443845526,
+    "cc": "br",
+    "title": "Mas, Que Nada!",
+    "artist": "Jorge Ben Jor",
+    "year": 1963,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/7b/6a/40/7b6a40bb-905a-f700-846e-b29a88de0d48/mzaf_11709213442413874219.plus.aac.p.m4a",
+    "url": "https://music.apple.com/br/album/mas-que-nada/1443845510?i=1443845526"
+   },
+   {
+    "id": 1413446558,
+    "cc": "br",
+    "title": "País Tropical",
+    "artist": "Jorge Ben Jor",
+    "year": 1969,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/b3/1a/97/b31a9709-dd5c-d2f6-aed4-a9d1a11997c0/mzaf_4730940646463680204.plus.aac.p.m4a",
+    "url": "https://music.apple.com/br/album/pa%C3%ADs-tropical/1413446533?i=1413446558"
+   },
+   {
+    "id": 1438430509,
+    "cc": "br",
+    "title": "Águas de Março",
+    "artist": "Elis Regina & Antônio Carlos Jobim",
+    "year": 1974,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/46/c9/83/46c98301-28e6-bc75-e495-55638bccca96/mzaf_14687538207891106000.plus.aac.p.m4a",
+    "url": "https://music.apple.com/br/album/%C3%A1guas-de-mar%C3%A7o/1438430508?i=1438430509",
+    "show": {
+     "zh": "Águas de Março（三月的雨）"
+    }
+   },
+   {
+    "id": 1003389383,
+    "cc": "br",
+    "title": "Chega de Saudade",
+    "artist": "João Gilberto",
+    "year": 1958,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/6f/fa/c3/6ffac34d-2198-9328-be77-575f36963cc1/mzaf_1738506871461884145.plus.aac.p.m4a",
+    "url": "https://music.apple.com/br/album/chega-de-saudade/1003389371?i=1003389383",
+    "by": {
+     "zh": "若昂·吉尔贝托"
+    }
+   }
+  ],
+  "istanbul": [
+   {
+    "id": 499332705,
+    "cc": "tr",
+    "title": "Şımarık",
+    "artist": "Tarkan",
+    "year": 1997,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/9d/e5/be/9de5beb5-088d-7351-4937-088b44b53bc0/mzaf_9876759312100643997.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tr/album/%C5%9F%C4%B1mar%C4%B1k/499332675?i=499332705",
+    "show": {
+     "zh": "Şımarık（Kiss Kiss）",
+     "en": "Şımarık (Kiss Kiss)"
+    },
+    "by": {
+     "zh": "塔肯"
+    }
+   },
+   {
+    "id": 499334149,
+    "cc": "tr",
+    "title": "Kuzu Kuzu",
+    "artist": "Tarkan",
+    "year": 2001,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/a4/26/66/a42666ad-e41b-97fe-31fa-44d2e2ce7b0a/mzaf_6737222124035794780.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tr/album/kuzu-kuzu/499333901?i=499334149",
+    "by": {
+     "zh": "塔肯"
+    }
+   },
+   {
+    "id": 696699513,
+    "cc": "tr",
+    "title": "Dudu",
+    "artist": "Tarkan",
+    "year": 2003,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/e8/11/07/e8110789-8d63-f46e-a498-1781aee4a34c/mzaf_13826201749257590138.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tr/album/dudu/696698907?i=696699513",
+    "by": {
+     "zh": "塔肯"
+    }
+   },
+   {
+    "id": 400705407,
+    "cc": "tr",
+    "title": "Every Way That I Can",
+    "artist": "Sertab Erener",
+    "year": 2003,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/fc/39/37/fc3937e4-6039-3bd0-dc91-c7d60bfb9a19/mzaf_376264018532771736.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tr/album/every-way-that-i-can/400705400?i=400705407"
+   }
+  ],
+  "mumbai": [
+   {
+    "id": 1443885535,
+    "cc": "us",
+    "title": "Jai Ho (feat. Sukhwinder Singh, Tanvi Shah & Mahalakshmi Iyer)",
+    "artist": "A.R. Rahman",
+    "year": 2008,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/c1/c7/8d/c1c78de1-aa35-2257-ac5f-958f3bc33235/mzaf_18006147976813345196.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/jai-ho-feat-sukhwinder-singh-tanvi-shah-mahalakshmi-iyer/1443884661?i=1443885535",
+    "show": {
+     "zh": "Jai Ho（《贫民窟的百万富翁》）",
+     "en": "Jai Ho"
+    },
+    "by": {
+     "zh": "A·R·拉赫曼",
+     "en": "A.R. Rahman"
+    }
+   },
+   {
+    "id": 1130322151,
+    "cc": "in",
+    "title": "Chaiyya Chaiyya",
+    "artist": "Sukhwinder Singh & Sapna Awasthi",
+    "year": 1998,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/81/6c/e7/816ce721-3a37-0e57-3aa7-c3e180c4b38c/mzaf_10595670915474775723.plus.aac.p.m4a",
+    "url": "https://music.apple.com/in/album/chaiyya-chaiyya/1130322055?i=1130322151"
+   },
+   {
+    "id": 1346985097,
+    "cc": "in",
+    "title": "Yeh Hai Bombay Meri Jaan",
+    "artist": "Mohd. Rafi & Geeta Dutt",
+    "year": 1956,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/01/7b/48/017b48fa-d3e2-4edf-797d-cb6d1e94f720/mzaf_18438827061523180817.plus.aac.p.m4a",
+    "url": "https://music.apple.com/in/album/yeh-hai-bombay-meri-jaan/1346985072?i=1346985097",
+    "show": {
+     "zh": "Yeh Hai Bombay Meri Jaan（孟买，我亲爱的）",
+     "en": "Yeh Hai Bombay Meri Jaan (This Is Bombay, My Love)"
+    }
+   },
+   {
+    "id": 673539855,
+    "cc": "in",
+    "title": "Kajra Re",
+    "artist": "Alisha Chinai, Javed Ali & Shankar Mahadevan",
+    "year": 2005,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/3c/c2/9e/3cc29e80-2af8-35ab-30c3-b844adfacc68/mzaf_9964683151091775669.plus.aac.p.m4a",
+    "url": "https://music.apple.com/in/album/kajra-re/673539799?i=673539855"
+   },
+   {
+    "id": 1529556364,
+    "cc": "in",
+    "title": "Apna Time Aayega",
+    "artist": "Ranveer Singh, Dub Sharma & DIVINE",
+    "year": 2019,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/a1/63/58/a1635896-5507-40f7-d6d4-bab46ff3dd67/mzaf_5279779209946689751.plus.aac.p.m4a",
+    "url": "https://music.apple.com/in/album/apna-time-aayega/1529556349?i=1529556364",
+    "show": {
+     "zh": "Apna Time Aayega（《街头之王》）"
+    }
+   }
+  ],
+  "dubai": [
+   {
+    "id": 878649215,
+    "cc": "ae",
+    "title": "Boshret Kheir",
+    "artist": "Hussain Al Jassmi",
+    "year": 2000,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f7/23/20/f723202c-f08f-c30f-5459-5a827fe7ac36/mzaf_15630127366416260628.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ae/album/boshret-kheir/878649134?i=878649215"
+   },
+   {
+    "id": 1330913310,
+    "cc": "ae",
+    "title": "Ahebak",
+    "artist": "Hussain Al Jassmi",
+    "year": 2017,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/38/47/9f/38479fd6-768e-ea62-910f-5ce607d36608/mzaf_10814301093549494294.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ae/album/ahebak/1330913306?i=1330913310",
+    "show": {
+     "zh": "Ahebak（我爱你）",
+     "en": "Ahebak (I Love You)"
+    }
+   },
+   {
+    "id": 1527873677,
+    "cc": "ae",
+    "title": "Bel Bont El3areedh",
+    "artist": "Hussain Al Jassmi",
+    "year": 2020,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/c2/ae/1d/c2ae1d6e-b10a-74b5-0d53-6dfae013a8a1/mzaf_7179156399724832527.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ae/album/bel-bont-el3areedh/1527873676?i=1527873677",
+    "show": {
+     "zh": "Bel Bont El Areedh",
+     "en": "Bel Bont El Areedh"
+    }
+   },
+   {
+    "id": 1200413484,
+    "cc": "ae",
+    "title": "Hala Ya Marhaban Wa Ahla",
+    "artist": "Ahlam",
+    "year": 2017,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/e9/29/70/e92970df-2e41-2be5-f526-27952f0b8102/mzaf_11991568779299680625.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ae/album/hala-ya-marhaban-wa-ahla/1200413378?i=1200413484",
+    "show": {
+     "zh": "Hala Ya Marhaban Wa Ahla（欢迎，欢迎）",
+     "en": "Hala Ya Marhaban Wa Ahla (Welcome, Welcome)"
+    }
+   }
+  ],
+  "lasvegas": [
+   {
+    "id": 217635876,
+    "cc": "us",
+    "title": "Viva Las Vegas",
+    "artist": "Elvis Presley",
+    "year": 1964,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/a4/b1/2e/a4b12e73-9c97-720b-6ccd-970993452674/mzaf_160308146155238923.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/viva-las-vegas/217633715?i=217635876",
+    "by": {
+     "zh": "猫王"
+    }
+   },
+   {
+    "id": 1526194192,
+    "cc": "us",
+    "title": "Mr. Brightside",
+    "artist": "The Killers",
+    "year": 2003,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/5b/17/4e/5b174e80-1047-7214-1077-d822ba1f9520/mzaf_5975692497663881329.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/mr-brightside/1526194184?i=1526194192"
+   },
+   {
+    "id": 1411628233,
+    "cc": "us",
+    "title": "Believer",
+    "artist": "Imagine Dragons",
+    "year": 2017,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/c0/3f/36/c03f367a-b66b-fd0a-a54c-30f8250c4410/mzaf_12768434238801682952.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/believer/1411625594?i=1411628233",
+    "by": {
+     "zh": "梦龙乐队"
+    }
+   },
+   {
+    "id": 1440873126,
+    "cc": "us",
+    "title": "Radioactive",
+    "artist": "Imagine Dragons",
+    "year": 2012,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/77/70/88/777088e9-60a1-c459-bfa5-6e66f2fd2695/mzaf_7685408661765681881.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/radioactive/1440873107?i=1440873126",
+    "by": {
+     "zh": "梦龙乐队"
+    }
+   },
+   {
+    "id": 1361152303,
+    "cc": "us",
+    "title": "High Hopes",
+    "artist": "Panic! At the Disco",
+    "year": 2018,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/09/25/54/092554d1-58a6-13c4-55b5-304fff054ecb/mzaf_4446773544604155780.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/high-hopes/1361152002?i=1361152303"
+   }
+  ],
+  "vancouver": [
+   {
+    "id": 465744628,
+    "cc": "ca",
+    "title": "Call Me Maybe",
+    "artist": "Carly Rae Jepsen",
+    "year": 2011,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/6a/c3/96/6ac396e0-1278-00b5-7ee1-d4c4c799e9e5/mzaf_515615882811247832.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ca/album/call-me-maybe/465744617?i=465744628",
+    "by": {
+     "zh": "卡莉·蕾·吉普森"
+    }
+   },
+   {
+    "id": 1440823965,
+    "cc": "ca",
+    "title": "Summer of '69",
+    "artist": "Bryan Adams",
+    "year": 1984,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/a7/3e/b2/a73eb26b-db02-90f3-0ac6-d0a3170fa876/mzaf_14223839568238436580.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ca/album/summer-of-69/1440823482?i=1440823965",
+    "by": {
+     "zh": "布莱恩·亚当斯"
+    }
+   },
+   {
+    "id": 668403662,
+    "cc": "ca",
+    "title": "Haven't Met You Yet",
+    "artist": "Michael Bublé",
+    "year": 2009,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/c7/90/59/c7905979-366c-f4e2-8e28-3756d34456f5/mzaf_6306504708359198979.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ca/album/havent-met-you-yet/668403656?i=668403662",
+    "by": {
+     "zh": "迈克尔·布雷"
+    }
+   },
+   {
+    "id": 1799167787,
+    "cc": "ca",
+    "title": "Home For A Rest",
+    "artist": "Spirit of the West",
+    "year": 1990,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/d9/c7/d6/d9c7d64c-7254-506f-97dc-4e80b4ec702a/mzaf_1012480087499551582.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ca/album/home-for-a-rest/1799167765?i=1799167787"
+   },
+   {
+    "id": 1440781293,
+    "cc": "ca",
+    "title": "I'm Like a Bird",
+    "artist": "Nelly Furtado",
+    "year": 2000,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/0c/96/ce/0c96ce7f-ca73-4a46-ba26-6f291334d820/mzaf_17289897461864570454.plus.aac.p.m4a",
+    "url": "https://music.apple.com/ca/album/im-like-a-bird/1440780893?i=1440781293",
+    "by": {
+     "zh": "妮莉·费塔多"
+    }
+   }
+  ],
+  "newyork": [
+   {
+    "id": 715515542,
+    "cc": "us",
+    "title": "Theme from New York, New York",
+    "artist": "Liza Minnelli",
+    "year": 1977,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/43/cf/f4/43cff456-f03d-4d32-dfbf-3d3843174ef4/mzaf_579569316068434384.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/theme-from-new-york-new-york/715513995?i=715515542",
+    "by": {
+     "zh": "丽莎·明尼利"
+    }
+   },
+   {
+    "id": 259213690,
+    "cc": "us",
+    "title": "New York State of Mind",
+    "artist": "Billy Joel",
+    "year": 1976,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/26/77/22/2677221c-2be4-2d89-c7ef-41478a122233/mzaf_5211588923829341321.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/new-york-state-of-mind/259213439?i=259213690",
+    "by": {
+     "zh": "比利·乔尔"
+    }
+   },
+   {
+    "id": 1440935802,
+    "cc": "us",
+    "title": "Welcome To New York",
+    "artist": "Taylor Swift",
+    "year": 2014,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/44/f2/da/44f2daa3-2376-438a-02e8-bdb3ce32b37c/mzaf_13441752673723468494.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/welcome-to-new-york/1440935467?i=1440935802",
+    "by": {
+     "zh": "泰勒·斯威夫特"
+    }
+   },
+   {
+    "id": 1650882898,
+    "cc": "us",
+    "title": "Englishman In New York",
+    "artist": "Sting",
+    "year": 1987,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/78/fa/d3/78fad391-c635-5141-016e-adc17da854c5/mzaf_7879647988605505312.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/englishman-in-new-york/1650882889?i=1650882898"
+   },
+   {
+    "id": 341321703,
+    "cc": "us",
+    "title": "Empire State of Mind, Pt. 2",
+    "artist": "Alicia Keys",
+    "year": 2009,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/2f/ca/55/2fca55a2-ca85-4d7c-4565-8dbcdcbf5c76/mzaf_2283598682877847189.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/empire-state-of-mind-pt-2/341321353?i=341321703",
+    "by": {
+     "zh": "艾丽西亚·凯斯"
+    }
+   }
+  ],
+  "tokyo": [
+   {
+    "id": 1465042214,
+    "cc": "jp",
+    "title": "上を向いて歩こう",
+    "artist": "坂本九",
+    "year": 1967,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/92/6b/52/926b5239-7181-bbe1-c6a1-4881d89852fb/mzaf_10137212326120000690.plus.aac.p.m4a",
+    "url": "https://music.apple.com/jp/album/%E4%B8%8A%E3%82%92%E5%90%91%E3%81%84%E3%81%A6%E6%AD%A9%E3%81%93%E3%81%86/1465042213?i=1465042214",
+    "show": {
+     "zh": "上を向いて歩こう（昂首向前走）",
+     "en": "Ue o Muite Arukō (Sukiyaki)"
+    },
+    "by": {
+     "en": "Kyu Sakamoto"
+    }
+   },
+   {
+    "id": 1858846510,
+    "cc": "jp",
+    "title": "真夜中のドア〜stay with me",
+    "artist": "松原みき",
+    "year": 1979,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/5c/a4/e4/5ca4e4b9-296d-6a3a-7d00-cbf14a2c750f/mzaf_8959131982691784733.plus.aac.p.m4a",
+    "url": "https://music.apple.com/jp/album/%E7%9C%9F%E5%A4%9C%E4%B8%AD%E3%81%AE%E3%83%89%E3%82%A2-stay-with-me-2008-remastered/1858846505?i=1858846510",
+    "show": {
+     "zh": "真夜中のドア（午夜之门）",
+     "en": "Mayonaka no Door (Stay With Me)"
+    },
+    "by": {
+     "zh": "松原美纪",
+     "en": "Miki Matsubara"
+    }
+   },
+   {
+    "id": 1537460612,
+    "cc": "jp",
+    "title": "Lemon",
+    "artist": "米津玄師",
+    "year": 2018,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/27/17/9b/27179b15-2153-25e8-d035-35fdb4d059d8/mzaf_757024838235216109.plus.aac.p.m4a",
+    "url": "https://music.apple.com/jp/album/lemon/1537460610?i=1537460612",
+    "by": {
+     "zh": "米津玄师",
+     "en": "Kenshi Yonezu"
+    }
+   },
+   {
+    "id": 1679278167,
+    "cc": "jp",
+    "title": "アイドル",
+    "artist": "YOASOBI",
+    "year": 2023,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f0/db/16/f0db16be-457e-f10f-98b6-f30b11de34e4/mzaf_5189430943078523093.plus.aac.p.m4a",
+    "url": "https://music.apple.com/jp/album/%E3%82%A2%E3%82%A4%E3%83%89%E3%83%AB/1679278166?i=1679278167",
+    "show": {
+     "zh": "アイドル（偶像）",
+     "en": "Idol"
+    }
+   },
+   {
+    "id": 448331172,
+    "cc": "jp",
+    "title": "PONPONPON",
+    "artist": "きゃりーぱみゅぱみゅ",
+    "year": 2011,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/d6/f3/32/d6f332b0-d6af-0745-ea17-7ee276312e5a/mzaf_16371368847257647811.plus.aac.p.m4a",
+    "url": "https://music.apple.com/jp/album/ponponpon/448331123?i=448331172",
+    "by": {
+     "zh": "卡莉怪妞",
+     "en": "Kyary Pamyu Pamyu"
+    }
+   }
+  ],
+  "beijing": [
+   {
+    "id": 158254912,
+    "cc": "tw",
+    "title": "One Night in Beijing",
+    "artist": "劉佳慧 & 陳昇",
+    "year": 1992,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/4f/fa/f5/4ffaf5bc-7115-95a6-be5a-db432bfef4fd/mzaf_12816346592446121912.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/one-night-in-beijing/158254297?i=158254912",
+    "show": {
+     "zh": "北京一夜",
+     "en": "One Night in Beijing"
+    },
+    "by": {
+     "zh": "陈升、刘佳慧",
+     "en": "Bobby Chen & Liu Chia-hui"
+    }
+   },
+   {
+    "id": 1585626292,
+    "cc": "tw",
+    "title": "一無所有",
+    "artist": "崔健",
+    "year": 1989,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/73/9e/c5/739ec545-79d6-3730-f2da-7de1bab5ca0d/mzaf_2227274851281986631.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/%E4%B8%80%E7%84%A1%E6%89%80%E6%9C%89/1585625540?i=1585626292",
+    "show": {
+     "zh": "一无所有",
+     "en": "Nothing to My Name"
+    },
+    "by": {
+     "en": "Cui Jian"
+    }
+   },
+   {
+    "id": 965771855,
+    "cc": "tw",
+    "title": "紅豆",
+    "artist": "王菲",
+    "year": 1998,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/4d/cb/26/4dcb2622-1524-f937-05de-6baad0412d15/mzaf_8182413927380279026.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/%E7%B4%85%E8%B1%86/965771664?i=965771855",
+    "show": {
+     "zh": "红豆",
+     "en": "Red Beans"
+    },
+    "by": {
+     "en": "Faye Wong"
+    }
+   },
+   {
+    "id": 1438422297,
+    "cc": "tw",
+    "title": "平凡之路",
+    "artist": "朴樹",
+    "year": 2017,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/c5/19/3f/c5193f32-615a-db89-29ae-28b67035ecf5/mzaf_14264476800131433849.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/%E5%B9%B3%E5%87%A1%E4%B9%8B%E8%B7%AF/1438421718?i=1438422297",
+    "show": {
+     "zh": "平凡之路",
+     "en": "The Ordinary Road"
+    },
+    "by": {
+     "zh": "朴树",
+     "en": "Pu Shu"
+    }
+   }
+  ],
+  "shanghai": [
+   {
+    "id": 724614995,
+    "cc": "tw",
+    "title": "夜上海",
+    "artist": "周璇",
+    "year": 1940,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/4c/3d/ce/4c3dceb8-756b-4145-0949-9878b008ba23/mzaf_2996521062130198293.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/%E5%A4%9C%E4%B8%8A%E6%B5%B7/724614279?i=724614995",
+    "show": {
+     "en": "Shanghai Nights"
+    },
+    "by": {
+     "en": "Zhou Xuan"
+    }
+   },
+   {
+    "id": 821631826,
+    "cc": "tw",
+    "title": "玫瑰玫瑰我愛你",
+    "artist": "姚莉",
+    "year": 1970,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/ec/2f/9f/ec2f9f47-9c91-4771-20e9-1c14c23d0bb9/mzaf_3215811871425597514.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/%E7%8E%AB%E7%91%B0%E7%8E%AB%E7%91%B0%E6%88%91%E6%84%9B%E4%BD%A0/821631811?i=821631826",
+    "show": {
+     "zh": "玫瑰玫瑰我爱你",
+     "en": "Rose, Rose, I Love You"
+    },
+    "by": {
+     "en": "Yao Lee"
+    }
+   },
+   {
+    "id": 720224462,
+    "cc": "tw",
+    "title": "夜來香",
+    "artist": "李香蘭",
+    "year": 2005,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/75/01/f4/7501f42f-e06a-976a-61e1-c941493a8da8/mzaf_9917628534093863420.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/%E5%A4%9C%E4%BE%86%E9%A6%99/720224284?i=720224462",
+    "show": {
+     "zh": "夜来香",
+     "en": "Ye Lai Xiang (Tuberose)"
+    },
+    "by": {
+     "zh": "李香兰",
+     "en": "Li Xianglan"
+    }
+   },
+   {
+    "id": 1442451443,
+    "cc": "hk",
+    "title": "上海灘",
+    "artist": "葉麗儀",
+    "year": 1980,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/5c/f8/9c/5cf89c95-a48c-da4d-9011-f2052f5b4fd4/mzaf_13787765787084422286.plus.aac.p.m4a",
+    "url": "https://music.apple.com/hk/album/%E4%B8%8A%E6%B5%B7%E7%81%98/1442451278?i=1442451443",
+    "show": {
+     "zh": "上海滩",
+     "en": "The Bund"
+    },
+    "by": {
+     "zh": "叶丽仪",
+     "en": "Frances Yip"
+    }
+   },
+   {
+    "id": 535739354,
+    "cc": "tw",
+    "title": "上海一九四三",
+    "artist": "周杰倫",
+    "year": 2001,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/67/06/37/67063719-13d0-57f2-2e8c-bab7ec4a81c8/mzaf_1317947746414666956.plus.aac.p.m4a",
+    "url": "https://music.apple.com/tw/album/%E4%B8%8A%E6%B5%B7%E4%B8%80%E4%B9%9D%E5%9B%9B%E4%B8%89/535739206?i=535739354",
+    "show": {
+     "en": "Shanghai 1943"
+    },
+    "by": {
+     "zh": "周杰伦",
+     "en": "Jay Chou"
+    }
+   }
+  ],
+  "bangkok": [
+   {
+    "id": 1654688410,
+    "cc": "th",
+    "title": "One Night In Bangkok",
+    "artist": "Murray Head",
+    "year": 2015,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/f4/be/fa/f4befa11-ac67-c0ea-0b4d-b49c7a04849b/mzaf_17433412093075326676.plus.aac.p.m4a",
+    "url": "https://music.apple.com/th/album/one-night-in-bangkok-original-single-version-from-chess/1654688405?i=1654688410"
+   },
+   {
+    "id": 1584313399,
+    "cc": "th",
+    "title": "LALISA",
+    "artist": "LISA",
+    "year": 2021,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/b1/f7/84/b1f784ae-2de0-c1d8-6197-ca60e324780a/mzaf_10719018642651291324.plus.aac.p.m4a",
+    "url": "https://music.apple.com/th/album/lalisa/1584313397?i=1584313399"
+   },
+   {
+    "id": 1584313400,
+    "cc": "th",
+    "title": "MONEY",
+    "artist": "LISA",
+    "year": 2021,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/1b/ed/38/1bed38aa-4a22-d4a5-9093-54018855b2bf/mzaf_2251798548918188759.plus.aac.p.m4a",
+    "url": "https://music.apple.com/th/album/money/1584313397?i=1584313400"
+   },
+   {
+    "id": 1793330679,
+    "cc": "th",
+    "title": "ขอใจเธอแลกเบอร์โทร",
+    "artist": "Yinglee Srijumpol",
+    "year": 2012,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/cd/4d/d7/cd4dd742-f862-01f1-e914-7fc308512dea/mzaf_1242926712930257120.plus.aac.p.m4a",
+    "url": "https://music.apple.com/th/album/%E0%B8%82%E0%B8%AD%E0%B9%83%E0%B8%88%E0%B9%80%E0%B8%98%E0%B8%AD%E0%B9%81%E0%B8%A5%E0%B8%81%E0%B9%80%E0%B8%9A%E0%B8%AD%E0%B8%A3-%E0%B9%82%E0%B8%97%E0%B8%A3/1793330447?i=1793330679",
+    "show": {
+     "zh": "用我的号码换你的心",
+     "en": "Your Heart for My Number"
+    },
+    "by": {
+     "zh": "Yinglee Srijumpol"
+    }
+   }
+  ],
+  "sydney": [
+   {
+    "id": 282960968,
+    "cc": "au",
+    "title": "Down Under",
+    "artist": "Men At Work",
+    "year": 1981,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/76/1c/6e/761c6e1d-1b95-e87f-bcec-41afc0836a9a/mzaf_11800999298773408397.plus.aac.p.m4a",
+    "url": "https://music.apple.com/au/album/down-under/282960957?i=282960968"
+   },
+   {
+    "id": 574051407,
+    "cc": "au",
+    "title": "Thunderstruck",
+    "artist": "AC/DC",
+    "year": 1990,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f2/76/cd/f276cd0b-d440-4190-7caa-afe359b27a7b/mzaf_6396399126209223363.plus.aac.p.m4a",
+    "url": "https://music.apple.com/au/album/thunderstruck/574049507?i=574051407"
+   },
+   {
+    "id": 1442612831,
+    "cc": "au",
+    "title": "Need You Tonight",
+    "artist": "INXS",
+    "year": 1987,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/c2/c9/c2/c2c9c261-826a-4a79-2c0b-2bfe93468da9/mzaf_16071555928523766130.plus.aac.p.m4a",
+    "url": "https://music.apple.com/au/album/need-you-tonight/1442612641?i=1442612831"
+   },
+   {
+    "id": 533503025,
+    "cc": "au",
+    "title": "Beds Are Burning",
+    "artist": "Midnight Oil",
+    "year": 1987,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/a5/28/d5/a528d58e-907b-4553-01bb-c1ade22f3da4/mzaf_10079203966566970542.plus.aac.p.m4a",
+    "url": "https://music.apple.com/au/album/beds-are-burning/533502810?i=533503025"
+   }
+  ],
+  "singapore": [
+   {
+    "id": 1136286496,
+    "cc": "sg",
+    "title": "Home",
+    "artist": "Kit Chan",
+    "year": 2015,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/4a/d8/8f/4ad88f06-2b0a-29e0-b32d-278b0e6416f4/mzaf_8904411897398247594.plus.aac.p.m4a",
+    "url": "https://music.apple.com/sg/album/home/1136283983?i=1136286496",
+    "by": {
+     "zh": "陈洁仪"
+    }
+   },
+   {
+    "id": 1071753628,
+    "cc": "sg",
+    "title": "江南",
+    "artist": "JJ Lin",
+    "year": 2004,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0d/0a/1f/0d0a1f64-1faa-01a3-6b82-3f71c7f1ad53/mzaf_6171234305789252058.plus.aac.p.m4a",
+    "url": "https://music.apple.com/sg/album/%E6%B1%9F%E5%8D%97/1071753622?i=1071753628",
+    "show": {
+     "en": "Jiang Nan"
+    },
+    "by": {
+     "zh": "林俊杰"
+    }
+   },
+   {
+    "id": 1071506929,
+    "cc": "sg",
+    "title": "她說",
+    "artist": "JJ Lin",
+    "year": 2010,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/5a/d9/b5/5ad9b59a-d760-afb6-71d4-6e9614dbd18b/mzaf_2961581987529700790.plus.aac.p.m4a",
+    "url": "https://music.apple.com/sg/album/%E5%A5%B9%E8%AA%AA/1071506928?i=1071506929",
+    "show": {
+     "zh": "她说",
+     "en": "She Says"
+    },
+    "by": {
+     "zh": "林俊杰"
+    }
+   },
+   {
+    "id": 541857030,
+    "cc": "sg",
+    "title": "Encounter",
+    "artist": "Yanzi Sun",
+    "year": 2003,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/7b/14/b8/7b14b886-0db8-e205-5b58-c326e5ac92c2/mzaf_13557911601938906506.plus.aac.p.m4a",
+    "url": "https://music.apple.com/sg/album/encounter/541856819?i=541857030",
+    "show": {
+     "zh": "遇见"
+    },
+    "by": {
+     "zh": "孙燕姿",
+     "en": "Stefanie Sun"
+    }
+   },
+   {
+    "id": 990152981,
+    "cc": "sg",
+    "title": "The Dark Day",
+    "artist": "Yanzi Sun",
+    "year": 2000,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/81/1c/e7/811ce7b6-8b00-bddb-85f4-2e6203d74cc1/mzaf_8654705822133141974.plus.aac.p.m4a",
+    "url": "https://music.apple.com/sg/album/the-dark-day-remastered/990152978?i=990152981",
+    "show": {
+     "zh": "天黑黑"
+    },
+    "by": {
+     "zh": "孙燕姿",
+     "en": "Stefanie Sun"
+    }
+   }
+  ],
+  "venice": [
+   {
+    "id": 278646936,
+    "cc": "it",
+    "title": "Nel Blu Dipinto Di Blu",
+    "artist": "Domenico Modugno",
+    "year": 1958,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/89/c7/c6/89c7c680-7afb-4ef2-604f-7ec220c3ecaf/mzaf_14909496295512218727.plus.aac.p.m4a",
+    "url": "https://music.apple.com/it/album/nel-blu-dipinto-di-blu/278646756?i=278646936",
+    "show": {
+     "zh": "Volare（飞翔）",
+     "en": "Nel blu dipinto di blu (Volare)"
+    },
+    "by": {
+     "zh": "多梅尼科·莫杜尼奥"
+    }
+   },
+   {
+    "id": 1775198614,
+    "cc": "it",
+    "title": "Azzurro",
+    "artist": "Adriano Celentano",
+    "year": 1968,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/50/c4/73/50c4731b-895b-472a-9ed3-ee9b4c208a77/mzaf_257069537808109742.plus.aac.p.m4a",
+    "url": "https://music.apple.com/it/album/azzurro-remastered/1775198604?i=1775198614"
+   },
+   {
+    "id": 1329256166,
+    "cc": "it",
+    "title": "L'italiano",
+    "artist": "Toto Cutugno",
+    "year": 1982,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/4c/a9/cd/4ca9cd79-0752-a2b3-5ff1-742956529063/mzaf_3941072632085591655.plus.aac.p.m4a",
+    "url": "https://music.apple.com/it/album/litaliano/1329256164?i=1329256166",
+    "show": {
+     "zh": "L'italiano（意大利人）"
+    }
+   },
+   {
+    "id": 298583321,
+    "cc": "it",
+    "title": "Felicità",
+    "artist": "Al Bano Carrisi & Romina Power",
+    "year": 1982,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/5c/14/b4/5c14b407-8f41-11a1-eb68-e27a8461afb8/mzaf_14762043077363486017.plus.aac.p.m4a",
+    "url": "https://music.apple.com/it/album/felicit%C3%A0/298583320?i=298583321",
+    "show": {
+     "zh": "Felicità（幸福）"
+    }
+   },
+   {
+    "id": 450128130,
+    "cc": "it",
+    "title": "La Serenissima",
+    "artist": "Rondò Veneziano",
+    "year": 1983,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/fc/db/2e/fcdb2e72-7b29-6b09-bae5-2771b7403d11/mzaf_2213592113796222672.plus.aac.p.m4a",
+    "url": "https://music.apple.com/it/album/la-serenissima/450127957?i=450128130",
+    "show": {
+     "zh": "La Serenissima（威尼斯）"
+    }
+   }
+  ],
+  "paris": [
+   {
+    "id": 591787216,
+    "cc": "fr",
+    "title": "La vie en rose",
+    "artist": "Édith Piaf",
+    "year": 1947,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/ef/48/28/ef482802-3807-274d-7dae-e6af84ad94bd/mzaf_3692329949128741023.plus.aac.p.m4a",
+    "url": "https://music.apple.com/fr/album/la-vie-en-rose/591787215?i=591787216",
+    "show": {
+     "zh": "La vie en rose（玫瑰人生）"
+    },
+    "by": {
+     "zh": "伊迪丝·琵雅芙"
+    }
+   },
+   {
+    "id": 311331447,
+    "cc": "fr",
+    "title": "Les Champs-Élysées",
+    "artist": "Joe Dassin",
+    "year": 1969,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/00/e4/32/00e4326a-a3d6-4c85-b7be-8a123f04f6cb/mzaf_10395904914225014080.plus.aac.p.m4a",
+    "url": "https://music.apple.com/fr/album/les-champs-%C3%A9lys%C3%A9es/311331439?i=311331447",
+    "show": {
+     "zh": "Les Champs-Élysées（香榭丽舍）"
+    },
+    "by": {
+     "zh": "乔·达桑"
+    }
+   },
+   {
+    "id": 1743413442,
+    "cc": "fr",
+    "title": "La bohème",
+    "artist": "Charles Aznavour",
+    "year": 1965,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/23/57/ca/2357cad1-c818-4ccc-2eb4-e09aab948083/mzaf_13264193577484048104.plus.aac.p.m4a",
+    "url": "https://music.apple.com/fr/album/la-boh%C3%A8me/1743413418?i=1743413442",
+    "by": {
+     "zh": "夏尔·阿兹纳弗"
+    }
+   },
+   {
+    "id": 591787437,
+    "cc": "fr",
+    "title": "Non, je ne regrette rien",
+    "artist": "Édith Piaf",
+    "year": 1960,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bd/cf/d0/bdcfd020-c807-3b46-2d90-90ffec0d47d9/mzaf_1393869169335880859.plus.aac.p.m4a",
+    "url": "https://music.apple.com/fr/album/non-je-ne-regrette-rien/591787434?i=591787437",
+    "show": {
+     "zh": "Non, je ne regrette rien（我无怨无悔）"
+    },
+    "by": {
+     "zh": "伊迪丝·琵雅芙"
+    }
+   },
+   {
+    "id": 693461512,
+    "cc": "fr",
+    "title": "Je veux",
+    "artist": "ZAZ",
+    "year": 2010,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/87/10/83/871083b9-3f9a-5cd0-38ae-a3fc1a6bdf95/mzaf_9494055021183912606.plus.aac.p.m4a",
+    "url": "https://music.apple.com/fr/album/je-veux/693461248?i=693461512"
+   }
+  ],
+  "london": [
+   {
+    "id": 1642495077,
+    "cc": "gb",
+    "title": "Waterloo Sunset",
+    "artist": "The Kinks",
+    "year": 1967,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/19/8a/75/198a75cc-ce1c-508e-c258-174b4fea1939/mzaf_7776089108603624066.plus.aac.p.m4a",
+    "url": "https://music.apple.com/gb/album/waterloo-sunset/1642494734?i=1642495077"
+   },
+   {
+    "id": 684811768,
+    "cc": "gb",
+    "title": "London Calling",
+    "artist": "The Clash",
+    "year": 1979,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/40/e5/65/40e5656c-e7db-9f1f-4890-d0f9b6c7b45f/mzaf_17665211272480329804.plus.aac.p.m4a",
+    "url": "https://music.apple.com/gb/album/london-calling/684811762?i=684811768"
+   },
+   {
+    "id": 1645128751,
+    "cc": "gb",
+    "title": "West End Girls",
+    "artist": "Pet Shop Boys",
+    "year": 1986,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/cd/0b/b4/cd0bb488-99d4-8269-6fbd-1381ef24af63/mzaf_587830891277239252.plus.aac.p.m4a",
+    "url": "https://music.apple.com/gb/album/west-end-girls/1645128742?i=1645128751"
+   },
+   {
+    "id": 693696670,
+    "cc": "gb",
+    "title": "Baker Street",
+    "artist": "Gerry Rafferty",
+    "year": 1978,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/8b/7f/c5/8b7fc5b4-f096-07bb-c9b2-d277c1df3b54/mzaf_964698858601273636.plus.aac.p.m4a",
+    "url": "https://music.apple.com/gb/album/baker-street/693696089?i=693696670"
+   },
+   {
+    "id": 403037877,
+    "cc": "gb",
+    "title": "Rolling In the Deep",
+    "artist": "Adele",
+    "year": 2010,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/84/ab/e5/84abe549-c9d6-3de2-cdd0-90e9256a637e/mzaf_7958095177960014950.plus.aac.p.m4a",
+    "url": "https://music.apple.com/gb/album/rolling-in-the-deep/403037872?i=403037877",
+    "by": {
+     "zh": "阿黛尔"
+    }
+   }
+  ],
+  "seoul": [
+   {
+    "id": 1445144527,
+    "cc": "us",
+    "title": "Gangnam Style",
+    "artist": "PSY",
+    "year": 2012,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/00/53/c6/0053c6f7-6342-7a3d-37c5-60b896948bdb/mzaf_10727579274479911915.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/gangnam-style/1445144506?i=1445144527",
+    "show": {
+     "zh": "江南 Style"
+    }
+   },
+   {
+    "id": 1627575419,
+    "cc": "us",
+    "title": "Dynamite",
+    "artist": "BTS",
+    "year": 2020,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/43/06/1e/43061eb6-9052-60da-7e95-aed315c0b34c/mzaf_2639750113226374892.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/dynamite/1627573936?i=1627575419",
+    "by": {
+     "zh": "防弹少年团"
+    }
+   },
+   {
+    "id": 1551479993,
+    "cc": "us",
+    "title": "DDU-DU DDU-DU",
+    "artist": "BLACKPINK",
+    "year": 2018,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/55/1e/1a/551e1aca-9847-6730-9c3f-3297ae3605b8/mzaf_5850823266050053080.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/ddu-du-ddu-du/1551479990?i=1551479993"
+   },
+   {
+    "id": 1337452979,
+    "cc": "us",
+    "title": "Fantastic Baby",
+    "artist": "BIGBANG",
+    "year": 2012,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/cd/bb/12/cdbb1223-d62d-99be-9c3d-201ff2d263d0/mzaf_18112077062612208211.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/fantastic-baby/1337452970?i=1337452979"
+   },
+   {
+    "id": 1635469851,
+    "cc": "us",
+    "title": "Hype Boy",
+    "artist": "NewJeans",
+    "year": 2022,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/85/f3/08/85f30899-e93c-35e2-4742-df57fc2d3552/mzaf_14134842621180071043.plus.aac.p.m4a",
+    "url": "https://music.apple.com/us/album/hype-boy/1635469682?i=1635469851"
+   }
+  ],
+  "hongkong": [
+   {
+    "id": 201575679,
+    "cc": "hk",
+    "title": "海闊天空",
+    "artist": "Beyond",
+    "year": 1993,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/2b/e0/18/2be01806-30b4-7c8b-dd5b-d93f485aafef/mzaf_149015777681225583.plus.aac.p.m4a",
+    "url": "https://music.apple.com/hk/album/%E6%B5%B7%E9%97%8A%E5%A4%A9%E7%A9%BA/201575258?i=201575679",
+    "show": {
+     "zh": "海阔天空",
+     "en": "Boundless Oceans, Vast Skies"
+    }
+   },
+   {
+    "id": 892456173,
+    "cc": "hk",
+    "title": "當年情",
+    "artist": "張國榮",
+    "year": 1986,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/59/df/6b/59df6b8e-b83a-162c-fb80-6cb7f0d37cf3/mzaf_3975953023931538010.plus.aac.p.m4a",
+    "url": "https://music.apple.com/hk/album/%E7%95%B6%E5%B9%B4%E6%83%85/892456163?i=892456173",
+    "show": {
+     "zh": "当年情",
+     "en": "Dong Nin Ching, from A Better Tomorrow"
+    },
+    "by": {
+     "zh": "张国荣",
+     "en": "Leslie Cheung"
+    }
+   },
+   {
+    "id": 1443345874,
+    "cc": "hk",
+    "title": "半斤八兩",
+    "artist": "許冠傑",
+    "year": 2000,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/db/0a/06/db0a06b0-d2fb-dfc2-6159-6d023c479b43/mzaf_6973010657719359522.plus.aac.p.m4a",
+    "url": "https://music.apple.com/hk/album/%E5%8D%8A%E6%96%A4%E5%85%AB%E5%85%A9/1443345866?i=1443345874",
+    "show": {
+     "zh": "半斤八两",
+     "en": "The Private Eyes"
+    },
+    "by": {
+     "zh": "许冠杰",
+     "en": "Sam Hui"
+    }
+   },
+   {
+    "id": 892490676,
+    "cc": "hk",
+    "title": "夕陽之歌",
+    "artist": "梅豔芳",
+    "year": 1989,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/34/86/7d/34867dae-cc58-ce2c-5416-83a913051ffc/mzaf_18346833051899164888.plus.aac.p.m4a",
+    "url": "https://music.apple.com/hk/album/%E5%A4%95%E9%99%BD%E4%B9%8B%E6%AD%8C/892490635?i=892490676",
+    "show": {
+     "zh": "夕阳之歌",
+     "en": "Song of the Sunset"
+    },
+    "by": {
+     "zh": "梅艳芳",
+     "en": "Anita Mui"
+    }
+   },
+   {
+    "id": 726243548,
+    "cc": "hk",
+    "title": "偏偏喜歡你",
+    "artist": "陳百強",
+    "year": 1985,
+    "explicitness": "notExplicit",
+    "preview": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/3f/e5/c2/3fe5c236-f1f8-2df0-a570-1e5ab72b9bed/mzaf_7051411483614087936.plus.aac.p.m4a",
+    "url": "https://music.apple.com/hk/album/%E5%81%8F%E5%81%8F%E5%96%9C%E6%AD%A1%E4%BD%A0/726243514?i=726243548",
+    "show": {
+     "zh": "偏偏喜欢你",
+     "en": "Pin Pin Hei Fun Nei"
+    },
+    "by": {
+     "zh": "陈百强",
+     "en": "Danny Chan"
+    }
+   }
+  ]
+ }
+}

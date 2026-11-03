@@ -26,6 +26,7 @@ import { startThrow } from "./throwing";
 import { SambaLesson, useDanceClock } from "./Samba";
 import { quizItemText } from "./feedText";
 import { IdleNote, useIdleWarn, type IdleWarn } from "./TurnClock";
+import { LocalMoney } from "./Local";
 
 /** One line saying what the table is waiting for (for people who aren't deciding, and the big screen). */
 export function pendingSummary(v: RoomView): string {
@@ -227,7 +228,8 @@ export function CityBrief({ v, at }: { v: RoomView; at: number }) {
   return (
     <div class="brief">
       <p>
-        <GroupIcon group={city.group} size={14} /> <b>{tx(city.name)}</b> · <Money n={priceOf(s, at)} /> · {t("rent")} {money(r[0])}–{money(r[6])}
+        <GroupIcon group={city.group} size={14} /> <b>{tx(city.name)}</b> · <Money n={priceOf(s, at)} />
+        <LocalMoney city={city.id} n={priceOf(s, at)} /> · {t("rent")} {money(r[0])}–{money(r[6])}
       </p>
       <p class="muted">
         <b>{tx(city.rule.title)}</b>{colon()}{tx(city.rule.text)}
