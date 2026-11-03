@@ -31,7 +31,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Phone, a round, sideways | How it's meant to be played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. |
 | Phone, a round, upright | The same, stacked: bar, arena, scores, "turn sideways for a bigger view", controls. |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
-| Phone, end of a round | The penalty stamp first (when the host has penalties on), then the result: who won, everyone's tags and how often they were spotted, the host's Play again and Pick another arena, and Back to the table. |
+| Phone, end of a round | The penalty stamp first (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the host's Play again and Pick another arena, and Back to the table. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the three arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host". |
 | Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom. |
 | Big screen, end of a round | The penalty stamp for seven seconds, then the result card. |
@@ -147,8 +147,8 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 ## What a design change has to keep
 
 1. **Nothing marks a player** on the big screen or in any phone's data (above).
-2. **A phone never scrolls sideways**, upright (390 x 844) or sideways (844 x 390), and every
-   button is at least 44 px (`tests/e2e/phone.spec.ts`).
+2. **A phone never scrolls sideways**, upright (390 x 844) or sideways (844 x 390), every
+   button is at least 44 px, and the penalty stamp fits either way (`tests/e2e/phone.spec.ts`).
 3. **Nothing leaves the big screen** at 1920 x 1080 and 1280 x 720 (`tests/e2e/tv.spec.ts`).
 4. **Night colours only**, from the tokens; the gel carries night-coloured text.
 5. **Both languages**, switchable in the menu at any time; no em dashes or curly quotes.

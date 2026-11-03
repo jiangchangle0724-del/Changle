@@ -1207,8 +1207,8 @@ button.arena-option:active {
 }
 .stamp[open],
 .stamp-tv {
+  /* (the stage's auto margins center it, and keep its top in reach when it is taller than the screen) */
   display: grid;
-  align-items: center;
   animation: fade-in var(--dur-enter) var(--ease-out);
 }
 .stamp::backdrop {
@@ -1286,6 +1286,45 @@ button.arena-option:active {
   border-radius: 2px 2px 6px 6px;
   background: linear-gradient(var(--beer-top), var(--beer-bottom));
   transition: height 900ms var(--ease-out);
+}
+/* a phone held sideways, as this game is played: the word on the left, how much and Continue beside it */
+@media (orientation: landscape) and (max-height: 600px) {
+  dialog.stamp {
+    padding-top: calc(var(--safe-top) + var(--space-3));
+    padding-bottom: calc(var(--safe-bottom) + var(--space-3));
+  }
+  dialog.stamp .stamp-stage {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "names detail"
+      "seal glass"
+      "seal note"
+      "seal actions";
+    align-items: center;
+    column-gap: var(--space-8);
+    row-gap: var(--space-3);
+    max-width: none;
+  }
+  dialog.stamp .stamp-names {
+    grid-area: names;
+  }
+  dialog.stamp .stamp-seal {
+    grid-area: seal;
+  }
+  dialog.stamp .stamp-detail {
+    grid-area: detail;
+  }
+  dialog.stamp .stamp-glass {
+    grid-area: glass;
+    width: 56px;
+    height: 80px;
+  }
+  dialog.stamp .stamp-note {
+    grid-area: note;
+  }
+  dialog.stamp .stamp-actions {
+    grid-area: actions;
+  }
 }
 @keyframes stamp-flash {
   from {

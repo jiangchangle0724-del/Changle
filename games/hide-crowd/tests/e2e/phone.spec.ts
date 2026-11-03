@@ -44,3 +44,29 @@ test("a phone upright and sideways: nothing scrolls sideways, every button is bi
   await expect(mia.locator(".sheet")).toHaveCount(0);
   noErrors(steve, mia);
 });
+
+test("the penalty stamp fits a phone upright and held sideways, Continue in reach", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { duel: true, roundMs: 8_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en", { size: { width: 844, height: 390 } });
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await steve.getByRole("button", { name: "开始" }).click();
+  await until(mia, (v) => v.phase === "playing");
+  await steve.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
+  for (const [page, button] of [[steve, "继续"], [mia, "Continue"]] as const) {
+    await expect(page.locator("dialog.stamp .stamp-seal")).toBeVisible({ timeout: 20_000 });
+    // (after the slam)
+    await page.waitForTimeout(1_200);
+    const size = page.viewportSize()!;
+    for (const part of [page.locator("dialog.stamp .stamp-seal"), page.locator("dialog.stamp .stamp-names"), page.getByRole("button", { name: button })]) {
+      const box = (await part.boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(size.height);
+      expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+    }
+    await noSideScroll(page);
+  }
+  noErrors(steve, mia);
+});

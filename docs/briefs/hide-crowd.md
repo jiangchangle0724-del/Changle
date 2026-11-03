@@ -13,6 +13,7 @@
 - 桌子上的替身规则：`site/src/shared/engine/games/hide.ts`
 - 共用文件里只加了自己那一行：`registry.ts`（卡片）、`protocol.ts`（`HideView`、`ONLINE_GAMES` 最后一个）、`games/index.ts`、`App.tsx`、`NetGame.tsx`、`TvApp.tsx`、`router.ts`（`/hide` 不归网站管）、`vite.config.ts`（本地代理）
 - 3D 布景的 Blender 脚本：`games/hide-crowd/tools/blender/generate_arena_dressing.py`
+- 分享图：`site/public/og/hide-in-the-crowd.png`（`site/og.html` 里截的，和别的游戏一样）
 
 ## 先读
 
@@ -38,7 +39,7 @@
 
 ## 现在
 
-- 2026-11-03 搬进来的 PR 开着（替代 Codex 的 PR #5），等 Steve 先在 Cloudflare 接上 Worker `hide-crowd`（`games/hide-crowd/README.md` 里的中文步骤），再合并。合并以后首页就有它的卡片（12 月 3 日前带「新」）。
+- 2026-11-03 PR #159 开着（替代 Codex 的 PR #5），等 Steve 先在 Cloudflare 接上 Worker `hide-crowd`（`games/hide-crowd/README.md` 里的中文步骤），再合并。合并以后首页就有它的卡片（12 月 3 日前带「新」）。
 
 ## 还剩什么
 
@@ -57,6 +58,9 @@
 
 提交记录原文，最新的在上面。
 
+- 2026-11-03 藏在人群里: the penalty stamp fits a phone held sideways; its share picture; the PR in the brief
+- 2026-11-03 test(visual): update Linux Chromium reference screenshots
+- 2026-11-03 藏在人群里: a way back mid-round, the TV lobby's lines, docs and the brief
 - 2026-11-03 藏在人群里 · Hide in the Crowd: Codex's crowd game, renamed and brought into changle.ca
 
 ## 记录
