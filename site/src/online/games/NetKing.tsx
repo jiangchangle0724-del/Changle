@@ -61,6 +61,7 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
     () => Array.from({ length: v.count }, (_, i) => ({ i, h: 150 + ((i * 37) % 5) * 6, x: 60 + (240 / Math.max(1, v.count - 1)) * i })),
     [v.count],
   );
+  const hit = Math.min(24, 120 / Math.max(1, v.count - 1));
 
   const pull = (i: number) => {
     if (v.phase !== "deal" || v.pulled || !inRound) return;
@@ -136,10 +137,18 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
                     animate={{ y: isMine ? -150 : goneOther ? -90 : 0, opacity: goneOther ? 0 : 1, rotate: isMine ? -3 : 0 }}
                     transition={{ type: "spring", stiffness: 220, damping: 20 }}
                     onClick={() => canPull && pull(s.i)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      canPull && pull(s.i);
+                    }}
                     role="button"
-                    aria-label={`stick ${s.i + 1}`}
+                    tabIndex={canPull ? 0 : -1}
+                    aria-label={lang === "zh" ? `第 ${s.i + 1} 支签` : `Stick ${s.i + 1}`}
                     aria-disabled={!canPull}
                   >
+                    {/* a finger-wide target round the thin stick (as wide as the gap to the next one allows) */}
+                    <rect x={s.x - hit} y={170 - s.h - 12} width={hit * 2} height={s.h + 122} fill="transparent" />
                     <rect x={s.x - 5} y={170 - s.h} width={10} height={s.h + 110} rx={4} fill="url(#bamboo)" />
                     <AnimatePresence>
                       {isMine && revealed && token !== null && (
