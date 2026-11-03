@@ -1,0 +1,28 @@
+# 抓紧了 · Hang On：物理的 20 条手感检查和附加检查、类型检查、法律线（docs/ 之外不出现原版的名字）。
+# 只在 games/hang-on 变动时跑。
+name: hang-on
+
+on:
+  push:
+    paths: ["games/hang-on/**", ".github/workflows/hang-on.yml"]
+  pull_request:
+    paths: ["games/hang-on/**", ".github/workflows/hang-on.yml"]
+
+jobs:
+  physics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: games/hang-on
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/hang-on/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run ip-check

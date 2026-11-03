@@ -1,5 +1,7 @@
 # 抓紧了 · Hang On 开工包
 
+> 2026-11-02 已开工：开工包入库、A1（Rapier 物理）做完，见 `docs/physics-notes.md` 和 `docs/briefs/hang-on.md`。下面是开工包原文。
+
 解压到 `changle-ca` 仓库根目录，目录直接对上：
 
 ```
