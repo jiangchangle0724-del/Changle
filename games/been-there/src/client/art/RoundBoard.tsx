@@ -28,6 +28,8 @@ export interface TokenMark {
   /** Character index (= team colour index). */
   kind: number;
   mood?: Mood;
+  /** The team's colour and letter, worn beside the token when it shares its space. */
+  badge?: { color: string; letter: string };
 }
 
 /** What a first-person move needs to drive the table (ui/Ride.tsx). */
@@ -61,6 +63,40 @@ export const angleOf = (at: number) => 180 + at * STEP;
 export const xy = (deg: number, r: number): [number, number] => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg * Math.PI) / 180)];
 /** Where the tokens stand: just inside the ring of spaces. */
 export const TOKEN_R = RT;
+
+/** How big a token is drawn (board units per unit of its drawing): on a phone or a laptop, and on the
+ * big screen, whose board is twice as wide. The drawing is 120 across and stands on (60, 70). */
+export const TOKEN_SCALE = { phone: 0.8, tv: 0.62 };
+const ART_X = 60;
+const ART_Y = 70;
+/** How wide the characters are drawn, of their 120. */
+const ART_W = 92;
+
+export interface Slot {
+  /** Degrees round the ring from the space's middle. */
+  fan: number;
+  /** How far from the board's middle. */
+  ring: number;
+  /** How much smaller than a token on its own. */
+  k: number;
+}
+
+/**
+ * Where each of `n` tokens on one space stands: in pairs side by side, each pair further in toward the
+ * middle of the board, and smaller the more there are, so every character stays whole and none hides
+ * another (up to six: every team on one city).
+ */
+export function slots(n: number, scale: number): Slot[] {
+  const k = n <= 1 ? 1 : n === 2 ? 0.92 : n <= 4 ? 0.85 : 0.76;
+  const w = ART_W * scale * k;
+  return Array.from({ length: n }, (_, i) => {
+    const row = Math.floor(i / 2);
+    const alone = n - row * 2 === 1;
+    const along = alone ? 0 : ((i % 2) - 0.5) * 1.04 * w;
+    const ring = RT - row * 0.84 * w;
+    return { fan: (along / ring) * (180 / Math.PI), ring, k };
+  });
+}
 
 function wedge(at: number, ro = RO) {
   const a0 = angleOf(at) - STEP / 2;
@@ -145,6 +181,8 @@ export function RoundBoard({
   riding,
   focusAt = 180,
   walks,
+  turn,
+  tokenScale = TOKEN_SCALE.phone,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -152,6 +190,10 @@ export function RoundBoard({
   focus?: number;
   /** Space of the token whose turn it is. */
   active?: number;
+  /** The seat whose turn it is: its token hops (not the others sharing its space). */
+  turn?: number;
+  /** How big the tokens are (TOKEN_SCALE). */
+  tokenScale?: number;
   flight?: Flight | null;
   onPick?: (at: number) => void;
   reduced?: boolean;
@@ -339,7 +381,9 @@ export function RoundBoard({
   return (
     <svg ref={svgRef} class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}`} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
       <g ref={cam}>
-      <circle r={RO + 8} fill="var(--board-rim)" />
+      <circle class="rim" r={RO + 8} fill="var(--board-rim)" />
+      {/* (round the big screen's globe, which stands where the flat map is: styles.css .globe-on) */}
+      <path class="rim-ring" d={`M${-RO - 8} 0a${RO + 8} ${RO + 8} 0 1 0 ${2 * (RO + 8)} 0a${RO + 8} ${RO + 8} 0 1 0 ${-2 * (RO + 8)} 0M${-RMAP + 2} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${2 * (RMAP - 2)} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${-2 * (RMAP - 2)} 0Z`} fill="var(--board-rim)" fill-rule="evenodd" />
       <g ref={ref} transform={`rotate(${r})`}>
         <RouteMap r={RMAP} flight={flight} reduced={reduced} />
         {BOARD.map((sp, at) => {
@@ -401,28 +445,44 @@ export function RoundBoard({
             </g>
           );
         })}
-        {[...bySpace.entries()].map(([at, list]) =>
-          list.map((tk, i) => {
-            const n = list.length;
-            const fan = (i - (n - 1) / 2) * 5.2 * (n > 3 ? 0.8 : 1);
-            const ring = RT - (n > 3 && i % 2 ? 46 : 0);
-            const [x, y] = xy(angleOf(at) + fan, ring);
-            return (
-              <Up key={tk.seat} x={x} y={y} rot={r} extra={{ "data-seat": tk.seat, "data-fan": fan.toFixed(2), "data-ring": ring }}>
-                <g class={`token${at === active && tk.mood !== "sad" ? " now" : ""}${tk.seat === riding ? " ridden" : ""}`}>
-                  <ellipse cx="0" cy="26" rx="22" ry="7" fill="rgba(0,0,0,.18)" />
-                  <g transform="translate(-34 -40) scale(0.57)">
-                    {/* A new mood plays its reaction once (a new animation name restarts it): a jump for
-                        good news, a shake for a bill… */}
-                    <g class={`react r-${tk.mood ?? "idle"}`}>
-                      <CharacterArt kind={tk.kind} mood={tk.mood} />
+        {/* (one list, keyed by seat: a token that moves to another space keeps its drawing, which walks) */}
+        {[...bySpace.entries()].flatMap(([at, list]) => {
+          const place = slots(list.length, tokenScale);
+          return (
+            list
+              .map((tk, i) => ({ tk, slot: place[i] }))
+              // (the rows further in first: the pair on the ring stands in front of them)
+              .sort((a, b) => a.slot.ring - b.slot.ring)
+              .map(({ tk, slot }) => {
+                const s = tokenScale * slot.k;
+                const [x, y] = xy(angleOf(at) + slot.fan, slot.ring);
+                const now = (turn === undefined ? at === active : tk.seat === turn) && tk.mood !== "sad";
+                return (
+                  <Up key={tk.seat} x={x} y={y} rot={r} extra={{ "data-seat": tk.seat, "data-fan": slot.fan.toFixed(2), "data-ring": slot.ring.toFixed(1) }}>
+                    <g class={`token${now ? " now" : ""}${tk.seat === riding ? " ridden" : ""}`} data-k={slot.k}>
+                      <ellipse cx="0" cy={(45 * s).toFixed(1)} rx={(38 * s).toFixed(1)} ry={(12 * s).toFixed(1)} fill="rgba(0,0,0,.18)" />
+                      <g class="hop">
+                        <g transform={`translate(${(-ART_X * s).toFixed(1)} ${(-ART_Y * s).toFixed(1)}) scale(${s.toFixed(3)})`}>
+                          {/* A new mood plays its reaction once (a new animation name restarts it): a jump for
+                              good news, a shake for a bill… */}
+                          <g class={`react r-${tk.mood ?? "idle"}`}>
+                            <CharacterArt kind={tk.kind} mood={tk.mood} />
+                          </g>
+                        </g>
+                        {/* Sharing a space: the team's letter at its shoulder, as on the cities it owns. */}
+                        {list.length > 1 && tk.badge && (
+                          <g class="tk-badge" transform={`translate(${(40 * s).toFixed(1)} ${(-46 * s).toFixed(1)})`}>
+                            <circle r="15" fill={tk.badge.color} stroke="var(--board-paper)" stroke-width="2.5" />
+                            <path class="owner" d={OWNER_PATH[tk.badge.letter]} transform="scale(0.88)" />
+                          </g>
+                        )}
+                      </g>
                     </g>
-                  </g>
-                </g>
-              </Up>
-            );
-          }),
-        )}
+                  </Up>
+                );
+              })
+          );
+        })}
       </g>
       </g>
       {center}

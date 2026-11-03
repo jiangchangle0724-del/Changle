@@ -8,6 +8,7 @@ import { setLang } from "../client/i18n";
 import { identity, prefs, seenTrivia } from "../client/prefs";
 import { setTriviaSources } from "../client/triviaSources";
 import { installAudioUnlock, setMuted } from "../client/sound";
+import { installKeyboard } from "../client/keyboard";
 import { onServer, setConn, update } from "../client/store";
 import { disableWeather } from "../client/weather";
 import { App } from "../client/ui/App";
@@ -83,6 +84,7 @@ setLang(prefs.lang);
 setMuted(prefs.muted);
 setReduced(prefs.reduced);
 installAudioUnlock();
+installKeyboard();
 // iPhone Safari only shows a button pressed (:active) when the page listens for touches.
 document.addEventListener("touchstart", () => {}, { passive: true });
 document.addEventListener("keydown", (e) => {

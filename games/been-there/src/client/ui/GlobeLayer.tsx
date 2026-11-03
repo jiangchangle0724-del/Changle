@@ -57,7 +57,7 @@ function colors(): GlobeColors {
   };
 }
 
-export function GlobeLayer({ flight, focus }: { flight: Flight | null; focus: string | null }) {
+export function GlobeLayer({ flight, focus, onOn }: { flight: Flight | null; focus: string | null; onOn?: (on: boolean) => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const api = useRef<GlobeApi | null>(null);
   const [on, setOn] = useState(false);
@@ -86,6 +86,8 @@ export function GlobeLayer({ flight, focus }: { flight: Flight | null; focus: st
   useEffect(() => {
     if (on && focus) api.current?.focus(focus);
   }, [on, focus]);
+  // (the board shows its tokens on the globe, rather than its flat map, once the globe is up)
+  useEffect(() => onOn?.(on), [on]);
   useEffect(() => {
     if (!on || !flight || flight.key === before.current) return;
     // (once: a flight held back while a token walks, then handed back, isn't flown twice)
