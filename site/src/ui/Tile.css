@@ -69,9 +69,16 @@
   width: var(--text-sm);
   height: var(--text-sm);
 }
-/* not playable yet: dimmed, but its card still opens (when it's coming, the wishlist) */
+/* not playable yet: drawn in its kind's color on the night instead of filled with it (dimming the
+   whole card took its words under 4.5:1); its card still opens (when it's coming, the wishlist) */
 .ui-tile-soon {
-  opacity: 0.55;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.ui-tile-soon .ui-tile-top,
+.ui-tile-soon .ui-tile-watermark {
+  color: var(--gel);
 }
 .ui-tile-lit {
   outline: 2px solid var(--color-text);
