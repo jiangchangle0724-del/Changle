@@ -126,7 +126,9 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
   // this phone and answered there, on its own turn. The next one after both is skipped.
   // (A real tap can take GitHub's WebKit a second or two: it waits for the page to draw the button
   // still. So only on a question with 3 seconds or more to go, at once, and never waiting on one that
-  // has closed meanwhile: the next one will do. The pictures are taken of ones left alone.)
+  // has closed meanwhile: the next one will do. The pictures are taken of ones left alone. And on its
+  // own turn a phone answers before it throws, as a player would: a throw starts the ride, and drawing
+  // that keeps WebKit too busy to take a tap for seconds.)
   const done = { own: false, others: false, skipped: false };
   const checked = new Set<string>();
   const pictures = new Set<string>();
@@ -168,7 +170,9 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
           pictures.add(kind);
         }
       }
-      await tap(p);
+      // (a question this phone is still to answer or skip on its own turn: the throw waits for it)
+      const answerFirst = box?.state === "ask" && box.secs >= 3 && !checked.has(`${p.name}${box.id}own`) && (!done.own || (done.others && !done.skipped));
+      await tap(p, answerFirst ? { skip: ["roll"] } : {});
     }
     await a.page.waitForTimeout(100);
   }
