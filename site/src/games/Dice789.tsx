@@ -112,6 +112,16 @@ export function Dice789({ onBack }: { onBack: () => void }) {
     }
   }
 
+  const actions = assigning ? undefined : outcome ? (
+    <button type="button" className={`btn btn-lg ${outcome === "safe" || outcome === "seven" ? "btn-porcelain" : "btn-penalty"}`} onClick={resolve}>
+      {outcome === "safe" || outcome === "seven" ? ui("next") : outcome === "ones" ? ui("pickOne") : custom ? ui("takePenalty") : ui("drink")}
+    </button>
+  ) : (
+    <button type="button" className="btn btn-primary btn-lg" onClick={roll} disabled={rolling}>
+      {rolling ? (lang === "zh" ? "骰子还在转" : "Rolling") : lang === "zh" ? "掷骰子" : "Roll"}
+    </button>
+  );
+
   const rules = (
     <p>
       {custom
@@ -125,7 +135,7 @@ export function Dice789({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <GameShell title={UI.gameDice} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={UI.gameDice} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: me?.id }} actions={actions}>
       <div className="turn-line">
         <span className="hint">{ui("yourTurn")}</span>
         <span className="turn-name">{me?.name}</span>
@@ -164,17 +174,9 @@ export function Dice789({ onBack }: { onBack: () => void }) {
               {dice[0] + dice[1]}
             </p>
             <p className="dice-outcome">{outcomeLabel(outcome)}</p>
-            <button type="button" className={`btn btn-lg btn-block ${outcome === "safe" || outcome === "seven" ? "btn-porcelain" : "btn-penalty"}`} onClick={resolve}>
-              {outcome === "safe" || outcome === "seven" ? ui("next") : outcome === "ones" ? ui("pickOne") : custom ? ui("takePenalty") : ui("drink")}
-            </button>
+
           </motion.div>
-        ) : (
-          <motion.div key="roll" className="stack" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={roll} disabled={rolling}>
-              {rolling ? (lang === "zh" ? "骰子还在转" : "Rolling") : lang === "zh" ? "掷骰子" : "Roll"}
-            </button>
-          </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </GameShell>
   );
