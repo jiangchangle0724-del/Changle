@@ -30,3 +30,7 @@ the commands and the settings.
 * A sheet closes on the phone's back button (`useBackCloses`); a page keeps its address.
 * Motion uses token durations and easings; with reduced motion, nothing slides or shakes.
 * The home page's first download has a CI budget (`site/scripts/budget.ts`); load new parts later.
+* Motion on the home page uses the browser's own animations (`site/src/lib/motion.ts`); GSAP
+  (`lib/anim.ts`) is for games only, so it stays out of the home page's download.
+* CI compares 40 screenshots and runs axe (`site / visual`). If a screen changed on purpose, the PR
+  needs new reference screenshots: the `update-screenshots` label (site/README.md). Ask Steve first.
