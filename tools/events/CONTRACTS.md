@@ -96,9 +96,23 @@ Meadows, the Fraser Valley (兰里及菲沙河谷).
 D1 (`migrations/`; the Worker applies new migration files itself, `src/schema.ts`): `events`,
 `venues`, `sources`, `fetch_log`, `review_queue`, and `runs` (how far each morning's run has got).
 Never edit a migration that has gone out; add the next number and list it in `src/schema.ts`.
+Each `fetch_log` row says how its step got its answer: `via` is `fetch` or `handoff` (below), and
+`note` why, in a few words.
 
 KV: `events:live` (the published `Published`), `raw:<runId>:<source>:<part>` (the raw answer of
-every step, kept 30 days: rerun a parser without fetching again).
+every step, kept 30 days: rerun a parser without fetching again), `handoff:<date>:<source>:<part>`
+(a library's page handed over for that day's run, kept 2 days).
+
+## The libraries' hand-over
+
+Vancouver's and Richmond's libraries (BiblioCommons) answer the Worker 403 since 2 November, and
+200 to the same request from anywhere else; such a source has `handoff: true` (`src/sources.ts`).
+At 05:50 Vancouver time a GitHub job (`.github/workflows/events-libraries.yml`, `scripts/libraries.ts`)
+reads their pages with the run's own requests (`requestOf`, `nextPart`: the same URLs, headers and
+paging; it asks again after a 5xx) and posts each page to `POST /go/api/handoff`. A step of such a
+source reads today's page from KV and parses it like a fetched one; only for a page nothing came for
+does it fetch, and its `note` says so. One page a request, as one page is one step: the free plan's
+10 ms. The code for both ends is `src/handoff.ts`.
 
 What decides what's published (`src/publish.ts`): in the window, not cancelled, live, not a merged
 duplicate, and seen at its source today, or its source failed today (then yesterday's stand). If a
@@ -111,6 +125,10 @@ run has under half of yesterday's events, yesterday's stay up and the log says s
 - `GET /go/api/status`: the last run step by step (the fetch log) and what's published.
 - `GET /go/preview`: what's published, day by day, with the same filters as links (`?lang=en` for
   English). Not linked from anywhere, `noindex`: for checking the run until the page (C7) exists.
+- `POST /go/api/handoff?source=vpl&date=YYYY-MM-DD&part=N`, `Authorization: Bearer <EVENTS_HANDOFF_KEY>`,
+  the page as the body: the GitHub job only. 401 without the right key (503 while the Worker has
+  none), 400 for another source, a date that isn't today in Vancouver, a part out of range or a body
+  that isn't an events page, 413 over 2 MB; otherwise kept (200), replacing that day's page.
 
 ## The golden set (黄金集)
 
@@ -161,7 +179,7 @@ saved inputs in `tests/fixtures/`.
 
 An entry in `src/sources.ts` (id, name, kind, tier, url, how to ask for a part, how to read it,
 how many parts at most), a parser in `src/parsers/`, a saved real response in `tests/fixtures/`,
-tests. Be a good guest: the `USER_AGENT` in `src/run.ts`, official feeds and APIs first, robots.txt
+tests. Be a good guest: the `USER_AGENT` in `src/sources.ts`, official feeds and APIs first, robots.txt
 respected, at most one request a second to a site, never Facebook, Instagram, WeChat or Xiaohongshu.
 
 ## Commands (in `tools/events`, Node 22)
@@ -170,3 +188,5 @@ respected, at most one request a second to a site, never Facebook, Instagram, We
 - `npm run dev`: the Worker locally; then `curl "http://127.0.0.1:8787/__scheduled?cron=0+13,14+*+*+*"`
   runs a morning run at once, and `/go/api/status` shows its fetch log.
 - `npm run types` after changing `wrangler.jsonc`.
+- `npm run libraries -- --dry-run`: read the libraries' pages as the GitHub job does, and print the
+  counts; nothing is sent. (Behind a proxy, Node's fetch needs `NODE_USE_ENV_PROXY=1`.)

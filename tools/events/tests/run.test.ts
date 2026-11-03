@@ -7,6 +7,7 @@ import rpl from "./fixtures/bibliocommons/rpl-2026-11-01-p1.json?raw";
 import ubc from "./fixtures/ical/ubc-2026-10-31.ics?raw";
 import bpl from "./fixtures/bpl/events-2026-11-01.json?raw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { keepHandoff } from "../src/handoff";
 import { LIVE_KEY, publish } from "../src/publish";
 import { fetchStep, runDay, type StepRunner } from "../src/run";
 import worker from "../src/worker";
@@ -14,8 +15,18 @@ import type { Published } from "../src/types";
 
 const steps: StepRunner = { fetchSource: (a) => fetchStep(env, a), publish: (a) => publish(env, a.runId) };
 
-/** The sources, as they answered: Luma's feed; each library's first page, then nothing; UBC's first two days, then nothing. */
-function sources(opts: { lumaDown?: boolean } = {}) {
+/** A library's next page once the events run out: the first page with no events on it. */
+function emptyAfter(page: string): string {
+  const empty = JSON.parse(page);
+  empty.events.results = [];
+  return JSON.stringify(empty);
+}
+
+/**
+ * The sources, as they answered: Luma's feed; each library's first page, then nothing; UBC's first
+ * two days, then nothing. `librariesRefuse`: BiblioCommons answers the Worker 403, as since 2 November.
+ */
+function sources(opts: { lumaDown?: boolean; librariesRefuse?: boolean } = {}) {
   const calls: string[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input instanceof Request ? input.url : input);
@@ -28,12 +39,11 @@ function sources(opts: { lumaDown?: boolean } = {}) {
     if (url.includes("lu.ma")) return opts.lumaDown ? new Response("busy", { status: 503 }) : new Response(luma, { headers: { "content-type": "text/calendar", etag: '"luma-1"' } });
     const lib = /\/libraries\/(\w+)\/events/.exec(url)?.[1];
     if (lib) {
+      if (opts.librariesRefuse) return new Response("Forbidden", { status: 403 });
       const page = lib === "vpl" ? vpl : lib === "yourlibrary" ? rpl : null;
       if (!page) return new Response("not found", { status: 404 });
       if (url.includes("page=1")) return new Response(page, { headers: { "content-type": "application/json" } });
-      const empty = JSON.parse(page);
-      empty.events.results = [];
-      return Response.json(empty);
+      return new Response(emptyAfter(page), { headers: { "content-type": "application/json" } });
     }
     return new Response("not found", { status: 404 });
   });
@@ -46,15 +56,17 @@ const api = async (path: string) => {
 };
 
 const logOf = async (runId: string) =>
-  (await env.DB.prepare("SELECT source, part, http_status, found, in_window, added, error FROM fetch_log WHERE run_id = ?1 ORDER BY id").bind(runId).all()).results;
+  (await env.DB.prepare("SELECT source, part, via, http_status, found, in_window, added, error, note FROM fetch_log WHERE run_id = ?1 ORDER BY id").bind(runId).all()).results;
 
-beforeEach(async () => {
-  // (each test starts from an empty database and cache)
+/** (Each test starts from an empty database and cache.) */
+async function reset() {
   await env.CACHE.delete(LIVE_KEY);
+  for (const { name } of (await env.CACHE.list({ prefix: "handoff:" })).keys) await env.CACHE.delete(name);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)").run();
   for (const t of ["events", "venues", "sources", "fetch_log", "review_queue", "runs"]) await env.DB.prepare(`DROP TABLE IF EXISTS ${t}`).run();
   await env.DB.prepare("DELETE FROM schema_migrations").run();
-});
+}
+beforeEach(reset);
 afterEach(() => vi.restoreAllMocks());
 
 describe("a morning run", () => {
@@ -65,12 +77,14 @@ describe("a morning run", () => {
     expect(r).toEqual({ steps: 9, done: true, published: true });
     expect(calls.some((u) => u.includes("ticketmaster"))).toBe(false);
     const log = await logOf("2026-10-31");
+    // (nothing was handed over for the libraries, and they answer: they're fetched as they always were)
+    const direct = { via: "fetch", note: "nothing handed over for this page today: fetched directly" };
     expect(log).toMatchObject([
-      { source: "luma-vancouver", part: 0, http_status: 200, found: 15, error: null },
-      { source: "vpl", part: 0, http_status: 200, found: 40, in_window: 40, added: 40, error: null },
-      { source: "vpl", part: 1, http_status: 200, found: 0, error: null },
-      { source: "rpl", part: 0, http_status: 200, found: 25, in_window: 25, added: 25, error: null },
-      { source: "rpl", part: 1, http_status: 200, found: 0, error: null },
+      { source: "luma-vancouver", part: 0, via: "fetch", http_status: 200, found: 15, error: null, note: null },
+      { source: "vpl", part: 0, ...direct, http_status: 200, found: 40, in_window: 40, added: 40, error: null },
+      { source: "vpl", part: 1, ...direct, http_status: 200, found: 0, error: null },
+      { source: "rpl", part: 0, ...direct, http_status: 200, found: 25, in_window: 25, added: 25, error: null },
+      { source: "rpl", part: 1, ...direct, http_status: 200, found: 0, error: null },
       // Burnaby: 113 programs still to come, 27 of them in the window
       { source: "bpl", part: 0, http_status: 200, found: 113, in_window: 27, added: 27, error: null },
       // UBC: 30 in its answer, 6 anyone can walk into (5 in the window), then an empty answer
@@ -149,6 +163,75 @@ describe("a morning run", () => {
     const r = await publish(env, "2026-11-02");
     expect(r).toMatchObject({ kept: true, count: 0 });
     expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.runId).toBe("2026-11-01");
+  });
+});
+
+describe("the libraries' hand-over (src/handoff.ts)", () => {
+  /** What the GitHub job hands over for a day's run: each library's first page, then the empty next one. */
+  async function handedOver(date: string, libraries: [source: string, page: string][]) {
+    for (const [source, page] of libraries) {
+      await keepHandoff(env.CACHE, date, source, 0, page);
+      await keepHandoff(env.CACHE, date, source, 1, emptyAfter(page));
+    }
+  }
+  const libraryRows = (log: Record<string, unknown>[]) => log.filter((l) => l.source === "vpl" || l.source === "rpl");
+  /** What's published, in a stable order, without the time each row was stored. */
+  const published = (p: Published) => p.events.map(({ updatedAt: _, ...e }) => e).sort((a, b) => a.id.localeCompare(b.id));
+
+  it("the run reads the pages handed over instead of asking the libraries, and publishes the very same", async () => {
+    sources();
+    await runDay(steps, env.DB, "2026-10-31");
+    const direct = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    await reset();
+    // Since 2 November the libraries refuse the Worker; at 05:50 the job handed their pages over.
+    const calls = sources({ librariesRefuse: true });
+    await handedOver("2026-10-31", [["vpl", vpl], ["rpl", rpl]]);
+    expect(await runDay(steps, env.DB, "2026-10-31")).toEqual({ steps: 9, done: true, published: true });
+    expect(calls.filter((u) => u.includes("bibliocommons"))).toEqual([]);
+    const log = await logOf("2026-10-31");
+    const handed = { via: "handoff", http_status: null, error: null };
+    expect(libraryRows(log)).toMatchObject([
+      { source: "vpl", part: 0, ...handed, found: 40, in_window: 40, added: 40 },
+      { source: "vpl", part: 1, ...handed, found: 0 },
+      { source: "rpl", part: 0, ...handed, found: 25, in_window: 25, added: 25 },
+      { source: "rpl", part: 1, ...handed, found: 0 },
+    ]);
+    for (const row of libraryRows(log)) expect(row.note).toMatch(/^handed over at \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-0[78]:00$/);
+    // the same raw answers kept, and the same 102 events published, field for field
+    expect(await env.CACHE.get("raw:2026-10-31:rpl:0")).toBe(rpl);
+    const fromHandoff = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(fromHandoff.count).toBe(102);
+    expect(published(fromHandoff)).toEqual(published(direct));
+    // /go/api/status says how each step got its answer
+    const status = await api("/go/api/status");
+    expect((status.body.steps as { source: string; via: string | null }[]).map((s) => `${s.source}:${s.via}`)).toEqual([
+      "luma-vancouver:fetch",
+      "vpl:handoff",
+      "vpl:handoff",
+      "rpl:handoff",
+      "rpl:handoff",
+      "bpl:fetch",
+      "ubc:fetch",
+      "ubc:fetch",
+      "ticketmaster:null",
+      "publish:null",
+    ]);
+  });
+
+  it("with nothing handed over for today, the run asks the library itself and the log says why", async () => {
+    const calls = sources({ librariesRefuse: true });
+    await handedOver("2026-10-31", [["vpl", vpl]]); // today's, for Vancouver only
+    await handedOver("2026-10-30", [["rpl", rpl]]); // yesterday's, for Richmond: not today's run
+    await runDay(steps, env.DB, "2026-10-31");
+    expect(calls.filter((u) => u.includes("bibliocommons"))).toEqual(["https://gateway.bibliocommons.com/v2/libraries/yourlibrary/events/search?limit=25&page=1"]);
+    expect(libraryRows(await logOf("2026-10-31"))).toMatchObject([
+      { source: "vpl", part: 0, via: "handoff", found: 40, added: 40, error: null },
+      { source: "vpl", part: 1, via: "handoff", found: 0, error: null },
+      { source: "rpl", part: 0, via: "fetch", http_status: 403, found: 0, error: "HTTP 403", note: "nothing handed over for this page today: fetched directly" },
+    ]);
+    const pub = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(pub.events.some((e) => e.sourceName === "Vancouver Public Library")).toBe(true);
+    expect(pub.events.some((e) => e.sourceName === "Richmond Public Library")).toBe(false);
   });
 });
 
