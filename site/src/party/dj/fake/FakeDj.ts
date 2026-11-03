@@ -13,15 +13,20 @@
  * song, its own chords and its own turn on the melody, both decks together; a song asked for by
  * name (`playTrack`) comes in at the next section. The first track is the night as written.
  *
+ * A song asked for by name also brings its clip (clip/clip.ts: Apple's 30 seconds of it): the deck
+ * it was asked onto plays it from the drop's bar, over that deck's drums alone (each section's
+ * drums are recorded apart for it, `BED`), and its own sound comes back as the clip ends.
+ *
  * Lyria replaces this class (A2): the speaker, the clock and the screen stay the same.
  */
 import { playing } from "../../../shared/dj/curve";
-import { SET_PHASES, type DjPhase, type SetPhase, type StyleId } from "../../../shared/dj/types";
+import { SET_PHASES, type DeckSide, type DjPhase, type SetPhase, type StyleId } from "../../../shared/dj/types";
+import { clipScale, ClipDeck, type Clip } from "../clip/clip";
 import type { Speaker } from "../speaker/speaker";
 import { BY_PHASE, nextSection } from "./arrange";
 import { renderSection, type Rendered } from "./render";
 import { BPM, beatFrames, type Section } from "./sections";
-import { sectionById, sectionOf } from "./styles";
+import { BED, sectionById, sectionOf } from "./styles";
 import { newTrack } from "./tracks";
 
 const RATE = 48000;
@@ -35,7 +40,8 @@ const KEEP_MADE = 16;
 export const TRACK_SECTIONS = 8;
 
 type Carry = { l: Float32Array; r: Float32Array; at: number };
-type Slot = { base: string; a: Rendered; b: Rendered | null };
+/** a stretch of both decks; each deck's drums alone (`bedA`, `bedB`) once a clip first plays over it (null: not recorded in time) */
+type Slot = { base: string; a: Rendered; b: Rendered | null; bedA?: Rendered | null; bedB?: Rendered | null };
 
 export class FakeDj {
   readonly bpm = BPM;
@@ -84,6 +90,13 @@ export class FakeDj {
   private spare: { l: Float32Array; r: Float32Array }[] = [];
   /** the slot that just went out (its ring-out may still be playing over the next) */
   private last: Slot | null = null;
+  /** each deck's clip of a song asked for by name, over its own sound when it plays */
+  readonly clips: Record<DeckSide, ClipDeck> = { a: new ClipDeck(), b: new ClipDeck() };
+  /** a drop on its way into each deck: the stream frame of its bar (a clip that arrives after the count started begins there) */
+  private cues: Record<DeckSide, number | null> = { a: null, b: null };
+  /** the ring-out of each deck's drums alone, from the slot before */
+  private bedCarryA: Carry | null = null;
+  private bedCarryB: Carry | null = null;
 
   /** `render` records a section (the tests hand in their own) */
   constructor(private render: (sec: Section, rate: number, spare?: () => { l: Float32Array; r: Float32Array } | undefined) => Promise<Rendered> = renderSection) {
@@ -115,6 +128,39 @@ export class FakeDj {
     this.nextN = n;
     this.parts = TRACK_SECTIONS;
     this.wish(playing(this.phase) ? this.phase : "warm");
+  }
+
+  /**
+   * The clip deck `side` has (a song asked for, up next on it or on the air there; null: none). A
+   * drop already on its way into that deck: it starts on the drop's bar.
+   */
+  setClip(side: DeckSide, clip: Clip | null) {
+    const c = this.clips[side];
+    if (c.clip === clip) return;
+    const sent = this.speaker?.sentFrames ?? 0;
+    c.set(clip, sent);
+    const at = this.cues[side];
+    if (clip && this.streaming && at !== null && at > sent) c.start(at, this.bpm, sent);
+    this.wish(playing(this.phase) ? this.phase : "warm");
+  }
+
+  /** A drop on its way into deck `side`, landing on the stream's beat `beat`: its clip starts there. */
+  cueClip(side: DeckSide, beat: number) {
+    const sp = this.speaker;
+    if (!sp || !this.streaming) return;
+    const at = this.origin + beat * beatFrames(RATE);
+    this.cues[side] = at;
+    this.clips[side].start(at, this.bpm, sp.sentFrames);
+  }
+
+  /** Deck `side` is on the air with a clip that hasn't started (the fader took it there, or it came late): on the next bar line. */
+  startClip(side: DeckSide) {
+    const sp = this.speaker;
+    const c = this.clips[side];
+    if (!sp || !this.streaming || !c.waiting) return;
+    const bar = 4 * beatFrames(RATE);
+    const n = Math.ceil((sp.sentFrames + 0.05 * RATE - this.origin) / bar);
+    c.start(this.origin + n * bar, this.bpm, sp.sentFrames);
   }
 
   /** Plays into this speaker from now on (a new speaker starts a new stream). */
@@ -210,6 +256,11 @@ export class FakeDj {
     this.last = null;
     this.carryA = null;
     this.carryB = null;
+    this.bedCarryA = null;
+    this.bedCarryB = null;
+    this.cues = { a: null, b: null };
+    this.clips.a.reset();
+    this.clips.b.reset();
     this.prev = null;
     this.marks = [];
     // a new stream starts its song from the top
@@ -233,6 +284,14 @@ export class FakeDj {
     // (the one after the section going out now: that one's decks were settled when it began)
     const next = this.streaming && playing(this.phase) ? nextSection(this.phase, this.cur?.base ?? this.prev) : null;
     const turning = this.parts >= TRACK_SECTIONS;
+    // a clip on the beat waiting or playing on a deck: that deck's drums alone, this section's and the next's
+    for (const side of ["a", "b"] as const) {
+      const style = side === "a" ? this.styleA : this.styleB;
+      if (!style || !this.clips[side].wantsBed(this.bpm)) continue;
+      const now = side === "a" ? this.cur?.a : this.cur?.b;
+      if (now) ids.push(now.id + BED);
+      if (next) ids.push(sectionOf(style, next, turning ? this.nextN : this.track) + BED);
+    }
     add(next, turning ? this.nextN : this.track);
     for (const base of here) add(base, this.track);
     if (this.parts >= TRACK_SECTIONS - 2) for (const base of here) add(base, this.nextN);
@@ -249,7 +308,8 @@ export class FakeDj {
   private trim() {
     if (this.made.size <= KEEP_MADE) return;
     // (the slot playing and the one whose ring-out may still be over it stay)
-    const rank = (id: string) => (id === this.cur?.a.id || id === this.cur?.b?.id || id === this.last?.a.id || id === this.last?.b?.id ? 0 : this.need.has(id) ? 1 : 4);
+    const inUse = new Set([this.cur?.a.id, this.cur?.b?.id, this.last?.a.id, this.last?.b?.id].filter((x): x is string => !!x).flatMap((x) => [x, x + BED]));
+    const rank = (id: string) => (inUse.has(id) ? 0 : this.need.has(id) ? 1 : 4);
     // the least wanted first; Map keys are oldest first, and the sort keeps that within a rank
     const victims = [...this.made.keys()].sort((x, y) => rank(y) - rank(x));
     for (const id of victims) {
@@ -351,6 +411,8 @@ export class FakeDj {
 
   /** The next chunk of the current section on both decks, each with its last section's ring-out laid over its start. */
   private push(sp: Speaker, cur: Slot) {
+    const f0 = sp.sentFrames;
+    const from = this.off;
     const n = Math.min(CHUNK, cur.a.frames - this.off);
     const [l, r] = this.slice(cur.a, n, this.carryA);
     let l2: Float32Array | undefined;
@@ -358,16 +420,63 @@ export class FakeDj {
     // (B with nothing this section but its last one's ring-out: the player lets the tail fade
     // under deck A rather than cutting it)
     if (cur.b || this.carryB) [l2, r2] = this.slice(cur.b, n, this.carryB);
-    const ownB = !!cur.b;
+    let ownB = !!cur.b;
+    // a song asked for: its clip over its deck, the deck's drums alone under it (once recorded;
+    // their ring-out only matters while a clip plays over the slot after)
+    // (as loud as the stretch it plays in, a touch over)
+    const scale = clipScale(sectionById(cur.a.id)?.level ?? -15);
+    if (this.clips.a.live(f0, n)) this.clips.a.mix(l, r, f0, this.bed("a", cur, from, n), scale);
+    else this.bedCarryA = null;
+    if (this.clips.b.live(f0, n)) {
+      if (!l2 || !r2) {
+        l2 = new Float32Array(n);
+        r2 = new Float32Array(n);
+      }
+      this.clips.b.mix(l2, r2, f0, this.bed("b", cur, from, n), scale);
+      ownB = true;
+    } else this.bedCarryB = null;
     this.off += n;
     if (this.off >= cur.a.frames) {
       this.carryA = { l: cur.a.l.subarray(cur.a.frames), r: cur.a.r.subarray(cur.a.frames), at: 0 };
       this.carryB = cur.b ? { l: cur.b.l.subarray(cur.b.frames), r: cur.b.r.subarray(cur.b.frames), at: 0 } : null;
+      this.bedCarryA = cur.bedA ? { l: cur.bedA.l.subarray(cur.bedA.frames), r: cur.bedA.r.subarray(cur.bedA.frames), at: 0 } : null;
+      this.bedCarryB = cur.bedB ? { l: cur.bedB.l.subarray(cur.bedB.frames), r: cur.bedB.r.subarray(cur.bedB.frames), at: 0 } : null;
       this.prev = cur.base;
       this.last = cur;
       this.cur = null;
     }
     sp.push(l, r, l2, r2, ownB);
+  }
+
+  /**
+   * Deck `side`'s drums alone for the `n` frames from `from` in this slot, with the last slot's
+   * ring-out; settled the first time a clip plays over the slot (recorded by then, or not this slot:
+   * the clip plays alone until the next).
+   */
+  private bed(side: DeckSide, cur: Slot, from: number, n: number): [Float32Array, Float32Array] | null {
+    const key = side === "a" ? "bedA" : "bedB";
+    if (cur[key] === undefined) {
+      const whole = side === "a" ? cur.a : cur.b;
+      cur[key] = whole ? (this.made.get(whole.id + BED) ?? null) : null;
+    }
+    const rec = cur[key] ?? null;
+    const c = side === "a" ? this.bedCarryA : this.bedCarryB;
+    if (!rec && !c) return null;
+    const l = rec ? rec.l.slice(from, from + n) : new Float32Array(n);
+    const r = rec ? rec.r.slice(from, from + n) : new Float32Array(n);
+    if (c) {
+      const m = Math.min(n, c.l.length - c.at);
+      for (let i = 0; i < m; i++) {
+        l[i] += c.l[c.at + i];
+        r[i] += c.r[c.at + i];
+      }
+      c.at += m;
+      if (c.at >= c.l.length) {
+        if (side === "a") this.bedCarryA = null;
+        else this.bedCarryB = null;
+      }
+    }
+    return [l, r];
   }
 
   private slice(rec: Rendered | null, n: number, c: Carry | null): [Float32Array, Float32Array] {

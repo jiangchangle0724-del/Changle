@@ -1,7 +1,4 @@
-import type { GameMeta } from "../games/registry";
-
-/** What a tile shows: a game, or one still coming (no `ready`, so it lights as coming soon). */
-type TileGame = Pick<GameMeta, "name" | "icon" | "gel" | "minPlayers" | "maxPlayers"> & Partial<Pick<GameMeta, "ready" | "isNew">>;
+import { isNewGame, type GameMeta } from "../games/registry";
 
 /** One game on the lighting board: a gel-colored tile with both names. */
 export function Tile({
@@ -14,7 +11,7 @@ export function Tile({
   disabled,
   compact,
 }: {
-  g: TileGame;
+  g: GameMeta;
   i: number;
   lit: boolean;
   lang: "zh" | "en";
@@ -43,7 +40,7 @@ export function Tile({
       <span className="tile-sub">{sub}</span>
       <span className="tile-foot">
         <span className="tile-players">{g.minPlayers === g.maxPlayers ? g.minPlayers : `${g.minPlayers}–${g.maxPlayers}`}</span>
-        {g.isNew && g.ready && <span className="tile-tag">{lang === "zh" ? "新" : "New"}</span>}
+        {isNewGame(g) && <span className="tile-tag">{lang === "zh" ? "新" : "New"}</span>}
       </span>
     </button>
   );

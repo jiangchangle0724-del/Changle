@@ -1,5 +1,5 @@
 import { SlidersHorizontal } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LangTab } from "../components/TopBar";
 import { SettingsSheet } from "../components/SettingsSheet";
 import type { GameId } from "../games/registry";
@@ -7,8 +7,12 @@ import { gsap, LIGHTS, reduced, setLight, useGSAP } from "../lib/anim";
 import { useStore } from "../store";
 import { PartyTab } from "./PartyTab";
 import { TipButton } from "./Tip";
-import { ToolsTab } from "../tools/ToolsTab";
-import { WishlistTab } from "./WishlistTab";
+// the tools and wishlist tabs aren't on the first screen: they load when opened, or once the home
+// page has settled (below), so the first download is smaller
+const loadTools = () => import("../tools/ToolsTab");
+const loadWishlist = () => import("./WishlistTab");
+const ToolsTab = lazy(() => loadTools().then((m) => ({ default: m.ToolsTab })));
+const WishlistTab = lazy(() => loadWishlist().then((m) => ({ default: m.WishlistTab })));
 import { AccountButton } from "../account/AccountButton";
 
 export type HomeTab = "party" | "tools" | "wish";
@@ -46,6 +50,15 @@ export function Home({
     else if (tab === "wish") setLight(LIGHTS.wish);
   }, [tab]);
 
+  // fetch the other two tabs once the page is idle, so switching to them is instant
+  useEffect(() => {
+    const fetchTabs = () => void Promise.all([loadTools(), loadWishlist()]).catch(() => {});
+    // (Safari has no requestIdleCallback)
+    const idle = (window as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    if (idle) idle(fetchTabs, { timeout: 4000 });
+    else window.setTimeout(fetchTabs, 2500);
+  }, []);
+
   return (
     <div className="screen home">
       <header className="home-head">
@@ -61,8 +74,10 @@ export function Home({
       <Tabs value={tab} onChange={onTab} />
       <Panel key={tab} dir={dir}>
         {tab === "party" && <PartyTab card={game} onCard={onCard} onPlay={onPlay} onWishlist={() => onTab("wish")} />}
-        {tab === "tools" && <ToolsTab />}
-        {tab === "wish" && <WishlistTab />}
+        <Suspense fallback={null}>
+          {tab === "tools" && <ToolsTab />}
+          {tab === "wish" && <WishlistTab />}
+        </Suspense>
       </Panel>
       <TipButton />
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />

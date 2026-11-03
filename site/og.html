@@ -31,11 +31,8 @@
       import { Disc3 } from 'lucide-react';
       import { GAMES } from './src/games/registry';
 
-      // Presentation-only grouping until A4 supplies the registry's Steve-approved categories.
-      // Prefer that field automatically when it arrives; this does not alter game metadata.
-      const body = new Set(['limbo', 'freeze']);
-      const drink = new Set(['truth', 'rogue', 'king', 'prompts', 'dice', 'wheel']);
-      const category = g => g.category ?? (body.has(g.id) ? 'body' : drink.has(g.id) ? 'drink' : g.id === 'punchline' ? 'online' : 'brain');
+      // each game's kind from the registry (Steve's five, 2026-11-02): its card wears that color
+      const category = g => g.category;
       const cards = [{ slug: 'default', name: { zh: '开席', en: 'Lazy Susan' }, icon: Disc3, category: 'brain' }, ...GAMES.filter(g => g.ready && !g.hidden)];
       for (const g of cards) {
         const card = document.createElement('article');

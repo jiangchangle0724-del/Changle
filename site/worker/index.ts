@@ -3,12 +3,14 @@
  * hands each phone only what that phone may see, and survives phones locking or dropping.
  */
 import { DurableObject } from "cloudflare:workers";
+import { youtube } from "./youtube";
 import { freshRoom, RoomEngine, type Output, type Profile, type RoomData } from "../src/shared/engine/room";
 import { CODE_RE, type ClientMsg, type ErrorCode, type ServerMsg } from "../src/shared/protocol";
 import { drawPicture, drawReady, type Pic } from "./draw";
 import { Hub, type Reply } from "./hub";
 import { LyriaRelay, type LyriaEnv, type LyriaWhy, type RelayMsg } from "./lyria";
 import { cleanChoices, drawPrompt, LIMITED } from "../src/shared/draw";
+import { decodePiece, encodePiece, PHONE_BYTES_MIN } from "../src/shared/dj/songwire";
 
 export { Hub };
 
@@ -21,6 +23,8 @@ export interface Env extends LyriaEnv {
   /** the owner's account: the back office, and the one way in while the site is paused */
   MASTER_EMAIL?: string;
   DEV_SHOW_CODES?: string;
+  /** YouTube Data API key: 打碟's song search on the phones (a secret; without it, links still work) */
+  YOUTUBE_API_KEY?: string;
   /** Google AI key for drawing anime avatars (a secret: set-ai-key.cmd) */
   GEMINI_API_KEY?: string;
   GEMINI_IMAGE_MODEL?: string;
@@ -146,6 +150,11 @@ async function fx(req: Request, ctx: ExecutionContext) {
 async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
   const path = url.pathname.replace(/^\/api/, "");
   if (path === "/fx" && req.method === "GET") return fx(req, ctx);
+  // 打碟's songs from YouTube: a link's title, a search (the owner's key)
+  if (path.startsWith("/yt/") && req.method === "GET") {
+    const res = await youtube(path, url, env, ctx);
+    if (res) return cors(res, req, res.headers.get("Cache-Control") ?? "no-store");
+  }
   const hub = env.HUB.get(env.HUB.idFromName("hub"));
   if (path === "/live") {
     if (!originOk(req)) return new Response("forbidden", { status: 403 });
@@ -320,6 +329,8 @@ export class Room extends DurableObject<Env> {
   private savedAt = 0;
   /** the game's earliest timer when the alarm was last set (a light change re-arms only if it moved) */
   private alarmFor: number | null | undefined = undefined;
+  /** song bytes the host's phone sent the big screen in the last minute (the DJ booth) */
+  private songBytes = { at: 0, bytes: 0 };
 
   private async load(code?: string): Promise<RoomEngine> {
     if (this.engine) return this.engine;
@@ -372,7 +383,8 @@ export class Room extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
-    if (typeof raw !== "string" || raw.length > 32_000) return;
+    if (typeof raw !== "string") return this.songPiece(ws, raw);
+    if (raw.length > 32_000) return;
     let msg: ClientMsg;
     try {
       msg = JSON.parse(raw) as ClientMsg;
@@ -451,6 +463,32 @@ export class Room extends DurableObject<Env> {
       engine.stroke(att.pid, msg.op);
       await this.commit(engine.flush());
     }
+  }
+
+  /**
+   * A piece of a song file the host's phone sends the big screen (the DJ booth's songs from a phone,
+   * songwire.ts): only from the host, at a DJ booth, a minute's worth at a time; checked, marked as
+   * theirs, passed straight on to the big screens, and never kept.
+   */
+  private async songPiece(ws: WebSocket, raw: ArrayBuffer) {
+    const att = ws.deserializeAttachment() as Attachment | null;
+    if (!att?.pid || att.screen) return;
+    const piece = decodePiece(raw);
+    if (!piece) return;
+    const engine = await this.load();
+    if (engine.d.game?.id !== "dj" || engine.d.host !== att.pid) return;
+    const now = Date.now();
+    if (now - this.songBytes.at > 60_000) this.songBytes = { at: now, bytes: 0 };
+    if (this.songBytes.bytes + piece.bytes.length > PHONE_BYTES_MIN) return;
+    this.songBytes.bytes += piece.bytes.length;
+    const out = encodePiece({ ...piece.h, by: att.pid }, piece.bytes);
+    for (const s of this.sockets())
+      if (s.screen)
+        try {
+          s.ws.send(out);
+        } catch {
+          /* gone */
+        }
   }
 
   async webSocketClose(ws: WebSocket, code: number) {

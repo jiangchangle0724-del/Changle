@@ -275,3 +275,145 @@ buffer never under 4.98 s, all six songs heard, 118 of 129 pads played (the deck
 drops landed (8 the table's, 4 the DJ's own as songs ended), 7 songs asked for, the night's tempo
 following the songs too far off to match (it sat at 126, 124, 100 and 95 BPM at different times), no
 page errors; WebKit's memory 0.80 to 0.93 GB (1.03 at most).
+
+## A song asked for, played for real; 我的歌 from the host's phone (Nov 2, evening)
+
+Steve, after trying it: "on the phone, the remix of the song I picked didn't remix the one I
+wanted", and "this should work on the phone too" (CONTRACTS.md, "The song itself, for 30 seconds"
+and "From the host's phone").
+
+**`site/scripts/dj_clip_check.py`**, the TV in Chromium and in WebKit, three phones: 42 of 42 in each,
+no errors. Apple's preview server and search are answered by the check (this machine can't reach
+Apple, which turns servers away) with made-up clips: one at 124 BPM with a steady 3 kHz tone, one at
+100 BPM with a 5 kHz tone, so the speaker's output can be checked for them. Amy picks 晴天 from the
+list: the TV fetches its clip, hears 124.004 BPM, records the deck's drums alone, and sets the clip
+for the drop's bar to the frame; the drop lands and the clip plays 0.8% faster on the night's 125
+BPM; two seconds in, the 3 kHz tone stands 73 to 88 dB over the music around it (3 to 9 dB before),
+the output about as loud as the night was (-14.7 dBFS before, -12.6 to -13.0 with the clip); Amy's
+phone says 正在放你点的 周杰伦 《晴天》 with a link to the whole song on Apple Music, the TV credits
+Apple; the clip plays out on a bar line and the remix carries on (the tone gone, -8 to -11 dB). Ben
+types a song that isn't on the list: his phone finds it on Apple, only he and the host read its
+name, and at 100 BPM it plays alone at its own speed (its 5 kHz tone 74 dB up). A name found nowhere
+gets the remix alone, as before.
+
+**`site/scripts/dj_mine_check.py`**, the TV in Chromium and in WebKit, two phones: 26 of 26 in each,
+no errors. Amy, the host, sends two made-up songs (126 and 122 BPM, 70 s each) and a file of random
+bytes named like an MP3 from her phone: her phone says each one's word back (加好了, 加好了, 放不了),
+the TV lists the two with their tempos like its own, and the same song sent again: 电视上已经有这首了.
+A phone that isn't the host's sits down and sends a song's pieces straight at the rooms server, under
+a made-up name: the TV never gets them. Amy presses 用我的歌放 on her phone: the TV hands the music to
+her songs with no gap, her phone says 正在放你的歌; 换回试音版 DJ brings the stand-in back, and the TV's
+own switch agrees. The TV page opened again: its songs went with it (they were in its memory), and the
+room's names for them go too, so her phone says none are on the TV (before, the names stayed).
+
+**A busy table with songs asked for** (as before: pads every 3 to 6 seconds, picks, the fader swept,
+a build-up and a drop a minute, and now a song from the list asked for every minute, each with a
+made-up clip), the TV in WebKit: 10 minutes, no stalls, never not playing, the buffer never under
+4.96 s, 9 songs asked for and 8 clips fetched and played on their drop's bar over the drums, 114 of
+117 pads played, 8 drops all perfect, none off the beat, no errors; WebKit's memory 0.75 GB at the
+start and 0.93 to 1.07 GB from the third minute on (the busy table without clips: 0.77 to 1.0 GB).
+
+**`dj_deck_check.py`** 66 of 66 and **`dj_local_check.py`** 32 of 32, each with the TV in Chromium and
+in WebKit (one deck run on the busy machine had a drop's word reach the TV more than 150 ms after its
+bar, so it landed a beat late, as the driver means it to; run again, it passed). Apple stays out of
+the deck check now (its clips are the clip check's).
+
+## The mixer (混音台, Nov 2, evening)
+
+Steve: "can we add some pro mixing, things that make the music more electronic, knobs"
+(CONTRACTS.md, "The mixer").
+
+**`site/scripts/dj_mixer_check.py`**, the TV in Chromium and in WebKit, two phones: 48 of 48 in each,
+no errors. Measured in the speaker's output: Amy turns the bass all the way down and the low end
+falls from -35 to -67 dB (Ben's turn of the same knob waits while she has it); Ben closes the filter
+and the highs fall from -101 to -145 dB, then opens it the other way (the high-pass up to 2.5 kHz);
+the reset brings it all back (the low end at -34 dB). Each effect switches on a beat to the
+millisecond: the pump's gain ducks to 0.18 on every beat and swells back to 1, the gate cuts in
+sixteenths (0.06 to 1), the flanger and the lo-fi come in (the lo-fi's grit up top: -134 to -86 dB),
+and with all four on the music plays on, no stalls. The TV shows the mixer and who switched what.
+Then a drop lands with the bass cut: the knob is back to 0 dB on the drop's bar.
+
+**A busy table with the mixer** (pads, picks, the fader, a drop a minute, and two phones turning
+knobs every few seconds and switching effects every 3 to 7 seconds), the TV in WebKit: 5 minutes,
+no stalls, never not playing, the buffer never under 4.96 s, 66 knob turns, 54 effect switches
+from the phones and 55 on the speaker (the room also turns an effect off after a minute), every one
+on a beat, 5 drops, no errors; WebKit's memory 0.74 GB at the start, 0.91 GB at most.
+
+With the mixer in, the TV in Chromium: **`dj_deck_check.py`** 66 of 66, **`dj_local_check.py`** 32 of
+32, **`dj_clip_check.py`** 42 of 42, **`dj_mine_check.py`** 26 of 26.
+
+## What the plan asked of the floor (Nov 2, night)
+
+Steve: "看看还有什么需要补充的，把他放进去", on the plan (`docs/dj-booth.md`). Built from it: ❄️ beside 🔥,
+the room reading both (读场), one player's two songs 10 minutes apart, the night's recap (今晚回顾),
+报幕, and the sound ledger (`LICENSES.md`). CONTRACTS.md has the rules.
+
+**`site/scripts/dj_floor_check.py`**, the TV in Chromium and in WebKit, three phones: 41 of 41 in each,
+no errors. Ben and Cat press ❄️ six times: Amy's phone shows who and counts them (🔥 0 ❄️ 6), the TV
+counts them, the room's energy leans from 0.35 to 0.275, and the TV's hint says the floor's dragging;
+ten 🔥 from Amy pull it back over 0.35. Ben's song comes up next and as its countdown starts the TV
+says "Next up, a request from Ben" (headless browsers have no voices: the check reads what the TV
+meant to say), once. Cat's song is up, Ben asks again and Amy after him: Ben's phone says two are
+ahead of his and why (he just had one), Amy's says one. The host turns 报幕 off from her phone and
+the TV says nothing for Cat's; when Cat's lands, Amy's comes up before Ben's. The host ends the set:
+the TV shows the recap (minutes of music, the styles played longest, the two songs asked for by who
+asked, never what they typed, Amy most fired up, her perfect drops, the sound never broke), and so
+does every phone, with the player's own line (Ben's reads his song by name, Cat's only that Ben asked
+for one). With the TV in WebKit on this two-core machine Amy's first press missed its moment (the
+phones' timers run late here) and the DJ dropped it on its next countdown, as it should.
+
+**The drop's celebration stayed up** on the TV until the next drop whenever anything changed in the
+room within 3 seconds of a drop (a 🔥, a pad): its timer was tied to the view's object, which every
+update replaces. Found while checking the recap; now tied to the drop's time, and it goes after 3.2 s
+(checked with 🔥 pressed every second after a drop).
+
+## The phone as a DJ controller; more club sounds (Nov 2, night)
+
+Steve: "I also want more DJ sound effects like airhorn blasts, vinyl record ... 再加一个简易打碟机，让整个页面
+看起来就像一个打碟机" (CONTRACTS.md, "The club pads" and "The phone is a DJ controller").
+
+**`site/scripts/dj_turntable_check.py`**, the TV in Chromium and in WebKit, two phones: 33 of 33 in each,
+no errors. The four new sounds rendered offline in the TV's browser and measured: the record's
+crackle for exactly two bars, its pops 29 times over its RMS; the bass drop's boom from its beat
+(RMS 0.39, about 104 Hz in its first quarter beat); the reverse cymbal swelling (RMS 0.0006 to 0.25)
+and silent from the beat after next; the whistle at about 2,946 Hz, quiet between its blasts. On the phones: two
+turntables (deck A's record spinning, its ring lit), four round knobs, twelve pads; 黑胶, 低音炸弹, 反向镲
+and 口哨 each on a beat to the millisecond, the music under the record darkening to 3.4 kHz from its
+beat. Amy rubs record A back and forth: a scratch on a beat; Ben spins it back 280°: a rewind; Amy holds
+record B still: the brake, the music back on the bar, no stall. A knob dragged up 70 px: the bass at +0.5
+in the room, its cap turned 67.5°; a double tap centres it.
+
+## Dancing along (跟着跳, Nov 2, night)
+
+Steve: "电视那边是要玩家进行与舞蹈相匹配的舞蹈" (CONTRACTS.md, "跟着跳"). Built from his plan's 一起跳,
+easy mode: the phone held in the dancing hand, scored on the beat.
+
+**`site/scripts/dj_dance_check.py`**, the TV in Chromium and in WebKit, two phones: 22 of 22 in each, no
+errors. The TV's coach is drawn and moving, names its move (Step and clap), calls the next in its last
+four beats (In 4: Raise the roof) and changes to it on its beat. Two phones start dancing (the check
+allows the motion sensor, as a phone's tap would) with a pretend hand on each phone's own clock: Amy's
+moves within 40 ms of every beat, Ben's half a beat later. Amy's phone says 踩准了 and 这一小节 4/4;
+Ben's 0/4. The room counts them (with the TV in WebKit: Amy 11 of 12 beats, Ben 0 of 8); the TV shows
+a meter under each, Amy's lit, and "2 dancing". Then Ben finds the beat too: the combo fills to 0.875
+and goes off (fireworks), starting again. The host ends the set: the recap names Amy best on the beat
+(and says "1 minute" now, not "1 minutes").
+
+The first run found the check's own pretend hand on the computer's clock rather than the phone's
+(the phone's estimate of the room's clock was about 40 ms off): a hand half a beat off grazed the
+150 ms window. The check now moves it on the phone's clock, as a real hand is timed by the phone.
+
+## Whole songs from YouTube (Nov 2, night)
+
+Steve, asked whether to keep Apple's previews (their terms keep them to promoting the songs): "换成 YouTube
+放整首" (CONTRACTS.md, "The whole song, from YouTube").
+
+**`site/scripts/dj_youtube_check.py`**, the TV in Chromium and in WebKit, three phones: 33 of 33 in each,
+no errors. This machine can't reach YouTube, so the check stands in for YouTube's IFrame player on the
+TV and for the rooms server's two lookups on the phones. Ben pastes `youtu.be/…?si=abc`: his phone shows
+the video by name, the room takes it with its video, the TV doesn't read its name yet. The table drops
+into it; two bars on the TV plays the whole song in the player, the DJ faded out under it (its last gain
+0.000), every phone says the TV is playing Ben's song and its deck waits (pads off), Ben and Amy (the
+host) can skip it, Cat can't. It ends: the player goes, the DJ comes back (gain over 0.95), the decks
+too. Cat searches ("shape of you"), picks YouTube's video, the table drops into it, she skips it: the DJ
+comes back. Without the key a search makes the phone ask for a link. No request went to Apple. The
+music never stalled.

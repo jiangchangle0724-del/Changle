@@ -31,6 +31,7 @@
 
 - 严重过敏表 `SEVERE_RULES_OUT`（`src/engine/limits.ts`）还是草稿。
 - `src/data/picks.json`（Steve 的推荐）还空着，等 Steve 的探店链接。
+- 2026-11-02 Steve 定的：上面两件（过敏表要他看、探店链接）在这个对话跟进，开工先找他要。
 - UI 计划 C3：/eat 换成主站的样子（和全站设计对话一起）。
 - 11-01 试玩查出、没修：演示模式的卡片不跟语言走；演示模式里有 Google 页脚。
 

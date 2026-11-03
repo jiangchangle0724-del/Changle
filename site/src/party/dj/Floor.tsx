@@ -100,7 +100,7 @@ export function useFloorLoop(root: RefObject<HTMLElement | null>, clock: Clock, 
 export type Flame = { id: number; pid: string };
 
 /** The dancers: everyone at the table, in one row (two when it's crowded), names underfoot. */
-export function Floor({ seats, flames, host }: { seats: SeatView[]; flames: Flame[]; host?: string }) {
+export function Floor({ seats, flames, host, dance }: { seats: SeatView[]; flames: Flame[]; host?: string; dance?: Record<string, { share: number; hot: boolean }> }) {
   const n = seats.length;
   const h = n <= 4 ? 250 : n <= 6 ? 215 : n <= 8 ? 185 : n <= 12 ? 160 : 140;
   const rows = n > 8 ? [seats.slice(Math.ceil(n / 2)), seats.slice(0, Math.ceil(n / 2))] : [seats];
@@ -114,6 +114,12 @@ export function Floor({ seats, flames, host }: { seats: SeatView[]; flames: Flam
                 <Figure seat={s} />
               </div>
               <span className={`dj-name ${s.id === host ? "is-host" : ""}`}>{s.name}</span>
+              {/* 跟着跳: how well they're following the coach (the share of beats on the beat), lit while they keep it up */}
+              {dance?.[s.id] && (
+                <span className={`dj-dance-meter ${dance[s.id].hot ? "is-hot" : ""}`} style={{ ["--share" as string]: dance[s.id].share }}>
+                  <span />
+                </span>
+              )}
               {flames
                 .filter((f) => f.pid === s.id)
                 .map((f) => (

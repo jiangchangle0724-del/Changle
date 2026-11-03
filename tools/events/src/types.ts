@@ -120,6 +120,11 @@ export interface FetchLog {
   startedAt: string;
   /** Wall time of the step. */
   ms: number;
+  /** How the answer came: the Worker fetched it, or the GitHub job handed it over (src/handoff.ts). */
+  via: "fetch" | "handoff" | null;
+  /** Why, in a few words: when a page was handed over, or why a source that is handed over was fetched here. */
+  note: string | null;
+  /** The source's answer to the Worker's request (null when it made none). */
   httpStatus: number | null;
   /** The source said nothing changed (304). */
   notModified: boolean;

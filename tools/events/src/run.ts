@@ -2,19 +2,18 @@
 // request of its own (10 ms of CPU each; waiting on the network doesn't count). One trigger makes at
 // most 31 of them (Cloudflare allows 32 Worker invocations per request): up to 30 steps, then
 // publish. The morning has three triggers (06:00, 06:20, 06:40), each going on where the last
-// stopped, so a run has room for 90 steps.
+// stopped, so a run has room for 90 steps. The libraries that refuse the Worker's requests are read
+// by a GitHub job just before and handed over (src/handoff.ts): their steps read those pages.
+import { readCapped } from "./body";
+import { takeHandoff } from "./handoff";
 import { ensureSchema } from "./schema";
-import { SOURCE_BY_ID, SOURCES, type Window } from "./sources";
+import { MAX_BYTES, nextPart, requestOf, SOURCE_BY_ID, SOURCES, type Window } from "./sources";
 import { endMs, seenAgain, startMs, storeEvents } from "./store";
 import { windowOf } from "./time";
 import type { FetchLog } from "./types";
 
-/** Who's asking, for the sites we read (they can see it's us, and how to reach us). */
-export const USER_AGENT = "changle.ca events (+https://changle.ca/go)";
 /** Raw responses are kept this long (KV), to rerun a parser without fetching again. */
 export const RAW_TTL = 30 * 86_400;
-/** Larger answers than this are refused, not read into memory. */
-const MAX_BYTES = 6_000_000;
 /** Steps in one trigger, leaving room for publish under Cloudflare's 32. */
 export const MAX_STEPS = 30;
 
@@ -29,47 +28,23 @@ export interface StepResult {
   log: FetchLog;
 }
 
-/** Read a response body, refusing one larger than `max` bytes. */
-async function readCapped(res: Response, max: number): Promise<string> {
-  const declared = Number(res.headers.get("content-length") ?? 0);
-  if (declared > max) throw new Error(`too large: ${declared} bytes`);
-  const reader = res.body?.getReader();
-  if (!reader) return "";
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) {
-      await reader.cancel();
-      throw new Error(`too large: over ${max} bytes`);
-    }
-    chunks.push(value);
-  }
-  const all = new Uint8Array(size);
-  let at = 0;
-  for (const c of chunks) {
-    all.set(c, at);
-    at += c.byteLength;
-  }
-  return new TextDecoder().decode(all);
-}
-
 async function writeLog(db: D1Database, l: FetchLog): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO fetch_log (run_id, source, part, started_at, ms, http_status, not_modified, bytes, raw_key, found, in_window, added, updated, error)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`,
+      `INSERT INTO fetch_log (run_id, source, part, started_at, ms, via, http_status, not_modified, bytes, raw_key, found, in_window, added, updated, error, note)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)`,
     )
-    .bind(l.runId, l.source, l.part, l.startedAt, l.ms, l.httpStatus, l.notModified ? 1 : 0, l.bytes, l.rawKey, l.found, l.inWindow, l.added, l.updated, l.error)
+    .bind(l.runId, l.source, l.part, l.startedAt, l.ms, l.via, l.httpStatus, l.notModified ? 1 : 0, l.bytes, l.rawKey, l.found, l.inWindow, l.added, l.updated, l.error, l.note)
     .run();
 }
 
-/** One step: fetch a part of a source, keep the raw answer, read it, store what's in the window. */
+/**
+ * One step: fetch a part of a source (or take the page handed over for it today), keep the raw
+ * answer, read it, store what's in the window.
+ */
 export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
   const started = Date.now();
-  const log: FetchLog = { runId: args.runId, source: args.source, part: args.part, startedAt: new Date(started).toISOString(), ms: 0, httpStatus: null, notModified: false, bytes: 0, rawKey: null, found: 0, inWindow: 0, added: 0, updated: 0, error: null };
+  const log: FetchLog = { runId: args.runId, source: args.source, part: args.part, startedAt: new Date(started).toISOString(), ms: 0, via: null, note: null, httpStatus: null, notModified: false, bytes: 0, rawKey: null, found: 0, inWindow: 0, added: 0, updated: 0, error: null };
   let next: number | null = null;
   await ensureSchema(env.DB);
   const src = SOURCE_BY_ID[args.source];
@@ -84,22 +59,41 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
     }
     const w = windowOf(args.runId);
     const win: Window = { runId: args.runId, fromMs: w.fromMs, toMs: w.toMs };
-    // A single-part source answers "not changed" when it hasn't (ETag / Last-Modified).
-    const headers: Record<string, string> = { "user-agent": USER_AGENT, accept: "application/json, text/calendar, text/html;q=0.8, */*;q=0.5" };
-    const single = src.maxParts === 1;
-    if (single) {
-      const prev = await env.DB.prepare("SELECT etag, last_modified, last_ok_run FROM sources WHERE id = ?1").bind(src.id).first<{ etag: string | null; last_modified: string | null; last_ok_run: string | null }>();
-      if (prev?.etag) headers["if-none-match"] = prev.etag;
-      if (prev?.last_modified) headers["if-modified-since"] = prev.last_modified;
-    }
-    const res = await fetch(src.request(args.part, env, win), { headers, redirect: "follow" });
-    log.httpStatus = res.status;
-    if (res.status === 304) {
-      log.notModified = true;
-      await seenAgain(env.DB, src.id, args.runId, win.fromMs);
+    let raw: string | null = null;
+    let etag: string | null = null;
+    let lastModified: string | null = null;
+    // A library that refuses the Worker: its page as the GitHub job read it this morning, if it came.
+    const handed = src.handoff ? await takeHandoff(env.CACHE, args.runId, src.id, args.part) : null;
+    if (handed) {
+      log.via = "handoff";
+      log.note = `handed over at ${handed.at ?? "an unknown time"}`;
+      raw = handed.raw;
     } else {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw = await readCapped(res, MAX_BYTES);
+      log.via = "fetch";
+      if (src.handoff) log.note = "nothing handed over for this page today: fetched directly";
+      const { url, headers } = requestOf(src, args.part, env, win);
+      // A single-part source answers "not changed" when it hasn't (ETag / Last-Modified).
+      const single = src.maxParts === 1;
+      if (single) {
+        const prev = await env.DB.prepare("SELECT etag, last_modified, last_ok_run FROM sources WHERE id = ?1").bind(src.id).first<{ etag: string | null; last_modified: string | null; last_ok_run: string | null }>();
+        if (prev?.etag) headers["if-none-match"] = prev.etag;
+        if (prev?.last_modified) headers["if-modified-since"] = prev.last_modified;
+      }
+      const res = await fetch(url, { headers, redirect: "follow" });
+      log.httpStatus = res.status;
+      if (res.status === 304) {
+        log.notModified = true;
+        await seenAgain(env.DB, src.id, args.runId, win.fromMs);
+      } else {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        raw = await readCapped(res, MAX_BYTES);
+      }
+      if (single) {
+        etag = res.headers.get("etag");
+        lastModified = res.headers.get("last-modified");
+      }
+    }
+    if (raw !== null) {
       log.bytes = raw.length;
       log.rawKey = `raw:${args.runId}:${src.id}:${args.part}`;
       await env.CACHE.put(log.rawKey, raw, { expirationTtl: RAW_TTL });
@@ -110,10 +104,10 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
       const stored = await storeEvents(env.DB, args.runId, inWindow);
       log.added = stored.added;
       log.updated = stored.updated;
-      if (more && args.part + 1 < src.maxParts) next = args.part + 1;
+      next = nextPart(src, args.part, more);
     }
     await env.DB.prepare("UPDATE sources SET last_ok_run = ?2, last_error = NULL, etag = coalesce(?3, etag), last_modified = coalesce(?4, last_modified) WHERE id = ?1")
-      .bind(src.id, args.runId, single ? res.headers.get("etag") : null, single ? res.headers.get("last-modified") : null)
+      .bind(src.id, args.runId, etag, lastModified)
       .run();
   } catch (e) {
     log.error = (e instanceof Error ? e.message : String(e)).slice(0, 300);

@@ -908,3 +908,80 @@
   font-weight: 500;
   font-size: 12.5px;
 }
+
+/* ---------- the party tab's order (UI plan A4): tonight, 现在玩这个, filters, games by kind ---------- */
+.now .board-head {
+  margin-bottom: var(--space-1);
+}
+.now-why {
+  margin: 0 0 var(--space-3);
+}
+/* on the home page the big card is a banner, not a poster */
+.now .ui-tile-hero {
+  min-height: calc(var(--tap) * 5);
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-6) calc(-1 * var(--gutter)) var(--space-4);
+  padding: 0 var(--gutter) var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.filters::-webkit-scrollbar {
+  display: none;
+}
+.filters > * {
+  flex: none;
+}
+
+.board-cell {
+  display: grid;
+  min-width: 0;
+}
+.board .ui-tile {
+  transition:
+    transform var(--dur-enter) var(--ease-out),
+    filter var(--dur-enter) var(--ease-out);
+}
+/* the random pick: every tile goes dim but the one under the light */
+.board.is-spinning .ui-tile:not(.ui-tile-lit) {
+  filter: saturate(0.3) brightness(0.5);
+}
+.board.is-spinning .ui-tile-lit {
+  transition-duration: 0s;
+}
+.board-empty {
+  margin: var(--space-4) 0;
+  text-align: center;
+}
+
+/* a computer or a tablet on its side: tonight and the suggestion on the left, the games on the right */
+@media (min-width: 720px) {
+  .app:has(.party) {
+    max-width: 1120px;
+  }
+  .party {
+    display: grid;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: var(--space-8);
+    align-items: start;
+  }
+  .party-side {
+    position: sticky;
+    top: var(--space-4);
+  }
+  .party-main .filters {
+    margin-top: 0;
+  }
+  .board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1200px) {
+  .board {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

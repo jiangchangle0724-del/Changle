@@ -1,7 +1,8 @@
 import { Check, Crown, Mic, Users } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { clearConfetti, confetti } from "../../../lib/confetti";
-import { Flip, gsap, reduced } from "../../../lib/anim";
+import { Flip } from "gsap/Flip";
+import { gsap, reduced } from "../../../lib/anim";
 import { holdBackground, startGroove, type GrooveId } from "../../../lib/music";
 import { sfx } from "../../../lib/sfx";
 import type { T } from "../../../i18n";
@@ -10,6 +11,9 @@ import { answerAt, RESULT_BEATS } from "../../../shared/punchline";
 import { usePenaltyText } from "../../../store";
 import { perfAt } from "../../sensors";
 import "../../../styles/show.css";
+
+// Flip is registered here, the one place it is used, so it stays out of the home page's download
+gsap.registerPlugin(Flip);
 
 /**
  * Punchline as a show: a late-night comedy club. One component draws every moment of the game

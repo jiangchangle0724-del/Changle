@@ -52,7 +52,7 @@ type Deck = {
 const fresh = (): Deck => ({ song: null, pcm: null, state: "empty", at: 0, src: 0, step: 1, matched: false, beat: 0.5, told: false });
 
 /** A song's samples at a fractional position (a four-point curve through its neighbours; 0 outside). */
-function sample(x: Float32Array, p: number): number {
+export function sample(x: Float32Array, p: number): number {
   const i = Math.floor(p);
   if (i < 1 || i + 2 >= x.length) return i >= 0 && i < x.length ? x[i] : 0;
   const t = p - i;

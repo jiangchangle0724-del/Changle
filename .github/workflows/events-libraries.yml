@@ -1,0 +1,46 @@
+# 玩什么 · What's On: the libraries' hand-over. Vancouver's and Richmond's public libraries
+# (BiblioCommons) refuse requests from Cloudflare Workers (403 since 2 November 2026; the same request
+# from anywhere else gets 200). So every morning, before the Worker's 06:00 run, this job reads their
+# pages with exactly the requests the run makes (tools/events/scripts/libraries.ts) and hands each page
+# to the Worker at changle.ca/go/api/handoff with the key EVENTS_HANDOFF_KEY: a repository secret,
+# the same value as the Worker's secret of that name. The run then reads those pages; when nothing
+# was handed over it asks the libraries itself, as before, and its log says why.
+# Only on its schedule or by hand (Actions > events-libraries > Run workflow), never on pull requests.
+# It fails, red, when a library can't be read to the end or the Worker refuses a page.
+name: events-libraries
+
+on:
+  schedule:
+    # GitHub's cron is UTC. B.C. keeps UTC-7 all year since March 2026, so 12:50 UTC is 05:50 in
+    # Vancouver, ten minutes before the run. (Were B.C. ever back on UTC-8 in winter, this would be
+    # 04:50: still before the run, on the same day.)
+    - cron: "50 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: events-libraries
+  cancel-in-progress: false
+
+jobs:
+  hand-over:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/events
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/events/package-lock.json
+      - run: npm ci
+      - name: Read the libraries' pages and hand them to the Worker
+        run: npm run libraries
+        env:
+          EVENTS_HANDOFF_URL: https://changle.ca/go/api/handoff
+          EVENTS_HANDOFF_KEY: ${{ secrets.EVENTS_HANDOFF_KEY }}

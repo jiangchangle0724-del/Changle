@@ -2,10 +2,12 @@
 // nothing to do by hand after a deploy. Never edit a migration that has gone out; add the next one.
 import m0001 from "../migrations/0001_init.sql";
 import m0002 from "../migrations/0002_runs.sql";
+import m0003 from "../migrations/0003_fetch_via.sql";
 
 const MIGRATIONS: [name: string, sql: string][] = [
   ["0001_init", m0001],
   ["0002_runs", m0002],
+  ["0003_fetch_via", m0003],
 ];
 
 /** The statements in a migration file (comments dropped, split at the semicolons). */

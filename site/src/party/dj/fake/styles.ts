@@ -283,9 +283,23 @@ export const sectionOf = (style: StyleId, base: string, track = 0) => {
   return track ? `${id}~${track}` : id;
 };
 
+/**
+ * A section's drums alone: its id and this (`latin:peak1~1234!d`). A song asked for by name plays
+ * its clip over them (clip/clip.ts), a little quieter than the whole section sits.
+ */
+export const BED = "!d";
+function bedOf(sec: Section, id: string): Section {
+  const { bass: _bass, bassLen: _len, chords: _chords, lead: _lead, ...drums } = sec.style;
+  return { ...sec, id, level: sec.level - 4, style: drums };
+}
+
 const TRACKED = new Map<string, Section>();
 /** A section by its id, in any track (made the first time it's asked for); undefined: no such section. */
 export function sectionById(id: string): Section | undefined {
+  if (id.endsWith(BED)) {
+    const whole = sectionById(id.slice(0, -BED.length));
+    return whole ? bedOf(whole, id) : undefined;
+  }
   const cut = id.indexOf("~");
   if (cut < 0) return ANY_SECTION[id];
   const head = id.slice(0, cut);
