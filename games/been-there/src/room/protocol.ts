@@ -88,6 +88,8 @@ export interface Settings {
   speed?: number;
   /** Tests only: the game's first dice, in order (the same throws for a before-and-after film). */
   dice?: number[];
+  /** Tests only: seats in the order the teams were made, instead of drawn (the first team made throws first). */
+  inOrder?: boolean;
 }
 
 export type ClientMsg =

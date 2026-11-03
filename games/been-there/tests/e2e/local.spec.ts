@@ -1,5 +1,5 @@
-// Being there (issue #44), on real screens, in one game (the browser tests' half hour on GitHub is
-// nearly full). A team's first landing in a city plays the city's recording and no song; landing there
+// Being there (issue #44), on real screens, in one game (the browser tests' time on GitHub is limited).
+// A team's first landing in a city plays the city's recording and no song; landing there
 // again plays one of the city's songs (Apple's 30-second preview, looked up and streamed at play time:
 // here Apple's two addresses answer from the test) on one device only: the big screen while there is one,
 // the landing team's phone once it's gone. Every screen shows "Now playing", where it plays, and the link
@@ -9,7 +9,10 @@
 //
 // The dice: we throw 1+2 to Cape Town (a first visit), the computer 1+3 to the departure tax, we 4+6 to
 // Mumbai, it 2+4 to Immigration, we 4+6 to Beijing and take its Central Axis straight across the board,
-// back to Cape Town: a second visit.
+// back to Cape Town: a second visit. The room keeps the teams in the order they were made (a test
+// setting), so ours throws first. The test waits for what the phone has drawn, not for time: each of our
+// turns ends only once the phone shows where the team landed (a busy phone, WebKit on GitHub, can be
+// seconds behind the room, and a turn ended before it shows the landing takes the song away unseen).
 import { readFileSync } from "node:fs";
 import { expect, test, type BrowserContext } from "@playwright/test";
 import { COORDS } from "../../src/client/art/coords";
@@ -20,7 +23,7 @@ test.afterEach(closeAll);
 const DICE = [1, 2, 1, 3, 4, 6, 2, 4, 4, 6];
 const RAIN = { at: Date.now(), cities: Object.fromEntries(Object.keys(COORDS).map((id) => [id, { t: 12, code: 63, day: true }])) };
 /** Cape Town's songs, as the game has them. */
-const CAPE = (JSON.parse(readFileSync("src/client/songs.json", "utf8")) as { cities: Record<string, { id: number; title: string; show?: { zh?: string } }[]> }).cities.capetown;
+const CAPE = (JSON.parse(readFileSync("src/client/songs.json", "utf8")) as { cities: Record<string, { id: number; title: string; preview: string; show?: { zh?: string } }[]> }).cities.capetown;
 
 /** What Apple's preview server answers here: two seconds of a tone, as a WAV file (every browser decodes WAV). */
 function wav(seconds = 2, rate = 8000): Buffer {
@@ -69,39 +72,38 @@ test("第二次到开普敦放当地热歌：只在一台设备上放（有大�
   contextOptions,
 }) => {
   test.setTimeout(240_000);
-  // A room with a big screen, our phone and a computer team, where our team throws first (the seat
-  // order is drawn: a room where the computer went first is left for a new one).
-  let p!: Phone;
-  let tv!: Phone;
-  let asked: string[] = [];
-  let tvAsked: string[] = [];
-  for (let attempt = 0; ; attempt++) {
-    if (attempt === 10) throw new Error("our team never went first");
-    const code = await createRoom(request, { test: { speed: 0.5, dice: DICE } });
-    const ctx = await browser.newContext({ ...contextOptions, viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
-    track(ctx);
-    tvAsked = await apple(ctx);
-    tv = { name: "大屏", ctx, page: await ctx.newPage(), errors: [], log: [], taps: 0 };
-    watch(tv, tv.page);
-    await tv.page.goto(`/trip/tv/${code}`);
-    await expect(tv.page.locator(".lobby-tv")).toBeVisible({ timeout: 20_000 });
-    p = await newPhone(browser, "游", contextOptions);
-    asked = await apple(p.ctx);
-    await joinWithTeam(p, code);
-    await p.page.getByRole("button", { name: "加一个电脑队" }).click();
-    await quizOff(p);
-    await p.page.getByRole("button", { name: "开始", exact: true }).click();
-    await expect(p.page.locator(".game")).toBeVisible();
-    const roll = p.page.locator('.decide[data-kind="roll"]:not(.waiting) .btn.primary:not(.off)');
-    if (await roll.waitFor({ timeout: 2_500 }).then(() => true, () => false)) break;
-    await p.ctx.close();
-    await tv.ctx.close();
-  }
+  // A room with a big screen, our phone and a computer team. Ours is made first, and the room keeps
+  // that order: our team throws first.
+  const code = await createRoom(request, { test: { speed: 0.5, dice: DICE, inOrder: true } });
+  const ctx = await browser.newContext({ ...contextOptions, viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+  track(ctx);
+  const tvAsked = await apple(ctx);
+  const tv: Phone = { name: "大屏", ctx, page: await ctx.newPage(), errors: [], log: [], taps: 0 };
+  watch(tv, tv.page);
+  await tv.page.goto(`/trip/tv/${code}`);
+  await expect(tv.page.locator(".lobby-tv")).toBeVisible({ timeout: 20_000 });
+  const p = await newPhone(browser, "游", contextOptions);
+  const asked = await apple(p.ctx);
+  await joinWithTeam(p, code);
+  await p.page.getByRole("button", { name: "加一个电脑队" }).click();
+  await quizOff(p);
+  await p.page.getByRole("button", { name: "开始", exact: true }).click();
+  await expect(p.page.locator(".game")).toBeVisible();
+  await expect(p.page.locator('.decide[data-kind="roll"]:not(.waiting) .btn.primary:not(.off)'), "our team throws first").toBeVisible({ timeout: 20_000 });
   // The big screen's sound is off (the M key: also the press that lets it play sound at all).
   await tv.page.keyboard.press("m");
   const phoneNow = p.page.locator(".playwin .now-playing");
   const tvNow = tv.page.locator(".screen .now-playing");
   const song = (page: Phone) => page.page.locator("html").getAttribute("data-song");
+  const end = p.page.locator('.decide[data-kind="end"]:not(.waiting) .btn.primary');
+  /** Play on to the end of our turn, and end it once the phone shows the city we landed in. */
+  const endTurnIn = async (city: string) => {
+    await playUntil([p], async () => (await end.count()) > 0, 90_000, { skip: ["end"] });
+    await expect(p.page.locator(".playwin .arrival h3"), "the phone has drawn the landing").toContainText(city, { timeout: 30_000 });
+    await expect(phoneNow, `no song on a first visit (${city})`).toHaveCount(0);
+    await end.click();
+    await expect(end).toHaveCount(0);
+  };
   try {
     // Our first throw: Cape Town, a first visit. Its buy prompt has the price in rand too.
     const buy = p.page.locator('.decide[data-kind="buy"]:not(.waiting)');
@@ -109,7 +111,7 @@ test("第二次到开普敦放当地热歌：只在一台设备上放（有大�
     await expect(buy.locator(".brief .local-money")).toHaveText("约 1,300 兰特");
     // The arrival card below it: hello, how to say it and what it means; the time and weather there now; the money.
     const arrival = p.page.locator(".playwin .arrival");
-    await expect(arrival.locator("h3")).toContainText("开普敦");
+    await expect(arrival.locator("h3")).toContainText("开普敦", { timeout: 30_000 });
     await expect(arrival.locator(".arrival-hello")).toContainText("Molo");
     await expect(arrival.locator(".arrival-say")).toHaveText("读作「莫洛」，意思是「你好（科萨语）」");
     const there = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Johannesburg" });
@@ -124,11 +126,16 @@ test("第二次到开普敦放当地热歌：只在一台设备上放（有大�
     await expect(tvNow).toHaveCount(0);
     expect([...asked, ...tvAsked]).toEqual([]);
     await buy.locator(".btn.primary").click();
+    // Day Zero's vote, and the turn's end; the computer's 1+3; our 4+6 to Mumbai, bought.
+    await endTurnIn("开普敦");
+    await endTurnIn("孟买");
 
-    // On round the board to Beijing, and straight across it back to Cape Town: a second visit. The big
-    // screen would play it, but its sound is off: nothing plays, nothing is asked of Apple. The phone
-    // says where it's playing.
-    await playUntil([p], async () => (await phoneNow.count()) > 0, 150_000);
+    // The computer's 2+4; our 4+6 to Beijing, and straight across the board on its Central Axis: Cape
+    // Town again, a second visit. (This turn stays open: the song is on until it ends.) The big screen
+    // would play it, but its sound is off: nothing plays, nothing is asked of Apple. The phone says where
+    // it's playing.
+    await playUntil([p], async () => (await phoneNow.count()) > 0, 90_000, { skip: ["end"] });
+    await expect(p.page.locator(".playwin .arrival h3")).toContainText("开普敦");
     await expect(tvNow).toHaveAttribute("data-state", "muted", { timeout: 10_000 });
     await expect(tvNow.locator(".np-where")).toHaveText("这台设备的声音关着");
     await expect(phoneNow).toHaveAttribute("data-state", "elsewhere");
@@ -147,7 +154,11 @@ test("第二次到开普敦放当地热歌：只在一台设备上放（有大�
     await tvNow.locator(".np-on").click();
     await expect(tvNow).toHaveAttribute("data-state", "playing", { timeout: 15_000 });
     expect(await song(tv)).toBe("playing");
-    expect(tvAsked).toEqual([`https://itunes.apple.com/lookup?id=${chosen!.id}&country=za&entity=song`, `https://audio-ssl.itunes.apple.com/test/${chosen!.id}.m4a`]);
+    expect(tvAsked).toHaveLength(2);
+    expect(tvAsked[0]).toBe(`https://itunes.apple.com/lookup?id=${chosen!.id}&country=za&entity=song`);
+    // (the preview the lookup gave; or, on a screen too busy to read the answer within 4 s, the one found
+    // when the list was made)
+    expect([`https://audio-ssl.itunes.apple.com/test/${chosen!.id}.m4a`, chosen!.preview]).toContain(tvAsked[1]);
     expect(asked).toEqual([]);
     expect(await song(p)).toBeNull();
 
@@ -159,7 +170,6 @@ test("第二次到开普敦放当地热歌：只在一台设备上放（有大�
     expect(asked.length).toBe(2);
 
     // It plays through the rest of the turn (Day Zero's vote again) and stops when the turn ends.
-    const end = p.page.locator('.decide[data-kind="end"]:not(.waiting) .btn.primary');
     await playUntil([p], async () => (await end.count()) > 0, 60_000, { skip: ["end"] });
     expect(await song(p)).toBe("playing");
     await end.click();

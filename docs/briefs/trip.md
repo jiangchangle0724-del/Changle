@@ -77,7 +77,7 @@
 ## 交给别的对话
 
 - 大屏的 3D 地球在棋盘下面（`Board.tsx` 的 `.board-under`），地球出来以后平面地图藏起来（`styles.css` 的 `.globe-on`），棋子画在地球上面；地球出不来的大屏（减少动画、没有 WebGL），棋盘中间和手机一样是平面的卫星图（`Board.tsx` 的 `sat`）。
-- 写到此一游的浏览器测试：开局的座位是随机的，电脑队可能先走，它走棋时手机上的地图跟着它的棋子动，轮到你时行动窗口自己打开。要量一个不动的屏幕，先等到轮到自己掷骰（`phone.spec.ts` 里的 `untilOurThrow`），地图等 `.board-pan` 没有 `.moving` 再量，弹出的窗口和单子等它滑进来停下再量。
+- 写到此一游的浏览器测试：开局的座位是随机的，电脑队可能先走，它走棋时手机上的地图跟着它的棋子动，轮到你时行动窗口自己打开。要让先建的队先掷，建房时加测试设置 `inOrder: true`（只在 `ALLOW_TEST_SETTINGS` 打开时有效，座位按建队的顺序；`local.spec.ts` 这样用，`ride.spec.ts` 还在靠重开房间碰运气，可以改过来）。要量一个不动的屏幕，先等到轮到自己掷骰（`phone.spec.ts` 里的 `untilOurThrow`），地图等 `.board-pan` 没有 `.moving` 再量，弹出的窗口和单子等它滑进来停下再量。
 - 本机同时有好几个对话在跑 `wrangler dev`：`playwright.config.ts` 写死 8787 端口、不在 CI 上会复用已经开着的服务器，可能测到别的工作目录的代码。各自用不提交的 `playwright.local.config.ts`（已经在 git 的 exclude 里）换一个端口、`reuseExistingServer: false`；两个服务器从同一个目录开会抢同一个本地数据库（SQLITE_BUSY），第二个加 `--persist-to` 另找地方。
 - 卫星地图（#44 第 1 部分）留下的东西：`window.__sunAt`（毫秒）可以把地图上的太阳固定在某个时刻（`art/satellite.ts` 的 `sunNow`），测试和截图都用它；大屏地球的 `canvas.globe` 上有 `data-world="real"`（穿上了卫星照片）、`data-facing`（正对着哪座城市）、`data-flier`（这次飞的是棋子 `token` 还是小飞机 `plane`）。headless Chromium 里要看到大屏地球，加 `--use-angle=swiftshader --enable-unsafe-swiftshader`。
 - 这次重做过字体子集（`src/client/fonts/zcool.woff2`、`chars.txt`，加了卫星地图说明里的几个字）：合并别的分支时这两个文件如果冲突，任取一边，合并完再跑一次 `npm run fonts`，`npm test` 会确认。
@@ -87,6 +87,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 到此一游 e2e: the local hit's test keeps its seats in order and waits for what the phone has drawn
+- 2026-11-03 到此一游: a flight on the globe still flies if the next move begins while its token's picture is made
 - 2026-11-03 到此一游: the big screen puts the world on between moves; flight tests that count where the token goes
 - 2026-11-03 到此一游: the real world in the middle of the board (NASA's day and night); flights flown by the team's token
 - 2026-11-03 到此一游 e2e: the screens test gives every phone a quiet moment
@@ -117,4 +119,5 @@
 - 2026-11-03 PR #156 的 CI 各挂过一个手机测试，都是测试量得太早：地图大小的测试里电脑队先走，地图跟着它的棋子动、行动窗口在拖地图的半路打开（现在先等到轮到自己掷骰、地图停下再拖）；逐屏测试在行动窗口滑进来的半路量了关闭键（现在等它停下，按排好的大小量），还会在新题刚弹出、还不能点的那一下就点「这题不答」，题没被看过就收掉了（现在看过这部手机的题以后才不答）；两轮的游戏在测试速度下太快，有一次 375x667 的手机一直等不到一个安静的时候看交易单（现在别人回合的棋盘、设置、交易单在一个安静的时候一起看，轮到的队等别的手机看完再掷骰，回合计时照样走）。手机测试也改轻了一点（同一座城三队、两轮的游戏），GitHub 上这些测试的时间上限从 30 分钟改成 45 分钟（`.github/workflows/been-there.yml`）。
 - 2026-11-03 查 CI 的 WebKit 记录时发现一个真问题：第一次落地的那段画面（touchdown，z-index 60）盖在抢答弹窗（58）上面。它只在这部手机还能答题时让开，答过以后的细条和揭晓（答案、你知道吗、关闭按钮）都会被盖住。现在弹窗 60、落地画面 59，只有派对惩罚和右下角的测速读数在它上面，`tests/trivia.test.ts` 检查 styles.css 里每一层。另外：自己回合时 WebKit 点不到弹窗，不是布局问题（弹窗的父元素没有 transform，也没被挡），是 CI 的 WebKit 没有显卡，回合开始时 1.5 到 2 秒画不出新帧，测试现在按题目剩下的时间等；ride 测试的落地时间改成印章一盖上就记。
 - 2026-11-03 issue #44 的第 2、3 部分：第二次到访放当地热歌（104 首，只在一台设备上放：有大屏就大屏，没有就落地那队的手机），到达卡加了当地时间、天气、问候语的读法和意思、当地货币，价格旁边加了当地货币。卫星地图（第 1 部分）还没做。
+- 2026-11-03 合并 #156 以后，CI 的 WebKit 上「第二次到开普敦放当地热歌」的测试超时。查 trace：不是重开房间碰座位慢，是测试抢在手机画出第二次到开普敦之前就点了「结束回合」（WebKit 忙，手机比房间晚将近 1 秒），歌还没在手机上出来回合就结束了。现在房间多了一个测试设置 `inOrder`（座位按建队的顺序，只在 `ALLOW_TEST_SETTINGS` 打开时有效，`tests/room.test.ts` 检查），我们的队一定先掷；每个回合等手机画出落地的城市才结束，第二次到访的那个回合看到「正在播放」之前不结束。手机和大屏的 CPU 放慢 6 倍、12 倍在本机试过都通过。大屏太忙、4 秒内读不到 Apple 的回答时，用歌单里存的试听地址（本来就这样设计），测试两种都认。
 - 2026-11-03 issue #44 第 1 部分：棋盘中间换成 NASA 的卫星照片（白天「蓝色弹珠」、夜里「黑色弹珠」城市灯光，按此刻真实的太阳分白天黑夜，柔和的黄昏），大屏地球穿上同样的照片；一队飞去别的地区时，它自己的棋子沿大圆航线飞（手机和大屏都有，落地盖章以后才起飞）；外圈城市格子染上区域颜色；素材来源页写明 NASA。图片事先做好放在仓库里，一共 893 KB，手机只下 73 KB、大屏 600 KB。新测试 `tests/satellite.test.ts` 和 `tests/e2e/satellite.spec.ts`。截图（手机 390x844 小和中、笔记本、大屏 1920x1080，白天和夜里）和测速前后对比交给了 Steve。包含 #146、#156、#154，要在它们后面合并。
