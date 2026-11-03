@@ -1,0 +1,134 @@
+/*
+ * 林波舞 on the big screen (party/limbo/TvLimbo.tsx): the bar between its poles, large, everyone
+ * going under it in the game's gel, who made it, and the last one under crowned.
+ */
+
+.tvlb-top {
+  position: absolute;
+  left: 120px;
+  right: 120px;
+  top: 130px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.tvlb-head {
+  margin: 0;
+}
+.tvlb-head .tvx-bi {
+  align-items: center;
+  font-size: 72px;
+}
+.tvlb-line {
+  max-width: 1100px;
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.tvlb-ask {
+  margin: 0;
+  color: var(--moon);
+  font-size: 52px;
+  font-weight: 900;
+  animation: tvx-pop 0.45s var(--ease-pop) both;
+}
+.tvlb-count {
+  display: inline-block;
+  min-width: 1ch;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 96px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.tvlb-big {
+  margin: 0;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 68px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-shadow: 0 0 40px color-mix(in oklab, var(--gel) 45%, transparent);
+  text-wrap: balance;
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvlb-big.is-out {
+  color: var(--stop);
+}
+.tvlb-big.is-in {
+  color: var(--go);
+}
+.tvlb-crown {
+  /* a winner's crown: the podium's colour (tv-show.css .tvx-crown) */
+  color: var(--gel-amber);
+  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gel-amber) 60%, transparent));
+  animation: tvx-pop 0.6s var(--ease-pop) both;
+}
+.tvlb-row {
+  position: absolute;
+  left: 80px;
+  right: 80px;
+  bottom: 120px;
+}
+
+/* the bar and everyone going under it, large */
+.tvlb-scene {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  translate: -50% 0;
+}
+.tvlb-scene .limbo-stage {
+  width: 800px;
+}
+
+/* the blind round: who has locked, then everyone's angle against the target */
+.tvlb-locked,
+.tvlb-locks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--haze);
+  font-size: 28px;
+  font-weight: 700;
+}
+.tvlb-locks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 6px 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  color: var(--moon);
+}
+.tvlb-locks li.is-out {
+  background: color-mix(in oklab, var(--stop) 24%, var(--dusk-2));
+}
+.tvlb-locks li.is-target {
+  padding: 6px 20px;
+  background: var(--gel);
+  color: var(--night);
+}
+.tvlb-locks b {
+  font-family: var(--font-display);
+  font-size: 30px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvlb-ask,
+  .tvlb-big,
+  .tvlb-crown {
+    animation: none;
+  }
+}

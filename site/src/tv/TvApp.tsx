@@ -357,8 +357,10 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
           <span className="tv-front-note">{zh ? "打碟的音乐从这块屏幕出来，手机按 🔥" : "The DJ booth's music comes out of this screen; the phones press 🔥"}</span>
         ) : gid === "punchline" ? null : hasTvView(gid) ? (
           <span className="tv-front-note">{zh ? "这个游戏在大屏幕上有自己的画面，大家用手机玩" : "This one has its own show on the big screen. Everyone plays on their phone."}</span>
+        ) : gid === "trip" ? (
+          <span className="tv-front-note">{zh ? "到此一游在大屏幕上有自己的页面，开始以后这块屏幕自己过去" : "Been There, Bought That has its own big-screen page. This screen goes there when it starts."}</span>
         ) : (
-          <span className="tv-front-note">{zh ? "神回复会在大屏幕上整场演出，其他游戏在手机上玩" : "Punchline plays as a full show here. Other games play on the phones."}</span>
+          <span className="tv-front-note">{zh ? "这个游戏在手机上玩，大屏幕上是它的手机画面和座位" : "This one plays on the phones. The big screen shows the phone screen and the seats."}</span>
         )}
         {!room.seats.length &&
           (joining ? (

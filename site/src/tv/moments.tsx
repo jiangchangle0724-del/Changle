@@ -177,6 +177,18 @@ export function useScreenFx(on: boolean) {
         }, 980);
         return;
       }
+      // 林波舞: everyone got under the bar
+      case "level":
+        sfx.lift();
+        return;
+      // 尤克牌: a card lands on the table, then the trick is swept up
+      case "play":
+        sfx.cardSlide();
+        window.setTimeout(() => sfx.flip(), 110);
+        return;
+      case "trick":
+        sfx.whoosh(0.3, false);
+        return;
       default:
         return;
     }

@@ -2151,10 +2151,14 @@ button.pl-answer:disabled {
 
 /* ---------- euchre ---------- */
 /* A card table under one jade lamp: white cards, the gel marks whose turn it is and what's trump. */
-.eu {
+/* the cards' own colours: the phones' table and the big screen's (TvEuchre) */
+.eu,
+.tveu {
   --card-ink: #0e0c22;
   --card-red: #e8364f;
   --card-face: #ffffff;
+}
+.eu {
   display: flex;
   flex-direction: column;
   gap: 12px;
