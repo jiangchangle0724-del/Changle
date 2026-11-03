@@ -12,7 +12,7 @@ export function Button(props: ButtonProps) {
       aria-busy={props.busy || undefined}
       aria-label={iconOnly ? props.label : undefined}
       title={iconOnly ? props.label : undefined}
-      aria-pressed={iconOnly ? props.pressed : undefined}
+      aria-pressed={props.pressed}
       onClick={props.onClick}
     >
       <span

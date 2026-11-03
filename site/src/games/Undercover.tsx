@@ -107,6 +107,52 @@ export function Undercover({ onBack }: { onBack: () => void }) {
   const roleName = (r: Role) => (r === "civilian" ? (lang === "zh" ? "平民" : "Civilian") : r === "undercover" ? (lang === "zh" ? "卧底" : "Undercover") : lang === "zh" ? "白板" : "Blank");
   const custom = usePenaltyText().isCustom;
 
+  const gotIt = () => {
+    // once per player: a quick double tap on this button must not skip the next player's word
+    if (dealt.current === dealIndex) return;
+    dealt.current = dealIndex;
+    setLidOpen(false);
+    if (dealIndex + 1 >= seats.length) startTalk();
+    else setDealIndex(dealIndex + 1);
+  };
+
+  // tonight's people under the top bar: who holds the phone or speaks first, and who is out (the
+  // last game's seats linger until the next deal, so nobody is out at the setup)
+  const roster = {
+    turn: phase === "deal" ? seats[dealIndex]?.player.id : phase === "talk" ? firstSpeaker?.id : undefined,
+    out: phase === "setup" ? [] : seats.filter((s) => !s.alive).map((s) => s.player.id),
+  };
+  const status = phase === "talk" || phase === "vote" || phase === "reveal" ? ({ kind: "round", current: round } as const) : undefined;
+
+  // each moment's button, at the bottom by the thumb
+  const actions =
+    phase === "setup" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={start}>
+        {lang === "zh" ? "发词" : "Deal the words"}
+      </button>
+    ) : phase === "deal" && lidOpen ? (
+      // shows a moment after the lid lifts, so the word is read before the phone moves on
+      <motion.button key={dealIndex} type="button" className="btn btn-primary btn-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} onClick={gotIt}>
+        {ui("gotIt")}
+      </motion.button>
+    ) : phase === "talk" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase("vote")}>
+        {lang === "zh" ? "投票" : "Vote"}
+      </button>
+    ) : phase === "vote" ? (
+      <button type="button" className="btn btn-ghost btn-lg" onClick={() => setPhase("talk")}>
+        {lang === "zh" ? "再聊一会儿" : "Talk a bit more"}
+      </button>
+    ) : phase === "reveal" && eliminated ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={afterReveal}>
+        {winner ? (lang === "zh" ? "看结果" : "See the result") : lang === "zh" ? "下一轮" : "Next round"}
+      </button>
+    ) : phase === "end" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase("setup")}>
+        {ui("restart")}
+      </button>
+    ) : undefined;
+
   const rules = (
     <p>
       {lang === "zh"
@@ -118,7 +164,16 @@ export function Undercover({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <GameShell title={UI.gameUndercover} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell
+      title={UI.gameUndercover}
+      rules={rules}
+      onBack={onBack}
+      penalty={penalty.call}
+      onPenaltyDone={penalty.done}
+      status={status}
+      roster={roster}
+      actions={actions}
+    >
       <AnimatePresence mode="wait">
         {phase === "setup" && (
           <motion.div key="setup" className="stack" style={{ gap: 16 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -148,9 +203,6 @@ export function Undercover({ onBack }: { onBack: () => void }) {
                 {!blankFits && (lang === "zh" ? `${Math.min(undercovers, maxUndercovers)} 个卧底时，${blankNeeds} 人以上才能加白板。` : ` With ${Math.min(undercovers, maxUndercovers)} undercover${Math.min(undercovers, maxUndercovers) > 1 ? "s" : ""}, a blank needs ${blankNeeds} or more players.`)}
               </p>
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={start}>
-              {lang === "zh" ? "发词" : "Deal the words"}
-            </button>
           </motion.div>
         )}
 
@@ -169,33 +221,12 @@ export function Undercover({ onBack }: { onBack: () => void }) {
                 {seats[dealIndex].role !== "blank" && <p className="hint-ink">{lang === "zh" ? (seats[dealIndex].role === "undercover" ? pair!.b.en : pair!.a.en) : seats[dealIndex].role === "undercover" ? pair!.b.zh : pair!.a.zh}</p>}
               </div>
             </Cloche>
-            {lidOpen && (
-              <motion.button
-                type="button"
-                className="btn btn-primary btn-lg btn-block"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                onClick={() => {
-                  // once per player: this card fades out after the first tap and can take a second
-                  // one (a quick double tap), which must not skip the next player's word
-                  if (dealt.current === dealIndex) return;
-                  dealt.current = dealIndex;
-                  setLidOpen(false);
-                  if (dealIndex + 1 >= seats.length) startTalk();
-                  else setDealIndex(dealIndex + 1);
-                }}
-              >
-                {ui("gotIt")}
-              </motion.button>
-            )}
           </motion.div>
         )}
 
         {phase === "talk" && (
           <motion.div key={`talk-${round}`} className="stack" style={{ gap: 16, alignItems: "center" }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <p className="turn-line">
-              <span className="hint">{ui("roundOf", { n: round })}</span>
               <span className="hint">
                 {lang === "zh" ? "从" : "Start with"} <strong style={{ color: "var(--cream)" }}>{firstSpeaker?.name}</strong> {lang === "zh" ? "开始描述" : ""}
               </span>
@@ -216,16 +247,6 @@ export function Undercover({ onBack }: { onBack: () => void }) {
                 {ui("reset")}
               </button>
             </div>
-            <div className="picker" style={{ justifyContent: "center" }}>
-              {seats.map((s) => (
-                <span key={s.player.id} className={`chip ${s.alive ? "" : "chip-out"}`}>
-                  {s.player.name}
-                </span>
-              ))}
-            </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setPhase("vote")}>
-              {lang === "zh" ? "投票" : "Vote"}
-            </button>
           </motion.div>
         )}
 
@@ -233,9 +254,6 @@ export function Undercover({ onBack }: { onBack: () => void }) {
           <motion.div key="vote" className="stack" style={{ gap: 16 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <p className="hint">{lang === "zh" ? "大家指认，点一下票数最多的人。" : "Everyone points. Tap the one with the most fingers."}</p>
             <PlayerPicker players={alive.map((s) => s.player)} onPick={eliminate} />
-            <button type="button" className="btn btn-ghost" onClick={() => setPhase("talk")}>
-              {lang === "zh" ? "再聊一会儿" : "Talk a bit more"}
-            </button>
           </motion.div>
         )}
 
@@ -248,9 +266,6 @@ export function Undercover({ onBack }: { onBack: () => void }) {
               </p>
               <p className={`reveal-role ${eliminated.role}`}>{roleName(eliminated.role)}</p>
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={afterReveal}>
-              {winner ? (lang === "zh" ? "看结果" : "See the result") : lang === "zh" ? "下一轮" : "Next round"}
-            </button>
           </motion.div>
         )}
 
@@ -272,9 +287,6 @@ export function Undercover({ onBack }: { onBack: () => void }) {
                 ))}
               </ul>
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setPhase("setup")}>
-              {ui("restart")}
-            </button>
           </motion.div>
         )}
       </AnimatePresence>
