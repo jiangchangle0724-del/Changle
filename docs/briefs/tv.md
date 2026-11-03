@@ -54,7 +54,7 @@
 
 ## 还剩什么
 
-- 每个游戏的大屏画面都做完了（四批：#149、#153、#155 和这一批）。以后加新游戏时照 `TvSuper.tsx` 写一个 `Tv<游戏>.tsx` 放在游戏旁边，在 `views.tsx` 登记，`publicView` 里加上这个游戏的私密字段，`watch_test.py` 加一段。
+- 每个游戏的大屏画面都做完了（四批：#149、#153、#155、#158，按这个顺序合并）。以后加新游戏时照 `TvSuper.tsx` 写一个 `Tv<游戏>.tsx` 放在游戏旁边，在 `views.tsx` 登记，`publicView` 里加上这个游戏的私密字段，`watch_test.py` 加一段。
 - 要在真东西上看一遍（测试都是无头 Chromium 截图，这些它看不出来）：
   - 真电视的浏览器（三星、LG、小米盒子、Fire TV）：舞台缩放、动画会不会卡、第一下点击以后有没有声音、遥控器能不能点开声音按钮。
   - 720p 的电视从三米外读最小的字（22 舞台像素，720p 上约 18px）：尤克牌的叫牌泡泡、林波舞盲仰的角度、你画我猜猜错的字。
@@ -80,6 +80,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 Watching, batch 4: Euchre, Draw & Guess and Limbo on the big screen, and one look for all fifteen (#158)
 - 2026-11-03 Watching, batch 3: King's Game, Never Have I Ever, Post-it and Freeze Dance on the big screen (#155)
 - 2026-11-03 Watching, batch 2: Truth or Dare, Wheel of Fate, Seven Eight Nine and Rogue Thirteen on the big screen (#153)
 - 2026-11-02 Watching: every game's own big-screen view, starting with four games (#149)
