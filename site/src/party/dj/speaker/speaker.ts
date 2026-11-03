@@ -200,6 +200,18 @@ export class Speaker {
       /* fine */
     }
   }
+  /**
+   * A sound that says it's running while its clock stands still: stop it and start it again (each
+   * given a moment: one that never answers doesn't hold anything up).
+   */
+  nudge() {
+    const c = this.ctx;
+    if (c.state !== "running") return;
+    const wait = (p: Promise<void>) => Promise.race([p, new Promise<void>((ok) => window.setTimeout(ok, 1500))]);
+    void wait(c.suspend())
+      .then(() => wait(c.resume()))
+      .catch(() => {});
+  }
 
   /**
    * One chunk of the stream (planar, at `rate`), with deck B's frames for the same stretch when
