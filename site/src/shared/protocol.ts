@@ -579,6 +579,8 @@ export type DjView = {
   onDecks: { a: CrateSong | null; b: CrateSong | null };
   /** 报幕: the big screen says who a song asked for is from (the host's switch) */
   voice: boolean;
+  /** the 歌单 plays in a random order (the host's switch), else first come, first played */
+  shuffle: boolean;
   /** 跟着跳: each dancer's night, and the floor's combo (0 to 1; full: fireworks) */
   dance: Record<string, Dancer>;
   combo: number;
