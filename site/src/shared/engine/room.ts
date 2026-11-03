@@ -96,6 +96,24 @@ export function validPid(pid: unknown): pid is string {
   return typeof pid === "string" && /^[A-Za-z0-9_-]{1,48}$/.test(pid) && !(pid in Object.prototype);
 }
 
+/**
+ * The name a seat goes by: the one asked for, unless someone else at the table already has it
+ * (in any case, or in full-width letters); then "Steve 2", "Steve 3"... so turns, votes and
+ * penalties never leave a table guessing which Steve. Still 14 characters at most.
+ */
+export function uniqueName(seats: { id: string; name: string }[], pid: string, name: string): string {
+  const key = (n: string) => n.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  const taken = new Set(seats.filter((s) => s.id !== pid).map((s) => key(s.name)));
+  if (!taken.has(key(name))) return name;
+  const chars = Array.from(name);
+  for (let n = 2; n <= MAX_SEATS + 1; n++) {
+    const tail = ` ${n}`;
+    const next = chars.slice(0, 14 - tail.length).join("").trimEnd() + tail;
+    if (!taken.has(key(next))) return next;
+  }
+  return name;
+}
+
 function blankOut(): Output {
   return { changed: false, light: false, persist: false, events: [], relay: [], strokesReset: false, kicked: [], records: [] };
 }
@@ -181,7 +199,7 @@ export class RoomEngine {
     let back = false;
     if (!seat) {
       if (d.seats.length >= MAX_SEATS) return "full";
-      seat = { id: pid, name, on: true, at: now };
+      seat = { id: pid, name: uniqueName(d.seats, pid, name), on: true, at: now };
       if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
       d.seats.push(seat);
       this.event({ k: "join", pid });
@@ -190,7 +208,7 @@ export class RoomEngine {
     } else {
       back = !seat.on;
       seat.on = true;
-      seat.name = name;
+      seat.name = uniqueName(d.seats, pid, name);
       if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
       else if (seat.uid) Object.assign(seat, { uid: undefined, av: undefined, ac: undefined, fg: undefined, fr: undefined });
     }
@@ -384,7 +402,7 @@ export class RoomEngine {
       case "rename": {
         const name = clean(a.name, 14);
         if (!name) return;
-        seat.name = name;
+        seat.name = uniqueName(d.seats, pid, name);
         this.out.changed = true;
         return;
       }

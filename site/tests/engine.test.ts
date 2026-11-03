@@ -78,6 +78,34 @@ test("room basics: join, errors, host transfer, kick", () => {
   ok(t.eng.hello("p2", "back", false) === "kicked", "kicked cannot return");
 });
 
+test("names: two people at one table never share a name", () => {
+  const eng = new RoomEngine(freshRoom("NAME", clock), host);
+  const name = (pid: string) => eng.d.seats.find((s) => s.id === pid)?.name;
+  eng.hello("a", "Steve", true);
+  eng.hello("b", "Steve", false);
+  eng.hello("c", " steve ", false);
+  eng.hello("d", "Ｓｔｅｖｅ", false);
+  ok(name("a") === "Steve" && name("b") === "Steve 2" && name("c") === "steve 3" && name("d") === "Ｓｔｅｖｅ 4", `the same name gets a number (${eng.d.seats.map((s) => s.name).join(", ")})`);
+  eng.setOnline("b", false);
+  eng.hello("b", "Steve", false);
+  eng.hello("a", "Steve", false);
+  ok(name("a") === "Steve" && name("b") === "Steve 2", "coming back keeps each one's name");
+  eng.act("c", { a: "rename", name: "Steve 2" });
+  ok(name("c") === "Steve 2 2", `renaming to a name in use doesn't take it (${name("c")})`);
+  eng.act("c", { a: "rename", name: "Cat" });
+  eng.act("c", { a: "rename", name: "Cat" });
+  ok(name("c") === "Cat", "renaming to your own name keeps it");
+  eng.hello("e", "Christopherson", false);
+  eng.hello("f", "Christopherson", false);
+  ok(name("f") === "Christophers 2" && Array.from(name("f") ?? "").length <= 14, `a long name still fits 14 (${name("f")})`);
+  eng.hello("g", "小明", false);
+  eng.hello("h", "小明", false);
+  ok(name("h") === "小明 2", `Chinese names too (${name("h")})`);
+  eng.act("a", { a: "leave" });
+  eng.hello("b", "Steve", false);
+  ok(name("b") === "Steve", "once the first Steve has gone, the second one is just Steve");
+});
+
 test("leave: seat freed, host handed on, game told", () => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "dice" });
