@@ -5,6 +5,9 @@ online rooms server in `site/worker/`), 到此一游 (`games/been-there`) and �
 Start with [HANDOFF.md](HANDOFF.md): what runs where, how a change goes live, how to add a game,
 the commands and the settings.
 
+* One chat, one area. Each chat's brief is in `docs/briefs/` (the index is `docs/briefs/README.md`):
+  read it before you start, and update it before you finish (what you did, what was decided, what's
+  left, what another chat should do).
 * Every change on its own branch with a PR. Never push to `main`. CI must be green before merging.
 * Ask the owner (Steve) before merging, deploying, or anything that costs money or goes public.
   Merging into `main` deploys (Cloudflare builds each part from GitHub, the rooms server too).
