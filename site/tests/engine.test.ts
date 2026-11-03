@@ -587,6 +587,28 @@ test("limbo: lean to pass, miss and drink, last one wins", () => {
   ok(v.phase === "end" && v.winner === "p1", "time up: p0 misses, p1 wins");
 });
 
+test("limbo: nobody leans at all, nobody wins for it: everyone drinks, same bar again", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "go");
+  t.advance(3600);
+  t.advance(16_000);
+  let v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "result" && v.winner === null && v.alive.length === 3 && v.out.length === 0, "time up with no leans: no champion, nobody out");
+  t.advance(700);
+  ok(t.pens().some((p) => ["p0", "p1", "p2"].every((id) => p.who.includes(id))), "everyone drinks");
+  t.advance(6400);
+  v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "go" && v.angle === 20 && v.failed.length === 0, "the same bar again, from a clean slate");
+  t.advance(3600);
+  t.g("p0", "best", { deg: 12 });
+  t.g("p1", "fail");
+  t.g("p2", "fail");
+  t.advance(16_000);
+  v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "end" && v.winner === "p0", "nobody made it, but p0 leaned furthest: p0 wins");
+});
+
 test("limbo blind: lean to the target unseen, furthest off drinks and goes, last one wins", () => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "limbo" });

@@ -260,7 +260,16 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
           </ul>
         )}
 
-        {v.phase === "result" && <p className="hint" style={{ textAlign: "center" }}>{blind ? (zh ? "下一轮换个角度……" : "A new angle next round…") : zh ? "杆子要降了……" : "Lowering the bar…"}</p>}
+        {v.phase === "result" && (
+          <p className="hint" style={{ textAlign: "center" }}>
+            {blind
+              ? zh ? "下一轮换个角度……" : "A new angle next round…"
+              : // everyone still in missed it and nobody leaned at all: the same bar again
+                v.alive.length > 0 && v.alive.every((id) => v.failed.includes(id))
+                ? zh ? "谁都没过，这一杆再来……" : "Nobody made it. Same bar again…"
+                : zh ? "杆子要降了……" : "Lowering the bar…"}
+          </p>
+        )}
 
         {v.phase === "end" && (
           <div className="fz-result">
