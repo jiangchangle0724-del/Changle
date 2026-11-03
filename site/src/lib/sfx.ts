@@ -24,7 +24,6 @@ import {
   voice,
   type Bus,
 } from "./audio/engine";
-import { startBackground, stopBackground } from "./music";
 
 export { initAudio };
 let lastTick = 0;
@@ -33,9 +32,13 @@ export function unlockAudio() {
   unlock();
 }
 
+// the lounge music (off unless asked for) loads the first time it's wanted, not with the home page
+let music: Promise<typeof import("./music")> | null = null;
+const loadMusic = () => (music ??= import("./music"));
+
 export function setSfxEnabled(on: boolean) {
   setEnabled(on);
-  if (!on) stopBackground();
+  if (!on) stopMusic();
 }
 
 export function isSfxEnabled() {
@@ -695,11 +698,12 @@ export const sfx = {
 /* ---------------- background music ---------------- */
 
 export function startMusic() {
-  startBackground();
+  void loadMusic().then((m) => m.startBackground());
 }
 
 export function stopMusic() {
-  stopBackground();
+  // (nothing to stop if it never loaded)
+  void music?.then((m) => m.stopBackground());
 }
 
 export function haptic(pattern: number | number[] = 8) {
