@@ -1,0 +1,60 @@
+# 平台 · 全站设计（design）
+
+对话名「平台 · 全站设计」。档案建于 2026-11-02，从仓库里的文档和提交记录整理；以后由这个对话维护。
+
+## 它是什么
+
+整个网站的样子：夜场灯光风格，颜色、字体、间距、圆角、阴影、动画都定成设计 token；12 个共用组件；UI 计划（docs/ui-plan.md）的分工和进度。
+
+## 文件
+
+- 设计 token 和全局样式：`site/src/styles/`（`tokens.css`、`global.css`）
+- 共用组件和预览页：`site/src/ui/`（预览页 `site/ui-preview.html`）
+- Codex 的 UI 任务卡：`docs/codex-tasks/ui-*.md`
+
+## 先读
+
+- `docs/DESIGN.md`（要走向的设计系统）
+- `site/DESIGN.md`（现在线上的样子）
+- `docs/ui-plan.md`（计划和分工）
+- `docs/ui-inventory.md`（盘点）
+
+## 测试
+
+- `site/tests/tokens.test.ts`（token 和 global.css 一致，`src/ui` 只用 token）
+- `site/scripts/ui_inventory.py`（盘点裸写的颜色、字号、阴影）
+- `site/scripts/ui_preview_shots.py`（组件预览截图）
+
+## 定过的事
+
+- 只有夜间配色。
+- 颜色、字号、间距、圆角、阴影、时长都从 `tokens.css` 取（`var(--…)`），不裸写。
+- 每个游戏有自己的灯光颜色（gel），首页卡片按光谱顺序排。
+- 中文行高、可以双指缩放、点击区至少 44px（UI 计划 C4，#93、#94）。
+
+## 现在
+
+- UI 计划已完成：A1 盘点、A2 token 和 DESIGN.md、A3 每页一个网址（#87）、C1 12 个组件（#90、#92）、C4 中文排版和触控（#93、#94）、C7 SEO、离线和分享图（#104）。
+
+## 还剩什么
+
+- UI 计划还剩：A4 首页层级（和首页对话一起做）、A5 统一游戏壳 GameShell、A6 性能、C2 把游戏迁进 GameShell、C3 /eat 换皮、C5 空状态和骨架屏、C6 视觉回归、C8 一致性盘点、C9 设计规则写进 AGENTS.md。
+
+## 交给别的对话
+
+- （暂无）
+
+## 最近的改动
+
+提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
+
+- 2026-11-02 打碟 · DJ Booth: a night of the host's own songs (我的歌)
+- 2026-11-02 打碟 · DJ Booth: the 点歌 box, the TV's request lines, the stand-in's songs kept in memory
+- 2026-11-01 打碟 · DJ Booth: an 8-second countdown, and four club pads
+- 2026-11-01 feat(games): a countdown under dares and king's commands that name a time (#108)
+- 2026-11-01 fix(styles): C4 follow-up: no iPhone zoom on the price drop-downs; overrides back in their own files (#94)
+- 2026-11-01 fix(ui): improve Chinese reading, zoom and touch accessibility (#93)
+
+## 记录
+
+- 2026-11-02 建档案。
