@@ -95,7 +95,8 @@ export type Fx =
   | "ask"
   | "req"
   | "pad"
-  | "song";
+  | "song"
+  | "mix";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
 /** `times`: with the table's own penalty, how many times it's done (7-8-9's pot); none is once ("two" is twice). */
@@ -577,7 +578,7 @@ export type DjView = {
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
-export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "reqs" | "up" | "now"> & {
+export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "mixAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "reqs" | "up" | "now"> & {
   reqs: ReqView[];
   up: ReqView | null;
   now: ReqView | null;

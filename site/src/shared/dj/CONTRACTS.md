@@ -225,6 +225,9 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 | `req` `{ text, song?, apple? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed, and its clip); `apple`, one the phone found on Apple, `[track id, title, artist, preview, storefront]`, every field checked (the preview can only be a path on Apple's preview server, or a URL there: `previewOk`). One each (waiting or up next), 8 waiting for the table, a phone's taken once per 5 s, none after the end. An `fx` event `req`. |
 | `unreq` `{ id }` | Its player, or the host: takes back a song waiting or up next (the next one comes up). One whose remix plays already stays. |
 | `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`; `b` null while B has nothing of its own): a new style plays from its deck's next section once it's recorded. Taken at most once a second; the speaker says it again every 1.5 s until the room has it. |
+| `mix` `{ knob, value }` | One of the mixer's four knobs (below; `MIX_KNOBS`: `low`, `mid`, `high`, `filter`) to `value`, −1 to 1 on a 0.05 grid (0: as the music plays), while music plays. Whoever moved it holds it for 1.5 s after their last move (`mixer.knobBy`, `knobAt`); the others' moves are quiet till then. A phone sends at most every 100 ms while a finger drags, and the last on release. Light. |
+| `mixfx` `{ fx, on }` | One of the mixer's four effects (`MIX_FX`: `pump`, `gate`, `flange`, `crush`) on or off, while music plays; a phone switches once per 400 ms (`mixAt`, with `mixoff`). Kept in `mixer.fx` with who and when; it goes off by itself a minute on (`MIXER.fxMs`, 32 bars at 125 BPM: the room's timer `mix`). An `fx` event `mix` (`data: [index in MIX_FX, 1 on or 0 off]`). |
+| `mixoff` | The whole mixer back to as the music plays, when something is turned or on. An `fx` event `mix` (`data: [-1, 0]`). |
 
 **The drop.** When the build-up fills, the room aims the drop (`aim`): the first bar that's a
 multiple of 2 at least 17 beats away on the speaker's bars, the **cue** one beat before it. The
@@ -264,9 +267,9 @@ phone, the TV and what the room hears agree.
 time on the beat grid (`BoothDj.beatFrame`, `Speaker.timeOfFrame`):
 
 ```
-deck A ┐                                                     ┌─ echo send (¾ beat, dying away) ─┐
-       ├ player (crossfader, brake) → high-pass (build-up) → low-pass (sweep) ─────────────────┴→ master
-deck B ┘                                                       horn, riser, roll, impact ────────┘
+deck A ┐                                                               ┌─ echo send (¾ beat, dying away) ─┐
+       ├ player (crossfader, brake) → mixer → high-pass (build-up) → low-pass (sweep) ─────────────────┴→ master
+deck B ┘                                                                 horn, riser, roll, impact ────────┘
 ```
 
 - **The drop on the speaker** is one per bar of a stream, however its time is corrected, and the
@@ -295,6 +298,39 @@ deck B ┘                                                       horn, riser, ro
   slide the fader, pick the next style, try the pads). A phone has the same hint above its deck,
   the decks, the fader, eight pads in two rows, the build-up button that turns into DROP with the count, and
   the 12 styles to pick from.
+
+**The mixer** (混音台, Steve's ask on Nov 2: pro mixing, to make the music more electronic, with
+knobs). One mixer for the table (`MixerState` in `types.ts`), under every phone's deck: anyone
+turns or switches anything while music plays, and every phone and the TV show the same.
+
+- **The knobs** (`mix`): 低音 Low, 中音 Mid, 高音 High are the EQ's bands (a low shelf at 200 Hz, a
+  peak at 1 kHz, a high shelf at 4 kHz): −1 cuts the band out (−36 dB, a DJ's kill), 1 lifts it
+  6 dB (`eqDb`). 滤波 Filter is one knob for two filters: to the left a low-pass closes down to
+  300 Hz (darker), to the right a high-pass climbs to 2.5 kHz (thinner), more resonant the further
+  it goes (`filterOf`). The speaker moves them at once, with a 30 ms glide.
+- **The effects** (`mixfx`), each switched on the speaker's next beat: 泵感 Pump, the music ducks
+  on every beat and swells back (as under a sidechained kick); 切片 Gate, the music cut into
+  sixteenths to a pattern over the bar (`GATE_STEPS`); 镶边 Flanger, a short delay swept back and
+  forth (once every 8 beats) mixed in; 低保真 Lo-fi, a copy at a lower sample rate and bit depth
+  mixed in (`dj-crush` in `player.worklet.js`). Each goes off by itself a minute on, so nobody
+  leaves the night crushed by accident.
+- **Back to normal:** a drop puts the knobs back to 0 on its bar (it hits whole; the effects stay
+  on); the end of a set puts everything back; `mixoff` (复位 Reset on a phone) does it any time.
+- **On the speaker** (`speaker/mixer.ts`, `MixerChain`): between the player and the deck's own
+  effects, so it shapes whatever plays (the stand-in, Lyria, the host's songs, a clip):
+
+  ```
+  player → EQ → low-pass → high-pass → (music + lo-fi copy) → (music + flanger) → pump → gate → high-pass (build-up) …
+  ```
+
+  The driver (`deck/driver.ts`, `mix`) turns the knobs at once (a drop's bar sets them back
+  itself), switches the effects at the next beat (`nextBeat`), and writes the pump's ducks and
+  the gate's sixteenths 1.5 s ahead, beat by beat on the speaker's grid, so they stay on the beat
+  however late the room's word arrives; a new stream starts them over on its own beats.
+- **The screens:** a phone has 混音台 under its deck: the four knobs as sliders (0 in the middle,
+  snapping to it close by; one somebody else holds shows who), the four effects as switches, and
+  复位. The TV shows the mixer under the build-up's meter while anything is turned or on (the knobs
+  turned as bars, the effects lit), and who switched what with the pads' names.
 
 **Songs asked for by name** (`req`, Steve's ask on Nov 1: "players type the song they want, and it's
 remixed into the next track"; his choice: a new song in that song's style, not the song itself).
@@ -550,6 +586,13 @@ every frame changes only opacity or a transform.
   the switch to her songs from her phone (the TV hands the music over, no gap) and back.
   `tests/dj.test.ts` has the pieces (read back byte for byte, every bad one turned away);
   `tests/engine.test.ts` the switch and the word back.
+- `python3 scripts/dj_mixer_check.py [chromium|webkit]`: the mixer in browsers, a TV and two phones,
+  the speaker's output measured for each control: the bass cut (the low end gone; another phone's
+  turn of the same knob waiting), the filter closed (the highs gone) and the other way (the lows
+  gone), the reset; the pump ducking on every beat, the gate in sixteenths, the flanger and the
+  lo-fi, each switched on a beat; the TV's mixer and who did what; a drop putting the knobs back on
+  its bar. `tests/dj.test.ts` has the knobs' EQ and filter, the gate's pattern and the lo-fi on the
+  audio thread; `tests/engine.test.ts` the room's rules for the mixer.
 - `python3 scripts/dj_deck_check.py [chromium|webkit]`: the beginner deck in browsers, a TV and
   three phones playing at once: pads on the beat to the millisecond, picks loading deck B, the
   fader thrown to B before B has music (deck A plays on, never silence), the fader held, the

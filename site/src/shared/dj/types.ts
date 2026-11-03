@@ -302,11 +302,14 @@ export type DeckState = {
   reqs: SongReq[];
   up: SongReq | null;
   now: SongReq | null;
-  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick
-   *  and a song asked for taken, the last brake, which screen gives the bars, when it last moved
-   *  them and when it last said anything at all (it says the bars every 10 s while it plays), and
-   *  when the decks and the source were last taken from it */
+  /** the table's mixer on the speaker's output (混音台) */
+  mixer: MixerState;
+  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick,
+   *  a song asked for and a mixer switch taken, the last brake, which screen gives the bars, when
+   *  it last moved them and when it last said anything at all (it says the bars every 10 s while it
+   *  plays), and when the decks and the source were last taken from it */
   padAt: Record<string, number>;
+  mixAt: Record<string, number>;
   voteAt: Record<string, number>;
   reqAt: Record<string, number>;
   brakeAt: number;
@@ -317,6 +320,48 @@ export type DeckState = {
   srcAt: number;
   crateAt: number;
 };
+
+/* ------------------------------------------------------------------ the mixer (混音台) */
+
+/**
+ * 混音台 (Steve on Nov 2: "professional mixing, more electronic, knobs"): every phone has the
+ * table's mixer on the speaker's output. Four knobs, -1 to 1, 0 as the music plays: `low`, `mid`,
+ * `high` (the EQ: -1 cuts the band right out, 1 lifts it) and `filter` (left a low-pass closing in,
+ * right a high-pass thinning the music out). Four effects, on or off, each switching on the next
+ * beat: `pump` (the music ducks on every beat and swells back, as under a sidechained kick), `gate`
+ * (cut into sixteenths, a trance gate), `flange` (a jet's sweep) and `crush` (lo-fi, a few bits).
+ */
+export const MIX_KNOBS = ["low", "mid", "high", "filter"] as const;
+export type MixKnob = (typeof MIX_KNOBS)[number];
+export const MIX_FX = ["pump", "gate", "flange", "crush"] as const;
+export type MixFx = (typeof MIX_FX)[number];
+
+/** The mixer as the room keeps it. */
+export type MixerState = {
+  knobs: Record<MixKnob, number>;
+  /** who has each knob: whoever moved it last, until MIXER.holdMs after their last move */
+  knobBy: Partial<Record<MixKnob, string>>;
+  knobAt: Partial<Record<MixKnob, number>>;
+  /** the effects that are on: when (server time) and by whom */
+  fx: Partial<Record<MixFx, { at: number; by: string }>>;
+};
+
+export const MIXER = {
+  /** knobs move in steps of this much */
+  step: 0.05,
+  /** a phone sends a knob at most this often while a finger turns it */
+  sendMs: 100,
+  /** a knob stays with whoever moved it for this long after their last move */
+  holdMs: 1500,
+  /** a phone switches an effect (or resets the mixer) at most this often */
+  fxGapMs: 400,
+  /** an effect goes off by itself this long after it went on (32 bars at 125 BPM): nobody leaves the
+   *  night crushed by accident */
+  fxMs: 61_440,
+} as const;
+
+/** The mixer as the music plays: every knob at 0, no effects. */
+export const freshMixer = (): MixerState => ({ knobs: { low: 0, mid: 0, high: 0, filter: 0 }, knobBy: {}, knobAt: {}, fx: {} });
 
 /** The beginner deck's numbers. */
 export const DECK = {
@@ -436,6 +481,13 @@ export type DjCommand =
   | { x: "ending"; id: string }
   /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
   | { x: "mine"; on: boolean }
+  // the mixer (anyone at the table)
+  /** a knob, -1 to 1 (0: as the music plays) */
+  | { x: "mix"; knob: MixKnob; value: number }
+  /** an effect on or off */
+  | { x: "mixfx"; fx: MixFx; on: boolean }
+  /** every knob back to 0, every effect off */
+  | { x: "mixoff" }
   /** the speaker: how a song file sent from the host's phone went (`code`: SONG_SENT), for that phone (`by`), the file's number (`id`) */
   | { x: "song"; by: string; id: number; code: number };
 

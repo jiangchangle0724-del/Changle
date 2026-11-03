@@ -9,8 +9,9 @@ import { useStore } from "../../../store";
 import { dataUrl } from "../../../online/config";
 import type { CrateSong } from "../../../shared/dj/types";
 import { appleMusicUrl } from "../../../shared/songs";
-import { DROP_WORDS, hintText, localName, PADS, songName } from "../deck/words";
+import { DROP_WORDS, hintText, localName, mixSaid, PADS, songName } from "../deck/words";
 import { searchApple, type AppleHit } from "./apple";
+import { MixerPad } from "./MixerPad";
 import { STYLE_NAMES } from "../parts";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
@@ -55,6 +56,7 @@ export function DeckPad({ v }: { v: DjView }) {
       if (pad) say(`${nameOf(e.pid)} · ${L(PADS[pad].name, zh)}`);
     } else if (e.fx === "drop") say(`${nameOf(e.pid)} · DROP`);
     else if (e.fx === "req") say(zh ? `${nameOf(e.pid)} 点了一首歌` : `${nameOf(e.pid)} asked for a song`);
+    else if (e.fx === "mix") say(mixSaid(nameOf(e.pid), e.data, zh));
   });
 
   return (
@@ -75,6 +77,7 @@ export function DeckPad({ v }: { v: DjView }) {
           <span key={s.id}>{s.text}</span>
         ))}
       </p>
+      <MixerPad v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
       <Requests v={v} me={me} g={g} zh={zh} />
       <Picks v={v} me={me} g={g} zh={zh} side={off} />
     </section>

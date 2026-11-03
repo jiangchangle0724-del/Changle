@@ -173,8 +173,8 @@ Worker's `wrangler.jsonc`.
 
 * 打碟 · DJ Booth (`docs/dj-booth.md`, `site/src/shared/dj/CONTRACTS.md`): on the home list since
   Nov 1 (its card plays at changle.ca/dj). The stand-in DJ plays 12 styles on two decks; every
-  phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style), all of
-  it on the beat. Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
+  phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style) and a
+  mixer (a three-band EQ, a filter, four effects), all of it on the beat. Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
   the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
   `docs/codex-tasks/dj/` (C1 presets is done).
 

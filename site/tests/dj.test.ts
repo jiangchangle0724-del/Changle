@@ -9,6 +9,7 @@ import { CLIP_DB, ClipDeck, clipOf, loadClip, type Clip } from "../src/party/dj/
 import { hitsOf, storeFor } from "../src/party/dj/phone/apple";
 import { previewOk } from "../src/shared/songs";
 import { decodePiece, encodePiece, fileNumber, PIECE_BYTES, SONG_BYTES } from "../src/shared/dj/songwire";
+import { eqDb, filterOf, GATE_STEPS } from "../src/party/dj/speaker/mixer";
 import { line } from "../src/lib/music";
 import { pcm16ToFloat } from "../src/party/dj/speaker/pcm";
 import type { Speaker } from "../src/party/dj/speaker/speaker";
@@ -1047,6 +1048,29 @@ await test("lyria DJ: a song asked for: its clip over the stream from the next b
   const after = sp.chunks.flat();
   ok(after.slice(cutAt + 19200, cutAt + 40000).every((v) => Math.abs(v) < 2), "taken off the air: Lyria again, after a short fade");
   dj.stop();
+});
+
+await test("mixer: the knobs' EQ and filter, the gate's pattern, the lo-fi on the audio thread", () => {
+  ok(eqDb(-1) === -36 && eqDb(0) === 0 && eqDb(1) === 6 && eqDb(-0.5) === -18, "the EQ: -1 cuts a band by 36 dB (out), 1 lifts it 6 dB");
+  const shut = filterOf(-1);
+  const thin = filterOf(1);
+  const open = filterOf(0);
+  ok(Math.round(shut.lp) === 300 && shut.hp === 20 && shut.q > 3.5, "the filter all the way left: a resonant low-pass at 300 Hz");
+  ok(thin.lp === 20000 && Math.round(thin.hp) === 2500 && thin.q > 3.5, "all the way right: a resonant high-pass at 2.5 kHz");
+  ok(open.lp === 20000 && open.hp === 20 && open.q === 0.7, "in the middle: open, as the music plays");
+  const half = filterOf(-0.5);
+  ok(half.lp > 2000 && half.lp < 3000, `halfway: in between, on a curve the ear hears as even (${Math.round(half.lp)} Hz)`);
+  ok(GATE_STEPS.length === 16 && GATE_STEPS.filter((x) => x === 1).length >= 8 && GATE_STEPS[0] === 1, "the gate: a bar of sixteenths, open on the downbeat");
+  const crush = new procs["dj-crush"]({});
+  const inL = new Float32Array(128).map((_, i) => Math.sin(i / 7) * 0.9);
+  const out = [new Float32Array(128), new Float32Array(128)];
+  crush.process([[inL, inL]], [out], { bits: new Float32Array([6]), hold: new Float32Array([6]) });
+  const held = out[0].every((v, i) => v === out[0][i - (i % 6)]);
+  const steps = out[0].every((v) => Math.abs(v * 32 - Math.round(v * 32)) < 1e-6);
+  ok(held && steps && out[0][0] === Math.round(inL[0] * 32) / 32, "the lo-fi: each sample held for 6 (8 kHz) and cut to 6 bits");
+  const quiet = [new Float32Array(128).fill(1), new Float32Array(128).fill(1)];
+  crush.process([[]], [quiet], { bits: new Float32Array([6]), hold: new Float32Array([6]) });
+  ok(quiet[0].every((v) => v === 0), "nothing coming in: quiet");
 });
 
 await test("songwire: a song file in pieces, every piece checked; the rooms server marks whose it is", () => {

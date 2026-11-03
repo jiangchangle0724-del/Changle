@@ -1,10 +1,10 @@
 /**
  * 打碟 · DJ Booth: the beginner deck's words, in both languages, for the phones and the big screen.
  */
-import { AudioWaveform, Disc2, Megaphone, OctagonPause, Repeat2, Rewind, Siren, Zap, type LucideIcon } from "lucide-react";
+import { Activity, AudioLines, AudioWaveform, Binary, Disc2, Megaphone, OctagonPause, Repeat2, Rewind, Siren, Waves, Zap, type LucideIcon } from "lucide-react";
 import type { T } from "../../../i18n";
 import type { Hint } from "../../../shared/dj/deck";
-import type { DeckSide, PadId } from "../../../shared/dj/types";
+import { MIX_FX, type DeckSide, type MixFx, type MixKnob, type PadId } from "../../../shared/dj/types";
 
 const t = (zh: string, en: string): T => ({ zh, en });
 
@@ -18,6 +18,32 @@ export const PADS: Record<PadId, { name: T; icon: LucideIcon; what: T }> = {
   scratch: { name: t("搓碟", "Scratch"), icon: Disc2, what: t("把音乐来回搓一拍", "Scratches the music for a beat") },
   rewind: { name: t("倒带", "Rewind"), icon: Rewind, what: t("音乐往回倒，下一小节接回来", "The music spins back, back on the next bar") },
 };
+
+/** The mixer's knobs (混音台), and what each end of the filter does. */
+export const KNOBS: Record<MixKnob, T> = {
+  low: t("低音", "Low"),
+  mid: t("中音", "Mid"),
+  high: t("高音", "High"),
+  filter: t("滤波", "Filter"),
+};
+export const FILTER_ENDS = { dark: t("闷", "Dark"), thin: t("薄", "Thin") };
+
+/** The mixer's effects. */
+export const MIX_EFFECTS: Record<MixFx, { name: T; icon: LucideIcon; what: T }> = {
+  pump: { name: t("泵感", "Pump"), icon: Activity, what: t("每一拍往下压一下再弹回来", "Ducks on every beat and swells back") },
+  gate: { name: t("切片", "Gate"), icon: AudioLines, what: t("按十六分音符切成一段一段", "Chops the music into sixteenths") },
+  flange: { name: t("镶边", "Flanger"), icon: Waves, what: t("像飞机飞过的扫频", "A jet plane's sweep") },
+  crush: { name: t("低保真", "Lo-fi"), icon: Binary, what: t("8-bit 那种颗粒感", "Gritty, like 8-bit") },
+};
+
+/** Someone at the mixer, in a line: "Amy · 泵感 开", "Amy · 混音台复位" (`data`: the effect's index and on, or -1: the reset). */
+export function mixSaid(who: string, data: number[] | undefined, zh: boolean): string {
+  const [i = -1, on = 0] = data ?? [];
+  const f = MIX_FX[i];
+  if (!f) return zh ? `${who} · 混音台复位` : `${who} · mixer reset`;
+  const name = zh ? MIX_EFFECTS[f].name.zh : MIX_EFFECTS[f].name.en;
+  return zh ? `${who} · ${name} ${on ? "开" : "关"}` : `${who} · ${name} ${on ? "on" : "off"}`;
+}
 
 /** What a beginner could do now, for the hint line (`side`: the deck off the air). */
 export function hintText(h: Hint, side: DeckSide, zh: boolean): string {

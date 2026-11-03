@@ -31,6 +31,12 @@ import {
   SONG_SENT,
   STYLE_IDS,
   WAITING,
+  MIX_FX,
+  MIX_KNOBS,
+  MIXER,
+  freshMixer,
+  type MixFx,
+  type MixKnob,
   type CrateSong,
   type DjPhase,
   type PadId,
@@ -142,6 +148,8 @@ function land(s: RoomState, api: Api) {
   d.charge = 0;
   d.chargeAt = api.now;
   d.pending = 0;
+  // the drop hits whole: the mixer's knobs go back to 0 on its bar (its effects stay on)
+  d.mixer = { ...d.mixer, knobs: freshMixer().knobs, knobBy: {}, knobAt: {} };
   // the decks swapped: the picks were for this one, they start over; a song asked for plays now
   if (onAir(d) !== was) swapped(s, api);
   syncMix(s);
@@ -312,10 +320,20 @@ function calm(s: RoomState, api: Api) {
   d.up = null;
   d.now = null;
   d.ending = null;
+  // and the mixer as the music plays
+  d.mixer = freshMixer();
   api.clear("drop");
   api.clear("req");
   api.clear("now");
   api.clear("end");
+  api.clear("mix");
+}
+
+/** The mixer's effects go off by themselves MIXER.fxMs after they went on: the first of them due. */
+function mixTimer(s: RoomState, api: Api) {
+  const ats = Object.values(s.deck.mixer.fx).map((x) => x!.at + MIXER.fxMs);
+  if (ats.length) api.timer("mix", Math.min(...ats));
+  else api.clear("mix");
 }
 
 /** Move the night to `phase` now, and set when it moves on by itself. */
@@ -638,6 +656,55 @@ export const dj: GameDef<RoomState> = {
         api.clear("end");
         return;
       }
+      case "mix": {
+        // a mixer knob: anyone, while the music plays; whoever moved it holds it a moment (like
+        // the crossfader). Light: a finger turning one sends it ten times a second
+        const d = s.deck;
+        const knob = MIX_KNOBS.includes(g.knob as MixKnob) ? (g.knob as MixKnob) : null;
+        const v = typeof g.value === "number" && Number.isFinite(g.value) ? Math.max(-1, Math.min(1, g.value)) : null;
+        if (!playing(s.phase) || !knob || v === null) return api.quiet();
+        const m = d.mixer;
+        const now = api.now;
+        const by = m.knobBy[knob];
+        if (by && by !== pid && now - (m.knobAt[knob] ?? 0) < MIXER.holdMs) return api.quiet();
+        const value = Math.round(Math.round(v / MIXER.step) * MIXER.step * 100) / 100 || 0;
+        m.knobBy[knob] = pid;
+        m.knobAt[knob] = now;
+        if (value === m.knobs[knob]) return api.quiet();
+        m.knobs[knob] = value;
+        api.light();
+        return;
+      }
+      case "mixfx": {
+        // a mixer effect on or off: anyone, while the music plays, a switch a phone per MIXER.fxGapMs
+        const d = s.deck;
+        const fx = MIX_FX.includes(g.fx as MixFx) ? (g.fx as MixFx) : null;
+        const on = g.on === true;
+        if (!playing(s.phase) || !fx || (d.mixAt[pid] ?? -Infinity) > api.now - MIXER.fxGapMs) return api.quiet();
+        const m = d.mixer;
+        if (!!m.fx[fx] === on) return api.quiet();
+        d.mixAt[pid] = api.now;
+        if (on) m.fx = { ...m.fx, [fx]: { at: api.now, by: pid } };
+        else {
+          const { [fx]: _gone, ...rest } = m.fx;
+          m.fx = rest;
+        }
+        api.fx("mix", pid, [MIX_FX.indexOf(fx), on ? 1 : 0]);
+        mixTimer(s, api);
+        return;
+      }
+      case "mixoff": {
+        // the whole mixer back to as the music plays
+        const d = s.deck;
+        const m = d.mixer;
+        const busy = Object.values(m.knobs).some((v) => v !== 0) || Object.keys(m.fx).length > 0;
+        if (!playing(s.phase) || !busy || (d.mixAt[pid] ?? -Infinity) > api.now - MIXER.fxGapMs) return api.quiet();
+        d.mixAt[pid] = api.now;
+        d.mixer = freshMixer();
+        api.fx("mix", pid, [-1, 0]);
+        mixTimer(s, api);
+        return;
+      }
       case "mine": {
         // the host, from their phone: the night on their songs (the speaker switches once it has
         // some and the song on the air is ready), or back to the stand-in
@@ -843,6 +910,17 @@ export const dj: GameDef<RoomState> = {
       s.deck.now = null;
       return;
     }
+    if (key === "mix") {
+      // effects whose time is up go off
+      const m = s.deck.mixer;
+      const due = (Object.keys(m.fx) as MixFx[]).filter((f) => m.fx[f]!.at + MIXER.fxMs <= api.now);
+      if (!due.length) return mixTimer(s, api);
+      const fx = { ...m.fx };
+      for (const f of due) delete fx[f];
+      m.fx = fx;
+      mixTimer(s, api);
+      return;
+    }
     if (key === "next") {
       if (s.phase === "warm") goTo(s, "build", api);
       else if (s.phase === "build") goTo(s, "peak", api);
@@ -911,7 +989,7 @@ const SONG_ID = /^[a-z0-9]{1,12}$/i;
  * bookkeeping; a song's name a player typed shows only to them and the host.
  */
 function deckView(s: RoomState, pid: string, host: boolean): DeckView {
-  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, reqAt: _reqAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, crateAt: _crateAt, ...rest } = s.deck;
+  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, reqAt: _reqAt, mixAt: _mixAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, crateAt: _crateAt, ...rest } = s.deck;
   const see = (r: SongReq | null) => (r ? reqFor(r, pid, host) : null);
   return { ...rest, reqs: rest.reqs.map((r) => reqFor(r, pid, host)), up: see(rest.up), now: see(rest.now) };
 }

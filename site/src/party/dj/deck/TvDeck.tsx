@@ -1,13 +1,13 @@
-import { Disc3, ListMusic, Music2, type LucideIcon } from "lucide-react";
+import { Disc3, ListMusic, Music2, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { chargeNow, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
-import { DECK, PAD_IDS, type DeckSide, type PadId } from "../../../shared/dj/types";
+import { DECK, MIX_FX, MIX_KNOBS, PAD_IDS, type DeckSide, type MixerState, type PadId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
 import { useStore } from "../../../store";
 import { NowPlaying, STYLE_NAMES } from "../parts";
-import { CLIP_CREDIT, hintText, nowLine, PADS, reqLine } from "./words";
+import { CLIP_CREDIT, hintText, KNOBS, MIX_EFFECTS, mixSaid, nowLine, PADS, reqLine } from "./words";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -87,6 +87,7 @@ export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
           <span className="dk-meter-word">{zh ? "蓄力" : "Build-up"}</span>
           <span className="dk-meter-pct tabular">{Math.round(level * 100)}%</span>
         </div>
+        {d.mixer && <MixStrip m={d.mixer} zh={zh} />}
       </div>
       {deck("b")}
     </div>
@@ -150,7 +151,41 @@ export function DropParty({ v }: { v: DjView }) {
   );
 }
 
-type Chip = { id: number; text: string; kind: PadId | "req"; icon: LucideIcon };
+type Chip = { id: number; text: string; kind: PadId | "req" | "mix"; icon: LucideIcon };
+
+/** The board shows the mixer (a line of its own) once anyone has touched it. */
+export const mixerShows = (m: MixerState | undefined) => !!m && (MIX_KNOBS.some((k) => m.knobs[k] !== 0) || MIX_FX.some((f) => !!m.fx[f]));
+
+/**
+ * The mixer, when anyone has touched it (as the music plays it stays out of the way): each knob
+ * turned, as a little bar from the middle, and each effect that's on, lit.
+ */
+function MixStrip({ m, zh }: { m: MixerState; zh: boolean }) {
+  const knobs = MIX_KNOBS.filter((k) => m.knobs[k] !== 0);
+  const fx = MIX_FX.filter((f) => !!m.fx[f]);
+  if (!mixerShows(m)) return null;
+  return (
+    <div className="dk-mix" aria-label={zh ? "混音台" : "Mixer"}>
+      {knobs.map((k) => (
+        <span key={k} className="dk-mix-knob" style={{ ["--v" as string]: m.knobs[k] } as CSSProperties}>
+          <span className="dk-mix-name">{L(KNOBS[k], zh)}</span>
+          <span className="dk-mix-bar" aria-hidden="true">
+            <span />
+          </span>
+        </span>
+      ))}
+      {fx.map((f) => {
+        const Icon = MIX_EFFECTS[f].icon;
+        return (
+          <span key={f} className={`dk-mix-fx is-${f}`}>
+            <Icon size={20} aria-hidden="true" />
+            {L(MIX_EFFECTS[f].name, zh)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Who pressed which pad (the pad itself played on the speaker) or asked for a song, for a moment. */
 export function usePadEvents(play: (pad: PadId) => void) {
@@ -160,10 +195,13 @@ export function usePadEvents(play: (pad: PadId) => void) {
   const [chips, setChips] = useState<Chip[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
-    if (e.k !== "fx" || !e.pid || (e.fx !== "pad" && e.fx !== "req")) return;
+    if (e.k !== "fx" || !e.pid || (e.fx !== "pad" && e.fx !== "req" && e.fx !== "mix")) return;
     let chip: Omit<Chip, "id">;
     if (e.fx === "req") chip = { text: zh ? `${nameOf(e.pid)} 点了一首歌` : `${nameOf(e.pid)} asked for a song`, kind: "req", icon: ListMusic };
-    else {
+    else if (e.fx === "mix") {
+      const f = MIX_FX[e.data?.[0] ?? -1];
+      chip = { text: mixSaid(nameOf(e.pid), e.data, zh), kind: "mix", icon: f ? MIX_EFFECTS[f].icon : SlidersHorizontal };
+    } else {
       const pad = PAD_IDS[e.data?.[0] ?? -1];
       if (!pad) return;
       play(pad);

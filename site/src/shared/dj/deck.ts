@@ -3,7 +3,7 @@
  * the rooms server, the speaker and the phones, so they all read the deck the same way.
  * CONTRACTS.md, "The beginner deck".
  */
-import { DECK, STYLE_IDS, type DeckSide, type DeckState, type DropGrade, type DropState, type Mix, type StyleId } from "./types";
+import { DECK, freshMixer, STYLE_IDS, type DeckSide, type DeckState, type DropGrade, type DropState, type Mix, type StyleId } from "./types";
 
 /** The stand-in's tempo, and the deck's when the speaker hasn't said. */
 export const DECK_BPM = 125;
@@ -34,6 +34,8 @@ export function freshDeck(): DeckState {
     up: null,
     now: null,
     reqAt: {},
+    mixer: freshMixer(),
+    mixAt: {},
     local: false,
     songs: { a: null, b: null },
     played: [],

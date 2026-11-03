@@ -10,7 +10,7 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
-import { Countdown, DeckBoard, DropParty, HintLine, PadChips, usePadEvents } from "./deck/TvDeck";
+import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePadEvents } from "./deck/TvDeck";
 import { LocalPanel } from "./local/LocalPanel";
 import { NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { useBooth } from "./useBooth";
@@ -198,7 +198,7 @@ export default function TvDj({ v }: { v: DjView }) {
       {!seats.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
-      <PadChips chips={chips} lines={(v.deck?.up ? 1 : 0) + (v.deck?.now ? 1 : 0)} />
+      <PadChips chips={chips} lines={(v.deck?.up ? 1 : 0) + (v.deck?.now ? 1 : 0) + (mixerShows(v.deck?.mixer) ? 1 : 0)} />
       {v.deck && <Countdown v={v} />}
       {v.deck && <DropParty v={v} />}
       {live && v.deck && <HintLine v={v} />}

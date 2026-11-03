@@ -3,15 +3,18 @@
  * pressed, the build-up, the drop and its bar, the fader); this turns it into sound, every bit of it
  * on the beat: a pad starts on the next beat, the build-up's roll falls on the grid, the drop lands
  * on its bar, the crossfader jumps with it. It also tells the room where the speaker's bars fall, so
- * every phone counts down to the same moment the room hears.
+ * every phone counts down to the same moment the room hears. And the table's mixer (混音台): its
+ * knobs at once, its effects from the next beat, the pump and the gate written a little ahead, beat
+ * by beat; the drop puts the knobs back to 0 on its bar.
  *
  * Times here are audio times (the speaker's context) unless they say server.
  */
 import { beatsLeft, chargeNow, COUNT_SPAN } from "../../../shared/dj/deck";
 import { hasB, onAir } from "../../../shared/dj/deck";
-import type { DeckSide, DropState, PadId } from "../../../shared/dj/types";
+import { MIX_FX, MIX_KNOBS, type DeckSide, type DropState, type MixFx, type MixKnob, type PadId } from "../../../shared/dj/types";
 import type { DeckView } from "../../../shared/protocol";
 import { DeckFx } from "../speaker/fx";
+import { GATE_STEPS } from "../speaker/mixer";
 import type { Speaker } from "../speaker/speaker";
 
 /** Whichever DJ plays, as far as the deck needs it (useBooth's BoothDj). */
@@ -20,6 +23,8 @@ export type Grid = { at: number; bar: number; bpm: number };
 
 /** How far ahead the roll is written, seconds. */
 const ROLL_AHEAD = 0.3;
+/** How far ahead the pump's and the gate's moves are written, seconds (a busy page's timers can run a second late). */
+const MIX_AHEAD = 1.5;
 /** How far up the build-up goes as the table fills it; the countdown takes it the rest of the way. */
 const FILLED = 0.85;
 /**
@@ -50,6 +55,16 @@ export class DeckDriver {
   private brakeUntil = 0;
   private sentAt = 0;
   private checked = 0;
+  /** the mixer as this has set it: the knobs, the effects (on from a beat, or off); the pump's and
+   *  the gate's first beat (sixteenth) and the last one written, in which stream, at what tempo */
+  private knobs: Record<MixKnob, number> = { low: 0, mid: 0, high: 0, filter: 0 };
+  private fxOn: Record<MixFx, boolean> = { pump: false, gate: false, flange: false, crush: false };
+  private pumpFrom: number | null = null;
+  private pumpDone = -Infinity;
+  private gateFrom: number | null = null;
+  private gateDone = -Infinity;
+  private mixEpoch = -1;
+  private mixBpm = 0;
   /** what the deck did, for the checks (scripts/dj_deck_check.py): kind and audio time */
   readonly log: { k: string; at: number; beat: number }[] = [];
 
@@ -67,6 +82,7 @@ export class DeckDriver {
   stop() {
     window.clearInterval(this.timer);
     this.fx.dispose();
+    this.mixOff();
     this.sp.setXfade(0);
   }
 
@@ -83,6 +99,7 @@ export class DeckDriver {
     if (was && !on) {
       // the set is over: every effect off, nothing on its way
       this.fx.reset();
+      this.mixOff();
       this.dropT = 0;
       this.dropKey = "";
       this.level = -1;
@@ -195,6 +212,84 @@ export class DeckDriver {
       this.level = level;
     }
     this.roll(level, landing || left <= 8 ? 0.25 : d.drop || charge >= 0.5 ? 0.5 : 1);
+    this.mix(d);
+  }
+
+  /* ------------------------------------------------------------------ the mixer */
+
+  /** The table's mixer: knobs at once, effects from the next beat, the pump and the gate written ahead. */
+  private mix(d: DeckView) {
+    const m = d.mixer;
+    if (!m) return;
+    const mx = this.sp.mixer;
+    const ctxNow = this.sp.ctx.currentTime;
+    // (the knobs go back to 0 on a drop's bar: until the room has it landed, its old ones wait)
+    if (!this.dropT)
+      for (const k of MIX_KNOBS) {
+        const v = m.knobs[k] ?? 0;
+        if (v === this.knobs[k]) continue;
+        mx.knob(k, v, ctxNow);
+        this.knobs[k] = v;
+      }
+    if (this.dj.bpm !== this.mixBpm) {
+      this.mixBpm = this.dj.bpm;
+      mx.tempo(this.dj.bpm);
+    }
+    // a new stream: its beats are new, the pump and the gate start over on them
+    if (this.dj.epoch !== this.mixEpoch) {
+      this.mixEpoch = this.dj.epoch;
+      if (this.fxOn.pump) mx.pumpOff(ctxNow);
+      if (this.fxOn.gate) mx.gateOff(ctxNow);
+      this.fxOn.pump = this.fxOn.gate = false;
+      this.pumpFrom = this.gateFrom = null;
+    }
+    for (const f of MIX_FX) {
+      const on = !!m.fx[f];
+      if (on === this.fxOn[f]) continue;
+      const nb = this.nextBeat();
+      if (!nb) break;
+      this.fxOn[f] = on;
+      if (f === "crush" || f === "flange") mx.fx(f, on, nb.at);
+      else if (f === "pump") {
+        if (on) this.pumpFrom = nb.b;
+        else mx.pumpOff(nb.at);
+        if (!on) this.pumpFrom = null;
+        this.pumpDone = -Infinity;
+      } else {
+        if (on) this.gateFrom = nb.b * 4;
+        else mx.gateOff(nb.at);
+        if (!on) this.gateFrom = null;
+        this.gateDone = -Infinity;
+      }
+      this.note(`${f}-${on ? "on" : "off"}`, nb.at, nb.b);
+    }
+    if (this.pumpFrom === null && this.gateFrom === null) return;
+    const bn = this.beatNow();
+    if (bn === null) return;
+    const beatS = 60 / this.dj.bpm;
+    if (this.pumpFrom !== null)
+      for (let b = Math.max(this.pumpFrom, this.pumpDone + 1, Math.ceil(bn)), guard = 0; guard < 16; b++, guard++) {
+        const at = this.timeOfBeat(b);
+        if (at === null || at > ctxNow + MIX_AHEAD) break;
+        if (at > ctxNow + 0.005) mx.pumpBeat(at, beatS);
+        this.pumpDone = b;
+      }
+    if (this.gateFrom !== null)
+      for (let s = Math.max(this.gateFrom, this.gateDone + 1, Math.ceil(bn * 4)), guard = 0; guard < 64; s++, guard++) {
+        const at = this.timeOfBeat(s / 4);
+        if (at === null || at > ctxNow + MIX_AHEAD) break;
+        if (at > ctxNow + 0.003) mx.gateStep(at, GATE_STEPS[((s % 16) + 16) % 16] === 1);
+        this.gateDone = s;
+      }
+  }
+
+  /** The mixer as the music plays (the end of a set, the booth closed). */
+  private mixOff() {
+    this.sp.mixer.reset();
+    this.knobs = { low: 0, mid: 0, high: 0, filter: 0 };
+    this.fxOn = { pump: false, gate: false, flange: false, crush: false };
+    this.pumpFrom = this.gateFrom = null;
+    this.pumpDone = this.gateDone = -Infinity;
   }
 
   /** The same bar of the same stream is the same drop, however its time is corrected. */
@@ -239,6 +334,11 @@ export class DeckDriver {
     this.dropKey = key;
     this.dropT = at;
     this.fx.drop(at);
+    // the drop hits whole: the mixer's knobs back to 0 on its bar (the room does the same as it lands)
+    for (const k of MIX_KNOBS) {
+      if (this.knobs[k] !== 0) this.sp.mixer.knob(k, 0, at);
+      this.knobs[k] = 0;
+    }
     if (this.dj.decks) {
       const to = drop.to === "b" && this.deck && hasB(this.deck) ? 1 : 0;
       this.sp.setXfade(to, at);

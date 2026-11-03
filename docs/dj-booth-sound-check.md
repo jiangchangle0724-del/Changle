@@ -317,3 +317,27 @@ start and 0.93 to 1.07 GB from the third minute on (the busy table without clips
 in WebKit (one deck run on the busy machine had a drop's word reach the TV more than 150 ms after its
 bar, so it landed a beat late, as the driver means it to; run again, it passed). Apple stays out of
 the deck check now (its clips are the clip check's).
+
+## The mixer (混音台, Nov 2, evening)
+
+Steve: "can we add some pro mixing, things that make the music more electronic, knobs"
+(CONTRACTS.md, "The mixer").
+
+**`site/scripts/dj_mixer_check.py`**, the TV in Chromium and in WebKit, two phones: 48 of 48 in each,
+no errors. Measured in the speaker's output: Amy turns the bass all the way down and the low end
+falls from -35 to -67 dB (Ben's turn of the same knob waits while she has it); Ben closes the filter
+and the highs fall from -101 to -145 dB, then opens it the other way (the high-pass up to 2.5 kHz);
+the reset brings it all back (the low end at -34 dB). Each effect switches on a beat to the
+millisecond: the pump's gain ducks to 0.18 on every beat and swells back to 1, the gate cuts in
+sixteenths (0.06 to 1), the flanger and the lo-fi come in (the lo-fi's grit up top: -134 to -86 dB),
+and with all four on the music plays on, no stalls. The TV shows the mixer and who switched what.
+Then a drop lands with the bass cut: the knob is back to 0 dB on the drop's bar.
+
+**A busy table with the mixer** (pads, picks, the fader, a drop a minute, and two phones turning
+knobs every few seconds and switching effects every 3 to 7 seconds), the TV in WebKit: 5 minutes,
+no stalls, never not playing, the buffer never under 4.96 s, 66 knob turns, 54 effect switches
+from the phones and 55 on the speaker (the room also turns an effect off after a minute), every one
+on a beat, 5 drops, no errors; WebKit's memory 0.74 GB at the start, 0.91 GB at most.
+
+With the mixer in, the TV in Chromium: **`dj_deck_check.py`** 66 of 66, **`dj_local_check.py`** 32 of
+32, **`dj_clip_check.py`** 42 of 42, **`dj_mine_check.py`** 26 of 26.

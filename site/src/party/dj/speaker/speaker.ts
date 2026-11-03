@@ -2,6 +2,7 @@
  * 打碟 · DJ Booth: the speaker's sound chain, on the one device that plays the music.
  *
  *   PCM chunks (deck A, deck B) → player (AudioWorklet: ring buffer, crossfader, brake, rewind, scratch)
+ *     → the table's mixer (EQ, filter, crush, flanger, pump, gate: mixer.ts)
  *     → high-pass (the build-up) → low-pass (the sweep) → master gain → glue compressor → limiter → speakers
  *                                                  ↘ echo ↗              ↗                    ↘ analyser (the lights)
  *     the deck's own sounds (horn, riser, roll, impact: fx.ts) ──────────┘
@@ -10,6 +11,7 @@
  * reactions. Open it from inside a tap: iPhone and Safari start audio only from one.
  */
 import { impulse } from "../../../lib/audio/engine";
+import { MixerChain } from "./mixer";
 import { pcm16ToFloat } from "./pcm";
 import workletUrl from "./player.worklet.js?url";
 
@@ -40,6 +42,8 @@ export class Speaker {
   private room: GainNode;
   /** the beginner deck's effects (fx.ts plays them): the filters the music passes through, the echo's send, and where its own sounds go */
   readonly fxNodes: FxNodes;
+  /** the table's mixer, between the player and those (the driver moves it) */
+  readonly mixer: MixerChain;
   private analyser: AnalyserNode;
   private bins: Float32Array<ArrayBuffer>;
   private lo = 2;
@@ -139,6 +143,8 @@ export class Speaker {
     this.room.gain.value = 0;
     lp.connect(roomHp).connect(conv).connect(this.room).connect(this.master);
     this.fxNodes = { hp, lp, send, delay, synth };
+    this.mixer = new MixerChain(ctx);
+    this.mixer.output.connect(hp);
     document.addEventListener("visibilitychange", this.wake);
   }
 
@@ -164,7 +170,8 @@ export class Speaker {
       this.last = e.data;
       for (const fn of this.listeners) fn(e.data);
     };
-    node.connect(this.fxNodes.hp);
+    node.connect(this.mixer.input);
+    this.mixer.attachCrusher(new AudioWorkletNode(this.ctx, "dj-crush", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] }));
     this.node = node;
   }
 
