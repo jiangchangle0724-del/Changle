@@ -83,16 +83,50 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
   // a dare that names a time ("对视 20 秒") gets a countdown once the lid is off
   const seconds = prompt ? durationOf(promptText(prompt, custom)) : null;
 
+  // each moment's buttons, at the bottom by the thumb (the main one on the right)
+  const actions =
+    phase === "spin" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => table.flick()} disabled={table.spinning || players.length < 2}>
+        {table.spinning ? ui("spinning") : lang === "zh" ? "转瓶子" : "Spin the bottle"}
+      </button>
+    ) : phase === "choose" && who ? (
+      <>
+        <button type="button" className="btn btn-porcelain btn-lg" onClick={() => pickKind("truth")}>
+          {lang === "zh" ? "真心话" : "Truth"}
+        </button>
+        <button type="button" className="btn btn-gold btn-lg" onClick={() => pickKind("dare")}>
+          {lang === "zh" ? "大冒险" : "Dare"}
+        </button>
+      </>
+    ) : phase === "card" && lidOpen && who ? (
+      <>
+        <button type="button" className="btn btn-penalty btn-lg" onClick={() => penalty.show({ who: [who.name], kind: "sip" }, nextRound)}>
+          {ui("pass")}
+        </button>
+        <button type="button" className="btn btn-jade btn-lg" onClick={nextRound}>
+          {lang === "zh" ? "做完了" : "Done it"}
+        </button>
+      </>
+    ) : undefined;
+
   const rules = (
     <p>
       {lang === "zh"
-        ? "把手机放桌子中间，拨一下瓶子。瓶口指到谁，谁选真心话或大冒险。揭开盖子念出来，不做就认罚。尺度可以在右上角调。"
-        : "Put the phone in the middle of the table and flick the bottle. Whoever it points at chooses truth or dare, lifts the lid and reads it out. Refuse and take the penalty. Adjust the heat at the top."}
+        ? "把手机放桌子中间，拨一下瓶子。瓶口指到谁，谁选真心话或大冒险。揭开盖子念出来，不做就认罚。尺度（温和或辣）在瓶子上方选。"
+        : "Put the phone in the middle of the table and flick the bottle. Whoever it points at chooses truth or dare, lifts the lid and reads it out. Refuse and take the penalty. Pick the heat (mild or spicy) above the bottle."}
     </p>
   );
 
   return (
-    <GameShell title={UI.gameTruth} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell
+      title={UI.gameTruth}
+      rules={rules}
+      onBack={onBack}
+      penalty={penalty.call}
+      onPenaltyDone={penalty.done}
+      roster={{ turn: phase !== "spin" ? who?.id : undefined }}
+      actions={actions}
+    >
       <AnimatePresence mode="wait">
         {phase !== "card" && (
           <motion.div key="bottle" className="bottle-stage" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.96 }}>
@@ -156,27 +190,12 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
             </svg>
 
             <div className="bottle-actions">
-              {phase === "spin" && (
-                <>
-                  <button type="button" className="btn btn-primary btn-lg" onClick={() => table.flick()} disabled={table.spinning || players.length < 2}>
-                    {table.spinning ? ui("spinning") : lang === "zh" ? "转瓶子" : "Spin the bottle"}
-                  </button>
-                  <p className="hint">{lang === "zh" ? "也可以直接用手拨" : "Or flick it with a finger"}</p>
-                </>
-              )}
+              {phase === "spin" && <p className="hint">{lang === "zh" ? "也可以直接用手拨" : "Or flick it with a finger"}</p>}
               {phase === "choose" && who && (
                 <motion.div className="choose-box" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
                   <p className="choose-who">
                     <span className="turn-name">{who.name}</span>
                   </p>
-                  <div className="row" style={{ gap: 10 }}>
-                    <button type="button" className="btn btn-porcelain btn-lg btn-block" onClick={() => pickKind("truth")}>
-                      {lang === "zh" ? "真心话" : "Truth"}
-                    </button>
-                    <button type="button" className="btn btn-gold btn-lg btn-block" onClick={() => pickKind("dare")}>
-                      {lang === "zh" ? "大冒险" : "Dare"}
-                    </button>
-                  </div>
                 </motion.div>
               )}
             </div>
@@ -199,16 +218,6 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
               {lidOpen && seconds !== null && (
                 <motion.div key="timer" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                   <DareTimer seconds={seconds} lang={lang} resetKey={drawn} />
-                </motion.div>
-              )}
-              {lidOpen && (
-                <motion.div key="actions" className="row" style={{ gap: 10 }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                  <button type="button" className="btn btn-penalty btn-block" onClick={() => penalty.show({ who: [who.name], kind: "sip" }, nextRound)}>
-                    {ui("pass")}
-                  </button>
-                  <button type="button" className="btn btn-jade btn-block" onClick={nextRound}>
-                    {lang === "zh" ? "做完了" : "Done it"}
-                  </button>
                 </motion.div>
               )}
             </AnimatePresence>

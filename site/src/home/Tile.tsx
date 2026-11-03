@@ -1,4 +1,4 @@
-import type { GameMeta } from "../games/registry";
+import { isNewGame, type GameMeta } from "../games/registry";
 
 /** One game on the lighting board: a gel-colored tile with both names. */
 export function Tile({
@@ -40,7 +40,7 @@ export function Tile({
       <span className="tile-sub">{sub}</span>
       <span className="tile-foot">
         <span className="tile-players">{g.minPlayers === g.maxPlayers ? g.minPlayers : `${g.minPlayers}–${g.maxPlayers}`}</span>
-        {g.isNew && g.ready && <span className="tile-tag">{lang === "zh" ? "新" : "New"}</span>}
+        {isNewGame(g) && <span className="tile-tag">{lang === "zh" ? "新" : "New"}</span>}
       </span>
     </button>
   );

@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import type { T } from "../i18n";
+import type { Category } from "../ui/types";
 
 export type GameId =
   | "truth"
@@ -50,7 +51,17 @@ export type GameMeta = {
    * table's spin never lands on it (it needs that screen first)
    */
   speaker?: string;
-  isNew?: boolean;
+  /**
+   * its kind, which colors its card (decided 2026-11-01: cards by kind, not one color per game; the
+   * stage gel above stays the game's own light): drink 喝酒局, brain 动脑, body 动身体, online 线上
+   */
+  category: Exclude<Category, "tool">;
+  /** how long a round usually takes, in minutes (on its card) */
+  minutes: number;
+  /** a drinking game at heart: a glass on its card, and the 不喝酒 filter leaves it out */
+  drinking?: boolean;
+  /** its card says 新 / New until this day (YYYY-MM-DD), about a month after it went live */
+  newUntil?: string;
   /** one-phone play needs a different number of names, or works differently */
   solo?: { min: number; hint: T };
 };
@@ -69,6 +80,9 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ff5fa2",
     icon: Wine,
+    category: "drink",
+    minutes: 10,
+    drinking: true,
     ready: true,
   },
 
@@ -83,6 +97,9 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ff6b5e",
     icon: Club,
+    category: "drink",
+    minutes: 20,
+    drinking: true,
     ready: true,
   },
   {
@@ -98,8 +115,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ff8a6b",
     icon: Luggage,
+    category: "online",
+    minutes: 45,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 1, hint: t("一台手机轮流玩，可以加电脑队", "Pass one phone round, with computer teams if you like") },
   },
   {
@@ -113,8 +132,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ff8c42",
     icon: Trophy,
+    category: "brain",
+    minutes: 15,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 3, hint: t("传手机偷偷投票，或者一起指", "Pass it round for secret votes, or point together") },
   },
   {
@@ -127,6 +148,9 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ffb82e",
     icon: Crown,
+    category: "drink",
+    minutes: 10,
+    drinking: true,
     ready: true,
   },
   {
@@ -142,8 +166,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ffcf6b",
     icon: Drama,
+    category: "brain",
+    minutes: 20,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 3, hint: t("手机传着看身份牌，演完再传着投票", "Pass it round to read the cards, then again to vote") },
   },
   {
@@ -157,8 +183,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#f5df3b",
     icon: StickyNote,
+    category: "brain",
+    minutes: 10,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 0, hint: t("举到额头上，大家给提示", "Hold it to your forehead, the room gives clues") },
   },
   {
@@ -166,14 +194,16 @@ export const GAMES: GameMeta[] = [
     slug: "limbo",
     name: t("林波舞", "Limbo"),
     blurb: t("音乐响起，横杆越来越低", "Music on, bar goes lower."),
-    how: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局喝一口。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的喝。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (drink). Blind lean: hit a target angle without seeing your own; furthest off drinks. Or use a real bar, and the phone does the music and the score."),
-    howCustom: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局受罚。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的受罚。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (penalty). Blind lean: hit a target angle without seeing your own; furthest off takes the penalty. Or use a real bar, and the phone does the music and the score."),
+    how: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局喝一口。还有稳住、跟着动的杆、歪着过三种玩法，派对玩法每杆随机一种。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的喝。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (drink). Also hold steady, moving bar and tilt through; party mode picks one at random each bar. Blind lean: hit a target angle without seeing your own; furthest off drinks. Or use a real bar, and the phone does the music and the score."),
+    howCustom: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局受罚。还有稳住、跟着动的杆、歪着过三种玩法，派对玩法每杆随机一种。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的受罚。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (penalty). Also hold steady, moving bar and tilt through; party mode picks one at random each bar. Blind lean: hit a target angle without seeing your own; furthest off takes the penalty. Or use a real bar, and the phone does the music and the score."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#b6e83a",
     icon: ArrowDownToLine,
+    category: "body",
+    minutes: 5,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 1, hint: t("手机测你后仰的角度，或者配真杆子", "The phone measures your lean, or use a real bar") },
   },
   {
@@ -187,6 +217,9 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#4be38f",
     icon: Hand,
+    category: "drink",
+    minutes: 10,
+    drinking: true,
     ready: true,
   },
   {
@@ -199,8 +232,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 4,
     gel: "#22d3a6",
     icon: Spade,
+    category: "brain",
+    minutes: 20,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 0, hint: t("你和三个电脑玩家", "You and three computer players") },
   },
   {
@@ -214,6 +249,9 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#2ed3d9",
     icon: Dices,
+    category: "drink",
+    minutes: 10,
+    drinking: true,
     ready: true,
   },
   {
@@ -227,8 +265,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#31b9ff",
     icon: Snowflake,
+    category: "body",
+    minutes: 5,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 2, hint: t("手机放音乐，一个人当裁判", "The phone plays the music, one person judges") },
   },
   {
@@ -241,6 +281,9 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#5b9bff",
     icon: ShipWheel,
+    category: "drink",
+    minutes: 10,
+    drinking: true,
     ready: true,
   },
   {
@@ -253,6 +296,8 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#8c86ff",
     icon: VenetianMask,
+    category: "brain",
+    minutes: 15,
     ready: true,
   },
   {
@@ -268,8 +313,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#b072ff",
     icon: Music,
+    category: "brain",
+    minutes: 15,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 1, hint: t("手机放真歌或旋律，也能当抢答器", "The phone plays real songs or melodies, or becomes the buzzers") },
   },
   {
@@ -283,8 +330,10 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#e765f0",
     icon: MessageSquareQuote,
+    category: "online",
+    minutes: 20,
     ready: true,
-    isNew: true,
+    newUntil: "2026-12-01",
     solo: { min: 3, hint: t("手机传一圈，偷偷写答案", "Pass it round and write in secret") },
   },
   {
@@ -298,6 +347,8 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ff9cc5",
     icon: PenLine,
+    category: "brain",
+    minutes: 15,
     ready: true,
   },
   {
@@ -313,12 +364,42 @@ export const GAMES: GameMeta[] = [
     maxPlayers: 15,
     gel: "#ff5ad8",
     icon: Disc3,
+    category: "body",
+    minutes: 30,
     ready: true,
     speaker: "/dj",
-    isNew: true,
+    newUntil: "2026-12-01",
   },
 ];
 
 export const GAME_BY_ID = Object.fromEntries(GAMES.map((g) => [g.id, g])) as Record<GameId, GameMeta>;
 
+/**
+ * On the board as coming soon, with no table game behind them yet: each is built in its own
+ * folder and becomes a real entry in GAMES when it can be played. Tapping one shows what it is.
+ */
+export type SoonMeta = Pick<GameMeta, "name" | "blurb" | "how" | "gel" | "icon" | "category" | "minutes" | "minPlayers" | "maxPlayers"> & { key: string };
+
+export const SOON: SoonMeta[] = [
+  {
+    key: "dance",
+    name: t("一起跳", "Dance Along"),
+    blurb: t("跟着电视一起跳，手机听拍子", "Dance with the TV. Your phone keeps the beat."),
+    how: t(
+      "电视上的舞者先一段一段教，然后大家手里握着手机跟着音乐跳，手机的传感器知道你有没有踩在拍子上。零基础也能跳完一首。",
+      "A dancer on the TV teaches a few easy moves, then everyone dances to the song holding their phone. The phone's sensors know if you're on the beat. Anyone can finish a song.",
+    ),
+    minPlayers: 1,
+    maxPlayers: 15,
+    gel: "#8f7bff",
+    icon: Footprints,
+    category: "body",
+    minutes: 5,
+  },
+];
+
 export const isGameId = (s: string): s is GameId => s in GAME_BY_ID;
+
+/** Its card says 新 / New: playable, and still before its newUntil day. */
+export const isNewGame = (g: GameMeta, now = new Date()) =>
+  g.ready && !!g.newUntil && now.toISOString().slice(0, 10) < g.newUntil;

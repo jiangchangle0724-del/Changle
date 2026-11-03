@@ -1,6 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { gsap, reduced } from "../lib/anim";
+import { play } from "../lib/motion";
 import { useStore } from "../store";
 import { cleanAmount as clean, convert, CURRENCIES, type Code, type FxState } from "./fx";
 
@@ -29,15 +29,11 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
   const amount = Number(base.text || "0");
   const spinner = useRef<SVGSVGElement>(null);
 
+  // the refresh icon turns while the rates load
   useEffect(() => {
-    if (!spinner.current || reduced()) return;
-    if (fx.loading) {
-      const tw = gsap.to(spinner.current, { rotate: "+=360", duration: 0.9, repeat: -1, ease: "none" });
-      return () => {
-        tw.kill();
-        gsap.set(spinner.current, { rotate: 0 });
-      };
-    }
+    if (!fx.loading) return;
+    const turn = play(spinner.current, [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], { duration: 900, iterations: Infinity });
+    return () => turn?.cancel();
   }, [fx.loading]);
 
   const value = (code: Code) => {

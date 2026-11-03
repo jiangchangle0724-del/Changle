@@ -4,6 +4,9 @@
  * beat. The page drives four variables every frame (Floor.tsx): --pulse (the kick, 0 to 1),
  * --flash (at most three a second), --beat (where in the beat) and --spin (the records). Anything
  * that changes every frame changes opacity or a transform, nothing that repaints the screen.
+ * The lights that change every frame are soft glows, each kept as a layer of its own: drawn at half
+ * size and scaled up, they look the same and take a quarter of the memory (a tablet or a TV's own
+ * browser reloads a page that takes too much).
  * The phones' styles are in dj-phone.css.
  */
 
@@ -53,6 +56,13 @@
 }
 .dj-sky::after {
   content: "";
+  inset: auto;
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  transform: scale(2);
+  transform-origin: 0 0;
   background:
     radial-gradient(55% 45% at 50% 0%, color-mix(in oklab, var(--gel) 55%, transparent) 0%, transparent 75%),
     radial-gradient(50% 30% at 50% 100%, color-mix(in oklab, var(--gel) 55%, transparent) 0%, transparent 80%),
@@ -73,10 +83,12 @@
   position: absolute;
   top: -30px;
   left: calc(16% + var(--k) * 17%);
-  width: 220px;
-  height: 980px;
-  margin-left: -110px;
+  /* (220 by 980 on screen) */
+  width: 110px;
+  height: 490px;
+  margin-left: -55px;
   transform-origin: 50% 0;
+  scale: 2;
   /* bright at the lamp, fading out sideways and with distance: one gradient, no mask */
   background: radial-gradient(ellipse 50% 100% at 50% 0%, color-mix(in oklab, var(--beam) 80%, white) 0%, color-mix(in oklab, var(--beam) 35%, transparent) 45%, transparent 100%);
   clip-path: polygon(47% 0, 53% 0, 100% 100%, 0 100%);
@@ -117,12 +129,28 @@
 
 .dj-flash {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  transform: scale(2);
+  transform-origin: 0 0;
   z-index: 15;
   pointer-events: none;
   background: radial-gradient(80% 80% at 50% 30%, #fff 0%, color-mix(in oklab, var(--gel) 60%, transparent) 60%, transparent 100%);
   opacity: calc(var(--flash) * 0.2);
   will-change: opacity;
+}
+
+/* (keeps an older tablet or TV awake: a tiny silent video, playing, out of the way) */
+.dj-awake {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  height: 2px;
+  opacity: 0.01;
+  pointer-events: none;
 }
 
 /* top left: the site, the game */

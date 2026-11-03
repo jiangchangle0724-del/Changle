@@ -22,7 +22,9 @@
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@cloudflare/workers-types": "^5.20261023.1",
+    "@playwright/test": "1.64.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@types/three": "^0.186.0",

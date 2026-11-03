@@ -9,6 +9,7 @@ import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
+import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
 import { SCENES as DRAMA_SCENES } from "../src/data/drama";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -633,6 +634,117 @@ test("limbo blind: needs two phones that can measure, and the classic moves don'
   t.advance(3600);
   t.g("p0", "pass", { deg: 80 });
   ok(t.view<V<"limbo">>("p0").phase === "go", "pass is a classic move, ignored in blind");
+});
+
+test("limbo steady: reach the bar and hold still, a longer hold every bar", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p1", "mode", { mode: "steady" });
+  ok(t.view<V<"limbo">>("p0").mode === "classic", "only the host picks the mode");
+  t.g("p0", "mode", { mode: "steady" });
+  t.g("p0", "go");
+  let v = t.view<V<"limbo">>("p2");
+  ok(v.phase === "go" && v.mode === "steady" && v.bar.kind === "steady", "a steady bar on every phone");
+  ok(v.angle === 20 && v.bar.hold === 2000, "bar 1: 20 degrees, held still for 2 seconds");
+  ok(v.endsAt - v.startAt === 17_000, "the hold's time is added to the bar's");
+  t.advance(3600);
+  t.g("p0", "pass", { deg: 22 });
+  t.g("p1", "pass", { deg: 25 });
+  t.g("p2", "fail");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "result" && v.out.includes("p2"), "a phone that lost the hold: out");
+  t.advance(7100);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "go" && v.angle === 30 && v.bar.kind === "steady" && v.bar.hold === 2500, "bar 2: deeper, and half a second longer");
+  ok(steadyMs(4) === 4000 && steadyMs(8) === 6000 && steadyMs(13) === 6000, "the hold grows to six seconds and stays there");
+  // a phone without a motion sensor: the host judges it, as in classic
+  t.advance(3600);
+  t.g("p0", "judge", { pid: "p1", ok: true });
+  t.g("p0", "fail");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "end" && v.winner === "p1", "the host's call counts: p1 wins");
+});
+
+test("limbo moving: one path from the start time, kept up with until it stops", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "mode", { mode: "moving" });
+  t.g("p0", "go");
+  let v = t.view<V<"limbo">>("p1");
+  const bar = v.bar;
+  ok(bar.kind === "moving" && bar.swing === 12 && bar.period === 6000 && bar.moveMs === 13_500, "bar 1 sways 12 degrees, once every 6 seconds, twice");
+  ok(JSON.stringify([t.view<V<"limbo">>("p0").bar, t.view<V<"limbo">>("p0").startAt]) === JSON.stringify([bar, v.startAt]), "every phone gets the same bar and start time");
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+  ok(barAngleAt(v.angle, bar, -800) === 8 && barAngleAt(v.angle, bar, 1500) === 8, "it waits at its top (8 degrees) first");
+  ok(near(barAngleAt(v.angle, bar, 1500 + 3000), 20) && near(barAngleAt(v.angle, bar, 1500 + 1500), 14), "down to the bar's 20 degrees halfway through a sway");
+  ok(near(barAngleAt(v.angle, bar, 1500 + 6000), 8) && near(barAngleAt(v.angle, bar, 1500 + 9000), 20), "back up, and down again");
+  ok(near(barAngleAt(v.angle, bar, 13_500), 8) && near(barAngleAt(v.angle, bar, 40_000), 8), "it stops at its top");
+  ok(v.endsAt - v.startAt === 18_500, "five seconds after it stops to say how it went");
+  t.advance(3600);
+  t.g("p0", "pass", { deg: 20 });
+  t.g("p0", "judge", { pid: "p2", ok: true });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.passed.length === 0, "nobody has kept up with it while it still moves, by phone or by the host");
+  t.g("p1", "fail", { deg: 9 });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.failed.includes("p1") && v.best.p1 === 9, "losing it counts at once, with how deep it went while they were with it");
+  t.advance(13_500);
+  t.g("p0", "pass", { deg: 20 });
+  t.g("p0", "judge", { pid: "p2", ok: true });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "result" && v.out.includes("p1") && v.alive.join() === "p0,p2", "once it stops: kept up, p1 lost it");
+  t.advance(7100);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.bar.kind === "moving" && v.angle === 30 && v.bar.swing === 20 && v.bar.period === 5600, "bar 2: from 10 down to 30 degrees, a little quicker");
+  t.advance(3600);
+  t.g("p0", "best", { deg: 25 });
+  t.advance(v.bar.moveMs + 5000);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "end" && v.winner === "p0", "nobody said they kept up: the one who followed it deepest wins");
+});
+
+test("limbo tilt: a sideways tilt as well, to a random side each bar", () => {
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "mode", { mode: "tilt" });
+  t.g("p0", "go");
+  const sides: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    const v = t.view<V<"limbo">>("p1");
+    ok(v.phase === "go" && v.bar.kind === "tilt" && v.bar.hold === 0 && v.bar.period === 0, `bar ${i + 1} is a tilt`);
+    sides.push(v.bar.side);
+    t.advance(3600);
+    t.g("p0", "pass", { deg: v.angle });
+    t.g("p1", "pass", { deg: v.angle });
+    t.advance(7100);
+  }
+  ok(sides.every((d, i) => Math.abs(d) === TILT_SIDES[Math.min(i, TILT_SIDES.length - 1)]), `15 degrees to the side first, then more (${sides.join(" ")})`);
+  ok(sides.some((d) => d < 0) && sides.some((d) => d > 0), "both sides come up");
+});
+
+test("limbo party: a random variant each bar, never the same twice running, never blind", () => {
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "mode", { mode: "party" });
+  t.g("p0", "go");
+  const kinds: string[] = [];
+  for (let i = 0; i < 20; i++) {
+    const v = t.view<V<"limbo">>("p0");
+    const b = v.bar;
+    kinds.push(b.kind);
+    ok(v.phase === "go" && v.mode === "party", `bar ${i + 1} is on`);
+    ok((b.kind === "steady") === (b.hold > 0) && (b.kind === "tilt") === (b.side !== 0) && (b.kind === "moving") === (b.period > 0), `bar ${i + 1} asks what a ${b.kind} bar asks`);
+    t.advance(3600 + b.moveMs);
+    t.g("p0", "pass", { deg: v.angle });
+    t.g("p1", "pass", { deg: v.angle });
+    t.advance(7100);
+  }
+  ok(kinds.every((k, i) => i === 0 || k !== kinds[i - 1]), "never the same twice running");
+  ok(kinds.every((k) => (PARTY_KINDS as string[]).includes(k)) && new Set(kinds).size === 4, `all four come up, and only those (${kinds.join(" ")})`);
+  const u = setup(2);
+  u.act("p0", { a: "start", game: "limbo" });
+  u.g("p0", "mode", { mode: "upside-down" });
+  ok(u.view<V<"limbo">>("p0").mode === "classic", "a mode the game doesn't know is classic");
 });
 
 test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
@@ -1712,7 +1824,7 @@ test("dj: the beginner deck: picks wait for a drop; one screen speaks, said agai
   ok(!deck().drop && last.bar === dr.bar && last.to === "b" && last.style === "latin" && last.hits.length === 2, "and lands on latin");
 });
 
-test("dj: songs asked for by name: one each, up next on the deck off the air, the drop plays its remix, the DJ drops it itself; a typed name shows only to its player", () => {
+test("dj: songs asked for by name: up next on the deck off the air, the drop plays its remix, the DJ drops it itself; a typed name shows only to its player", () => {
   const e = new RoomEngine(freshRoom("DJRQ", clock), host);
   const events: RoomEvent[] = [];
   e.screenHello("tv-rq", true, "dj");
@@ -1753,7 +1865,7 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   ok(deck().reqs.length === 1 && r.by === "p2" && r.text === "晴天" && r.artist === "周杰伦" && r.song === sunny[0] && r.style === "cpop" && r.track === trackFor("晴天"), "a song picked from the song list: its title and artist (the list's, not what was typed), in its style (Jay Chou: C-pop), its remix's track from its name");
   ok(r.p === undefined && r.yt === undefined, "no clip of it, no video (the phone found none): the remix alone");
   ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === "p2") && deck().up === null, "the room hears it; nothing is up before the music");
-  ok(nothing(g("p2", "req", { text: "another" })), "one each");
+  ok(nothing(g("p2", "req", { text: "another" })), "a phone asks at most once every 5 seconds");
   ok(nothing(g("p3", "req", { text: "   " })) && nothing(g("p3", "req", {})), "an empty name isn't a song");
   g("p3", "req", { text: "  reggaeton para\nmi prima‮ ", song: 12 });
   r = deck().reqs[1];
@@ -1847,13 +1959,19 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   ok(deck().up?.by === "p1" && deck().reqs.length === 2, "and its music starts with the first");
   const e2 = new RoomEngine(freshRoom("DJRM", clock), host);
   e2.screenHello("tv-m", true, "dj");
-  for (let i = 1; i <= 10; i++) e2.hello(`q${i}`, `Q${i}`, false);
+  // (a full table, 15, three each would be 45)
+  for (let i = 1; i <= 15; i++) e2.hello(`q${i}`, `Q${i}`, false);
   e2.flush();
-  for (let i = 1; i <= 10; i++) {
-    e2.act(`q${i}`, { a: "g", g: { x: "req", text: `song ${i}` } });
+  for (let round = 0; round < 3; round++) {
+    for (let i = 1; i <= 15; i++) {
+      e2.act(`q${i}`, { a: "g", g: { x: "req", text: `song ${i} ${round}` } });
+      e2.flush();
+    }
+    clock += 6000;
+    e2.due();
     e2.flush();
   }
-  ok((e2.view("q1").game as V<"dj">).deck.reqs.length === 8, "8 waiting at most, the whole table");
+  ok((e2.view("q1").game as V<"dj">).deck.reqs.length === DECK.reqMax, `${DECK.reqMax} waiting at most, the whole table`);
   void beat;
 });
 
@@ -1909,7 +2027,8 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   advance(dr.at - clock + 5);
   const song = dv("p1").deck.song;
   ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock + 2 * 4 * 480, "it lands: the whole song plays from two bars on (the DJ fades out first)");
-  ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "horn" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no pads, no fader");
+  ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "echo" })) && nothing(g("p1", "pad", { pad: "brake" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no fader, none of the pads that work the music");
+  ok(!nothing(g("p1", "pad", { pad: "horn" })) && !nothing(g("p2", "pad", { pad: "siren" })), "but the pads that are a sound of their own play over it (Steve: the effects to hype the floor)");
   ok(nothing(g("p3", "songskip")), "only its player or the host can skip it");
   ok(!sc("songdone", { id: "other" }), "the big screen's word for another song: not taken");
   ok(sc("songdone", { id: song!.id }) && dv("p1").deck.song === null, "the big screen says it ended: the DJ comes back");
@@ -1924,6 +2043,99 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   advance(auto!.at - clock + 5);
   ok(dv("p1").deck.song?.by === "p3", "it plays whole");
   ok(!nothing(g("p3", "songskip")) && dv("p1").deck.song === null, "its player skips it: the DJ comes back");
+});
+
+test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随机 or 按顺序; after a whole song the DJ plays a minute before the next", () => {
+  const room = (code: string) => {
+    const e = new RoomEngine(freshRoom(code, clock), host);
+    e.screenHello(`tv-${code}`, true, "dj");
+    for (const [p, n] of [
+      ["p1", "Amy"],
+      ["p2", "Ben"],
+      ["p3", "Cat"],
+      ["p4", "Dan"],
+    ])
+      e.hello(p, n, false);
+    e.flush();
+    const dv = (pid: string) => e.view(pid).game as V<"dj">;
+    const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+      e.act(pid, { a: "g", g: { x, ...rest } });
+      return e.flush();
+    };
+    const sc = (x: string, rest: Record<string, unknown> = {}) => {
+      const took = e.screenAct(`tv-${code}`, { x, ...rest });
+      e.flush();
+      return took;
+    };
+    const advance = (ms: number) => {
+      clock += ms;
+      e.due();
+      e.flush();
+    };
+    return { e, dv, g, sc, advance };
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const { dv, g, sc, advance } = room("DJPL");
+  for (const k of [1, 2, 3]) {
+    g("p2", "req", { text: `song ${k} for ben` });
+    advance(6000);
+  }
+  ok(dv("p2").deck.reqs.filter((r) => r.by === "p2").length === 3, "Ben puts three songs on the playlist");
+  ok(nothing(g("p2", "req", { text: "song four" })), "a fourth waits till one has played");
+  ok(DECK.reqEach === 3 && DECK.reqMax === 30, "three each, thirty in all");
+  // the host's switch
+  ok(nothing(g("p2", "shuffle", { on: true })) && dv("p1").shuffle === false, "only the host switches 随机: it starts 按顺序");
+  ok(!nothing(g("p1", "shuffle", { on: true })) && dv("p3").shuffle === true, "the host turns 随机 on: every phone sees it");
+  ok(nothing(g("p1", "shuffle", { on: true })), "on again: nothing");
+  g("p1", "shuffle", { on: false });
+  // in order: the oldest goes up first
+  g("p3", "req", { text: "cat's one" });
+  advance(6000);
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(dv("p2").deck.up?.text === "song 1 for ben", "按顺序: the first asked for is up first");
+
+  // 随机: any of the waiting ones (over many rooms, not always the first)
+  const firsts = new Set<string>();
+  for (let k = 0; k < 24; k++) {
+    const r = room(`DJS${k}`);
+    r.g("p1", "shuffle", { on: true });
+    for (const p of ["p2", "p3", "p4"]) r.g(p, "req", { text: `from ${p}` });
+    r.advance(6000);
+    r.sc("live", { source: "fake" });
+    r.sc("grid", { at: clock, bar: 0, bpm: 125 });
+    firsts.add(r.dv("p1").deck.up?.by ?? "none");
+  }
+  ok(firsts.size >= 2 && !firsts.has("none"), `随机: the first up is any of them (${[...firsts].join(", ")})`);
+
+  // after a whole song, the DJ's turn: a minute before it drops into the next by itself
+  const y = room("DJTN");
+  y.g("p2", "req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] });
+  y.advance(6000);
+  y.g("p3", "req", { yt: ["abcdefghijk", "Another", "Chan"] });
+  y.sc("live", { source: "fake" });
+  y.sc("grid", { at: clock, bar: 0, bpm: 125 });
+  y.advance(1000);
+  y.sc("decks", { a: "house", b: y.dv("p1").deck.b });
+  for (let i = 0; i < 40 && !y.dv("p1").deck.drop; i++) {
+    y.advance(250);
+    y.g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+  }
+  const dr = y.dv("p1").deck.drop!;
+  clock = dr.cue + 20;
+  y.g("p1", "drop", { c: clock });
+  y.advance(dr.at - clock + 5);
+  const song = y.dv("p1").deck.song!;
+  ok(song.by === "p2" && y.dv("p1").deck.up?.by === "p3", "Ben's song plays whole, Cat's is up next");
+  y.sc("decks", { a: y.dv("p1").deck.a, b: y.dv("p1").deck.b });
+  y.advance(30_000);
+  ok(!y.dv("p1").deck.drop, "the DJ doesn't drop into Cat's while Ben's plays");
+  y.sc("songdone", { id: song.id });
+  y.advance(55_000);
+  y.sc("decks", { a: y.dv("p1").deck.a, b: y.dv("p1").deck.b });
+  ok(y.dv("p1").deck.song === null && !y.dv("p1").deck.drop, "Ben's ended: the DJ plays (55 s on, no drop yet)");
+  y.advance(10_000);
+  ok(!!y.dv("p1").deck.drop?.auto, "a minute on, the DJ drops into Cat's itself");
 });
 
 test("dj: the mixer (混音台): knobs anyone turns (held a moment by whoever moved one), effects on the next beat that go off by themselves, the drop whole", () => {

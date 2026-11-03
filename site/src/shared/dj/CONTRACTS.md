@@ -153,6 +153,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `mine` `{ on }` | the host, or the speaker | The night on the host's songs, or back to the stand-in (below): `mine` in the view; the speaker switches once it has songs. |
 | `songskip` | the song's player, or the host | 真歌时间 over: the whole song stops, the DJ comes back. |
 | `voice` `{ on }` | the host | 报幕 on the big screen, on (the default) or off: `voice` in the view (below). |
+| `shuffle` `{ on }` | the host | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
 | `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
 | `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
 
@@ -265,11 +266,11 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 
 | Command | What the room does |
 | --- | --- |
-| `pad` `{ pad }` | One of the twelve (`PAD_IDS`, in their order on the phones): `echo`, `sweep`, `horn` (气笛, the air horn), `brake`, `siren`, `laser`, `scratch`, `rewind` (those four Steve's ask on Nov 1, for more club sounds), `vinyl`, `bassdrop`, `reverse`, `whistle` (Steve on Nov 2: "more DJ sound effects like airhorn blasts, vinyl record"), while music plays. A hand on a phone's record sends the moves too (`scratch`, `rewind`, `brake`, below). A phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn); a move of the music itself (`MOVES`: the brake, a scratch, a rewind) once per 4 s for the room (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
+| `pad` `{ pad }` | One of the twelve (`PAD_IDS`, in their order on the phones): `echo`, `sweep`, `horn` (气笛, the air horn), `brake`, `siren`, `laser`, `scratch`, `rewind` (those four Steve's ask on Nov 1, for more club sounds), `vinyl`, `bassdrop`, `reverse`, `whistle` (Steve on Nov 2: "more DJ sound effects like airhorn blasts, vinyl record"), while music plays. Over a whole song from YouTube (真歌时间, below) only the pads that are a sound of their own (`OVER_SONG`: `horn`, `siren`, `laser`, `vinyl`, `bassdrop`, `reverse`, `whistle`; Steve on Nov 2: the effects to hype the floor over the song too); the others wait. A hand on a phone's record sends the moves too (`scratch`, `rewind`, `brake`, below). A phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn); a move of the music itself (`MOVES`: the brake, a scratch, a rewind) once per 4 s for the room (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
 | `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
-| `req` `{ text, song?, yt? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed); `yt`, its video on YouTube, `[video id, title, channel]`, every field checked (the whole song plays on the big screen after its drop: 真歌时间, below). One each (waiting or up next), 8 waiting for the table, a phone's taken once per 5 s, none after the end. First come, first played, but one player's two songs 10 minutes apart (the plan): a player whose song came on the air in the last 10 minutes (`reqOn`) waits behind the others' songs, and alone theirs still plays (`reqOrder`; the phone says why it waits). An `fx` event `req`. |
+| `req` `{ text, song?, yt? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed); `yt`, its video on YouTube, `[video id, title, channel]`, every field checked (the whole song plays on the big screen after its drop: 真歌时间, below). Together they are the night's **歌单** (playlist; Steve on Nov 2: "很多人点歌要把它们放到一个playlist，可选择随机排序或按顺序"): three each (`DECK.reqEach`, waiting or up next), 30 waiting for the table (`reqMax`), a phone's taken once per 5 s, none after the end. First come, first played, but one player's two songs 10 minutes apart (the plan): a player whose song came on the air in the last 10 minutes (`reqOn`) waits behind the others' songs, and alone theirs still plays (`reqOrder`; the phone says why it waits). The host's 随机 (`shuffle`): the next is any of the waiting ones (of the rested players', while there are some). Every phone shows the list (`phone/DeckPad.tsx`, `Playlist`): up next, then the waiting ones in their order; its player or the host takes one out (`unreq`); the big screen says how many more. An `fx` event `req`. |
 | `unreq` `{ id }` | Its player, or the host: takes back a song waiting or up next (the next one comes up). One whose remix plays already stays. |
 | `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`; `b` null while B has nothing of its own): a new style plays from its deck's next section once it's recorded. Taken at most once a second; the speaker says it again every 1.5 s until the room has it. |
 | `mix` `{ knob, value }` | One of the mixer's four knobs (below; `MIX_KNOBS`: `low`, `mid`, `high`, `filter`) to `value`, −1 to 1 on a 0.05 grid (0: as the music plays), while music plays. Whoever moved it holds it for 1.5 s after their last move (`mixer.knobBy`, `knobAt`); the others' moves are quiet till then. A phone sends at most every 100 ms while a finger drags, and the last on release. Light. |
@@ -323,10 +324,15 @@ deck B ┘                                                                 horn,
   speaker holds its fader jump until the room says the drop landed (3 s at most). If the room
   moves that drop to new bars instead (a new stream), the build-up comes back for its countdown.
 - **echo:** a bar of the music repeating every ¾ beat, dying away. **sweep:** the music closes
-  down to a murmur over a bar and opens over the next. **horn:** two short blasts and a long one, on
-  the eighths. **siren:** a dub siren, a square wave whooping up and down twice a beat for two
-  beats. **laser:** three zaps on the sixteenths, each a quick fall from high to low. Each plays
-  from the speaker's next beat; one of a kind at a time.
+  down to a murmur over a bar and opens over the next. **horn:** the club's three blasts on the
+  eighths (bwap, bwap, bwaaap; re-made Nov 2, Steve: "airhorn blasts"): a two-tone can horn, two
+  reeds a major third apart (440 and 554 Hz), each three saws ±7 cents apart wobbling at 5.5 Hz,
+  driven hard through the horn's bands (1.65 and 3.1 kHz up, under 220 Hz and over 7.2 kHz cut),
+  with a rush of air at each blast; each bends up into its note, the long one sags. **siren:** a
+  dub siren, a square wave whooping up and down twice a beat for two beats. **laser:** three zaps
+  on the sixteenths, each a quick fall from high to low. Each plays from the speaker's next beat;
+  one of a kind at a time. The siren, the laser and the whistle went up 14 to 17 dB on Nov 2 (they
+  were under the music; the horn and the bass drop set the level).
 - **The club pads** (`speaker/club.ts`, Nov 2): **黑胶 vinyl**, two bars of an old record, crackle
   and hiss under the music with the music darker (the sweep's low-pass at 3.4 kHz, so not while a
   sweep runs); **低音炸弹 bass drop**, a sub boom diving from 120 to 32 Hz with a thump, an octave up
@@ -429,11 +435,16 @@ asked for, until its player shows it). When the drop into it lands, **真歌时�
 `song` (the video, whose it is, and `at`, two bars on: `DECK.songFadeBars`); the speaker gives way
 over those two bars (`Speaker.giveWay`, after everything else, so the lights still read the music),
 and the big screen plays the whole song in YouTube's own player (`TubePlayer.tsx`, youtube-nocookie,
-big in the middle: never downloaded, never mixed). The deck waits: no build-up, no pads, no fader
-(the room turns them away; the phones say why and show who it's for); a drop that was due waits for
-it. When it ends (or can't be played), the big screen says `songdone` and the DJ comes back over
-three seconds, the remix in its style carrying on; its player or the host can skip it from their
-phone (`songskip`); 12 minutes at most (the timer `song`). The speaker's clip player (`clip/clip.ts`,
+big in the middle: never downloaded, never mixed). The deck waits: no build-up, no fader, none of
+the pads that work the music (the room turns them away; the phones say why and show who it's for);
+a drop that was due waits for it. The pads that are a sound of their own still play (`OVER_SONG`):
+the speaker plays them at once (the DJ's beat isn't the song's) at a club tempo, through a way out
+of their own past the fade (`overSong`, under its own ceiling), which takes over as the DJ fades
+and hands back as it returns. When it ends (or can't be played), the big screen says `songdone` and
+the DJ comes back over three seconds, the remix in its style carrying on; its player or the host
+can skip it from their phone (`songskip`); 12 minutes at most (the timer `song`). Then the DJ has
+its turn (Steve: "歌和 DJ 轮流"): the next song on the 歌单, up next already, waits at least a minute
+(`DECK.songGapMs`) before the DJ drops into it by itself; the table can build up and drop sooner. The speaker's clip player (`clip/clip.ts`,
 a clip on the drop's bar over the deck's drums) has no source now: Apple's previews are gone.
 
 ## A night of the host's songs (`local`, Nov 2)
@@ -603,7 +614,7 @@ every frame changes only opacity or a transform.
 
 - `npx tsx tests/engine.test.ts`: the room's rules (`dj: ...`), the commands above included, the
   beginner deck (pads on a leash, the build-up, the countdown, DROP on the cue, misses and the DJ's
-  own drop, picks, the fader held, new bars), songs asked for by name (one each, up next on the deck
+  own drop, picks, the fader held, new bars), songs asked for by name (the 歌单: three each, thirty in all, 随机 or 按顺序; up next on the deck
   off the air, the drop or the fader plays it, the DJ's own drop into it, taking back, the end of a
   set, who reads a typed name), and the private Lyria test's `lab` and `src`.
 - `npx tsx tests/dj.test.ts`: the player on a pretend audio thread (prebuffer, fades, stalls,
@@ -628,8 +639,10 @@ every frame changes only opacity or a transform.
 - `python3 scripts/dj_youtube_check.py [chromium|webkit]`: whole songs from YouTube in browsers,
   a TV and three phones (YouTube's player and the rooms server's lookups stood in for: this machine
   can't reach YouTube): a pasted link and a search, each up next and dropped into; the DJ fading out
-  under the whole song, the phones' decks waiting, who can skip it; it ends, then one is skipped,
-  and the DJ comes back; no key: the phone asks for a link; nothing goes to Apple.
+  under the whole song, the phones' decks waiting but for the pads that are a sound of their own
+  (the air horn over the song, at once, on its own way out), who can skip it; it ends, and the DJ
+  comes back; the 歌单 on every phone, who can take one out, the TV's count, the host's 随机; one
+  skipped; no key: the phone asks for a link; nothing goes to Apple.
   `tests/dj.test.ts` has the links and the search answer; `tests/engine.test.ts` the room's side.
 - `python3 scripts/dj_mine_check.py [chromium|webkit]`: 我的歌 from the host's phone in browsers:
   two made-up songs and a broken file sent from the host's phone, each one's word back (added,

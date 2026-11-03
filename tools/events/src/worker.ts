@@ -5,7 +5,9 @@
 //   GET /go/api/events.ics  the same, as a calendar to subscribe to (task C6)
 //   GET /go/api/status   the last run, step by step (the fetch log), and what's published
 //   GET /go/preview      what's published, day by day: unlisted and not indexed, to check the run
+//   POST /go/api/handoff the libraries' pages, from the GitHub job at 05:50 (with its key; src/handoff.ts)
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { receiveHandoff } from "./handoff";
 import { toIcs } from "./ics";
 import { renderPreview } from "./preview";
 import { LIVE_KEY, publish } from "./publish";
@@ -55,7 +57,7 @@ async function status(env: Env): Promise<Response> {
   const steps = last?.run
     ? (
         await env.DB.prepare(
-          "SELECT source, part, started_at, ms, http_status, not_modified, bytes, found, in_window, added, updated, error FROM fetch_log WHERE run_id = ?1 ORDER BY id",
+          "SELECT source, part, via, started_at, ms, http_status, not_modified, bytes, found, in_window, added, updated, error, note FROM fetch_log WHERE run_id = ?1 ORDER BY id",
         )
           .bind(last.run)
           .all()
@@ -71,9 +73,10 @@ const PAGE = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><met
 
 export default {
   async fetch(req, env) {
-    if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405);
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
+    if (path === "/go/api/handoff") return receiveHandoff(req, env);
+    if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405);
     if (path === "/go/api/events") return listEvents(url, env);
     if (path === "/go/api/events.ics") return listEvents(url, env, true);
     if (path === "/go/api/status") return status(env);

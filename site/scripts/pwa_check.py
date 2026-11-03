@@ -99,7 +99,7 @@ def main():
         pg.evaluate('navigator.serviceWorker.ready')
         pg.reload()
         pg.wait_for_function('navigator.serviceWorker.controller !== null')
-        pg.wait_for_selector('.board .tile')
+        pg.wait_for_selector('.board .ui-tile')
         await_assets = """async () => { await document.fonts.ready; const c=await caches.open((await caches.keys()).find(k=>k.startsWith('changle-shell-'))); return (await c.keys()).map(r=>new URL(r.url).pathname); }"""
         first_keys = pg.evaluate(await_assets)
         assert '/index.html' in first_keys and any(k.endswith('.js') for k in first_keys) and any(k.endswith('.css') for k in first_keys)
@@ -120,7 +120,7 @@ def main():
         pg.evaluate(await_assets)
         ctx.set_offline(True)
         pg.goto(base + '/')
-        pg.wait_for_selector('.board .tile')
+        pg.wait_for_selector('.board .ui-tile')
         pg.goto(base + '/g/wheel-of-fate/play')
         expect(pg.locator('.game-screen')).to_be_visible()
         passed('offline home and previously played game open through shell fallback')

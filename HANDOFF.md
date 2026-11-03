@@ -14,7 +14,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
-| changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
+| changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
 | changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes (connected 2026-11-01, `games/party-server/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
@@ -27,7 +27,10 @@ installs on its own. Node 22, as in CI.
    cutout, performer and design-token tests, build), `suibian.yml` and `been-there.yml` (each with
    browser tests in Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the
    Workers runtime), and `party.yml` (the party base's tests, the party server's types, tests and
-   build).
+   build). They run once per change: on the pull request (a newer push stops the older run), and on
+   `main` after each merge, not again for every push to a branch. GitHub Actions minutes cost money
+   once the free plan's monthly allowance is used up (it ran out on 2026-11-03), so a new workflow
+   follows the same pattern (`branches: [main]` under `push`, and the `concurrency` block).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
@@ -158,9 +161,12 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
+| 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (the libraries' hand-over; the same value as the GitHub secret) | `ALLOW_TEST` (local and tests only) |
 
-GitHub Actions use no secrets. Locally, secrets go in a git-ignored `.dev.vars` next to the
-Worker's `wrangler.jsonc`.
+GitHub Actions use one secret: `EVENTS_HANDOFF_KEY`, the same value as the What's On Worker's, for
+`.github/workflows/events-libraries.yml` (each morning at 05:50 it hands the Vancouver and Richmond
+libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go in a git-ignored
+`.dev.vars` next to the Worker's `wrangler.jsonc`.
 
 ## Working rules
 

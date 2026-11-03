@@ -21,8 +21,7 @@ export function Tile({
   return (
     <button
       type="button"
-      className={`ui-tile ui-category-${category} ui-tile-${size}${lit ? " ui-tile-lit" : ""}`}
-      disabled={soon}
+      className={`ui-tile ui-category-${category} ui-tile-${size}${lit ? " ui-tile-lit" : ""}${soon ? " ui-tile-soon" : ""}`}
       onClick={onOpen}
     >
       <Icon

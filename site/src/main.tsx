@@ -5,7 +5,6 @@ import "./styles/global.css";
 import "./styles/components.css";
 import "./styles/online.css";
 import "./styles/home.css";
-import "./styles/tools.css";
 import "./styles/account.css";
 import "./styles/avatar.css";
 import "./styles/figures.css";
