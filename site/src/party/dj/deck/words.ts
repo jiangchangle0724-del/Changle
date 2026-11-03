@@ -1,7 +1,7 @@
 /**
  * 打碟 · DJ Booth: the beginner deck's words, in both languages, for the phones and the big screen.
  */
-import { Activity, AudioLines, AudioWaveform, Binary, Disc2, Megaphone, OctagonPause, Repeat2, Rewind, Siren, Waves, Zap, type LucideIcon } from "lucide-react";
+import { Activity, AudioLines, AudioWaveform, Binary, Bomb, Disc, Disc2, Megaphone, OctagonPause, Repeat2, Rewind, Siren, Undo2, Waves, Wind, Zap, type LucideIcon } from "lucide-react";
 import type { T } from "../../../i18n";
 import type { Hint } from "../../../shared/dj/deck";
 import { MIX_FX, type DeckSide, type MixFx, type MixKnob, type PadId } from "../../../shared/dj/types";
@@ -11,12 +11,16 @@ const t = (zh: string, en: string): T => ({ zh, en });
 export const PADS: Record<PadId, { name: T; icon: LucideIcon; what: T }> = {
   echo: { name: t("回声", "Echo"), icon: Repeat2, what: t("一小节的回声", "A bar of echo") },
   sweep: { name: t("扫频", "Sweep"), icon: AudioWaveform, what: t("闷下去再亮起来", "Muffled, then open again") },
-  horn: { name: t("喇叭", "Horn"), icon: Megaphone, what: t("嘟嘟嘟", "Air horn") },
+  horn: { name: t("气笛", "Air horn"), icon: Megaphone, what: t("夜店气笛，嘟嘟嘟", "Air horn blasts") },
   brake: { name: t("刹车", "Brake"), icon: OctagonPause, what: t("音乐停一下，下一小节回来", "The music stops, back on the next bar") },
   siren: { name: t("警笛", "Siren"), icon: Siren, what: t("两拍的警笛声", "Two beats of siren") },
   laser: { name: t("激光", "Laser"), icon: Zap, what: t("啾啾啾三下", "Three laser zaps") },
   scratch: { name: t("搓碟", "Scratch"), icon: Disc2, what: t("把音乐来回搓一拍", "Scratches the music for a beat") },
   rewind: { name: t("倒带", "Rewind"), icon: Rewind, what: t("音乐往回倒，下一小节接回来", "The music spins back, back on the next bar") },
+  vinyl: { name: t("黑胶", "Vinyl"), icon: Disc, what: t("两小节老唱片的味道：噼啪声，声音变暗", "Two bars of an old record: crackle, a darker sound") },
+  bassdrop: { name: t("低音炸弹", "Bass drop"), icon: Bomb, what: t("一声往下沉的低音轰", "A sub boom diving down") },
+  reverse: { name: t("反向镲", "Reverse"), icon: Undo2, what: t("倒放的镲片，两拍涨上去", "A crash played backwards, swelling for two beats") },
+  whistle: { name: t("口哨", "Whistle"), icon: Wind, what: t("桑巴口哨，嘀嘀嘀", "A samba whistle") },
 };
 
 /** The mixer's knobs (混音台), and what each end of the filter does. */

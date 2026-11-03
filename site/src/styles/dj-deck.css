@@ -14,6 +14,10 @@
   --dk-laser: var(--gel-lime);
   --dk-scratch: var(--gel-orchid);
   --dk-rewind: var(--gel-blue);
+  --dk-vinyl: var(--gel-rose);
+  --dk-bassdrop: var(--gel-periwinkle);
+  --dk-reverse: var(--gel-aqua);
+  --dk-whistle: var(--gel-mint);
   --dk-build: var(--gel-tangerine);
   --dk-drop: var(--gel-pink);
   --dk-perfect: var(--gel-honey);
@@ -40,73 +44,196 @@
   text-align: center;
 }
 
+/* the deck as a DJ controller (Steve on Nov 2: the page should look like one): a dark console with
+   two turntables at the top, the mixer between, the crossfader, the pads, the build-up and DROP */
+.djk-console {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--r-sheet);
+  background: linear-gradient(180deg, #26222f 0%, #1a1821 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 14px 34px rgba(0, 0, 0, 0.45);
+}
 .djk-decks {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
 }
-.djk-deck {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  grid-template-areas:
-    "side disc on"
-    "style style style";
+.djk-platter {
+  --deck: var(--gel-cyan);
+  position: relative;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
-  padding: var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2) var(--space-2);
   border-radius: var(--r-panel);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-flat);
+  background: linear-gradient(160deg, #2e2a38 0%, #1d1b24 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   color: var(--color-text-2);
-  transition: box-shadow var(--dur-enter) var(--ease-out);
 }
-.djk-deck.is-on {
-  color: var(--color-text);
+.djk-platter.is-b {
+  --deck: var(--gel-pink);
+}
+/* the record: grooves, a label in the deck's colour, a sheen that stays put while it spins */
+.djk-vinyl {
+  position: relative;
+  width: 100%;
+  max-width: 172px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #0b0b0f;
   box-shadow:
-    var(--shadow-flat),
-    0 0 0 2px var(--color-accent);
+    0 0 0 3px #3a3644,
+    0 8px 18px rgba(0, 0, 0, 0.55);
+  rotate: var(--turn, 0deg);
+  transition:
+    rotate 0.35s var(--ease-out),
+    box-shadow var(--dur-enter) var(--ease-out);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.djk-deck-side {
-  grid-area: side;
+.djk-vinyl::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 30deg, transparent 0 8%, rgba(255, 255, 255, 0.1) 12%, transparent 17% 58%, rgba(255, 255, 255, 0.07) 62%, transparent 67%);
+  pointer-events: none;
+}
+.djk-vinyl:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 4px;
+}
+.djk-vinyl[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.7;
+}
+.djk-vinyl-disc {
+  position: absolute;
+  inset: 3%;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #141418 0 1.6px, #1f1f25 1.6px 3.2px);
+  animation: djk-spin 1.8s linear infinite paused;
+  /* its own layer: the spin only turns it, nothing is painted again */
+  will-change: rotate;
+}
+/* a mark at the label's edge, so the spin shows */
+.djk-vinyl-disc::before {
+  content: "";
+  position: absolute;
+  top: 31%;
+  left: 50%;
+  width: 4px;
+  height: 9%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.55);
+  translate: -50% 0;
+}
+.djk-vinyl-label {
+  position: absolute;
+  inset: 33%;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, #0b0b0f 0 7%, var(--deck) 8% 100%);
+  color: #0b0b0f;
   font-family: var(--font-display);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 900;
 }
-.djk-deck-disc {
-  grid-area: disc;
-}
-.djk-deck.is-on .djk-deck-disc {
-  animation: djk-spin 1.8s linear infinite;
-}
-.djk-deck-on {
-  grid-area: on;
-  justify-self: end;
-  padding: 0 var(--space-2);
-  border-radius: var(--r-pill);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  font-size: var(--text-xs);
-  font-weight: 800;
-}
-.djk-deck-on.is-next {
-  background: var(--gel-cyan);
-}
-.djk-deck-on.is-loading {
-  background: var(--color-raised);
-  color: var(--color-text-2);
-}
-.djk-deck.is-cued {
+.djk-platter.is-on .djk-vinyl {
   box-shadow:
-    var(--shadow-flat),
-    0 0 0 2px var(--gel-cyan);
+    0 0 0 3px var(--deck),
+    0 0 26px color-mix(in oklab, var(--deck) 55%, transparent),
+    0 8px 18px rgba(0, 0, 0, 0.55);
 }
-.djk-deck-style {
-  grid-area: style;
+.djk-platter.is-on .djk-vinyl-disc {
+  animation-play-state: running;
+}
+.djk-platter.is-cued .djk-vinyl {
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--deck) 60%, #3a3644),
+    0 8px 18px rgba(0, 0, 0, 0.55);
+}
+/* a hand on the record: it follows the finger; held still, it stops */
+.djk-platter.is-turn .djk-vinyl,
+.djk-platter.is-hold .djk-vinyl {
+  transition: none;
+  cursor: grabbing;
+}
+.djk-platter.is-turn .djk-vinyl-disc,
+.djk-platter.is-hold .djk-vinyl-disc {
+  animation-play-state: paused;
+}
+.djk-tonearm {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  width: 5px;
+  height: 44%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #d9d8e0, #8f8d99);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform-origin: 50% 6px;
+  rotate: 18deg;
+  transition: rotate var(--dur-enter) var(--ease-out);
+  pointer-events: none;
+}
+.djk-tonearm::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: -4px;
+  width: 13px;
+  height: 16px;
+  border-radius: 3px;
+  background: #b9b7c2;
+}
+.djk-platter.is-on .djk-tonearm {
+  rotate: 30deg;
+}
+.djk-platter-name {
+  max-width: 100%;
   overflow: hidden;
-  font-size: var(--text-lg);
+  color: var(--color-text);
+  font-size: var(--text-md);
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.djk-platter-status {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+.djk-platter-status.is-on {
+  background: var(--deck);
+  color: #0b0b0f;
+}
+.djk-platter-status.is-next {
+  background: color-mix(in oklab, var(--deck) 35%, var(--color-raised));
+  color: var(--color-text);
+}
+.djk-vinyl-tip {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: center;
 }
 @keyframes djk-spin {
   to {
@@ -246,6 +373,18 @@
 }
 .djk-pad.is-rewind {
   --pad: var(--dk-rewind);
+}
+.djk-pad.is-vinyl {
+  --pad: var(--dk-vinyl);
+}
+.djk-pad.is-bassdrop {
+  --pad: var(--dk-bassdrop);
+}
+.djk-pad.is-reverse {
+  --pad: var(--dk-reverse);
+}
+.djk-pad.is-whistle {
+  --pad: var(--dk-whistle);
 }
 @keyframes djk-hit {
   from {
@@ -405,15 +544,15 @@
   font-size: var(--text-xs);
 }
 
-/* the mixer (混音台): four knobs as bipolar sliders (0 in the middle), four effect switches */
+/* the mixer (混音台): four round knobs (0 at 12 o'clock), four effect switches */
 .djk-mix {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--r-panel);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-flat);
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 .djk-mix-head {
   display: flex;
@@ -451,15 +590,19 @@
   opacity: 0.45;
   cursor: default;
 }
+.djk-knobs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
 .djk-knob {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 0 var(--space-2);
+  gap: var(--space-1);
 }
 .djk-knob-name {
-  width: 3.4em;
-  flex: none;
   color: var(--color-text-2);
   font-size: var(--text-sm);
   font-weight: 800;
@@ -467,65 +610,63 @@
 .djk-knob.is-turned .djk-knob-name {
   color: var(--color-text);
 }
-.djk-knob-end {
-  flex: none;
+/* a mixer's knob: a ring lit from the middle (12 o'clock) to where it's turned, a cap with a mark */
+.djk-dial {
+  --x: 0;
+  position: relative;
+  width: min(17vw, 64px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    conic-gradient(from 0deg, var(--color-accent) 0 calc(max(var(--x), 0) * 135deg), transparent 0),
+    conic-gradient(from calc(min(var(--x), 0) * 135deg), var(--color-accent) 0 calc(min(var(--x), 0) * -135deg), transparent 0),
+    conic-gradient(from -135deg, #3a3644 0 270deg, transparent 0);
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.djk-dial-cap {
+  position: absolute;
+  inset: 13%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #4a4656, #24212c 70%);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  rotate: calc(var(--x) * 135deg);
+}
+.djk-dial-mark {
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  width: 4px;
+  height: 30%;
+  border-radius: 2px;
+  background: var(--color-text);
+  translate: -50% 0;
+}
+.djk-knob.is-held .djk-dial {
+  opacity: 0.5;
+  cursor: default;
+}
+.djk-knob-ends {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
   color: var(--color-text-2);
   font-size: var(--text-xs);
   font-weight: 700;
 }
-.djk-knob input {
-  flex: 1;
-  min-width: 0;
-  height: var(--tap-crowded);
+/* the same knob as a slider, out of sight: the keyboard's and screen readers' */
+.djk-knob-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   margin: 0;
-  background: transparent;
-  appearance: none;
-  touch-action: none;
-  cursor: pointer;
-}
-.djk-knob input::-webkit-slider-runnable-track {
-  height: 8px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(
-    90deg,
-    var(--color-raised) calc(min(var(--x), 0.5) * 100%),
-    var(--color-accent) calc(min(var(--x), 0.5) * 100%),
-    var(--color-accent) calc(max(var(--x), 0.5) * 100%),
-    var(--color-raised) calc(max(var(--x), 0.5) * 100%)
-  );
-}
-.djk-knob input::-moz-range-track {
-  height: 8px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(
-    90deg,
-    var(--color-raised) calc(min(var(--x), 0.5) * 100%),
-    var(--color-accent) calc(min(var(--x), 0.5) * 100%),
-    var(--color-accent) calc(max(var(--x), 0.5) * 100%),
-    var(--color-raised) calc(max(var(--x), 0.5) * 100%)
-  );
-}
-.djk-knob input::-webkit-slider-thumb {
-  width: 32px;
-  height: 32px;
-  margin-top: -12px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--color-text);
-  box-shadow: var(--shadow-float);
-  appearance: none;
-}
-.djk-knob input::-moz-range-thumb {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--color-text);
-  box-shadow: var(--shadow-float);
-}
-.djk-knob input:disabled {
-  cursor: default;
-  opacity: 0.55;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
 }
 .djk-knob-who {
   flex-basis: 100%;
@@ -1122,6 +1263,18 @@
 .dk-chip.is-rewind {
   --pad: var(--dk-rewind);
 }
+.dk-chip.is-vinyl {
+  --pad: var(--dk-vinyl);
+}
+.dk-chip.is-bassdrop {
+  --pad: var(--dk-bassdrop);
+}
+.dk-chip.is-reverse {
+  --pad: var(--dk-reverse);
+}
+.dk-chip.is-whistle {
+  --pad: var(--dk-whistle);
+}
 .dk-chip.is-mix {
   --pad: var(--dk-pump);
 }
@@ -1291,7 +1444,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .djk-deck.is-on .djk-deck-disc,
+  .djk-platter.is-on .djk-vinyl-disc,
   .djk-drop,
   .djk-pad svg.is-hit,
   .djk-result,

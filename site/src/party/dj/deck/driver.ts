@@ -119,6 +119,10 @@ export class DeckDriver {
     else if (pad === "horn") done = this.fx.horn(nb.at, beat);
     else if (pad === "siren") done = this.fx.siren(nb.at, beat);
     else if (pad === "laser") done = this.fx.laser(nb.at, beat);
+    else if (pad === "vinyl") done = this.fx.vinyl(nb.at, beat);
+    else if (pad === "bassdrop") done = this.fx.bassDrop(nb.at, beat);
+    else if (pad === "reverse") done = this.fx.reverse(nb.at, beat);
+    else if (pad === "whistle") done = this.fx.whistle(nb.at, beat);
     else if (pad === "brake" || pad === "rewind" || pad === "scratch") {
       // a move of the music itself: never into a drop, never on top of another. The brake slows to
       // a stop over most of a beat and the rewind spins back over a beat, both quiet until the next

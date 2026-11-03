@@ -1,5 +1,5 @@
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useTicker } from "../../../online/RoomContext";
 import { MIX_FX, MIX_KNOBS, MIXER, type MixFx, type MixKnob } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
@@ -49,9 +49,11 @@ export function MixerPad({ v, me, now, g, nameOf, zh, live }: { v: DjView; me: s
           {zh ? "复位" : "Reset"}
         </button>
       </div>
-      {MIX_KNOBS.map((k) => (
-        <Knob key={k} knob={k} v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
-      ))}
+      <div className="djk-knobs">
+        {MIX_KNOBS.map((k) => (
+          <Knob key={k} knob={k} v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
+        ))}
+      </div>
       <div className="djk-mix-fx">
         {MIX_FX.map((f) => {
           const e = MIX_EFFECTS[f];
@@ -65,12 +67,20 @@ export function MixerPad({ v, me, now, g, nameOf, zh, live }: { v: DjView; me: s
           );
         })}
       </div>
-      <p className="djk-mix-note">{zh ? "旋钮马上生效，效果从下一拍开始，开一分钟后自动关。Drop 的时候旋钮回到正常。" : "Knobs act at once. Effects start on the next beat and switch off after a minute. A drop puts the knobs back."}</p>
+      <p className="djk-mix-note">{zh ? "旋钮往上或往右拧，双击回到中间。效果从下一拍开始，开一分钟后自动关。Drop 的时候旋钮回到正常。" : "Turn a knob up or right, double tap to centre it. Effects start on the next beat and switch off after a minute. A drop puts the knobs back."}</p>
     </section>
   );
 }
 
-/** One knob, as a slider: whoever moves it holds it; the others see who, and wait. */
+/** How far a finger drags (up or right) to turn a knob from one end to the other, in pixels. */
+const DIAL_PX = 140;
+
+/**
+ * One knob, round like a mixer's (Steve on Nov 2: the page should look like a DJ deck): drag up or
+ * right to turn it up, down or left to turn it down; a double tap puts it back in the middle. A
+ * slider underneath (out of sight) is the same knob for the keyboard and screen readers. Whoever
+ * moves it holds it; the others see who, and wait.
+ */
 function Knob({ knob, v, me, now, g, nameOf, zh, live }: { knob: MixKnob; v: DjView; me: string; now: () => number; g: G; nameOf: (pid: string) => string; zh: boolean; live: boolean }) {
   const m = v.deck.mixer;
   const [mine, setMine] = useState<number | null>(null);
@@ -105,11 +115,45 @@ function Knob({ knob, v, me, now, g, nameOf, zh, live }: { knob: MixKnob; v: DjV
   };
   const x = mine ?? m.knobs[knob];
   const filter = knob === "filter";
+  // a finger on the dial
+  const grip = useRef<{ x: number; y: number; from: number } | null>(null);
+  const grab = (e: PointerEvent<HTMLDivElement>) => {
+    if (!live || held) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    grip.current = { x: e.clientX, y: e.clientY, from: x };
+  };
+  const turn = (e: PointerEvent<HTMLDivElement>) => {
+    const gr = grip.current;
+    if (!gr) return;
+    const to = gr.from + (gr.y - e.clientY + (e.clientX - gr.x)) / DIAL_PX;
+    move(Math.round(Math.max(-1, Math.min(1, to)) * 20) / 20);
+  };
+  const letGo = () => {
+    if (!grip.current) return;
+    grip.current = null;
+    end();
+  };
+  const centre = () => {
+    if (!live || held) return;
+    move(0);
+    end();
+  };
   return (
-    <div className={`djk-knob ${x !== 0 ? "is-turned" : ""}`}>
+    <div className={`djk-knob ${x !== 0 ? "is-turned" : ""} ${held ? "is-held" : ""}`}>
       <span className="djk-knob-name">{L(KNOBS[knob], zh)}</span>
-      {filter && <span className="djk-knob-end">{L(FILTER_ENDS.dark, zh)}</span>}
+      <div className="djk-dial" aria-hidden="true" onPointerDown={grab} onPointerMove={turn} onPointerUp={letGo} onPointerCancel={letGo} onDoubleClick={centre} style={{ ["--x" as string]: x } as CSSProperties}>
+        <span className="djk-dial-cap">
+          <span className="djk-dial-mark" />
+        </span>
+      </div>
+      {filter && (
+        <span className="djk-knob-ends">
+          <span>{L(FILTER_ENDS.dark, zh)}</span>
+          <span>{L(FILTER_ENDS.thin, zh)}</span>
+        </span>
+      )}
       <input
+        className="djk-knob-input"
         type="range"
         min={-100}
         max={100}
@@ -121,9 +165,7 @@ function Knob({ knob, v, me, now, g, nameOf, zh, live }: { knob: MixKnob; v: DjV
         onPointerUp={end}
         onKeyUp={end}
         onTouchEnd={end}
-        style={{ ["--x" as string]: (x + 1) / 2 } as CSSProperties}
       />
-      {filter && <span className="djk-knob-end">{L(FILTER_ENDS.thin, zh)}</span>}
       {held && <span className="djk-knob-who">{zh ? `${nameOf(by!)} 在调` : `${nameOf(by!)} has it`}</span>}
     </div>
   );

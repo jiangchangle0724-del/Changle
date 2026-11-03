@@ -105,7 +105,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 8, 10000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck")
         phones.append(ph)
     amy, ben = phones
     ok(amy.locator(".djk-mix .djk-knob").count() == 4 and amy.locator(".djk-mix .djk-mix-btn").count() == 4, "the mixer on every phone: four knobs, four effects")

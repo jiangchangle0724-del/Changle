@@ -106,7 +106,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 8, 10000), f"{name}'s phone shows the deck, eight pads")
+        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck, twelve pads")
         phones.append(ph)
     amy, ben, cat = phones
     amy.wait_for_timeout(800)

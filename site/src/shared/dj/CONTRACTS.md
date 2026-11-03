@@ -241,7 +241,7 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 
 | Command | What the room does |
 | --- | --- |
-| `pad` `{ pad }` | One of the eight (`PAD_IDS`, in their order on the phones): `echo`, `sweep`, `horn`, `brake`, `siren`, `laser`, `scratch`, `rewind`, while music plays (the last four Steve's ask on Nov 1, for more club sounds). A phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn); a move of the music itself (`MOVES`: the brake, a scratch, a rewind) once per 4 s for the room (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
+| `pad` `{ pad }` | One of the twelve (`PAD_IDS`, in their order on the phones): `echo`, `sweep`, `horn` (气笛, the air horn), `brake`, `siren`, `laser`, `scratch`, `rewind` (those four Steve's ask on Nov 1, for more club sounds), `vinyl`, `bassdrop`, `reverse`, `whistle` (Steve on Nov 2: "more DJ sound effects like airhorn blasts, vinyl record"), while music plays. A hand on a phone's record sends the moves too (`scratch`, `rewind`, `brake`, below). A phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn); a move of the music itself (`MOVES`: the brake, a scratch, a rewind) once per 4 s for the room (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
 | `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
@@ -303,6 +303,12 @@ deck B ┘                                                                 horn,
   the eighths. **siren:** a dub siren, a square wave whooping up and down twice a beat for two
   beats. **laser:** three zaps on the sixteenths, each a quick fall from high to low. Each plays
   from the speaker's next beat; one of a kind at a time.
+- **The club pads** (`speaker/club.ts`, Nov 2): **黑胶 vinyl**, two bars of an old record, crackle
+  and hiss under the music with the music darker (the sweep's low-pass at 3.4 kHz, so not while a
+  sweep runs); **低音炸弹 bass drop**, a sub boom diving from 120 to 32 Hz with a thump, an octave up
+  so a TV's speakers carry it; **反向镲 reverse**, a crash played backwards swelling for two beats,
+  cut on the beat after next; **口哨 whistle**, a samba whistle, two short blasts and a long trill on
+  the eighths. One of each at a time. The air horn bends up into each blast now.
 - **The moves of the music itself**, in the player (`player.worklet.js`), each back exactly where
   the stream has got to (the player's own clock never stops): **brake**, the music slows to a stop
   over ¾ of a beat (pitch with it), quiet until the next bar line, back on its downbeat;
@@ -315,11 +321,20 @@ deck B ┘                                                                 horn,
   in the countdown). **The drop:** at its bar everything lets go at once with a boom, a crash and
   a whoosh, and the crossfader jumps with it. The big screen celebrates when the room says it
   landed: a perfect one with confetti and the names.
+- **The phone is a DJ controller** (Steve on Nov 2: "再加一个简易打碟机，让整个页面看起来就像一个打碟机"):
+  a dark console with the two decks as turntables at the top (`phone/Platter.tsx`: the record on
+  the air spins, its tonearm on it; the cued one ringed), the mixer between them with round knobs
+  (drag up or right to turn one up, a double tap centres it; a slider out of sight is the same knob
+  for the keyboard and screen readers), the crossfader, the twelve pads, the build-up and DROP. A
+  hand on a record is the DJ's hand on the vinyl: rubbed back and forth (40° all told) it's a
+  scratch, spun back 200° or more it's a rewind, held still for 0.45 s it's the brake (`moveOf`);
+  each goes to the room as its pad would (a phone's one per 600 ms), lands from the speaker's next
+  beat, and waits while a drop is on its way.
 - **The screens:** the TV shows the two decks (the one on the air bright, the cued one "up next"),
   the fader and who has it, the build-up's meter, who pressed which pad, the countdown, the landed
   drop, and a hint (`hintFor`: the countdown, keep tapping, build up and drop into the cued deck,
   slide the fader, pick the next style, try the pads). A phone has the same hint above its deck,
-  the decks, the fader, eight pads in two rows, the build-up button that turns into DROP with the count, and
+  the decks, the fader, twelve pads in three rows, the build-up button that turns into DROP with the count, and
   the 12 styles to pick from.
 
 **The mixer** (混音台, Steve's ask on Nov 2: pro mixing, to make the music more electronic, with
@@ -609,6 +624,13 @@ every frame changes only opacity or a transform.
   the switch to her songs from her phone (the TV hands the music over, no gap) and back.
   `tests/dj.test.ts` has the pieces (read back byte for byte, every bad one turned away);
   `tests/engine.test.ts` the switch and the word back.
+- `python3 scripts/dj_turntable_check.py [chromium|webkit]`: the phone as a DJ controller, in
+  browsers, a TV and two phones: the four club sounds rendered offline in the TV's browser and
+  measured (the record's pops over its hiss for two bars, the boom's low pitch, the reverse cymbal
+  swelling and stopping on its beat, the whistle's pitch in blasts); the console (two turntables,
+  the one on the air spinning, four round knobs, twelve pads); each new pad on a beat (the music
+  darker under the record); a hand on a record scratching, rewinding and braking, each on a beat; a
+  knob dragged up half way (+0.5, its cap turned) and centred by a double tap.
 - `python3 scripts/dj_floor_check.py [chromium|webkit]`: what the plan asked of the floor, in
   browsers, a TV and three phones: ❄️ beside 🔥 (the phones and the TV counting it, the room's
   energy leaning down, then up with 🔥, the TV's hint when it's cold); 报幕 as the countdown into

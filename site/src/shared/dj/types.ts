@@ -183,9 +183,10 @@ export type DancerMove = {
  * style at 125 BPM in A minor); the crossfader blends them; the effect pads, the build-up and the
  * drop all land on the beat. CONTRACTS.md, "The beginner deck".
  */
-export type PadId = "echo" | "sweep" | "horn" | "brake" | "siren" | "laser" | "scratch" | "rewind";
+export type PadId = "echo" | "sweep" | "horn" | "brake" | "siren" | "laser" | "scratch" | "rewind" | "vinyl" | "bassdrop" | "reverse" | "whistle";
 /** in this order on the phones (two rows of four); the room's `pad` event names a pad by its place here */
-export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake", "siren", "laser", "scratch", "rewind"];
+/** (the last four Steve's ask on Nov 2: more club sounds, "airhorn blasts, vinyl record") */
+export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake", "siren", "laser", "scratch", "rewind", "vinyl", "bassdrop", "reverse", "whistle"];
 /** the pads that move the music itself (the brake, a scratch, a rewind): one at a time, never into a drop */
 export const MOVES: PadId[] = ["brake", "scratch", "rewind"];
 

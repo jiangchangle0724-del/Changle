@@ -366,3 +366,19 @@ phones' timers run late here) and the DJ dropped it on its next countdown, as it
 room within 3 seconds of a drop (a 🔥, a pad): its timer was tied to the view's object, which every
 update replaces. Found while checking the recap; now tied to the drop's time, and it goes after 3.2 s
 (checked with 🔥 pressed every second after a drop).
+
+## The phone as a DJ controller; more club sounds (Nov 2, night)
+
+Steve: "I also want more DJ sound effects like airhorn blasts, vinyl record ... 再加一个简易打碟机，让整个页面
+看起来就像一个打碟机" (CONTRACTS.md, "The club pads" and "The phone is a DJ controller").
+
+**`site/scripts/dj_turntable_check.py`**, the TV in Chromium and in WebKit, two phones: 33 of 33 in each,
+no errors. The four new sounds rendered offline in the TV's browser and measured: the record's
+crackle for exactly two bars, its pops 29 times over its RMS; the bass drop's boom from its beat
+(RMS 0.39, about 104 Hz in its first quarter beat); the reverse cymbal swelling (RMS 0.0006 to 0.25)
+and silent from the beat after next; the whistle at about 2,946 Hz, quiet between its blasts. On the phones: two
+turntables (deck A's record spinning, its ring lit), four round knobs, twelve pads; 黑胶, 低音炸弹, 反向镲
+and 口哨 each on a beat to the millisecond, the music under the record darkening to 3.4 kHz from its
+beat. Amy rubs record A back and forth: a scratch on a beat; Ben spins it back 280°: a rewind; Amy holds
+record B still: the brake, the music back on the bar, no stall. A knob dragged up 70 px: the bass at +0.5
+in the room, its cap turned 67.5°; a double tap centres it.

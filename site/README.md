@@ -77,7 +77,8 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 它要试音版 DJ 放两个碟，所以 `worker/.dev.vars` 里 `DEV_LYRIA_ANYONE` 要关掉（不写，或写 0）。
 点歌放原曲片段（Apple 的 30 秒试听）用 `python3 scripts/dj_clip_check.py` 检查，主人从手机传歌到电视用
 `python3 scripts/dj_mine_check.py` 检查，混音台（均衡、滤波和四个效果）用 `python3 scripts/dj_mixer_check.py` 检查，
-❄️、读场、语音报幕、10 分钟一首和今晚回顾用 `python3 scripts/dj_floor_check.py` 检查，同样都要关掉它。
+❄️、读场、语音报幕、10 分钟一首和今晚回顾用 `python3 scripts/dj_floor_check.py` 检查，
+手机上的打碟机（唱盘、旋钮、十二个效果键）用 `python3 scripts/dj_turntable_check.py` 检查，同样都要关掉它。
 
 到此一游和 随便 各自是独立的 Worker（本仓库的 `games/been-there` 和 `tools/suibian`）。本地要连着试，在它们的文件夹里分别跑 `npx wrangler dev --port 8799` 和 `npx wrangler dev --port 8798`，网站的 `/trip` 和 `/eat` 会代理过去（`vite.config.ts`）。
 

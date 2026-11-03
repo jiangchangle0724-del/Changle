@@ -85,7 +85,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 8, 10000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck")
         phones.append(ph)
     amy, ben = phones
     ok(until(lambda: amy.locator(".djp-mine").count() == 1, 4000) and ben.locator(".djp-mine").count() == 0, "我的歌 on the host's phone (Amy's), not on Ben's")

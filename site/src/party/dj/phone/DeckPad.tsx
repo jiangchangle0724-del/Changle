@@ -1,4 +1,4 @@
-import { ChevronsUp, Disc3, ListMusic, X } from "lucide-react";
+import { ChevronsUp, ListMusic, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { heatLean } from "../../../shared/dj/curve";
@@ -13,6 +13,7 @@ import { appleMusicUrl } from "../../../shared/songs";
 import { DROP_WORDS, hintText, localName, mixSaid, PADS, songName } from "../deck/words";
 import { searchApple, type AppleHit } from "./apple";
 import { MixerPad } from "./MixerPad";
+import { Platter, type Move } from "./Platter";
 import { STYLE_NAMES } from "../parts";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
@@ -60,25 +61,40 @@ export function DeckPad({ v }: { v: DjView }) {
     else if (e.fx === "mix") say(mixSaid(nameOf(e.pid), e.data, zh));
   });
 
+  // a hand on a record: a move of the music (scratch, rewind, brake), as its pad would play it
+  const handAt = useRef(0);
+  const hand = (m: Move) => {
+    const tNow = performance.now();
+    if (tNow - handAt.current < DECK.padGapMs) return;
+    handAt.current = tNow;
+    g("pad", { pad: m });
+    haptic(m === "brake" ? 30 : 12);
+  };
+
+  // laid out like a DJ controller (Steve on Nov 2: the page should look like one): two
+  // turntables, the mixer between them, the crossfader, the pads, the build-up and DROP
   return (
     <section className="djk" aria-label={zh ? "打碟台" : "The deck"}>
       <p className="djk-hint" aria-live="polite">
         {hint ? hintText(hint, off, zh, d.local) : zh ? "音乐开始后就能打碟" : "The deck opens when the music starts"}
       </p>
-      <Decks v={v} on={on} zh={zh} lyria={lyria} />
-      <Fader v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
-      <div className="djk-pads">
-        {PAD_IDS.map((p) => (
-          <Pad key={p} pad={p} live={live} braking={MOVES.includes(p) && !!d.drop} g={g} zh={zh} />
-        ))}
+      <div className="djk-console">
+        <Decks v={v} on={on} zh={zh} lyria={lyria} live={live} hand={hand} />
+        <p className="djk-vinyl-tip">{zh ? "唱盘来回搓是搓碟，往回转一大圈是倒带，按住不动是刹车" : "Rub a record to scratch, spin it back to rewind, hold it to brake"}</p>
+        <MixerPad v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
+        <Fader v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
+        <div className="djk-pads">
+          {PAD_IDS.map((p) => (
+            <Pad key={p} pad={p} live={live} braking={MOVES.includes(p) && !!d.drop} g={g} zh={zh} />
+          ))}
+        </div>
+        <BuildDrop v={v} now={now} g={g} zh={zh} live={live} />
       </div>
-      <BuildDrop v={v} now={now} g={g} zh={zh} live={live} />
       <p className="djk-said" aria-live="polite">
         {said.map((s) => (
           <span key={s.id}>{s.text}</span>
         ))}
       </p>
-      <MixerPad v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
       <Requests v={v} me={me} g={g} zh={zh} />
       <Picks v={v} me={me} g={g} zh={zh} side={off} />
     </section>
@@ -87,8 +103,8 @@ export function DeckPad({ v }: { v: DjView }) {
 
 type G = (x: string, data?: Record<string, unknown>) => void;
 
-/** The two decks: their styles, the one on the air lit. */
-function Decks({ v, on, zh, lyria }: { v: DjView; on: DeckSide; zh: boolean; lyria: boolean }) {
+/** The two decks as turntables: their records, the one on the air spinning; a hand on either is a move of the music. */
+function Decks({ v, on, zh, lyria, live, hand }: { v: DjView; on: DeckSide; zh: boolean; lyria: boolean; live: boolean; hand: (m: Move) => void }) {
   const d = v.deck;
   const next = cued(d, lyria);
   const loading = next ? null : loaded(d);
@@ -96,16 +112,10 @@ function Decks({ v, on, zh, lyria }: { v: DjView; on: DeckSide; zh: boolean; lyr
     const style = side === "a" ? d.a : d.b;
     // (a night of the host's songs: the deck's song by name)
     const song = d.local ? v.onDecks[side] : null;
-    return (
-      <div className={`djk-deck ${on === side ? "is-on" : ""} ${next === side ? "is-cued" : ""}`}>
-        <span className="djk-deck-side">{side.toUpperCase()}</span>
-        <Disc3 size={24} className="djk-deck-disc" aria-hidden="true" />
-        <span className="djk-deck-style">{d.local ? (song ? song.t : zh ? "准备中" : "Loading") : style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}</span>
-        {on === side && <span className="djk-deck-on">{zh ? "在放" : "On"}</span>}
-        {next === side && <span className="djk-deck-on is-next">{zh ? "下一首" : "Next"}</span>}
-        {loading === side && <span className="djk-deck-on is-loading">{zh ? "准备中" : "Loading"}</span>}
-      </div>
-    );
+    const name = d.local ? (song ? song.t : zh ? "准备中" : "Loading") : style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty";
+    const status = on === side ? (zh ? "在放" : "On") : next === side ? (zh ? "下一首" : "Next") : loading === side ? (zh ? "准备中" : "Loading") : null;
+    // (the moves wait while a drop is on its way, like their pads)
+    return <Platter key={side} side={side} name={name} status={status} on={on === side} cued={next === side} live={live && !d.drop} zh={zh} onMove={hand} />;
   };
   return (
     <div className="djk-decks">
