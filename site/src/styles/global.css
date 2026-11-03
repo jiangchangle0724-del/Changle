@@ -2,6 +2,14 @@
  * changle: a dark room lit by colored stage gels.
  * Color is light: it comes from the game you're in (its gel) or from live state, never decoration.
  */
+/* the room light is a color, so a transition can glide between two of them (lib/motion.ts setLight);
+   a browser without @property just switches */
+@property --light {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #8c86ff;
+}
+
 :root {
   /* the room */
   --night: #0e0c22;
@@ -37,7 +45,7 @@
   --stop: #ff4d6d;
   --warn: var(--gel-amber);
 
-  /* the current light: set per screen, tweened by GSAP */
+  /* the current light: set per screen; it glides (lib/motion.ts setLight, @property below) */
   --light: #8c86ff;
   --gel: var(--moon);
   --on-gel: var(--night);

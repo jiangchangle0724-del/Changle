@@ -1,7 +1,7 @@
 import { ChevronLeft, CircleHelp, Eye, Users } from "lucide-react";
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { GAME_BY_ID } from "../games/registry";
-import { setLight } from "../lib/anim";
+import { setLight } from "../lib/motion";
 import { Sheet } from "../components/Sheet";
 import { BiTitle } from "../components/TopBar";
 import type { T } from "../i18n";

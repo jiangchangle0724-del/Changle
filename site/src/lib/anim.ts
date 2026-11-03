@@ -1,6 +1,7 @@
 /**
- * GSAP setup shared by every screen: plugins registered once, house eases, and the room light
- * (the colored wash at the top of the screen) that crossfades as you move between games.
+ * GSAP for the games that use it: plugins registered once and the house eases. It loads with those
+ * games, never with the home page (UI plan A6); the room light, the section tones and reduced()
+ * live in lib/motion.ts and are passed on from here so games can keep importing them from one place.
  */
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
@@ -13,31 +14,7 @@ CustomEase.create("swing", "0.65, 0, 0.35, 1");
 
 gsap.defaults({ ease: "settle", duration: 0.5 });
 
-export const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-let lightTween: gsap.core.Tween | null = null;
-let currentLight = "";
-
-/** Turn the room light to a color (a game's gel, or a section's tone). */
-export function setLight(color: string, seconds = 0.9) {
-  if (typeof document === "undefined" || color === currentLight) return;
-  currentLight = color;
-  const root = document.documentElement;
-  lightTween?.kill();
-  if (reduced()) {
-    root.style.setProperty("--light", color);
-    return;
-  }
-  lightTween = gsap.to(root, { "--light": color, duration: seconds, ease: "power2.inOut" });
-}
-
-/** Section tones for screens that are not a game. */
-export const LIGHTS = {
-  party: "#b072ff",
-  tools: "#9fc3ff",
-  wish: "#ffb82e",
-  me: "#ff9cc5",
-};
+export { reduced, setLight, LIGHTS } from "./motion";
 
 export { gsap, useGSAP };
 
