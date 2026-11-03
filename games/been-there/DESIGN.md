@@ -270,9 +270,10 @@ Issue #44's part 1: the world inside the printed ring is real.
   only once a minute, and never while a move plays; the drawn map, faded out, isn't painted at all. A
   phone short of memory or saving data gets the 512 pictures, painted every five minutes. Measured on a
   390x844 page with the CPU slowed 4x (before and after, in turns): the drag holds 60 frames a second;
-  the first-person ride went from 51 to 46, and with the picture hidden during the ride it was faster
-  than before. So the cost is headless Chromium blending one more layer with no graphics chip; a phone
-  blends it on its GPU. Check on a real phone with the menu's 测速.
+  the first-person ride went from 51 to 46. An earlier set gave 45 before and 41.5 after; measured
+  straight after it, the new page with the picture hidden during the ride gave 47.5, faster than before
+  (the drawn land isn't painted any more). So the cost is headless Chromium blending one more layer with
+  no graphics chip; a phone blends it on its GPU. Check on a real phone with the menu's 测速.
 * **Cities on top, readable.** Each sits at its real latitude and longitude in its region's colour, ringed
   in ink with a dark halo; the equator and the tropics are printed faintly over the world.
 * **Flights** (`RouteMap.tsx` `FlightPath`; on the big screen `globe/main.ts`). When a team lands in
