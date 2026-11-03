@@ -106,6 +106,17 @@ test("names: two people at one table never share a name", () => {
   ok(name("b") === "Steve", "once the first Steve has gone, the second one is just Steve");
 });
 
+test("start: a second tap on Start doesn't deal the game again", () => {
+  const t = setup(4);
+  const first = t.act("p0", { a: "start", game: "king" });
+  ok(first.events.some((e) => e.k === "fx" && e.fx === "start"), "the game starts");
+  const dealt = JSON.stringify(t.eng.d.game?.s);
+  const again = t.act("p0", { a: "start", game: "king" });
+  ok(!again.events.length && JSON.stringify(t.eng.d.game?.s) === dealt, "the same game again: nothing happens");
+  t.act("p0", { a: "start", game: "dice" });
+  ok(t.eng.d.game?.id === "dice", "another game still takes over");
+});
+
 test("leave: seat freed, host handed on, game told", () => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "dice" });

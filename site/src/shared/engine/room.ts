@@ -329,7 +329,9 @@ export class RoomEngine {
         return;
       }
       case "start": {
-        if (!host || !(a.game in GAMES)) return;
+        // (a second tap on the lobby's Start, or one sent again after a reconnect, would deal the
+        // game that has just begun all over again)
+        if (!host || d.game?.id === a.game || !(a.game in GAMES)) return;
         if (this.players().length < ONLINE_MIN[a.game]) return;
         this.startGame(a.game);
         return;
