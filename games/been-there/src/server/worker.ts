@@ -7,6 +7,7 @@
 //   GET  /api/rooms/:code/ws      → WebSocket       play (cid, key, name, lang, role in the query)
 //   POST /api/saves/:save/load    → { code }        continue a saved game in a new room
 //   GET  /api/weather             → { at, cities }  the weather right now in each city (15-minute cache)
+//   GET  /api/trivia-sources      → { cities }      the quiz questions' sources by city (the credits page)
 //   /r/:code, /tv/:code           → the game's page (phone, big screen)
 //   /demo                         → one phone playing every human team (no server)
 //   anything else                 → the game's files (static assets in dist/client/trip)
@@ -19,6 +20,7 @@ import { DurableObject } from "cloudflare:workers";
 import { COORDS } from "../client/art/coords";
 import type { ClientMsg, Settings } from "../room/protocol";
 import { Room, type Opening, type RoomEnv, type RoomState, type SaveFile } from "../room/room";
+import { triviaSources } from "../room/trivia";
 import { WEATHER_TTL, parseWeather, weatherUrl, type WeatherReport } from "../room/weather";
 
 export interface Env {
@@ -124,6 +126,7 @@ export default {
     }
 
     if (parts[1] === "weather" && parts.length === 2 && req.method === "GET") return weather(ctx);
+    if (parts[1] === "trivia-sources" && parts.length === 2 && req.method === "GET") return json({ cities: triviaSources() });
 
     if (parts[1] === "saves" && parts[3] === "load" && req.method === "POST") {
       const save = (parts[2] ?? "").toUpperCase();

@@ -1201,7 +1201,9 @@ button.banner {
   gap: 10px;
   box-shadow: var(--shadow);
 }
-/* The waiting players' quiz: a panel with the ticket strip, and three answers as the site's options. */
+/* The waiting players' quiz: a panel with the ticket strip, and three answers as the site's options.
+   An answer is a button (ringed in the gel) only where it can be tapped: on the phone that can answer,
+   in its pop-up. Everywhere else the answers are plain text, so nothing looks tappable that isn't. */
 .trivia {
   background: var(--surface);
   border-radius: 20px;
@@ -1255,15 +1257,15 @@ button.banner {
   background: var(--dusk);
   color: var(--ink);
   box-shadow: inset 0 0 0 1.5px var(--line);
-  cursor: pointer;
   transition:
     transform 0.16s var(--ease-out),
     box-shadow 0.2s,
     opacity 0.2s;
 }
-/* Still open: each answer is ringed in the gel, as the site marks what you can tap. */
-.trivia-opt:not(:disabled) {
+/* An answer to tap: ringed in the gel, as the site marks what you can tap. */
+button.trivia-opt {
   box-shadow: inset 0 0 0 2px var(--gel);
+  cursor: pointer;
 }
 .trivia-opt b {
   display: grid;
@@ -1278,9 +1280,6 @@ button.banner {
 .trivia-opt span {
   padding: 4px 0;
   line-height: 1.3;
-}
-.trivia-opt:disabled {
-  cursor: default;
 }
 .trivia.closed .trivia-opt:not(.right),
 .trivia-opt.picked:not(.right) {
@@ -1298,7 +1297,7 @@ button.banner {
 .trivia-opt.right span {
   text-decoration: none;
 }
-.trivia-opt:not(:disabled):active {
+button.trivia-opt:active {
   transform: scale(0.97);
 }
 .trivia-status {
@@ -1324,9 +1323,21 @@ button.banner {
   letter-spacing: 0;
 }
 .trivia-fact {
-  font-size: 0.85rem;
+  display: grid;
+  gap: 2px;
+  font-size: 0.875rem;
   line-height: 1.5;
   color: var(--muted);
+}
+/* 你知道吗 · Did you know */
+.trivia-fact b {
+  font: 700 0.75rem/1.4 var(--ui);
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+.trivia-fact b:lang(zh) {
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 .trivia-fact a {
   overflow-wrap: anywhere;
@@ -1354,9 +1365,142 @@ button.banner {
 .trivia.big .trivia-fact {
   font-size: 1rem;
 }
-/* Once the answer is out, the big screen keeps only the right one, with the story behind it. */
-.trivia.big.closed .trivia-options li:not(.right) {
+/* Once the answer is out, the big screen keeps only the right one, with the story behind it (and a
+   phone, the one its team picked). */
+.trivia.big.closed .trivia-options li:not(.right),
+.quizpop.reveal .trivia-options li:not(.right):not(.picked) {
   display: none;
+}
+/* ---------- the quiz pops up (ui/Trivia.tsx QuizPop) ----------
+   At the top of the screen, in the same place every time, over everything on a phone but a party
+   forfeit: dropped down like a notification, ringed in the gel because it's yours to answer. It takes
+   no taps for its first 350 ms (.settling), like every new question. */
+.quizpop {
+  position: fixed;
+  z-index: 58;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: max(10px, env(safe-area-inset-left, 0px));
+  right: max(10px, env(safe-area-inset-right, 0px));
+  max-width: 560px;
+  margin-inline: auto;
+  /* (all of it fits a phone, tests/e2e/quiz.spec.ts; on the smallest screens it scrolls inside) */
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 2px var(--gel),
+    0 26px 60px -16px rgba(0, 0, 0, 0.9);
+  animation: pop-down 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.quizpop.locked,
+.quizpop.reveal {
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 26px 60px -16px rgba(0, 0, 0, 0.9);
+}
+.quizpop.settling {
+  pointer-events: none;
+}
+@keyframes pop-down {
+  from {
+    opacity: 0;
+    transform: translateY(-28px);
+  }
+}
+.quizpop .trivia-about {
+  min-height: 24px;
+}
+/* Answered: a slim bar with what the team picked, until the answer is out. */
+.trivia-picked {
+  font-weight: 600;
+}
+/* Put it away, once answered or answered for (a 44 px target, in the corner). */
+.quizpop-x {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px auto;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--haze);
+  cursor: pointer;
+}
+.quizpop .countdown + .quizpop-x {
+  margin-left: 0;
+}
+.quizpop-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.quizpop-foot .muted {
+  min-width: 0;
+}
+/* 这题不答: a ghost pill, clear of the answers. */
+.quizpop-skip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 0.95rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .quizpop {
+    animation: none;
+  }
+}
+/* A phone held sideways: across the top, the answers side by side, so all of it fits the short screen. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .quizpop {
+    top: max(6px, env(safe-area-inset-top, 0px));
+    max-width: 780px;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .quizpop .pass-strip {
+    margin: -12px -16px 0;
+    padding: 6px 16px;
+  }
+  .quizpop .trivia-q {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .quizpop .trivia-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-top: 8px;
+  }
+  .quizpop.reveal .trivia-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .quizpop .trivia-opt {
+    min-height: 48px;
+    height: 100%;
+    gap: 8px;
+    padding: 6px 10px 6px 8px;
+  }
+}
+/* The turn clock's last 15 seconds (ui/TurnClock.tsx): on a phone under the top bar, and at the top of
+   the question it's about. */
+.idle-warn.note {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--warn) 16%, transparent);
+  color: var(--warn);
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+.boardcenter .idle-warn {
+  color: var(--warn);
 }
 /* On the big screen a question has the "now" column to itself while it's up (about 18 s): the arrival
    card and the news step aside, and come back when it closes. Nobody scrolls a TV, and with all three
@@ -1726,6 +1870,17 @@ button.banner {
 .credits-media {
   columns: auto;
   gap: 4px;
+}
+.credits ol.credits-quiz {
+  list-style: none;
+  padding-left: 0;
+}
+.credits-quiz summary {
+  cursor: pointer;
+}
+.credits-quiz details ul {
+  padding: 2px 0 6px 1.1em;
+  font-size: 0.85rem;
 }
 .credits a {
   overflow-wrap: anywhere;
@@ -3584,7 +3739,8 @@ h2.departures {
   position: absolute;
   top: max(10px, 2.5%);
   left: max(10px, 2.5%);
-  width: min(58%, 270px);
+  /* (on the smallest phones it takes a little more of the sky, for "Rio de Janeiro" on one line) */
+  width: min(max(58%, 196px), 270px);
   margin: 0;
   padding: 8px 10px 9px;
   list-style: none;
@@ -3615,11 +3771,10 @@ h2.departures {
 .ride-board:not(.shown) {
   display: none;
 }
+/* A name never shortens: one that doesn't fit wraps onto a second line, at the same size. */
 .ride-board .row-name {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .ride-board .row.card,
 .ride-board .row.stay {

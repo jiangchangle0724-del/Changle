@@ -28,6 +28,23 @@ export const TIMING = {
   trivia: 12_000,
   /** …then the answer and its source stay up this long. */
   triviaReveal: 6_000,
+  /**
+   * The team on turn when a question came up joins in once its turn is over, if at least this long
+   * is left to read and answer it.
+   */
+  triviaJoin: 4_000,
+  /**
+   * The turn clock: when the team the game is waiting for does nothing on a decision for this long,
+   * everyone sees a countdown…
+   */
+  idle: 60_000,
+  /** …of this long, and then the computer makes that one move for the team (as for a dropped phone). */
+  idleWarn: 15_000,
+  /**
+   * A throw's ride and a first visit's landing scene play on the team's phone for up to this long
+   * (ui/ridePlan.ts, ui/Touchdown.tsx): the turn clock starts after them.
+   */
+  landing: 10_000,
   /** A team whose phones have all dropped off is played by the computer after this. */
   takeover: 15_000,
   /** Open trade offers expire. */
@@ -49,6 +66,9 @@ export const TRIVIA_PRIZE = 20;
  */
 export const TRIVIA_WRONG = 10;
 
+/** How many of the waiting teams' questions a phone remembers having been asked (their ids), and sends when it joins. */
+export const SEEN_KEEP = 200;
+
 export const MAX_TEAMS = 6;
 export const MAX_TEAM_SIZE = 3;
 
@@ -58,6 +78,8 @@ export interface Settings {
   party: boolean;
   /** Travel news (旅行快讯), off by default. Missing in rooms and saves from before it. */
   news?: boolean;
+  /** The waiting teams' quiz (城市抢答), on unless the host turns it off. Missing (on) in rooms and saves from before the switch. */
+  trivia?: boolean;
   /** One device controls every human team (the single-device demo). */
   hotseat: boolean;
   /** Tests only: end after this many rounds. */
@@ -78,13 +100,17 @@ export type ClientMsg =
   | { t: "bot"; op: "add"; style?: StyleId }
   | { t: "bot"; op: "remove"; team: string }
   | { t: "bot"; op: "style"; team: string; style: StyleId }
-  | { t: "settings"; mode?: Mode; party?: boolean; news?: boolean }
+  | { t: "settings"; mode?: Mode; party?: boolean; news?: boolean; trivia?: boolean }
   | { t: "start" }
   | { t: "act"; d: number; a: Action; seat?: number }
   | { t: "manage"; k: ManageKind; at: number; seat?: number }
   | { t: "bid"; aid: number; amount: number; seat?: number }
   | { t: "quiz"; qid: number; choice: number }
   | { t: "trivia"; id: number; choice: number; seat?: number }
+  /** 这题不答: this phone passes on the waiting teams' question `id` (no charge). */
+  | { t: "trivia-skip"; id: number }
+  /** The waiting teams' questions this phone has been asked in earlier games (their ids), sent when it connects. */
+  | { t: "seen"; ids: string[] }
   | { t: "offer"; to: number; give: Offer; get: Offer; seat?: number }
   | { t: "offer-reply"; id: number; accept: boolean }
   | { t: "offer-cancel"; id: number }
@@ -117,6 +143,8 @@ export type FeedItem = { id: number; at: number } & (
   | { t: "party"; seat: number; why: PartyWhy; /** Index into FORFEITS (party.ts); missing in rooms from before step 6. */ dare?: number }
   | { t: "party-done"; seat: number; how: "done" | "skip" | "timeout" }
   | { t: "quiz"; seat: number; item: number; bin: number; choice: number | null; right: boolean }
+  /** The turn clock ran out: the computer made one move for this team. */
+  | { t: "idle"; seat: number }
 );
 
 export interface MemberView {
@@ -172,21 +200,31 @@ export interface QuizView {
 
 /** The waiting players' quiz: a question about one of the cities, for the teams whose turn it isn't. */
 export interface TriviaView {
+  /** This asking of it (a room-wide number). */
   id: number;
+  /** The question's own id in the bank ("cairo-01"): phones remember the ones they've been asked. */
+  key: string;
   city: string;
   q: Text;
   /** In the order shown. */
   options: Text[];
   endsAt: number;
   open: boolean;
-  /** The team this phone answers for (in the game, not on turn, hasn't answered), or null if it can't answer. */
+  /**
+   * The team this phone answers for now (one the question is for, in the game, hasn't answered), or
+   * null if this phone can't answer (its team was on turn when it came up, it answered, it skipped).
+   */
   answerFor: number | null;
   /** What this phone's team picked. */
   mine: number | null;
+  /** This phone said 这题不答 to it. */
+  skipped: boolean;
+  /** This phone's team is one of the teams the question is for (it pops up on this phone). */
+  forYou: boolean;
   /** Teams that have answered. While the question is still open, every one of them got it wrong. */
   answered: number[];
   winner: number | null;
-  /** Shown once the question closes, with the fact it comes from. */
+  /** Shown once the question closes: the right option, the fact (你知道吗) and where it comes from. */
   correct: number | null;
   fact: Text | null;
   source: string | null;
@@ -220,6 +258,12 @@ export interface GameView {
   /** The party forfeit holding the game until its team has done it (or the host skips it). */
   forfeit: ForfeitView | null;
   deadline: number | null;
+  /**
+   * The turn clock for the decision up now: when its countdown starts (`warnAt`, server time) and
+   * when the computer makes the move for `seat` (`at`). Null when there's none (computer teams, a
+   * question on its own clock, the one-phone demo).
+   */
+  turnClock: { seat: number; warnAt: number; at: number } | null;
   silenceUntil: number | null;
   auction: AuctionView | null;
   quiz: QuizView | null;

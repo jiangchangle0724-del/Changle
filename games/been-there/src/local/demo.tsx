@@ -3,8 +3,10 @@
 import { render } from "preact";
 import type { ClientMsg } from "../room/protocol";
 import { Room, type RoomState } from "../room/room";
+import { triviaSources } from "../room/trivia";
 import { setLang } from "../client/i18n";
-import { identity, prefs } from "../client/prefs";
+import { identity, prefs, seenTrivia } from "../client/prefs";
+import { setTriviaSources } from "../client/triviaSources";
 import { installAudioUnlock, setMuted } from "../client/sound";
 import { onServer, setConn, update } from "../client/store";
 import { disableWeather } from "../client/weather";
@@ -20,6 +22,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 function fresh() {
   room = Room.create("DEMO", env, { hotseat: true });
   room.join(me.cid, me.key, { name: prefs.name || (prefs.lang === "en" ? "Me" : "我"), lang: prefs.lang });
+  room.handle(me.cid, { t: "seen", ids: seenTrivia() });
   room.handle(me.cid, { t: "team", op: "create" });
   room.handle(me.cid, { t: "bot", op: "add", style: "balanced" });
   room.handle(me.cid, { t: "bot", op: "add", style: "gambler" });
@@ -73,8 +76,9 @@ function reset() {
   pump();
 }
 
-// No server here to ask for the weather.
+// No server here to ask for the weather; the quiz's sources are in the page already (the room is).
 disableWeather();
+setTriviaSources(triviaSources());
 setLang(prefs.lang);
 setMuted(prefs.muted);
 setReduced(prefs.reduced);

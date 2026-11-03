@@ -58,7 +58,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/art/RoundBoard.tsx`, `RouteMap.tsx` | The round board and the route map (with the night side). |
 | `src/client/art/dice.tsx`, `Passport.tsx`, `LandingCard.tsx`, `icons.tsx`, `texture.ts` | Dice, the passport, the arrival card, small icons, paper grain and stamp speckle. |
 | `src/client/globe/` | The big screen's 3D globe (three.js): the night side, city lights, flights. |
-| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Decision.tsx` (the questions a team answers), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
+| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts` | Sounds; vibration and shake to roll; full screen. |
 | `src/client/i18n.ts` | Every word on screen, in Chinese and English. |
 
@@ -83,7 +83,8 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 Each of these was measured or is tested. Check them again after a change.
 
 1. **A phone never scrolls sideways.** The page is never wider than the phone, down to a 320 px
-   iPhone SE in English with long team names. The browser tests check this on every tap.
+   iPhone SE in English with long team names. The browser tests check this on every tap. City names
+   are never cut short: on the ride's departures board one that doesn't fit wraps onto a second line.
 2. **Nothing runs off the big screen.** It fits at 1600×900, 1366×768 and 1280×720. The "now"
    column shrinks its cards when they're taller than the room (`FitColumn` in `Screen.tsx`); the
    finale is sized in `vh`.
@@ -97,10 +98,19 @@ Each of these was measured or is tested. Check them again after a change.
    and filters, and anything that redraws every frame for long. The falling paper cost the most,
    so phones get 24 flat pieces and the big screen 44 tumbling ones.
 6. **Taps land where they're meant.** A new question ignores taps for 350 ms (`.settling`), so a
-   tap meant for the last one can't answer it. Buttons are 50 px tall, small text ones 44 px.
-7. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
+   tap meant for the last one can't answer it; the quiz's pop-up too. Buttons are 50 px tall, small
+   text ones 44 px. Nothing looks tappable that isn't: answers are buttons only where they can be
+   given.
+7. **The waiting teams' quiz pops up at the top**, in the same place every time, over everything on
+   a phone but a party forfeit: across the top when the phone is held sideways (the answers side by
+   side), top centre on a laptop, at the head of the "now" column on the big screen. All of it shows
+   without scrolling: `tests/e2e/quiz.spec.ts` checks 390x844 on the phone's own turn and another's,
+   375x667, a phone held sideways, a 320 px iPhone SE in English with the longest question the bank
+   allows, and the big screen at 1366x768. Only a phone that can answer gets the pop-up (with
+   这题不答 to pass); others read it in their play window.
+8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players.
-8. **Our own work.** No photos, fonts or sounds we can't license. Posters leave out modern
+9. **Our own work.** No photos, fonts or sounds we can't license. Posters leave out modern
    buildings whose designs are still protected, and trademarks. The credits page lists every source
    and licence.
 

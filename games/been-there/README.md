@@ -7,14 +7,18 @@ screen (TV or laptop) shows the board. It plays at changle.ca/trip and starts fr
 Step 4 made the full game playable online; step 5 gave it its look: the golden age of travel
 (1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
 an air-age route map, and six token characters. Step 6 adds the city content: a quiz for the teams
-waiting their turn (one question per city, from the same sourced fact as its rule), the real fact
+waiting their turn (176 questions, eight a city, each with its source and a 你知道吗 fact; it pops up
+at the top of the phone, any phone can skip a question, none comes twice in a game, and a phone
+gets ones it hasn't seen first; the host can turn it off in the lobby), the real fact
 on the big screen's arrival card, a drink-free set of party forfeits (each one holds the game until
 its team taps Done, or the host skips it), and a credits page listing
 every source and licence. Each city now also has a real photo (Wikimedia Commons) beside its
 poster, and a few seconds of a real recording made there (Freesound) when a team first lands. A
 team's own move plays first-person on its phone: the camera follows the token round the board past
 every city to where it lands. Phones can go full screen (iPhones from the Home Screen) and, where
-they're allowed to, vibrate at the big moments. More facts per city are still to come.
+they're allowed to, vibrate at the big moments. A team that stays connected but does nothing gets a
+turn clock: after 60 seconds on a decision, every screen counts down 15 more, then the computer
+makes that one move for it.
 
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
@@ -44,7 +48,7 @@ How the game looks and moves, and what a design change has to keep: [DESIGN.md](
 | Folder | What it is |
 | --- | --- |
 | `src/engine` | The rules, one copy shared by the simulator, the server and the browser. Recovered from the step-3 bundle; `tests/engine.test.ts` proves it still gives the step-3 report's numbers exactly. |
-| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`trivia.ts`, answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off, saves. No networking inside, so it's easy to test. |
+| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`triviaBank.ts` holds the questions, `trivia.ts` picks the next one; answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off and the turn clock, saves. No networking inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker. Each room is one Durable Object that keeps the game and saves it after every move. |
 | `src/client` | The web pages: phone screens, the big screen, Chinese/English. |
 | `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |
@@ -90,10 +94,20 @@ Durable Objects with SQLite storage work on the free plan.
 
 From a computer instead: `npx wrangler login`, then `npm run deploy`.
 
+## Add quiz questions
+
+The questions are plain data in `src/room/triviaBank.ts`: copy an entry and change it. Each has an
+id that is never reused (`cairo-09`: phones remember the ids they've been asked), its city, the
+question, three options with the right one first, a one-line fact for after the answer, and the
+https page it comes from (the credits page lists it). `npm test` checks every entry
+(`tests/trivia.test.ts`): a unique id, a city in the game, three different options, both languages,
+no em dashes or curly quotes, and lengths that fit a phone. Only the room imports the bank, so the
+answers never reach a phone.
+
 ## Numbers you might want to change
 
-* Room timings (auction countdown, vote time, how soon the computer covers a dropped phone):
-  `TIMING` in `src/room/protocol.ts`.
+* Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, the
+  quiz's time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.
 * Prices, rents, target lines: `src/engine/config.ts`. After changing them, run `npm run sim`
   to see the effect; `npm test` will then (deliberately) fail until `tests/fixtures/report.json`
   is updated to the new numbers.

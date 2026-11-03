@@ -21,7 +21,8 @@ import { moveInPlay, planMove, rideEnd, rideLand, rideMode, rideReady, rideUrgen
 import { SettingsSheet } from "./Settings";
 import { Touchdown } from "./Touchdown";
 import { Trade } from "./Trade";
-import { Trivia } from "./Trivia";
+import { QuizPop, TriviaCard } from "./Trivia";
+import { IdleNote, useIdleWarn } from "./TurnClock";
 import { useWakeLock } from "../wake";
 import { SpeedMeter } from "./SpeedMeter";
 import { SambaLesson, useDanceClock } from "./Samba";
@@ -48,9 +49,9 @@ export function Game({ v }: { v: RoomView }) {
     v.you.seats.some((x) => g.mustAct.includes(x)) ||
     (!!g.auction && v.you.seats.length > 0) ||
     (!!g.quiz && v.you.seats.includes(g.quiz.visitor));
-  // Something for this phone to answer: its move, or the quiz the waiting teams race to answer.
-  const quizMine = !!g.trivia?.open && g.trivia.answerFor !== null;
-  const needs = myMove || quizMine;
+  // Something for this phone to answer in the play window: its move. (The waiting teams' quiz pops up
+  // at the top of the screen by itself, QuizPop.)
+  const needs = myMove;
   const incoming = g.trades.filter((o) => v.you.seats.includes(o.to)).length;
   // The team's own move plays on the board (ridePlan.ts): first-person, or flat. The decision window
   // and the money that changed hands come back with the stamp (sooner when the ride is skipped).
@@ -88,23 +89,20 @@ export function Game({ v }: { v: RoomView }) {
   const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
   // What this phone has to answer comes first in the window, above the arrival card and the turn's
   // card: on a phone the window is short, and a buy button under a poster is one nobody finds. Each
-  // part is keyed, so it keeps its state (a half-made bid, a chosen option) as it moves.
+  // part is keyed, so it keeps its state (a half-made bid, a chosen option) as it moves. (The quiz here
+  // is only the card for a phone it isn't for, to read: the one to answer pops up, QuizPop.)
   const parts: Record<Part, preact.JSX.Element> = {
     arrival: <Arrival key="arrival" v={v} after={arriveAt} />,
     card: <TurnCard key="card" v={v} />,
     decision: <Decision key="decision" v={v} />,
     news: <NewsBanner key="news" v={v} />,
-    trivia: <Trivia key="trivia" v={v} />,
+    trivia: <TriviaCard key="trivia" v={v} />,
   };
-  const asks: Part[] = myMove
-    ? ["decision", "trivia", "arrival", "card", "news"]
-    : quizMine
-      ? ["trivia", "arrival", "card", "decision", "news"]
-      : ["arrival", "card", "decision", "news", "trivia"];
+  const asks: Part[] = myMove ? ["decision", "arrival", "card", "news", "trivia"] : ["arrival", "card", "decision", "news", "trivia"];
   // A new question goes back to the top of the window, where it is (the player may have scrolled
   // down to read the arrival card during the last one).
   const playBody = useRef<HTMLDivElement>(null);
-  const askKey = myMove ? `d${g.decision}` : quizMine ? `q${g.trivia!.id}` : "";
+  const askKey = myMove ? `d${g.decision}` : "";
   useEffect(() => {
     if (askKey && playBody.current) playBody.current.scrollTop = 0;
   }, [askKey]);
@@ -218,6 +216,7 @@ export function Game({ v }: { v: RoomView }) {
       <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
+      <QuizPop v={v} />
       <ForfeitHold v={v} />
     </div>
   );
@@ -373,6 +372,7 @@ export function Clock({ v }: { v: RoomView }) {
 function Banner({ v, onOpen }: { v: RoomView; onOpen?: () => void }) {
   const g = v.game!;
   const st = getState();
+  const idle = useIdleWarn(v);
   const myTeam = v.teams.find((x) => x.id === v.you.team);
   if (st.status === "reconnecting" || st.status === "connecting") return <p class="banner warn">{t("reconnecting")}</p>;
   if (g.paused) return <p class="banner">{t("paused")}</p>;
@@ -382,6 +382,8 @@ function Banner({ v, onOpen }: { v: RoomView; onOpen?: () => void }) {
         {t("autoplayOn")}
       </button>
     );
+  // The turn clock's last 15 seconds, for everyone.
+  if (idle) return <IdleNote v={v} warn={idle} banner />;
   const mine = v.you.seats.includes(g.s.turn);
   // Another team's dice are rolling and its token is on the way.
   const move = mine ? null : planMove(v, [g.s.turn]);

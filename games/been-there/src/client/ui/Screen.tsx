@@ -24,7 +24,8 @@ import { rowsOf } from "./Ride";
 import { rideEnd, rideLand, rideReady, useTableMove, type RidePlan } from "./ridePlan";
 import { SambaLesson, useDanceClock } from "./Samba";
 import { Touchdown } from "./Touchdown";
-import { Trivia } from "./Trivia";
+import { TriviaCard } from "./Trivia";
+import { IdleNote, useIdleWarn } from "./TurnClock";
 
 export function Screen({ v }: { v: RoomView }) {
   // (a TV left on the board shouldn't go dark between turns)
@@ -92,6 +93,7 @@ function TvGame({ v }: { v: RoomView }) {
   const landAt = move ? rideLand(move) : 0;
   useRerenderAt(landAt);
   const dance = useDanceClock(v);
+  const idle = useIdleWarn(v);
   return (
     <main class="screen">
       <div class="tv-board">
@@ -99,7 +101,7 @@ function TvGame({ v }: { v: RoomView }) {
           v={v}
           big
           globe
-          center={TvCenter({ v, card })}
+          center={TvCenter({ v, card, idle })}
           over={<TvDice v={v} played={lastMove.current} />}
           ride={move}
           rideMode="tv"
@@ -119,11 +121,12 @@ function TvGame({ v }: { v: RoomView }) {
         {/* What's happening now, and the table (standings and log): side by side where the screen is
             wide enough, one under the other where it isn't. The log takes whatever room is left. */}
         <div class="tv-cols">
+          {/* (the question, while one is up, heads the column: the top of the screen's side, every time) */}
           <FitColumn class="tv-now">
+            <TriviaCard v={v} big />
             <Departures v={v} move={move} />
             <Arrival v={v} big after={landAt} />
             <NewsBanner v={v} big />
-            <Trivia v={v} big />
           </FitColumn>
           <div class="tv-table">
             <h2 class="departures">{t("departures")}</h2>
@@ -208,7 +211,7 @@ function FitColumn({ class: cls, children }: { class: string; children: Componen
   );
 }
 
-function TvCenter({ v, card }: { v: RoomView; card: ReturnType<typeof useFreshCard> }) {
+function TvCenter({ v, card, idle }: { v: RoomView; card: ReturnType<typeof useFreshCard>; idle: ReturnType<typeof useIdleWarn> }) {
   const g = v.game!;
   if (g.auction)
     return (
@@ -234,6 +237,8 @@ function TvCenter({ v, card }: { v: RoomView; card: ReturnType<typeof useFreshCa
         <small class="muted">{t("silencePull")}</small>
       </div>
     );
+  // The turn clock's last 15 seconds.
+  if (idle) return <IdleNote v={v} warn={idle} tv />;
   if (card) return <CardFace v={v} card={card} big />;
   return null;
 }

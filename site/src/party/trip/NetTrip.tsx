@@ -79,6 +79,11 @@ export function NetTrip({ v, onLeave }: { v: TripView; onLeave: () => void }) {
           ? "2 到 6 队，每队 1 到 3 人，可以加电脑队。15 分钟快局、1 小时局，或者到目标线为止。队伍和时长在游戏里选。"
           : "2 to 6 teams of 1 to 3 people, with computer teams if you like. A 15-minute game, an hour, or play to the target. Teams and length are picked inside the game."}
       </p>
+      <p>
+        {zh
+          ? "没人能卡住整局：轮到做决定的队 60 秒一动不动，所有屏幕会倒数 15 秒，然后电脑替他们走这一步，下一步还是他们自己走。"
+          : "Nobody can hold up the game: if the team whose move it is does nothing for 60 seconds, every screen counts down 15 more, then the computer makes that one move for them. They make the next one themselves."}
+      </p>
     </>
   );
 

@@ -4,7 +4,7 @@
 // moment of the throw. And Rio's samba: the dancing team's phone teaches it full screen, the judges'
 // phones small over their buttons (which light up only when it's over), the big screen big.
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { closeAll, createRoom, joinWithTeam, newPhone, track, watch, type Phone } from "./phones";
+import { closeAll, createRoom, joinWithTeam, newPhone, quizOff, track, watch, type Phone } from "./phones";
 
 test.afterEach(closeAll);
 
@@ -63,6 +63,7 @@ async function table(browser: Browser, request: Parameters<typeof createRoom>[0]
   const b = await newPhone(browser, "乙", contextOptions);
   await joinWithTeam(a, code);
   await joinWithTeam(b, code);
+  await quizOff(a);
   await a.page.getByRole("button", { name: "开始", exact: true }).click();
   await expect(tv.page.locator(".screen .boardwrap")).toBeVisible();
   for (const end = Date.now() + 15_000; Date.now() < end; ) {

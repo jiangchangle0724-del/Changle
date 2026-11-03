@@ -4,7 +4,7 @@
 // the camera pulls back as the decision comes up. A tap skips to the stamp, and a second past it.
 // With the menu's setting off or reduced motion, the same beats play on the flat board.
 import { expect, test, type APIRequestContext, type Browser, type Locator } from "@playwright/test";
-import { closeAll, createRoom, explain, joinWithTeam, newPhone, tap, type Phone } from "./phones";
+import { closeAll, createRoom, explain, joinWithTeam, newPhone, quizOff, tap, type Phone } from "./phones";
 
 test.afterEach(closeAll);
 
@@ -18,6 +18,7 @@ async function ourFirstThrow(browser: Browser, request: APIRequestContext, conte
     const p = await newPhone(browser, "走", contextOptions);
     await joinWithTeam(p, code);
     await p.page.getByRole("button", { name: "加一个电脑队" }).click();
+    await quizOff(p);
     await p.page.getByRole("button", { name: "开始", exact: true }).click();
     await expect(p.page.locator(".game")).toBeVisible();
     const roll = p.page.locator(ROLL);

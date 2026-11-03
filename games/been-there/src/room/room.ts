@@ -22,7 +22,7 @@ import {
   type TriviaView,
 } from "./protocol";
 import { FORFEITS } from "./party";
-import { TRIVIA } from "./trivia";
+import { LEGACY_ORDER, SEEN_KEEP, TRIVIA_BY_ID, cleanSeen, pickTrivia } from "./trivia";
 
 export interface RoomEnv {
   now(): number;
@@ -43,6 +43,8 @@ interface Member {
   lang: Lang;
   /** Spectator betting score. */
   score: number;
+  /** The waiting teams' questions this phone has been asked (ids, oldest first): what it sent when it joined, and those asked here since. */
+  seen?: string[];
 }
 
 interface Team {
@@ -75,11 +77,14 @@ interface Quiz {
 /** The waiting players' quiz in progress (see trivia.ts). */
 interface Trivia {
   id: number;
-  /** Index into TRIVIA. */
-  q: number;
-  /** Option order shown; TRIVIA options[0] is the right one. */
+  /** The question's id in the bank (TRIVIA_BY_ID). */
+  qid: string;
+  /** Option order shown; the bank's options[0] is the right one. */
   order: number[];
-  /** Seats that may answer: everyone in the game except the team whose turn it is. */
+  /**
+   * Seats the question is for: everyone in the game but the team on turn when it came up, and that
+   * team too once its turn is over (if there's time left to answer; see joinTrivia).
+   */
   eligible: number[];
   /** Seat → the option it picked (as shown). */
   answers: Record<number, number>;
@@ -89,6 +94,8 @@ interface Trivia {
   winner: number | null;
   closed: boolean;
   revealUntil: number;
+  /** Phones (member ids) that said 这题不答. Missing in rooms from before skipping. */
+  skipped: string[];
 }
 
 interface Trade {
@@ -137,6 +144,10 @@ interface Game {
   sig: string;
   progress: number;
   pendingSince: number;
+  /** The turn clock counts from here: the decision's start, or the last move of the team it waits for (see turnClock). */
+  idleFrom?: number;
+  /** When the last throw or move was made (its ride and landing play before the turn clock starts). */
+  moveAt?: number;
   deadline: number | null;
   silenceUntil: number | null;
   /** Rio: when the dance started (the judges wait for TIMING.dance after it). Missing in older saves. */
@@ -144,8 +155,8 @@ interface Game {
   auction: LiveAuction | null;
   quiz: Quiz | null;
   trivia: Trivia | null;
-  /** Questions already dealt from the current deck (see openTrivia). */
-  triviaUsed: number[];
+  /** Questions asked this game (ids): never again in it (see openTrivia). */
+  triviaAsked: string[];
   /** Turn number of the last quiz opened (one at most per turn). */
   triviaTurn: number;
   trades: Trade[];
@@ -234,6 +245,8 @@ function validOffer(o: unknown): o is E.Offer {
   );
 }
 const emptyOffer = (o: E.Offer) => o.cash === 0 && !o.deeds.length && !o.cards.length;
+/** The questions asked in a room or save from before ids, which counted them by their place in the list of 22. */
+const askedBefore = (used: number[] | undefined): string[] => (used ?? []).map((i) => LEGACY_ORDER[i]).filter((id): id is string => !!id);
 
 export class Room {
   st: RoomState;
@@ -247,15 +260,18 @@ export class Room {
     this.env = env;
     // Bot styles hold Infinity, which JSON turns into null: always restore them by id.
     if (st.game) for (const b of st.game.brains) b.style = E.STYLES[b.style.id] ?? E.STYLES.balanced;
-    // Rooms and saves from before the waiting players' quiz.
+    // Rooms and saves from before the waiting players' quiz, and from before its questions had ids.
     if (st.game) {
-      st.game.triviaUsed ??= [];
-      st.game.triviaTurn ??= -1;
+      const g = st.game as Game & { triviaUsed?: number[] };
+      g.triviaAsked ??= askedBefore(g.triviaUsed);
+      delete g.triviaUsed;
+      g.triviaTurn ??= -1;
       // …and from before travel news.
-      st.game.s.news ??= null;
-      st.game.s.newsSeen ??= [];
+      g.s.news ??= null;
+      g.s.newsSeen ??= [];
       // A question from an older list of questions: drop it rather than show the wrong one.
-      if (!st.game.trivia || !TRIVIA[st.game.trivia.q]) st.game.trivia = null;
+      if (g.trivia && !TRIVIA_BY_ID.has(g.trivia.qid)) g.trivia = null;
+      if (g.trivia) g.trivia.skipped ??= [];
     }
   }
 
@@ -272,7 +288,7 @@ export class Room {
         hostId: host,
         ...(host ? { hostHold: now + HOST_HOLD } : {}),
         table,
-        settings: { mode: "target", party: false, news: false, hotseat: false, ...settings },
+        settings: { mode: "target", party: false, news: false, trivia: true, hotseat: false, ...settings },
         members: {},
         teams: [],
         game: null,
@@ -307,9 +323,13 @@ export class Room {
         covered: {},
         // A question that was up when the game was saved has long timed out; saves from before the quiz lack these.
         trivia: null,
-        triviaUsed: g.triviaUsed ?? [],
+        triviaAsked: g.triviaAsked ?? askedBefore((g as { triviaUsed?: number[] }).triviaUsed),
         triviaTurn: g.triviaTurn ?? -1,
+        // (the turn clock starts afresh: the save's times are another room's)
+        idleFrom: now,
+        moveAt: undefined,
       };
+      delete (room.st.game as { triviaUsed?: unknown }).triviaUsed;
       room.st.game.s.news ??= null;
       room.st.game.s.newsSeen ??= [];
       room.refreshAway();
@@ -367,10 +387,13 @@ export class Room {
     if (m && m.key !== key) return false;
     const now = this.now;
     if (!m) {
+      // A phone that didn't say its name gets one in its own language.
+      const n = Object.keys(this.st.members).length + 1;
+      const en = opts.lang === "en";
       m = {
         id,
         key,
-        name: clampName(opts.name, opts.role === "screen" ? "大屏" : `玩家${Object.keys(this.st.members).length + 1}`),
+        name: clampName(opts.name, opts.role === "screen" ? (en ? "Big screen" : "大屏") : en ? `Player ${n}` : `玩家${n}`),
         team: null,
         role: opts.role === "screen" ? "screen" : "player",
         online: 0,
@@ -389,6 +412,8 @@ export class Room {
     m.lastSeen = now;
     this.claimHost();
     this.refreshAway();
+    // (a phone of the team the game waits for, back: someone's there)
+    if (this.st.game) this.stir(this.seatsFor(m));
     this.dirty = true;
     return true;
   }
@@ -511,8 +536,19 @@ export class Room {
         if (msg.mode === "target" || msg.mode === 15 || msg.mode === 60) this.st.settings.mode = msg.mode;
         if (typeof msg.party === "boolean") this.st.settings.party = msg.party;
         if (typeof msg.news === "boolean") this.st.settings.news = msg.news;
+        if (typeof msg.trivia === "boolean") this.st.settings.trivia = msg.trivia;
         this.dirty = true;
         return;
+      case "seen": {
+        const ids = cleanSeen(msg.ids);
+        if (ids) {
+          m.seen = ids;
+          this.dirty = true;
+        }
+        return;
+      }
+      case "trivia-skip":
+        return this.skipTrivia(m, msg.id);
       case "start":
         if (!host) return this.toast(id, "hostOnly");
         return this.start(id);
@@ -539,6 +575,7 @@ export class Room {
         team.autoplay = !!msg.on;
         this.push({ t: "autoplay", seat, on: team.autoplay, why: "chosen" });
         g.covered[seat] = this.botControlled(seat);
+        this.stir([seat]);
         return;
       }
       case "bet":
@@ -556,6 +593,7 @@ export class Room {
     if (g.forfeit) return this.toast(id, "forfeitWait");
     if (g.paused) return this.toast(id, "paused");
     const mine = this.seatsFor(m);
+    this.stir(mine);
     const pickSeat = (want: unknown, fallback: number[]) => (isInt(want) ? (mine.includes(want) ? want : -1) : (fallback[0] ?? -1));
     switch (msg.t) {
       case "act": {
@@ -597,6 +635,7 @@ export class Room {
         const tv = g.trivia;
         if (!tv || tv.id !== msg.id || tv.closed) return this.toast(id, "tooLate");
         if (!isInt(msg.choice) || msg.choice < 0 || msg.choice >= tv.order.length) return;
+        if (tv.skipped.includes(m.id)) return;
         const can = (x: number) => tv.eligible.includes(x) && !(x in tv.answers) && !g.s.ps[x].out;
         const seat = pickSeat(msg.seat, mine.filter(can));
         if (seat < 0 || !can(seat)) return;
@@ -726,12 +765,13 @@ export class Room {
       sig: "",
       progress: 0,
       pendingSince: now,
+      idleFrom: now,
       deadline: null,
       silenceUntil: null,
       auction: null,
       quiz: null,
       trivia: null,
-      triviaUsed: [],
+      triviaAsked: [],
       triviaTurn: -1,
       trades: [],
       bets: null,
@@ -777,6 +817,8 @@ export class Room {
     g.silenceUntil = later(g.silenceUntil);
     g.danceAt = later(g.danceAt ?? null);
     g.pendingSince += shift;
+    if (g.idleFrom !== undefined) g.idleFrom += shift;
+    if (g.moveAt !== undefined) g.moveAt += shift;
     if (g.auction) {
       g.auction.endsAt += shift;
       g.auction.botAt += shift;
@@ -817,6 +859,8 @@ export class Room {
       this.push({ t: "game", e });
       // Side events don't make anyone's pending decision stale.
       if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus" && e.t !== "fine") g.progress += 1;
+      // (every screen plays a throw's ride and landing from now: the turn clock waits for them)
+      if (e.t === "roll" || e.t === "move") g.moveAt = now;
       this.watch(e);
     }
     if (s.events) s.events = [];
@@ -827,6 +871,7 @@ export class Room {
       g.sig = sig;
       g.decision += 1;
       g.pendingSince = now;
+      g.idleFrom = now;
       g.deadline = null;
       g.silenceUntil = null;
       g.danceAt = null;
@@ -863,10 +908,12 @@ export class Room {
       this.settleBets();
       g.bets = { turns: s.turns, seat: s.turn, open: true, bets: {}, paidRent: false };
     }
-    // …and deal the waiting teams a quiz question, unless the last one is still up.
+    // …and deal the waiting teams a quiz question, unless the last one is still up (then the team
+    // that was on turn when it came up is one of the waiting teams now: it joins in).
     if (!s.over && g.triviaTurn !== s.turns) {
       g.triviaTurn = s.turns;
       if (!g.trivia) this.openTrivia();
+      else if (!g.trivia.closed) this.joinTrivia(g.trivia);
     }
     if (s.over) {
       this.settleBets();
@@ -998,17 +1045,17 @@ export class Room {
     this.afterMove();
   }
 
-  /** Ask the teams whose turn it isn't a question, dealt from a shuffled deck. */
+  /**
+   * Ask the teams whose turn it isn't a question (trivia.ts picks it): never one asked already this
+   * game, and where it can, not about a city the team on turn could land on with this throw, and one
+   * the phones it's for haven't been asked before. Once every question has been asked, none.
+   */
   private openTrivia() {
     const g = this.st.game!;
     const s = g.s;
+    if (this.st.settings.trivia === false) return;
     const eligible = E.activePlayers(s).filter((seat) => seat !== s.turn);
-    if (!eligible.length || !TRIVIA.length) return;
-    // No question comes round again until every one has been asked; then the deck starts over,
-    // without the question just asked.
-    const all = TRIVIA.map((_, i) => i);
-    if (all.every((i) => g.triviaUsed.includes(i))) g.triviaUsed = g.triviaUsed.slice(-1);
-    const unused = all.filter((i) => !g.triviaUsed.includes(i));
+    if (!eligible.length) return;
     // Not about a city the team on turn could land on with this roll: its arrival card (the rule,
     // the fact behind it) would give the answer away.
     const near = new Set<string>();
@@ -1016,10 +1063,13 @@ export class Room {
       const sp = E.BOARD[(((s.ps[s.turn].pos + k * s.dir) % E.BOARD_SIZE) + E.BOARD_SIZE) % E.BOARD_SIZE];
       if (sp.k === "city") near.add(sp.id);
     }
-    const far = unused.filter((i) => !near.has(TRIVIA[i].city));
-    const pool = far.length ? far : unused.length ? unused : all;
-    const q = pool[Math.floor(this.env.random() * pool.length)];
-    g.triviaUsed.push(q);
+    const players = Object.values(this.st.members).filter((m) => m.role === "player");
+    const askedOf = players.filter((m) => this.seatsFor(m).some((x) => eligible.includes(x)));
+    const qid = pickTrivia({ asked: g.triviaAsked, near, seen: askedOf.map((m) => m.seen ?? []), random: () => this.env.random() });
+    if (!qid) return;
+    g.triviaAsked.push(qid);
+    // Everyone here has been asked it now: the next game in this room starts with others.
+    for (const m of players) m.seen = [...(m.seen ?? []).filter((x) => x !== qid), qid].slice(-SEEN_KEEP);
     const order = [0, 1, 2];
     for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(this.env.random() * (i + 1));
@@ -1029,8 +1079,31 @@ export class Room {
     const botAt: Record<number, number> = {};
     // Only real computer teams answer; the computer covering for absent people doesn't win them money.
     for (const seat of eligible) if (this.teamAt(seat)?.bot) botAt[seat] = now + (2500 + this.env.random() * 5000) * this.speed();
-    g.trivia = { id: this.st.nextId++, q, order, eligible, answers: {}, botAt, endsAt: now + this.ms("trivia"), winner: null, closed: false, revealUntil: 0 };
+    g.trivia = {
+      id: this.st.nextId++,
+      qid,
+      order,
+      eligible,
+      answers: {},
+      botAt,
+      endsAt: now + this.ms("trivia"),
+      winner: null,
+      closed: false,
+      revealUntil: 0,
+      skipped: [],
+    };
     this.dirty = true;
+  }
+
+  /**
+   * A new turn while a question is up: the team that was on turn when it came up is waiting now, so it
+   * can answer too, if there's still time to read and answer. (Its phone used to keep showing the
+   * question with three answers that did nothing.)
+   */
+  private joinTrivia(tv: Trivia) {
+    const g = this.st.game!;
+    if (tv.endsAt - this.now < this.ms("triviaJoin")) return;
+    for (const seat of E.activePlayers(g.s)) if (seat !== g.s.turn && !tv.eligible.includes(seat)) tv.eligible.push(seat);
   }
 
   /** A team answers the quiz; the first right answer wins the prize and closes it. */
@@ -1047,15 +1120,74 @@ export class Room {
     }
     // A wrong answer costs a little (never more than the team has).
     const fined = tv.order[choice] !== 0 && E.fine(g.s, seat, TRIVIA_WRONG, "trivia") > 0;
-    if (tv.eligible.every((x) => x in tv.answers)) this.closeTrivia();
+    if (this.triviaDone(tv)) this.closeTrivia();
     if (fined) this.afterMove();
     this.dirty = true;
+  }
+
+  /** 这题不答: this phone passes on the question. No charge; a team is done with it once all its phones here have passed. */
+  private skipTrivia(m: Member, id: unknown) {
+    const g = this.st.game;
+    const tv = g?.trivia;
+    if (!g || g.s.over || !tv || tv.id !== id || tv.closed || tv.skipped.includes(m.id)) return;
+    if (!this.seatsFor(m).some((x) => tv.eligible.includes(x))) return;
+    tv.skipped.push(m.id);
+    if (this.triviaDone(tv)) this.closeTrivia();
+    this.dirty = true;
+  }
+
+  /** Every team the question is for has answered, is out of the game, or has passed on it on every phone it has here. */
+  private triviaDone(tv: Trivia) {
+    const g = this.st.game!;
+    return tv.eligible.every((seat) => seat in tv.answers || g.s.ps[seat].out || this.teamSkipped(tv, seat));
+  }
+
+  private teamSkipped(tv: Trivia, seat: number) {
+    if (this.teamAt(seat)?.bot) return false;
+    const phones = Object.values(this.st.members).filter((m) => m.online > 0 && this.seatsFor(m).includes(seat));
+    return phones.length > 0 && phones.every((m) => tv.skipped.includes(m.id));
   }
 
   private closeTrivia() {
     const tv = this.st.game!.trivia!;
     tv.closed = true;
     tv.revealUntil = this.now + this.ms("triviaReveal");
+    this.dirty = true;
+  }
+
+  // ---------- the turn clock ----------
+
+  /**
+   * The turn clock for the decision up now. When the team the game is waiting for does nothing on it
+   * for TIMING.idle, everyone sees a countdown of TIMING.idleWarn, and then the computer makes that one
+   * move for the team, as it does for a phone that dropped; the team plays its next move itself. It
+   * counts from the decision (once a throw's ride and landing, Seoul's silence or Rio's dance are over)
+   * or the team's last move, whichever is later, and stands still with every other clock in a pause
+   * or a party forfeit. None for computer teams (or a team the computer already covers), for
+   * decisions with a clock of their own (auctions, votes, Shanghai's quiz), or in the one-phone demo.
+   */
+  private turnClock(g: Game): { seat: number; warnAt: number; at: number } | null {
+    const s = g.s;
+    const pd = s.pending;
+    if (!pd || s.over || this.st.settings.hotseat || E.SIMULTANEOUS.has(pd.k) || pd.k === "quiz" || g.deadline !== null) return null;
+    const seat = E.whoMustAct(s)[0];
+    if (seat === undefined || this.botControlled(seat)) return null;
+    const from = Math.max(
+      g.idleFrom ?? g.pendingSince,
+      g.moveAt === undefined ? 0 : g.moveAt + this.ms("landing"),
+      g.silenceUntil ?? 0,
+      g.danceAt ? g.danceAt + this.ms("dance") : 0,
+    );
+    const warnAt = from + this.ms("idle");
+    return { seat, warnAt, at: warnAt + this.ms("idleWarn") };
+  }
+
+  /** Someone on the team the game is waiting for did something (or a phone of theirs came back): the turn clock starts again. */
+  private stir(seats: number[]) {
+    const g = this.st.game;
+    if (!g || g.s.over || !seats.some((x) => E.whoMustAct(g.s).includes(x))) return;
+    if ((g.idleFrom ?? 0) >= this.now) return;
+    g.idleFrom = this.now;
     this.dirty = true;
   }
 
@@ -1165,6 +1297,8 @@ export class Room {
         }
       }
       for (const t of g.trades) times.push(t.createdAt + this.ms("offer"));
+      const clock = this.turnClock(g);
+      if (clock) times.push(clock.at);
       // Announce when the computer starts covering for a team that dropped off.
       for (const [seat, since] of Object.entries(g.awaySince))
         if (!g.covered[Number(seat)] && !s.ps[Number(seat)].out) times.push(since + this.ms("takeover"));
@@ -1290,6 +1424,15 @@ export class Room {
         return true;
       }
     }
+    // The turn clock ran out: the computer makes this one move for the team.
+    const clock = this.turnClock(g);
+    if (clock && now >= clock.at) {
+      this.push({ t: "idle", seat: clock.seat });
+      this.botMove(clock.seat);
+      // (a whole new clock for whatever comes next, even the same decision)
+      g.idleFrom = Math.max(g.idleFrom ?? 0, this.now);
+      return true;
+    }
     return false;
   }
 
@@ -1343,7 +1486,7 @@ export class Room {
       },
       hostId: st.hostId,
       table: st.table ?? null,
-      settings: { mode: st.settings.mode, party: st.settings.party, news: !!st.settings.news, hotseat: st.settings.hotseat },
+      settings: { mode: st.settings.mode, party: st.settings.party, news: !!st.settings.news, trivia: st.settings.trivia !== false, hotseat: st.settings.hotseat },
       members: members.map((x) => ({ id: x.id, name: x.name, team: x.team, role: x.role, online: x.online > 0, score: x.score })),
       teams,
       game: g ? this.gameView(g, m) : null,
@@ -1384,12 +1527,13 @@ export class Room {
     const tv = g.trivia;
     let trivia: TriviaView | null = null;
     if (tv) {
-      const Q = TRIVIA[tv.q];
-      const city = E.CITIES.find((c) => c.id === Q.city)!;
+      const Q = TRIVIA_BY_ID.get(tv.qid)!;
+      const skipped = !!m && tv.skipped.includes(m.id);
       const mineAnswered = mine.find((x) => x in tv.answers);
-      const answerFor = tv.closed ? undefined : mine.find((x) => tv.eligible.includes(x) && !(x in tv.answers) && !s.ps[x].out);
+      const answerFor = tv.closed || skipped ? undefined : mine.find((x) => tv.eligible.includes(x) && !(x in tv.answers) && !s.ps[x].out);
       trivia = {
         id: tv.id,
+        key: tv.qid,
         city: Q.city,
         q: Q.q,
         options: tv.order.map((i) => Q.options[i]),
@@ -1397,11 +1541,13 @@ export class Room {
         open: !tv.closed,
         answerFor: answerFor ?? null,
         mine: mineAnswered === undefined ? null : tv.answers[mineAnswered],
+        skipped,
+        forYou: mine.some((x) => tv.eligible.includes(x)),
         answered: Object.keys(tv.answers).map(Number),
         winner: tv.winner,
         correct: tv.closed ? tv.order.indexOf(0) : null,
-        fact: tv.closed ? city.basis : null,
-        source: tv.closed ? city.source : null,
+        fact: tv.closed ? Q.fact : null,
+        source: tv.closed ? Q.source : null,
       };
     }
     return {
@@ -1416,6 +1562,7 @@ export class Room {
       frozenAt: this.stopped(g) ? g.pausedAt : null,
       forfeit: g.forfeit ? { ...g.forfeit, waiting: g.forfeits?.length ?? 0 } : null,
       deadline: g.deadline,
+      turnClock: this.turnClock(g),
       silenceUntil: g.silenceUntil,
       auction: g.auction && { id: g.auction.id, at: g.auction.at, price: g.auction.price, leader: g.auction.leader, endsAt: g.auction.endsAt, bids: g.auction.bids },
       quiz: q && { id: q.id, visitor: q.visitor, owner: q.owner, item: q.item, endsAt: q.endsAt },

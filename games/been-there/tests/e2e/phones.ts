@@ -103,6 +103,17 @@ export async function joinWithTeam(p: Phone, code: string) {
   await expect(p.page.locator(".teams li.mine")).toBeVisible();
 }
 
+/**
+ * Turn the waiting teams' quiz off in the lobby (on the host's phone), for a test about something else:
+ * a question pops up over the top of the screen, and could cover what the test taps for real (the
+ * quiz's own tests, quiz.spec.ts, cover that).
+ */
+export async function quizOff(host: Phone) {
+  const box = host.page.getByRole("checkbox", { name: /城市抢答|City trivia/ });
+  await box.uncheck();
+  await expect(box).not.toBeChecked();
+}
+
 export interface TapOptions {
   declineBuys?: boolean;
   /** Chance of bidding when an auction is open (0 = never). */

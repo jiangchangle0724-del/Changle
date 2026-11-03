@@ -1,9 +1,9 @@
 import qrcode from "qrcode-generator";
 import { useState } from "preact/hooks";
-import { MAX_TEAMS, MAX_TEAM_SIZE, type RoomView } from "../../room/protocol";
+import { MAX_TEAMS, MAX_TEAM_SIZE, TRIVIA_PRIZE, TRIVIA_WRONG, type RoomView } from "../../room/protocol";
 import type { Mode, StyleId } from "../../engine";
 import { backToTable, joinUrl, onChangle, tableFrom } from "../base";
-import { colon, t, type Key } from "../i18n";
+import { colon, money, t, type Key } from "../i18n";
 import { prefs } from "../prefs";
 import { send } from "../store";
 import { WatchTv } from "./Settings";
@@ -99,7 +99,7 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
                 <p class="muted">
                   {team.members
                     .map((id) => v.members.find((m) => m.id === id))
-                    .map((m) => (m ? `${m.name}${m.id === v.you.id ? `（${t("you")}）` : ""}${m.online ? "" : ` · ${t("away")}`}` : ""))
+                    .map((m) => (m ? `${m.name}${m.id === v.you.id ? t("youTag") : ""}${m.online ? "" : ` · ${t("away")}`}` : ""))
                     .join("、")}
                 </p>
               </div>
@@ -168,6 +168,13 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
             <span>
               <b>{t("news")}</b>
               <small>{t("newsHint")}</small>
+            </span>
+          </label>
+          <label class="radio">
+            <input type="checkbox" checked={v.settings.trivia !== false} onChange={(e) => send({ t: "settings", trivia: (e.target as HTMLInputElement).checked })} />
+            <span>
+              <b>{t("triviaSwitch")}</b>
+              <small>{t("triviaSwitchHint", { amount: money(TRIVIA_PRIZE), fine: money(TRIVIA_WRONG) })}</small>
             </span>
           </label>
           <Btn kind="primary" wide disabled={!ready} onClick={() => send({ t: "start" })}>
