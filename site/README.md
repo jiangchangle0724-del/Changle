@@ -87,6 +87,7 @@ npx tsx tests/performer.test.ts     # 猜歌名台上两个小人：每个舞步
 npx tsx tests/tokens.test.ts        # 设计 token：和 global.css 同名的值一致，src/ui 里只用 token
 npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的旧链接
 npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读出几秒，中英文说的时间一样
+npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字
