@@ -16,6 +16,7 @@ import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
 import { ONLINE_GAMES, ONLINE_MIN, timesOf, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
 import { t } from "../i18n";
 import { TablePenalty, useStore } from "../store";
+import { TvHide } from "../party/hide/TvHide";
 import "../styles/tv.css";
 import { useCodeField } from "../online/codeField";
 import { joinLink, siteHost, useQr, Wordmark } from "./parts";
@@ -89,6 +90,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   else if (!room) body = <TvNotice title={status === "reconnecting" ? (zh ? "正在重新连接…" : "Reconnecting…") : zh ? "正在开桌…" : "Opening the table…"} spinning />;
   else if (room.game?.id === "punchline") body = <TvPunch v={room.game} audio={gate.armed} />;
   else if (room.game?.id === "trip") body = <TvTrip v={room.game} table={code} />;
+  else if (room.game?.id === "hide") body = <TvHide v={room.game} table={code} Notice={TvNotice} />;
   else if (room.game?.id === "dj")
     body = (
       <Suspense fallback={<TvNotice title={zh ? "正在打开 DJ 台…" : "Opening the DJ booth…"} spinning />}>

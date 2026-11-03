@@ -29,12 +29,13 @@ export type GameId =
   | "punchline"
   | "draw"
   | "trip"
-  | "dj";
+  | "dj"
+  | "hide";
 /**
  * Every game, in the same spectrum order as the front door's board. New games that aren't on the
  * board yet go on the end (a table's `front` is an index into this list).
  */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj"];
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
   drama: 3,
@@ -54,6 +55,7 @@ export const ONLINE_MIN: Record<GameId, number> = {
   draw: 2,
   trip: 1,
   dj: 1,
+  hide: 2,
 };
 
 export type PenaltyKind = "sip" | "two" | "full" | "everyone" | "safe";
@@ -478,6 +480,17 @@ export type TripView = {
 };
 
 /**
+ * 藏在人群里 · Hide in the Crowd runs on its own server at changle.ca/hide, like 到此一游: the table
+ * only knows the room there. The host's phone opens it, and every phone and the big screen follow.
+ */
+export type HideView = {
+  id: "hide";
+  /** the room's 4-digit number at changle.ca/hide, once the host's phone has opened one */
+  code: string | null;
+  at: number;
+};
+
+/**
  * 戏精大赏: a few players act a scene, one of them secretly the culprit; the rest guess who and
  * rate the acting. An actor's own card (`me`) reaches only that actor until the reveal.
  */
@@ -609,6 +622,7 @@ export type GameView =
   | DjView
   | DramaView
   | TripView
+  | HideView
   | RogueView
   | TruthView
   | UndercoverView
