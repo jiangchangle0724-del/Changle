@@ -42,11 +42,28 @@ async function startWithComputer(p: Phone, code: string) {
   await expect(p.page.locator(".game")).toBeVisible();
 }
 
+/**
+ * Play along (never bidding, never throwing) until this phone's own throw is up. The seats are drawn at
+ * random, so the computer's team may go first: its move would carry the map along (the map follows the
+ * team on turn) and our play window would open in the middle of the test. On our throw, nothing on the
+ * board moves until the turn clock runs out, a minute later.
+ */
+async function untilOurThrow(p: Phone) {
+  const roll = p.page.locator('.decide[data-kind="roll"]:not(.waiting)');
+  for (const end = Date.now() + 60_000; Date.now() < end; ) {
+    if (await roll.count()) return;
+    if (!(await tap(p, { skip: ["roll"], bid: 0, declineBuys: true }))) await p.page.waitForTimeout(150);
+  }
+  await explain(p, "no throw of ours");
+  throw new Error("our throw never came up");
+}
+
 test("地图大小：小、中、大，记在这台手机上；大地图用手指拖着看，拖动不会点开城市，点一下才会", async ({ browser, request }) => {
   test.setTimeout(150_000);
   const code = await createRoom(request, {});
   const p = await newPhone(browser, "看", { ...iphone, locale: "zh-CN" });
   await startWithComputer(p, code);
+  await untilOurThrow(p);
   // A phone starts at medium: the board half as big again as its box, which holds it (the page never
   // gets wider).
   await expect(p.page.locator(".stage .boardwrap")).toHaveAttribute("data-map", "m");
@@ -100,7 +117,9 @@ test("地图大小：小、中、大，记在这台手机上；大地图用手�
   await p.page.keyboard.press("Escape");
   await expect(p.page.locator(".sheet-bg:not([hidden])")).toHaveCount(0);
 
-  // A drag moves the map under the finger, toward wherever there's more of it to see.
+  // A drag moves the map under the finger, toward wherever there's more of it to see. (From a map at
+  // rest: it eases over to the team on turn, and keeps watching its token for a few seconds.)
+  await expect(p.page.locator(".stage .board-pan.moving")).toHaveCount(0, { timeout: 10_000 });
   const before = await board(p.page);
   const dx = before.board.right - before.win.right > before.win.left - before.board.left ? -90 : 90;
   const dy = before.board.bottom - before.win.bottom > before.win.top - before.board.top ? -60 : 60;
@@ -220,6 +239,19 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
  * `main` must also be whole on the screen: the one thing this screen asks for.
  */
 async function fits(p: Phone, label: string, main?: string) {
+  // (a window or sheet still sliding in is measured once it's there: on its way it's scaled down a little)
+  await p.page
+    .waitForFunction(
+      () =>
+        document.getAnimations().every((a) => {
+          const timing = a.effect?.getComputedTiming();
+          const target = (a.effect as KeyframeEffect | null)?.target as Element | null;
+          return a.playState !== "running" || !Number.isFinite(Number(timing?.endTime)) || !target?.closest?.(".playwin, .sheet-bg, .quizpop");
+        }),
+      null,
+      { timeout: 3000 },
+    )
+    .catch(() => {});
   const r = await p.page.evaluate((main) => {
     const shown = (el: Element) => {
       const s = getComputedStyle(el);
@@ -234,7 +266,9 @@ async function fits(p: Phone, label: string, main?: string) {
       if (!shown(el) || el.matches("input")) continue;
       const b = el.getBoundingClientRect();
       const name = `${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 24)} (${el.className})`;
-      if (b.height < 43.5) small.push(`${name} ${Math.round(b.width)}x${Math.round(b.height)}`);
+      // (its own size, as laid out: not as a moment of an animation draws it)
+      const tall = el.offsetHeight || b.height;
+      if (tall < 43.5) small.push(`${name} ${el.offsetWidth || Math.round(b.width)}x${tall}`);
       if (b.left < -1 || b.right > innerWidth + 1) out.push(`${name} at ${Math.round(b.left)}..${Math.round(b.right)} of ${innerWidth}`);
     }
     let whole: string | null = null;
