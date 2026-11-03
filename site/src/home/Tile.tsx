@@ -1,5 +1,8 @@
 import type { GameMeta } from "../games/registry";
 
+/** What a tile shows: a game, or one still coming (no `ready`, so it lights as coming soon). */
+type TileGame = Pick<GameMeta, "name" | "icon" | "gel" | "minPlayers" | "maxPlayers"> & Partial<Pick<GameMeta, "ready" | "isNew">>;
+
 /** One game on the lighting board: a gel-colored tile with both names. */
 export function Tile({
   g,
@@ -11,7 +14,7 @@ export function Tile({
   disabled,
   compact,
 }: {
-  g: GameMeta;
+  g: TileGame;
   i: number;
   lit: boolean;
   lang: "zh" | "en";

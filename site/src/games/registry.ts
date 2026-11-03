@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import type { T } from "../i18n";
 
 export type GameId =
@@ -320,5 +320,27 @@ export const GAMES: GameMeta[] = [
 ];
 
 export const GAME_BY_ID = Object.fromEntries(GAMES.map((g) => [g.id, g])) as Record<GameId, GameMeta>;
+
+/**
+ * On the board as coming soon, with no table game behind them yet: each is built in its own
+ * folder and becomes a real entry in GAMES when it can be played. Tapping one shows what it is.
+ */
+export type SoonMeta = Pick<GameMeta, "name" | "blurb" | "how" | "gel" | "icon" | "minPlayers" | "maxPlayers"> & { key: string };
+
+export const SOON: SoonMeta[] = [
+  {
+    key: "dance",
+    name: t("一起跳", "Dance Along"),
+    blurb: t("跟着电视一起跳，手机听拍子", "Dance with the TV. Your phone keeps the beat."),
+    how: t(
+      "电视上的舞者先一段一段教，然后大家手里握着手机跟着音乐跳，手机的传感器知道你有没有踩在拍子上。零基础也能跳完一首。",
+      "A dancer on the TV teaches a few easy moves, then everyone dances to the song holding their phone. The phone's sensors know if you're on the beat. Anyone can finish a song.",
+    ),
+    minPlayers: 1,
+    maxPlayers: 15,
+    gel: "#8f7bff",
+    icon: Footprints,
+  },
+];
 
 export const isGameId = (s: string): s is GameId => s in GAME_BY_ID;
