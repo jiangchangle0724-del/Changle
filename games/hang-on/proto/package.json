@@ -1,0 +1,10 @@
+{
+  "name": "hang-on-proto",
+  "private": true,
+  "type": "module",
+  "description": "抓紧了 · Hang On 手感原型：Verlet 软体物理 + canvas 渲染，零依赖",
+  "scripts": {
+    "test": "node sim.test.mjs",
+    "play": "npx --yes serve -l 5173 ."
+  }
+}
