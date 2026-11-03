@@ -318,6 +318,11 @@ test("手机逐屏：大厅、自己的回合、别人的回合、抢答、拍�
         touchdown: !!q(".touchdown"),
       };
     });
+  // The screens of another team's turn (the board, the menu, a trade) are checked together, in one quiet
+  // moment, and the team on turn holds its throw until every other phone has had one, as friends wait
+  // for each other (the turn clock still runs: in the end the computer throws for it). A two-round game
+  // at this speed is otherwise over before a phone always gets a quiet moment.
+  const quietLeft = (p: Phone) => ["others", "menu", "trade"].some((w) => !seen.get(p)!.has(w));
   for (const end = Date.now() + 240_000; Date.now() < end; ) {
     if (phones.every((p) => seen.get(p)!.has("finale"))) break;
     for (const p of phones) {
@@ -351,27 +356,30 @@ test("手机逐屏：大厅、自己的回合、别人的回合、抢答、拍�
         await fits(p, "your turn", '.decide[data-kind="roll"] .btn.primary');
         done.add("turn");
       }
+      const open = p.page.locator(".sheet-bg:not([hidden])");
       if (s.quiet && !done.has("others")) {
         await fits(p, "another team's turn", "nav.tabs");
         done.add("others");
-      } else if (s.quiet && !done.has("menu")) {
-        await p.page.locator(".menu-btn").click();
-        await expect(p.page.locator(".sheet-bg:not([hidden]) .settings")).toBeVisible();
+      }
+      if (s.quiet && !done.has("menu") && (await p.page.locator(".menu-btn").click({ timeout: 5_000 }).then(() => true, () => false))) {
+        await expect(open.locator(".settings")).toBeVisible();
         await p.page.waitForTimeout(300);
         await fits(p, "menu", ".sheet-bg:not([hidden]) .sheet .x");
         await p.page.keyboard.press("Escape");
+        await expect(open).toHaveCount(0);
         done.add("menu");
-      } else if (s.quiet && !done.has("trade")) {
-        await p.page.locator("nav.tabs button").nth(2).click();
-        const sheet = p.page.locator(".sheet-bg:not([hidden]) .sheet");
+      }
+      if (s.quiet && !done.has("trade") && (await p.page.locator("nav.tabs button").nth(2).click({ timeout: 5_000 }).then(() => true, () => false))) {
+        const sheet = open.locator(".sheet");
         await expect(sheet.locator(".composer")).toBeVisible();
         await sheet.locator(".composer .choices .btn").first().click();
         await p.page.waitForTimeout(300);
         await fits(p, "trade", ".sheet-bg:not([hidden]) .sheet .x");
         await p.page.keyboard.press("Escape");
+        await expect(open).toHaveCount(0);
         done.add("trade");
       }
-      await tap(p, { bid: 0.3 });
+      await tap(p, { bid: 0.3, skip: phones.some((o) => o !== p && quietLeft(o)) ? ["roll"] : [] });
     }
     await a.page.waitForTimeout(100);
   }
