@@ -24,10 +24,15 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   touchdown and the finale's stamps.
 
 * **The board** is a round turntable around an air-age route map (a polar projection). On the big
-  screen a 3D globe sits in the middle; flights arc between cities, and the side where it is night
-  right now is dark, with the cities lit.
+  screen a 3D globe sits in the middle, under the board where the flat map is, so the tokens stand on
+  it; flights arc between cities, and the side where it is night right now is dark, with the cities
+  lit. On a phone the player picks how big the board is drawn (below, "The map's size").
 * **Six characters**, one per team colour, each with six moods (idle, happy, shock, sad, curious,
-  smug): 咔嚓 Click, 呼呼 Snooze, 小旗 Flaggy, 背背 Packy, 箱箱 Trunky, 球球 Globey.
+  smug): 咔嚓 Click, 呼呼 Snooze, 小旗 Flaggy, 背背 Packy, 箱箱 Trunky, 球球 Globey. On the board they
+  stand at 0.8 of their drawing on a phone or a laptop and 0.62 on the big screen (`TOKEN_SCALE` in
+  `art/RoundBoard.tsx`; it was 0.57 everywhere). Several on one space stand in pairs, each pair further
+  in toward the middle, a little smaller the more there are (`slots`), each whole and wearing its
+  team's letter like the owner's mark on a city; the one whose turn it is hops.
 * **Each city** has a poster built around its rule (Venice floods, Tokyo's trains are packed) and a
   passport stamp whose outline is its region's shape.
 * **Moments are animated**: dice landing, coins changing hands, cards turning, the first-person
@@ -58,8 +63,8 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/art/RoundBoard.tsx`, `RouteMap.tsx` | The round board and the route map (with the night side). |
 | `src/client/art/dice.tsx`, `Passport.tsx`, `LandingCard.tsx`, `icons.tsx`, `texture.ts` | Dice, the passport, the arrival card, small icons, paper grain and stamp speckle. |
 | `src/client/globe/` | The big screen's 3D globe (three.js): the night side, city lights, flights. |
-| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
-| `src/client/sound.ts`, `controls.ts`, `fullscreen.ts` | Sounds; vibration and shake to roll; full screen. |
+| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
+| `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
 | `src/client/i18n.ts` | Every word on screen, in Chinese and English. |
 
 ## Tokens
@@ -85,9 +90,13 @@ Each of these was measured or is tested. Check them again after a change.
 1. **A phone never scrolls sideways.** The page is never wider than the phone, down to a 320 px
    iPhone SE in English with long team names. The browser tests check this on every tap. City names
    are never cut short: on the ride's departures board one that doesn't fit wraps onto a second line.
+   A bigger map stays inside its box (`.boardwrap.zoomable` clips it); a trade's two sides stack on a
+   phone under 360 px.
 2. **Nothing runs off the big screen.** It fits at 1600×900, 1366×768 and 1280×720. The "now"
    column shrinks its cards when they're taller than the room (`FitColumn` in `Screen.tsx`); the
-   finale is sized in `vh`.
+   finale is sized in `vh`. Where the side has room for two columns (16:9 and 16:10), the log runs
+   under the standings and fades out at the bottom (the side is the named container `side`: a query
+   without a name would measure the table, the log's nearest container, and never show it).
 3. **The night.** The characters are drawn in navy ink: on the night they need the thin paper
    edge (`--face-edge`), or poles and legs disappear.
 4. **Reduced motion.** The game's own switch stops every animation. The system's "reduce motion"
@@ -98,9 +107,12 @@ Each of these was measured or is tested. Check them again after a change.
    and filters, and anything that redraws every frame for long. The falling paper cost the most,
    so phones get 24 flat pieces and the big screen 44 tumbling ones.
 6. **Taps land where they're meant.** A new question ignores taps for 350 ms (`.settling`), so a
-   tap meant for the last one can't answer it; the quiz's pop-up too. Buttons are 50 px tall, small
-   text ones 44 px. Nothing looks tappable that isn't: answers are buttons only where they can be
-   given.
+   tap meant for the last one can't answer it; the quiz's pop-up too. Buttons are 50 px tall, and
+   nothing you tap is under 44 px: small text buttons, the top bar's menu and full-screen buttons,
+   the pills (language, map size, poster or photo), a setting's whole row, the lobby's QR toggle, a
+   trade's cities (`tests/e2e/phone.spec.ts` checks every key screen at 390x844, 375x667 and 320x568).
+   Nothing looks tappable that isn't: answers are buttons only where they can be given. Text a player
+   needs (labels, tags, the tab's count) is 12 px or more; only printed things go smaller.
 7. **The waiting teams' quiz pops up at the top**, in the same place every time, over everything on
    a phone but a party forfeit: across the top when the phone is held sideways (the answers side by
    side), top centre on a laptop, at the head of the "now" column on the big screen. All of it shows
@@ -109,10 +121,16 @@ Each of these was measured or is tested. Check them again after a change.
    allows, and the big screen at 1366x768. Only a phone that can answer gets the pop-up (with
    这题不答 to pass); others read it in their play window.
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
-   lists) and each team a letter and a character, for colour-blind players.
+   lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
+   wear their letter too).
 9. **Our own work.** No photos, fonts or sounds we can't license. Posters leave out modern
    buildings whose designs are still protected, and trademarks. The credits page lists every source
    and licence.
+10. **The keyboard never covers what you type.** A phone's keyboard covers the bottom of the screen
+   without making the page shorter (iPhones, Chrome on Android): while it's up over a field in a sheet
+   or the play window, they sit on top of it and the field scrolls into sight (`keyboard.ts`, from the
+   visible part of the screen, `visualViewport`). Fields in the page itself the browser brings up.
+   Sheets keep their title and close button at the top while what's in them scrolls.
 
 Then run `npm run typecheck`, `npm test` and `npm run test:e2e`. GitHub runs them on every push,
 in Chromium and in WebKit (the engine in iPhone Safari and WeChat on iOS). Speed is held in
@@ -144,6 +162,32 @@ comes from and who made it, and the credits page lists them all.
   countries without freedom of panorama (France, Italy and the UAE are among them; the Eiffel Tower
   lit at night is a known case). Leave out recordings with clear speech or music someone else
   wrote. Say what was changed (cropped, cut, levelled) on the credits page.
+
+## The map's size
+
+A phone or a laptop draws the board at the size the player picks (`prefs.mapSize`, kept on the
+device): in the menu (地图大小: 小, 中, 大), or with the round button in the board's top right corner,
+which goes round the three, its marks saying which it is. The big screen always fits the whole board.
+
+* **Small** fits the whole board in its box, as before. **Medium** draws it 1.5 times as big and
+  **large** 2.2 times (`ZOOM` in `ui/mapView.ts`); the box shows part of it, which a finger (or the
+  mouse) drags round, a flick gliding on. A drag never opens a city; a tap still does.
+* **Who starts where.** A phone (under 600 px the short way) starts at medium: the whole board is only
+  about 290 to 370 px across there, which puts the airport codes at 7 to 9 px and the tokens at 20 px.
+  A tablet or a computer starts at small: its board is 560 to 640 px already.
+* **Where it looks.** The view follows the token of the team on turn, in step as it walks (it never
+  shows where a token will land before it gets there), and stays on the board's edge rather than show
+  the night past it. A drag leaves it where the player put it until the turn passes or a size is picked.
+  Moving it is one CSS transform on `.board-pan`, a frame round `.board-view`, written on the animation
+  clock and a layer of its own only while it moves (standing still, it's drawn sharp).
+* **Your own move.** The ride's camera takes the view over where the map is (`release`): the dice
+  tumble over the map as it was, the camera pushes in from there, and pulls back out to the map's size
+  over where the token landed (`adopt`). One camera, no jump at either end, and nothing is drawn again
+  at the throw. Flat (reduced motion, first-person off) the view goes along with the token as it walks;
+  with reduced motion it holds still and is over the landing once the token is there.
+* **Where else it shows.** Held sideways, the box is the board's square on the left. Other teams' tokens
+  walk and stamp on the bigger map (their stamp is inside the frame that moves). The one-phone demo
+  plays the same.
 
 ## Your move, first-person
 
