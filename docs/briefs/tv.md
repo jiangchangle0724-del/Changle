@@ -44,7 +44,7 @@
 - 真心话大冒险：大屏上卡片一直盖着（`publicView` 连题目都不交给画面），被指到的人在自己手机上掀开、念出来，大家先从他嘴里听到。命运转盘转到的真心话、大冒险每部手机上一起亮出来，所以大屏上也亮。
 - 瓶子和转盘在大屏上跟着桌上的那一转（`spin.ts`，和手机的 `useNetSpin` 一样接桌上的转法），转的声音只在放演出声音的那块屏上响。大屏也放这几个游戏的牌、骰子、照相机、摸鼻子这些音效（和每部手机一样，`useScreenFx`）。
 - 七八九：骰子落定以后公杯才动，规矩一直摆在下面；流氓十三张：照相机和摸鼻子盖住整个画面，手上的权力排在下面。
-- 大屏大厅里选了有大屏画面的游戏，那句话说「这个游戏在大屏幕上有自己的画面」；真心话大冒险在视觉对照图 `tv.png` 里，这次跟着更新（PR 上的 update-screenshots 标签）。
+- 大屏大厅里选了有大屏画面的游戏，那句话说「这个游戏在大屏幕上有自己的画面」（视觉对照图 `tv.png` 里选的正是真心话大冒险，这句小字的变化在比对的容差之内，CI 照样通过）。
 - 大屏画面的样式：舞台上的尺寸是舞台像素，和 `tv.css`、`show.css` 一样（整个舞台按屏幕缩放，网站按 rem 和屏宽变的字号在里面不适用）；颜色用网站的 token、游戏的色灯，或者在文件开头起了名字的道具色（`docs/DESIGN.md` 第 3 条）。只看的手机上的按钮在舞台外面，用网站的 token，三个挨着，所以 48 高。
 
 ## 还剩什么
@@ -66,7 +66,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-02 Watching: every game's own big-screen view, starting with four games
+- 2026-11-03 Watching, batch 2: Truth or Dare, Wheel of Fate, Seven Eight Nine and Rogue Thirteen on the big screen (#153)
+- 2026-11-02 Watching: every game's own big-screen view, starting with four games (#149)
 - 2026-11-01 Every page has its own address; the back button closes sheets (UI plan A3) (#87)
 - 2026-11-01 Three small things from the player tests
 - 2026-11-01 Count the table's own penalty: ×N on the stamp, and 7-8-9's pot
