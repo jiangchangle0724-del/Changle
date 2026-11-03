@@ -1,4 +1,5 @@
-// The local hit a second visit plays (ui/LocalSong.tsx decides which song, when, and on which device):
+// The local hit a second visit plays (ui/localSong.ts decides which song, when and on which device;
+// ui/Local.tsx asks for it):
 // Apple's 30-second preview, looked up at play time with the iTunes Lookup API (the URL found when the
 // list was made, songs.json, if the lookup doesn't answer), streamed from Apple, decoded into the
 // game's own audio (sound.ts: the context the first tap unlocked, so it plays on iPhones too) and

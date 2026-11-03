@@ -62,6 +62,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 到此一游 e2e: the local hit's browser test in one game (big screen muted, then on, then gone)
 - 2026-11-03 到此一游: a second visit plays a local hit; the arrival card's local time, weather and hello; prices in local money
 - 2026-11-03 到此一游 e2e: the quiz test never waits on a closed question; a busy page may sleep through a landing
 - 2026-11-02 到此一游: the quiz pops up at the top, answerable or skipped, never twice; 176 questions; a turn clock
