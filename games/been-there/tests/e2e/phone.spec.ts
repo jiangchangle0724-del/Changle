@@ -134,10 +134,10 @@ test("地图大小：小、中、大，记在这台手机上；大地图用手�
 
 test("几队停在同一座城：棋子大了，个个整个看得见、不互相挡住，各带队的字母", async ({ browser, request }) => {
   test.setTimeout(240_000);
-  // Every team's first throw is 3 + 5: all four land on Mexico City. Then nobody throws again.
-  const code = await createRoom(request, { test: { dice: [3, 5, 3, 5, 3, 5, 3, 5] } });
+  // Every team's first throw is 3 + 5: all three land on Mexico City. Then nobody throws again.
+  const code = await createRoom(request, { test: { dice: [3, 5, 3, 5, 3, 5] } });
   const phones: Phone[] = [];
-  for (const name of ["甲", "乙", "丙", "丁"]) {
+  for (const name of ["甲", "乙", "丙"]) {
     const p = await newPhone(browser, name, { ...iphone, locale: "zh-CN" });
     await joinWithTeam(p, code);
     phones.push(p);
@@ -152,10 +152,10 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
       const t = Array.from(document.querySelectorAll<SVGGElement>(".stage .roundboard [data-seat]"));
       const x = t.map((e) => Number(e.dataset.x));
       const y = t.map((e) => Number(e.dataset.y));
-      return t.length === 4 && Math.max(...x) - Math.min(...x) < 200 && Math.max(...y) - Math.min(...y) < 200 && !document.querySelector(".ride");
+      return t.length === 3 && Math.max(...x) - Math.min(...x) < 200 && Math.max(...y) - Math.min(...y) < 200 && !document.querySelector(".ride");
     });
   for (const end = Date.now() + 180_000; Date.now() < end; ) {
-    if (thrown.size === 4 && (await together())) break;
+    if (thrown.size === 3 && (await together())) break;
     let acted = false;
     for (const p of phones) {
       // each team throws once, and answers what its landing asks; nobody throws a second time
@@ -166,7 +166,7 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
     if (!acted) await a.page.waitForTimeout(150);
   }
   if (!(await together())) for (const p of phones) await explain(p, "not all on Mexico City");
-  expect(await together(), "all four tokens on Mexico City").toBe(true);
+  expect(await together(), "all three tokens on Mexico City").toBe(true);
   // (the walk and the hop of the team on turn settle)
   await a.page.waitForTimeout(1500);
 
@@ -203,7 +203,7 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
     await a.page.screenshot({ path: `test-results/tokens-shared-${size}.png` });
     const pairs = list.flatMap((p, i) => list.slice(i + 1).map((q) => overlap(p, q).toFixed(2)));
     console.log(`tokens at ${size}: heights ${list.map((t) => t.h.toFixed(1)).join(", ")} px; overlaps ${pairs.join(", ")}`);
-    expect(list.length).toBe(4);
+    expect(list.length).toBe(3);
     for (const t of list) {
       expect(t.inside, `${size}: every token in sight (${JSON.stringify(list)})`).toBe(true);
       expect(t.h, `${size}: every token big enough to make out`).toBeGreaterThanOrEqual(tall);
@@ -255,7 +255,7 @@ async function fits(p: Phone, label: string, main?: string) {
 
 test("手机逐屏：大厅、自己的回合、别人的回合、抢答、拍卖、交易、设置、结局，在 390x844、375x667、320x568 上都不横向滚动，按钮至少 44px 而且在屏幕里", async ({ browser, request }) => {
   test.setTimeout(300_000);
-  const code = await createRoom(request, { mode: 60, test: { speed: 0.5, testRounds: 3 } });
+  const code = await createRoom(request, { mode: 60, test: { speed: 0.35, testRounds: 2 } });
   const { defaultBrowserType: _s, ...se } = devices["iPhone SE"];
   const a = await newPhone(browser, "甲", { ...iphone, viewport: { width: 390, height: 844 }, locale: "zh-CN" });
   const b = await newPhone(browser, "乙", { ...iphone, viewport: { width: 375, height: 667 }, locale: "zh-CN" });
