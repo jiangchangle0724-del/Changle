@@ -246,7 +246,7 @@ async function fits(p: Phone, label: string, main?: string) {
         document.getAnimations().every((a) => {
           const timing = a.effect?.getComputedTiming();
           const target = (a.effect as KeyframeEffect | null)?.target as Element | null;
-          return a.playState !== "running" || !Number.isFinite(Number(timing?.endTime)) || !target?.closest?.(".playwin, .sheet-bg, .quizpop");
+          return a.playState !== "running" || !Number.isFinite(Number(timing?.endTime)) || !target?.matches?.(".playwin, .sheet-bg, .sheet, .quizpop");
         }),
       null,
       { timeout: 3000 },
@@ -337,7 +337,10 @@ test("手机逐屏：大厅、自己的回合、别人的回合、抢答、拍�
         await fits(p, "quiz", ".quizpop");
         done.add("quiz");
       }
-      if (await p.page.locator(".quizpop .quizpop-skip").count()) await p.page.locator(".quizpop .quizpop-skip").click({ timeout: 800 }).catch(() => {});
+      // (once this phone's question is checked, it passes on the rest, which cover the top of the screen;
+      // not before: a tap on 这题不答 waits out a new question's first moment and would put it away unseen)
+      if (done.has("quiz") && (await p.page.locator(".quizpop .quizpop-skip").count()))
+        await p.page.locator(".quizpop .quizpop-skip").click({ timeout: 800 }).catch(() => {});
       if (s.auction && !done.has("auction")) {
         await p.page.waitForTimeout(400);
         await fits(p, "auction", '.decide.auction .btn.primary');
