@@ -3,11 +3,10 @@
  * (the colored wash at the top of the screen) that crossfades as you move between games.
  */
 import gsap from "gsap";
-import { Flip } from "gsap/Flip";
 import { CustomEase } from "gsap/CustomEase";
 import { useGSAP } from "@gsap/react";
 
-gsap.registerPlugin(Flip, CustomEase, useGSAP);
+gsap.registerPlugin(CustomEase, useGSAP);
 
 CustomEase.create("settle", "0.16, 1, 0.3, 1");
 CustomEase.create("swing", "0.65, 0, 0.35, 1");
@@ -40,7 +39,7 @@ export const LIGHTS = {
   me: "#ff9cc5",
 };
 
-export { gsap, Flip, useGSAP };
+export { gsap, useGSAP };
 
 // (import.meta.env is Vite's; the tests import this under plain Node, where it isn't there)
 if (import.meta.env?.DEV && typeof window !== "undefined") (window as unknown as { gsap: typeof gsap }).gsap = gsap;

@@ -63,6 +63,10 @@ type RoomApi = {
   /** Send only (the plate already drew it). */
   sendStroke: (op: StrokeOp) => void;
   on: (fn: (e: RoomEvent) => void) => () => void;
+  /** Binary messages: send (false when the line is down), how many bytes are still waiting to go, and listen (the DJ booth's song files). */
+  sendBytes: (data: ArrayBuffer) => boolean;
+  bytesWaiting: () => number;
+  onBytes: (fn: (data: ArrayBuffer) => void) => () => void;
   strokes: StrokeStore;
   nameOf: (pid: string | null | undefined) => string;
   reconnect: () => void;
@@ -86,6 +90,7 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
   const [drank, setDrank] = useState<Record<string, string[]>>({});
   const offsetRef = useRef(0);
   const listeners = useRef(new Set<(e: RoomEvent) => void>());
+  const byteListeners = useRef(new Set<(data: ArrayBuffer) => void>());
   const strokes = useMemo(() => new StrokeStore(), []);
   const sock = useRef<RoomSocket | null>(null);
   const nameRef = useRef(name);
@@ -133,6 +138,9 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
             setStatus(st);
           },
           onMessage,
+          onBytes: (data) => {
+            for (const fn of byteListeners.current) fn(data);
+          },
           onStop: setStopped,
           onOffset: (ms) => {
             offsetRef.current = ms;
@@ -198,6 +206,14 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
       listeners.current.delete(fn);
     };
   }, []);
+  const sendBytes = useCallback((data: ArrayBuffer) => sock.current?.sendBytes(data) ?? false, []);
+  const bytesWaiting = useCallback(() => sock.current?.buffered ?? 0, []);
+  const onBytes = useCallback((fn: (data: ArrayBuffer) => void) => {
+    byteListeners.current.add(fn);
+    return () => {
+      byteListeners.current.delete(fn);
+    };
+  }, []);
   const now = useCallback(() => Date.now() + offsetRef.current, []);
   const reconnect = useCallback(() => {
     if (!sock.current || sock.current.status === "stopped") startSocket(false);
@@ -244,6 +260,9 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
       stroke,
       sendStroke,
       on,
+      sendBytes,
+      bytesWaiting,
+      onBytes,
       strokes,
       nameOf,
       reconnect,
@@ -253,7 +272,7 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
       drank,
       dismissPen,
     }),
-    [code, me, screen, status, room, stopped, offset, now, act, g, stroke, sendStroke, on, strokes, nameOf, reconnect, leave, rename, pens, drank, dismissPen],
+    [code, me, screen, status, room, stopped, offset, now, act, g, stroke, sendStroke, on, sendBytes, bytesWaiting, onBytes, strokes, nameOf, reconnect, leave, rename, pens, drank, dismissPen],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

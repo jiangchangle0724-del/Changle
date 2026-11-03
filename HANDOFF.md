@@ -14,7 +14,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
-| changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
+| changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
 | changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes (connected 2026-11-01, `games/party-server/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
@@ -154,13 +154,16 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 
 | App | Secrets (Cloudflare) | Other variables |
 | --- | --- | --- |
-| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
+| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own), `YOUTUBE_API_KEY` (optional: 打碟's song search; links work without it) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
+| 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (the libraries' hand-over; the same value as the GitHub secret) | `ALLOW_TEST` (local and tests only) |
 
-GitHub Actions use no secrets. Locally, secrets go in a git-ignored `.dev.vars` next to the
-Worker's `wrangler.jsonc`.
+GitHub Actions use one secret: `EVENTS_HANDOFF_KEY`, the same value as the What's On Worker's, for
+`.github/workflows/events-libraries.yml` (each morning at 05:50 it hands the Vancouver and Richmond
+libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go in a git-ignored
+`.dev.vars` next to the Worker's `wrangler.jsonc`.
 
 ## Working rules
 
@@ -173,8 +176,12 @@ Worker's `wrangler.jsonc`.
 
 * 打碟 · DJ Booth (`docs/dj-booth.md`, `site/src/shared/dj/CONTRACTS.md`): on the home list since
   Nov 1 (its card plays at changle.ca/dj). The stand-in DJ plays 12 styles on two decks; every
-  phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style), all of
-  it on the beat. Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
+  phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style) and a
+  mixer (a three-band EQ, a filter, four effects), all of it on the beat; 🔥 and ❄️ lean the energy
+  (读场), the big screen announces songs asked for (报幕) and shows the night's recap at the end.
+  Every phone is a DJ controller (turntables, round knobs, 12 pads); the TV has a dancing coach and
+  phones held in hand score dancing along on the beat (跟着跳, the plan's easy mode).
+  Where every sound comes from: `LICENSES.md` (Apple's preview terms are open for the owner, #113). Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
   the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
   `docs/codex-tasks/dj/` (C1 presets is done).
 

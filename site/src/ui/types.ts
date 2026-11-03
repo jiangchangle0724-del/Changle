@@ -68,7 +68,7 @@ export type TileProps = {
   drinking?: boolean;
   /** the 新 / New tag; the caller stops passing it 30 days after launch */
   isNew?: boolean;
-  /** not playable yet: dimmed */
+  /** not playable yet: dimmed (still opens: its card says it's coming) */
   soon?: boolean;
   /** under the room light during a random pick */
   lit?: boolean;

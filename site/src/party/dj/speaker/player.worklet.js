@@ -234,3 +234,51 @@ class DjPlayer extends AudioWorkletProcessor {
 }
 
 registerProcessor("dj-player", DjPlayer);
+
+/**
+ * The mixer's lo-fi (混音台, crush: speaker/mixer.ts): the music sampled every `hold` frames (a
+ * lower sample rate, the old samplers' grit) and each sample cut to `bits` bits.
+ */
+class DjCrush extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "bits", defaultValue: 6, minValue: 1, maxValue: 16, automationRate: "k-rate" },
+      { name: "hold", defaultValue: 6, minValue: 1, maxValue: 64, automationRate: "k-rate" },
+    ];
+  }
+
+  constructor() {
+    super();
+    this.n = 0;
+    this.l = 0;
+    this.r = 0;
+  }
+
+  process(inputs, outputs, params) {
+    const input = inputs[0];
+    const output = outputs[0];
+    const oL = output[0];
+    const oR = output[1] || oL;
+    if (!input || !input.length) {
+      oL.fill(0);
+      if (oR !== oL) oR.fill(0);
+      return true;
+    }
+    const iL = input[0];
+    const iR = input[1] || iL;
+    const steps = Math.pow(2, params.bits[0] - 1);
+    const hold = Math.max(1, Math.round(params.hold[0]));
+    for (let i = 0; i < oL.length; i++) {
+      if (this.n % hold === 0) {
+        this.l = Math.round(iL[i] * steps) / steps;
+        this.r = Math.round(iR[i] * steps) / steps;
+      }
+      this.n = (this.n + 1) % 1e9;
+      oL[i] = this.l;
+      if (oR !== oL) oR[i] = this.r;
+    }
+    return true;
+  }
+}
+
+registerProcessor("dj-crush", DjCrush);

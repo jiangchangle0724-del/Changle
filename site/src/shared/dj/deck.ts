@@ -3,10 +3,22 @@
  * the rooms server, the speaker and the phones, so they all read the deck the same way.
  * CONTRACTS.md, "The beginner deck".
  */
-import { DECK, STYLE_IDS, type DeckSide, type DeckState, type DropGrade, type DropState, type Mix, type StyleId } from "./types";
+import { DECK, freshMixer, STYLE_IDS, type DeckSide, type DeckState, type DropGrade, type DropState, type Mix, type StyleId } from "./types";
 
 /** The stand-in's tempo, and the deck's when the speaker hasn't said. */
 export const DECK_BPM = 125;
+
+/** Whether a player's last song asked for came on the air longer than DECK.reqAgainMs ago (or never). */
+export const rested = (reqOn: Record<string, number>, by: string, now: number) => (reqOn[by] ?? -Infinity) <= now - DECK.reqAgainMs;
+
+/**
+ * The order the songs waiting come up in, if nothing changes: first come, first played, but a
+ * player whose song came on the air in the last 10 minutes waits behind the others (the plan: one
+ * person's two songs 10 minutes apart; alone, theirs still plays).
+ */
+export function reqOrder<R extends { by: string }>(reqs: R[], reqOn: Record<string, number>, now: number): R[] {
+  return [...reqs.filter((r) => rested(reqOn, r.by, now)), ...reqs.filter((r) => !rested(reqOn, r.by, now))];
+}
 
 export function freshDeck(): DeckState {
   return {
@@ -33,7 +45,13 @@ export function freshDeck(): DeckState {
     reqs: [],
     up: null,
     now: null,
+    reqOn: {},
+    song: null,
+    aired: [],
+    heard: [],
     reqAt: {},
+    mixer: freshMixer(),
+    mixAt: {},
     local: false,
     songs: { a: null, b: null },
     played: [],
@@ -203,13 +221,18 @@ export function grade(drop: DropState, grid: DeckState["grid"], at: number, now:
 }
 
 /** What a beginner might do next, for the hint line on the screens. */
-export type Hint = "countdown" | "charge" | "charging" | "fade" | "loading" | "pick" | "ask" | "pads" | "dropped";
+export type Hint = "countdown" | "charge" | "charging" | "fade" | "loading" | "pick" | "ask" | "pads" | "dropped" | "cold";
 
-export function hintFor(d: Cueable & { drop: DropState | null; last: { at: number } | null; charge: number; chargeAt: number }, now: number, playing: boolean, lyria = false): Hint | null {
+/** The floor reads cold (读场: the last minute's ❄️ well over its 🔥): the hints say what to do about it. */
+export const COLD_LEAN = -0.3;
+
+export function hintFor(d: Cueable & { drop: DropState | null; last: { at: number } | null; charge: number; chargeAt: number }, now: number, playing: boolean, lyria = false, cold = false): Hint | null {
   if (!playing) return null;
   if (d.drop) return "countdown";
   if (d.last && now - d.last.at < 4000) return "dropped";
   if (chargeNow(d, now) > 0) return "charging";
+  // the floor's dragging: change it up (every other few seconds, the usual hint)
+  if (cold && Math.floor(now / 8_000) % 2 === 0) return "cold";
   if (cued(d, lyria)) return Math.floor(now / 12_000) % 2 ? "fade" : "charge";
   if (loaded(d)) return "loading";
   // (a night of the host's songs has no styles to pick: ask for one of the songs)

@@ -1,7 +1,9 @@
 /* Engine flow tests: run with `npx tsx tests/engine.test.ts` */
-import { countdown, cued, loaded, pressBy } from "../src/shared/dj/deck";
-import { trackFor } from "../src/shared/dj/requests";
-import { DECK } from "../src/shared/dj/types";
+import { countdown, cued, loaded, pressBy, reqOrder } from "../src/shared/dj/deck";
+import { ENERGY, FAKE_MIX, heatLean, LEAN, mixFor } from "../src/shared/dj/curve";
+import { recapOf } from "../src/party/dj/recap";
+import { styleForRequest, trackFor } from "../src/shared/dj/requests";
+import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
@@ -1749,6 +1751,7 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   g("p2", "req", { text: "qing tian", song: sunny[0] });
   let r = deck().reqs[0];
   ok(deck().reqs.length === 1 && r.by === "p2" && r.text === "晴天" && r.artist === "周杰伦" && r.song === sunny[0] && r.style === "cpop" && r.track === trackFor("晴天"), "a song picked from the song list: its title and artist (the list's, not what was typed), in its style (Jay Chou: C-pop), its remix's track from its name");
+  ok(r.p === undefined && r.yt === undefined, "no clip of it, no video (the phone found none): the remix alone");
   ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === "p2") && deck().up === null, "the room hears it; nothing is up before the music");
   ok(nothing(g("p2", "req", { text: "another" })), "one each");
   ok(nothing(g("p3", "req", { text: "   " })) && nothing(g("p3", "req", {})), "an empty name isn't a song");
@@ -1852,6 +1855,371 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   }
   ok((e2.view("q1").game as V<"dj">).deck.reqs.length === 8, "8 waiting at most, the whole table");
   void beat;
+});
+
+test("dj: a song found on YouTube: every field checked, its name only for its player and the host, played whole on the big screen, the deck waiting", () => {
+  const e = new RoomEngine(freshRoom("DJYT", clock), host);
+  e.screenHello("tv-yt", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-yt", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const ID = "kJQP7kiw5Fk";
+  ok(nothing(g("p2", "req", { yt: ["not-an-id", "Song", "Chan"] })) && nothing(g("p2", "req", { yt: [ID, "  ", "Chan"] })) && nothing(g("p2", "req", { yt: [ID, "Song"] })), "a video id that isn't one, no title, or not every field: not taken");
+  ok(nothing(g("p2", "req", { apple: [1, "Song", "Singer", "x", "us"] })), "Apple's songs aren't taken any more");
+  g("p2", "req", { yt: [ID, "Despacito‮", "Luis Fonsi"] });
+  const r = dv("p2").deck.reqs[0];
+  ok(r.text === "Despacito" && r.artist === "Luis Fonsi" && r.yt === ID && r.ytT === "Despacito" && r.p === undefined, "a song found on YouTube: its title (cleaned), channel and video");
+  ok(r.style === styleForRequest("Despacito Luis Fonsi"), `in a style from its title and channel (${r.style})`);
+  const other = dv("p3").deck.reqs[0];
+  ok(other.text === null && other.artist === undefined && other.ytT === undefined && other.yt === ID, "another phone reads neither its title nor its channel (the video is the big screen's to play)");
+  ok(dv("p1").deck.reqs[0].text === "Despacito", "the host reads it");
+  // the drop into it: the DJ fades out, then the song plays whole, the deck waiting
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(dv("p1").deck.up?.yt === ID, "up next");
+  advance(1000);
+  sc("decks", { a: "house", b: dv("p1").deck.b });
+  for (let i = 0; i < 40 && !dv("p1").deck.drop; i++) {
+    advance(250);
+    g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+  }
+  const dr = dv("p1").deck.drop!;
+  clock = dr.cue + 20;
+  g("p1", "drop", { c: clock });
+  advance(dr.at - clock + 5);
+  const song = dv("p1").deck.song;
+  ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock + 2 * 4 * 480, "it lands: the whole song plays from two bars on (the DJ fades out first)");
+  ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "horn" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no pads, no fader");
+  ok(nothing(g("p3", "songskip")), "only its player or the host can skip it");
+  ok(!sc("songdone", { id: "other" }), "the big screen's word for another song: not taken");
+  ok(sc("songdone", { id: song!.id }) && dv("p1").deck.song === null, "the big screen says it ended: the DJ comes back");
+  // and the time limit, and a skip
+  g("p3", "req", { yt: ["abcdefghijk", "Another", "Chan"] });
+  ok(dv("p1").deck.up?.yt === "abcdefghijk", "the next one is up");
+  advance(41_000);
+  sc("decks", { a: dv("p1").deck.a, b: dv("p1").deck.b });
+  advance(6000);
+  const auto = dv("p1").deck.drop;
+  ok(!!auto, "nobody drops into it: the DJ does");
+  advance(auto!.at - clock + 5);
+  ok(dv("p1").deck.song?.by === "p3", "it plays whole");
+  ok(!nothing(g("p3", "songskip")) && dv("p1").deck.song === null, "its player skips it: the DJ comes back");
+});
+
+test("dj: the mixer (混音台): knobs anyone turns (held a moment by whoever moved one), effects on the next beat that go off by themselves, the drop whole", () => {
+  const e = new RoomEngine(freshRoom("DJMX", clock), host);
+  const events: RoomEvent[] = [];
+  e.screenHello("tv-mx", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const mx = () => dv("p3").deck.mixer;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    const o = e.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-mx", { x, ...rest });
+    events.push(...e.flush().events);
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    events.push(...e.flush().events);
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  ok(nothing(g("p1", "mix", { knob: "low", value: -1 })) && mx().knobs.low === 0, "before the music: nothing to mix");
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  const o = g("p1", "mix", { knob: "low", value: -1 });
+  ok(o.light && !o.persist && mx().knobs.low === -1 && mx().knobBy.low === "p1", "Amy cuts the bass: sent at once, stored later (a knob turns many times a second)");
+  ok(nothing(g("p2", "mix", { knob: "low", value: 0.5 })) && mx().knobs.low === -1, "Ben's turn of the same knob waits while she has it");
+  g("p2", "mix", { knob: "filter", value: 0.33 });
+  ok(mx().knobs.filter === 0.35, "another knob is his to turn (in steps of 0.05)");
+  g("p2", "mix", { knob: "high", value: 7 });
+  ok(mx().knobs.high === 1, "past the end: the end");
+  ok(nothing(g("p2", "mix", { knob: "bass", value: 0 })) && nothing(g("p2", "mix", { knob: "mid", value: "loud" })), "a knob there isn't, a value that isn't one: nothing");
+  advance(MIXER.holdMs + 100);
+  g("p2", "mix", { knob: "low", value: 0.5 });
+  ok(mx().knobs.low === 0.5 && mx().knobBy.low === "p2", "once she lets go, Ben has it");
+  ok(!("mixAt" in dv("p1").deck), "the room's bookkeeping stays in the room");
+
+  g("p3", "mixfx", { fx: "pump", on: true });
+  ok(mx().fx.pump?.by === "p3", "Cat turns the pump on");
+  const said = events.filter((x) => x.k === "fx" && x.fx === "mix");
+  ok(said.length === 1 && said[0].k === "fx" && said[0].pid === "p3" && said[0].data?.[0] === MIX_FX.indexOf("pump") && said[0].data?.[1] === 1, "the screens hear who turned what on");
+  ok(nothing(g("p3", "mixfx", { fx: "gate", on: true })), "a phone switches one at a time, a moment apart");
+  ok(nothing(g("p1", "mixfx", { fx: "pump", on: true })), "on already: nothing");
+  advance(3000);
+  g("p1", "mixfx", { fx: "gate", on: true });
+  g("p2", "mixfx", { fx: "crush", on: true });
+  ok(!!mx().fx.gate && !!mx().fx.crush && !mx().fx.flange, "three on");
+  advance(MIXER.fxGapMs + 10);
+  g("p2", "mixfx", { fx: "crush", on: false });
+  ok(!mx().fx.crush, "and off again");
+
+  // the drop hits whole: the knobs back to 0, the effects on
+  g("p1", "vote", { style: "latin" });
+  advance(1000);
+  sc("decks", { a: "house", b: "latin" });
+  for (let i = 0; i < 30 && !dv("p1").deck.drop; i++) {
+    advance(250);
+    g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+  }
+  const dr = dv("p1").deck.drop!;
+  clock = dr.cue + 20;
+  g("p1", "drop", { c: clock });
+  advance(dr.at - clock + 5);
+  ok(dv("p1").deck.last?.bar === dr.bar, "the drop lands");
+  ok(Object.values(mx().knobs).every((v) => v === 0) && Object.keys(mx().knobBy).length === 0, "the knobs are back at 0 for it");
+  ok(!!mx().fx.pump && !!mx().fx.gate, "the effects stay on");
+
+  // the effects go off by themselves
+  const pumpAt = mx().fx.pump!.at;
+  clock = pumpAt + MIXER.fxMs - 50;
+  e.due();
+  e.flush();
+  ok(!!mx().fx.pump, "just before its time: still on");
+  advance(100);
+  ok(!mx().fx.pump && !!mx().fx.gate, "32 bars after it went on, the pump goes off by itself (the gate, turned on later, after it)");
+  advance(MIXER.fxMs);
+  ok(Object.keys(mx().fx).length === 0, "and the gate");
+
+  // everything back at once
+  advance(1000);
+  g("p3", "mix", { knob: "mid", value: -0.5 });
+  g("p3", "mixfx", { fx: "flange", on: true });
+  g("p2", "mixoff");
+  ok(Object.values(mx().knobs).every((v) => v === 0) && Object.keys(mx().fx).length === 0, "the reset: every knob at 0, every effect off");
+  ok(events.some((x) => x.k === "fx" && x.fx === "mix" && x.pid === "p2" && x.data?.[0] === -1), "the screens hear who reset it");
+  ok(nothing(g("p1", "mixoff")), "as it plays already: nothing");
+  g("p3", "mixfx", { fx: "flange", on: true });
+  g("p1", "phase", { phase: "end" });
+  ok(Object.keys(mx().fx).length === 0, "the end of the set: the mixer as the music plays");
+});
+
+test("dj: dancing along (跟着跳): each dancer's bars, late or twice turned away, the floor's combo and its fireworks", () => {
+  const e = new RoomEngine(freshRoom("DJDN", clock), host);
+  e.screenHello("tv-dn", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const events: RoomEvent[] = [];
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    const o = e.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    e.screenAct("tv-dn", { x, ...rest });
+    e.flush();
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    events.push(...e.flush().events);
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const BAR = 1920;
+  ok(nothing(g("p1", "dance", { bar: 0, n: 4, of: 4 })), "before the music: nothing to dance to");
+  sc("live", { source: "fake" });
+  const t0 = clock;
+  sc("grid", { at: t0, bar: 0, bpm: 125 });
+  ok(nothing(g("p1", "dance", { bar: 1, n: 4, of: 4 })), "a bar that hasn't come yet: turned away");
+  ok(nothing(g("p1", "dance", { bar: 0, n: 5, of: 4 })) && nothing(g("p1", "dance", { bar: 0, n: 1, of: 9 })) && nothing(g("p1", "dance", { bar: 0.5, n: 1, of: 4 })), "counts that can't be: turned away");
+  const o = g("p1", "dance", { bar: 0, n: 4, of: 4 });
+  ok(o.light && !o.persist && dv("p2").dance.p1?.hits === 4 && dv("p2").dance.p1?.bars === 1 && dv("p2").dance.p1?.streak === 1, "Amy's first bar, all four beats: light, and everyone sees it");
+  ok(nothing(g("p1", "dance", { bar: 0, n: 4, of: 4 })), "the same bar again: turned away");
+  g("p2", "dance", { bar: 0, n: 1, of: 4 });
+  ok(dv("p1").dance.p2?.streak === 0 && dv("p1").danceBar === undefined, "Ben's: one of four (no streak); the floor's count stays in the room");
+  clock = t0 + 2 * BAR + 100;
+  g("p1", "dance", { bar: 1, n: 4, of: 4 });
+  ok(dv("p1").combo === 0, "bar 0 settles: half the floor danced it, the combo stays down");
+  clock = t0 + 9 * BAR + 100;
+  ok(nothing(g("p2", "dance", { bar: 4, n: 4, of: 4 })), "five bars late: turned away");
+  // eight bars the whole floor dances: fireworks
+  for (let k = 2; k <= 10; k++) {
+    clock = t0 + (k + 1) * BAR - 300;
+    g("p1", "dance", { bar: k, n: 4, of: 4 });
+    g("p2", "dance", { bar: k, n: 3, of: 4 });
+  }
+  ok(events.some((x) => x.k === "fx" && x.fx === "dance"), "eight bars the whole floor danced: fireworks on the big screen");
+  ok(dv("p1").combo < 0.5, `and the combo starts again (${dv("p1").combo})`);
+  ok(dv("p1").dance.p1?.streak === 11 && dv("p1").dance.p2?.bars === 10, "Amy's eleven in a row; Ben's ten bars");
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p1").dance.p1?.hits === 44, "another set: the night's dancing carries on");
+});
+
+test("dj: the plan's floor: ❄️ and reading the room (读场), one person's two songs 10 minutes apart, the night's recap (今晚回顾), 报幕's switch", () => {
+  const e = new RoomEngine(freshRoom("DJFL", clock), host);
+  e.screenHello("tv-fl", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const deck = () => dv("p3").deck;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-fl", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  // the table drops into what's up next: the speaker plays it there, everyone builds it up, Amy presses on the cue
+  const dropIn = () => {
+    sc("decks", { a: deck().a, b: deck().b });
+    for (let i = 0; i < 40 && !deck().drop; i++) {
+      advance(250);
+      g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+    }
+    const dr = deck().drop!;
+    clock = dr.cue + 20;
+    g("p1", "drop", { c: clock });
+    advance(dr.at - clock + 5);
+  };
+
+  ok(heatLean([], [], clock) === 0 && heatLean([{ at: clock }], [], clock + 61_000) === 0, "读场: no reactions in the last minute, no lean");
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
+  ok(mixFor("warm", FAKE_MIX, 1).density === r3(ENERGY.warm.density + LEAN) && mixFor("peak", FAKE_MIX, 1).density === 1 && mixFor("wait", FAKE_MIX, 1).density === 0, "a full lean moves a stretch's energy by LEAN (never past full); no music, none");
+
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  const warm = ENERGY.warm;
+  ok(dv("p1").mix.density === warm.density, "the warm-up's own energy");
+  for (let i = 0; i < 6; i++) {
+    g(`p${(i % 3) + 1}`, "fire");
+    advance(400);
+  }
+  ok(dv("p1").mix.density === r3(warm.density + LEAN / 2) && dv("p1").mix.brightness === r3(warm.brightness + LEAN / 2), "six 🔥 and no ❄️: the room leans halfway up (Lyria plays denser and brighter)");
+  const cold = g("p2", "cold");
+  ok(cold.light && cold.events.some((x) => x.k === "fx" && x.fx === "cold" && x.pid === "p2"), "❄️ from a phone: the screens hear it");
+  ok(dv("p1").mix.density < r3(warm.density + LEAN / 2), "and it pulls the energy back");
+  advance(61_000);
+  ok(dv("p1").mix.density === warm.density, "a minute with nothing: back to the stretch's own");
+  for (let i = 0; i < 6; i++) {
+    g(`p${(i % 3) + 1}`, "cold");
+    advance(400);
+  }
+  ok(dv("p1").mix.density === r3(warm.density - LEAN / 2), "six ❄️: down as far");
+  advance(61_000);
+
+  // songs asked for: Ben's comes on the air
+  g("p2", "req", { text: "reggaeton uno" });
+  ok(deck().up?.by === "p2", "Ben's song is up next");
+  dropIn();
+  ok(deck().now?.by === "p2" && deck().reqOn.p2 === clock && deck().heard.length === 1, "it lands: on the air, and the night's recap has it");
+  advance(6000);
+  g("p3", "req", { text: "techno cat" });
+  advance(6000);
+  g("p2", "req", { text: "trance two" });
+  advance(6000);
+  g("p1", "req", { text: "afrobeats amy" });
+  ok(deck().up?.by === "p3" && deck().reqs.map((r) => r.by).join() === "p2,p1", "Cat's is up; Ben's second waits before Amy's in the line");
+  ok(reqOrder(deck().reqs, deck().reqOn, clock).map((r) => r.by).join() === "p1,p2", "but Ben's just had one: for 10 minutes the others' go first");
+  dropIn();
+  ok(deck().now?.by === "p3" && deck().up?.by === "p1", "Cat's lands, and Amy's comes up ahead of Ben's");
+  dropIn();
+  ok(deck().up?.by === "p2", "Amy's lands: Ben's is the only one left, and it still plays (nobody's turn is taken)");
+  dropIn();
+
+  // the recap: what went on the air and the songs that played
+  const aired = deck().aired;
+  ok(aired.map((a) => a.style).join() === "house,latin,techno,afro,trance" && aired.every((a, k) => k === 0 || a.style !== aired[k - 1].style), "the styles on the air, as they changed");
+  ok(deck().heard.map((r) => r.by).join() === "p2,p3,p1,p2", "the four songs that played, in order");
+  ok(dv("p3").deck.heard[0].text === null && dv("p2").deck.heard[0].text === "reggaeton uno" && dv("p1").deck.heard[0].text === "reggaeton uno", "a typed song's name stays its player's (and the host's) in the recap too");
+  ok(nothing(g("p2", "voice", { on: false })) && dv("p1").voice === true, "报幕: only the host switches it");
+  g("p1", "voice", { on: false });
+  ok(dv("p3").voice === false, "the host turns it off");
+  g("p1", "phase", { phase: "end" });
+  ok(deck().aired.at(-1)!.style === "off", "the set ends: the recap notes the music stopped");
+  const r = recapOf(dv("p1"), clock);
+  ok(r.minutes >= 2 && r.songs.length === 4 && r.fans[0].n >= 2 && r.perfect[0].pid === "p1" && r.styles.length >= 1, "the recap: minutes of music, the songs, who was most fired up, Amy's perfect drops, the styles");
+  g("p1", "again");
+  ok(deck().heard.length === 4 && deck().aired.length === aired.length + 1 && dv("p1").voice === false && deck().reqOn.p2 > 0, "another set: tonight's recap, the 10-minute rule and the switch carry on");
+});
+
+test("dj: 我的歌 from the host's phone: the switch is the room's (the host's phone or the big screen), and the phone hears how a song it sent went", () => {
+  const e = new RoomEngine(freshRoom("DJMN", clock), host);
+  const events: RoomEvent[] = [];
+  e.screenHello("tv-mn", true, "dj");
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    const o = e.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-mn", { x, ...rest });
+    events.push(...e.flush().events);
+    return took;
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  ok(dv("p2").mine === false, "the stand-in to start with");
+  ok(nothing(g("p2", "mine", { on: true })) && !dv("p1").mine, "only the host switches");
+  g("p1", "mine", { on: true });
+  ok(dv("p2").mine === true && dv("tv-mn").mine === true, "the host's phone: the night on their songs (the big screen switches once it has some)");
+  ok(nothing(g("p1", "mine", { on: true })), "again: nothing");
+  ok(sc("mine", { on: false }) && dv("p1").mine === false, "the big screen's own switch");
+  ok(!sc("mine", { on: false }), "again: nothing");
+  ok(sc("song", { by: "p1", id: 12345, code: 0 }), "the big screen says how a song from the host's phone went");
+  const fx = events.filter((x) => x.k === "fx" && x.fx === "song");
+  ok(fx.length === 1 && fx[0].k === "fx" && fx[0].pid === "p1" && fx[0].data?.[0] === 0 && fx[0].data?.[1] === 12345, "the phone hears it: added, its file's number");
+  ok(!sc("song", { by: "p9", id: 1, code: 0 }) && !sc("song", { by: "p1", id: 1, code: 99 }) && !sc("song", { by: "p1", id: -1, code: 0 }), "not for a phone at the table, a word it doesn't know, a bad number: nothing");
+  g("p1", "mine", { on: true });
+  sc("live", { source: "fake" });
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p2").mine === true, "another set keeps the switch");
 });
 
 test("dj: a night of the host's songs: their names from the speaker, a song on each deck, asked for by name, the DJ drops into the next as one ends", () => {

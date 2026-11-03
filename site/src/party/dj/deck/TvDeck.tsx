@@ -1,13 +1,14 @@
-import { Disc3, ListMusic, Music2, type LucideIcon } from "lucide-react";
+import { Disc3, ListMusic, Music2, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
-import { chargeNow, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
-import { DECK, PAD_IDS, type DeckSide, type PadId } from "../../../shared/dj/types";
+import { heatLean } from "../../../shared/dj/curve";
+import { chargeNow, COLD_LEAN, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
+import { DECK, MIX_FX, MIX_KNOBS, PAD_IDS, type DeckSide, type MixerState, type PadId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
 import { useStore } from "../../../store";
 import { NowPlaying, STYLE_NAMES } from "../parts";
-import { hintText, nowLine, PADS, reqLine } from "./words";
+import { CLIP_CREDIT, hintText, KNOBS, MIX_EFFECTS, mixSaid, nowLine, PADS, reqLine } from "./words";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -20,7 +21,8 @@ const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
  * who has it, the build-up's meter, the countdown to the drop, who did what, and the next thing a
  * beginner could try.
  */
-export function DeckBoard({ v }: { v: DjView }) {
+/** `clip`: the song asked for that's on the air is playing its clip here (not only its remix). */
+export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
   const { now, nameOf } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
@@ -58,7 +60,10 @@ export function DeckBoard({ v }: { v: DjView }) {
         {d.now && (
           <span className="dk-req is-now">
             <Music2 size={24} aria-hidden="true" />
-            <span>{nowLine(d.now, nameOf(d.now.by), zh)}</span>
+            <span>
+              {nowLine(d.now, nameOf(d.now.by), zh, clip || d.song?.id === d.now.id)}
+              {clip && <small className="dk-req-credit">{L(CLIP_CREDIT, zh)}</small>}
+            </span>
           </span>
         )}
         {d.up && (
@@ -83,6 +88,7 @@ export function DeckBoard({ v }: { v: DjView }) {
           <span className="dk-meter-word">{zh ? "蓄力" : "Build-up"}</span>
           <span className="dk-meter-pct tabular">{Math.round(level * 100)}%</span>
         </div>
+        {d.mixer && <MixStrip m={d.mixer} zh={zh} />}
       </div>
       {deck("b")}
     </div>
@@ -117,13 +123,17 @@ export function DropParty({ v }: { v: DjView }) {
   const seen = useRef(last?.at ?? 0);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [show, setShow] = useState<typeof last>(null);
+  // (on the drop's time, not the view's object: every view brings a new one, and the moment's
+  // timer must outlive them, or the celebration stays up until the next drop)
+  const at = last?.at ?? 0;
   useEffect(() => {
-    if (!last || last.at === seen.current) return;
-    seen.current = last.at;
+    if (!last || at === seen.current) return;
+    seen.current = at;
     setShow(last);
     const id = window.setTimeout(() => setShow(null), 3200);
     return () => window.clearTimeout(id);
-  }, [last]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at]);
   useEffect(() => {
     // from both sides of the floor, clear of the names
     if (show?.hits.some((h) => h.grade === "perfect")) {
@@ -146,7 +156,41 @@ export function DropParty({ v }: { v: DjView }) {
   );
 }
 
-type Chip = { id: number; text: string; kind: PadId | "req"; icon: LucideIcon };
+type Chip = { id: number; text: string; kind: PadId | "req" | "mix"; icon: LucideIcon };
+
+/** The board shows the mixer (a line of its own) once anyone has touched it. */
+export const mixerShows = (m: MixerState | undefined) => !!m && (MIX_KNOBS.some((k) => m.knobs[k] !== 0) || MIX_FX.some((f) => !!m.fx[f]));
+
+/**
+ * The mixer, when anyone has touched it (as the music plays it stays out of the way): each knob
+ * turned, as a little bar from the middle, and each effect that's on, lit.
+ */
+function MixStrip({ m, zh }: { m: MixerState; zh: boolean }) {
+  const knobs = MIX_KNOBS.filter((k) => m.knobs[k] !== 0);
+  const fx = MIX_FX.filter((f) => !!m.fx[f]);
+  if (!mixerShows(m)) return null;
+  return (
+    <div className="dk-mix" aria-label={zh ? "混音台" : "Mixer"}>
+      {knobs.map((k) => (
+        <span key={k} className="dk-mix-knob" style={{ ["--v" as string]: m.knobs[k] } as CSSProperties}>
+          <span className="dk-mix-name">{L(KNOBS[k], zh)}</span>
+          <span className="dk-mix-bar" aria-hidden="true">
+            <span />
+          </span>
+        </span>
+      ))}
+      {fx.map((f) => {
+        const Icon = MIX_EFFECTS[f].icon;
+        return (
+          <span key={f} className={`dk-mix-fx is-${f}`}>
+            <Icon size={20} aria-hidden="true" />
+            {L(MIX_EFFECTS[f].name, zh)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Who pressed which pad (the pad itself played on the speaker) or asked for a song, for a moment. */
 export function usePadEvents(play: (pad: PadId) => void) {
@@ -156,10 +200,13 @@ export function usePadEvents(play: (pad: PadId) => void) {
   const [chips, setChips] = useState<Chip[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
-    if (e.k !== "fx" || !e.pid || (e.fx !== "pad" && e.fx !== "req")) return;
+    if (e.k !== "fx" || !e.pid || (e.fx !== "pad" && e.fx !== "req" && e.fx !== "mix")) return;
     let chip: Omit<Chip, "id">;
     if (e.fx === "req") chip = { text: zh ? `${nameOf(e.pid)} 点了一首歌` : `${nameOf(e.pid)} asked for a song`, kind: "req", icon: ListMusic };
-    else {
+    else if (e.fx === "mix") {
+      const f = MIX_FX[e.data?.[0] ?? -1];
+      chip = { text: mixSaid(nameOf(e.pid), e.data, zh), kind: "mix", icon: f ? MIX_EFFECTS[f].icon : SlidersHorizontal };
+    } else {
       const pad = PAD_IDS[e.data?.[0] ?? -1];
       if (!pad) return;
       play(pad);
@@ -197,12 +244,12 @@ export function HintLine({ v }: { v: DjView }) {
   const live = v.phase !== "wait" && v.phase !== "end";
   useTicker(live, 3000);
   const d = v.deck;
-  const h = hintFor(d, now(), live, v.source === "lyria");
+  const h = hintFor(d, now(), live, v.source === "lyria", heatLean(v.fires, v.colds, now()) <= COLD_LEAN);
   if (!h || h === "countdown") return null;
   return (
-    <p className="dk-hint">
+    <p className={`dk-hint ${h === "cold" ? "is-cold" : ""}`}>
       <Disc3 size={24} aria-hidden="true" />
-      {hintText(h, offAir(d), zh)}
+      {hintText(h, offAir(d), zh, d.local)}
     </p>
   );
 }
