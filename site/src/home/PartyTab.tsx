@@ -4,7 +4,7 @@ import { PlayersSheet } from "../components/PlayersSheet";
 import { GAME_BY_ID, GAMES, isNewGame, SOON, type GameId, type GameMeta, type SoonMeta } from "../games/registry";
 import { Sheet } from "../components/Sheet";
 import type { T } from "../i18n";
-import { LIGHTS, reduced, setLight } from "../lib/anim";
+import { LIGHTS, reduced, setLight } from "../lib/motion";
 import { haptic, sfx } from "../lib/sfx";
 import { OnlineSheet } from "../online/OnlineSheet";
 import { usePenaltyText, useStore } from "../store";
