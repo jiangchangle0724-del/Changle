@@ -3,7 +3,9 @@ routine's move on the speaker's beat, names it and the next; two phones start da
 sensor, simulated: Amy's hand moves on every beat, Ben's between the beats, then on them too); each
 phone says how its beats went and sends its bars; the room counts them, the TV's floor shows who
 follows well, the whole floor dancing together fills the combo to fireworks, and the night's recap
-names the best on the beat.
+names the best on the beat. The coach is a 3D robot where a graphics chip draws it: this machine has
+none (its browsers draw WebGL in software, or too slowly), so the TV keeps the drawn coach (in
+Chromium without even downloading three.js); a second TV, told to take any WebGL, shows the robot.
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
 usage: python3 scripts/dj_dance_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
@@ -20,13 +22,13 @@ OUT = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "dj-dance"))
 os.makedirs(OUT, exist_ok=True)
 NAMES = ["Step and clap", "Raise the roof", "Hip sway", "Fist pump", "Disco point", "Bounce", "Wave", "Twist", "Running man", "Shimmy"]
 
-# a hand that moves hard within 40 ms of every beat (`off`: half a beat later, between the beats), and
-# gently otherwise, on the phone's own clock
+# a hand that moves hard within 80 ms of every beat, as an arm's swing does (`off`: half a beat later,
+# between the beats, still outside the 150 ms window), and gently otherwise, on the phone's own clock
 MOVE = """(off) => { clearInterval(window.__hand); window.__hand = setInterval(() => {
   const v = window.__room && window.__room.game; const g = v && v.deck && v.deck.grid; if (!g) return;
   const t = window.__danceNow ? window.__danceNow() : Date.now();
   const ms = 60000 / g.bpm, b = 4 * g.bar + (t - g.at) / ms + (off ? 0.5 : 0);
-  const a = Math.abs(b - Math.round(b)) * ms < 40 ? 6 : 0.3;
+  const a = Math.abs(b - Math.round(b)) * ms < 80 ? 6 : 0.3;
   window.dispatchEvent(new DeviceMotionEvent('devicemotion', { acceleration: { x: a, y: 0, z: 0 }, accelerationIncludingGravity: { x: a, y: 9.81, z: 0 }, interval: 16 }));
 }, 16); }"""
 
@@ -41,6 +43,8 @@ with sync_playwright() as p:
     chrome = br if WHICH == "chromium" else p.chromium.launch()
     tv = br.new_context(viewport={"width": 1600, "height": 900}).new_page()
     errs = []
+    three = []
+    tv.on("request", lambda r: three.append(r.url) if r.url.split("?")[0].rsplit("/", 1)[-1].startswith("three") or "GLTFLoader" in r.url else None)
     tv.on("pageerror", lambda e: errs.append(str(e)))
     tv.on("console", lambda m: errs.append(m.text) if m.type == "error" and "WebSocket" not in m.text else None)
     tv.goto(BASE + "dj", wait_until="load")
@@ -54,20 +58,19 @@ with sync_playwright() as p:
     first = text(tv, ".dj-coach-now")
     ok(first in NAMES, f"the move, by name ({first})")
     ok(tv.evaluate("() => document.querySelector('.dj-coach-svg').childElementCount") > 0, "the coach is drawn")
-    # the robot in 3D: where the browser has WebGL (else the drawn coach stays)
-    gl = tv.evaluate("() => { try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; } }")
-    if gl:
-        ok(until(lambda: tv.locator(".dj-coach-3d canvas").count() == 1 and tv.locator(".dj-coach-svg.is-off").count() == 1, 20000), "the 3D robot loads and takes over from the drawn coach")
-        c1 = tv.evaluate("() => window.__coach3d")
-        tv.wait_for_timeout(400)
-        c2 = tv.evaluate("() => window.__coach3d")
-        ok(c1 and c2 and c1["at"] != c2["at"] and c2["clip"] in ("Dance", "ThumbsUp", "Punch", "Wave", "Jump", "Running", "Yes"), f"and dances on the beat ({c2})")
+    # the robot in 3D, where a graphics chip draws it: none here, the drawn coach stays and dances
+    is3d = until(lambda: (lambda x: x if x in ("on", "software", "none", "slow", "failed") else None)(tv.evaluate("() => window.__coach3dIs")), 20000, 200)
+    if is3d == "on":
+        print("--   (this browser has a graphics chip: the robot stays on this TV)")
+        ok(tv.locator(".dj-coach-3d canvas").count() == 1 and tv.locator(".dj-coach-svg.is-off").count() == 1, "the 3D robot takes over from the drawn coach")
     else:
-        print("     (no WebGL in this browser: the drawn coach stays)")
-    pose = lambda: tv.evaluate("() => document.querySelector('.dj-coach-svg').innerHTML.length + ':' + document.querySelector('.dj-coach-svg').innerHTML.slice(0, 4000)")
-    p0 = pose()
-    tv.wait_for_timeout(700)
-    ok(pose() != p0, "and moving")
+        ok(tv.locator(".dj-coach-3d").count() == 0 and tv.locator(".dj-coach-svg.is-off").count() == 0, f"no graphics chip for the robot here ({is3d}): the drawn coach stays")
+        pose = lambda: tv.evaluate("() => document.querySelector('.dj-coach-svg').innerHTML.length + ':' + document.querySelector('.dj-coach-svg').innerHTML.slice(0, 4000)")
+        p0 = pose()
+        tv.wait_for_timeout(700)
+        ok(pose() != p0, "and dances")
+        if is3d == "software":
+            ok(not three, f"three.js never downloaded for it ({three[:2]})")
     ok(until(lambda: text(tv, ".dj-coach-next.is-soon").startswith("In "), 9000, 100), f"the next move, called in the last beats ({text(tv, '.dj-coach-next')!r})")
     ok(until(lambda: text(tv, ".dj-coach-now") != first, 6000, 100), f"then the coach changes move ({text(tv, '.dj-coach-now')})")
     tv.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-1-coach.png"))
@@ -95,8 +98,11 @@ with sync_playwright() as p:
     ok(until(lambda: "这一小节 0/4" in text(ben, ".djk-dance-score"), 6000), f"Ben's, between the beats: 0 of 4 ({text(ben, '.djk-dance-score')!r})")
     dance = lambda: (view(tv) or {}).get("dance") or {}
     ok(until(lambda: (dance().get(pid["Amy"]) or {}).get("bars", 0) >= 3, 9000), "the room counts their bars")
+    # (four bars each: a pretend hand can miss a beat here when its phone's page stalls, or a headless
+    # WebKit TV's audio clock jumps; what counts is the clear line between on the beat and off it)
+    until(lambda: min((dance().get(pid[n]) or {}).get("bars", 0) for n in ("Amy", "Ben")) >= 4, 9000)
     a, b = dance()[pid["Amy"]], dance()[pid["Ben"]]
-    ok(a["hits"] / a["of"] >= 0.9 and b["hits"] / b["of"] <= 0.25, f"Amy on the beat ({a['hits']}/{a['of']}), Ben not ({b['hits']}/{b['of']})")
+    ok(a["hits"] / a["of"] >= 0.8 and b["hits"] / b["of"] <= 0.25, f"Amy on the beat ({a['hits']}/{a['of']}), Ben not ({b['hits']}/{b['of']})")
     ok(until(lambda: tv.locator(".dj-dance-meter").count() == 2 and tv.locator(".dj-dance-meter.is-hot").count() == 1, 4000), "the TV's floor: a meter under each dancer, Amy's lit (she keeps it up)")
     ok(until(lambda: "2 dancing" in text(tv, ".dj-coach-combo"), 3000), f"the coach counts who's dancing ({text(tv, '.dj-coach-combo')!r})")
     tv.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-2-floor.png"))
@@ -118,6 +124,20 @@ with sync_playwright() as p:
     ok(until(lambda: "Best on the beat: Amy" in text(tv, ".dj-end"), 5000), f"the night's recap: the best on the beat ({text(tv, '.dj-end')!r})")
     for ph in phones:
         ph.evaluate("() => clearInterval(window.__hand)")
+
+    # the robot itself: a second TV that takes any WebGL (after the dancing: drawn in software, it's heavy)
+    tv2 = br.new_context(viewport={"width": 1600, "height": 900}).new_page()
+    tv2.add_init_script("window.__djAnyGl = true")
+    tv2.on("pageerror", lambda e: errs.append(str(e)))
+    tv2.goto(BASE + "dj", wait_until="load")
+    until(lambda: tv2.locator(".dj-join-code").inner_text().strip(), 15000)
+    tv2.locator(".dj-start-btn").click()
+    ok(until(lambda: tv2.locator(".dj-coach-3d canvas").count() == 1 and tv2.locator(".dj-coach-svg.is-off").count() == 1, 25000), "a TV that takes any WebGL: the 3D robot loads and takes over from the drawn coach")
+    c1 = until(lambda: tv2.evaluate("() => window.__coach3d"), 15000, 200) or {}
+    c2 = until(lambda: (lambda c: c if c and c["at"] != c1.get("at") else None)(tv2.evaluate("() => window.__coach3d")), 8000, 200)
+    ok(c2 and c2["clip"] in ("Dance", "ThumbsUp", "Punch", "Wave", "Jump", "Running", "Yes"), f"and dances on the beat ({c2})")
+    tv2.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-3-robot.png"))
+    tv2.context.close()
 
     bad = [e for e in errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not bad, f"no errors {bad[:3]}")

@@ -23,11 +23,49 @@ const CLIPS: Record<DanceMove["id"], { clip: string; beats: number }> = {
   shimmy: { clip: "Yes", beats: 2 },
 };
 
+/** In its first seconds, the robot's frames mostly slower than this (under 20 a second): a chip too
+ * weak for it next to everything else the TV does, and the drawn coach instead. */
+const SLOW_MS = 50;
+/** How long its frames are watched, and at least how many (a hidden tab's pause left out). */
+const WATCH_MS = 2500;
+const WATCH_FRAMES = 10;
+
+/** How the coach turned out (`watching`: the robot's first seconds), for the checks. */
+type Is = "trying" | "watching" | "on" | "software" | "none" | "slow" | "failed";
+const tell = (is: Is) => {
+  if (import.meta.env.DEV) (window as unknown as { __coach3dIs?: Is }).__coach3dIs = is;
+};
+/** The checks' browsers draw WebGL in software only: they take the robot anyway (dj_dance_check.py). */
+const anyGl = () => import.meta.env.DEV && (window as unknown as { __djAnyGl?: boolean }).__djAnyGl === true;
+
+/**
+ * The WebGL 2 three.js needs, and whether a graphics chip draws it. Drawn in software (no chip, or
+ * one the browser won't use), the robot would take the TV's processor from the music and the page:
+ * the drawn coach stays, and three.js isn't even downloaded.
+ */
+function glOf(): "chip" | "software" | "none" {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2");
+    if (!gl) return "none";
+    let name = String(gl.getParameter(gl.RENDERER) ?? "");
+    if (/^webkit webgl$/i.test(name)) {
+      const info = gl.getExtension("WEBGL_debug_renderer_info");
+      if (info) name = String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? name);
+    }
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    const strict = document.createElement("canvas").getContext("webgl2", { failIfMajorPerformanceCaveat: true });
+    strict?.getExtension("WEBGL_lose_context")?.loseContext();
+    return !strict || /swiftshader|llvmpipe|softpipe|lavapipe|software|basic render/i.test(name) ? "software" : "chip";
+  } catch {
+    return "none";
+  }
+}
+
 /**
  * 跟着跳's coach in 3D (Steve on Nov 2: "3D 舞者", the plan's dancers): a robot dancing the routine's
  * move, each animation stretched to whole beats and set to where the speaker's beat is every frame,
  * so it lands on the beat however the frames fall. Three.js loads only here, after the page. No
- * WebGL, or the model can't load: `onFail`, and the drawn coach stays.
+ * graphics chip for it, its frames too slow, or the model can't load: `onFail`, the drawn coach.
  */
 export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -38,6 +76,14 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
   useEffect(() => {
     const el = box.current;
     if (!el) return;
+    const any = anyGl();
+    const gl = glOf();
+    if (gl === "none" || (gl === "software" && !any)) {
+      tell(gl);
+      fail.current();
+      return;
+    }
+    tell("trying");
     let gone = false;
     let raf = 0;
     let stop = () => {};
@@ -76,11 +122,29 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
         const idle = actions.get("Idle");
         idle?.play();
         let last = performance.now();
+        let watch = !any;
+        let watchFrom = 0;
+        const gaps: number[] = [];
         const frame = () => {
-          raf = requestAnimationFrame(frame);
           const t = performance.now();
-          const dt = Math.min(0.1, (t - last) / 1000);
+          const gap = t - last;
           last = t;
+          if (watch) {
+            if (!watchFrom) watchFrom = t;
+            else if (gap < 1000) gaps.push(gap);
+            if (t - watchFrom >= WATCH_MS && gaps.length >= WATCH_FRAMES) {
+              watch = false;
+              const mid = gaps.sort((x, y) => x - y)[gaps.length >> 1];
+              if (mid > SLOW_MS) {
+                tell("slow");
+                fail.current();
+                return;
+              }
+              tell("on");
+            }
+          }
+          raf = requestAnimationFrame(frame);
+          const dt = Math.min(0.1, gap / 1000);
           const b = clock.beat();
           if (!Number.isFinite(b) || b < 0) {
             // no music: stand by
@@ -111,6 +175,7 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
           }
           renderer.render(scene, camera);
         };
+        tell(watch ? "watching" : "on");
         frame();
         stop = () => {
           cancelAnimationFrame(raf);
@@ -120,7 +185,10 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
         };
         ready.current();
       } catch {
-        if (!gone) fail.current();
+        if (!gone) {
+          tell("failed");
+          fail.current();
+        }
       }
     })();
     return () => {

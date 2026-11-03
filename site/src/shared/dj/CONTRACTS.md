@@ -99,14 +99,17 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`): a 3D robot (`Coach3D.tsx`,
   three.js loaded only there, a CC0 model in `public/models/robot.glb` with its own dances, each
   animation stretched to whole beats and set to the speaker's beat every frame), or Name That
-  Tune's drawn performer while it loads and on a screen without WebGL, dancing the routine on the
-  speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
+  Tune's drawn performer while it loads and on a screen with no graphics chip for it (no WebGL,
+  WebGL drawn in software, where three.js isn't even downloaded, or its frames under 20 a second
+  in its first seconds: the robot would take the TV's processor from the music and the page),
+  dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
   16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
   the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand
   (`phone/DancePad.tsx`; iOS and newer Chrome ask for the motion sensor on the start tap) reads its
   motion with gravity taken out; a beat is danced when the hand moves at least 2.5 m/s² within
-  150 ms of it (`danced`, the plan's easy mode: you moved, near the beat). The phone says how each
-  beat went, and sends each whole bar it listened to (`dance`). The room keeps every dancer's
+  150 ms of it (`danced`, the plan's easy mode: you moved, near the beat), counted from when the
+  phone is listening (a moment after the tap). The phone says how each beat went, and sends each
+  whole bar it listened to (`dance`). The room keeps every dancer's
   night (beats danced of beats sent, bars, a streak of bars with 3 of 4 or more) and the floor's
   combo: a bar where 70% of those dancing hit 3 of 4 lifts it by an eighth, any other bar drops it a
   quarter; full, the TV sets off fireworks (an `fx` event `dance`) and it starts again. The TV

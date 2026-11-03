@@ -47,9 +47,14 @@ export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
     if (import.meta.env.DEV) (window as unknown as { __danceNow?: () => number }).__danceNow = now;
   }, [now]);
 
-  // the hand's motion, as it comes
+  // the hand's motion, as it comes (beats count from here, when the phone is listening, a moment
+  // after the tap: a beat before it isn't a miss)
   useEffect(() => {
     if (!on) return;
+    if (!since.current) {
+      samples.current = [];
+      since.current = now();
+    }
     let gx = 0, gy = 0, gz = 0;
     const take = (e: DeviceMotionEvent) => {
       const lin = e.acceleration;
@@ -116,8 +121,7 @@ export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
     const yes = await askMotion();
     setNo(!yes);
     if (!yes) return;
-    samples.current = [];
-    since.current = now();
+    since.current = 0;
     setOn(true);
     haptic(20);
   };
