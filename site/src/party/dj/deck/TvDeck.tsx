@@ -61,7 +61,7 @@ export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
           <span className="dk-req is-now">
             <Music2 size={24} aria-hidden="true" />
             <span>
-              {nowLine(d.now, nameOf(d.now.by), zh, clip)}
+              {nowLine(d.now, nameOf(d.now.by), zh, clip || d.song?.id === d.now.id)}
               {clip && <small className="dk-req-credit">{L(CLIP_CREDIT, zh)}</small>}
             </span>
           </span>

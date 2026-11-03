@@ -401,3 +401,19 @@ and goes off (fireworks), starting again. The host ends the set: the recap names
 The first run found the check's own pretend hand on the computer's clock rather than the phone's
 (the phone's estimate of the room's clock was about 40 ms off): a hand half a beat off grazed the
 150 ms window. The check now moves it on the phone's clock, as a real hand is timed by the phone.
+
+## Whole songs from YouTube (Nov 2, night)
+
+Steve, asked whether to keep Apple's previews (their terms keep them to promoting the songs): "换成 YouTube
+放整首" (CONTRACTS.md, "The whole song, from YouTube").
+
+**`site/scripts/dj_youtube_check.py`**, the TV in Chromium and in WebKit, three phones: 33 of 33 in each,
+no errors. This machine can't reach YouTube, so the check stands in for YouTube's IFrame player on the
+TV and for the rooms server's two lookups on the phones. Ben pastes `youtu.be/…?si=abc`: his phone shows
+the video by name, the room takes it with its video, the TV doesn't read its name yet. The table drops
+into it; two bars on the TV plays the whole song in the player, the DJ faded out under it (its last gain
+0.000), every phone says the TV is playing Ben's song and its deck waits (pads off), Ben and Amy (the
+host) can skip it, Cat can't. It ends: the player goes, the DJ comes back (gain over 0.95), the decks
+too. Cat searches ("shape of you"), picks YouTube's video, the table drops into it, she skips it: the DJ
+comes back. Without the key a search makes the phone ask for a link. No request went to Apple. The
+music never stalled.

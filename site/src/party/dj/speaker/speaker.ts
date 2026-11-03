@@ -44,6 +44,8 @@ export class Speaker {
   private master: GainNode;
   /** under everything, after the ceiling: the music dips while the TV speaks (报幕) */
   private talk: GainNode;
+  /** and gives way to a whole song from YouTube (giveWay) */
+  private talkFade: GainNode;
   private room: GainNode;
   /** the beginner deck's effects (fx.ts plays them): the filters the music passes through, the echo's send, and where its own sounds go */
   readonly fxNodes: FxNodes;
@@ -113,7 +115,8 @@ export class Speaker {
     this.lo = Math.max(1, Math.round(45 / hz));
     this.hi = Math.max(this.lo, Math.round(140 / hz));
     this.talk = ctx.createGain();
-    this.master.connect(glue).connect(limit).connect(this.talk).connect(ctx.destination);
+    this.talkFade = ctx.createGain();
+    this.master.connect(glue).connect(limit).connect(this.talk).connect(this.talkFade).connect(ctx.destination);
     limit.connect(this.analyser);
     // the beginner deck's effects: both filters wide open, the echo silent, until fx.ts moves them
     const hp = ctx.createBiquadFilter();
@@ -358,6 +361,15 @@ export class Speaker {
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setTargetAtTime(0, t, Math.max(0.01, seconds / 4));
+  }
+
+  /** The DJ gives way to a whole song (真歌时间: it plays in YouTube's player, not here), or comes back: over `seconds`. */
+  giveWay(away: boolean, seconds: number) {
+    const g = this.talkFade;
+    const t = this.ctx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.linearRampToValueAtTime(away ? 0 : 1, t + Math.max(0.05, seconds));
   }
 
   /** Back up to the volume after a fade. */

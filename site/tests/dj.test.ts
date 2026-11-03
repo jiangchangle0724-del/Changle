@@ -7,7 +7,7 @@ import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
 import { ALL_SECTIONS, ANY_SECTION, BED, KITS, sectionById, sectionOf } from "../src/party/dj/fake/styles";
 import { CLIP_DB, ClipDeck, clipOf, loadClip, type Clip } from "../src/party/dj/clip/clip";
-import { hitsOf, storeFor } from "../src/party/dj/phone/apple";
+import { hitsOf, unescape, ytIdOf } from "../src/shared/dj/youtube";
 import { previewOk } from "../src/shared/songs";
 import { decodePiece, encodePiece, fileNumber, PIECE_BYTES, SONG_BYTES } from "../src/shared/dj/songwire";
 import { eqDb, filterOf, GATE_STEPS } from "../src/party/dj/speaker/mixer";
@@ -1099,24 +1099,16 @@ await test("songwire: a song file in pieces, every piece checked; the rooms serv
   ok(fileNumber("abc123xyz") === parseInt("abc123xy", 36) && Number.isSafeInteger(fileNumber("zzzzzzzzzzzz")), "a file's number for the word back");
 });
 
-await test("apple: Apple's search answer, as songs the DJ can play; the room takes only previews on Apple's server", () => {
-  const PRE = "https://audio-ssl.itunes.apple.com/itunes-assets/";
-  const ans = {
-    results: [
-      { kind: "song", trackId: 1, trackName: "晴天 (Live)", artistName: "周杰倫", previewUrl: `${PRE}AudioPreview1/v4/aa/mzaf_1.plus.aac.p.m4a` },
-      { kind: "song", trackId: 1, trackName: "晴天", artistName: "周杰倫", previewUrl: `${PRE}AudioPreview1/v4/aa/mzaf_1.plus.aac.p.m4a` },
-      { kind: "song", trackId: 2, trackName: "Blinding Lights", artistName: "The Weeknd", previewUrl: `${PRE}AudioPreview2/v4/bb/mzaf_2.plus.aac.ep.m4a` },
-      { kind: "music-video", trackId: 3, trackName: "Video", artistName: "X", previewUrl: `${PRE}x.m4v` },
-      { kind: "song", trackId: 4, trackName: "Elsewhere", artistName: "Y", previewUrl: "https://evil.example/a.m4a" },
-      { kind: "song", trackId: 5, trackName: "No preview", artistName: "Z" },
-    ],
-  };
-  const hits = hitsOf(ans, "tw", (x) => x.replace("倫", "伦"));
-  ok(hits.length === 2 && hits[0].t === "晴天" && hits[0].a === "周杰伦" && hits[0].p === "AudioPreview1/v4/aa/mzaf_1" && hits[0].st === "tw", "a Chinese song: its title cleaned, simplified, its preview as a path on Apple's server");
-  ok(hits[1].p === `${PRE}AudioPreview2/v4/bb/mzaf_2.plus.aac.ep.m4a`, "another kind of preview kept as its full URL");
-  ok(hits.every((h) => previewOk(h.p)), "every one the room will take");
-  ok(hitsOf(null, "us").length === 0 && hitsOf({ results: "x" }, "us").length === 0, "no answer: no songs");
-  ok(storeFor("晴天") === "tw" && storeFor("blinding") === "us", "Taiwan's store for Chinese, else the US's");
+await test("youtube: a link's video id, the search answer's videos, YouTube's escapes", () => {
+  const id = "dQw4w9WgXcQ";
+  const links = [`https://www.youtube.com/watch?v=${id}&t=42`, `youtu.be/${id}`, `https://m.youtube.com/watch?v=${id}`, `https://music.youtube.com/watch?v=${id}&list=x`, `https://www.youtube.com/shorts/${id}`, `https://www.youtube-nocookie.com/embed/${id}`];
+  ok(links.every((l) => ytIdOf(l) === id), "every kind of link gives its video");
+  ok(ytIdOf(id) === null && ytIdOf("晴天 周杰伦") === null && ytIdOf("https://example.com/watch?v=" + id) === null && ytIdOf("https://youtu.be/short") === null, "words, a bare id, another site, a broken id: no video");
+  ok(unescape("Rock &amp; Roll &#39;76 &quot;live&quot; &#x4e2d;") === `Rock & Roll '76 "live" 中`, "YouTube's escapes undone");
+  const ans = { items: [{ id: { videoId: id }, snippet: { title: "Song &amp; Dance", channelTitle: "Band" } }, { id: { videoId: "bad" }, snippet: { title: "x" } }, { id: { videoId: "abcdefghijk" }, snippet: { title: "" } }, { id: { channelId: "c" }, snippet: { title: "A channel" } }] };
+  const hits = hitsOf(ans);
+  ok(hits.length === 1 && hits[0].id === id && hits[0].t === "Song & Dance" && hits[0].a === "Band", "only videos with an id and a title, cleaned");
+  ok(hitsOf(null).length === 0 && hitsOf({ items: "x" }).length === 0, "an answer that isn't one: nothing");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

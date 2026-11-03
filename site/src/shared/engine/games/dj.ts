@@ -48,7 +48,8 @@ import {
   type Track,
 } from "../../dj/types";
 import type { DeckView, DjTrack, DjView, ReqView } from "../../protocol";
-import { fromRow, previewOk, type Song } from "../../songs";
+import { YT_ID } from "../../dj/youtube";
+import { fromRow, type Song } from "../../songs";
 import { clean, num, type Api, type GameDef } from "../api";
 
 /** 🔥 and ❄️ presses kept (each) */
@@ -185,6 +186,11 @@ function swapped(s: RoomState, api: Api) {
     // its player's next song waits behind the others' for a while; the recap keeps it
     d.reqOn[d.up.by] = api.now;
     d.heard = keep([...d.heard, d.up], DECK.heardMax);
+    // 真歌时间: a song from YouTube plays whole on the big screen once the DJ has faded out
+    if (d.up.yt) {
+      d.song = { id: d.up.id, yt: d.up.yt, by: d.up.by, at: api.now + DECK.songFadeBars * 4 * beatMsOf(d.grid) };
+      api.timer("song", d.song.at + DECK.songMaxMs);
+    }
     d.up = null;
     api.clear("req");
     api.timer("now", api.now + DECK.reqPlayMs);
@@ -193,6 +199,12 @@ function swapped(s: RoomState, api: Api) {
     api.clear("now");
   }
   air(s, api);
+}
+
+/** 真歌时间 is over (the big screen says the song ended, someone skipped it, or the time ran out): the DJ comes back. */
+function songOver(s: RoomState, api: Api) {
+  s.deck.song = null;
+  api.clear("song");
 }
 
 /** The recap's record (今晚回顾): what's on the air, kept each time it changes. */
@@ -255,6 +267,11 @@ function nextReq(s: RoomState, api: Api) {
 function autoDrop(s: RoomState, api: Api, key: "req" | "end") {
   const d = s.deck;
   if (d.drop) return;
+  // a whole song plays: the DJ drops once it's over
+  if (d.song) {
+    api.timer(key, api.now + 5000);
+    return;
+  }
   const side = cued(d, s.source === "lyria");
   if (!side) {
     api.timer(key, api.now + (key === "end" ? 3000 : 5000));
@@ -334,26 +351,26 @@ function listed(id: unknown): Song | null {
 }
 
 /**
- * A song a phone found on Apple: [track id, title, artist, preview, storefront], every field
- * checked (the preview can only be on Apple's preview server), else null.
+ * A song a phone found on YouTube (a link, or a search): [video id, its title, its channel], every
+ * field checked, else null. It plays whole on the big screen, in YouTube's player.
  */
-function fromApple(v: unknown): { id: number; t: string; a: string; p: string; st: string } | null {
-  if (!Array.isArray(v) || v.length !== 5) return null;
-  const [id, t, a, p, st] = v as unknown[];
-  if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0 || !previewOk(p)) return null;
+function fromYt(v: unknown): { id: string; t: string; a: string } | null {
+  if (!Array.isArray(v) || v.length !== 3) return null;
+  const [id, t, a] = v as unknown[];
+  if (typeof id !== "string" || !YT_ID.test(id)) return null;
   const title = cleanAsk(t, REQ_CHARS.max);
   if (!title) return null;
-  return { id, t: title, a: cleanAsk(a, 40), p, st: typeof st === "string" && /^[a-z]{2}$/.test(st) ? st : "us" };
+  return { id, t: title, a: cleanAsk(a, 40) };
 }
 
 /**
- * A song asked for, as `pid` sees it: a name the player typed, or found on Apple, shows only to
- * them and the host (its clip still plays for everyone).
+ * A song asked for, as `pid` sees it: a name the player typed, or found on YouTube, shows only to
+ * them and the host (a YouTube one still plays for everyone: its player shows what it is).
  */
 function reqFor(r: SongReq, pid: string, host: boolean): ReqView {
-  if (r.song !== undefined || r.local !== undefined || r.by === pid || host) return r;
-  const { artist: _artist, ...rest } = r;
-  return { ...rest, text: null };
+  if ((r.song !== undefined && !r.ytT) || r.local !== undefined || r.by === pid || host) return r;
+  const { artist: _artist, ytT: _ytT, ...rest } = r;
+  return { ...rest, text: r.song !== undefined ? r.text : null };
 }
 
 /** No music: nothing building, nothing on its way (a song up next waits, first in line). */
@@ -366,8 +383,10 @@ function calm(s: RoomState, api: Api) {
   d.up = null;
   d.now = null;
   d.ending = null;
-  // and the mixer as the music plays; the recap notes the music stopped
+  // and the mixer as the music plays; the recap notes the music stopped; no whole song
   d.mixer = freshMixer();
+  d.song = null;
+  api.clear("song");
   if (d.aired.length && d.aired.at(-1)!.style !== "off") d.aired = keep([...d.aired, { at: api.now, style: "off" }], DECK.airedMax);
   api.clear("drop");
   api.clear("req");
@@ -552,14 +571,16 @@ export const dj: GameDef<RoomState> = {
           r = { id: trackId(s, api), by: pid, text: c.t, ...(c.a ? { artist: c.a } : {}), local: c.id, style: styleForRequest(`${c.t} ${c.a}`), track: trackFor(c.t), at: now };
         } else {
           // picked from the song list: its title and artist, the list's (the whole table reads
-          // them), and its clip; one the phone found on Apple: Apple's name for it (only they and
-          // the host read it) and its clip; or the name they typed (no clip: the remix alone)
+          // them); with the phone's YouTube find for it, or one found on YouTube by itself (a link,
+          // a search): the whole song plays on the big screen, the DJ's remix in its style after;
+          // or the name they typed (the remix alone)
           const song = listed(g.song);
-          const found = song ? null : fromApple(g.apple);
-          const text = song ? song.t : found ? found.t : cleanAsk(g.text, REQ_CHARS.max);
+          const yt = fromYt(g.yt);
+          const text = song ? song.t : yt ? yt.t : cleanAsk(g.text, REQ_CHARS.max);
           if (Array.from(text).length < REQ_CHARS.min) return api.quiet();
-          const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(found ? `${found.t} ${found.a}` : text);
-          const what = song ? { artist: song.a, song: song.id, p: song.p, st: song.s } : found ? { ...(found.a ? { artist: found.a } : {}), apple: found.id, p: found.p, st: found.st } : {};
+          const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(yt ? `${yt.t} ${yt.a}` : text);
+          const tube = yt ? { yt: yt.id, ytT: yt.t } : {};
+          const what = song ? { artist: song.a, song: song.id, ...tube } : yt ? { ...(yt.a ? { artist: yt.a } : {}), ...tube } : {};
           r = { id: trackId(s, api), by: pid, text, ...what, style, track: trackFor(text), at: now };
         }
         d.reqAt[pid] = now;
@@ -600,7 +621,7 @@ export const dj: GameDef<RoomState> = {
       case "pad": {
         const d = s.deck;
         const pad = g.pad as PadId;
-        if (!playing(s.phase) || !PAD_IDS.includes(pad)) return api.quiet();
+        if (!playing(s.phase) || s.deck.song || !PAD_IDS.includes(pad)) return api.quiet();
         const now = api.now;
         // a phone's per padTakeMs, and the same pad once for the whole room per roomPadGapMs (two
         // people on the horn at the same moment is one horn): a table mashing can't pile them up
@@ -619,7 +640,8 @@ export const dj: GameDef<RoomState> = {
       case "charge": {
         const d = s.deck;
         const n = num(g.n, 0, DECK.maxTaps);
-        if (!playing(s.phase) || d.drop || n === null) return api.quiet();
+        // (while a whole song plays, the deck waits)
+        if (!playing(s.phase) || d.drop || d.song || n === null) return api.quiet();
         d.pending += Math.round(n);
         // the taps are added a few times a second, and only then does the table hear about it (a
         // phone says 0 once its taps stop, so the last ones are never left waiting)
@@ -647,7 +669,7 @@ export const dj: GameDef<RoomState> = {
         const d = s.deck;
         const v = num(g.value, 0, 1);
         // nothing to blend into while deck B is empty
-        if (!playing(s.phase) || v === null || !hasB(d)) return api.quiet();
+        if (!playing(s.phase) || v === null || !hasB(d) || d.song) return api.quiet();
         const now = api.now;
         // the fader is whoever's moving it: the others wait for them to let go
         if (d.faderBy && d.faderBy !== pid && now - d.faderAt < DECK.faderHoldMs) return api.quiet();
@@ -798,6 +820,13 @@ export const dj: GameDef<RoomState> = {
         api.light();
         return;
       }
+      case "songskip": {
+        // the whole song playing: its player or the host stops it, and the DJ comes back
+        const d = s.deck;
+        if (!d.song || (d.song.by !== pid && !host)) return api.quiet();
+        songOver(s, api);
+        return;
+      }
       case "voice": {
         // the host, from their phone: 报幕 on the big screen, on or off
         const on = g.on === true;
@@ -946,6 +975,12 @@ export const dj: GameDef<RoomState> = {
         s.mine = on;
         return true;
       }
+      case "songdone": {
+        // the whole song from YouTube ended on the big screen (or couldn't play): the DJ comes back
+        if (!fromSpeaker(s, sid, api) || !s.deck.song || s.deck.song.id !== g.id) return false;
+        songOver(s, api);
+        return true;
+      }
       case "song": {
         // how a song file sent from the host's phone went: told to that phone
         const code = typeof g.code === "number" && Number.isInteger(g.code) && g.code >= 0 && g.code < SONG_SENT.length ? g.code : -1;
@@ -996,6 +1031,10 @@ export const dj: GameDef<RoomState> = {
       const d = s.deck;
       if (!d.ending || d.ending !== d.songs[onAir(d)] || d.drop) return;
       autoDrop(s, api, "end");
+      return;
+    }
+    if (key === "song") {
+      songOver(s, api);
       return;
     }
     if (key === "now") {

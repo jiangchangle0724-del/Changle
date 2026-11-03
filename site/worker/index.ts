@@ -3,6 +3,7 @@
  * hands each phone only what that phone may see, and survives phones locking or dropping.
  */
 import { DurableObject } from "cloudflare:workers";
+import { youtube } from "./youtube";
 import { freshRoom, RoomEngine, type Output, type Profile, type RoomData } from "../src/shared/engine/room";
 import { CODE_RE, type ClientMsg, type ErrorCode, type ServerMsg } from "../src/shared/protocol";
 import { drawPicture, drawReady, type Pic } from "./draw";
@@ -22,6 +23,8 @@ export interface Env extends LyriaEnv {
   /** the owner's account: the back office, and the one way in while the site is paused */
   MASTER_EMAIL?: string;
   DEV_SHOW_CODES?: string;
+  /** YouTube Data API key: 打碟's song search on the phones (a secret; without it, links still work) */
+  YOUTUBE_API_KEY?: string;
   /** Google AI key for drawing anime avatars (a secret: set-ai-key.cmd) */
   GEMINI_API_KEY?: string;
   GEMINI_IMAGE_MODEL?: string;
@@ -147,6 +150,11 @@ async function fx(req: Request, ctx: ExecutionContext) {
 async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
   const path = url.pathname.replace(/^\/api/, "");
   if (path === "/fx" && req.method === "GET") return fx(req, ctx);
+  // 打碟's songs from YouTube: a link's title, a search (the owner's key)
+  if (path.startsWith("/yt/") && req.method === "GET") {
+    const res = await youtube(path, url, env, ctx);
+    if (res) return cors(res, req, res.headers.get("Cache-Control") ?? "no-store");
+  }
   const hub = env.HUB.get(env.HUB.idFromName("hub"));
   if (path === "/live") {
     if (!originOk(req)) return new Response("forbidden", { status: 403 });

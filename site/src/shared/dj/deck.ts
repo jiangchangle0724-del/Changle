@@ -46,6 +46,7 @@ export function freshDeck(): DeckState {
     up: null,
     now: null,
     reqOn: {},
+    song: null,
     aired: [],
     heard: [],
     reqAt: {},

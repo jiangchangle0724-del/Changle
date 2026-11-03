@@ -403,6 +403,64 @@
   box-shadow: 0 0 12px var(--gel-lemon);
 }
 
+/* 真歌时间: a whole song from YouTube, big in the middle of the stage, in YouTube's own player */
+.dj-tube {
+  position: absolute;
+  top: 250px;
+  left: 50%;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(900px, calc(100% - 120px));
+  padding: 16px 18px 14px;
+  border-radius: 28px;
+  background: rgba(10, 6, 18, 0.94);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 30px 70px rgba(0, 0, 0, 0.6);
+  translate: -50% 0;
+}
+.dj-tube-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--moon);
+  font-size: 24px;
+  font-weight: 800;
+}
+.dj-tube-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #000;
+}
+.dj-tube-slot > div,
+.dj-tube-slot iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.dj-tube-wait {
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 700;
+}
+.dj-tube-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--haze);
+  font-size: 16px;
+  font-weight: 700;
+}
+
 /* 跟着跳: the coach on the left of the floor, the move's name, the next, the floor together */
 .dj-coach {
   position: absolute;

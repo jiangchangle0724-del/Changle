@@ -236,12 +236,12 @@ export type SongReq = {
   artist?: string;
   /** the song list's id for it (Apple's track id) */
   song?: number;
-  /** Apple's track id for a song the phone found on Apple (not on the list) */
-  apple?: number;
-  /** its preview on Apple's preview server (a path there, as the song list has them, or the full URL) */
+  /** the whole song on YouTube (a video id), played on the big screen in YouTube's own player
+   *  (Steve on Nov 2, his plan's 观众点歌: never downloaded, never mixed), and its title there */
+  yt?: string;
+  ytT?: string;
+  /** (a clip the DJ can play over its drums: no licensed source sets one now; LICENSES.md) */
   p?: string;
-  /** the Apple storefront it's from (the link to the whole song) */
-  st?: string;
   /** one of the host's own songs (a night of them): its id in the room's `crate` */
   local?: string;
   /** the style its remix is made in (requests.ts) */
@@ -312,6 +312,9 @@ export type DeckState = {
    *  first. Another set carries them on, like the night's 🔥 */
   aired: { at: number; style: StyleId | "mine" | "off" }[];
   heard: SongReq[];
+  /** 真歌时间: a song asked for from YouTube plays whole on the big screen (from `at`, after the DJ
+   *  fades out); the deck waits until it ends, its player or the host skips it, or 12 minutes */
+  song: { id: string; yt: string; by: string; at: number } | null;
   /** the table's mixer on the speaker's output (混音台) */
   mixer: MixerState;
   /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick,
@@ -423,6 +426,10 @@ export const DECK = {
   reqGapMs: 5000,
   reqWaitMs: 40_000,
   reqPlayMs: 90_000,
+  /** a whole song from YouTube: the DJ fades out over this many bars after its drop, and the song
+   *  plays at most this long (the big screen says when it ends; this is in case it never does) */
+  songFadeBars: 2,
+  songMaxMs: 12 * 60_000,
   /** a player whose song came on the air this recently waits behind the others' songs (alone, it
    *  still plays: nobody's turn is taken) */
   reqAgainMs: 600_000,
@@ -462,7 +469,8 @@ export type DjCommand =
   /** ask for a song by name (the deck): `song`, the song list's id when they picked it there;
    *  `apple`, one the phone found on Apple: [track id, title, artist, preview, storefront];
    *  on a night of the host's songs, `local`: one of them */
-  | { x: "req"; text?: string; song?: number; apple?: [number, string, string, string, string]; local?: string }
+  | { x: "req"; text?: string; song?: number; yt?: [string, string, string]; local?: string }
+  | { x: "songskip" }
   /** take back a song asked for by name, waiting or up next (the host can take back anyone's) */
   | { x: "unreq"; id: string }
   /** DROP, pressed during the countdown; `c`: when, on this phone's estimate of the server's clock */
@@ -507,7 +515,8 @@ export type DjCommand =
   /** every knob back to 0, every effect off */
   | { x: "mixoff" }
   /** the speaker: how a song file sent from the host's phone went (`code`: SONG_SENT), for that phone (`by`), the file's number (`id`) */
-  | { x: "song"; by: string; id: number; code: number };
+  | { x: "song"; by: string; id: number; code: number }
+  | { x: "songdone"; id: string };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;

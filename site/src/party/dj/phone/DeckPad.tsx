@@ -9,9 +9,9 @@ import { haptic } from "../../../lib/sfx";
 import { useStore } from "../../../store";
 import { dataUrl } from "../../../online/config";
 import type { CrateSong } from "../../../shared/dj/types";
-import { appleMusicUrl } from "../../../shared/songs";
 import { DROP_WORDS, hintText, localName, mixSaid, PADS, songName } from "../deck/words";
-import { searchApple, type AppleHit } from "./apple";
+import { ytIdOf, type YtHit } from "../../../shared/dj/youtube";
+import { ytInfo, ytSearch } from "./youtube";
 import { MixerPad } from "./MixerPad";
 import { Platter, type Move } from "./Platter";
 import { STYLE_NAMES } from "../parts";
@@ -32,7 +32,8 @@ export function DeckPad({ v }: { v: DjView }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const d = v.deck;
-  const live = v.phase !== "wait" && v.phase !== "end";
+  // (while a whole song plays on the TV, the deck waits)
+  const live = v.phase !== "wait" && v.phase !== "end" && !d.song;
   const t = now();
   // smooth while something moves: the countdown, the build-up falling back
   useTicker(live && (!!d.drop || chargeNow(d, t) > 0), d.drop ? 50 : 200);
@@ -75,6 +76,7 @@ export function DeckPad({ v }: { v: DjView }) {
   // turntables, the mixer between them, the crossfader, the pads, the build-up and DROP
   return (
     <section className="djk" aria-label={zh ? "打碟台" : "The deck"}>
+      {d.song && <SongTime v={v} me={me} g={g} zh={zh} nameOf={nameOf} />}
       <p className="djk-hint" aria-live="polite">
         {hint ? hintText(hint, off, zh, d.local) : zh ? "音乐开始后就能打碟" : "The deck opens when the music starts"}
       </p>
@@ -102,6 +104,28 @@ export function DeckPad({ v }: { v: DjView }) {
 }
 
 type G = (x: string, data?: Record<string, unknown>) => void;
+
+/** 真歌时间: a whole song from YouTube plays on the TV; the deck waits. Its player and the host can skip it. */
+function SongTime({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; zh: boolean; nameOf: (pid: string) => string }) {
+  const { isHost } = useRoom();
+  const s = v.deck.song!;
+  const req = v.deck.now?.id === s.id ? v.deck.now : null;
+  const name = req ? songName(req, zh) : null;
+  const can = s.by === me || isHost;
+  return (
+    <div className="djk-song" role="status">
+      <span className="djk-song-title">
+        {s.by === me ? (zh ? `电视上在放你点的整首${name ? ` ${name}` : ""}` : `The TV plays yours, whole${name ? `: ${name}` : ""}`) : zh ? `电视上在放 ${nameOf(s.by)} 点的整首${name ? ` ${name}` : ""}` : `The TV plays ${nameOf(s.by)}'s song, whole${name ? `: ${name}` : ""}`}
+      </span>
+      <span className="djk-song-note">{zh ? "放完 DJ 就回来，打碟台先停一下" : "The DJ comes back when it ends; the deck waits till then"}</span>
+      {can && (
+        <button type="button" className="btn btn-ghost btn-block" onClick={() => g("songskip")}>
+          {zh ? "切歌" : "Skip it"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 /** The two decks as turntables: their records, the one on the air spinning; a hand on either is a move of the music. */
 function Decks({ v, on, zh, lyria, live, hand }: { v: DjView; on: DeckSide; zh: boolean; lyria: boolean; live: boolean; hand: (m: Move) => void }) {
@@ -353,7 +377,7 @@ function Picks({ v, me, g, zh, side }: { v: DjView; me: string; g: G; zh: boolea
 /* ------------------------------------------------------------------ songs asked for by name */
 
 /** A song on the site's list (or one of the host's: `local`; or one found on Apple: `apple`), ready to search: its title and the whole line folded the same way. */
-type Entry = { id: number; t: string; a: string; c: number; tk: string; key: string; local?: string; apple?: AppleHit };
+type Entry = { id: number; t: string; a: string; c: number; tk: string; key: string; local?: string; yt?: YtHit };
 type Book = { list: Entry[]; fold: (x: string) => string; simplify: (x: string) => string };
 let book: Promise<Book> | null = null;
 
@@ -395,14 +419,14 @@ function search(b: Book, q: string): Entry[] {
 }
 
 /** An Apple song as the room takes it: [track id, title, artist, preview, storefront]. */
-const appleReq = (h: AppleHit) => [h.id, h.t, h.a, h.p, h.st];
+const ytReq = (h: YtHit) => [h.id, h.t, h.a];
 
 /**
- * Ask for a song by name: the DJ plays 30 seconds of the song itself (Apple's preview) over its
- * drums on the next drop, then its remix in the song's style, named for whoever asked on the big
- * screen. Suggestions come from the site's song list (a song picked there shows by name to
- * everyone), and from Apple for a name that isn't on it; one song each, waiting or up next. On a
- * night of the host's songs: those, the whole song.
+ * Ask for a song: the whole song on YouTube plays on the big screen after its drop (Steve on Nov 2:
+ * a link, or a search once the owner has set YouTube's key), then the DJ's remix in its style; a
+ * name with no YouTube video gets the remix alone. Suggestions come from the site's song list (a
+ * song picked there shows by name to everyone) and from YouTube; one song each, waiting or up next.
+ * On a night of the host's songs: those, the whole song.
  */
 function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
   const d = v.deck;
@@ -420,30 +444,35 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   };
   const using = d.local ? (crate?.book ?? null) : b;
   const hits = useMemo(() => (using && !pick && q.trim() ? search(using, q) : []), [using, q, pick]);
-  // the same name on Apple, a moment after the typing stops (for songs not on the list)
+  // YouTube, a moment after the typing stops: a pasted link's video, or a search (once the owner
+  // has set YouTube's key; till then, links only)
   const typed = q.trim();
-  const [found, setFound] = useState<{ q: string; hits: AppleHit[] } | null>(null);
+  const link = ytIdOf(typed);
+  const [found, setFound] = useState<{ q: string; hits: YtHit[] } | null>(null);
+  const [noKey, setNoKey] = useState(false);
   useEffect(() => {
-    if (d.local || pick || Array.from(typed).length < 2) return;
+    if (d.local || pick || Array.from(typed).length < 2 || (noKey && !link)) return;
     let gone = false;
-    const id = window.setTimeout(() => {
-      void searchApple(typed, b?.simplify).then((list) => {
-        if (!gone) setFound({ q: typed, hits: list });
-      });
-    }, 450);
+    const id = window.setTimeout(
+      () => {
+        const ask = link ? ytInfo(link).then((h) => (h ? [h] : [])) : ytSearch(typed);
+        void ask.then((list) => {
+          if (gone) return;
+          if (list === "nokey") setNoKey(true);
+          else setFound({ q: typed, hits: list });
+        });
+      },
+      link ? 50 : 500,
+    );
     return () => {
       gone = true;
       window.clearTimeout(id);
     };
-  }, [d.local, pick, typed, b]);
+  }, [d.local, pick, typed, link, noKey]);
   const fold = b?.fold ?? ((x: string) => x.toLowerCase());
-  const onApple: Entry[] = useMemo(() => {
+  const onTube: Entry[] = useMemo(() => {
     if (d.local || pick || !found || found.q !== typed) return [];
-    const listed = new Set(hits.map((h) => fold(`${h.t}${h.a}`)));
-    return found.hits
-      .filter((h) => !listed.has(fold(`${h.t}${h.a}`)))
-      .slice(0, hits.length ? 3 : 6)
-      .map((h) => ({ id: h.id, t: h.t, a: h.a, c: 0, tk: fold(h.t), key: fold(`${h.t} ${h.a}`), apple: h }));
+    return found.hits.slice(0, hits.length ? 3 : 6).map((h, i) => ({ id: -1 - i, t: h.t, a: h.a, c: 0, tk: fold(h.t), key: fold(`${h.t} ${h.a}`), yt: h }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.local, pick, found, typed, hits, b]);
   // where this player's song stands, in the order the room plays them (one player's two songs 10
@@ -474,13 +503,13 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
       g("req", { local: hit.local });
       return sent();
     }
-    if (pick?.apple) {
-      g("req", { apple: appleReq(pick.apple) });
+    if (pick?.yt) {
+      g("req", { yt: ytReq(pick.yt) });
       return sent();
     }
     if (pick) {
-      g("req", { song: pick.id, text: pick.t });
-      return sent();
+      // one from the song list: its video on YouTube too, when the search can find it
+      return withTube(`${pick.t} ${pick.a}`, (top) => g("req", { song: pick.id, text: pick.t, ...(top ? { yt: ytReq(top) } : {}) }));
     }
     const text = q.trim();
     if (!text) return;
@@ -488,22 +517,28 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     const k = b ? b.fold(text) : "";
     const same = b?.list.filter((x) => x.tk === k || x.key === k) ?? [];
     const hit = same.find((x) => x.c) ?? same[0];
-    if (hit) {
-      g("req", { song: hit.id, text: hit.t });
+    if (hit) return withTube(`${hit.t} ${hit.a}`, (top) => g("req", { song: hit.id, text: hit.t, ...(top ? { yt: ytReq(top) } : {}) }));
+    // else YouTube's best match for it (a link: that video); else the name alone (the remix alone)
+    return withTube(text, (top) => g("req", top ? { yt: ytReq(top) } : { text }));
+  };
+  /** YouTube's first video for some words (a link: its own), within 3 seconds, then `go`. */
+  const withTube = (words: string, go: (top: YtHit | undefined) => void) => {
+    if (found && found.q === words) {
+      go(found.hits[0]);
       return sent();
     }
-    // else Apple's best match for it (so its clip plays: asked now if the typing was quicker than
-    // the search, a few seconds at most); else the name alone (the remix alone)
-    const ask = (top: AppleHit | undefined) => {
-      g("req", top ? { apple: appleReq(top) } : { text });
-      sent();
-    };
-    if (found && found.q === text) return ask(found.hits[0]);
+    const id = ytIdOf(words);
+    if (noKey && !id) {
+      go(undefined);
+      return sent();
+    }
     setFinding(true);
-    const late = new Promise<AppleHit[]>((ok) => window.setTimeout(() => ok([]), 3000));
-    void Promise.race([searchApple(text, b?.simplify), late]).then((list) => {
+    const late = new Promise<YtHit[]>((ok) => window.setTimeout(() => ok([]), 3000));
+    const ask = id ? ytInfo(id).then((h) => (h ? [h] : [])) : ytSearch(words).then((l) => (l === "nokey" ? [] : l));
+    void Promise.race([ask, late]).then((list) => {
       setFinding(false);
-      ask(list[0]);
+      go(list[0]);
+      sent();
     });
   };
 
@@ -533,8 +568,6 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     );
   }
 
-  // the whole song, for whoever asked while its clip plays
-  const whole = mine?.at === "now" && mine.r.p ? (mine.r.song ?? mine.r.apple) : undefined;
   return (
     <form className="djk-req" onSubmit={send}>
       <span className="djk-req-title">
@@ -543,13 +576,13 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
       </span>
       <span className="djk-req-note">
         {mine?.at === "now"
-          ? mine.r.local || mine.r.p
+          ? mine.r.local || mine.r.yt
             ? zh
               ? `正在放你点的 ${songName(mine.r, zh) ?? ""}，还可以再点一首`
               : `Yours is on: ${songName(mine.r, zh) ?? ""}. You can ask for another`
             : zh
-              ? `正在放 DJ 按 ${songName(mine.r, zh) ?? ""} 做的 Remix（没找到这首歌的原曲），还可以再点一首`
-              : `On now: the DJ's remix for ${songName(mine.r, zh) ?? ""} (no clip of the song found). You can ask for another`
+              ? `正在放 DJ 按 ${songName(mine.r, zh) ?? ""} 做的 Remix（YouTube 上没找到这首），还可以再点一首`
+              : `On now: the DJ's remix for ${songName(mine.r, zh) ?? ""} (not found on YouTube). You can ask for another`
           : full
             ? zh
               ? `点歌排满了（${DECK.reqMax} 首），放掉几首再点`
@@ -558,18 +591,17 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
               ? zh
                 ? `搜主人的这 ${v.crateN} 首歌，点中了下一首就放原曲`
                 : `Search the host's ${v.crateN} songs. The one you pick plays next`
-              : zh
-                ? "输入歌名或歌手。下一首先放这首歌的 30 秒原曲，再接 DJ 按它的风格做的 Remix"
-                : "Type a song or an artist. Up next: 30 seconds of the song itself, then the DJ's remix in its style"}
+              : noKey
+                ? zh
+                  ? "输入歌名或歌手，或者贴一个 YouTube 链接：贴链接的会在电视上放整首，再接 DJ 按它的风格做的 Remix"
+                  : "Type a song or an artist, or paste a YouTube link: a link plays the whole song on the TV, then the DJ's remix in its style"
+                : zh
+                  ? "输入歌名或歌手，或者贴 YouTube 链接。Drop 进去之后电视上放 YouTube 上的整首，再接 DJ 按它的风格做的 Remix"
+                  : "Type a song or an artist, or paste a YouTube link. After its drop the TV plays the whole song from YouTube, then the DJ's remix in its style"}
       </span>
-      {whole !== undefined && (
-        <a className="djk-req-whole" href={appleMusicUrl(whole, mine?.r.st ?? "us")} target="_blank" rel="noreferrer">
-          {zh ? "在 Apple Music 听完整首" : "The whole song on Apple Music"}
-        </a>
-      )}
       {pick ? (
         <span className="djk-req-pick">
-          <span>{zh ? `${pick.a}《${pick.t}》` : `${pick.t} (${pick.a})`}</span>
+          <span>{pick.yt ? `${pick.t} · YouTube` : zh ? `${pick.a}《${pick.t}》` : `${pick.t} (${pick.a})`}</span>
           <button type="button" aria-label={zh ? "换一首" : "Choose another"} onClick={() => setPick(null)}>
             <X size={20} aria-hidden="true" />
           </button>
@@ -592,7 +624,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           disabled={ended}
         />
       )}
-      {hits.length + onApple.length > 0 && (
+      {hits.length + onTube.length > 0 && (
         <ul className="djk-req-hits" aria-label={d.local ? (zh ? "主人的歌" : "The host's songs") : zh ? "找到的歌" : "Songs found"}>
           {hits.map((h) => (
             <li key={h.id}>
@@ -602,12 +634,12 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
               </button>
             </li>
           ))}
-          {onApple.map((h) => (
-            <li key={`apple-${h.id}`}>
-              <button type="button" className="djk-req-hit is-apple" onClick={() => setPick(h)}>
-                <span className="djk-req-hit-t">{zh ? `《${h.t}》` : h.t}</span>
+          {onTube.map((h) => (
+            <li key={`yt-${h.yt!.id}`}>
+              <button type="button" className="djk-req-hit is-yt" onClick={() => setPick(h)}>
+                <span className="djk-req-hit-t">{h.t}</span>
                 <span className="djk-req-hit-a">{h.a}</span>
-                <span className="djk-req-hit-from">Apple Music</span>
+                <span className="djk-req-hit-from">{zh ? "YouTube 整首" : "YouTube, whole song"}</span>
               </button>
             </li>
           ))}

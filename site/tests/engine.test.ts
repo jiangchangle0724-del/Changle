@@ -1751,7 +1751,7 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   g("p2", "req", { text: "qing tian", song: sunny[0] });
   let r = deck().reqs[0];
   ok(deck().reqs.length === 1 && r.by === "p2" && r.text === "晴天" && r.artist === "周杰伦" && r.song === sunny[0] && r.style === "cpop" && r.track === trackFor("晴天"), "a song picked from the song list: its title and artist (the list's, not what was typed), in its style (Jay Chou: C-pop), its remix's track from its name");
-  ok(r.p === sunny[6] && r.st === sunny[8] && r.apple === undefined, "and its clip: the list's preview of it, and its storefront (for the link to the whole song)");
+  ok(r.p === undefined && r.yt === undefined, "no clip of it, no video (the phone found none): the remix alone");
   ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === "p2") && deck().up === null, "the room hears it; nothing is up before the music");
   ok(nothing(g("p2", "req", { text: "another" })), "one each");
   ok(nothing(g("p3", "req", { text: "   " })) && nothing(g("p3", "req", {})), "an empty name isn't a song");
@@ -1857,9 +1857,9 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   void beat;
 });
 
-test("dj: a song found on Apple: every field checked, its clip for everyone, its name only for its player and the host", () => {
-  const e = new RoomEngine(freshRoom("DJAP", clock), host);
-  e.screenHello("tv-ap", true, "dj");
+test("dj: a song found on YouTube: every field checked, its name only for its player and the host, played whole on the big screen, the deck waiting", () => {
+  const e = new RoomEngine(freshRoom("DJYT", clock), host);
+  e.screenHello("tv-yt", true, "dj");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -1872,24 +1872,58 @@ test("dj: a song found on Apple: every field checked, its clip for everyone, its
     e.act(pid, { a: "g", g: { x, ...rest } });
     return e.flush();
   };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-yt", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
   const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
-  const PATH = "AudioPreview211/v4/aa/bb/cc/aabbccdd-1234-5678-9abc-def012345678/mzaf_1234567890123456789";
-  const URL = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/26/e3/f4/26e3f427-26c9-bfc3-6748-291fd3099dfb/mzaf_6091467586462767916.plus.aac.ep.m4a";
-  ok(nothing(g("p2", "req", { apple: [123, "Song", "Singer", "https://evil.example/x.m4a", "us"] })), "a clip anywhere but Apple's preview server isn't taken");
-  ok(nothing(g("p2", "req", { apple: [123, "Song", "Singer", "../../../evil", "us"] })) && nothing(g("p2", "req", { apple: [123, "Song", "Singer", "https://audio-ssl.itunes.apple.com/itunes-assets//evil.example/x.m4a", "us"] })), "nor a path that climbs out of it, or slips another host in");
-  ok(nothing(g("p2", "req", { apple: [0, "Song", "Singer", PATH, "us"] })) && nothing(g("p2", "req", { apple: [123, "  ", "Singer", PATH, "us"] })) && nothing(g("p2", "req", { apple: [123, "Song", "Singer", PATH] })), "nor one without a track id, a title, or every field");
-  g("p2", "req", { apple: [1440818839, "Blinding Lights\u202e", "The Weeknd", PATH, "ca"] });
+  const ID = "kJQP7kiw5Fk";
+  ok(nothing(g("p2", "req", { yt: ["not-an-id", "Song", "Chan"] })) && nothing(g("p2", "req", { yt: [ID, "  ", "Chan"] })) && nothing(g("p2", "req", { yt: [ID, "Song"] })), "a video id that isn't one, no title, or not every field: not taken");
+  ok(nothing(g("p2", "req", { apple: [1, "Song", "Singer", "x", "us"] })), "Apple's songs aren't taken any more");
+  g("p2", "req", { yt: [ID, "Despacito‮", "Luis Fonsi"] });
   const r = dv("p2").deck.reqs[0];
-  ok(r.text === "Blinding Lights" && r.artist === "The Weeknd" && r.apple === 1440818839 && r.p === PATH && r.st === "ca" && r.song === undefined, "a song found on Apple: its title (cleaned), artist, track id, clip and storefront");
-  ok(r.style === styleForRequest("Blinding Lights The Weeknd"), `in a style from its title and artist, as a name typed in is (${r.style})`);
+  ok(r.text === "Despacito" && r.artist === "Luis Fonsi" && r.yt === ID && r.ytT === "Despacito" && r.p === undefined, "a song found on YouTube: its title (cleaned), channel and video");
+  ok(r.style === styleForRequest("Despacito Luis Fonsi"), `in a style from its title and channel (${r.style})`);
   const other = dv("p3").deck.reqs[0];
-  ok(other.text === null && other.artist === undefined && other.p === PATH, "another phone reads neither its title nor its artist; its clip still plays for everyone");
-  ok(dv("p1").deck.reqs[0].text === "Blinding Lights" && dv("p1").deck.reqs[0].artist === "The Weeknd", "the host reads them");
-  const tv = (e.view("tv-ap").game as V<"dj">).deck.reqs[0];
-  ok(tv.text === null && tv.artist === undefined && tv.p === PATH, "the big screen: its clip, not its name");
-  g("p3", "req", { apple: [77, "Song", "Singer", URL, "xx1"] });
-  const full = dv("p3").deck.reqs[1];
-  ok(full.p === URL && full.st === "us", "a full URL on Apple's preview server is taken as it is (a storefront that isn't one: the US's)");
+  ok(other.text === null && other.artist === undefined && other.ytT === undefined && other.yt === ID, "another phone reads neither its title nor its channel (the video is the big screen's to play)");
+  ok(dv("p1").deck.reqs[0].text === "Despacito", "the host reads it");
+  // the drop into it: the DJ fades out, then the song plays whole, the deck waiting
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(dv("p1").deck.up?.yt === ID, "up next");
+  advance(1000);
+  sc("decks", { a: "house", b: dv("p1").deck.b });
+  for (let i = 0; i < 40 && !dv("p1").deck.drop; i++) {
+    advance(250);
+    g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+  }
+  const dr = dv("p1").deck.drop!;
+  clock = dr.cue + 20;
+  g("p1", "drop", { c: clock });
+  advance(dr.at - clock + 5);
+  const song = dv("p1").deck.song;
+  ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock + 2 * 4 * 480, "it lands: the whole song plays from two bars on (the DJ fades out first)");
+  ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "horn" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no pads, no fader");
+  ok(nothing(g("p3", "songskip")), "only its player or the host can skip it");
+  ok(!sc("songdone", { id: "other" }), "the big screen's word for another song: not taken");
+  ok(sc("songdone", { id: song!.id }) && dv("p1").deck.song === null, "the big screen says it ended: the DJ comes back");
+  // and the time limit, and a skip
+  g("p3", "req", { yt: ["abcdefghijk", "Another", "Chan"] });
+  ok(dv("p1").deck.up?.yt === "abcdefghijk", "the next one is up");
+  advance(41_000);
+  sc("decks", { a: dv("p1").deck.a, b: dv("p1").deck.b });
+  advance(6000);
+  const auto = dv("p1").deck.drop;
+  ok(!!auto, "nobody drops into it: the DJ does");
+  advance(auto!.at - clock + 5);
+  ok(dv("p1").deck.song?.by === "p3", "it plays whole");
+  ok(!nothing(g("p3", "songskip")) && dv("p1").deck.song === null, "its player skips it: the DJ comes back");
 });
 
 test("dj: the mixer (混音台): knobs anyone turns (held a moment by whoever moved one), effects on the next beat that go off by themselves, the drop whole", () => {
