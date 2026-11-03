@@ -25,7 +25,7 @@
 | 神回复 Punchline | 两人对决，大家投票，手机上整场演出 | 3+（超过 8 人的当观众） |
 | 你画我猜 Draw & Guess | 在手机上画 | 2+ |
 
-**大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏在手机上玩，大屏幕显示桌号和谁在玩。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。
+**大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；最佳称号、谁是卧底、猜歌名、戏精大赏在大屏幕上也有自己的画面（谁在说、谁投了票、揭晓、领奖台），不会出现任何人的词、牌和票；其他游戏在手机上玩，大屏幕显示手机画面和谁在玩。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。座位设成「只看」的手机，在这些游戏里整屏显示大屏画面，横过来投屏到电视就行。
 
 **打碟 · DJ Booth**（还没放上首页，只有这个地址）：电视或电脑打开 `changle.ca/dj`，这台设备就是音箱。点「开始派对」开始放歌；大家扫码入座，手机按 🔥，大屏上看得到是谁按的，人跟着拍子跳；主人在手机上把一晚拖到暖场、推高、顶点、收尾，每场最长 4 小时。现在放的是「试音版 DJ」：在音箱上用网站自己的乐器现场录的浩室，125 BPM；接 Google 的 Lyria 是下一步。只测声音、不开桌：`changle.ca/dj/test`。方案在仓库根目录的 `docs/dj-booth.md`，各部分怎么接在 `src/shared/dj/CONTRACTS.md`。
 
@@ -100,6 +100,7 @@ python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
 python3 scripts/local_check.py      # 单机回归
 python3 scripts/party_test.py       # 七个新游戏，单机和联机
 python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回复
+python3 scripts/watch_test.py       # 每个游戏自己的大屏画面：两台电视和一部只看的手机，每个阶段、没有秘密、没有报错
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥

@@ -80,6 +80,7 @@ python3 scripts/local_check.py     # one phone: every game opens and plays a tur
 python3 scripts/net_test.py        # four phones at one table, online
 python3 scripts/party_test.py      # the newer games, one phone and online
 python3 scripts/tv_test.py         # the big screen
+python3 scripts/watch_test.py      # every game's own big-screen view, on two TVs and a phone that only watches
 python3 scripts/account_check.py   # sign-in, profile, friends, chat
 python3 scripts/tune_quiz_check.py # Name That Tune's multiple choice, 20 songs, sound on, memory watched
 python3 scripts/dj_check.py        # the DJ booth's speaker in WebKit and Chromium, and a table of phones

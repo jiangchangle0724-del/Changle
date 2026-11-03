@@ -1,0 +1,919 @@
+/*
+ * A game's own view on the big screen (src/tv/show.tsx): the night room lit by the game's gel on a
+ * 1600x900 stage, scaled to the TV, or to a phone held sideways that only watches. The game's name
+ * in neon top left, the round and the clock top right, the players standing on the floor.
+ * Read from three metres: nothing smaller than 22px here (about 26px on a 1080p TV, 18 on 720p).
+ *
+ * Sizes on the stage are stage pixels, as in tv.css and show.css: the stage is scaled to the
+ * screen as a whole, so the site's rem and vw type scale doesn't apply inside it (the TV's own
+ * step in tokens.css comes with its migration, docs/ui-inventory.md). Colors are the site's
+ * tokens, the game's gel, or a game's props named once at the top of its file (docs/DESIGN.md).
+ * The watching phone's own buttons, outside the stage, use the site's tokens.
+ */
+
+/* the stage's light and shade: paper white and the night (night colors only, docs/DESIGN.md) */
+.tvx,
+.watch {
+  --tvx-light: var(--color-paper);
+  --tvx-ink: var(--night);
+}
+
+.tvx {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--night);
+  color: var(--moon);
+}
+
+/* ---------- the room ---------- */
+.tvx-room {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.tvx-room > i {
+  position: absolute;
+  display: block;
+}
+.tvx-wash {
+  inset: 0;
+  background:
+    radial-gradient(70% 62% at 50% -12%, color-mix(in oklab, var(--gel) 34%, transparent) 0%, transparent 72%),
+    radial-gradient(40% 50% at 100% 100%, color-mix(in oklab, var(--gel) 12%, transparent) 0%, transparent 75%),
+    radial-gradient(40% 50% at 0% 100%, color-mix(in oklab, var(--gel) 10%, transparent) 0%, transparent 75%);
+}
+/* two lights hung above, each cone falling across the stage */
+/* (soft edges from a mask, not a blur: a TV's browser redraws a blur every frame it moves) */
+.tvx-beam {
+  top: -8%;
+  width: 34%;
+  height: 116%;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--gel) 40%, transparent) 0%, color-mix(in oklab, var(--gel) 12%, transparent) 55%, transparent 92%);
+  clip-path: polygon(47% 0, 53% 0, 96% 100%, 4% 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 4%, black 34%, black 66%, transparent 96%);
+  mask-image: linear-gradient(90deg, transparent 4%, black 34%, black 66%, transparent 96%);
+  mix-blend-mode: screen;
+  opacity: 0.42;
+  transform-origin: 50% 0;
+  will-change: transform;
+}
+.tvx-beam-l {
+  left: 4%;
+  transform: rotate(-12deg);
+  animation: tvx-sway 11s ease-in-out infinite alternate;
+}
+.tvx-beam-r {
+  right: 4%;
+  transform: rotate(12deg);
+  animation: tvx-sway-r 13s ease-in-out infinite alternate;
+}
+@keyframes tvx-sway {
+  to {
+    transform: rotate(-4deg);
+  }
+}
+@keyframes tvx-sway-r {
+  to {
+    transform: rotate(5deg);
+  }
+}
+.tvx-floor {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30%;
+  background:
+    radial-gradient(52% 70% at 50% 100%, color-mix(in oklab, var(--gel) 22%, transparent) 0%, transparent 72%),
+    linear-gradient(180deg, transparent 0%, color-mix(in oklab, var(--tvx-ink) 55%, transparent) 100%);
+}
+.tvx-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ---------- the sign and the clock ---------- */
+.tvx-top {
+  position: absolute;
+  top: 26px;
+  left: 44px;
+  right: 44px;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  pointer-events: none;
+}
+.tvx-neon {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--tvx-light);
+  font-family: var(--font-display);
+  text-shadow:
+    0 0 4px var(--tvx-light),
+    0 0 12px var(--gel),
+    0 0 30px var(--gel),
+    0 0 60px color-mix(in oklab, var(--gel) 60%, transparent);
+  animation: tvx-hum 8s infinite;
+}
+.tvx-neon-main {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.tvx-neon-sub {
+  color: color-mix(in oklab, var(--gel) 55%, var(--tvx-light));
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 10px var(--gel);
+}
+@keyframes tvx-hum {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.6;
+  }
+  94% {
+    opacity: 1;
+  }
+  96% {
+    opacity: 0.75;
+  }
+}
+.tvx-round {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.tvx-round-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tvx-round-name small {
+  color: var(--haze);
+  font-size: 0.8em;
+}
+.tvx-clock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tvx-ink) 60%, transparent);
+  box-shadow: 0 0 30px color-mix(in oklab, var(--gel) 35%, transparent);
+}
+.tvx-clock svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.tvx-clock-track {
+  fill: none;
+  stroke: var(--color-line-soft);
+  stroke-width: 7;
+}
+.tvx-clock-arc {
+  fill: none;
+  stroke: var(--gel);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s linear;
+}
+.tvx-clock-n {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 800;
+}
+.tvx-clock.is-late {
+  box-shadow: 0 0 34px color-mix(in oklab, var(--stop) 70%, transparent);
+  animation: tvx-beat 1s ease-in-out infinite;
+}
+.tvx-clock.is-late .tvx-clock-arc {
+  stroke: var(--stop);
+}
+@keyframes tvx-beat {
+  50% {
+    scale: 1.08;
+  }
+}
+
+/* ---------- words in both languages ---------- */
+.tvx-bi {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: inherit;
+  gap: 8px;
+  font-size: 48px;
+}
+.tvx-bi-main {
+  font-size: 1em;
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.tvx-bi-main.is-zh {
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.tvx-bi-sub {
+  color: var(--haze);
+  font-size: max(22px, 0.44em);
+  font-weight: 600;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* ---------- faces popping in ---------- */
+.tvx-faces {
+  display: inline-flex;
+  align-items: center;
+}
+.tvx-face-in {
+  display: inline-grid;
+  margin-left: -10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px var(--night-2);
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvx-face-in:first-child {
+  margin-left: 0;
+}
+@keyframes tvx-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.2);
+  }
+}
+
+/* ---------- the players, standing on the floor ---------- */
+.tvx-line {
+  --fig-h: 250px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 18px;
+}
+.tvx-line.is-crowded {
+  gap: 8px;
+}
+.tvx-person {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 0 1 auto;
+  transition:
+    opacity 0.5s var(--ease-out),
+    filter 0.5s var(--ease-out),
+    transform 0.6s var(--ease-pop);
+  animation: tvx-enter 0.6s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+@keyframes tvx-enter {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+}
+.tvx-fig {
+  position: relative;
+  display: block;
+  height: var(--fig-h);
+  transform-origin: 50% 100%;
+}
+.tvx-person .tvx-fig {
+  animation: tvx-idle 3.4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.6s);
+}
+@keyframes tvx-idle {
+  0%,
+  100% {
+    transform: rotate(-1.4deg);
+  }
+  50% {
+    transform: rotate(1.4deg) translateY(-3px);
+  }
+}
+/* the light pool each one stands in */
+.tvx-person-spot {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  width: calc(var(--fig-h) * 0.95);
+  height: calc(var(--fig-h) * 0.16);
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--gel) 40%, transparent), transparent);
+  z-index: -1;
+  transition: background 0.4s;
+}
+.tvx-plate {
+  max-width: calc(var(--fig-h) * 0.9 + 40px);
+  padding: 5px 16px 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    background 0.3s,
+    color 0.3s,
+    box-shadow 0.3s;
+}
+.tvx-line.is-crowded .tvx-plate {
+  padding: 4px 10px 5px;
+  font-size: 22px;
+}
+.tvx-person.is-away {
+  opacity: 0.45;
+}
+.tvx-person.is-away .tvx-fig {
+  filter: grayscale(0.7);
+  animation: none;
+}
+/* done their part (voted, read their card): the plate lights up in the gel */
+.tvx-person[data-state="voted"] .tvx-plate,
+.tvx-person[data-state="ready"] .tvx-plate,
+.tvx-person[data-state="done"] .tvx-plate {
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: 0 0 24px -4px var(--gel);
+}
+.tvx-person[data-state="dim"] {
+  opacity: 0.4;
+  filter: saturate(0.4);
+}
+.tvx-person[data-state="out"] {
+  opacity: 0.38;
+  filter: grayscale(0.9);
+}
+.tvx-person[data-state="out"] .tvx-fig {
+  animation: none;
+  transform: rotate(-6deg) translateY(4px);
+}
+.tvx-person[data-state="spot"],
+.tvx-person[data-state="speaking"] {
+  transform: translateY(-14px) scale(1.12);
+  z-index: 2;
+}
+.tvx-person[data-state="spot"] .tvx-person-spot,
+.tvx-person[data-state="speaking"] .tvx-person-spot {
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--tvx-light) 55%, var(--gel)), transparent);
+}
+.tvx-person[data-state="win"] .tvx-plate {
+  background: var(--go);
+  color: var(--night);
+}
+.tvx-person[data-state="lose"] .tvx-plate {
+  background: var(--stop);
+  color: var(--color-on-danger);
+}
+.tvx-badge {
+  position: absolute;
+  right: -14px;
+  top: -10px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  background: var(--gel);
+  color: var(--night);
+  box-shadow:
+    0 0 0 5px var(--night-2),
+    0 0 28px var(--gel);
+  animation: tvx-badge 0.55s var(--ease-pop) both;
+}
+@keyframes tvx-badge {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.2);
+  }
+}
+.tvx-tag {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  z-index: 3;
+  padding: 4px 16px 6px;
+  border-radius: 999px;
+  translate: -50% 0;
+  rotate: -4deg;
+  background: var(--dusk-3);
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px -6px var(--tvx-ink);
+  animation: tvx-badge 0.5s var(--ease-pop) both;
+}
+
+/* ---------- a word slammed onto the stage ---------- */
+.tvx-stamp {
+  display: inline-block;
+  padding: 10px 34px 14px;
+  border: 8px solid currentColor;
+  border-radius: 22px;
+  font-family: var(--font-display);
+  font-size: 96px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  rotate: 0deg;
+  transform: rotate(-6deg);
+  mix-blend-mode: normal;
+  text-shadow: 0 0 30px currentColor;
+  box-shadow:
+    0 0 40px -6px currentColor,
+    inset 0 0 30px -10px currentColor;
+}
+.tvx-stamp.is-stop {
+  color: var(--stop);
+}
+.tvx-stamp.is-go {
+  color: var(--go);
+}
+.tvx-stamp.is-gel {
+  color: var(--gel);
+}
+.tvx-stamp.is-moon {
+  color: var(--moon);
+}
+
+/* ---------- the podium ---------- */
+.tvx-podium {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.tvx-steps {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+}
+.tvx-place {
+  --fig-h: 210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 270px;
+}
+.tvx-place[data-rank="1"] {
+  --fig-h: 250px;
+}
+.tvx-step-top {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding-bottom: 12px;
+}
+.tvx-step-top .tvx-fig {
+  margin-bottom: 8px;
+}
+.tvx-crown {
+  position: absolute;
+  top: -48px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 2;
+  color: var(--gel-amber);
+  filter: drop-shadow(0 0 14px color-mix(in oklab, var(--gel-amber) 80%, transparent));
+}
+.tvx-step {
+  display: grid;
+  place-items: start center;
+  width: 100%;
+  padding-top: 10px;
+  border-radius: 18px 18px 6px 6px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--gel) 55%, var(--dusk-3)) 0%, color-mix(in oklab, var(--gel) 22%, var(--dusk)) 100%);
+  box-shadow:
+    inset 0 2px 0 color-mix(in oklab, var(--tvx-light) 25%, transparent),
+    0 0 50px -14px var(--gel);
+}
+.tvx-place[data-rank="1"] .tvx-step {
+  height: 150px;
+}
+.tvx-place[data-rank="2"] .tvx-step {
+  height: 110px;
+}
+.tvx-place[data-rank="3"] .tvx-step {
+  height: 80px;
+}
+.tvx-step b {
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--tvx-light);
+  text-shadow: 0 0 20px var(--gel);
+}
+.tvx-step-name {
+  max-width: 100%;
+  padding: 3px 16px 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 26px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvx-place[data-rank="1"] .tvx-step-name {
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: 0 0 26px -4px var(--gel);
+}
+.tvx-step-score {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.tvx-step-score small {
+  margin-left: 6px;
+  color: var(--haze);
+  font-family: var(--font-text);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tvx-step-note {
+  color: var(--moon);
+  font-size: 22px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tvx-rest {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+  max-width: 1300px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvx-rest li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 6px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 24px;
+  font-weight: 700;
+}
+.tvx-rest-rank {
+  min-width: 30px;
+  color: var(--haze);
+  font-family: var(--font-display);
+  text-align: center;
+}
+.tvx-rest-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvx-rest-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+
+/* ---------- the scores ---------- */
+.tvx-board {
+  padding: 24px 28px;
+  border-radius: 30px;
+  background: color-mix(in oklab, var(--dusk) 90%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 30px 60px -30px var(--tvx-ink);
+}
+.tvx-board h2 {
+  margin: 0 0 16px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.tvx-board ol {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvx-board li {
+  display: grid;
+  grid-template-columns: 50px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 22px;
+  animation: tvx-enter 0.5s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 80ms);
+}
+.tvx-board li.is-hot {
+  background: color-mix(in oklab, var(--gel) 22%, transparent);
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.tvx-board-face {
+  position: relative;
+  display: inline-grid;
+}
+.tvx-board-crown {
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--gel-amber);
+  color: var(--night);
+  box-shadow: 0 0 0 3px var(--dusk);
+}
+.tvx-board-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.tvx-board-name {
+  overflow: hidden;
+  font-size: 26px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvx-board-main small {
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tvx-board-bar {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tvx-light) 6%, transparent);
+}
+.tvx-board-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gel);
+  transition: width 0.8s var(--ease-out);
+}
+.tvx-board-score {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 800;
+}
+.tvx-board-score small {
+  margin-left: 6px;
+  color: var(--haze);
+  font-family: var(--font-text);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvx-beam,
+  .tvx-neon,
+  .tvx-person,
+  .tvx-person .tvx-fig,
+  .tvx-face-in,
+  .tvx-badge,
+  .tvx-tag,
+  .tvx-board li,
+  .tvx-clock.is-late {
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------------ a phone that only watches */
+
+/*
+ * The big screen's view, full screen on the phone: laid on its side while the phone is upright
+ * (turn the phone and it reads, with or without rotation lock), a few buttons that fade away.
+ */
+html.watch-mode,
+html.watch-mode body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.watch {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-bg) 45%, var(--tvx-ink));
+  color: var(--color-text);
+  touch-action: manipulation;
+}
+.watch-turn {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+}
+.watch-turn.is-turned {
+  left: 100%;
+  transform: rotate(90deg);
+  transform-origin: 0 0;
+}
+.watch-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1600px;
+  height: 900px;
+  overflow: hidden;
+  background: var(--night);
+  transform-origin: 50% 50%;
+}
+/* bottom left, as on the TV (the join code is bottom right) */
+.watch-bar {
+  position: absolute;
+  left: max(var(--space-3), env(safe-area-inset-left, 0px));
+  bottom: max(var(--space-3), var(--safe-bottom));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: opacity var(--dur-emphasis) var(--ease-out);
+}
+.watch-turn.is-turned .watch-bar {
+  left: var(--space-3);
+  bottom: var(--space-3);
+}
+.watch-bar.is-idle {
+  opacity: 0;
+}
+.watch-bar.is-idle:focus-within {
+  opacity: 1;
+}
+/* top middle: the stage keeps its corners (the game's name, the round and the clock) */
+.watch-note {
+  position: absolute;
+  left: 50%;
+  top: max(var(--space-3), var(--safe-top));
+  z-index: 5;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(70%, 560px);
+  white-space: nowrap;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--tvx-ink) 78%, transparent);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  transition: opacity var(--dur-emphasis) var(--ease-out);
+}
+.watch-turn.is-turned .watch-note {
+  top: var(--space-3);
+}
+.watch-note.is-idle {
+  opacity: 0;
+}
+.watch-note svg {
+  flex: none;
+}
+/* three side by side: the crowded size */
+.watch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: var(--tap-crowded);
+  min-height: var(--tap-crowded);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--color-surface) 88%, transparent);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 800;
+  cursor: pointer;
+}
+.watch-btn.is-icon {
+  padding: 0;
+}
+.watch-btn.is-main {
+  background: var(--color-text);
+  color: var(--color-bg);
+  box-shadow: none;
+}
+.watch-btn:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 3px;
+}
+/* under the note, until the first tap */
+.watch-gate {
+  position: absolute;
+  left: 50%;
+  top: calc(max(var(--space-3), var(--safe-top)) + var(--space-12) + var(--space-2));
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  padding: 0 var(--space-6);
+  translate: -50% 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--text-md);
+  font-weight: 800;
+  box-shadow: var(--shadow-float);
+}
+.watch-turn.is-turned .watch-gate {
+  top: calc(var(--space-3) + var(--space-12) + var(--space-2));
+}
+
+/* 到此一游 and the DJ booth: their big screens are pages of their own */
+.watch-away {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 60px 120px;
+  background: radial-gradient(60% 60% at 50% 38%, color-mix(in oklab, var(--gel) 26%, transparent) 0%, transparent 72%), var(--night);
+  text-align: center;
+}
+.watch-away-icon {
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  border-radius: 44px;
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: 0 0 80px color-mix(in oklab, var(--gel) 55%, transparent);
+}
+.watch-away h1 {
+  max-width: 1200px;
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.watch-away p {
+  max-width: 1100px;
+  color: var(--haze);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+/* (the stage is scaled to about 0.43 on a phone held sideways: 112 here is a 48px button there) */
+.watch-away .tv-btn {
+  min-height: 112px;
+  padding: 0 52px;
+  font-size: 36px;
+}
