@@ -53,6 +53,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-02 Limbo: 稳住, 跟着动的杆, 歪着过 and 派对 (hold steady, moving bar, tilt through, party) (#134，等 Steve 看)
 - 2026-11-01 Custom penalty: no game line or button tells anyone to drink
 - 2026-11-01 Limbo: blind lean (盲仰), hit a target angle without seeing your own (#66)
 - 2026-10-31 Players' figures in Truth or Dare, Post-it, Limbo and Freeze Dance
@@ -61,4 +62,4 @@
 ## 记录
 
 - 2026-11-02 建档案。
-- 2026-11-02 Steve 选了之前给的四个新玩法里剩下的三个和派对：稳住、跟着动的杆、歪着过、派对（盲仰在 #66 做过了）。单机和联机都做了，开 PR 等 Steve 看。
+- 2026-11-02 Steve 选了之前给的四个新玩法里剩下的三个和派对：稳住、跟着动的杆、歪着过、派对（盲仰在 #66 做过了）。单机和联机都做了，PR #134 等 Steve 看。
