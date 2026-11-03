@@ -85,7 +85,7 @@ with sync_playwright() as p:
     phones = []
     for name in ("Amy", "Ben", "Cat"):
         ph = phone(chrome, name, "zh")
-        ph.route("http://127.0.0.1:8787/yt/**", yt_api)
+        ph.route("http://127.0.0.1:8787/api/yt/**", yt_api)
         ph.route("https://itunes.apple.com/**", lambda r: (apple.append(r.request.url), r.abort()))
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)

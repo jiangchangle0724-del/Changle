@@ -3,8 +3,8 @@
  * screen through YouTube's own player, never downloaded; his plan's 观众点歌). Two lookups for the
  * phones, from the edge:
  *
- *   GET /yt/info?id=VIDEO      a link's video by its id: title and channel (YouTube's oEmbed, no key)
- *   GET /yt/search?q=WORDS     up to 6 videos that can be embedded (the YouTube Data API: needs the
+ *   GET /api/yt/info?id=VIDEO      a link's video by its id: title and channel (YouTube's oEmbed, no key)
+ *   GET /api/yt/search?q=WORDS     up to 6 videos that can be embedded (the YouTube Data API: needs the
  *                              owner's YOUTUBE_API_KEY, a Cloudflare secret; { nokey: true } without it)
  *
  * Both are cached at the edge for a day: a search costs a hundredth of the key's daily quota.

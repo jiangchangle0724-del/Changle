@@ -10,7 +10,7 @@ const base = () => ROOMS_URL.replace(/^ws/, "http");
 /** A video's title and channel by its id, or null (private, removed, not embeddable, or offline). */
 export async function ytInfo(id: string): Promise<YtHit | null> {
   try {
-    const r = await fetch(`${base()}/yt/info?id=${encodeURIComponent(id)}`);
+    const r = await fetch(`${base()}/api/yt/info?id=${encodeURIComponent(id)}`);
     if (!r.ok) return null;
     const d = (await r.json()) as YtHit;
     return d && d.id === id && d.t ? d : null;
@@ -22,7 +22,7 @@ export async function ytInfo(id: string): Promise<YtHit | null> {
 /** Up to six videos for some words; "nokey" until the owner sets YouTube's key; [] when nothing (or offline). */
 export async function ytSearch(q: string): Promise<YtHit[] | "nokey"> {
   try {
-    const r = await fetch(`${base()}/yt/search?q=${encodeURIComponent(q)}`);
+    const r = await fetch(`${base()}/api/yt/search?q=${encodeURIComponent(q)}`);
     if (!r.ok) return [];
     const d = (await r.json()) as { hits?: YtHit[]; nokey?: boolean };
     if (d.nokey) return "nokey";
