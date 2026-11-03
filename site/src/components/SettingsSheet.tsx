@@ -95,7 +95,8 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
         {lang === "zh" ? "。" : ". "}
         {ui("responsible")}
       </p>
-      <p className="hint" style={{ marginTop: 6, color: "var(--fog)" }}>
+      {/* (in the hint color like the line above: fog on the sheet was 4.38:1, under the 4.5 text needs) */}
+      <p className="hint" style={{ marginTop: 6 }}>
         {ui("madeBy")}
       </p>
     </Sheet>

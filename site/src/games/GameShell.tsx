@@ -104,7 +104,8 @@ export function GameShell({
         extra={right}
       />
       {roster && players.length > 0 && (
-        <div className="game-roster" role="list" aria-label={ui("players")} ref={rosterRow}>
+        // a row that scrolls sideways can be reached from the keyboard too (arrow keys scroll it)
+        <div className="game-roster" role="list" aria-label={ui("players")} ref={rosterRow} tabIndex={0}>
           {players.map((p) => {
             const state = roster.out?.includes(p.id) ? "out" : roster.turn === p.id ? "turn" : "idle";
             return (

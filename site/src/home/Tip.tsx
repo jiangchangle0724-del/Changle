@@ -1,8 +1,8 @@
 import { Beer, Check, Copy } from "lucide-react";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { TIP_EMAIL } from "../config";
-import { gsap, reduced, useGSAP } from "../lib/anim";
+import { EASE, play } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { useStore } from "../store";
 
@@ -11,13 +11,10 @@ export function TipButton() {
   const { ui } = useStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
-  useGSAP(
-    () => {
-      if (reduced()) return;
-      gsap.fromTo(ref.current, { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, delay: 1.1, clearProps: "transform,opacity" });
-    },
-    { scope: ref },
-  );
+  // it rises into the corner once the page has arrived
+  useLayoutEffect(() => {
+    play(ref.current, [{ transform: "translateY(30px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 600, delay: 1100, easing: EASE.settle, fill: "backwards" });
+  }, []);
   return (
     <>
       <button

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { reduced } from "../lib/anim";
+import { reduced } from "../lib/motion";
 
 /** Anything a player presses or types into. */
 const ACTIONS = "button, input:not([type='hidden']), textarea, select, [role='button']";
