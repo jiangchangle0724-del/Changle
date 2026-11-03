@@ -38,6 +38,7 @@
 
 ## 现在
 
+- 首页改版上线（UI 计划 A4，#120）：今晚的人、现在玩这个、筛选、按 5 类上色。本地脚本 `routes_check`、`local_check`、`pwa_check`、`shots_home` 点的是新的 `.board .ui-tile`。
 - CI 在构建后跑 `site/scripts/budget.ts`：首页第一次下载的 JS 和 CSS（gzip）超过预算就不让合并（全站设计对话的 A6）。新东西放首页时先想能不能按需下载。
 - 11 月 2 日回归：五套脚本都过；`routes_check` 的「弹层里的链接」和 `tv_test` 的「写手的手机」在机器忙的时候各失败过一次，单独重跑都过。
 

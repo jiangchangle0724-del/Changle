@@ -54,10 +54,16 @@ screenshot taken on Windows will never match one taken on Linux. So:
 - The CI job runs on `ubuntu-latest`, installs Chromium with `npx playwright install --with-deps chromium`
   and the Chinese fonts with `sudo apt-get install -y fonts-noto-cjk`, and compares against the
   committed screenshots.
-- `visual-update.yml` (run by hand, `workflow_dispatch`, with the branch to update) runs the same
-  steps with `--update-snapshots` and commits the new screenshots to that branch, with the default
-  `GITHUB_TOKEN` and `contents: write` for that workflow only. That is the only way reference
+- `visual-update.yml` runs when a pull request gets the label `update-screenshots`
+  (`on: pull_request: types: [labeled]`). For a pull request GitHub uses the workflow file on its own
+  branch, so this works before the file is on `main`; a hand-run `workflow_dispatch` wouldn't, because
+  GitHub only offers those once the file is on the default branch. It runs the same steps with
+  `--update-snapshots`, commits the new screenshots to the PR's branch with the default `GITHUB_TOKEN`
+  (`contents: write` for that workflow only), and takes the label off. That is the only way reference
   screenshots are made, the first time and after a change that moves something on purpose.
+- A commit made with `GITHUB_TOKEN` doesn't start the other checks: push any commit afterwards (or
+  re-run the check) so the `visual` job compares against the new screenshots. Creating the label is
+  fine (`gh label create update-screenshots`).
 - On your machine, run the suite to develop it, but never commit screenshots it took.
 
 ## Accessibility (axe)
@@ -77,7 +83,7 @@ finish in under 8 minutes.
 ## Done when
 
 - `npx playwright test` passes in CI on your PR, with the reference screenshots made by
-  `visual-update.yml` on your branch.
+  `visual-update.yml` on your PR (the label).
 - Proof that it catches a change: on a scratch branch, change one token value, show the failed CI run and
   its diff image in the PR, then delete the scratch branch.
 - The axe results are clean, or each exception is listed with its reason.
