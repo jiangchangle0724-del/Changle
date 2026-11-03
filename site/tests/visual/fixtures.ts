@@ -10,6 +10,7 @@ export const test = base.extend<{ isolatedNetwork: void }>({
       '/auth/keep': {},
       '/auth/code': { sent: true },
       '/wishes': { wishes: [] },
+      '/scenes': { scenes: [] },
       '/fx': { rates: { USD: 1, CAD: 1.4, CNY: 7.2, HKD: 7.8 }, at: 1793491200000, source: 'Visual fixture' },
     };
     await context.route('**/*', async route => {
