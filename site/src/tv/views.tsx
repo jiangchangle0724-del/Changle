@@ -21,6 +21,10 @@ const VIEWS: { [K in GameId]?: ViewOf<K> } = {
   wheel: lazy(() => import("../online/games/TvWheel")),
   dice: lazy(() => import("../online/games/TvDice")),
   rogue: lazy(() => import("../online/games/TvRogue")),
+  king: lazy(() => import("../online/games/TvKing")),
+  prompts: lazy(() => import("../online/games/TvPrompts")),
+  postit: lazy(() => import("../party/postit/TvPostit")),
+  freeze: lazy(() => import("../party/freeze/TvFreeze")),
 };
 
 export const hasTvView = (id: GameId | null | undefined): boolean => !!id && !!VIEWS[id];
@@ -59,6 +63,17 @@ export function publicView(v: GameView): GameView {
       return { ...v, me: null, myVote: null };
     case "tune":
       return { ...v, mine: null };
+    case "king":
+      // who holds which number stays on each phone until its holder steps up for an order
+      return { ...v, myToken: null, pulled: false };
+    case "prompts":
+      return { ...v, mine: null };
+    case "postit": {
+      // a word still on a forehead never reaches the room's screen (its owner reads the TV too)
+      const notes: Record<string, (typeof v.notes)[string]> = {};
+      for (const pid of Object.keys(v.notes)) notes[pid] = v.phase === "end" || v.solved.includes(pid) ? v.notes[pid] : null;
+      return { ...v, myTarget: null, notes };
+    }
     case "truth":
       // (not one phone's, but not the room's yet either: the card is read out at the table first)
       return { ...v, prompt: null };

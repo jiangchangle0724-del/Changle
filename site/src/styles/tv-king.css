@@ -1,0 +1,190 @@
+/*
+ * 国王游戏 on the big screen (online/games/TvKing.tsx): the sticks drawn (never whose number is
+ * whose), the king crowned, the order and the numbers stepping up.
+ */
+
+.tvk {
+  --gold: var(--gel-honey);
+}
+
+/* ---------- drawing the sticks ---------- */
+.tvk-top {
+  position: absolute;
+  left: 120px;
+  right: 120px;
+  top: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+.tvk-head {
+  margin: 0;
+}
+.tvk-head .tvx-bi {
+  align-items: center;
+  font-size: 72px;
+}
+.tvk-line {
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.tvk-count {
+  margin: 0;
+  color: var(--haze);
+  font-size: 28px;
+  font-weight: 700;
+}
+.tvk-line-up {
+  position: absolute;
+  left: 80px;
+  right: 80px;
+  bottom: 120px;
+}
+
+/* ---------- the king ---------- */
+.tvk-crown {
+  position: absolute;
+  left: 200px;
+  right: 200px;
+  top: 120px;
+  bottom: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+.tvk-crown-icon {
+  color: var(--gold);
+  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gold) 60%, transparent));
+  animation: tvx-pop 0.6s var(--ease-pop) both;
+}
+.tvk-king-name {
+  margin: 0;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 76px;
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow: 0 0 40px color-mix(in oklab, var(--gold) 45%, transparent);
+  animation: tvx-pop 0.6s var(--ease-pop) 0.15s both;
+}
+.tvk-king {
+  margin-top: 40px;
+}
+
+/* ---------- the order ---------- */
+.tvk-order {
+  position: absolute;
+  left: 140px;
+  right: 140px;
+  top: 140px;
+  bottom: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  text-align: center;
+}
+.tvk-by {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--gold);
+  font-size: 34px;
+  font-weight: 800;
+}
+.tvk-cmd {
+  max-width: 1200px;
+  margin: 0;
+  padding: 34px 50px 38px;
+  border-radius: 36px;
+  background: color-mix(in oklab, var(--gel) 14%, var(--dusk-2));
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--gold) 55%, transparent),
+    0 0 90px -20px var(--gold);
+  color: var(--moon);
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 1.3;
+  text-wrap: balance;
+  animation: tvx-pop 0.55s var(--ease-pop) both;
+}
+.tvk-nums {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvk-nums li {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 28px 12px 12px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  box-shadow: inset 0 0 0 2px var(--line-soft);
+  animation: tvx-enter 0.45s var(--ease-out) 0.3s both;
+}
+.tvk-nums li.is-up {
+  background: color-mix(in oklab, var(--gel) 30%, var(--dusk-2));
+  box-shadow: inset 0 0 0 3px var(--gel);
+}
+.tvk-num {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 900;
+}
+.tvk-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 800;
+  animation: tvx-pop 0.4s var(--ease-pop) both;
+}
+.tvk-who.is-waiting {
+  color: var(--haze);
+  font-size: 30px;
+  font-weight: 700;
+  animation: none;
+}
+.tvk-refused {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--stop);
+  font-size: 30px;
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvk-crown-icon,
+  .tvk-king-name,
+  .tvk-cmd,
+  .tvk-nums li,
+  .tvk-who {
+    animation: none;
+  }
+}

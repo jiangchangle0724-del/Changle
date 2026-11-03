@@ -5,7 +5,7 @@ nothing secret is anywhere in the page (a player's word, card, task or vote befo
 and there are no errors. Against the local dev servers (HANDOFF.md).
 
 usage: python3 scripts/watch_test.py [base_url] [zh|en] [game ...]
-games: superlatives undercover tune drama truth wheel dice rogue punchline trip dj
+games: superlatives undercover tune drama truth wheel dice rogue king prompts postit freeze punchline trip dj
 (trip last: it sends the table off to 到此一游)
 Screenshots of every phase go to $SHOTS (default: scratchpad/watch).
 """
@@ -24,7 +24,7 @@ os.makedirs(OUT, exist_ok=True)
 ZH = LANG == "zh"
 NAMES = ["Steve", "Mia", "小林"]
 # the games with a show of their own on the big screen (the .tvx stage; Punchline has its own, older one)
-SHOWS = ("superlatives", "undercover", "tune", "drama", "truth", "wheel", "dice", "rogue")
+SHOWS = ("superlatives", "undercover", "tune", "drama", "truth", "wheel", "dice", "rogue", "king", "prompts", "postit", "freeze")
 
 
 def L(zh, en):
@@ -175,7 +175,7 @@ def views_clean(t, label):
     """What only one phone may know is not even in the screens' copy of the game."""
     for pg in t.screens:
         v = view(pg) or {}
-        own = {k: v.get(k) for k in ("myWord", "myVote", "me", "mine", "isBlank") if v.get(k) not in (None, False, [], {})}
+        own = {k: v.get(k) for k in ("myWord", "myVote", "me", "mine", "isBlank", "myToken", "myTarget") if v.get(k) not in (None, False, [], {})}
         ok(not own, f"{label}: the {pg._name} holds nobody's own word, card or vote {own}")
 
 
@@ -925,9 +925,185 @@ def t_rogue(t):
     t.end()
 
 
+# ------------------------------------------------------------------ batch 3: the king, never have I ever, post-it, freeze dance
+
+def t_king(t):
+    t.start("king")
+    ok(t.wait_phase("deal"), "king: the sticks are dealt")
+    t.tv.wait_for_timeout(1000)
+    shot(t.screens, "kg-01-deal")
+    for i, g in enumerate(t.players):
+        clear_stamps([g], wait=False)
+        free = g.locator(".holder-svg g[role=button][aria-disabled='false']")
+        (free.last if i % 2 else free.first).click()
+        time.sleep(0.4)
+    ok(until(lambda: len(view(t.host)["pulledIds"]) == 3, 5000), "king: everyone has drawn")
+    tokens = {g._name: view(g).get("myToken") for g in t.players}
+    ok("K" in tokens.values(), f"king: one of them is the king {tokens}")
+    # whose number is whose: no number on a screen yet, and nobody's stick in the screens' copy
+    for pg in t.screens:
+        ok(pg.locator(".tvk-num").count() == 0, f"king: the {pg._name} shows no one's number")
+    views_clean(t, "king deal")
+    for g in t.players:
+        g.get_by_role("button", name=L("记住了", "Got it")).click()
+        time.sleep(0.25)
+    ok(t.wait_phase("crown"), "king: crowned once everyone has looked")
+    t.tv.wait_for_timeout(1200)
+    shot(t.screens, "kg-02-crown")
+    ok(t.tv.locator(".tvk-king-name").count() == 1 and t.tv.locator(".tvk-num").count() == 0, "king: the king, and still no numbers")
+    king = by_pid(t, view(t.host)["king"])
+    king.get_by_role("button", name=L("国王抽命令", "Draw an order")).click()
+    ok(t.wait_phase("command"), "king: the order")
+    nums = view(t.tv)["cmd"]["nums"]
+    t.tv.wait_for_timeout(900)
+    ok(t.tv.locator(".tvk-cmd").count() == 1 and t.tv.locator(".tvk-nums li").count() == len(nums) and t.tv.locator(".tvk-nums li.is-up").count() == 0, f"king: the order and its numbers {nums}, nobody named yet")
+    shot(t.screens, "kg-03-order")
+    for g in t.players:
+        if view(g).get("myToken") in nums:
+            g.get_by_role("button", name=re.compile(L("站出来", "Step up"))).click()
+            time.sleep(0.3)
+    ok(until(lambda: t.tv.locator(".tvk-nums li.is-up").count() == len(nums), 4000), "king: the numbers called step up, by name")
+    t.tv.wait_for_timeout(600)
+    shot(t.screens, "kg-04-stepped")
+    clear_stamps(t.players)
+    king.get_by_role("button", name=re.compile(L("执行完毕", "Done"))).click()
+    ok(until(lambda: view(t.tv)["phase"] == "deal" and view(t.tv)["round"] == 2, 4000), "king: the next round")
+    t.end()
+
+
+def t_prompts(t):
+    t.start("prompts")
+    ok(t.wait_phase("draw"), "prompts: a card to draw")
+    t.tv.wait_for_timeout(1000)
+    shot(t.screens, "pr-01-draw")
+    by_pid(t, view(t.host)["reader"]).get_by_role("button", name=L("抽一张", "Draw one")).click()
+    ok(t.wait_phase("answer"), "prompts: the card, everyone answers")
+    yes = t.players[:2]
+    for g in yes:
+        clear_stamps([g], wait=False)
+        g.get_by_role("button", name=L("我做过", "I have")).click()
+        time.sleep(0.3)
+    ok(until(lambda: t.tv.locator(".tvpr-answered .tvx-face-in").count() == 2, 4000), "prompts: who has answered shows")
+    for pg in t.screens:
+        ok(pg.locator(".tvpr-yes, .tvpr-verdict").count() == 0, f"prompts: the {pg._name} shows nobody's answer before the reveal")
+    views_clean(t, "prompts answer")
+    t.tv.wait_for_timeout(500)
+    shot(t.screens, "pr-02-answer")
+    t.players[2].get_by_role("button", name=L("没做过", "I haven't")).click()
+    ok(t.wait_phase("reveal"), "prompts: all in, the reveal")
+    ok(until(lambda: t.tv.locator(".tvpr-yes").count() == 2, 4000), "prompts: the two who have")
+    t.tv.wait_for_timeout(900)
+    shot(t.screens, "pr-03-reveal")
+    clear_stamps(t.players)
+    t.host.locator(".heat-tab button", has_text=L("谁最有可能", "Most likely")).click()
+    ok(until(lambda: view(t.tv)["mode"] == "likely" and view(t.tv)["phase"] == "draw", 4000), "prompts: most likely to")
+    by_pid(t, view(t.host)["reader"]).get_by_role("button", name=L("抽一张", "Draw one")).click()
+    ok(t.wait_phase("answer"), "prompts: a most-likely card")
+    target = t.players[2]
+    for g in t.players:
+        clear_stamps([g], wait=False)
+        if g is target:
+            g.locator(".picker .chip:not([disabled])", has_text=NAMES[0]).click()
+        else:
+            g.locator(".picker .chip", has_text=target._name).click()
+        time.sleep(0.3)
+    ok(t.wait_phase("reveal"), "prompts: the votes are in")
+    ok(until(lambda: t.tv.locator(".tvpr-board li.is-hot").count() == 1, 4000), "prompts: the most votes, up top")
+    t.tv.wait_for_timeout(900)
+    shot(t.screens, "pr-04-likely")
+    clear_stamps(t.players)
+    t.end()
+
+
+def t_postit(t):
+    t.start("postit")
+    ok(t.wait_phase("write"), "postit: everyone writes a note")
+    words = ["孙悟空", "皮卡丘", "熊猫"]
+    for i, g in enumerate(t.players):
+        g.locator(".pi-note-input").fill(words[i])
+        g.get_by_role("button", name=L("贴上去", "Stick it on")).click()
+        if i == 0:
+            ok(until(lambda: t.tv.locator(".tvp .tvx-badge").count() == 1, 4000), "postit: who has written shows (never what, or for whom)")
+            no_secrets(t, words, "postit write")
+            t.tv.wait_for_timeout(500)
+            shot(t.screens, "pi-01-write")
+    ok(t.wait_phase("play"), "postit: every note on a forehead")
+    t.tv.wait_for_timeout(1000)
+    ok(t.tv.locator(".tvp-note").count() == 3 and t.tv.locator(".tvp-note.is-open").count() == 0, "postit: three blank notes on the screens")
+    no_secrets(t, words, "postit play")
+    views_clean(t, "postit play")
+    shot(t.screens, "pi-02-play")
+    turn = by_pid(t, view(t.host)["turn"])
+    others = [g for g in t.players if g is not turn]
+    turn.locator(".pi-ask input").fill(L("我是动物吗？", "Am I an animal?"))
+    turn.locator(".pi-ask button").click()
+    until(lambda: view(others[0])["asking"])
+    others[0].locator(".pi-reply.is-no").click()
+    others[1].locator(".pi-reply.is-yes").click()
+    ok(until(lambda: t.tv.locator(".tvp-replies .tvx-face-in").count() == 2, 4000), "postit: the question and everyone's yes or no")
+    t.tv.wait_for_timeout(500)
+    shot(t.screens, "pi-03-ask")
+    # the watching phone held upright: the stage lies on its side, the notes still blank
+    t.watcher.set_viewport_size({"width": 390, "height": 844})
+    ok(until(lambda: t.watcher.locator(".watch-turn.is-turned .tvp-note").count() == 3, 3000), "postit: held upright, the watching phone lays the stage on its side")
+    t.watcher.wait_for_timeout(400)
+    shot([t.watcher], "pi-03b-upright")
+    t.watcher.set_viewport_size({"width": 844, "height": 390})
+    # a wrong guess, then the next player gets theirs
+    turn.locator(".pi-guess input").fill(L("不是这个", "Not this"))
+    turn.locator(".pi-guess button[type=submit]").click()
+    ok(until(lambda: t.tv.locator(".tvp-guess.is-wrong").count() == 1, 4000), "postit: a wrong guess")
+    clear_stamps(t.players)
+    nxt = by_pid(t, view(t.host)["turn"])
+    other = next(g for g in t.players if g is not nxt)
+    word = view(other)["notes"][me(nxt)]["zh"]
+    clear_stamps([nxt], wait=False)
+    nxt.locator(".pi-guess input").fill(word)
+    nxt.locator(".pi-guess button[type=submit]").click()
+    ok(until(lambda: t.tv.locator(".tvp-note.is-open").count() == 1, 4000), f"postit: {nxt._name} got theirs, and now it shows")
+    no_secrets(t, [w for w in words if w != word], "postit, one guessed")
+    t.tv.wait_for_timeout(700)
+    shot(t.screens, "pi-04-solved")
+    clear_stamps(t.players)
+    t.end()
+
+
+def t_freeze(t):
+    t.start("freeze")
+    ok(t.wait_phase("ready"), "freeze: ready to dance")
+    t.tv.wait_for_timeout(1000)
+    shot(t.screens, "fz-01-ready")
+    t.host.get_by_role("button", name=L("放音乐", "Start the music")).click()
+    ok(t.wait_phase("dance"), "freeze: the music plays")
+    t.tv.wait_for_timeout(2500)
+    ok(t.tv.locator('.tvfz-dancers .lineup-fig[data-pose="dance"]').count() == 3, "freeze: everyone dancing (the watcher isn't)")
+    ok(all(pg.locator(".tvx-clock").count() == 0 for pg in t.screens), "freeze: nothing counts down to the cut (it's a surprise)")
+    shot(t.screens, "fz-02-dance")
+    ok(until(lambda: view(t.tv)["phase"] == "freeze", 22000), "freeze: the music cuts")
+    mia = t.players[1]
+    clear_stamps([mia], wait=False)
+    mia.get_by_role("button", name=L("我动了", "I moved")).click()
+    ok(until(lambda: t.tv.locator('.tvfz-dancers .lineup-fig[data-pose="caught"]').count() == 1, 3000), "freeze: caught moving, as the phones show it")
+    shot([t.tv, t.watcher], "fz-03-freeze")
+    ok(until(lambda: view(t.tv)["phase"] in ("result", "end"), 6000), "freeze: judged")
+    t.tv.wait_for_timeout(800)
+    ok(t.tv.locator(".tvfz-big.is-caught").count() == 1, "freeze: who moved, and out")
+    shot(t.screens, "fz-04-result")
+    clear_stamps(t.players)
+    ok(until(lambda: view(t.tv)["phase"] == "dance", 12000), "freeze: the next round starts by itself")
+    ok(until(lambda: view(t.tv)["phase"] == "freeze", 22000), "freeze: cut again")
+    t.host.locator(".fz-catch-btn", has_text=NAMES[2]).click()
+    ok(until(lambda: view(t.tv)["phase"] == "end", 6000), "freeze: the last one standing")
+    t.tv.wait_for_timeout(1200)
+    ok(t.tv.locator(".tvfz-crown").count() == 1, "freeze: crowned")
+    shot(t.screens, "fz-05-end")
+    clear_stamps(t.players)
+    t.end()
+
+
 # ------------------------------------------------------------------ main
 
-TESTS = {"superlatives": t_superlatives, "undercover": t_undercover, "tune": t_tune, "drama": t_drama, "truth": t_truth, "wheel": t_wheel, "dice": t_dice, "rogue": t_rogue, "punchline": t_punchline, "trip": t_trip}
+TESTS = {"superlatives": t_superlatives, "undercover": t_undercover, "tune": t_tune, "drama": t_drama, "truth": t_truth, "wheel": t_wheel, "dice": t_dice, "rogue": t_rogue, "king": t_king, "prompts": t_prompts, "postit": t_postit, "freeze": t_freeze, "punchline": t_punchline, "trip": t_trip}
 
 
 def main():
