@@ -670,6 +670,11 @@ p {
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   padding: 8px 18px calc(var(--safe-bottom) + 18px);
 }
+/* focus moves onto the sheet itself as it opens (for keyboards and screen readers): no ring round the whole sheet */
+.sheet:focus,
+.sheet:focus-visible {
+  outline: none;
+}
 .sheet-handle {
   width: 40px;
   height: 5px;
