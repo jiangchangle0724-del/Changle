@@ -149,8 +149,8 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
   const rules = (
     <p>
       {lang === "zh"
-        ? "轮到谁谁转，转盘停在指针上的那一格就是惩罚。点右上角的铅笔可以改成你们桌上自己的规矩。"
-        : "Whoever's turn it is spins. The slice that stops at the pointer is the penalty. Tap the pencil to write your own table rules into the wheel."}
+        ? "轮到谁谁转，转盘停在指针上的那一格就是惩罚。点右上角的铅笔（手机上在「⋯」里，叫「改转盘」）可以改成你们桌上自己的规矩。"
+        : "Whoever's turn it is spins. The slice that stops at the pointer is the penalty. Tap the pencil at the top right (on a phone it's Edit the wheel, behind ⋯) to write your own table rules into the wheel."}
     </p>
   );
 
@@ -161,11 +161,7 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
       onBack={onBack}
       penalty={penalty.call}
       onPenaltyDone={penalty.done}
-      right={
-        <button className="icon-btn" onClick={() => setEditing(true)} aria-label={lang === "zh" ? "改转盘" : "Edit the wheel"}>
-          <Pencil size={18} />
-        </button>
-      }
+      right={{ icon: Pencil, label: lang === "zh" ? "改转盘" : "Edit the wheel", onClick: () => setEditing(true) }}
     >
       <div className="turn-line">
         <span className="hint">{ui("yourTurn")}</span>

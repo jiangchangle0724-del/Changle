@@ -10,7 +10,8 @@
     "typecheck": "wrangler types > /dev/null && tsc --noEmit",
     "test": "vitest run",
     "deploy": "wrangler deploy",
-    "eval": "tsx scripts/eval.ts"
+    "eval": "tsx scripts/eval.ts",
+    "libraries": "tsx scripts/libraries.ts"
   },
   "dependencies": {
     "ical.js": "2.2.1"

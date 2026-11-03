@@ -8,9 +8,13 @@
  * seconds in hand and pauses Lyria when it gets ahead. When Lyria can't or won't play (not one of
  * the owner's tables, the month's cap, the connection gone for good), `onFail` says why and the
  * booth goes back to the stand-in.
+ *
+ * A song asked for by name brings its clip (clip/clip.ts): it plays over the stream from the next
+ * bar line once it's on the air, at its own speed, Lyria quiet under it until it ends.
  */
 import { playing } from "../../../shared/dj/curve";
 import type { DjPhase, Mix } from "../../../shared/dj/types";
+import { ClipDeck, type Clip } from "../clip/clip";
 import type { Speaker } from "../speaker/speaker";
 import { KickClock } from "./beat";
 import { lyriaFor } from "./prompts";
@@ -110,8 +114,22 @@ export class LyriaDj {
   private lastAsk = -Infinity;
   private askTimer = 0;
   private askedPhase: DjPhase = "wait";
+  /** a song asked for by name: its clip over the stream */
+  private clip = new ClipDeck();
 
   constructor(private url: string) {}
+
+  /** The clip of the song asked for that's on the air (null: none): it starts on the next bar line. */
+  setClip(clip: Clip | null) {
+    const sp = this.speaker;
+    this.clip.set(clip, sp?.sentFrames ?? 0);
+    if (!sp || !this.clip.waiting) return;
+    const beatF = (RATE * 60) / this.bpm;
+    let at = sp.sentFrames + 0.05 * RATE;
+    const b0 = this.beatFrame(0);
+    if (b0 !== null) at = b0 + Math.ceil((at - b0) / (4 * beatF)) * 4 * beatF;
+    this.clip.start(at, this.bpm, sp.sentFrames, false);
+  }
 
   /** Seconds of music in hand, not yet given to the speaker. */
   get inHand() {
@@ -392,6 +410,7 @@ export class LyriaDj {
       if (n === head.l.length) this.queue.shift();
       else this.queue[0] = { l: head.l.subarray(n), r: head.r.subarray(n) };
       this.queued -= n;
+      if (this.clip.live(sp.sentFrames, n)) this.clip.mix(l, r, sp.sentFrames, null);
       sp.push(l, r);
     }
     this.pace();

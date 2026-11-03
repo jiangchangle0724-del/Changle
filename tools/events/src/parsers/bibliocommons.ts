@@ -123,6 +123,21 @@ export function parseBiblioCommons(page: BcPage, opts: BcOptions): NormalizedEve
   return out;
 }
 
+const isObject = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+
+/**
+ * Is this (parsed JSON) an events page the parser can read: the listing (ids, paging) and, when it
+ * lists any, the events by id? For a page handed over from outside (src/handoff.ts).
+ */
+export function isBcPage(x: unknown): x is BcPage {
+  if (!isObject(x) || !isObject(x.events) || !isObject(x.entities)) return false;
+  const ids = x.events.results ?? x.events.items;
+  if (ids !== undefined && !(Array.isArray(ids) && ids.every((id) => typeof id === "string"))) return false;
+  if (Array.isArray(ids) && ids.length > 0 && !isObject(x.entities.events)) return false;
+  const p = x.events.pagination;
+  return p === undefined || (isObject(p) && typeof p.page === "number" && typeof p.pages === "number");
+}
+
 /** The last event's start on a page (the listing is oldest first): past the window, stop paging. */
 export function lastStartMs(page: BcPage): number {
   const ids = page.events.results ?? page.events.items ?? [];

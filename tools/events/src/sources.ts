@@ -18,13 +18,40 @@ export interface Parsed {
   more: boolean;
 }
 
+/** What a source's request needs from the Worker's settings: its key, if it has one. */
+export type RequestEnv = Pick<Env, "TICKETMASTER_KEY">;
+
 export interface SourceDef extends Source {
   /** The URL for part `part` (a page), with any key; never logged. */
-  request(part: number, env: Env, w: Window): string;
+  request(part: number, env: RequestEnv, w: Window): string;
   /** Read one part. `more`: there's a next part worth fetching. (May be async: HTMLRewriter is.) */
   parse(raw: string, part: number, w: Window): Parsed | Promise<Parsed>;
   /** At most this many parts in a run. */
   maxParts: number;
+  /**
+   * The site refuses the Worker's requests: each morning a GitHub job reads its parts before the
+   * run, with the same requests, and hands them over (src/handoff.ts). The run reads those, and asks
+   * the site itself only for a part nothing was handed over for. (BiblioCommons pages only, for now.)
+   */
+  handoff?: boolean;
+}
+
+/** Who's asking, for the sites we read (they can see it's us, and how to reach us). */
+export const USER_AGENT = "changle.ca events (+https://changle.ca/go)";
+/** Larger answers than this are refused, not read into memory. */
+export const MAX_BYTES = 6_000_000;
+
+/**
+ * How a part is asked for: its URL and the headers every request sends. The run's steps ask with
+ * it, and so does the GitHub job that reads the libraries for the run (src/handoff.ts).
+ */
+export function requestOf(src: SourceDef, part: number, env: RequestEnv, w: Window): { url: string; headers: Record<string, string> } {
+  return { url: src.request(part, env, w), headers: { "user-agent": USER_AGENT, accept: "application/json, text/calendar, text/html;q=0.8, */*;q=0.5" } };
+}
+
+/** The part to read after this one: when the parser says there's more and the source allows another. */
+export function nextPart(src: SourceDef, part: number, more: boolean): number | null {
+  return more && part + 1 < src.maxParts ? part + 1 : null;
 }
 
 const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -35,7 +62,9 @@ const vanDay = (ms: number) => vanIso(ms).slice(0, 10);
 /**
  * A public library's events on BiblioCommons (`lib`: its name there). 25 a page keeps a step well
  * inside its 10 ms of CPU (a page is 250 to 420 KB of JSON); two weeks is 7 to 12 pages. (It serves
- * at most 50 a page whatever the limit: never ask for more.)
+ * at most 50 a page whatever the limit: never ask for more.) BiblioCommons has answered 403 to the
+ * Worker since its first live run (2 November 2026), and 200 to the same request from anywhere else:
+ * a GitHub job reads these pages at 05:50 and hands them over (src/handoff.ts).
  */
 function library(id: string, name: string, lib: string): SourceDef {
   return {
@@ -46,6 +75,7 @@ function library(id: string, name: string, lib: string): SourceDef {
     lang: "en",
     url: `https://gateway.bibliocommons.com/v2/libraries/${lib}/events/search`,
     maxParts: 24,
+    handoff: true,
     request(part) {
       return `${this.url}?limit=25&page=${part + 1}`;
     },

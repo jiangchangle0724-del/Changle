@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { Pencil } from "lucide-react";
 import type { Lang } from "../../i18n";
-import { Button } from "../Button";
 import { GameHeader } from "../GameHeader";
 export function GameHeaderPreview({ lang }: { lang: Lang }) {
   const [sound, setSound] = useState(true);
@@ -19,14 +18,11 @@ export function GameHeaderPreview({ lang }: { lang: Lang }) {
         sound={{ on: sound, onToggle: () => setSound(!sound) }}
         onTv={action}
         onHelp={action}
-        extra={
-          <Button
-            tone="icon"
-            icon={MoreHorizontal}
-            label={lang === "zh" ? "其他操作" : "Extra action"}
-            onClick={action}
-          />
-        }
+        extra={{
+          icon: Pencil,
+          label: lang === "zh" ? "改转盘" : "Edit the wheel",
+          onClick: action,
+        }}
       />
       <GameHeader
         title={{

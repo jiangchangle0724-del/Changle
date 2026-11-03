@@ -60,7 +60,7 @@ def truth_dare(browser, base, lang, narrow):
     ctx, pg, errors = phone(browser, lang)
     zh = lang == "zh"
     open_game(pg, base, "/src/data/truthDare.ts", ["DARES", narrow], "/g/truth-or-dare/play")
-    pg.locator(".bottle-actions .btn-primary").click()
+    pg.locator(".game-actions .btn-primary").click()
     pg.get_by_role("button", name="大冒险" if zh else "Dare", exact=True).click(timeout=15000)
     pg.locator(".cloche-dome").click()
     timer = pg.get_by_role("group", name="倒计时" if zh else "Countdown")
@@ -134,7 +134,7 @@ def main():
         # 4. a truth has no countdown
         ctx, pg, errors = phone(browser, "zh")
         open_game(pg, base, "/src/data/truthDare.ts", ["DARES", "."], "/g/truth-or-dare/play")
-        pg.locator(".bottle-actions .btn-primary").click()
+        pg.locator(".game-actions .btn-primary").click()
         pg.get_by_role("button", name="真心话", exact=True).click(timeout=15000)
         pg.locator(".cloche-dome").click()
         pg.wait_for_timeout(900)
@@ -150,7 +150,7 @@ def main():
         for _ in range(40):
             if draw_command.count():
                 break
-            got = pg.locator(".reveal-card .btn-primary")
+            got = pg.locator(".game-actions .btn-primary")
             stick = pg.locator('[aria-label^="stick"][aria-disabled="false"]').first
             if got.count() and got.is_visible():
                 got.click()

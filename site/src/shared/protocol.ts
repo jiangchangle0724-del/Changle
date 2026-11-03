@@ -4,6 +4,7 @@
  */
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
+import type { Dancer } from "./dj/dance";
 import type { CrateSong, DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -91,10 +92,13 @@ export type Fx =
   | "level"
   | "fire"
   | "cold"
+  | "dance"
   | "drop"
   | "ask"
   | "req"
-  | "pad";
+  | "pad"
+  | "song"
+  | "mix";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
 /** `times`: with the table's own penalty, how many times it's done (7-8-9's pot); none is once ("two" is twice). */
@@ -570,14 +574,24 @@ export type DjView = {
    *  itself: GET /room/CODE/data), and the two on the decks by name (a night of them) */
   crateN: number;
   crateV: number;
+  /** the host wants the night on their songs (they play once the big screen has some) */
+  mine: boolean;
   onDecks: { a: CrateSong | null; b: CrateSong | null };
+  /** 报幕: the big screen says who a song asked for is from (the host's switch) */
+  voice: boolean;
+  /** 跟着跳: each dancer's night, and the floor's combo (0 to 1; full: fireworks) */
+  dance: Record<string, Dancer>;
+  combo: number;
+  /** the speaker's reports added up this night (the recap, 今晚回顾: how the sound held up) */
+  speaker: { stalls: number; resets: number; seconds: number };
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
-export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "reqs" | "up" | "now"> & {
+export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "mixAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "reqs" | "up" | "now" | "heard"> & {
   reqs: ReqView[];
   up: ReqView | null;
   now: ReqView | null;
+  heard: ReqView[];
 };
 
 /** A song asked for by name, as a phone or screen reads it: a name the player typed (not picked from

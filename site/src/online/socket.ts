@@ -10,6 +10,8 @@ type Handlers = {
   onMessage: (m: ServerMsg) => void;
   onStop: (why: Stop) => void;
   onOffset: (ms: number) => void;
+  /** a binary message (the DJ booth's song files, passed on by the rooms server to a big screen) */
+  onBytes?: (data: ArrayBuffer) => void;
 };
 
 const PING_MS = 15_000;
@@ -75,6 +77,18 @@ export class RoomSocket {
     return false;
   }
 
+  /** Send bytes now if the line is up (else nothing: the caller tries again). */
+  sendBytes(data: ArrayBuffer) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.status !== "open") return false;
+    this.ws.send(data);
+    return true;
+  }
+
+  /** Bytes sent but not yet on their way (the caller waits for a big file to drain). */
+  get buffered() {
+    return this.ws?.bufferedAmount ?? 0;
+  }
+
   rename(name: string) {
     this.name = name;
   }
@@ -124,6 +138,7 @@ export class RoomSocket {
       return;
     }
     this.ws = ws;
+    ws.binaryType = "arraybuffer";
     ws.onopen = () => {
       if (this.ws !== ws) return;
       this.lastHeard = Date.now();
@@ -137,6 +152,10 @@ export class RoomSocket {
     ws.onmessage = (e) => {
       if (this.ws !== ws) return;
       this.lastHeard = Date.now();
+      if (e.data instanceof ArrayBuffer) {
+        this.h.onBytes?.(e.data);
+        return;
+      }
       let msg: ServerMsg;
       try {
         msg = JSON.parse(String(e.data)) as ServerMsg;

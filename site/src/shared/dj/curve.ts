@@ -20,10 +20,28 @@ export const ENERGY: Record<DjPhase, { density: number; brightness: number }> = 
  */
 export const FAKE_MIX: Mix = { weights: { house: 1 }, bpm: 125, scale: "C_MAJOR_A_MINOR", density: 0, brightness: 0 };
 
-/** The mix for a phase: the same blend and tempo, the phase's energy. */
-export function mixFor(phase: DjPhase, base: Mix): Mix {
+/** Reading the room (读场): how far the floor's reactions move the stretch's energy at most. */
+export const LEAN = 0.15;
+/** The reactions it reads: the last minute's. */
+export const LEAN_MS = 60_000;
+
+/**
+ * 读场, from the plan: more 🔥, more density and brightness; more ❄️, less. The last minute's 🔥
+ * against its ❄️, -1 (all cold) to 1 (all hot), damped while there are only a few (six 🔥 and no
+ * ❄️ lean it halfway), on a 0.05 grid so the mix moves in steps, not with every press.
+ */
+export function heatLean(fires: { at: number }[], colds: { at: number }[], now: number): number {
+  const f = fires.filter((x) => now - x.at < LEAN_MS).length;
+  const c = colds.filter((x) => now - x.at < LEAN_MS).length;
+  return Math.round(((f - c) / (f + c + 6)) * 20) / 20 || 0;
+}
+
+/** The mix for a phase: the same blend and tempo, the phase's energy, leaned by the room (读场). */
+export function mixFor(phase: DjPhase, base: Mix, lean = 0): Mix {
   const e = ENERGY[phase];
-  return { ...base, weights: { ...base.weights }, density: e.density, brightness: e.brightness };
+  const by = playing(phase) ? LEAN * lean : 0;
+  const at = (x: number) => Math.round(Math.max(0.05, Math.min(1, x + by)) * 1000) / 1000;
+  return { ...base, weights: { ...base.weights }, density: by ? at(e.density) : e.density, brightness: by ? at(e.brightness) : e.brightness };
 }
 
 /** Whether music plays in this phase. */

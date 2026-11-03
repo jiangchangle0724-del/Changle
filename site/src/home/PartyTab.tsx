@@ -1,7 +1,8 @@
 import { Dices, KeyRound, RadioTower, UserPlus, Users } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PlayersSheet } from "../components/PlayersSheet";
-import { GAME_BY_ID, GAMES, isNewGame, type GameId, type GameMeta } from "../games/registry";
+import { GAME_BY_ID, GAMES, isNewGame, SOON, type GameId, type GameMeta, type SoonMeta } from "../games/registry";
+import { Sheet } from "../components/Sheet";
 import type { T } from "../i18n";
 import { LIGHTS, reduced, setLight } from "../lib/anim";
 import { haptic, sfx } from "../lib/sfx";
@@ -80,6 +81,7 @@ export function PartyTab({
   const zh = lang === "zh";
   const n = players.length;
   const [playersOpen, setPlayersOpen] = useState(false);
+  const [soonCard, setSoonCard] = useState<SoonMeta | null>(null);
   const [online, setOnline] = useState<{ open: boolean; game?: GameId; join?: boolean }>({ open: false });
   const sheet: GameMeta | null = card ? GAME_BY_ID[card] : null;
   const [spinning, setSpinning] = useState(false);
@@ -323,7 +325,7 @@ export function PartyTab({
           <p className="hint board-empty">{zh ? "没有合适的游戏，换个筛选试试。" : "Nothing fits. Try another filter."}</p>
         )}
 
-        {soon.length > 0 && (
+        {soon.length + SOON.length > 0 && (
           <>
             <div className="board-head board-head-soon">
               <h2 className="section-title">{ui("soon")}</h2>
@@ -337,9 +339,29 @@ export function PartyTab({
                   {tile(i)}
                 </div>
               ))}
+              {/* still being built, with no table game yet (一起跳): its card only says what it is */}
+              {SOON.map((s) => (
+                <div key={s.key} className="board-cell">
+                  <Tile
+                    name={s.name}
+                    lang={lang}
+                    icon={s.icon}
+                    category={s.category}
+                    players={{ min: s.minPlayers, max: s.maxPlayers }}
+                    minutes={s.minutes}
+                    soon
+                    onOpen={() => {
+                      setLight(s.gel, 0.4);
+                      sfx.tap();
+                      setSoonCard(s);
+                    }}
+                  />
+                </div>
+              ))}
             </div>
           </>
         )}
+        <SoonCard item={soonCard} onClose={() => setSoonCard(null)} />
 
         <p className="board-foot hint">
           <Users size={14} /> {ui("adultsOnly")}
@@ -361,6 +383,38 @@ export function PartyTab({
       <PlayersSheet open={playersOpen} onClose={() => setPlayersOpen(false)} />
       <OnlineSheet open={online.open} game={online.game} focusCode={online.join} onClose={() => setOnline({ open: false })} />
     </div>
+  );
+}
+
+/** A game still being built (一起跳): what it is, and that it can't be played yet. */
+function SoonCard({ item, onClose }: { item: SoonMeta | null; onClose: () => void }) {
+  const { ui, tr, lang } = useStore();
+  const zh = lang === "zh";
+  const Icon = item?.icon;
+  return (
+    <Sheet open={!!item} onClose={onClose} gel={item?.gel} label={item ? tr(item.name) : undefined}>
+      {item && Icon && (
+        <div className="game-card" style={{ ["--gel" as string]: item.gel }}>
+          <div className="game-card-head">
+            <span className="game-card-icon" aria-hidden="true">
+              <Icon size={34} strokeWidth={1.8} />
+            </span>
+            <div className="game-card-names">
+              <h2 className={`game-card-title ${zh ? "is-zh" : ""}`}>{zh ? item.name.zh : item.name.en}</h2>
+              <p className="game-card-sub">{zh ? item.name.en : item.name.zh}</p>
+            </div>
+          </div>
+          <p className="game-card-how">{tr(item.how)}</p>
+          <p className="game-card-meta">{ui("playersRange", { min: item.minPlayers, max: item.maxPlayers })}</p>
+          <div className="game-card-soon">
+            <p>{zh ? "还在做，做好了就能在这里开玩。" : "Still being built. Once it's ready, you'll start it right here."}</p>
+            <button type="button" className="btn btn-ghost btn-block" onClick={onClose}>
+              {ui("close")}
+            </button>
+          </div>
+        </div>
+      )}
+    </Sheet>
   );
 }
 

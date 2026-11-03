@@ -200,6 +200,18 @@ export function previewUrl(p: string) {
   return /^https:\/\//.test(p) ? p : `${PREVIEW}${p}.plus.aac.p.m4a`;
 }
 
+/**
+ * A preview a phone sends (one it found on Apple), only if it can only be on Apple's preview
+ * server: a plain path there (as the song list has them), or the full URL of one there.
+ */
+export function previewOk(p: unknown): p is string {
+  if (typeof p !== "string" || p.length < 10 || p.length > 300) return false;
+  const full = p.startsWith(PREVIEW);
+  const path = full ? p.slice(PREVIEW.length) : p;
+  if (path.includes("..") || path.includes("//") || !/^[A-Za-z][\w/.-]+$/.test(path)) return false;
+  return !full || path.endsWith(".m4a");
+}
+
 export function artUrl(art: string, size = 300) {
   if (!art) return "";
   const bar = art.indexOf("|");
