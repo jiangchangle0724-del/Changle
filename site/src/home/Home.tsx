@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "re
 import { LangTab } from "../components/TopBar";
 import { SettingsSheet } from "../components/SettingsSheet";
 import type { GameId } from "../games/registry";
-import { gsap, LIGHTS, reduced, setLight, useGSAP } from "../lib/anim";
+import { EASE, LIGHTS, play, reduced, setLight } from "../lib/motion";
 import { useStore } from "../store";
 import { PartyTab } from "./PartyTab";
 import { TipButton } from "./Tip";
@@ -87,14 +87,13 @@ export function Home({
 
 function Wordmark() {
   const ref = useRef<HTMLHeadingElement>(null);
-  useGSAP(
-    () => {
-      if (reduced()) return;
-      gsap.fromTo(".wordmark-char", { y: 18, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.035, duration: 0.6, delay: 0.1, clearProps: "transform,opacity" });
-      gsap.fromTo(".wordmark-dot", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.7, delay: 0.45, ease: "back.out(3)", clearProps: "transform,opacity" });
-    },
-    { scope: ref },
-  );
+  // the letters rise one after another, then the dot pops in
+  useLayoutEffect(() => {
+    ref.current?.querySelectorAll(".wordmark-char").forEach((ch, i) =>
+      play(ch, [{ transform: "translateY(18px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 600, delay: 100 + i * 35, easing: EASE.settle, fill: "backwards" }),
+    );
+    play(ref.current?.querySelector(".wordmark-dot"), [{ transform: "scale(0)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 700, delay: 450, easing: EASE.popBig, fill: "backwards" });
+  }, []);
   return (
     <h1 className="wordmark" ref={ref} aria-label="changle">
       {"changle".split("").map((ch, i) => (
@@ -117,8 +116,17 @@ function Tabs({ value, onChange }: { value: HomeTab; onChange: (t: HomeTab) => v
 
   const place = (animate: boolean) => {
     const btn = ref.current?.querySelector<HTMLButtonElement>(`[data-tab="${value}"]`);
-    if (!btn || !ind.current) return;
-    gsap.to(ind.current, { x: btn.offsetLeft, width: btn.offsetWidth, duration: animate && !reduced() ? 0.5 : 0, ease: "settle" });
+    const el = ind.current;
+    if (!btn || !el) return;
+    const to = { transform: `translateX(${btn.offsetLeft}px)`, width: `${btn.offsetWidth}px` };
+    if (animate && !reduced()) {
+      // from wherever it is now, even halfway through the last slide
+      const now = getComputedStyle(el);
+      const from = { transform: now.transform === "none" ? "translateX(0px)" : now.transform, width: now.width };
+      el.getAnimations().forEach((a) => a.cancel());
+      el.animate([from, to], { duration: 500, easing: EASE.settle });
+    }
+    Object.assign(el.style, to);
   };
 
   useLayoutEffect(() => {
@@ -156,13 +164,12 @@ function Tabs({ value, onChange }: { value: HomeTab; onChange: (t: HomeTab) => v
 
 function Panel({ children, dir }: { children: React.ReactNode; dir: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  useGSAP(
-    () => {
-      if (reduced() || dir === 0) return;
-      gsap.fromTo(ref.current, { x: dir > 0 ? 28 : -28, opacity: 0 }, { x: 0, opacity: 1, duration: 0.42, clearProps: "transform,opacity" });
-    },
-    { scope: ref },
-  );
+  // a new tab slides in from the side it sits on (the panel is keyed by tab, so this runs per tab)
+  useLayoutEffect(() => {
+    if (dir === 0) return;
+    play(ref.current, [{ transform: `translateX(${dir > 0 ? 28 : -28}px)`, opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 420, easing: EASE.settle });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="home-panel" ref={ref} role="tabpanel">
       {children}

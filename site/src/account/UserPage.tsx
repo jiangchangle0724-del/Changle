@@ -2,7 +2,7 @@ import { Check, MessageCircle, UserMinus, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { TopBar } from "../components/TopBar";
 import { api } from "../lib/api";
-import { LIGHTS, setLight } from "../lib/anim";
+import { LIGHTS, setLight } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { useStore } from "../store";
 import { useAccount, useLive, type PublicUser } from "./AccountContext";
