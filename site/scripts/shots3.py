@@ -41,6 +41,6 @@ with sync_playwright() as p:
     shot(ctx, "#/g/prompts", "r3-prompts-guilty.png", actions=lambda pg: (pg.locator(".btn-primary").last.click(), pg.wait_for_timeout(900), pg.locator(".btn-penalty").click(), pg.wait_for_timeout(500), pg.locator(".picker .chip").nth(1).click(), pg.locator(".picker .chip").nth(3).click(), pg.wait_for_timeout(400)))
     shot(ctx, "#/g/truth", "r3-truth-1.png")
     shot(ctx, "", "r3-empty.png", players=[], settle=1800)
-    shot(ctx, "#/g/truth", "r3-truth-stamp-en.png", "en", actions=lambda pg: (pg.locator(".bottle-actions .btn-primary").click(), pg.wait_for_timeout(5200), pg.locator(".choose-box .btn-gold").click(), pg.wait_for_timeout(600), pg.locator(".cloche-dome").click(), pg.wait_for_timeout(1200), pg.locator(".btn-penalty").click(), pg.wait_for_timeout(1800)))
+    shot(ctx, "#/g/truth", "r3-truth-stamp-en.png", "en", actions=lambda pg: (pg.locator(".game-actions .btn-primary").click(), pg.wait_for_timeout(5200), pg.locator(".game-actions .btn-gold").click(), pg.wait_for_timeout(600), pg.locator(".cloche-dome").click(), pg.wait_for_timeout(1200), pg.locator(".btn-penalty").click(), pg.wait_for_timeout(1800)))
     b.close()
 print("ok")

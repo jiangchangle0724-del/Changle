@@ -81,15 +81,8 @@ export function DrawGuess({ onBack }: { onBack: () => void }) {
       onBack={onBack}
       penalty={penalty.call}
       onPenaltyDone={penalty.done}
-      right={
-        ranked[0] && ranked[0].pts > 0 ? (
-          <span className="chip chip-sm">
-            {ranked[0].name} {ranked[0].pts}
-            {ui("score")}
-          </span>
-        ) : null
-      }
     >
+      {/* the scores so far: at the start of each round, under the difficulty (the top bar holds buttons only) */}
       <AnimatePresence mode="wait">
         {phase === "pick" && (
           <motion.div key="pick" className="stack" style={{ gap: 16 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

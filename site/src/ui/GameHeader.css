@@ -1,6 +1,8 @@
 .ui-game-header {
   display: grid;
-  grid-template-columns: var(--tap) minmax(0, 1fr) var(--tap);
+  grid-template-columns: calc(var(--tap) * var(--ui-game-side, 1)) minmax(0, 1fr) calc(
+      var(--tap) * var(--ui-game-side, 1)
+    );
   align-items: center;
   gap: var(--space-2);
   min-height: calc(var(--bar-h) + var(--safe-top));
@@ -39,7 +41,7 @@
 }
 .ui-game-menu {
   position: fixed;
-  inset: var(--bar-h) var(--gutter) auto auto;
+  inset: calc(var(--bar-h) + var(--safe-top)) var(--gutter) auto auto;
   padding: var(--space-2);
   border: 1px solid var(--color-line);
   border-radius: var(--r-panel);
@@ -49,8 +51,19 @@
 }
 .ui-game-menu:popover-open {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  min-width: calc(var(--tap) * 4);
   max-width: calc(100vw - var(--gutter) * 2);
+}
+/* one choice per row, icon then name, read from the left */
+.ui-game-menu .ui-button,
+.ui-game-menu .ui-button-content {
+  justify-content: flex-start;
+}
+.ui-game-menu .ui-button {
+  padding-inline: var(--space-4);
 }
 .ui-game-status {
   display: block;

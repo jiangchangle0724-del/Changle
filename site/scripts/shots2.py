@@ -36,18 +36,18 @@ with sync_playwright() as p:
     shot(ctx, "", "m2-table-en.png", "en", settle=1200)
     shot(ctx, "#/g/truth", "m2-truth-1.png")
     shot(ctx, "#/g/truth", "m2-truth-stamp.png", actions=lambda pg: (
-        pg.locator(".bottle-actions .btn-primary").click(), pg.wait_for_timeout(5200),
-        pg.locator(".choose-box .btn-primary").click(), pg.wait_for_timeout(600),
+        pg.locator(".game-actions .btn-primary").click(), pg.wait_for_timeout(5200),
+        pg.locator(".game-actions .btn-porcelain").click(), pg.wait_for_timeout(600),
         pg.locator(".cloche-dome").click(), pg.wait_for_timeout(1200),
         pg.get_by_role("button", name="放弃，认罚").click(), pg.wait_for_timeout(1800)))
     shot(ctx, "#/g/truth", "m2-truth-stamp-en.png", "en", actions=lambda pg: (
-        pg.locator(".bottle-actions .btn-primary").click(), pg.wait_for_timeout(5200),
-        pg.locator(".choose-box .btn-primary").click(), pg.wait_for_timeout(600),
+        pg.locator(".game-actions .btn-primary").click(), pg.wait_for_timeout(5200),
+        pg.locator(".game-actions .btn-porcelain").click(), pg.wait_for_timeout(600),
         pg.locator(".cloche-dome").click(), pg.wait_for_timeout(1200),
         pg.get_by_role("button", name="Pass and take the penalty").click(), pg.wait_for_timeout(1800)))
     shot(ctx, "#/g/truth", "m2-truth-closed.png", actions=lambda pg: (
-        pg.locator(".bottle-actions .btn-primary").click(), pg.wait_for_timeout(5200),
-        pg.locator(".choose-box .btn-primary").click(), pg.wait_for_timeout(700)))
+        pg.locator(".game-actions .btn-primary").click(), pg.wait_for_timeout(5200),
+        pg.locator(".game-actions .btn-porcelain").click(), pg.wait_for_timeout(700)))
     shot(ctx, "#/g/prompts", "m2-prompts.png", actions=lambda pg: (pg.locator(".btn-primary").last.click(), pg.wait_for_timeout(900)))
     shot(ctx, "#/g/prompts", "m2-prompts-likely.png", actions=lambda pg: (pg.locator(".heat-tab button").nth(1).click(), pg.wait_for_timeout(300), pg.locator(".btn-primary").last.click(), pg.wait_for_timeout(900)))
     shot(ctx, "#/g/king", "m2-king.png", actions=lambda pg: (pg.locator(".holder-svg g[role=button]").nth(2).click(), pg.wait_for_timeout(1300)))

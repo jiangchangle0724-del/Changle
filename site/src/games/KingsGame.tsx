@@ -30,6 +30,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
   const [command, setCommand] = useState<{ text: string; other: string; seconds: number | null; n: number } | null>(null);
   const [lidOpen, setLidOpen] = useState(false);
   const [taken, setTaken] = useState<number[]>([]);
+  const [round, setRound] = useState(1);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
 
@@ -86,11 +87,33 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
     setPulled(null);
     setRevealed(false);
     setCommand(null);
+    setRound((r) => r + 1);
     setPhase("draw");
   };
 
   const current = players[dealIndex];
   const myToken = tokens[dealIndex];
+
+  // each moment's buttons, at the bottom by the thumb (the main one on the right)
+  const actions =
+    phase === "draw" && revealed ? (
+      <motion.button key={dealIndex} type="button" className="btn btn-primary btn-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} onClick={confirm}>
+        {ui("gotIt")}
+      </motion.button>
+    ) : phase === "king" && king ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={drawCommand}>
+        {lang === "zh" ? "国王抽命令" : "King draws a command"}
+      </button>
+    ) : phase === "command" && lidOpen ? (
+      <>
+        <button type="button" className="btn btn-ghost btn-lg" onClick={() => setPhase("refusers")}>
+          {lang === "zh" ? "有人不做" : "Someone refuses"}
+        </button>
+        <button type="button" className="btn btn-jade btn-lg" onClick={newRound}>
+          {lang === "zh" ? "执行完毕" : "Done. New round"}
+        </button>
+      </>
+    ) : undefined;
 
   const rules = (
     <p>
@@ -105,7 +128,17 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <GameShell title={UI.gameKing} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell
+      title={UI.gameKing}
+      rules={rules}
+      onBack={onBack}
+      penalty={penalty.call}
+      onPenaltyDone={penalty.done}
+      status={{ kind: "round", current: round }}
+      // who holds the phone while the sticks go round, then the king
+      roster={{ turn: phase === "draw" ? current?.id : phase !== "refusers" ? king?.id : undefined }}
+      actions={actions}
+    >
       <AnimatePresence mode="wait">
         {phase === "draw" && current && (
           <motion.div key={`draw-${dealIndex}`} className="stack" style={{ gap: 12 }} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
@@ -168,9 +201,6 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
                   <p className={`word-big ${myToken === "K" ? "zh-display king-red" : "en-display"}`}>
                     {myToken === "K" ? (lang === "zh" ? "国王" : "King") : lang === "zh" ? `${myToken}号` : `No. ${myToken}`}
                   </p>
-                  <button type="button" className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirm}>
-                    {ui("gotIt")}
-                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -184,9 +214,6 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
               <p className={`word-big king-red ${lang === "zh" ? "zh-display" : "en-display"}`}>{king.name}</p>
               <p className="hint-ink">{lang === "zh" ? "其他人把号码记好，别说出来。" : "Everyone else: keep your number to yourself."}</p>
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={drawCommand}>
-              {lang === "zh" ? "国王抽命令" : "King draws a command"}
-            </button>
           </motion.div>
         )}
 
@@ -205,16 +232,6 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
             {lidOpen && command.seconds !== null && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <DareTimer seconds={command.seconds} lang={lang} resetKey={command.n} />
-              </motion.div>
-            )}
-            {lidOpen && (
-              <motion.div className="row" style={{ gap: 10 }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                <button type="button" className="btn btn-ghost btn-block" onClick={() => setPhase("refusers")}>
-                  {lang === "zh" ? "有人不做" : "Someone refuses"}
-                </button>
-                <button type="button" className="btn btn-jade btn-block" onClick={newRound}>
-                  {lang === "zh" ? "执行完毕" : "Done. New round"}
-                </button>
               </motion.div>
             )}
           </motion.div>
