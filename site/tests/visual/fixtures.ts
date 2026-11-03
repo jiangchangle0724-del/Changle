@@ -32,7 +32,7 @@ export const test = base.extend<{ isolatedNetwork: void }>({
         if (message.t === 'ping') ws.send(JSON.stringify({ t: 'pong', c: message.c, s: 1793559600000 }));
         if (message.t === 'hello' && message.screen) ws.send(JSON.stringify({
           t: 'room', now: 1793559600000,
-          room: { code: 'AB3D', you: '', host: 'p0', seats: players.map(p => ({ ...p, on: true })), penalty: '', front: 0, game: null, playing: null, screens: 1, v: 1 },
+          room: { code: new URL(ws.url()).pathname.split('/')[2], you: '', host: 'p0', seats: players.map(p => ({ ...p, on: true })), penalty: '', front: 0, game: null, playing: null, screens: 1, v: 1 },
         }));
       });
     });
@@ -43,6 +43,18 @@ export const test = base.extend<{ isolatedNetwork: void }>({
         seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
         return seed / 4294967296;
       };
+      // Room codes use Web Crypto rather than Math.random. This isolated test context
+      // has no credentials or real network; seed those UI identifiers separately.
+      let codeSeed = 42;
+      Object.defineProperty(crypto, 'getRandomValues', { value: (values: Uint32Array) => {
+        for (let i = 0; i < values.length; i++) {
+          codeSeed = (Math.imul(1664525, codeSeed) + 1013904223) >>> 0;
+          values[i] = codeSeed;
+        }
+        return values;
+      } });
+      localStorage.setItem('lazysusan.pid', 'visual-phone');
+      localStorage.setItem('changle.screen', 'tv-visualfixture');
       sessionStorage.setItem('changle.entered', '1');
     });
     await use();
