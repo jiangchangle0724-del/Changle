@@ -10,6 +10,7 @@ import { BOARD, CITY_AT, GROUPS } from "../../engine";
 import { CharacterArt, type Mood } from "./characters";
 import { SpaceGlyph } from "./icons";
 import { RouteMap, type Flight } from "./RouteMap";
+import { useSatMap } from "./SatMap";
 import { shapePath } from "./shapes";
 import { CODE_PATH, NEWS_PATH, OWNER_PATH } from "./boardType";
 
@@ -57,6 +58,19 @@ const RT = 294;
 const RN = 330;
 const RMAP = 320;
 const STEP = 360 / BOARD.length;
+
+/** A city's space, printed in a wash of its region's colour over the board's navy (`k` of it, mixed as
+ * light mixes, which keeps the colour warm rather than muddy): the city cards' colours round the ring.
+ * The airport codes on them stay at 4.4:1 or more against it. */
+export function tint(color: string, k = 0.2, base = "#1c2238"): string {
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const srgb = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+  const a = rgb(color);
+  const b = rgb(base);
+  return `#${a.map((x, i) => Math.round(255 * srgb(lin(b[i]) + (lin(x) - lin(b[i])) * k)).toString(16).padStart(2, "0")).join("")}`;
+}
+const TINT: Record<number, string> = Object.fromEntries(GROUPS.map((g) => [g.id, tint(g.color)]));
 
 /** Angle of a space, degrees clockwise from 12 o'clock; Departure sits at the bottom. */
 export const angleOf = (at: number) => 180 + at * STEP;
@@ -183,6 +197,7 @@ export function RoundBoard({
   walks,
   turn,
   tokenScale = TOKEN_SCALE.phone,
+  sat,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -210,8 +225,16 @@ export function RoundBoard({
   /** When other teams' tokens start walking and how long a space takes (performance.now() ms), so
    * they move in step with the thrower's ride. */
   walks?: Record<number, { start: number; per: number }>;
+  /** The real world in the middle (art/SatMap.ts), under the board: on a phone or a laptop, and on the big
+   * screen when its globe can't be shown. */
+  sat?: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const satRef = useRef<HTMLCanvasElement>(null);
+  const ridingRef = useRef(false);
+  ridingRef.current = riding !== undefined && riding !== null;
+  // (painted once its pictures are in, never while a move plays: the board draws the map until then)
+  const satOn = useSatMap(satRef, !!sat, () => ridingRef.current);
   const cam = useRef<SVGGElement>(null);
   const ref = useRef<SVGGElement>(null);
   const rot = useRef(focusAt - angleOf(focus));
@@ -228,6 +251,8 @@ export function RoundBoard({
     const g = ref.current;
     if (!g) return;
     g.setAttribute("transform", `rotate(${r.toFixed(2)})`);
+    // (the world under the board turns with the table)
+    if (satRef.current) satRef.current.style.transform = `rotate(${r.toFixed(2)}deg)`;
     upright(r, near);
   };
   const upright = (r: number, near?: { at: number; span: number }) => {
@@ -288,13 +313,16 @@ export function RoundBoard({
           turned = true;
           apply(start + delta);
         }
-        if (svg) svg.style.opacity = p < 1 ? Math.abs(2 * p - 1).toFixed(3) : "";
+        const o = p < 1 ? Math.abs(2 * p - 1).toFixed(3) : "";
+        if (svg) svg.style.opacity = o;
+        if (satRef.current) satRef.current.style.opacity = o;
         if (p < 1) raf = requestAnimationFrame(step);
       };
       raf = requestAnimationFrame(step);
       return () => {
         cancelAnimationFrame(raf);
         if (svg) svg.style.opacity = "";
+        if (satRef.current) satRef.current.style.opacity = "";
         if (!turned) apply(start + delta);
       };
     }
@@ -379,13 +407,16 @@ export function RoundBoard({
   for (const t of tokens) bySpace.set(t.at, [...(bySpace.get(t.at) ?? []), t]);
 
   return (
-    <svg ref={svgRef} class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}`} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
+    <>
+    {/* (the satellite map, under the board: it shows through the middle once it's painted) */}
+    {sat && <canvas ref={satRef} class={`satmap${satOn ? " on" : ""}`} width={1} height={1} style={{ transform: `rotate(${r.toFixed(2)}deg)` }} aria-hidden="true" />}
+    <svg ref={svgRef} class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}${satOn ? " sat-on" : ""}`} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
       <g ref={cam}>
       <circle class="rim" r={RO + 8} fill="var(--board-rim)" />
       {/* (round the big screen's globe, which stands where the flat map is: styles.css .globe-on) */}
       <path class="rim-ring" d={`M${-RO - 8} 0a${RO + 8} ${RO + 8} 0 1 0 ${2 * (RO + 8)} 0a${RO + 8} ${RO + 8} 0 1 0 ${-2 * (RO + 8)} 0M${-RMAP + 2} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${2 * (RMAP - 2)} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${-2 * (RMAP - 2)} 0Z`} fill="var(--board-rim)" fill-rule="evenodd" />
       <g ref={ref} transform={`rotate(${r})`}>
-        <RouteMap r={RMAP} flight={flight} reduced={reduced} />
+        <RouteMap r={RMAP} flight={flight} reduced={reduced} turned={() => rot.current} />
         {BOARD.map((sp, at) => {
           const city = CITY_AT[at];
           const group = city ? GROUPS.find((g) => g.id === city.group)! : null;
@@ -397,7 +428,7 @@ export function RoundBoard({
           const [bx, by] = xy(deg, (RO + RB) / 2);
           return (
             <g key={at} class={`sp k-${sp.k}${at === active ? " active" : ""}${mark?.mortgaged ? " mort" : ""}`} onClick={onPick ? () => onPick(at) : undefined}>
-              <path d={wedge(at, corner ? RO + 6 : RO)} class={corner ? "wedge corner-w" : "wedge"} />
+              <path d={wedge(at, corner ? RO + 6 : RO)} class={corner ? "wedge corner-w" : "wedge"} style={group ? { fill: TINT[group.id] } : undefined} />
               {group && <path d={band(at)} fill={group.color} />}
               {group && (
                 <Up x={bx} y={by} rot={r}>
@@ -487,5 +518,6 @@ export function RoundBoard({
       </g>
       {center}
     </svg>
+    </>
   );
 }

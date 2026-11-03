@@ -13,6 +13,23 @@ import { CITY_SONGS, songText } from "./localSong";
 /** [name, licence, link]. A licence of "" means public domain. */
 type Item = [string, string, string];
 
+/** The satellite map's pictures (art/satellite.ts, made by scripts/satellite.mjs): each with its maker,
+ * its page and what was done to it. */
+export const SATELLITE: { name: { zh: string; en: string }; who: string; url: string }[] = [
+  {
+    name: { zh: "白天：「蓝色弹珠：新一代」，2004 年 7 月", en: "By day: Blue Marble: Next Generation, July 2004" },
+    who: "Reto Stöckli, NASA Earth Observatory",
+    url: "https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/",
+  },
+  {
+    name: { zh: "夜里：「黑色弹珠」，夜晚的地球，2016 年", en: "After dark: Black Marble, Earth at Night, 2016" },
+    who: "Joshua Stevens, NASA Earth Observatory; Suomi NPP VIIRS data: Miguel Román, NASA Goddard",
+    url: "https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/",
+  },
+];
+/** NASA's terms for its pictures. */
+export const NASA_TERMS = "https://www.nasa.gov/nasa-brand-center/images-and-media/";
+
 const PARTS: [Key, Item[]][] = [
   [
     "creditsFonts",
@@ -85,6 +102,25 @@ export function Credits() {
           </ul>
         </section>
       ))}
+      <section class="credits-satellite">
+        <h3>{t("creditsSatellite")}</h3>
+        <p class="muted">{t("creditsSatelliteText")}</p>
+        <ul>
+          {SATELLITE.map((m) => (
+            <li key={m.url}>
+              <a href={m.url} target="_blank" rel="noopener noreferrer">
+                {tx(m.name)}
+              </a>{" "}
+              · {m.who} · <small class="muted">{t("publicDomain")}</small>
+            </li>
+          ))}
+          <li>
+            <a href={NASA_TERMS} target="_blank" rel="noopener noreferrer">
+              {t("creditsNasaTerms")}
+            </a>
+          </li>
+        </ul>
+      </section>
       <h3>{t("creditsArt")}</h3>
       <p>{t("creditsArtText")}</p>
       <h3>{t("creditsPhotos")}</h3>

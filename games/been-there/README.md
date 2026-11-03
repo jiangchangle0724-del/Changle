@@ -31,6 +31,13 @@ city's country (3 to 5 a city, Apple's 30-second previews, looked up and streame
 time) until the team's turn ends, with "Now playing" and a link to Apple Music on every screen. One
 device plays it: the big screen if there is one, otherwise the landing team's phone.
 
+The real world (issue #44, part 1): the middle of the board is NASA's satellite pictures, the Blue
+Marble where the sun is up right now and the Black Marble's city lights where it has set, with a soft
+dusk between; the big screen's globe wears the same pictures. A team crossing to another region flies
+there along the great circle, its own token flying it once it's down on the ring. The ring round the
+world stays printed, each city washed in its region's colour. The pictures are made ready ahead of
+time (`npm run satellite`) and ship with the game: 73 KB for a phone, 600 KB for the big screen.
+
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
 ## How it sits inside changle.ca
@@ -65,7 +72,7 @@ How the game looks and moves, and what a design change has to keep: [DESIGN.md](
 | `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |
 | `src/client/fonts` | Font subsets made by `npm run fonts` (SIL Open Font License; licences alongside). |
 | `src/local` | The single-device demo (`dist/demo.html`): the same client with the room running in the page. |
-| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the map. |
+| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the drawn map; `satellite.mjs` remakes the satellite pictures from NASA's (needs ImageMagick with WebP). |
 | `src/samples` | The step-5 style sheet (three art directions side by side), built to `dist/styles.html`. |
 | `tests` | Engine and room tests (Node), and phone-in-a-browser tests (`tests/e2e`, Playwright). |
 
@@ -135,6 +142,10 @@ minute). Nothing is downloaded: previews stream from Apple. `npm test` checks th
 * How each city's hello is said and what it means: `HELLO` in `src/client/local.ts`.
 * How loud a song plays and how far it dips under the game's sounds: `SONG_VOLUME` in
   `src/client/music.ts`, `DUCK` in `src/client/sound.ts`.
+* How wide dusk is on the satellite map (`DUSK` in `src/client/art/satellite.ts`), how long a flight takes
+  on the map (`FLY_MS` in `src/client/art/RouteMap.tsx`), how strongly a city's space takes its region's
+  colour (`tint` in `src/client/art/RoundBoard.tsx`), and which NASA month the day picture is
+  (`SOURCES` in `scripts/satellite.mjs`).
 
 * Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, the
   quiz's time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.

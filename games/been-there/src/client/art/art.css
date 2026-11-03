@@ -117,6 +117,78 @@
   pointer-events: none;
 }
 
+/* ---------- the real world in the middle (art/SatMap.ts, art/RouteMap.tsx) ----------
+   NASA's satellite pictures, painted in a canvas under the board, exactly where the drawn map's circle
+   is (radius 320 of the board's 1000), turning with the table. Once it's painted the drawn map gives
+   way: the board's dark disc becomes a ring round it, and the drawn sea and land fade out over it. */
+.satmap {
+  position: absolute;
+  left: 18%;
+  top: 18%;
+  width: 64%;
+  height: 64%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.roundboard.sat-on .rim {
+  display: none;
+}
+.roundboard.sat-on .rim-ring {
+  display: inline;
+}
+.roundboard .routemap .base {
+  transition:
+    opacity 0.6s ease,
+    visibility 0s linear 0.6s;
+}
+/* (gone for good once it has faded: never painted again, frame after frame of a move) */
+.roundboard.sat-on .routemap .base {
+  opacity: 0;
+  visibility: hidden;
+}
+/* The equator and the tropics, printed faintly over the real world. */
+.roundboard .routemap .grid {
+  display: none;
+  stroke: var(--board-ink);
+}
+.roundboard.sat-on .routemap .grid {
+  display: inline;
+  opacity: 0.2;
+}
+/* Each city in its region's colour, ringed in ink and set off the picture by a dark halo. */
+.roundboard .routemap .dot-edge {
+  fill: rgba(6, 8, 24, 0.55);
+}
+/* A flight: the route, dashed and faint; the trail drawn behind the token flying it. Nothing shows
+   before take-off (the token is still walking to the city: nothing tells the landing before the stamp). */
+.roundboard .flight .route {
+  fill: none;
+  stroke: var(--board-ink);
+  opacity: 0.55;
+}
+.roundboard .flight .trail {
+  fill: none;
+  stroke: var(--flight);
+  stroke-linecap: round;
+}
+.roundboard .flight.fly:not(.flying) {
+  visibility: hidden;
+}
+.roundboard .flight .fly-token,
+.roundboard .flight .fly-shadow {
+  transition: opacity 0.5s ease 0.15s;
+}
+.roundboard .flight.landed .fly-token,
+.roundboard .flight.landed .fly-shadow {
+  opacity: 0;
+}
+.roundboard .flight .fly-shadow {
+  fill: rgba(4, 6, 18, 0.42);
+}
+.roundboard .flight .fly-art {
+  filter: var(--face-edge, none);
+}
+
 /* ---------- posters ---------- */
 .poster {
   position: relative;

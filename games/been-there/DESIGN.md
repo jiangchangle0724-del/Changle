@@ -23,10 +23,13 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   question, the city names on the arrival postcard, the big screen's departure board, the
   touchdown and the finale's stamps.
 
-* **The board** is a round turntable around an air-age route map (a polar projection). On the big
-  screen a 3D globe sits in the middle, under the board where the flat map is, so the tokens stand on
-  it; flights arc between cities, and the side where it is night right now is dark, with the cities
-  lit. On a phone the player picks how big the board is drawn (below, "The map's size").
+* **The board** is a round turntable around an air-age route map (a polar projection). Since issue
+  #44 the world in the middle is real: NASA's satellite pictures, daylight where the sun is up right now
+  and the city lights where it has set (below, "The real world in the middle"). The ring round it stays
+  printed, each city's space washed in its region's colour. On the big screen a 3D globe sits in the
+  middle, under the board where the flat map is, so the tokens stand on it, wearing the same pictures.
+  A team crossing to another region flies there along the great circle, its own token flying it. On a
+  phone the player picks how big the board is drawn (below, "The map's size").
 * **Six characters**, one per team colour, each with six moods (idle, happy, shock, sad, curious,
   smug): 咔嚓 Click, 呼呼 Snooze, 小旗 Flaggy, 背背 Packy, 箱箱 Trunky, 球球 Globey. On the board they
   stand at 0.8 of their drawing on a phone or a laptop and 0.62 on the big screen (`TOKEN_SCALE` in
@@ -39,8 +42,9 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   touchdown in each new city (out of the plane window, through the clouds, the real local time and
   the live weather), and the finale (an exit stamp, teams read out last to first, the winners'
   medal, stamps and falling paper).
-* **Everything is drawn in code** (SVG, CSS, a canvas for the paper grain) and the sounds are
-  synthesised in the browser: there are no image or sound files to download or license.
+* **The printed things are drawn in code** (SVG, CSS, a canvas for the paper grain) and the sounds are
+  synthesised in the browser. What's real comes as files, each credited: the cities' photos and
+  recordings (below), the songs (streamed from Apple) and the satellite pictures of the world.
 
 ## See it while you work
 
@@ -60,9 +64,10 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/styles.css` | The frame: changle.ca's night tokens (`--night`, `--dusk`, `--gel`...) and the names the screens use (`--bg`, `--surface`, `--accent`...), the fonts, layouts (phone tabs; everything side by side from 960 px; the big screen), buttons, panels and sheets, and the scenes (touchdown, finale). |
 | `src/client/art/characters.tsx` | The six characters and their moods. |
 | `src/client/art/posters*.tsx`, `stamps.tsx` | The 22 city posters and passport stamps. |
-| `src/client/art/RoundBoard.tsx`, `RouteMap.tsx` | The round board and the route map (with the night side). |
+| `src/client/art/RoundBoard.tsx`, `RouteMap.tsx` | The round board, and the route map over the world: cities, lamps, flights (and the drawn map that stands in until the pictures are in). |
+| `src/client/art/satellite.ts`, `SatMap.ts`, `src/client/media/map/`, `scripts/satellite.mjs` | The real world in the middle: where the sun is, the pictures (made by the script from NASA's), and their painting under the board. |
 | `src/client/art/dice.tsx`, `Passport.tsx`, `LandingCard.tsx`, `icons.tsx`, `texture.ts` | Dice, the passport, the arrival card, small icons, paper grain and stamp speckle. |
-| `src/client/globe/` | The big screen's 3D globe (three.js): the night side, city lights, flights. |
+| `src/client/globe/` | The big screen's 3D globe (three.js): the real world day and night, city lights, flights. |
 | `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
 | `src/client/music.ts`, `ui/localSong.ts`, `ui/Local.tsx`, `src/client/local.ts`, `src/client/songs.json` | Being there: the local hit a second visit plays (the player; which song, when, on which device; "Now playing"), the arrival card's local part, prices in local money, and the data (songs, hellos, exchange rates). |
@@ -126,7 +131,8 @@ Each of these was measured or is tested. Check them again after a change.
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
    wear their letter too).
-9. **Our own work.** No photos, fonts or sounds we can't license. Posters leave out modern
+9. **Our own work.** No photos, fonts, sounds or maps we can't license (the satellite pictures are NASA's,
+   public domain, credited as NASA asks). Posters leave out modern
    buildings whose designs are still protected, and trademarks. The credits page lists every source
    and licence.
 10. **The keyboard never covers what you type.** A phone's keyboard covers the bottom of the screen
@@ -194,7 +200,7 @@ which goes round the three, its marks saying which it is. The big screen always 
 
 ## Being there: the local hit, the arrival's local part, local money
 
-Issue #44's parts 2 and 3 (its part 1, the satellite map, is still to come).
+Issue #44's parts 2 and 3 (its part 1, the satellite map: "The real world in the middle", below).
 
 * **The arrival card says where you are, right now**: the city's hello in its own script, how to say
   it (谐音 for a Chinese reader, a respelling with the stressed part in capitals for an English one;
@@ -227,6 +233,60 @@ Issue #44's parts 2 and 3 (its part 1, the satellite map, is still to come).
   its artist and links to it on Apple Music ("在 Apple Music 听完整版"); the credits page lists every
   song. The preview URL found when the list was made is the fallback if the lookup doesn't answer.
 * **The record turns** while the song is on, 33⅓ turns a minute; it stands still with reduced motion.
+
+## The real world in the middle
+
+Issue #44's part 1: the world inside the printed ring is real.
+
+* **The pictures.** By day NASA's Blue Marble: Next Generation (July 2004, with the sea floor's relief:
+  the greenest month for the north, which fills most of the map); after dark NASA's Black Marble 2016,
+  the lights of the cities. Both public domain; the credits page names them with their pages and NASA's
+  terms, as NASA asks ("NASA Earth Observatory"), and says that using them doesn't mean NASA endorses
+  the game. `npm run satellite` (scripts/satellite.mjs, needs ImageMagick with WebP) fetches NASA's own
+  files once and makes them ready; the WebP files it writes are kept in the repo
+  (`src/client/media/map`), so nothing comes from NASA while the game runs and no key is needed:
+
+  | file | size | what for |
+  | --- | --- | --- |
+  | `day-1024.webp`, `night-1024.webp` | 1024 x 1024, 52 + 21 KB | a phone's or a laptop's board: the world from above the North Pole, as `art/geo.ts` `polar` draws it |
+  | `day-512.webp`, `night-512.webp` | 512 x 512, 18 + 6 KB | a phone short of memory or saving data |
+  | `globe-day-4096.webp`, `globe-night-4096.webp` | 4096 x 2048, 415 + 185 KB | the big screen's globe (the whole world) |
+  | `globe-day-2048.webp`, `globe-night-2048.webp` | 2048 x 1024, 132 + 64 KB | a globe whose graphics card can't take 4096 |
+
+  893 KB in all; a phone downloads 73 KB of it, the big screen 600 KB. `tests/satellite.test.ts` holds
+  every file to its size and its share of that.
+* **Day and night are the real ones right now** (`art/satellite.ts`): where the sun is overhead
+  (`globe/sun.ts`), and so how high it stands over each place. Daylight shows the day picture, night the
+  lights, and dusk is soft, from the sun 7 degrees under the horizon to 5 over (`DUSK`), the warm edge of
+  it on the big screen's globe. Each city glows after dark. It moves on every minute.
+* **Never in the way of the first paint.** The board is drawn at once with its old drawn map in the
+  middle (sea, land, the night side). The pictures are fetched when the page next has a quiet moment,
+  decoded off the page's thread and painted into a canvas under the board (`art/SatMap.ts`): the day
+  picture, cut by a small picture of the daylight (160 x 160, stretched smooth: that's the soft dusk),
+  the night picture under it, a little shade toward the edge. Then the drawn map fades out over it.
+  Pictures that can't load (offline, the one-page demo opened from a file) leave the drawn map.
+* **Cheap frames.** The canvas is a layer of its own: the ring over it is drawn again without the world.
+  It turns with the table and moves with a move's camera (it's inside `.board-view`), is painted again
+  only once a minute, and never while a move plays; the drawn map, faded out, isn't painted at all. A
+  phone short of memory or saving data gets the 512 pictures, painted every five minutes.
+* **Cities on top, readable.** Each sits at its real latitude and longitude in its region's colour, ringed
+  in ink with a dark halo; the equator and the tropics are printed faintly over the world.
+* **Flights** (`RouteMap.tsx` `FlightPath`; on the big screen `globe/main.ts`). When a team lands in
+  another region, its own token (its character, happy) takes off from the last city once its token is down
+  on the ring (nothing tells the landing before the stamp), climbs and comes down on the new city along
+  the great circle in 2.6 s, its shadow keeping to the ground, the trail drawn behind it, then steps off
+  the map, leaving the route. On the flat map a route that would dip off its southern edge (Sydney to
+  Buenos Aires passes Antarctica) goes the other way round the same circle. A phone flies it once its own
+  move has played; with reduced motion the route is simply drawn. On the big screen the globe flies the
+  same token, a picture of it facing the room, along the arc while the camera leans in.
+* **The big screen's globe** wears the same pictures in a shader (day, night, dusk, a little light for
+  roundness, the air at its rim); it comes up once they're in, or after 6 s as painted paper that gives
+  way to them when they arrive. With reduced motion or without WebGL it stays flat, and the board under it
+  shows the real world as a phone's does.
+* **The ring's colours.** Each city's space is washed in its region's colour, mixed into the navy as light
+  mixes (20%, `tint` in `RoundBoard.tsx`), so the ring reads as the regions' posters round the world; the
+  airport codes stay at 4.4:1 or more against it. Corners, the band of each region and everything else
+  printed are as they were.
 
 ## Your move, first-person
 

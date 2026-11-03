@@ -536,7 +536,16 @@ const S = {
   creditsWeather: ["实时天气", "Live weather"],
   creditsNews: ["旅行快讯的出处", "Travel news sources"],
   creditsArt: ["画面", "Art"],
-  creditsArtText: ["海报、印章、角色和棋盘都是为这个游戏用代码画的。", "The posters, stamps, characters and board were drawn in code for this game."],
+  creditsArtText: [
+    "海报、印章、角色和棋盘都是为这个游戏用代码画的；只有棋盘中间的真实世界是卫星照片（上面一节）。",
+    "The posters, stamps, characters and board were drawn in code for this game; only the real world in the middle of the board is satellite pictures (the section above).",
+  ],
+  creditsSatellite: ["卫星地图", "Satellite map"],
+  creditsSatelliteText: [
+    "棋盘中间的世界：太阳照着的地方是 NASA 的「蓝色弹珠」，天黑的地方是 NASA 的「黑色弹珠」城市灯光，按此刻太阳的位置拼在一起。两张都是公有领域；为这个游戏转成了从北极上方看的样子（大屏的地球是整张），缩小并略调了颜色。用这些图片不代表 NASA 认可这个游戏。",
+    "The world in the middle of the board: NASA's Blue Marble where the sun is up, and NASA's Black Marble (the lights at night) where it has set, joined where the sun is right now. Both are public domain. For this game they were turned to the world seen from above the North Pole (the big screen's globe wears them whole), made smaller and their colours lightly adjusted. Using them doesn't mean NASA endorses this game.",
+  ],
+  creditsNasaTerms: ["NASA 图片和媒体的使用说明", "NASA's guidelines for its images and media"],
   creditsPhotos: ["城市照片", "City photos"],
   creditsPhotosText: [
     "都来自维基共享资源，裁成了 16:9 并缩小；改过的照片仍按原来的许可发布。",
