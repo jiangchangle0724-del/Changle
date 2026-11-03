@@ -30,18 +30,23 @@ async function bigScreen(browser: Browser, contextOptions: Parameters<Browser["n
  */
 async function stamp(page: Page, marks: Record<string, string>) {
   await page.evaluate((marks) => {
-    const w = window as unknown as { seen: Record<string, number>; statuses: string[] };
+    const w = window as unknown as { seen: Record<string, number>; statuses: string[]; frames: number[] };
     w.seen = {};
     w.statuses = [];
+    // (the frames the page draws until its move is put away, for `landed` below)
+    w.frames = [];
     const check = () => {
       for (const [k, sel] of Object.entries(marks)) if (!w.seen[k] && document.querySelector(sel)) w.seen[k] = Date.now();
       const planned = document.querySelector<HTMLElement>(".ride[data-land], .other-stamp[data-land]");
       if (planned && !w.seen.plan) w.seen.plan = Number(planned.dataset.land);
+      // (the move put away: the ride over, or the other team's stamp gone)
+      if (!planned && w.seen.plan && !w.seen.gone) w.seen.gone = Date.now();
       const st = document.querySelector(".departures-board .bb-row.where .stt")?.textContent;
       if (st && w.statuses[w.statuses.length - 1] !== st) w.statuses.push(st);
     };
     const look = () => {
       check();
+      if (!w.seen.gone) w.frames.push(Date.now());
       requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
@@ -54,6 +59,38 @@ const seen = (p: Phone) => p.page.evaluate(() => (window as unknown as { seen: R
 /** Wait until a page has noted `k`. */
 const noted = (p: Phone, k: string, timeout = 8_000) =>
   expect.poll(async () => (await seen(p))[k] ?? 0, { message: `${p.name}: ${k}`, timeout }).toBeGreaterThan(0);
+
+/**
+ * Wait until a phone's stamp has come down (`land`), or its move was over without one while the page
+ * drew next to nothing from the landing on: a page too busy to draw sleeps through it (GitHub's WebKit
+ * run, three screens on two shared cores), and the game ends a move by its clock for a phone that
+ * slept through it, or plays none it got too late (ridePlan.ts). A page that kept drawing after the
+ * landing would have shown the stamp.
+ */
+async function landed(p: Phone, tv: Phone): Promise<"stamped" | "slept"> {
+  const verdict = async () => {
+    // (for a phone that never got to plan its own: the big screen's landing, the same to 60 ms)
+    const ref = await seen(tv);
+    return p.page.evaluate(
+      (ref) => {
+        const w = window as unknown as { seen: Record<string, number>; frames: number[] };
+        if (w.seen.land) return "stamped";
+        const plan = w.seen.plan ?? ref.plan;
+        // over: put away; or, never planned, when the big screen's move was (judged a second later)
+        const over = w.seen.gone ?? (!w.seen.plan && ref.gone && Date.now() > ref.gone + 1000 ? ref.gone : 0);
+        if (!plan || !over) return "";
+        // (from a little after the landing, and more than the one frame of waking up: the stamp's own
+        // frame, or its timer on another team's phone, has its turn by the second)
+        const drew = w.frames.filter((f) => f >= plan + 100 && f < over);
+        if (drew.length < 2) return "slept";
+        return `${w.seen.plan ? "put away" : "never played"} with no stamp, though it drew ${drew.length} frames from ${drew[0] - plan} ms after the landing`;
+      },
+      { plan: ref.plan, gone: ref.gone },
+    );
+  };
+  await expect.poll(verdict, { message: `${p.name}: land`, timeout: 8_000 }).toMatch(/^(stamped|slept)$/);
+  return (await verdict()) as "stamped" | "slept";
+}
 
 /** Two teams of one phone each, and the big screen. Returns them with the phone that throws first. */
 async function table(browser: Browser, request: Parameters<typeof createRoom>[0], contextOptions: Parameters<Browser["newContext"]>[0], dice: number[]) {
@@ -96,8 +133,7 @@ test("同一掷，三块屏一起走：大屏推近跟走、出发牌翻城市�
   await noted(tv, "ride", 4_000);
   await noted(tv, "arrived");
   await expect(tv.page.locator(".departures-board .bb-row.where.landed .nm")).toContainText("墨西哥城", { timeout: 8_000 });
-  await noted(thrower, "land");
-  await noted(other, "land");
+  const how = { thrower: await landed(thrower, tv), other: await landed(other, tv) };
   const statuses = await tv.page.evaluate(() => (window as unknown as { statuses: string[] }).statuses);
   console.log(`departures board: ${statuses.join(" > ")}`);
   // How the screens looked on the way is held on Chromium. GitHub's WebKit run can't draw three
@@ -110,12 +146,15 @@ test("同一掷，三块屏一起走：大屏推近跟走、出发牌翻城市�
     expect(pushed).toBeLessThanOrEqual(1.41);
   } else expect(statuses[statuses.length - 1]).toBe("到达");
   // When each screen planned the stamp, on this computer's clock (each from its own estimate of the
-  // server's): they agree. And when each one showed it (a frame later, more on a busy page).
+  // server's): they agree. And when each one showed it (a frame later, more on a busy page). (A phone
+  // that got the throw only once the move was over planned none: it slept through it.)
   const [t, a, b] = [await seen(tv), await seen(thrower), await seen(other)];
-  const [pt, pa, pb] = [t.plan, a.plan, b.plan];
-  console.log(`planned landing: big screen ${pt - pa} ms, other phone ${pb - pa} ms from the thrower; shown: ${t.land - a.land} ms, ${b.land - a.land} ms`);
-  expect(Math.abs(pt - pa), "the big screen's clock").toBeLessThan(60);
-  expect(Math.abs(pb - pa), "the other phone's clock").toBeLessThan(60);
+  const shown = (x: Record<string, number>, h: string) => (h === "stamped" ? `${x.land - x.plan} ms` : "slept through it");
+  console.log(
+    `planned landing, from the big screen's: thrower ${a.plan - t.plan} ms, other phone ${b.plan - t.plan} ms; shown after its plan: big screen ${t.land - t.plan} ms, thrower ${shown(a, how.thrower)}, other phone ${shown(b, how.other)}`,
+  );
+  if (a.plan) expect(Math.abs(a.plan - t.plan), "the thrower's clock and the big screen's").toBeLessThan(60);
+  if (b.plan) expect(Math.abs(b.plan - t.plan), "the other phone's clock and the big screen's").toBeLessThan(60);
   // The arrival card on the big screen waits for the landing (put aside while a question is up).
   await expect(tv.page.locator(".tv-side .arrival")).toBeAttached({ timeout: 4_000 });
   expect([...tv.errors, ...thrower.errors, ...other.errors]).toEqual([]);

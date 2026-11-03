@@ -26,6 +26,8 @@ interface QuizBox {
   blocked: string[];
   options: number;
   myTurn: boolean;
+  /** Seconds left on its countdown. */
+  secs: number;
 }
 
 /** The pop-up on this phone, once it has settled: where it is, and whether all of it can be seen and tapped. */
@@ -56,8 +58,24 @@ async function quizBox(page: Page): Promise<QuizBox | null> {
       blocked,
       options: pop.querySelectorAll("button.trivia-opt").length,
       myTurn: !!document.querySelector(".banner.me"),
+      secs: Number(pop.querySelector(".countdown")?.textContent?.match(/\d+/)?.[0] ?? 0),
     };
   });
+}
+
+/**
+ * After a real tap on an answer: the pop-up leaves the question (taps that do nothing were the bug),
+ * and whether this team's answer is in. (It isn't if another team's right answer closed the question
+ * a moment before.)
+ */
+async function answerTaken(p: Phone, id: string): Promise<boolean> {
+  const state = () =>
+    p.page.evaluate((id) => {
+      const pop = document.querySelector<HTMLElement>(`.quizpop[data-id="${id}"]`);
+      return pop ? `${pop.dataset.state}:${pop.dataset.mine}` : "gone";
+    }, id);
+  await expect.poll(state, { message: `${p.name}: the tap on an answer did something`, timeout: 3000 }).not.toMatch(/^ask:/);
+  return /^(locked|reveal):\d/.test(await state());
 }
 
 /** All of it on the screen, at the top, nothing in the way. */
@@ -106,8 +124,12 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
   // A question comes up at the start of a turn, for the other teams. Seen on another team's turn, it
   // is answered the first time; after that it is left up, to be seen again when the turn passes to
   // this phone and answered there, on its own turn. The next one after both is skipped.
+  // (A real tap can take GitHub's WebKit a second or two: it waits for the page to draw the button
+  // still. So only on a question with 3 seconds or more to go, at once, and never waiting on one that
+  // has closed meanwhile: the next one will do. The pictures are taken of ones left alone.)
   const done = { own: false, others: false, skipped: false };
   const checked = new Set<string>();
+  const pictures = new Set<string>();
   const until = Date.now() + 200_000;
   while (Date.now() < until && !(done.own && done.others && done.skipped)) {
     for (const p of [a, b]) {
@@ -119,8 +141,7 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
         expectWhole(box, `${p.name} on ${kind === "own" ? "its own turn" : "another team's turn"}`);
         expect(box.options).toBe(3);
         const pop = p.page.locator(`.quizpop[data-id="${box.id}"]`);
-        if (!done[kind]) {
-          await p.page.screenshot({ path: `test-results/quiz-${kind}-turn-390x844.png` });
+        if (!done[kind] && box.secs >= 3) {
           // A real tap on an answer (Playwright taps only what's visible and not covered): it counts.
           const tapped = await pop
             .locator("button.trivia-opt")
@@ -128,18 +149,23 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
             .click({ timeout: 2000 })
             .then(() => true)
             .catch(() => false);
-          if (tapped) {
-            await expect(pop, "the answer was taken").not.toHaveAttribute("data-mine", "", { timeout: 3000 });
-            await expect(pop).not.toHaveAttribute("data-state", "ask");
-            done[kind] = true;
-          }
-        } else if (done.own && done.others && !done.skipped) {
+          if (tapped) done[kind] = await answerTaken(p, box.id);
+        } else if (done.own && done.others && !done.skipped && box.secs >= 3) {
           // A real tap on 这题不答: it goes, and doesn't come back.
-          await pop.getByRole("button", { name: "这题不答" }).click();
-          await expect(pop).toHaveCount(0, { timeout: 3000 });
-          await p.page.waitForTimeout(600);
-          await expect(pop).toHaveCount(0);
-          done.skipped = true;
+          const tapped = await pop
+            .getByRole("button", { name: "这题不答" })
+            .click({ timeout: 2000 })
+            .then(() => true)
+            .catch(() => false);
+          if (tapped) {
+            await expect(pop).toHaveCount(0, { timeout: 3000 });
+            await p.page.waitForTimeout(600);
+            await expect(pop).toHaveCount(0);
+            done.skipped = true;
+          }
+        } else if (!pictures.has(kind)) {
+          await p.page.screenshot({ path: `test-results/quiz-${kind}-turn-390x844.png` });
+          pictures.add(kind);
         }
       }
       await tap(p);
