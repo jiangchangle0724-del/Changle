@@ -357,17 +357,39 @@ export type FreezeView = {
   auto: boolean;
 };
 
+/** Limbo's variants of a bar: classic, hold steady (稳住), moving bar (跟着动的杆), tilt through (歪着过). */
+export type LimboKind = "classic" | "steady" | "moving" | "tilt";
+
+/** One Limbo bar: which variant it is and what it asks for. The rules make it: shared/engine/games/limbo.ts. */
+export type LimboBar = {
+  kind: LimboKind;
+  /** steady: how long to hold perfectly still, in ms */
+  hold: number;
+  /** tilt: how far to tilt sideways as well, in degrees; below 0 is to the left */
+  side: number;
+  /** moving: the bar sways up `swing` degrees from the bar's angle and back, once every `period` ms */
+  swing: number;
+  period: number;
+  /** moving: how long it moves after the start, in ms; then each phone says whether it kept up */
+  moveMs: number;
+};
+
 export type LimboView = {
   id: "limbo";
   phase: "ready" | "go" | "result" | "end";
-  /** classic: lean past the bar; blind: lean to the target without seeing your own angle */
-  mode: "classic" | "blind";
+  /**
+   * classic: lean past the bar; steady, moving, tilt: those variants every bar; party: a random one
+   * of the four each bar; blind: lean to the target without seeing your own angle
+   */
+  mode: LimboKind | "party" | "blind";
+  /** the bar now (blind: a classic one) */
+  bar: LimboBar;
   /** blind: who has locked an angle this round */
   locked: string[];
   /** blind: everyone's locked angle, shown once the round is over */
   locks: Record<string, number>;
   level: number;
-  /** how far back each player must lean, in degrees (blind: this round's target) */
+  /** how far back each player must lean, in degrees (blind: this round's target; moving: the deepest the bar goes) */
   angle: number;
   /** the calypso started here (server time) and keeps going level after level */
   musicAt: number;

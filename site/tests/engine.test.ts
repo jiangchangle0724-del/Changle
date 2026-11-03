@@ -9,6 +9,7 @@ import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
+import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
 import { SCENES as DRAMA_SCENES } from "../src/data/drama";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -633,6 +634,117 @@ test("limbo blind: needs two phones that can measure, and the classic moves don'
   t.advance(3600);
   t.g("p0", "pass", { deg: 80 });
   ok(t.view<V<"limbo">>("p0").phase === "go", "pass is a classic move, ignored in blind");
+});
+
+test("limbo steady: reach the bar and hold still, a longer hold every bar", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p1", "mode", { mode: "steady" });
+  ok(t.view<V<"limbo">>("p0").mode === "classic", "only the host picks the mode");
+  t.g("p0", "mode", { mode: "steady" });
+  t.g("p0", "go");
+  let v = t.view<V<"limbo">>("p2");
+  ok(v.phase === "go" && v.mode === "steady" && v.bar.kind === "steady", "a steady bar on every phone");
+  ok(v.angle === 20 && v.bar.hold === 2000, "bar 1: 20 degrees, held still for 2 seconds");
+  ok(v.endsAt - v.startAt === 17_000, "the hold's time is added to the bar's");
+  t.advance(3600);
+  t.g("p0", "pass", { deg: 22 });
+  t.g("p1", "pass", { deg: 25 });
+  t.g("p2", "fail");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "result" && v.out.includes("p2"), "a phone that lost the hold: out");
+  t.advance(7100);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "go" && v.angle === 30 && v.bar.kind === "steady" && v.bar.hold === 2500, "bar 2: deeper, and half a second longer");
+  ok(steadyMs(4) === 4000 && steadyMs(8) === 6000 && steadyMs(13) === 6000, "the hold grows to six seconds and stays there");
+  // a phone without a motion sensor: the host judges it, as in classic
+  t.advance(3600);
+  t.g("p0", "judge", { pid: "p1", ok: true });
+  t.g("p0", "fail");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "end" && v.winner === "p1", "the host's call counts: p1 wins");
+});
+
+test("limbo moving: one path from the start time, kept up with until it stops", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "mode", { mode: "moving" });
+  t.g("p0", "go");
+  let v = t.view<V<"limbo">>("p1");
+  const bar = v.bar;
+  ok(bar.kind === "moving" && bar.swing === 12 && bar.period === 6000 && bar.moveMs === 13_500, "bar 1 sways 12 degrees, once every 6 seconds, twice");
+  ok(JSON.stringify([t.view<V<"limbo">>("p0").bar, t.view<V<"limbo">>("p0").startAt]) === JSON.stringify([bar, v.startAt]), "every phone gets the same bar and start time");
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+  ok(barAngleAt(v.angle, bar, -800) === 8 && barAngleAt(v.angle, bar, 1500) === 8, "it waits at its top (8 degrees) first");
+  ok(near(barAngleAt(v.angle, bar, 1500 + 3000), 20) && near(barAngleAt(v.angle, bar, 1500 + 1500), 14), "down to the bar's 20 degrees halfway through a sway");
+  ok(near(barAngleAt(v.angle, bar, 1500 + 6000), 8) && near(barAngleAt(v.angle, bar, 1500 + 9000), 20), "back up, and down again");
+  ok(near(barAngleAt(v.angle, bar, 13_500), 8) && near(barAngleAt(v.angle, bar, 40_000), 8), "it stops at its top");
+  ok(v.endsAt - v.startAt === 18_500, "five seconds after it stops to say how it went");
+  t.advance(3600);
+  t.g("p0", "pass", { deg: 20 });
+  t.g("p0", "judge", { pid: "p2", ok: true });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.passed.length === 0, "nobody has kept up with it while it still moves, by phone or by the host");
+  t.g("p1", "fail", { deg: 9 });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.failed.includes("p1") && v.best.p1 === 9, "losing it counts at once, with how deep it went while they were with it");
+  t.advance(13_500);
+  t.g("p0", "pass", { deg: 20 });
+  t.g("p0", "judge", { pid: "p2", ok: true });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "result" && v.out.includes("p1") && v.alive.join() === "p0,p2", "once it stops: kept up, p1 lost it");
+  t.advance(7100);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.bar.kind === "moving" && v.angle === 30 && v.bar.swing === 20 && v.bar.period === 5600, "bar 2: from 10 down to 30 degrees, a little quicker");
+  t.advance(3600);
+  t.g("p0", "best", { deg: 25 });
+  t.advance(v.bar.moveMs + 5000);
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "end" && v.winner === "p0", "nobody said they kept up: the one who followed it deepest wins");
+});
+
+test("limbo tilt: a sideways tilt as well, to a random side each bar", () => {
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "mode", { mode: "tilt" });
+  t.g("p0", "go");
+  const sides: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    const v = t.view<V<"limbo">>("p1");
+    ok(v.phase === "go" && v.bar.kind === "tilt" && v.bar.hold === 0 && v.bar.period === 0, `bar ${i + 1} is a tilt`);
+    sides.push(v.bar.side);
+    t.advance(3600);
+    t.g("p0", "pass", { deg: v.angle });
+    t.g("p1", "pass", { deg: v.angle });
+    t.advance(7100);
+  }
+  ok(sides.every((d, i) => Math.abs(d) === TILT_SIDES[Math.min(i, TILT_SIDES.length - 1)]), `15 degrees to the side first, then more (${sides.join(" ")})`);
+  ok(sides.some((d) => d < 0) && sides.some((d) => d > 0), "both sides come up");
+});
+
+test("limbo party: a random variant each bar, never the same twice running, never blind", () => {
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "mode", { mode: "party" });
+  t.g("p0", "go");
+  const kinds: string[] = [];
+  for (let i = 0; i < 20; i++) {
+    const v = t.view<V<"limbo">>("p0");
+    const b = v.bar;
+    kinds.push(b.kind);
+    ok(v.phase === "go" && v.mode === "party", `bar ${i + 1} is on`);
+    ok((b.kind === "steady") === (b.hold > 0) && (b.kind === "tilt") === (b.side !== 0) && (b.kind === "moving") === (b.period > 0), `bar ${i + 1} asks what a ${b.kind} bar asks`);
+    t.advance(3600 + b.moveMs);
+    t.g("p0", "pass", { deg: v.angle });
+    t.g("p1", "pass", { deg: v.angle });
+    t.advance(7100);
+  }
+  ok(kinds.every((k, i) => i === 0 || k !== kinds[i - 1]), "never the same twice running");
+  ok(kinds.every((k) => (PARTY_KINDS as string[]).includes(k)) && new Set(kinds).size === 4, `all four come up, and only those (${kinds.join(" ")})`);
+  const u = setup(2);
+  u.act("p0", { a: "start", game: "limbo" });
+  u.g("p0", "mode", { mode: "upside-down" });
+  ok(u.view<V<"limbo">>("p0").mode === "classic", "a mode the game doesn't know is classic");
 });
 
 test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
