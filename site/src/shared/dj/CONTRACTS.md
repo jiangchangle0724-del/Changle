@@ -99,9 +99,11 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`): a 3D robot (`Coach3D.tsx`,
   three.js loaded only there, a CC0 model in `public/models/robot.glb` with its own dances, each
   animation stretched to whole beats and set to the speaker's beat every frame), or Name That
-  Tune's drawn performer while it loads and on a screen with no graphics chip for it (no WebGL,
-  WebGL drawn in software, where three.js isn't even downloaded, or its frames under 20 a second
-  in its first seconds: the robot would take the TV's processor from the music and the page),
+  Tune's drawn performer while it loads, on a phone playing the speaker (under 1000 px wide: the
+  robot would be small, and a phone's page has the least memory), and on a screen with no graphics
+  chip for it (no WebGL, WebGL drawn in software, where three.js isn't even downloaded, or its
+  frames under 20 a second in its first seconds: the robot would take the TV's processor from the
+  music and the page),
   dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
   16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
   the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand

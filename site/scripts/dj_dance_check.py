@@ -59,7 +59,7 @@ with sync_playwright() as p:
     ok(first in NAMES, f"the move, by name ({first})")
     ok(tv.evaluate("() => document.querySelector('.dj-coach-svg').childElementCount") > 0, "the coach is drawn")
     # the robot in 3D, where a graphics chip draws it: none here, the drawn coach stays and dances
-    is3d = until(lambda: (lambda x: x if x in ("on", "software", "none", "slow", "failed") else None)(tv.evaluate("() => window.__coach3dIs")), 20000, 200)
+    is3d = until(lambda: (lambda x: x if x in ("on", "software", "none", "slow", "small", "failed") else None)(tv.evaluate("() => window.__coach3dIs")), 20000, 200)
     if is3d == "on":
         print("--   (this browser has a graphics chip: the robot stays on this TV)")
         ok(tv.locator(".dj-coach-3d canvas").count() == 1 and tv.locator(".dj-coach-svg.is-off").count() == 1, "the 3D robot takes over from the drawn coach")

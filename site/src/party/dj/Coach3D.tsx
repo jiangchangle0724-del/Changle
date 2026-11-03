@@ -26,12 +26,14 @@ const CLIPS: Record<DanceMove["id"], { clip: string; beats: number }> = {
 /** In its first seconds, the robot's frames mostly slower than this (under 20 a second): a chip too
  * weak for it next to everything else the TV does, and the drawn coach instead. */
 const SLOW_MS = 50;
+/** A screen narrower than this (a phone, even on its side) keeps the drawn coach. */
+const SMALL_PX = 1000;
 /** How long its frames are watched, and at least how many (a hidden tab's pause left out). */
 const WATCH_MS = 2500;
 const WATCH_FRAMES = 10;
 
 /** How the coach turned out (`watching`: the robot's first seconds), for the checks. */
-type Is = "trying" | "watching" | "on" | "software" | "none" | "slow" | "failed";
+type Is = "trying" | "watching" | "on" | "software" | "none" | "slow" | "small" | "failed";
 const tell = (is: Is) => {
   if (import.meta.env.DEV) (window as unknown as { __coach3dIs?: Is }).__coach3dIs = is;
 };
@@ -64,8 +66,9 @@ function glOf(): "chip" | "software" | "none" {
 /**
  * 跟着跳's coach in 3D (Steve on Nov 2: "3D 舞者", the plan's dancers): a robot dancing the routine's
  * move, each animation stretched to whole beats and set to where the speaker's beat is every frame,
- * so it lands on the beat however the frames fall. Three.js loads only here, after the page. No
- * graphics chip for it, its frames too slow, or the model can't load: `onFail`, the drawn coach.
+ * so it lands on the beat however the frames fall. Three.js loads only here, after the page. A
+ * phone, no graphics chip for it, its frames too slow, or the model can't load: `onFail`, the
+ * drawn coach.
  */
 export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -77,6 +80,13 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
     const el = box.current;
     if (!el) return;
     const any = anyGl();
+    // a phone playing the speaker (Steve's iPhone, Nov 2): the robot would be small there, and a
+    // phone's page has the least memory to spare; the drawn coach
+    if (!any && window.innerWidth < SMALL_PX) {
+      tell("small");
+      fail.current();
+      return;
+    }
     const gl = glOf();
     if (gl === "none" || (gl === "software" && !any)) {
       tell(gl);
