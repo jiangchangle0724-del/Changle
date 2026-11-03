@@ -149,7 +149,11 @@ export function WishlistTab() {
     }
   };
 
+  // one vote on its way per wish: a quick double tap counts once, and answers can't land out of order
+  const voting = useRef(new Set<number>());
   const vote = async (w: Wish, btn: HTMLElement) => {
+    if (voting.current.has(w.id)) return;
+    voting.current.add(w.id);
     const up = !w.voted;
     setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: up, votes: x.votes + (up ? 1 : -1) } : x)) ?? null);
     if (up) {
@@ -168,6 +172,8 @@ export function WishlistTab() {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: d.voted, votes: d.votes } : x)) ?? null);
     } catch {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: w.voted, votes: w.votes } : x)) ?? null);
+    } finally {
+      voting.current.delete(w.id);
     }
   };
 
