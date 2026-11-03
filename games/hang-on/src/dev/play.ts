@@ -176,6 +176,8 @@ function stopRecording(): void {
   recBtn.classList.remove('live');
 }
 recBtn.addEventListener('click', () => (recording ? stopRecording() : startRecording()));
+// 发到 claude.ai 的试玩页下载不了文件，录制按钮藏起来
+if ('claude' in window || /claude\.ai$/.test(location.hostname)) recBtn.hidden = true;
 if (new URLSearchParams(location.search).get('record') === '1') startRecording();
 
 // ---------- 主循环 ----------

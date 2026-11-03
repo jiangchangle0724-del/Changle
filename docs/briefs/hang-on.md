@@ -35,7 +35,8 @@
 
 ## 现在
 
-- A1 在分支 `game/hang-on`：Rapier 物理、20 条检查移植全过、开发页可玩、physics-notes。等 Steve 用键盘玩过手感门再合并。
+- A1 在 PR #137（分支 `game/hang-on`）：Rapier 物理、20 条检查移植全过、开发页可玩、physics-notes。等 Steve 用键盘玩过手感门再合并。
+- 不装任何东西也能玩的试玩页（A1 的开发页打包成一个文件）：https://claude.ai/artifact/U9shPyHZwd4Duft79KK194
 
 ## 还剩什么
 
