@@ -1,7 +1,8 @@
 import { Check, Shuffle } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TITLES } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import type { PenaltyCall } from "../../components/PenaltyStamp";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { Deck } from "../../lib/random";
@@ -38,6 +39,10 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
     setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
   };
 
+  /** The winner's stamp, waiting for the reveal to play out (2.9 s). */
+  const stamp = useRef<{ timer: number; call: PenaltyCall } | null>(null);
+  useEffect(() => () => window.clearTimeout(stamp.current?.timer), []);
+
   const reveal = (winners: string[], counts: Record<string, number>) => {
     setAwards((a) => {
       const next = { ...a };
@@ -45,7 +50,12 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
       return next;
     });
     setPhase({ k: "reveal", winners, counts });
-    window.setTimeout(() => penalty.show({ who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en }), 2900);
+    const call: PenaltyCall = { who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en };
+    const timer = window.setTimeout(() => {
+      stamp.current = null;
+      penalty.show(call);
+    }, 2900);
+    stamp.current = { timer, call };
   };
 
   const castVote = (voter: string, target: string) => {
@@ -65,6 +75,15 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
   };
 
   const next = () => {
+    // moving on before the winner's stamp landed: it comes now, and the next award after it
+    // (it used to land 2.9 s later on top of the next award's ballot)
+    const waiting = stamp.current;
+    if (waiting) {
+      window.clearTimeout(waiting.timer);
+      stamp.current = null;
+      penalty.show(waiting.call, next);
+      return;
+    }
     if (round >= total) {
       setPhase({ k: "ceremony" });
       sfx.win();
