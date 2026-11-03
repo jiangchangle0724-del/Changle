@@ -6,7 +6,8 @@ Needs the site, the table server and the game running locally (see games/hide-cr
   the site:   cd site && VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173
 
 usage: python3 scripts/hide_test.py [base_url]
-Screenshots go to $SHOTS (default: scratchpad/hide).
+Screenshots go to $SHOTS (default: $TMPDIR/hide-shots).
+The big screen draws the crowd in 3D: on a computer without a graphics card that is slow, so its waits are long.
 """
 import os, re, sys, time
 
@@ -54,14 +55,14 @@ def t_hide_online(browser):
     ok(host.get_by_role("button", name="开始").count() == 1, "the table's host is the game's host")
     ok(mia.get_by_role("button", name="开始").count() == 0, "the guest isn't")
     ok(until(lambda: "Mia" in host.inner_text(".chips")), "names came along")
-    tv.wait_for_selector(".tv-lobby", timeout=10000)
+    tv.wait_for_selector(".tv-lobby", timeout=30000)
     ok(tv.locator(".tv-code").inner_text() == code, "the big screen says to join the table")
     host.screenshot(path=os.path.join(OUT, "hide-game-lobby.png"))
     tv.screenshot(path=os.path.join(OUT, "hide-tv-lobby.png"))
     # a round
     host.get_by_role("button", name="开始").click()
     ok(until(lambda: (hide_view(mia) or {}).get("phase") == "playing", 10000), "the round is on")
-    tv.wait_for_selector(".tv-hud", timeout=10000)
+    tv.wait_for_selector(".tv-hud", timeout=30000)
     tv_view = hide_view(tv)
     ok(tv_view and not any(a.get("me") for a in tv_view["game"]["avatars"]) and tv_view["game"]["me"] is None, "the big screen marks nobody")
     ok(sum(1 for a in hide_view(mia)["game"]["avatars"] if a.get("me")) == 1, "a phone sees its own body")
@@ -70,13 +71,17 @@ def t_hide_online(browser):
     # a guest goes back to the table: the game is still on there
     mia.goto(BASE + f"t/{code}", wait_until="networkidle")
     ok(until(lambda: mia.get_by_role("button", name="回到这局").count() == 1), "back at the table, the game is still on")
-    # the host takes everyone back
-    host.get_by_role("button", name="回到这桌").first.click()
+    # the host takes everyone back, from the menu, in the middle of the round
+    host.get_by_role("button", name="更多").first.click()
+    host.get_by_role("button", name="回到这桌").click()
     host.get_by_role("button", name="一起回去").click()
     host.wait_for_url(re.compile(r"/t/" + code), timeout=10000)
-    ok(until(lambda: room(host) and room(host)["game"] is None, 10000), "the host's phone ended it: back in the table's lobby")
+    # (Kev stayed at the table the whole time: after 25 seconds without Steve there, the table made
+    # him its host, so his phone is the one that ends it once the game says it's over)
+    print("     the table's host now:", next((s["name"] for s in room(kev)["seats"] if s["id"] == room(kev)["host"]), "?"), flush=True)
+    ok(until(lambda: room(host) and room(host)["game"] is None, 20000), "the game ended at the table: back in the table's lobby")
     ok(until(lambda: room(mia) and room(mia)["game"] is None, 10000), "and so is everyone else")
-    tv.wait_for_url(re.compile(r"/tv/" + code + r"$"), timeout=10000)
+    tv.wait_for_url(re.compile(r"/tv/" + code + r"$"), timeout=30000)
     ok(True, "the big screen came back to the table's big screen")
     errors([host, mia, kev])
     for g in everyone + [tv]:

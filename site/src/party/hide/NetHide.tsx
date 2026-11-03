@@ -52,23 +52,35 @@ export function NetHide({ v, onLeave }: { v: HideView; onLeave: () => void }) {
 
   useEffect(() => {
     if (!v.code || !table) return;
-    if (cameBackFromEnd(v.code)) {
-      // the game sent us back: it's over
-      setState("over");
-      if (isHost) act({ a: "end" });
-      return;
-    }
+    // the game sent us back: it's over
+    if (cameBackFromEnd(v.code)) return setState("over");
     // a seat that only watches stays here, with the way to the game's big screen
     if (watching) return setState("back");
     if (!wentTo(v.code)) return go(v.code);
     setState("back");
-    let live = true;
-    void hidePhase(v.code).then((p) => live && (p === "over" || p === "gone") && setState("over"));
-    return () => {
-      live = false;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v.code, table, watching]);
+
+  // A phone at the table while the game goes on keeps an eye on it. (The table's host can change
+  // meanwhile: the role passes to a seat still here when the host has been away for a while, and
+  // then that seat is the one to end it.)
+  useEffect(() => {
+    if (!v.code || state !== "back") return;
+    let live = true;
+    const check = () => void hidePhase(v.code!).then((p) => live && (p === "over" || p === "gone") && setState("over"));
+    check();
+    const timer = window.setInterval(check, 8_000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [v.code, state]);
+
+  // the game is over: the table's host, whoever that is now, brings everyone back to the lobby
+  useEffect(() => {
+    if (state === "over" && isHost) act({ a: "end" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, isHost]);
 
   const rules = (
     <>

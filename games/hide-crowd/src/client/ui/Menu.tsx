@@ -1,5 +1,5 @@
-// The ⋯ sheet: language, reduced motion, full screen, this device as the big screen, the rules and
-// where the art comes from.
+// The ⋯ sheet: language, reduced motion, full screen, this device as the big screen, the way back
+// (during a round too), the rules and where the art comes from.
 import { useEffect, useState } from "preact/hooks";
 import type { Lang } from "../../room/protocol";
 import { t } from "../i18n";
@@ -17,14 +17,35 @@ export interface MenuProps {
   fullscreen?: { on: boolean; toggle: () => void; help: boolean };
   /** this game's big screen, to open on this device */
   screenHref?: string | null;
+  /** the way out: back to the table (or the game's card); `ask` first when it ends the game for everyone (the host) */
+  leave?: { label: string; ask: boolean; go: () => void };
   custom: string;
 }
 
 export function Menu(props: MenuProps) {
   const [credits, setCredits] = useState(false);
+  const [asking, setAsking] = useState(false);
   useEffect(() => {
-    if (!props.open) setCredits(false);
+    if (props.open) return;
+    setCredits(false);
+    setAsking(false);
   }, [props.open]);
+  // (the question is asked here, not in a sheet of its own: one sheet closing as another opens would trip over the back button)
+  if (asking && props.leave)
+    return (
+      <Sheet open={props.open} title={t("endTitle")} onClose={props.onClose}>
+        <p class="sheet-text">{t("endBody")}</p>
+        <div class="sheet-actions">
+          <button type="button" class="btn btn-quiet" onClick={() => setAsking(false)}>
+            {t("stay")}
+          </button>
+          <button type="button" class="btn btn-primary" onClick={props.leave.go}>
+            {t("endYes")}
+          </button>
+        </div>
+      </Sheet>
+    );
+  const leave = props.leave;
   return (
     <Sheet open={props.open} title={t(credits ? "credits" : "menu")} onClose={props.onClose}>
       {credits ? (
@@ -66,6 +87,11 @@ export function Menu(props: MenuProps) {
             <button type="button" class="btn btn-ghost btn-block" onClick={() => setCredits(true)}>
               {t("credits")}
             </button>
+            {leave && (
+              <button type="button" class="btn btn-ghost btn-block" onClick={() => (leave.ask ? setAsking(true) : leave.go())}>
+                {leave.label}
+              </button>
+            )}
           </div>
           <h3 class="menu-heading">{t("rulesTitle")}</h3>
           <Rules custom={props.custom} />

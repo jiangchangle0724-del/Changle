@@ -73,3 +73,30 @@ test("a guest's back button just goes back to the table; the game stays on", asy
   await until(steve, (v) => v.players.length === 1);
   noErrors(steve, mia);
 });
+
+test("in the middle of a round, the menu takes a guest back to the table, and the host and everyone after a question", async ({ browser, request }) => {
+  const code = await newRoom(request, { host: HOST_ID, table: "KPMN", test: { roundMs: 60_000 } });
+  const steve = await phone(browser, "Steve", "zh", { cid: HOST_ID });
+  const mia = await phone(browser, "Mia");
+  await steve.goto(`/hide/r/${code}?table=KPMN&flat=1`);
+  await mia.goto(`/hide/r/${code}?table=KPMN&flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  for (const page of [steve, mia]) await page.route(/\/t\/KPMN$/, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html><title>table</title><p>table</p>" }));
+  await steve.getByRole("button", { name: "开始" }).click();
+  await until(mia, (v) => v.phase === "playing");
+  // a guest: straight back, the round goes on
+  await mia.getByRole("button", { name: "更多" }).first().click();
+  await mia.getByRole("dialog").getByRole("button", { name: "回到这桌" }).click();
+  await mia.waitForURL(/\/t\/KPMN$/);
+  expect(await mia.evaluate(() => sessionStorage.getItem("hide.over"))).toBeNull();
+  expect(((await (await request.get(`/hide/api/rooms/${code}`)).json()) as { phase: string }).phase).toBe("playing");
+  // the host: asked first (in the same sheet), then everyone goes
+  await steve.getByRole("button", { name: "更多" }).first().click();
+  await steve.getByRole("dialog").getByRole("button", { name: "回到这桌" }).click();
+  await expect(steve.getByRole("dialog", { name: "大家一起回到这桌？" })).toBeVisible();
+  await steve.getByRole("button", { name: "一起回去" }).click();
+  await steve.waitForURL(/\/t\/KPMN$/);
+  expect(await steve.evaluate(() => sessionStorage.getItem("hide.over"))).toBe(code);
+  expect(((await (await request.get(`/hide/api/rooms/${code}`)).json()) as { phase: string }).phase).toBe("over");
+  noErrors(steve, mia);
+});

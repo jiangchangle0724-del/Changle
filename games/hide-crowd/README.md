@@ -20,10 +20,11 @@ How it looks, where the art comes from and what a design change has to keep: [DE
   `changle.ca/hide/r/<room>?table=<table>` and `changle.ca/hide/tv/<room>?table=<table>`. Names and
   language come along (same site, same storage). A seat that only watches gets a button to the
   game's big screen. Players join with the table's code, as for any other game.
-* **It goes back to the table.** Any phone's back button goes back to the table (the game stays
-  on there, with "back to the game"). When the host goes back (after a question), the game ends:
-  every phone and the big screen follow by themselves, and the host's phone closes it at the
-  table, so everyone lands in the table's lobby.
+* **It goes back to the table.** Any phone's back button (in a round, the menu's 回到这桌) goes back
+  to the table (the game stays on there, with "back to the game"). When the host goes back (after a
+  question), the game ends: every phone and the big screen follow by themselves, and the table's
+  host closes it there, so everyone lands in the table's lobby. (Whoever is the table's host by
+  then: a seat that stayed at the table takes the role over when the host has been away a while.)
 * **One phone:** the game card's one-phone button opens `changle.ca/hide/practice`, one player
   against three computer rivals.
 * **Addresses.** The Worker answers `changle.ca/hide` and `changle.ca/hide/*` (the routes in

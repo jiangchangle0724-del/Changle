@@ -31,7 +31,8 @@ test("colors are written out only in the game's own block at the top of the styl
 
 test("type sizes, spacing and timings come from the tokens", () => {
   const rest = styles.replace(/\/\*[\s\S]*?\*\//g, "");
-  const sizes = [...rest.matchAll(/font-size:\s*([^;]+);/g)].map((m) => m[1].trim()).filter((value) => !value.startsWith("var(--text-") && value !== "125%");
+  // (one exception: the big screen's root, html.is-tv, scales every token by half again, to read from across a room)
+  const sizes = [...rest.matchAll(/font-size:\s*([^;]+);/g)].map((m) => m[1].trim()).filter((value) => !value.startsWith("var(--text-") && value !== "150%");
   assert.deepEqual(sizes, [], "font sizes use --text-*");
   const fonts = [...rest.matchAll(/\bfont:\s*([^;]+);/g)].map((m) => m[1].trim()).filter((value) => value !== "inherit" && !/var\(--text-[a-z0-9]+\)/.test(value));
   assert.deepEqual(fonts, [], "font shorthands use --text-*");

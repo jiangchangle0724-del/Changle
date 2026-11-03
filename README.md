@@ -12,6 +12,7 @@ how to add a game).
 | Game | Folder |
 | --- | --- |
 | 到此一游 · Been There, Bought That | [`games/been-there`](games/been-there) |
+| 藏在人群里 · Hide in the Crowd | [`games/hide-crowd`](games/hide-crowd) |
 
 | Tool | Folder |
 | --- | --- |

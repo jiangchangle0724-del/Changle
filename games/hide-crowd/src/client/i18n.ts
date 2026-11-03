@@ -53,6 +53,7 @@ const S = {
   endBody: ["这个游戏会结束，每台手机和大屏都回到桌上。", "This ends the game: every phone and the big screen go back to the table."],
   endYes: ["一起回去", "Everyone back"],
   stay: ["留下", "Stay"],
+  endPractice: ["结束练手", "End practice"],
   // playing
   seconds: ["{n} 秒", "{n}s"],
   secondsLeft: ["还剩 {n} 秒", "{n}s left"],
@@ -91,6 +92,11 @@ const S = {
   nobodySpotted: ["这局谁都没被认出来", "Nobody got spotted this round"],
   continue: ["继续", "Continue"],
   // the big screen
+  tvStep1: ["走得像路人，别人就认不出你", "Walk like a passer-by and nobody can tell it's you"],
+  tvStep2: ["认出对手就出拳；打到路人，你会愣一下", "Spot a rival and punch. Hit a passer-by and you're stunned"],
+  tvStep3: ["先到 3 分的赢；被认出最多的喝一口", "First to 3 wins; whoever's spotted most takes a sip"],
+  tvStep3Custom: ["先到 3 分的赢；被认出最多的受罚", "First to 3 wins; whoever's spotted most takes the penalty"],
+  tvStep3Off: ["先到 3 分的赢，或者 75 秒后分最多的赢", "First to 3 wins, or the most tags after 75 seconds"],
   scanToJoin: ["扫码上桌", "Scan to join the table"],
   orEnter: ["或在 {host} 输入桌号", "or enter the table code at {host}"],
   orRoom: ["或在 {host} 输入房间号", "or enter the room code at {host}"],

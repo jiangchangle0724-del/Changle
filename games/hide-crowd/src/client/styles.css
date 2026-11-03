@@ -511,9 +511,8 @@ a {
   bottom: 0;
   z-index: 5;
   display: grid;
-  max-width: var(--page-max);
-  margin: 0 auto;
-  padding: var(--space-3) var(--gutter) calc(var(--safe-bottom) + var(--space-3));
+  /* the fade runs the whole width; the button keeps to the page's column */
+  padding: var(--space-3) max(var(--gutter), calc((100% - var(--page-max)) / 2 + var(--gutter))) calc(var(--safe-bottom) + var(--space-3));
   background: linear-gradient(transparent, var(--color-bg) 30%);
 }
 .dock-wait {
@@ -657,6 +656,31 @@ a {
 /* ---------- the lobby ---------- */
 .lobby {
   padding-top: var(--space-2);
+}
+/* a phone held sideways (or a wide screen): the arenas on the left, the rest on the right */
+@media (orientation: landscape) and (min-width: 700px) {
+  .page.has-dock {
+    max-width: 960px;
+  }
+  .lobby {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--gap-section);
+  }
+  .lobby-code {
+    grid-column: 1 / -1;
+  }
+  .lobby .arena-vote {
+    grid-row: span 3;
+  }
+  .dock {
+    padding-left: max(var(--gutter), calc((100% - 960px) / 2 + var(--gutter)));
+    padding-right: max(var(--gutter), calc((100% - 960px) / 2 + var(--gutter)));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+  }
+  .dock > * {
+    grid-column: 2;
+  }
 }
 .lobby-code {
   display: flex;
@@ -1075,6 +1099,7 @@ button.arena-option:active {
   .hud-full {
     display: none;
   }
+  /* (the arena fills the space above the controls; Arena3D frames the floor across its width) */
 }
 @media (orientation: landscape), (min-width: 720px) {
   .play-turn {
@@ -1323,8 +1348,8 @@ button.arena-option:active {
 
 /* ---------- the big screen (a 1920 x 1080 stage, scaled to the screen) ---------- */
 html.is-tv {
-  /* read from across the room: every size in the stage grows by a quarter */
-  font-size: 125%;
+  /* read from across the room: every size on the stage is half as big again as on a phone */
+  font-size: 150%;
   overflow: hidden;
 }
 html.is-tv body::before {
@@ -1381,13 +1406,13 @@ html.is-tv body::before {
 .tv-lobby {
   isolation: isolate;
   display: grid;
-  grid-template-columns: 1fr 640px;
+  grid-template-columns: 1fr 660px;
   gap: var(--space-12);
-  padding: 72px 88px;
+  padding: 64px 80px;
 }
 .tv-lobby-main {
   display: grid;
-  align-content: start;
+  align-content: center;
   gap: var(--space-8);
 }
 .tv-title {
@@ -1407,12 +1432,21 @@ html.is-tv body::before {
   font-weight: 600;
 }
 .tv-tagline {
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   color: var(--color-text);
 }
 .arena-vote.is-big .section-title {
   font-size: var(--text-lg);
   color: var(--color-text-2);
+}
+.arena-vote.is-big .hint {
+  display: none;
+}
+.arena-vote.is-big .arena-text strong {
+  font-size: var(--text-lg);
+}
+.arena-vote.is-big .arena-text small {
+  display: none;
 }
 .arena-vote.is-big .arena-options {
   grid-template-columns: repeat(3, 1fr);
@@ -1433,25 +1467,41 @@ html.is-tv body::before {
   aspect-ratio: 16 / 9;
 }
 .arena-vote.is-big .arena-votes {
+  min-height: 1.2em;
   text-align: start;
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
 }
 .tv-steps {
   display: grid;
   gap: var(--space-3);
   margin: 0;
-  padding-left: 1.2em;
-  color: var(--color-text-2);
-  font-size: var(--text-md);
+  padding-left: 1.4em;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+.tv-steps li::marker {
+  color: var(--gel);
+  font-weight: 800;
 }
 .tv-lobby-side {
   display: grid;
-  align-content: start;
+  align-content: center;
   gap: var(--space-6);
+}
+.tv-lobby-side .section-title {
+  font-size: var(--text-lg);
+}
+.tv-lobby-side .chip {
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-lg);
+}
+.tv-lobby-side .panel-line {
+  font-size: var(--text-md);
 }
 .tv-join {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 240px 1fr;
   gap: var(--space-6);
   align-items: center;
   padding: var(--space-6);
@@ -1461,8 +1511,8 @@ html.is-tv body::before {
 }
 .qr {
   display: block;
-  width: 220px;
-  height: 220px;
+  width: 240px;
+  height: 240px;
   border-radius: var(--r-small);
 }
 .qr-paper {
@@ -1483,6 +1533,7 @@ html.is-tv body::before {
 }
 .tv-join-text span {
   color: var(--color-text-2);
+  font-size: var(--text-md);
 }
 .tv-code {
   font-size: var(--text-3xl);
@@ -1495,8 +1546,8 @@ html.is-tv body::before {
 }
 .tv-wait {
   color: var(--color-text-2);
-  font-size: var(--text-lg);
-  font-weight: 600;
+  font-size: var(--text-xl);
+  font-weight: 700;
 }
 .tv-arena {
   position: absolute;
@@ -1526,7 +1577,7 @@ html.is-tv body::before {
 }
 .tv-arena-name span {
   color: var(--color-text-2);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 .tv-clock {
   position: absolute;
@@ -1562,7 +1613,7 @@ html.is-tv body::before {
 }
 .tv-hud-right .score {
   justify-content: space-between;
-  min-height: 64px;
+  min-height: 72px;
   padding: var(--space-2) var(--space-6);
   background: color-mix(in oklab, var(--color-bg) 72%, transparent);
   font-size: var(--text-lg);
@@ -1572,8 +1623,8 @@ html.is-tv body::before {
   max-width: none;
 }
 .tv-hud-right .score-pips i {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 .tv-hud-right .score-num {
   display: inline;
@@ -1659,6 +1710,8 @@ html.is-tv body::before {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  /* the crowd's depth order stays inside the arena: the bar, the scores and the sheets sit above it */
+  isolation: isolate;
   background:
     repeating-linear-gradient(90deg, color-mix(in oklab, var(--arena-line) 60%, transparent) 0 1px, transparent 1px 12.5%),
     linear-gradient(160deg, var(--arena-surface-2), var(--arena-bg));

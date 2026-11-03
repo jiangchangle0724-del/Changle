@@ -184,10 +184,12 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
   const [stampSeen, setStampSeen] = useState(0);
   const fullscreen = useFullscreen();
 
+  // the host going back to the table takes everyone (after a question)
+  const endsForEveryone = !props.practice && !!(view?.you.host && table && !view.ended);
   const leave = () => {
     // (practice came from the game's card on changle.ca: back to it, not to the page that sent us here)
     if (props.practice) return location.assign(onChangle() ? "/g/hide-in-the-crowd" : `${BASE}/`);
-    if (view?.you.host && table && !view.ended) return setConfirmEnd(true);
+    if (endsForEveryone) return setConfirmEnd(true);
     send({ t: "leave" });
     if (table) backToTable(table);
     else location.assign(`${BASE}/`);
@@ -223,6 +225,16 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
         onReduced={props.onReduced}
         fullscreen={fullscreen}
         screenHref={view && !props.practice ? screenUrl(view.code, table) : null}
+        leave={
+          view
+            ? {
+                label: t(props.practice ? "endPractice" : table ? "backToTable" : "back"),
+                ask: endsForEveryone,
+                // (the menu stays open: this page is on its way out)
+                go: endsForEveryone ? endForEveryone : leave
+              }
+            : undefined
+        }
         custom={custom}
       />
       <Sheet open={rules} title={t("rulesTitle")} onClose={() => setRules(false)}>

@@ -35,11 +35,12 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Big screen, lobby | A 1920 x 1080 stage: the title, the three arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host". |
 | Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom. |
 | Big screen, end of a round | The penalty stamp for seven seconds, then the result card. |
+| Phone, the menu (⋯) | Language, reduced motion, full screen, this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
 | Credits (`/hide/credits`, and the menu) | Where every picture and model comes from. |
 
 The big screen is laid out on a 1920 x 1080 stage scaled to the screen (`Stage` in `ui/Tv.tsx`),
-so a 720p TV shows exactly the same picture, smaller; its type is a quarter larger than the
+so a 720p TV shows exactly the same picture, smaller; its type is half as large again as the
 phone's (`html.is-tv`), to read from across a room. The arena underneath is drawn at the screen's
 own size, not scaled. `tests/e2e/tv.spec.ts` checks that nothing leaves the screen at 1920 x 1080
 and 1280 x 720.

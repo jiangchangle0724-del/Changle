@@ -77,9 +77,9 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
         <p class="tv-tagline">{t("tagline")}</p>
         <ArenaVote view={view} big />
         <ol class="tv-steps">
-          <li>{t("rule2")}</li>
-          <li>{t("rule3")}</li>
-          <li>{t("rule4", { n: 3 })}</li>
+          <li>{t("tvStep1")}</li>
+          <li>{t("tvStep2")}</li>
+          <li>{t(!view.settings.penalties ? "tvStep3Off" : view.settings.custom ? "tvStep3Custom" : "tvStep3")}</li>
         </ol>
       </div>
       <aside class="tv-lobby-side">

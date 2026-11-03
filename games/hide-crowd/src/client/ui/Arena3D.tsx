@@ -645,7 +645,8 @@ export function Arena3D(props: Props) {
     };
     paintMarker();
     let paintedLabel = props.youLabel;
-    marker.scale.set(1.18, 0.3, 1);
+    // big enough to find at a glance on a phone held sideways
+    marker.scale.set(2.4, 0.6, 1);
     marker.visible = false;
     scene.add(marker);
     const visuals: Visual[] = [];
@@ -657,7 +658,8 @@ export function Arena3D(props: Props) {
       if (width < 1 || height < 1) return;
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
-      camera.fov = verticalFovForWidth(24.5, camera.aspect, Math.hypot(17, 18));
+      // the arena's width across the screen; an upright phone frames just the floor, so the crowd isn't tiny
+      camera.fov = verticalFovForWidth(camera.aspect < 1.4 ? 19 : 24.5, camera.aspect, Math.hypot(17, 18));
       camera.updateProjectionMatrix();
     };
     resizeObserver = new ResizeObserver(resize);
@@ -822,7 +824,7 @@ export function Arena3D(props: Props) {
       shadows.instanceMatrix.needsUpdate = true;
       for (const batch of activeSpriteBatches) batch.mesh.instanceMatrix.needsUpdate = true;
       if (localVisual) {
-        marker.position.set(localVisual.x, 2.68, localVisual.z);
+        marker.position.set(localVisual.x, 3.05, localVisual.z);
         marker.visible = true;
       } else marker.visible = false;
       const impactAge = time - shakeAt;
