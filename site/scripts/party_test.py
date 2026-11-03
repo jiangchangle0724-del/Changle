@@ -369,7 +369,7 @@ def t_freeze_single(browser):
     pg.wait_for_timeout(500)
     pg.locator(".fz-catch-btn").first.click()
     shot(pg, "fz-freeze")
-    pg.locator(".fz button.btn-primary").click()
+    pg.locator(".game-actions button.btn-primary").click()
     pg.wait_for_timeout(900)
     ok(pg.locator(".stamp-layer").count() == 1, "the caught dancer drinks before the music comes back")
     clear_stamps([pg])
