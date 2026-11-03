@@ -4,7 +4,11 @@ import { BY_PHASE, nextSection, renderOrder } from "../src/party/dj/fake/arrange
 import { FakeDj } from "../src/party/dj/fake/FakeDj";
 import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
-import { ALL_SECTIONS, ANY_SECTION, KITS, sectionOf } from "../src/party/dj/fake/styles";
+import { ALL_SECTIONS, ANY_SECTION, BED, KITS, sectionById, sectionOf } from "../src/party/dj/fake/styles";
+import { CLIP_DB, ClipDeck, clipOf, loadClip, type Clip } from "../src/party/dj/clip/clip";
+import { hitsOf, storeFor } from "../src/party/dj/phone/apple";
+import { previewOk } from "../src/shared/songs";
+import { decodePiece, encodePiece, fileNumber, PIECE_BYTES, SONG_BYTES } from "../src/shared/dj/songwire";
 import { line } from "../src/lib/music";
 import { pcm16ToFloat } from "../src/party/dj/speaker/pcm";
 import type { Speaker } from "../src/party/dj/speaker/speaker";
@@ -843,6 +847,251 @@ await test("lyria DJ: gathers, hands over, keeps a few seconds ahead, holds Lyri
   const n = sp.sent;
   sp.play(48000 * 6);
   ok(sp.sent === n, "and sends nothing more");
+});
+
+/* ------------------------------------------------------------------ a song asked for, played for real */
+
+/** Seconds of a song at `bpm` (48 kHz mono): a kick on every beat (heavier on each bar's first), its first `first` seconds in, hats, a held note. */
+function song(seconds: number, bpm: number, first: number, loud = 0.6) {
+  const n = Math.round(seconds * 48000);
+  const x = new Float32Array(n);
+  const beat = 60 / bpm;
+  let seed = 7;
+  for (let k = 0; first + k * beat < seconds; k++) {
+    const s0 = Math.round((first + k * beat) * 48000);
+    const amp = k % 4 === 0 ? 1 : 0.55;
+    for (let i = 0; i < 0.2 * 48000 && s0 + i < n; i++) {
+      const t = i / 48000;
+      x[s0 + i] += Math.sin(2 * Math.PI * (55 + 90 * Math.exp(-t * 30)) * t) * Math.exp(-t * 14) * amp * loud;
+    }
+    const h = Math.round((first + (k + 0.5) * beat) * 48000);
+    for (let i = 0; i < 0.03 * 48000 && h + i < n; i++) {
+      seed = (seed * 16807) % 2147483647;
+      x[h + i] += (seed / 2147483647 - 0.5) * 0.2 * Math.exp((-i / 48000) * 120) * loud;
+    }
+  }
+  for (let i = 0; i < n; i++) x[i] += Math.sin((2 * Math.PI * 220 * i) / 48000) * 0.05 * loud;
+  return x;
+}
+const rmsDb = (x: Float32Array, a: number, b: number, k = 1) => {
+  let sum = 0;
+  for (let i = a; i < b; i++) sum += (x[i] * k) ** 2;
+  return 10 * Math.log10(sum / (b - a));
+};
+
+await test("clip: a song's 30 seconds, listened to: its beat, its first downbeat after the fade-in, where it ends, how loud", () => {
+  const x = song(30, 128, 0.3);
+  const c = clipOf("u", x, x)!;
+  ok(!!c && !!c.beat && Math.abs(c.beat.bpm - 128) < 0.05, `its tempo (${c?.beat?.bpm.toFixed(3)})`);
+  const beat = 60 / 128;
+  const k = (c.start - 0.3) / beat;
+  ok(c.start >= 1 && c.start < 1 + 4 * beat && Math.abs(k - Math.round(k)) < 0.02 && Math.round(k) % 4 === 0, `it starts on a downbeat a second or more in, the first there is (${c.start.toFixed(3)} s, beat ${k.toFixed(2)})`);
+  ok(c.end <= 29.75 && c.end > 25, `and plays to near its end (${c.end.toFixed(2)} s)`);
+  const level = rmsDb(x, Math.round(c.start * 48000), Math.round(c.end * 48000), c.gain);
+  ok(Math.abs(level - CLIP_DB) < 0.3, `as loud as the night at its peak (${level.toFixed(2)} dBFS)`);
+  ok(clipOf("u", x.subarray(0, 5 * 48000), x.subarray(0, 5 * 48000)) === null, "five seconds of something isn't worth it");
+  const hum = new Float32Array(30 * 48000).map((_, i) => Math.sin((2 * Math.PI * 220 * i) / 48000) * 0.1);
+  const h = clipOf("u", hum, hum)!;
+  ok(!!h && h.beat === null && h.start === 1, "no beat: it starts a second in, at its own speed");
+});
+
+await test("clip: fetched once a URL, and nothing (the remix alone) when it can't be had", async () => {
+  let asked = 0;
+  const x = song(30, 124, 0.5);
+  const get = async () => {
+    asked++;
+    return { l: x, r: x };
+  };
+  const a = await loadClip("https://audio-ssl.itunes.apple.com/itunes-assets/a.m4a", get);
+  const b = await loadClip("https://audio-ssl.itunes.apple.com/itunes-assets/a.m4a", get);
+  ok(!!a && a === b && asked === 1, "the same clip, fetched once");
+  const bad = await loadClip("https://audio-ssl.itunes.apple.com/itunes-assets/gone.m4a", async () => {
+    throw new Error("404");
+  });
+  ok(bad === null, "one that can't be fetched: none");
+});
+
+/** A clip by hand: every sample `v`, on the beat at `bpm`, from 1 s to 29 s. */
+const handClip = (v: number, bpm: number | null, gain = 1): Clip => {
+  const l = new Float32Array(30 * 48000).fill(v);
+  return { url: `hand-${v}-${bpm}`, l, r: l, beat: bpm ? { bpm, first: 1, down: 1, cue: 1, end: 29, sure: 1 } : null, start: 1, end: 29, gain };
+};
+
+await test("clip deck: on the drop's bar, moved by a new count until it sounds, over the deck's drums alone, back to the deck's own sound on a bar line", () => {
+  const BAR = 4 * 23040;
+  const cd = new ClipDeck();
+  const clip = handClip(1, 125, 0.5);
+  cd.set(clip, 0);
+  ok(cd.waiting && cd.matches(125) && !cd.matches(100) && cd.wantsBed(125) && !cd.wantsBed(100), "set: waiting; on the beat at 125 (its drums alone wanted), not at 100");
+  cd.start(100000, 125, 0);
+  cd.start(200000, 125, 50000);
+  ok(cd.playing.length === 1 && cd.playing[0].at === 200000, "a new count before any of it was sent: it moves to the new bar");
+  cd.start(300000, 125, 199600);
+  ok(cd.playing[0].at === 200000 && !cd.waiting, "once it sounds, it stays");
+  const to = 200000 + 14 * BAR;
+  ok(cd.playing[0].to === to && cd.playing[0].bed && cd.playing[0].step === 1, `it ends on a bar line (${cd.playing[0].to}), over the drums alone`);
+  const chunk = (f0: number) => {
+    const l = new Float32Array(1000).fill(2);
+    const r = new Float32Array(1000).fill(2);
+    if (cd.live(f0, 1000)) cd.mix(l, r, f0, [new Float32Array(1000).fill(10), new Float32Array(1000).fill(10)]);
+    return l;
+  };
+  ok(chunk(150000).every((v) => v === 2), "before its bar: the deck's own sound");
+  ok(chunk(250000).every((v) => Math.abs(v - 10.5) < 1e-6), "from its bar: the clip (at its level) over the drums alone, the deck's own sound gone");
+  const mid = chunk(to - BAR / 2 - 500)[500];
+  ok(Math.abs(mid - (2 * 0.5 + 0.5 * 0.5 + 10 * 0.5)) < 1e-3, `over its last bar the deck's own sound comes back (${mid.toFixed(3)})`);
+  ok(chunk(to + 10).every((v) => v === 2) && cd.playing.length === 0, "then only the deck's own sound, and it's done");
+  cd.start(to + 50000, 125, to + 20000);
+  ok(cd.playing.length === 0, "it plays once");
+
+  const off = new ClipDeck();
+  off.set(handClip(1, 100), 0);
+  off.start(100000, 125, 0);
+  const l = new Float32Array(1000).fill(2);
+  off.mix(l, l.slice(), 150000, [new Float32Array(1000).fill(10), new Float32Array(1000).fill(10)]);
+  ok(!off.playing[0].bed && off.playing[0].step === 1 && l.every((v) => v === 1), "too far off the beat (100 against 125): alone, at its own speed, no drums under it");
+
+  const cut = new ClipDeck();
+  cut.set(handClip(1, 125), 0);
+  cut.start(100000, 125, 0);
+  cut.set(null, 300000);
+  ok(cut.playing[0].to === 300000 + 19200, "taken back while it plays: it fades out over the next 0.4 s");
+  const early = new ClipDeck();
+  early.set(handClip(1, 125), 0);
+  early.start(100000, 125, 0);
+  early.set(null, 50000);
+  const e2 = new Float32Array(1000).fill(2);
+  if (early.live(100000, 1000)) early.mix(e2, e2.slice(), 100000, null);
+  ok(e2.every((v) => v === 2), "taken back before any of it was sent: none of it plays");
+});
+
+await test("fake DJ: a song asked for: its clip on its deck from the drop's bar, over that deck's drums alone, then the deck's own sound; the other deck untouched", async () => {
+  const VAL: Record<string, number> = { house: 1, latin: 2 };
+  const render = async (sec: Section, rate: number): Promise<Rendered> => {
+    const frames = sectionFrames(rate);
+    const bed = sec.id.endsWith(BED);
+    const style = sec.id.includes(":") ? sec.id.split(":")[0] : "house";
+    const l = new Float32Array(frames + 4800);
+    l.fill(VAL[style] * (bed ? 10 : 1), 0, frames);
+    return { id: sec.id, frames, tail: 4800, l, r: l.slice() };
+  };
+  ok(sectionById(`latin:peak1~7${BED}`)?.style.chords === undefined && sectionById(`latin:peak1~7${BED}`)?.style.kick !== undefined && sectionById(`latin:peak1~7${BED}`)!.level === sectionById("latin:peak1~7")!.level - 4, "a section's drums alone: no bass, chords or melody, 4 dB under the whole");
+  const dj = new FakeDj(render);
+  dj.setDecks("house", "latin");
+  dj.prepare("peak");
+  await sleep(500);
+  const sp = mockSpeaker();
+  dj.attach(sp as unknown as Speaker);
+  dj.setPhase("peak");
+  const clip = handClip(100, 125);
+  dj.setClip("b", clip);
+  await sleep(400);
+  const at = 16 * 23040;
+  dj.cueClip("b", 16);
+  for (let k = 0; k < 160; k++) sp.play(12000);
+  const A = sp.chunks.flat();
+  const B = sp.chunksB.flat();
+  const to = at + 14 * 4 * 23040;
+  ok(B[at - 2000] === 2, "deck B before the drop's bar: its own sound (latin)");
+  ok(B[at + 2000] === 120 && B[sectionFrames(48000) + 5000] === 120, `from the bar: the clip over latin's drums alone, into the next section too (${B[at + 2000]}, ${B[sectionFrames(48000) + 5000]})`);
+  ok(Math.abs(B[to - 46080] - (2 * 0.5 + 100 * 0.5 + 20 * 0.5)) < 1e-3, `over its last bar the deck's own sound comes back (${B[to - 46080]})`);
+  ok(B[to + 2000] === 2, "then deck B's own sound");
+  ok(A.slice(0, to + 5000).every((v) => v === 1), "deck A untouched");
+  ok(sp.ownB.every(Boolean), "deck B's own all along");
+
+  // late: the clip arrives after the count started; taken back before its bar: none of it
+  const late = handClip(50, 125);
+  const bar2 = Math.ceil((sp.sent + 2 * 48000) / (4 * 23040)) * 4;
+  dj.cueClip("a", bar2);
+  dj.setClip("a", late);
+  await sleep(400);
+  for (let k = 0; k < 20; k++) sp.play(12000);
+  const A2 = sp.chunks.flat();
+  ok(A2[bar2 * 23040 + 2000] === 60, `a clip that arrives after the count started begins on the drop's bar all the same (${A2[bar2 * 23040 + 2000]})`);
+  dj.setClip("a", null);
+  dj.setClip("b", handClip(70, 125));
+  const bar3 = Math.ceil((sp.sent + 2 * 48000) / (4 * 23040)) * 4;
+  dj.cueClip("b", bar3);
+  dj.setClip("b", null);
+  for (let k = 0; k < 40; k++) sp.play(12000);
+  const B3 = sp.chunksB.flat();
+  ok(B3[bar3 * 23040 + 2000] === 2, "one taken back before its bar: none of it plays");
+  dj.stop();
+});
+
+await test("lyria DJ: a song asked for: its clip over the stream from the next bar line, Lyria quiet under it", async () => {
+  g.window = globalThis;
+  g.WebSocket = MockWS;
+  MockWS.made = [];
+  const dj = new LyriaDj("ws://relay/room/ABCD/lyria?sid=tv2");
+  dj.begin("peak", mixFor("peak", FAKE_MIX));
+  const ws = MockWS.made[0];
+  ws.say({ t: "ready" });
+  for (let k = 0; k < 3; k++) ws.audio(2, k * 96000);
+  const sp = mockSpeaker();
+  dj.go(sp as unknown as Speaker);
+  const sentAt = sp.sent;
+  dj.setClip(handClip(100, null));
+  for (let k = 0; k < 6; k++) ws.audio(2, (3 + k) * 96000);
+  for (let k = 0; k < 40; k++) sp.play(12000);
+  const all = sp.chunks.flat();
+  const bar = 4 * 23040;
+  const b0 = dj.beatFrame(0)!;
+  const at = b0 + Math.ceil((sentAt + 0.05 * 48000 - b0) / bar) * bar;
+  ok(all.slice(0, at - 600).every((v) => Math.abs(v) < 2), "before the bar line: Lyria's music");
+  ok(all.slice(at + 10, at + 48000).every((v) => v === 100), `from it: the clip alone (${all[at + 10]})`);
+  dj.setClip(null);
+  const cutAt = sp.sent;
+  for (let k = 0; k < 4; k++) ws.audio(2, (9 + k) * 96000);
+  for (let k = 0; k < 20; k++) sp.play(12000);
+  const after = sp.chunks.flat();
+  ok(after.slice(cutAt + 19200, cutAt + 40000).every((v) => Math.abs(v) < 2), "taken off the air: Lyria again, after a short fade");
+  dj.stop();
+});
+
+await test("songwire: a song file in pieces, every piece checked; the rooms server marks whose it is", () => {
+  const size = PIECE_BYTES * 2 + 1000;
+  const file = new Uint8Array(size).map((_, i) => i % 251);
+  const n = Math.ceil(size / PIECE_BYTES);
+  const pieces = Array.from({ length: n }, (_, i) => encodePiece({ id: "abc123xyz", i, n, size, name: "Alpha - First\u0007 Song.mp3", type: "audio/mpeg" }, file.subarray(i * PIECE_BYTES, Math.min(size, (i + 1) * PIECE_BYTES))));
+  const back = pieces.map((b) => decodePiece(b));
+  ok(back.every((p, i) => p && p.h.i === i && p.h.n === 3 && p.h.size === size && p.h.by === undefined), "three pieces, each read back");
+  ok(back[0]!.h.name === "Alpha - First Song.mp3", "the name without control characters");
+  const whole = new Uint8Array(back.reduce((k, p) => k + p!.bytes.length, 0));
+  back.reduce((at, p) => (whole.set(p!.bytes, at), at + p!.bytes.length), 0);
+  ok(whole.length === size && whole.every((v, i) => v === i % 251), "and put back together, byte for byte");
+  const marked = decodePiece(encodePiece({ ...back[2]!.h, by: "p1" }, back[2]!.bytes));
+  ok(marked?.h.by === "p1", "the rooms server says whose it is");
+  const bad = (h: Record<string, unknown>, bytes = new Uint8Array(1000)) => decodePiece(encodePiece(h as never, bytes)) === null;
+  ok(bad({ id: "abc123xyz", i: 0, n: 1, size: 999, name: "a.mp3", type: "" }), "bytes that don't match the size: no");
+  ok(bad({ id: "abc123xyz", i: 0, n: 2, size: 1000, name: "a.mp3", type: "" }), "a count of pieces that doesn't match the size: no");
+  ok(bad({ id: "abc123xyz", i: 1, n: 1, size: 1000, name: "a.mp3", type: "" }), "a piece past the last: no");
+  ok(bad({ id: "AB", i: 0, n: 1, size: 1000, name: "a.mp3", type: "" }) && bad({ id: "abc123xyz", i: 0, n: 1, size: 1000, name: "", type: "" }), "a bad id, no name: no");
+  ok(bad({ id: "abc123xyz", i: 0, n: Math.ceil((SONG_BYTES + 1) / PIECE_BYTES), size: SONG_BYTES + 1, name: "a.mp3", type: "" }), "a file over 30 MB: no");
+  const junk = new Uint8Array(pieces[0]);
+  junk[0] = 0x58;
+  ok(decodePiece(junk.buffer) === null && decodePiece(new ArrayBuffer(4)) === null, "not a piece at all: no");
+  ok(fileNumber("abc123xyz") === parseInt("abc123xy", 36) && Number.isSafeInteger(fileNumber("zzzzzzzzzzzz")), "a file's number for the word back");
+});
+
+await test("apple: Apple's search answer, as songs the DJ can play; the room takes only previews on Apple's server", () => {
+  const PRE = "https://audio-ssl.itunes.apple.com/itunes-assets/";
+  const ans = {
+    results: [
+      { kind: "song", trackId: 1, trackName: "晴天 (Live)", artistName: "周杰倫", previewUrl: `${PRE}AudioPreview1/v4/aa/mzaf_1.plus.aac.p.m4a` },
+      { kind: "song", trackId: 1, trackName: "晴天", artistName: "周杰倫", previewUrl: `${PRE}AudioPreview1/v4/aa/mzaf_1.plus.aac.p.m4a` },
+      { kind: "song", trackId: 2, trackName: "Blinding Lights", artistName: "The Weeknd", previewUrl: `${PRE}AudioPreview2/v4/bb/mzaf_2.plus.aac.ep.m4a` },
+      { kind: "music-video", trackId: 3, trackName: "Video", artistName: "X", previewUrl: `${PRE}x.m4v` },
+      { kind: "song", trackId: 4, trackName: "Elsewhere", artistName: "Y", previewUrl: "https://evil.example/a.m4a" },
+      { kind: "song", trackId: 5, trackName: "No preview", artistName: "Z" },
+    ],
+  };
+  const hits = hitsOf(ans, "tw", (x) => x.replace("倫", "伦"));
+  ok(hits.length === 2 && hits[0].t === "晴天" && hits[0].a === "周杰伦" && hits[0].p === "AudioPreview1/v4/aa/mzaf_1" && hits[0].st === "tw", "a Chinese song: its title cleaned, simplified, its preview as a path on Apple's server");
+  ok(hits[1].p === `${PRE}AudioPreview2/v4/bb/mzaf_2.plus.aac.ep.m4a`, "another kind of preview kept as its full URL");
+  ok(hits.every((h) => previewOk(h.p)), "every one the room will take");
+  ok(hitsOf(null, "us").length === 0 && hitsOf({ results: "x" }, "us").length === 0, "no answer: no songs");
+  ok(storeFor("晴天") === "tw" && storeFor("blinding") === "us", "Taiwan's store for Chinese, else the US's");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

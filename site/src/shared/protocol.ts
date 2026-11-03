@@ -94,7 +94,8 @@ export type Fx =
   | "drop"
   | "ask"
   | "req"
-  | "pad";
+  | "pad"
+  | "song";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
 /** `times`: with the table's own penalty, how many times it's done (7-8-9's pot); none is once ("two" is twice). */
@@ -570,6 +571,8 @@ export type DjView = {
    *  itself: GET /room/CODE/data), and the two on the decks by name (a night of them) */
   crateN: number;
   crateV: number;
+  /** the host wants the night on their songs (they play once the big screen has some) */
+  mine: boolean;
   onDecks: { a: CrateSong | null; b: CrateSong | null };
 };
 

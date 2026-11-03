@@ -106,6 +106,8 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `phase` `{ phase }`, `again` | the host | As above. |
 | `live` `{ source }`, `stats` `{ stalls, resets, seconds }` | the speaker | As above. |
 | `src` `{ source }` | the speaker | Its music changed hands mid-set (Lyria took over, or the stand-in came back): `source` follows, so every phone shows which DJ plays. Only while music plays, only a real change, at most once a second; the speaker says it again every 3 seconds until the room has it. |
+| `mine` `{ on }` | the host, or the speaker | The night on the host's songs, or back to the stand-in (below): `mine` in the view; the speaker switches once it has songs. |
+| `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
 
 - **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
   `ask` is null for everyone but its player and the host until it has passed the text check
@@ -220,7 +222,7 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
 | `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
-| `req` `{ text, song? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed). One each (waiting or up next), 8 waiting for the table, a phone's taken once per 5 s, none after the end. An `fx` event `req`. |
+| `req` `{ text, song?, apple? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed, and its clip); `apple`, one the phone found on Apple, `[track id, title, artist, preview, storefront]`, every field checked (the preview can only be a path on Apple's preview server, or a URL there: `previewOk`). One each (waiting or up next), 8 waiting for the table, a phone's taken once per 5 s, none after the end. An `fx` event `req`. |
 | `unreq` `{ id }` | Its player, or the host: takes back a song waiting or up next (the next one comes up). One whose remix plays already stays. |
 | `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`; `b` null while B has nothing of its own): a new style plays from its deck's next section once it's recorded. Taken at most once a second; the speaker says it again every 1.5 s until the room has it. |
 
@@ -296,8 +298,8 @@ deck B ┘                                                       horn, riser, ro
 
 **Songs asked for by name** (`req`, Steve's ask on Nov 1: "players type the song they want, and it's
 remixed into the next track"; his choice: a new song in that song's style, not the song itself).
-The booth can't play the song (someone's recording, and a web page can't mix one in on the beat):
-the DJ makes the next track in its style, named for whoever asked. A phone types a song or an
+The booth can't have the whole song (someone's recording): the DJ makes the next track in its
+style, named for whoever asked, and since Nov 2 plays 30 seconds of the song itself first (below). A phone types a song or an
 artist and gets suggestions from the site's song list (`src/data/songs.ts`, loaded the first time
 someone types: it's big). The room works out the style (`requests.ts` `styleForRequest`: words that
 name a genre or an artist first, then the list's language and kinds, then the script the name is
@@ -315,6 +317,33 @@ picked from the list shows its title and artist to everyone (they're the list's)
 only to its player and the host: the others, and the big screen, see that a song was asked for
 (`ReqView.text` null). Nothing a player types reaches the big screen unchecked.
 
+**The song itself, for 30 seconds** (Nov 2, Steve: "the remix I picked didn't remix the song I
+wanted"). A song from the list carries its clip (`p`: the 30-second preview the list has from Apple,
+the clips 猜歌 plays, and `st`, its storefront); a name that isn't on the list, the phone looks up on
+Apple's search itself (`phone/apple.ts`: Apple turns servers away and lets browsers in), shows what
+it finds beside the list's suggestions ("Apple Music"), and sends the one picked as `apple` (a name
+typed and sent without picking: Apple's best match for it, asked then, three seconds at most; none:
+the name alone). Its name is a phone's word, so only its player and the host read it (the others
+and the big screen see a song was asked for; `ReqView.artist` goes too); its clip plays for
+everyone. The speaker (`clip/clip.ts`) fetches the clip once it's up next, decodes it and listens to
+it with the host's songs' beat finder: its tempo, its first downbeat a second or more in (Apple's
+clips fade in), where it's worth playing to, how loud (brought to about the night's peak). A drop
+on its way into that deck (`BoothDj.cue`) starts it on the drop's bar; the fader taking the deck on
+the air starts it on the next bar line. Near the night's tempo (8%, or half or twice it) it plays a
+little faster or slower so its beats fall on the night's (the pitch with it), over the deck's own
+drums alone (the stand-in records each section's drums apart for it, `BED` in `fake/styles.ts`, 4
+dB under the whole section; the drums are settled when the clip first plays over a section: a
+section whose drums weren't recorded in time has the clip alone), ending on a bar line, the deck's
+own sound (the remix) coming back over the last bar; too far off the beat, or with no clear beat,
+it plays alone at its own speed, the deck's own sound back over 1.5 s as it ends. It sits a dB over
+the stretch of the night it plays in (the warm-up is quieter than the peak). Taken back, or the
+decks swapping away, it fades out in 0.4 s. On Lyria it plays over the stream once it's on the air,
+from the next bar line, at its own speed, Lyria quiet under it. The big screen names it ("Now: 晴天
+(周杰伦), for Amy", not a remix) and credits Apple ("Clip courtesy of Apple Music, then the DJ's
+remix") only while it has the clip; without one (Apple can't be reached), the remix alone, named as
+before. Whoever asked gets a link to the whole song on Apple Music while it plays. Apple's previews
+are meant to promote the songs: the credit and the link are there for that, as in 猜歌.
+
 ## A night of the host's songs (`local`, Nov 2)
 
 Steve's ask: "can I connect Apple Music, like rekordbox does". Apple only lets the DJ apps it has
@@ -331,8 +360,27 @@ beat), its first downbeat (the beat of four the low end hits hardest), its loud 
 first 8 bars nearly as loud as the loudest 8, on a 4-bar line from the first downbeat when one is
 loud too, leaving 40 s), where it stops being worth playing (`end`) and how clear its beat is
 (`sure`). Named from its tags (an MP3's ID3, an M4A's iTunes tags) or its file name ("Artist -
-Title"). 200 songs at most, 45 s to 15 minutes each. 用我的歌放 makes the night theirs: said to the
-room as the source (`live`/`src` with `local`), and the stand-in comes back with 换回试音版 DJ.
+Title"). 200 songs at most, 45 s to 15 minutes each. 用我的歌放 makes the night theirs: the host's
+wish is the room's (`mine`, from the TV's 我的歌 or the host's phone, below; kept with the next set),
+and the speaker, once it has songs, says so as the source (`live`/`src` with `local`); the stand-in
+comes back with 换回试音版 DJ.
+
+**From the host's phone** (Nov 2, Steve: "this should work on the phone too"). Under the host's
+controls, 我的歌: how many songs the TV's computer has, the same switch (`mine` `{ on }`: the host
+only; the TV's own panel sends it as the speaker), and songs on the phone sent to the TV. A file goes
+in pieces over the phone's own line to the table, as binary messages (`shared/dj/songwire.ts`:
+"SONG", the header's length, a JSON header `{ id, i, n, size, name, type }`, 256 KB of the file;
+30 MB a file at most): the rooms server takes them only from the host's phone at a DJ booth, 60 MB
+a minute at most, checks each (its length right for where it falls in the file), marks it as theirs
+(`by`, never the phone's word) and passes it straight on to the big screens; it keeps nothing. The TV
+puts the file back together (three at a time at most; one that goes quiet for a minute is given up
+on), keeps it in memory (400 MB of phone songs at most), and listens to it like one chosen on its
+own computer; then it tells the room how it went (`song` `{ by, id, code }`, `SONG_SENT`: added,
+not a sound file, too short, too long, can't be played, no room, already there) and the room tells
+that phone (an `fx` event `song`, `data: [code, the file's number]`). The phone sends one file at a
+time, a megabyte waiting on its line at most and under the table's minute, and says each one's
+word back (or that the line dropped, or the TV didn't answer in 90 s). Only the host: a song's name
+comes from its file, and nothing a player sends reaches the big screen unchecked.
 
 **The room** (`games/dj.ts`): the speaker's list as `crate` (`{ x: "crate", songs: [id, title,
 artist, bpm, seconds][] }`, once a second at most, from the speaker; kept with the next set too),
@@ -457,7 +505,7 @@ every frame changes only opacity or a transform.
 - One stream per table, from the speaker. A second big screen on the same table would play it too:
   open the booth on one screen. (A2 sends the stream to one screen.)
 - Every set ends 4 hours after its music starts. Lyria stops at 20 hours a month, all tables together.
-- Nothing is uploaded or streamed from a music service: the music is made here (the stand-in, Lyria), or it's the host's own song files, played from the big screen's computer (a night of them, above: 200 songs, 45 s to 15 minutes each; a music app's protected downloads can't be played).
+- Nothing is uploaded or streamed from a music service: the music is made here (the stand-in, Lyria), or it's the host's own song files, played from the big screen's computer (a night of them, above: 200 songs, 45 s to 15 minutes each; a music app's protected downloads can't be played). The one exception: a song asked for by name plays Apple's 30-second preview of it, fetched by the big screen from Apple's preview server (as 猜歌's are), never the whole song. Song files the host sends from their phone pass through the rooms server to the big screen and aren't kept on the way.
 
 ## Tests
 
@@ -485,6 +533,23 @@ every frame changes only opacity or a transform.
   into the next as one ends, and back to the stand-in. `tests/dj.test.ts` has the beat finder on
   made-up songs, the tags, and the local DJ on a pretend speaker; `tests/engine.test.ts` the room's
   rules for them.
+- `python3 scripts/dj_clip_check.py [chromium|webkit]`: a song asked for, played for real, in
+  browsers (Apple's preview server and search answered by the check with made-up clips: 124 BPM
+  with a 3 kHz tone, 100 BPM with a 5 kHz one): 晴天 from the list up next, its clip fetched and
+  heard at 124 BPM, the deck's drums alone recorded, the clip set for the drop's bar, played a
+  little faster on the night's beat, its tone in the speaker's output, about as loud as the night,
+  the phone naming it and linking the whole song, the TV crediting Apple, the remix after it; a
+  song found on Apple (its name only for its player), alone at its own speed; a name found
+  nowhere, the remix alone. `tests/dj.test.ts` has the clip's listening, the clip deck's timing and
+  fades, the stand-in and Lyria playing one, and Apple's search answer; `tests/engine.test.ts` the
+  room's checks of a song found on Apple.
+- `python3 scripts/dj_mine_check.py [chromium|webkit]`: 我的歌 from the host's phone in browsers:
+  two made-up songs and a broken file sent from the host's phone, each one's word back (added,
+  can't be played, the same one again: already there), the TV listening to them like its own; a
+  phone that isn't the host's sending pieces straight at the rooms server, never reaching the TV;
+  the switch to her songs from her phone (the TV hands the music over, no gap) and back.
+  `tests/dj.test.ts` has the pieces (read back byte for byte, every bad one turned away);
+  `tests/engine.test.ts` the switch and the word back.
 - `python3 scripts/dj_deck_check.py [chromium|webkit]`: the beginner deck in browsers, a TV and
   three phones playing at once: pads on the beat to the millisecond, picks loading deck B, the
   fader thrown to B before B has music (deck A plays on, never silence), the fader held, the

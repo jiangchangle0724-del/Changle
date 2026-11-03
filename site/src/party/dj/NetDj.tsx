@@ -12,6 +12,7 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { NowPlaying, phaseHint, phaseName, TIMES_MIN, useHeat } from "./parts";
 import { DeckPad } from "./phone/DeckPad";
+import { MySongs } from "./phone/MySongs";
 import "../../styles/dj.css";
 import "../../styles/dj-phone.css";
 
@@ -160,6 +161,8 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
             )}
           </section>
         )}
+        {/* the host's songs: on the TV's computer, sent there from this phone, and the switch to them */}
+        {isHost && v.phase !== "end" && <MySongs v={v} />}
       </div>
     </NetFrame>
   );

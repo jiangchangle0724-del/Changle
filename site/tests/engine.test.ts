@@ -1,6 +1,6 @@
 /* Engine flow tests: run with `npx tsx tests/engine.test.ts` */
 import { countdown, cued, loaded, pressBy } from "../src/shared/dj/deck";
-import { trackFor } from "../src/shared/dj/requests";
+import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
@@ -1749,6 +1749,7 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   g("p2", "req", { text: "qing tian", song: sunny[0] });
   let r = deck().reqs[0];
   ok(deck().reqs.length === 1 && r.by === "p2" && r.text === "晴天" && r.artist === "周杰伦" && r.song === sunny[0] && r.style === "cpop" && r.track === trackFor("晴天"), "a song picked from the song list: its title and artist (the list's, not what was typed), in its style (Jay Chou: C-pop), its remix's track from its name");
+  ok(r.p === sunny[6] && r.st === sunny[8] && r.apple === undefined, "and its clip: the list's preview of it, and its storefront (for the link to the whole song)");
   ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === "p2") && deck().up === null, "the room hears it; nothing is up before the music");
   ok(nothing(g("p2", "req", { text: "another" })), "one each");
   ok(nothing(g("p3", "req", { text: "   " })) && nothing(g("p3", "req", {})), "an empty name isn't a song");
@@ -1852,6 +1853,79 @@ test("dj: songs asked for by name: one each, up next on the deck off the air, th
   }
   ok((e2.view("q1").game as V<"dj">).deck.reqs.length === 8, "8 waiting at most, the whole table");
   void beat;
+});
+
+test("dj: a song found on Apple: every field checked, its clip for everyone, its name only for its player and the host", () => {
+  const e = new RoomEngine(freshRoom("DJAP", clock), host);
+  e.screenHello("tv-ap", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const PATH = "AudioPreview211/v4/aa/bb/cc/aabbccdd-1234-5678-9abc-def012345678/mzaf_1234567890123456789";
+  const URL = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/26/e3/f4/26e3f427-26c9-bfc3-6748-291fd3099dfb/mzaf_6091467586462767916.plus.aac.ep.m4a";
+  ok(nothing(g("p2", "req", { apple: [123, "Song", "Singer", "https://evil.example/x.m4a", "us"] })), "a clip anywhere but Apple's preview server isn't taken");
+  ok(nothing(g("p2", "req", { apple: [123, "Song", "Singer", "../../../evil", "us"] })) && nothing(g("p2", "req", { apple: [123, "Song", "Singer", "https://audio-ssl.itunes.apple.com/itunes-assets//evil.example/x.m4a", "us"] })), "nor a path that climbs out of it, or slips another host in");
+  ok(nothing(g("p2", "req", { apple: [0, "Song", "Singer", PATH, "us"] })) && nothing(g("p2", "req", { apple: [123, "  ", "Singer", PATH, "us"] })) && nothing(g("p2", "req", { apple: [123, "Song", "Singer", PATH] })), "nor one without a track id, a title, or every field");
+  g("p2", "req", { apple: [1440818839, "Blinding Lights\u202e", "The Weeknd", PATH, "ca"] });
+  const r = dv("p2").deck.reqs[0];
+  ok(r.text === "Blinding Lights" && r.artist === "The Weeknd" && r.apple === 1440818839 && r.p === PATH && r.st === "ca" && r.song === undefined, "a song found on Apple: its title (cleaned), artist, track id, clip and storefront");
+  ok(r.style === styleForRequest("Blinding Lights The Weeknd"), `in a style from its title and artist, as a name typed in is (${r.style})`);
+  const other = dv("p3").deck.reqs[0];
+  ok(other.text === null && other.artist === undefined && other.p === PATH, "another phone reads neither its title nor its artist; its clip still plays for everyone");
+  ok(dv("p1").deck.reqs[0].text === "Blinding Lights" && dv("p1").deck.reqs[0].artist === "The Weeknd", "the host reads them");
+  const tv = (e.view("tv-ap").game as V<"dj">).deck.reqs[0];
+  ok(tv.text === null && tv.artist === undefined && tv.p === PATH, "the big screen: its clip, not its name");
+  g("p3", "req", { apple: [77, "Song", "Singer", URL, "xx1"] });
+  const full = dv("p3").deck.reqs[1];
+  ok(full.p === URL && full.st === "us", "a full URL on Apple's preview server is taken as it is (a storefront that isn't one: the US's)");
+});
+
+test("dj: 我的歌 from the host's phone: the switch is the room's (the host's phone or the big screen), and the phone hears how a song it sent went", () => {
+  const e = new RoomEngine(freshRoom("DJMN", clock), host);
+  const events: RoomEvent[] = [];
+  e.screenHello("tv-mn", true, "dj");
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    const o = e.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-mn", { x, ...rest });
+    events.push(...e.flush().events);
+    return took;
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  ok(dv("p2").mine === false, "the stand-in to start with");
+  ok(nothing(g("p2", "mine", { on: true })) && !dv("p1").mine, "only the host switches");
+  g("p1", "mine", { on: true });
+  ok(dv("p2").mine === true && dv("tv-mn").mine === true, "the host's phone: the night on their songs (the big screen switches once it has some)");
+  ok(nothing(g("p1", "mine", { on: true })), "again: nothing");
+  ok(sc("mine", { on: false }) && dv("p1").mine === false, "the big screen's own switch");
+  ok(!sc("mine", { on: false }), "again: nothing");
+  ok(sc("song", { by: "p1", id: 12345, code: 0 }), "the big screen says how a song from the host's phone went");
+  const fx = events.filter((x) => x.k === "fx" && x.fx === "song");
+  ok(fx.length === 1 && fx[0].k === "fx" && fx[0].pid === "p1" && fx[0].data?.[0] === 0 && fx[0].data?.[1] === 12345, "the phone hears it: added, its file's number");
+  ok(!sc("song", { by: "p9", id: 1, code: 0 }) && !sc("song", { by: "p1", id: 1, code: 99 }) && !sc("song", { by: "p1", id: -1, code: 0 }), "not for a phone at the table, a word it doesn't know, a bad number: nothing");
+  g("p1", "mine", { on: true });
+  sc("live", { source: "fake" });
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p2").mine === true, "another set keeps the switch");
 });
 
 test("dj: a night of the host's songs: their names from the speaker, a song on each deck, asked for by name, the DJ drops into the next as one ends", () => {

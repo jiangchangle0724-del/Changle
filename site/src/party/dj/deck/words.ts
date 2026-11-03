@@ -58,13 +58,22 @@ export function reqLine(r: { text: string | null; artist?: string }, who: string
   return song ? `${who} asked for ${song}` : `${who} asked for a song`;
 }
 
-/** What's on the air for whoever asked: "正在放：周杰伦《晴天》 Remix，Amy 点的" (the host's own song itself, no remix). */
-export function nowLine(r: { text: string | null; artist?: string; local?: string }, who: string, zh: boolean): string {
+/**
+ * What's on the air for whoever asked: "正在放：周杰伦《晴天》，Amy 点的" (the host's own song itself;
+ * or `clip`, its clip playing, then the remix), or "正在放：周杰伦《晴天》 Remix，Amy 点的" (the remix alone).
+ */
+export function nowLine(r: { text: string | null; artist?: string; local?: string }, who: string, zh: boolean, clip = false): string {
   const song = songName(r, zh);
-  if (r.local && song) return zh ? `正在放：${song}，${who} 点的` : `Now: ${song}, for ${who}`;
+  if (r.local || clip) {
+    if (zh) return song ? `正在放：${song}，${who} 点的` : `正在放：${who} 点的歌`;
+    return song ? `Now: ${song}, for ${who}` : `Now: ${who}'s song`;
+  }
   if (zh) return song ? `正在放：${song} Remix，${who} 点的` : `正在放：${who} 点的歌的 Remix`;
   return song ? `Now: a remix of ${song}, for ${who}` : `Now: a remix of ${who}'s song`;
 }
+
+/** Under a song asked for that brings its clip: whose 30 seconds they are, and what comes after. */
+export const CLIP_CREDIT = t("原曲片段来自 Apple Music，之后接 DJ 的 Remix", "Clip courtesy of Apple Music, then the DJ's remix");
 
 /** One of the host's songs, in a line: "周杰伦《晴天》", or "晴天 (周杰伦)". */
 export const localName = (s: { t: string; a: string }, zh: boolean) => (zh ? `${s.a ? `${s.a} ` : ""}《${s.t}》` : s.a ? `${s.t} (${s.a})` : s.t);

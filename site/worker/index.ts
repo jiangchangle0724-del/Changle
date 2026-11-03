@@ -9,6 +9,7 @@ import { drawPicture, drawReady, type Pic } from "./draw";
 import { Hub, type Reply } from "./hub";
 import { LyriaRelay, type LyriaEnv, type LyriaWhy, type RelayMsg } from "./lyria";
 import { cleanChoices, drawPrompt, LIMITED } from "../src/shared/draw";
+import { decodePiece, encodePiece, PHONE_BYTES_MIN } from "../src/shared/dj/songwire";
 
 export { Hub };
 
@@ -320,6 +321,8 @@ export class Room extends DurableObject<Env> {
   private savedAt = 0;
   /** the game's earliest timer when the alarm was last set (a light change re-arms only if it moved) */
   private alarmFor: number | null | undefined = undefined;
+  /** song bytes the host's phone sent the big screen in the last minute (the DJ booth) */
+  private songBytes = { at: 0, bytes: 0 };
 
   private async load(code?: string): Promise<RoomEngine> {
     if (this.engine) return this.engine;
@@ -372,7 +375,8 @@ export class Room extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
-    if (typeof raw !== "string" || raw.length > 32_000) return;
+    if (typeof raw !== "string") return this.songPiece(ws, raw);
+    if (raw.length > 32_000) return;
     let msg: ClientMsg;
     try {
       msg = JSON.parse(raw) as ClientMsg;
@@ -451,6 +455,32 @@ export class Room extends DurableObject<Env> {
       engine.stroke(att.pid, msg.op);
       await this.commit(engine.flush());
     }
+  }
+
+  /**
+   * A piece of a song file the host's phone sends the big screen (the DJ booth's songs from a phone,
+   * songwire.ts): only from the host, at a DJ booth, a minute's worth at a time; checked, marked as
+   * theirs, passed straight on to the big screens, and never kept.
+   */
+  private async songPiece(ws: WebSocket, raw: ArrayBuffer) {
+    const att = ws.deserializeAttachment() as Attachment | null;
+    if (!att?.pid || att.screen) return;
+    const piece = decodePiece(raw);
+    if (!piece) return;
+    const engine = await this.load();
+    if (engine.d.game?.id !== "dj" || engine.d.host !== att.pid) return;
+    const now = Date.now();
+    if (now - this.songBytes.at > 60_000) this.songBytes = { at: now, bytes: 0 };
+    if (this.songBytes.bytes + piece.bytes.length > PHONE_BYTES_MIN) return;
+    this.songBytes.bytes += piece.bytes.length;
+    const out = encodePiece({ ...piece.h, by: att.pid }, piece.bytes);
+    for (const s of this.sockets())
+      if (s.screen)
+        try {
+          s.ws.send(out);
+        } catch {
+          /* gone */
+        }
   }
 
   async webSocketClose(ws: WebSocket, code: number) {

@@ -475,6 +475,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* a song found on Apple (not on the site's list) */
+.djk-req-hit-from {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+/* the whole song, for whoever asked, while its clip plays */
+.djk-req-whole {
+  align-self: flex-start;
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
 .djk-req-pick {
   display: flex;
   align-items: center;
@@ -693,6 +708,12 @@
 .dk-req small {
   color: var(--color-text-2);
   font-size: var(--text-sm);
+}
+/* under a song that brings its clip: Apple's credit, a line of its own */
+.dk-req .dk-req-credit {
+  display: block;
+  font-weight: 600;
+  white-space: normal;
 }
 .dk-fader-end {
   font-family: var(--font-display);

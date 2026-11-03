@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FAKE_MIX, mixFor, playing } from "../../shared/dj/curve";
-import { onAir } from "../../shared/dj/deck";
-import type { DeckSide, DjPhase, Mix, PadId, Source, StyleId } from "../../shared/dj/types";
+import { offAir, onAir } from "../../shared/dj/deck";
+import { fileNumber, type SongPiece } from "../../shared/dj/songwire";
+import type { DeckSide, DjPhase, Mix, PadId, SongSent, Source, StyleId } from "../../shared/dj/types";
 import type { DeckView } from "../../shared/protocol";
+import { previewUrl } from "../../shared/songs";
+import { loadClip, type Clip } from "./clip/clip";
 import { DeckDriver, type Grid } from "./deck/driver";
 import { FakeDj } from "./fake/FakeDj";
 import { CRATE_MAX, readSong, songId, SONG_FILES, type NotAdded } from "./local/crate";
@@ -29,12 +32,21 @@ export type BoothDj = {
   beatFrame(b: number): number | null;
   heardSection(): { id: string; phase: DjPhase } | null;
   holdFor(ms: number): void;
-  /** a drop on its way into deck `side` at the night's beat `beat` (the host's songs: its loud part lands there) */
+  /** a drop on its way into deck `side` at the night's beat `beat` (the host's songs: its loud part
+   *  lands there; a song asked for by name: its clip starts there) */
   cue(side: DeckSide, beat: number): void;
 };
 
 /** The host's songs being added: how far along, and the ones that couldn't be. */
 export type Adding = { done: number; total: number; name: string };
+
+/** A song file the host's phone is sending (songwire.ts): its pieces so far. */
+type Incoming = { by: string; id: string; n: number; size: number; name: string; type: string; parts: (Uint8Array | null)[]; got: number; at: number };
+/** Songs from the host's phone are kept in this computer's memory (not on its disk): this much at most. */
+const PHONE_SONGS_BYTES = 400 * 1024 * 1024;
+/** files coming in at once, and how long one may go quiet before it's given up on */
+const INCOMING_MAX = 3;
+const INCOMING_MS = 60_000;
 
 /**
  * One booth per page: the speaker (with the tap that woke its sound), the stand-in DJ (with the
@@ -51,8 +63,10 @@ type PageBooth = {
   crate: LocalSong[];
   adding: Adding | null;
   failed: { name: string; why: NotAdded }[];
-  wantLocal: boolean;
   queue: Promise<void>;
+  /** song files the host's phone is sending, and the bytes of those already added */
+  incoming: Map<string, Incoming>;
+  fromPhone: number;
   /** which one the speaker is playing */
   using: Source;
   /** Lyria said no for good at this table (not the owner's, no key, the month's cap) */
@@ -73,8 +87,9 @@ function pageBooth(): PageBooth {
       crate: [],
       adding: null,
       failed: [],
-      wantLocal: false,
       queue: Promise.resolve(),
+      incoming: new Map(),
+      fromPhone: 0,
       using: "fake",
       blocked: null,
       speaker: null,
@@ -102,6 +117,7 @@ function pageBooth(): PageBooth {
       holdFor: (ms) => now().holdFor(ms),
       cue: (side, beat) => {
         if (b.using === "local") b.local.cue(side, beat);
+        else if (b.using === "fake") b.fake.cueClip(side, beat);
       },
     };
     page = b;
@@ -114,15 +130,26 @@ const tell = (b: PageBooth) => b.listeners.forEach((fn) => fn());
 /**
  * The host's song files, listened to one at a time (each is decoded and its beat found: a second
  * or two a song), added to the night's list as they're done; one already there isn't added again.
+ * `told`: how each went (a song from the host's phone: the phone hears it).
  */
-function addSongs(b: PageBooth, files: File[]) {
-  const todo = files.filter((f) => SONG_FILES.test(f.name) || f.type.startsWith("audio/"));
+function addSongs(b: PageBooth, files: File[], told?: (f: File, r: SongSent) => void) {
+  const todo = files.filter((f) => {
+    const ok = SONG_FILES.test(f.name) || f.type.startsWith("audio/");
+    if (!ok) told?.(f, "kind");
+    return ok;
+  });
   b.queue = b.queue.then(async () => {
     for (let i = 0; i < todo.length; i++) {
       const f = todo[i];
-      if (b.crate.length >= CRATE_MAX) break;
+      if (b.crate.length >= CRATE_MAX) {
+        todo.slice(i).forEach((x) => told?.(x, "full"));
+        break;
+      }
       const id = songId(f);
-      if (b.crate.some((s) => s.id === id)) continue;
+      if (b.crate.some((s) => s.id === id)) {
+        told?.(f, "there");
+        continue;
+      }
       b.adding = { done: i, total: todo.length, name: f.name };
       tell(b);
       const r = await readSong(f, id);
@@ -131,12 +158,47 @@ function addSongs(b: PageBooth, files: File[]) {
         b.crate = [...b.crate, r];
         b.local.setCrate(b.crate);
       }
+      told?.(f, typeof r === "string" ? r : "added");
       tell(b);
       // a breath for the page between songs
       await new Promise((ok) => window.setTimeout(ok, 30));
     }
     b.adding = null;
     tell(b);
+  });
+}
+
+/**
+ * A piece of a song file the host's phone sends (songwire.ts, passed on by the rooms server): kept
+ * until the file is whole, then listened to like this computer's own; `told`: how it went, for
+ * that phone. Files that go quiet for a minute are given up on.
+ */
+function takePiece(b: PageBooth, p: { h: SongPiece; bytes: Uint8Array }, told: (by: string, id: number, r: SongSent) => void) {
+  const by = p.h.by;
+  if (!by) return;
+  const now = Date.now();
+  for (const [k, f] of b.incoming) if (now - f.at > INCOMING_MS) b.incoming.delete(k);
+  const key = `${by}:${p.h.id}`;
+  let f = b.incoming.get(key);
+  if (!f) {
+    if (b.incoming.size >= INCOMING_MAX) return;
+    f = { by, id: p.h.id, n: p.h.n, size: p.h.size, name: p.h.name, type: p.h.type, parts: new Array<Uint8Array | null>(p.h.n).fill(null), got: 0, at: now };
+    b.incoming.set(key, f);
+  }
+  if (f.n !== p.h.n || f.size !== p.h.size || f.parts[p.h.i]) return;
+  f.parts[p.h.i] = p.bytes;
+  f.got += 1;
+  f.at = now;
+  if (f.got < f.n) return;
+  b.incoming.delete(key);
+  const num = fileNumber(f.id);
+  if (b.fromPhone + f.size > PHONE_SONGS_BYTES) return told(by, num, "full");
+  const size = f.size;
+  // (the same file sent again has the same id: its name and size)
+  const file = new File(f.parts as Uint8Array<ArrayBuffer>[], f.name, { type: f.type, lastModified: 0 });
+  addSongs(b, [file], (_, r) => {
+    if (r === "added") b.fromPhone += size;
+    told(by, num, r);
   });
 }
 
@@ -347,6 +409,33 @@ export function useBooth({
   useEffect(() => {
     if (reqId && reqTrack) fake.playTrack(reqTrack);
   }, [fake, reqId, reqTrack]);
+  // ...and its clip (clip/clip.ts: Apple's 30 seconds of it), fetched once it's up next: the deck it
+  // was asked onto plays it from the drop's bar (or the next bar line, the fader having taken it
+  // there), the remix carrying on after; on Lyria it plays over the stream once it's on the air
+  const upUrl = deck?.up?.p ? previewUrl(deck.up.p) : null;
+  const nowUrl = deck?.now?.p ? previewUrl(deck.now.p) : null;
+  const [clips, setClips] = useState<Record<string, Clip | null>>({});
+  useEffect(() => {
+    let gone = false;
+    const want = [upUrl, nowUrl].filter((u): u is string => !!u);
+    for (const url of want)
+      void loadClip(url).then((c) => {
+        if (!gone) setClips((m) => (m[url] === c ? m : Object.fromEntries([...want.filter((u) => u in m && u !== url).map((u) => [u, m[u]]), [url, c]])));
+      });
+    return () => {
+      gone = true;
+    };
+  }, [upUrl, nowUrl]);
+  const clipUp = upUrl ? (clips[upUrl] ?? null) : null;
+  const clipNow = nowUrl ? (clips[nowUrl] ?? null) : null;
+  const clipSide = deck ? onAir(deck) : "a";
+  const clipNext = deck ? offAir(deck) : "b";
+  useEffect(() => {
+    fake.setClip(clipSide, clipNow);
+    fake.setClip(clipNext, clipUp);
+    if (clipNow) fake.startClip(clipSide);
+    booth.lyria?.setClip(clipNow);
+  }, [fake, booth, clipSide, clipNext, clipUp, clipNow, source, status]);
   // the host's songs: the room's decks to the local DJ (it decodes a song as soon as it's on a deck);
   // once the room plays them and the song on the air is ready, the local DJ takes the speaker (and
   // gives it back to the stand-in when the room no longer does)
@@ -470,17 +559,11 @@ export function useBooth({
   }, [speaker]);
 
   const addFiles = useCallback((files: File[]) => addSongs(booth, files), [booth]);
-  const setWantLocal = useCallback(
-    (on: boolean) => {
-      booth.wantLocal = on;
-      tell(booth);
-    },
-    [booth],
-  );
+  const takeSongPiece = useCallback((p: { h: SongPiece; bytes: Uint8Array }, told: (by: string, id: number, r: SongSent) => void) => takePiece(booth, p, told), [booth]);
   const clearSongs = useCallback(() => {
     booth.crate = [];
     booth.failed = [];
-    booth.wantLocal = false;
+    booth.fromPhone = 0;
     booth.local.setCrate([]);
     tell(booth);
   }, [booth]);
@@ -495,12 +578,13 @@ export function useBooth({
     wake,
     pad,
     driver,
+    /** the song asked for that's on the air brought its clip, and this booth has it */
+    clipOn: !!clipNow,
     crate: booth.crate,
     adding: booth.adding,
     failed: booth.failed,
-    wantLocal: booth.wantLocal,
     addFiles,
-    setWantLocal,
+    takeSongPiece,
     clearSongs,
   };
 }

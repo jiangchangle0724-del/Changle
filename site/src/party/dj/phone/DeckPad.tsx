@@ -8,7 +8,9 @@ import { haptic } from "../../../lib/sfx";
 import { useStore } from "../../../store";
 import { dataUrl } from "../../../online/config";
 import type { CrateSong } from "../../../shared/dj/types";
+import { appleMusicUrl } from "../../../shared/songs";
 import { DROP_WORDS, hintText, localName, PADS, songName } from "../deck/words";
+import { searchApple, type AppleHit } from "./apple";
 import { STYLE_NAMES } from "../parts";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
@@ -336,9 +338,9 @@ function Picks({ v, me, g, zh, side }: { v: DjView; me: string; g: G; zh: boolea
 
 /* ------------------------------------------------------------------ songs asked for by name */
 
-/** A song on the site's list (or one of the host's: `local`), ready to search: its title and the whole line folded the same way. */
-type Entry = { id: number; t: string; a: string; c: number; tk: string; key: string; local?: string };
-type Book = { list: Entry[]; fold: (x: string) => string };
+/** A song on the site's list (or one of the host's: `local`; or one found on Apple: `apple`), ready to search: its title and the whole line folded the same way. */
+type Entry = { id: number; t: string; a: string; c: number; tk: string; key: string; local?: string; apple?: AppleHit };
+type Book = { list: Entry[]; fold: (x: string) => string; simplify: (x: string) => string };
 let book: Promise<Book> | null = null;
 
 /** The song list (loaded the first time someone types a song: it's big), folded for searching. */
@@ -347,7 +349,7 @@ function loadBook(): Promise<Book> {
     const [{ SONG_ROWS }, { toSimplified }] = await Promise.all([import("../../../data/songs"), import("../../../data/t2s")]);
     const fold = (x: string) => toSimplified(x.toLowerCase()).replace(/[\s'"’.,!?·・\-_/()（）《》「」【】]+/g, "");
     const list = SONG_ROWS.map((r) => ({ id: r[0], t: r[1], a: r[2], c: r[9], tk: fold(r[1]), key: fold(`${r[1]} ${r[2]} ${r[3] || ""}`) }));
-    return { list, fold };
+    return { list, fold, simplify: toSimplified };
   })().catch((e) => {
     book = null;
     throw e;
@@ -362,7 +364,7 @@ async function loadCrate(code: string, ver: number): Promise<{ v: number; book: 
   const data = (await res.json()) as { v?: number; crate?: CrateSong[] } | null;
   const fold = (x: string) => toSimplified(x.toLowerCase()).replace(/[\s'"’.,!?·・\-_/()（）《》「」【】]+/g, "");
   const list = (data?.crate ?? []).map((s, i) => ({ id: i, t: s.t, a: s.a, c: 1, tk: fold(s.t), key: fold(`${s.t} ${s.a}`), local: s.id }));
-  return { v: data?.v ?? ver, book: { list, fold } };
+  return { v: data?.v ?? ver, book: { list, fold, simplify: toSimplified } };
 }
 
 /** The songs a few typed letters could mean: the title itself first, then titles that start so, then the rest; chart songs first. */
@@ -378,10 +380,15 @@ function search(b: Book, q: string): Entry[] {
   return hits.slice(0, 6).map((h) => h[1]);
 }
 
+/** An Apple song as the room takes it: [track id, title, artist, preview, storefront]. */
+const appleReq = (h: AppleHit) => [h.id, h.t, h.a, h.p, h.st];
+
 /**
- * Ask for a song by name: the DJ can't play the song itself, so it makes the next track in its
- * style, named for whoever asked on the big screen. Suggestions come from the site's song list (a
- * song picked there shows by name to everyone); one song each, waiting or up next.
+ * Ask for a song by name: the DJ plays 30 seconds of the song itself (Apple's preview) over its
+ * drums on the next drop, then its remix in the song's style, named for whoever asked on the big
+ * screen. Suggestions come from the site's song list (a song picked there shows by name to
+ * everyone), and from Apple for a name that isn't on it; one song each, waiting or up next. On a
+ * night of the host's songs: those, the whole song.
  */
 function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
   const d = v.deck;
@@ -399,34 +406,86 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   };
   const using = d.local ? (crate?.book ?? null) : b;
   const hits = useMemo(() => (using && !pick && q.trim() ? search(using, q) : []), [using, q, pick]);
+  // the same name on Apple, a moment after the typing stops (for songs not on the list)
+  const typed = q.trim();
+  const [found, setFound] = useState<{ q: string; hits: AppleHit[] } | null>(null);
+  useEffect(() => {
+    if (d.local || pick || Array.from(typed).length < 2) return;
+    let gone = false;
+    const id = window.setTimeout(() => {
+      void searchApple(typed, b?.simplify).then((list) => {
+        if (!gone) setFound({ q: typed, hits: list });
+      });
+    }, 450);
+    return () => {
+      gone = true;
+      window.clearTimeout(id);
+    };
+  }, [d.local, pick, typed, b]);
+  const fold = b?.fold ?? ((x: string) => x.toLowerCase());
+  const onApple: Entry[] = useMemo(() => {
+    if (d.local || pick || !found || found.q !== typed) return [];
+    const listed = new Set(hits.map((h) => fold(`${h.t}${h.a}`)));
+    return found.hits
+      .filter((h) => !listed.has(fold(`${h.t}${h.a}`)))
+      .slice(0, hits.length ? 3 : 6)
+      .map((h) => ({ id: h.id, t: h.t, a: h.a, c: 0, tk: fold(h.t), key: fold(`${h.t} ${h.a}`), apple: h }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.local, pick, found, typed, hits, b]);
   const waitAt = d.reqs.findIndex((r) => r.by === me);
   const mine: { r: ReqView; at: "now" | "up" | "wait"; ahead: number } | null =
     d.now?.by === me ? { r: d.now, at: "now", ahead: 0 } : d.up?.by === me ? { r: d.up, at: "up", ahead: 0 } : waitAt >= 0 ? { r: d.reqs[waitAt], at: "wait", ahead: waitAt + (d.up ? 1 : 0) } : null;
   const full = d.reqs.length >= DECK.reqMax;
   const ended = v.phase === "end";
 
+  const [finding, setFinding] = useState(false);
+  const sent = () => {
+    haptic(15);
+    setQ("");
+    setPick(null);
+  };
   const send = (e: FormEvent) => {
     e.preventDefault();
-    if (ended || full) return;
+    if (ended || full || finding) return;
     if (d.local) {
       // one of the host's songs: picked, or typed out exactly (else it isn't one of them)
       const k = using ? using.fold(q.trim()) : "";
       const hit = pick ?? using?.list.find((x) => x.tk === k || x.key === k);
       if (!hit) return;
       g("req", { local: hit.local });
-    } else if (pick) g("req", { song: pick.id, text: pick.t });
-    else {
-      const text = q.trim();
-      if (!text) return;
-      // typed out a song on the list exactly: that one (so it shows by name)
-      const k = b ? b.fold(text) : "";
-      const same = b?.list.filter((x) => x.tk === k || x.key === k) ?? [];
-      const hit = same.find((x) => x.c) ?? same[0];
-      g("req", hit ? { song: hit.id, text: hit.t } : { text });
+      return sent();
     }
-    haptic(15);
-    setQ("");
-    setPick(null);
+    if (pick?.apple) {
+      g("req", { apple: appleReq(pick.apple) });
+      return sent();
+    }
+    if (pick) {
+      g("req", { song: pick.id, text: pick.t });
+      return sent();
+    }
+    const text = q.trim();
+    if (!text) return;
+    // typed out a song on the list exactly: that one (so it shows by name)
+    const k = b ? b.fold(text) : "";
+    const same = b?.list.filter((x) => x.tk === k || x.key === k) ?? [];
+    const hit = same.find((x) => x.c) ?? same[0];
+    if (hit) {
+      g("req", { song: hit.id, text: hit.t });
+      return sent();
+    }
+    // else Apple's best match for it (so its clip plays: asked now if the typing was quicker than
+    // the search, a few seconds at most); else the name alone (the remix alone)
+    const ask = (top: AppleHit | undefined) => {
+      g("req", top ? { apple: appleReq(top) } : { text });
+      sent();
+    };
+    if (found && found.q === text) return ask(found.hits[0]);
+    setFinding(true);
+    const late = new Promise<AppleHit[]>((ok) => window.setTimeout(() => ok([]), 3000));
+    void Promise.race([searchApple(text, b?.simplify), late]).then((list) => {
+      setFinding(false);
+      ask(list[0]);
+    });
   };
 
   if (mine && mine.at !== "now") {
@@ -455,6 +514,8 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     );
   }
 
+  // the whole song, for whoever asked while its clip plays
+  const whole = mine?.at === "now" && mine.r.p ? (mine.r.song ?? mine.r.apple) : undefined;
   return (
     <form className="djk-req" onSubmit={send}>
       <span className="djk-req-title">
@@ -463,9 +524,13 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
       </span>
       <span className="djk-req-note">
         {mine?.at === "now"
-          ? zh
-            ? `正在放你点的 ${songName(mine.r, zh) ?? ""}${mine.r.local ? "" : " Remix"}，还可以再点一首`
-            : `${mine.r.local ? "Your song is on" : "Your song's remix is on"}: ${songName(mine.r, zh) ?? ""}. You can ask for another`
+          ? mine.r.local || mine.r.p
+            ? zh
+              ? `正在放你点的 ${songName(mine.r, zh) ?? ""}，还可以再点一首`
+              : `Yours is on: ${songName(mine.r, zh) ?? ""}. You can ask for another`
+            : zh
+              ? `正在放 DJ 按 ${songName(mine.r, zh) ?? ""} 做的 Remix（没找到这首歌的原曲），还可以再点一首`
+              : `On now: the DJ's remix for ${songName(mine.r, zh) ?? ""} (no clip of the song found). You can ask for another`
           : full
             ? zh
               ? `点歌排满了（${DECK.reqMax} 首），放掉几首再点`
@@ -475,9 +540,14 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
                 ? `搜主人的这 ${v.crateN} 首歌，点中了下一首就放原曲`
                 : `Search the host's ${v.crateN} songs. The one you pick plays next`
               : zh
-                ? "输入歌名或歌手，DJ 按这首歌的风格现做一首 Remix，下一首就放"
-                : "Type a song or an artist. The DJ makes a remix in its style, up next"}
+                ? "输入歌名或歌手。下一首先放这首歌的 30 秒原曲，再接 DJ 按它的风格做的 Remix"
+                : "Type a song or an artist. Up next: 30 seconds of the song itself, then the DJ's remix in its style"}
       </span>
+      {whole !== undefined && (
+        <a className="djk-req-whole" href={appleMusicUrl(whole, mine?.r.st ?? "us")} target="_blank" rel="noreferrer">
+          {zh ? "在 Apple Music 听完整首" : "The whole song on Apple Music"}
+        </a>
+      )}
       {pick ? (
         <span className="djk-req-pick">
           <span>{zh ? `${pick.a}《${pick.t}》` : `${pick.t} (${pick.a})`}</span>
@@ -503,8 +573,8 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           disabled={ended}
         />
       )}
-      {hits.length > 0 && (
-        <ul className="djk-req-hits" aria-label={d.local ? (zh ? "主人的歌" : "The host's songs") : zh ? "曲库里的歌" : "Songs on the list"}>
+      {hits.length + onApple.length > 0 && (
+        <ul className="djk-req-hits" aria-label={d.local ? (zh ? "主人的歌" : "The host's songs") : zh ? "找到的歌" : "Songs found"}>
           {hits.map((h) => (
             <li key={h.id}>
               <button type="button" className="djk-req-hit" onClick={() => setPick(h)}>
@@ -513,11 +583,20 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
               </button>
             </li>
           ))}
+          {onApple.map((h) => (
+            <li key={`apple-${h.id}`}>
+              <button type="button" className="djk-req-hit is-apple" onClick={() => setPick(h)}>
+                <span className="djk-req-hit-t">{zh ? `《${h.t}》` : h.t}</span>
+                <span className="djk-req-hit-a">{h.a}</span>
+                <span className="djk-req-hit-from">Apple Music</span>
+              </button>
+            </li>
+          ))}
         </ul>
       )}
       {failed && !using && <span className="djk-req-note">{d.local ? (zh ? "歌单没加载出来，等一下再点" : "The song list didn't load. Try again in a moment") : zh ? "曲库没加载出来，直接输入歌名也行" : "The song list didn't load. Typing the name works too"}</span>}
-      <button type="submit" className="djk-req-send" disabled={ended || full || (!pick && !q.trim())}>
-        {zh ? "点这首" : "Ask for it"}
+      <button type="submit" className="djk-req-send" disabled={ended || full || finding || (!pick && !q.trim())}>
+        {finding ? (zh ? "在找这首歌…" : "Finding it…") : zh ? "点这首" : "Ask for it"}
       </button>
     </form>
   );

@@ -4,7 +4,8 @@ import { lyriaUrl } from "../../online/config";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
 import { SeatFace } from "../../online/People";
 import { ENERGY } from "../../shared/dj/curve";
-import type { DjPhase } from "../../shared/dj/types";
+import { decodePiece } from "../../shared/dj/songwire";
+import { SONG_SENT, type DjPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
@@ -42,14 +43,28 @@ export default function TvDj({ v }: { v: DjView }) {
   });
   // where the music should come from: the host's songs when they want them and there are some,
   // else whichever DJ plays (the stand-in, or Lyria at one of the owner's tables)
-  const want = booth.wantLocal && booth.crate.length ? "local" : booth.source === "local" ? "fake" : booth.source;
+  const want = v.mine && booth.crate.length ? "local" : booth.source === "local" ? "fake" : booth.source;
+  // songs the host sends from their phone (songwire.ts): put back together here, listened to like
+  // this computer's own, and the phone told how it went
+  const { onBytes } = useRoom();
+  const take = booth.takeSongPiece;
+  useEffect(
+    () =>
+      onBytes((data) => {
+        const piece = decodePiece(data);
+        if (piece) take(piece, (by, id, r) => g("song", { by, id, code: SONG_SENT.indexOf(r) }));
+      }),
+    [onBytes, take, g],
+  );
   // the host's songs on this computer, by name, for the room (said again until it has them all)
   const crateN = useRef(v.crateN);
   crateN.current = v.crateN;
   const crateKey = booth.crate.map((s) => s.id).join(",");
   useEffect(() => {
-    if (!booth.crate.length) return;
     const list = booth.crate;
+    // (none on this computer, the page opened again or the host cleared them: the room's names
+    // for them go too, they couldn't be played, and the host's phone sees none)
+    if (!list.length && crateN.current === 0) return;
     const send = () => g("crate", { songs: list.map((s) => [s.id, s.title, s.artist, Math.round(s.beat.bpm * 10) / 10, Math.round(s.seconds)]) });
     send();
     const id = window.setInterval(() => {
@@ -176,7 +191,7 @@ export default function TvDj({ v }: { v: DjView }) {
       </header>
 
       {/* (a rooms server a moment behind the site, mid-deploy, sends no deck yet) */}
-      {v.deck && <DeckBoard v={v} />}
+      {v.deck && <DeckBoard v={v} clip={booth.clipOn} />}
       <JoinCard code={code} big={!seats.length} />
 
       <Floor seats={seats} flames={flames} host={room?.host} />

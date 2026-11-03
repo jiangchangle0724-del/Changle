@@ -28,6 +28,7 @@ import {
   QUEUE_MAX,
   REQ_CHARS,
   SET_PHASES,
+  SONG_SENT,
   STYLE_IDS,
   WAITING,
   type CrateSong,
@@ -40,7 +41,7 @@ import {
   type Track,
 } from "../../dj/types";
 import type { DeckView, DjTrack, DjView, ReqView } from "../../protocol";
-import { fromRow, type Song } from "../../songs";
+import { fromRow, previewOk, type Song } from "../../songs";
 import { clean, num, type Api, type GameDef } from "../api";
 
 /** 🔥 and ❄️ presses kept (each) */
@@ -69,6 +70,7 @@ function fresh(set: number): RoomState {
     deck: freshDeck(),
     crate: [],
     crateV: 0,
+    mine: false,
   };
 }
 
@@ -80,6 +82,7 @@ function norm(s: RoomState): RoomState {
   s.queue ??= [];
   s.crate ??= [];
   s.crateV ??= 0;
+  s.mine ??= false;
   // a deck saved before a field existed gets it fresh
   s.deck = { ...freshDeck(), ...s.deck };
   return s;
@@ -276,9 +279,27 @@ function listed(id: unknown): Song | null {
   return r ? fromRow(r) : null;
 }
 
-/** A song asked for, as `pid` sees it: a name the player typed shows only to them and the host. */
+/**
+ * A song a phone found on Apple: [track id, title, artist, preview, storefront], every field
+ * checked (the preview can only be on Apple's preview server), else null.
+ */
+function fromApple(v: unknown): { id: number; t: string; a: string; p: string; st: string } | null {
+  if (!Array.isArray(v) || v.length !== 5) return null;
+  const [id, t, a, p, st] = v as unknown[];
+  if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0 || !previewOk(p)) return null;
+  const title = cleanAsk(t, REQ_CHARS.max);
+  if (!title) return null;
+  return { id, t: title, a: cleanAsk(a, 40), p, st: typeof st === "string" && /^[a-z]{2}$/.test(st) ? st : "us" };
+}
+
+/**
+ * A song asked for, as `pid` sees it: a name the player typed, or found on Apple, shows only to
+ * them and the host (its clip still plays for everyone).
+ */
 function reqFor(r: SongReq, pid: string, host: boolean): ReqView {
-  return r.song !== undefined || r.local !== undefined || r.by === pid || host ? r : { ...r, text: null };
+  if (r.song !== undefined || r.local !== undefined || r.by === pid || host) return r;
+  const { artist: _artist, ...rest } = r;
+  return { ...rest, text: null };
 }
 
 /** No music: nothing building, nothing on its way (a song up next waits, first in line). */
@@ -463,12 +484,15 @@ export const dj: GameDef<RoomState> = {
           r = { id: trackId(s, api), by: pid, text: c.t, ...(c.a ? { artist: c.a } : {}), local: c.id, style: styleForRequest(`${c.t} ${c.a}`), track: trackFor(c.t), at: now };
         } else {
           // picked from the song list: its title and artist, the list's (the whole table reads
-          // them); or the name they typed
+          // them), and its clip; one the phone found on Apple: Apple's name for it (only they and
+          // the host read it) and its clip; or the name they typed (no clip: the remix alone)
           const song = listed(g.song);
-          const text = song ? song.t : cleanAsk(g.text, REQ_CHARS.max);
+          const found = song ? null : fromApple(g.apple);
+          const text = song ? song.t : found ? found.t : cleanAsk(g.text, REQ_CHARS.max);
           if (Array.from(text).length < REQ_CHARS.min) return api.quiet();
-          const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(text);
-          r = { id: trackId(s, api), by: pid, text, ...(song ? { artist: song.a, song: song.id } : {}), style, track: trackFor(text), at: now };
+          const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(found ? `${found.t} ${found.a}` : text);
+          const what = song ? { artist: song.a, song: song.id, p: song.p, st: song.s } : found ? { ...(found.a ? { artist: found.a } : {}), apple: found.id, p: found.p, st: found.st } : {};
+          r = { id: trackId(s, api), by: pid, text, ...what, style, track: trackFor(text), at: now };
         }
         d.reqAt[pid] = now;
         d.reqs.push(r);
@@ -602,6 +626,7 @@ export const dj: GameDef<RoomState> = {
         // the host's songs stay on the speaker's computer: the next set can play them again
         next.crate = s.crate;
         next.crateV = s.crateV;
+        next.mine = s.mine;
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -611,6 +636,14 @@ export const dj: GameDef<RoomState> = {
         api.clear("req");
         api.clear("now");
         api.clear("end");
+        return;
+      }
+      case "mine": {
+        // the host, from their phone: the night on their songs (the speaker switches once it has
+        // some and the song on the air is ready), or back to the stand-in
+        const on = g.on === true;
+        if (!host || s.mine === on) return api.quiet();
+        s.mine = on;
         return;
       }
       default:
@@ -747,6 +780,21 @@ export const dj: GameDef<RoomState> = {
         nextReq(s, api);
         return true;
       }
+      case "mine": {
+        // the big screen's own 我的歌 switch (the host at the speaker)
+        const on = g.on === true;
+        if (!fromSpeaker(s, sid, api) || s.mine === on) return false;
+        s.mine = on;
+        return true;
+      }
+      case "song": {
+        // how a song file sent from the host's phone went: told to that phone
+        const code = typeof g.code === "number" && Number.isInteger(g.code) && g.code >= 0 && g.code < SONG_SENT.length ? g.code : -1;
+        const id = typeof g.id === "number" && Number.isSafeInteger(g.id) && g.id >= 0 ? g.id : -1;
+        if (!fromSpeaker(s, sid, api) || typeof g.by !== "string" || !api.has(g.by) || code < 0 || id < 0) return false;
+        api.fx("song", g.by, [code, id]);
+        return true;
+      }
       case "ending": {
         // the host's song on the air is nearly over: the DJ drops into the next
         const d = s.deck;
@@ -842,6 +890,7 @@ export const dj: GameDef<RoomState> = {
       deck: deckView(s, pid, host),
       crateN: s.crate.length,
       crateV: s.crateV,
+      mine: s.mine,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },
     };
   },

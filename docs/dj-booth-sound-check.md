@@ -275,3 +275,45 @@ buffer never under 4.98 s, all six songs heard, 118 of 129 pads played (the deck
 drops landed (8 the table's, 4 the DJ's own as songs ended), 7 songs asked for, the night's tempo
 following the songs too far off to match (it sat at 126, 124, 100 and 95 BPM at different times), no
 page errors; WebKit's memory 0.80 to 0.93 GB (1.03 at most).
+
+## A song asked for, played for real; 我的歌 from the host's phone (Nov 2, evening)
+
+Steve, after trying it: "on the phone, the remix of the song I picked didn't remix the one I
+wanted", and "this should work on the phone too" (CONTRACTS.md, "The song itself, for 30 seconds"
+and "From the host's phone").
+
+**`site/scripts/dj_clip_check.py`**, the TV in Chromium and in WebKit, three phones: 42 of 42 in each,
+no errors. Apple's preview server and search are answered by the check (this machine can't reach
+Apple, which turns servers away) with made-up clips: one at 124 BPM with a steady 3 kHz tone, one at
+100 BPM with a 5 kHz tone, so the speaker's output can be checked for them. Amy picks 晴天 from the
+list: the TV fetches its clip, hears 124.004 BPM, records the deck's drums alone, and sets the clip
+for the drop's bar to the frame; the drop lands and the clip plays 0.8% faster on the night's 125
+BPM; two seconds in, the 3 kHz tone stands 73 to 88 dB over the music around it (3 to 9 dB before),
+the output about as loud as the night was (-14.7 dBFS before, -12.6 to -13.0 with the clip); Amy's
+phone says 正在放你点的 周杰伦 《晴天》 with a link to the whole song on Apple Music, the TV credits
+Apple; the clip plays out on a bar line and the remix carries on (the tone gone, -8 to -11 dB). Ben
+types a song that isn't on the list: his phone finds it on Apple, only he and the host read its
+name, and at 100 BPM it plays alone at its own speed (its 5 kHz tone 74 dB up). A name found nowhere
+gets the remix alone, as before.
+
+**`site/scripts/dj_mine_check.py`**, the TV in Chromium and in WebKit, two phones: 26 of 26 in each,
+no errors. Amy, the host, sends two made-up songs (126 and 122 BPM, 70 s each) and a file of random
+bytes named like an MP3 from her phone: her phone says each one's word back (加好了, 加好了, 放不了),
+the TV lists the two with their tempos like its own, and the same song sent again: 电视上已经有这首了.
+A phone that isn't the host's sits down and sends a song's pieces straight at the rooms server, under
+a made-up name: the TV never gets them. Amy presses 用我的歌放 on her phone: the TV hands the music to
+her songs with no gap, her phone says 正在放你的歌; 换回试音版 DJ brings the stand-in back, and the TV's
+own switch agrees. The TV page opened again: its songs went with it (they were in its memory), and the
+room's names for them go too, so her phone says none are on the TV (before, the names stayed).
+
+**A busy table with songs asked for** (as before: pads every 3 to 6 seconds, picks, the fader swept,
+a build-up and a drop a minute, and now a song from the list asked for every minute, each with a
+made-up clip), the TV in WebKit: 10 minutes, no stalls, never not playing, the buffer never under
+4.96 s, 9 songs asked for and 8 clips fetched and played on their drop's bar over the drums, 114 of
+117 pads played, 8 drops all perfect, none off the beat, no errors; WebKit's memory 0.75 GB at the
+start and 0.93 to 1.07 GB from the third minute on (the busy table without clips: 0.77 to 1.0 GB).
+
+**`dj_deck_check.py`** 66 of 66 and **`dj_local_check.py`** 32 of 32, each with the TV in Chromium and
+in WebKit (one deck run on the busy machine had a drop's word reach the TV more than 150 ms after its
+bar, so it landed a beat late, as the driver means it to; run again, it passed). Apple stays out of
+the deck check now (its clips are the clip check's).

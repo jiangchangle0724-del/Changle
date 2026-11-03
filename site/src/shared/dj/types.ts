@@ -215,22 +215,31 @@ export type DropState = {
 export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: DropGrade }[]; auto: boolean; to: DeckSide; style: StyleId };
 
 /**
- * A song asked for by name on the beginner deck (Steve's ask on Nov 1): the booth can't play the
- * song itself, so the DJ makes the next track in its style, named for it on the big screen. One
- * the player picked from the site's song list (`song`) shows its title and artist, the list's, to
- * the whole table; a name they typed themself only they and the host read (the others see that
- * they asked for a song): nothing a player types reaches the big screen unchecked.
+ * A song asked for by name on the beginner deck (Steve's ask on Nov 1). The booth can't have the
+ * whole song, so it plays the 30 seconds Apple lets anyone hear of it (`p`, the preview the song
+ * list has, or one the phone found on Apple), on the beat, over the DJ's own drums, and the DJ's
+ * remix in its style carries on after it (Steve on Nov 2: the remix alone didn't sound like the
+ * song he picked); a name that isn't a song anywhere gets the remix alone. One the player picked
+ * from the site's song list (`song`) shows its title and artist, the list's, to the whole table; a
+ * name they typed themself, or found on Apple, only they and the host read (the others see that
+ * they asked for a song): nothing a player sends reaches the big screen unchecked.
  */
 export type SongReq = {
   id: string;
   /** who asked for it */
   by: string;
-  /** the song's title (from the song list), or what the player typed */
+  /** the song's title (from the song list, or Apple's for one found there), or what the player typed */
   text: string;
-  /** its artist, from the song list */
+  /** its artist, from the song list (or Apple) */
   artist?: string;
   /** the song list's id for it (Apple's track id) */
   song?: number;
+  /** Apple's track id for a song the phone found on Apple (not on the list) */
+  apple?: number;
+  /** its preview on Apple's preview server (a path there, as the song list has them, or the full URL) */
+  p?: string;
+  /** the Apple storefront it's from (the link to the whole song) */
+  st?: string;
   /** one of the host's own songs (a night of them): its id in the room's `crate` */
   local?: string;
   /** the style its remix is made in (requests.ts) */
@@ -390,8 +399,9 @@ export type DjCommand =
   /** take back a song that isn't being checked or made yet (the host can take back anyone's) */
   | { x: "unask"; id: string }
   /** ask for a song by name (the deck): `song`, the song list's id when they picked it there;
+   *  `apple`, one the phone found on Apple: [track id, title, artist, preview, storefront];
    *  on a night of the host's songs, `local`: one of them */
-  | { x: "req"; text?: string; song?: number; local?: string }
+  | { x: "req"; text?: string; song?: number; apple?: [number, string, string, string, string]; local?: string }
   /** take back a song asked for by name, waiting or up next (the host can take back anyone's) */
   | { x: "unreq"; id: string }
   /** DROP, pressed during the countdown; `c`: when, on this phone's estimate of the server's clock */
@@ -423,7 +433,11 @@ export type DjCommand =
   /** the host's own songs on this computer: [id, title, artist, bpm, seconds] each */
   | { x: "crate"; songs: [string, string, string, number, number][] }
   /** the host's song on the air is nearly over */
-  | { x: "ending"; id: string };
+  | { x: "ending"; id: string }
+  /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
+  | { x: "mine"; on: boolean }
+  /** the speaker: how a song file sent from the host's phone went (`code`: SONG_SENT), for that phone (`by`), the file's number (`id`) */
+  | { x: "song"; by: string; id: number; code: number };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;
@@ -471,4 +485,14 @@ export type RoomState = {
   /** the host's own songs, when the speaker has some (a night of them: source `local`); `crateV` counts their changes */
   crate: CrateSong[];
   crateV: number;
+  /** the host wants the night on their songs (from their phone or the big screen): the speaker plays them once it has some */
+  mine: boolean;
 };
+
+/**
+ * How a song file sent from the host's phone went (the speaker says, the room tells that phone):
+ * added, or why not (not a sound file, under 45 s, over 15 minutes, can't be played, no room for
+ * more, or there already).
+ */
+export const SONG_SENT = ["added", "kind", "short", "long", "unreadable", "full", "there"] as const;
+export type SongSent = (typeof SONG_SENT)[number];

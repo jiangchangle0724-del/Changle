@@ -7,7 +7,7 @@ import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
 import { useStore } from "../../../store";
 import { NowPlaying, STYLE_NAMES } from "../parts";
-import { hintText, nowLine, PADS, reqLine } from "./words";
+import { CLIP_CREDIT, hintText, nowLine, PADS, reqLine } from "./words";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -20,7 +20,8 @@ const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
  * who has it, the build-up's meter, the countdown to the drop, who did what, and the next thing a
  * beginner could try.
  */
-export function DeckBoard({ v }: { v: DjView }) {
+/** `clip`: the song asked for that's on the air is playing its clip here (not only its remix). */
+export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
   const { now, nameOf } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
@@ -58,7 +59,10 @@ export function DeckBoard({ v }: { v: DjView }) {
         {d.now && (
           <span className="dk-req is-now">
             <Music2 size={24} aria-hidden="true" />
-            <span>{nowLine(d.now, nameOf(d.now.by), zh)}</span>
+            <span>
+              {nowLine(d.now, nameOf(d.now.by), zh, clip)}
+              {clip && <small className="dk-req-credit">{L(CLIP_CREDIT, zh)}</small>}
+            </span>
           </span>
         )}
         {d.up && (

@@ -1,6 +1,7 @@
 import { FolderOpen, Music2, Plus, X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 import type { DjView } from "../../../shared/protocol";
+import { useRoom } from "../../../online/RoomContext";
 import { useStore } from "../../../store";
 import type { useBooth } from "../useBooth";
 import type { NotAdded } from "./crate";
@@ -21,13 +22,15 @@ const WHY: Record<NotAdded, { zh: string; en: string }> = {
  */
 export function LocalPanel({ booth, v }: { booth: Booth; v: DjView }) {
   const { lang } = useStore();
+  const { g } = useRoom();
   const zh = lang === "zh";
   const [open, setOpen] = useState(false);
   const [over, setOver] = useState(false);
   const files = useRef<HTMLInputElement>(null);
   const folder = useRef<HTMLInputElement>(null);
   const n = booth.crate.length;
-  const on = booth.wantLocal && n > 0;
+  // (the switch is the room's: the host's phone has it too)
+  const on = v.mine && n > 0;
   const add = (list: FileList | File[] | null) => {
     if (list && list.length) booth.addFiles(Array.from(list));
   };
@@ -113,16 +116,23 @@ export function LocalPanel({ booth, v }: { booth: Booth; v: DjView }) {
           )}
           <div className="dj-local-go">
             {on ? (
-              <button type="button" className="tv-btn" onClick={() => booth.setWantLocal(false)}>
+              <button type="button" className="tv-btn" onClick={() => g("mine", { on: false })}>
                 {zh ? "换回试音版 DJ" : "Back to the sound-check DJ"}
               </button>
             ) : (
-              <button type="button" className="tv-btn tv-btn-main" disabled={n === 0} onClick={() => booth.setWantLocal(true)}>
+              <button type="button" className="tv-btn tv-btn-main" disabled={n === 0} onClick={() => g("mine", { on: true })}>
                 {zh ? "用我的歌放" : "Play my songs"}
               </button>
             )}
             {n > 0 && !on && (
-              <button type="button" className="tv-btn" onClick={booth.clearSongs}>
+              <button
+                type="button"
+                className="tv-btn"
+                onClick={() => {
+                  booth.clearSongs();
+                  g("mine", { on: false });
+                }}
+              >
                 {zh ? "清空" : "Clear"}
               </button>
             )}
