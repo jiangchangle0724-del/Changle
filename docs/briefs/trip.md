@@ -62,6 +62,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 到此一游: the quiz stays over the landing scene; browser tests that wait for what's drawn
+- 2026-11-03 到此一游 e2e: on its own turn the quiz test answers before it throws
 - 2026-11-03 到此一游 e2e: the local hit's browser test in one game (big screen muted, then on, then gone)
 - 2026-11-03 到此一游: a second visit plays a local hit; the arrival card's local time, weather and hello; prices in local money
 - 2026-11-03 到此一游 e2e: the quiz test never waits on a closed question; a busy page may sleep through a landing
@@ -78,5 +80,6 @@
 - 2026-11-02 建档案。
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
 - 2026-11-02 弹题改版（issue #36）、题库扩到 176 道、回合计时，以及 11-01 试玩的三处小修：英文默认名 Player 1、英文「(you)」括号、iPhone SE 上城市名换行不截断。
-- 2026-11-03 PR #146 的 CI 在 WebKit 上各挂了一个测试，都是测试等错了东西：抢答测试点「这题不答」时题已经到时间关了，就一直等到超时（现在只点还剩 3 秒以上的题，点不到就等下一题）；「同一掷」测试里一部手机忙得一帧都没画，游戏按时钟收掉了这一步，印章没机会出来（10-30 起 main 上就失败过，现在认这种情况，只要那段时间页面真的没画）。
+- 2026-11-03 PR #146 的 CI 在 WebKit 上各挂了一个测试，都是测试等错了东西：抢答测试点「这题不答」时题已经到时间关了，就一直等到超时（现在只点还剩 3 秒以上的题，点不到就等下一题；轮到自己时先答题再掷骰子，因为一掷就开始播第一视角，WebKit 忙着画就好几秒点不动）；「同一掷」测试里一部手机忙得一帧都没画，游戏按时钟收掉了这一步，印章没机会出来（10-30 起 main 上就失败过，现在认这种情况，只要那段时间页面真的没画）。
+- 2026-11-03 查 CI 的 WebKit 记录时发现一个真问题：第一次落地的那段画面（touchdown，z-index 60）盖在抢答弹窗（58）上面。它只在这部手机还能答题时让开，答过以后的细条和揭晓（答案、你知道吗、关闭按钮）都会被盖住。现在弹窗 60、落地画面 59，只有派对惩罚和右下角的测速读数在它上面，`tests/trivia.test.ts` 检查 styles.css 里每一层。另外：自己回合时 WebKit 点不到弹窗，不是布局问题（弹窗的父元素没有 transform，也没被挡），是 CI 的 WebKit 没有显卡，回合开始时 1.5 到 2 秒画不出新帧，测试现在按题目剩下的时间等；ride 测试的落地时间改成印章一盖上就记。
 - 2026-11-03 issue #44 的第 2、3 部分：第二次到访放当地热歌（104 首，只在一台设备上放：有大屏就大屏，没有就落地那队的手机），到达卡加了当地时间、天气、问候语的读法和意思、当地货币，价格旁边加了当地货币。卫星地图（第 1 部分）还没做。

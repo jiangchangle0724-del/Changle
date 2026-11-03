@@ -59,6 +59,11 @@ async function probe(p: Phone) {
       requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
+    // The stamp, the moment it comes down: a page too busy to draw (GitHub's WebKit run) may not draw
+    // another frame before the test reads it, or before the move is put away.
+    new MutationObserver(() => {
+      if (!w.marks.land && document.querySelector(".stage .ride-land.on")) w.marks.land = Date.now();
+    }).observe(document.body, { subtree: true, childList: true, attributeFilter: ["class"] });
     const moving = () => document.querySelector(".stage .throw-dice, .stage .ride");
     document.addEventListener(
       "click",

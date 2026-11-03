@@ -124,12 +124,16 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
   // A question comes up at the start of a turn, for the other teams. Seen on another team's turn, it
   // is answered the first time; after that it is left up, to be seen again when the turn passes to
   // this phone and answered there, on its own turn. The next one after both is skipped.
-  // (A real tap can take GitHub's WebKit a second or two: it waits for the page to draw the button
-  // still. So only on a question with 3 seconds or more to go, at once, and never waiting on one that
-  // has closed meanwhile: the next one will do. The pictures are taken of ones left alone.)
+  // (A real tap waits for the page to draw the button still twice, and GitHub's WebKit, drawing
+  // without a graphics card, can take seconds over that: most at the start of a phone's own turn, as
+  // the edge of the screen glows and the window comes up, and through a throw's ride. So a tap only on
+  // a question with 3 seconds or more to go, at once, waiting no longer than it can still take an
+  // answer; one that closes meanwhile is let go, and the next one will do. On its own turn a phone
+  // answers before it throws, as a player would. The pictures are taken of questions left alone.)
   const done = { own: false, others: false, skipped: false };
   const checked = new Set<string>();
   const pictures = new Set<string>();
+  const within = (secs: number) => Math.max(2000, (secs - 1.5) * 1000);
   const until = Date.now() + 200_000;
   while (Date.now() < until && !(done.own && done.others && done.skipped)) {
     for (const p of [a, b]) {
@@ -146,7 +150,7 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
           const tapped = await pop
             .locator("button.trivia-opt")
             .first()
-            .click({ timeout: 2000 })
+            .click({ timeout: within(box.secs) })
             .then(() => true)
             .catch(() => false);
           if (tapped) done[kind] = await answerTaken(p, box.id);
@@ -154,7 +158,7 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
           // A real tap on 这题不答: it goes, and doesn't come back.
           const tapped = await pop
             .getByRole("button", { name: "这题不答" })
-            .click({ timeout: 2000 })
+            .click({ timeout: within(box.secs) })
             .then(() => true)
             .catch(() => false);
           if (tapped) {
@@ -168,7 +172,9 @@ test("抢答弹在屏幕最上面：自己的回合和别人的回合都整个�
           pictures.add(kind);
         }
       }
-      await tap(p);
+      // (a question this phone is still to answer or skip on its own turn: the throw waits for it)
+      const answerFirst = box?.state === "ask" && box.secs >= 3 && !checked.has(`${p.name}${box.id}own`) && (!done.own || (done.others && !done.skipped));
+      await tap(p, answerFirst ? { skip: ["roll"] } : {});
     }
     await a.page.waitForTimeout(100);
   }
