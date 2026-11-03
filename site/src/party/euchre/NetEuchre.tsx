@@ -4,6 +4,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useRoom } from "../../online/RoomContext";
+import { useWatching } from "../../online/players";
 import { useYourTurn, Waiting } from "../../online/games/common";
 import { team } from "../../shared/euchre";
 import type { EuchreView } from "../../shared/protocol";
@@ -17,6 +18,8 @@ export function NetEuchre({ v, onLeave }: { v: EuchreView; onLeave: () => void }
   const { lang, tr } = useStore();
   const zh = lang === "zh";
   const seatOf = (pid: string) => room?.seats.find((s) => s.id === pid);
+  // (just watching: not at the card table, whether or not a seat is free)
+  const watching = useWatching();
 
   const who = (seat: number): Who => {
     const s = v.seats[seat];
@@ -39,7 +42,7 @@ export function NetEuchre({ v, onLeave }: { v: EuchreView; onLeave: () => void }
         <SeatMap v={v} who={who} />
       ) : (
         <>
-          {v.mySeat === null && <p className="eu-watching">{zh ? "座位满了，你这局在旁边看" : "The seats are full. You're watching this game."}</p>}
+          {v.mySeat === null && !watching && <p className="eu-watching">{zh ? "座位满了，你这局在旁边看" : "The seats are full. You're watching this game."}</p>}
           {v.phase === "end" && v.winner !== null && (
             <div className="moment-row">
               {[v.winner, v.winner + 2].map((i) => {
@@ -72,6 +75,7 @@ function SeatMap({ v, who }: { v: EuchreView; who: (seat: number) => Who }) {
   const { isHost, g } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
+  const watching = useWatching();
   const base = v.mySeat ?? 0;
   const usTeam = team(base);
   const taken = v.seats.map((s, i) => (s.pid ? i : -1)).filter((i) => i >= 0);
@@ -91,7 +95,7 @@ function SeatMap({ v, who }: { v: EuchreView; who: (seat: number) => Who }) {
         <span className="eu-name">{w.name}</span>
         <span className={`eu-chip ${ours && v.mySeat !== null ? "is-ours" : ""}`}>{side}</span>
         <span className="eu-sit-slot">
-          {bot && (
+          {bot && !watching && (
             <button
               type="button"
               className="eu-sit"

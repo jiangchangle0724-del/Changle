@@ -21,11 +21,13 @@
 
 - `site/tests/engine.test.ts`（每个游戏的规则，按服务器的跑法）
 - `site/scripts/net_test.py`（四部手机一桌）
+- `site/scripts/watch_players_check.py`（三个玩家加一个只看的座位：瓶子停在服务器选的人上，名单和计数里没有只看的人）
 
 ## 定过的事
 
 - 规则只写一份（`shared/engine`），单机和联机共用。
 - 秘密（词、票、手牌）不进别人的那一份。
+- 只看的座位不是玩家（11-03）：服务器上 `players()`、游戏的 `api.ids()` 和 `api.has()` 都不算它。手机上的瓶子圈、点人和投票的名单、计分表、「几人好了」这类计数，都用 `site/src/online/players.ts` 的 `usePlayers()`（只有玩家，顺序和服务器一样）；`room.seats` 只用来按 id 找名字和头像。只看的人在游戏里按什么，服务器都不收，它的手机上也没有投票、答题、抢答的按钮；主人只看时，主人的按钮（跳过、下一轮、揭晓）照样能用，但不能投票、答题、猜。
 - 桌号四位，只用不容易看错的字母和 2 到 9（没有 I、L、O、0、1）。
 - 惩罚可以带次数（`times`），自定义惩罚时印章上写 ×次数（#84）。
 - 改到 `site/worker/`、`site/src/shared/`、`site/src/data/`、`site/src/i18n.ts` 或 `site/package-lock.json` 时，合并后服务器自动重新部署。
@@ -37,12 +39,15 @@
 
 ## 交给别的对话
 
-- （暂无）
+- 大屏：`site/src/tv/TvApp.tsx` 大厅里「还差几人」用的是 `room.seats.length`，把只看的人也算进去了，改成只算玩家（`playersOf(room.seats)`）。（11-03）
+- 打碟：大屏舞池（`TvDj.tsx` 的 `Floor`）用 `room.seats` 画人，只看的人也站在舞池里。只看的手机上打碟台的按钮现在按了没用（服务器不收），可以藏起来，或者像 #153 那样显示去大屏的路。（11-03）
+- 林波舞：只看的手机在准备阶段还有「开启动作感应」按钮，按了没用也没害处；#134 合并后顺手藏掉（用 `useWatching()`）。（11-03）
 
 ## 最近的改动
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 A seat that just watches is never counted as a player: the bottle, the lists, the scores and the counts
 - 2026-11-02 打碟 · DJ Booth: a night of the host's own songs (我的歌)
 - 2026-11-02 打碟 · DJ Booth: a new song every two minutes, and the room's rules for songs asked for by name
 - 2026-11-01 feat(games): a countdown under dares and king's commands that name a time (#108)
@@ -54,3 +59,4 @@
 
 - 2026-11-02 建档案。
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
+- 2026-11-03 修好「只看的座位被当成玩家」。以前桌上有人只看时，真心话大冒险的瓶子圈多一个空位，瓶子会停在只看的人身上，服务器其实选的是下一个人；点人、投票的名单里有只看的人，点了也没人罚；「几人好了」「几人投了」的总数、计分表、谁是卧底的「几人在座」都把只看的人算进去。现在这些都只算玩家，服务器也不收只看的人的操作。加了 engine 测试，和浏览器检查 `site/scripts/watch_players_check.py`（三个玩家加一个只看的座位）。

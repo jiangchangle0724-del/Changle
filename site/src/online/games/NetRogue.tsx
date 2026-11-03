@@ -10,6 +10,7 @@ import type { RogueHolders, RogueView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useReached, useRoom, useRoomEvent } from "../RoomContext";
+import { useWatching } from "../players";
 import { HostButton, HostRow, SeatPicker, TurnLine, useYourTurn, Waiting } from "./common";
 
 const t = (zh: string, en: string): T => ({ zh, en });
@@ -240,6 +241,7 @@ function GrabPanel({ v }: { v: RogueView }) {
   const { lang } = useStore();
   const gr = v.grab!;
   const mine = gr.claimed[me];
+  const watching = useWatching();
   const order = Object.entries(gr.claimed).sort((a, b) => a[1] - b[1]);
   return (
     <div className="stack game-panel" style={{ gap: 12 }}>
@@ -247,7 +249,7 @@ function GrabPanel({ v }: { v: RogueView }) {
         <TimerArc seconds={15} running endsAt={gr.endsAt} offset={offset} size={56} />
         <p className="hint">{lang === "zh" ? "抢着按下一个数字" : "Race for the next number"}</p>
       </div>
-      {mine === undefined ? (
+      {watching ? null : mine === undefined ? (
         <motion.button
           key={gr.next}
           type="button"
@@ -321,6 +323,7 @@ function Powers({ v }: { v: RogueView }) {
   const { me, g, nameOf } = useRoom();
   const { ui, tr, lang } = useStore();
   const pen = usePenaltyText();
+  const watching = useWatching();
   const [troubleOpen, setTroubleOpen] = useState(false);
   const [wcAsk, setWcAsk] = useState(false);
   const held = (Object.keys(BADGE) as (keyof RogueHolders)[]).filter((k) => v.holders[k]);
@@ -361,10 +364,13 @@ function Powers({ v }: { v: RogueView }) {
             {lang === "zh" ? "谁接话了" : "Who answered?"}
           </button>
         )}
-        <button type="button" className="power-btn power-quiet" onClick={() => (myWc ? g("wc") : setWcAsk((a) => !a))}>
-          <DoorOpen size={18} />
-          {lang === "zh" ? "上厕所" : "Bathroom"}
-        </button>
+        {/* (someone just watching goes when they like) */}
+        {!watching && (
+          <button type="button" className="power-btn power-quiet" onClick={() => (myWc ? g("wc") : setWcAsk((a) => !a))}>
+            <DoorOpen size={18} />
+            {lang === "zh" ? "上厕所" : "Bathroom"}
+          </button>
+        )}
       </div>
 
       <AnimatePresence>
@@ -430,6 +436,7 @@ function Interrupts({ v }: { v: RogueView }) {
   });
   const freezeOver = useReached(it?.kind === "camera" && it.phase === "freeze" ? it.endsAt : null);
   const tapped = it?.kind === "nose" && it.tapped.includes(me);
+  const watching = useWatching();
   const tapRef = useRef(false);
   useEffect(() => {
     tapRef.current = false;
@@ -479,7 +486,7 @@ function Interrupts({ v }: { v: RogueView }) {
             ) : (
               <div className="interrupt-stage">
                 <p className="interrupt-sub">{lang === "zh" ? `${nameOf(it.by)} 喊摸鼻子` : `${nameOf(it.by)} says: nose!`}</p>
-                {tapped ? (
+                {watching ? null : tapped ? (
                   <p className={`interrupt-big ${lang === "zh" ? "zh-display" : "en-display"}`}>{lang === "zh" ? "摸到了" : "Got it"}</p>
                 ) : (
                   <motion.button

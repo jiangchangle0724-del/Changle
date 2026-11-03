@@ -11,13 +11,15 @@ import { useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useReached, useRoom } from "../RoomContext";
 import { useNetSpin } from "../useNetSpin";
+import { usePlayers } from "../players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "./common";
 import { Moment } from "../../components/Figure";
 
 export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) {
-  const { room, me, isHost, g, nameOf } = useRoom();
+  const { me, isHost, g, nameOf } = useRoom();
   const { ui, tr, lang } = useStore();
-  const seats = room?.seats ?? [];
+  // the ring is the players, slot for slot as the server counts them (someone just watching isn't on it)
+  const seats = usePlayers();
   const count = Math.max(2, seats.length);
 
   // the bottle rests where it last pointed

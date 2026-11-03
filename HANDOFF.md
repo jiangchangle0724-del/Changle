@@ -78,6 +78,7 @@ Phones in a browser, with both local servers above running (Python 3 with Playwr
 ```sh
 python3 scripts/local_check.py     # one phone: every game opens and plays a turn
 python3 scripts/net_test.py        # four phones at one table, online
+python3 scripts/watch_players_check.py # three players and a seat that just watches: no game counts it
 python3 scripts/party_test.py      # the newer games, one phone and online
 python3 scripts/tv_test.py         # the big screen
 python3 scripts/account_check.py   # sign-in, profile, friends, chat
