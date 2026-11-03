@@ -141,6 +141,28 @@ test("the credits page's sources: grouped by city in board order, each listed on
   assert.ok(SEEN_KEEP >= 176, "a phone remembers at least a whole bank of eight questions a city");
 });
 
+test("the pop-up is stacked over everything on a phone but a party forfeit (and the speed test's readout, which takes no taps)", () => {
+  // (the landing scene used to cover it: a team that landed somewhere new couldn't answer)
+  const css = readFileSync("src/client/styles.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const layers: { sel: string; z: number }[] = [];
+  const open: string[] = [];
+  let from = 0;
+  for (let i = 0; i < css.length; i++) {
+    if (css[i] === "{") open.push(css.slice(from, i).trim());
+    else if (css[i] === "}") open.pop();
+    else if (css[i] === ";") {
+      const z = css.slice(from, i).match(/^\s*z-index\s*:\s*(-?\d+)\s*$/);
+      if (z) layers.push({ sel: open[open.length - 1] ?? "", z: Number(z[1]) });
+    }
+    if ("{};".includes(css[i])) from = i + 1;
+  }
+  const pop = layers.filter((l) => l.sel === ".quizpop");
+  assert.equal(pop.length, 1, "the pop-up has one layer");
+  const above = layers.filter((l) => l.z >= pop[0].z && l.sel !== ".quizpop").map((l) => `${l.sel} (${l.z})`);
+  assert.deepEqual(above.sort(), [".forfeit-hold (70)", ".speed-meter (61)"]);
+  assert.ok(layers.some((l) => l.sel === ".touchdown" && l.z < pop[0].z), "the landing scene is under it");
+});
+
 test("phones never hold the answers: nothing the game's own pages load imports the question bank", () => {
   // (only the room does: on the server, and in the one-phone demo, which runs the room in the page)
   const walk = (dir: string): string[] =>
