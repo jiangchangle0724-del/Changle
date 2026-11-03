@@ -725,12 +725,13 @@ export class Room {
     if (this.st.game) return;
     const teams = this.st.teams.filter((t) => t.bot || this.st.settings.hotseat || this.teamMembers(t.id).length > 0);
     if (teams.length < 2) return this.toast(id, "needTwo");
-    // Random seat order; later seats get the step-3 catch-up cash.
+    // Random seat order (a test can keep the order the teams were made); later seats get the step-3 catch-up cash.
     const order = [...teams];
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(this.env.random() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
-    }
+    if (!this.st.settings.inOrder)
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(this.env.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
     const { mode, testRounds } = this.st.settings;
     const cfg = E.defaultConfig(order.length);
     if (mode !== "target") {
