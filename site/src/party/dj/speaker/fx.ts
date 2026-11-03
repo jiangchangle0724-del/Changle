@@ -7,6 +7,7 @@
  * and the crossfader live in the player.
  */
 import { burst, busTo, crash, kick, noise, snare, type Bus } from "../../../lib/audio/engine";
+import { bassDrop, reverseCymbal, vinyl, whistle } from "./club";
 import type { Speaker } from "./speaker";
 
 const OPEN_HZ = 22000;
@@ -29,6 +30,7 @@ export class DeckFx {
   private sweepUntil = 0;
   private hornUntil = 0;
   private sirenUntil = 0;
+  private until: Partial<Record<"bassdrop" | "reverse" | "whistle", number>> = {};
 
   constructor(private sp: Speaker) {
     this.bus = busTo(sp.ctx, sp.fxNodes.synth);
@@ -80,8 +82,11 @@ export class DeckFx {
     for (const f of [440, 443.2, 881.1]) {
       const o = c.createOscillator();
       o.type = "sawtooth";
-      o.frequency.setValueAtTime(f, at);
-      // the last blast sags as the air runs out
+      // each blast bends up into its note (the "bwah"), and the last sags as the air runs out
+      for (const b of [0, 0.5, 1]) {
+        o.frequency.setValueAtTime(f * 0.84, at + b * beat);
+        o.frequency.exponentialRampToValueAtTime(f, at + b * beat + 0.035);
+      }
       o.frequency.setValueAtTime(f, at + 1.5 * beat);
       o.frequency.linearRampToValueAtTime(f * 0.94, end);
       o.connect(shaper);
@@ -96,12 +101,47 @@ export class DeckFx {
       const t0 = at + b * beat;
       const t1 = t0 + len * beat;
       g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(0.14, t0 + 0.012);
-      g.gain.setValueAtTime(0.14, Math.max(t0 + 0.013, t1 - 0.035));
+      g.gain.linearRampToValueAtTime(0.17, t0 + 0.012);
+      g.gain.setValueAtTime(0.17, Math.max(t0 + 0.013, t1 - 0.035));
       g.gain.linearRampToValueAtTime(0, t1);
     }
     this.hornUntil = end;
     window.setTimeout(() => g.disconnect(), (end - c.currentTime + 1) * 1000);
+    return true;
+  }
+
+  /** 黑胶: two bars of an old record (club.ts), the music darker under it (the sweep's filter: not while a sweep runs). */
+  vinyl(at: number, beat: number) {
+    if (at < this.sweepUntil) return false;
+    const { lp } = this.sp.fxNodes;
+    const end = at + 8 * beat;
+    lp.frequency.cancelScheduledValues(at);
+    lp.Q.cancelScheduledValues(at);
+    lp.frequency.setValueAtTime(OPEN_HZ, at);
+    lp.frequency.exponentialRampToValueAtTime(3400, at + 0.06);
+    lp.Q.setValueAtTime(1.1, at);
+    lp.frequency.setValueAtTime(3400, end - 0.06);
+    lp.frequency.exponentialRampToValueAtTime(OPEN_HZ, end);
+    lp.Q.setValueAtTime(0.7, end);
+    this.sweepUntil = end;
+    vinyl(this.ctx, this.sp.fxNodes.synth, at, beat);
+    return true;
+  }
+
+  /** 低音炸弹, 反向镲, 口哨 (club.ts): one of each at a time. */
+  bassDrop(at: number, beat: number) {
+    if (at < (this.until.bassdrop ?? 0)) return false;
+    this.until.bassdrop = bassDrop(this.ctx, this.sp.fxNodes.synth, at, beat);
+    return true;
+  }
+  reverse(at: number, beat: number) {
+    if (at < (this.until.reverse ?? 0)) return false;
+    this.until.reverse = reverseCymbal(this.ctx, this.sp.fxNodes.synth, at, beat);
+    return true;
+  }
+  whistle(at: number, beat: number) {
+    if (at < (this.until.whistle ?? 0)) return false;
+    this.until.whistle = whistle(this.ctx, this.sp.fxNodes.synth, at, beat);
     return true;
   }
 
@@ -241,5 +281,6 @@ export class DeckFx {
       this.riser.gain.gain.setTargetAtTime(0, now, 0.05);
     }
     this.sweepUntil = this.hornUntil = this.sirenUntil = 0;
+    this.until = {};
   }
 }

@@ -4,6 +4,7 @@
  * the song pipeline. CONTRACTS.md beside this file says how they fit together.
  */
 import type { T } from "../../i18n";
+import type { Dancer } from "./dance";
 
 /* ------------------------------------------------------------------ the night */
 
@@ -183,9 +184,10 @@ export type DancerMove = {
  * style at 125 BPM in A minor); the crossfader blends them; the effect pads, the build-up and the
  * drop all land on the beat. CONTRACTS.md, "The beginner deck".
  */
-export type PadId = "echo" | "sweep" | "horn" | "brake" | "siren" | "laser" | "scratch" | "rewind";
+export type PadId = "echo" | "sweep" | "horn" | "brake" | "siren" | "laser" | "scratch" | "rewind" | "vinyl" | "bassdrop" | "reverse" | "whistle";
 /** in this order on the phones (two rows of four); the room's `pad` event names a pad by its place here */
-export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake", "siren", "laser", "scratch", "rewind"];
+/** (the last four Steve's ask on Nov 2: more club sounds, "airhorn blasts, vinyl record") */
+export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake", "siren", "laser", "scratch", "rewind", "vinyl", "bassdrop", "reverse", "whistle"];
 /** the pads that move the music itself (the brake, a scratch, a rewind): one at a time, never into a drop */
 export const MOVES: PadId[] = ["brake", "scratch", "rewind"];
 
@@ -215,22 +217,31 @@ export type DropState = {
 export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: DropGrade }[]; auto: boolean; to: DeckSide; style: StyleId };
 
 /**
- * A song asked for by name on the beginner deck (Steve's ask on Nov 1): the booth can't play the
- * song itself, so the DJ makes the next track in its style, named for it on the big screen. One
- * the player picked from the site's song list (`song`) shows its title and artist, the list's, to
- * the whole table; a name they typed themself only they and the host read (the others see that
- * they asked for a song): nothing a player types reaches the big screen unchecked.
+ * A song asked for by name on the beginner deck (Steve's ask on Nov 1). The booth can't have the
+ * whole song, so it plays the 30 seconds Apple lets anyone hear of it (`p`, the preview the song
+ * list has, or one the phone found on Apple), on the beat, over the DJ's own drums, and the DJ's
+ * remix in its style carries on after it (Steve on Nov 2: the remix alone didn't sound like the
+ * song he picked); a name that isn't a song anywhere gets the remix alone. One the player picked
+ * from the site's song list (`song`) shows its title and artist, the list's, to the whole table; a
+ * name they typed themself, or found on Apple, only they and the host read (the others see that
+ * they asked for a song): nothing a player sends reaches the big screen unchecked.
  */
 export type SongReq = {
   id: string;
   /** who asked for it */
   by: string;
-  /** the song's title (from the song list), or what the player typed */
+  /** the song's title (from the song list, or Apple's for one found there), or what the player typed */
   text: string;
-  /** its artist, from the song list */
+  /** its artist, from the song list (or Apple) */
   artist?: string;
   /** the song list's id for it (Apple's track id) */
   song?: number;
+  /** the whole song on YouTube (a video id), played on the big screen in YouTube's own player
+   *  (Steve on Nov 2, his plan's 观众点歌: never downloaded, never mixed), and its title there */
+  yt?: string;
+  ytT?: string;
+  /** (a clip the DJ can play over its drums: no licensed source sets one now; LICENSES.md) */
+  p?: string;
   /** one of the host's own songs (a night of them): its id in the room's `crate` */
   local?: string;
   /** the style its remix is made in (requests.ts) */
@@ -293,11 +304,25 @@ export type DeckState = {
   reqs: SongReq[];
   up: SongReq | null;
   now: SongReq | null;
-  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick
-   *  and a song asked for taken, the last brake, which screen gives the bars, when it last moved
-   *  them and when it last said anything at all (it says the bars every 10 s while it plays), and
-   *  when the decks and the source were last taken from it */
+  /** when each player's last song asked for came on the air: within DECK.reqAgainMs the others'
+   *  waiting songs go first (the plan: one person's two songs 10 minutes apart) */
+  reqOn: Record<string, number>;
+  /** tonight, for the night's recap (今晚回顾): what went on the air and when (a style, the host's
+   *  songs: `mine`, or nothing between sets: `off`), and the songs asked for that played, oldest
+   *  first. Another set carries them on, like the night's 🔥 */
+  aired: { at: number; style: StyleId | "mine" | "off" }[];
+  heard: SongReq[];
+  /** 真歌时间: a song asked for from YouTube plays whole on the big screen (from `at`, after the DJ
+   *  fades out); the deck waits until it ends, its player or the host skips it, or 12 minutes */
+  song: { id: string; yt: string; by: string; at: number } | null;
+  /** the table's mixer on the speaker's output (混音台) */
+  mixer: MixerState;
+  /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick,
+   *  a song asked for and a mixer switch taken, the last brake, which screen gives the bars, when
+   *  it last moved them and when it last said anything at all (it says the bars every 10 s while it
+   *  plays), and when the decks and the source were last taken from it */
   padAt: Record<string, number>;
+  mixAt: Record<string, number>;
   voteAt: Record<string, number>;
   reqAt: Record<string, number>;
   brakeAt: number;
@@ -308,6 +333,48 @@ export type DeckState = {
   srcAt: number;
   crateAt: number;
 };
+
+/* ------------------------------------------------------------------ the mixer (混音台) */
+
+/**
+ * 混音台 (Steve on Nov 2: "professional mixing, more electronic, knobs"): every phone has the
+ * table's mixer on the speaker's output. Four knobs, -1 to 1, 0 as the music plays: `low`, `mid`,
+ * `high` (the EQ: -1 cuts the band right out, 1 lifts it) and `filter` (left a low-pass closing in,
+ * right a high-pass thinning the music out). Four effects, on or off, each switching on the next
+ * beat: `pump` (the music ducks on every beat and swells back, as under a sidechained kick), `gate`
+ * (cut into sixteenths, a trance gate), `flange` (a jet's sweep) and `crush` (lo-fi, a few bits).
+ */
+export const MIX_KNOBS = ["low", "mid", "high", "filter"] as const;
+export type MixKnob = (typeof MIX_KNOBS)[number];
+export const MIX_FX = ["pump", "gate", "flange", "crush"] as const;
+export type MixFx = (typeof MIX_FX)[number];
+
+/** The mixer as the room keeps it. */
+export type MixerState = {
+  knobs: Record<MixKnob, number>;
+  /** who has each knob: whoever moved it last, until MIXER.holdMs after their last move */
+  knobBy: Partial<Record<MixKnob, string>>;
+  knobAt: Partial<Record<MixKnob, number>>;
+  /** the effects that are on: when (server time) and by whom */
+  fx: Partial<Record<MixFx, { at: number; by: string }>>;
+};
+
+export const MIXER = {
+  /** knobs move in steps of this much */
+  step: 0.05,
+  /** a phone sends a knob at most this often while a finger turns it */
+  sendMs: 100,
+  /** a knob stays with whoever moved it for this long after their last move */
+  holdMs: 1500,
+  /** a phone switches an effect (or resets the mixer) at most this often */
+  fxGapMs: 400,
+  /** an effect goes off by itself this long after it went on (32 bars at 125 BPM): nobody leaves the
+   *  night crushed by accident */
+  fxMs: 61_440,
+} as const;
+
+/** The mixer as the music plays: every knob at 0, no effects. */
+export const freshMixer = (): MixerState => ({ knobs: { low: 0, mid: 0, high: 0, filter: 0 }, knobBy: {}, knobAt: {}, fx: {} });
 
 /** The beginner deck's numbers. */
 export const DECK = {
@@ -359,6 +426,16 @@ export const DECK = {
   reqGapMs: 5000,
   reqWaitMs: 40_000,
   reqPlayMs: 90_000,
+  /** a whole song from YouTube: the DJ fades out over this many bars after its drop, and the song
+   *  plays at most this long (the big screen says when it ends; this is in case it never does) */
+  songFadeBars: 2,
+  songMaxMs: 12 * 60_000,
+  /** a player whose song came on the air this recently waits behind the others' songs (alone, it
+   *  still plays: nobody's turn is taken) */
+  reqAgainMs: 600_000,
+  /** how much of the night the recap keeps: style changes, songs that played */
+  airedMax: 200,
+  heardMax: 30,
   /** a DROP press has to reach the room this long before the bar, so the speaker can land it; a
    *  phone counts `pressTripMs` for getting there. So a press counts until a little over a quarter
    *  second after the cue (people press a moment after they see DROP), and a word that reaches the
@@ -390,8 +467,10 @@ export type DjCommand =
   /** take back a song that isn't being checked or made yet (the host can take back anyone's) */
   | { x: "unask"; id: string }
   /** ask for a song by name (the deck): `song`, the song list's id when they picked it there;
+   *  `apple`, one the phone found on Apple: [track id, title, artist, preview, storefront];
    *  on a night of the host's songs, `local`: one of them */
-  | { x: "req"; text?: string; song?: number; local?: string }
+  | { x: "req"; text?: string; song?: number; yt?: [string, string, string]; local?: string }
+  | { x: "songskip" }
   /** take back a song asked for by name, waiting or up next (the host can take back anyone's) */
   | { x: "unreq"; id: string }
   /** DROP, pressed during the countdown; `c`: when, on this phone's estimate of the server's clock */
@@ -423,7 +502,21 @@ export type DjCommand =
   /** the host's own songs on this computer: [id, title, artist, bpm, seconds] each */
   | { x: "crate"; songs: [string, string, string, number, number][] }
   /** the host's song on the air is nearly over */
-  | { x: "ending"; id: string };
+  | { x: "ending"; id: string }
+  /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
+  | { x: "mine"; on: boolean }
+  | { x: "voice"; on: boolean }
+  | { x: "dance"; bar: number; n: number; of: number }
+  // the mixer (anyone at the table)
+  /** a knob, -1 to 1 (0: as the music plays) */
+  | { x: "mix"; knob: MixKnob; value: number }
+  /** an effect on or off */
+  | { x: "mixfx"; fx: MixFx; on: boolean }
+  /** every knob back to 0, every effect off */
+  | { x: "mixoff" }
+  /** the speaker: how a song file sent from the host's phone went (`code`: SONG_SENT), for that phone (`by`), the file's number (`id`) */
+  | { x: "song"; by: string; id: number; code: number }
+  | { x: "songdone"; id: string };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;
@@ -471,4 +564,20 @@ export type RoomState = {
   /** the host's own songs, when the speaker has some (a night of them: source `local`); `crateV` counts their changes */
   crate: CrateSong[];
   crateV: number;
+  /** the host wants the night on their songs (from their phone or the big screen): the speaker plays them once it has some */
+  mine: boolean;
+  /** 报幕: the big screen says who a song asked for is from as the countdown into it starts (the host can turn it off) */
+  voice: boolean;
+  /** 跟着跳 (shared/dj/dance.ts): each dancer's night, the bar the floor is being counted on, and the floor's combo (0 to 1) */
+  dance: Record<string, Dancer>;
+  danceBar: { bar: number; n: number; good: number };
+  combo: number;
 };
+
+/**
+ * How a song file sent from the host's phone went (the speaker says, the room tells that phone):
+ * added, or why not (not a sound file, under 45 s, over 15 minutes, can't be played, no room for
+ * more, or there already).
+ */
+export const SONG_SENT = ["added", "kind", "short", "long", "unreadable", "full", "there"] as const;
+export type SongSent = (typeof SONG_SENT)[number];

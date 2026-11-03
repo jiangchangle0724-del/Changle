@@ -2,6 +2,7 @@
  * 打碟 · DJ Booth: the speaker's sound chain, on the one device that plays the music.
  *
  *   PCM chunks (deck A, deck B) → player (AudioWorklet: ring buffer, crossfader, brake, rewind, scratch)
+ *     → the table's mixer (EQ, filter, crush, flanger, pump, gate: mixer.ts)
  *     → high-pass (the build-up) → low-pass (the sweep) → master gain → glue compressor → limiter → speakers
  *                                                  ↘ echo ↗              ↗                    ↘ analyser (the lights)
  *     the deck's own sounds (horn, riser, roll, impact: fx.ts) ──────────┘
@@ -10,6 +11,7 @@
  * reactions. Open it from inside a tap: iPhone and Safari start audio only from one.
  */
 import { impulse } from "../../../lib/audio/engine";
+import { MixerChain } from "./mixer";
 import { pcm16ToFloat } from "./pcm";
 import workletUrl from "./player.worklet.js?url";
 
@@ -31,15 +33,24 @@ export type SpeakerOptions = {
   seconds?: number;
 };
 
+/** how far the music dips while the TV speaks (报幕) */
+const DUCK = 0.4;
+
 export class Speaker {
   readonly ctx: AudioContext;
   readonly rate: number;
   private opts: Required<SpeakerOptions>;
   private node: AudioWorkletNode | null = null;
   private master: GainNode;
+  /** under everything, after the ceiling: the music dips while the TV speaks (报幕) */
+  private talk: GainNode;
+  /** and gives way to a whole song from YouTube (giveWay) */
+  private talkFade: GainNode;
   private room: GainNode;
   /** the beginner deck's effects (fx.ts plays them): the filters the music passes through, the echo's send, and where its own sounds go */
   readonly fxNodes: FxNodes;
+  /** the table's mixer, between the player and those (the driver moves it) */
+  readonly mixer: MixerChain;
   private analyser: AnalyserNode;
   private bins: Float32Array<ArrayBuffer>;
   private lo = 2;
@@ -103,7 +114,9 @@ export class Speaker {
     const hz = ctx.sampleRate / this.analyser.fftSize;
     this.lo = Math.max(1, Math.round(45 / hz));
     this.hi = Math.max(this.lo, Math.round(140 / hz));
-    this.master.connect(glue).connect(limit).connect(ctx.destination);
+    this.talk = ctx.createGain();
+    this.talkFade = ctx.createGain();
+    this.master.connect(glue).connect(limit).connect(this.talk).connect(this.talkFade).connect(ctx.destination);
     limit.connect(this.analyser);
     // the beginner deck's effects: both filters wide open, the echo silent, until fx.ts moves them
     const hp = ctx.createBiquadFilter();
@@ -139,6 +152,8 @@ export class Speaker {
     this.room.gain.value = 0;
     lp.connect(roomHp).connect(conv).connect(this.room).connect(this.master);
     this.fxNodes = { hp, lp, send, delay, synth };
+    this.mixer = new MixerChain(ctx);
+    this.mixer.output.connect(hp);
     document.addEventListener("visibilitychange", this.wake);
   }
 
@@ -164,7 +179,8 @@ export class Speaker {
       this.last = e.data;
       for (const fn of this.listeners) fn(e.data);
     };
-    node.connect(this.fxNodes.hp);
+    node.connect(this.mixer.input);
+    this.mixer.attachCrusher(new AudioWorkletNode(this.ctx, "dj-crush", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] }));
     this.node = node;
   }
 
@@ -325,6 +341,14 @@ export class Speaker {
     return Math.sqrt(sum / buf.length);
   }
 
+  /** The music dips (about 8 dB) while the TV speaks, and comes back after. */
+  duck(on: boolean) {
+    const g = this.talk.gain;
+    const t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(on ? DUCK : 1, t, on ? 0.08 : 0.3);
+  }
+
   setVolume(v: number) {
     this.volume = Math.max(0, Math.min(1, v));
     const t = this.ctx.currentTime;
@@ -337,6 +361,15 @@ export class Speaker {
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setTargetAtTime(0, t, Math.max(0.01, seconds / 4));
+  }
+
+  /** The DJ gives way to a whole song (真歌时间: it plays in YouTube's player, not here), or comes back: over `seconds`. */
+  giveWay(away: boolean, seconds: number) {
+    const g = this.talkFade;
+    const t = this.ctx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.linearRampToValueAtTime(away ? 0 : 1, t + Math.max(0.05, seconds));
   }
 
   /** Back up to the volume after a fade. */

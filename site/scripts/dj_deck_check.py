@@ -79,10 +79,17 @@ def press_at(pg, selector, when_ms, event="pointerdown"):
     )
 
 
+def no_apple(route):
+    """Apple stays out of this check (dj_clip_check.py plays songs' clips): no clip, nothing found."""
+    search = "/search" in route.request.url
+    route.fulfill(status=200, body='{"resultCount":0,"results":[]}' if search else b"", headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json" if search else "audio/mp4"})
+
+
 with sync_playwright() as p:
     br = getattr(p, WHICH).launch()
     chrome = br if WHICH == "chromium" else p.chromium.launch()
     tv = br.new_context(viewport={"width": 1600, "height": 900}).new_page()
+    tv.route("https://audio-ssl.itunes.apple.com/**", no_apple)
     errs = []
     tv.on("pageerror", lambda e: errs.append(str(e)))
     tv.on("console", lambda m: errs.append(m.text) if m.type == "error" and "WebSocket" not in m.text else None)
@@ -95,10 +102,11 @@ with sync_playwright() as p:
     phones = []
     for name in ("Amy", "Ben", "Cat"):
         ph = phone(chrome, name, "zh")
+        ph.route("https://itunes.apple.com/search**", no_apple)
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 8, 10000), f"{name}'s phone shows the deck, eight pads")
+        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck, twelve pads")
         phones.append(ph)
     amy, ben, cat = phones
     amy.wait_for_timeout(800)

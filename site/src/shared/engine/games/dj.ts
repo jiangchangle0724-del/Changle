@@ -10,8 +10,9 @@
  * picks, and songs asked for by name, each loaded on the deck off the air for the next drop.
  */
 import { SONG_ROWS } from "../../../data/songs";
-import { ENERGY, FAKE_MIX, mixFor, playing } from "../../dj/curve";
-import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, styleOn } from "../../dj/deck";
+import { ENERGY, FAKE_MIX, heatLean, LEAN_MS, mixFor, playing } from "../../dj/curve";
+import { DANCE } from "../../dj/dance";
+import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, styleOn } from "../../dj/deck";
 import { hintOf, styleForRequest, trackFor } from "../../dj/requests";
 import {
   ASK_CHARS,
@@ -28,8 +29,15 @@ import {
   QUEUE_MAX,
   REQ_CHARS,
   SET_PHASES,
+  SONG_SENT,
   STYLE_IDS,
   WAITING,
+  MIX_FX,
+  MIX_KNOBS,
+  MIXER,
+  freshMixer,
+  type MixFx,
+  type MixKnob,
   type CrateSong,
   type DjPhase,
   type PadId,
@@ -40,6 +48,7 @@ import {
   type Track,
 } from "../../dj/types";
 import type { DeckView, DjTrack, DjView, ReqView } from "../../protocol";
+import { YT_ID } from "../../dj/youtube";
 import { fromRow, type Song } from "../../songs";
 import { clean, num, type Api, type GameDef } from "../api";
 
@@ -69,6 +78,11 @@ function fresh(set: number): RoomState {
     deck: freshDeck(),
     crate: [],
     crateV: 0,
+    mine: false,
+    voice: true,
+    dance: {},
+    danceBar: { bar: -1, n: 0, good: 0 },
+    combo: 0,
   };
 }
 
@@ -80,6 +94,11 @@ function norm(s: RoomState): RoomState {
   s.queue ??= [];
   s.crate ??= [];
   s.crateV ??= 0;
+  s.mine ??= false;
+  s.voice ??= true;
+  s.dance ??= {};
+  s.danceBar ??= { bar: -1, n: 0, good: 0 };
+  s.combo ??= 0;
   // a deck saved before a field existed gets it fresh
   s.deck = { ...freshDeck(), ...s.deck };
   return s;
@@ -139,6 +158,8 @@ function land(s: RoomState, api: Api) {
   d.charge = 0;
   d.chargeAt = api.now;
   d.pending = 0;
+  // the drop hits whole: the mixer's knobs go back to 0 on its bar (its effects stay on)
+  d.mixer = { ...d.mixer, knobs: freshMixer().knobs, knobBy: {}, knobAt: {} };
   // the decks swapped: the picks were for this one, they start over; a song asked for plays now
   if (onAir(d) !== was) swapped(s, api);
   syncMix(s);
@@ -162,6 +183,14 @@ function swapped(s: RoomState, api: Api) {
   api.clear("end");
   if (d.up) {
     d.now = d.up;
+    // its player's next song waits behind the others' for a while; the recap keeps it
+    d.reqOn[d.up.by] = api.now;
+    d.heard = keep([...d.heard, d.up], DECK.heardMax);
+    // 真歌时间: a song from YouTube plays whole on the big screen once the DJ has faded out
+    if (d.up.yt) {
+      d.song = { id: d.up.id, yt: d.up.yt, by: d.up.by, at: api.now + DECK.songFadeBars * 4 * beatMsOf(d.grid) };
+      api.timer("song", d.song.at + DECK.songMaxMs);
+    }
     d.up = null;
     api.clear("req");
     api.timer("now", api.now + DECK.reqPlayMs);
@@ -169,6 +198,41 @@ function swapped(s: RoomState, api: Api) {
     d.now = null;
     api.clear("now");
   }
+  air(s, api);
+}
+
+/** 真歌时间 is over (the big screen says the song ended, someone skipped it, or the time ran out): the DJ comes back. */
+function songOver(s: RoomState, api: Api) {
+  s.deck.song = null;
+  api.clear("song");
+}
+
+/** The recap's record (今晚回顾): what's on the air, kept each time it changes. */
+function air(s: RoomState, api: Api) {
+  if (!playing(s.phase)) return;
+  const d = s.deck;
+  const style = d.local ? "mine" : (styleOn(d, onAir(d)) ?? d.a);
+  if (d.aired.at(-1)?.style === style) return;
+  d.aired = keep([...d.aired, { at: api.now, style }], DECK.airedMax);
+}
+
+/** How often the room reads the floor again while it reacts (on a fixed grid: presses in between
+ *  don't move the timer). */
+const READ_MS = 15_000;
+
+/**
+ * 读场 (the plan's reading of the room): the last minute's 🔥 and ❄️ lean the stretch's energy,
+ * the density and brightness Lyria plays (`heatLean`); read again every 15 s while the floor
+ * reacts, back to the stretch's own a minute after it stops.
+ */
+function readRoom(s: RoomState, api: Api) {
+  if (!playing(s.phase)) return;
+  const lean = heatLean(s.fires, s.colds, api.now);
+  const m = mixFor(s.phase, s.mix, lean);
+  if (m.density !== s.mix.density || m.brightness !== s.mix.brightness) s.mix = { ...s.mix, density: m.density, brightness: m.brightness };
+  const last = Math.max(s.fires.at(-1)?.at ?? 0, s.colds.at(-1)?.at ?? 0);
+  if (api.now - last < LEAN_MS || lean !== 0) api.timer("heat", Math.ceil((api.now + 1) / READ_MS) * READ_MS);
+  else api.clear("heat");
 }
 
 /**
@@ -180,8 +244,12 @@ function nextReq(s: RoomState, api: Api) {
   const d = s.deck;
   if (d.up || d.drop || !playing(s.phase) || !d.reqs.length) return;
   // a night of the host's songs plays the ones asked for from them (the others wait for the stand-in)
-  const i = d.local ? d.reqs.findIndex((r) => !!r.local && s.crate.some((x) => x.id === r.local)) : 0;
-  if (i < 0) return;
+  const ok = (r: SongReq) => !d.local || (!!r.local && s.crate.some((x) => x.id === r.local));
+  // first come, first played, but one player's two songs 10 minutes apart: the others' go first
+  // (alone, it plays: nobody's turn is taken)
+  const first = reqOrder(d.reqs, d.reqOn, api.now).find(ok);
+  if (!first) return;
+  const i = d.reqs.indexOf(first);
   const r = d.reqs.splice(i, 1)[0];
   d.up = r;
   if (d.local) d.songs[offAir(d)] = r.local!;
@@ -199,6 +267,11 @@ function nextReq(s: RoomState, api: Api) {
 function autoDrop(s: RoomState, api: Api, key: "req" | "end") {
   const d = s.deck;
   if (d.drop) return;
+  // a whole song plays: the DJ drops once it's over
+  if (d.song) {
+    api.timer(key, api.now + 5000);
+    return;
+  }
   const side = cued(d, s.source === "lyria");
   if (!side) {
     api.timer(key, api.now + (key === "end" ? 3000 : 5000));
@@ -262,6 +335,7 @@ function setLocal(s: RoomState, on: boolean, api: Api) {
   d.votes = {};
   refill(s, api);
   nextReq(s, api);
+  air(s, api);
 }
 
 /** The host's songs a view shows: the two on the decks, by name. */
@@ -276,9 +350,27 @@ function listed(id: unknown): Song | null {
   return r ? fromRow(r) : null;
 }
 
-/** A song asked for, as `pid` sees it: a name the player typed shows only to them and the host. */
+/**
+ * A song a phone found on YouTube (a link, or a search): [video id, its title, its channel], every
+ * field checked, else null. It plays whole on the big screen, in YouTube's player.
+ */
+function fromYt(v: unknown): { id: string; t: string; a: string } | null {
+  if (!Array.isArray(v) || v.length !== 3) return null;
+  const [id, t, a] = v as unknown[];
+  if (typeof id !== "string" || !YT_ID.test(id)) return null;
+  const title = cleanAsk(t, REQ_CHARS.max);
+  if (!title) return null;
+  return { id, t: title, a: cleanAsk(a, 40) };
+}
+
+/**
+ * A song asked for, as `pid` sees it: a name the player typed, or found on YouTube, shows only to
+ * them and the host (a YouTube one still plays for everyone: its player shows what it is).
+ */
 function reqFor(r: SongReq, pid: string, host: boolean): ReqView {
-  return r.song !== undefined || r.local !== undefined || r.by === pid || host ? r : { ...r, text: null };
+  if ((r.song !== undefined && !r.ytT) || r.local !== undefined || r.by === pid || host) return r;
+  const { artist: _artist, ytT: _ytT, ...rest } = r;
+  return { ...rest, text: r.song !== undefined ? r.text : null };
 }
 
 /** No music: nothing building, nothing on its way (a song up next waits, first in line). */
@@ -291,10 +383,24 @@ function calm(s: RoomState, api: Api) {
   d.up = null;
   d.now = null;
   d.ending = null;
+  // and the mixer as the music plays; the recap notes the music stopped; no whole song
+  d.mixer = freshMixer();
+  d.song = null;
+  api.clear("song");
+  if (d.aired.length && d.aired.at(-1)!.style !== "off") d.aired = keep([...d.aired, { at: api.now, style: "off" }], DECK.airedMax);
   api.clear("drop");
   api.clear("req");
   api.clear("now");
   api.clear("end");
+  api.clear("mix");
+  api.clear("heat");
+}
+
+/** The mixer's effects go off by themselves MIXER.fxMs after they went on: the first of them due. */
+function mixTimer(s: RoomState, api: Api) {
+  const ats = Object.values(s.deck.mixer.fx).map((x) => x!.at + MIXER.fxMs);
+  if (ats.length) api.timer("mix", Math.min(...ats));
+  else api.clear("mix");
 }
 
 /** Move the night to `phase` now, and set when it moves on by itself. */
@@ -302,7 +408,7 @@ function goTo(s: RoomState, phase: DjPhase, api: Api) {
   const now = api.now;
   s.phase = phase;
   s.phaseAt = now;
-  s.mix = mixFor(phase, s.mix);
+  s.mix = mixFor(phase, s.mix, heatLean(s.fires, s.colds, now));
   let next = 0;
   if (phase === "warm") next = now + DJ_TIMES.warm;
   else if (phase === "build") next = now + DJ_TIMES.build;
@@ -330,6 +436,7 @@ function begin(s: RoomState, api: Api) {
   setLocal(s, s.source === "local", api);
   // a song asked for before the music started goes on first
   nextReq(s, api);
+  air(s, api);
 }
 
 /** When `pid` last pressed in `list` (-Infinity: never). */
@@ -408,6 +515,7 @@ export const dj: GameDef<RoomState> = {
           s.colds = keep([...s.colds, { pid, at: api.now }], KEEP_REACTS);
           api.fx("cold", pid);
         }
+        readRoom(s, api);
         return;
       }
       case "knob": {
@@ -463,12 +571,17 @@ export const dj: GameDef<RoomState> = {
           r = { id: trackId(s, api), by: pid, text: c.t, ...(c.a ? { artist: c.a } : {}), local: c.id, style: styleForRequest(`${c.t} ${c.a}`), track: trackFor(c.t), at: now };
         } else {
           // picked from the song list: its title and artist, the list's (the whole table reads
-          // them); or the name they typed
+          // them); with the phone's YouTube find for it, or one found on YouTube by itself (a link,
+          // a search): the whole song plays on the big screen, the DJ's remix in its style after;
+          // or the name they typed (the remix alone)
           const song = listed(g.song);
-          const text = song ? song.t : cleanAsk(g.text, REQ_CHARS.max);
+          const yt = fromYt(g.yt);
+          const text = song ? song.t : yt ? yt.t : cleanAsk(g.text, REQ_CHARS.max);
           if (Array.from(text).length < REQ_CHARS.min) return api.quiet();
-          const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(text);
-          r = { id: trackId(s, api), by: pid, text, ...(song ? { artist: song.a, song: song.id } : {}), style, track: trackFor(text), at: now };
+          const style = song ? styleForRequest(`${song.t} ${song.a} ${song.ae}`, hintOf(song)) : styleForRequest(yt ? `${yt.t} ${yt.a}` : text);
+          const tube = yt ? { yt: yt.id, ytT: yt.t } : {};
+          const what = song ? { artist: song.a, song: song.id, ...tube } : yt ? { ...(yt.a ? { artist: yt.a } : {}), ...tube } : {};
+          r = { id: trackId(s, api), by: pid, text, ...what, style, track: trackFor(text), at: now };
         }
         d.reqAt[pid] = now;
         d.reqs.push(r);
@@ -508,7 +621,7 @@ export const dj: GameDef<RoomState> = {
       case "pad": {
         const d = s.deck;
         const pad = g.pad as PadId;
-        if (!playing(s.phase) || !PAD_IDS.includes(pad)) return api.quiet();
+        if (!playing(s.phase) || s.deck.song || !PAD_IDS.includes(pad)) return api.quiet();
         const now = api.now;
         // a phone's per padTakeMs, and the same pad once for the whole room per roomPadGapMs (two
         // people on the horn at the same moment is one horn): a table mashing can't pile them up
@@ -527,7 +640,8 @@ export const dj: GameDef<RoomState> = {
       case "charge": {
         const d = s.deck;
         const n = num(g.n, 0, DECK.maxTaps);
-        if (!playing(s.phase) || d.drop || n === null) return api.quiet();
+        // (while a whole song plays, the deck waits)
+        if (!playing(s.phase) || d.drop || d.song || n === null) return api.quiet();
         d.pending += Math.round(n);
         // the taps are added a few times a second, and only then does the table hear about it (a
         // phone says 0 once its taps stop, so the last ones are never left waiting)
@@ -555,7 +669,7 @@ export const dj: GameDef<RoomState> = {
         const d = s.deck;
         const v = num(g.value, 0, 1);
         // nothing to blend into while deck B is empty
-        if (!playing(s.phase) || v === null || !hasB(d)) return api.quiet();
+        if (!playing(s.phase) || v === null || !hasB(d) || d.song) return api.quiet();
         const now = api.now;
         // the fader is whoever's moving it: the others wait for them to let go
         if (d.faderBy && d.faderBy !== pid && now - d.faderAt < DECK.faderHoldMs) return api.quiet();
@@ -598,10 +712,14 @@ export const dj: GameDef<RoomState> = {
         next.speaker = s.speaker;
         // the decks as the floor left them, and the night's perfect drops
         const k = s.deck;
-        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt, speakerAt: k.speakerAt, reqs: k.reqs, songs: k.songs, played: k.played };
+        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt, speakerAt: k.speakerAt, reqs: k.reqs, songs: k.songs, played: k.played, reqOn: k.reqOn, aired: k.aired, heard: k.heard };
         // the host's songs stay on the speaker's computer: the next set can play them again
         next.crate = s.crate;
         next.crateV = s.crateV;
+        next.mine = s.mine;
+        next.voice = s.voice;
+        // the night's dancing, like its 🔥
+        next.dance = s.dance;
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -611,6 +729,109 @@ export const dj: GameDef<RoomState> = {
         api.clear("req");
         api.clear("now");
         api.clear("end");
+        return;
+      }
+      case "mix": {
+        // a mixer knob: anyone, while the music plays; whoever moved it holds it a moment (like
+        // the crossfader). Light: a finger turning one sends it ten times a second
+        const d = s.deck;
+        const knob = MIX_KNOBS.includes(g.knob as MixKnob) ? (g.knob as MixKnob) : null;
+        const v = typeof g.value === "number" && Number.isFinite(g.value) ? Math.max(-1, Math.min(1, g.value)) : null;
+        if (!playing(s.phase) || !knob || v === null) return api.quiet();
+        const m = d.mixer;
+        const now = api.now;
+        const by = m.knobBy[knob];
+        if (by && by !== pid && now - (m.knobAt[knob] ?? 0) < MIXER.holdMs) return api.quiet();
+        const value = Math.round(Math.round(v / MIXER.step) * MIXER.step * 100) / 100 || 0;
+        m.knobBy[knob] = pid;
+        m.knobAt[knob] = now;
+        if (value === m.knobs[knob]) return api.quiet();
+        m.knobs[knob] = value;
+        api.light();
+        return;
+      }
+      case "mixfx": {
+        // a mixer effect on or off: anyone, while the music plays, a switch a phone per MIXER.fxGapMs
+        const d = s.deck;
+        const fx = MIX_FX.includes(g.fx as MixFx) ? (g.fx as MixFx) : null;
+        const on = g.on === true;
+        if (!playing(s.phase) || !fx || (d.mixAt[pid] ?? -Infinity) > api.now - MIXER.fxGapMs) return api.quiet();
+        const m = d.mixer;
+        if (!!m.fx[fx] === on) return api.quiet();
+        d.mixAt[pid] = api.now;
+        if (on) m.fx = { ...m.fx, [fx]: { at: api.now, by: pid } };
+        else {
+          const { [fx]: _gone, ...rest } = m.fx;
+          m.fx = rest;
+        }
+        api.fx("mix", pid, [MIX_FX.indexOf(fx), on ? 1 : 0]);
+        mixTimer(s, api);
+        return;
+      }
+      case "mixoff": {
+        // the whole mixer back to as the music plays
+        const d = s.deck;
+        const m = d.mixer;
+        const busy = Object.values(m.knobs).some((v) => v !== 0) || Object.keys(m.fx).length > 0;
+        if (!playing(s.phase) || !busy || (d.mixAt[pid] ?? -Infinity) > api.now - MIXER.fxGapMs) return api.quiet();
+        d.mixAt[pid] = api.now;
+        d.mixer = freshMixer();
+        api.fx("mix", pid, [-1, 0]);
+        mixTimer(s, api);
+        return;
+      }
+      case "mine": {
+        // the host, from their phone: the night on their songs (the speaker switches once it has
+        // some and the song on the air is ready), or back to the stand-in
+        const on = g.on === true;
+        if (!host || s.mine === on) return api.quiet();
+        s.mine = on;
+        return;
+      }
+      case "dance": {
+        // 跟着跳: a phone's count of the beats its player danced in one bar (shared/dj/dance.ts).
+        // Light: every dancer sends one a bar
+        const d = s.deck;
+        const grid = d.grid;
+        const bar = typeof g.bar === "number" && Number.isSafeInteger(g.bar) ? g.bar : null;
+        const of = typeof g.of === "number" && Number.isInteger(g.of) && g.of >= 1 && g.of <= 4 ? g.of : null;
+        const n = typeof g.n === "number" && Number.isInteger(g.n) && of !== null && g.n >= 0 && g.n <= of ? g.n : null;
+        if (!playing(s.phase) || !grid || bar === null || of === null || n === null) return api.quiet();
+        // a bar that's over (as the room counts the speaker's bars), not long ago, and not sent before
+        const now = grid.bar + Math.floor((api.now - grid.at) / (240_000 / grid.bpm));
+        const me = s.dance[pid];
+        if (bar > now || bar < now - DANCE.lateBars || (me && bar <= me.bar)) return api.quiet();
+        const good = n / of >= 0.75;
+        s.dance[pid] = { hits: (me?.hits ?? 0) + n, of: (me?.of ?? 0) + of, bars: (me?.bars ?? 0) + 1, bar, streak: good ? (me?.streak ?? 0) + 1 : 0 };
+        // the floor's combo: a bar settles when the first count for a later one arrives
+        const f = s.danceBar;
+        if (bar > f.bar) {
+          if (f.bar >= 0 && f.n > 0) {
+            s.combo = f.good / f.n >= DANCE.goodShare ? Math.min(1, s.combo + DANCE.comboUp) : Math.max(0, s.combo - DANCE.comboDown);
+            if (s.combo >= 1) {
+              // the whole floor danced it: fireworks on the big screen, and the combo starts again
+              api.fx("dance", pid, [f.bar]);
+              s.combo = 0;
+            }
+          }
+          s.danceBar = { bar, n: 0, good: 0 };
+        }
+        if (bar === s.danceBar.bar) s.danceBar = { bar, n: s.danceBar.n + 1, good: s.danceBar.good + (good ? 1 : 0) };
+        api.light();
+        return;
+      }
+      case "songskip": {
+        // the whole song playing: its player or the host stops it, and the DJ comes back
+        const d = s.deck;
+        if (!d.song || (d.song.by !== pid && !host)) return api.quiet();
+        songOver(s, api);
+        return;
+      }
+      case "voice": {
+        // the host, from their phone: 报幕 on the big screen, on or off
+        const on = g.on === true;
+        if (!host || s.voice === on) return api.quiet();
+        s.voice = on;
         return;
       }
       default:
@@ -747,6 +968,27 @@ export const dj: GameDef<RoomState> = {
         nextReq(s, api);
         return true;
       }
+      case "mine": {
+        // the big screen's own 我的歌 switch (the host at the speaker)
+        const on = g.on === true;
+        if (!fromSpeaker(s, sid, api) || s.mine === on) return false;
+        s.mine = on;
+        return true;
+      }
+      case "songdone": {
+        // the whole song from YouTube ended on the big screen (or couldn't play): the DJ comes back
+        if (!fromSpeaker(s, sid, api) || !s.deck.song || s.deck.song.id !== g.id) return false;
+        songOver(s, api);
+        return true;
+      }
+      case "song": {
+        // how a song file sent from the host's phone went: told to that phone
+        const code = typeof g.code === "number" && Number.isInteger(g.code) && g.code >= 0 && g.code < SONG_SENT.length ? g.code : -1;
+        const id = typeof g.id === "number" && Number.isSafeInteger(g.id) && g.id >= 0 ? g.id : -1;
+        if (!fromSpeaker(s, sid, api) || typeof g.by !== "string" || !api.has(g.by) || code < 0 || id < 0) return false;
+        api.fx("song", g.by, [code, id]);
+        return true;
+      }
       case "ending": {
         // the host's song on the air is nearly over: the DJ drops into the next
         const d = s.deck;
@@ -791,8 +1033,27 @@ export const dj: GameDef<RoomState> = {
       autoDrop(s, api, "end");
       return;
     }
+    if (key === "song") {
+      songOver(s, api);
+      return;
+    }
     if (key === "now") {
       s.deck.now = null;
+      return;
+    }
+    if (key === "heat") {
+      readRoom(s, api);
+      return;
+    }
+    if (key === "mix") {
+      // effects whose time is up go off
+      const m = s.deck.mixer;
+      const due = (Object.keys(m.fx) as MixFx[]).filter((f) => m.fx[f]!.at + MIXER.fxMs <= api.now);
+      if (!due.length) return mixTimer(s, api);
+      const fx = { ...m.fx };
+      for (const f of due) delete fx[f];
+      m.fx = fx;
+      mixTimer(s, api);
       return;
     }
     if (key === "next") {
@@ -842,7 +1103,12 @@ export const dj: GameDef<RoomState> = {
       deck: deckView(s, pid, host),
       crateN: s.crate.length,
       crateV: s.crateV,
+      mine: s.mine,
+      voice: s.voice,
+      dance: s.dance,
+      combo: s.combo,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },
+      speaker: { stalls: s.speaker.stalls, resets: s.speaker.resets, seconds: s.speaker.seconds },
     };
   },
 
@@ -862,7 +1128,7 @@ const SONG_ID = /^[a-z0-9]{1,12}$/i;
  * bookkeeping; a song's name a player typed shows only to them and the host.
  */
 function deckView(s: RoomState, pid: string, host: boolean): DeckView {
-  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, reqAt: _reqAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, crateAt: _crateAt, ...rest } = s.deck;
+  const { pending: _pending, padAt: _padAt, voteAt: _voteAt, reqAt: _reqAt, mixAt: _mixAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, crateAt: _crateAt, ...rest } = s.deck;
   const see = (r: SongReq | null) => (r ? reqFor(r, pid, host) : null);
-  return { ...rest, reqs: rest.reqs.map((r) => reqFor(r, pid, host)), up: see(rest.up), now: see(rest.now) };
+  return { ...rest, reqs: rest.reqs.map((r) => reqFor(r, pid, host)), up: see(rest.up), now: see(rest.now), heard: rest.heard.map((r) => reqFor(r, pid, host)) };
 }

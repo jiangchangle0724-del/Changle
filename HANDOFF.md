@@ -154,7 +154,7 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 
 | App | Secrets (Cloudflare) | Other variables |
 | --- | --- | --- |
-| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
+| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own), `YOUTUBE_API_KEY` (optional: 打碟's song search; links work without it) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
@@ -173,8 +173,12 @@ Worker's `wrangler.jsonc`.
 
 * 打碟 · DJ Booth (`docs/dj-booth.md`, `site/src/shared/dj/CONTRACTS.md`): on the home list since
   Nov 1 (its card plays at changle.ca/dj). The stand-in DJ plays 12 styles on two decks; every
-  phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style), all of
-  it on the beat. Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
+  phone is a beginner deck (pads, the fader, the build-up and DROP, picking the next style) and a
+  mixer (a three-band EQ, a filter, four effects), all of it on the beat; 🔥 and ❄️ lean the energy
+  (读场), the big screen announces songs asked for (报幕) and shows the night's recap at the end.
+  Every phone is a DJ controller (turntables, round knobs, 12 pads); the TV has a dancing coach and
+  phones held in hand score dancing along on the beat (跟着跳, the plan's easy mode).
+  Where every sound comes from: `LICENSES.md` (Apple's preview terms are open for the owner, #113). Lyria RealTime (A2) plays at the owner's own tables only, a private test. Next in
   the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
   `docs/codex-tasks/dj/` (C1 presets is done).
 
