@@ -114,7 +114,9 @@ Each of these was measured or is tested. Check them again after a change.
    Nothing looks tappable that isn't: answers are buttons only where they can be given. Text a player
    needs (labels, tags, the tab's count) is 12 px or more; only printed things go smaller.
 7. **The waiting teams' quiz pops up at the top**, in the same place every time, over everything on
-   a phone but a party forfeit: across the top when the phone is held sideways (the answers side by
+   a phone but a party forfeit, the landing scene included (only the forfeit and the speed test's
+   readout, which takes no taps, are stacked higher: `tests/trivia.test.ts` holds every layer in
+   `styles.css` to that): across the top when the phone is held sideways (the answers side by
    side), top centre on a laptop, at the head of the "now" column on the big screen. All of it shows
    without scrolling: `tests/e2e/quiz.spec.ts` checks 390x844 on the phone's own turn and another's,
    375x667, a phone held sideways, a 320 px iPhone SE in English with the longest question the bank

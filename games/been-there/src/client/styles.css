@@ -1410,10 +1410,12 @@ button.trivia-opt:active {
 /* ---------- the quiz pops up (ui/Trivia.tsx QuizPop) ----------
    At the top of the screen, in the same place every time, over everything on a phone but a party
    forfeit: dropped down like a notification, ringed in the gel because it's yours to answer. It takes
-   no taps for its first 350 ms (.settling), like every new question. */
+   no taps for its first 350 ms (.settling), like every new question. (Over the landing scene too: only
+   the forfeit and the speed test's readout in the corner, which takes no taps, are stacked higher;
+   tests/trivia.test.ts holds every layer to that.) */
 .quizpop {
   position: fixed;
-  z-index: 58;
+  z-index: 60;
   top: max(8px, env(safe-area-inset-top, 0px));
   left: max(10px, env(safe-area-inset-left, 0px));
   right: max(10px, env(safe-area-inset-right, 0px));
@@ -3232,7 +3234,8 @@ h2.departures {
   --wh: 88vmin;
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* (under the quiz's pop-up, .quizpop) */
+  z-index: 59;
   overflow: hidden;
   background: var(--cabin);
   color: #f4ead5;

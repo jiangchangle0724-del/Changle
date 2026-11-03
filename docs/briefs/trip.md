@@ -66,6 +66,7 @@
 
 - 2026-11-03 到此一游 e2e: the screens test gives every phone a quiet moment
 - 2026-11-03 到此一游 e2e: the screens test checks each phone's question before it passes on it
+- 2026-11-03 到此一游: the quiz stays over the landing scene; browser tests that wait for what's drawn
 - 2026-11-03 到此一游 e2e: the phone checks measure a settled screen
 - 2026-11-03 到此一游 e2e: the phone checks lighter (three teams on one city, a two-round game); CI gets 45 minutes
 - 2026-11-03 到此一游 e2e: on its own turn the quiz test answers before it throws
@@ -87,3 +88,4 @@
 - 2026-11-03 PR #146 的 CI 在 WebKit 上各挂了一个测试，都是测试等错了东西：抢答测试点「这题不答」时题已经到时间关了，就一直等到超时（现在只点还剩 3 秒以上的题，点不到就等下一题；轮到自己时先答题再掷骰子，因为一掷就开始播第一视角，WebKit 忙着画就好几秒点不动）；「同一掷」测试里一部手机忙得一帧都没画，游戏按时钟收掉了这一步，印章没机会出来（10-30 起 main 上就失败过，现在认这种情况，只要那段时间页面真的没画）。
 - 2026-11-03 手机版（issue #37 第 2 到 4 条）：地图大小三档（手机默认「中」）、拖地图、地图跟着轮到的队走、第一视角从地图接过镜头再交回；棋子放大、同一格两两并排带字母；大屏地球挪到棋盘下面，停着的棋子看得见了；手机逐屏修 44px、小字、单子标题固定、键盘、窄屏交易；大屏记录修好。新测试 `tests/e2e/phone.spec.ts`（地图大小、同一座城的棋子、三种手机尺寸逐屏、键盘）和 `tv.spec.ts` 里的记录。包含 PR #146，要在它后面合并。
 - 2026-11-03 PR #156 的 CI 各挂过一个手机测试，都是测试量得太早：地图大小的测试里电脑队先走，地图跟着它的棋子动、行动窗口在拖地图的半路打开（现在先等到轮到自己掷骰、地图停下再拖）；逐屏测试在行动窗口滑进来的半路量了关闭键（现在等它停下，按排好的大小量），还会在新题刚弹出、还不能点的那一下就点「这题不答」，题没被看过就收掉了（现在看过这部手机的题以后才不答）；两轮的游戏在测试速度下太快，有一次 375x667 的手机一直等不到一个安静的时候看交易单（现在别人回合的棋盘、设置、交易单在一个安静的时候一起看，轮到的队等别的手机看完再掷骰，回合计时照样走）。手机测试也改轻了一点（同一座城三队、两轮的游戏），GitHub 上这些测试的时间上限从 30 分钟改成 45 分钟（`.github/workflows/been-there.yml`）。
+- 2026-11-03 查 CI 的 WebKit 记录时发现一个真问题：第一次落地的那段画面（touchdown，z-index 60）盖在抢答弹窗（58）上面。它只在这部手机还能答题时让开，答过以后的细条和揭晓（答案、你知道吗、关闭按钮）都会被盖住。现在弹窗 60、落地画面 59，只有派对惩罚和右下角的测速读数在它上面，`tests/trivia.test.ts` 检查 styles.css 里每一层。另外：自己回合时 WebKit 点不到弹窗，不是布局问题（弹窗的父元素没有 transform，也没被挡），是 CI 的 WebKit 没有显卡，回合开始时 1.5 到 2 秒画不出新帧，测试现在按题目剩下的时间等；ride 测试的落地时间改成印章一盖上就记。
