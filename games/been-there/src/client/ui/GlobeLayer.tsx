@@ -97,6 +97,9 @@ async function tokenPicture(kind: number): Promise<HTMLCanvasElement | null> {
     for (let i = 0; i < 3; i++) g.drawImage(img, 8, 8, 240, 240);
     g.shadowBlur = 0;
     g.drawImage(img, 8, 8, 240, 240);
+    // (a browser that won't let a drawing made from an SVG picture go to the graphics card says so
+    // here, before the globe tries: then the little plane flies)
+    g.getImageData(0, 0, 1, 1);
     return c;
   } catch {
     return null;
@@ -106,16 +109,29 @@ async function tokenPicture(kind: number): Promise<HTMLCanvasElement | null> {
   }
 }
 
-export function GlobeLayer({ flight, focus, onOn }: { flight: Flight | null; focus: string | null; onOn?: (on: boolean) => void }) {
+export function GlobeLayer({
+  flight,
+  focus,
+  onOn,
+  busy,
+}: {
+  flight: Flight | null;
+  focus: string | null;
+  onOn?: (on: boolean) => void;
+  /** A move is playing on the board: the globe doesn't put its pictures on now (ui/Ride.tsx). */
+  busy?: boolean;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   const api = useRef<GlobeApi | null>(null);
   const [on, setOn] = useState(false);
+  // The real world's pictures are in, waiting for a quiet moment to be put on.
+  const [loaded, setLoaded] = useState(false);
+  const waitRef = useRef(0);
   // A flight from before this page opened isn't replayed.
   const before = useRef(flight?.key);
   useEffect(() => {
     if (!globeWanted()) return;
     let gone = false;
-    let wait = 0;
     loadGlobe()
       .then((m) => {
         if (gone || !ref.current) return;
@@ -127,12 +143,15 @@ export function GlobeLayer({ flight, focus, onOn }: { flight: Flight | null; foc
           world: { big: [mapUrl(day4), mapUrl(night4)], small: [mapUrl(day2), mapUrl(night2)], light: lightDevice() },
         });
         // (up once it wears the real world; as paper if that takes too long, the world following)
-        const up = () => {
-          clearTimeout(wait);
-          if (!gone) setOn(true);
-        };
-        wait = window.setTimeout(up, WAIT_FOR_WORLD);
-        void api.current.ready.then(up);
+        waitRef.current = window.setTimeout(() => !gone && setOn(true), WAIT_FOR_WORLD);
+        void api.current.ready.then((ok) => {
+          if (gone) return;
+          if (ok) setLoaded(true);
+          else {
+            clearTimeout(waitRef.current);
+            setOn(true);
+          }
+        });
       })
       .catch(() => {});
     const scheme = matchMedia("(prefers-color-scheme: dark)");
@@ -140,12 +159,18 @@ export function GlobeLayer({ flight, focus, onOn }: { flight: Flight | null; foc
     scheme.addEventListener("change", recolor);
     return () => {
       gone = true;
-      clearTimeout(wait);
+      clearTimeout(waitRef.current);
       scheme.removeEventListener("change", recolor);
       api.current?.destroy();
       api.current = null;
     };
   }, []);
+  // The pictures go on between moves (the first time takes the page a moment).
+  useEffect(() => {
+    if (!loaded || busy || !api.current?.wear()) return;
+    clearTimeout(waitRef.current);
+    setOn(true);
+  }, [loaded, busy]);
   useEffect(() => {
     if (on && focus) api.current?.focus(focus);
   }, [on, focus]);

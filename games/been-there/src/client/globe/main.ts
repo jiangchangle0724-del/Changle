@@ -33,16 +33,15 @@ import {
   Sprite,
   SpriteMaterial,
   SRGBColorSpace,
-  TextureLoader,
+  Texture,
   TubeGeometry,
   Vector3,
   WebGLRenderer,
   type Material,
-  type Texture,
 } from "three";
 // Natural Earth 1:110m land as [lon, lat] rings (made by scripts/gen-world.mjs).
 import LAND from "../../samples/land-lonlat.json";
-import { DUSK, sunNow } from "../art/satellite";
+import { DUSK, loadPicture, sunNow } from "../art/satellite";
 import { subsolar } from "./sun";
 
 export interface GlobeColors {
@@ -70,8 +69,10 @@ export interface GlobeApi {
   /** Fly the route; `token` is the team's own token, drawn (a plane flies it when there's none). */
   fly(from: string, to: string, token?: HTMLCanvasElement | null): void;
   recolor(colors: GlobeColors): void;
-  /** Settles once the globe wears the real world (true), or never will (false: it stays paper). */
+  /** Settles once the real world's pictures are in (true), or never will be (false: it stays paper). */
   ready: Promise<boolean>;
+  /** Put them on now (when nothing else is moving on the page); true once it wears them. */
+  wear(): boolean;
   destroy(): void;
 }
 
@@ -432,53 +433,76 @@ void main() {
     run(dur, (t) => world.quaternion.slerpQuaternions(from, q, ease(t)), done);
   };
 
-  // The real world's pictures: the big ones where the graphics card takes them (a big screen is usually
-  // a TV or a computer), the smaller ones on a light device. Until they're in, the paper globe.
+  // The real world's pictures: the big ones where a graphics card takes them (a big screen is usually a
+  // TV or a computer), the smaller ones on a light device or where the drawing is done in software (no
+  // graphics card: a quarter of the work). Decoded off the page's thread as they arrive (`ready`), and put
+  // on (`wear`) when the page says nothing else is moving: handing them to the graphics card and getting
+  // the shader ready take a moment the first time, which is never taken from a move or a flight. Until
+  // then, the paper globe.
   let fading = 0;
   let gone = false;
+  let pictures: [Texture, Texture] | null = null;
+  let worn = false;
+  let wearAfterFlight = false;
   const ready: Promise<boolean> = (async () => {
     const w = opts.world;
     if (!w) return false;
-    const [dayUrl, nightUrl] = renderer.capabilities.maxTextureSize >= 4096 && !w.light ? w.big : w.small;
+    const gl = renderer.getContext();
+    const about = gl.getExtension("WEBGL_debug_renderer_info");
+    const gpu = String(gl.getParameter(about ? about.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "");
+    const software = /swiftshader|llvmpipe|softpipe|software|basic render/i.test(gpu);
+    const [dayUrl, nightUrl] = renderer.capabilities.maxTextureSize >= 4096 && !w.light && !software ? w.big : w.small;
     try {
-      const loader = new TextureLoader();
-      const [day, night] = await Promise.all([loader.loadAsync(dayUrl), loader.loadAsync(nightUrl)]);
-      if (gone) {
-        day.dispose();
-        night.dispose();
-        return false;
-      }
-      for (const t of [day, night]) {
-        t.colorSpace = SRGBColorSpace;
-        t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      }
-      satMat.uniforms.day.value = day;
-      satMat.uniforms.night.value = night;
-      earth.material = satMat;
-      nightSky.visible = false;
-      dotEdges.visible = dots.visible = true;
-      // (already up: the paper gives way over 0.8 s; not yet: it's there from the start)
-      if (canvas.classList.contains("on")) {
-        const t0 = performance.now();
-        const step = () => {
-          const t = Math.min(1, (performance.now() - t0) / 800);
-          satMat.uniforms.fade.value = t;
-          renderer.render(scene, camera);
-          fading = t < 1 ? requestAnimationFrame(step) : 0;
-        };
-        fading = requestAnimationFrame(step);
-      } else satMat.uniforms.fade.value = 1;
-      canvas.dataset.world = "real";
-      kick();
+      const imgs = await Promise.all([loadPicture(dayUrl), loadPicture(nightUrl)]);
+      if (gone) return false;
+      pictures = [new Texture(imgs[0]), new Texture(imgs[1])];
+      canvas.dataset.size = dayUrl.includes("4096") ? "4096" : "2048";
       return true;
     } catch {
       // (offline, or the files are missing: the paper globe stays)
       return false;
     }
   })();
+  const wear = (): boolean => {
+    if (worn) return true;
+    if (!pictures || gone) return false;
+    if (flying) {
+      wearAfterFlight = true;
+      return false;
+    }
+    worn = true;
+    const [day, night] = pictures;
+    for (const t of [day, night]) {
+      t.colorSpace = SRGBColorSpace;
+      t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      t.needsUpdate = true;
+      renderer.initTexture(t);
+    }
+    satMat.uniforms.day.value = day;
+    satMat.uniforms.night.value = night;
+    earth.material = satMat;
+    nightSky.visible = false;
+    dotEdges.visible = dots.visible = true;
+    renderer.compile(scene, camera);
+    // (already up: the paper gives way over 0.8 s; not yet: it's there from the start)
+    if (canvas.classList.contains("on")) {
+      const t0 = performance.now();
+      const step = () => {
+        const t = Math.min(1, (performance.now() - t0) / 800);
+        satMat.uniforms.fade.value = t;
+        renderer.render(scene, camera);
+        fading = t < 1 ? requestAnimationFrame(step) : 0;
+      };
+      fading = requestAnimationFrame(step);
+    } else satMat.uniforms.fade.value = 1;
+    canvas.dataset.world = "real";
+    kick();
+    return true;
+  };
 
   return {
     ready,
+    wear,
     focus(city) {
       const c = opts.cities[city];
       if (!c) return;
@@ -565,6 +589,10 @@ void main() {
           () => {
             flier.visible = false;
             flying = false;
+            if (wearAfterFlight) {
+              wearAfterFlight = false;
+              wear();
+            }
             delete canvas.dataset.flying;
             camera.position.z = REST;
             const end = (want && opts.cities[want]) || b;
@@ -598,7 +626,7 @@ void main() {
       dotGeo.dispose();
       disc.dispose();
       tokenPic?.dispose();
-      for (const t of [satMat.uniforms.day.value, satMat.uniforms.night.value, blank]) t.dispose();
+      for (const t of [satMat.uniforms.day.value, satMat.uniforms.night.value, blank, ...(pictures ?? [])]) t.dispose();
       for (const m of [earthMat, trailMat, planeMat, satMat, edgeMat, fillMat, tokenMat]) m.dispose();
       texture.dispose();
       renderer.dispose();

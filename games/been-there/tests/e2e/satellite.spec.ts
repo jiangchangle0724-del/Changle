@@ -141,7 +141,7 @@ const unit = ([lat, lon]: [number, number]) => {
   return [Math.cos(lat * r) * Math.cos(lon * r), Math.cos(lat * r) * Math.sin(lon * r), Math.sin(lat * r)];
 };
 
-test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自己的棋子沿着飞；棋子落地盖章以后才起飞；大屏的地球也是真实的世界", async ({ browser, request, contextOptions }) => {
+test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自己的棋子沿着飞；棋子落地盖章以后才起飞；大屏的地球也是真实的世界", async ({ browser, request, contextOptions, browserName }) => {
   test.setTimeout(240_000);
   const code = await createRoom(request, {});
   // A big screen too (its globe, where this browser has WebGL), and a laptop playing along with computer teams.
@@ -186,8 +186,17 @@ test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自�
   const f = flown!;
   // It waited for the token to walk round the ring and land, then took off.
   expect(f.flew! - f.added, "the flight takes off after the token is down").toBeGreaterThan(500);
-  // The token flew it: it moved, frame after frame, and then stepped off the map.
-  expect(f.moves.length, "the token moves along the route").toBeGreaterThan(5);
+  // The token flew it: it moved, frame after frame, toward the city it lands on, and then stepped off
+  // the map. (A busy machine may draw only a few of its frames: it's where they put it that counts.)
+  expect(f.moves.length, "the token moves along the route").toBeGreaterThanOrEqual(2);
+  const at = (tf: string) => tf.match(/translate\(([-\d.]+) ([-\d.]+)\)/)!.slice(1, 3).map(Number) as [number, number];
+  const [tx, ty] = (([lat, lon]) => {
+    const d = ((90 - lat) / 148) * 320;
+    return [d * Math.sin((lon * Math.PI) / 180), d * Math.cos((lon * Math.PI) / 180)];
+  })(COORDS[f.to]);
+  const away = (tf: string) => Math.hypot(at(tf)[0] - tx, at(tf)[1] - ty);
+  expect(away(f.moves[f.moves.length - 1]), "the token ends at the city it flew to").toBeLessThan(away(f.moves[0]));
+  expect(away(f.moves[f.moves.length - 1])).toBeLessThan(3);
   expect(f.landed! - f.flew!).toBeGreaterThan(2000);
   // The route: from one city to the other, every point on the great circle through them.
   const pts = f.d
@@ -215,8 +224,10 @@ test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自�
     return !!(c.getContext("webgl2") || c.getContext("webgl"));
   });
   if (webgl) {
-    await expect(tv.page.locator("canvas.globe.on")).toHaveAttribute("data-world", "real", { timeout: 20_000 });
-    await expect(tv.page.locator("canvas.globe")).toHaveAttribute("data-flier", "token", { timeout: 60_000 });
+    await expect(tv.page.locator("canvas.globe.on")).toHaveAttribute("data-world", "real", { timeout: 30_000 });
+    // (the token's picture is made from its drawing; a browser that won't hand that to the graphics card
+    // gets the little plane instead, the designed fallback: Chromium flies the token)
+    await expect(tv.page.locator("canvas.globe")).toHaveAttribute("data-flier", browserName === "chromium" ? "token" : /^(token|plane)$/, { timeout: 60_000 });
   } else await expect(tv.page.locator(".tv-board .roundboard.sat-on")).toHaveCount(1, { timeout: 20_000 });
   expect([...p.errors, ...tv.errors]).toEqual([]);
 });

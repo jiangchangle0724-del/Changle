@@ -104,11 +104,20 @@ export function useSatMap(canvas: RefObject<HTMLCanvasElement>, on: boolean, bus
       }
     };
     document.addEventListener("visibilitychange", back);
+    // (a phone short of memory can take a canvas's drawing away; it's painted again when it's back)
+    const restored = () => {
+      if (!drawn) return;
+      clearTimeout(timer);
+      tick();
+    };
+    const el = canvas.current;
+    el?.addEventListener("contextrestored", restored);
     return () => {
       gone = true;
       clearTimeout(timer);
       w.cancelIdleCallback?.(idle);
       document.removeEventListener("visibilitychange", back);
+      el?.removeEventListener("contextrestored", restored);
     };
   }, [on]);
   return ready;

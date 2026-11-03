@@ -89,9 +89,10 @@ export function latestFlight(v: RoomView): (Flight & { seat: number }) | null {
 const TAKE_OFF = 250;
 
 /**
- * The latest flight as the map flies it: the team's own token flies the route. Another team's waits
- * for its token to walk round the ring and land (nothing tells the landing before the stamp); this
- * phone's own, and the big screen's, come once the move has played (the board stands still for it).
+ * The latest flight as the map flies it: the team's own token flies the route, taking off a moment
+ * after its token is down on the ring and stamped (it walks there first: nothing tells the landing
+ * before the stamp), on every screen in step with the move. A flight seen after its move is over goes
+ * at once. (The big screen's globe flies it once the move has played: GlobeLayer.)
  */
 export function flightToFly(v: RoomView): Flight | null {
   const f = latestFlight(v);
@@ -245,7 +246,7 @@ export function Board({
           a flight on it waits for the token to land) */}
       {globe && (
         <div class="board-cam board-under">
-          <GlobeLayer flight={ride ? null : flightToFly(v)} focus={CITY_AT[focus]?.id ?? null} onOn={setGlobeOn} />
+          <GlobeLayer flight={ride ? null : flightToFly(v)} focus={CITY_AT[focus]?.id ?? null} onOn={setGlobeOn} busy={!!ride} />
         </div>
       )}
       {/* (the map's size and where it's dragged to: ui/mapView.ts) */}

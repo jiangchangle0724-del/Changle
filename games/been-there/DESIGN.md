@@ -276,13 +276,17 @@ Issue #44's part 1: the world inside the printed ring is real.
   on the ring (nothing tells the landing before the stamp), climbs and comes down on the new city along
   the great circle in 2.6 s, its shadow keeping to the ground, the trail drawn behind it, then steps off
   the map, leaving the route. On the flat map a route that would dip off its southern edge (Sydney to
-  Buenos Aires passes Antarctica) goes the other way round the same circle. A phone flies it once its own
-  move has played; with reduced motion the route is simply drawn. On the big screen the globe flies the
-  same token, a picture of it facing the room, along the arc while the camera leans in.
+  Buenos Aires passes Antarctica) goes the other way round the same circle. Every phone takes off at the
+  same moment, a quarter of a second after the stamp (the thrower's as its camera pulls back out); with
+  reduced motion the route is simply drawn. On the big screen the globe flies the same token, a picture
+  of it facing the room, along the arc while the camera leans in, once the move has played.
 * **The big screen's globe** wears the same pictures in a shader (day, night, dusk, a little light for
-  roundness, the air at its rim); it comes up once they're in, or after 6 s as painted paper that gives
-  way to them when they arrive. With reduced motion or without WebGL it stays flat, and the board under it
-  shows the real world as a phone's does.
+  roundness, the air at its rim): the 4096 ones, or the 2048 ones where a graphics card can't take them,
+  on a light device, or where the drawing is done in software with no graphics card. They go on between
+  moves, never during one or during a flight (the first time takes the page a moment), and the globe
+  comes up once they're on, or after 6 s as painted paper that gives way to them when they are. With
+  reduced motion or without WebGL there's no globe, and the board shows the real world flat, as a
+  phone's does.
 * **The ring's colours.** Each city's space is washed in its region's colour, mixed into the navy as light
   mixes (20%, `tint` in `RoundBoard.tsx`), so the ring reads as the regions' posters round the world; the
   airport codes stay at 4.4:1 or more against it. Corners, the band of each region and everything else
