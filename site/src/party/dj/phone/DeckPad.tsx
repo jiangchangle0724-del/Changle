@@ -1,7 +1,8 @@
 import { ChevronsUp, Disc3, ListMusic, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
-import { chargeNow, countdown, cued, grade, hasB, hintFor, loaded, offAir, onAir, pressBy, tally } from "../../../shared/dj/deck";
+import { heatLean } from "../../../shared/dj/curve";
+import { chargeNow, COLD_LEAN, countdown, cued, grade, hasB, hintFor, loaded, offAir, onAir, pressBy, reqOrder, rested, tally } from "../../../shared/dj/deck";
 import { DECK, MOVES, PAD_IDS, REQ_CHARS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
 import type { DjView, ReqView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
@@ -37,7 +38,7 @@ export function DeckPad({ v }: { v: DjView }) {
   useTicker(live, 4000);
 
   const lyria = v.source === "lyria";
-  const hint = hintFor(d, t, live, lyria);
+  const hint = hintFor(d, t, live, lyria, heatLean(v.fires, v.colds, t) <= COLD_LEAN);
   const off = offAir(d);
   const on = onAir(d);
 
@@ -62,7 +63,7 @@ export function DeckPad({ v }: { v: DjView }) {
   return (
     <section className="djk" aria-label={zh ? "打碟台" : "The deck"}>
       <p className="djk-hint" aria-live="polite">
-        {hint ? hintText(hint, off, zh) : zh ? "音乐开始后就能打碟" : "The deck opens when the music starts"}
+        {hint ? hintText(hint, off, zh, d.local) : zh ? "音乐开始后就能打碟" : "The deck opens when the music starts"}
       </p>
       <Decks v={v} on={on} zh={zh} lyria={lyria} />
       <Fader v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
@@ -395,7 +396,7 @@ const appleReq = (h: AppleHit) => [h.id, h.t, h.a, h.p, h.st];
  */
 function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
   const d = v.deck;
-  const { code } = useRoom();
+  const { code, now } = useRoom();
   const [q, setQ] = useState("");
   const [pick, setPick] = useState<Entry | null>(null);
   const [b, setB] = useState<Book | null>(null);
@@ -435,9 +436,14 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
       .map((h) => ({ id: h.id, t: h.t, a: h.a, c: 0, tk: fold(h.t), key: fold(`${h.t} ${h.a}`), apple: h }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.local, pick, found, typed, hits, b]);
-  const waitAt = d.reqs.findIndex((r) => r.by === me);
+  // where this player's song stands, in the order the room plays them (one player's two songs 10
+  // minutes apart: theirs waits behind the others' for a while)
+  const order = reqOrder(d.reqs, d.reqOn ?? {}, now());
+  const waitAt = order.findIndex((r) => r.by === me);
+  const resting = waitAt >= 0 && !rested(d.reqOn ?? {}, me, now()) && waitAt > 0;
+  // (one up next or waiting comes first: one of theirs can be on the air while the next waits)
   const mine: { r: ReqView; at: "now" | "up" | "wait"; ahead: number } | null =
-    d.now?.by === me ? { r: d.now, at: "now", ahead: 0 } : d.up?.by === me ? { r: d.up, at: "up", ahead: 0 } : waitAt >= 0 ? { r: d.reqs[waitAt], at: "wait", ahead: waitAt + (d.up ? 1 : 0) } : null;
+    d.up?.by === me ? { r: d.up, at: "up", ahead: 0 } : waitAt >= 0 ? { r: order[waitAt], at: "wait", ahead: waitAt + (d.up ? 1 : 0) } : d.now?.by === me ? { r: d.now, at: "now", ahead: 0 } : null;
   const full = d.reqs.length >= DECK.reqMax;
   const ended = v.phase === "end";
 
@@ -506,8 +512,8 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
                 ? `下一首就是你点的 ${song}，大家蓄力 Drop 进去`
                 : `Yours is up next: ${song}. Build up and drop into it`
               : zh
-                ? `你点的 ${song} 在排队，前面还有 ${mine.ahead} 首`
-                : `Yours is in line: ${song}, ${mine.ahead} ahead`}
+                ? `你点的 ${song} 在排队，前面还有 ${mine.ahead} 首${resting ? "。你刚放过一首，10 分钟内别人的先放" : ""}`
+                : `Yours is in line: ${song}, ${mine.ahead} ahead${resting ? ". You just had one, so for 10 minutes the others go first" : ""}`}
           </span>
           <button type="button" className="djk-req-cancel" onClick={() => g("unreq", { id: mine.r.id })}>
             {zh ? "不点了" : "Take it back"}

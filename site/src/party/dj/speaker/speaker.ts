@@ -33,12 +33,17 @@ export type SpeakerOptions = {
   seconds?: number;
 };
 
+/** how far the music dips while the TV speaks (报幕) */
+const DUCK = 0.4;
+
 export class Speaker {
   readonly ctx: AudioContext;
   readonly rate: number;
   private opts: Required<SpeakerOptions>;
   private node: AudioWorkletNode | null = null;
   private master: GainNode;
+  /** under everything, after the ceiling: the music dips while the TV speaks (报幕) */
+  private talk: GainNode;
   private room: GainNode;
   /** the beginner deck's effects (fx.ts plays them): the filters the music passes through, the echo's send, and where its own sounds go */
   readonly fxNodes: FxNodes;
@@ -107,7 +112,8 @@ export class Speaker {
     const hz = ctx.sampleRate / this.analyser.fftSize;
     this.lo = Math.max(1, Math.round(45 / hz));
     this.hi = Math.max(this.lo, Math.round(140 / hz));
-    this.master.connect(glue).connect(limit).connect(ctx.destination);
+    this.talk = ctx.createGain();
+    this.master.connect(glue).connect(limit).connect(this.talk).connect(ctx.destination);
     limit.connect(this.analyser);
     // the beginner deck's effects: both filters wide open, the echo silent, until fx.ts moves them
     const hp = ctx.createBiquadFilter();
@@ -330,6 +336,14 @@ export class Speaker {
     let sum = 0;
     for (const x of buf) sum += x * x;
     return Math.sqrt(sum / buf.length);
+  }
+
+  /** The music dips (about 8 dB) while the TV speaks, and comes back after. */
+  duck(on: boolean) {
+    const g = this.talk.gain;
+    const t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(on ? DUCK : 1, t, on ? 0.08 : 0.3);
   }
 
   setVolume(v: number) {

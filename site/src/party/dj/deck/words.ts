@@ -46,7 +46,7 @@ export function mixSaid(who: string, data: number[] | undefined, zh: boolean): s
 }
 
 /** What a beginner could do now, for the hint line (`side`: the deck off the air). */
-export function hintText(h: Hint, side: DeckSide, zh: boolean): string {
+export function hintText(h: Hint, side: DeckSide, zh: boolean, local = false): string {
   const deck = side.toUpperCase();
   switch (h) {
     case "countdown":
@@ -67,6 +67,14 @@ export function hintText(h: Hint, side: DeckSide, zh: boolean): string {
       return zh ? "试试效果键：警笛、搓碟、倒带……" : "Try the pads: siren, scratch, rewind and more";
     case "dropped":
       return zh ? "Drop 了" : "Dropped";
+    case "cold":
+      return local
+        ? zh
+          ? "有点冷场：点一首大家都爱听的"
+          : "The floor's dragging: ask for a song everyone loves"
+        : zh
+          ? "有点冷场：换个风格，蓄力 Drop 过去"
+          : "The floor's dragging: pick another style and drop into it";
   }
 }
 

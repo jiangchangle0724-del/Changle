@@ -1,5 +1,7 @@
 /* Engine flow tests: run with `npx tsx tests/engine.test.ts` */
-import { countdown, cued, loaded, pressBy } from "../src/shared/dj/deck";
+import { countdown, cued, loaded, pressBy, reqOrder } from "../src/shared/dj/deck";
+import { ENERGY, FAKE_MIX, heatLean, LEAN, mixFor } from "../src/shared/dj/curve";
+import { recapOf } from "../src/party/dj/recap";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
@@ -1988,6 +1990,106 @@ test("dj: the mixer (混音台): knobs anyone turns (held a moment by whoever mo
   g("p3", "mixfx", { fx: "flange", on: true });
   g("p1", "phase", { phase: "end" });
   ok(Object.keys(mx().fx).length === 0, "the end of the set: the mixer as the music plays");
+});
+
+test("dj: the plan's floor: ❄️ and reading the room (读场), one person's two songs 10 minutes apart, the night's recap (今晚回顾), 报幕's switch", () => {
+  const e = new RoomEngine(freshRoom("DJFL", clock), host);
+  e.screenHello("tv-fl", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const deck = () => dv("p3").deck;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-fl", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  // the table drops into what's up next: the speaker plays it there, everyone builds it up, Amy presses on the cue
+  const dropIn = () => {
+    sc("decks", { a: deck().a, b: deck().b });
+    for (let i = 0; i < 40 && !deck().drop; i++) {
+      advance(250);
+      g(`p${(i % 3) + 1}`, "charge", { n: 8 });
+    }
+    const dr = deck().drop!;
+    clock = dr.cue + 20;
+    g("p1", "drop", { c: clock });
+    advance(dr.at - clock + 5);
+  };
+
+  ok(heatLean([], [], clock) === 0 && heatLean([{ at: clock }], [], clock + 61_000) === 0, "读场: no reactions in the last minute, no lean");
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
+  ok(mixFor("warm", FAKE_MIX, 1).density === r3(ENERGY.warm.density + LEAN) && mixFor("peak", FAKE_MIX, 1).density === 1 && mixFor("wait", FAKE_MIX, 1).density === 0, "a full lean moves a stretch's energy by LEAN (never past full); no music, none");
+
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  const warm = ENERGY.warm;
+  ok(dv("p1").mix.density === warm.density, "the warm-up's own energy");
+  for (let i = 0; i < 6; i++) {
+    g(`p${(i % 3) + 1}`, "fire");
+    advance(400);
+  }
+  ok(dv("p1").mix.density === r3(warm.density + LEAN / 2) && dv("p1").mix.brightness === r3(warm.brightness + LEAN / 2), "six 🔥 and no ❄️: the room leans halfway up (Lyria plays denser and brighter)");
+  const cold = g("p2", "cold");
+  ok(cold.light && cold.events.some((x) => x.k === "fx" && x.fx === "cold" && x.pid === "p2"), "❄️ from a phone: the screens hear it");
+  ok(dv("p1").mix.density < r3(warm.density + LEAN / 2), "and it pulls the energy back");
+  advance(61_000);
+  ok(dv("p1").mix.density === warm.density, "a minute with nothing: back to the stretch's own");
+  for (let i = 0; i < 6; i++) {
+    g(`p${(i % 3) + 1}`, "cold");
+    advance(400);
+  }
+  ok(dv("p1").mix.density === r3(warm.density - LEAN / 2), "six ❄️: down as far");
+  advance(61_000);
+
+  // songs asked for: Ben's comes on the air
+  g("p2", "req", { text: "reggaeton uno" });
+  ok(deck().up?.by === "p2", "Ben's song is up next");
+  dropIn();
+  ok(deck().now?.by === "p2" && deck().reqOn.p2 === clock && deck().heard.length === 1, "it lands: on the air, and the night's recap has it");
+  advance(6000);
+  g("p3", "req", { text: "techno cat" });
+  advance(6000);
+  g("p2", "req", { text: "trance two" });
+  advance(6000);
+  g("p1", "req", { text: "afrobeats amy" });
+  ok(deck().up?.by === "p3" && deck().reqs.map((r) => r.by).join() === "p2,p1", "Cat's is up; Ben's second waits before Amy's in the line");
+  ok(reqOrder(deck().reqs, deck().reqOn, clock).map((r) => r.by).join() === "p1,p2", "but Ben's just had one: for 10 minutes the others' go first");
+  dropIn();
+  ok(deck().now?.by === "p3" && deck().up?.by === "p1", "Cat's lands, and Amy's comes up ahead of Ben's");
+  dropIn();
+  ok(deck().up?.by === "p2", "Amy's lands: Ben's is the only one left, and it still plays (nobody's turn is taken)");
+  dropIn();
+
+  // the recap: what went on the air and the songs that played
+  const aired = deck().aired;
+  ok(aired.map((a) => a.style).join() === "house,latin,techno,afro,trance" && aired.every((a, k) => k === 0 || a.style !== aired[k - 1].style), "the styles on the air, as they changed");
+  ok(deck().heard.map((r) => r.by).join() === "p2,p3,p1,p2", "the four songs that played, in order");
+  ok(dv("p3").deck.heard[0].text === null && dv("p2").deck.heard[0].text === "reggaeton uno" && dv("p1").deck.heard[0].text === "reggaeton uno", "a typed song's name stays its player's (and the host's) in the recap too");
+  ok(nothing(g("p2", "voice", { on: false })) && dv("p1").voice === true, "报幕: only the host switches it");
+  g("p1", "voice", { on: false });
+  ok(dv("p3").voice === false, "the host turns it off");
+  g("p1", "phase", { phase: "end" });
+  ok(deck().aired.at(-1)!.style === "off", "the set ends: the recap notes the music stopped");
+  const r = recapOf(dv("p1"), clock);
+  ok(r.minutes >= 2 && r.songs.length === 4 && r.fans[0].n >= 2 && r.perfect[0].pid === "p1" && r.styles.length >= 1, "the recap: minutes of music, the songs, who was most fired up, Amy's perfect drops, the styles");
+  g("p1", "again");
+  ok(deck().heard.length === 4 && deck().aired.length === aired.length + 1 && dv("p1").voice === false && deck().reqOn.p2 > 0, "another set: tonight's recap, the 10-minute rule and the switch carry on");
 });
 
 test("dj: 我的歌 from the host's phone: the switch is the room's (the host's phone or the big screen), and the phone hears how a song it sent went", () => {

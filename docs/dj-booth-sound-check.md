@@ -341,3 +341,28 @@ on a beat, 5 drops, no errors; WebKit's memory 0.74 GB at the start, 0.91 GB at 
 
 With the mixer in, the TV in Chromium: **`dj_deck_check.py`** 66 of 66, **`dj_local_check.py`** 32 of
 32, **`dj_clip_check.py`** 42 of 42, **`dj_mine_check.py`** 26 of 26.
+
+## What the plan asked of the floor (Nov 2, night)
+
+Steve: "看看还有什么需要补充的，把他放进去", on the plan (`docs/dj-booth.md`). Built from it: ❄️ beside 🔥,
+the room reading both (读场), one player's two songs 10 minutes apart, the night's recap (今晚回顾),
+报幕, and the sound ledger (`LICENSES.md`). CONTRACTS.md has the rules.
+
+**`site/scripts/dj_floor_check.py`**, the TV in Chromium and in WebKit, three phones: 41 of 41 in each,
+no errors. Ben and Cat press ❄️ six times: Amy's phone shows who and counts them (🔥 0 ❄️ 6), the TV
+counts them, the room's energy leans from 0.35 to 0.275, and the TV's hint says the floor's dragging;
+ten 🔥 from Amy pull it back over 0.35. Ben's song comes up next and as its countdown starts the TV
+says "Next up, a request from Ben" (headless browsers have no voices: the check reads what the TV
+meant to say), once. Cat's song is up, Ben asks again and Amy after him: Ben's phone says two are
+ahead of his and why (he just had one), Amy's says one. The host turns 报幕 off from her phone and
+the TV says nothing for Cat's; when Cat's lands, Amy's comes up before Ben's. The host ends the set:
+the TV shows the recap (minutes of music, the styles played longest, the two songs asked for by who
+asked, never what they typed, Amy most fired up, her perfect drops, the sound never broke), and so
+does every phone, with the player's own line (Ben's reads his song by name, Cat's only that Ben asked
+for one). With the TV in WebKit on this two-core machine Amy's first press missed its moment (the
+phones' timers run late here) and the DJ dropped it on its next countdown, as it should.
+
+**The drop's celebration stayed up** on the TV until the next drop whenever anything changed in the
+room within 3 seconds of a drop (a 🔥, a pad): its timer was tied to the view's object, which every
+update replaces. Found while checking the recap; now tied to the drop's time, and it goes after 3.2 s
+(checked with 🔥 pressed every second after a drop).

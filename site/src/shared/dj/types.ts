@@ -302,6 +302,14 @@ export type DeckState = {
   reqs: SongReq[];
   up: SongReq | null;
   now: SongReq | null;
+  /** when each player's last song asked for came on the air: within DECK.reqAgainMs the others'
+   *  waiting songs go first (the plan: one person's two songs 10 minutes apart) */
+  reqOn: Record<string, number>;
+  /** tonight, for the night's recap (今晚回顾): what went on the air and when (a style, the host's
+   *  songs: `mine`, or nothing between sets: `off`), and the songs asked for that played, oldest
+   *  first. Another set carries them on, like the night's 🔥 */
+  aired: { at: number; style: StyleId | "mine" | "off" }[];
+  heard: SongReq[];
   /** the table's mixer on the speaker's output (混音台) */
   mixer: MixerState;
   /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick,
@@ -413,6 +421,12 @@ export const DECK = {
   reqGapMs: 5000,
   reqWaitMs: 40_000,
   reqPlayMs: 90_000,
+  /** a player whose song came on the air this recently waits behind the others' songs (alone, it
+   *  still plays: nobody's turn is taken) */
+  reqAgainMs: 600_000,
+  /** how much of the night the recap keeps: style changes, songs that played */
+  airedMax: 200,
+  heardMax: 30,
   /** a DROP press has to reach the room this long before the bar, so the speaker can land it; a
    *  phone counts `pressTripMs` for getting there. So a press counts until a little over a quarter
    *  second after the cue (people press a moment after they see DROP), and a word that reaches the
@@ -481,6 +495,7 @@ export type DjCommand =
   | { x: "ending"; id: string }
   /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
   | { x: "mine"; on: boolean }
+  | { x: "voice"; on: boolean }
   // the mixer (anyone at the table)
   /** a knob, -1 to 1 (0: as the music plays) */
   | { x: "mix"; knob: MixKnob; value: number }
@@ -539,6 +554,8 @@ export type RoomState = {
   crateV: number;
   /** the host wants the night on their songs (from their phone or the big screen): the speaker plays them once it has some */
   mine: boolean;
+  /** 报幕: the big screen says who a song asked for is from as the countdown into it starts (the host can turn it off) */
+  voice: boolean;
 };
 
 /**

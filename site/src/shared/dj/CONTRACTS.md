@@ -73,6 +73,28 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   at once but stores it only with the next real change or after 10 seconds, so a party pressing
   all night doesn't write to storage on every tap. Losing the last few seconds of 🔥 counts if the
   table is evicted is fine.
+- **读场, reading the room** (the plan's DJ brain: "🔥 多就加密度加亮度，❄️ 多就降"): the last
+  minute's 🔥 against its ❄️ (`heatLean`, −1 to 1, damped while there are few: six 🔥 and no ❄️
+  lean it halfway) moves the stretch's density and brightness by up to 0.15 (`mixFor`), which
+  Lyria plays. The room reads the floor again every 15 s while it reacts (the timer `heat`, on a
+  fixed 15-second grid so presses in between don't move the alarm) and goes back to the stretch's
+  own energy a minute after the floor goes quiet. The stand-in's recordings don't change with it;
+  when ❄️ is well over 🔥 (a lean of −0.3 or less) the hints on the TV and the phones say what to
+  do (`hintFor`'s `cold`: change the style and drop into it; on the host's songs, ask for one
+  everyone loves), and the TV shows the minute's ❄️ beside its 🔥 (with Lyria, what the DJ read).
+- **报幕** (the plan: "偶尔用语音报幕「下面这首来自 Jackie」"): as the countdown into a song asked
+  for starts (the drop goes to the deck it's on), the big screen says who it's from in its own
+  language ("下面这首来自 Ben", "Next up, a request from Ben"), once a song, with the browser's
+  own voice, the music dipping about 8 dB under it (`Speaker.duck`, after the ceiling). No voice
+  for that language (a Cantonese one doesn't count for Chinese): it stays quiet. The start tap
+  lets the page talk later (`primeVoice`); the host turns it off from their phone (`voice`).
+- **今晚回顾, the night's recap** (the plan's C8): the deck keeps what went on the air and when
+  (`aired`: a style, the host's songs `mine`, or `off` when a set ends) and the songs asked for that
+  played (`heard`, the latest 30; a typed name shows only to its player and the host, as in the
+  line). Another set carries both on, like the night's 🔥 and perfect drops. At the end the TV and
+  every phone show the same recap (`recap.ts`): minutes of music, 🔥, the styles played longest,
+  the songs asked for, who was most fired up, the perfect drops, whether the sound held up (the
+  speaker's `stats`, now in the view as `speaker`); a phone adds the player's own line.
 - **The speaker** is a big screen, so it has no seat: it talks to the game through
   `RoomEngine.screenAct` (the rooms server passes a screen's game actions there; only games with a
   `screen` handler listen, and a screen can never act for a seat). A screen can't be kicked and
@@ -96,7 +118,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | Command | Who | What the room does |
 | --- | --- | --- |
 | `fire` | anyone | 🔥, as above. |
-| `cold` | anyone | ❄️, the other side of 🔥: the latest 40 in `colds`, an `fx` event `cold`. One 🔥 or ❄️ per 300 ms a phone, shared. Light. |
+| `cold` | anyone | ❄️ (冷场 on the phones, beside 🔥), the other side of 🔥: the latest 40 in `colds`, an `fx` event `cold`. One 🔥 or ❄️ per 300 ms a phone, shared. Light. Both are read by the room (读场, below). |
 | `knob` `{ style, value }` | anyone | The player's knob for one of the 12 styles, −1 (less) to 1 (more) on a 0.25 grid; 0 takes it back. Kept in `knobs[pid]`. Light: while a finger drags, send at most one every 250 ms and the last on release. |
 | `drop` `{ c? }` | anyone | DROP, pressed in a drop's countdown (the beginner deck, below): counts once a phone, graded by `c`, the phone's estimate of the server's clock (never later than now, never more than a second earlier); the latest 20 that counted in `drops`, an `fx` event `drop` (`data: [1]` when perfect). Anything else is quiet. Light. |
 | `pad` `{ pad }`, `charge` `{ n }`, `vote` `{ style }`, `fader` `{ value }` | anyone | The beginner deck, below. |
@@ -107,6 +129,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `live` `{ source }`, `stats` `{ stalls, resets, seconds }` | the speaker | As above. |
 | `src` `{ source }` | the speaker | Its music changed hands mid-set (Lyria took over, or the stand-in came back): `source` follows, so every phone shows which DJ plays. Only while music plays, only a real change, at most once a second; the speaker says it again every 3 seconds until the room has it. |
 | `mine` `{ on }` | the host, or the speaker | The night on the host's songs, or back to the stand-in (below): `mine` in the view; the speaker switches once it has songs. |
+| `voice` `{ on }` | the host | 报幕 on the big screen, on (the default) or off: `voice` in the view (below). |
 | `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
 
 - **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
@@ -222,7 +245,7 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
 | `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
-| `req` `{ text, song?, apple? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed, and its clip); `apple`, one the phone found on Apple, `[track id, title, artist, preview, storefront]`, every field checked (the preview can only be a path on Apple's preview server, or a URL there: `previewOk`). One each (waiting or up next), 8 waiting for the table, a phone's taken once per 5 s, none after the end. An `fx` event `req`. |
+| `req` `{ text, song?, apple? }` | A song asked for by name (below): `song`, the song list's id when they picked it from the suggestions (then the list's title and artist, not what was typed, and its clip); `apple`, one the phone found on Apple, `[track id, title, artist, preview, storefront]`, every field checked (the preview can only be a path on Apple's preview server, or a URL there: `previewOk`). One each (waiting or up next), 8 waiting for the table, a phone's taken once per 5 s, none after the end. First come, first played, but one player's two songs 10 minutes apart (the plan): a player whose song came on the air in the last 10 minutes (`reqOn`) waits behind the others' songs, and alone theirs still plays (`reqOrder`; the phone says why it waits). An `fx` event `req`. |
 | `unreq` `{ id }` | Its player, or the host: takes back a song waiting or up next (the next one comes up). One whose remix plays already stays. |
 | `decks` `{ a, b }` (the speaker) | The styles its two decks really sound now (`sounding`; `b` null while B has nothing of its own): a new style plays from its deck's next section once it's recorded. Taken at most once a second; the speaker says it again every 1.5 s until the room has it. |
 | `mix` `{ knob, value }` | One of the mixer's four knobs (below; `MIX_KNOBS`: `low`, `mid`, `high`, `filter`) to `value`, −1 to 1 on a 0.05 grid (0: as the music plays), while music plays. Whoever moved it holds it for 1.5 s after their last move (`mixer.knobBy`, `knobAt`); the others' moves are quiet till then. A phone sends at most every 100 ms while a finger drags, and the last on release. Light. |
@@ -586,6 +609,13 @@ every frame changes only opacity or a transform.
   the switch to her songs from her phone (the TV hands the music over, no gap) and back.
   `tests/dj.test.ts` has the pieces (read back byte for byte, every bad one turned away);
   `tests/engine.test.ts` the switch and the word back.
+- `python3 scripts/dj_floor_check.py [chromium|webkit]`: what the plan asked of the floor, in
+  browsers, a TV and three phones: ❄️ beside 🔥 (the phones and the TV counting it, the room's
+  energy leaning down, then up with 🔥, the TV's hint when it's cold); 报幕 as the countdown into
+  Ben's song starts (what the TV meant to say: headless browsers have no voices), and nothing once
+  the host turns it off; Ben's second song waiting behind Amy's (his phone says why); the night's
+  recap on the TV and the phones (a typed name only for its player). `tests/engine.test.ts` has the
+  room's side.
 - `python3 scripts/dj_mixer_check.py [chromium|webkit]`: the mixer in browsers, a TV and two phones,
   the speaker's output measured for each control: the bass cut (the low end gone; another phone's
   turn of the same knob waiting), the filter closed (the highs gone) and the other way (the lows

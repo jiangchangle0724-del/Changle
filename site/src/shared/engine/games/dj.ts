@@ -10,8 +10,8 @@
  * picks, and songs asked for by name, each loaded on the deck off the air for the next drop.
  */
 import { SONG_ROWS } from "../../../data/songs";
-import { ENERGY, FAKE_MIX, mixFor, playing } from "../../dj/curve";
-import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, styleOn } from "../../dj/deck";
+import { ENERGY, FAKE_MIX, heatLean, LEAN_MS, mixFor, playing } from "../../dj/curve";
+import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, styleOn } from "../../dj/deck";
 import { hintOf, styleForRequest, trackFor } from "../../dj/requests";
 import {
   ASK_CHARS,
@@ -77,6 +77,7 @@ function fresh(set: number): RoomState {
     crate: [],
     crateV: 0,
     mine: false,
+    voice: true,
   };
 }
 
@@ -89,6 +90,7 @@ function norm(s: RoomState): RoomState {
   s.crate ??= [];
   s.crateV ??= 0;
   s.mine ??= false;
+  s.voice ??= true;
   // a deck saved before a field existed gets it fresh
   s.deck = { ...freshDeck(), ...s.deck };
   return s;
@@ -173,6 +175,9 @@ function swapped(s: RoomState, api: Api) {
   api.clear("end");
   if (d.up) {
     d.now = d.up;
+    // its player's next song waits behind the others' for a while; the recap keeps it
+    d.reqOn[d.up.by] = api.now;
+    d.heard = keep([...d.heard, d.up], DECK.heardMax);
     d.up = null;
     api.clear("req");
     api.timer("now", api.now + DECK.reqPlayMs);
@@ -180,6 +185,35 @@ function swapped(s: RoomState, api: Api) {
     d.now = null;
     api.clear("now");
   }
+  air(s, api);
+}
+
+/** The recap's record (今晚回顾): what's on the air, kept each time it changes. */
+function air(s: RoomState, api: Api) {
+  if (!playing(s.phase)) return;
+  const d = s.deck;
+  const style = d.local ? "mine" : (styleOn(d, onAir(d)) ?? d.a);
+  if (d.aired.at(-1)?.style === style) return;
+  d.aired = keep([...d.aired, { at: api.now, style }], DECK.airedMax);
+}
+
+/** How often the room reads the floor again while it reacts (on a fixed grid: presses in between
+ *  don't move the timer). */
+const READ_MS = 15_000;
+
+/**
+ * 读场 (the plan's reading of the room): the last minute's 🔥 and ❄️ lean the stretch's energy,
+ * the density and brightness Lyria plays (`heatLean`); read again every 15 s while the floor
+ * reacts, back to the stretch's own a minute after it stops.
+ */
+function readRoom(s: RoomState, api: Api) {
+  if (!playing(s.phase)) return;
+  const lean = heatLean(s.fires, s.colds, api.now);
+  const m = mixFor(s.phase, s.mix, lean);
+  if (m.density !== s.mix.density || m.brightness !== s.mix.brightness) s.mix = { ...s.mix, density: m.density, brightness: m.brightness };
+  const last = Math.max(s.fires.at(-1)?.at ?? 0, s.colds.at(-1)?.at ?? 0);
+  if (api.now - last < LEAN_MS || lean !== 0) api.timer("heat", Math.ceil((api.now + 1) / READ_MS) * READ_MS);
+  else api.clear("heat");
 }
 
 /**
@@ -191,8 +225,12 @@ function nextReq(s: RoomState, api: Api) {
   const d = s.deck;
   if (d.up || d.drop || !playing(s.phase) || !d.reqs.length) return;
   // a night of the host's songs plays the ones asked for from them (the others wait for the stand-in)
-  const i = d.local ? d.reqs.findIndex((r) => !!r.local && s.crate.some((x) => x.id === r.local)) : 0;
-  if (i < 0) return;
+  const ok = (r: SongReq) => !d.local || (!!r.local && s.crate.some((x) => x.id === r.local));
+  // first come, first played, but one player's two songs 10 minutes apart: the others' go first
+  // (alone, it plays: nobody's turn is taken)
+  const first = reqOrder(d.reqs, d.reqOn, api.now).find(ok);
+  if (!first) return;
+  const i = d.reqs.indexOf(first);
   const r = d.reqs.splice(i, 1)[0];
   d.up = r;
   if (d.local) d.songs[offAir(d)] = r.local!;
@@ -273,6 +311,7 @@ function setLocal(s: RoomState, on: boolean, api: Api) {
   d.votes = {};
   refill(s, api);
   nextReq(s, api);
+  air(s, api);
 }
 
 /** The host's songs a view shows: the two on the decks, by name. */
@@ -320,13 +359,15 @@ function calm(s: RoomState, api: Api) {
   d.up = null;
   d.now = null;
   d.ending = null;
-  // and the mixer as the music plays
+  // and the mixer as the music plays; the recap notes the music stopped
   d.mixer = freshMixer();
+  if (d.aired.length && d.aired.at(-1)!.style !== "off") d.aired = keep([...d.aired, { at: api.now, style: "off" }], DECK.airedMax);
   api.clear("drop");
   api.clear("req");
   api.clear("now");
   api.clear("end");
   api.clear("mix");
+  api.clear("heat");
 }
 
 /** The mixer's effects go off by themselves MIXER.fxMs after they went on: the first of them due. */
@@ -341,7 +382,7 @@ function goTo(s: RoomState, phase: DjPhase, api: Api) {
   const now = api.now;
   s.phase = phase;
   s.phaseAt = now;
-  s.mix = mixFor(phase, s.mix);
+  s.mix = mixFor(phase, s.mix, heatLean(s.fires, s.colds, now));
   let next = 0;
   if (phase === "warm") next = now + DJ_TIMES.warm;
   else if (phase === "build") next = now + DJ_TIMES.build;
@@ -369,6 +410,7 @@ function begin(s: RoomState, api: Api) {
   setLocal(s, s.source === "local", api);
   // a song asked for before the music started goes on first
   nextReq(s, api);
+  air(s, api);
 }
 
 /** When `pid` last pressed in `list` (-Infinity: never). */
@@ -447,6 +489,7 @@ export const dj: GameDef<RoomState> = {
           s.colds = keep([...s.colds, { pid, at: api.now }], KEEP_REACTS);
           api.fx("cold", pid);
         }
+        readRoom(s, api);
         return;
       }
       case "knob": {
@@ -640,11 +683,12 @@ export const dj: GameDef<RoomState> = {
         next.speaker = s.speaker;
         // the decks as the floor left them, and the night's perfect drops
         const k = s.deck;
-        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt, speakerAt: k.speakerAt, reqs: k.reqs, songs: k.songs, played: k.played };
+        next.deck = { ...freshDeck(), a: k.a, b: k.b, fader: k.fader, votes: k.votes, grid: k.grid, perfects: k.perfects, sounding: k.sounding, gridFrom: k.gridFrom, gridSetAt: k.gridSetAt, speakerAt: k.speakerAt, reqs: k.reqs, songs: k.songs, played: k.played, reqOn: k.reqOn, aired: k.aired, heard: k.heard };
         // the host's songs stay on the speaker's computer: the next set can play them again
         next.crate = s.crate;
         next.crateV = s.crateV;
         next.mine = s.mine;
+        next.voice = s.voice;
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -711,6 +755,13 @@ export const dj: GameDef<RoomState> = {
         const on = g.on === true;
         if (!host || s.mine === on) return api.quiet();
         s.mine = on;
+        return;
+      }
+      case "voice": {
+        // the host, from their phone: 报幕 on the big screen, on or off
+        const on = g.on === true;
+        if (!host || s.voice === on) return api.quiet();
+        s.voice = on;
         return;
       }
       default:
@@ -910,6 +961,10 @@ export const dj: GameDef<RoomState> = {
       s.deck.now = null;
       return;
     }
+    if (key === "heat") {
+      readRoom(s, api);
+      return;
+    }
     if (key === "mix") {
       // effects whose time is up go off
       const m = s.deck.mixer;
@@ -969,7 +1024,9 @@ export const dj: GameDef<RoomState> = {
       crateN: s.crate.length,
       crateV: s.crateV,
       mine: s.mine,
+      voice: s.voice,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },
+      speaker: { stalls: s.speaker.stalls, resets: s.speaker.resets, seconds: s.speaker.seconds },
     };
   },
 
@@ -991,5 +1048,5 @@ const SONG_ID = /^[a-z0-9]{1,12}$/i;
 function deckView(s: RoomState, pid: string, host: boolean): DeckView {
   const { pending: _pending, padAt: _padAt, voteAt: _voteAt, reqAt: _reqAt, mixAt: _mixAt, gridFrom: _gridFrom, speakerAt: _speakerAt, decksAt: _decksAt, srcAt: _srcAt, crateAt: _crateAt, ...rest } = s.deck;
   const see = (r: SongReq | null) => (r ? reqFor(r, pid, host) : null);
-  return { ...rest, reqs: rest.reqs.map((r) => reqFor(r, pid, host)), up: see(rest.up), now: see(rest.now) };
+  return { ...rest, reqs: rest.reqs.map((r) => reqFor(r, pid, host)), up: see(rest.up), now: see(rest.now), heard: rest.heard.map((r) => reqFor(r, pid, host)) };
 }

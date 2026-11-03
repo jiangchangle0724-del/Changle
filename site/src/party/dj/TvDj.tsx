@@ -1,9 +1,9 @@
-import { Disc3, Flame as FlameIcon, Loader2, Play } from "lucide-react";
+import { Disc3, Flame as FlameIcon, Loader2, Play, Snowflake } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lyriaUrl } from "../../online/config";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
 import { SeatFace } from "../../online/People";
-import { ENERGY } from "../../shared/dj/curve";
+import { ENERGY, heatLean } from "../../shared/dj/curve";
 import { decodePiece } from "../../shared/dj/songwire";
 import { SONG_SENT, type DjPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
@@ -13,7 +13,9 @@ import { Floor, useFloorLoop, type Flame } from "./Floor";
 import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePadEvents } from "./deck/TvDeck";
 import { LocalPanel } from "./local/LocalPanel";
 import { NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
+import { RecapLines } from "./RecapLines";
 import { useBooth } from "./useBooth";
+import { primeVoice, useAnnounce } from "./announce";
 import "../../styles/dj.css";
 
 /**
@@ -22,7 +24,7 @@ import "../../styles/dj.css";
  * follow the kick, everyone at the table dances on the beat, and every 🔥 shows whose it was.
  */
 export default function TvDj({ v }: { v: DjView }) {
-  const { room, code, g, now } = useRoom();
+  const { room, code, g, now, nameOf } = useRoom();
   const { lang, sound } = useStore();
   const zh = lang === "zh";
   // at one of the owner's tables this screen may stream Lyria (the private test)
@@ -151,6 +153,12 @@ export default function TvDj({ v }: { v: DjView }) {
   const live = booth.status === "on";
   const silent = live && (v.phase === "wait" || state !== "playing") && v.phase !== "end";
   const tonight = Object.values(v.total).reduce((a, b) => a + b, 0);
+  // ❄️ this minute, and the DJ reading the floor (读场: Lyria leans its energy with it)
+  const chills = v.colds.filter((c) => now() - c.at < 60_000).length;
+  const lean = heatLean(v.fires, v.colds, now());
+  const reads = v.source === "lyria" && Math.abs(lean) >= 0.2 ? (lean > 0 ? (zh ? "DJ 读到了：大家很嗨，加劲" : "The DJ reads the floor: hot, pushing on") : zh ? "DJ 读到了：有点冷，收一收" : "The DJ reads the floor: cold, easing off") : null;
+  // 报幕: who the song coming in is from, as its countdown starts
+  useAnnounce(v, speaker, nameOf, zh, live && v.voice !== false);
 
   // the moment the music itself reaches a new stretch of the night (not the host's tap, which can
   // come up to a phrase earlier): its name, big, on the beat it lands
@@ -210,7 +218,16 @@ export default function TvDj({ v }: { v: DjView }) {
             <FlameIcon size={30} strokeWidth={2.4} />
             {v.phase === "end" ? tonight : heat}
           </span>
-          <span className="dj-heat-label">{v.phase === "end" ? (zh ? "今晚的 🔥" : "🔥 tonight") : zh ? "这一分钟的 🔥" : "🔥 this minute"}</span>
+          {v.phase !== "end" && chills > 0 && (
+            <span className="dj-heat-n is-cold tabular">
+              <Snowflake size={26} strokeWidth={2.4} />
+              {chills}
+            </span>
+          )}
+          <span className="dj-heat-label">
+            {v.phase === "end" ? (zh ? "今晚的 🔥" : "🔥 tonight") : zh ? "这一分钟" : "this minute"}
+            {reads && <span className="dj-heat-read">{reads}</span>}
+          </span>
           {fans.length > 0 && (
             <span className="dj-fans">
               {fans.map((f) => (
@@ -236,9 +253,25 @@ export default function TvDj({ v }: { v: DjView }) {
       {v.phase === "end" && <EndCard v={v} />}
 
       <LocalPanel booth={booth} v={v} />
-      {!live && <StartCard status={booth.status} midSet={v.phase !== "wait" && v.phase !== "end"} onStart={booth.start} />}
+      {!live && (
+        <StartCard
+          status={booth.status}
+          midSet={v.phase !== "wait" && v.phase !== "end"}
+          onStart={() => {
+            primeVoice();
+            booth.start();
+          }}
+        />
+      )}
       {live && booth.stopped && (
-        <button type="button" className="dj-wake" onClick={booth.wake}>
+        <button
+          type="button"
+          className="dj-wake"
+          onClick={() => {
+            primeVoice();
+            booth.wake();
+          }}
+        >
           <Play size={30} strokeWidth={2.6} />
           {zh ? "声音停了，点一下接着放" : "The sound stopped. Tap to carry on"}
         </button>
@@ -306,26 +339,15 @@ function StartCard({ status, midSet, onStart }: { status: string; midSet: boolea
   );
 }
 
-/** The set is over: what the night came to. */
+/** The set is over: the night's recap (今晚回顾). */
 function EndCard({ v }: { v: DjView }) {
-  const { room } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
-  const seats = room?.seats ?? [];
-  const mins = v.liveAt ? Math.max(1, Math.round((v.phaseAt - v.liveAt) / 60_000)) : 0;
-  const total = Object.values(v.total).reduce((a, b) => a + b, 0);
-  const top = Object.entries(v.total)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([pid]) => seats.find((s) => s.id === pid)?.name)
-    .filter(Boolean);
   return (
     <div className="dj-end" role="status">
       <h2 className="dj-end-title">{phaseName("end", zh)}</h2>
-      <p className="dj-end-line tabular">
-        {zh ? `放了 ${mins} 分钟，🔥 一共 ${total} 次` : `${mins} minutes of music, ${total} 🔥 in all`}
-      </p>
-      {top.length > 0 && <p className="dj-end-line">{zh ? `最嗨：${top.join("、")}` : `Most fired up: ${top.join(", ")}`}</p>}
+      <span className="dj-end-kicker">{zh ? "今晚回顾" : "Tonight's recap"}</span>
+      <RecapLines v={v} zh={zh} line="dj-end-line" note="dj-end-note" />
       <p className="dj-end-note">{zh ? "主人在手机上可以再来一场" : "The host can start another set from their phone"}</p>
     </div>
   );

@@ -509,9 +509,19 @@
   font-weight: 900;
 }
 .dj-heat-label {
+  display: flex;
+  flex-direction: column;
   color: var(--haze);
   font-size: 17px;
   font-weight: 700;
+}
+.dj-heat-n.is-cold {
+  color: #8fd3ff;
+  font-size: 28px;
+}
+.dj-heat-read {
+  color: var(--moon);
+  font-size: 15px;
 }
 .dj-fans {
   display: flex;
@@ -577,11 +587,20 @@
   font-size: 58px;
   font-weight: 900;
 }
+.dj-end-kicker {
+  margin-top: -8px;
+  color: var(--gel);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
 .dj-end-line {
+  max-width: 1100px;
   margin: 0;
   color: var(--moon);
   font-size: 26px;
   font-weight: 700;
+  text-wrap: balance;
 }
 .dj-end-note {
   margin: 8px 0 0;

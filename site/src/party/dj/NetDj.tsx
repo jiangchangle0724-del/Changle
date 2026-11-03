@@ -1,4 +1,4 @@
-import { Crown, Flame, MonitorSpeaker, Play, Square } from "lucide-react";
+import { Crown, Flame, Megaphone, MonitorSpeaker, Play, Snowflake, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
@@ -11,6 +11,7 @@ import { FIRE_GAP_MS, SET_PHASES, type SetPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { NowPlaying, phaseHint, phaseName, TIMES_MIN, useHeat } from "./parts";
+import { RecapLines } from "./RecapLines";
 import { DeckPad } from "./phone/DeckPad";
 import { MySongs } from "./phone/MySongs";
 import "../../styles/dj.css";
@@ -53,13 +54,28 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
     setPops((p) => [...p.slice(-5), id]);
     window.setTimeout(() => setPops((p) => p.filter((x) => x !== id)), 900);
   };
-  const [others, setOthers] = useState<{ id: number; name: string }[]>([]);
-  useRoomEvent((e) => {
-    if (e.k !== "fx" || e.fx !== "fire" || !e.pid || e.pid === me) return;
+  // ❄️, the other side of 🔥 (the plan's reactions): the floor's dragging. The room reads both
+  // (读场: Lyria plays denser and brighter for 🔥, less for ❄️); one or the other per press gap
+  const [colds, setColds] = useState<number[]>([]);
+  const chill = () => {
+    const t = performance.now();
+    if (t - sentAt.current >= FIRE_GAP_MS) {
+      sentAt.current = t;
+      g("cold");
+    }
+    haptic(8);
     const id = ++seq.current;
-    setOthers((list) => [...list.slice(-3), { id, name: nameOf(e.pid) }]);
+    setColds((p) => [...p.slice(-3), id]);
+    window.setTimeout(() => setColds((p) => p.filter((x) => x !== id)), 900);
+  };
+  const [others, setOthers] = useState<{ id: number; name: string; cold: boolean }[]>([]);
+  useRoomEvent((e) => {
+    if (e.k !== "fx" || (e.fx !== "fire" && e.fx !== "cold") || !e.pid || e.pid === me) return;
+    const id = ++seq.current;
+    setOthers((list) => [...list.slice(-3), { id, name: nameOf(e.pid!), cold: e.fx === "cold" }]);
     window.setTimeout(() => setOthers((list) => list.filter((x) => x.id !== id)), 2200);
   });
+  const chills = v.colds.filter((c) => now() - c.at < 60_000).length;
 
   const rules = (
     <>
@@ -90,6 +106,18 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
           {v.phase !== "wait" && v.phase !== "end" && <NowPlaying v={v} song={v.deck?.local ? v.onDecks?.[onAir(v.deck)] : null} />}
         </section>
 
+        {v.phase === "end" && (
+          <section className="djp-recap" aria-label={zh ? "今晚回顾" : "Tonight's recap"}>
+            <span className="djp-recap-title">{zh ? "今晚回顾" : "Tonight's recap"}</span>
+            <p className="djp-recap-you tabular">
+              {zh
+                ? `你：🔥 ${mine} 次 · 完美 Drop ${v.deck?.perfects?.[me] ?? 0} 次 · 点的歌放了 ${(v.deck?.heard ?? []).filter((r) => r.by === me).length} 首`
+                : `You: 🔥 ${mine} · perfect drops ${v.deck?.perfects?.[me] ?? 0} · your songs played ${(v.deck?.heard ?? []).filter((r) => r.by === me).length}`}
+            </p>
+            <RecapLines v={v} zh={zh} line="djp-recap-line" note="djp-recap-note" />
+          </section>
+        )}
+
         {noSpeaker && (
           <p className="djp-warn" role="status">
             <MonitorSpeaker size={18} />
@@ -101,18 +129,31 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
         {v.deck && <DeckPad v={v} />}
 
         <div className="djp-fire-wrap is-small">
-          <button type="button" className="djp-fire" onClick={press} aria-label={zh ? "给 DJ 加油" : "Fire up the DJ"}>
-            <Flame size={48} strokeWidth={2.2} />
-            {pops.map((id) => (
-              <span key={id} className="djp-pop" aria-hidden="true">
-                🔥
-              </span>
-            ))}
-          </button>
-          <p className="djp-count tabular">{zh ? `你按了 ${mine} 次 · 这一分钟全场 ${heat} 次` : `You: ${mine} · everyone this minute: ${heat}`}</p>
+          <div className="djp-react">
+            <button type="button" className="djp-fire" onClick={press} aria-label={zh ? "给 DJ 加油" : "Fire up the DJ"}>
+              <Flame size={48} strokeWidth={2.2} />
+              {pops.map((id) => (
+                <span key={id} className="djp-pop" aria-hidden="true">
+                  🔥
+                </span>
+              ))}
+            </button>
+            <button type="button" className="djp-cold" onClick={chill} disabled={v.phase === "wait" || v.phase === "end"} aria-label={zh ? "有点冷场" : "It's dragging"}>
+              <Snowflake size={30} strokeWidth={2.2} />
+              <span>{zh ? "冷场" : "Dragging"}</span>
+              {colds.map((id) => (
+                <span key={id} className="djp-pop" aria-hidden="true">
+                  ❄️
+                </span>
+              ))}
+            </button>
+          </div>
+          <p className="djp-count tabular">{zh ? `你按了 ${mine} 次 · 这一分钟全场 🔥 ${heat} ❄️ ${chills}` : `You: ${mine} · everyone this minute: 🔥 ${heat} ❄️ ${chills}`}</p>
           <p className="djp-others" aria-live="polite">
             {others.map((o) => (
-              <span key={o.id}>🔥 {o.name}</span>
+              <span key={o.id}>
+                {o.cold ? "❄️" : "🔥"} {o.name}
+              </span>
             ))}
           </p>
         </div>
@@ -148,6 +189,11 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
               ))}
             </div>
             {v.phase !== "end" && <p className="djp-host-note">{zh ? "DJ 等这一段 8 小节放完再换，最多 15 秒，大屏上会报出来" : "The DJ switches when these 8 bars end, 15 seconds at most; the big screen announces it"}</p>}
+            {/* 报幕: the big screen says who a song asked for is from */}
+            <button type="button" className="djp-voice" aria-pressed={v.voice !== false} onClick={() => g("voice", { on: v.voice === false })}>
+              <Megaphone size={16} strokeWidth={2.4} />
+              {v.voice !== false ? (zh ? "语音报幕：开" : "Announcements: on") : zh ? "语音报幕：关" : "Announcements: off"}
+            </button>
             {v.phase === "end" ? (
               <button type="button" className="btn btn-primary btn-block" onClick={() => g("again")}>
                 <Play size={17} />

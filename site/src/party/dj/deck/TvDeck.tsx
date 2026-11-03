@@ -1,7 +1,8 @@
 import { Disc3, ListMusic, Music2, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
-import { chargeNow, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
+import { heatLean } from "../../../shared/dj/curve";
+import { chargeNow, COLD_LEAN, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
 import { DECK, MIX_FX, MIX_KNOBS, PAD_IDS, type DeckSide, type MixerState, type PadId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
@@ -122,13 +123,17 @@ export function DropParty({ v }: { v: DjView }) {
   const seen = useRef(last?.at ?? 0);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [show, setShow] = useState<typeof last>(null);
+  // (on the drop's time, not the view's object: every view brings a new one, and the moment's
+  // timer must outlive them, or the celebration stays up until the next drop)
+  const at = last?.at ?? 0;
   useEffect(() => {
-    if (!last || last.at === seen.current) return;
-    seen.current = last.at;
+    if (!last || at === seen.current) return;
+    seen.current = at;
     setShow(last);
     const id = window.setTimeout(() => setShow(null), 3200);
     return () => window.clearTimeout(id);
-  }, [last]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at]);
   useEffect(() => {
     // from both sides of the floor, clear of the names
     if (show?.hits.some((h) => h.grade === "perfect")) {
@@ -239,12 +244,12 @@ export function HintLine({ v }: { v: DjView }) {
   const live = v.phase !== "wait" && v.phase !== "end";
   useTicker(live, 3000);
   const d = v.deck;
-  const h = hintFor(d, now(), live, v.source === "lyria");
+  const h = hintFor(d, now(), live, v.source === "lyria", heatLean(v.fires, v.colds, now()) <= COLD_LEAN);
   if (!h || h === "countdown") return null;
   return (
-    <p className="dk-hint">
+    <p className={`dk-hint ${h === "cold" ? "is-cold" : ""}`}>
       <Disc3 size={24} aria-hidden="true" />
-      {hintText(h, offAir(d), zh)}
+      {hintText(h, offAir(d), zh, d.local)}
     </p>
   );
 }
