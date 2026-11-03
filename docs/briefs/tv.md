@@ -69,6 +69,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 Watching, batch 3: King's Game, Never Have I Ever, Post-it and Freeze Dance on the big screen (#155)
 - 2026-11-03 Watching, batch 2: Truth or Dare, Wheel of Fate, Seven Eight Nine and Rogue Thirteen on the big screen (#153)
 - 2026-11-02 Watching: every game's own big-screen view, starting with four games (#149)
 - 2026-11-01 Every page has its own address; the back button closes sheets (UI plan A3) (#87)
