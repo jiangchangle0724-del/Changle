@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { lyriaUrl } from "../../online/config";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
 import { SeatFace } from "../../online/People";
+import { playersOf } from "../../online/players";
 import { ENERGY, heatLean } from "../../shared/dj/curve";
 import { decodePiece } from "../../shared/dj/songwire";
 import { SONG_SENT, type DjPhase } from "../../shared/dj/types";
@@ -152,6 +153,8 @@ export default function TvDj({ v }: { v: DjView }) {
 
   useTicker(v.phase !== "wait" && v.phase !== "end", 5000);
   const seats = room?.seats ?? [];
+  // the dance floor is the players' (a seat that just watches doesn't dance); the join card counts everyone in the room
+  const dancers = playersOf(seats);
   const h = useHeat(v);
   const heat = h.minute;
   const fans = h.top
@@ -228,10 +231,10 @@ export default function TvDj({ v }: { v: DjView }) {
       {v.deck && <DeckBoard v={v} clip={booth.clipOn} />}
       <JoinCard code={code} big={!seats.length} />
 
-      <Floor seats={seats} flames={flames} host={room?.host} dance={dancing.floor} />
+      <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
       {live && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} done={(id) => g("songdone", { id })} />}
-      {!seats.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
+      {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
       <PadChips chips={chips} lines={(v.deck?.up ? 1 : 0) + (v.deck?.now ? 1 : 0) + (mixerShows(v.deck?.mixer) ? 1 : 0)} />

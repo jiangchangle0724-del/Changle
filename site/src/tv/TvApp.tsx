@@ -7,6 +7,7 @@ import { sfx, unlockAudio } from "../lib/sfx";
 import { isCode, newCode } from "../online/config";
 import { SeatFace } from "../online/People";
 import { NetGame } from "../online/games/NetGame";
+import { playersOf } from "../online/players";
 import { RoomProvider, useRoom } from "../online/RoomContext";
 import { useWakeLock } from "../party/sensors";
 import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
@@ -294,7 +295,8 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
   const gid = ONLINE_GAMES[room.front] ?? "punchline";
   const meta = GAME_BY_ID[gid];
   const Icon = meta.icon;
-  const need = Math.max(0, ONLINE_MIN[gid] - room.seats.length);
+  // (a seat that just watches isn't one of the players the game needs)
+  const need = Math.max(0, ONLINE_MIN[gid] - playersOf(room.seats).length);
   const [joining, setJoining] = useState(false);
   useGroove(audio && sound, "lounge", 0.5);
 
@@ -361,6 +363,8 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
           <span className="tv-front-note">{zh ? "这个游戏在大屏幕上有自己的画面，大家用手机玩" : "This one has its own show on the big screen. Everyone plays on their phone."}</span>
         ) : gid === "trip" ? (
           <span className="tv-front-note">{zh ? "到此一游在大屏幕上有自己的页面，开始以后这块屏幕自己过去" : "Been There, Bought That has its own big-screen page. This screen goes there when it starts."}</span>
+        ) : gid === "hide" ? (
+          <span className="tv-front-note">{zh ? "藏在人群里在大屏幕上有自己的页面，开始以后这块屏幕自己过去" : "Hide in the Crowd has its own big-screen page. This screen goes there when it starts."}</span>
         ) : (
           <span className="tv-front-note">{zh ? "这个游戏在手机上玩，大屏幕上是它的手机画面和座位" : "This one plays on the phones. The big screen shows the phone screen and the seats."}</span>
         )}
