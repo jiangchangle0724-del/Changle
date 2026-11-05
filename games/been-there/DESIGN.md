@@ -131,8 +131,8 @@ Each of these was measured or is tested. Check them again after a change.
    **It comes rarely, and with a landing**: once eight minutes have passed since the last question
    (four since the game's start, for its first), the next team to land on a city brings the teams
    waiting a question about that city. It comes up when the move has played and the stamp is down, 4.5 s after the throw, or
-   10 s after it on a team's first visit, when the landing scene plays first (a question on a phone
-   that can answer cuts that scene short). A question that popped up at the start of every turn kept
+   10 s after it on a team's first visit, when the landing scene plays first (on a big screen, for
+   everyone). A question that popped up at the start of every turn kept
    covering the play window. While a big screen is on, the question isn't the one its arrival card
    answers (the fact behind the city's rule, printed there).
    **It needs someone there to answer.** With only computer teams waiting (a person playing the
@@ -140,6 +140,12 @@ Each of these was measured or is tested. Check them again after a change.
    they've just been to, while the computer teams move. On one phone for every team it never comes
    up over a move: between two turns, before the next team throws, or while a computer team moves.
    It waits as long as its team still stands on that city.
+   **It never covers what the landing asks of the table.** It waits for the team to decide whether to
+   buy, and for an auction, a vote or Rio's dance and scores; after one the waiting teams took part in,
+   it leaves them 4.5 s to see how it came out. One that had to wait doesn't come up over another
+   team's move either: 4.5 s after the throw at the soonest. A newer landing by a team of people
+   brings the question about its own city instead (a computer team's doesn't, while one is on its way:
+   theirs come one on top of another).
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
    wear their letter too).

@@ -8,7 +8,7 @@ Step 4 made the full game playable online; step 5 gave it its look: the golden a
 (1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
 an air-age route map, and six token characters. Step 6 adds the city content: a quiz for the teams
 waiting their turn (about every eight minutes, and four into a game for the first, a team's landing
-on a city brings them a question about that city; 176 questions, eight a city, each with its source and a 你知道吗 fact; it pops up
+on a city brings them a question about that city, once what the landing asks of the table (a purchase, an auction, a vote) is settled; 176 questions, eight a city, each with its source and a 你知道吗 fact; it pops up
 at the top of the phone, any phone can skip a question, none comes twice in a game, and a phone
 gets ones it hasn't seen first; the host can turn it off in the lobby), the real fact
 on the big screen's arrival card, a drink-free set of party forfeits (each one holds the game until

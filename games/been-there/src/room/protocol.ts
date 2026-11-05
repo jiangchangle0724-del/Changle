@@ -35,6 +35,9 @@ export const TIMING = {
    * …which comes up this long after the landing, once every screen has played the move and its stamp
    * (ui/ridePlan.ts: 4.2 s at the most), so the question never says where a token is going to land.
    * After a team's first visit to the city it waits for `landing` instead: the landing scene plays first.
+   * What the landing asks of the table comes first too (a purchase, an auction, a vote, Rio's dance):
+   * after one the waiting teams had a part in, the question leaves them this long again to see how
+   * it came out. And one that had to wait never comes up sooner than this after a team's throw.
    */
   triviaLand: 4_500,
   /** Waiting players' quiz: time to answer. */
