@@ -90,10 +90,11 @@ function Shell() {
   const gel = route.kind === "game" ? GAME_BY_ID[route.id].gel : "";
   const run = useMemo(() => ({ gel, restart: () => setRestarts((n) => n + 1) }), [gel]);
   // a game's or a page's shape while its own file downloads (GameLoading, PageLoading): a small file of
-  // its own, fetched once this page has settled (at once when it opens anywhere but home), so the front
-  // door doesn't carry it; if even that fails, the old blank wait
+  // its own, fetched once this page has settled (at once when it opens on a game or a page of its own in
+  // the phone frame; the big screen never shows it), so the front door doesn't carry it; if even that
+  // fails, the old blank wait
   const [Loading, setLoading] = useState<typeof LoadingShapes | null>(null);
-  const opensElsewhere = useRef(route.kind !== "home");
+  const opensElsewhere = useRef(route.kind !== "home" && route.kind !== "tv" && route.kind !== "djtest" && route.kind !== "dev");
   useEffect(() => {
     let live = true;
     const timer = window.setTimeout(
