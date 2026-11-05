@@ -5,7 +5,8 @@
  * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
  *
  * 远景画（可选）：`games/hang-on/art/<世界>-far.webp` 有就用（AI 画的整张远景，来源写在 art/README.md），
- * 盖住天空和最远那层剪影，压暗一点，镜头走过整关它只横着挪一小段。没有这张图就全用程序画的。
+ * 盖住天空和远、中两层剪影，压暗一点，镜头走过整关它只横着挪一小段；最近那层剪影留着压在画前面。
+ * 没有这张图就全用程序画的。
  */
 import { Assets, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js';
 import { glow, hex, type Palette, type WorldId } from './art';
@@ -25,8 +26,10 @@ export function plateUrl(world: WorldId): string | undefined {
   for (const [path, url] of Object.entries(PLATES)) if (path.includes(`/${world}-far.`)) return url;
   return undefined;
 }
-/** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷）。 */
-const PLATE_TINT: Record<WorldId, number> = { table: 0xb8a8a4, van: 0xaab0c4 };
+/** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷），前面的平台和人才跳得出来。 */
+const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc };
+/** 远景画显出来以后藏掉的剪影层：最远和中间那层（画里已经有了），只留最近那层压在画前面。 */
+const PLATE_HIDES = [0, 1];
 
 /** 确定性随机：背景每次长一样。 */
 function rng(seed: number): () => number {
@@ -133,7 +136,7 @@ export class Backdrop {
       // 慢慢显出来；显出来之后最远那层剪影就不画了
       this.plateA = Math.min(1, this.plateA + dt / 0.5);
       plate.alpha = this.plateA;
-      (this.layers[0] as Layer).c.visible = this.plateA < 1;
+      for (const i of PLATE_HIDES) (this.layers[i] as Layer).c.visible = this.plateA < 1;
       const t = Math.max(0, Math.min(1, camX / Math.max(1, levelW)));
       plate.x = -(plate.width - this.W) * t;
     }
