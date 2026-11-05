@@ -1,9 +1,10 @@
 import { Dices, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { T } from "../../i18n";
 import { TimerArc } from "../../components/TimerArc";
 import { GAME_BY_ID } from "../../games/registry";
 import { gsap, reduced } from "../../lib/anim";
-import { haptic, sfx } from "../../lib/sfx";
+import { sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useRoom } from "../../online/RoomContext";
@@ -13,7 +14,9 @@ import type { PostitReply, PostitView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { deckName } from "../../data/postit";
 import { Sheet } from "../../components/Sheet";
+import { ART } from "./art";
 import { DeckPicker, MIX } from "./DeckPicker";
+import { BUZZ, buzz, paper, tick } from "./feel";
 import { Forehead, Sticky, tiltFor } from "./parts";
 import "../../styles/party.css";
 import "./net.css";
@@ -31,6 +34,7 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
   const mine = v.turn === me && v.phase === "play";
   const solvedMe = v.solved.includes(me);
   useYourTurn(mine);
+  const turned = useTurned(v.notes);
 
   const rules = (
     <p>
@@ -55,7 +59,12 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
                 ) : (
                   <TurnLine pid={v.turn} lead={zh ? "现在提问" : "Asking now"} mineText={zh ? "轮到你提问" : "Your turn to ask"} />
                 ))}
-              {v.phase === "end" && <p className="pi-end">{zh ? "全部揭晓" : "All revealed"}</p>}
+              {v.phase === "end" && (
+                <>
+                  <img className="pi-cheer is-small" src={ART.cheer} alt="" width={640} height={640} decoding="async" />
+                  <p className="pi-end">{zh ? "全部揭晓" : "All revealed"}</p>
+                </>
+              )}
               <div className="forehead-wall">
                 {v.order.map((id) => (
                   <Forehead
@@ -64,6 +73,7 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
                     face={seat(id) ? <Figure seat={seat(id)!} /> : <SeatFace seat={seat(id)} size={46} />}
                     name={id === me ? (zh ? "你" : "You") : nameOf(id)}
                     note={v.notes[id]}
+                    turned={turned.has(id)}
                     tilt={tiltFor(id)}
                     turn={v.phase === "play" && v.turn === id}
                     solved={v.solved.includes(id)}
@@ -84,7 +94,7 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
               {v.phase === "end" && (
                 <ol className="pi-order">
                   {v.solved.map((id, i) => (
-                    <li key={id}>
+                    <li key={id} style={{ "--i": i } as React.CSSProperties}>
                       <span className="tabular">{i + 1}</span>
                       <SeatFace seat={seat(id)} size={26} />
                       <strong>{nameOf(id)}</strong>
@@ -134,6 +144,21 @@ function GuessToast({ v }: { v: PostitView }) {
   const zh = lang === "zh";
   const ref = useRef<HTMLDivElement>(null);
   const at = v.guess?.at;
+  const first = useRef(at);
+  useEffect(() => {
+    if (!at || at === first.current || !v.guess || v.phase === "write") return;
+    if (v.guess.by === me) {
+      if (v.guess.ok) {
+        paper.turn();
+        sfx.correct();
+        buzz(BUZZ.ok);
+      } else {
+        sfx.wrong();
+        buzz(BUZZ.wrong);
+      }
+    } else if (v.guess.ok) paper.land(6, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at]);
   useEffect(() => {
     if (!at || !ref.current || reduced()) return;
     gsap.fromTo(ref.current, { y: 12, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)", clearProps: "transform,opacity" });
@@ -166,13 +191,14 @@ function WritePhase({ v }: { v: PostitView }) {
       </div>
       {target && (
         <div className="pi-write">
+          <img className="pi-pad" src={ART.pad} alt="" width={64} height={64} decoding="async" />
           <p className="pi-for">
             <SeatFace seat={seat(target)} size={36} />
             <span>{zh ? `给 ${nameOf(target)} 写一张便利贴` : `Write ${nameOf(target)}'s note`}</span>
           </p>
           {done && myNote ? (
             <div className="pi-written">
-              <Sticky note={myNote} size="lg" tilt={-3} />
+              <Sticky key={myNote.zh} note={myNote} size="lg" tilt={-3} stuck />
               <p className="hint">{zh ? "贴好了。可以重写，或者随机换一个。" : "Stuck on. Rewrite it, or let the deck pick another."}</p>
             </div>
           ) : (
@@ -193,12 +219,21 @@ function WritePhase({ v }: { v: PostitView }) {
               if (!text.trim()) return;
               g("write", { text: text.trim() });
               setText("");
-              sfx.pop();
+              paper.stick();
+              tick();
             }}
           >
-            <input className="pi-note-input" value={text} onChange={(e) => setText(e.target.value)} maxLength={24} placeholder={zh ? "比如：孙悟空" : "e.g. Pikachu"} aria-label={zh ? "便利贴上写什么" : "What the note says"} />
+            <input className="pi-note-input note" value={text} onChange={(e) => setText(e.target.value)} maxLength={24} placeholder={zh ? "比如：孙悟空" : "e.g. Pikachu"} aria-label={zh ? "便利贴上写什么" : "What the note says"} />
             <div className="row" style={{ gap: 10 }}>
-              <button type="button" className="btn btn-ghost btn-block" onClick={() => g("random")}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-block"
+                onClick={() => {
+                  g("random");
+                  paper.stick();
+                  tick();
+                }}
+              >
                 <Dices size={17} />
                 {zh ? "随机来一个" : "Pick for me"}
               </button>
@@ -257,6 +292,17 @@ function AskPanel({ v }: { v: PostitView }) {
   const custom = usePenaltyText().isCustom;
   const [q, setQ] = useState("");
   const [guess, setGuess] = useState("");
+  const { me } = useRoom();
+  const [wrong, setWrong] = useState(false);
+  const at = v.guess?.at;
+  const first = useRef(at);
+  useEffect(() => {
+    if (!at || at === first.current || !v.guess || v.guess.by !== me || v.guess.ok) return;
+    setWrong(true);
+    const id = window.setTimeout(() => setWrong(false), 500);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at]);
   const counts = { yes: 0, no: 0, maybe: 0 } as Record<PostitReply, number>;
   for (const r of Object.values(v.replies)) counts[r]++;
   return (
@@ -278,6 +324,7 @@ function AskPanel({ v }: { v: PostitView }) {
           g("ask", { text });
           setQ("");
           sfx.pop();
+          tick();
         }}
       >
         <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} placeholder={zh ? "问一个是非题，比如：我是动物吗？" : "Ask yes or no: am I an animal?"} aria-label={zh ? "问题" : "Question"} />
@@ -295,13 +342,13 @@ function AskPanel({ v }: { v: PostitView }) {
         ))}
       </div>
       <form
-        className="pi-guess"
+        className={`pi-guess ${wrong ? "is-wrong" : ""}`}
         onSubmit={(e) => {
           e.preventDefault();
           if (!guess.trim()) return;
           g("guess", { text: guess.trim() });
           setGuess("");
-          haptic(10);
+          tick();
         }}
       >
         <div className="field">
@@ -351,7 +398,7 @@ function ReplyPanel({ v }: { v: PostitView }) {
               onClick={() => {
                 g("reply", { r });
                 sfx.tap();
-                haptic(6);
+                tick();
               }}
             >
               {REPLY[r][zh ? 0 : 1]}
@@ -361,4 +408,19 @@ function ReplyPanel({ v }: { v: PostitView }) {
       )}
     </div>
   );
+}
+
+/** The notes that have just become readable (a guess, or the end): each turns over once. */
+function useTurned(notes: Record<string, T | null>) {
+  const seen = useRef<Set<string> | null>(null);
+  const [turned, setTurned] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const now = new Set(Object.keys(notes).filter((id) => notes[id]));
+    const before = seen.current;
+    seen.current = now;
+    if (!before) return;
+    const fresh = [...now].filter((id) => !before.has(id));
+    if (fresh.length) setTurned(new Set(fresh));
+  }, [notes]);
+  return turned;
 }
