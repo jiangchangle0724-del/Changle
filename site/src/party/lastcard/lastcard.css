@@ -593,6 +593,7 @@
 .lc-catch p {
   margin: 0;
   font-weight: 800;
+  text-wrap: balance;
 }
 .lc-out {
   margin: auto 0 0;
@@ -611,7 +612,9 @@
   margin-top: auto;
 }
 .lc-hand {
-  padding-top: var(--space-6);
+  /* how far a picked card rises; the room above it holds that and the card's ring */
+  --lc-lift: var(--space-6);
+  padding-top: calc(var(--lc-lift) + var(--space-2));
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -675,7 +678,7 @@
 }
 .lc-hcard.is-picked {
   z-index: 2;
-  transform: translateY(calc(-1 * var(--space-6)));
+  transform: translateY(calc(-1 * var(--lc-lift)));
   outline: 3px solid var(--color-text);
   outline-offset: 2px;
 }
@@ -971,7 +974,7 @@
     justify-items: center;
   }
   .lc-hand {
-    padding-top: var(--space-3);
+    --lc-lift: var(--space-3);
   }
   .lc-fan {
     display: none;

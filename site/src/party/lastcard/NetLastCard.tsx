@@ -464,12 +464,18 @@ function HandRow({ v, sel, onTap, nope }: { v: LastCardView; sel: number | null;
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // a card picked up in a hand that scrolls sideways comes into view
+  // a card picked up in a hand that scrolls sideways comes into view: sideways only, inside the hand
+  // (the page itself stays put; the frame keeps the buttons that come with it in view)
   useEffect(() => {
-    if (sel === null) return;
-    const el = box.current?.querySelector<HTMLElement>(`[data-card="${sel}"]`);
+    const el = box.current;
+    const card = sel === null ? null : el?.querySelector<HTMLElement>(`[data-card="${sel}"]`);
+    if (!el || !card || el.scrollWidth <= el.clientWidth) return;
+    const a = card.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
+    const room = card.parentElement ? parseFloat(getComputedStyle(card.parentElement).paddingLeft) || 0 : 0;
+    const dx = a.left < b.left + room ? a.left - b.left - room : a.right > b.right - room ? a.right - b.right + room : 0;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: still ? "auto" : "smooth" });
+    if (dx) el.scrollBy({ left: dx, behavior: still ? "auto" : "smooth" });
   }, [sel]);
   const mine = v.phase === "play" && v.turn !== null && v.legal.length + (v.drawn !== null ? 1 : 0) > 0;
   const n = v.hand.length;
@@ -567,7 +573,7 @@ function RoundEnd({ v }: { v: LastCardView }) {
               <SeatFace seat={room?.seats.find((s) => s.id === pid)} size={36} />
               <span className="lc-result-name">{pid === me ? (zh ? "你" : "You") : nameOf(pid)}</span>
               <span className="lc-result-left tabular">{left === 0 ? (zh ? "出完了" : "out") : zh ? `剩 ${left} 张` : `${left} left`}</span>
-              <span className="lc-result-wins tabular" aria-label={zh ? `赢了 ${v.wins[pid] ?? 0} 轮` : `${v.wins[pid] ?? 0} rounds won`}>
+              <span className="lc-result-wins tabular" aria-label={zh ? `赢了 ${v.wins[pid] ?? 0} 轮` : `${v.wins[pid] ?? 0} ${v.wins[pid] === 1 ? "round" : "rounds"} won`}>
                 <Crown aria-hidden="true" />
                 {v.wins[pid] ?? 0}
               </span>

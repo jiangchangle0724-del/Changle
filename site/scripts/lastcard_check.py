@@ -146,6 +146,11 @@ def check_private(t, label):
         ok(not v.get("hand") and not v.get("legal") and v.get("drawn") is None and not leak and s.locator(".lc-hand").count() == 0, f"{label}: the {s._name} shows nobody's hand {sorted(leak)[:4]}")
 
 
+def went(t, pg, tn):
+    """The move went through: the turn moved on (or the round ended)."""
+    ok(until(lambda: (view(t.host) or {}).get("tn", tn) != tn or (view(t.host) or {}).get("phase") != "play", 6000), f"{pg._name}'s move goes through")
+
+
 def click_card(pg, cid):
     """A card in the hand: tap its left edge, which shows even when the next card overlaps it."""
     pg.locator(f'.lc-hand [data-card="{cid}"]').click(position={"x": 16, "y": 56}, timeout=4000)
@@ -203,7 +208,7 @@ class Bot:
             self.play(pg, random.choice(fresh or legal))
         else:
             press(pg, "摸", "Draw|Take")
-        ok(until(lambda: (view(t.host) or {}).get("tn", tn) != tn or (view(t.host) or {}).get("phase") != "play", 6000), f"{pg._name}'s move goes through")
+        went(t, pg, tn)
         return True
 
     def play(self, pg, cid, from_drawn=False):
@@ -216,7 +221,8 @@ class Bot:
             ok(until(lambda: pg.locator(".lc-pick").count() == 1, 3000), f"{pg._name}: a wild asks for its colour")
             if not self.picked:
                 self.picked = True
-                pg.wait_for_timeout(300)
+                # (after the frame has brought the colours up from under the reactions bar)
+                pg.wait_for_timeout(1200)
                 shot(pg, "05-pick")
             pg.locator(f'.lc-pick-btn[data-color="{random.choice("rygb")}"]').click(timeout=4000)
         elif not from_drawn:
@@ -241,7 +247,9 @@ class Bot:
         """Down to one card without calling it: the next phone catches them."""
         t = self.t
         cid = next((c for c in legal if FACES[c][0] is not None and kind(c) in ("number",)), legal[0])
+        tn = view(pg)["tn"]
         self.play(pg, cid)
+        went(t, pg, tn)
         v = view(t.host)
         if v["phase"] != "play" or v.get("open") != turn:
             return True
@@ -268,9 +276,11 @@ class Bot:
         pg.wait_for_timeout(250)
         shot(t.tv, "10-called")
         cid = legal[0]
+        tn = view(pg)["tn"]
         self.play(pg, cid)
+        went(t, pg, tn)
         v = view(t.host)
-        ok(v.get("open") != turn, f"{pg._name} played down to one, safe")
+        ok(v.get("open") != turn and len(view(pg)["hand"]) <= 1, f"{pg._name} played down to one, safe")
         ok(all(g.locator(".lc-catch").count() == 0 for g in t.players), "and nobody has a catch button")
         self.called = True
         return True
@@ -364,6 +374,18 @@ def main():
         t.host.locator(".lc-result").get_by_role("button", name=L("发下一轮", "Deal the next round")).click()
         ok(until(lambda: view(t.host)["phase"] == "play" and view(t.host)["round"] == 2), "round 2 is dealt")
         check_private(t, "round 2")
+        # short rounds can end before anyone is down to two cards on their turn: play on until both have come up
+        r = 2
+        while not (bot.caught and bot.called) and r <= 5:
+            end = play_round(t, bot, f"m2 round {r}")
+            if end["phase"] != "round":
+                break
+            t.host.wait_for_timeout(2600)
+            t.stamps()
+            time.sleep(0.8)
+            r += 1
+            t.host.locator(".lc-result").get_by_role("button", name=L("发下一轮", "Deal the next round")).click()
+            ok(until(lambda: view(t.host)["phase"] == "play" and view(t.host)["round"] == r), f"round {r} is dealt")
         missing = {"number", "skip", "rev", "d2", "wild", "d4"} - bot.seen
         ok(not missing, f"every kind of card was played ({sorted(bot.seen)})")
         ok(bot.caught and bot.called and bot.picked, f"a catch ({bot.caught}), a call in time ({bot.called}), a wild's colour ({bot.picked})")

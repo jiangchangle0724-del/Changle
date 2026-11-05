@@ -24,7 +24,8 @@ const t = (zh: string, en: string): T => ({ zh, en });
 export default function TvLastCard({ v, sound }: TvViewProps<LastCardView>) {
   const { tx } = useLang();
   const goal = v.target ? tx(`先赢 ${v.target} 轮`, `first to ${v.target}`) : tx("不限轮数", "no round limit");
-  const round = <RoundTag>{v.round > 0 ? tx(`第 ${v.round} 轮 · ${goal}`, `Round ${v.round} · ${goal}`) : goal}</RoundTag>;
+  // (before the first deal the goal stands alone, so it starts with a capital)
+  const round = <RoundTag>{v.round > 0 ? tx(`第 ${v.round} 轮 · ${goal}`, `Round ${v.round} · ${goal}`) : goal.charAt(0).toUpperCase() + goal.slice(1)}</RoundTag>;
   return (
     <TvShow game="lastcard" className={`tvlc is-${v.phase}`} phase={v.phase} round={round}>
       {v.phase === "setup" ? (
@@ -52,11 +53,11 @@ function Setup({ v }: { v: LastCardView }) {
     <>
       <div className="tvlc-top">
         <h1 className="tvlc-head">
-          <Bi t={t("主人在手机上定规则、发牌", "The host sets the house rules and deals")} />
+          <Bi t={t("主人在手机上定规则、发牌", "The host sets the rules")} />
         </h1>
         <p className="tvlc-line">
           <span className="tvlc-rule">{v.stack ? tx("叠加：开，+2 接 +2，+4 接 +4", "Stacking on: +2 on +2, +4 on +4") : tx("叠加：关", "Stacking off")}</span>
-          <span className="tvlc-rule">{v.target ? tx(`先赢 ${v.target} 轮的赢整场`, `First to ${v.target} rounds wins`) : tx("不限轮数", "No round limit")}</span>
+          <span className="tvlc-rule">{v.target ? tx(`先赢 ${v.target} 轮的赢整场`, `First to ${v.target} ${v.target === 1 ? "round" : "rounds"} wins`) : tx("不限轮数", "No round limit")}</span>
         </p>
       </div>
       <div className="tvlc-fan" aria-hidden="true">
@@ -235,7 +236,9 @@ function RoundEnd({ v }: { v: LastCardView }) {
           {s && <TvPerson p={{ seat: s, state: "win" }} />}
         </div>
         <div className="tvlc-winner-words">
-          <p className="tvlc-winner-name">{tx(`${name(v.winner)} 出完了！`, `${name(v.winner)} is out!`)}</p>
+          <p className="tvlc-winner-name">
+            {name(v.winner)} <span>{tx("出完了！", "is out!")}</span>
+          </p>
           <p className="tvlc-line">{tx(`赢下第 ${v.round} 轮`, `and takes round ${v.round}`)}</p>
         </div>
       </div>

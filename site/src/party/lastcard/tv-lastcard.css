@@ -46,7 +46,7 @@
 .tvlc-fan {
   position: absolute;
   left: 50%;
-  top: 340px;
+  top: 356px;
   width: 0;
   height: 160px;
 }
@@ -544,6 +544,10 @@
   line-height: 1.05;
   text-shadow: 0 0 40px color-mix(in oklab, var(--gel) 45%, transparent);
   text-wrap: balance;
+}
+.tvlc-winner-name span {
+  /* (a long name wraps before "出完了！", never inside it) */
+  white-space: nowrap;
 }
 .tvlc-winner-words .tvlc-line {
   justify-content: flex-start;
