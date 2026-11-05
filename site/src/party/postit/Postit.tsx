@@ -224,7 +224,7 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
         {phase.k === "setup" && (
           <>
             <p className="pi-lead">{zh ? "选一组词" : "Pick a deck"}</p>
-            <DeckPicker deck={deck} onPick={setDeck} zh={zh} />
+            <DeckPicker value={deck.id} onPick={(id) => setDeck(HEADS_DECKS.find((d) => d.id === id) ?? HEADS_DECKS[0])} zh={zh} />
             <span className="field-label">{zh ? "每人多久" : "Time each"}</span>
             <div className="seg" role="group">
               {[45, 60, 90].map((s) => (
