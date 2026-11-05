@@ -226,9 +226,10 @@ function DeckChoice({ v }: { v: PostitView }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const [open, setOpen] = useState(false);
-  // (a server not yet updated doesn't say: it deals from the mixed bag)
-  const pick = v.pick ?? MIX;
-  if (!isHost) return null;
+  // (a rooms server not yet updated doesn't say which, and deals from the mixed bag whatever is
+  // tapped: no button until it does)
+  const pick = v.pick;
+  if (!isHost || pick === undefined) return null;
   return (
     <>
       <HostButton onClick={() => setOpen(true)}>{zh ? `随机的词：${deckName(pick).zh}` : `Random notes: ${deckName(pick).en}`}</HostButton>
