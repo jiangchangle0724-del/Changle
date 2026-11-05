@@ -97,21 +97,24 @@
 .roundboard .token .react {
   filter: var(--face-edge, none);
 }
-/* (not while a move plays: the board stands still under the camera, and a hop would redraw it) */
-.roundboard:not(.riding) .token.now > g {
+/* The token whose turn it is hops on its spot.
+   (not while a move plays: the board stands still under the camera, and a hop would redraw it) */
+.roundboard:not(.riding) .token.now > .hop {
   animation: hop 1.3s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
 }
 @keyframes hop {
   0%,
   60%,
   100% {
-    transform: translate(-34px, -40px) scale(0.57);
+    transform: none;
   }
   75% {
-    transform: translate(-34px, -52px) scale(0.57);
+    transform: translateY(-14px);
   }
+}
+/* A team's letter on a token that shares its space: the owner's mark of the cities, smaller. */
+.roundboard .tk-badge {
+  pointer-events: none;
 }
 
 /* ---------- posters ---------- */
@@ -332,7 +335,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .roundboard .token.now > g,
+  .roundboard .token.now > .hop,
   .roundboard .pop,
   .roundboard .stamp-in,
   .roundboard .react,
@@ -346,7 +349,7 @@
 :root[data-reduced="1"] .roundboard .stamp-ring {
   display: none;
 }
-:root.reduced .roundboard .token.now > g,
+:root.reduced .roundboard .token.now > .hop,
 :root.reduced .stamp.fresh {
   animation: none;
 }

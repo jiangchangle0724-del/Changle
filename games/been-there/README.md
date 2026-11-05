@@ -18,7 +18,10 @@ team's own move plays first-person on its phone: the camera follows the token ro
 every city to where it lands. Phones can go full screen (iPhones from the Home Screen) and, where
 they're allowed to, vibrate at the big moments. A team that stays connected but does nothing gets a
 turn clock: after 60 seconds on a decision, every screen counts down 15 more, then the computer
-makes that one move for it.
+makes that one move for it. On a phone the player picks the map's size (small fits the whole board,
+medium and large draw it bigger and drag round with a finger, following the team on turn); phones
+start at medium. Tokens are bigger, and several on one city stand side by side with their letters;
+every screen fits a phone down to 320 px, its buttons 44 px or more, above the keyboard.
 
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
@@ -76,7 +79,8 @@ this game with `npx wrangler dev --port 8799`.
 ```sh
 npm run typecheck
 npm test             # rules reproduce the step-3 report (17,000 games) + room scenarios
-npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its seat back; two simultaneous bids
+npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its seat back; two simultaneous bids;
+                     # the map's size, shared cities and every key screen on 390x844, 375x667 and 320x568
 npm run sim          # print the step-3 report numbers again
 npm run fonts        # after adding Chinese text: rebuild the font subsets (a test reminds you)
 npm run build        # then open dist/demo.html: the whole game on one page
