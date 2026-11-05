@@ -46,13 +46,24 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
 
   // the host's phone brings a dozen scenes from the public library, once
   const libAsked = useRef(false);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryFailed, setLibraryFailed] = useState(false);
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
   useEffect(() => {
     if (!isHost || v.lib > 0 || libAsked.current) return;
     libAsked.current = true;
-    void loadLibrary(zh ? "zh" : "en", seats).then((chunks) => chunks.forEach((scenes) => g("lib", { scenes })));
+    const ctl = new AbortController();
+    let settled = false;
+    setLibraryLoading(true);
+    setLibraryFailed(false);
+    void loadLibrary(zh ? "zh" : "en", seats, ctl.signal).then(
+      (chunks) => { if (!ctl.signal.aborted) chunks.forEach((scenes) => g("lib", { scenes })); },
+      () => { if (!ctl.signal.aborted) setLibraryFailed(true); },
+    ).finally(() => { settled = true; if (!ctl.signal.aborted) setLibraryLoading(false); });
+    return () => { ctl.abort(); if (!settled) libAsked.current = false; setLibraryLoading(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, v.lib]);
-  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} />;
+  }, [isHost, v.lib, libraryAttempt]);
+  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = false; setLibraryAttempt((n) => n + 1); } }} />;
 
   // the scene has its own sound: the lounge music waits
   useEffect(() => holdBackground(), []);
