@@ -1,0 +1,355 @@
+<meta charset="utf-8">
+<title>抓紧了 · Hang On</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Noto+Sans+SC:wght@500;700&display=swap">
+<style>
+  /* Layout: one full-height game stage; HUD floats at the top, touch pads float at the bottom. Single committed look (dusk arcade). */
+  :root {
+    --sky-top: #1d2a4a; --sky-bottom: #4a4f8c; --hill: #2b3a6b; --hill2: #36508a;
+    --ground: #6b3b2e; --ground-top: #f5e2c2; --peg: #f3d9a4; --rope: #caa06a;
+    --ink: #fff6e9; --ink-soft: #d9d2e8; --panel: rgba(16, 20, 40, .62);
+    --p1: #F28CA6; --p2: #9BCF83; --glove-l: #63b3ed; --glove-r: #f6ad55; --flag: #ef5a5a;
+    --font-display: "Baloo 2", "Noto Sans SC", system-ui, sans-serif;
+    --font-body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--sky-top); color: var(--ink); font-family: var(--font-body); overflow: hidden; -webkit-user-select: none; user-select: none; touch-action: none; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none; }
+  .hud > * { pointer-events: auto; }
+  .brand { font-family: var(--font-display); font-weight: 800; font-size: 22px; line-height: 1; letter-spacing: .5px; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
+  .brand small { display: block; font-family: var(--font-body); font-weight: 500; font-size: 11px; color: var(--ink-soft); margin-top: 4px; letter-spacing: .08em; text-transform: uppercase; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip { background: var(--panel); backdrop-filter: blur(6px); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-variant-numeric: tabular-nums; display: inline-flex; gap: 6px; align-items: center; }
+  .chip b { font-family: var(--font-display); font-size: 15px; }
+  button { font: inherit; }
+  .btn { background: var(--ink); color: #2a1f3a; border: 0; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 13px; cursor: pointer; min-height: 36px; }
+  .btn:focus-visible, .pad:focus-visible { outline: 3px solid var(--glove-l); outline-offset: 2px; }
+  .btn.quiet { background: var(--panel); color: var(--ink); }
+  .help { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--panel); backdrop-filter: blur(6px);
+    border-radius: 14px; padding: 10px 14px; font-size: 13px; line-height: 1.5; max-width: min(560px, calc(100vw - 32px)); text-align: center; pointer-events: none; transition: opacity .3s; }
+  .help kbd { font-family: var(--font-display); background: rgba(255,255,255,.14); border-radius: 6px; padding: 1px 6px; }
+  .pads { position: fixed; inset: auto 0 0 0; height: 46vh; pointer-events: none; }
+  .pad { position: absolute; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 96px; height: 96px; border-radius: 50%; border: 3px solid rgba(255,255,255,.55); background: rgba(255,255,255,.12);
+    color: var(--ink); font-family: var(--font-display); font-weight: 800; font-size: 20px; pointer-events: auto; display: grid; place-items: center; line-height: 1.05; }
+  .pad.l { left: max(20px, env(safe-area-inset-left, 0px)); border-color: var(--glove-l); }
+  .pad.r { right: max(20px, env(safe-area-inset-right, 0px)); border-color: var(--glove-r); }
+  .pad.down { background: rgba(255,255,255,.4); color: #1d2a4a; transform: scale(.94); }
+  .pad small { font-family: var(--font-body); font-weight: 500; font-size: 11px; opacity: .85; }
+  .stick { position: absolute; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: 120px; height: 120px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.45); pointer-events: auto; }
+  .stick .knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(255,255,255,.75); box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 12, 30, .55); backdrop-filter: blur(4px); padding: 24px; }
+  .card { background: #f8efe2; color: #2a1f3a; border-radius: 22px; padding: 24px 26px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .card h2 { font-family: var(--font-display); font-weight: 800; font-size: 28px; margin: 0 0 6px; text-wrap: balance; }
+  .card p { margin: 0 0 10px; line-height: 1.55; font-size: 14px; }
+  .card .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .card .btn { background: #2a1f3a; color: #fff6e9; }
+  .card .btn.quiet { background: rgba(42,31,58,.1); color: #2a1f3a; }
+  .big { font-family: var(--font-display); font-size: 40px; font-weight: 800; line-height: 1; margin: 8px 0 4px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 720px) { .brand { font-size: 18px; } .help { font-size: 12px; } }
+  @media (hover: hover) and (pointer: fine) { .pads { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .pad, .help { transition: none; } }
+</style>
+
+<canvas id="stage" aria-label="游戏画面"></canvas>
+
+<div class="hud">
+  <div class="brand">抓紧了 <span style="opacity:.6">·</span> Hang On<small>手感原型 · feel prototype</small></div>
+  <div class="stats">
+    <span class="chip">⏱ <b id="clock">0.0</b></span>
+    <span class="chip">💀 <b id="deaths">0</b></span>
+    <button class="btn quiet" id="p2btn" type="button">+ 第二个人</button>
+    <button class="btn quiet" id="reset" type="button">重开</button>
+  </div>
+</div>
+
+<div class="help" id="help">
+  <span class="desk">移动鼠标或 <kbd>W A S D</kbd> 指方向，<kbd>Q</kbd> 左手 <kbd>E</kbd> 右手抓住（按住）。没有跳跃：抓地面往前拽、抓住边缘后往上推就能翻上去。第二个人用 <kbd>I J K L</kbd> 加 <kbd>U</kbd> <kbd>O</kbd>。</span>
+  <span class="touch" hidden>中间拖动指方向，左右两个大按钮按住抓。抓住东西后，方向就是身体想去的地方。</span>
+</div>
+
+<div class="pads" id="pads">
+  <button class="pad l" id="padL" type="button" aria-label="左手抓">左手<small>hold</small></button>
+  <div class="stick" id="stick" aria-hidden="true"><div class="knob" id="knob"></div></div>
+  <button class="pad r" id="padR" type="button" aria-label="右手抓">右手<small>hold</small></button>
+</div>
+
+<div class="overlay" id="win" hidden>
+  <div class="card">
+    <h2>到顶了！</h2>
+    <div class="big" id="winTime">0.0 s</div>
+    <p id="winLine">所有人都抓到了旗子。</p>
+    <p style="opacity:.75">这只是手感原型：验证「抓、荡、拽、翻、拉人」在浏览器里成立。正式版会换成 Rapier 物理、原创角色和关卡、手机当手柄、电视当画面。</p>
+    <div class="row"><button class="btn" id="again" type="button">再来一次</button></div>
+  </div>
+</div>
+
+<script type="module">
+import { CFG, createLevel, createWorld, setInput, setPlayers, stepWorld, speed } from './physics.js';
+
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const level = createLevel();
+let world = createWorld(level, 1);
+let nPlayers = 1;
+
+// ---------- input ----------
+const keys = new Set();
+const mouse = { x: 0, y: 0, active: false, L: false, R: false };
+const touch = { ax: 0, ay: 0, L: false, R: false, stickId: null, sx: 0, sy: 0 };
+const isTouch = matchMedia('(hover: none), (pointer: coarse)').matches;
+if (isTouch) { document.querySelector('.help .desk').hidden = true; document.querySelector('.help .touch').hidden = false; }
+
+addEventListener('keydown', (e) => { keys.add(e.code); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') { mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; } });
+canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') { if (e.button === 0) mouse.L = true; if (e.button === 2) mouse.R = true; } });
+addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') { if (e.button === 0) mouse.L = false; if (e.button === 2) mouse.R = false; } });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+const padL = document.getElementById('padL'), padR = document.getElementById('padR');
+const hold = (el, key) => {
+  const on = (e) => { e.preventDefault(); touch[key] = true; el.classList.add('down'); el.setPointerCapture?.(e.pointerId); };
+  const off = (e) => { e.preventDefault(); touch[key] = false; el.classList.remove('down'); };
+  el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('lostpointercapture', off);
+};
+hold(padL, 'L'); hold(padR, 'R');
+const stick = document.getElementById('stick'), knob = document.getElementById('knob');
+const stickR = 44;
+stick.addEventListener('pointerdown', (e) => { touch.stickId = e.pointerId; const r = stick.getBoundingClientRect(); touch.sx = r.left + r.width / 2; touch.sy = r.top + r.height / 2; stick.setPointerCapture(e.pointerId); moveStick(e); });
+stick.addEventListener('pointermove', (e) => { if (e.pointerId === touch.stickId) moveStick(e); });
+const endStick = (e) => { if (e.pointerId === touch.stickId) { touch.stickId = null; touch.ax = 0; touch.ay = 0; knob.style.transform = ''; } };
+stick.addEventListener('pointerup', endStick); stick.addEventListener('pointercancel', endStick);
+function moveStick(e) {
+  let dx = e.clientX - touch.sx, dy = e.clientY - touch.sy;
+  const d = Math.hypot(dx, dy) || 1;
+  if (d > stickR) { dx = dx / d * stickR; dy = dy / d * stickR; }
+  touch.ax = dx / stickR; touch.ay = dy / stickR;
+  knob.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+function readInputs(cam) {
+  const p1 = world.players[0];
+  let ax = 0, ay = 0;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) ax -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) ax += 1;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) ay -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) ay += 1;
+  if (!ax && !ay && touch.stickId !== null) { ax = touch.ax; ay = touch.ay; }
+  if (!ax && !ay && mouse.active && !isTouch) {
+    const sx = (p1.body.x - cam.x) * cam.z + canvas.clientWidth / 2, sy = (p1.body.y - cam.y) * cam.z + canvas.clientHeight / 2;
+    const dx = mouse.x - sx, dy = mouse.y - sy, d = Math.hypot(dx, dy);
+    if (d > 24) { ax = dx / Math.max(d, 90); ay = dy / Math.max(d, 90); }
+  }
+  setInput(p1, ax, ay, keys.has('KeyQ') || keys.has('ShiftLeft') || mouse.L || touch.L, keys.has('KeyE') || keys.has('ShiftRight') || mouse.R || touch.R);
+  if (world.players[1]) {
+    let bx = 0, by = 0;
+    if (keys.has('KeyJ')) bx -= 1; if (keys.has('KeyL')) bx += 1; if (keys.has('KeyI')) by -= 1; if (keys.has('KeyK')) by += 1;
+    setInput(world.players[1], bx, by, keys.has('KeyU'), keys.has('KeyO'));
+  }
+}
+
+// ---------- camera & loop ----------
+const cam = { x: 300, y: 500, z: 1, shake: 0 };
+let last = performance.now(), acc = 0;
+const DT = 1 / 120;
+const fx = []; // {x,y,vx,vy,life,color,r}
+const trails = new Map();
+
+function resize() {
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  canvas.width = Math.floor(canvas.clientWidth * dpr); canvas.height = Math.floor(canvas.clientHeight * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+function frame(now) {
+  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  acc += dt;
+  readInputs(cam);
+  while (acc >= DT) { stepWorld(world, DT); handleEvents(); acc -= DT; }
+  updateCamera(dt);
+  draw(dt);
+  requestAnimationFrame(frame);
+}
+
+function handleEvents() {
+  for (const ev of world.events) {
+    if (ev.type === 'grab') { for (let i = 0; i < 6; i++) fx.push({ x: ev.x, y: ev.y, vx: (Math.random() - .5) * 160, vy: -Math.random() * 120, life: .35, color: '#fff6e9', r: 2 + Math.random() * 2 }); }
+    if (ev.type === 'death') { cam.shake = 10; }
+    if (ev.type === 'win') { showWin(); }
+  }
+}
+
+function updateCamera(dt) {
+  const ps = world.players.filter((p) => !p.dead);
+  const tx = ps.length ? ps.reduce((s, p) => s + p.body.x, 0) / ps.length : level.spawn.x;
+  const ty = ps.length ? ps.reduce((s, p) => s + p.body.y, 0) / ps.length - 60 : level.spawn.y;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  const z = Math.max(0.55, Math.min(1.15, Math.min(W / 900, H / 620)));
+  cam.z += (z - cam.z) * Math.min(1, dt * 4);
+  const halfW = W / 2 / cam.z, halfH = H / 2 / cam.z;
+  const cx = Math.max(halfW - 120, Math.min(level.w - halfW + 120, tx));
+  const cy = Math.max(halfH, Math.min(level.h - halfH + 60, ty));
+  cam.x += (cx - cam.x) * Math.min(1, dt * 5);
+  cam.y += (cy - cam.y) * Math.min(1, dt * 5);
+  cam.shake = Math.max(0, cam.shake - dt * 30);
+}
+
+// ---------- drawing ----------
+function draw(dt) {
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  // sky
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1d2a4a'); g.addColorStop(1, '#4a4f8c');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // parallax hills
+  hills(W, H, 0.25, '#2b3a6b', 0.62, 140);
+  hills(W, H, 0.5, '#36508a', 0.74, 90);
+
+  ctx.save();
+  const sx = (Math.random() - .5) * cam.shake, sy = (Math.random() - .5) * cam.shake;
+  ctx.translate(W / 2 + sx, H / 2 + sy); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y);
+
+  // goal zone glow + flag
+  const gz = level.goal;
+  ctx.fillStyle = 'rgba(255, 220, 120, .10)'; roundRect(gz.x, gz.y, gz.w, gz.h, 18); ctx.fill();
+  drawFlag(level.flag.x, level.flag.y);
+
+  // terrain
+  for (const r of level.rects) {
+    if (r.kind === 'peg') { ctx.fillStyle = '#f3d9a4'; roundRect(r.x, r.y, r.w, r.h, 5); ctx.fill(); ctx.fillStyle = 'rgba(0,0,0,.18)'; roundRect(r.x, r.y + r.h - 5, r.w, 5, 3); ctx.fill(); continue; }
+    ctx.fillStyle = '#6b3b2e'; roundRect(r.x, r.y, r.w, r.h, 10); ctx.fill();
+    ctx.fillStyle = '#f5e2c2'; roundRect(r.x + 2, r.y, r.w - 4, 14, 7); ctx.fill();           // frosting top
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; roundRect(r.x, r.y + r.h - 16, r.w, 16, 8); ctx.fill();
+    // bean speckles
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    for (let i = 0; i < Math.min(40, (r.w * r.h) / 9000); i++) { const px = r.x + ((i * 97) % r.w), py = r.y + 24 + ((i * 53) % Math.max(1, r.h - 40)); ctx.beginPath(); ctx.arc(px, py, 4, 0, 7); ctx.fill(); }
+  }
+
+  // rope
+  const rope = level.rope;
+  ctx.strokeStyle = '#caa06a'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(rope.pts[0].x, rope.pts[0].y);
+  for (let i = 1; i < rope.pts.length; i++) ctx.lineTo(rope.pts[i].x, rope.pts[i].y);
+  ctx.stroke();
+  ctx.fillStyle = '#8c6a3c'; ctx.beginPath(); ctx.arc(rope.anchor.x, rope.anchor.y, 9, 0, 7); ctx.fill();
+  ctx.lineWidth = 6; ctx.strokeStyle = '#f5e2c2'; ctx.beginPath(); ctx.arc(rope.handle.x, rope.handle.y, 11, 0, 7); ctx.stroke();
+
+  // players
+  for (const p of world.players) drawPlayer(p, dt);
+
+  // particles
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i]; f.life -= dt; if (f.life <= 0) { fx.splice(i, 1); continue; }
+    f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 900 * dt;
+    ctx.globalAlpha = Math.max(0, f.life * 2.5); ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // HUD numbers
+  document.getElementById('clock').textContent = world.time.toFixed(1);
+  document.getElementById('deaths').textContent = world.players.reduce((s, p) => s + p.deaths, 0);
+}
+
+function hills(W, H, par, color, yFrac, amp) {
+  ctx.fillStyle = color; ctx.beginPath();
+  const base = H * yFrac; const off = -cam.x * par * cam.z;
+  ctx.moveTo(0, H);
+  for (let x = 0; x <= W + 40; x += 40) { const y = base + Math.sin((x - off) / 160) * amp * 0.35 + Math.sin((x - off) / 57) * amp * 0.12; ctx.lineTo(x, y); }
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+}
+
+function drawFlag(x, y) {
+  ctx.strokeStyle = '#f5e2c2'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 120); ctx.stroke();
+  const wave = Math.sin(performance.now() / 180) * 6;
+  ctx.fillStyle = '#ef5a5a'; ctx.beginPath(); ctx.moveTo(x + 3, y - 118); ctx.quadraticCurveTo(x + 40, y - 112 + wave, x + 78, y - 104); ctx.lineTo(x + 3, y - 70); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff6e9'; ctx.font = '800 22px "Baloo 2", "Noto Sans SC", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('终', x + 34, y - 86);
+}
+
+function drawPlayer(p, dt) {
+  if (p.dead) return;
+  const b = p.body;
+  const v = speed(b, 1 / 120);
+  // trail when flying fast
+  let t = trails.get(p.id); if (!t) { t = []; trails.set(p.id, t); }
+  t.push({ x: b.x, y: b.y, a: Math.min(1, v / 1400) }); if (t.length > 14) t.shift();
+  for (let i = 0; i < t.length; i++) { const q = t[i]; if (q.a < .15) continue; ctx.globalAlpha = q.a * (i / t.length) * .35; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(q.x, q.y, CFG.bodyR * (0.4 + 0.6 * i / t.length), 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+
+  // arms (noodles) with gloves
+  p.arms.forEach((arm, i) => {
+    ctx.strokeStyle = '#3a2a2a'; ctx.lineWidth = 15; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    noodle(arm.pts); ctx.stroke();
+    ctx.strokeStyle = '#f6e7c8'; ctx.lineWidth = 10; noodle(arm.pts); ctx.stroke();
+    const h = arm.hand; const glove = i === 0 ? '#63b3ed' : '#f6ad55';
+    ctx.fillStyle = '#3a2a2a'; ctx.beginPath(); ctx.arc(h.x, h.y, CFG.handR + 2.5, 0, 7); ctx.fill();
+    ctx.fillStyle = glove; ctx.beginPath(); ctx.arc(h.x, h.y, CFG.handR, 0, 7); ctx.fill();
+    if (arm.grip) { ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(h.x, h.y, CFG.handR + 5 + Math.sin(arm.gripT * 12) * 1.5, 0, 7); ctx.stroke(); }
+  });
+
+  // body with squash/stretch along velocity
+  const vx = b.x - b.px, vy = b.y - b.py; const sp = Math.hypot(vx, vy);
+  const ang = Math.atan2(vy, vx); const stretch = Math.min(0.22, sp * 0.03);
+  ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(ang); ctx.scale(1 + stretch, 1 - stretch); ctx.rotate(-ang);
+  ctx.fillStyle = '#3a2a2a'; ctx.beginPath(); ctx.arc(0, 0, CFG.bodyR + 2.5, 0, 7); ctx.fill();
+  ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(0, 0, CFG.bodyR, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(-7, -9, 9, 5, -0.5, 0, 7); ctx.fill();
+  // face: eyes look toward aim, mouth by state
+  const lx = p.aim.x * 4, ly = p.aim.y * 3;
+  const eyeY = -4;
+  for (const ex of [-8, 8]) {
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(ex, eyeY, 5.5, p.face === 'scream' ? 7 : 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2a1f3a'; ctx.beginPath(); ctx.arc(ex + lx, eyeY + ly, p.face === 'scream' ? 2 : 3, 0, 7); ctx.fill();
+  }
+  ctx.strokeStyle = '#2a1f3a'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.fillStyle = '#2a1f3a';
+  ctx.beginPath();
+  if (p.face === 'scream') { ctx.ellipse(0, 9, 5, 7, 0, 0, 7); ctx.fill(); }
+  else if (p.face === 'grab') { ctx.moveTo(-6, 8); ctx.quadraticCurveTo(0, 14, 6, 8); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-13, -12); ctx.lineTo(-5, -9); ctx.moveTo(13, -12); ctx.lineTo(5, -9); ctx.stroke(); }
+  else if (p.face === 'fly') { ctx.ellipse(0, 9, 3.5, 4.5, 0, 0, 7); ctx.fill(); }
+  else if (p.face === 'win') { ctx.moveTo(-8, 7); ctx.quadraticCurveTo(0, 17, 8, 7); ctx.stroke(); }
+  else { ctx.moveTo(-5, 9); ctx.quadraticCurveTo(0, 12, 5, 9); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(240, 90, 110, .35)'; ctx.beginPath(); ctx.arc(-14, 4, 4, 0, 7); ctx.arc(14, 4, 4, 0, 7); ctx.fill();
+  ctx.restore();
+  // name tag
+  ctx.fillStyle = 'rgba(255,246,233,.85)'; ctx.font = '700 11px "Noto Sans SC", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(p.id === 0 ? 'P1' : 'P2', b.x, b.y - CFG.bodyR - 10);
+}
+
+function noodle(pts) {
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length - 1; i++) { const xc = (pts[i].x + pts[i + 1].x) / 2, yc = (pts[i].y + pts[i + 1].y) / 2; ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc); }
+  const l = pts[pts.length - 1]; ctx.lineTo(l.x, l.y);
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// ---------- UI ----------
+const winEl = document.getElementById('win');
+function showWin() {
+  winEl.hidden = false;
+  document.getElementById('winTime').textContent = world.time.toFixed(1) + ' s';
+  const d = world.players.reduce((s, p) => s + p.deaths, 0);
+  document.getElementById('winLine').textContent = `${world.players.length} 个人到顶，一共掉下去 ${d} 次。`;
+  for (let i = 0; i < 60; i++) fx.push({ x: level.flag.x + 30, y: level.flag.y - 80, vx: (Math.random() - .5) * 600, vy: -Math.random() * 500, life: 1.2 + Math.random(), color: ['#F28CA6', '#9BCF83', '#F8C56D', '#8EC5E8', '#fff6e9'][i % 5], r: 3 + Math.random() * 3 });
+}
+function restart() { world = createWorld(level, nPlayers); winEl.hidden = true; trails.clear(); }
+document.getElementById('again').addEventListener('click', restart);
+document.getElementById('reset').addEventListener('click', restart);
+document.getElementById('p2btn').addEventListener('click', (e) => {
+  nPlayers = nPlayers === 1 ? 2 : 1; setPlayers(world, nPlayers);
+  e.currentTarget.textContent = nPlayers === 1 ? '+ 第二个人' : '− 第二个人';
+});
+setTimeout(() => { document.getElementById('help').style.opacity = '0'; }, 14000);
+canvas.addEventListener('pointerdown', () => { document.getElementById('help').style.opacity = '0'; }, { once: true });
+
+requestAnimationFrame(frame);
+</script>
