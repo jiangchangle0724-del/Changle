@@ -84,7 +84,7 @@
   .bar .conn.bad { color: var(--bad); opacity: 1; font-weight: 700; }
   .zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); min-height: 0; }
   .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,.06); border: 2px dashed rgba(255,255,255,.22); overflow: hidden; }
-  .stickzone .hint { position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; color: var(--ink-soft); text-align: center; line-height: 1.5; pointer-events: none; }
+  .stickzone .hint { position: absolute; inset: 0; padding: 16px; box-sizing: border-box; display: grid; place-items: center; font-size: 14px; color: var(--ink-soft); text-align: center; line-height: 1.5; pointer-events: none; }
   .stick { position: absolute; width: 140px; height: 140px; margin: -70px 0 0 -70px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); pointer-events: none; }
   .stick .knob { position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%; background: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,.3); }
   .grabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
