@@ -196,11 +196,11 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // screen's (the next actor's card, the vote before the scene, the next act before the reveal)
   const settle = useSettle(`${v.round}|${v.phase}|${step.k}|${"i" in step ? step.i : ""}|${v.ready.length}|${v.voted.length}|${v.cast.map((c) => c.pid).join(",")}`);
   // the house before the curtain, then the set itself
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" || v.mode === "classic" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? ""}|${scape}`) });
+    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? ""}|${scape}`) });
     return () => a?.stop(0.8);
     // once per scene and phase
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -267,7 +267,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           {stage(false, false)}
           <Playbill v={v} credit={credit} />
           <Roster v={v} nameOf={nameOf} face={face} />
-          {v.mode === "show" && <FirstTimeTips />}
+          {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} />}
         </>
       );
     } else {
@@ -297,6 +297,8 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               pk={v.mode === "pk"}
               line={v.pk?.line}
               sceneId={v.scene?.id}
+              first={c.first ?? null}
+              see={v.classic ?? null}
               onDone={() => {
                 act(pid, "ready");
                 setStep({ k: "pass", i: step.i + 1 });
@@ -335,9 +337,13 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               : v.options
                 ? "Phone on the table, eyes on the actor: which secret are they hiding? Read the plot twist out loud when it lands!"
                 : "Phone on the table. Halfway through, a plot twist lands: read it out loud!"
-            : zh
-              ? "两人轮流用自己的状态说这句台词"
-              : "Each says the line in their own style"}
+            : v.mode === "classic"
+              ? zh
+                ? "手机放桌上，照着剧情一步步演，记得说那句最有名的台词！"
+                : "Phone on the table. Follow the steps, and don't forget the famous line!"
+              : zh
+                ? "两人轮流用自己的状态说这句台词"
+                : "Each says the line in their own style"}
         </p>
       </>
     );
@@ -355,9 +361,17 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           {stage(false, false)}
           <p className="dm-wait-note">
             {v.peer
-              ? zh
-                ? `没人当观众：演员轮流投票，猜谁是坏人、给别人打星，不能投自己（${v.voted.length}/${voters.length}）`
-                : `Nobody watched, so the actors take turns: guess the culprit and rate the others, never yourself (${v.voted.length}/${voters.length})`
+              ? v.mode === "show"
+                ? zh
+                  ? `没人当观众：演员轮流投票，猜谁是坏人、给别人打星，不能投自己（${v.voted.length}/${voters.length}）`
+                  : `Nobody watched, so the actors take turns: guess the culprit and rate the others, never yourself (${v.voted.length}/${voters.length})`
+                : zh
+                  ? `没人当观众：演员轮流给别人打星，不能投自己（${v.voted.length}/${voters.length}）`
+                  : `Nobody watched, so the actors take turns rating the others, never themselves (${v.voted.length}/${voters.length})`
+              : v.mode !== "show"
+                ? zh
+                  ? `轮到观众打星：${v.mode === "classic" ? "谁最像原片" : "谁演得更像"}？（${v.voted.length}/${voters.length}）`
+                  : `The audience gives stars: ${v.mode === "classic" ? "who got closest to the original" : "who sold it"}? (${v.voted.length}/${voters.length})`
               : v.options
                 ? zh
                   ? `轮到观众投票：台上的人藏着哪个秘密？演得像不像？（${v.voted.length}/${voters.length}）`

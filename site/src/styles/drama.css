@@ -1772,3 +1772,24 @@ li.is-ready .dm-roster-state {
 .tvd .tvd-secrets li small {
   font-size: var(--text-sm);
 }
+
+/* ---------- 名场面: the film or show a famous scene comes from, and where to watch it ---------- */
+
+.dm-classic-show {
+  max-width: 34em;
+  margin: 0;
+  color: var(--gel);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading);
+  text-align: center;
+  text-wrap: balance;
+}
+.dm-classic-show svg {
+  display: inline-block;
+  margin-right: var(--space-1);
+  vertical-align: -0.15em;
+}
+.dm-see-original {
+  margin: calc(-1 * var(--space-1)) 0;
+}

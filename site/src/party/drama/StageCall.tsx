@@ -22,6 +22,11 @@ function nextLine(v: DramaView, zh: boolean, players: number): string {
     return zh ? `还没人报名：从「都行」的人里随机抽 ${k} 个上台。` : `No volunteers yet: ${k} of the “Either way” crowd go up at random.`;
   }
   const volunteers = Object.values(v.want ?? {}).filter((w) => w === "act").length;
+  if (v.mode === "classic") {
+    // a famous scene has no secret to guess, only stars
+    if (n.lo === 1) return zh ? "下一幕一个人上台，独自演一段名场面。" : "Next up: one person plays a famous moment solo.";
+    if (n.lo >= players) return zh ? `下一幕 ${n.lo} 个人全都上台，没人当观众：演完以后互相打星。` : `Next scene: all ${n.lo} of you on stage. With nobody watching, you'll rate each other.`;
+  }
   if (n.lo === 1) return zh ? "下一幕是独角戏：一个人上台，大家来猜 TA 藏着什么秘密。" : "Next up: a one-person show. Everyone else guesses what they're hiding.";
   if (n.lo >= players) return zh ? `下一幕 ${n.lo} 个人全都上台，没人当观众：演完以后互相猜、互相打星。` : `Next scene: all ${n.lo} of you on stage. With nobody watching, you'll guess and rate each other.`;
   if (volunteers > n.lo) return zh ? `下一幕 ${n.lo} 个人演。报名的人比角色多，演得少的先上。` : `Next scene: ${n.lo} on stage. More volunteered than there are roles: whoever has acted least goes first.`;
