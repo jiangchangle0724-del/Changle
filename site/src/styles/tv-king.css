@@ -70,7 +70,7 @@
   margin: 0;
   color: var(--gold);
   font-family: var(--font-display);
-  font-size: 76px;
+  font-size: 68px;
   font-weight: 900;
   line-height: 1.05;
   text-shadow: 0 0 40px color-mix(in oklab, var(--gold) 45%, transparent);

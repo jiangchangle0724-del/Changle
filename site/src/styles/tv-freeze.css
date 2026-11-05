@@ -20,7 +20,7 @@
 }
 .tvfz-head .tvx-bi {
   align-items: center;
-  font-size: 76px;
+  font-size: 72px;
 }
 .tvfz-line,
 .tvfz-dance {
@@ -49,8 +49,9 @@
   bottom: 120px;
 }
 .tvfz-crown {
-  color: var(--gel-honey);
-  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gel-honey) 60%, transparent));
+  /* a winner's crown: the podium's colour (tv-show.css .tvx-crown) */
+  color: var(--gel-amber);
+  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gel-amber) 60%, transparent));
   animation: tvx-pop 0.6s var(--ease-pop) both;
 }
 .tvfz-big {

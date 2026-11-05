@@ -25,6 +25,9 @@ const VIEWS: { [K in GameId]?: ViewOf<K> } = {
   prompts: lazy(() => import("../online/games/TvPrompts")),
   postit: lazy(() => import("../party/postit/TvPostit")),
   freeze: lazy(() => import("../party/freeze/TvFreeze")),
+  euchre: lazy(() => import("../party/euchre/TvEuchre")),
+  draw: lazy(() => import("../online/games/TvDraw")),
+  limbo: lazy(() => import("../party/limbo/TvLimbo")),
 };
 
 export const hasTvView = (id: GameId | null | undefined): boolean => !!id && !!VIEWS[id];
@@ -74,6 +77,12 @@ export function publicView(v: GameView): GameView {
       for (const pid of Object.keys(v.notes)) notes[pid] = v.phase === "end" || v.solved.includes(pid) ? v.notes[pid] : null;
       return { ...v, myTarget: null, notes };
     }
+    case "euchre":
+      // nobody's hand: only what's on the table
+      return { ...v, hand: [], legal: [], mySeat: null };
+    case "draw":
+      // the word only at the round's end (the drawer's own phone has it before)
+      return { ...v, word: v.phase === "result" ? v.word : null };
     case "truth":
       // (not one phone's, but not the room's yet either: the card is read out at the table first)
       return { ...v, prompt: null };

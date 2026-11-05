@@ -4,15 +4,15 @@
 
 ## 它是什么
 
-电视或电脑的浏览器打开 `changle.ca/tv`：屏幕上出现桌号和二维码，大家扫码入座。神回复在大屏上整场演出，手机变成遥控器；最佳称号、谁是卧底、猜歌名、戏精大赏、真心话大冒险、命运转盘、七八九、流氓十三张、国王游戏、我从来没有、额头便利贴、木头人蹦迪也有自己的大屏画面（从沙发上看的那种）；其他游戏的大屏还是手机画面放大，旁边一列座位。
+电视或电脑的浏览器打开 `changle.ca/tv`：屏幕上出现桌号和二维码，大家扫码入座。神回复在大屏上整场演出，手机变成遥控器；其他十五个游戏（最佳称号、谁是卧底、猜歌名、戏精大赏、真心话大冒险、命运转盘、七八九、流氓十三张、国王游戏、我从来没有、额头便利贴、木头人蹦迪、尤克牌、你画我猜、林波舞）也都有自己的大屏画面（从沙发上看的那种）。到此一游开始以后，大屏自己去它在 changle.ca/trip 的大屏页面；打碟时大屏就是音箱。以后新加的游戏没做画面之前，大屏显示手机画面放大，旁边一列座位。
 
 座位设成「只看」的手机，在有大屏画面的游戏里整屏显示同一个画面，适合投屏到电视。
 
 ## 文件
 
 - `site/src/tv/`：`TvApp.tsx`（大屏页面）、`views.tsx`（每个游戏的大屏画面登记在这里，还有 `publicView`：交给画面之前去掉只有一部手机能知道的东西）、`show.tsx`（画面共用的零件：舞台、霓虹招牌、倒计时圈、站着的玩家、领奖台、计分板）、`moments.tsx`（表情、惩罚条、角落的二维码、大屏上的游戏音效）、`Watch.tsx`（只看的手机）、`parts.tsx`
-- 每个游戏的大屏画面放在游戏旁边：`site/src/party/punchline/TvPunch.tsx`、`site/src/party/superlatives/TvSuper.tsx`、`site/src/online/games/TvUndercover.tsx`、`site/src/party/tune/TvTune.tsx`、`site/src/party/drama/TvDrama.tsx`、`site/src/online/games/TvTruth.tsx`、`TvWheel.tsx`、`TvDice.tsx`、`TvRogue.tsx`（瓶子和转盘跟着桌上转：`site/src/tv/spin.ts`）、`TvKing.tsx`、`TvPrompts.tsx`、`site/src/party/postit/TvPostit.tsx`、`site/src/party/freeze/TvFreeze.tsx`
-- 样式：`site/src/styles/tv.css`、`tv-show.css`，每个画面一份 `tv-superlatives.css`、`tv-undercover.css`、`tv-tune.css`、`tv-drama.css`、`tv-truth.css`、`tv-wheel.css`、`tv-dice.css`、`tv-rogue.css`、`tv-king.css`、`tv-prompts.css`、`tv-postit.css`、`tv-freeze.css`
+- 每个游戏的大屏画面放在游戏旁边：`site/src/party/punchline/TvPunch.tsx`、`site/src/party/superlatives/TvSuper.tsx`、`site/src/online/games/TvUndercover.tsx`、`site/src/party/tune/TvTune.tsx`、`site/src/party/drama/TvDrama.tsx`、`site/src/online/games/TvTruth.tsx`、`TvWheel.tsx`、`TvDice.tsx`、`TvRogue.tsx`（瓶子和转盘跟着桌上转：`site/src/tv/spin.ts`）、`TvKing.tsx`、`TvPrompts.tsx`、`TvDraw.tsx`、`site/src/party/postit/TvPostit.tsx`、`site/src/party/freeze/TvFreeze.tsx`、`site/src/party/euchre/TvEuchre.tsx`、`site/src/party/limbo/TvLimbo.tsx`
+- 样式：`site/src/styles/tv.css`、`tv-show.css`，每个画面一份 `tv-superlatives.css`、`tv-undercover.css`、`tv-tune.css`、`tv-drama.css`、`tv-truth.css`、`tv-wheel.css`、`tv-dice.css`、`tv-rogue.css`、`tv-king.css`、`tv-prompts.css`、`tv-postit.css`、`tv-freeze.css`、`tv-euchre.css`、`tv-draw.css`、`tv-limbo.css`（用到游戏自己零件的画面，比如林波舞的横杆、尤克牌的牌、木头人的舞池，自己加载 `party.css`：电视在游戏中途才打开，前面没有别的画面替它加载过）
 - 只看的手机从 `site/src/online/games/NetGame.tsx` 进 `Watch.tsx`（共用文件只动了两处：NetGame.tsx 的这几行，`NetFrame.tsx` 横条上给主人的那句话）
 
 ## 先读
@@ -23,7 +23,7 @@
 ## 测试
 
 - `site/scripts/tv_test.py`（开桌、扫码、整局神回复）
-- `site/scripts/watch_test.py`（三个玩家（谁是卧底四个）、一部横着拿的只看手机、两台电视 1920x1080 和 1280x720，有大屏画面的八个游戏各玩一遍：每个阶段都显示、页面里没有任何秘密、没有报错；还有竖着拿的手机、神回复、到此一游和打碟的入口。截图在 scratchpad/watch）
+- `site/scripts/watch_test.py`（三个玩家（谁是卧底四个）、一部横着拿的只看手机、两台电视 1920x1080 和 1280x720，有大屏画面的十五个游戏各玩一遍：每个阶段都显示、页面里没有任何秘密、没有报错；还有竖着拿的手机、游戏中途才打开的电视（木头人、尤克牌、林波舞）、神回复、到此一游和打碟的入口。截图在 scratchpad/watch）
 
 ## 定过的事
 
@@ -45,18 +45,29 @@
 - 瓶子和转盘在大屏上跟着桌上的那一转（`spin.ts`，和手机的 `useNetSpin` 一样接桌上的转法），转的声音只在放演出声音的那块屏上响。大屏也放这几个游戏的牌、骰子、照相机、摸鼻子这些音效（和每部手机一样，`useScreenFx`）。
 - 额头便利贴：每个人都看得到电视，所以额头上还没猜出来的词绝不上屏（`publicView` 只留下猜中的，服务器本来也不给屏幕和只看的人）；屏上是谁写好了、轮到谁、他问的问题和大家的是不是、每次猜的和对不对、猜出来几个。国王游戏：谁拿哪个号一直不上屏，只有命令叫到的号被人站出来认了，才写上他的名字（`publicView` 去掉自己的签）。我从来没有：只亮出谁答了，揭晓（每部手机一起亮）以前不出现任何人的答案。木头人蹦迪：音乐什么时候停是惊喜，屏上不倒数；音乐只在放演出声音的那块屏上响，和手机同一首、同一刻停；谁动了跟手机上一起亮。
 - 七八九：骰子落定以后公杯才动，规矩一直摆在下面；流氓十三张：照相机和摸鼻子盖住整个画面，手上的权力排在下面。
+- 尤克牌：谁的手牌都不上屏（`publicView` 把 `hand`、`legal`、`mySeat` 清掉，服务器本来也不给屏幕）；每个座位只有几张牌背。屏上是叫牌时翻开的那张、每个人叫了什么（脸旁边的小泡泡，叫主的人整手都留着，和手机一样）、主牌和谁叫的、每一墩出的牌（朝着出牌的人，赢的那张亮起来）、两队这一手的墩数和总分；一手的结果和整局的输赢写在桌子正中。
+- 你画我猜：画一笔大屏上就出一笔（`NetPlate`，不能画）；屏上是谁在画、几个字、倒计时、每个猜的（猜错的划掉，猜对的只说谁猜中了，不说猜的是什么）；词只在这一轮结束时上屏，和分数一起（`publicView` 在那之前把词去掉）。
+- 林波舞：横杆和大家一起往后仰，开始前倒数，谁过了、谁没过跟手机一起亮，一杆结束说的话和手机一样；#141 改的「谁都没仰，这一杆再来」大屏也照着说（#141 合并以前碰不到这种情况）。盲仰：目标角度上屏（每部手机都看得到），谁锁定了只亮出脸，这一轮结束才亮出每个人的角度，离目标最近的排前面。最后剩下的人戴王冠，写上他仰得最深的角度（盲仰写最后一轮仰了多少）。卡里普索音乐只在放演出声音的那块屏上响，和手机同一拍。
+- 一致的样子（第四批以后十五个画面一起对过）：左上霓虹招牌是游戏名，右上是第几轮和倒计时；每个阶段正中的标题是这一步要做什么（中文大字、英文小字，白色，72），下面一行 34；宣布结果、点名的大字用游戏的色灯，68；名字都在脸或人偶下面的名牌上（`.tvx-plate` 的样子）；赢的人戴同一种王冠（110，领奖台的 amber；国王游戏的房间本身是 amber，它的王冠用 honey），站在下面的人偶 240，名牌在惩罚条上面；有名次的游戏结束时是领奖台，最后剩一个人的游戏是王冠、大字和这个人，分两队的尤克牌是桌子正中的结果牌。
 - 大屏大厅里选了有大屏画面的游戏，那句话说「这个游戏在大屏幕上有自己的画面」（视觉对照图 `tv.png` 里选的正是真心话大冒险，这句小字的变化在比对的容差之内，CI 照样通过）。
 - 大屏画面的样式：舞台上的尺寸是舞台像素，和 `tv.css`、`show.css` 一样（整个舞台按屏幕缩放，网站按 rem 和屏宽变的字号在里面不适用）；颜色用网站的 token、游戏的色灯，或者在文件开头起了名字的道具色（`docs/DESIGN.md` 第 3 条）。只看的手机上的按钮在舞台外面，用网站的 token，三个挨着，所以 48 高。
 
 ## 还剩什么
 
-- 最后 3 个游戏的大屏画面（第四批）：尤克牌、你画我猜、林波舞。做法：照 `TvSuper.tsx` 写一个 `Tv<游戏>.tsx` 放在游戏旁边，在 `views.tsx` 登记，`publicView` 里加上这个游戏的私密字段，`watch_test.py` 加一段。
+- 每个游戏的大屏画面都做完了（四批：#149、#153、#155、#158，按这个顺序合并）。以后加新游戏时照 `TvSuper.tsx` 写一个 `Tv<游戏>.tsx` 放在游戏旁边，在 `views.tsx` 登记，`publicView` 里加上这个游戏的私密字段，`watch_test.py` 加一段。
+- 要在真东西上看一遍（测试都是无头 Chromium 截图，这些它看不出来）：
+  - 真电视的浏览器（三星、LG、小米盒子、Fire TV）：舞台缩放、动画会不会卡、第一下点击以后有没有声音、遥控器能不能点开声音按钮。
+  - 720p 的电视从三米外读最小的字（22 舞台像素，720p 上约 18px）：尤克牌的叫牌泡泡、林波舞盲仰的角度、你画我猜猜错的字。
+  - 只看的 iPhone 和安卓：第一次点屏幕以后才有声音、屏幕常亮、横竖转、锁了方向时侧过来的画面。
+  - 投屏（AirPlay、Chromecast、电视自带的投屏）：画面比例、延迟，声音从电视出来时手机还响不响。
+  - 跟着音乐的游戏（木头人蹦迪、林波舞、猜歌名）：大屏和手机是不是同一拍，木头人的音乐停得是不是同一刻。
+  - 一张桌子开了两块大屏（比如客厅电视加一台电脑）：每块点过一下的屏都放演出声音，看看真场合里要不要只让一块放。
 - 请 Steve 定：只看的手机默认放不放声音（现在：桌上没有大屏就放）；打碟的只看手机去 `/tv/<桌号>` 可以吗。
-- 没在真电视、真 iPhone 上看过：测试是无头 Chromium 截图。
 - 电视的字号档进 `tokens.css`（`docs/ui-inventory.md` 说的「电视档」）以后，大屏画面和 `tv.css`、`show.css` 的舞台像素一起换成它。
-- 大屏大厅里选了没有大屏画面的游戏时，那句「神回复会在大屏幕上整场演出，其他游戏在手机上玩」还是旧说法；等画面都做完一起改（它在视觉对照图 `site/tests/visual/__screenshots__/tv.png` 里，改了要更新对照图）。
 
 ## 交给别的对话
+
+- 林波舞（#141 合并以后）：手机上「谁都没过，这一杆再来」那种情况，大屏照着说，但是现在的 main 上碰不到（谁都没过就直接结束），没在测试里跑过；#141 合并以后可以在 `watch_test.py` 的林波舞那段加上：三个人都按「没过」、谁都没仰，看大屏写着「谁都没过，这一杆再来」、横杆没动。
 
 - 只看的人在手机画面上还被当成玩家（另一个分支在一起修所有 `Net*.tsx`）：第三批里看到的还有 `common.tsx` 的 `SeatPicker`（列出所有座位，包括只看的人：我从来没有「谁最有可能」投票、国王游戏指人受罚都用它），`NetPrompts.tsx` 的「几个人答了」分母用的是所有座位，`NetFreeze.tsx` 主人「抓人」的名单也是所有座位。
 
@@ -69,6 +80,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 Watching, batch 4: Euchre, Draw & Guess and Limbo on the big screen, and one look for all fifteen (#158)
 - 2026-11-03 Watching, batch 3: King's Game, Never Have I Ever, Post-it and Freeze Dance on the big screen (#155)
 - 2026-11-03 Watching, batch 2: Truth or Dare, Wheel of Fate, Seven Eight Nine and Rogue Thirteen on the big screen (#153)
 - 2026-11-02 Watching: every game's own big-screen view, starting with four games (#149)
@@ -83,6 +95,7 @@
 
 - 2026-11-02 建档案。
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
+- 2026-11-03 大屏画面第四批：尤克牌、你画我猜、林波舞，整个活做完。`watch_test.py` 每个游戏加一段（尤克牌屏上只有桌上的牌、没有人的手牌；你画我猜的词这一轮结束前不上屏、猜对的不显示猜了什么；林波舞经典和盲仰都玩到底），还有游戏中途才打开的电视。十五个画面在 1080p、720p 和只看的手机上一起对了一遍：阶段标题和下面那行一样大，赢的人的王冠同一种颜色，座位的名字都用同一种名牌，木头人和林波舞准备的时候说要做什么（不再重复游戏名），戏精大赏领奖台的王冠不再压住标题。木头人蹦迪的画面以前靠前面别的画面加载过 `party.css`，电视直接从木头人开始时舞池没有样式，现在自己加载。大屏大厅里选到到此一游时那句话改成说它有自己的大屏页面。公杯（`components/Glass.tsx`，七八九和惩罚印章里的那杯酒）只动液面的位置：以前连高度一起弹，弹簧偶尔把高度弹成负数，手机的控制台报错。`watch_test.py` 里有人离桌时先数座位再离开（以前离开以后才数，桌上消息来得快时就数错了），木头人判定时只拍一张图（拍两张时偶尔错过结果），盲仰的测试手机在两轮之间一直晃（不然下一轮一开始就按上一轮的角度锁定了）。整套 `watch_test.py` 在 1080p、720p 和只看的手机上跑过两遍（中文），新的三个游戏另外用英文跑了一遍。
 - 2026-11-03 大屏画面第三批：国王游戏、我从来没有、额头便利贴、木头人蹦迪。`watch_test.py` 每个游戏加一段（谁拿哪个号、谁答了什么、额头上的词都不上屏）。
 - 2026-11-02 大屏画面第二批：真心话大冒险、命运转盘、七八九、流氓十三张。`watch_test.py` 每个游戏加一段（真心话的题目不上屏，各个阶段、报错）。
 - 2026-11-02 大屏画面第一批：管道（`views.tsx` 登记、只看的手机整屏显示、声音、常亮、竖着拿时侧过来、到此一游和打碟的入口）和四个游戏（最佳称号、谁是卧底、猜歌名、戏精大赏）；神回复的演出也到了只看的手机上。`watch_test.py` 查每个阶段、秘密和报错。按当天 main 上的设计规则整理了颜色（token 和文件开头起名的道具色）和只看手机上的按钮（token，48 高）。`tv_test.py` 全过；`party_test.py` 除了到此一游的几项（本地没开到此一游的服务器，/trip 返回 500）都过，尤克牌单机那项第一次被惩罚印章挡住，重跑通过。

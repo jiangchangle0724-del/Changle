@@ -9,6 +9,7 @@ import { Bi, joinNames, RoundTag, TvClock, TvLineup, TvShow, useLang, useSeats }
 import type { TvViewProps } from "../../tv/views";
 import { perfAt } from "../sensors";
 import { DanceFloor } from "./parts";
+import "../../styles/party.css";
 import "../../styles/tv-freeze.css";
 
 /** how long everyone holds still before the phones judge (the server's FREEZE_MS) */
@@ -58,13 +59,13 @@ export default function TvFreeze({ v, sound }: TvViewProps<FreezeView>) {
           ) : (
             <>
               <h1 className="tvfz-head">
-                <Bi t={{ zh: "木头人蹦迪", en: "Freeze Dance" }} />
+                <Bi t={v.phase === "end" ? { zh: "这局结束了", en: "That's the game" } : { zh: "准备跳舞", en: "Get ready to dance" }} />
               </h1>
               <p className="tvfz-line">{tx("主人放音乐，大家拿着手机跳；音乐一停，马上不许动", "The host starts the music and everyone dances, phone in hand; when it stops, freeze")}</p>
             </>
           )}
         </div>
-        <TvLineup people={(winner ? [winner] : players).map((s) => ({ seat: s, state: winner ? ("win" as const) : ("idle" as const) }))} big={winner ? 320 : 250} className="tvfz-row" />
+        <TvLineup people={(winner ? [winner] : players).map((s) => ({ seat: s, state: winner ? ("win" as const) : ("idle" as const) }))} big={winner ? 240 : 250} className="tvfz-row" />
       </TvShow>
     );
   }

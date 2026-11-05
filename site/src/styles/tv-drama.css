@@ -573,7 +573,8 @@ li.is-ready .tvd-roster-state {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 104px;
+  /* lower than 猜歌名's: the awards under the names make the columns taller (the crown stays clear of the title) */
+  bottom: 36px;
 }
 .tvd-awards {
   display: inline-flex;

@@ -41,7 +41,7 @@ export default function TvKing({ v }: TvViewProps<KingView>) {
     return (
       <TvShow game="king" className="tvk is-crown" phase={v.phase} round={tag}>
         <div className="tvk-crown">
-          <Crown className="tvk-crown-icon" size={120} strokeWidth={1.8} aria-hidden="true" />
+          <Crown className="tvk-crown-icon" size={110} strokeWidth={1.8} aria-hidden="true" />
           <h1 className="tvk-king-name">{tx(`${name(v.king)} 是国王！`, `${name(v.king)} is the king!`)}</h1>
           {king && <TvLineup people={[{ seat: king, state: "win" }]} big={300} className="tvk-king" />}
           <p className="tvk-line">{tx("国王在手机上抽一道命令", "The king draws an order on their phone")}</p>

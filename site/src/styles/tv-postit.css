@@ -25,13 +25,13 @@
 }
 .tvp-head .tvx-bi {
   align-items: center;
-  font-size: 68px;
+  font-size: 72px;
 }
 .tvp-line {
-  max-width: 1100px;
+  max-width: 1240px;
   margin: 0;
   color: var(--moon);
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
   line-height: 1.35;
   text-wrap: balance;
