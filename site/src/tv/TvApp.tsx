@@ -5,29 +5,28 @@ import { gsap, reduced } from "../lib/anim";
 import { holdBackground, startGroove } from "../lib/music";
 import { sfx, unlockAudio } from "../lib/sfx";
 import { isCode, newCode } from "../online/config";
-import { useReactionLabel } from "../online/Overlays";
 import { SeatFace } from "../online/People";
 import { NetGame } from "../online/games/NetGame";
-import { RoomProvider, useRoom, useRoomEvent } from "../online/RoomContext";
+import { RoomProvider, useRoom } from "../online/RoomContext";
 import { useWakeLock } from "../party/sensors";
-import { Stage } from "../party/punchline/show/Stage";
-import { useWho } from "../party/punchline/show/who";
 import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
-import { ONLINE_GAMES, ONLINE_MIN, timesOf, type GameView, type PenaltyEvent, type PunchView, type Reaction, type RoomView, type SeatView, type TripView } from "../shared/protocol";
-import { t } from "../i18n";
+import { ONLINE_GAMES, ONLINE_MIN, type GameView, type RoomView, type SeatView, type TripView } from "../shared/protocol";
 import { TablePenalty, useStore } from "../store";
 import "../styles/tv.css";
 import { useCodeField } from "../online/codeField";
+import { TvCorner, TvPenalties, TvReactions, useScreenFx } from "./moments";
 import { joinLink, siteHost, useQr, Wordmark } from "./parts";
+import { hasTvView, TvView } from "./views";
 // the DJ booth brings the speaker (its own sound chain and music): only DJ tables load it
 const TvDj = lazy(() => import("../party/dj/TvDj"));
 
 /**
  * changle.ca/tv: a TV or a computer becomes the table's big screen. It opens a table (or shows
  * one that is already going), puts the code and a QR up for the phones, and then shows the game.
- * Punchline plays as a full show here; the phones become controllers. Every other game shows
- * here too, large, as the table sees it: nobody at the screen can touch the game. A phone that
- * only wants to watch (to mirror to a TV, say) opens this same page.
+ * A game with a big-screen view of its own (views.tsx: Punchline's whole show, Superlatives,
+ * Undercover, Name That Tune, Drama Queens) plays it here; every other game shows here too,
+ * large, as the table sees it. Nobody at the screen can touch the game. A phone that only
+ * watches shows the same views (Watch.tsx).
  */
 export function TvApp({ code: given, game }: { code?: string; game?: GameId }) {
   const [table, setTable] = useState(() => ({ code: given && isCode(given) ? given : newCode(), create: !given || !isCode(given), n: 0 }));
@@ -53,9 +52,13 @@ export function TvApp({ code: given, game }: { code?: string; game?: GameId }) {
 
 function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFresh: () => void; onJoin: (code: string) => void; onAgain: () => void }) {
   const { room, stopped, code, status } = useRoom();
-  const { lang } = useStore();
+  const { lang, sound } = useStore();
   const zh = lang === "zh";
   const gate = useSoundGate();
+  const audio = gate.armed && sound;
+  // a game with a view of its own sounds its moments here too (a card dealt, a reveal, the win)
+  const own = hasTvView(room?.game?.id);
+  useScreenFx(audio && own);
 
   // a fresh code that turned out to be taken: quietly try another
   useEffect(() => {
@@ -87,7 +90,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
       </TvNotice>
     );
   else if (!room) body = <TvNotice title={status === "reconnecting" ? (zh ? "正在重新连接…" : "Reconnecting…") : zh ? "正在开桌…" : "Opening the table…"} spinning />;
-  else if (room.game?.id === "punchline") body = <TvPunch v={room.game} audio={gate.armed} />;
+  else if (room.game && own) body = <TvView v={room.game} sound={audio} fallback={<TvNotice title={zh ? GAME_BY_ID[room.game.id].name.zh : GAME_BY_ID[room.game.id].name.en} spinning />} />;
   else if (room.game?.id === "trip") body = <TvTrip v={room.game} table={code} />;
   else if (room.game?.id === "dj")
     body = (
@@ -105,7 +108,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
         {body}
         {room?.playing && room.playing !== "dj" && <TvCorner code={code} />}
         {room && <TvReactions />}
-        {room && <TvPenalties room={room} audio={gate.armed} />}
+        {room && <TvPenalties room={room} sound={audio} />}
         {/* the DJ booth asks for its own tap (it starts the speaker) */}
         <TvControls gate={gate} game={!!room?.playing} noGate={room?.playing === "dj"} />
       </TablePenalty>
@@ -352,8 +355,10 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
         </div>
         {gid === "dj" ? (
           <span className="tv-front-note">{zh ? "打碟的音乐从这块屏幕出来，手机按 🔥" : "The DJ booth's music comes out of this screen; the phones press 🔥"}</span>
+        ) : gid === "punchline" ? null : hasTvView(gid) ? (
+          <span className="tv-front-note">{zh ? "这个游戏在大屏幕上有自己的画面，大家用手机玩" : "This one has its own show on the big screen. Everyone plays on their phone."}</span>
         ) : (
-          gid !== "punchline" && <span className="tv-front-note">{zh ? "神回复会在大屏幕上整场演出，其他游戏在手机上玩" : "Punchline plays as a full show here. Other games play on the phones."}</span>
+          <span className="tv-front-note">{zh ? "神回复会在大屏幕上整场演出，其他游戏在手机上玩" : "Punchline plays as a full show here. Other games play on the phones."}</span>
         )}
         {!room.seats.length &&
           (joining ? (
@@ -401,16 +406,10 @@ function useGroove(on: boolean, id: "lounge" | "funk" | "disco", volume: number)
 
 /* ------------------------------------------------------------------ the games */
 
-function TvPunch({ v, audio }: { v: PunchView; audio: boolean }) {
-  const { room, now } = useRoom();
-  const { lang, sound } = useStore();
-  const who = useWho(room?.seats ?? []);
-  return <Stage v={v} who={who} now={now} mode="tv" sound={audio && sound} lang={lang} me={null} />;
-}
-
 /**
- * Any other game, watched: the game itself in the middle (the same screen the phones show, drawn
- * for someone with no seat, so no secrets and nothing to press), the table down the side.
+ * A game without a big-screen view of its own yet: the game itself in the middle (the same screen
+ * the phones show, drawn for someone with no seat, so no secrets and nothing to press), the table
+ * down the side.
  */
 function TvGame({ room, v }: { room: RoomView; v: GameView }) {
   const { lang } = useStore();
@@ -477,101 +476,6 @@ function TvNowPlaying({ room, id }: { room: RoomView; id: GameId }) {
           ))}
         </ul>
       </div>
-    </div>
-  );
-}
-
-/** During a game: the code stays in a corner, so anyone arriving late can still sit down. */
-function TvCorner({ code }: { code: string }) {
-  const { lang } = useStore();
-  const qr = useQr(joinLink(code), "#0e0c22");
-  return (
-    <div className="tv-corner">
-      <span className="tv-corner-qr">{qr && <span dangerouslySetInnerHTML={{ __html: qr }} />}</span>
-      <span className="tv-corner-text">
-        <span className="tv-corner-label">{lang === "zh" ? "扫码加入" : "Scan to join"}</span>
-        <span className="tv-corner-code tabular">{code}</span>
-      </span>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ the room's moments on the big screen */
-
-type Float = { id: number; r: Reaction; name: string; x: number };
-
-function TvReactions() {
-  const { nameOf } = useRoom();
-  const { lang } = useStore();
-  const label = useReactionLabel();
-  const [items, setItems] = useState<Float[]>([]);
-  const seq = useRef(0);
-  useRoomEvent((e) => {
-    if (e.k !== "react") return;
-    const id = ++seq.current;
-    const x = 8 + Math.random() * 84;
-    setItems((list) => [...list.slice(-9), { id, r: e.r, name: nameOf(e.pid), x }]);
-    window.setTimeout(() => setItems((list) => list.filter((f) => f.id !== id)), 3000);
-  });
-  return (
-    <div className="tv-reacts" aria-hidden="true">
-      {items.map((f) => (
-        <span key={f.id} className={`tv-react tv-react-${f.r}`} style={{ left: `${f.x}%` }}>
-          <span className={lang === "zh" ? "zh-display" : "en-display"}>{label(f.r)}</span>
-          <small>{f.name}</small>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function TvPenalties({ room, audio }: { room: RoomView; audio: boolean }) {
-  const { ui, lang, sound } = useStore();
-  const [queue, setQueue] = useState<PenaltyEvent[]>([]);
-  useRoomEvent((e) => {
-    if (e.k === "penalty") setQueue((q) => [...q, e].slice(-4));
-  });
-  const cur = queue[0] ?? null;
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (!cur) return;
-    if (audio && sound && cur.kind !== "safe") sfx.stamp(0.7);
-    const el = ref.current;
-    if (el && !reduced()) gsap.fromTo(el, { scale: 2.2, rotate: -10, opacity: 0 }, { scale: 1, rotate: -3, opacity: 1, duration: 0.45, ease: "back.out(2.2)" });
-    const id = window.setTimeout(() => setQueue((q) => q.slice(1)), cur.kind === "safe" ? 2600 : 4600);
-    return () => window.clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cur?.id]);
-  if (!cur) return null;
-  // a game's own forfeit (Drama's) comes first, as on the phones; then the host's own penalty
-  const custom = cur.say ? t(lang, cur.say) : room.penalty;
-  // done once, twice for two sips, or as many times as the game says (7-8-9's pot); a named forfeit once
-  const n = timesOf(cur);
-  const own = custom ? (n > 1 ? `${custom} ×${n}` : custom) : "";
-  const what =
-    cur.kind === "safe"
-      ? ui("safe")
-      : cur.kind === "full"
-        ? own || ui("finish")
-        : cur.kind === "everyone"
-          ? own || ui("everyoneDrinks")
-          : cur.kind === "two"
-            ? own || ui("twoSips")
-            : own || ui("sip");
-  const seats = cur.kind === "everyone" ? [] : cur.who.map((pid) => room.seats.find((s) => s.id === pid)).filter(Boolean) as SeatView[];
-  // the whole table: with drinking the line says so ("everyone drinks"); with the host's own penalty, name the table
-  const who = cur.kind === "everyone" && custom ? ui("everyone") : seats.map((s) => s.name).join(lang === "zh" ? "、" : ", ");
-  return (
-    <div className={`tv-pen ${cur.kind === "safe" ? "is-safe" : ""}`} ref={ref} role="status">
-      <span className="tv-pen-faces">
-        {seats.map((s) => (
-          <SeatFace key={s.id} seat={s} size={58} />
-        ))}
-      </span>
-      <span className="tv-pen-text">
-        <span className="tv-pen-who">{who}</span>
-        <span className={`tv-pen-what ${lang === "zh" ? "zh-display" : "en-display"}`}>{what}</span>
-      </span>
     </div>
   );
 }

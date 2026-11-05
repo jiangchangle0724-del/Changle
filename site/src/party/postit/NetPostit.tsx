@@ -7,6 +7,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useRoom } from "../../online/RoomContext";
+import { useWatching } from "../../online/players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "../../online/games/common";
 import type { PostitReply, PostitView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
@@ -245,26 +246,30 @@ function ReplyPanel({ v }: { v: PostitView }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const my = v.replies[me];
+  // (someone just watching hears the question, and leaves the answers to the players)
+  const watching = useWatching();
   return (
     <div className="pi-panel">
       {v.asking ? <p className="pi-question">{v.asking}</p> : <Waiting>{zh ? `等 ${nameOf(v.turn)} 提问` : `Waiting for ${nameOf(v.turn)} to ask`}</Waiting>}
-      <div className="pi-replies" role="group" aria-label={zh ? "回答" : "Answer"}>
-        {(["yes", "no", "maybe"] as const).map((r) => (
-          <button
-            key={r}
-            type="button"
-            className={`pi-reply is-${r}`}
-            aria-pressed={my === r}
-            onClick={() => {
-              g("reply", { r });
-              sfx.tap();
-              haptic(6);
-            }}
-          >
-            {REPLY[r][zh ? 0 : 1]}
-          </button>
-        ))}
-      </div>
+      {!watching && (
+        <div className="pi-replies" role="group" aria-label={zh ? "回答" : "Answer"}>
+          {(["yes", "no", "maybe"] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              className={`pi-reply is-${r}`}
+              aria-pressed={my === r}
+              onClick={() => {
+                g("reply", { r });
+                sfx.tap();
+                haptic(6);
+              }}
+            >
+              {REPLY[r][zh ? 0 : 1]}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -84,14 +84,15 @@ export const prompts: GameDef<S> = {
         return;
       }
       case "ans": {
-        if (s.phase !== "answer" || s.mode !== "never" || typeof g.yes !== "boolean") return;
+        // (players only: someone just watching, host or not, doesn't answer)
+        if (s.phase !== "answer" || s.mode !== "never" || typeof g.yes !== "boolean" || !api.has(pid)) return;
         s.ans[pid] = g.yes;
         if (everyoneIn(s, api)) reveal(s, api);
         return;
       }
       case "vote": {
         const target = String(g.target ?? "");
-        if (s.phase !== "answer" || s.mode !== "likely" || !api.has(target) || target === pid) return;
+        if (s.phase !== "answer" || s.mode !== "likely" || !api.has(target) || target === pid || !api.has(pid)) return;
         s.votes[pid] = target;
         if (everyoneIn(s, api)) reveal(s, api);
         return;

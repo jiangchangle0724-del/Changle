@@ -40,6 +40,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
   }, [tokens, players]);
 
   const sticks = useMemo(() => Array.from({ length: players.length }, (_, i) => ({ i, h: 150 + ((i * 37) % 5) * 6, x: 60 + (240 / Math.max(1, players.length - 1)) * i })), [players.length]);
+  const hit = Math.min(24, 120 / Math.max(1, players.length - 1));
 
   const pull = (stickIndex: number) => {
     if (pulled !== null || taken.includes(stickIndex)) return;
@@ -169,10 +170,18 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
                     animate={{ y: isPulled ? -150 : gone ? 40 : 0, opacity: gone ? 0 : 1, rotate: isPulled ? -3 : 0 }}
                     transition={{ type: "spring", stiffness: 220, damping: 20 }}
                     onClick={() => pull(s.i)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      pull(s.i);
+                    }}
                     role="button"
-                    aria-label={`stick ${s.i + 1}`}
+                    tabIndex={!(gone || pulled !== null) ? 0 : -1}
+                    aria-label={lang === "zh" ? `第 ${s.i + 1} 支签` : `Stick ${s.i + 1}`}
                     aria-disabled={gone || pulled !== null}
                   >
+                    {/* a finger-wide target round the thin stick (as wide as the gap to the next one allows) */}
+                    <rect x={s.x - hit} y={170 - s.h - 12} width={hit * 2} height={s.h + 122} fill="transparent" />
                     <rect x={s.x - 5} y={170 - s.h} width={10} height={s.h + 110} rx={4} fill="url(#bamboo)" />
                     {/* hidden end: number band or the king's red band */}
                     <AnimatePresence>

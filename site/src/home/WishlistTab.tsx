@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Crown, Flame, Gamepad2, Send, Sparkles, Wrench } from "lucide-react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError } from "../lib/api";
 import { EASE, play, reduced } from "../lib/motion";
 import { sfx } from "../lib/sfx";
@@ -82,6 +82,8 @@ export function WishlistTab() {
   const [wishes, setWishes] = useState<Wish[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [sort, setSort] = useState<"top" | "new">("top");
+  /** how many times the list has arrived from the server */
+  const [loaded, setLoaded] = useState(0);
   const [draft, setDraft] = useState<Draft>(loadDraft);
   const { kind, text, desc, rules } = draft;
   const game = kind === "game";
@@ -97,6 +99,7 @@ export function WishlistTab() {
     try {
       const d = await api<{ wishes: Wish[] }>("/wishes", { signal });
       setWishes(d.wishes);
+      setLoaded((n) => n + 1);
       setFailed(false);
     } catch {
       if (!signal?.aborted) setFailed(true);
@@ -118,7 +121,16 @@ export function WishlistTab() {
 
   const ready = text.replace(/\s+/g, " ").trim().length >= NAME_MIN && within(tidy(desc).length, DESC) && within(tidy(rules).length, RULES);
 
-  const sorted = (wishes ?? []).slice().sort((a, b) => (sort === "top" ? b.votes - a.votes || b.at - a.at : b.at - a.at));
+  // The order is set when the list arrives, the sort changes or a wish is added, not by a vote: a
+  // wish that jumped up or down the list as you voted left a quick second tap on someone else's.
+  const count = wishes?.length ?? 0;
+  const order = useMemo(
+    () => (wishes ?? []).slice().sort((a, b) => (sort === "top" ? b.votes - a.votes || b.at - a.at : b.at - a.at)).map((w) => w.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sort, count, loaded],
+  );
+  const byId = new Map((wishes ?? []).map((w) => [w.id, w]));
+  const sorted = order.map((id) => byId.get(id)).filter((w): w is Wish => !!w);
   // made ones are off the list: they fold away under "already made"
   const open = sorted.filter((w) => w.status !== "done");
   const made = sorted.filter((w) => w.status === "done");
@@ -149,7 +161,15 @@ export function WishlistTab() {
     }
   };
 
+  // one vote on its way per wish, and a quick double tap is one tap (even when the answer is quicker
+  // than the second tap): it counts once, and answers can't land out of order
+  const voting = useRef(new Set<number>());
+  const tapped = useRef(new Map<number, number>());
   const vote = async (w: Wish, btn: HTMLElement) => {
+    const now = performance.now();
+    if (voting.current.has(w.id) || now - (tapped.current.get(w.id) ?? -Infinity) < 450) return;
+    tapped.current.set(w.id, now);
+    voting.current.add(w.id);
     const up = !w.voted;
     setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: up, votes: x.votes + (up ? 1 : -1) } : x)) ?? null);
     if (up) {
@@ -176,6 +196,8 @@ export function WishlistTab() {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: d.voted, votes: d.votes } : x)) ?? null);
     } catch {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: w.voted, votes: w.votes } : x)) ?? null);
+    } finally {
+      voting.current.delete(w.id);
     }
   };
 

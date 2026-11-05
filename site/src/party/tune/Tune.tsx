@@ -36,6 +36,8 @@ export function Tune({ onBack }: { onBack: () => void }) {
   const [phase, setPhase] = useState<"setup" | "play" | "end">("setup");
   const [scores, setScores] = useState<Record<string, number>>({});
   const penalty = usePenalty();
+  // the game has its own sound (the songs, the melodies, the DJ's music app): the lounge music waits
+  useEffect(() => holdBackground(), []);
 
   // the buzzer board has room for eight
   const ranked = mode === "pads" ? people.slice(0, 8) : people;
@@ -175,7 +177,6 @@ function SongRounds({
   /** the performers react: a cheer for the right title, a shrug for a wrong one */
   const [cue, setCue] = useState<StageCue | null>(null);
 
-  useEffect(() => holdBackground(), []);
   useEffect(() => {
     loadSongbook().then(setBook, () => setFailed(true));
   }, []);

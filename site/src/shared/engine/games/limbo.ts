@@ -161,6 +161,14 @@ function settle(s: S, api: Api) {
   if (failed.length && failed.length === s.alive.length) {
     // nobody made it: whoever leaned furthest wins
     const top = Math.max(...failed.map((pid) => s.best[pid] ?? 0));
+    if (top <= 0) {
+      // and nobody leaned at all (no readings, nobody judged a pass): there's no furthest, so
+      // everyone takes the penalty and tries the same bar again, as on one phone (the first seat
+      // used to win the game for nothing)
+      api.penalty(failed, "sip", t("林波舞：谁都没过，这一杆再来", "Limbo: nobody made it, same bar again"), { delay: 600 });
+      api.timer("next", api.now + BETWEEN_MS);
+      return;
+    }
     const winners = failed.filter((pid) => (s.best[pid] ?? 0) === top);
     s.out.push(...failed.filter((pid) => !winners.includes(pid)));
     s.alive = winners;
