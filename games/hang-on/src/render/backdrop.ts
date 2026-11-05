@@ -2,9 +2,12 @@
  * 背景（A3）：天空渐变加三层视差剪影，屏幕空间，跟着镜头慢慢走。
  * 年夜饭桌：红灯笼、碗、茶壶、蒸笼的剪影，蒸汽往上飘。
  * 温哥华：傍晚的天、雪山、吊桥、楼群的灯、海边的树；冰关下雨。
- * 全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
+ * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
+ *
+ * 远景画（可选）：`games/hang-on/art/<世界>-far.webp` 有就用（AI 画的整张远景，来源写在 art/README.md），
+ * 盖住天空和最远那层剪影，压暗一点，镜头走过整关它只横着挪一小段。没有这张图就全用程序画的。
  */
-import { Container, FillGradient, Graphics } from 'pixi.js';
+import { Assets, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js';
 import { glow, hex, type Palette, type WorldId } from './art';
 import type { Burst, Particles } from './fx';
 
@@ -15,6 +18,15 @@ interface Layer {
   period: number;
   g: [Graphics, Graphics];
 }
+
+/** art/ 里的远景画，按世界找；没有就是 undefined（构建时 Vite 把图带上并加指纹）。 */
+const PLATES = import.meta.glob('../../art/*-far.{webp,jpg,png}', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+export function plateUrl(world: WorldId): string | undefined {
+  for (const [path, url] of Object.entries(PLATES)) if (path.includes(`/${world}-far.`)) return url;
+  return undefined;
+}
+/** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷）。 */
+const PLATE_TINT: Record<WorldId, number> = { table: 0xb8a8a4, van: 0xaab0c4 };
 
 /** 确定性随机：背景每次长一样。 */
 function rng(seed: number): () => number {
@@ -36,6 +48,9 @@ export class Backdrop {
   private skyGrad: FillGradient | null = null;
   private steamT = 0;
   private rainT = 0;
+  private plate: Sprite | null = null;
+  private plateA = 0;
+  private dead = false;
   rain = false;
 
   constructor(
@@ -51,6 +66,35 @@ export class Backdrop {
       this.view.addChild(c);
       this.layers.push({ c, f, period: 1600, g });
     }
+    const url = plateUrl(world);
+    if (url) void this.loadPlate(url);
+  }
+
+  /** 远景画：加载好了就盖在天空上，最远那层剪影藏起来。加载失败就当没有。 */
+  private async loadPlate(url: string): Promise<void> {
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (this.dead) return;
+      const s = new Sprite(tex);
+      s.tint = PLATE_TINT[this.world];
+      s.alpha = 0;
+      this.view.addChildAt(s, 1);
+      this.plate = s;
+      this.layoutPlate();
+    } catch {
+      // 没有图就全用程序画的
+    }
+  }
+
+  /** 铺满屏幕（cover），左右多留 10% 给视差挪。 */
+  private layoutPlate(): void {
+    const s = this.plate;
+    if (!s || !this.W) return;
+    const tw = s.texture.width;
+    const th = s.texture.height;
+    const k = Math.max((this.W * 1.1) / tw, this.H / th);
+    s.scale.set(k);
+    s.y = (this.H - th * k) / 2;
   }
 
   resize(W: number, H: number): void {
@@ -72,16 +116,27 @@ export class Backdrop {
       }
       l.g[1].x = period;
     });
+    this.layoutPlate();
   }
 
   destroy(): void {
+    this.dead = true;
     this.skyGrad?.destroy();
     this.skyGrad = null;
     this.view.destroy({ children: true });
   }
 
-  /** camX / camY：镜头中心（世界坐标）；levelH 用来算竖直视差。 */
-  update(camX: number, camY: number, zoom: number, levelH: number, dt: number): void {
+  /** camX / camY：镜头中心（世界坐标）；levelW / levelH 用来算远景画挪多少、竖直视差。 */
+  update(camX: number, camY: number, zoom: number, levelW: number, levelH: number, dt: number): void {
+    const plate = this.plate;
+    if (plate) {
+      // 慢慢显出来；显出来之后最远那层剪影就不画了
+      this.plateA = Math.min(1, this.plateA + dt / 0.5);
+      plate.alpha = this.plateA;
+      (this.layers[0] as Layer).c.visible = this.plateA < 1;
+      const t = Math.max(0, Math.min(1, camX / Math.max(1, levelW)));
+      plate.x = -(plate.width - this.W) * t;
+    }
     for (const l of this.layers) {
       const off = ((camX * l.f * zoom) % l.period) + l.period;
       l.c.x = -(off % l.period);

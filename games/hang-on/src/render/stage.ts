@@ -357,7 +357,7 @@ export class Stage {
     this.world.pivot.set(cam.x, cam.y);
 
     const level = sim.level;
-    this.backdrop?.update(cam.x, cam.y, cam.z, level.h, dt);
+    this.backdrop?.update(cam.x, cam.y, cam.z, level.w, level.h, dt);
     this.terrain?.update(sim, dt);
     this.drawProps(sim);
     this.drawRopes(sim);
