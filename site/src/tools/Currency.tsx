@@ -50,8 +50,9 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
           <span>{lang === "zh" ? "汇率" : "Currency"}</span>
           <small>{lang === "zh" ? "Currency" : "汇率"}</small>
         </h2>
-        <button type="button" className="tool-meta" onClick={fx.refresh} aria-label={lang === "zh" ? "刷新汇率" : "Refresh rates"}>
+        <button type="button" className="tool-meta" onClick={fx.refresh}>
           <span>{fx.error && !fx.rates ? (lang === "zh" ? "连不上汇率服务" : "Rates unavailable") : fx.at ? updatedText(fx.at, lang) : lang === "zh" ? "获取中" : "Fetching"}</span>
+          <span className="ui-visually-hidden">{lang === "zh" ? "，刷新汇率" : ", refresh the rates"}</span>
           <RefreshCw ref={spinner} size={15} />
         </button>
       </header>

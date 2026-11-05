@@ -230,13 +230,21 @@ export function PartyTab({
             )}
           </div>
           {players.length ? (
-            <button type="button" className="roster" onClick={() => setPlayersOpen(true)} aria-label={ui("players")}>
+            // named by what it shows: a screen reader hears the names, then the count
+            <button type="button" className="roster" onClick={() => setPlayersOpen(true)}>
               {players.slice(0, 8).map((p, i) => (
-                <span key={p.id} className="roster-face" style={{ ["--i" as string]: i }}>
+                <span key={p.id} className="roster-face" style={{ ["--i" as string]: i }} aria-hidden="true">
                   {initials(p.name)}
                 </span>
               ))}
-              {players.length > 8 && <span className="roster-face roster-more">+{players.length - 8}</span>}
+              {players.length > 8 && (
+                <span className="roster-face roster-more" aria-hidden="true">
+                  +{players.length - 8}
+                </span>
+              )}
+              <span className="ui-visually-hidden">
+                {ui("players")}: {players.map((p) => p.name).join(lang === "zh" ? "、" : ", ")}.{" "}
+              </span>
               <span className="roster-count">{ui("playersCount", { n: players.length })}</span>
             </button>
           ) : (
