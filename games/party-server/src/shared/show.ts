@@ -57,9 +57,13 @@ const METRONOME_BEATS = 240;
 const METRONOME_COUNT_IN = 8;
 
 const cache = new Map<string, Show | null>();
+/** How many shows are kept (the tests: never more than the dances there are). */
+export const cachedShows = () => cache.size;
 
 /** The show for a routine id (null: no such routine). The metronome has no modes. */
 export function buildShow(id: string, mode: Mode | null): Show | null {
+  // (only the shows there are get kept: a made-up id from a phone is not)
+  if (id !== METRONOME_ID && !routineById(id)) return null;
   const key = `${id}:${id === METRONOME_ID ? "" : (mode ?? "learn")}`;
   if (!cache.has(key)) cache.set(key, make(id, mode ?? "learn"));
   return cache.get(key) ?? null;
@@ -206,11 +210,13 @@ export const PREVIEW_BEATS = 2;
 
 /**
  * 这一段再来: the 8-count the room is hearing now, as the beat to restart the dance from
- * (session-flow's restartSection picks it; before the dance it is beat 0, after it the last 8-count).
+ * (session-flow's restartSection picks it; after the dance, the last 8-count). In a count-in, the
+ * beat it is counting in to: a second tap during a restart's count-in starts the same 8-count again.
  */
 export function phraseStart(show: Show, a: Anchors, heardNow: number): number {
   const start = danceStart(show, a);
   if (start === null) return 0;
+  if (heardNow < start) return Math.max(0, Math.floor(a.fromBeat));
   const map = { bpm: show.bpm, beatsPerBar: 4, startAt: start - a.fromBeat * show.beatMs, totalBeats: show.dance.length };
   return restartSection(map, heardNow).fromBeat;
 }

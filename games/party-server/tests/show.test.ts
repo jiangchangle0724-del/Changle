@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { METRONOME_ID, ROUTINES, TEST_ROUTINE, routineById } from "../src/shared/catalog";
-import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, phraseStart, planRun, runEnd, runKey, spotAt, type RunBeat } from "../src/shared/show";
+import { PREVIEW_BEATS, anchorsOf, buildShow, cachedShows, danceStart, nextChange, phraseStart, planRun, runEnd, runKey, spotAt, type RunBeat } from "../src/shared/show";
 
 const close = (a: number, b: number, why?: string) => assert.ok(Math.abs(a - b) < 1e-6, `${why ?? ""} ${a} vs ${b}`);
 /** Each beat starts where the one before it ends: no gap, no overlap. */
@@ -58,8 +58,10 @@ describe("the shows", () => {
     assert.deepEqual(planRun(m, { leadStartAt: null, danceStartAt: null, fromBeat: 0 }), [], "nothing plays until the host starts it");
   });
 
-  it("unknown dances have no show; the test dance has one", () => {
-    assert.equal(buildShow("nope", "learn"), null);
+  it("unknown dances have no show, and nothing is kept of them; the test dance has one", () => {
+    const kept = cachedShows();
+    for (let i = 0; i < 100; i++) assert.equal(buildShow(`nope-${i}`, "learn"), null);
+    assert.equal(cachedShows(), kept);
     assert.equal(buildShow(TEST_ROUTINE.id, "dance")?.dance.length, 16);
     assert.equal(routineById(TEST_ROUTINE.id), TEST_ROUTINE);
   });
@@ -149,5 +151,7 @@ describe("the beats a page plans", () => {
     assert.equal(phraseStart(show, at, 50_000 + 500 * show.beatMs), 184, "in the cool-down: the last 8-count");
     // after a restart from 8, the dance's beats are still counted from its beat 0
     assert.equal(phraseStart(show, { leadStartAt: null, danceStartAt: 60_000, fromBeat: 8 }, 60_000 + 9 * show.beatMs), 16);
+    // and in that restart's count-in, another tap goes back to the same 8-count, not the one before
+    assert.equal(phraseStart(show, { leadStartAt: null, danceStartAt: 60_000, fromBeat: 8 }, 60_000 - 2 * show.beatMs), 8);
   });
 });

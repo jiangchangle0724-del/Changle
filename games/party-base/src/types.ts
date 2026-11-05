@@ -3,9 +3,10 @@
  * then built in the site instead).
  * Pure types. See CONTRACTS.md for the rules behind each one.
  *
- * Time: every timestamp is "speaker time" — milliseconds on the speaker device's clock
- * (performance.now()-based, monotonic). Phones convert their local clock with the offset
- * estimated by beat-clock.ts. Never use Date.now() for beat math.
+ * Time: every timestamp is "speaker time" — milliseconds on the speaker device's clock (the
+ * speaker page's performance.timeOrigin + performance.now(): monotonic within the page, and it
+ * carries on across a reload of it). Phones convert their local clock with the offset estimated
+ * by beat-clock.ts. Never use a phone's Date.now() for beat math.
  */
 
 export type Difficulty = 'easy' | 'medium' | 'hard';

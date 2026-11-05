@@ -7,10 +7,9 @@
 //   /party/screen, /party/join            the pages (dist/client/party, built by scripts/build.mjs)
 import { DurableObject } from "cloudflare:workers";
 import { CODE_ALPHABET, CODE_RE, type ClientMsg, type ServerMsg } from "../shared/protocol";
-import { makeCode, Session, type From, type Out, type SessionData } from "./session";
+import { makeCode, Session, validPlayerId, type From, type Out, type SessionData } from "./session";
 import { emptyScores, type Scores } from "./tally";
 
-const PLAYER_ID = /^[A-Za-z0-9_-]{8,64}$/;
 /** The beats of the dance being danced are stored at most this often (they change with every bar). */
 const SCORES_EVERY_MS = 3_000;
 
@@ -70,7 +69,7 @@ export class PartyRoom extends DurableObject<Env> {
     if (!s || s.expired()) return refuse(s?.d.state.phase === "ended" ? "ended" : "noRoom");
     const role = q.get("role") === "speaker" ? "speaker" : "player";
     const playerId = role === "player" ? (q.get("id") ?? "") : null;
-    if (role === "player" && !PLAYER_ID.test(playerId ?? "")) return refuse("badRequest");
+    if (role === "player" && !validPlayerId(playerId ?? "")) return refuse("badRequest");
     const from: From = { role, playerId };
     s.connect(from, q.get("name") ?? undefined);
     if (role === "player" && !s.d.state.players.some((p) => p.id === playerId)) {

@@ -2,8 +2,9 @@
 // the metronome, the count-in) and, until the dances have their own songs (task A5), a simple
 // four-on-the-floor groove for each beat of a dance: kick on every beat, clap on the even counts,
 // hi-hat between, a bass line, and a chime where a new move or stage starts. Every sound is
-// scheduled at a speaker time (this page's performance.now()).
+// scheduled at a speaker time (common.ts's pageClock: PAGE_ORIGIN + performance.now()).
 import type { RunBeat } from "../shared/show";
+import { PAGE_ORIGIN } from "./common";
 
 export type Click = "accent" | "beat" | "count" | "cal";
 
@@ -58,10 +59,11 @@ export class Synth {
   /** The audio clock's time at which a sound comes out of this device at speaker time t. */
   private when(t: number): number {
     const ctx = this.ctx!;
+    const p = t - PAGE_ORIGIN;
     const ts = ctx.getOutputTimestamp?.();
-    if (ts && ts.performanceTime && ts.contextTime) return ts.contextTime + (t - ts.performanceTime) / 1000;
+    if (ts && ts.performanceTime && ts.contextTime) return ts.contextTime + (p - ts.performanceTime) / 1000;
     // (no output timestamp: schedule ahead by the latency the browser reports)
-    return ctx.currentTime + (t - performance.now()) / 1000 - (ctx.outputLatency || ctx.baseLatency || 0);
+    return ctx.currentTime + (p - performance.now()) / 1000 - (ctx.outputLatency || ctx.baseLatency || 0);
   }
 
   /** The audio time for speaker time t, or null when it has gone by (or there is no audio). */

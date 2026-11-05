@@ -8,8 +8,8 @@
 // player would: Ann on every beat she hears (the TV's delay included), Bob 90 ms late, Cat never.
 // Checked: the room moves into the dance by itself without the pages planning anything new, the
 // floor together on the TV, 看结果, the results (who danced, the awards, on the TV and each phone);
-// then 再跳一遍 straight into the dance, 这一段再来 in the middle of it, the results again; then
-// back to the lobby and the end. A run takes about two and a half minutes (the warm-up is a minute).
+// then 再跳一遍 straight into the dance, 这一段再来 in the middle of it while Bob's connection drops
+// for a moment, the results again; then back to the lobby and the end. A run takes about two and a half minutes (the warm-up is a minute).
 const { chromium, devices } = require("playwright");
 
 const BASE = process.env.BASE || "http://127.0.0.1:8787";
@@ -43,7 +43,8 @@ const BOB_LATE = 90;
   }
   const [ann, bob, cat] = phones;
   await speaker.waitForTimeout(4000);
-  const speakerOrigin = await speaker.evaluate(() => performance.timeOrigin);
+  // speaker time = the speaker page's performance.now() + its origin (common.ts's pageClock)
+  const speakerOrigin = await speaker.evaluate(() => performance.timeOrigin - window.partyDebug.origin());
   /** speaker time = phone time + truth (on one machine the truth is known exactly) */
   const truthOf = async (p) => (await p.evaluate(() => performance.timeOrigin)) - speakerOrigin;
   const truths = [];
@@ -108,12 +109,12 @@ const BOB_LATE = 90;
   await speaker.waitForTimeout(4500);
   const warmText = await speaker.locator(".coach .phase").textContent();
   const leadEnd = run1.find((b) => b.stage === "countdown").t;
-  const msToLeadEnd = leadEnd - (await speaker.evaluate(() => performance.now()));
+  const msToLeadEnd = leadEnd - (await speaker.evaluate(() => window.partyDebug.now()));
   console.log(`(the warm-up and teaching: ${Math.round(msToLeadEnd / 1000)} s more)`);
   // (the phones go by the beat as the room hears it: the TV's delay after the speaker plays it; the
   // first beat to follow is judged once its window has closed)
   const firstFollow = run1.find((b) => b.stage === "follow").t + audioOffsetMs;
-  await speaker.waitForFunction((t) => performance.now() > t + 1200, firstFollow, { timeout: msToLeadEnd + 5000, polling: 100 });
+  await speaker.waitForFunction((t) => window.partyDebug.now() > t + 1200, firstFollow, { timeout: msToLeadEnd + 5000, polling: 100 });
   const followText = await ann.locator(".dance-stage").textContent();
   const annVerdictInFollow = await ann.evaluate(() => window.partyDebug.judged()?.verdict ?? null);
   // the room moves on to the dance by itself
@@ -137,13 +138,19 @@ const BOB_LATE = 90;
   await tapAlong(1, BOB_LATE);
   const run2 = await speaker.evaluate(() => window.partyDebug.run());
   const beat10 = run2.find((b) => b.danceBeat === 10).t + audioOffsetMs;
-  await speaker.waitForFunction((t) => performance.now() > t + 100, beat10, { timeout: 20000, polling: 50 });
+  await speaker.waitForFunction((t) => window.partyDebug.now() > t + 100, beat10, { timeout: 20000, polling: 50 });
   const plansBeforeRestart = await speaker.evaluate(() => window.partyDebug.plans());
   await ann.getByRole("button", { name: "这一段再来" }).click();
   await speaker.waitForFunction((n) => window.partyDebug.plans() > n, plansBeforeRestart, { timeout: 5000 });
-  const restartedFrom = (await speaker.evaluate(() => window.partyDebug.run())).find((b) => b.stage === "dance").danceBeat;
+  const run3 = await speaker.evaluate(() => window.partyDebug.run());
+  const restartedFrom = run3.find((b) => b.stage === "dance").danceBeat;
   await tapAlong(0, 0);
   await tapAlong(1, BOB_LATE);
+  // Bob's Wi-Fi drops for 2.5 s from the first beat after the restart: the bar he finishes meanwhile
+  // can't go, and has to get there once he's back
+  const firstAgain = run3.find((b) => b.stage === "dance").t + audioOffsetMs;
+  await speaker.waitForFunction((t) => window.partyDebug.now() > t + 200, firstAgain, { timeout: 10000, polling: 50 });
+  await bob.evaluate(() => window.partyDebug.drop(2500));
   await ann.getByRole("button", { name: "看结果" }).waitFor({ timeout: 30000 });
   await ann.getByRole("button", { name: "看结果" }).click();
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "results" && window.partyDebug.results());
@@ -194,6 +201,7 @@ const BOB_LATE = 90;
     "each phone its own line": /100%/.test(annLine ?? "") && /100%/.test(bobLine ?? "") && /You moved/.test(bobLine ?? "") && /没有点手机/.test(catLine ?? ""),
     "这一段再来 went back to beat 8": restartedFrom === 8,
     "again: Ann on every beat, all 16 in a row": p2("Ann")?.participation === 100 && p2("Ann")?.bestStreak === 16,
+    "Bob's bar from while his connection was down got there": p2("Bob")?.participation === 100 && p2("Bob")?.bestStreak === 16,
     "the room ended for everyone": ended,
     "no page errors": errors.length === 0,
   };

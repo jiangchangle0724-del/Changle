@@ -10,8 +10,8 @@ import type { RoomState } from "../../../party-base/src/index";
 import { METRONOME_ID, ROUTINES, routineById } from "../shared/catalog";
 import type { HostAction, Results, RoutineInfo, ServerMsg } from "../shared/protocol";
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
-import { BeatJudge, type Judged, type Verdict } from "../shared/taps";
-import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tr, wsUrl } from "./common";
+import { BeatJudge, type Batch, type Judged, type Verdict } from "../shared/taps";
+import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tapTime, tr, wsUrl } from "./common";
 import { awardName, bodyHint, difficultyName, moveName, restHint, routineName, showMinutes, stageName, styleName, verdictText } from "./words";
 
 const app = document.getElementById("app")!;
@@ -46,7 +46,10 @@ let waitingForSpeaker = false;
  */
 const MIN_PROBES = 6;
 const clockSet = () => sync.count >= MIN_PROBES;
-const speakerNow = (): number | null => (clockSet() ? performance.now() + est.offsetMs : null);
+/** The speaker's clock at a moment of this page's performance.now() (now, by default). */
+const speakerNow = (local = performance.now()): number | null => (clockSet() ? local + est.offsetMs : null);
+/** Back on the room after a drop: once its state is in, the dance's bars sent so far go again. */
+let resend = false;
 
 function loadId(): string {
   try {
@@ -97,7 +100,10 @@ function join() {
   }
   fatal = null;
   sock = new RoomSocket(() => wsUrl(code, { id: myId, name: name || tr("玩家", "Player") }), onMsg, (open) => {
-    if (open) burst(8);
+    if (open) {
+      burst(8);
+      resend = true;
+    }
     render();
   });
   render();
@@ -118,6 +124,13 @@ function onMsg(m: ServerMsg) {
       if (state.phase === "calibrating" && before !== "calibrating") taps = 0;
       endArmed = false;
       track();
+      // (bars sent while the connection was down never got there; the room keeps the newest of
+      // each beat, so sending one twice does no harm. After the state: a bar of a dance the room
+      // has moved on from is dropped by track() first.)
+      if (resend) {
+        resend = false;
+        for (const b of tracking.batches) sock?.send({ t: "beats", from: b.from, offs: b.offs });
+      }
       render();
       return;
     }
@@ -193,10 +206,11 @@ interface Tracking {
   /** the last beat judged, and the dance beats judged so far (for this player's own meter) */
   last: Judged | null;
   recent: Verdict[];
-  /** the dance beats sent, for the checks */
+  /** the dance's bars sent so far (sent again after a drop), and how many beats, for the checks */
+  batches: Batch[];
   sent: number;
 }
-let tracking: Tracking = { key: "", show: null, heard: [], zero: null, judge: null, last: null, recent: [], sent: 0 };
+let tracking: Tracking = { key: "", show: null, heard: [], zero: null, judge: null, last: null, recent: [], batches: [], sent: 0 };
 
 /** The beats to follow, planned again when the run changes; the judge starts once the clock is set. */
 function track() {
@@ -207,17 +221,17 @@ function track() {
   if (key !== tracking.key) {
     const heard = show && a && s ? planRun(show, a, s.audioOffsetMs) : [];
     const start = show && a ? danceStart(show, a) : null;
-    tracking = { key, show, heard, zero: show && a && s && start !== null ? start - a.fromBeat * show.beatMs + s.audioOffsetMs : null, judge: null, last: null, recent: [], sent: 0 };
+    tracking = { key, show, heard, zero: show && a && s && start !== null ? start - a.fromBeat * show.beatMs + s.audioOffsetMs : null, judge: null, last: null, recent: [], batches: [], sent: 0 };
   }
   const now = speakerNow();
   if (!tracking.judge && tracking.heard.length && now !== null && s?.difficulty) tracking.judge = new BeatJudge(tracking.heard, s.difficulty, now);
 }
 
-/** A tap on the big button: a move, as the motion sensor's peak will be. */
-function tapMove() {
-  const now = speakerNow();
-  if (now === null || !tracking.judge) return;
-  tracking.judge.move(now);
+/** A tap on the big button (at `local`, this page's clock): a move, as the motion sensor's peak will be. */
+function tapMove(local: number) {
+  const at = speakerNow(local);
+  if (at === null || !tracking.judge) return;
+  tracking.judge.move(at);
 }
 
 /** Judge the beats whose window has closed; send the dance's whole bars to the room. */
@@ -234,6 +248,7 @@ function judgeBeats(now: number) {
   }
   const batches = j.take(j.done);
   for (const b of batches) {
+    tracking.batches.push(b);
     sock?.send({ t: "beats", from: b.from, offs: b.offs });
     tracking.sent += b.offs.length;
   }
@@ -395,8 +410,8 @@ function tapPad(): HTMLElement {
   // pointerdown, not click: a click comes after the finger lifts, later than the tap
   pad.addEventListener(
     "pointerdown",
-    () => {
-      const at = speakerNow();
+    (e) => {
+      const at = speakerNow(tapTime(e));
       if (at === null) return;
       sock?.send({ t: "tap", at });
       taps++;
@@ -423,8 +438,8 @@ function dancePanel(): HTMLElement {
   parts.verdict = el("span", "dance-verdict", verdictText(null));
   pad.append(parts.verdict);
   // pointerdown, not click: a click comes after the finger lifts, later than the tap
-  pad.addEventListener("pointerdown", () => {
-    tapMove();
+  pad.addEventListener("pointerdown", (e) => {
+    tapMove(tapTime(e));
     pad.classList.remove("hit");
     void pad.offsetWidth;
     pad.classList.add("hit");
@@ -433,7 +448,7 @@ function dancePanel(): HTMLElement {
   pad.addEventListener("keydown", (e) => {
     if ((e.key === " " || e.key === "Enter") && !e.repeat) {
       e.preventDefault();
-      tapMove();
+      tapMove(tapTime(e));
     }
   });
   parts.pad = pad;
@@ -681,6 +696,8 @@ Object.assign(window, {
     sent: () => tracking.sent,
     dancing: () => tracking.judge?.dancing ?? false,
     act,
+    /** the connection drops for `ms` (song-check: the bars sent meanwhile must still get there) */
+    drop: (ms: number) => sock?.pause(ms),
   },
 });
 

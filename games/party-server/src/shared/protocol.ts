@@ -1,6 +1,6 @@
 // What the pages and the room say to each other over the room's WebSocket. Every time in here is
-// speaker time (the speaker page's performance.now(), the room's one clock; see
-// games/party-base/CONTRACTS.md), except `sentAt` and `serverAt`, which say whose clock they are.
+// speaker time (the speaker page's timeOrigin + performance.now(), the room's one clock: client's
+// common.ts pageClock, games/party-base/CONTRACTS.md), except `serverAt`, the room's own clock.
 import type { Difficulty, RoomState } from "../../../party-base/src/index";
 import type { Mode } from "./show";
 

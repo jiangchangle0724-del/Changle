@@ -18,6 +18,11 @@ export const PLAYER_GRACE_MS = 45_000;
 export const IDLE_MS = 12 * 3_600_000;
 /** A routine's first warm-up beat comes this long after the host starts it: time for every page to hear of it. */
 export const LEAD_IN_MS = 3_000;
+/**
+ * 开始跳 and 这一段再来: the count-in's first beat comes this long after the tap, so the speaker
+ * hears of it in time to play it (else the TV counts "3, 2, 1").
+ */
+export const COUNT_LEAD_MS = 600;
 /** After a routine's last beat is heard, this long before the room finishes it. */
 const FINISH_MARGIN_MS = 500;
 /** 看结果 waits this long after the dance's last beat is heard: the phones' last bar is on its way. */
@@ -51,6 +56,14 @@ export interface From {
 }
 /** A message for one player (by id), for the speaker, or for everyone; or a player's phone to close. */
 export type Out = { to: "all" | "speaker" | { player: string }; msg: ServerMsg } | { close: string };
+
+/**
+ * A phone's id: what its page makes (letters, digits, - and _), and never the name of something
+ * every object has ("toString", "__proto__"), which would go wrong as a key in the room's records.
+ */
+export function validPlayerId(id: string): boolean {
+  return /^[A-Za-z0-9_-]{8,64}$/.test(id) && !(id in Object.prototype);
+}
 
 const HOST_ACTIONS = new Set(["START_CALIBRATION", "SKIP_CALIBRATION", "START_LEARNING", "START_DANCING", "RESTART_SECTION", "FINISH_NOW", "BACK_TO_LOBBY", "END_ROOM", "KICK"]);
 const fin = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
@@ -102,7 +115,7 @@ export class Session {
       if (this.d.state.phase === "dancing" && this.d.state.difficulty) this.out.push({ to: "speaker", msg: { t: "floor", ...floorOf(this.scores, this.d.state.difficulty) } });
       return;
     }
-    if (!from.playerId) return;
+    if (!from.playerId || !validPlayerId(from.playerId)) return;
     delete this.d.leaving[from.playerId];
     const player = { id: from.playerId, name: cleanName(name), isHost: false };
     this.apply({ type: "PLAYER_JOINED", at: this.speakerNow(), player }, from);
@@ -121,6 +134,9 @@ export class Session {
 
   handle(from: From, msg: ClientMsg): void {
     if (!msg || typeof msg !== "object") return;
+    // (a deadline gone by while the alarm was late, say the lead running out: dealt with before the
+    // message, so a phone's first bar of the dance isn't turned away for coming before it)
+    this.tick();
     switch (msg.t) {
       case "ping":
         // (not "activity": the speaker pings every second, and an idle room should still expire)
@@ -167,11 +183,22 @@ export class Session {
     if (from.role !== "player" || st.phase !== "dancing" || !r || st.routineStartAt === null || !st.difficulty) return;
     const player = st.players.find((p) => p.id === from.playerId);
     if (!player || !Array.isArray(offs) || offs.length > MAX_BEATS_PER_MSG || !Number.isInteger(first)) return;
-    const f = first as number;
-    // only beats of this run that the room has heard (a beat of slack for the clocks)
+    let f = first as number;
+    let list: unknown[] = offs;
+    let took = false;
+    // beats before the one 这一段再来 went back to were danced before it, and stay: a bar of them
+    // that comes in late still counts, whatever the time now
+    if (f < r.fromBeat) {
+      const before = Math.min(list.length, r.fromBeat - f);
+      if (!addBeats(this.scores, player.id, player.name, f, list.slice(0, before), r.totalBeats, st.difficulty)) return;
+      took = true;
+      list = list.slice(before);
+      f = r.fromBeat;
+    }
+    // the rest: only beats of this run that the room has heard (a beat of slack for the clocks)
     const heard = r.fromBeat + (this.speakerNow() - st.audioOffsetMs - st.routineStartAt) / (60000 / r.bpm);
-    if (f < r.fromBeat || f + offs.length - 1 > heard + 1) return;
-    if (!addBeats(this.scores, player.id, player.name, f, offs, r.totalBeats, st.difficulty)) return;
+    if (list.length && f + list.length - 1 <= heard + 1) took = addBeats(this.scores, player.id, player.name, f, list, r.totalBeats, st.difficulty) || took;
+    if (!took) return;
     this.scored = true;
     this.out.push({ to: "speaker", msg: { t: "floor", ...floorOf(this.scores, st.difficulty) } });
   }
@@ -183,7 +210,8 @@ export class Session {
     const r = this.d.routine;
     switch (a.type) {
       case "START_LEARNING": {
-        const id = String(a.routineId);
+        if (!this.isHost(by)) return this.send(from, { t: "error", code: "not_host", message: `player ${by} is not the host` });
+        const id = String(a.routineId).slice(0, 64);
         const show = id === TEST_ROUTINE.id && !this.opts.testRoutines ? null : buildShow(id, a.mode === "dance" ? "dance" : "learn");
         if (!show) return this.send(from, { t: "error", code: "no_routine", message: `unknown routine ${id}` });
         // the first warm-up beat a moment from now, on a whole millisecond (the metronome has none:
@@ -210,8 +238,8 @@ export class Session {
         // 这一段再来 goes back to the start of the 8-count the room is hearing (the metronome, and a
         // dance that hasn't begun: to the top); 开始跳 starts the dance from its first beat
         const fromBeat = a.type === "RESTART_SECTION" && show.routine && this.d.state.phase === "dancing" ? phraseStart(show, this.anchors(), at - this.d.state.audioOffsetMs) : 0;
-        // the beat comes after a count-in, on a whole millisecond
-        const routineStartAt = Math.round(at + show.countIn * show.beatMs);
+        // the beat comes after a moment and a count-in, on a whole millisecond
+        const routineStartAt = Math.round(at + COUNT_LEAD_MS + show.countIn * show.beatMs);
         const results = this.d.results;
         this.d.routine = { ...r, leadStartAt: null, fromBeat };
         this.d.results = null;

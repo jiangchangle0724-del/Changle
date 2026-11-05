@@ -15,7 +15,8 @@ instead, `site/src/party/dj/`.)
   party-base `RoomEvent`, stamped in speaker time, through `reduce()`; the new state is stored and
   sent to every page. A page that drops gets a grace period (speaker 8 s, phone 45 s) before it
   counts as gone. What the pages and the room say: `src/shared/protocol.ts`.
-- **The room's one clock** is the speaker page's `performance.now()`. The speaker pings the room
+- **The room's one clock** is the speaker page's (`pageClock()` in `src/client/common.ts`: its
+  `performance.timeOrigin` plus `performance.now()`, so a reload of the page doesn't move it). The speaker pings the room
   every second, works out its offset to the room's clock (party-base's `estimateClockOffset`) and
   reports it; the room answers every phone's ping with `{ speakerAt }`. Phones send 8 pings on
   joining, 3 more every 15 s, and count their clock as set after 6.
@@ -30,7 +31,8 @@ instead, `site/src/party/dj/`.)
   once the dance has been heard (看结果, skipping the cool-down), or stop.
 - **The beats**: each phone judges its player's moves against the beat as the room hears it (the
   speaker's grid plus the TV's delay; `src/shared/taps.ts`, party-base's scoring windows) and sends
-  the dance's beats a bar at a time (`beats`). For now a move is a tap on the phone's big button,
+  the dance's beats a bar at a time (`beats`); after a dropped connection it sends them all again
+  (the room keeps the newest of each beat, so twice does no harm). For now a move is a tap on the phone's big button,
   standing in for the motion sensor (the plan's 假体感); task A2 feeds the same judge the sensor's
   peaks. The room keeps the beats (`src/server/tally.ts`), sends the speaker the floor together
   after each bar (the streak bar; full at 32 beats: fireworks), and at the end works out the
@@ -61,7 +63,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, the tally, the judge: 62 tests
+npm run typecheck && npm test          # the session, the shows, the tally, the judge: 68 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```
@@ -73,7 +75,8 @@ numbers and OK or FAILED. Results: `docs/field-notes/`.
 
 `scripts/song-check.cjs` plays a whole dance the same way: the short test dance (two moves, 16
 beats), learned and then danced, Ann tapping on every beat, Bob 90 ms late, Cat watching; the
-results, the same dance again with 这一段再来 in the middle, the end. The test dance starts only
+results, the same dance again with 这一段再来 in the middle while Bob's connection drops for 2.5 s
+(his bar from then must still get there), the end. The test dance starts only
 when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so run the Worker as
 `npm run build && npx wrangler dev --var ALLOW_TEST_SETTINGS:1`. About two and a half minutes.
 

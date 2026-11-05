@@ -10,7 +10,7 @@ import { calibrateFromTaps, type CalibrationResult, type RoomState } from "../..
 import { routineById } from "../shared/catalog";
 import { COMBO_FULL, type Floor, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
-import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tr, wsUrl } from "./common";
+import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tr, wsUrl } from "./common";
 import { Synth, playBeat } from "./synth";
 import { awardName, awardWhy, bodyHint, clockOf, difficultyName, moveName, moveOther, routineName, stageHint, stageName } from "./words";
 
@@ -78,7 +78,7 @@ async function begin() {
 async function openRoom() {
   rejoining = false;
   try {
-    const res = await fetch("/party/api/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ speakerAt: performance.now() }) });
+    const res = await fetch("/party/api/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ speakerAt: pageClock() }) });
     const { code: c } = (await res.json()) as { code?: string };
     if (!c) throw new Error("no code");
     history.replaceState(null, "", `#${c}`);
@@ -115,7 +115,7 @@ function onMsg(m: ServerMsg) {
     }
     case "floor": {
       const { t: _t, ...f } = m;
-      if (floor && f.bursts > floor.bursts) fireworksUntil = performance.now() + FIREWORKS_MS;
+      if (floor && f.bursts > floor.bursts) fireworksUntil = pageClock() + FIREWORKS_MS;
       floor = f;
       renderStatus();
       return;
@@ -124,8 +124,9 @@ function onMsg(m: ServerMsg) {
       if (sync.pong(m.id, m.serverAt)) {
         const est = sync.estimate();
         syncRtt = est.rttMs;
-        // speaker time = room time + offset (estimate: room ≈ speaker + est.offsetMs)
-        sock?.send({ t: "clock", offsetMs: -est.offsetMs, rttMs: est.rttMs });
+        // speaker time = room time + offset (the estimate: room ≈ performance.now() + est.offsetMs,
+        // and speaker time is PAGE_ORIGIN + performance.now())
+        sock?.send({ t: "clock", offsetMs: PAGE_ORIGIN - est.offsetMs, rttMs: est.rttMs });
       }
       return;
     case "tap":
@@ -154,11 +155,11 @@ function onMsg(m: ServerMsg) {
 
 function startCalibration(attempt: number) {
   stopCalibration();
-  const t0 = performance.now() + CAL_LEAD_MS;
+  const t0 = pageClock() + CAL_LEAD_MS;
   const times = Array.from({ length: CAL_CLICKS }, (_, i) => t0 + i * CAL_GAP_MS);
   for (const t of times) synth.click(t, "cal");
   cal = { clicks: times, taps: [], endAt: times[times.length - 1]! + 1500, attempt, result: null, suspect: false };
-  calTimer = setTimeout(finishCalibration, cal.endAt - performance.now());
+  calTimer = setTimeout(finishCalibration, cal.endAt - pageClock());
   render();
 }
 
@@ -195,7 +196,7 @@ function plan() {
   const start = show && a ? danceStart(show, a) : null;
   // (beats gone by: a page reloaded mid-dance picks up at the next one)
   let next = 0;
-  const now = performance.now();
+  const now = pageClock();
   while (next < run.length && run[next]!.t < now - 5) next++;
   playing = { key, show, run, zero: show && a && start !== null ? start - a.fromBeat * show.beatMs : null, next, phrase: 0 };
   if (run.length) plans++;
@@ -205,7 +206,7 @@ function plan() {
 function schedule() {
   const p = playing;
   if (!p.show) return;
-  const now = performance.now();
+  const now = pageClock();
   const until = now + 150;
   while (p.next < p.run.length && p.run[p.next]!.t <= until) {
     const b = p.run[p.next]!;
@@ -511,15 +512,16 @@ function frameCoach(now: number) {
 
 /** Every frame: the coach, the big count, the "I'm here" lights, the timing readout. */
 function frame() {
-  const now = performance.now();
+  const now = pageClock();
   if (running()) frameCoach(now);
   else if (parts.count) {
     // (the metronome before its start: nothing to count)
     if (parts.count.textContent) parts.count.textContent = "";
   }
   if (parts.players && state) {
-    // (redrawn only when who's lit up changes)
-    const lit = state.players.filter((p) => (heres.get(p.id) ?? 0) > now).map((p) => p.id).join(",");
+    // (redrawn only when who's lit up changes; the lights are on this page's own clock)
+    const local = performance.now();
+    const lit = state.players.filter((p) => (heres.get(p.id) ?? 0) > local).map((p) => p.id).join(",");
     if (lit !== (parts.players.dataset.lit ?? "")) {
       parts.players.dataset.lit = lit;
       renderStatus();
@@ -549,6 +551,9 @@ Object.assign(window, {
     floor: () => floor,
     results: () => results,
     plans: () => plans,
+    /** speaker time now, and its origin (the checks turn it into another page's clock) */
+    now: pageClock,
+    origin: () => PAGE_ORIGIN,
     sync: () => sync.estimate(),
     state: () => state,
   },

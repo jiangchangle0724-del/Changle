@@ -2,7 +2,8 @@
 // Worker running locally (`npm run dev`). It measures what the field test then measures on real
 // devices:
 //   - each phone's clock error: its estimate of the speaker's clock against the truth (on one
-//     machine the truth is known exactly: the difference between the pages' performance.timeOrigin)
+//     machine the truth is known exactly, from the pages' performance.timeOrigin: the speaker's
+//     clock is its timeOrigin plus performance.now(), a phone's own is its performance.now())
 //   - calibration: the host's taps sent TV_DELAY ms after each click, as if the TV played it that
 //     late; audioOffsetMs should come out at TV_DELAY plus the host phone's clock error
 //   - the flashes: how far each phone's beat flash lands from the beat the room hears (when the
@@ -51,7 +52,8 @@ const LIMIT_MS = 30; // A1's acceptance: clocks within 30 ms
   for (const p of phones) await recordFlashes(p);
   await speaker.waitForTimeout(4000);
 
-  const speakerOrigin = await speaker.evaluate(() => performance.timeOrigin);
+  // speaker time = the speaker page's performance.now() + its origin (common.ts's pageClock)
+  const speakerOrigin = await speaker.evaluate(() => performance.timeOrigin - window.partyDebug.origin());
   /** speaker time = phone time + truth */
   const truthOf = async (p) => (await p.evaluate(() => performance.timeOrigin)) - speakerOrigin;
   const clocks = [];

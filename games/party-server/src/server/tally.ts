@@ -35,8 +35,10 @@ function seenThrough(row: readonly (number | null)[]): number {
 /** A phone's beats `from`, `from + 1`, …: kept, over whatever it sent for them before. False: not beats of this dance. */
 export function addBeats(s: Scores, playerId: string, name: string, from: number, offs: readonly unknown[], total: number, difficulty: Difficulty): boolean {
   if (!Number.isInteger(from) || from < 0 || offs.length < 1 || from + offs.length > total) return false;
+  // (the room lets no such id in; a record keyed by "__proto__" or "toString" would go wrong)
+  if (playerId in Object.prototype) return false;
   const limit = movedWindow(difficulty);
-  let row = s.offs[playerId];
+  let row = Object.hasOwn(s.offs, playerId) ? s.offs[playerId] : undefined;
   if (!row || row.length !== total) row = s.offs[playerId] = new Array<number | null>(total).fill(UNSEEN);
   s.names[playerId] = name;
   for (let i = 0; i < offs.length; i++) {
@@ -102,7 +104,7 @@ export function floorOf(s: Scores, difficulty: Difficulty, all = false): Floor {
  * dance (a beat not sent is a beat not moved), the three awards, and the floor's numbers.
  */
 export function resultsOf(s: Scores, order: readonly string[], routineId: string, difficulty: Difficulty, total: number): Results {
-  const ids = [...order.filter((id) => s.offs[id]), ...Object.keys(s.offs).filter((id) => !order.includes(id))];
+  const ids = [...order.filter((id) => Object.hasOwn(s.offs, id)), ...Object.keys(s.offs).filter((id) => !order.includes(id))];
   const players: PlayerResult[] = [];
   const moved: number[] = [];
   const hits: number[] = [];

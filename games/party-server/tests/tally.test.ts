@@ -20,6 +20,15 @@ describe("the beats the phones send", () => {
     assert.deepEqual(s.offs.bob!.slice(0, 2), [159, null]);
   });
 
+  it("no player is named like something every object has", () => {
+    const s = emptyScores();
+    for (const id of ["__proto__", "toString", "constructor"]) assert.equal(addBeats(s, id, "Eve", 0, [0], 4, "easy"), false, id);
+    assert.deepEqual(Object.keys(s.offs), []);
+    assert.equal(Object.getPrototypeOf(s.offs), Object.prototype);
+    // a room whose players include such an id (it can't happen: the room turns them away) still has results
+    assert.deepEqual(resultsOf(s, ["toString", "constructor"], "pop-easy", "easy", 4).players, []);
+  });
+
   it("这一段再来 clears the beats from where the dance goes back to", () => {
     const s = emptyScores();
     addBeats(s, "ann", "Ann", 0, [0, 0, 0, 0, 0, 0], 8, "easy");

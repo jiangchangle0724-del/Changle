@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { METRONOME_ID } from "../src/shared/catalog";
 import type { ServerMsg } from "../src/shared/protocol";
-import { buildShow, danceStart } from "../src/shared/show";
-import { IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, type From, type Out } from "../src/server/session";
+import { buildShow, cachedShows, danceStart } from "../src/shared/show";
+import { COUNT_LEAD_MS, IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, validPlayerId, type From, type Out } from "../src/server/session";
 
 const SPEAKER: From = { role: "speaker", playerId: null };
 const ANN: From = { role: "player", playerId: "ann-000001" };
@@ -149,7 +149,7 @@ describe("the host's actions", () => {
     s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
     assert.equal(s.d.state.phase, "dancing");
     const at = clock.now - 995_000;
-    assert.equal(s.d.state.routineStartAt, at + 8 * 500, "an 8-beat count-in");
+    assert.equal(s.d.state.routineStartAt, at + COUNT_LEAD_MS + 8 * 500, "a moment, then an 8-beat count-in");
     // over when its last beat has been heard, plus a margin
     const end = s.d.state.routineStartAt! + 240 * 500 + 500;
     assert.equal(s.nextWake(), end + 995_000);
@@ -265,10 +265,10 @@ describe("a dance", () => {
     s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
     const at = clock.now - 995_000;
     assert.equal(s.d.state.phase, "dancing");
-    assert.equal(s.d.state.routineStartAt, at + 4 * BEAT);
+    assert.equal(s.d.state.routineStartAt, at + COUNT_LEAD_MS + 4 * BEAT, "a moment for the speaker to hear of it, then the count-in");
     assert.equal(s.d.routine?.leadStartAt, null, "the lead is cut off");
     assert.equal(s.d.danceAt, null);
-    assert.equal(s.d.finishAt, at + 4 * BEAT + 192 * BEAT + buildShow("square-easy", "learn")!.tailMs + 500);
+    assert.equal(s.d.finishAt, at + COUNT_LEAD_MS + 4 * BEAT + 192 * BEAT + buildShow("square-easy", "learn")!.tailMs + 500);
   });
 
   it("the phones' beats: only while dancing, only beats the room has heard, only from players in the room", () => {
@@ -325,7 +325,7 @@ describe("a dance", () => {
     const at = clock.now - 995_000;
     assert.equal(s.d.state.phase, "dancing");
     assert.equal(s.d.routine?.fromBeat, 8, "beat 13 is in the 8-count that starts at 8");
-    assert.equal(s.d.state.routineStartAt, Math.round(at + 4 * BEAT), "beat 8 after a count-in, on a whole millisecond");
+    assert.equal(s.d.state.routineStartAt, Math.round(at + COUNT_LEAD_MS + 4 * BEAT), "beat 8 after a moment and a count-in, on a whole millisecond");
     assert.deepEqual(s.scores.offs["ann-000001"]!.slice(0, 13), [0, 0, 0, 0, 0, 0, 0, 0, 9999, 9999, 9999, 9999, 9999], "beats 8 on are danced again");
     assert.equal(s.d.finishAt, s.d.state.routineStartAt! + (192 - 8) * BEAT + buildShow("square-easy", "learn")!.tailMs + 500);
     assert.equal(last(s.flush().out, "floor")?.best, 8, "the speaker hears of the floor straight away");
@@ -355,7 +355,7 @@ describe("a dance", () => {
     s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
     const at = clock.now - 995_000;
     assert.equal(s.d.state.phase, "dancing");
-    assert.equal(s.d.state.routineStartAt, at + 4 * BEAT);
+    assert.equal(s.d.state.routineStartAt, at + COUNT_LEAD_MS + 4 * BEAT);
     assert.equal(s.d.results, null);
     clock.advance(room(s.d.state.routineStartAt! + 192 * BEAT + 1_000) - clock.now);
     s.handle(ANN, { t: "act", action: { type: "FINISH_NOW" } });
@@ -384,6 +384,65 @@ describe("a dance", () => {
     s.disconnect(SPEAKER);
     s.connect(SPEAKER);
     assert.equal(last(s.flush().out, "floor")?.streak, 4);
+  });
+
+  it("这一段再来 tapped again during its count-in starts the same 8-count again (and keeps the beats before it)", () => {
+    const { s, clock, room, start } = dancing();
+    clock.advance(room(start + 13.5 * BEAT) - clock.now);
+    s.handle(ANN, { t: "beats", from: 0, offs: new Array(12).fill(0) });
+    s.handle(ANN, { t: "act", action: { type: "RESTART_SECTION" } });
+    assert.equal(s.d.routine?.fromBeat, 8);
+    clock.advance(300);
+    s.handle(ANN, { t: "act", action: { type: "RESTART_SECTION" } });
+    assert.equal(s.d.routine?.fromBeat, 8, "not back another 8-count");
+    assert.deepEqual(s.scores.offs["ann-000001"]!.slice(0, 8), [0, 0, 0, 0, 0, 0, 0, 0], "the beats before it kept");
+  });
+
+  it("a bar from before the restart point that comes in late still counts; one past it waits for the new run", () => {
+    const { s, clock, room, start } = dancing();
+    clock.advance(room(start + 13.5 * BEAT) - clock.now);
+    s.handle(ANN, { t: "beats", from: 0, offs: [0, 0, 0, 0] });
+    s.handle(ANN, { t: "act", action: { type: "RESTART_SECTION" } });
+    s.flush();
+    // beats 4 to 7, danced before the restart, arrive after it
+    s.handle(ANN, { t: "beats", from: 4, offs: [10, 10, 10, 10] });
+    assert.deepEqual(s.scores.offs["ann-000001"]!.slice(0, 8), [0, 0, 0, 0, 10, 10, 10, 10]);
+    assert.equal(last(s.flush().out, "floor")?.best, 8);
+    // a bar across the restart point: the part before it counts, the rest isn't heard yet in the new run
+    s.handle(BOB, { t: "beats", from: 6, offs: [0, 0, 0, 0] });
+    assert.deepEqual(s.scores.offs["bob-000002"]!.slice(4, 10), [9999, 9999, 0, 0, 9999, 9999]);
+  });
+
+  it("the alarm late: the first message after the lead ran out moves the room into the dance, and the bar counts", () => {
+    const { s, clock } = ready();
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    const danceAt = s.d.danceAt!;
+    const zero = danceAt + 4 * BEAT;
+    // (no tick: the alarm hasn't fired) beats 0 to 3 heard
+    clock.advance(zero + 4 * BEAT - (clock.now - 995_000));
+    s.handle(ANN, { t: "beats", from: 0, offs: [0, 0, 0, 0] });
+    assert.equal(s.d.state.phase, "dancing");
+    assert.equal(s.d.state.routineStartAt, zero, "where the lead put it, not where the message came");
+    assert.deepEqual(s.scores.offs["ann-000001"]!.slice(0, 4), [0, 0, 0, 0]);
+  });
+
+  it("only real phone ids: never one named like something every object has", () => {
+    for (const id of ["toString", "constructor", "__proto__", "hasOwnProperty", "valueOf1", "short", "has space here"]) assert.equal(validPlayerId(id), id === "valueOf1", id);
+    assert.equal(validPlayerId("ann-000001"), true);
+    const { s } = ready();
+    s.connect({ role: "player", playerId: "constructor" }, "Eve");
+    assert.deepEqual(s.d.state.players.map((p) => p.name), ["Ann", "Bob"]);
+  });
+
+  it("a dance only the host can start, and only one there is (nothing kept of made-up ids)", () => {
+    const { s } = ready();
+    const before = cachedShows();
+    s.handle(BOB, { t: "act", action: { type: "START_LEARNING", routineId: "pop-easy" } });
+    assert.equal(last(s.flush().out, "error")?.code, "not_host");
+    for (let i = 0; i < 50; i++) s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: `made-up-${i}`.repeat(20) } });
+    assert.equal(last(s.flush().out, "error")?.code, "no_routine");
+    assert.equal(cachedShows(), before);
+    assert.equal(s.d.state.phase, "lobby");
   });
 
   it("a room stored before the dances keeps working", () => {

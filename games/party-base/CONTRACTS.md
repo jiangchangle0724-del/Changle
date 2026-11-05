@@ -6,9 +6,9 @@ The base under 一起跳 · Dance Along (打碟 · DJ Booth was planned on it to
 
 ## 时间 / Time
 
-- 全房间只有一个时钟：音箱端的 `performance.now()`，叫 speaker time。
-- 手机用 `estimateClockOffset()` 把自己的本地时间换算成 speaker time，之后所有时间戳都是 speaker time。
-- `Date.now()` 永远不用于拍子计算（手机和 Mac 的墙上时钟可能差几秒）。
+- 全房间只有一个时钟：音箱端页面的 `performance.timeOrigin + performance.now()`（音箱那台设备上从 1970 年起的毫秒数），叫 speaker time。不用 `performance.now()` 本身：音箱端页面一刷新它就从 0 重来，房间记着的时间（舞的第 0 拍、结束的时候）就全错了。这样页面里只增不减，刷新以后接着走。
+- 手机用 `estimateClockOffset()` 把自己的本地时间（`performance.now()`）换算成 speaker time，之后所有时间戳都是 speaker time。
+- 手机的 `Date.now()` 永远不用于拍子计算（手机和 Mac 的墙上时钟可能差几秒）。
 - Apple TV 镜像会让房间听到的声音比 speaker time 晚一两百毫秒。校准得到 `audioOffsetMs`，打分时用 `withAudioOffset(map, audioOffsetMs)` 得到「听到的拍子」网格。
 
 ## 模块 / Modules
