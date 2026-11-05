@@ -5,22 +5,48 @@ import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { fullDeck, RULES, RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Rank } from "../data/rogue13";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { UI } from "../i18n";
 
 type Phase = "idle" | "revealed" | "pick" | "group-loser";
 
+type Kept = { cards: number[]; card: Card | null; phase: Phase; holders: Partial<Record<Rank, Player>>; reshuffled: boolean; turn: number };
+
 export function Rogue13({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="rogue" version={1}>
+      {(saved) => <RogueGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang, sound } = useStore();
-  const deck = useRef(new Deck<Card>(fullDeck()));
-  const [card, setCard] = useState<Card | null>(null);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [holders, setHolders] = useState<Partial<Record<Rank, Player>>>({});
+  const [firstDeck] = useState(() => {
+    const deck = new Deck<Card>(fullDeck());
+    if (saved) deck.restore(saved.cards);
+    return deck;
+  });
+  const deck = useRef(firstDeck);
+  const [card, setCard] = useState<Card | null>(saved?.card ?? null);
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? "idle");
+  const [holders, setHolders] = useState<Partial<Record<Rank, Player>>>(saved?.holders ?? {});
   const [remaining, setRemaining] = useState(deck.current.remaining);
-  const [reshuffled, setReshuffled] = useState(false);
-  const turn = useTurnOrder();
+  const [reshuffled, setReshuffled] = useState(saved?.reshuffled ?? false);
+  const turn = useTurnOrder(saved?.turn ?? 0);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
+  const [played, setPlayed] = useState(!!saved);
+  // A stamp has already counted: pick up at the next draw without paying twice.
+  useKeepProgress<Kept>({
+    cards: deck.current.keep(),
+    card: penalty.call ? null : card,
+    phase: penalty.call ? "idle" : phase,
+    holders,
+    reshuffled,
+    turn: penalty.call ? (turn.index + 1) % Math.max(1, players.length) : turn.index,
+  }, played);
 
   const rule = card ? RULE_BY_RANK[card.rank] : null;
   // the card's words: drinking, or the penalty set in settings
@@ -29,6 +55,7 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
   const draw = () => {
     // one card at a time: a double tap on the deck lands on the card still turning over
     if (card) return;
+    setPlayed(true);
     const { card: c, reshuffled: r } = deck.current.draw();
     setReshuffled(r);
     if (r) setHolders({});

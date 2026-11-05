@@ -9,6 +9,7 @@
  *
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
+import type { Look } from '../look';
 import type { PadInput } from '../physics/world';
 
 export type { PadInput };
@@ -72,6 +73,8 @@ export interface PadStatus {
   phase: Phase;
   /** 走直连还是绕路。 */
   direct: boolean;
+  /** 队友里摔死还没复活的有几个（手柄上亮「召唤」键用）。 */
+  teamDead?: number;
 }
 
 /**
@@ -80,9 +83,11 @@ export interface PadStatus {
  * - sdp / ice：WebRTC 信令（只走房间）。
  * - ping / pong：主机量往返，手柄原样回。
  * - input：手柄的每帧输入；status：主机的小包。
+ * - look：手柄选的样子（帽子、眼镜、眼睛），连上时发一次，改了再发；只走房间（要可靠）。
  */
 export type LinkMsg =
   | { k: 'hello' }
+  | { k: 'look'; look: Look }
   | { k: 'sdp'; sdp: { type: 'offer' | 'answer'; sdp: string } }
   | { k: 'ice'; ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null }
   | { k: 'ping'; id: number; at: number }

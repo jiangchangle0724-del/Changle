@@ -8,7 +8,7 @@ repository's root.
 
 ## Where the code is
 
-One repository, `jiangchangle0724-del/changle-ca`. Each app has its own `package.json` and
+One repository, `jiangchangle0724-del/Changle`. Each app has its own `package.json` and
 `package-lock.json` (no root workspace), installs on its own and deploys on its own.
 
 | Path | What | Deploys to |

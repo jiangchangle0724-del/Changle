@@ -9,6 +9,7 @@ import { useTurntable } from "../lib/useTurntable";
 import { DEFAULT_SLICES, sliceLabel, type Slice } from "../data/wheel";
 import { DARES, TRUTHS, type Prompt } from "../data/truthDare";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { Sheet } from "../components/Sheet";
 import { DareTimer } from "../components/DareTimer";
 import { durationOf } from "../lib/duration";
@@ -34,18 +35,46 @@ function loadSlices(): Slice[] {
   return DEFAULT_SLICES;
 }
 
+type Kept = {
+  slices: Slice[];
+  result: Slice | null;
+  picking: boolean;
+  prompt: Prompt | null;
+  turn: number;
+  front: number;
+  truths: number[];
+  dares: number[];
+};
+
 export function WheelOfFate({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="wheel" version={1}>
+      {(saved) => <WheelGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function WheelGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang, sound } = useStore();
-  const [slices, setSlices] = useState<Slice[]>(loadSlices);
+  const [slices, setSlices] = useState<Slice[]>(() => saved?.slices ?? loadSlices());
   const [editing, setEditing] = useState(false);
-  const [result, setResult] = useState<Slice | null>(null);
-  const [picking, setPicking] = useState(false);
-  const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const [result, setResult] = useState<Slice | null>(saved?.result ?? null);
+  const [picking, setPicking] = useState(saved?.picking ?? false);
+  const [prompt, setPrompt] = useState<Prompt | null>(saved?.prompt ?? null);
   /** each card drawn gets a fresh countdown */
   const [drawn, setDrawn] = useState(0);
-  const truths = useRef(new Deck(TRUTHS.filter((p) => p.heat === 1)));
-  const dares = useRef(new Deck(DARES.filter((p) => p.heat === 1)));
-  const turn = useTurnOrder();
+  const [decks] = useState(() => {
+    const truths = new Deck(TRUTHS.filter((p) => p.heat === 1));
+    const dares = new Deck(DARES.filter((p) => p.heat === 1));
+    if (saved) {
+      truths.restore(saved.truths);
+      dares.restore(saved.dares);
+    }
+    return { truths, dares };
+  });
+  const turn = useTurnOrder(saved?.turn ?? 0);
+  const [played, setPlayed] = useState(!!saved);
+  const [front, setFront] = useState(saved?.front ?? 0);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
   // a built-in drinking slice reads as the penalty set in settings, when there is one
@@ -62,17 +91,41 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
   const table = useTurntable({
     count: slices.length,
     friction: 1.2,
+    onPlan: () => setPlayed(true),
     onTick: () => {
       if (sound) sfx.tick(0.7);
       haptic(5);
     },
     onSettle: (i) => {
+      setPlayed(true);
+      setFront(i);
       const s = slices[i];
       setResult(s);
       if (sound) sfx.settle();
       haptic([12, 40, 18]);
     },
   });
+
+  // Restore a settled slice silently; a spin in flight comes back before the spin.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    if (saved) table.jump(saved.front);
+  }, [saved, table.jump]);
+
+  // A stamp has already counted its penalty. Resume after it, without counting it twice.
+  const stamped = !!penalty.call;
+  useKeepProgress<Kept>({
+    slices,
+    result: table.spinning || stamped ? null : result,
+    picking: !table.spinning && !stamped && picking,
+    prompt: table.spinning || stamped ? null : prompt,
+    turn: stamped ? (turn.index + 1) % Math.max(1, players.length) : turn.index,
+    front: table.spinning ? 0 : front,
+    truths: decks.truths.keep(),
+    dares: decks.dares.keep(),
+  }, played);
 
   const wheelRef = useRef<SVGGElement>(null);
   useEffect(() => {
@@ -129,11 +182,11 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
         setPicking(true);
         return;
       case "truth":
-        setPrompt(truths.current.draw().card);
+        setPrompt(decks.truths.draw().card);
         setDrawn((n) => n + 1);
         return;
       case "dare":
-        setPrompt(dares.current.draw().card);
+        setPrompt(decks.dares.draw().card);
         setDrawn((n) => n + 1);
         return;
       case "again":

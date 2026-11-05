@@ -97,6 +97,23 @@ export const CFG = {
   respawnDelay: 1.0,
   /** 走到检查点多近算激活（身体中心到检查点）。 */
   checkpointR: 60,
+  /** 被队友松开之后几秒内摔死算背叛（中间抓到东西或落地就不算）。 */
+  betrayalWindow: 2.5,
+  /** 落地事件的门槛：落地前竖直速度超过它才算「砸」下来（动效和音效用）。 */
+  landSpeed: 420,
+
+  // ---- 关卡物件（A3）----
+  /** 饼干平台默认在几秒、消失几秒。 */
+  fadeOn: 3,
+  fadeOff: 2,
+  /**
+   * 弹簧蜡烛：power = 1 时整个人（身体和胳膊）弹起的初速度（px/s）。胳膊的阻尼会一路拽着身体，
+   * 所以不是弹道的 v²/2g：1300 实测弹起约 250 px，5 个身高。
+   */
+  springLaunch: 1300,
+  springCooldown: 0.35,
+  /** 手柄的偶发动作（召唤）多久只算一次。 */
+  actCooldown: 1.0,
 };
 
 export type Cfg = typeof CFG;

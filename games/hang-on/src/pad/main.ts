@@ -5,6 +5,10 @@
 import { PadLink, seatId } from '../net/pad-link';
 import { rttLevel } from '../net/latency';
 import { CODE_RE, type FatalKey, type PadStatus } from '../net/protocol';
+import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
+import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
+import { sfx } from '../audio/sfx';
+import { drawLook } from './look-preview';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -12,6 +16,9 @@ const $ = <T extends HTMLElement>(id: string): T => {
   return e as T;
 };
 const COLORS = ['#F28CA6', '#9BCF83', '#F8C56D', '#8EC5E8'];
+
+applyStatic();
+langButton($<HTMLButtonElement>('langBtn'));
 
 // ---------- 加入 ----------
 const codeIn = $<HTMLInputElement>('code');
@@ -24,21 +31,22 @@ try {
   // 没有存储
 }
 let link: PadLink | null = null;
+let lastFatal: FatalKey | null = null;
+let badCode = false;
 
 $('joinForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const code = codeIn.value.trim().toUpperCase();
-  if (!CODE_RE.test(code)) {
-    $('err').textContent = '房间码是电视上那 4 个字。';
-    return;
-  }
-  const name = nameIn.value.trim() || '糯米团';
+  lastFatal = null;
+  badCode = !CODE_RE.test(code);
+  renderErr();
+  if (badCode) return;
+  const name = nameIn.value.trim() || tr('糯米团', 'Dumpling');
   try {
     localStorage.setItem('hang-on:name', name);
   } catch {
     // 记不住就记不住
   }
-  $('err').textContent = '';
   join(code, name);
 });
 
@@ -49,6 +57,7 @@ function join(code: string, name: string): void {
     onConn: (c) => conn(c),
     onFatal: (key) => fatal(key),
   });
+  link.setLook(look);
   $('meName').textContent = name;
   $('join').hidden = true;
   $('pad').hidden = false;
@@ -57,16 +66,28 @@ function join(code: string, name: string): void {
   void keepAwake();
 }
 
+function fatalLine(key: FatalKey): string {
+  switch (key) {
+    case 'noRoom':
+      return tr('没有这个房间，看看电视上的码。', 'No such room. Check the code on the TV.');
+    case 'full':
+      return tr('房间满了（最多 4 个手柄）。', 'The room is full (4 phones max).');
+    case 'ended':
+      return tr('这局结束了。', 'This game has ended.');
+    case 'kicked':
+      return tr('主机把你请出去了。', 'The host removed you.');
+    default:
+      return tr('出了点问题，再试一次。', 'Something went wrong. Try again.');
+  }
+}
+
+function renderErr(): void {
+  $('err').textContent = badCode ? tr('房间码是电视上那 4 个字。', 'The room code is the 4 characters on the TV.') : lastFatal ? fatalLine(lastFatal) : '';
+}
+
 function fatal(key: FatalKey): void {
-  const line: Record<FatalKey, string> = {
-    noRoom: '没有这个房间，看看电视上的码。',
-    full: '房间满了（最多 4 个手柄）。',
-    ended: '这局结束了。',
-    badRequest: '出了点问题，再试一次。',
-    kicked: '主机把你请出去了。',
-    hostTaken: '出了点问题，再试一次。',
-  };
-  $('err').textContent = line[key];
+  lastFatal = key;
+  renderErr();
   $('pad').hidden = true;
   $('turn').hidden = true;
   $('join').hidden = false;
@@ -100,18 +121,123 @@ async function keepAwake(): Promise<void> {
   });
 }
 
+// ---------- 换装 ----------
+let look: Look = DEFAULT_LOOK;
+try {
+  look = cleanLook(JSON.parse(localStorage.getItem('hang-on:look') ?? 'null'));
+} catch {
+  // 没有存储
+}
+let myColor = COLORS[0] as string;
+const dlg = $<HTMLDialogElement>('lookDlg');
+
+// 六项选择：标签、上一个、名字、下一个
+const picks = $('picks');
+for (const k of LOOK_KEYS) {
+  const row = document.createElement('div');
+  row.className = 'pick';
+  const lbl = document.createElement('span');
+  lbl.className = 'lbl';
+  lbl.id = `lbl-${k}`;
+  const prev = document.createElement('button');
+  prev.type = 'button';
+  prev.textContent = '‹';
+  prev.dataset.k = k;
+  prev.dataset.d = '-1';
+  const val = document.createElement('span');
+  val.className = 'val';
+  val.id = `val-${k}`;
+  val.setAttribute('aria-live', 'polite');
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.textContent = '›';
+  next.dataset.k = k;
+  next.dataset.d = '1';
+  row.append(lbl, prev, val, next);
+  picks.append(row);
+  for (const b of [prev, next]) {
+    b.addEventListener('click', () => {
+      look = stepLook(look, k, Number(b.dataset.d));
+      renderLook();
+      if (k === 'voice') void sfx.previewVoice(look.voice);
+    });
+  }
+}
+
+function renderLook(): void {
+  for (const k of LOOK_KEYS) {
+    const names = LOOK_NAMES[k] as Record<string, { zh: string; en: string }>;
+    $(`lbl-${k}`).textContent = pickLang(LOOK_NAMES.label[k]);
+    $(`val-${k}`).textContent = pickLang(names[look[k]]);
+  }
+  for (const b of picks.querySelectorAll<HTMLButtonElement>('button')) {
+    const k = b.dataset.k as LookKey;
+    const what = pickLang(LOOK_NAMES.label[k]);
+    b.setAttribute('aria-label', b.dataset.d === '1' ? tr(`下一个${what}`, `Next ${what.toLowerCase()}`) : tr(`上一个${what}`, `Previous ${what.toLowerCase()}`));
+  }
+  drawLook($<HTMLCanvasElement>('lookPreview'), look, myColor);
+  drawLook($<HTMLCanvasElement>('lookMini'), look, myColor);
+  const shown: LookKey[] = ['hat', 'glasses', 'face'];
+  const parts = shown.filter((k) => look[k] !== DEFAULT_LOOK[k]).map((k) => pickLang((LOOK_NAMES[k] as Record<string, { zh: string; en: string }>)[look[k]]));
+  $('lookSummary').textContent = parts.length ? parts.join(' · ') : tr('换个样子', 'Customize');
+}
+function openLook(): void {
+  renderLook();
+  dlg.showModal();
+}
+/** 关掉对话框就算定了：存起来，告诉主机。 */
+function closeLook(): void {
+  try {
+    localStorage.setItem('hang-on:look', JSON.stringify(look));
+  } catch {
+    // 记不住就记不住
+  }
+  renderLook();
+  link?.setLook(look);
+}
+$('lookBtn').addEventListener('click', openLook);
+$('lookBtn2').addEventListener('click', openLook);
+$('lookDone').addEventListener('click', () => dlg.close());
+dlg.addEventListener('close', closeLook);
+$('lookRandom').addEventListener('click', () => {
+  look = randomLook();
+  renderLook();
+});
+$('lookReset').addEventListener('click', () => {
+  look = DEFAULT_LOOK;
+  renderLook();
+});
+renderLook();
+
+// ---------- 召唤 ----------
+/** 召唤要连发几帧，不可靠通道丢一两条也送得到；主机 1 秒内只算一次。 */
+let actFrames = 0;
+const summonBtn = $<HTMLButtonElement>('summonBtn');
+summonBtn.addEventListener('click', () => {
+  actFrames = 12;
+  buzz(20);
+});
+
 // ---------- 状态 ----------
 let lastHands: [boolean, boolean] = [false, false];
 let lastDeaths = 0;
+let lastConn = { socket: false, direct: false, known: false };
 function status(s: PadStatus): void {
-  document.documentElement.style.setProperty('--mine', COLORS[s.color] ?? COLORS[0]!);
+  const color = COLORS[s.color] ?? COLORS[0]!;
+  if (color !== myColor) {
+    myColor = color;
+    renderLook();
+  }
+  document.documentElement.style.setProperty('--mine', color);
+  summonBtn.disabled = !(s.phase === 'playing' && (s.teamDead ?? 0) > 0);
   $('handL').classList.toggle('on', s.hands[0]);
   $('handR').classList.toggle('on', s.hands[1]);
   $('deaths').textContent = String(s.deaths);
   const rtt = $('rtt');
   rtt.textContent = s.rttMs === null ? '—' : `${s.rttMs.toFixed(0)} ms`;
   rtt.className = `ms ${s.rttMs === null ? '' : rttLevel(s.rttMs)}`;
-  $('path').textContent = s.direct ? '直连' : '绕路中';
+  lastConn = { socket: true, direct: s.direct, known: true };
+  renderConn();
   if ((s.hands[0] && !lastHands[0]) || (s.hands[1] && !lastHands[1])) buzz(30);
   if (s.deaths > lastDeaths) {
     buzz([60, 40, 60]);
@@ -132,16 +258,50 @@ function buzz(pattern: number | number[]): void {
 }
 
 function conn(c: { socket: boolean; direct: boolean }): void {
-  const el = $('conn');
-  if (!c.socket) {
-    el.textContent = '重连中…';
-    el.className = 'conn bad';
-  } else {
-    el.textContent = '已连接';
-    el.className = 'conn';
-  }
-  if (c.socket) $('path').textContent = c.direct ? '直连' : '绕路中';
+  lastConn = { ...c, known: true };
+  renderConn();
 }
+
+function renderConn(): void {
+  const el = $('conn');
+  const c = lastConn;
+  if (!c.known) {
+    el.textContent = tr('连接中…', 'Connecting…');
+    el.className = 'conn';
+    $('path').textContent = tr('连接中', 'Connecting');
+    return;
+  }
+  el.textContent = c.socket ? tr('已连接', 'Connected') : tr('重连中…', 'Reconnecting…');
+  el.className = c.socket ? 'conn' : 'conn bad';
+  if (c.socket) $('path').textContent = c.direct ? tr('直连', 'Direct') : tr('绕路中', 'Relayed');
+}
+renderConn();
+
+onLang(() => {
+  renderLook();
+  renderConn();
+  renderErr();
+});
+
+// ---------- 防误触：连按两下不放大，长按不弹菜单 ----------
+// 逻辑都走 pointer 事件；这里只把触摸的默认动作掐掉（Safari 的双击缩放只认 touchend 的 preventDefault）。
+const pad = $('pad');
+for (const type of ['touchstart', 'touchend', 'touchmove'] as const) {
+  pad.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+let lastTap = 0;
+document.addEventListener(
+  'touchend',
+  (e) => {
+    const now = performance.now();
+    const typing = e.target instanceof HTMLInputElement;
+    if (now - lastTap < 350 && !typing) e.preventDefault();
+    lastTap = now;
+  },
+  { passive: false },
+);
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+pad.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ---------- 摇杆（左半边）----------
 const zone = $('stickzone');
@@ -228,7 +388,9 @@ function tick(): void {
       if (keys.has('KeyW')) ay -= 1;
       if (keys.has('KeyS')) ay += 1;
     }
-    link.send({ ax, ay, gl: grab.l || keys.has('KeyQ'), gr: grab.r || keys.has('KeyE') });
+    const act = actFrames > 0 ? 'summon' : undefined;
+    if (actFrames > 0) actFrames--;
+    link.send({ ax, ay, gl: grab.l || keys.has('KeyQ'), gr: grab.r || keys.has('KeyE'), act });
   }
   requestAnimationFrame(tick);
 }
@@ -239,11 +401,15 @@ requestAnimationFrame(tick);
   get link() {
     return link;
   },
-  set(input: { ax?: number; ay?: number; gl?: boolean; gr?: boolean }) {
+  set(input: { ax?: number; ay?: number; gl?: boolean; gr?: boolean; summon?: boolean }) {
     if (input.ax !== undefined) aim.x = input.ax;
     if (input.ay !== undefined) aim.y = input.ay;
     if (input.gl !== undefined) grab.l = input.gl;
     if (input.gr !== undefined) grab.r = input.gr;
+    if (input.summon) actFrames = 12;
+  },
+  get look() {
+    return look;
   },
   join,
 };
