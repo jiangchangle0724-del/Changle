@@ -45,6 +45,34 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
 
   const lead = mode === "never" ? (lang === "zh" ? "我从来没有……" : "Never have I ever…") : lang === "zh" ? "在座谁最有可能……" : "Who's most likely to…";
 
+  const actions =
+    picking && mode === "never" ? (
+      <>
+        <button type="button" className="btn btn-lg btn-ghost" onClick={draw}>
+          {lang === "zh" ? "没人做过" : "Nobody has"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-lg btn-penalty"
+          disabled={guilty.length === 0}
+          onClick={() => penalty.show({ who: players.filter((p) => guilty.includes(p.id)).map((p) => p.name), kind: "sip", note: card ? tr(card) : undefined }, draw)}
+        >
+          {pen.isCustom ? ui("takePenalty") : ui("drink")}
+        </button>
+      </>
+    ) : picking ? undefined : (
+      <>
+        {card && (
+          <button type="button" className="btn btn-lg btn-penalty" onClick={() => setPicking(true)}>
+            {mode === "likely" ? (lang === "zh" ? "指完了" : "We pointed") : lang === "zh" ? "谁做过" : "Who has?"}
+          </button>
+        )}
+        <button type="button" className="btn btn-lg btn-primary" onClick={draw}>
+          {card ? ui("next") : lang === "zh" ? "抽一张" : "Draw a card"}
+        </button>
+      </>
+    );
+
   const rules = (
     <p>
       {pen.line(
@@ -61,7 +89,7 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <GameShell title={UI.gamePrompts} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={UI.gamePrompts} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{}} actions={actions}>
       <div className="deck-stage">
         <div className="segmented-row" style={{ justifyContent: "center" }}>
           <div className="lang-tab heat-tab" role="group">
@@ -116,21 +144,6 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
                 selected={guilty}
                 onPick={(p) => setGuilty((g) => (g.includes(p.id) ? g.filter((x) => x !== p.id) : [...g, p.id]))}
               />
-              <div className="row" style={{ gap: 10 }}>
-                <button type="button" className="btn btn-ghost btn-block" onClick={draw}>
-                  {lang === "zh" ? "没人做过" : "Nobody has"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-penalty btn-block"
-                  disabled={guilty.length === 0}
-                  onClick={() =>
-                    penalty.show({ who: players.filter((p) => guilty.includes(p.id)).map((p) => p.name), kind: "sip", note: card ? tr(card) : undefined }, draw)
-                  }
-                >
-                  {pen.isCustom ? ui("takePenalty") : ui("drink")}
-                </button>
-              </div>
             </motion.div>
           ) : picking ? (
             <motion.div key="pick" className="stack" style={{ gap: 10 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -139,18 +152,7 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
               </p>
               <PlayerPicker players={players} onPick={(p) => penalty.show({ who: [p.name], kind: "sip", note: card ? tr(card) : undefined }, draw)} />
             </motion.div>
-          ) : (
-            <motion.div key="actions" className="row" style={{ gap: 10 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {card && (
-                <button type="button" className="btn btn-penalty btn-lg btn-block" onClick={() => setPicking(true)}>
-                  {mode === "likely" ? (lang === "zh" ? "指完了" : "We pointed") : lang === "zh" ? "谁做过" : "Who has?"}
-                </button>
-              )}
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={draw}>
-                {card ? ui("next") : lang === "zh" ? "抽一张" : "Draw a card"}
-              </button>
-            </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
       </div>
     </GameShell>
