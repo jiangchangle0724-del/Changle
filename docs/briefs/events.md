@@ -33,16 +33,16 @@
 - UBC 只收所有人都能进的活动。
 - 本拿比图书馆用它自己的 feed，四个分馆带坐标（#105）。
 - 温哥华和列治文图书馆：每天 5:50 由 GitHub 先抓好，交给网站；6:00 那一轮用交来的，没交来就照旧自己抓并记下原因（11 月 2 日 Steve 同意；#130）。
-- 接力不用钥匙，用 GitHub 自己的登录凭证（OIDC）证明是我们的任务，谁都不用设（11 月 5 日）。原因：钥匙要 Steve 自己做、自己粘贴到两边，助手不能替他处理钥匙，一直没加上。钥匙那条路留着，只给 GitHub 以外跑脚本用。
+- 接力不用钥匙，用 GitHub 自己的登录凭证（OIDC）证明是我们的任务，谁都不用设（11 月 5 日；#211）。原因：钥匙要 Steve 自己做、自己粘贴到两边，助手不能替他处理钥匙，一直没加上。钥匙那条路留着，只给 GitHub 以外跑脚本用。
 
 ## 现在
 
 - 11 月 2 日第一轮：06:01 发布 51 个活动（本拿比图书馆 32、UBC 10、Luma 9）。温哥华和列治文图书馆被拒（403）：图书馆平台 BiblioCommons 挡了 Cloudflare 发出的请求，同样的请求从别处发是通的。Ticketmaster 没钥匙，跳过。
-- 接力到 11 月 5 日还没成功过一次：11-03、11-04 定时那两次没开跑（仓库那时是私有的，GitHub Actions 额度用完，Billing 报错），而且都晚了七个小时才排上（19:51、20:05 UTC，本该 12:50）；11-05 手动跑那次红，`EVENTS_HANDOFF_KEY is not set`（那时还要钥匙）。仓库现在是公开的，GitHub 跑任务不收钱。改用 GitHub 登录凭证的 PR 等合并。
+- 接力到 11 月 5 日还没成功过一次：11-03、11-04 定时那两次没开跑（仓库那时是私有的，GitHub Actions 额度用完，Billing 报错），而且都晚了七个小时才排上（19:51、20:05 UTC，本该 12:50）；11-05 手动跑那次红，`EVENTS_HANDOFF_KEY is not set`（那时还要钥匙）。仓库现在是公开的，GitHub 跑任务不收钱。改用 GitHub 登录凭证的 PR #211 等合并。
 
 ## 还剩什么
 
-- 两个图书馆的接力：改用 GitHub 登录凭证的 PR 合并、Cloudflare 部署完以后，可以在 Actions 里手动跑一次 `events-libraries` 看是不是绿的（不跑也行，第二天 5:50 会自己跑）。Steve 什么都不用设。
+- 两个图书馆的接力：改用 GitHub 登录凭证的 PR #211 合并、Cloudflare 部署完以后，可以在 Actions 里手动跑一次 `events-libraries` 看是不是绿的（不跑也行，第二天 5:50 会自己跑）。Steve 什么都不用设。
 - 第二天早上看 changle.ca/go/api/status：`vpl`、`rpl` 写着 `"via": "handoff"` 就成了。
 - 还没确定的两件事：
   - GitHub 的机器会不会也被挡。应该不会：挡人的是图书馆自己的 AWS 负载均衡，同一个地址、同样的请求，Workers 发的答 403，Node 发的答 200（GitHub 那一步用的就是 Node）。第一次真跑就知道；万一被挡，任务会红，报 `HTTP 403 from gateway.bibliocommons.com`。
@@ -73,4 +73,4 @@
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
 - 2026-11-02 两个图书馆的接力（#130）：GitHub 每天 5:50 用和网站一模一样的请求抓好两个图书馆的每一页，一页一次交给 `POST /go/api/handoff`（钥匙 `EVENTS_HANDOFF_KEY`，存 KV 两天）；6:00 那一轮先用交来的，没有才自己抓；日志和 /go/api/status 每一步多了 `via`（handoff 或 fetch）和 `note`（迁移 0003）。在这台机器上查过：挡人的是 BiblioCommons 自己的 AWS 负载均衡（`awselb/2.0`）；同一个地址、同样的请求，用 Workers 的运行环境发是 403，用 Node 发是 200，所以挡的是 Workers 发出的请求本身，不是云服务器的地址。用 Node 抓：温哥华 12 页、列治文 7 页。本地跑一轮，19 页都走接力，发布 484 个活动（今天线上只有 51 个）。图书馆偶尔答 500，所以每页失败会隔 5 秒、10 秒再试两次；403 不重试。
 - 2026-11-02 记下 Steve 11-02 的回答。
-- 2026-11-05 接力改用 GitHub 自己的登录凭证（OIDC），不再要钥匙。任务加了 `id-token: write`，不再传 secret；脚本每个图书馆交之前向 GitHub 要一张写明给 `changle-events-handoff` 的凭证（设了 `EVENTS_HANDOFF_KEY` 就还用钥匙）。网站只用 Web Crypto：只收 RS256（none、HS256 等一律拒），按 `kid` 用 GitHub 公开的钥匙核对签名（内存和 KV 各存一小时，不认识的 `kid` 最多一分钟再去取一次，凭证通过了才写 KV），再核对 iss、aud、exp/iat/nbf（容一分钟误差）、仓库编号 1431750616 和账号编号 332761129、`refs/heads/main`、`workflow_ref` 是 events-libraries.yml@main、事件是 schedule 或 workflow_dispatch。fork、PR、别的分支、别的任务、给别人的凭证、过期的旧凭证都拒（401，说明哪一项不对，不提凭证本身）；取不到 GitHub 的钥匙时 503。Worker 有钥匙时钥匙照样能用。新测试 19 个（本地生成 RSA 钥匙、假的 GitHub 钥匙列表，不联网），也逐项把检查拿掉试过，每一项都有测试会红。
+- 2026-11-05 接力改用 GitHub 自己的登录凭证（OIDC，#211），不再要钥匙。任务加了 `id-token: write`，不再传 secret；脚本每个图书馆交之前向 GitHub 要一张写明给 `changle-events-handoff` 的凭证（设了 `EVENTS_HANDOFF_KEY` 就还用钥匙）。网站只用 Web Crypto：只收 RS256（none、HS256 等一律拒），按 `kid` 用 GitHub 公开的钥匙核对签名（内存和 KV 各存一小时，不认识的 `kid` 最多一分钟再去取一次，凭证通过了才写 KV），再核对 iss、aud、exp/iat/nbf（容一分钟误差）、仓库编号 1431750616 和账号编号 332761129、`refs/heads/main`、`workflow_ref` 是 events-libraries.yml@main、事件是 schedule 或 workflow_dispatch。fork、PR、别的分支、别的任务、给别人的凭证、过期的旧凭证都拒（401，说明哪一项不对，不提凭证本身）；取不到 GitHub 的钥匙时 503。Worker 有钥匙时钥匙照样能用。新测试 19 个（本地生成 RSA 钥匙、假的 GitHub 钥匙列表，不联网），也逐项把检查拿掉试过，每一项都有测试会红。
