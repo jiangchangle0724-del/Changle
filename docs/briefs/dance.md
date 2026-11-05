@@ -53,15 +53,15 @@
 ## 现在
 
 - 已合并：A1 对时、C1 动作库（#95）、C5 学跳流程（#107），动作库有自己的 CI（#106）。
-- 做好了，推上了 GitHub，还没开 PR（见「还剩什么」第一条）：
-  - 分支 `claude/dance-first-song`：一支舞从学到跳到结算，手机按钮代替传感器。另一个审查代理看过代码，找出 5 个问题，都修了，每个都加了测试。本地全部测试和浏览器检查都过了（整支舞、对时、一支真舞自己从热身放到结算、跳到一半刷新音箱端）。
-  - 分支 `claude/dance-cards`：这份档案，和三张 Codex 卡：C2 重写，新写 C3 电视画面、C4 手机画面。
-- 现在 changle.ca/party 线上还是 A1（节拍器）。上面的分支合并后，线上就能用按钮跳完整的一支舞。
+- 开着等 Steve 点头（先合并 #202）：
+  - #202：一支舞从学到跳到结算，手机按钮代替传感器。另一个审查代理看过代码，找出 5 个问题，都修了，每个都加了测试。本地全部测试和浏览器检查都过了（整支舞、对时、一支真舞自己从热身放到结算、跳到一半刷新音箱端）。
+  - #203：这份档案，和三张 Codex 卡：C2 重写，新写 C3 电视画面、C4 手机画面。
+- 现在 changle.ca/party 线上还是 A1（节拍器）。#202 合并后，线上就能用按钮跳完整的一支舞。
 
 ## 还剩什么
 
-- 开 PR：GitHub 上仓库改名叫 `jiangchangle0724-del/Changle` 了。推代码还能推（旧名字会转过去），但开 PR 要按新名字接仓库，这个对话自己接不了，要 Steve 同意；或者 Steve 自己在 GitHub 上开。Project 的说明里仓库名也要改成新的。
-- Cloudflare：Worker `party` 的 build watch paths 加 `games/dance/*`。房间和页面现在读动作库，不加的话，只改了 `games/dance` 的合并不会重新部署。要 Steve 在 Cloudflare 里 Worker `party` 的构建设置里加（和当初接 Git 时填的地方一样）。
+- 仓库在 GitHub 上改名叫 `jiangchangle0724-del/Changle` 了（旧名字会转过去）。11-05 Steve 同意后，这个对话按新名字接上了。Project 的说明里仓库名还是旧的，要 Steve 在 Project 设置里改。
+- Cloudflare：Worker `party` 的 build watch paths 加 `games/dance/*`。房间和页面现在读动作库，不加的话，只改了 `games/dance` 的合并不会重新部署。要 Steve 在 Cloudflare 里 Worker `party` 的构建设置里加（和当初接 Git 时填的地方一样）。不急：#202 也改了 `games/party-server`，合并时照常部署；以后只改 `games/dance` 的合并才需要它。
 - 真机测试（要 Steve）：Mac 或 iPad 投到 Apple TV，iPhone 扫码。先照 `docs/field-notes/2026-11-01.md` 第 2 节测对时；再跳一支简单舞：听鼓点和手机闪光是不是踩在一起，每一拍点按钮，看手机说「踩准了」准不准。
 - 下一步的顺序（建议）：C3、C4 发给 Codex（C3 先，它把主站的 tokens 接进来）；C2 可以同时发（先用假骨架把流水线做通）；A2 传感器（要真 iPhone 测）；A5 六首歌（Lyria 生成要花钱，先问 Steve）；A4 3D 教练（要 20 个动作的录像）。
 - C2 和 A4 要的录像：找会跳的朋友录 20 个动作，每个录 4 遍，用 Rokoko Video 或 DeepMotion 转成 Mixamo 骨骼的 FBX（`docs/codex-tasks/dance-C2-asset-pipeline.md`）。
@@ -76,7 +76,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-05 一起跳: fixes from a review — the speaker's clock across a reload, restarts, ids, dropped bars（分支 `claude/dance-first-song`）
+- 2026-11-05 一起跳: fixes from a review — the speaker's clock across a reload, restarts, ids, dropped bars（#202）
 - 2026-11-05 一起跳: one dance from learning it to the results, a button standing in for the motion sensor（同上）
 - 2026-11-05 dance: the library's types written out, so the room and the pages import it without zod（同上）
 - 2026-11-05 party-base: the room moves into the dance by itself; the host can stop a dance（同上）
@@ -95,3 +95,4 @@
 - 2026-11-02 首页「即将上线」加了一起跳卡片；「八步摇」确认不改。
 - 2026-11-05 Steve 说「你来帮我做」：按建议留在 /party，做了一支舞从学到跳到结算（按钮代替传感器），重写 C2 卡，写了 C3、C4 卡。浏览器检查时发现并修了：页面的按钮样式盖掉了 `hidden`，「看结果」一直露着，早按会被房间拒绝；电视 720p 时下半截（接下来、连击条）掉出屏幕。
 - 2026-11-05 另一个代理审查代码，找出并修了：音箱端刷新后房间的时钟从 0 重来（A1 起就有）；这一段再来在倒数时再按一次会退两段、能清掉全部成绩；用 `toString` 这类名字当手机 id 能让结算出错；陌生的舞的 id 会一直存在内存里；断网时的小节丢了。又顺手修了：倒数第一拍常常来不及放（现在点了以后等 0.6 秒再倒数）；点按钮的时间按手指按下的那一刻算。仓库在 GitHub 上改了名，开 PR 要 Steve 同意按新名字接。
+- 2026-11-05 早上 Steve 同意按新名字接仓库：开了 #202（代码）和 #203（档案和卡）。
