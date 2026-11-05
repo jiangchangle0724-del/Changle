@@ -11,6 +11,9 @@ import { AdminScenes } from "./AdminScenes";
 import { Avatar, colorFor } from "./Avatar";
 import "../styles/admin.css";
 import { PageLoading } from "../games/GameLoading";
+import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
+import { ToastProvider, useToast } from "../ui/Toast";
 
 type Where = { code: string; game: string } | null;
 type Person = PublicUser & { email: string; banned: boolean; online: boolean; seen: number; master: boolean; where: Where };
@@ -35,6 +38,11 @@ const CONTROL = "#31b9ff";
 
 /** #/admin: the owner's back office. Who is on, at which table; sign someone out, ban them; pause the whole site. */
 export function AdminPage({ onBack }: { onBack: () => void }) {
+  return <ToastProvider><BackOffice onBack={onBack} /></ToastProvider>;
+}
+
+function BackOffice({ onBack }: { onBack: () => void }) {
+  const toast = useToast();
   const { me, status, openSignIn } = useAccount();
   const { lang } = useStore();
   const zh = lang === "zh";
@@ -44,6 +52,8 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Person[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
 
   useEffect(() => setLight(CONTROL), []);
 
@@ -65,10 +75,15 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   }, [me?.master, load]);
 
   const search = async (text: string) => {
+    setSearching(true);
+    setSearchFailed(false);
+    setFound(null);
     try {
       setFound((await api<{ users: Person[] }>(`/admin/users?q=${encodeURIComponent(text.trim())}`)).users);
     } catch {
-      setFound([]);
+      setSearchFailed(true);
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -81,7 +96,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
       await load();
       if (found) await search(q);
     } catch {
-      setError("network");
+      toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
     } finally {
       setBusy(false);
     }
@@ -174,7 +189,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
         )}
       </section>
 
-      {error === "network" && <p className="form-error">{zh ? "网不好，没连上，过几秒自动再试。" : "Couldn't reach the server. Trying again shortly."}</p>}
+      {error === "network" && <EmptyState tone="error" title={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => void load() }} />}
 
       <div className="stats">
         <div className="stat">
@@ -250,11 +265,13 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
       >
         <Search size={17} aria-hidden="true" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={zh ? "名字、邮箱或六位号" : "Name, email or handle"} enterKeyHint="search" aria-label={zh ? "找人" : "Find someone"} />
-        <button type="submit" className="btn btn-moon btn-sm">
+        <button type="submit" className="btn btn-moon btn-sm" disabled={searching}>
           {zh ? "找" : "Find"}
         </button>
       </form>
-      {found && (found.length ? <ul className="adm-list">{found.map((p) => personRow(p))}</ul> : <p className="hint adm-empty">{zh ? "没找到。" : "No one found."}</p>)}
+      {searching && <Skeleton lang={lang} lines={3} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />}
+      {searchFailed && <EmptyState tone="error" title={zh ? "没搜成，检查一下网络" : "The search didn't go through. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => void search(q) }} />}
+      {found && (found.length ? <ul className="adm-list">{found.map((p) => personRow(p))}</ul> : <EmptyState title={zh ? "没找到。" : "No one found."} />)}
 
       <h2 className="adm-h">{zh ? "黑名单" : "Banned"}</h2>
       {o && !o.banned.users.length && !o.banned.devices.length && <p className="hint adm-empty">{zh ? "黑名单是空的。" : "Nobody is banned."}</p>}
