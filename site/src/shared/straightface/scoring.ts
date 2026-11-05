@@ -1,5 +1,5 @@
 /**
- * Scoring for 一本正经 · Straight Face. Our own rules, written to make every non-judge WANT to be
+ * Scoring for 一本正经 · In All Seriousness. Our own rules, written to make every non-judge WANT to be
  * picked as "the honest one" (so everyone performs), and to give the judge one risky tool (the tag).
  *
  *   Accused player           +L   (L = card level 1..3): whoever the judge believes, honest or not

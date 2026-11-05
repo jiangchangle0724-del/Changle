@@ -1,5 +1,5 @@
 /**
- * The pieces of 一本正经 · Straight Face. Every piece takes a view object (PrivateView / PublicView or
+ * The pieces of 一本正经 · In All Seriousness. Every piece takes a view object (PrivateView / PublicView or
  * a slice of one), never the GameState: the one-phone screen and the online screens render the
  * same parts from what the engine's two view functions allow them to see.
  */
@@ -24,8 +24,10 @@ export function useSay() {
 /** The reader's language first and big, the other underneath (titles on cards). */
 export function Bi({ t, className = "" }: { t: T; className?: string }) {
   const { lang } = useStore();
-  const main = lang === "zh" ? t.zh : t.en;
-  const other = lang === "zh" ? t.en : t.zh;
+  // a Chinese original (锅包肉 / 锅包肉 guō bāo ròu): the characters, with the reading under them, in both languages
+  const original = t.zh.trim() !== "" && t.en.startsWith(t.zh);
+  const main = original ? t.zh : lang === "zh" ? t.zh : t.en;
+  const other = original ? t.en.slice(t.zh.length).trim() || main : lang === "zh" ? t.en : t.zh;
   return (
     <span className={`sf-bi ${className}`}>
       <span className="sf-bi-main">{main}</span>

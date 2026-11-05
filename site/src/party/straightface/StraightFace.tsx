@@ -1,5 +1,5 @@
 /**
- * 一本正经 · Straight Face on one phone, passed round the table. The pure engine
+ * 一本正经 · In All Seriousness on one phone, passed round the table. The pure engine
  * (src/shared/straightface) holds the game; this screen only dispatches events and renders what
  * `privateView` allows the phone's holder to see and what `publicView` allows the table to see.
  */

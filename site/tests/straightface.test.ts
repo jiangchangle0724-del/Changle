@@ -1,4 +1,4 @@
-/* 一本正经 · Straight Face: the engine, the card bank and the two views. Run with `npx tsx tests/straightface.test.ts` */
+/* 一本正经 · In All Seriousness: the engine, the card bank and the two views. Run with `npx tsx tests/straightface.test.ts` */
 import { CARDS, PACKS } from "../src/data/straightface";
 import { lintDeck, pickCard, validateCard, validateDeck } from "../src/shared/straightface/cards";
 import { createGame, currentSpeaker, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
@@ -102,6 +102,21 @@ test("straightface: validateCard requires funFact and source, refuses a brackete
   const glossed: Card = { ...base, id: "glossed", term: { zh: "雨后泥土味 Petrichor", en: "Petrichor" } };
   ok(lintDeck([glossed]).length > 0, "lint flags a Chinese gloss");
   ok(lintDeck([base]).length === 0, "lint passes the plain term");
+});
+
+test("straightface: the Chinese packs show the original word on both sides, may quote it, and each has enough cards", () => {
+  for (const p of ["zi", "fangyan", "chengyu", "caiming"]) {
+    const deck = cards.filter((c) => c.pack === p);
+    ok(deck.length >= 12, `${p}: ${deck.length} cards`);
+    for (const c of deck) {
+      ok(c.term.en.startsWith(c.term.zh) && c.term.en.length > c.term.zh.length, `${c.id}: the English side is the original characters plus a reading`);
+      // every phone's font draws the basic CJK block; nothing rarer goes on the card
+      ok([...c.term.zh].every((ch) => /[一-鿿]/.test(ch)), `${c.id}: the card's characters are all in the basic CJK block`);
+    }
+  }
+  const base = cards[0];
+  const idiom: Card = { ...base, id: "idiom", term: { zh: "七月流火", en: "七月流火 qī yuè liú huǒ" }, definition: { zh: "七月流火说的是天要转凉。", en: "The heat is ending." } };
+  ok(lintDeck([idiom]).length === 0, "a Chinese original may quote itself in its definition");
 });
 
 test("straightface: pickCard prefers the asked level, avoids used cards, falls back sanely, keeps adult cards out", () => {

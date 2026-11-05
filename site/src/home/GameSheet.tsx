@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import type { GameId, GameMeta } from "../games/registry";
 import { go } from "../router";
+import { ONLINE_GAMES } from "../shared/protocol";
 import { usePenaltyText, useStore } from "../store";
 
 /** A game's card: what it is, how many it takes, and the two ways to play it. */
@@ -102,13 +103,16 @@ export function GameSheet({
                   </span>
                 </button>
               )}
-              <button type="button" className="mode-btn" onClick={() => onOnline(g.id)}>
-                <RadioTower size={22} />
-                <span>
-                  <strong>{ui("everyonePhone")}</strong>
-                  <small>{ui("everyonePhoneHint")}</small>
-                </span>
-              </button>
+              {/* a game the rooms server can't run yet (一本正经) is one phone only */}
+              {(ONLINE_GAMES as readonly string[]).includes(g.id) && (
+                <button type="button" className="mode-btn" onClick={() => onOnline(g.id)}>
+                  <RadioTower size={22} />
+                  <span>
+                    <strong>{ui("everyonePhone")}</strong>
+                    <small>{ui("everyonePhoneHint")}</small>
+                  </span>
+                </button>
+              )}
               {g.id === "punchline" && (
                 <button type="button" className="mode-btn" onClick={bigScreen} aria-expanded={tvHelp}>
                   <Tv size={22} />
