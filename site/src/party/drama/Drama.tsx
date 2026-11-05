@@ -2,6 +2,7 @@ import { Clapperboard, Play, SkipForward } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
 import { sfx } from "../../lib/sfx";
@@ -11,7 +12,7 @@ import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { DramaActionHost } from "./ShellActions";
 import { seedOf, startAmbience, type Scape } from "./ambience";
-import { useLocalGame, type LocalEvent } from "./local";
+import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
@@ -19,6 +20,31 @@ import { dramaSfx } from "./sound";
 /** Scenes written on this phone and not played yet: kept, so leaving the game doesn't lose them. */
 const WAITING = "changle.drama.waiting";
 type Waiting = { id: string; scene: Draft; by: string };
+type Step = { k: "intro" } | { k: "pass"; i: number } | { k: "card"; i: number };
+type DramaState = Parameters<typeof drama.act>[0];
+type Kept = { local: LocalKept<DramaState>; step: Step; waiting: Waiting[] };
+
+function keepDrama(raw: LocalKept<DramaState>): LocalKept<DramaState> {
+  const state = { ...raw.state, endsAt: 0, twistAt: 0 };
+  const pending = raw.pending.filter((p) => p.key.startsWith("pen:"));
+  if (state.phase === "brief" || state.phase === "act") {
+    if (state.phase === "act") { state.ready = []; state.twisted = false; }
+    state.phase = "brief";
+    pending.push({ key: "g:brief", wait: BRIEF_MS });
+  } else if (state.phase === "vote") {
+    const vote = raw.pending.find((p) => p.key === "g:vote");
+    if (vote) pending.push(vote);
+  }
+  return { state, pending };
+}
+
+function restoreDrama(kept: LocalKept<DramaState>): LocalKept<DramaState> {
+  const restored = JSON.parse(JSON.stringify(kept)) as LocalKept<DramaState>;
+  const key = restored.state.phase === "brief" ? "g:brief" : "g:vote";
+  const waiting = restored.pending.find((p) => p.key === key);
+  if (waiting) restored.state.endsAt = Date.now() + waiting.wait;
+  return restored;
+}
 
 function loadWaiting(): Waiting[] {
   try {
@@ -45,6 +71,14 @@ function saveWaiting(list: Waiting[]) {
  * audience for a secret ballot.
  */
 export function Drama({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="drama" version={1}>
+      {(saved) => <DramaGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, lang, tr } = useStore();
   const zh = lang === "zh";
   const penalty = usePenalty();
@@ -62,12 +96,13 @@ export function Drama({ onBack }: { onBack: () => void }) {
     [name, tr],
   );
   const custom = usePenaltyText().isCustom;
-  const game = useLocalGame<unknown, DramaView>(drama, ids, onEvent, custom);
+  const [firstGame] = useState(() => saved ? restoreDrama(saved.local) : null);
+  const game = useLocalGame<DramaState, DramaView>(drama, ids, onEvent, custom, firstGame);
   const v = game.view(host);
   const act = (pid: string, x: string, data: Record<string, unknown> = {}) => game.act(pid, { x, ...data });
 
   // a scene written here waits on the phone until it's played: leaving the game doesn't lose it
-  const waiting = useRef<Waiting[]>([]);
+  const waiting = useRef<Waiting[]>(saved?.waiting ?? []);
   const write = (scene: Draft, by?: string) => {
     const who = by && ids.includes(by) ? by : host;
     const before = new Set(game.view(host).mine.map((w) => w.id));
@@ -82,6 +117,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (restored.current || !host) return;
     restored.current = true;
+    if (saved) { saveWaiting(waiting.current); return; }
     for (const w of loadWaiting()) write(w.scene, w.by);
     saveWaiting(waiting.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,7 +135,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   }, [mineKey]);
 
   // who holds the phone right now, inside a phase: the card readers and the voters take turns
-  const [step, setStep] = useState<{ k: "intro" } | { k: "pass"; i: number } | { k: "card"; i: number }>({ k: "intro" });
+  const [step, setStep] = useState<Step>(saved?.step ?? { k: "intro" });
   const [slate, setSlate] = useState(false);
   const [writing, setWriting] = useState(false);
   const credit = v.credit?.pid ? nameOf(v.credit.pid) : (v.credit?.name ?? null);
@@ -113,7 +149,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   }, [v.phase, v.lib, v.round]);
   const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} />;
   const round = `${v.round}-${v.phase}`;
-  const last = useRef("");
+  const last = useRef(saved ? round : "");
   useEffect(() => {
     if (last.current === round) return;
     last.current = round;
@@ -330,6 +366,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
     );
   }
 
+  useKeepProgress<Kept>({ local: keepDrama(game.keep()), step: v.phase === "act" ? { k: "intro" } : step.k === "card" ? { k: "pass", i: step.i } : step, waiting: waiting.current }, v.phase !== "setup" && v.phase !== "end");
   return (
     <DramaActionHost.Provider value={actionHost}>
       <GameShell
