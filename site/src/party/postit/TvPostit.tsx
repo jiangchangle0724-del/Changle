@@ -28,6 +28,9 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
 
   if (v.phase === "write") {
     const people: Person[] = table.map((s) => ({ seat: s, state: v.written.includes(s.id) ? "ready" : "idle", badge: v.written.includes(s.id) ? <DoneBadge /> : undefined }));
+    // the deck the host picked for the notes nobody writes (the mixed bag goes unsaid): on the count's
+    // line, so the heading keeps its height above the players
+    const pick = v.pick && v.pick !== "mix" ? tx(` · 随机的词：${deckName(v.pick).zh}`, ` · Random notes: ${deckName(v.pick).en}`) : "";
     return (
       <TvShow game="postit" className="tvp is-write" phase={v.phase} clock={<TvClock endsAt={v.endsAt} total={WRITE_MS} sound={sound} />}>
         <div className="tvp-top">
@@ -35,8 +38,10 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
             <Bi t={{ zh: "写便利贴", en: "Write the notes" }} />
           </h1>
           <p className="tvp-line">{tx("每人给一个人写一个词，贴在他额头上：他自己看不到，这块屏幕也不显示", "Everyone writes a word for someone else's forehead: they can't see it, and neither can this screen")}</p>
-          <p className="tvp-count tabular">{tx(`${v.written.length}/${table.length} 张写好了`, `${v.written.length} of ${table.length} written`)}</p>
-          {v.pick && v.pick !== "mix" && <p className="tvp-line">{tx(`没写的随机发，从「${deckName(v.pick).zh}」里出`, `Notes nobody writes come from ${deckName(v.pick).en}`)}</p>}
+          <p className="tvp-count tabular">
+            {tx(`${v.written.length}/${table.length} 张写好了`, `${v.written.length} of ${table.length} written`)}
+            {pick}
+          </p>
         </div>
         <TvLineup people={people} big={250} className="tvp-row" />
       </TvShow>
