@@ -712,17 +712,6 @@
   background: var(--dusk);
   box-shadow: inset 0 0 0 1px var(--line-soft);
 }
-.wish-item.is-ghost {
-  height: 80px;
-  background: linear-gradient(90deg, var(--dusk) 0%, var(--dusk-2) 50%, var(--dusk) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s linear infinite;
-}
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
-  }
-}
 .vote {
   position: relative;
   flex-shrink: 0;

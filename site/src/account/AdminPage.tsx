@@ -10,6 +10,7 @@ import { useAccount, type PublicUser } from "./AccountContext";
 import { AdminScenes } from "./AdminScenes";
 import { Avatar, colorFor } from "./Avatar";
 import "../styles/admin.css";
+import { PageLoading } from "../games/GameLoading";
 
 type Where = { code: string; game: string } | null;
 type Person = PublicUser & { email: string; banned: boolean; online: boolean; seen: number; master: boolean; where: Where };
@@ -98,7 +99,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const gameName = (g: string) => (isGameId(g) ? (zh ? GAME_BY_ID[g].name.zh : GAME_BY_ID[g].name.en) : zh ? "大厅" : "Lobby");
   const whereText = (w: Where) => (w ? `${gameName(w.game)} ${w.code}` : zh ? "在逛首页" : "Browsing");
 
-  if (status === "loading") return <div className="screen" />;
+  if (status === "loading") return <PageLoading lang={lang} />;
   if (!me?.master)
     return (
       <div className="screen adm">

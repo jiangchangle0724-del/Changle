@@ -14,6 +14,7 @@ import { Face } from "./avatar/Face";
 import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
 import { ProfileForm } from "./ProfileForm";
+import { PageLoading } from "../games/GameLoading";
 
 export type Stats = { games: number; drinks: number; favorite: string | null; friends: number };
 
@@ -42,7 +43,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
     if (e.t === "friends") void api<{ history: HistoryRow[]; stats: Stats }>("/me/history").then(setHist, () => {});
   });
 
-  if (status === "loading") return <div className="screen" />;
+  if (status === "loading") return <PageLoading lang={lang} />;
   if (!me)
     return (
       <div className="screen me">

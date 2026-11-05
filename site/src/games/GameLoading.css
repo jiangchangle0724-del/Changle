@@ -1,6 +1,6 @@
 /*
  * A game's screen while its file downloads (GameLoading.tsx): the shape of the game shell, so the
- * page is never blank. Loaded with the front door, so it stays small.
+ * page is never blank; any other page gets a simpler shape (PageLoading). A small file of its own.
  */
 .game-loading {
   gap: var(--space-2);
@@ -68,6 +68,25 @@
   height: calc(var(--tap) + var(--space-4));
   margin-bottom: var(--space-2);
   border-radius: var(--r-pill);
+}
+/* any other page (PageLoading): a heading, two lines of text, a panel */
+.page-loading-head {
+  width: 55%;
+  height: var(--space-6);
+  margin-top: var(--space-4);
+  border-radius: var(--r-small);
+}
+.page-loading-line {
+  height: var(--space-4);
+  border-radius: var(--r-small);
+}
+.page-loading-short {
+  width: 70%;
+}
+.page-loading-panel {
+  min-height: calc(var(--tap) * 4);
+  margin-top: var(--space-2);
+  border-radius: var(--r-panel);
 }
 @keyframes game-loading-shimmer {
   from {

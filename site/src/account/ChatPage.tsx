@@ -7,6 +7,7 @@ import { clockOf } from "../lib/time";
 import { useStore } from "../store";
 import { useAccount, useLive, type ChatMsg, type PublicUser } from "./AccountContext";
 import { Avatar, AV_COLORS, colorFor } from "./Avatar";
+import { PageLoading } from "../games/GameLoading";
 
 type Line = ChatMsg & { state?: "sending" | "failed" };
 
@@ -207,7 +208,7 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
     el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
   }, [text]);
 
-  if (status === "loading") return <div className="screen" />;
+  if (status === "loading") return <PageLoading lang={lang} />;
   if (status === "out")
     return (
       <div className="screen chat">

@@ -9,6 +9,7 @@ import { useAccount, useLive, type PublicUser } from "./AccountContext";
 import { Face } from "./avatar/Face";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
 import { GENDER_LABEL, type Stats } from "./MePage";
+import { PageLoading } from "../games/GameLoading";
 
 type Relation = "self" | "friends" | "sent" | "received" | "none" | "blocked";
 type Data = { user: PublicUser; relation: Relation; stats: Stats; recent: HistoryRow[] };
@@ -60,7 +61,7 @@ export function UserPage({ id, onBack }: { id: string; onBack: () => void }) {
         </div>
       </div>
     );
-  if (!d) return <div className="screen" />;
+  if (!d) return <PageLoading lang={lang} />;
 
   const u = d.user;
   const gender = GENDER_LABEL[u.gender]?.[zh ? 0 : 1];
