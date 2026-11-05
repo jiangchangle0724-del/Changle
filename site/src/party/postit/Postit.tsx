@@ -59,17 +59,24 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   const armed = useRef(false);
   /** a word is being scored: ignore taps and nods until the next one is up */
   const busy = useRef(false);
+  /** the next word, due once the scored one has left the pad (cancelled when time runs out first) */
+  const next = useRef(0);
   const ends = useRef(0);
   const sensors = useSensorStatus();
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
   const playing = phase.k === "play";
   // The forehead and countdown return behind the curtain, with answered words and time kept.
-  // During the feedback flash the word was already scored: draw the next one on return.
-  const run: Run | null = playing || phase.k === "count"
-    ? { i: phase.i, pile: pile.current, word: playing && !flash ? word : null, left: playing ? left : resume.current?.left ?? seconds }
-    : phase.k === "ready" ? resume.current : null;
-  useKeepProgress<Kept>({ deck: deck.id, seconds, phase: playing || phase.k === "count" ? { k: "ready", i: phase.i } : phase, turns, run }, phase.k !== "setup" && phase.k !== "final");
+  // During the feedback flash the word was already scored: draw the next one on return. Once
+  // time's up is stamped on, the turn is over: it returns at the wall of its notes.
+  const over = playing && flash === "time";
+  const run: Run | null = over
+    ? null
+    : playing || phase.k === "count"
+      ? { i: phase.i, pile: pile.current, word: playing && !flash ? word : null, left: playing ? left : resume.current?.left ?? seconds }
+      : phase.k === "ready" ? resume.current : null;
+  const keptPhase: Phase = over ? { k: "done", i: phase.i } : playing || phase.k === "count" ? { k: "ready", i: phase.i } : phase;
+  useKeepProgress<Kept>({ deck: deck.id, seconds, phase: keptPhase, turns, run }, phase.k !== "setup" && phase.k !== "final");
   // (from the countdown on: the stage turns with the phone while it is being raised)
   const tilt = useTilt((phase.k === "count" || playing) && sensors === "on");
   useWakeLock(phase.k === "count" || playing);
@@ -139,7 +146,12 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
         window.clearInterval(id);
         sfx.timeUp();
         buzz(BUZZ.timeUp);
-        // time's up is stamped on the note, then the turn's notes go up on the wall
+        // time's up is stamped on the note, then the turn's notes go up on the wall. A word scored
+        // a moment before has gone from the pad already: no next one, the sheet under it stays blank
+        if (busy.current) {
+          window.clearTimeout(next.current);
+          setWord(null);
+        }
         busy.current = true;
         setFlash("time");
         after = window.setTimeout(() => {
@@ -152,6 +164,7 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
     return () => {
       window.clearInterval(id);
       window.clearTimeout(after);
+      window.clearTimeout(next.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
@@ -170,7 +183,7 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
       paper.flick();
       buzz(BUZZ.pass);
     }
-    window.setTimeout(() => {
+    next.current = window.setTimeout(() => {
       busy.current = false;
       setFlash(null);
       draw();

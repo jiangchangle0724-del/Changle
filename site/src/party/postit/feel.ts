@@ -57,8 +57,6 @@ export const BUZZ = {
   pass: 18,
   last: 10,
   timeUp: [90, 70, 160],
-  wrong: [30, 50, 30],
-  turn: [12, 40, 12],
 } as const;
 
 const IOS = typeof navigator !== "undefined" && /iP(hone|ad|od)/.test(navigator.userAgent) && !("vibrate" in navigator);

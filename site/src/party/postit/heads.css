@@ -19,7 +19,6 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 36px;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--r-pill);
   background: var(--color-sheet);
@@ -59,7 +58,7 @@
 .heads-stage.is-ok::after,
 .heads-stage.is-pass::after,
 .heads-stage.is-time::after {
-  animation: heads-glow 0.55s var(--ease-out);
+  animation: heads-glow calc(var(--dur-emphasis) + var(--dur-exit)) var(--ease-out);
 }
 .heads-stage.is-ok::after {
   background: radial-gradient(closest-side, color-mix(in oklab, var(--color-success) 55%, transparent), transparent);
@@ -85,8 +84,9 @@
   translate: -50% -50%;
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
-  /* (depth for the note peeling off) */
+  /* (depth for the note peeling off; and the stamp is sized by the pad it lands on) */
   perspective: 1400px;
+  container-type: size;
   padding: calc(var(--safe-top) + var(--space-2)) max(var(--space-2), env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + var(--space-3)) max(var(--space-2), env(safe-area-inset-left, 0px));
   transition: rotate var(--dur-emphasis) var(--ease-out);
 }
@@ -107,15 +107,15 @@
   min-width: 0;
   min-height: 0;
   /* room at the foot for the edges of the sheets underneath */
-  margin-bottom: 10px;
+  margin-bottom: var(--space-2);
 }
 /* the sheets underneath: their edges, a shade darker each, below the top one */
 .heads-pad {
   border-radius: var(--paper-corner) var(--paper-corner) var(--space-3) var(--paper-corner);
   background: color-mix(in oklab, var(--paper) 80%, var(--night));
-  translate: 0 5px;
+  translate: 0 var(--space-1);
   box-shadow:
-    0 5px 0 -1px color-mix(in oklab, var(--paper) 62%, var(--night)),
+    0 var(--space-1) 0 -1px color-mix(in oklab, var(--paper) 62%, var(--night)),
     var(--paper-shadow);
 }
 .heads-note {
@@ -163,7 +163,7 @@
 .heads-time.is-hurry {
   background: var(--color-danger);
   color: var(--color-on-danger);
-  animation: heads-beat 0.5s var(--ease-pop);
+  animation: heads-beat var(--dur-emphasis) var(--ease-pop);
 }
 .heads-score {
   display: inline-flex;
@@ -231,7 +231,7 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  padding: var(--space-6);
+  padding: var(--space-4);
   border-radius: var(--paper-corner) var(--paper-corner) var(--space-3) var(--paper-corner);
   box-shadow: var(--paper-shadow-up);
   transform-origin: 0% 0%;
@@ -243,17 +243,19 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: var(--leading-tight);
-  overflow-wrap: anywhere;
+  /* (as on the note: whole words, the spaces between them wrap) */
+  overflow-wrap: normal;
+  text-wrap: balance;
   opacity: 0.55;
 }
 /* got it: lifted at the corner, peeled up and away */
 .heads-leaving.is-ok {
-  animation: heads-peel 0.55s var(--ease-out) both;
+  animation: heads-peel calc(var(--dur-emphasis) + var(--dur-exit)) var(--ease-out) both;
 }
 /* a pass: flicked off to the side */
 .heads-leaving.is-pass {
   transform-origin: 100% 100%;
-  animation: heads-flick 0.5s var(--ease-out) both;
+  animation: heads-flick calc(var(--dur-emphasis) + var(--dur-exit)) var(--ease-out) both;
 }
 
 /* the stamp: pressed on the note as it goes */
@@ -265,8 +267,10 @@
   translate: -50% -50%;
   padding: var(--space-2) var(--space-6);
   border-radius: var(--r-field);
+  max-width: 88cqi;
   font-family: var(--font-display);
-  font-size: var(--text-4xl);
+  /* (64px, or less on a narrow note: "Time's up" stays whole and inside it) */
+  font-size: min(var(--text-4xl), 13cqi);
   font-weight: 800;
   line-height: var(--leading-tight);
   white-space: nowrap;
@@ -374,7 +378,7 @@
   /* nothing flies, beats or bumps: the note fades, the stamp just appears */
   .heads-leaving.is-ok,
   .heads-leaving.is-pass {
-    animation: heads-fade 0.3s linear both;
+    animation: heads-fade var(--dur-enter) linear both;
   }
   .heads-stamp {
     animation: none;

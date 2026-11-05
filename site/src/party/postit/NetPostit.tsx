@@ -16,7 +16,7 @@ import { deckName } from "../../data/postit";
 import { Sheet } from "../../components/Sheet";
 import { ART } from "./art";
 import { DeckPicker, MIX } from "./DeckPicker";
-import { BUZZ, buzz, paper, tick } from "./feel";
+import { paper, tick } from "./feel";
 import { Forehead, Sticky, tiltFor } from "./parts";
 import "../../styles/party.css";
 import "./net.css";
@@ -145,18 +145,11 @@ function GuessToast({ v }: { v: PostitView }) {
   const ref = useRef<HTMLDivElement>(null);
   const at = v.guess?.at;
   const first = useRef(at);
+  // (the chime or the buzzer, and the guesser's buzz, are the table's own sounds: useTableSounds;
+  // here only the paper of a note turning over on the guesser's own forehead)
   useEffect(() => {
     if (!at || at === first.current || !v.guess || v.phase === "write") return;
-    if (v.guess.by === me) {
-      if (v.guess.ok) {
-        paper.turn();
-        sfx.correct();
-        buzz(BUZZ.ok);
-      } else {
-        sfx.wrong();
-        buzz(BUZZ.wrong);
-      }
-    } else if (v.guess.ok) paper.land(6, true);
+    if (v.guess.by === me && v.guess.ok) paper.turn();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [at]);
   useEffect(() => {
@@ -292,17 +285,6 @@ function AskPanel({ v }: { v: PostitView }) {
   const custom = usePenaltyText().isCustom;
   const [q, setQ] = useState("");
   const [guess, setGuess] = useState("");
-  const { me } = useRoom();
-  const [wrong, setWrong] = useState(false);
-  const at = v.guess?.at;
-  const first = useRef(at);
-  useEffect(() => {
-    if (!at || at === first.current || !v.guess || v.guess.by !== me || v.guess.ok) return;
-    setWrong(true);
-    const id = window.setTimeout(() => setWrong(false), 500);
-    return () => window.clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [at]);
   const counts = { yes: 0, no: 0, maybe: 0 } as Record<PostitReply, number>;
   for (const r of Object.values(v.replies)) counts[r]++;
   return (
@@ -342,7 +324,7 @@ function AskPanel({ v }: { v: PostitView }) {
         ))}
       </div>
       <form
-        className={`pi-guess ${wrong ? "is-wrong" : ""}`}
+        className="pi-guess"
         onSubmit={(e) => {
           e.preventDefault();
           if (!guess.trim()) return;

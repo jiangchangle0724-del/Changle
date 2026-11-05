@@ -5,7 +5,6 @@ import type { PostitReply, PostitView } from "../../shared/protocol";
 import { Bi, DoneBadge, FacesIn, RoundTag, TvClock, TvLineup, TvShow, useArrivals, useLang, useSeats, type Person } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
 import { SeatFace } from "../../online/People";
-import { sfx } from "../../lib/sfx";
 import { ART } from "./art";
 import { paper } from "./feel";
 import "../../styles/tv-postit.css";
@@ -29,15 +28,10 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
   const { seat, name } = useSeats();
   const table = v.order.map((pid) => seat(pid)).filter((s): s is NonNullable<typeof s> => !!s);
   useArrivals(Object.keys(v.replies), sound);
-  // the room's speaker: a note pressed on as each is written, one turned over as each is guessed,
-  // the buzzer for a wrong guess, and the applause when every note is shown
+  // the paper's own sounds, in the room: a note pressed on as each is written, one turned over as
+  // each is guessed (the chime, the buzzer and the win are the table's: useScreenFx)
   useArrivals(v.phase === "write" ? v.written : [], sound, paper.stick);
-  useArrivals(v.solved, sound, () => {
-    paper.turn();
-    sfx.correct();
-  });
-  useArrivals(v.guess && !v.guess.ok ? [String(v.guess.at)] : [], sound, sfx.wrong);
-  useArrivals(v.phase === "end" ? ["end"] : [], sound, () => sfx.reveal());
+  useArrivals(v.solved, sound, paper.turn);
 
   if (v.phase === "write") {
     const people: Person[] = table.map((s) => ({ seat: s, state: v.written.includes(s.id) ? "ready" : "idle", badge: v.written.includes(s.id) ? <DoneBadge /> : undefined }));
