@@ -1,5 +1,6 @@
+import { PunchAction, PunchActionHost } from "./ShellActions";
 import { Hand, Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { PUNCH_FINAL, PUNCH_PROMPTS, PUNCH_SAFETY } from "../../data/punchline";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import type { PenaltyCall } from "../../components/PenaltyStamp";
@@ -286,92 +287,110 @@ export function Punchline({ onBack }: { onBack: () => void }) {
   const writer = phase.k === "pass" || phase.k === "write" ? order[phase.i] : null;
   const show = v && <Stage v={v} who={who} now={Date.now} mode="phone" sound={sound} lang={lang} me={null} hands />;
 
+  const [actionHost, setActionHost] = useState<HTMLDivElement | null>(null);
+  const actions =
+    phase.k === "setup" ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        onClick={() => {
+          setScores({});
+          startRound(1, {});
+        }}
+      >
+        {zh ? "开始" : "Start"}
+      </button>
+    ) : phase.k === "pass" && writer ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase({ k: "write", i: phase.i })}>
+        {zh ? `我是 ${writer.name}` : `I'm ${writer.name}`}
+      </button>
+    ) : phase.k === "write" ? (
+      <div className="row" ref={setActionHost} />
+    ) : phase.k === "show" && matches[phase.m] ? (
+      phase.step === "present" ? (
+        <button type="button" className="btn btn-lg btn-ghost" onClick={() => setPhase({ ...phase, step: "vote", at: Date.now() })}>
+          {zh ? "念完了，开始举手" : "Done reading, hands up"}
+        </button>
+      ) : phase.step === "vote" ? (
+        <button type="button" className="btn btn-primary btn-lg" onClick={reveal}>
+          {zh ? "揭晓是谁写的" : "Reveal who wrote what"}
+        </button>
+      ) : (
+        <button type="button" className="btn btn-primary btn-lg" onClick={afterResult}>
+          {phase.m + 1 < matches.length ? (zh ? "下一题" : "Next prompt") : final ? (zh ? "看最终名次" : "See who won") : zh ? "看分数" : "See the scores"}
+        </button>
+      )
+    ) : phase.k === "scores" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => startRound(round + 1, scores)}>
+        {zh ? "下一轮" : "Next round"}
+      </button>
+    ) : phase.k === "end" ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        onClick={() => {
+          const again = () => {
+            setScores({});
+            startRound(1, {});
+          };
+          if (!stampFirst(again)) again();
+        }}
+      >
+        {zh ? "再来一局" : "Play again"}
+      </button>
+    ) : undefined;
+
   return (
-    <GameShell title={GAME_BY_ID.punchline.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
-      <div className="pl">
-        {phase.k === "setup" && (
-          <div className="stack" style={{ gap: 16 }}>
-            <PromptCard prompt={{ zh: "写最好笑的答案，大家投票", en: "Write the funniest answer. Everyone votes." }} kicker={zh ? `${players.length} 人，三轮` : `${players.length} players, three rounds`} />
-            <p className="hint" style={{ textAlign: "center" }}>
-              {zh ? "手机会在大家手里传一圈，每人写自己的答案，别让别人看到。写完以后手机上开演，大家举手投票。" : "The phone goes round the table and everyone writes their own answers. No peeking. Then the show plays on the phone and you vote by show of hands."}
-            </p>
-            {audience.length > 0 && (
+    <PunchActionHost.Provider value={actionHost}>
+      <GameShell
+        title={GAME_BY_ID.punchline.name}
+        rules={rules}
+        onBack={onBack}
+        penalty={penalty.call}
+        onPenaltyDone={penalty.done}
+        roster={{ turn: writer?.id }}
+        status={playing ? { kind: "round", current: round, total: ROUNDS } : undefined}
+        actions={actions}
+      >
+        <div className="pl">
+          {phase.k === "setup" && (
+            <div className="stack" style={{ gap: 16 }}>
+              <PromptCard prompt={{ zh: "写最好笑的答案，大家投票", en: "Write the funniest answer. Everyone votes." }} kicker={zh ? `${players.length} 人，三轮` : `${players.length} players, three rounds`} />
               <p className="hint" style={{ textAlign: "center" }}>
-                {zh ? `超过 8 个人：${audience.map((p) => p.name).join("、")} 这局当观众，只投票。` : `More than eight: ${audience.map((p) => p.name).join(", ")} watch this one and vote.`}
+                {zh
+                  ? "手机会在大家手里传一圈，每人写自己的答案，别让别人看到。写完以后手机上开演，大家举手投票。"
+                  : "The phone goes round the table and everyone writes their own answers. No peeking. Then the show plays on the phone and you vote by show of hands."}
               </p>
-            )}
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              onClick={() => {
-                setScores({});
-                startRound(1, {});
-              }}
-            >
-              {zh ? "开始" : "Start"}
-            </button>
-          </div>
-        )}
+              {audience.length > 0 && (
+                <p className="hint" style={{ textAlign: "center" }}>
+                  {zh ? `超过 8 个人：${audience.map((p) => p.name).join("、")} 这局当观众，只投票。` : `More than eight: ${audience.map((p) => p.name).join(", ")} watch this one and vote.`}
+                </p>
+              )}
+            </div>
+          )}
 
-        {phase.k === "pass" && writer && (
-          <>
-            {show}
-            <PassCurtain
-              name={writer.name}
-              note={final ? (zh ? "写一个答案，写完交给下一个" : "Write one answer, then pass it on") : zh ? "写两个答案，写完交给下一个" : "Write two answers, then pass it on"}
-              onReady={() => setPhase({ k: "write", i: phase.i })}
-            />
-          </>
-        )}
+          {phase.k === "pass" && writer && (
+            <>
+              {show}
+              <PassCurtain name={writer.name} note={final ? (zh ? "写一个答案，写完交给下一个" : "Write one answer, then pass it on") : zh ? "写两个答案，写完交给下一个" : "Write two answers, then pass it on"} />
+            </>
+          )}
 
-        {phase.k === "write" && writer && <SoloWrite key={`${round}-${writer.id}`} items={mineIn(writer.id)} who={writer.name} quip={() => quips.current.draw().card} onDone={(texts) => submit(writer.id, texts)} />}
+          {phase.k === "write" && writer && <SoloWrite key={`${round}-${writer.id}`} items={mineIn(writer.id)} who={writer.name} quip={() => quips.current.draw().card} onDone={(texts) => submit(writer.id, texts)} />}
 
-        {phase.k === "show" && matches[phase.m] && (
-          <>
-            {show}
-            {phase.step === "present" && (
-              <button type="button" className="btn btn-ghost btn-block" onClick={() => setPhase({ ...phase, step: "vote", at: Date.now() })}>
-                {zh ? "念完了，开始举手" : "Done reading, hands up"}
-              </button>
-            )}
-            {phase.step === "vote" && <Tally m={matches[phase.m]} final={final} tally={tally} setTally={setTally} voters={final ? players.length : players.length - 2} onReveal={reveal} />}
-            {phase.step === "result" && (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={afterResult}>
-                {phase.m + 1 < matches.length ? (zh ? "下一题" : "Next prompt") : final ? (zh ? "看最终名次" : "See who won") : zh ? "看分数" : "See the scores"}
-              </button>
-            )}
-          </>
-        )}
+          {phase.k === "show" && matches[phase.m] && (
+            <>
+              {show}
+              {phase.step === "vote" && <Tally m={matches[phase.m]} final={final} tally={tally} setTally={setTally} voters={final ? players.length : players.length - 2} />}
+            </>
+          )}
 
-        {phase.k === "scores" && (
-          <>
-            {show}
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => startRound(round + 1, scores)}>
-              {zh ? "下一轮" : "Next round"}
-            </button>
-          </>
-        )}
+          {phase.k === "scores" && <>{show}</>}
 
-        {phase.k === "end" && (
-          <>
-            {show}
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              onClick={() => {
-                const again = () => {
-                  setScores({});
-                  startRound(1, {});
-                };
-                if (!stampFirst(again)) again();
-              }}
-            >
-              {zh ? "再来一局" : "Play again"}
-            </button>
-          </>
-        )}
-      </div>
-    </GameShell>
+          {phase.k === "end" && <>{show}</>}
+        </div>
+      </GameShell>
+    </PunchActionHost.Provider>
   );
 }
 
@@ -384,14 +403,22 @@ function HandFace({ size }: { size: number }) {
 }
 
 /** Count the hands: one row per answer, plus and minus. */
-function Tally({ m, final, tally, setTally, voters, onReveal }: { m: LMatch; final: boolean; tally: number[]; setTally: (fn: (t: number[]) => number[]) => void; voters: number; onReveal: () => void }) {
+function Tally({ m, final, tally, setTally, voters }: { m: LMatch; final: boolean; tally: number[]; setTally: (fn: (t: number[]) => number[]) => void; voters: number }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const total = tally.reduce((a, b) => a + b, 0);
   const colors = final ? FINAL_COLORS : SIDE;
   return (
     <div className="pl-tally">
-      <p className="pl-tally-lead">{final ? (zh ? "每人举手选三个，数一数每个答案有几只手" : "Everyone raises a hand for three. Count the hands for each answer.") : zh ? "没写这题的人举手，数一数每边几只手" : "Everyone who didn't write this one raises a hand. Count each side."}</p>
+      <p className="pl-tally-lead">
+        {final
+          ? zh
+            ? "每人举手选三个，数一数每个答案有几只手"
+            : "Everyone raises a hand for three. Count the hands for each answer."
+          : zh
+            ? "没写这题的人举手，数一数每边几只手"
+            : "Everyone who didn't write this one raises a hand. Count each side."}
+      </p>
       {m.order.map((ai, slot) => {
         const letter = String.fromCharCode(65 + slot);
         return (
@@ -420,10 +447,9 @@ function Tally({ m, final, tally, setTally, voters, onReveal }: { m: LMatch; fin
           </div>
         );
       })}
-      <p className="hint pl-progress tabular">{final ? (zh ? `数了 ${total} 票，${voters} 人每人最多三票` : `${total} counted. ${voters} people, up to three each.`) : zh ? `数了 ${total} 票，能投的有 ${voters} 人` : `${total} counted. ${voters} can vote.`}</p>
-      <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onReveal}>
-        {zh ? "揭晓是谁写的" : "Reveal who wrote what"}
-      </button>
+      <p className="hint pl-progress tabular">
+        {final ? (zh ? `数了 ${total} 票，${voters} 人每人最多三票` : `${total} counted. ${voters} people, up to three each.`) : zh ? `数了 ${total} 票，能投的有 ${voters} 人` : `${total} counted. ${voters} can vote.`}
+      </p>
     </div>
   );
 }
@@ -433,9 +459,11 @@ function SoloWrite({ items, who, quip, onDone }: { items: { m: LMatch; k: number
   const zh = lang === "zh";
   const [texts, setTexts] = useState<Record<number, string>>({});
   const [safe, setSafe] = useState<Record<number, boolean>>({});
+  const formId = useId();
   const ready = items.every(({ k }) => (texts[k] ?? "").trim());
   return (
     <form
+      id={formId}
       className="pl-solo-write"
       onSubmit={(e) => {
         e.preventDefault();
@@ -477,9 +505,11 @@ function SoloWrite({ items, who, quip, onDone }: { items: { m: LMatch; k: number
           )}
         </div>
       ))}
-      <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={!ready}>
-        {zh ? "写好了，藏起来交给下一个" : "Done. Hide it and pass it on"}
-      </button>
+      <PunchAction>
+        <button type="submit" form={formId} className="btn btn-primary btn-lg" disabled={!ready}>
+          {zh ? "写好了，藏起来交给下一个" : "Done. Hide it and pass it on"}
+        </button>
+      </PunchAction>
     </form>
   );
 }

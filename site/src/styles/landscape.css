@@ -72,7 +72,7 @@
   }
 
   /* ---- the big picture on the left, when the screen has one ---- */
-  .game-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox, .eu-table),
+  .game-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox, .eu-table, .pl > .sh-stage.is-phone),
   .net-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox) {
     padding-left: calc(44% + 20px);
   }
@@ -113,6 +113,74 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
+  }
+  /* one phone, Punchline: the comedy club is the big picture on the left, the whole height of the
+     screen; passing the phone, the show of hands and the buttons go on the right */
+  .game-body .pl > .sh-stage.is-phone {
+    position: absolute;
+    left: 0;
+    top: 46px;
+    bottom: 0;
+    width: 44%;
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    padding-bottom: 14px;
+  }
+  /* the sign keeps one line, and when the answers need more than the screen's height they scroll
+     inside the club while the brick wall and the spotlights stay put behind them */
+  .game-body .pl > .sh-stage.is-phone .sh-top {
+    margin-bottom: 8px;
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-neon-sub {
+    display: none;
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-scene {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-scene::-webkit-scrollbar {
+    display: none;
+  }
+  /* the cue card and the answers a little tighter, so a head-to-head fits the height */
+  .game-body .pl > .sh-stage.is-phone .sh-prompt {
+    padding: var(--space-3) var(--space-3) var(--space-2);
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-prompt-main {
+    font-size: var(--text-lg);
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-prompt-other {
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-pair {
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-ans {
+    padding: var(--space-4) var(--space-3) var(--space-3);
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-ans-text {
+    font-size: var(--text-lg);
+  }
+  /* the final ranking: a lower podium, so the names, scores and steps fit together */
+  .game-body .pl > .sh-stage.is-phone :is(.sh-end-title, .sh-step-top) {
+    margin-bottom: var(--space-2);
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-step {
+    padding-top: var(--space-1);
+    font-size: var(--text-lg);
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-place[data-rank="1"] .sh-step {
+    height: 60px;
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-place[data-rank="2"] .sh-step {
+    height: 48px;
+  }
+  .game-body .pl > .sh-stage.is-phone .sh-place[data-rank="3"] .sh-step {
+    height: 40px;
   }
   /* one phone, Euchre: the card table is the big picture on the left, the score, your hand and
      the buttons on the right; it keeps its own grid of four seats */

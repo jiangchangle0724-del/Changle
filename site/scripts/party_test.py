@@ -223,7 +223,7 @@ def t_punchline_single(browser):
         if i == 0:
             pg.wait_for_timeout(3600)
             shot(pg, "pl-pass")
-        pg.locator(".pass-curtain .btn-primary").click()
+        pg.locator(".game-actions .btn-primary").click()
         pg.wait_for_selector(".pl-solo-write textarea")
         boxes = pg.locator(".pl-solo-write textarea")
         for j in range(boxes.count()):
@@ -233,7 +233,7 @@ def t_punchline_single(browser):
             boxes.nth(j).fill(["冰箱里住着一只企鹅", "老板说今天放假", "外卖小哥是我前任", "我的猫会说英语", "月亮其实是个灯泡", "恐龙只是想减肥"][(i * 2 + j) % 6])
         if i == 0:
             shot(pg, "pl-write")
-        pg.locator(".pl-solo-write button[type=submit]").click()
+        pg.locator(".game-actions button[type=submit]").click()
     pg.wait_for_selector(".sh-stage .sh-ans")
     pg.wait_for_timeout(4200)
     shot(pg, "pl-present")
