@@ -3,6 +3,7 @@ import { Check, Disc3, Eye, Music, Play, Radio, RotateCcw, X } from "lucide-reac
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TUNES } from "../../data/tunes";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import { AV_COLORS, colorFor } from "../../account/Avatar";
 import { holdBackground, type TuneHandle } from "../../lib/music";
@@ -19,6 +20,16 @@ import { loadSongbook } from "./songbook";
 import "../../styles/party.css";
 
 type Mode = "songs" | "melody" | "pads";
+type SongKept = { kind: "songs"; round: number; song: Song | null; next: Song | null; played: number[]; avoid: number[]; revealed: boolean; revealedAt: number; stage: number; choices: Song[]; tried: number[] };
+type MelodyKept = { kind: "melody"; round: number; tune: number; cards: number[]; stage: number; revealed: boolean; revealedAt: number; tried: number[]; options: number[] };
+type PadsKept = { kind: "pads"; first: string | null; locked: string[] };
+type KeepBase = { mode: Mode; pool: SongPool; quiz: boolean; total: number; scores: Record<string, number> };
+type Kept = KeepBase & { round: SongKept | MelodyKept | PadsKept };
+
+function ClearTune() {
+  useKeepProgress(null, false);
+  return null;
+}
 
 /**
  * One phone. Melody mode: it plays the tune a few notes at a time, the table shouts, you tap
@@ -26,19 +37,29 @@ type Mode = "songs" | "melody" | "pads";
  * and the DJ plays songs from their own music app.
  */
 export function Tune({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="tune" version={1}>
+      {(saved) => <TuneGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
+  const firstSaved = useRef(saved);
   const { players, lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const people = useMemo(() => (players.length ? players : [{ id: "me", name: zh ? "你" : "You" }]), [players, zh]);
-  const [mode, setMode] = useState<Mode>("songs");
-  const [pool, setPool] = useState<SongPool>(DEFAULT_POOL);
-  const [quiz, setQuiz] = useState(false);
-  const [total, setTotal] = useState(8);
-  const [phase, setPhase] = useState<"setup" | "play" | "end">("setup");
+  const [mode, setMode] = useState<Mode>(saved?.mode ?? "songs");
+  const [pool, setPool] = useState<SongPool>(saved?.pool ?? DEFAULT_POOL);
+  const [quiz, setQuiz] = useState(saved?.quiz ?? false);
+  const [total, setTotal] = useState(saved?.total ?? 8);
+  const [phase, setPhase] = useState<"setup" | "play" | "end">(saved ? "play" : "setup");
   const [actionHost, setActionHost] = useState<HTMLDivElement | null>(null);
-  const [shellRound, setShellRound] = useState(1);
-  const [answerTurn, setAnswerTurn] = useState<string | null>(null);
-  const [scores, setScores] = useState<Record<string, number>>({});
+  const [shellRound, setShellRound] = useState(saved && saved.round.kind !== "pads" ? saved.round.round : 1);
+  const [answerTurn, setAnswerTurn] = useState<string | null>(saved?.round.kind === "pads" ? saved.round.first : null);
+  const [scores, setScores] = useState<Record<string, number>>(saved?.scores ?? {});
+  const keeping: KeepBase = { mode, pool, quiz, total, scores };
   const penalty = usePenalty();
   // the game has its own sound (the songs, the melodies, the DJ's music app): the lounge music waits
   useEffect(() => holdBackground(), []);
@@ -63,6 +84,7 @@ export function Tune({ onBack }: { onBack: () => void }) {
         type="button"
         className="btn btn-primary btn-lg"
         onClick={() => {
+          firstSaved.current = null;
           setScores({});
           setShellRound(1);
           setAnswerTurn(null);
@@ -90,6 +112,7 @@ export function Tune({ onBack }: { onBack: () => void }) {
 
   return (
     <TuneActionHost.Provider value={actionHost}>
+      {phase !== "play" && <ClearTune />}
       <GameShell
         title={GAME_BY_ID.tune.name}
         rules={rules}
@@ -135,11 +158,11 @@ export function Tune({ onBack }: { onBack: () => void }) {
           )}
 
           {phase === "play" && mode === "songs" && (
-            <SongRounds onRound={setShellRound} total={total} pool={pool} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
+            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} total={total} pool={pool} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
           )}
-          {phase === "play" && mode === "melody" && <MelodyRounds onRound={setShellRound} total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
+          {phase === "play" && mode === "melody" && <MelodyRounds keeping={keeping} saved={firstSaved.current?.round.kind === "melody" ? firstSaved.current.round : null} onRound={setShellRound} total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
           {phase === "play" && mode === "pads" && (
-            <Pads onTurn={setAnswerTurn} people={people} scores={scores} setScores={setScores} onEnd={() => finish(scores)} onWrong={(name) => penalty.show({ who: [name], kind: "sip", note: zh ? "抢答错了" : "Wrong answer" })} />
+            <Pads keeping={keeping} saved={firstSaved.current?.round.kind === "pads" ? firstSaved.current.round : null} onTurn={setAnswerTurn} people={people} scores={scores} setScores={setScores} onEnd={() => finish(scores)} onWrong={(name) => penalty.show({ who: [name], kind: "sip", note: zh ? "抢答错了" : "Wrong answer" })} />
           )}
 
           {phase === "end" && (
@@ -162,6 +185,8 @@ function missLine(n: number, zh: boolean, custom: boolean) {
 }
 
 function SongRounds({
+  keeping,
+  saved,
   total,
   pool,
   quiz,
@@ -173,6 +198,8 @@ function SongRounds({
   onOffline,
   onEmpty,
 }: {
+  keeping: KeepBase;
+  saved: SongKept | null;
   total: number;
   pool: SongPool;
   quiz: boolean;
@@ -190,23 +217,26 @@ function SongRounds({
   const [book, setBook] = useState<Song[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [empty, setEmpty] = useState(false);
-  const played = useRef(new Set<number>());
-  const avoid = useRef(new Set(heardSongs()));
-  const [round, setRound] = useState(1);
+  const played = useRef(new Set<number>(saved?.played ?? []));
+  const avoid = useRef(new Set(saved?.avoid ?? heardSongs()));
+  const [round, setRound] = useState(saved?.round ?? 1);
   useLayoutEffect(() => onRound(round), [round, onRound]);
-  const [song, setSong] = useState<Song | null>(null);
-  const [next, setNext] = useState<Song | null>(null);
-  const [revealed, setRevealed] = useState(false);
-  const [revealedAt, setRevealedAt] = useState(0);
-  const [stage, setStage] = useState(0);
+  const [song, setSong] = useState<Song | null>(saved?.song ?? null);
+  const [next, setNext] = useState<Song | null>(saved?.next ?? null);
+  const [revealed, setRevealed] = useState(saved?.revealed ?? false);
+  const [revealedAt, setRevealedAt] = useState(saved?.revealedAt ?? 0);
+  const [stage, setStage] = useState(saved?.stage ?? 0);
+  const waiting = useRef(!!saved);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const handle = useRef<PreviewHandle | null>(null);
   const [timing, setTiming] = useState<StageTiming | null>(null);
   /** quiz: the four titles for this song, and the wrong ones the table has tried */
-  const [choices, setChoices] = useState<Song[]>([]);
-  const [tried, setTried] = useState<number[]>([]);
+  const [choices, setChoices] = useState<Song[]>(saved?.choices ?? []);
+  const [tried, setTried] = useState<number[]>(saved?.tried ?? []);
+  const choicesFor = useRef(saved?.song?.id ?? null);
   /** the performers react: a cheer for the right title, a shrug for a wrong one */
   const [cue, setCue] = useState<StageCue | null>(null);
+  useKeepProgress<Kept>({ ...keeping, round: { kind: "songs", round, song, next, played: [...played.current], avoid: [...avoid.current], revealed, revealedAt, stage: revealed ? stage : 0, choices, tried } }, true);
 
   useEffect(() => {
     loadSongbook().then(setBook, () => setFailed(true));
@@ -233,18 +263,24 @@ function SongRounds({
   const canPlay = audio.status === "ready" || audio.status === "failed";
   const beats = useMemo(() => (audio.url && audio.buf ? beatsFor(audio.url, audio.buf) : null), [audio.url, audio.buf]);
   useEffect(() => {
-    if (song && book) setChoices(shuffle([song, ...decoysFor(song, book, Math.random)]));
+    if (!song || !book || choicesFor.current === song.id) return;
+    choicesFor.current = song.id;
+    setChoices(shuffle([song, ...decoysFor(song, book, Math.random)]));
     setTried([]);
   }, [song, book]);
 
   const play = (from: number) => {
+    if (waiting.current) {
+      waiting.current = false;
+      if (!revealed) { setStage(0); setStartedAt(performance.now()); }
+    }
     handle.current?.stop(0.1);
     handle.current = startSong(audio, { offset: from, fadeIn: from ? 0.2 : 0.05 });
     setTiming(handle.current ? { startPerf: performance.now(), offset: from } : null);
   };
   // the song starts as soon as it has loaded; the points clock starts with it
   useEffect(() => {
-    if (!canPlay || revealed) return;
+    if (waiting.current || !canPlay || revealed) return;
     play(0);
     setStartedAt(performance.now());
     return () => handle.current?.stop(0.12);
@@ -300,6 +336,7 @@ function SongRounds({
     );
 
   const award = (pid: string | null) => {
+    waiting.current = false;
     const nextScores = { ...scores };
     if (pid) {
       nextScores[pid] = (nextScores[pid] ?? 0) + [3, 2, 1][revealedAt];
@@ -398,6 +435,8 @@ function SongRounds({
 }
 
 function MelodyRounds({
+  keeping,
+  saved,
   total,
   quiz,
   people,
@@ -406,6 +445,8 @@ function MelodyRounds({
   onEnd,
   onRound,
 }: {
+  keeping: KeepBase;
+  saved: MelodyKept | null;
   total: number;
   quiz: boolean;
   people: { id: string; name: string }[];
@@ -417,25 +458,30 @@ function MelodyRounds({
   const { lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
-  const deck = useRef<number[]>(shuffle(TUNES.map((_, i) => i)));
-  const [round, setRound] = useState(1);
+  const [first] = useState(() => {
+    const cards = saved ? [...saved.cards] : shuffle(TUNES.map((_, i) => i));
+    return { cards, tune: saved?.tune ?? cards.pop()! };
+  });
+  const deck = useRef<number[]>(first.cards);
+  const [round, setRound] = useState(saved?.round ?? 1);
   useLayoutEffect(() => onRound(round), [round, onRound]);
-  const [tune, setTune] = useState(() => deck.current.pop()!);
-  const [stage, setStage] = useState(0);
-  const [revealed, setRevealed] = useState(false);
+  const [tune, setTune] = useState(first.tune);
+  const [stage, setStage] = useState(saved?.stage ?? 0);
+  const [revealed, setRevealed] = useState(saved?.revealed ?? false);
   /** how much had been played when the title came up: that sets the price */
-  const [revealedAt, setRevealedAt] = useState(0);
+  const [revealedAt, setRevealedAt] = useState(saved?.revealedAt ?? 0);
   const [spinning, setSpinning] = useState(false);
   const handle = useRef<TuneHandle | null>(null);
   const stopTimer = useRef(0);
   const [timing, setTiming] = useState<StageTiming | null>(null);
-  const [tried, setTried] = useState<number[]>([]);
-  const options = useMemo(() => {
-    const decoys = shuffle(TUNES.map((_, i) => i).filter((i) => i !== tune)).slice(0, 3);
-    return shuffle([tune, ...decoys]);
-  }, [tune]);
+  const [tried, setTried] = useState<number[]>(saved?.tried ?? []);
+  const optionsFor = (t: number) => shuffle([t, ...shuffle(TUNES.map((_, i) => i).filter((i) => i !== t)).slice(0, 3)]);
+  const [options, setOptions] = useState(() => saved?.options ?? optionsFor(tune));
+  const waiting = useRef(!!saved);
+  useKeepProgress<Kept>({ ...keeping, round: { kind: "melody", round, tune, cards: deck.current, stage, revealed, revealedAt, tried, options } }, true);
 
   const play = (st: number) => {
+    waiting.current = false;
     handle.current?.stop();
     handle.current = playClip(tune, st);
     setStage(st);
@@ -453,12 +499,14 @@ function MelodyRounds({
   );
   // the first clip plays as soon as the round starts
   useEffect(() => {
+    if (waiting.current) return;
     const id = window.setTimeout(() => play(0), 500);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tune]);
 
   const award = (pid: string | null) => {
+    waiting.current = false;
     const next = { ...scores };
     if (pid) {
       next[pid] = (next[pid] ?? 0) + [3, 2, 1][revealedAt];
@@ -472,7 +520,9 @@ function MelodyRounds({
     setRevealed(false);
     setStage(0);
     setTried([]);
-    setTune(deck.current.pop()!);
+    const nextTune = deck.current.pop()!;
+    setTune(nextTune);
+    setOptions(optionsFor(nextTune));
   };
   const reveal = () => {
     setRevealedAt(stage);
@@ -551,6 +601,8 @@ function MelodyRounds({
 }
 
 function Pads({
+  keeping,
+  saved,
   people,
   scores,
   setScores,
@@ -558,6 +610,8 @@ function Pads({
   onWrong,
   onTurn,
 }: {
+  keeping: KeepBase;
+  saved: PadsKept | null;
   people: { id: string; name: string }[];
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
@@ -567,11 +621,14 @@ function Pads({
 }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const [first, setFirst] = useState<string | null>(null);
+  const [first, setFirst] = useState<string | null>(saved?.first ?? null);
   useLayoutEffect(() => onTurn(first), [first, onTurn]);
-  const [locked, setLocked] = useState<string[]>([]);
+  const [locked, setLocked] = useState<string[]>(saved?.locked ?? []);
+  const [played, setPlayed] = useState(!!saved);
+  useKeepProgress<Kept>({ ...keeping, round: { kind: "pads", first, locked } }, played);
   const buzz = (id: string, i: number) => {
     if (first || locked.includes(id)) return;
+    setPlayed(true);
     setFirst(id);
     sfx.buzz(i);
     haptic(30);
