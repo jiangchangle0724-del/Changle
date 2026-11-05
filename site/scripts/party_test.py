@@ -1260,6 +1260,9 @@ def t_drama_single(browser):
     actors = pg.locator(".dm-roster li").count()
     ok(actors >= 2 and actors <= 3, f"a scene with {actors} actors for five players")
     ok(until(lambda: pg.evaluate("() => window.__wake") >= 1, 2000), "the show is on: the screen stays on")
+    ok(pg.locator(".dm-beats li").count() == 4 and pg.locator(".dm-roster-play").count() == actors, "how to act it: the scene's four steps, and how each role comes across")
+    pg.locator(".dm-tips summary").click()
+    ok(pg.locator(".dm-tips li").count() == 5, "and five tips for a first-timer, a tap away")
     shot(pg, "dm-brief")
     pg.wait_for_timeout(DM_SETTLE)
     pg.get_by_role("button", name="发身份牌").click()
@@ -1275,6 +1278,7 @@ def t_drama_single(browser):
         pg.locator(".dm-card-back").click()
         pg.wait_for_timeout(800)
         culprits += pg.locator(".dm-card-secret.is-culprit").count()
+        ok(pg.locator(".dm-card-play").count() == 1 and pg.locator(".dm-card-first").count() == 1, f"card {i + 1}: how to play the role, and a line to open with")
         # 记住了 twice, quickly: the second tap lands where the next screen's button is
         double_tap(pg, pg.locator(".game-actions .btn-primary"))
         pg.wait_for_timeout(300)
@@ -1428,6 +1432,7 @@ def t_drama_online(browser):
         host.get_by_role("button", name="换个剧本").click()
         host.wait_for_timeout(900)
     ok(me(host) not in [c["pid"] for c in view(host)["cast"]], "the host is in the audience")
+    ok(until(lambda: host.locator(".dm-beats li").count() >= 3, 3000) and host.locator(".dm-tips").count() == 1, "online: the scene's steps, and the first-timer tips")
     v = view(host)
     cast = [c["pid"] for c in v["cast"]]
     actors = [g for g in everyone if me(g) in cast]

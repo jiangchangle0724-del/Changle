@@ -15,7 +15,7 @@ import { DramaActionHost, useSettle } from "./ShellActions";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
-import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
 /** Scenes written on this phone and not played yet: kept, so leaving the game doesn't lose them. */
@@ -260,6 +260,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           {stage(false, false)}
           <Playbill v={v} credit={credit} />
           <Roster v={v} nameOf={nameOf} face={face} />
+          {v.mode === "show" && <FirstTimeTips />}
         </>
       );
     } else {
@@ -288,6 +289,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               culprit={v.scene?.culprit ?? null}
               pk={v.mode === "pk"}
               line={v.pk?.line}
+              sceneId={v.scene?.id}
               onDone={() => {
                 act(pid, "ready");
                 setStep({ k: "pass", i: step.i + 1 });

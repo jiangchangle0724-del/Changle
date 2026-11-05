@@ -2,6 +2,7 @@ import { DramaAction } from "./ShellActions";
 import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { KINDS, PK_DEMO, pkSeeUrl, pkStyle, type DramaKind, type PkStyle } from "../../data/drama";
+import { FIRST_TIME_TIPS, GENERIC_BEATS, roleGuide, sceneGuide } from "../../data/dramaGuide";
 import type { T } from "../../i18n";
 import { confetti } from "../../lib/confetti";
 import { gsap, reduced } from "../../lib/anim";
@@ -195,6 +196,7 @@ export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }
             <MiniMask />
             {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
           </p>
+          <Beats beats={sceneGuide(v.scene.id)?.beats ?? GENERIC_BEATS} />
         </>
       )}
       {v.pk && (
@@ -210,6 +212,41 @@ export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }
   );
 }
 
+/**
+ * What happens, step by step. People who have never acted need a path to follow; the playbill
+ * keeps it on screen through the scene.
+ */
+function Beats({ beats }: { beats: T[] }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="dm-beats">
+      <p className="dm-beats-title">{zh ? "剧情怎么走" : "How the scene goes"}</p>
+      <ol>
+        {beats.map((b, i) => (
+          <li key={i}>{zh ? b.zh : b.en}</li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** For someone who has never acted: five things that make any scene work, folded until asked for. */
+export function FirstTimeTips() {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <details className="dm-tips">
+      <summary>{zh ? "第一次演戏？看这五句" : "Never acted before? Read these five"}</summary>
+      <ol>
+        {FIRST_TIME_TIPS.map((x, i) => (
+          <li key={i}>{zh ? x.zh : x.en}</li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 /** Who plays whom, with each role's public description. */
 export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string) => string; face: Face }) {
   const { lang } = useStore();
@@ -220,6 +257,8 @@ export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string
         // a role's public line; in a duel, what the actor's style looks like, so the audience knows what to watch for
         const about = v.mode === "pk" ? pkStyle(c.role)?.how : c.brief;
         const line = about ? (zh ? about.zh : about.en) : "";
+        // and in a scene, how the role comes across, for actors and audience alike
+        const play = v.mode === "show" ? roleGuide(v.scene?.id, c.role)?.play : undefined;
         return (
           <li key={c.pid} className={v.ready.includes(c.pid) ? "is-ready" : ""}>
             <span className="dm-roster-face">{face(c.pid, 40)}</span>
@@ -229,6 +268,7 @@ export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string
                 <small>{nameOf(c.pid)}</small>
               </strong>
               {line && <span>{line}</span>}
+              {play && <span className="dm-roster-play">{zh ? `怎么演：${play.zh}` : `How to play it: ${play.en}`}</span>}
             </span>
             {v.phase === "brief" && <span className="dm-roster-state">{v.ready.includes(c.pid) ? (zh ? "看好了" : "Ready") : zh ? "在看牌" : "Reading"}</span>}
           </li>
@@ -274,10 +314,11 @@ function StyleHelp({ st, line }: { st: PkStyle | undefined; line?: T | null }) {
  * (`line` is the line both actors say), and once it's turned over, a link under it goes to
  * videos of people doing that style.
  */
-export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell, line }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean; line?: T | null }) {
+export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell, line, sceneId }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean; line?: T | null; sceneId?: string | null }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const st = pk ? pkStyle(card.secret) : undefined;
+  const rg = pk ? undefined : roleGuide(sceneId, role);
   const title = pk ? card.secret : role;
   const [flipped, setFlipped] = useState(false);
   const [backOk, setBackOk] = useState(true);
@@ -308,6 +349,12 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
             <p className="dm-card-label">{pk ? (zh ? "你的演法" : "Your style") : zh ? "你的角色" : "Your role"}</p>
             <h3 className={`dm-card-role ${(zh ? title.zh.length > 8 : title.en.length > 22) ? "is-long" : ""}`}>{tx(title)}</h3>
             {!pk && tx(brief) && <p className="dm-card-brief">{tx(brief)}</p>}
+            {rg && (
+              <p className="dm-card-play">
+                <strong>{zh ? "怎么演" : "How to play it"}</strong>
+                {tx(rg.play)}
+              </p>
+            )}
             {!pk && (
               <div className={`dm-card-secret ${card.culprit ? "is-culprit" : ""}`}>
                 <p className="dm-card-label">
@@ -315,6 +362,12 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
                   {card.culprit ? (zh ? `你就是「${culprit ? culprit.zh : ""}」` : `You are ${culprit ? culprit.en.replace(/^The /, "the ") : ""}`) : zh ? "你的小秘密" : "Your little secret"}
                 </p>
                 <p>{tx(card.secret)}</p>
+              </div>
+            )}
+            {rg && (
+              <div className="dm-card-task dm-card-first">
+                <p className="dm-card-label">{zh ? "开口第一句" : "Open with"}</p>
+                <p>{tx(rg.first)}</p>
               </div>
             )}
             {pk && <StyleHelp st={st} line={line} />}
