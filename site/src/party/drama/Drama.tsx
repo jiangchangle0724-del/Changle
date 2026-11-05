@@ -9,6 +9,7 @@ import { BRIEF_MS, drama } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
+import { DramaActionHost } from "./ShellActions";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent } from "./local";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
@@ -101,7 +102,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   const [step, setStep] = useState<{ k: "intro" } | { k: "pass"; i: number } | { k: "card"; i: number }>({ k: "intro" });
   const [slate, setSlate] = useState(false);
   const [writing, setWriting] = useState(false);
-  const credit = v.credit?.pid ? nameOf(v.credit.pid) : v.credit?.name ?? null;
+  const credit = v.credit?.pid ? nameOf(v.credit.pid) : (v.credit?.name ?? null);
   // a dozen scenes from the public library, whenever the setup screen has none
   const libAsked = useRef(-1);
   useEffect(() => {
@@ -152,8 +153,18 @@ export function Drama({ onBack }: { onBack: () => void }) {
     </div>
   );
 
+  const [actionHost, setActionHost] = useState<HTMLDivElement | null>(null);
+  const privateActions = <div className="row" style={{ gap: "var(--space-3)" }} ref={setActionHost} />;
   let body: ReactNode = null;
+  let actions: ReactNode = null;
+  let turn: string | undefined;
   if (v.phase === "setup") {
+    actions = (
+      <button type="button" className="btn btn-primary btn-lg" disabled={ids.length < 3} onClick={() => act(host, "start")}>
+        <Play size={18} />
+        {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : zh ? "开演" : "Curtain up"}
+      </button>
+    );
     body = (
       <>
         <div className="dm-stagebox">
@@ -161,29 +172,27 @@ export function Drama({ onBack }: { onBack: () => void }) {
         </div>
         <SetupPanel cfg={v} onChange={(c) => act(host, "config", c)} />
         {tableScenes}
-        <button type="button" className="btn btn-primary btn-lg btn-block" disabled={ids.length < 3} onClick={() => act(host, "start")}>
-          <Play size={18} />
-          {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : zh ? "开演" : "Curtain up"}
-        </button>
       </>
     );
   } else if (v.phase === "brief") {
     const readers = v.cast.map((c) => c.pid).filter((pid) => !v.ready.includes(pid));
     if (step.k === "intro") {
+      actions = (
+        <>
+          <button type="button" className="btn btn-ghost btn-lg" onClick={() => act(host, "skip")}>
+            <SkipForward size={14} />
+            {zh ? "换个剧本" : "Another scene"}
+          </button>
+          <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "pass", i: 0 })}>
+            {zh ? "发身份牌" : "Deal the cards"}
+          </button>
+        </>
+      );
       body = (
         <>
           {stage(false, false)}
           <Playbill v={v} credit={credit} />
           <Roster v={v} nameOf={nameOf} face={face} />
-          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setStep({ k: "pass", i: 0 })}>
-            {zh ? "发身份牌" : "Deal the cards"}
-          </button>
-          <div className="dm-stage-actions">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => act(host, "skip")}>
-              <SkipForward size={14} />
-              {zh ? "换个剧本" : "Another scene"}
-            </button>
-          </div>
         </>
       );
     } else {
@@ -191,99 +200,151 @@ export function Drama({ onBack }: { onBack: () => void }) {
       const c = v.cast.find((x) => x.pid === pid);
       const card = pid ? game.view(pid).me : null;
       if (!pid || !c || !card) body = null;
-      else if (step.k === "pass")
-        body = <PassCurtain name={nameOf(pid)} note={zh ? "只有你能看，看完把手机交回桌上" : "For your eyes only. Then put the phone back on the table."} onReady={() => setStep({ k: "card", i: step.i })} />;
-      else
-        body = (
-          <RoleCard
-            key={`${v.round}-${pid}`}
-            role={c.role}
-            brief={c.brief}
-            card={card}
-            culprit={v.scene?.culprit ?? null}
-            pk={v.mode === "pk"}
-            onDone={() => {
-              act(pid, "ready");
-              setStep({ k: "pass", i: step.i + 1 });
-            }}
-            doneLabel={readers.length > 1 ? (zh ? "记住了，交给下一位" : "Got it. Pass it on") : zh ? "记住了，开演！" : "Got it. Action!"}
-          />
-        );
+      else {
+        turn = pid;
+        if (step.k === "pass") {
+          actions = (
+            <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "card", i: step.i })}>
+              {zh ? `我是 ${nameOf(pid)}` : `I'm ${nameOf(pid)}`}
+            </button>
+          );
+          body = <PassCurtain name={nameOf(pid)} note={zh ? "只有你能看，看完把手机交回桌上" : "For your eyes only. Then put the phone back on the table."} />;
+        } else {
+          actions = privateActions;
+          body = (
+            <RoleCard
+              inShell
+              key={`${v.round}-${pid}`}
+              role={c.role}
+              brief={c.brief}
+              card={card}
+              culprit={v.scene?.culprit ?? null}
+              pk={v.mode === "pk"}
+              onDone={() => {
+                act(pid, "ready");
+                setStep({ k: "pass", i: step.i + 1 });
+              }}
+              doneLabel={readers.length > 1 ? (zh ? "记住了，交给下一位" : "Got it. Pass it on") : zh ? "记住了，开演！" : "Got it. Action!"}
+            />
+          );
+        }
+      }
     }
   } else if (v.phase === "act") {
+    actions = (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "cut")}>
+        <Clapperboard size={18} />
+        {zh ? "演完了，开始投票" : "That's a wrap: vote"}
+      </button>
+    );
     body = (
       <>
-        {stage(true, true, (
+        {stage(
+          true,
+          true,
           <>
             <SceneClock endsAt={v.endsAt} total={v.actMs} now={Date.now} />
             {slate && <Slate onDone={() => setSlate(false)} />}
-          </>
-        ))}
+          </>,
+        )}
         <TwistBanner twist={v.twist} />
         <Playbill v={v} credit={credit} />
-        <p className="dm-wait-note">{v.mode === "show" ? (zh ? "手机放桌上，演到一半会有剧情反转，大声念出来！" : "Phone on the table. Halfway through, a plot twist lands: read it out loud!") : zh ? "两人轮流用自己的状态说这句台词" : "Each says the line in their own style"}</p>
-        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => act(host, "cut")}>
-          <Clapperboard size={18} />
-          {zh ? "演完了，开始投票" : "That's a wrap: vote"}
-        </button>
+        <p className="dm-wait-note">
+          {v.mode === "show"
+            ? zh
+              ? "手机放桌上，演到一半会有剧情反转，大声念出来！"
+              : "Phone on the table. Halfway through, a plot twist lands: read it out loud!"
+            : zh
+              ? "两人轮流用自己的状态说这句台词"
+              : "Each says the line in their own style"}
+        </p>
       </>
     );
   } else if (v.phase === "vote") {
     const left = audience.filter((pid) => !v.voted.includes(pid));
     const pid = left[0];
     if (step.k === "intro" || !pid) {
+      actions = (
+        <button type="button" className="btn btn-primary btn-lg" disabled={!pid} onClick={() => setStep({ k: "pass", i: 0 })}>
+          {zh ? "传手机投票" : "Pass it round to vote"}
+        </button>
+      );
       body = (
         <>
           {stage(false, false)}
           <p className="dm-wait-note">{zh ? `轮到观众投票：谁是坏人？谁演得最像？（${v.voted.length}/${audience.length}）` : `The audience votes: who's the culprit, and who acted best? (${v.voted.length}/${audience.length})`}</p>
-          <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!pid} onClick={() => setStep({ k: "pass", i: 0 })}>
-            {zh ? "传手机投票" : "Pass it round to vote"}
-          </button>
         </>
       );
-    } else if (step.k === "pass") {
-      body = <PassCurtain name={nameOf(pid)} note={zh ? "偷偷投，别让人看到" : "Vote in secret"} onReady={() => setStep({ k: "card", i: 0 })} />;
     } else {
-      body = (
-        <BallotForm
-          key={`${v.round}-${pid}`}
-          v={game.view(pid)}
-          actors={actors}
-          onSubmit={(b) => {
-            act(pid, "vote", b);
-            setStep({ k: "pass", i: 0 });
-          }}
-        />
-      );
+      turn = pid;
+      if (step.k === "pass") {
+        actions = (
+          <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "card", i: 0 })}>
+            {zh ? `我是 ${nameOf(pid)}` : `I'm ${nameOf(pid)}`}
+          </button>
+        );
+        body = <PassCurtain name={nameOf(pid)} note={zh ? "偷偷投，别让人看到" : "Vote in secret"} />;
+      } else {
+        actions = privateActions;
+        body = (
+          <BallotForm
+            inShell
+            key={`${v.round}-${pid}`}
+            v={game.view(pid)}
+            actors={actors}
+            onSubmit={(b) => {
+              act(pid, "vote", b);
+              setStep({ k: "pass", i: 0 });
+            }}
+          />
+        );
+      }
     }
   } else if (v.phase === "reveal" && v.result) {
+    actions = (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "next")}>
+        {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
+      </button>
+    );
     body = (
       <>
         <Reveal v={v} actors={actors} face={face} />
-        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => act(host, "next")}>
-          {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
-        </button>
         {tableScenes}
       </>
     );
   } else if (v.phase === "end") {
+    actions = (
+      <>
+        <button type="button" className="btn btn-lg btn-ghost" onClick={() => game.reset()}>
+          {zh ? "重新选剧本" : "Back to the setup"}
+        </button>
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "more")}>
+          {zh ? "再演三幕" : "Three more acts"}
+        </button>
+      </>
+    );
     body = (
       <>
         <Finale v={v} ids={ids} nameOf={nameOf} face={face} />
-        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => act(host, "more")}>
-          {zh ? "再演三幕" : "Three more acts"}
-        </button>
-        <button type="button" className="btn btn-ghost btn-block" onClick={() => game.reset()}>
-          {zh ? "重新选剧本" : "Back to the setup"}
-        </button>
       </>
     );
   }
 
   return (
-    <GameShell title={GAME_BY_ID.drama.name} rules={<Rules />} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
-      <div className="dm">{body}</div>
-      <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} writers={players.map((p) => ({ id: p.id, name: p.name }))} onAdd={write} />
-    </GameShell>
+    <DramaActionHost.Provider value={actionHost}>
+      <GameShell
+        title={GAME_BY_ID.drama.name}
+        rules={<Rules />}
+        onBack={onBack}
+        penalty={penalty.call}
+        onPenaltyDone={penalty.done}
+        roster={{ turn }}
+        status={v.round > 0 ? { kind: "round", current: v.round, total: v.total } : undefined}
+        actions={actions}
+      >
+        <div className="dm">{body}</div>
+        <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} writers={players.map((p) => ({ id: p.id, name: p.name }))} onAdd={write} />
+      </GameShell>
+    </DramaActionHost.Provider>
   );
 }

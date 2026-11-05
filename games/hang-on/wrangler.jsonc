@@ -1,0 +1,25 @@
+// Cloudflare 设置：changle.ca/hang-on，抓紧了 · Hang On 的房间服务和页面。自己的 Worker，和一起跳
+// （games/party-server）一个模式：连上 GitHub 之后合并 main 就 npm run build 出页面（dist/hang-on）并部署。
+// 没有密钥。
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hang-on",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-19",
+  // 页面在 dist/hang-on，所以在 /hang-on/… 答话；API 和二维码的短链接先走 Worker。
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/hang-on/api/*", "/hang-on/r/*"]
+  },
+  "routes": [
+    { "pattern": "changle.ca/hang-on", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/hang-on/*", "zone_name": "changle.ca" }
+  ],
+  // 一个房间一个 Durable Object。SQLite 的 Durable Object 免费计划也能用。
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "HangOnRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HangOnRoom"] }],
+  "build": { "command": "npm run build" },
+  "observability": { "enabled": true, "traces": { "enabled": true } }
+}

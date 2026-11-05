@@ -94,13 +94,15 @@ button.ui-roster-person {
   outline: 2px solid var(--gel);
   outline-offset: 3px;
 }
-.ui-roster-out .ui-roster-person {
+/* out, away, gone: the face fades; the words stay readable (fading the whole chip took them under 4.5:1) */
+.ui-roster-out .ui-roster-face {
   opacity: 0.4;
 }
 .ui-roster-out .ui-roster-name {
+  color: var(--color-text-2);
   text-decoration: line-through;
 }
-.ui-roster-away .ui-roster-person,
-.ui-roster-gone .ui-roster-person {
+.ui-roster-away .ui-roster-face,
+.ui-roster-gone .ui-roster-face {
   opacity: 0.6;
 }
