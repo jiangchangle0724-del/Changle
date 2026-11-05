@@ -170,8 +170,8 @@ export function whistle(c: BaseAudioContext, out: AudioNode, at: number, beat: n
     o.frequency.setValueAtTime(2550, t0);
     o.frequency.exponentialRampToValueAtTime(2950, t0 + 0.03);
     g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(0.075, t0 + 0.008);
-    g.gain.setValueAtTime(0.075, Math.max(t0 + 0.009, t1 - 0.02));
+    g.gain.linearRampToValueAtTime(0.38, t0 + 0.008);
+    g.gain.setValueAtTime(0.38, Math.max(t0 + 0.009, t1 - 0.02));
     g.gain.linearRampToValueAtTime(0, t1);
   }
   o.start(at);

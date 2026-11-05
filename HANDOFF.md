@@ -27,7 +27,10 @@ installs on its own. Node 22, as in CI.
    cutout, performer and design-token tests, build), `suibian.yml` and `been-there.yml` (each with
    browser tests in Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the
    Workers runtime), and `party.yml` (the party base's tests, the party server's types, tests and
-   build).
+   build). They run once per change: on the pull request (a newer push stops the older run), and on
+   `main` after each merge, not again for every push to a branch. GitHub Actions minutes cost money
+   once the free plan's monthly allowance is used up (it ran out on 2026-11-03), so a new workflow
+   follows the same pattern (`branches: [main]` under `push`, and the `concurrency` block).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
