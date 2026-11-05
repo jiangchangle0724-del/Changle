@@ -1,3 +1,4 @@
+import { DramaAction } from "./ShellActions";
 import { Clapperboard, Drama as DramaIcon, Eye, Feather, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { KINDS, type DramaKind } from "../../data/drama";
@@ -238,7 +239,7 @@ export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string
  * An actor's private card: dealt face down, flipped with a tap. The culprit's side is marked
  * with the mask; everyone also has a secret task.
  */
-export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string }) {
+export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const [flipped, setFlipped] = useState(false);
@@ -290,9 +291,11 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel }: 
         </div>
       </div>
       {onDone && (
-        <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!flipped} onClick={onDone}>
-          {doneLabel ?? (zh ? "记住了" : "Got it")}
-        </button>
+        <DramaAction inShell={inShell}>
+          <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!flipped} onClick={onDone}>
+            {doneLabel ?? (zh ? "记住了" : "Got it")}
+          </button>
+        </DramaAction>
       )}
     </div>
   );
@@ -395,7 +398,7 @@ export function Slate({ onDone }: { onDone?: () => void }) {
 export type Ballot = { guess: string | null; stars: Record<string, number> };
 
 /** Pick the culprit (in a scene), then 1 to 5 stars for each actor. */
-export function BallotForm({ v, actors, onSubmit, submitted }: { v: DramaView; actors: Actor[]; onSubmit: (b: Ballot) => void; submitted?: Ballot | null }) {
+export function BallotForm({ v, actors, onSubmit, submitted, inShell }: { v: DramaView; actors: Actor[]; onSubmit: (b: Ballot) => void; submitted?: Ballot | null; inShell?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const [guess, setGuess] = useState<string | null>(submitted?.guess ?? null);
@@ -476,9 +479,11 @@ export function BallotForm({ v, actors, onSubmit, submitted }: { v: DramaView; a
           ))}
         </ul>
       </section>
-      <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!complete} onClick={() => onSubmit({ guess, stars })}>
-        {submitted ? (zh ? "改好了，再交一次" : "Send my changes") : zh ? "交卷" : "Send my vote"}
-      </button>
+      <DramaAction inShell={inShell}>
+        <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!complete} onClick={() => onSubmit({ guess, stars })}>
+          {submitted ? (zh ? "改好了，再交一次" : "Send my changes") : zh ? "交卷" : "Send my vote"}
+        </button>
+      </DramaAction>
     </div>
   );
 }
