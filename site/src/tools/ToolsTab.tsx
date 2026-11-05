@@ -5,6 +5,8 @@ import { useRates } from "./fx";
 import { Suibian } from "./Suibian";
 import { UnitPrice } from "./UnitPrice";
 import { WorldClock } from "./WorldClock";
+// the tools' styles come with the tab, not with the home page
+import "../styles/tools.css";
 
 /** Everyday tools: where to eat (随便, at /eat), money, time across cities, price per unit. */
 export function ToolsTab() {
