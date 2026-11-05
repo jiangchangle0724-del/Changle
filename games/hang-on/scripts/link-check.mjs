@@ -32,7 +32,8 @@ async function session(relay) {
   const host = await hostCtx.newPage();
   const errors = [];
   host.on('pageerror', (e) => errors.push('host: ' + e.message));
-  await host.goto(`${BASE}/hang-on/${relay ? '?relay=1' : ''}`);
+  // render=0：只跑物理不画画面，CI 的机器没有显卡，Pixi 软件渲染会把主机页拖慢几百毫秒
+  await host.goto(`${BASE}/hang-on/?render=0${relay ? '&relay=1' : ''}`);
   await host.waitForFunction(() => /^[A-Z2-9]{4}$/.test(document.getElementById('code')?.textContent ?? ''), null, { timeout: 15000 });
   const code = await host.evaluate(() => document.getElementById('code').textContent);
   console.log(`\n== ${label}：房间 ${code}`);

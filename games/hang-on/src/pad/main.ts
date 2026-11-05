@@ -5,6 +5,8 @@
 import { PadLink, seatId } from '../net/pad-link';
 import { rttLevel } from '../net/latency';
 import { CODE_RE, type FatalKey, type PadStatus } from '../net/protocol';
+import { cleanLook, EYES, GLASSES, HATS, LOOK_NAMES, randomLook, type Look } from '../look';
+import { drawLook } from './look-preview';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -49,6 +51,7 @@ function join(code: string, name: string): void {
     onConn: (c) => conn(c),
     onFatal: (key) => fatal(key),
   });
+  link.setLook(look);
   $('meName').textContent = name;
   $('join').hidden = true;
   $('pad').hidden = false;
@@ -100,11 +103,78 @@ async function keepAwake(): Promise<void> {
   });
 }
 
+// ---------- 换装 ----------
+let look: Look = cleanLook(null);
+try {
+  look = cleanLook(JSON.parse(localStorage.getItem('hang-on:look') ?? 'null'));
+} catch {
+  // 没有存储
+}
+let myColor = COLORS[0] as string;
+const dlg = $<HTMLDialogElement>('lookDlg');
+const LISTS = { hat: HATS, glasses: GLASSES, eyes: EYES } as const;
+function renderLook(): void {
+  $('valHat').textContent = LOOK_NAMES.hat[look.hat].zh;
+  $('valGlasses').textContent = LOOK_NAMES.glasses[look.glasses].zh;
+  $('valEyes').textContent = LOOK_NAMES.eyes[look.eyes].zh;
+  drawLook($<HTMLCanvasElement>('lookPreview'), look, myColor);
+  drawLook($<HTMLCanvasElement>('lookMini'), look, myColor);
+  const parts = [look.hat !== 'none' ? LOOK_NAMES.hat[look.hat].zh : '', look.glasses !== 'none' ? LOOK_NAMES.glasses[look.glasses].zh : ''].filter(Boolean);
+  $('lookSummary').textContent = parts.length ? parts.join(' · ') : '换个样子';
+}
+function openLook(): void {
+  renderLook();
+  dlg.showModal();
+}
+/** 关掉对话框就算定了：存起来，告诉主机。 */
+function closeLook(): void {
+  try {
+    localStorage.setItem('hang-on:look', JSON.stringify(look));
+  } catch {
+    // 记不住就记不住
+  }
+  renderLook();
+  link?.setLook(look);
+}
+$('lookBtn').addEventListener('click', openLook);
+$('lookBtn2').addEventListener('click', openLook);
+$('lookDone').addEventListener('click', () => dlg.close());
+dlg.addEventListener('close', closeLook);
+$('lookRandom').addEventListener('click', () => {
+  look = randomLook();
+  renderLook();
+});
+for (const btn of dlg.querySelectorAll<HTMLButtonElement>('button[data-k]')) {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.k as keyof typeof LISTS;
+    const list = LISTS[k] as readonly string[];
+    const i = (list.indexOf(look[k]) + Number(btn.dataset.d) + list.length) % list.length;
+    look = { ...look, [k]: list[i] };
+    renderLook();
+  });
+}
+renderLook();
+
+// ---------- 召唤 ----------
+/** 召唤要连发几帧，不可靠通道丢一两条也送得到；主机 1 秒内只算一次。 */
+let actFrames = 0;
+const summonBtn = $<HTMLButtonElement>('summonBtn');
+summonBtn.addEventListener('click', () => {
+  actFrames = 12;
+  buzz(20);
+});
+
 // ---------- 状态 ----------
 let lastHands: [boolean, boolean] = [false, false];
 let lastDeaths = 0;
 function status(s: PadStatus): void {
-  document.documentElement.style.setProperty('--mine', COLORS[s.color] ?? COLORS[0]!);
+  const color = COLORS[s.color] ?? COLORS[0]!;
+  if (color !== myColor) {
+    myColor = color;
+    renderLook();
+  }
+  document.documentElement.style.setProperty('--mine', color);
+  summonBtn.disabled = !(s.phase === 'playing' && (s.teamDead ?? 0) > 0);
   $('handL').classList.toggle('on', s.hands[0]);
   $('handR').classList.toggle('on', s.hands[1]);
   $('deaths').textContent = String(s.deaths);
@@ -248,7 +318,9 @@ function tick(): void {
       if (keys.has('KeyW')) ay -= 1;
       if (keys.has('KeyS')) ay += 1;
     }
-    link.send({ ax, ay, gl: grab.l || keys.has('KeyQ'), gr: grab.r || keys.has('KeyE') });
+    const act = actFrames > 0 ? 'summon' : undefined;
+    if (actFrames > 0) actFrames--;
+    link.send({ ax, ay, gl: grab.l || keys.has('KeyQ'), gr: grab.r || keys.has('KeyE'), act });
   }
   requestAnimationFrame(tick);
 }
@@ -259,11 +331,15 @@ requestAnimationFrame(tick);
   get link() {
     return link;
   },
-  set(input: { ax?: number; ay?: number; gl?: boolean; gr?: boolean }) {
+  set(input: { ax?: number; ay?: number; gl?: boolean; gr?: boolean; summon?: boolean }) {
     if (input.ax !== undefined) aim.x = input.ax;
     if (input.ay !== undefined) aim.y = input.ay;
     if (input.gl !== undefined) grab.l = input.gl;
     if (input.gr !== undefined) grab.r = input.gr;
+    if (input.summon) actFrames = 12;
+  },
+  get look() {
+    return look;
   },
   join,
 };

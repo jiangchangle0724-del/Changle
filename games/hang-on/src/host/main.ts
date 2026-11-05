@@ -1,15 +1,19 @@
 /**
- * 主机页（接电视的那台电脑）：开房、显示房间码和二维码、收手柄的输入跑物理、画画面、
- * 左上角延迟表、每 250 ms 给每个手柄发一个小包。主机是唯一跑物理的地方（铁律 1）。
+ * 主机页（接电视的那台电脑）：开房、显示房间码和二维码、选关、收手柄的输入跑物理、Pixi 画画面（A3）、
+ * 音效、左上角延迟表、每 250 ms 给每个手柄发一个小包、结算页（摔死排行、背叛榜）。
+ * 主机是唯一跑物理的地方（铁律 1）。
  */
 import qrcode from 'qrcode-generator';
+import { sfx } from '../audio/sfx';
+import { LEVELS, levelTitle, teachLabel } from '../levels';
+import { DEFAULT_LOOK, randomLook, type Look } from '../look';
 import { CFG, PLAYER_COLORS } from '../physics/config';
-import { sampleLevel } from '../physics/level';
+import type { Level } from '../physics/level';
 import { createSim, type PadInput, type Sim } from '../physics/world';
 import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
 import { MAX_SEATS, STATUS_MS, type FatalKey, type Phase, type RoomView } from '../net/protocol';
-import { Renderer } from '../render/canvas';
+import { Stage } from '../render/stage';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -18,17 +22,27 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 const canvas = $<HTMLCanvasElement>('stage');
-const renderer = new Renderer(canvas);
-const level = sampleLevel();
+const stage = await Stage.create(canvas);
+const params = new URLSearchParams(location.search);
+let levelIndex = Math.max(0, LEVELS.findIndex((l) => l.id === params.get('level')));
+let level: Level = LEVELS[levelIndex] as Level;
+let stageLevel = '';
 let sim: Sim = await createSim(level, 0);
+syncStageLevel();
 let link: HostLink | null = null;
 let phase: Phase = 'lobby';
 let room: RoomView | null = null;
 /** 座位顺序 → 玩家下标；键盘的人永远排最后。 */
 let seatOrder: string[] = [];
 let keyboard = false;
-let forceRelay = new URLSearchParams(location.search).get('relay') === '1';
+let forceRelay = params.get('relay') === '1';
+/** `?render=0`：不画画面只跑物理（联机检查用，CI 的机器没有显卡，画画面会把主机页拖慢）。 */
+const renderOn = params.get('render') !== '0';
 const KB_COLOR = 3;
+const kbLook: Look = randomLook();
+
+sfx.attach(document);
+sfx.panOf = (x, y) => Math.max(-1, Math.min(1, (stage.toScreen({ x, y }).x / innerWidth) * 2 - 1)) * 0.6;
 
 // ---------- 房间 ----------
 async function start(): Promise<void> {
@@ -56,6 +70,7 @@ async function start(): Promise<void> {
       renderLobby();
       renderLatency();
     },
+    onLook: () => syncPlayers(),
     onFatal: (key) => fatal(key),
     onSocket: (open) => {
       $('note').textContent = open ? NOTE : '和房间的连接断了，正在重连……';
@@ -93,7 +108,7 @@ function onPhase(next: Phase): void {
   $('countdown').hidden = next !== 'countdown';
   $('results').hidden = next !== 'results';
   $('lobbyBtn').hidden = next === 'lobby';
-  if (next === 'lobby') resetSim();
+  if (next === 'lobby') void resetSim();
   if (next === 'countdown') countdown();
   if (next === 'results') showResults();
 }
@@ -102,9 +117,12 @@ let countTimer: ReturnType<typeof setInterval> | null = null;
 function countdown(): void {
   let n = 3;
   $('countNum').textContent = String(n);
+  $('countLevel').textContent = levelTitle(level, levelIndex);
+  sfx.countdown(n);
   if (countTimer) clearInterval(countTimer);
   countTimer = setInterval(() => {
     n--;
+    sfx.countdown(n);
     if (n <= 0) {
       if (countTimer) clearInterval(countTimer);
       countTimer = null;
@@ -116,14 +134,58 @@ function countdown(): void {
 }
 
 function showResults(): void {
-  $('winTime').textContent = `${sim.time.toFixed(1)} s`;
   const names = playerNames();
-  const parts = sim.players.map((p, i) => `${names[i] ?? `P${i + 1}`} 摔了 ${p.deaths} 次`);
-  $('winLine').textContent = parts.join('，') + '。';
+  const name = (i: number): string => names[i] ?? `P${i + 1}`;
+  $('winTime').textContent = `${sim.time.toFixed(1)} s`;
+  const par = level.par?.seconds;
+  $('winPar').textContent = par ? (sim.time <= par ? `比标准的 ${par} 秒快` : `标准 ${par} 秒`) : '';
+  // 摔死排行：摔得最多的是今晚的汤圆
+  const rank = sim.players.map((p, i) => ({ i, deaths: p.deaths, grabs: p.grabs })).sort((a, b) => b.deaths - a.deaths);
+  const list = $('deathList');
+  list.innerHTML = '';
+  rank.forEach((r, k) => {
+    const li = document.createElement('li');
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = sim.players[r.i]?.color ?? '#fff';
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = name(r.i);
+    const n = document.createElement('span');
+    n.className = 'n';
+    n.textContent = `摔了 ${r.deaths} 次 · 抓了 ${r.grabs} 下`;
+    li.append(dot, who, n);
+    if (k === 0 && r.deaths > 0 && sim.players.length > 1) {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = '今晚的汤圆';
+      li.append(tag);
+    }
+    list.append(li);
+  });
+  // 背叛榜
+  const counts = new Map<string, number>();
+  for (const b of sim.betrayals) counts.set(`${b.by}>${b.victim}`, (counts.get(`${b.by}>${b.victim}`) ?? 0) + 1);
+  const bl = $('betrayList');
+  bl.innerHTML = '';
+  const rows = [...counts].sort((a, b) => b[1] - a[1]);
+  $('betrayTitle').hidden = rows.length === 0;
+  for (const [key, n] of rows) {
+    const [by, victim] = key.split('>').map(Number) as [number, number];
+    const li = document.createElement('li');
+    li.textContent = `${name(by)} 松开过 ${name(victim)} ${n} 次`;
+    bl.append(li);
+  }
+  $('betrayNone').hidden = rows.length > 0;
+  $<HTMLButtonElement>('nextBtn').hidden = levelIndex >= LEVELS.length - 1;
 }
 
 $('startBtn').addEventListener('click', () => link?.act({ type: 'START' }));
 $('againBtn').addEventListener('click', () => link?.act({ type: 'LOBBY' }));
+$('nextBtn').addEventListener('click', () => {
+  pickLevel(levelIndex + 1);
+  link?.act({ type: 'LOBBY' });
+});
 $('lobbyBtn').addEventListener('click', () => link?.act({ type: 'LOBBY' }));
 $('kbBtn').addEventListener('click', () => {
   keyboard = !keyboard;
@@ -137,6 +199,43 @@ $('relayBtn').addEventListener('click', () => {
   $('relayBtn').textContent = `绕路模式：${forceRelay ? '开' : '关'}`;
 });
 $('relayBtn').textContent = `绕路模式：${forceRelay ? '开' : '关'}`;
+$('muteBtn').addEventListener('click', () => {
+  sfx.muted = !sfx.muted;
+  renderMute();
+});
+function renderMute(): void {
+  $('muteBtn').textContent = sfx.muted ? '🔇 静音' : '🔊 声音';
+  $('muteBtn').setAttribute('aria-pressed', String(sfx.muted));
+}
+renderMute();
+
+// ---------- 关卡 ----------
+function pickLevel(i: number): void {
+  levelIndex = Math.max(0, Math.min(LEVELS.length - 1, i));
+  level = LEVELS[levelIndex] as Level;
+  renderLevel();
+  if (phase === 'lobby') void resetSim();
+}
+function renderLevel(): void {
+  $('levelName').textContent = levelTitle(level, levelIndex);
+  $('levelTeach').textContent = teachLabel(level);
+  $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
+  $<HTMLButtonElement>('levelNext').disabled = levelIndex >= LEVELS.length - 1;
+}
+$('levelPrev').addEventListener('click', () => {
+  sfx.tick();
+  pickLevel(levelIndex - 1);
+});
+$('levelNext').addEventListener('click', () => {
+  sfx.tick();
+  pickLevel(levelIndex + 1);
+});
+renderLevel();
+function syncStageLevel(): void {
+  if (stageLevel === level.id) return;
+  stageLevel = level.id;
+  stage.setLevel(level);
+}
 
 // ---------- 玩家 ----------
 function playerCount(): number {
@@ -154,22 +253,42 @@ function syncPlayers(): void {
   if (changed) seatOrder = seats;
   const n = playerCount();
   if (sim.players.length !== n) sim.setPlayers(n);
+  stage.syncPlayers(sim);
   seatOrder.forEach((id, i) => {
     const p = sim.players[i];
     const peer = link?.peers.get(id);
-    if (p && peer) p.color = PLAYER_COLORS[peer.color] ?? p.color;
+    if (!p || !peer) return;
+    p.color = PLAYER_COLORS[peer.color] ?? p.color;
+    stage.setPlayerStyle(i, { name: peer.name, color: p.color, look: peer.look ?? DEFAULT_LOOK });
   });
   if (keyboard) {
-    const p = sim.players[sim.players.length - 1];
-    if (p) p.color = PLAYER_COLORS[KB_COLOR] ?? p.color;
+    const i = sim.players.length - 1;
+    const p = sim.players[i];
+    if (p) {
+      p.color = PLAYER_COLORS[KB_COLOR] ?? p.color;
+      stage.setPlayerStyle(i, { name: '键盘', color: p.color, look: kbLook });
+    }
   }
 }
 async function resetSim(): Promise<void> {
   const old = sim;
   sim = await createSim(level, 0);
   old.destroy();
-  renderer.reset();
+  syncStageLevel();
+  stage.reset();
   syncPlayers();
+}
+
+// ---------- 横幅 ----------
+let bannerTimer: ReturnType<typeof setTimeout> | null = null;
+function banner(text: string, kind: 'bad' | 'good' = 'good'): void {
+  const el = $('banner');
+  el.textContent = text;
+  el.className = `banner on ${kind}`;
+  if (bannerTimer) clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => {
+    el.className = 'banner';
+  }, 2200);
 }
 
 // ---------- 大厅和延迟表 ----------
@@ -258,7 +377,9 @@ function keyboardInput(): PadInput {
   if (keys.has('KeyD') || keys.has('ArrowRight')) ax += 1;
   if (keys.has('KeyW') || keys.has('ArrowUp')) ay -= 1;
   if (keys.has('KeyS') || keys.has('ArrowDown')) ay += 1;
-  return { ax, ay, gl: keys.has('KeyQ') || keys.has('ShiftLeft'), gr: keys.has('KeyE') || keys.has('ShiftRight') };
+  const input: PadInput = { ax, ay, gl: keys.has('KeyQ') || keys.has('ShiftLeft'), gr: keys.has('KeyE') || keys.has('ShiftRight') };
+  if (keys.has('KeyR')) input.act = 'summon';
+  return input;
 }
 
 // ---------- 主循环 ----------
@@ -266,8 +387,7 @@ const DT = CFG.step;
 let last = performance.now();
 let acc = 0;
 let statusAt = 0;
-addEventListener('resize', () => renderer.resize());
-renderer.resize();
+addEventListener('resize', () => stage.resize());
 
 function feedInputs(): void {
   seatOrder.forEach((id, i) => {
@@ -283,6 +403,7 @@ function feedInputs(): void {
 
 function sendStatus(): void {
   if (!link) return;
+  const dead = sim.players.filter((p) => p.dead).length;
   seatOrder.forEach((id, i) => {
     const p = sim.players[i];
     const peer = link!.peers.get(id);
@@ -294,8 +415,27 @@ function sendStatus(): void {
       rttMs: peer.rtt.median(),
       phase,
       direct: peer.direct,
+      teamDead: dead - (p.dead ? 1 : 0),
     });
   });
+}
+
+function onEvents(): void {
+  const names = playerNames();
+  const name = (i: number): string => names[i] || `P${i + 1}`;
+  for (const ev of sim.events) {
+    if (ev.type === 'win') {
+      // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页
+      banner('到顶了！');
+      const won = sim;
+      setTimeout(() => {
+        if (sim === won && phase === 'playing') link?.act({ type: 'FINISH' });
+      }, 2600);
+    }
+    if (ev.type === 'betrayal') banner(`${name(ev.by)} 松手了`, 'bad');
+    if (ev.type === 'summon') banner(`${name(ev.player)} 把 ${ev.who.map(name).join('、')} 拉了回来`);
+    if (ev.type === 'checkpoint') banner('检查点 ✓');
+  }
 }
 
 function frame(now: number): void {
@@ -303,18 +443,21 @@ function frame(now: number): void {
   last = now;
   feedInputs();
   if (phase === 'playing') {
-    acc += dt;
+    acc += dt * stage.timeScale;
     while (acc >= DT) {
       sim.step(DT);
-      renderer.handleEvents(sim, sim.events);
-      for (const ev of sim.events) if (ev.type === 'win') link?.act({ type: 'FINISH' });
+      stage.handleEvents(sim, sim.events);
+      sfx.handleEvents(sim, sim.events);
+      onEvents();
       acc -= DT;
     }
   } else {
     acc = 0;
   }
-  renderer.updateCamera(sim, dt);
-  renderer.draw(sim, dt);
+  if (renderOn) {
+    stage.updateCamera(sim, dt);
+    stage.draw(sim, dt);
+  }
   $('clock').textContent = sim.time.toFixed(1);
   $('deaths').textContent = String(sim.players.reduce((s, p) => s + p.deaths, 0));
   if (now - statusAt >= STATUS_MS) {
@@ -339,8 +482,15 @@ requestAnimationFrame(frame);
   get seatOrder() {
     return seatOrder;
   },
+  get level() {
+    return level;
+  },
   peers: (): PadPeer[] => [...(link?.peers.values() ?? [])],
+  pickLevel,
+  stage,
+  sfx,
   CFG,
+  LEVELS,
 };
 
 void start();
