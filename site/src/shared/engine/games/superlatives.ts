@@ -78,7 +78,8 @@ export const superlatives: GameDef<S> = {
     switch (g.x) {
       case "vote": {
         const target = String(g.target ?? "");
-        if (s.phase !== "vote" || target === pid || !api.has(target)) return;
+        // (players vote for players: someone just watching does neither, host or not)
+        if (s.phase !== "vote" || target === pid || !api.has(target) || !api.has(pid)) return;
         s.votes[pid] = target;
         if (everyoneVoted(s, api)) reveal(s, api);
         return;

@@ -9,10 +9,11 @@ export interface Api {
   rand(): number;
   int(n: number): number;
   shuffle<X>(a: X[]): X[];
-  /** Seated player ids in seat order. */
+  /** Seated player ids in seat order (not those just watching). */
   ids(): string[];
+  /** One of `ids()`: a player, not someone just watching. */
   has(pid: string): boolean;
-  /** Seated and with the app open right now. */
+  /** Seated (playing or just watching) and with the app open right now. */
   online(pid: string): boolean;
   isHost(pid: string): boolean;
   /** Signed in with one of the site owner's accounts (only the rooms server knows; false elsewhere). */

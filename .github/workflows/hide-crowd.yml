@@ -6,9 +6,16 @@ name: hide-crowd
 
 on:
   push:
+    branches: [main]
     paths: ["games/hide-crowd/**", ".github/workflows/hide-crowd.yml", "site/src/styles/tokens.css", "site/src/games/registry.ts"]
   pull_request:
     paths: ["games/hide-crowd/**", ".github/workflows/hide-crowd.yml", "site/src/styles/tokens.css", "site/src/games/registry.ts"]
+
+# One run per change: a branch's pushes are checked through its pull request, and main after each
+# merge. A newer push to the same pull request stops the older run (HANDOFF.md, CI).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:

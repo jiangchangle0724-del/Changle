@@ -14,13 +14,14 @@ import { useLayoutEffect, useMemo, useRef } from "preact/hooks";
 import { BOARD, CITY_AT, GROUPS, JOURNEY_CARDS, POSTCARDS } from "../../engine";
 import { CharacterArt, type Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { TOKEN_R, angleOf, xy, type Rig } from "../art/RoundBoard";
+import { TOKEN_R, TOKEN_SCALE, angleOf, xy, type Rig } from "../art/RoundBoard";
 import { CODE, StampArt } from "../art/stamps";
 import { BUZZ, buzz, holdShake } from "../controls";
 import { getLang, money, spaceName, t, tx } from "../i18n";
 import { sfx } from "../sound";
 import { serverNow } from "../store";
 import { reducedMotion } from "../motion";
+import { keepIn, mapCam, type MapHand } from "./mapView";
 import { BEAT, type RidePlan } from "./ridePlan";
 
 const N = BOARD.length;
@@ -59,6 +60,14 @@ export interface Cam {
 const rest = (rot: number): Cam => ({ z: 1, tx: 0, ty: 0, rot, tilt: 0 });
 const ridePose = (rot: number): Cam => ({ z: CAM.z, tx: CAM.ax + CAM.z * TOKEN_R, ty: CAM.ay, rot, tilt: CAM.tilt });
 const mix = (a: Cam, b: Cam, p: number): Cam => ({ z: lerp(a.z, b.z, p), tx: lerp(a.tx, b.tx, p), ty: lerp(a.ty, b.ty, p), rot: lerp(a.rot, b.rot, p), tilt: lerp(a.tilt, b.tilt, p) });
+/** At rest, the board as a phone's map shows it: zoom `z` round (cx, cy) (ui/mapView.ts); 1 is the whole board. */
+const home = (rot: number, z: number, cx: number, cy: number): Cam => (z > 1.0005 ? { ...mapCam(z, cx, cy), rot, tilt: 0 } : rest(rot));
+/** Where the token on ring position `pos` (in spaces) stands on screen, the board turned to `rot`. */
+const onScreen = (pos: number, rot: number): [number, number] => {
+  const [x, y] = xy(angleOf(pos), TOKEN_R);
+  const a = (rot * Math.PI) / 180;
+  return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+};
 function tvPose(pos: number, rot: number): Cam {
   const [bx, by] = xy(angleOf(pos), TOKEN_R);
   const a = (rot * Math.PI) / 180;
@@ -213,11 +222,18 @@ export function Ride({
   urgent,
   onReady,
   onDone,
+  scale = TOKEN_SCALE.phone,
+  map,
 }: {
   plan: RidePlan;
   rig: { current: Rig | null };
   /** The token's character (its team colour). */
   kind: number;
+  /** How big the token is drawn, as on the board (TOKEN_SCALE). */
+  scale?: number;
+  /** A phone's map at the size picked (ui/mapView.ts): the camera takes the view over from it and gives
+   * it back over where the token landed. (The big screen's board always fits.) */
+  map?: MapHand | null;
   /** How the token feels once it has landed (a bill, a new city…). */
   mood: Mood;
   mode: "fp" | "flat" | "tv";
@@ -263,7 +279,7 @@ export function Ride({
     // whenever the drawing's own transform changes)
     const view = wrapEl?.querySelector<HTMLElement>(".board-view") ?? null;
     // (on the big screen the globe and the middle of the board move with the camera too)
-    const camLayer = mode === "tv" ? (wrapEl?.querySelector<HTMLElement>(".board-cam") ?? null) : null;
+    const camLayers = mode === "tv" ? Array.from(wrapEl?.querySelectorAll<HTMLElement>(".board-cam") ?? []) : [];
     const T = plan.t;
     const startPerf = performance.now() + (plan.start - serverNow());
     // (when this screen will stamp the landing, on its own clock: every screen's should agree)
@@ -278,6 +294,20 @@ export function Ride({
       box.board = rig.current?.svg.clientWidth || 1;
     });
     sized.observe(el);
+    // The map's view on a phone (ui/mapView.ts): the camera starts where the map is, at its zoom, and
+    // comes back to the size picked over where the token landed, so neither end jumps.
+    const hand = map ?? null;
+    const begin = hand ? hand.release() : null;
+    const Z = hand ? Math.max(1, hand.zoom) : 1;
+    const z0 = begin ? begin.z : 1;
+    const c0: [number, number] = begin ? [begin.cx, begin.cy] : [0, 0];
+    // (a flat move's camera on a bigger map: its middle and zoom, easing along with the token)
+    const flat = [c0[0], c0[1], z0];
+    let snapFlat = false;
+    let handed = false;
+    const endAt = plan.jail ? 10 : landAt;
+    // (shown at once, as the map was: the first frame is a moment away)
+    if (begin && rig.current) viewBoard(view ?? rig.current.svg, home(rig.current.rotation(), z0, c0[0], c0[1]), rig.current.rotation(), box.board);
     let shift = 0;
     let skipTo: number | null = null;
     let flatCut = mode !== "fp";
@@ -322,6 +352,7 @@ export function Ride({
       if (t < T.land) {
         skipTo = T.land;
         flatCut = true;
+        snapFlat = true;
       } else if (t < T.ready) skipTo = T.ready;
     };
     wrapEl?.addEventListener("pointerdown", skip);
@@ -335,7 +366,13 @@ export function Ride({
       // (the drawing takes the angle the camera left it at, everything upright, and stands still)
       r.turn(Math.abs(goal - at) < 1.5 ? goal : at);
       viewBoard(view ?? r.svg, rest(r.rotation()), r.rotation(), box.board);
-      if (camLayer) camLayer.style.transform = "";
+      for (const layer of camLayers) layer.style.transform = "";
+      // (the map takes the view back at its size over where the token is, as the camera left it)
+      if (hand && !handed) {
+        handed = true;
+        const [ex, ey] = onScreen(endAt, r.rotation());
+        hand.adopt(Z, keepIn(ex, Z), keepIn(ey, Z));
+      }
     };
 
     const finish = (r: Rig | null) => {
@@ -366,6 +403,7 @@ export function Ride({
         shift += T.ready - t;
         t = T.ready;
         flatCut = true;
+        snapFlat = true;
       }
       if (yaw === null) yaw = r.rotation();
       if (Number.isNaN(drawn)) drawn = r.rotation();
@@ -478,14 +516,14 @@ export function Ride({
       if (cam === "fp") {
         if (t < T.dice) {
           turnToward(near(yaw, anchorRot(plan.legs[0].from)), dt);
-          c = rest(yaw);
+          c = home(yaw, z0, c0[0], c0[1]);
         } else if (t < T.walk) {
           once("push", () => {
             yaw = near(yaw!, anchorRot(plan.legs[0].from));
             vel = 0;
             sfx.whoosh(1);
           });
-          c = mix(rest(yaw), ridePose(yaw), ease((t - T.dice) / Math.max(1, T.walk - T.dice)));
+          c = mix(home(yaw, z0, c0[0], c0[1]), ridePose(yaw), ease((t - T.dice) / Math.max(1, T.walk - T.dice)));
         } else if (t < T.ready) {
           turnToward(near(yaw, anchorRot(lin)), dt);
           c = ridePose(yaw);
@@ -497,20 +535,33 @@ export function Ride({
             r.turn(yaw!);
             drawn = yaw!;
           });
-          c = mix(ridePose(yaw), rest(yaw), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
+          const [ex, ey] = onScreen(pos, yaw);
+          c = mix(ridePose(yaw), home(yaw, Z, ex, ey), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
         }
       } else if (cam === "tv" && plan.legs[0].steps && !reduced) {
         if (t < T.dice) c = rest(yaw);
         else if (t < T.walk) c = mix(rest(yaw), tvPose(plan.legs[0].from, yaw), ease((t - T.dice) / Math.max(1, T.walk - T.dice)));
         else if (t < T.ready) c = tvPose(lin, yaw);
         else c = mix(tvPose(lin, yaw), rest(yaw), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
+      } else if (Z > 1.0005 || z0 > 1.0005) {
+        // Flat, on a phone's bigger map: the view goes along with the token as it walks (with reduced
+        // motion it holds still, and is over where the token landed once it's there).
+        const landed = t >= T.land;
+        const [gx, gy] = reduced ? (landed ? onScreen(pos, yaw) : c0) : t >= T.walk || landed ? onScreen(lin, yaw) : c0;
+        const gz = reduced && !landed ? z0 : Z;
+        const k = reduced || snapFlat ? 1 : 1 - Math.exp(-dt / 0.2);
+        snapFlat = false;
+        flat[0] += (gx - flat[0]) * k;
+        flat[1] += (gy - flat[1]) * k;
+        flat[2] += (gz - flat[2]) * k;
+        c = home(yaw, flat[2], flat[0], flat[1]);
       } else c = rest(yaw);
       const size = box.board;
       viewBoard(view ?? r.svg, c, drawn, size);
-      if (camLayer) {
+      if (camLayers.length) {
         const k = size / 1000;
         const tf = c.z === 1 && !c.tx && !c.ty ? "" : `translate(${(c.tx * k).toFixed(1)}px, ${(c.ty * k).toFixed(1)}px) scale(${c.z.toFixed(4)})`;
-        if (camLayer.style.transform !== tf) camLayer.style.transform = tf;
+        for (const layer of camLayers) if (layer.style.transform !== tf) layer.style.transform = tf;
       }
       // Close behind the token the camera sees a few spaces either side: the names there stand up as
       // the table turns under them (the rest turn with the table until the camera pulls out).
@@ -526,7 +577,7 @@ export function Ride({
       // The token, standing upright where its space is on screen.
       const [bx, by] = xy(angleOf(pos), TOKEN_R);
       const pt = project(bx, by, c, size);
-      const sc = pt.s * 0.57;
+      const sc = pt.s * scale;
       const at = `translate(${(pt.x - 60).toFixed(1)}px, ${(pt.y - 70).toFixed(1)}px) scale(${sc.toFixed(4)})`;
       // (up off the board on a hop; squashed onto its feet, 40 below its middle, on the landing)
       token.style.transform =
@@ -577,8 +628,12 @@ export function Ride({
       wrapEl?.removeEventListener("pointerdown", skip);
       if (phone) holdShake(false);
       const r = rig.current;
-      // Cut off (a new throw, the page leaving): the table back as it rests.
+      // Cut off (a new throw, the page leaving): the table back as it rests, and the map its view.
       if (!over && r) giveBack(r);
+      if (hand && !handed) {
+        handed = true;
+        hand.adopt(Z, keepIn(c0[0], Z), keepIn(c0[1], Z));
+      }
     };
   }, [plan.key]);
 

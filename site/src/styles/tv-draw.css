@@ -1,0 +1,170 @@
+/*
+ * 你画我猜 on the big screen (online/games/TvDraw.tsx): the drawing, large, on the left; who's
+ * drawing, the word's length, the guesses and the clock on the right; the word at the round's end.
+ */
+
+/* the drawer picking */
+.tvdr-pick {
+  position: absolute;
+  left: 160px;
+  right: 160px;
+  top: 150px;
+  bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  text-align: center;
+}
+.tvdr-face {
+  box-shadow:
+    0 0 0 6px var(--night),
+    0 0 0 12px var(--gel),
+    0 0 70px 14px color-mix(in oklab, var(--gel) 50%, transparent);
+}
+.tvdr-head {
+  margin: 0;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 68px;
+  font-weight: 900;
+}
+.tvdr-line {
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 700;
+}
+
+/* the drawing */
+.tvdr-board {
+  position: absolute;
+  left: 60px;
+  top: 130px;
+  width: 720px;
+}
+.tvdr-board .plate-tools,
+.tvdr-board button {
+  display: none;
+}
+
+/* the side */
+.tvdr-side {
+  position: absolute;
+  left: 840px;
+  right: 60px;
+  top: 150px;
+  bottom: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.tvdr-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 800;
+}
+.tvdr-who > svg {
+  color: var(--gel);
+}
+.tvdr-stars {
+  display: inline-flex;
+  gap: 4px;
+  color: var(--line);
+}
+.tvdr-stars .is-on {
+  color: var(--gel-amber);
+  fill: var(--gel-amber);
+}
+.tvdr-hint {
+  margin: 0;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+.tvdr-word {
+  padding: 22px 32px 26px;
+  border-radius: 30px;
+  background: var(--color-paper);
+  color: var(--night);
+  box-shadow: 0 0 80px -20px var(--gel);
+  animation: tvx-pop 0.55s var(--ease-pop) both;
+}
+.tvdr-word-main {
+  margin: 0;
+  font-size: 88px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.tvdr-word-sub {
+  margin: 8px 0 0;
+  color: color-mix(in oklab, var(--night) 62%, transparent);
+  font-size: 34px;
+  font-weight: 700;
+}
+.tvdr-guesses {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvdr-guesses li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 20px 8px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--moon);
+  font-size: 30px;
+  font-weight: 700;
+  animation: tvx-enter 0.35s var(--ease-out) both;
+}
+.tvdr-guesses li span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tvdr-guess {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--stop) 70%, transparent);
+  text-decoration-thickness: 3px;
+}
+.tvdr-guesses li.is-ok {
+  background: var(--go);
+  color: var(--night);
+}
+.tvdr-guesses li.is-empty {
+  padding: 14px 22px;
+  color: var(--haze);
+}
+.tvdr-solved {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+}
+.tvdr-solved .tvx-bi {
+  font-size: 30px;
+}
+.tvdr-scores {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvdr-word,
+  .tvdr-guesses li {
+    animation: none;
+  }
+}

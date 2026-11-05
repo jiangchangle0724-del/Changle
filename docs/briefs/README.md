@@ -1,6 +1,6 @@
 # 档案目录
 
-changle.ca 按对话分工：一个 Claude Project 下面 28 个对话，每个对话只管一块，每块在这里有一份档案。档案就是对话的记忆：开工先读，收尾更新。换对话、换模型，都从档案接上。
+changle.ca 按对话分工：一个 Claude Project 下面 29 个对话，每个对话只管一块，每块在这里有一份档案。档案就是对话的记忆：开工先读，收尾更新。换对话、换模型，都从档案接上。
 
 ## 平台（5 个）
 
@@ -35,7 +35,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 28 个对话，每个�
 | 游戏 · 神回复 | [punchline.md](punchline.md) | changle.ca/g/punchline |
 | 游戏 · 你画我猜 | [draw.md](draw.md) | changle.ca/g/draw-and-guess |
 
-## 大游戏和工具（7 个）
+## 大游戏和工具（8 个）
 
 | 对话名 | 档案 | 网址 |
 | --- | --- | --- |
@@ -43,6 +43,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 28 个对话，每个�
 | 游戏 · 藏在人群里 | [hide-crowd.md](hide-crowd.md) | changle.ca/hide |
 | 游戏 · 一起跳 | [dance.md](dance.md) | changle.ca/party |
 | 游戏 · 打碟 | [dj.md](dj.md) | changle.ca/dj |
+| 游戏 · 抓紧了 | [hang-on.md](hang-on.md) | 未定 |
 | 工具 · 随便 | [suibian.md](suibian.md) | changle.ca/eat |
 | 工具 · 玩什么 | [events.md](events.md) | changle.ca/go |
 | 工具 · 生活小工具 | [tools.md](tools.md) | changle.ca/tools |

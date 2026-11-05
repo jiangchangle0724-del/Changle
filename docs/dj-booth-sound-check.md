@@ -417,3 +417,20 @@ host) can skip it, Cat can't. It ends: the player goes, the DJ comes back (gain 
 too. Cat searches ("shape of you"), picks YouTube's video, the table drops into it, she skips it: the DJ
 comes back. Without the key a search makes the phone ask for a link. No request went to Apple. The
 music never stalled.
+
+## Sounds over a whole song, and the 歌单 (Nov 2, late)
+
+Steve: "在播放youtube 音乐的时候我还是要可以放DJ 相关的音效来热场", and many songs asked for in one
+playlist, "可选择随机排序或按顺序"; asked how a long playlist plays, "歌和 DJ 轮流"; asked where the sounds
+come from, "你先合成，我听了再说" (no paid stock). The seven sounds of their own, rendered offline the way
+the speaker plays them, went to Steve as files: the air horn (re-made: three blasts, partials at 438
+and 552 Hz and their harmonics up past 2 kHz, about 0.22 RMS in each blast), the siren, the laser and
+the whistle (14 to 17 dB louder than before: they were under the music), the bass drop, the reverse
+cymbal and the vinyl.
+
+**`site/scripts/dj_youtube_check.py`** with a WebKit TV: 46 of 46. Over Ben's song the air horn and the
+siren pads are on and echo is off on the phones; the speaker's way out for them past the fade is up
+(over 0.9); Amy's air horn plays on the TV at once; when the song ends they go back through the DJ's
+chain (under 0.05). Ben puts two more on the 歌单: every phone shows the two, whose they are; Ben and
+the host can take them out, Cat can't; the TV says one more is waiting; the host's 随机 shows on
+Cat's phone, and back to 按顺序. `dj_deck_check.py` 66 of 66 in Chromium.

@@ -1,0 +1,606 @@
+/*
+ * 戏精大赏 on the big screen (party/drama/TvDrama.tsx): the theatre in the champagne gel. The
+ * set (drama.css: the painted backdrop, the red velvet curtain, the cast with brass plaques)
+ * drawn large: beside the playbill while the cards are read, the full width while the scene
+ * plays, beside the truth at the reveal.
+ */
+
+.tvd {
+  --marquee: #fff1c9;
+}
+
+/* ---------- the theatre ---------- */
+.tvd-theatre {
+  position: absolute;
+  left: 50px;
+  top: 132px;
+  width: 960px;
+  height: 658px;
+  transition:
+    width 0.9s var(--ease-out),
+    height 0.9s var(--ease-out);
+}
+.tvd-theatre.is-setup {
+  top: 140px;
+  height: 640px;
+}
+.tvd-theatre.is-act {
+  width: 1500px;
+  height: 664px;
+}
+.tvd .dm-backdrop {
+  aspect-ratio: auto;
+  height: 100%;
+  border-radius: 34px;
+  box-shadow:
+    inset 0 0 0 2px var(--line-soft),
+    0 40px 90px -40px color-mix(in oklab, var(--gel) 60%, transparent);
+}
+.tvd .dm-cast {
+  --fig-h: 300px;
+  bottom: 6%;
+  gap: 14px;
+}
+.tvd .dm-cast.n4 {
+  --fig-h: 262px;
+}
+.tvd-theatre.is-act .dm-cast {
+  --fig-h: 340px;
+  left: 12%;
+  right: 12%;
+}
+.tvd .dm-actor-spot {
+  bottom: 46px;
+  height: 52px;
+}
+.tvd .dm-plaque {
+  padding: 6px 18px 8px;
+  border-radius: 12px;
+}
+.tvd .dm-plaque strong {
+  font-size: 26px;
+}
+.tvd .dm-plaque small {
+  font-size: 22px;
+}
+.tvd .dm-actor-trophy {
+  top: -88px;
+  width: 92px;
+}
+.tvd .dm-actor-mask > svg {
+  width: 56px;
+  height: 56px;
+  padding: 10px;
+}
+.tvd .dm-minimask {
+  width: 34px;
+  height: 34px;
+}
+.tvd .dm-minimask img {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+/* the plot twist, slammed across the top of the set */
+.tvd .dm-twist {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  width: min(1040px, 86%);
+  padding: 20px 36px 24px;
+  border-radius: 26px;
+  translate: -50% 0;
+  z-index: 6;
+}
+.tvd .dm-twist-label {
+  font-size: 40px;
+}
+.tvd .dm-twist p {
+  margin-top: 8px;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* the slate */
+.tvd-slate {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.tvd-slate-top {
+  display: grid;
+  place-items: center;
+  width: 320px;
+  height: 70px;
+  border-radius: 10px 10px 0 0;
+  transform-origin: 0% 100%;
+  background: repeating-linear-gradient(-45deg, var(--moon) 0 26px, var(--night) 26px 52px);
+  color: transparent;
+}
+.tvd-slate strong {
+  display: grid;
+  place-items: center;
+  width: 320px;
+  padding: 18px 0 22px;
+  border-radius: 0 0 14px 14px;
+  background: var(--night);
+  color: var(--tvx-light);
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 900;
+  box-shadow: 0 30px 60px -20px var(--tvx-ink);
+}
+
+/* the verdict, over the set */
+.tvd-verdict {
+  position: absolute;
+  top: 26px;
+  left: 30px;
+  right: 30px;
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+.tvd-drum,
+.tvd-headline {
+  margin: 0;
+  padding: 10px 30px 14px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--tvx-ink) 72%, transparent);
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.tvd-drum {
+  font-size: 46px;
+  animation: dm-pulse 0.5s ease-in-out infinite;
+}
+.tvd-headline {
+  color: var(--marquee);
+  font-size: 50px;
+  text-shadow: 0 0 30px color-mix(in oklab, var(--gel) 60%, transparent);
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvd-headline.is-caught {
+  color: var(--tvx-light);
+}
+
+/* ---------- the side: playbill, ballot, truths ---------- */
+.tvd-side {
+  position: absolute;
+  top: 132px;
+  right: 44px;
+  bottom: 110px;
+  width: 506px;
+  padding-left: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+.tvd-act {
+  margin: 0;
+  color: var(--gel);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvd-title {
+  margin: 0;
+}
+.tvd-title .tvx-bi {
+  font-size: 44px;
+}
+.tvd-credit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--gel);
+  font-size: 24px;
+  font-weight: 700;
+}
+.tvd-setup {
+  margin: 0;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tvd-hunt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 18px;
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--gel) 16%, var(--dusk));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 45%, transparent);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvd-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tvd-roster li {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 94%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition: box-shadow 0.3s;
+}
+.tvd-roster li.is-ready {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.tvd-roster-main {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.tvd-roster-main strong {
+  overflow: hidden;
+  font-size: 26px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvd-roster-main small {
+  flex: none;
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tvd-roster-state {
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+li.is-ready .tvd-roster-state {
+  color: var(--gel);
+}
+.tvd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvd-chips li {
+  padding: 8px 20px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvd-chips li.is-main {
+  background: var(--gel);
+  color: var(--night);
+}
+.tvd-note {
+  margin: 0;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.tvd-wait {
+  margin: 0;
+  color: var(--moon);
+  font-size: 28px;
+  font-weight: 800;
+}
+.tvd-marquee strong {
+  font-size: 84px;
+}
+.tvd-marquee small {
+  font-size: 30px;
+}
+.tvd-marquee .dm-marquee-masks > * {
+  width: 140px;
+}
+
+/* the scene's name at the top while it plays */
+.tvd-caption {
+  position: absolute;
+  top: 30px;
+  left: 420px;
+  right: 420px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  text-align: center;
+}
+.tvd-caption span {
+  max-width: 100%;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvd-caption small {
+  color: var(--gel);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* the ballot */
+.tvd-ballot {
+  justify-content: center;
+  gap: 22px;
+}
+.tvd-ask {
+  margin: 0;
+}
+.tvd-ask .tvx-bi {
+  font-size: 54px;
+}
+.tvd-q {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.tvd-q > svg {
+  flex: none;
+  color: var(--gel);
+}
+.tvd-count {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+}
+.tvd-count b {
+  color: var(--gel);
+  font-size: 64px;
+}
+.tvd-count small {
+  color: var(--haze);
+  font-family: var(--font-text);
+  font-size: 28px;
+}
+.tvd-twist-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 14px 20px;
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--gel) 14%, var(--dusk));
+  color: var(--moon);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.tvd-twist-note span {
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+/* the truth */
+.tvd-truths {
+  gap: 14px;
+}
+.tvd-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 18px;
+  margin: 0;
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 800;
+  animation: tvx-pop 0.4s var(--ease-pop) both;
+}
+.tvd-counts b {
+  margin-left: 8px;
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 30px;
+}
+.tvd-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvd-cards li {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  align-items: start;
+  gap: 14px;
+  padding: 12px 16px 12px 12px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--dusk-2) 94%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  animation: tvd-flip 0.6s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 120ms);
+}
+@keyframes tvd-flip {
+  from {
+    opacity: 0;
+    transform: rotateX(80deg) translateY(-10px);
+  }
+}
+.tvd-cards li.is-culprit {
+  background: color-mix(in oklab, var(--stop) 18%, var(--dusk-2));
+  box-shadow: inset 0 0 0 2px var(--stop);
+}
+.tvd-cards li.is-best {
+  box-shadow:
+    inset 0 0 0 3px var(--gel),
+    0 0 30px -8px var(--gel);
+}
+.tvd-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.tvd-card-main strong {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvd-card-main strong small {
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tvd-card-secret,
+.tvd-card-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.tvd-card-secret {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tvd-card-task {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* a cast of four: the secrets, two lines each, and no tasks */
+.tvd-cards.n4 .tvd-card-secret {
+  -webkit-line-clamp: 2;
+}
+.tvd-cards.n4 .tvd-card-task {
+  display: none;
+}
+.tvd-card-secret {
+  color: var(--moon);
+}
+.tvd-card-task {
+  color: var(--haze);
+}
+.tvd-card-task svg {
+  flex: none;
+  margin-top: 3px;
+}
+.tvd-card-stars {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.tvd-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvd-best {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--gel);
+  font-size: 28px;
+  font-weight: 800;
+}
+.tvd-best strong {
+  color: var(--tvx-light);
+}
+.tvd-penalty {
+  margin: 0;
+  color: color-mix(in oklab, var(--stop) 70%, var(--tvx-light));
+  font-size: 26px;
+  font-weight: 800;
+}
+
+/* ---------- the curtain call ---------- */
+.tvd-finale-title {
+  position: absolute;
+  top: 120px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+}
+.tvd-finale-title .tvx-bi {
+  align-items: center;
+  font-size: 56px;
+}
+.tvd-podium {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* lower than 猜歌名's: the awards under the names make the columns taller (the crown stays clear of the title) */
+  bottom: 36px;
+}
+.tvd-awards {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tvd-trophy-mini {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+}
+.tvd-trophy-mini img,
+.tvd-trophy-mini svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvd-theatre {
+    transition: none;
+  }
+  .tvd-drum,
+  .tvd-headline,
+  .tvd-counts,
+  .tvd-cards li,
+  .tvd-outcome {
+    animation: none;
+  }
+}

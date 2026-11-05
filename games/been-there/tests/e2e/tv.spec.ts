@@ -88,3 +88,53 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
   expect((await news())[0]).toMatch(/×2|½|×1\.5|\+\$20|−25%/);
   expect([...tv.errors, ...p.errors]).toEqual([]);
 });
+
+test("大屏右边那栏有记录：1366x768 和 1920x1080 上，排名下面显示最近发生的事，什么都不出屏幕", async ({ browser, request, contextOptions }) => {
+  test.setTimeout(150_000);
+  const code = await createRoom(request, {});
+  const tvs: Phone[] = [];
+  for (const [width, height] of [
+    [1366, 768],
+    [1920, 1080],
+  ]) {
+    const ctx = await browser.newContext({ ...contextOptions, viewport: { width, height }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+    track(ctx);
+    const tv: Phone = { name: `${width}x${height}`, ctx, page: await ctx.newPage(), errors: [], log: [], taps: 0 };
+    watch(tv, tv.page);
+    await tv.page.goto(`/trip/tv/${code}`);
+    await expect(tv.page.locator(".lobby-tv")).toBeVisible({ timeout: 20_000 });
+    tvs.push(tv);
+  }
+  const p = await newPhone(browser, "东", contextOptions);
+  await joinWithTeam(p, code);
+  for (let i = 0; i < 2; i++) await p.page.getByRole("button", { name: "加一个电脑队" }).click();
+  await p.page.getByRole("button", { name: "开始", exact: true }).click();
+  const log = (tv: Phone) =>
+    tv.page.evaluate(() => {
+      const feed = document.querySelector<HTMLElement>(".tv-table .feed");
+      if (!feed) return { shown: false, lines: 0, inside: false, over: 0 };
+      const f = feed.getBoundingClientRect();
+      const lines = Array.from(feed.querySelectorAll("li")).filter((li) => {
+        const r = li.getBoundingClientRect();
+        return r.height > 0 && r.top < f.bottom - 4;
+      }).length;
+      const screen = document.querySelector(".screen")!;
+      return {
+        shown: getComputedStyle(feed).display !== "none",
+        lines,
+        inside: f.right <= innerWidth + 1 && f.bottom <= innerHeight + 1 && f.left >= 0,
+        // (nothing runs off: the page itself never scrolls)
+        over: Math.max(screen.scrollHeight - screen.clientHeight, document.documentElement.scrollHeight - innerHeight, document.documentElement.scrollWidth - innerWidth),
+      };
+    });
+  await playUntil([p], async () => (await log(tvs[0])).lines >= 3 && (await log(tvs[1])).lines >= 3, 90_000);
+  for (const tv of tvs) {
+    const l = await log(tv);
+    await tv.page.screenshot({ path: `test-results/tv-log-${tv.name}.png` });
+    expect(l.shown, `${tv.name}: the log is shown`).toBe(true);
+    expect(l.lines, `${tv.name}: lines of the log in sight`).toBeGreaterThanOrEqual(3);
+    expect(l.inside, `${tv.name}: the log inside the screen`).toBe(true);
+    expect(l.over, `${tv.name}: nothing runs off the screen`).toBeLessThanOrEqual(1);
+    expect(tv.errors).toEqual([]);
+  }
+});

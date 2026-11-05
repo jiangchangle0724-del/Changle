@@ -7,6 +7,7 @@ import type { PromptsView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useCue, useRoom } from "../RoomContext";
+import { usePlayers, useWatching } from "../players";
 import { HostButton, HostRow, joinNames, SeatPicker, TurnLine, useYourTurn, Waiting } from "./common";
 import { sfx } from "../../lib/sfx";
 import { Lineup, Moment } from "../../components/Figure";
@@ -15,7 +16,9 @@ export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void
   const { room, me, isHost, g, nameOf, offset } = useRoom();
   const { ui, tr, lang } = useStore();
   const pen = usePenaltyText();
-  const seats = room?.seats ?? [];
+  // who answers: the players (someone just watching doesn't, and isn't counted)
+  const players = usePlayers();
+  const watching = useWatching();
   const reader = v.reader === me;
   const never = v.mode === "never";
   useYourTurn(v.phase === "draw" && reader);
@@ -107,9 +110,9 @@ export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void
             <motion.div key={`answer-${v.card?.zh}`} className="stack" style={{ gap: 12 }} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <div className="row answer-head">
                 <TimerArc seconds={30} running endsAt={v.endsAt} offset={offset} size={64} />
-                <p className="hint tabular">{ui("answeredN", { n: v.answered.length, m: seats.length })}</p>
+                <p className="hint tabular">{ui("answeredN", { n: v.answered.length, m: players.length })}</p>
               </div>
-              {never ? (
+              {watching ? null : never ? (
                 <>
                   <p className="hint" style={{ textAlign: "center" }}>
                     {lang === "zh" ? "偷偷选，最后一起亮" : "Answer in secret. Everyone flips together."}

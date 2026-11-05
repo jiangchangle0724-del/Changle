@@ -4,7 +4,7 @@ import { Sheet } from "../components/Sheet";
 import { TopBar } from "../components/TopBar";
 import { GAME_BY_ID, isGameId } from "../games/registry";
 import { api, ApiError, siteNotice } from "../lib/api";
-import { setLight } from "../lib/anim";
+import { setLight } from "../lib/motion";
 import { useStore } from "../store";
 import { useAccount, type PublicUser } from "./AccountContext";
 import { AdminScenes } from "./AdminScenes";

@@ -160,7 +160,7 @@ export function NetDice({ v, onLeave }: { v: DiceView; onLeave: () => void }) {
       </AnimatePresence>
 
       <HostRow>
-        {!mine && v.phase === "roll" && <HostButton onClick={() => g("skip")}>{ui("skip")}</HostButton>}
+        {!mine && v.phase === "roll" && <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{ui("skip")}</HostButton>}
       </HostRow>
     </NetFrame>
   );
