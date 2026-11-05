@@ -32,6 +32,7 @@
 
 - `cd site && npx tsx tests/straightface.test.ts`：引擎、词库（含中文包的写法）、两个视图不漏身份（22 组，CI 的 `site.yml` 里跑）
 - `python3 scripts/straightface_check.py`（网站要先跑起来）：一台手机 4 人跑完整整 4 轮，中英文各一遍，每一步截图到 `site/local-shots/straightface/`，并检查：说「我是 ××」之前什么私密内容都不显示；「传给 ××」只在 15 秒到了才出现；揭晓页老实人排在冷知识之后；连按不多算一轮；没有横向滚动
+- 线上：2026-11-05 对着 changle.ca 跑 `scripts/straightface_check.py`（手机尺寸，Chromium），中英文各一整局 4 轮，全过
 - 真机：Steve 用 iPhone Safari 跑一局 4 人局（验收门 A，还没跑；Steve 2026-11-05 决定先上线）
 
 ## 定过的事
@@ -52,12 +53,13 @@
 - 有粗俗第二义的方言字不收（嬲因此拿掉）；不拿地方开玩笑。
 - 事实对过 Wiktionary 和中英文维基（2026-11-05）；查不到的写成「相传」「一说」或者删掉；嘎哈、嬢嬢两张没有词条，来源写 `editorial`。
 - 英文名：2026-11-05 从 Straight Face 改成 In All Seriousness，网址跟着改成 changle.ca/g/in-all-seriousness。原因：Straight Face 已有同名 iPhone 憋笑小游戏（StraightFace，BLINK SOFTWARE，2024）和几款 Straight Face / Keep a Straight Face 憋笑桌游；候选里 Deadpan、Dead Serious 已有桌游，Sounds Legit、No Joke 没选。代码里的 id 和文件夹还叫 `straightface`（玩家看不到，不改）。中文名一本正经没搜到同名游戏。
+- 名字查过（2026-11-05）：加拿大商标库 CIPO 里没有 IN ALL SERIOUSNESS（按商标名和相似查询都是 0 条）；BGG、Steam、App Store 也没有同名游戏，只有一期桌游播客用过这个标题。
 - 不能联机的游戏，卡片上不显示联机按钮（以前每个上首页的游戏都能联机，一本正经是第一个只能单机的）。
 - 释义只取来源页的事实、自己造句，不抄维基原句，所以词库不被 CC BY-SA 传染（`LICENSES.md`）。
 
 ## 现在
 
-2026-11-05：PR #213（分支 `game/straight-face-cn-packs`）：四个中文词包、上首页、英文名改成 In All Seriousness、首页截图重拍。合并就上线。A1、A2 在 2026-11-04 合并（PR #171）。引擎 22 组测试全过，一台手机中英文各跑完一局 4 人局。
+2026-11-05 上线（PR #213）：四个中文词包、上首页、英文名改成 In All Seriousness、首页截图重拍。线上中英文各跑完一整局，名字查过商标库。A1、A2 在 2026-11-04 合并（PR #171）。引擎 22 组测试全过，一台手机中英文各跑完一局 4 人局。
 
 ## 还剩什么
 
@@ -65,7 +67,6 @@
 - A3 联机：`site/src/shared/engine/games/straightface.ts` 包一层 `GameDef` 调用同一个引擎（`view(s, pid)` 就是 `privateView`），`protocol.ts` 加 id 和 view 类型，`site/src/online/games/` 加 `NetStraightFace.tsx`，电视页只收 `publicView`。加进 `ONLINE_GAMES` 以后，游戏卡片上的联机按钮自己就会出现。
 - A4：词库入 D1、见过的卡（联机取全桌并集）、每张卡的裁判命中率、「这卡有问题」。
 - C1 扩库到 300（Codex）、C2 组件替换 A2 的占位（Codex）、C4 测试补全（Codex），卡在 `docs/codex-tasks/straightface/`。
-- 名字：In All Seriousness 在网页、App Store、Steam 没搜到同名游戏，CIPO 还没查（要在 CIPO 网站手动搜）。
 
 ## 交给别的对话
 
