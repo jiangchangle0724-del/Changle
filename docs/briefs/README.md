@@ -40,6 +40,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 29 个对话，每个�
 | 对话名 | 档案 | 网址 |
 | --- | --- | --- |
 | 游戏 · 到此一游 | [trip.md](trip.md) | changle.ca/trip |
+| 游戏 · 藏在人群里 | [hide-crowd.md](hide-crowd.md) | changle.ca/hide |
 | 游戏 · 一起跳 | [dance.md](dance.md) | changle.ca/party |
 | 游戏 · 打碟 | [dj.md](dj.md) | changle.ca/dj |
 | 游戏 · 抓紧了 | [hang-on.md](hang-on.md) | 未定 |

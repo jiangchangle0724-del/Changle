@@ -141,6 +141,54 @@ export function useScreenFx(on: boolean) {
       case "win":
         sfx.win();
         return;
+      // 流氓十三张's deck and powers, 七八九's dice (as every phone plays them: useTableSounds)
+      case "shuffle":
+        sfx.shuffle();
+        return;
+      case "camera":
+        sfx.shutter();
+        return;
+      case "nose":
+        sfx.honk();
+        return;
+      case "wc":
+        sfx.woodblock(0.8, 0.8);
+        window.setTimeout(() => sfx.safe(), 120);
+        return;
+      case "collide":
+        sfx.clash();
+        return;
+      // 国王游戏: a number steps up for the order
+      case "called":
+        sfx.woodblock(1.2, 0.8);
+        window.setTimeout(() => sfx.pop(), 90);
+        return;
+      case "grab":
+        sfx.pluck(Math.min(10, Math.max(0, (e.data?.[0] ?? 2) - 2)), 0.9);
+        return;
+      case "dice": {
+        sfx.dice(0.95, 0.9);
+        const [a, b] = e.data ?? [0, 0];
+        window.setTimeout(() => {
+          if (a === 1 && b === 1) sfx.gong("small");
+          else if (a + b === 7) sfx.pour(0.6);
+          else if (a + b === 8 || a + b === 9) sfx.drum();
+          else sfx.settle();
+        }, 980);
+        return;
+      }
+      // 林波舞: everyone got under the bar
+      case "level":
+        sfx.lift();
+        return;
+      // 尤克牌: a card lands on the table, then the trick is swept up
+      case "play":
+        sfx.cardSlide();
+        window.setTimeout(() => sfx.flip(), 110);
+        return;
+      case "trick":
+        sfx.whoosh(0.3, false);
+        return;
       default:
         return;
     }

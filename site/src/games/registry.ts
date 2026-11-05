@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { UsersRound } from "lucide-react";
 import type { T } from "../i18n";
 import type { Category } from "../ui/types";
 
@@ -21,7 +22,8 @@ export type GameId =
   | "punchline"
   | "draw"
   | "trip"
-  | "dj";
+  | "dj"
+  | "hide";
 
 export type GameMeta = {
   id: GameId;
@@ -369,6 +371,31 @@ export const GAMES: GameMeta[] = [
     ready: true,
     speaker: "/dj",
     newUntil: "2026-12-01",
+  },
+  // its own Worker at changle.ca/hide (games/hide-crowd), started from a table like 到此一游; its gel
+  // fills the green gap between Limbo's lime and the mint, its card sits last so the board stays put
+  {
+    id: "hide",
+    slug: "hide-in-the-crowd",
+    name: t("藏在人群里", "Hide in the Crowd"),
+    blurb: t("混进人群，认出对手先出拳", "Blend into the crowd. Spot a rival, punch first."),
+    how: t(
+      "每人用自己的手机控制人群里的一个人，走得像电脑带着的路人，别人就认不出你。认出对手就出拳：打中得分，打到路人你会愣一下。先到 3 分的赢，被认出最多的喝一口。电视上看全场，不标出谁是真人。",
+      "Everyone steers one person in a crowd of computer-run passers-by from their own phone. Walk like them and nobody can tell it's you. Spot a rival and punch: a hit scores, a passer-by stuns you. First to 3 wins; whoever got spotted most takes a sip. The TV shows the whole crowd and never marks who's human.",
+    ),
+    howCustom: t(
+      "每人用自己的手机控制人群里的一个人，走得像电脑带着的路人，别人就认不出你。认出对手就出拳：打中得分，打到路人你会愣一下。先到 3 分的赢，被认出最多的受罚。电视上看全场，不标出谁是真人。",
+      "Everyone steers one person in a crowd of computer-run passers-by from their own phone. Walk like them and nobody can tell it's you. Spot a rival and punch: a hit scores, a passer-by stuns you. First to 3 wins; whoever got spotted most takes the penalty. The TV shows the whole crowd and never marks who's human.",
+    ),
+    minPlayers: 2,
+    maxPlayers: 8,
+    gel: "#7be55c",
+    icon: UsersRound,
+    category: "online",
+    minutes: 10,
+    ready: true,
+    newUntil: "2026-12-03",
+    solo: { min: 0, hint: t("一台手机：和三个电脑对手练手", "One phone: practise against three computer rivals") },
   },
 ];
 

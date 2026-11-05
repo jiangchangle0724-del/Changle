@@ -17,6 +17,17 @@ const VIEWS: { [K in GameId]?: ViewOf<K> } = {
   undercover: lazy(() => import("../online/games/TvUndercover")),
   tune: lazy(() => import("../party/tune/TvTune")),
   drama: lazy(() => import("../party/drama/TvDrama")),
+  truth: lazy(() => import("../online/games/TvTruth")),
+  wheel: lazy(() => import("../online/games/TvWheel")),
+  dice: lazy(() => import("../online/games/TvDice")),
+  rogue: lazy(() => import("../online/games/TvRogue")),
+  king: lazy(() => import("../online/games/TvKing")),
+  prompts: lazy(() => import("../online/games/TvPrompts")),
+  postit: lazy(() => import("../party/postit/TvPostit")),
+  freeze: lazy(() => import("../party/freeze/TvFreeze")),
+  euchre: lazy(() => import("../party/euchre/TvEuchre")),
+  draw: lazy(() => import("../online/games/TvDraw")),
+  limbo: lazy(() => import("../party/limbo/TvLimbo")),
 };
 
 export const hasTvView = (id: GameId | null | undefined): boolean => !!id && !!VIEWS[id];
@@ -55,6 +66,26 @@ export function publicView(v: GameView): GameView {
       return { ...v, me: null, myVote: null };
     case "tune":
       return { ...v, mine: null };
+    case "king":
+      // who holds which number stays on each phone until its holder steps up for an order
+      return { ...v, myToken: null, pulled: false };
+    case "prompts":
+      return { ...v, mine: null };
+    case "postit": {
+      // a word still on a forehead never reaches the room's screen (its owner reads the TV too)
+      const notes: Record<string, (typeof v.notes)[string]> = {};
+      for (const pid of Object.keys(v.notes)) notes[pid] = v.phase === "end" || v.solved.includes(pid) ? v.notes[pid] : null;
+      return { ...v, myTarget: null, notes };
+    }
+    case "euchre":
+      // nobody's hand: only what's on the table
+      return { ...v, hand: [], legal: [], mySeat: null };
+    case "draw":
+      // the word only at the round's end (the drawer's own phone has it before)
+      return { ...v, word: v.phase === "result" ? v.word : null };
+    case "truth":
+      // (not one phone's, but not the room's yet either: the card is read out at the table first)
+      return { ...v, prompt: null };
     case "punchline":
       return { ...v, mine: [], match: v.match ? { ...v.match, mine: null, myVotes: [], canVote: false, maxVotes: 0 } : null };
     default:

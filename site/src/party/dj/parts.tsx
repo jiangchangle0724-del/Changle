@@ -153,3 +153,80 @@ export function useHeardPhase(dj: { heardSection(): { phase: DjPhase } | null },
   }, [dj, on]);
   return phase;
 }
+
+/* ------------------------------------------------------------------ the dance floor's grid */
+
+/**
+ * The dance floor (the big screen's 1600x900): a grid in perspective, its far side fading into the
+ * dark. It used to be a plane tipped back in 3D with a fade mask; that is a big layer of its own
+ * (about 100 MB on an iPhone playing the speaker, Steve's), so it's drawn here as it looks: the
+ * same grid, worked out once and painted flat, a few kilobytes.
+ */
+const PLANE = {
+  /** the tipped plane: 2080 wide (centred), 430 deep, its near edge 40 below the screen */
+  half: 1040,
+  depth: 430,
+  near: 940,
+  tilt: (64 * Math.PI) / 180,
+  persp: 520,
+  /** a line every 110, 2 wide; the far 65% fading out */
+  every: 110,
+  line: 2,
+  solid: 0.35,
+};
+/** Where a point `back` into the plane lands on the screen, and how much it shrinks there. */
+const onScreen = (back: number) => {
+  const w = 1 + (back * Math.sin(PLANE.tilt)) / PLANE.persp;
+  return { y: PLANE.near - (back * Math.cos(PLANE.tilt)) / w, k: 1 / w };
+};
+const FAR = onScreen(PLANE.depth);
+const GRID = (() => {
+  const r = (x: number) => Math.round(x * 10) / 10;
+  const quads: string[] = [];
+  // across the floor, toward the back
+  for (let x = 0; x <= 2 * PLANE.half - PLANE.line; x += PLANE.every) {
+    const u0 = x - PLANE.half;
+    const u1 = u0 + PLANE.line;
+    quads.push(`${r(800 + u0)},${PLANE.near} ${r(800 + u1)},${PLANE.near} ${r(800 + u1 * FAR.k)},${r(FAR.y)} ${r(800 + u0 * FAR.k)},${r(FAR.y)}`);
+  }
+  // side to side
+  for (let back = 0; back < PLANE.depth; back += PLANE.every) {
+    const a = onScreen(back);
+    const b = onScreen(back + PLANE.line);
+    quads.push(`${r(800 - PLANE.half * a.k)},${r(a.y)} ${r(800 + PLANE.half * a.k)},${r(a.y)} ${r(800 + PLANE.half * b.k)},${r(b.y)} ${r(800 - PLANE.half * b.k)},${r(b.y)}`);
+  }
+  // the fade, as the old mask had it (solid for the nearest 35%, then out), at a few depths
+  const fade = [0, 0.35, 0.5, 0.65, 0.8, 1].map((f) => ({ y: r(onScreen(f * PLANE.depth).y), a: f <= PLANE.solid ? 1 : r(1 - (f - PLANE.solid) / (1 - PLANE.solid)) }));
+  const floor = `${800 - PLANE.half},${PLANE.near} ${800 + PLANE.half},${PLANE.near} ${r(800 + PLANE.half * FAR.k)},${r(FAR.y)} ${r(800 - PLANE.half * FAR.k)},${r(FAR.y)}`;
+  return { quads, fade, floor };
+})();
+
+export function FloorGrid() {
+  const top = Math.floor(FAR.y);
+  return (
+    <svg className="dj-grid" viewBox={`0 ${top} 1600 ${900 - top}`} preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="dj-grid-fade" gradientUnits="userSpaceOnUse" x1="0" y1={PLANE.near} x2="0" y2={FAR.y}>
+          {GRID.fade.map((s, i) => (
+            <stop key={i} offset={(PLANE.near - s.y) / (PLANE.near - FAR.y)} stopColor="#fff" stopOpacity={s.a} />
+          ))}
+        </linearGradient>
+        <mask id="dj-grid-mask" maskUnits="userSpaceOnUse" x="0" y={top} width="1600" height={900 - top}>
+          <rect x="0" y={top} width="1600" height={900 - top} fill="url(#dj-grid-fade)" />
+        </mask>
+        <radialGradient id="dj-grid-floor" gradientUnits="userSpaceOnUse" cx="800" cy={PLANE.near} r={0.7 * 2 * PLANE.half} gradientTransform={`translate(800 ${PLANE.near}) scale(1 ${((PLANE.near - FAR.y) * 0.9) / (0.7 * 2 * PLANE.half)}) translate(-800 -${PLANE.near})`}>
+          <stop offset="0" stopColor="#24103a" />
+          <stop offset="0.75" stopColor="#0b0613" />
+        </radialGradient>
+      </defs>
+      <g mask="url(#dj-grid-mask)">
+        <polygon points={GRID.floor} fill="url(#dj-grid-floor)" />
+        <g className="dj-grid-lines">
+          {GRID.quads.map((q) => (
+            <polygon key={q} points={q} />
+          ))}
+        </g>
+      </g>
+    </svg>
+  );
+}

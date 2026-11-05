@@ -18,6 +18,7 @@ import { NetFreeze } from "../../party/freeze/NetFreeze";
 import { NetLimbo } from "../../party/limbo/NetLimbo";
 import { NetTune } from "../../party/tune/NetTune";
 import { NetEuchre } from "../../party/euchre/NetEuchre";
+import { NetHide } from "../../party/hide/NetHide";
 import { NetTrip } from "../../party/trip/NetTrip";
 import { NetDj } from "../../party/dj/NetDj";
 
@@ -71,6 +72,8 @@ export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void
       return <NetEuchre v={view} onLeave={onLeave} />;
     case "trip":
       return <NetTrip v={view} onLeave={onLeave} />;
+    case "hide":
+      return <NetHide v={view} onLeave={onLeave} />;
     case "dj":
       return <NetDj v={view} onLeave={onLeave} />;
   }

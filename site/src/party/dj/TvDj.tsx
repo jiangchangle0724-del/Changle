@@ -12,7 +12,7 @@ import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
 import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePadEvents } from "./deck/TvDeck";
 import { LocalPanel } from "./local/LocalPanel";
-import { NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
+import { FloorGrid, NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
 import { useBooth } from "./useBooth";
 import { primeVoice, useAnnounce } from "./announce";
@@ -213,7 +213,7 @@ export default function TvDj({ v }: { v: DjView }) {
           <span key={k} style={{ ["--k" as string]: k }} />
         ))}
       </div>
-      <div className="dj-plane" aria-hidden="true" />
+      <FloorGrid />
 
       <header className="dj-head">
         <Wordmark />

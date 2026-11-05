@@ -11,7 +11,7 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 

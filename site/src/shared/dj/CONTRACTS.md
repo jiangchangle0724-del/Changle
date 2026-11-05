@@ -96,14 +96,22 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   the songs asked for, who was most fired up, the perfect drops, whether the sound held up (the
   speaker's `stats`, now in the view as `speaker`); a phone adds the player's own line.
 - **跟着跳, dancing along** (Steve on Nov 2: "电视那边是要玩家进行与舞蹈相匹配的舞蹈"; his plan's 一起跳,
-  `docs/dance-along.md`, easy mode). The TV shows a coach (Name That Tune's performer, `Coach.tsx`)
+  `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`): a 3D robot (`Coach3D.tsx`,
+  three.js loaded only there, a CC0 model in `public/models/robot.glb` with its own dances, each
+  animation stretched to whole beats and set to the speaker's beat every frame), or Name That
+  Tune's drawn performer while it loads, on a phone playing the speaker (under 1000 px wide: the
+  robot would be small, and a phone's page has the least memory), and on a screen with no graphics
+  chip for it (no WebGL, WebGL drawn in software, where three.js isn't even downloaded, or its
+  frames under 20 a second in its first seconds: the robot would take the TV's processor from the
+  music and the page),
   dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
   16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
   the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand
   (`phone/DancePad.tsx`; iOS and newer Chrome ask for the motion sensor on the start tap) reads its
   motion with gravity taken out; a beat is danced when the hand moves at least 2.5 m/s² within
-  150 ms of it (`danced`, the plan's easy mode: you moved, near the beat). The phone says how each
-  beat went, and sends each whole bar it listened to (`dance`). The room keeps every dancer's
+  150 ms of it (`danced`, the plan's easy mode: you moved, near the beat), counted from when the
+  phone is listening (a moment after the tap). The phone says how each beat went, and sends each
+  whole bar it listened to (`dance`). The room keeps every dancer's
   night (beats danced of beats sent, bars, a streak of bars with 3 of 4 or more) and the floor's
   combo: a bar where 70% of those dancing hit 3 of 4 lifts it by an eighth, any other bar drops it a
   quarter; full, the TV sets off fireworks (an `fx` event `dance`) and it starts again. The TV
