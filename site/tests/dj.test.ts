@@ -2,7 +2,7 @@
    Run with `npx tsx tests/dj.test.ts`. The booth's room rules are in engine.test.ts. */
 import { beatOf, beatTime, DANCE_MOVES, danced, moveAt } from "../src/shared/dj/dance";
 import { BY_PHASE, nextSection, renderOrder } from "../src/party/dj/fake/arrange";
-import { FakeDj } from "../src/party/dj/fake/FakeDj";
+import { FakeDj, pack } from "../src/party/dj/fake/FakeDj";
 import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
 import { ALL_SECTIONS, ANY_SECTION, BED, KITS, sectionById, sectionOf } from "../src/party/dj/fake/styles";
@@ -291,6 +291,30 @@ await test("fake DJ: exact sizes, music for every stretch of the night, the peak
   ok(Object.values(BY_PHASE).every((list) => list.length > 0), "every stretch has music");
 });
 
+await test("fake DJ: its recordings kept in 16 bits (half the memory, for a phone playing the speaker): the loudest sample exact, the rest within a 32767th of it, silence silent", () => {
+  const n = 48000;
+  const l = new Float32Array(n);
+  const r = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    l[i] = 0.8 * Math.sin(i / 7);
+    r[i] = -0.5 * Math.sin(i / 11);
+  }
+  l[1234] = -0.95;
+  const k = pack({ id: "x", frames: n - 100, tail: 100, l, r });
+  ok(k.l instanceof Int16Array && k.l.byteLength * 2 === l.byteLength && k.frames === n - 100 && k.tail === 100, "16 bits: half the memory, the same frames");
+  let worst = 0;
+  for (let i = 0; i < n; i++) worst = Math.max(worst, Math.abs((k.l[i] * k.k) / 32767 - l[i]), Math.abs((k.r[i] * k.k) / 32767 - r[i]));
+  ok((k.l[1234] * k.k) / 32767 === l[1234], "the loudest sample exact");
+  ok(worst <= 0.95 / 32767, `the rest within a 32767th of it (${worst.toExponential(2)})`);
+  const z = pack({ id: "z", frames: 10, tail: 0, l: new Float32Array(10), r: new Float32Array(10) });
+  ok(z.l.every((x) => x === 0) && z.r.every((x) => x === 0), "silence stays silent");
+  const into = { l: new Int16Array(n), r: new Int16Array(n) };
+  ok(pack({ id: "y", frames: n, tail: 0, l, r }, into).l === into.l, "kept in a recording that went, when it's the same length");
+});
+
+/** The stand-in keeps its recordings in 16 bits: a sample is within a 30-thousandth of the loudest. */
+const near = (a: number, b: number) => Math.abs(a - b) <= 1e-4 * Math.max(1, Math.abs(b));
+
 /** Sections that sound like their number: the body at n, the ring-out at n / 10 (other styles' from 100). */
 const NUM: Record<string, number> = Object.fromEntries(ALL_SECTIONS.map((s, i) => [s.id, i < SECTIONS.length ? i + 1 : 100 + i]));
 const TAIL = 96000;
@@ -364,11 +388,11 @@ await test("fake DJ: sections in turn on the bar, the ring-out over the next, th
   ok(all().every((x) => x === NUM.warm1), "all of it from the first warm-up section");
   for (let k = 0; k < 80; k++) sp.play(12000);
   let s = all();
-  ok(s[F - 1] === NUM.warm1 && Math.abs(s[F] - (NUM.warm2 + NUM.warm1 / 10)) < 1e-6 && s[F + TAIL] === NUM.warm2, "on the bar: the second section, with the first one's ring-out laid over its start");
+  ok(s[F - 1] === NUM.warm1 && near(s[F], NUM.warm2 + NUM.warm1 / 10) && s[F + TAIL] === NUM.warm2, "on the bar: the second section, with the first one's ring-out laid over its start");
   dj.setPhase("peak");
   for (let k = 0; k < 80; k++) sp.play(12000);
   s = all();
-  ok(s[2 * F - 1] === NUM.warm2 && Math.abs(s[2 * F] - (NUM.peak1 + NUM.warm2 / 10)) < 1e-6, "the peak waits for the end of the phrase, then drops");
+  ok(s[2 * F - 1] === NUM.warm2 && near(s[2 * F], NUM.peak1 + NUM.warm2 / 10), "the peak waits for the end of the phrase, then drops");
   ok(Math.abs(dj.beat() - (sp.played - 0) / 23040) < 1e-9, "the beat clock counts from the stream's first downbeat");
   const before = sp.sent;
   dj.setPhase("end");
@@ -404,14 +428,14 @@ await test("fake DJ: two decks in step: B in its own style on the same bars, a n
   for (let k = 0; k < 80; k++) sp.play(12000);
   const A = flat("chunks");
   const B = flat("chunksB");
-  ok(B[F - 1] === NUM["latin:warm1"] && Math.abs(B[F] - (NUM["techno:warm2"] + NUM["latin:warm1"] / 10)) < 1e-4, "B's new style waits for the next section, with the old one's ring-out over its start");
-  ok(A[F] !== undefined && Math.abs(A[F] - (NUM.warm2 + NUM.warm1 / 10)) < 1e-6, "A carries on as before");
+  ok(B[F - 1] === NUM["latin:warm1"] && near(B[F], NUM["techno:warm2"] + NUM["latin:warm1"] / 10), "B's new style waits for the next section, with the old one's ring-out over its start");
+  ok(A[F] !== undefined && near(A[F], NUM.warm2 + NUM.warm1 / 10), "A carries on as before");
   dj.setDecks("house", null);
   for (let k = 0; k < 80; k++) sp.play(12000);
   const B2 = flat("chunksB");
   const lastB = sp.chunksB[sp.chunksB.length - 1];
   const tailChunk = sp.chunks.findIndex((_, i) => sp.chunks.slice(0, i + 1).reduce((x, c) => x + c.length, 0) > 2 * F);
-  ok(Math.abs(B2[2 * F] - NUM["techno:warm2"] / 10) < 1e-4 && sp.ownB[tailChunk] === false && lastB.length === 0, "B emptied: only its ring-out, under deck A (not B's own music), then no deck B at all");
+  ok(near(B2[2 * F], NUM["techno:warm2"] / 10) && sp.ownB[tailChunk] === false && lastB.length === 0, "B emptied: only its ring-out, under deck A (not B's own music), then no deck B at all");
   ok(dj.beatFrame(8) === 8 * 23040 && dj.decks, "beat 8 is 8 beats into the stream");
   dj.stop();
 });

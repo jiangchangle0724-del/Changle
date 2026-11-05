@@ -109,6 +109,19 @@
   }
 }
 
+/* the dance floor: a grid in perspective, drawn flat (FloorGrid in parts.tsx; its glow on the beat
+   is the sky's). The speaker test page still tips a plane back in 3D (.dj-plane, below). */
+.dj-grid {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 69px;
+  pointer-events: none;
+}
+.dj-grid-lines {
+  fill: color-mix(in oklab, var(--gel) 30%, transparent);
+}
 /* the dance floor: a grid in perspective, drawn once (its glow on the beat is the sky's) */
 .dj-plane {
   position: absolute;
