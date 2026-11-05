@@ -397,9 +397,13 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
           : zh
             ? `「${v.scene?.culprit.zh}」就是 ${culprit?.name ?? "TA"}！`
             : `${culprit?.name ?? "They"} did it!`
-        : zh
-          ? `${culprit?.name ?? "TA"} 骗过了所有人！`
-          : `${culprit?.name ?? "They"} fooled everyone!`;
+        : r.right.length
+          ? zh
+            ? `${culprit?.name ?? "TA"} 骗过了大多数人！`
+            : `${culprit?.name ?? "They"} fooled most of the room!`
+          : zh
+            ? `${culprit?.name ?? "TA"} 骗过了所有人！`
+            : `${culprit?.name ?? "They"} fooled everyone!`;
   return (
     <div className="tvd-verdict" data-step={step}>
       {step === 0 ? <p className="tvd-drum">{zh ? "真相是……" : "And the truth is…"}</p> : <h2 className={`tvd-headline ${r.caught ? "is-caught" : ""}`}>{headline}</h2>}

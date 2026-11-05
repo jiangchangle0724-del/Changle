@@ -716,9 +716,13 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
           : zh
             ? `「${v.scene?.culprit.zh}」就是 ${culpritActor?.name ?? "TA"}！`
             : `${culpritActor?.name ?? "They"} did it!`
-        : zh
-          ? `${culpritActor?.name ?? "TA"} 骗过了所有人！`
-          : `${culpritActor?.name ?? "They"} fooled everyone!`;
+        : r.right.length
+          ? zh
+            ? `${culpritActor?.name ?? "TA"} 骗过了大多数人！`
+            : `${culpritActor?.name ?? "They"} fooled most of you!`
+          : zh
+            ? `${culpritActor?.name ?? "TA"} 骗过了所有人！`
+            : `${culpritActor?.name ?? "They"} fooled everyone!`;
   return (
     <div className="dm-reveal">
       <canvas className="dm-confetti" ref={canvas} aria-hidden="true" />
