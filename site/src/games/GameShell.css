@@ -74,6 +74,26 @@
   grid-column: 1 / -1;
 }
 
+/* 这局还在，回来继续？ (Resume.tsx): the question in the middle, the two answers by the thumb */
+.game-resume-body {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  text-align: center;
+}
+.game-resume-body h2 {
+  margin: 0;
+  font: 800 var(--text-xl) / var(--leading-tight) var(--font-display);
+  text-wrap: balance;
+}
+.game-resume-body p {
+  margin: 0;
+  color: var(--color-text-2);
+  line-height: var(--leading);
+}
+
 /* a phone on its side (see styles/landscape.css): the bar is shorter and says the name in one
    language, as the old one did, so a big picture on the left still starts 46px down; beside that
    picture, tonight's people and the buttons keep to the right-hand column */

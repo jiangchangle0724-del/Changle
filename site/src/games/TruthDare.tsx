@@ -7,6 +7,7 @@ import { useSpinSound } from "../lib/useSpinSound";
 import { useTurntable } from "../lib/useTurntable";
 import { DARES, promptText, TRUTHS, type Heat, type Prompt } from "../data/truthDare";
 import { GameShell, usePenalty } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { Cloche } from "../components/Cloche";
 import { DareTimer } from "../components/DareTimer";
 import { durationOf } from "../lib/duration";
@@ -16,25 +17,50 @@ import { UI } from "../i18n";
 
 type Phase = "spin" | "choose" | "card";
 
+/** What a game under way keeps on the phone, to pick up after a reload: the heat, the card on the table, the cards still to come. */
+type Kept = { heat: Heat; phase: Phase; kind: "truth" | "dare"; prompt: Prompt | null; chosen: number | null; truths: number[]; dares: number[] };
+
+const deckOf = (source: readonly Prompt[], heat: Heat, kept?: number[]) => {
+  const deck = new Deck(source.filter((p) => p.heat <= heat));
+  if (kept) deck.restore(kept);
+  return deck;
+};
+
 export function TruthDare({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="truth" version={1}>
+      {(saved) => <TruthDareGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function TruthDareGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang, sound } = useStore();
-  const [heat, setHeat] = useState<Heat>(1);
-  const [phase, setPhase] = useState<Phase>("spin");
-  const [kind, setKind] = useState<"truth" | "dare">("truth");
-  const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const [heat, setHeat] = useState<Heat>(saved?.heat ?? 1);
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? "spin");
+  const [kind, setKind] = useState<"truth" | "dare">(saved?.kind ?? "truth");
+  const [prompt, setPrompt] = useState<Prompt | null>(saved?.prompt ?? null);
   const [lidOpen, setLidOpen] = useState(false);
-  const [chosen, setChosen] = useState<number | null>(null);
+  const [chosen, setChosen] = useState<number | null>(saved?.chosen ?? null);
   /** each card drawn gets a fresh countdown */
   const [drawn, setDrawn] = useState(0);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
 
-  const truthDeck = useRef(new Deck(TRUTHS.filter((p) => p.heat <= heat)));
-  const dareDeck = useRef(new Deck(DARES.filter((p) => p.heat <= heat)));
+  const [firstDecks] = useState(() => [deckOf(TRUTHS, heat, saved?.truths), deckOf(DARES, heat, saved?.dares)] as const);
+  const truthDeck = useRef(firstDecks[0]);
+  const dareDeck = useRef(firstDecks[1]);
+  // a new heat, new decks (the first ones already fit, kept ones included)
+  const decksHeat = useRef(heat);
   useEffect(() => {
+    if (decksHeat.current === heat) return;
+    decksHeat.current = heat;
     truthDeck.current = new Deck(TRUTHS.filter((p) => p.heat <= heat));
     dareDeck.current = new Deck(DARES.filter((p) => p.heat <= heat));
   }, [heat]);
+  // kept from the first spin on (the game has no end: leaving from the tally drops it)
+  const [played, setPlayed] = useState(!!saved);
+  useKeepProgress<Kept>({ heat, phase, kind, prompt, chosen, truths: truthDeck.current.keep(), dares: dareDeck.current.keep() }, played);
 
   const table = useTurntable({
     count: players.length,
@@ -44,6 +70,7 @@ export function TruthDare({ onBack }: { onBack: () => void }) {
       haptic(5);
     },
     onSettle: (i) => {
+      setPlayed(true);
       setChosen(i);
       setPhase("choose");
       if (sound) {

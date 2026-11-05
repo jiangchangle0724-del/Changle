@@ -11,6 +11,8 @@ import { RosterChip } from "../ui/RosterChip";
 import type { GameHeaderProps } from "../ui/types";
 import { useGameRun } from "./GameRun";
 import { GameTally } from "./GameTally";
+import { useKeeping } from "./Resume";
+import { clearSaved, writeSavedDots } from "./saved";
 import "../ui/base.css";
 import "./GameShell.css";
 
@@ -73,9 +75,11 @@ export function GameShell({
   const { ui, lang, sound, setSound, players } = useStore();
   const [rulesOpen, setRulesOpen] = useState(false);
   const run = useGameRun();
+  // a game that keeps its progress (Resume.tsx): the penalty count goes with it, and comes back with it
+  const keeping = useKeeping();
 
   // under way: someone's turn, a round, or a penalty so far; from then on leaving asks first
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(!!keeping?.dots);
   const going = !!penalty || !!roster?.turn || !!status;
   useEffect(() => {
     if (going) setStarted(true);
@@ -86,13 +90,21 @@ export function GameShell({
   useBackGuard(started && !tallyOpen && !leaving, () => setTallyOpen(true));
   // the phone's back on a stamp is its Continue, like Esc
   useBackCloses(!!penalty, onPenaltyDone);
+  // leaving or starting over from the tally: what the game kept goes too (nothing to come back to)
   const leave = () => {
     setLeaving(true);
+    if (keeping) clearSaved(keeping.game);
     onBack();
   };
+  const again = run
+    ? () => {
+        if (keeping) clearSaved(keeping.game);
+        run.restart();
+      }
+    : undefined;
 
   // the penalties so far, counted from the stamps this game showed (the people row's dots, the tally)
-  const [dots, setDots] = useState<Record<string, number>>({});
+  const [dots, setDots] = useState<Record<string, number>>(() => keeping?.dots ?? {});
   useEffect(() => {
     if (!penalty) return;
     const names = penalty.who.length ? penalty.who : players.map((p) => p.name);
@@ -101,6 +113,9 @@ export function GameShell({
     // counted once per stamp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [penalty]);
+  useEffect(() => {
+    if (keeping && Object.keys(dots).length) writeSavedDots(keeping.game, dots);
+  }, [keeping, dots]);
 
   // the row scrolls sideways when the table is long: bring whoever's turn it is into the middle
   const rosterRow = useRef<HTMLDivElement>(null);
@@ -149,20 +164,20 @@ export function GameShell({
         </div>
         <div className="rules-text">{rules}</div>
       </Sheet>
-      <GameTally open={tallyOpen} dots={dots} gel={run?.gel} onKeep={() => setTallyOpen(false)} onAgain={run?.restart} onLeave={leave} />
+      <GameTally open={tallyOpen} dots={dots} gel={run?.gel} onKeep={() => setTallyOpen(false)} onAgain={again} onLeave={leave} />
       <PenaltyStamp call={penalty} onDone={onPenaltyDone} />
     </div>
     </MotionConfig>
   );
 }
 
-/** Rotate through players for "whose turn" games. */
-export function useTurnOrder() {
+/** Rotate through players for "whose turn" games; `start` is whose turn it was in a game kept for later. */
+export function useTurnOrder(start = 0) {
   const { players } = useStore();
   // `n` counts the turns taken, so each turn passes once: a second tap on a button that is already
   // leaving the screen (a quick double tap, or the old screen still fading out) calls next() from
   // the turn that has already ended, and must not skip the next player.
-  const [turn, setTurn] = useState({ i: 0, n: 0 });
+  const [turn, setTurn] = useState({ i: start, n: 0 });
   const len = Math.max(1, players.length);
   const i = turn.i;
   const current = players[i % len];
