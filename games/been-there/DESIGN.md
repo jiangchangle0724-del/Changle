@@ -139,13 +139,15 @@ Each of these was measured or is tested. Check them again after a change.
    computer, on their own turn) it waits until that turn is over: the person is asked about the city
    they've just been to, while the computer teams move. On one phone for every team it never comes
    up over a move: between two turns, before the next team throws, or while a computer team moves.
-   It waits as long as its team still stands on that city.
    **It never covers what the landing asks of the table.** It waits for the team to decide whether to
    buy, and for an auction, a vote or Rio's dance and scores; after one the waiting teams took part in,
    it leaves them 4.5 s to see how it came out. One that had to wait doesn't come up over another
-   team's move either: 4.5 s after the throw at the soonest. First come: a newer landing doesn't
-   take its place (where teams play fast, taking it over each time would put it off for good), only
-   one that is waiting for someone to answer it.
+   team's move either: 4.5 s after the throw at the soonest.
+   **First come.** Once a landing has brought a question, it keeps it until it comes up, even when
+   that team moves on (doubles, a card, Immigration) or others land meanwhile: it's about the city
+   the team has just been to. Taking it over with each newer landing would start its wait again
+   each time, and where teams play fast it never came. Only one waiting for someone to answer it
+   gives way to a newer landing.
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
    wear their letter too).

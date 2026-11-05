@@ -1020,13 +1020,8 @@ export class Room {
       g.triviaTurn = s.turns;
       if (g.trivia && !g.trivia.closed) this.joinTrivia(g.trivia);
     }
-    // A landing on a city may bring the waiting teams a question about it. If the team then moves on
-    // before the question is up (doubles, a card, a tango), the question follows it: the one on its
-    // way for the city it left is dropped.
-    if (!s.over && landed !== undefined) {
-      if (g.triviaDue?.seat === s.turn) g.triviaDue = null;
-      if (landed) this.landedOn(landed, firstVisit);
-    }
+    // A landing on a city may bring the waiting teams a question about it (see landedOn).
+    if (!s.over && landed) this.landedOn(landed, firstVisit);
     // What a landing asks of the table comes before its question. When teams that are waiting have a
     // part in it (an auction, a vote, Rio's dance to watch and score), the question also leaves them
     // time to see how it came out, once the game is back to a team ending its turn or about to throw.
@@ -1202,10 +1197,12 @@ export class Room {
    * and stamped the landing (so the question doesn't say where the token is going), and after the
    * landing scene of a team's first visit, which a big screen plays for everyone.
    *
-   * One for an earlier landing, on its way or waiting for the table, keeps its place: first come. (A
-   * newer landing taking it over would put the question off again each time: where teams play fast,
-   * it would never come.) Only one that waits for someone to answer it gives way to this landing:
-   * by the time someone can, this is the city a team has just landed on.
+   * One for an earlier landing, on its way or waiting for the table, keeps its place: first come,
+   * even when its own team has moved on since (doubles, a card, Immigration): it's about the city
+   * that team has just been to. (A newer landing taking it over would put the question off again
+   * each time: where teams play fast, it would never come.) Only one that waits for someone to
+   * answer it gives way to this landing: by the time someone can, this is the city a team has just
+   * landed on.
    */
   private landedOn(city: string, firstVisit = false) {
     const g = this.st.game!;
@@ -1228,12 +1225,9 @@ export class Room {
    * Someone there: with nobody (only computer teams are waiting: a person playing against the
    * computer is on their own turn; or the people's phones have gone) it waits, and comes up when
    * there is: when that turn is over, most often, so a person alone is asked about the city they
-   * have just been to. Meanwhile a newer landing takes its place (see landedOn). On one phone for every team (the one-phone demo) the phone is busy with the
-   * move of the people on turn, so there it comes up between two turns, before the next team has
-   * thrown, or while a computer team moves.
-   *
-   * It waits as long as its team stands on that city: a team that has left it (sent on by another
-   * team's landing, say) takes its question away.
+   * have just been to. Meanwhile a newer landing takes its place (see landedOn). On one phone for
+   * every team (the one-phone demo) the phone is busy with the move of the people on turn, so there
+   * it comes up between two turns, before the next team has thrown, or while a computer team moves.
    */
   private dueTrivia(): boolean {
     const g = this.st.game!;
@@ -1245,8 +1239,6 @@ export class Room {
       this.dirty = true;
       return false;
     };
-    const there = E.BOARD[s.ps[due.seat].pos];
-    if (s.ps[due.seat].out || there.k !== "city" || there.id !== due.city) return drop();
     // (afterMove calls again when what the table is busy with is settled)
     if (this.busy(s)) return false;
     const people = !this.teamAt(s.turn)?.bot;
