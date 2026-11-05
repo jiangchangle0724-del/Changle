@@ -65,46 +65,108 @@ export class DeckFx {
     return true;
   }
 
-  /** The air horn: two short blasts and a long one, on the eighths. */
+  /**
+   * The air horn, the club's three blasts on the eighths (bwap, bwap, bwaaap; Steve on Nov 2:
+   * "airhorn blasts"): a two-tone can horn (two reeds a major third apart, each three saws a hair
+   * apart, fighting the air in a slow wobble) driven hard through the horn's brassy bands, with a
+   * rush of air at each blast. Each bends up into its note; the long one sags as the can runs out.
+   */
   horn(at: number, beat: number) {
     if (at < this.hornUntil) return false;
     const c = this.ctx;
+    const blasts: [number, number][] = [
+      [0, 0.3],
+      [0.5, 0.3],
+      [1, 1.6],
+    ];
+    const end = at + 2.6 * beat;
     const shaper = c.createWaveShaper();
-    shaper.curve = drive(2.2);
-    const bp = c.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 1250;
-    bp.Q.value = 0.55;
+    shaper.curve = drive(3.2);
+    const low = c.createBiquadFilter();
+    low.type = "highpass";
+    low.frequency.value = 220;
+    const nose = c.createBiquadFilter();
+    nose.type = "peaking";
+    nose.frequency.value = 1650;
+    nose.Q.value = 1.1;
+    nose.gain.value = 7;
+    const bite = c.createBiquadFilter();
+    bite.type = "peaking";
+    bite.frequency.value = 3100;
+    bite.Q.value = 1.4;
+    bite.gain.value = 4;
+    const top = c.createBiquadFilter();
+    top.type = "lowpass";
+    top.frequency.value = 7200;
     const g = c.createGain();
     g.gain.value = 0;
-    shaper.connect(bp).connect(g).connect(this.sp.fxNodes.synth);
-    const end = at + 2.4 * beat;
-    for (const f of [440, 443.2, 881.1]) {
-      const o = c.createOscillator();
-      o.type = "sawtooth";
-      // each blast bends up into its note (the "bwah"), and the last sags as the air runs out
-      for (const b of [0, 0.5, 1]) {
-        o.frequency.setValueAtTime(f * 0.84, at + b * beat);
-        o.frequency.exponentialRampToValueAtTime(f, at + b * beat + 0.035);
+    shaper.connect(low).connect(nose).connect(bite).connect(top).connect(g).connect(this.sp.fxNodes.synth);
+    const wob = c.createOscillator();
+    wob.frequency.value = 5.5;
+    const wobHz = c.createGain();
+    wobHz.gain.value = 3;
+    wob.connect(wobHz);
+    const reeds: [number, number][] = [
+      [440, 1],
+      [554.37, 0.55],
+    ];
+    for (const [f0, level] of reeds)
+      for (const cents of [-7, 0, 7]) {
+        const f = f0 * Math.pow(2, cents / 1200);
+        const o = c.createOscillator();
+        o.type = "sawtooth";
+        for (const [b, len] of blasts) {
+          const t0 = at + b * beat;
+          const t1 = t0 + len * beat;
+          o.frequency.setValueAtTime(f * 0.82, t0);
+          o.frequency.exponentialRampToValueAtTime(f, t0 + 0.06);
+          if (len > 1) {
+            o.frequency.setValueAtTime(f, t1 - 0.45 * len * beat);
+            o.frequency.linearRampToValueAtTime(f * 0.955, t1);
+          }
+        }
+        wobHz.connect(o.frequency);
+        const v = c.createGain();
+        v.gain.value = level / 3;
+        o.connect(v).connect(shaper);
+        o.start(at);
+        o.stop(end + 0.05);
       }
-      o.frequency.setValueAtTime(f, at + 1.5 * beat);
-      o.frequency.linearRampToValueAtTime(f * 0.94, end);
-      o.connect(shaper);
-      o.start(at);
-      o.stop(end + 0.05);
+    wob.start(at);
+    wob.stop(end + 0.05);
+    // the air: a hiss in the horn's band, loudest as each blast starts
+    const n = Math.ceil((end - at + 0.1) * c.sampleRate);
+    const buf = c.createBuffer(1, n, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let seed = 7;
+    for (let i = 0; i < n; i++) {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      d[i] = (seed / 4294967296) * 2 - 1;
     }
-    for (const [b, len] of [
-      [0, 0.38],
-      [0.5, 0.38],
-      [1, 1.25],
-    ]) {
+    const air = c.createBufferSource();
+    air.buffer = buf;
+    const band = c.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 2600;
+    band.Q.value = 0.9;
+    const airG = c.createGain();
+    airG.gain.value = 0;
+    air.connect(band).connect(airG).connect(g);
+    for (const [b, len] of blasts) {
       const t0 = at + b * beat;
       const t1 = t0 + len * beat;
       g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(0.17, t0 + 0.012);
-      g.gain.setValueAtTime(0.17, Math.max(t0 + 0.013, t1 - 0.035));
+      g.gain.linearRampToValueAtTime(0.24, t0 + 0.012);
+      g.gain.linearRampToValueAtTime(0.2, t0 + 0.09);
+      g.gain.setValueAtTime(0.2, Math.max(t0 + 0.091, t1 - 0.04));
       g.gain.linearRampToValueAtTime(0, t1);
+      airG.gain.setValueAtTime(0.5, t0);
+      airG.gain.exponentialRampToValueAtTime(0.12, t0 + 0.08);
+      airG.gain.setValueAtTime(0.12, Math.max(t0 + 0.081, t1 - 0.04));
+      airG.gain.linearRampToValueAtTime(0, t1);
     }
+    air.start(at);
+    air.stop(end + 0.05);
     this.hornUntil = end;
     window.setTimeout(() => g.disconnect(), (end - c.currentTime + 1) * 1000);
     return true;
@@ -166,8 +228,9 @@ export class DeckFx {
     const g = c.createGain();
     g.gain.value = 0;
     g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(0.07, at + 0.02);
-    g.gain.setValueAtTime(0.07, end - 0.08);
+    // (loud enough to call the floor over the music, or over a whole song)
+    g.gain.linearRampToValueAtTime(0.35, at + 0.02);
+    g.gain.setValueAtTime(0.35, end - 0.08);
     g.gain.linearRampToValueAtTime(0, end);
     o.connect(lp).connect(g).connect(this.sp.fxNodes.synth);
     for (const x of [o, lfo]) {
@@ -196,7 +259,7 @@ export class DeckFx {
       o.frequency.exponentialRampToValueAtTime(180, t0 + len);
       const e = c.createGain();
       e.gain.setValueAtTime(0, t0);
-      e.gain.linearRampToValueAtTime(0.09, t0 + 0.004);
+      e.gain.linearRampToValueAtTime(0.6, t0 + 0.004);
       e.gain.exponentialRampToValueAtTime(0.001, t0 + len);
       o.connect(e).connect(bp);
       o.start(t0);

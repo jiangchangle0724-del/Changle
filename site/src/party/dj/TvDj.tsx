@@ -16,6 +16,7 @@ import { NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
 import { useBooth } from "./useBooth";
 import { primeVoice, useAnnounce } from "./announce";
+import { useWakeLock } from "../sensors";
 import { Coach } from "./Coach";
 import { TubePlayer } from "./TubePlayer";
 import { danceShare } from "../../shared/dj/dance";
@@ -269,6 +270,7 @@ export default function TvDj({ v }: { v: DjView }) {
       </footer>
 
       <div className="dj-flash" aria-hidden="true" />
+      <KeepAwake on={live && v.phase !== "end"} />
 
       {silent && live && v.phase !== "wait" && (
         <div className="dj-buffer" role="status">
@@ -341,6 +343,26 @@ function JoinCard({ code, big }: { code: string; big: boolean }) {
       </span>
     </div>
   );
+}
+
+/**
+ * The screen stays on while it's the speaker: a tablet or a TV that dims and goes to sleep stops the
+ * music, and often reloads the page when it wakes (Steve on Nov 2: "Dj这个我经常闪退", on a TV or
+ * tablet's own browser). Where the browser can't be asked to (an older tablet or TV), a tiny silent
+ * video playing keeps it awake instead.
+ */
+function KeepAwake({ on }: { on: boolean }) {
+  useWakeLock(on);
+  const asks = typeof navigator !== "undefined" && "wakeLock" in navigator;
+  const vid = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = vid.current;
+    if (!el || !on) return;
+    void el.play().catch(() => {});
+    return () => el.pause();
+  }, [on]);
+  if (asks) return null;
+  return <video ref={vid} className="dj-awake" src="/media/awake.mp4" muted loop playsInline aria-hidden="true" />;
 }
 
 /** Before any sound: one tap turns this screen into the speaker. */
