@@ -6,6 +6,7 @@ import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
 import type { Dancer } from "./dj/dance";
 import type { CrateSong, DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
+import type { LcColor, LcPending } from "./lastcard/cards";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -30,12 +31,13 @@ export type GameId =
   | "draw"
   | "trip"
   | "dj"
-  | "hide";
+  | "hide"
+  | "lastcard";
 /**
  * Every game, in the same spectrum order as the front door's board. New games that aren't on the
  * board yet go on the end (a table's `front` is an index into this list).
  */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide"];
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
   drama: 3,
@@ -56,6 +58,7 @@ export const ONLINE_MIN: Record<GameId, number> = {
   trip: 1,
   dj: 1,
   hide: 2,
+  lastcard: 2,
 };
 
 export type PenaltyKind = "sip" | "two" | "full" | "everyone" | "safe";
@@ -491,6 +494,79 @@ export type EuchreView = {
 };
 
 /**
+ * 最后一张 · Last Card: what just happened at the table, newest last (`i` counts up). Only cards that
+ * went face up on the pile are named; a card drawn stays unnamed to everyone.
+ */
+export type LcLog =
+  | { i: number; k: "deal"; n: number }
+  | { i: number; k: "play"; p: string; c: number; col?: LcColor }
+  | { i: number; k: "draw"; p: string }
+  | { i: number; k: "keep"; p: string }
+  | { i: number; k: "pass"; p: string }
+  | { i: number; k: "take"; p: string; n: number }
+  | { i: number; k: "skip"; p: string }
+  | { i: number; k: "rev"; d: 1 | -1 }
+  | { i: number; k: "call"; p: string }
+  | { i: number; k: "catch"; p: string; by: string }
+  | { i: number; k: "auto"; p: string }
+  | { i: number; k: "win"; p: string }
+  | { i: number; k: "shuffle" };
+
+/**
+ * 最后一张 · Last Card (rules: shared/engine/games/lastcard.ts, cards: shared/lastcard/cards.ts). A
+ * hand is secret: `hand`, `legal` and `drawn` are this phone's own and empty for everyone else, the
+ * big screen included; the table sees only how many cards each player holds.
+ */
+export type LastCardView = {
+  id: "lastcard";
+  /** setup: the host picks the house rules and deals; play; round: someone went out; end: the match is won */
+  phase: "setup" | "play" | "round" | "end";
+  /** stacking: a +2 answers a +2 and a +4 a +4, and whoever can't takes the lot */
+  stack: boolean;
+  /** rounds to win the match; 0 is no target (just play rounds) */
+  target: number;
+  /** this round's number (0 before the first deal) */
+  round: number;
+  /** who is in this round, in turn order (in setup: who the deal would take, 10 at most) */
+  order: string[];
+  /** cards each player holds */
+  counts: Record<string, number>;
+  /** this phone's own cards, sorted; empty for anyone not in the round */
+  hand: number[];
+  /** which of `hand` may be played now (only on this phone's turn) */
+  legal: number[];
+  /** the card this phone just drew and may still play (only to its owner, on its turn) */
+  drawn: number | null;
+  /** the face-up card on the pile, and the colour in force (a wild's is the one picked) */
+  top: number | null;
+  color: LcColor | null;
+  /** whose turn it is, during play */
+  turn: string | null;
+  /** the way play goes round `order`: 1 forward, -1 back */
+  dir: 1 | -1;
+  /** cards left in the draw pile, and how many are on the discard pile */
+  pile: number;
+  under: number;
+  /** stacking: the cards the player on turn takes unless they answer with another of `pendingKind` */
+  pending: number;
+  pendingKind: LcPending;
+  /** called last card: safe at one card */
+  called: string[];
+  /** down to one card without calling: anyone else can catch them until the next player moves */
+  open: string | null;
+  /** counts the turns: a phone's move names the turn it was made on, so a late or doubled tap lands nowhere */
+  tn: number;
+  log: LcLog[];
+  /** rounds won, by player */
+  wins: Record<string, number>;
+  /** who went out this round; who won the match */
+  winner: string | null;
+  champ: string | null;
+  /** at a round's end: who was left holding the most cards (they drink) */
+  most: string[];
+};
+
+/**
  * 到此一游 runs on its own server at changle.ca/trip. The table only knows the room there: the host's
  * phone opens it, and every phone and the big screen follow (no secrets, so the big screen sees it too).
  */
@@ -661,7 +737,8 @@ export type GameView =
   | FreezeView
   | LimboView
   | TuneView
-  | EuchreView;
+  | EuchreView
+  | LastCardView;
 
 export type RoomView = {
   code: string;

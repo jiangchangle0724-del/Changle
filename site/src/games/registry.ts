@@ -1,7 +1,8 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, GalleryHorizontalEnd, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import { UsersRound } from "lucide-react";
 import type { T } from "../i18n";
+import { LC_CALL, LC_NAME } from "../shared/lastcard/name";
 import type { Category } from "../ui/types";
 
 export type GameId =
@@ -24,7 +25,8 @@ export type GameId =
   | "draw"
   | "trip"
   | "dj"
-  | "hide";
+  | "hide"
+  | "lastcard";
 
 export type GameMeta = {
   id: GameId;
@@ -70,6 +72,10 @@ export type GameMeta = {
 };
 
 const t = (zh: string, en: string): T => ({ zh, en });
+
+/** 最后一张's how-to: one text, its last words the table's penalty (kept short: the home page carries it). */
+const lcHow = (zh: string, en: string) =>
+  t(`每人 7 张，跟颜色、数字或符号出牌，出不了就摸。剩一张要喊「${LC_CALL.zh}」，没喊被抓到摸 2 张。先出完的赢，剩牌最多的${zh}。`, `Seven cards each: match the colour, number or symbol, or draw. Call it at one card, or draw 2 if caught. First out wins; most cards left ${en}.`);
 
 /** In spectrum order: the grid reads as one sweep of stage light. */
 export const GAMES: GameMeta[] = [
@@ -422,6 +428,26 @@ export const GAMES: GameMeta[] = [
     ready: true,
     newUntil: "2026-12-03",
     solo: { min: 0, hint: t("一台手机：和三个电脑对手练手", "One phone: practise against three computer rivals") },
+  },
+  // 最后一张: new (2026-11-05), online only, hidden until Steve has played a round. Its name lives in
+  // shared/lastcard/name.ts; /g/last-card/play opens a table for it (party/lastcard/Start.tsx)
+  {
+    id: "lastcard",
+    slug: "last-card",
+    name: LC_NAME,
+    blurb: t("跟色跟数，出光就赢", "Match it, shed it, win."),
+    how: lcHow("喝一口", "drinks"),
+    howCustom: lcHow("受罚", "takes the penalty"),
+    minPlayers: 2,
+    maxPlayers: 10,
+    gel: "#d36cff",
+    icon: GalleryHorizontalEnd,
+    category: "online",
+    minutes: 15,
+    ready: true,
+    hidden: true,
+    newUntil: "2026-12-20",
+    solo: { min: 0, hint: t("只能联机", "Online only") },
   },
 ];
 

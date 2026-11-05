@@ -33,6 +33,8 @@ const Tune = lazy(() => import("./party/tune/Tune").then((m) => ({ default: m.Tu
 const Euchre = lazy(() => import("./party/euchre/Euchre").then((m) => ({ default: m.Euchre })));
 const TripSolo = lazy(() => import("./party/trip/TripSolo").then((m) => ({ default: m.TripSolo })));
 const HideSolo = lazy(() => import("./party/hide/HideSolo").then((m) => ({ default: m.HideSolo })));
+// 最后一张 plays only online: its own address opens a table for it
+const LastCardStart = lazy(() => import("./party/lastcard/Start").then((m) => ({ default: m.LastCardStart })));
 // the big screen (a TV or computer showing a table) lives outside the phone frame
 const TvApp = lazy(() => import("./tv/TvApp").then((m) => ({ default: m.TvApp })));
 const DjTestPage = lazy(() => import("./party/dj/TestPage").then((m) => ({ default: m.DjTestPage })));
@@ -220,6 +222,9 @@ function Shell() {
         break;
       case "hide":
         screen = <HideSolo onBack={back} />;
+        break;
+      case "lastcard":
+        screen = <LastCardStart onBack={back} />;
         break;
       default:
         screen = null;
