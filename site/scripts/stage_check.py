@@ -161,8 +161,10 @@ def main():
         loaded = a.evaluate("[...document.querySelectorAll('.tn-crew .fig-img')].every(i => i.complete && i.naturalWidth > 0)")
         check(loaded, "the figures' cut-outs load")
         a.screenshot(path=f"{OUT}/1-row.png")
-        dpage.wait_for_selector(".watch-strip", timeout=6000)
-        check(dpage.locator(".buzz").count() == 0 or dpage.locator(".buzz.is-locked").count() >= 0, "the watcher's phone shows the game with a watching strip")
+        # (a phone that only watches shows the big screen's own view of the game, full screen: src/tv/Watch.tsx)
+        dpage.wait_for_selector(".watch .tvx", timeout=8000)
+        dpage.wait_for_timeout(1500)
+        check(dpage.locator(".watch .tn-stage .tn-mate").count() == 3 and dpage.locator(".buzz").count() == 0, "the watcher's phone shows the big screen's view: the three on the stage, no buzzer")
         dpage.screenshot(path=f"{OUT}/watcher.png")
 
         # Ben buzzes in: up into the spotlight
