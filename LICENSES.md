@@ -41,3 +41,19 @@ game mechanic is not protected; names, card texts and art are. So (2026-11-02, t
   BY-SA). The source link is a citation, not a licence.
 * The card bank lives in `site/src/data/straightface.ts`; the rules that keep it this way are
   enforced by `site/src/shared/straightface/cards.ts` and `docs/codex-tasks/straightface/C1-cards.md`.
+
+# 打碟 · DJ Booth: two skills for the assistant (not the site)
+
+Instructions an AI assistant reads while it works on the booth's sound (Nov 5; Steve asked for DJ and
+music skills to be found and put in). They sit in `site/src/party/dj/.claude/skills/`, each with its
+own licence file beside it, copied as published with nothing changed. The site never loads them and
+no player sees them.
+
+| Skill | Where it's from | Terms |
+|---|---|---|
+| `audio-design`: buses, ducking, adaptive music, varied repeats, beat sync | [gamedev-skills/awesome-gamedev-agent-skills](https://github.com/gamedev-skills/awesome-gamedev-agent-skills), `skills/disciplines/audio-design` (commit `19d93f9`, Oct 28 2026) | Apache License 2.0, © 2026 Abhishek Barali and the awesome-gamedev-agent-skills contributors |
+| `ui-sound-design`: sounds made with Web Audio, a rulebook, recipes and a sound analyser | [dannyjpwilliams/ui-sound-design-skill](https://github.com/dannyjpwilliams/ui-sound-design-skill), `skills/ui-sound-design` (commit `6cb4be4`, Apr 8 2026) | MIT, © 2026 Danny Williams |
+
+* The analyser (`ui-sound-design/tools/analyze-sound.mjs`) runs on the assistant's own computer only,
+  on a sound file it's given, and calls `ffmpeg` for anything but a WAV; its preview page
+  (`assets/sound-preview.html`) loads Google's fonts when opened. Neither is part of the site.
