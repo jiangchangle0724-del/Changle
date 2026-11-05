@@ -5,6 +5,7 @@ import { PlayerPicker } from "../../components/PlayerPicker";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import { useCue, useRoom } from "../RoomContext";
+import { usePlayers } from "../players";
 import { Figure } from "../../components/Figure";
 
 /** Whose move it is, said in words: your own name never appears, "your turn" does. */
@@ -87,8 +88,8 @@ export function SeatPicker({
   onPick: (pid: string) => void;
   tone?: "lacquer" | "porcelain";
 }) {
-  const { room } = useRoom();
-  const seats = (room?.seats ?? []).filter((s) => !only || only.includes(s.id));
+  // (players only: someone just watching is never picked or voted for)
+  const seats = usePlayers().filter((s) => !only || only.includes(s.id));
   return <PlayerPicker players={seats} exclude={exclude} selected={selected} tone={tone} onPick={(p) => onPick(p.id)} />;
 }
 

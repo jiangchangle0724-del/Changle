@@ -488,6 +488,9 @@ export class RoomEngine {
   private gameAct(pid: string, g: { x: string; [k: string]: unknown }) {
     const gd = this.gameDef();
     if (!gd || !this.d.game) return;
+    // someone just watching makes no moves in the game (no vote, answer, guess or grab); a host
+    // who watches still runs the table (skip, next, reveal...)
+    if (pid !== this.d.host && this.d.seats.some((s) => s.id === pid && s.watch)) return;
     this.lightAct = false;
     this.quietAct = false;
     gd.def.act(this.d.game.s, pid, g, this.api());
@@ -730,7 +733,8 @@ export class RoomEngine {
         return b;
       },
       ids,
-      has: (pid: string) => this.d.seats.some((s) => s.id === pid),
+      // (a player, as in ids(): someone just watching is never picked, voted for or waited on)
+      has: (pid: string) => this.players().some((s) => s.id === pid),
       online: (pid: string) => this.d.seats.some((s) => s.id === pid && s.on),
       isHost: (pid: string) => pid === this.d.host,
       isOwner: (pid: string) => this.d.seats.some((s) => s.id === pid && !!s.owner),

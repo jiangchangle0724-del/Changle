@@ -10,6 +10,7 @@ import type { KingView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
+import { useWatching } from "../players";
 import { HostButton, HostRow, SeatPicker, useYourTurn, Waiting } from "./common";
 import { Moment } from "../../components/Figure";
 
@@ -19,6 +20,8 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
   const { ui, tr, lang } = useStore();
   const pen = usePenaltyText();
   const inRound = v.inRound.includes(me);
+  // (just watching: no stick this round, nor the next)
+  const watching = useWatching();
   const amKing = v.king === me;
   const ready = v.ready.includes(me);
   useYourTurn(v.phase === "crown" && amKing);
@@ -108,9 +111,11 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
           <motion.div key={`deal-${v.round}`} className="stack" style={{ gap: 12 }} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
             <p className="hint" style={{ textAlign: "center" }}>
               {!inRound
-                ? lang === "zh"
-                  ? "这一轮发签时你还没入座，下一轮带上你"
-                  : "You sat down after this round was dealt. Next round."
+                ? watching
+                  ? "\u00a0"
+                  : lang === "zh"
+                    ? "这一轮发签时你还没入座，下一轮带上你"
+                    : "You sat down after this round was dealt. Next round."
                 : !v.pulled
                   ? lang === "zh"
                     ? "抽一支签，只有你看得到"

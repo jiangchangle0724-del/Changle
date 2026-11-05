@@ -9,6 +9,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
+import { usePlayers, useWatching } from "../../online/players";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { TuneView } from "../../shared/protocol";
 import type { SongRow } from "../../shared/songs";
@@ -28,6 +29,9 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
+  const players = usePlayers();
+  // (someone just watching listens along: no buzzer, no answers)
+  const justWatching = useWatching();
   const seat = (id: string) => seats.find((s) => s.id === id);
   const songs = v.mode === "songs";
   const melody = v.mode === "melody";
@@ -158,7 +162,8 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   }, [v.phase, stageKey, djMode]);
 
   useCue(v.phase === "answer", () => {
-    sfx.buzz(Math.max(0, seats.findIndex((s) => s.id === v.buzzer)));
+    // (each player's own buzzer sound, by their place among the players)
+    sfx.buzz(Math.max(0, players.findIndex((s) => s.id === v.buzzer)));
     haptic(buzzerIsMe ? [30, 40, 30] : 15);
   });
 
@@ -267,7 +272,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
                   choices={songs ? v.choices! : v.options!.map((o) => tuneChoice(o, zh))}
                   mine={v.mine}
                   answer={null}
-                  disabled={!started}
+                  disabled={!started || justWatching}
                   onPick={(id) => {
                     g("answer", { choice: id });
                     haptic(20);
@@ -288,7 +293,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
               !quiz &&
               (iAmDj ? (
                 <p className="tn-dj-note">{zh ? "放你的歌，有人抢答会在这里显示" : "Play your song. Buzzes show up here."}</p>
-              ) : (
+              ) : justWatching ? null : (
                 <>
                   <BuzzButton
                     locked={locked}

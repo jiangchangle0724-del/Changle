@@ -2896,5 +2896,184 @@ test("seven eight nine: with the table's own penalty the glass is a pot, counted
   seed = s0;
 });
 
+test("just watching: the players are the ring and every list; a watcher is never picked or voted for, and makes no moves (a watching host still runs the table)", () => {
+  // (the games draw from the shared random sequence: put it back afterwards)
+  const s0 = seed;
+  // four at the table, the third just watching: the players are p0, p1 and p3, in that order
+  const t = setup(4);
+  t.act("p2", { a: "watch", on: true });
+  // a watcher's move reaches no game: nothing changes, nothing is sent or saved
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const pensFor = (pid: string) => t.pens().filter((p) => p.who.includes(pid)).length;
+
+  // 真心话大冒险: every phone's ring is the three players, so the bottle's slot 2 is p3, not the watcher in seat 2
+  t.act("p0", { a: "start", game: "truth" });
+  t.act("p0", { a: "spin", scope: "truth", index: 2, delta: 720, duration: 1 });
+  ok(t.view<V<"truth">>("p1").chosen === "p3", `truth: slot 2 of the three players is p3 (${t.view<V<"truth">>("p1").chosen})`);
+  ok(t.events.some((e) => e.k === "spin" && e.scope === "truth" && e.index === 2), "truth: every phone replays the spin onto slot 2");
+
+  // 命运转盘: the slice that says pick someone: never the watcher
+  t.act("p0", { a: "start", game: "wheel" });
+  const slot = t.view<V<"wheel">>("p0").slices.findIndex((x) => x.id === "pick");
+  t.act("p0", { a: "spin", scope: "wheel", index: slot, delta: 720, duration: 1 });
+  t.advance(1500);
+  ok(slot >= 0 && t.view<V<"wheel">>("p0").phase === "pick", "wheel: landed on pick someone");
+  const p1Before = pensFor("p1");
+  t.g("p0", "pick", { target: "p2" });
+  ok(t.view<V<"wheel">>("p0").phase === "pick" && pensFor("p2") === 0, "wheel: the watcher can't be picked");
+  t.g("p0", "pick", { target: "p1" });
+  ok(t.view<V<"wheel">>("p0").phase === "result" && pensFor("p1") === p1Before + 1, "wheel: a player can");
+
+  // 七八九: double ones hands the glass to someone: never the watcher
+  t.act("p0", { a: "start", game: "dice" });
+  (t.eng.d.game!.s as { phase: string }).phase = "assign";
+  t.g("p0", "assign", { target: "p2" });
+  ok(t.view<V<"dice">>("p0").phase === "assign" && pensFor("p2") === 0, "dice: the glass can't go to the watcher");
+  t.g("p0", "assign", { target: "p3" });
+  ok(t.view<V<"dice">>("p0").phase === "result", "dice: it goes to a player");
+
+  // 国王游戏: sticks for the players only, and the king can't punish the watcher
+  t.act("p0", { a: "start", game: "king" });
+  let kv = t.view<V<"king">>("p0");
+  ok(kv.count === 3 && !kv.inRound.includes("p2"), `king: three sticks, none for the watcher (${kv.inRound.join()})`);
+  ok(nothing(t.g("p2", "pull")), "king: the watcher draws nothing");
+  for (const p of ["p0", "p1", "p3"]) {
+    t.g(p, "pull");
+    t.g(p, "ready");
+  }
+  kv = t.view<V<"king">>("p0");
+  ok(kv.phase === "crown" && !!kv.king, "king: crowned once the three players are ready");
+  const king = kv.king!;
+  t.g(king, "command");
+  t.g(king, "refuse", { target: "p2" });
+  ok(t.view<V<"king">>("p0").refused.length === 0 && pensFor("p2") === 0, "king: the watcher can't have refused");
+  const subject = ["p0", "p1", "p3"].find((p) => p !== king)!;
+  t.g(king, "refuse", { target: subject });
+  ok(t.view<V<"king">>("p0").refused.includes(subject), "king: a player can");
+
+  // 谁最有可能: the watcher neither votes nor gets voted for; the three players' votes decide it
+  t.act("p0", { a: "start", game: "prompts" });
+  t.g("p0", "mode", { mode: "likely" });
+  t.g("p0", "draw");
+  ok(nothing(t.g("p2", "vote", { target: "p0" })), "likely: the watcher's vote changes nothing");
+  t.g("p0", "vote", { target: "p2" });
+  ok(t.view<V<"prompts">>("p0").answered.length === 0, "likely: nobody can vote for the watcher");
+  t.g("p0", "vote", { target: "p1" });
+  t.g("p1", "vote", { target: "p0" });
+  t.g("p3", "vote", { target: "p0" });
+  const pv = t.view<V<"prompts">>("p0");
+  const counts = pv.result?.counts ?? {};
+  ok(pv.phase === "reveal" && !("p2" in counts) && pv.result?.top?.join() === "p0", "likely: in once the three players voted, and only their votes count");
+  // 我从来没有: the watcher doesn't answer
+  t.g("p0", "next");
+  t.g("p0", "mode", { mode: "never" });
+  t.g(t.view<V<"prompts">>("p0").reader, "draw");
+  ok(nothing(t.g("p2", "ans", { yes: true })) && !t.view<V<"prompts">>("p0").answered.includes("p2"), "never: the watcher doesn't answer");
+
+  // 最佳称号: the three players vote for each other
+  t.act("p0", { a: "start", game: "superlatives" });
+  ok(nothing(t.g("p2", "vote", { target: "p0" })), "superlatives: the watcher's vote changes nothing");
+  t.g("p1", "vote", { target: "p2" });
+  ok(t.view<V<"superlatives">>("p0").voted.length === 0, "superlatives: nobody can vote for the watcher");
+  t.g("p0", "vote", { target: "p1" });
+  t.g("p1", "vote", { target: "p0" });
+  t.g("p3", "vote", { target: "p0" });
+  let sv = t.view<V<"superlatives">>("p0");
+  ok(sv.phase === "reveal" && sv.winners.join() === "p0" && !("p2" in (sv.counts ?? {})), "superlatives: revealed once the three players voted");
+  // the host sits down to watch: their buttons still work, their vote doesn't count
+  t.act("p0", { a: "watch", on: true });
+  t.g("p0", "next");
+  sv = t.view<V<"superlatives">>("p1");
+  ok(sv.phase === "vote" && sv.round === 2, "a watching host still moves the game on");
+  t.g("p0", "custom", { text: "最会点歌" });
+  ok(t.view<V<"superlatives">>("p1").title.zh === "最会点歌", "and writes the next award");
+  t.g("p0", "vote", { target: "p1" });
+  ok(!t.view<V<"superlatives">>("p1").voted.includes("p0"), "but doesn't vote");
+
+  // the host watches too from here: the players are p1 and p3
+  // 你画我猜: neither watcher guesses or scores
+  t.act("p0", { a: "start", game: "draw" });
+  ok(t.view<V<"draw">>("p1").drawer === "p1", "draw: the first player draws");
+  t.g("p1", "pick", { d: 1 });
+  const word = t.view<V<"draw">>("p1").word!.zh;
+  ok(nothing(t.g("p2", "guess", { text: word })), "draw: the watcher's guess changes nothing");
+  t.g("p0", "guess", { text: word });
+  let dv = t.view<V<"draw">>("p1");
+  ok(!dv.solved.includes("p0") && !dv.scores.p0, "draw: nor does the watching host's");
+  t.g("p3", "guess", { text: word });
+  dv = t.view<V<"draw">>("p1");
+  ok(dv.phase === "result" && dv.solved.join() === "p3" && !dv.scores.p2, "draw: the one player guessing got it, and the round is over");
+
+  // 额头便利贴: the watchers don't answer the questions
+  t.act("p0", { a: "start", game: "postit" });
+  t.g("p0", "begin");
+  let pi = t.view<V<"postit">>("p1");
+  ok(pi.phase === "play" && pi.order.join() === "p1,p3", `post-it: notes for the players only (${pi.order.join()}), started by the watching host`);
+  t.g(pi.turn, "ask", { text: "Am I an animal?" });
+  const answerer = pi.turn === "p1" ? "p3" : "p1";
+  ok(nothing(t.g("p2", "reply", { r: "yes" })), "post-it: the watcher's answer changes nothing");
+  t.g("p0", "reply", { r: "yes" });
+  t.g(answerer, "reply", { r: "no" });
+  pi = t.view<V<"postit">>("p1");
+  ok(Object.keys(pi.replies).join() === answerer, `post-it: only the player's answer is in (${Object.keys(pi.replies).join()})`);
+
+  // 流氓十三张: the watchers can't be picked, take no number and don't touch their nose
+  t.act("p0", { a: "start", game: "rogue" });
+  const rs = t.eng.d.game!.s as { phase: string; drawer: string | null; holders: Record<string, string>; grab: unknown };
+  Object.assign(rs, { phase: "pick", drawer: "p1" });
+  t.g("p1", "pick", { target: "p2" });
+  t.g("p1", "pick", { target: "p0" });
+  ok(t.view<V<"rogue">>("p1").phase === "pick", "rogue: neither watcher can be picked");
+  t.g("p1", "pick", { target: "p3" });
+  ok(t.view<V<"rogue">>("p1").phase === "done", "rogue: a player can");
+  Object.assign(rs, { phase: "grab", drawer: "p1", grab: { next: 2, claimed: { p1: 1 }, endsAt: clock + 15_000, last: null } });
+  ok(nothing(t.g("p2", "grab", { n: 2 })), "rogue: the watcher's grab changes nothing");
+  t.g("p0", "grab", { n: 2 });
+  ok(Object.keys(t.view<V<"rogue">>("p1").grab?.claimed ?? {}).join() === "p1", "rogue: nor does the watching host's");
+  t.g("p3", "grab", { n: 2 });
+  ok(t.view<V<"rogue">>("p1").phase === "done", "rogue: the last player grabbed: the card is done");
+  rs.holders.nose = "p1";
+  t.g("p1", "nose");
+  t.g("p2", "tap");
+  t.g("p0", "tap");
+  const it = t.view<V<"rogue">>("p1").interrupt;
+  ok(it?.kind === "nose" && it.tapped.length === 0, "rogue: the watchers don't touch their nose");
+  t.g("p3", "tap");
+  ok(!t.view<V<"rogue">>("p1").interrupt, "rogue: the one player touched theirs: done");
+
+  // 尤克牌: the watchers can't take a computer player's seat
+  t.act("p0", { a: "start", game: "euchre" });
+  let ev = t.view<V<"euchre">>("p1");
+  const free = ev.seats.findIndex((x) => !x.pid);
+  ok(free >= 0 && ev.seats.filter((x) => x.pid).length === 2, "euchre: the two players sit, computers fill the rest");
+  ok(nothing(t.g("p2", "sit", { seat: free })), "euchre: the watcher's tap changes nothing");
+  t.g("p0", "sit", { seat: free });
+  ev = t.view<V<"euchre">>("p1");
+  ok(!ev.seats.some((x) => x.pid === "p0" || x.pid === "p2") && t.view<V<"euchre">>("p0").mySeat === null, "euchre: nor does the watching host's");
+
+  // 神回复: a writer who sits down to watch doesn't hold the others up
+  const pu = setup(4);
+  pu.act("p0", { a: "start", game: "punchline" });
+  for (const pid of ["p0", "p1", "p2"]) for (const p of pu.view<V<"punchline">>(pid).mine) pu.g(pid, "answer", { k: p.k, text: `${pid} says hi` });
+  ok(pu.view<V<"punchline">>("p0").phase === "write", "punchline: one writer still writing");
+  pu.act("p3", { a: "watch", on: true });
+  const pl = pu.view<V<"punchline">>("p0");
+  // (on to the answers: a matchup they were in goes to the other writer without a vote)
+  ok(pl.phase !== "write" && !pl.players.includes("p3"), `punchline: they sit down to watch: on with the show, without them (${pl.phase})`);
+
+  // 打碟: a watcher's 🔥 doesn't count; a watching host still hears how their song went
+  const e = new RoomEngine(freshRoom("DJWA", clock), host);
+  e.screenHello("tv-wa", true, "dj");
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  e.act("p2", { a: "watch", on: true });
+  e.act("p1", { a: "watch", on: true });
+  e.flush();
+  e.act("p2", { a: "g", g: { x: "fire" } });
+  ok(nothing(e.flush()) && !(e.view("p1").game as V<"dj">).total.p2, "dj: the watcher's 🔥 doesn't count");
+  ok(e.screenAct("tv-wa", { x: "song", by: "p1", id: 5, code: 0 }) && e.flush().events.some((x) => x.k === "fx" && x.fx === "song" && x.pid === "p1"), "dj: the watching host still hears how their song went");
+  seed = s0;
+});
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);

@@ -97,6 +97,7 @@ python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字
 python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
+python3 scripts/watch_players_check.py # 三个玩家加一个只看的座位：瓶子停在服务器选的人上，名单和计数里没有只看的人
 python3 scripts/local_check.py      # 单机回归
 python3 scripts/party_test.py       # 七个新游戏，单机和联机
 python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回复

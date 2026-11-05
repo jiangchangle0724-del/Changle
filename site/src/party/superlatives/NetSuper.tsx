@@ -6,6 +6,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
+import { usePlayers, useWatching } from "../../online/players";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { SuperView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
@@ -19,6 +20,9 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
   const ownPenalty = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
+  // who votes and who can win: the players (someone just watching does neither)
+  const players = usePlayers();
+  const watching = useWatching();
   const seat = (id: string) => seats.find((s) => s.id === id);
   const face = (id: string) => (size: number) => <SeatFace seat={seat(id)} size={size} />;
   const [writing, setWriting] = useState(false);
@@ -37,7 +41,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
     </p>
   );
 
-  const voters = seats.length;
+  const voters = players.length;
   return (
     <NetFrame title={GAME_BY_ID.superlatives.name} rules={rules} onLeave={onLeave}>
       <div className="sup">
@@ -54,7 +58,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
                 {zh ? " 人投了" : " voted"}
               </span>
               <span className="sup-voted" aria-hidden="true">
-                {seats.map((s) => (
+                {players.map((s) => (
                   <span key={s.id} className={v.voted.includes(s.id) ? "is-in" : ""}>
                     <SeatFace seat={s} size={22} />
                   </span>
@@ -63,7 +67,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
             </div>
             <p className="sup-ask">{v.myVote ? (zh ? `投给了 ${nameOf(v.myVote)}，揭晓前还能改` : `You voted for ${nameOf(v.myVote)}. You can change it until the reveal.`) : zh ? "这个奖该给谁？" : "Who deserves it?"}</p>
             <div className="ballot">
-              {seats.map((s) => {
+              {players.map((s) => {
                 const self = s.id === me;
                 const on = v.myVote === s.id;
                 return (
@@ -71,7 +75,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
                     key={s.id}
                     type="button"
                     className={`nominee ${on ? "is-on" : ""}`}
-                    disabled={self}
+                    disabled={self || watching}
                     aria-pressed={on}
                     onClick={() => {
                       g("vote", { target: s.id });
@@ -150,7 +154,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
 
         {v.phase === "ceremony" && (
           <>
-            <Ceremony shelves={seats.map((s) => ({ id: s.id, name: s.id === me ? (zh ? "你" : "You") : s.name, face: face(s.id), awards: v.awards[s.id] ?? [] }))} />
+            <Ceremony shelves={players.map((s) => ({ id: s.id, name: s.id === me ? (zh ? "你" : "You") : s.name, face: face(s.id), awards: v.awards[s.id] ?? [] }))} />
             {isHost && (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("more")}>
                 {zh ? "再来五个奖" : "Five more awards"}
