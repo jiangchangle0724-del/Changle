@@ -15,6 +15,7 @@ import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
 import { DARES, promptText } from "../src/data/truthDare";
+import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
@@ -3350,6 +3351,29 @@ test("just watching: the players are the ring and every list; a watcher is never
   ok(nothing(e.flush()) && !(e.view("p1").game as V<"dj">).total.p2, "dj: the watcher's 🔥 doesn't count");
   ok(e.screenAct("tv-wa", { x: "song", by: "p1", id: 5, code: 0 }) && e.flush().events.some((x) => x.k === "fx" && x.fx === "song" && x.pid === "p1"), "dj: the watching host still hears how their song went");
   seed = s0;
+});
+
+test("postit: every one-phone deck reads in both languages, on a shelf, with no word twice", () => {
+  const shelves = new Set(HEADS_DECK_GROUPS.map((g) => g.id));
+  const ids = new Set<string>();
+  const seen = new Map<string, string>();
+  for (const d of HEADS_DECKS) {
+    ok(!ids.has(d.id), `deck ids are different (${d.id})`);
+    ids.add(d.id);
+    ok(shelves.has(d.group), `${d.id} is on a shelf (${d.group})`);
+    ok(!!d.name.zh.trim() && !!d.name.en.trim(), `${d.id} has a name in both languages`);
+    ok(d.words.length >= 25, `${d.id} has enough words for a few turns (${d.words.length})`);
+    for (const w of d.words) {
+      ok(!!w.zh.trim() && !!w.en.trim() && w.zh === w.zh.trim() && w.en === w.en.trim(), `${d.id}: a word in both languages (${JSON.stringify(w)})`);
+      // (the same word in two decks would come up twice for a table that plays both)
+      for (const k of [w.zh, w.en.toLowerCase()]) {
+        const was = seen.get(k);
+        ok(!was || was === d.id, `${k} is in one deck only (${was}, ${d.id})`);
+        seen.set(k, d.id);
+      }
+    }
+  }
+  for (const g of HEADS_DECK_GROUPS) ok(HEADS_DECKS.some((d) => d.group === g.id), `the ${g.id} shelf has decks`);
 });
 
 /* ------------------------------------------------------------------ 最后一张 · Last Card */

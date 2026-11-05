@@ -13,7 +13,7 @@
 | 最佳称号 Superlatives | 传手机偷偷投票 | 3+ |
 | 国王游戏 King's Game | 抽号码，国王下命令 | 3+ |
 | 戏精大赏 Drama Queens | 几个人按剧本演，观众猜谁是坏人、给演技打星，演得最差的受罚；也可以两人飙同一句台词 | 3+ |
-| 额头便利贴 Post-it Note | 手机传一圈偷偷写 | 2+ |
+| 额头便利贴 Post-it Note | 举到额头上，大家给提示；19 组词：经典、派对（有点辣、欢乐时光、爆笑瞬间）、世界（中日韩、东南亚、印度、中东、意大利、法国、拉美、加拿大） | 2+ |
 | 林波舞 Limbo | 手机测后仰角度；稳住（仰到位一动不动）、跟着动的杆（横杆上下浮动，跟丢超过 1 秒出局）、歪着过（还要往左或往右歪），派对每杆随机一种；盲仰：看不到角度凭感觉仰到目标，差最远的喝 | 2+ |
 | 我从来没有 Never Have I Ever | 还有“谁最有可能” | 2+ |
 | 尤克牌 Euchre | 你和三个电脑玩家 | 2+（空位电脑补） |
@@ -57,7 +57,7 @@
 - `src/data/wheel.ts` 转盘默认的格子
 - `src/data/superlatives.ts` 最佳称号的奖项
 - `src/data/punchline.ts` 神回复的题目
-- `src/data/postit.ts` 便利贴的备用词
+- `src/data/postit.ts` 便利贴：联机时随机发的便利贴，和单机的 19 组词（`HEADS_DECKS`，分三类：经典、派对、世界）
 - `src/data/tunes.ts` 猜歌名的旋律
 - `src/data/straightface.ts` 一本正经的词卡（规则见 `src/shared/straightface/cards.ts`，扩库的任务卡在 `docs/codex-tasks/straightface/`）
 - `src/i18n.ts` 界面上的按钮和提示文字
