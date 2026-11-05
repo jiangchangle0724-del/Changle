@@ -15,6 +15,7 @@ import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
 import { DARES, promptText } from "../src/data/truthDare";
+import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
@@ -820,6 +821,63 @@ test("postit: when the others leave, nobody is told to drink the glass", sameDic
   t.act("p2", { a: "leave" });
   t.advance(3000);
   ok(t.pens().length === 1, "nobody drinks twice");
+}));
+
+test("postit: the host picks the deck the notes nobody writes come from", sameDice(() => {
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const japan = HEADS_DECKS.find((d) => d.id === "japan")!.words.map((w) => w.zh);
+  const mixed = NOTES.map((n) => n.t.zh);
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "postit" });
+  const pv = (pid = "p0") => t.view<V<"postit">>(pid);
+  ok(pv().pick === "mix", "to start with, the mixed bag");
+  ok(nothing(t.g("p1", "pick", { id: "japan" })) && pv().pick === "mix", "only the host picks");
+  ok(nothing(t.g("p0", "pick", { id: "no-such-deck" })) && pv().pick === "mix", "a deck that isn't there changes nothing");
+  t.g("p0", "pick", { id: "japan" });
+  ok(pv("p2").pick === "japan", "every phone is told");
+  t.g("p0", "random");
+  ok(japan.includes(pv("p0").notes.p1!.zh), `Pick for me deals from 日本 (${pv("p0").notes.p1!.zh})`);
+  t.g("p0", "begin");
+  ok(pv().phase === "play" && japan.includes(pv("p0").notes.p2!.zh) && japan.includes(pv("p1").notes.p0!.zh), "and so does Start now, for the rest");
+  ok(nothing(t.g("p0", "pick", { id: "spicy" })) && pv().pick === "japan", "not while they play: the notes are on");
+  // to the end (everyone guesses theirs), then the next game: still 日本, unless the host picks again
+  const playOut = () => {
+    for (let i = 0; i < 12 && pv().phase === "play"; i++) {
+      const tn = pv().turn;
+      t.g(tn, "guess", { text: pv(tn === "p0" ? "p1" : "p0").notes[tn]!.zh });
+    }
+    t.advance(3000);
+  };
+  playOut();
+  ok(pv().phase === "end", "over");
+  t.g("p0", "pick", { id: "mix" });
+  ok(pv().pick === "mix", "at the end the host can pick for the next game");
+  t.g("p0", "pick", { id: "spicy" });
+  t.g("p0", "again");
+  t.g("p0", "begin");
+  const spicy = HEADS_DECKS.find((d) => d.id === "spicy")!.words.map((w) => w.zh);
+  ok(pv().pick === "spicy" && ["p0", "p1", "p2"].every((p) => spicy.includes(pv(p === "p0" ? "p1" : "p0").notes[p]!.zh)), "the next game deals from the deck picked at the end");
+  // back to the mixed bag
+  playOut();
+  t.g("p0", "pick", { id: "mix" });
+  t.g("p0", "again");
+  t.g("p0", "begin");
+  ok(["p0", "p1", "p2"].every((p) => mixed.includes(pv(p === "p0" ? "p1" : "p0").notes[p]!.zh)), "mix: the mixed bag again");
+
+  // a word from a deck keeps the other names the mixed bag knows it by (孙悟空: 美猴王, monkey king)
+  const c = setup(4);
+  c.act("p0", { a: "start", game: "postit" });
+  c.g("p0", "pick", { id: "people" });
+  c.g("p0", "begin");
+  const cv = (pid: string) => c.view<V<"postit">>(pid);
+  const known = ["p0", "p1", "p2", "p3"].map((p) => ({ p, note: cv(p === "p0" ? "p1" : "p0").notes[p]! })).find(({ note }) => (NOTES.find((n) => n.t.zh === note.zh)?.alias ?? []).length);
+  ok(!!known, "someone has a note with another name");
+  if (known) {
+    const alias = NOTES.find((n) => n.t.zh === known.note.zh)!.alias![0];
+    for (let i = 0; i < 8 && cv("p0").turn !== known.p; i++) c.g(cv("p0").turn, "pass");
+    c.g(known.p, "guess", { text: alias });
+    ok(cv("p0").solved.includes(known.p), `${known.note.zh} is guessed as ${alias}`);
+  }
 }));
 
 test("freeze: shared stop, motion reports, knockout to a winner", () => {
@@ -3350,6 +3408,29 @@ test("just watching: the players are the ring and every list; a watcher is never
   ok(nothing(e.flush()) && !(e.view("p1").game as V<"dj">).total.p2, "dj: the watcher's 🔥 doesn't count");
   ok(e.screenAct("tv-wa", { x: "song", by: "p1", id: 5, code: 0 }) && e.flush().events.some((x) => x.k === "fx" && x.fx === "song" && x.pid === "p1"), "dj: the watching host still hears how their song went");
   seed = s0;
+});
+
+test("postit: every one-phone deck reads in both languages, on a shelf, with no word twice", () => {
+  const shelves = new Set(HEADS_DECK_GROUPS.map((g) => g.id));
+  const ids = new Set<string>();
+  const seen = new Map<string, string>();
+  for (const d of HEADS_DECKS) {
+    ok(!ids.has(d.id), `deck ids are different (${d.id})`);
+    ids.add(d.id);
+    ok(shelves.has(d.group), `${d.id} is on a shelf (${d.group})`);
+    ok(!!d.name.zh.trim() && !!d.name.en.trim(), `${d.id} has a name in both languages`);
+    ok(d.words.length >= 25, `${d.id} has enough words for a few turns (${d.words.length})`);
+    for (const w of d.words) {
+      ok(!!w.zh.trim() && !!w.en.trim() && w.zh === w.zh.trim() && w.en === w.en.trim(), `${d.id}: a word in both languages (${JSON.stringify(w)})`);
+      // (the same word in two decks would come up twice for a table that plays both)
+      for (const k of [w.zh, w.en.toLowerCase()]) {
+        const was = seen.get(k);
+        ok(!was || was === d.id, `${k} is in one deck only (${was}, ${d.id})`);
+        seen.set(k, d.id);
+      }
+    }
+  }
+  for (const g of HEADS_DECK_GROUPS) ok(HEADS_DECKS.some((d) => d.group === g.id), `the ${g.id} shelf has decks`);
 });
 
 /* ------------------------------------------------------------------ 最后一张 · Last Card */

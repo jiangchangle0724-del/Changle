@@ -22,11 +22,8 @@
     "radius": 1
   },
   "src/styles/tools.css": {
-    "font": 23,
-    "color": 1,
-    "shadow": 9,
-    "radius": 11,
-    "time": 3
+    "shadow": 6,
+    "radius": 1
   },
   "src/styles/components.css": {
     "font": 4,

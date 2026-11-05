@@ -41,6 +41,13 @@ game mechanic is not protected; names, card texts and art are. So (2026-11-02, t
   BY-SA). The source link is a citation, not a licence.
 * The card bank lives in `site/src/data/straightface.ts`; the rules that keep it this way are
   enforced by `site/src/shared/straightface/cards.ts` and `docs/codex-tasks/straightface/C1-cards.md`.
+* The pictures (pack icons, the three parts, the room behind the game, in
+  `site/src/party/straightface/art/`) are **AI-made**: drawn with ChatGPT's image generation (OpenAI)
+  in Steve's account on 2026-11-05, from prompts that describe only what to draw, with no other game's
+  name or picture as a reference. OpenAI's terms assign the output to the user. Every prompt and file
+  is listed in `art/README.md`.
+* The sounds are the site's own synthesised ones (`site/src/lib/sfx.ts`, played through
+  `party/straightface/sounds.ts`): no recordings, nothing to license.
 
 # 打碟 · DJ Booth: two skills for the assistant (not the site)
 
