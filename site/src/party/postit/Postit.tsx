@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HEADS_DECKS, type HeadsDeck } from "../../data/postit";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { shuffle } from "../../lib/random";
@@ -14,6 +15,8 @@ import "../../styles/party.css";
 
 type Turn = { word: T; ok: boolean }[];
 type Phase = { k: "setup" } | { k: "ready"; i: number } | { k: "count"; i: number; n: number } | { k: "play"; i: number } | { k: "done"; i: number } | { k: "final" };
+type Run = { i: number; pile: T[]; word: T | null; left: number };
+type Kept = { deck: string; seconds: number; phase: Phase; turns: Record<string, Turn>; run: Run | null };
 
 /**
  * How far the screen faces the floor (a nod) or the ceiling (tipped back), and how close to upright
@@ -29,17 +32,26 @@ const LEVEL = 0.57;
  * on its side. The table gives clues. Nod down when you get it, tip back to pass.
  */
 export function Postit({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="postit" version={1}>
+      {(saved) => <PostitGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, lang } = useStore();
   const zh = lang === "zh";
   const people = useMemo(() => (players.length ? players : [{ id: "me", name: zh ? "你" : "You" }]), [players, zh]);
-  const [deck, setDeck] = useState<HeadsDeck>(HEADS_DECKS[0]);
-  const [seconds, setSeconds] = useState(60);
-  const [phase, setPhase] = useState<Phase>({ k: "setup" });
-  const [turns, setTurns] = useState<Record<string, Turn>>({});
+  const [deck, setDeck] = useState<HeadsDeck>(() => HEADS_DECKS.find((d) => d.id === saved?.deck) ?? HEADS_DECKS[0]);
+  const [seconds, setSeconds] = useState(saved?.seconds ?? 60);
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? { k: "setup" });
+  const [turns, setTurns] = useState<Record<string, Turn>>(saved?.turns ?? {});
   const [word, setWord] = useState<T | null>(null);
   const [left, setLeft] = useState(seconds);
   const [flash, setFlash] = useState<"ok" | "pass" | null>(null);
-  const pile = useRef<T[]>([]);
+  const pile = useRef<T[]>(saved?.run?.pile ?? []);
+  const resume = useRef<Run | null>(saved?.run ?? null);
   const armed = useRef(false);
   /** a word is being scored: ignore taps and nods until the next one is up */
   const busy = useRef(false);
@@ -48,6 +60,12 @@ export function Postit({ onBack }: { onBack: () => void }) {
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
   const playing = phase.k === "play";
+  // The forehead and countdown return behind the curtain, with answered words and time kept.
+  // During the feedback flash the word was already scored: draw the next one on return.
+  const run: Run | null = playing || phase.k === "count"
+    ? { i: phase.i, pile: pile.current, word: playing && !flash ? word : null, left: playing ? left : resume.current?.left ?? seconds }
+    : phase.k === "ready" ? resume.current : null;
+  useKeepProgress<Kept>({ deck: deck.id, seconds, phase: playing || phase.k === "count" ? { k: "ready", i: phase.i } : phase, turns, run }, phase.k !== "setup" && phase.k !== "final");
   // (from the countdown on: the stage turns with the phone while it is being raised)
   const tilt = useTilt((phase.k === "count" || playing) && sensors === "on");
   useWakeLock(phase.k === "count" || playing);
@@ -59,7 +77,10 @@ export function Postit({ onBack }: { onBack: () => void }) {
 
   const begin = async (i: number) => {
     if (sensors === "off") await enableSensors();
-    pile.current = shuffle(deck.words);
+    if (resume.current?.i !== i) {
+      resume.current = null;
+      pile.current = shuffle(deck.words);
+    }
     setPhase({ k: "count", i, n: 3 });
   };
 
@@ -70,12 +91,16 @@ export function Postit({ onBack }: { onBack: () => void }) {
     const id = window.setTimeout(() => {
       if (phase.n > 1) setPhase({ ...phase, n: phase.n - 1 });
       else {
-        draw();
+        const kept = resume.current;
+        if (kept?.word) setWord(kept.word);
+        else draw();
         // a nod only counts once the phone has been held level on the forehead
         armed.current = false;
         busy.current = false;
-        ends.current = performance.now() + seconds * 1000;
-        setLeft(seconds);
+        const remaining = kept?.left ?? seconds;
+        ends.current = performance.now() + remaining * 1000;
+        setLeft(remaining);
+        resume.current = null;
         setPhase({ k: "play", i: phase.i });
         sfx.gong("small", 0.8);
       }
