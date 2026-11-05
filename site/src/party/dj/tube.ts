@@ -105,6 +105,8 @@ export type TubeStatus =
   | "playing"
   /** the browser wants a tap on the video before it plays with sound */
   | "tap"
+  /** YouTube couldn't be reached; this is retriable and doesn't ban the video. */
+  | "offline"
   /** YouTube won't play this video here */
   | "bad";
 
@@ -393,7 +395,7 @@ export class Tube {
         // YouTube's player didn't load (offline, blocked): nothing will play here
         this.making = false;
         el.remove();
-        if (this.video) this.failed(150);
+        if (this.video) this.to("none", "offline");
       },
     );
   }
@@ -436,10 +438,30 @@ export class Tube {
       }, 1500);
       return;
     }
-    this.broken.add(v);
     window.clearTimeout(this.timer);
+    if (!FOR_GOOD.has(code)) {
+      this.to("none", "offline");
+      return;
+    }
+    this.broken.add(v);
     this.to("none", "bad");
     this.h.bad(v);
+  }
+
+  /** Retry a connection failure without marking a playable video as forbidden. */
+  retry() {
+    if (this.gone || this.status !== "offline" || !this.video) return;
+    this.retried.delete(this.video);
+    if (!this.p || !this.live) return this.make(this.video, this.going ? "start" : "cue");
+    if (this.going) {
+      this.quiet = true;
+      this.p.mute();
+      this.p.loadVideoById(this.video);
+      this.to("start", "starting");
+    } else {
+      this.p.cueVideoById(this.video);
+      this.to("cue", "buffering");
+    }
   }
 
   /** The song's moment: ask the ready video to play a little before it, by what starts have taken. */

@@ -4,6 +4,8 @@ import { onAir } from "../../shared/dj/deck";
 import type { DjView } from "../../shared/protocol";
 import type { Speaker } from "./speaker/speaker";
 import { loadYt, Tube, type TubeStatus } from "./tube";
+import { EmptyState } from "../../ui/EmptyState";
+import "./states.css";
 
 /** How fast the DJ lets go on the drop's bar into a whole song (the boom rings on over its start), and how slowly it comes back after. */
 const LET_GO_S = 0.12;
@@ -80,7 +82,7 @@ export function TubePlayer({
   useEffect(() => {
     const t = new Tube({
       now: () => latest.current.now(),
-      status: (s, a) => setState({ status: s, armed: a }),
+      status: (s, a) => { setState({ status: s, armed: a }); if (s === "offline") back(0.6); },
       // its start is set (ready, and allowed to start by itself): the DJ lets go on that moment, the
       // drop's bar, the boom ringing on over the song's start (said again if the moment moves)
       timed: (yt, when) => {
@@ -182,7 +184,7 @@ export function TubePlayer({
   const title = req?.text ?? null;
   const after = v.deck.up && v.deck.up.id !== target?.id ? v.deck.up : null;
   return (
-    <section className={`dj-tube is-${mode}`} aria-hidden={mode === "off" ? true : undefined} aria-label={zh ? "整首歌" : "The whole song"}>
+    <section className={`dj-tube is-${mode}${status === "offline" ? " is-offline" : ""}`} aria-hidden={mode === "off" ? true : undefined} aria-label={zh ? "整首歌" : "The whole song"}>
       <header className="dj-tube-head">
         <Music2 size={mode === "on" ? 26 : 20} aria-hidden="true" />
         <span>
@@ -201,9 +203,9 @@ export function TubePlayer({
       </header>
       {/* YouTube's player goes in here (tube.ts): nothing of React's inside it */}
       <div className="dj-tube-slot" ref={slot} />
-      <p className={`dj-tube-note ${status === "tap" || (mode === "next" && status === "ready" && !armed) ? "is-ask" : ""}`} role="status">
-        {mode === "next" ? <NextNote status={status} armed={armed} zh={zh} /> : <OnNote status={status} zh={zh} after={after ? nameOf(after.by) : null} />}
-      </p>
+      <div className={`dj-tube-note ${status === "tap" || (mode === "next" && status === "ready" && !armed) ? "is-ask" : ""}`} role="status">
+        {status === "offline" ? <EmptyState tone="error" title={zh ? "没连上 YouTube，检查一下网络" : "Couldn't reach YouTube. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => tube.current?.retry() }} /> : mode === "next" ? <NextNote status={status} armed={armed} zh={zh} /> : <OnNote status={status} zh={zh} after={after ? nameOf(after.by) : null} />}
+      </div>
     </section>
   );
 }
