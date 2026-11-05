@@ -166,6 +166,8 @@ export interface PublicView {
   roundsPlanned: number;
   judgeId: string | null;
   term: T | null;
+  /** the card's pack, so the screen can show its picture; as public as the word */
+  pack: string | null;
   level: Level | null;
   speakerId: string | null;
   speakOrder: string[];
