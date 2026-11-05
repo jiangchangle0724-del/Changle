@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
+import { GAME_BY_ID } from "../../games/registry";
 import type { GameView } from "../../shared/protocol";
 import { watchable } from "../../tv/views";
+import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
 import { NetDice } from "./NetDice";
 import { NetDraw } from "./NetDraw";
@@ -24,6 +26,8 @@ import { NetDj } from "../../party/dj/NetDj";
 
 // a phone that only watches shows the big screen's view (src/tv): loaded only when one does
 const Watch = lazy(() => import("../../tv/Watch"));
+// 最后一张 (its cards, its screen, its styles) loads when its game starts
+const NetLastCard = lazy(() => import("../../party/lastcard/NetLastCard"));
 
 /** The game the server says is on, rendered for this phone. */
 export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void }) {
@@ -76,5 +80,11 @@ export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void
       return <NetHide v={view} onLeave={onLeave} />;
     case "dj":
       return <NetDj v={view} onLeave={onLeave} />;
+    case "lastcard":
+      return (
+        <Suspense fallback={<NetFrame title={GAME_BY_ID.lastcard.name} onLeave={onLeave}>{null}</NetFrame>}>
+          <NetLastCard v={view} onLeave={onLeave} />
+        </Suspense>
+      );
   }
 }

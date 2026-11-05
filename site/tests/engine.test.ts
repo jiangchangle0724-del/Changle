@@ -18,6 +18,8 @@ import { DARES, promptText } from "../src/data/truthDare";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
+import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
+import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 
 let clock = 1_000_000;
 let seed = 7;
@@ -3296,6 +3298,456 @@ test("just watching: the players are the ring and every list; a watcher is never
   e.act("p2", { a: "g", g: { x: "fire" } });
   ok(nothing(e.flush()) && !(e.view("p1").game as V<"dj">).total.p2, "dj: the watcher's 🔥 doesn't count");
   ok(e.screenAct("tv-wa", { x: "song", by: "p1", id: 5, code: 0 }) && e.flush().events.some((x) => x.k === "fx" && x.fx === "song" && x.pid === "p1"), "dj: the watching host still hears how their song went");
+  seed = s0;
+});
+
+/* ------------------------------------------------------------------ 最后一张 · Last Card */
+
+/** The rooms server's state for 最后一张, as far as these tests reach into it. */
+type LcS = {
+  phase: string;
+  stack: boolean;
+  target: number;
+  round: number;
+  order: string[];
+  hands: Record<string, number[]>;
+  pile: number[];
+  discard: number[];
+  color: LcColor;
+  turn: string;
+  dir: 1 | -1;
+  pending: number;
+  pendingKind: string | null;
+  drawn: number | null;
+  called: string[];
+  open: string | null;
+  tn: number;
+};
+
+/** The `n`th card with this face (0: the first). */
+function lcId(c: LcColor | null, k: LcKind, n = 0) {
+  const ids = FACES.map((f, i) => (f.c === c && f.k === k ? i : -1)).filter((i) => i >= 0);
+  if (n >= ids.length) throw new Error(`no card ${c}${k} #${n}`);
+  return ids[n];
+}
+
+/** A table of `n` dealt in at 最后一张, with a way to set the cards and to move. */
+function lcTable(n: number, opts: { stack?: boolean; target?: number } = {}) {
+  const t = setup(n);
+  t.act("p0", { a: "start", game: "lastcard" });
+  if (opts.stack) t.g("p0", "stack", { on: true });
+  if (opts.target !== undefined) t.g("p0", "target", { n: opts.target });
+  t.g("p0", "deal");
+  const s = () => t.eng.d.game!.s as LcS;
+  const lv = (pid: string) => t.view<V<"lastcard">>(pid);
+  /** the hands given (calls, catches and stacks start afresh), the pile's face-up card, what's drawn next (last first), whose turn */
+  const rig = (r: { hands?: Record<string, number[]>; top?: number; color?: LcColor; pile?: number[]; turn?: string; dir?: 1 | -1 }) => {
+    const st = s();
+    if (r.hands) {
+      for (const [p, h] of Object.entries(r.hands)) st.hands[p] = h.slice();
+      Object.assign(st, { called: [], open: null, pending: 0, pendingKind: null, drawn: null });
+    }
+    if (r.top !== undefined) {
+      st.discard = [r.top];
+      st.color = faceOf(r.top).c ?? "r";
+    }
+    if (r.color) st.color = r.color;
+    if (r.turn) st.turn = r.turn;
+    if (r.dir) st.dir = r.dir;
+    const used = new Set([...st.discard, ...Object.values(st.hands).flat()]);
+    st.pile = st.pile.filter((c) => !used.has(c));
+    if (r.pile) st.pile = [...st.pile.filter((c) => !r.pile!.includes(c)), ...r.pile];
+  };
+  const play = (pid: string, card: number, color?: string) => t.g(pid, "play", { card, color, at: lv(pid).tn });
+  const draw = (pid: string) => t.g(pid, "draw", { at: lv(pid).tn });
+  const keep = (pid: string) => t.g(pid, "keep", { at: lv(pid).tn });
+  const pensOf = (pid: string) => t.pens().filter((e) => e.who.length === 1 && e.who[0] === pid).map((e) => e.kind);
+  return { ...t, s, lv, rig, play, draw, keep, pensOf };
+}
+
+test("lastcard: the deck: 108 cards, every kind counted, and what goes on what", () => {
+  ok(DECK_SIZE === 108, `108 cards (${DECK_SIZE})`);
+  const n = (c: LcColor | null, k?: LcKind) => FACES.filter((f) => f.c === c && (!k || f.k === k)).length;
+  for (const c of ["r", "y", "g", "b"] as LcColor[])
+    ok(n(c) === 25 && n(c, "0") === 1 && n(c, "7") === 2 && n(c, "9") === 2 && n(c, "skip") === 2 && n(c, "rev") === 2 && n(c, "d2") === 2, `${c}: 25 cards, one 0, two of every other`);
+  ok(n(null, "wild") === 4 && n(null, "d4") === 4, "four wilds, four +4 wilds");
+  const [r5, b5, b7, r9, rSkip, gSkip, w, d4, yd2, bd2] = [lcId("r", "5"), lcId("b", "5"), lcId("b", "7"), lcId("r", "9"), lcId("r", "skip"), lcId("g", "skip"), lcId(null, "wild"), lcId(null, "d4"), lcId("y", "d2"), lcId("b", "d2")];
+  ok(canPlay(b5, r5, "r") && canPlay(r9, r5, "r") && !canPlay(b7, r5, "r"), "the same number or the same colour, nothing else");
+  ok(canPlay(gSkip, rSkip, "r") && canPlay(w, r5, "r") && canPlay(d4, r5, "r"), "the same symbol; a wild on anything");
+  ok(canPlay(b7, w, "b") && !canPlay(lcId("r", "7"), w, "b"), "on a wild, the colour that was picked");
+  ok(canPlay(bd2, yd2, "y", "d2") && !canPlay(d4, yd2, "y", "d2") && !canPlay(lcId("y", "3"), yd2, "y", "d2"), "a +2 stack: only another +2");
+  ok(canPlay(lcId(null, "d4", 1), d4, "g", "d4") && !canPlay(bd2, d4, "g", "d4"), "a +4 stack: only another +4");
+});
+
+test("lastcard: the deal, the host's house rules, secret hands, and a watcher at the table", () => {
+  const s0 = seed;
+  const t = setup(4);
+  t.act("p3", { a: "watch", on: true });
+  t.act("p0", { a: "start", game: "lastcard" });
+  let v = t.view<V<"lastcard">>("p1");
+  ok(v.phase === "setup" && v.order.join() === "p0,p1,p2" && !v.stack && v.target === 3, `setup: the three players (not the watcher), stacking off, first to 3 (${v.order.join()})`);
+  t.g("p1", "stack", { on: true });
+  t.g("p1", "target", { n: 5 });
+  t.g("p1", "deal");
+  v = t.view<V<"lastcard">>("p1");
+  ok(v.phase === "setup" && !v.stack && v.target === 3, "only the host sets the house rules and deals");
+  t.g("p0", "stack", { on: true });
+  t.g("p0", "target", { n: 7 });
+  ok(t.view<V<"lastcard">>("p2").stack && t.view<V<"lastcard">>("p2").target === 3, "stacking on; a target that isn't on offer is ignored");
+  t.g("p0", "target", { n: 0 });
+  ok(t.view<V<"lastcard">>("p2").target === 0, "no target: just play rounds");
+  t.g("p0", "deal");
+  const st = t.eng.d.game!.s as LcS;
+  v = t.view<V<"lastcard">>("p0");
+  ok(v.phase === "play" && v.round === 1 && v.turn === "p0", "dealt: round 1, p0 moves first");
+  ok(["p0", "p1", "p2"].every((p) => v.counts[p] === 7) && v.counts.p3 === undefined, "seven cards each, none for the watcher");
+  const all = [...st.pile, ...st.discard, ...Object.values(st.hands).flat()];
+  ok(all.length === 108 && new Set(all).size === 108, `all 108 cards accounted for, each once (${all.length})`);
+  ok(v.top !== null && /^[0-9]$/.test(faceOf(v.top).k) && v.color === faceOf(v.top).c, "the pile starts on a number card, its colour in force");
+  const hands = ["p0", "p1", "p2"].map((p) => t.view<V<"lastcard">>(p).hand);
+  ok(hands.every((h, i) => h.length === 7 && h.join() === st.hands[`p${i}`].slice().sort((a, b) => a - b).join()), "each phone gets its own hand, sorted");
+  for (const p of ["p0", "p1", "p2"]) {
+    const json = JSON.stringify(t.eng.view(p));
+    const others = ["p0", "p1", "p2"].filter((q) => q !== p).flatMap((q) => st.hands[q]);
+    ok(!json.includes('"hands"') && !/"pile":\[/.test(json) && t.view<V<"lastcard">>(p).hand.every((c) => !others.includes(c)), `${p}'s view: only its own hand, no draw pile`);
+  }
+  const w = t.view<V<"lastcard">>("p3");
+  ok(w.hand.length === 0 && w.legal.length === 0 && w.drawn === null, "the watcher gets no cards");
+  const tv = t.eng.view("tv-screen1").game as V<"lastcard">;
+  ok(tv.hand.length === 0 && tv.legal.length === 0 && tv.counts.p1 === 7, "a big screen sees how many each holds, never a hand");
+  ok(t.view<V<"lastcard">>("p1").legal.length === 0 && v.legal.every((c) => v.hand.includes(c) && canPlay(c, v.top, v.color)), "only the player on turn has cards to play, each one that fits");
+  const before = JSON.stringify(st);
+  t.g("p3", "call");
+  t.g("p3", "draw", { at: v.tn });
+  t.g("p3", "catch", { pid: "p0" });
+  ok(JSON.stringify(t.eng.d.game!.s) === before, "the watcher makes no moves");
+  seed = s0;
+});
+
+test("lastcard: numbers, skips and reverses go round three players", () => {
+  const s0 = seed;
+  const t = lcTable(3);
+  const [r5, r7, y7, ySkip, yRev, g3, b9, g8] = [lcId("r", "5"), lcId("r", "7"), lcId("y", "7"), lcId("y", "skip"), lcId("y", "rev"), lcId("g", "3"), lcId("b", "9"), lcId("g", "8")];
+  t.rig({ top: r5, turn: "p0", dir: 1, hands: { p0: [r7, g3, b9], p1: [y7, yRev, lcId("g", "4")], p2: [ySkip, lcId("b", "1"), lcId("b", "2")] } });
+  const tn = t.lv("p0").tn;
+  t.g("p0", "play", { card: r7, at: tn - 1 });
+  ok(t.lv("p0").top === r5, "a move that names an old turn lands nowhere");
+  t.play("p1", y7);
+  ok(t.lv("p0").top === r5, "not your turn: nothing");
+  t.play("p0", g3);
+  ok(t.lv("p0").top === r5 && t.lv("p0").turn === "p0", "a card that doesn't fit stays in the hand");
+  t.play("p0", r7);
+  let v = t.lv("p1");
+  ok(v.top === r7 && v.color === "r" && v.turn === "p1" && v.counts.p0 === 2, "red 7 on red 5: on to p1");
+  t.play("p1", y7);
+  v = t.lv("p2");
+  ok(v.color === "y" && v.turn === "p2", "yellow 7 on red 7 (the same number): yellow now");
+  t.play("p2", ySkip);
+  v = t.lv("p1");
+  ok(v.turn === "p1" && v.log.some((e) => e.k === "skip" && e.p === "p0"), "a skip: p0 misses out, p1 plays");
+  t.play("p1", yRev);
+  v = t.lv("p0");
+  ok(v.dir === -1 && v.turn === "p0" && v.log.some((e) => e.k === "rev"), "a reverse: play turns the other way, back to p0");
+  t.rig({ pile: [g8] });
+  t.draw("p0");
+  ok(t.lv("p0").turn === "p2", "and on backwards: p0 draws, nothing fits, p2 is next");
+  seed = s0;
+});
+
+test("lastcard: two players: a reverse is a skip, and so is a +2", () => {
+  const s0 = seed;
+  const t = lcTable(2);
+  const [r5, rRev, rSkip, rd2, r1] = [lcId("r", "5"), lcId("r", "rev"), lcId("r", "skip"), lcId("r", "d2"), lcId("r", "1")];
+  t.rig({ top: r5, turn: "p0", hands: { p0: [rRev, rSkip, rd2, r1], p1: [lcId("b", "1"), lcId("b", "2")] } });
+  t.play("p0", rRev);
+  ok(t.lv("p0").turn === "p0" && t.lv("p0").dir === 1, "a reverse with two players: p0 goes again");
+  t.play("p0", rSkip);
+  ok(t.lv("p0").turn === "p0", "a skip: p0 again");
+  t.play("p0", rd2);
+  ok(t.lv("p0").turn === "p0" && t.lv("p1").counts.p1 === 4, "a +2: p1 draws 2, and p0 goes again");
+  t.advance(1000);
+  ok(t.pensOf("p1").join() === "sip", "p1 takes a sip for the +2");
+  seed = s0;
+});
+
+test("lastcard: +2 and +4 land at once with stacking off; a wild picks the colour", () => {
+  const s0 = seed;
+  const t = lcTable(3);
+  const [r5, rd2, rd2b, w, d4, b6] = [lcId("r", "5"), lcId("r", "d2"), lcId("r", "d2", 1), lcId(null, "wild"), lcId(null, "d4"), lcId("b", "6")];
+  t.rig({ top: r5, turn: "p0", hands: { p0: [rd2, b6, lcId("g", "1")], p1: [rd2b, lcId("y", "1")], p2: [w, d4, lcId("y", "2")] } });
+  t.play("p0", rd2);
+  let v = t.lv("p2");
+  ok(v.turn === "p2" && v.counts.p1 === 4 && v.pending === 0, "a +2: p1 draws 2 at once and misses the turn (their own +2 can't answer it)");
+  t.play("p2", w);
+  ok(t.lv("p2").top === rd2, "a wild needs a colour picked");
+  t.g("p2", "play", { card: w, color: "purple", at: t.lv("p2").tn });
+  ok(t.lv("p2").top === rd2, "one of the four");
+  t.play("p2", w, "b");
+  v = t.lv("p0");
+  ok(v.top === w && v.color === "b" && v.turn === "p0" && v.log.some((e) => e.k === "play" && e.c === w && e.col === "b"), "a wild: blue now, and everyone hears it");
+  t.play("p0", b6);
+  t.rig({ turn: "p2" });
+  t.play("p2", d4, "g");
+  v = t.lv("p1");
+  ok(v.color === "g" && v.counts.p0 === 5 && v.turn === "p1", "a +4: green now, p0 draws 4 and misses the turn");
+  t.advance(1000);
+  ok(t.pensOf("p1").join() === "sip" && t.pensOf("p0").join() === "two", "a sip for taking the +2, two for the +4");
+  seed = s0;
+});
+
+test("lastcard: stacking: a +2 answers a +2, a +4 a +4, and whoever can't takes the lot", () => {
+  const s0 = seed;
+  const t = lcTable(3, { stack: true });
+  const [r5, rd2, bd2, d4a, d4b] = [lcId("r", "5"), lcId("r", "d2"), lcId("b", "d2"), lcId(null, "d4"), lcId(null, "d4", 1)];
+  t.rig({ top: r5, turn: "p0", hands: { p0: [rd2, d4a, lcId("g", "1")], p1: [bd2, d4b, lcId("y", "1")], p2: [lcId("g", "2"), lcId("g", "3")] } });
+  t.play("p0", rd2);
+  let v = t.lv("p1");
+  ok(v.turn === "p1" && v.pending === 2 && v.pendingKind === "d2" && v.counts.p1 === 3, "a +2 waits on p1: answer it or take 2");
+  ok(v.legal.join() === String(bd2), `only a +2 answers it (${v.legal.join()})`);
+  t.play("p1", d4b, "y");
+  ok(t.lv("p1").turn === "p1" && t.lv("p1").pending === 2, "a +4 doesn't answer a +2");
+  t.play("p1", bd2);
+  v = t.lv("p2");
+  ok(v.turn === "p2" && v.pending === 4 && v.color === "b", "p1 stacks a +2: 4 waiting on p2");
+  t.draw("p2");
+  v = t.lv("p0");
+  ok(v.counts.p2 === 6 && v.pending === 0 && v.turn === "p0", "p2 can't answer: takes all 4 and misses the turn");
+  t.play("p0", d4a, "g");
+  v = t.lv("p1");
+  ok(v.pending === 4 && v.pendingKind === "d4" && v.legal.join() === String(d4b), "a +4 waits on p1, and only a +4 answers");
+  t.play("p1", d4b, "r");
+  v = t.lv("p2");
+  ok(v.pending === 8 && v.color === "r", "8 waiting on p2");
+  t.draw("p2");
+  ok(t.lv("p0").counts.p2 === 14, "p2 takes all 8");
+  t.advance(1000);
+  ok(t.pensOf("p2").join() === "two,two", `two sips for each stack of 4 or more (${t.pensOf("p2").join()})`);
+  seed = s0;
+});
+
+test("lastcard: drawing: a card that fits can be played or kept; one that doesn't passes the turn", () => {
+  const s0 = seed;
+  const t = lcTable(3);
+  const [r5, r8, b2, g9, r1, r2] = [lcId("r", "5"), lcId("r", "8"), lcId("b", "2"), lcId("g", "9"), lcId("r", "1"), lcId("r", "2")];
+  t.rig({ top: r5, turn: "p0", hands: { p0: [r1, b2], p1: [lcId("y", "3")], p2: [lcId("y", "4")] }, pile: [g9, r8] });
+  t.draw("p0");
+  let v = t.lv("p0");
+  ok(v.turn === "p0" && v.drawn === r8 && v.legal.join() === String(r8) && v.hand.includes(r8), "p0 draws a red 8, which fits: play it or keep it");
+  ok(t.lv("p1").drawn === null && !JSON.stringify(t.lv("p1")).includes(`"c":${r8}`), "nobody else learns what was drawn");
+  t.draw("p0");
+  ok(t.lv("p0").counts.p0 === 3, "a second draw on the same turn does nothing");
+  t.play("p0", r1);
+  ok(t.lv("p0").top === r5, "after a draw, only the card drawn can go down");
+  t.play("p0", r8);
+  ok(t.lv("p1").top === r8 && t.lv("p1").turn === "p1", "the red 8 goes down");
+  t.draw("p1");
+  v = t.lv("p2");
+  ok(v.turn === "p2" && v.counts.p1 === 2, "p1 draws a green 9, which doesn't fit: on to p2");
+  t.rig({ pile: [r2] });
+  t.draw("p2");
+  t.keep("p2");
+  ok(t.lv("p0").turn === "p0" && t.lv("p0").counts.p2 === 2, "p2 draws one that fits and keeps it");
+  // an empty draw pile is made again from the discards; the face-up card stays
+  const st = t.s();
+  st.pile = [];
+  st.discard = [lcId("y", "5"), lcId("y", "6"), lcId("g", "6"), r8];
+  t.draw("p0");
+  v = t.lv("p0");
+  ok(v.top === r8 && v.under === 1 && v.pile === 2 && v.log.some((e) => e.k === "shuffle"), `the discards are reshuffled into a new pile (${v.pile} left, ${v.under} down)`);
+  // nothing at all left to draw: the turn passes
+  st.pile = [];
+  st.discard = [r8];
+  const who = t.lv("p0").turn!;
+  t.draw(who);
+  ok(t.lv("p0").turn !== who && t.lv("p0").log.some((e) => e.k === "pass"), "no cards left anywhere: pass");
+  seed = s0;
+});
+
+test("lastcard: calling last card, and catching someone who didn't", () => {
+  const s0 = seed;
+  const t = lcTable(3);
+  const [r3, r7, r8] = [lcId("r", "3"), lcId("r", "7"), lcId("r", "8")];
+  const deal = (p0: number[]) => t.rig({ top: r3, turn: "p0", dir: 1, hands: { p0, p1: [lcId("r", "4"), lcId("r", "5"), lcId("b", "1")], p2: [lcId("r", "6"), lcId("g", "1"), lcId("g", "2")] } });
+  // no call: caught
+  deal([r7, r8]);
+  t.play("p0", r7);
+  let v = t.lv("p2");
+  ok(v.open === "p0" && v.counts.p0 === 1, "p0 is down to one without calling: open to a catch");
+  t.g("p0", "catch", { pid: "p0" });
+  ok(t.lv("p2").open === "p0", "you can't catch yourself");
+  t.g("p2", "catch", { pid: "p0" });
+  v = t.lv("p2");
+  ok(v.open === null && v.counts.p0 === 3 && v.log.some((e) => e.k === "catch" && e.p === "p0" && e.by === "p2"), "p2 catches p0 first: p0 draws 2");
+  t.g("p1", "catch", { pid: "p0" });
+  ok(t.lv("p1").counts.p0 === 3, "a second catch finds nothing");
+  t.advance(1000);
+  ok(t.pensOf("p0").join() === "sip", "and p0 takes a sip");
+  // called at two cards, before playing
+  deal([r7, r8]);
+  t.g("p0", "call");
+  ok(t.lv("p1").called.includes("p0"), "p0 calls with two cards, on their turn");
+  t.play("p0", r7);
+  v = t.lv("p1");
+  ok(v.open === null && v.counts.p0 === 1, "down to one, and safe");
+  t.g("p1", "catch", { pid: "p0" });
+  ok(t.lv("p1").counts.p0 === 1, "nobody can catch p0");
+  // called just after playing, before anyone else moves
+  deal([r7, r8]);
+  t.play("p0", r7);
+  ok(t.lv("p1").open === "p0", "open again");
+  t.g("p0", "call");
+  v = t.lv("p1");
+  ok(v.open === null && v.called.includes("p0"), "p0 calls in time");
+  t.g("p2", "catch", { pid: "p0" });
+  ok(t.lv("p2").counts.p0 === 1, "too late to catch");
+  // nobody catches before the next player moves: p0 got away with it
+  deal([r7, r8]);
+  t.play("p0", r7);
+  t.play("p1", lcId("r", "4"));
+  v = t.lv("p2");
+  t.g("p2", "catch", { pid: "p0" });
+  ok(v.open === null && t.lv("p2").counts.p0 === 1, "p1 moved: too late to catch p0");
+  // a call means nothing at three cards; a hand that grows has to call again
+  deal([r7, r8, lcId("b", "9")]);
+  t.g("p0", "call");
+  ok(!t.lv("p0").called.includes("p0"), "no call at three cards");
+  deal([r7, r8]);
+  t.g("p0", "call");
+  t.rig({ pile: [lcId("g", "7")] });
+  t.draw("p0");
+  ok(!t.lv("p0").called.includes("p0") && t.lv("p0").counts.p0 === 3, "p0 called, then drew: the call is gone");
+  t.advance(2000);
+  ok(t.pensOf("p0").join() === "sip", "one catch, one sip, all along");
+  seed = s0;
+});
+
+test("lastcard: a round ends when someone goes out; the most cards drink; first to the target wins", () => {
+  const s0 = seed;
+  const [r3, r7, rd2] = [lcId("r", "3"), lcId("r", "7"), lcId("r", "d2")];
+  const t = lcTable(3, { target: 1 });
+  t.rig({ top: r3, turn: "p0", hands: { p0: [r7], p1: [lcId("b", "1"), lcId("b", "2"), lcId("b", "3")], p2: [lcId("g", "1"), lcId("g", "2"), lcId("g", "3"), lcId("g", "4"), lcId("g", "5")] } });
+  t.play("p0", r7);
+  let v = t.lv("p1");
+  ok(v.phase === "end" && v.winner === "p0" && v.champ === "p0" && v.wins.p0 === 1, "p0 goes out: first to one round wins the match");
+  ok(v.most.join() === "p2" && v.counts.p2 === 5, "p2 is left holding the most");
+  t.advance(2000);
+  ok(t.pensOf("p2").join() === "sip" && t.events.some((e) => e.k === "fx" && e.fx === "win"), "p2 drinks a sip; the table hears the win");
+  t.g("p1", "again");
+  ok(t.lv("p1").phase === "end", "only the host starts a new match");
+  const tn = t.lv("p0").tn;
+  t.g("p0", "again");
+  v = t.lv("p0");
+  ok(v.phase === "setup" && Object.keys(v.wins).length === 0 && v.target === 1 && v.tn > tn && v.hand.length === 0, "a new match: back to setup, the score cleared, the rules kept");
+
+  const u = lcTable(3, { target: 3 });
+  u.rig({ top: r3, turn: "p0", hands: { p0: [r7], p1: [lcId("b", "1"), lcId("b", "2")], p2: [lcId("g", "1"), lcId("g", "2")] } });
+  u.play("p0", r7);
+  ok(u.lv("p0").phase === "round" && u.lv("p0").wins.p0 === 1, "first to 3: the round is over, not the match");
+  ok(u.lv("p1").most.join() === "p1,p2", "a tie for the most: both drink");
+  u.eng.hello("p9", "Late", false);
+  u.eng.flush();
+  ok(!u.lv("p9").order.includes("p9") && u.lv("p9").hand.length === 0, "someone who sits down now waits for the next round");
+  u.g("p1", "next");
+  ok(u.lv("p0").phase === "round", "only the host deals the next round");
+  u.g("p0", "next");
+  v = u.lv("p0");
+  ok(v.phase === "play" && v.round === 2 && v.turn === "p1" && v.wins.p0 === 1 && ["p0", "p1", "p2", "p9"].every((p) => v.counts[p] === 7), "round 2: everyone dealt in, the late one too; p1 moves first; the score kept");
+  u.rig({ top: r3, turn: "p1", dir: 1, hands: { p1: [rd2], p2: [lcId("g", "1")] } });
+  u.play("p1", rd2);
+  ok(u.lv("p0").phase === "round" && u.lv("p0").winner === "p1" && u.lv("p0").counts.p2 === 3, "going out on a +2: p2 still draws 2");
+
+  const big = lcTable(12);
+  const bv = big.lv("p11");
+  ok(bv.order.length === 10 && !bv.order.includes("p11") && bv.hand.length === 0 && big.lv("p9").hand.length === 7, "twelve at the table: ten play, the last two sit the round out");
+  seed = s0;
+});
+
+test("lastcard: an away phone draws after 15 s, the host can skip, and a player who leaves gives their cards back", () => {
+  const s0 = seed;
+  const t = lcTable(3);
+  const r3 = lcId("r", "3");
+  t.rig({ top: r3, turn: "p1", hands: { p0: [lcId("b", "1"), lcId("b", "2")], p1: [lcId("g", "1"), lcId("g", "2")], p2: [lcId("y", "1"), lcId("y", "2")] }, pile: [lcId("b", "9")] });
+  t.eng.setOnline("p1", false);
+  t.eng.flush();
+  t.advance(LC_AWAY_MS - 1000);
+  ok(t.lv("p0").turn === "p1", "an away phone gets 15 seconds");
+  t.eng.setOnline("p2", false);
+  t.eng.setOnline("p2", true);
+  t.eng.flush();
+  t.advance(1500);
+  let v = t.lv("p0");
+  ok(v.turn === "p2" && v.counts.p1 === 3 && v.log.some((e) => e.k === "auto" && e.p === "p1"), "then it draws one and passes (another phone coming and going doesn't put that off)");
+  t.advance(60_000);
+  ok(t.lv("p0").turn === "p2", "an open phone isn't hurried");
+  const tn = t.lv("p0").tn;
+  t.g("p1", "skip", { at: tn });
+  ok(t.lv("p0").turn === "p2", "only the host can skip");
+  t.g("p0", "skip", { at: tn });
+  t.g("p0", "skip", { at: tn });
+  v = t.lv("p0");
+  ok(v.turn === "p0" && v.counts.p2 === 3, "the host's skip: p2 draws one and passes, and a doubled tap skips only once");
+  for (const p of ["p0", "p2"]) t.eng.setOnline(p, false);
+  t.eng.flush();
+  t.advance(LC_AWAY_MS * 3);
+  ok(t.lv("p0").turn === "p0", "with everyone away, the game waits");
+
+  const u = lcTable(3);
+  const total = () => {
+    const st = u.s();
+    return st.pile.length + st.discard.length + Object.values(st.hands).flat().length;
+  };
+  u.act("p0", { a: "leave" });
+  v = u.lv("p1");
+  ok(!v.order.includes("p0") && v.turn === "p1" && total() === 108, `p0 leaves on their turn: their cards go back under the pile (${total()}), p1 plays`);
+  u.act("p2", { a: "watch", on: true });
+  v = u.lv("p1");
+  ok(v.phase === "setup" && v.hand.length === 0, "p2 sits down to watch: one player left, back to the deal");
+  seed = s0;
+});
+
+test("lastcard: random rounds at every size: every card kept, every hand private, every round ends", () => {
+  const s0 = seed;
+  let rng = 12345;
+  const r = () => (rng = (rng * 48271) % 2147483647) / 2147483647;
+  const pick = <X>(a: X[]) => a[Math.floor(r() * a.length)];
+  const colors: LcColor[] = ["r", "y", "g", "b"];
+  let rounds = 0;
+  let moves = 0;
+  let bad = "";
+  for (const [n, stack] of [[2, false], [3, true], [4, false], [6, true], [10, false], [10, true]] as [number, boolean][]) {
+    const t = lcTable(n, { stack, target: 0 });
+    const ids = Array.from({ length: n }, (_, i) => `p${i}`);
+    for (let round = 0; round < 3 && !bad; round++) {
+      if (round > 0) t.g("p0", "next");
+      for (let step = 0; step < 4000 && !bad; step++) {
+        const st = t.s();
+        const all = [...st.pile, ...st.discard, ...Object.values(st.hands).flat()];
+        if (all.length !== 108 || new Set(all).size !== 108) bad = `${n} players: ${all.length} cards, ${new Set(all).size} different`;
+        const v = t.lv("p0");
+        if (v.phase !== "play") break;
+        for (const p of ids) {
+          const pv = t.lv(p);
+          if (pv.hand.join() !== st.hands[p].slice().sort((a, b) => a - b).join() || pv.counts[p] !== st.hands[p].length) bad = `${p}'s view isn't its own hand`;
+          if (pv.turn !== p && (pv.legal.length || pv.drawn !== null)) bad = `${p} can move out of turn`;
+          if (pv.legal.some((c) => !pv.hand.includes(c) || !canPlay(c, pv.top, pv.color, pv.pendingKind))) bad = `${p} may play a card that doesn't fit`;
+        }
+        // someone left on one card, uncalled: caught now and then
+        if (v.open && r() < 0.4) t.g(pick(ids.filter((p) => p !== v.open)), "catch", { pid: v.open });
+        const me = t.lv(v.turn!);
+        if (me.hand.length === 2 && r() < 0.6) t.g(me.turn!, "call");
+        if (me.legal.length && r() < 0.85) t.play(me.turn!, pick(me.legal), pick(colors));
+        else if (me.drawn !== null) t.keep(me.turn!);
+        else t.draw(me.turn!);
+        if (t.lv("p0").open && r() < 0.5) t.g(t.lv("p0").open!, "call");
+        moves++;
+      }
+      const end = t.lv("p0");
+      if (end.phase !== "round") bad = bad || `${n} players: round ${round + 1} never ended (${end.phase})`;
+      else rounds++;
+    }
+  }
+  ok(!bad, bad || `${rounds} rounds, ${moves} moves`);
+  ok(rounds === 18, `every round ends with someone out (${rounds} of 18)`);
   seed = s0;
 });
 
