@@ -60,7 +60,7 @@ Always:
 | [ui-C7](ui-C7-seo-pwa.md) | robots.txt, sitemap, caching, add to home screen (PWA), share images | done (#104) |
 | [ui-C9](design/ui-C9-design-rules.md) | The design rules in AGENTS.md; docs/DESIGN.md and site/DESIGN.md say one thing | done (#126) |
 | [ui-C6](design/ui-C6-visual-regression.md) | 40 reference screenshots and axe accessibility checks, in CI | done (#128) |
-| [ui-C2](design/ui-C2-game-shell.md) | The other 13 one-phone games onto the shell's bottom buttons and people row, one PR per game | 8 of 13 merged (#136 #138 #139 #140 #142 #143 #145 #147); limbo, euchre, drama, tune, punchline left |
+| [ui-C2](design/ui-C2-game-shell.md) | The other 13 one-phone games onto the shell's bottom buttons and people row, one PR per game | Done: all 13 merged (#136 #138 #139 #140 #142 #143 #145 #147 #148 #150 #167 #168 #170) |
 
 New cards go in `docs/codex-tasks/design/` (one folder per chat, docs/briefs/README.md). The other Codex
 cards in the plan (C3, C5, C8) are written when their turn comes.
