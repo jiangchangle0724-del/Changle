@@ -10,7 +10,7 @@ import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
-import { SCENES as DRAMA_SCENES } from "../src/data/drama";
+import { PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -1421,6 +1421,57 @@ test("drama: scenes written at the table and from the public library", () => {
     seen = t.view<V>("p0").scene?.title.en === "Library cake";
   }
   ok(seen && t.view<V>("p0").credit?.name === "小雨", "the library's scene comes up, credited to its writer");
+});
+
+test("drama: every acting style explains itself, in Chinese and in English, each written for its own audience", () => {
+  type V = V<"drama">;
+  const cjk = /[一-鿿]/;
+  ok(DRAMA_STYLES.filter((x) => x.level === "all").length >= 2 && DRAMA_STYLES.some((x) => x.level === "spicy"), "styles for an all-ages table and for a spicy one");
+  ok(new Set(DRAMA_STYLES.map((x) => x.s.zh)).size === DRAMA_STYLES.length && new Set(DRAMA_STYLES.map((x) => x.s.en)).size === DRAMA_STYLES.length, "no two styles share a name");
+  for (const st of DRAMA_STYLES) {
+    const name = st.s.zh;
+    ok(!!st.how.zh && !!st.how.en && !!st.demo.zh && !!st.demo.en && !!st.see.zh && !!st.see.en, `${name}: what to do, an example and a search, in both languages`);
+    ok(cjk.test(st.how.zh) && cjk.test(st.demo.zh) && !cjk.test(st.how.en + st.demo.en + st.see.en), `${name}: the Chinese is Chinese and the English is English`);
+    ok(st.demo.zh.includes("下雨") && /rain/i.test(st.demo.en), `${name}: its example says the everyday sentence`);
+    ok(pkStyle(st.s) === st, `${name}: found by its name`);
+    ok(pkSeeUrl("zh", st.see.zh).startsWith("https://search.bilibili.com/all?keyword=") && pkSeeUrl("en", st.see.en).startsWith("https://www.youtube.com/results?search_query="), `${name}: its videos are a search, not one address that can go dead`);
+  }
+  // in a duel, each card and the cast list name a style from that list: the phone finds its example by the name
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { mode: "pk", level: "spicy" });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[] };
+  ok(s.cast.length === 2 && s.cast.every((c) => !!pkStyle(t.view<V>(c).me?.secret)), "each actor's card names a style with an example");
+  ok(t.view<V>("p0").cast.every((c) => !!pkStyle(c.role)), "and so does the cast list the audience reads");
+  ok(pkStyle(null) === undefined && pkStyle({ zh: "没有这个演法", en: "No such style" }) === undefined, "a name nobody knows has no example (the card falls back to the plain line)");
+});
+
+test("drama: every built-in scene in both languages, and an evening of hard scenes for a table of three or four", () => {
+  type V = V<"drama">;
+  const cjk = /[㐀-鿿]/;
+  ok(new Set(DRAMA_SCENES.map((s) => s.id)).size === DRAMA_SCENES.length, "no two scenes share an id");
+  const bad = DRAMA_SCENES.filter((s) => {
+    const texts = [s.title, s.setup, s.culprit, s.culpritCard, s.ask, s.twist, ...s.roles.flatMap((r) => [r.name, r.brief, r.alibi])];
+    return s.roles.length < 2 || s.roles.length > 4 || !texts.every((x) => cjk.test(x.zh) && !!x.en && !cjk.test(x.en));
+  });
+  ok(!bad.length, `every scene has two to four roles and every line in Chinese and in English (${bad.map((s) => s.id).join(", ")})`);
+  // three or four at the table put two on stage: on hard, scenes written for two, an evening's worth
+  const two = DRAMA_SCENES.filter((s) => s.diff === "hard" && s.roles.length === 2);
+  ok(two.filter((s) => s.level === "all").length >= 10 && two.length >= 16, "ten all-ages hard scenes for two actors, sixteen for a spicy table");
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { diff: "hard" });
+  t.g("p0", "start");
+  const seen = new Set<string>();
+  for (let i = 0; i < 10; i++) {
+    const v = t.view<V>("p0");
+    const sc = DRAMA_SCENES.find((x) => x.id === v.scene?.id);
+    ok(v.phase === "brief" && v.cast.length === 2 && sc?.diff === "hard" && sc.level === "all" && sc.roles.length === 2, `four at the table, scene ${i + 1}: hard, all ages, written for two`);
+    if (sc) seen.add(sc.id);
+    t.g("p0", "skip");
+  }
+  ok(seen.size === 10, "ten different scenes before one comes round again");
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {

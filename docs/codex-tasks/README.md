@@ -61,7 +61,9 @@ Always:
 | [ui-C9](design/ui-C9-design-rules.md) | The design rules in AGENTS.md; docs/DESIGN.md and site/DESIGN.md say one thing | done (#126) |
 | [ui-C6](design/ui-C6-visual-regression.md) | 40 reference screenshots and axe accessibility checks, in CI | done (#128) |
 | [ui-C2](design/ui-C2-game-shell.md) | The other 13 one-phone games onto the shell's bottom buttons and people row, one PR per game | Done: all 13 merged (#136 #138 #139 #140 #142 #143 #145 #147 #148 #150 #167 #168 #170) |
-| [ui-C10](design/ui-C10-resume.md) | The other 13 one-phone games keep their progress through a reload (这局还在，回来继续？), one PR per game | sent to Codex 2026-11-05 (the shell part is #178, #180); 谁是卧底, 七八九, 真心话大冒险 are the pattern |
+| [ui-C10](design/ui-C10-resume.md) | The other 13 one-phone games keep their progress through a reload (这局还在，回来继续？), one PR per game | Done 2026-11-05: all 13 merged (#191 #192 #193 #194 #195 #196 #197 #198 #199 #200 #201 #206 #207); the shell part is #178, #180 |
+| [ui-C5](design/ui-C5-states.md) | Empty, loading and error states across the site with the shared EmptyState, Skeleton and Toast, one PR per area; the words are signed off | Done 2026-11-05: all 7 merged (#218 #219 #220 #221 #222 #223 #224); the samples are #214 |
+| [ui-C8](design/ui-C8-consistency.md) | The site's frame (home, accounts, online table, tools, shared parts) on tokens only: font sizes, colors, shadows, corners, short timings; `tests/tokens.test.ts` counts what's left | ready: 586 to go in 5 PRs; the games' pictures, the TV and spacing wait |
 
 New cards go in `docs/codex-tasks/design/` (one folder per chat, docs/briefs/README.md). The other Codex
 cards in the plan (C3, C5, C8) are written when their turn comes.

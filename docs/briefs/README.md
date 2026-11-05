@@ -34,7 +34,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 30 个对话，每个�
 | 游戏 · 猜歌名 | [tune.md](tune.md) | changle.ca/g/name-that-tune |
 | 游戏 · 神回复 | [punchline.md](punchline.md) | changle.ca/g/punchline |
 | 游戏 · 你画我猜 | [draw.md](draw.md) | changle.ca/g/draw-and-guess |
-| 游戏 · 一本正经 | [straightface.md](straightface.md) | changle.ca/g/straight-face（先藏着，`/play` 能进） |
+| 游戏 · 一本正经 | [straightface.md](straightface.md) | changle.ca/g/in-all-seriousness |
 | 游戏 · 最后一张 | [lastcard.md](lastcard.md) | changle.ca/g/last-card（先藏着，`/play` 开一桌，只能联机） |
 
 ## 大游戏和工具（8 个）

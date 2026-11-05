@@ -15,11 +15,19 @@ export const TIMING = {
   /** Whole-table votes and sealed bids: people who haven't answered get the default after this. */
   vote: 25_000,
   /**
-   * Rio: the dance every screen plays before the judges score it, from the moment the team says
-   * yes: 0.4 s for every screen to get it, then 17 beats at 100 a minute (4 counted in, 12 danced,
-   * the pose). The judges' 25 s start after it.
+   * Rio: a team that says it will dance gets a ready card, and the lesson starts when it presses
+   * Start. Left alone this long, it starts by itself (nobody holds the game; not in the one-phone demo)…
    */
-  dance: 10_600,
+  danceReady: 60_000,
+  /** …with a countdown of this long on every screen first… */
+  danceCount: 5_000,
+  /**
+   * …and then the lesson every screen plays before the judges score it: eight figures of eight beats
+   * at 100 a minute, and the pose (ui/Samba.tsx). The judges' 25 s start after it.
+   */
+  dance: 40_000,
+  /** A computer team's dance (nobody to get ready, nobody to teach): two figures and the pose, straight away. */
+  danceBot: 10_000,
   /** Shanghai: time to answer the trash quiz. */
   quiz: 5_000,
   /** Seoul: the silent ten seconds. */
@@ -139,6 +147,8 @@ export type ClientMsg =
   | { t: "pause"; on: boolean }
   /** The party forfeit `id` is over: done (its team), or skipped (the host). */
   | { t: "forfeit"; id: number; op: "done" | "skip" }
+  /** Rio: the dancing team is ready (its Start button): the countdown begins, then the lesson. */
+  | { t: "dance-go" }
   | { t: "save" }
   | { t: "again" }
   | { t: "ping" };
@@ -250,6 +260,25 @@ export interface TriviaView {
   source: string | null;
 }
 
+/**
+ * Rio's dance, as every screen plays it. A person's team gets a ready card first: the lesson starts
+ * when it presses Start (or by itself at `auto`), after a countdown. A computer team dances the short
+ * one straight away. Every time a screen needs is here (a test room's are shorter).
+ */
+export interface DanceView {
+  seat: number;
+  /** Server time the lesson's first beat falls, or null while the team hasn't started it. */
+  at: number | null;
+  /** The countdown every screen shows before `at`, in ms (0: none, a computer team's). */
+  count: number;
+  /** The lesson's length in ms: the judges' buttons light up at `at + ms`. */
+  ms: number;
+  /** The short lesson (a computer team's): two figures and the pose. */
+  short: boolean;
+  /** While it waits for Start: the server time it starts by itself, or null if it never does (the one-phone demo). */
+  auto: number | null;
+}
+
 export interface ForfeitView {
   id: number;
   seat: number;
@@ -293,8 +322,8 @@ export interface GameView {
   answered: number[];
   /** Dubai: the top Journey cards, only for the seat looking. */
   peek: number[] | null;
-  /** Rio: a team dancing, from server time `at` for `ms` (TIMING.dance), the judges' buttons waiting. */
-  dance: { seat: number; at: number; ms: number } | null;
+  /** Rio: a team's dance, the judges' buttons waiting until it's over. */
+  dance: DanceView | null;
   bets: { seat: number; open: boolean; yes: number; no: number; mine: boolean | null } | null;
   worth: number[];
 }

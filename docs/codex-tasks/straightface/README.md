@@ -1,12 +1,12 @@
-# Task cards for Codex: 一本正经 · Straight Face (`site/`)
+# Task cards for Codex: 一本正经 · In All Seriousness (`site/`)
 
 One card, one branch, one PR. Each card names the only files to change, what it starts from, the
 test, the command and when it's done.
 
 Before any card: read `docs/straight-face.md` (the plan: short) and
 `site/src/shared/straightface/types.ts` (the contract), and the local setup in `site/README.md`.
-The game is built inside the site (changle.ca/g/straight-face/play, hidden from the home board
-until the owner has played it): its engine is a pure reducer the one-phone screen runs in the
+The game is built inside the site (changle.ca/g/in-all-seriousness, on the home board since
+2026-11-05, one phone only so far): its engine is a pure reducer the one-phone screen runs in the
 browser and the rooms server will run later (A3).
 
 Always:

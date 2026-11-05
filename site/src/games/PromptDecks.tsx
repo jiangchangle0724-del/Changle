@@ -5,23 +5,46 @@ import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { LIKELY, NEVER } from "../data/prompts";
 import { GameShell, usePenalty } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { UI, type T } from "../i18n";
 
 type Mode = "never" | "likely";
 
+type Kept = { mode: Mode; card: T | null; n: number; picking: boolean; guilty: string[]; never: number[]; likely: number[]; paid: boolean };
+
 export function PromptDecks({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="prompts" version={1}>
+      {(saved) => <PromptGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function PromptGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang, sound } = useStore();
-  const never = useRef(new Deck<T>(NEVER));
-  const likely = useRef(new Deck<T>(LIKELY));
-  const [mode, setMode] = useState<Mode>("never");
-  const [card, setCard] = useState<T | null>(null);
-  const [n, setN] = useState(0);
-  const [picking, setPicking] = useState(false);
-  const [guilty, setGuilty] = useState<string[]>([]);
+  const [first] = useState(() => {
+    const never = new Deck<T>(NEVER);
+    const likely = new Deck<T>(LIKELY);
+    if (saved) {
+      never.restore(saved.never);
+      likely.restore(saved.likely);
+    }
+    // The stamp already counted its penalty: perform its pending draw once on return.
+    const card = saved?.paid ? (saved.mode === "never" ? never : likely).draw().card : saved?.card ?? null;
+    return { never, likely, card };
+  });
+  const never = useRef(first.never);
+  const likely = useRef(first.likely);
+  const [mode, setMode] = useState<Mode>(saved?.mode ?? "never");
+  const [card, setCard] = useState<T | null>(first.card);
+  const [n, setN] = useState((saved?.n ?? 0) + (saved?.paid ? 1 : 0));
+  const [picking, setPicking] = useState(!saved?.paid && (saved?.picking ?? false));
+  const [guilty, setGuilty] = useState<string[]>(saved?.paid ? [] : saved?.guilty ?? []);
   const [remaining, setRemaining] = useState({ never: never.current.remaining, likely: likely.current.remaining });
   const penalty = usePenalty();
   const pen = usePenaltyText();
+  useKeepProgress<Kept>({ mode, card, n, picking, guilty, never: never.current.keep(), likely: likely.current.keep(), paid: !!penalty.call }, n > 0);
 
   const draw = () => {
     const d = mode === "never" ? never.current : likely.current;
@@ -89,7 +112,7 @@ export function PromptDecks({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <GameShell title={UI.gamePrompts} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{}} actions={actions}>
+    <GameShell title={UI.gamePrompts} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} status={n > 0 ? { kind: "round", current: n } : undefined} roster={{}} actions={actions}>
       <div className="deck-stage">
         <div className="segmented-row" style={{ justifyContent: "center" }}>
           <div className="lang-tab heat-tab" role="group">

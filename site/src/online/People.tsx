@@ -3,10 +3,13 @@ import { useEffect, useState } from "react";
 import { useAccount, type PublicUser } from "../account/AccountContext";
 import { Avatar, colorFor } from "../account/Avatar";
 import { Sheet } from "../components/Sheet";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { sfx } from "../lib/sfx";
 import type { SeatView } from "../shared/protocol";
 import { useStore } from "../store";
+import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
+import { ToastProvider, useToast } from "../ui/Toast";
 
 /** A seat's face: the profile photo or color for signed-in players, a steady color from the phone id for everyone else. */
 export function SeatFace({ seat, size = 40, className = "" }: { seat: SeatView | undefined; size?: number; className?: string }) {
@@ -18,17 +21,25 @@ type Relation = "self" | "friends" | "sent" | "received" | "none" | "blocked";
 
 /** Tap a face at the table: who they are, and a friend request without leaving the game. */
 export function PersonSheet({ seat, onClose }: { seat: SeatView | null; onClose: () => void }) {
+  return <ToastProvider><Person seat={seat} onClose={onClose} /></ToastProvider>;
+}
+
+function Person({ seat, onClose }: { seat: SeatView | null; onClose: () => void }) {
+  const toast = useToast();
   const { me, status, openSignIn } = useAccount();
   const { lang } = useStore();
   const zh = lang === "zh";
   const [user, setUser] = useState<PublicUser | null>(null);
   const [rel, setRel] = useState<Relation | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<"network" | "missing" | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const uid = seat?.uid;
 
   useEffect(() => {
     setUser(null);
     setRel(null);
+    setFailed(null);
     if (!uid || status !== "in") return;
     let gone = false;
     void api<{ user: PublicUser; relation: Relation }>(`/users/${uid}`).then(
@@ -37,12 +48,12 @@ export function PersonSheet({ seat, onClose }: { seat: SeatView | null; onClose:
         setUser(d.user);
         setRel(d.relation);
       },
-      () => {},
+      (e) => !gone && setFailed(e instanceof ApiError && e.status === 404 ? "missing" : "network"),
     );
     return () => {
       gone = true;
     };
-  }, [uid, status]);
+  }, [uid, status, attempt]);
 
   const add = async () => {
     if (!uid) return;
@@ -52,7 +63,7 @@ export function PersonSheet({ seat, onClose }: { seat: SeatView | null; onClose:
       setRel(d.relation);
       sfx.pop();
     } catch {
-      /* stays as it was */
+      toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
     } finally {
       setBusy(false);
     }
@@ -65,6 +76,7 @@ export function PersonSheet({ seat, onClose }: { seat: SeatView | null; onClose:
         <div className="person-card">
           <SeatFace seat={seat} size={84} />
           <h3 className="person-card-name">{name}</h3>
+          {uid && status === "in" && !user && (failed ? <EmptyState tone="error" title={failed === "missing" ? (zh ? "找不到这个人" : "This profile doesn't exist") : (zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection")} action={failed === "network" ? { label: zh ? "再试一次" : "Try again", onClick: () => setAttempt((n) => n + 1) } : undefined} /> : <Skeleton lang={lang} lines={3} width="100%" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />)}
           {user && (
             <p className="me-tags">
               <span className="tag">{user.city}</span>

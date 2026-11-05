@@ -113,11 +113,14 @@ export function songPlayer(v: RoomView, seat: number): string | null {
   return host?.id ?? null;
 }
 
-/** The song keeps playing but can't be heard: a pause, Seoul's ten seconds of silence, Rio's samba lesson. */
+/**
+ * The song keeps playing but can't be heard: a pause, Seoul's ten seconds of silence, Rio's samba (from
+ * its ready card, through the countdown, to the end of the lesson).
+ */
 export function songHushed(v: RoomView, now: number): boolean {
   const g = v.game;
   if (!g) return false;
-  return g.paused || (g.silenceUntil ?? 0) > now || (!!g.dance && now < g.dance.at + g.dance.ms);
+  return g.paused || (g.silenceUntil ?? 0) > now || (!!g.dance && (g.dance.at === null || now < g.dance.at + g.dance.ms));
 }
 
 /** A song's title and artist for a reader of `lang`. */

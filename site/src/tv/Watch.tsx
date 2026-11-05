@@ -17,6 +17,8 @@ import { siteHost } from "./parts";
 import { TvView } from "./views";
 import "../styles/tv.css";
 import "../styles/tv-show.css";
+import { Skeleton } from "../ui/Skeleton";
+import "./states.css";
 
 /**
  * A phone that only watches, during a game: the big screen's view of it, full screen, to mirror
@@ -186,9 +188,11 @@ function Away({ icon: Icon, title, text, children }: { icon: LucideIcon; title: 
 }
 
 function Loading() {
+  const { lang } = useStore();
   return (
     <div className="watch-away">
-      <span className="tv-spinner" aria-hidden="true" />
+      <Skeleton lang={lang} shape="block" width="calc(var(--tap) * 12)" height="calc(var(--tap) * 6)" slowText={lang === "zh" ? "网有点慢，马上就好" : "Slow connection, nearly there"} />
+      <p>{lang === "zh" ? "加载中" : "Loading"}</p>
     </div>
   );
 }

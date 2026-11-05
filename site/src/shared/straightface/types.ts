@@ -1,5 +1,5 @@
 /**
- * 一本正经 · Straight Face: shared types.
+ * 一本正经 · In All Seriousness: shared types.
  * A bluff-the-definition party game (the Call My Bluff / Fictionary family): one judge (裁判), one
  * honest player (老实人) who has read the true definition, everyone else bluffs (瞎编的人). The judge
  * must find the honest one.

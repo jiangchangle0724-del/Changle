@@ -37,6 +37,7 @@ async function fromServer(signal: AbortSignal) {
 /** If the server is unreachable, ask a public daily source straight from the browser. */
 async function fromPublic(signal: AbortSignal) {
   const res = await fetch("https://open.er-api.com/v6/latest/USD", { signal });
+  if (!res.ok) throw new Error(String(res.status));
   const d = await res.json();
   if (!d?.rates?.CAD) throw new Error("bad");
   return { rates: d.rates as Rates, at: (d.time_last_update_unix ?? Date.now() / 1000) * 1000, source: "open.er-api.com" };
@@ -51,15 +52,17 @@ export function useRates(): FxState & { refresh: () => void } {
 
   useEffect(() => {
     const ctl = new AbortController();
-    setState((s) => ({ ...s, loading: true }));
+    setState((s) => ({ ...s, loading: true, error: false }));
     (async () => {
       try {
         let d;
         try {
           d = await fromServer(ctl.signal);
         } catch {
+          if (ctl.signal.aborted) return;
           d = await fromPublic(ctl.signal);
         }
+        if (ctl.signal.aborted) return;
         try {
           localStorage.setItem(KEY, JSON.stringify(d));
         } catch {

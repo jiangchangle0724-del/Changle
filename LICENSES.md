@@ -26,7 +26,7 @@ from and on what terms. Update it with every new source. Last checked: 2026-11-0
 * No interface stores audio on the site: `grep -rn "R2\|\.put(" site/worker` finds only the room's state (the host's songs by name, never their sound) and two small caches (exchange rates, the site's status). The only audio that passes through the rooms server is the host's phone to big screen relay above.
 * Every new sound source gets a row here in the same change that adds it.
 
-# 一本正经 · Straight Face: the card bank
+# 一本正经 · In All Seriousness: the card bank
 
 The game is in the family of Call My Bluff (BBC, 1965), Balderdash (1984) and 瞎掰王 / 9UPPER. A
 game mechanic is not protected; names, card texts and art are. So (2026-11-02, the plan):

@@ -161,8 +161,16 @@ test("the song is held down through a pause, Seoul's silence and Rio's samba", (
   assert.equal(songHushed(view({ feed, pos: PARIS }), NOW), false);
   assert.equal(songHushed(view({ feed, pos: PARIS, game: { paused: true } }), NOW), true);
   assert.equal(songHushed(view({ feed, pos: PARIS, game: { silenceUntil: NOW + 5000 } }), NOW), true);
-  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { seat: 0, at: NOW - 1000, ms: 10_600 } } }), NOW), true);
-  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { seat: 0, at: NOW - 20_000, ms: 10_600 } } }), NOW), false);
+  // Rio's samba: from the ready card (the lesson hasn't a start yet), through the countdown, to the lesson's end.
+  const dance = { seat: 0, count: 5000, ms: 40_000, short: false, auto: null };
+  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { ...dance, at: null, auto: NOW + 30_000 } } }), NOW), true);
+  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { ...dance, at: NOW + 3000 } } }), NOW), true);
+  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { ...dance, at: NOW - 1000 } } }), NOW), true);
+  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { ...dance, at: NOW - 39_000 } } }), NOW), true);
+  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { ...dance, at: NOW - 41_000 } } }), NOW), false);
+  // A computer team's short one.
+  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { seat: 0, at: NOW - 9000, count: 0, ms: 10_000, short: true, auto: null } } }), NOW), true);
+  assert.equal(songHushed(view({ feed, pos: PARIS, game: { dance: { seat: 0, at: NOW - 11_000, count: 0, ms: 10_000, short: true, auto: null } } }), NOW), false);
 });
 
 // ---------- the player ----------

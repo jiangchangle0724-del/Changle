@@ -173,6 +173,11 @@ export interface TapOptions {
   bid?: number;
   /** Kinds of question to leave alone (the test answers them itself). */
   skip?: string[];
+  /**
+   * Say yes to Rio's dance. Left out, a team says no: the lesson is 45 s of the real game (the
+   * countdown and the dance), too long for a test about something else (together.spec.ts dances).
+   */
+  dance?: boolean;
 }
 
 /**
@@ -188,6 +193,12 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
       const kind = ((): string | null => {
       // A question that has just come up takes no taps for a moment, from a person or from us.
       if (document.querySelector(".settling")) return null;
+      // Rio: this phone's team said it will dance, and the lesson waits for its Start.
+      const go = document.querySelector<HTMLElement>(".samba-full.ready .haptic-btn:not(.off)");
+      if (go) {
+        go.click();
+        return "dance-go";
+      }
       const auction = document.querySelector(".decide.auction");
       if (auction) {
         const b = auction.querySelector<HTMLButtonElement>(".btn.primary:not([disabled]):not(.off)");
@@ -208,7 +219,7 @@ export async function tap(p: Phone, o: TapOptions = {}): Promise<string | null> 
         panel.querySelector<HTMLButtonElement>(".btn.primary:not([disabled]):not(.off)") ??
         panel.querySelector<HTMLButtonElement>(".btn[data-default]:not([disabled]):not(.off)") ??
         buttons[0];
-      if (kind === "buy" && o.declineBuys) pick = buttons.find((b) => !b.classList.contains("primary")) ?? pick;
+      if ((kind === "buy" && o.declineBuys) || (kind === "dance" && !o.dance)) pick = buttons.find((b) => !b.classList.contains("primary")) ?? pick;
       if (kind === "debt" && !panel.querySelector(".btn.primary:not([disabled]):not(.off)")) {
         // Can't pay yet: sell or mortgage something first (the debt panel lists them), else go broke.
         const sellable = panel.querySelector<HTMLButtonElement>(".assets .btn:not([disabled]):not(.off)");

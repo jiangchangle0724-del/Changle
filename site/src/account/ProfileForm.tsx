@@ -5,6 +5,7 @@ import { useStore } from "../store";
 import type { Gender } from "./AccountContext";
 import { Avatar, AV_COLORS } from "./Avatar";
 import { AvatarMaker, type Drawn } from "./avatar/Maker";
+import { useToast } from "../ui/Toast";
 
 /** What a profile shows as its face: the AI-drawn anime figure, a photo, or neither (the first letter). */
 export type FaceKind = "anime" | "photo" | "none";
@@ -88,6 +89,7 @@ export function ProfileForm({
   const { lang } = useStore();
   const zh = lang === "zh";
   const [making, setMaking] = useState(false);
+  const toast = useToast();
   const [v, setV] = useState<ProfileValues>(initial);
   const [adult, setAdult] = useState(mode === "edit");
   const [preview, setPreview] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export function ProfileForm({
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
-            if (f) void toAvatarBlob(f).then(onPhoto).catch(() => {});
+            if (f) void toAvatarBlob(f).then(onPhoto).catch(() => toast(zh ? "没成功，再试一次" : "That didn't go through. Try again"));
           }}
         />
         <AvatarMaker
