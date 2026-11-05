@@ -1,0 +1,459 @@
+/*
+ * 最佳称号 on the big screen (party/superlatives/TvSuper.tsx): an awards night in the tangerine
+ * gel. A gold plaque for the award, the nominees standing on the stage, a spotlight and a sash
+ * for the winner, the podium at the ceremony.
+ */
+
+.tvs {
+  --gold: #ffcf5a;
+  --gold-hi: #fff1b8;
+  --gold-lo: #b9861d;
+  --gold-mid: #e2a92c;
+  --gold-shine: #fff4c4;
+  --gold-ink: #5a3a08;
+  --beam: #fff1c9;
+  --sash: #7a1530;
+  --wood: #2b1a14;
+  --wood-dark: #1a1022;
+}
+
+/* gold dust on the back wall */
+.tvx-room > .tvs-glitter {
+  inset: 0 0 30% 0;
+  background-image:
+    radial-gradient(2px 2px at 12% 18%, color-mix(in oklab, var(--gold) 80%, transparent), transparent),
+    radial-gradient(1.5px 1.5px at 27% 42%, color-mix(in oklab, var(--gold-hi) 70%, transparent), transparent),
+    radial-gradient(2.5px 2.5px at 44% 12%, color-mix(in oklab, var(--gold) 70%, transparent), transparent),
+    radial-gradient(1.5px 1.5px at 63% 33%, color-mix(in oklab, var(--gold-hi) 70%, transparent), transparent),
+    radial-gradient(2px 2px at 78% 16%, color-mix(in oklab, var(--gold) 80%, transparent), transparent),
+    radial-gradient(1.5px 1.5px at 90% 46%, color-mix(in oklab, var(--gold-hi) 60%, transparent), transparent);
+  background-size: 420px 300px;
+  opacity: 0.7;
+  animation: tvs-dust 18s linear infinite;
+}
+@keyframes tvs-dust {
+  to {
+    background-position: 0 300px;
+  }
+}
+
+/* ---------- the vote ---------- */
+.tvs-vote {
+  position: absolute;
+  inset: 132px 40px 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.tvs-plaque-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding-top: 40px;
+  perspective: 1100px;
+}
+.tvs-plaque {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 820px;
+  max-width: min(1240px, 100%);
+  padding: 62px 80px 30px;
+  border-radius: 28px;
+  background:
+    radial-gradient(80% 120% at 50% 0%, color-mix(in oklab, var(--gel) 22%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, var(--wood) 0%, var(--wood-dark) 100%);
+  box-shadow:
+    0 0 0 3px var(--gold),
+    0 0 0 10px color-mix(in oklab, var(--gold) 16%, transparent),
+    0 34px 80px -30px var(--gel);
+  text-align: center;
+  transform-origin: 50% 0;
+}
+.tvs-plaque .tvx-bi {
+  align-items: center;
+}
+.tvs-plaque .tvx-bi {
+  font-size: 66px;
+}
+.tvs-plaque .tvx-bi-main {
+  color: var(--tvx-light);
+  text-shadow: 0 0 30px color-mix(in oklab, var(--gel) 45%, transparent);
+}
+.tvs-trophy {
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 100px;
+  height: 100px;
+  margin-left: -50px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, var(--gold-hi), var(--gold) 55%, var(--gold-lo));
+  color: var(--gold-ink);
+  box-shadow:
+    0 0 0 6px var(--wood-dark),
+    0 0 40px color-mix(in oklab, var(--gold) 70%, transparent);
+}
+.tvs-own {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 4px 16px 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--gel) 20%, transparent);
+  color: var(--moon);
+  font-size: 24px;
+  font-weight: 700;
+}
+.tvs-ask {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin: 0;
+  font-size: 34px;
+  font-weight: 800;
+}
+.tvs-count {
+  padding: 6px 22px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 50%, transparent);
+  font-family: var(--font-display);
+  font-size: 34px;
+}
+.tvs-count b {
+  color: var(--gel);
+  font-size: 44px;
+}
+.tvs-count small {
+  font-family: var(--font-text);
+  color: var(--haze);
+  font-size: 26px;
+}
+
+/* ---------- the reveal ---------- */
+.tvs-reveal {
+  position: absolute;
+  inset: 0;
+}
+.tvs-goes {
+  position: absolute;
+  top: 138px;
+  left: 60px;
+  width: 940px;
+  margin: 0;
+  color: var(--haze);
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 800;
+  text-align: center;
+}
+.tvs-spot {
+  --fig-h: 350px;
+  position: absolute;
+  left: 60px;
+  width: 940px;
+  top: 200px;
+  bottom: 196px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 40px;
+  isolation: isolate;
+}
+.tvs-spot.is-many {
+  --fig-h: 290px;
+}
+.tvs-spot.n3 {
+  --fig-h: 250px;
+}
+.tvs-beam {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  width: 760px;
+  height: 760px;
+  margin-left: -380px;
+  background: linear-gradient(to bottom, color-mix(in oklab, var(--beam) 2%, transparent) 0%, color-mix(in oklab, var(--beam) 16%, transparent) 55%, color-mix(in oklab, var(--gold-hi) 30%, transparent) 100%);
+  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 2%, black 24%, black 76%, transparent 98%);
+  mask-image: linear-gradient(90deg, transparent 2%, black 24%, black 76%, transparent 98%);
+  transform-origin: 50% 0;
+  z-index: -1;
+}
+.tvs-beam::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -40px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--gold) 60%, transparent), transparent);
+}
+.tvs-winner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.tvs-winner-fig {
+  position: relative;
+  display: block;
+  width: fit-content;
+  height: var(--fig-h);
+}
+.tvs-sash {
+  position: absolute;
+  left: 20%;
+  top: 52%;
+  width: 64%;
+  height: calc(var(--fig-h) * 0.065);
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-hi) 50%, var(--gold-mid));
+  transform: rotate(-28deg);
+  box-shadow: 0 3px 6px color-mix(in oklab, var(--tvx-ink) 35%, transparent);
+}
+.tvs-medal {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: calc(var(--fig-h) * 0.11);
+  aspect-ratio: 1;
+  margin-left: calc(var(--fig-h) * -0.055);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--gold-shine), var(--gold) 55%, var(--gold-lo));
+  box-shadow:
+    0 0 0 3px var(--sash),
+    0 4px 8px color-mix(in oklab, var(--tvx-ink) 45%, transparent);
+}
+.tvs-winner-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 900px;
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1.05;
+  color: var(--tvx-light);
+  text-shadow: 0 0 30px color-mix(in oklab, var(--gel) 70%, transparent);
+  white-space: nowrap;
+}
+.tvs-spot.is-many .tvs-winner-name {
+  font-size: 44px;
+}
+.tvs-winner-name svg {
+  color: var(--gold);
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--gold) 80%, transparent));
+}
+.tvs-title-won {
+  position: absolute;
+  left: 60px;
+  width: 940px;
+  bottom: 118px;
+  margin: 0;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 800;
+  text-align: center;
+  text-wrap: balance;
+}
+.tvs-votes {
+  position: absolute;
+  top: 190px;
+  right: 60px;
+  max-height: 560px;
+  width: 520px;
+  padding: 26px 28px;
+  overflow: hidden;
+  border-radius: 30px;
+  background: color-mix(in oklab, var(--dusk) 88%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 30px 60px -30px var(--tvx-ink);
+}
+.tvs-votes h2 {
+  margin: 0 0 18px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.tvs-votes ul {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvs-vote-row {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 150px) 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+.tvs-vote-name {
+  overflow: hidden;
+  font-size: 26px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvs-vote-track {
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tvx-light) 6%, transparent);
+}
+.tvs-vote-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--gel) 55%, var(--dusk-3));
+  transform-origin: 0 50%;
+}
+.tvs-vote-row.is-top .tvs-vote-fill {
+  background: linear-gradient(90deg, var(--gel), var(--gold));
+  box-shadow: 0 0 18px -2px var(--gel);
+}
+.tvs-vote-n {
+  min-width: 40px;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 800;
+  text-align: right;
+}
+
+/* ---------- the ceremony ---------- */
+.tvs-ceremony {
+  position: absolute;
+  inset: 0;
+}
+.tvs-ceremony-title {
+  position: absolute;
+  top: 118px;
+  left: 40px;
+  width: 920px;
+  margin: 0;
+  text-align: center;
+}
+.tvs-ceremony-title .tvx-bi {
+  align-items: center;
+}
+.tvs-ceremony-title .tvx-bi {
+  font-size: 58px;
+}
+.tvs-ceremony-title .tvx-bi-main {
+  color: var(--tvx-light);
+  text-shadow: 0 0 30px color-mix(in oklab, var(--gel) 60%, transparent);
+}
+.tvs-podium {
+  position: absolute;
+  left: 40px;
+  width: 920px;
+  bottom: 108px;
+}
+.tvs-podium .tvx-place {
+  --fig-h: 176px;
+  width: 250px;
+}
+.tvs-podium .tvx-place[data-rank="1"] {
+  --fig-h: 206px;
+}
+.tvs-podium .tvx-place[data-rank="1"] .tvx-step {
+  height: 120px;
+}
+.tvs-podium .tvx-place[data-rank="2"] .tvx-step {
+  height: 88px;
+}
+.tvs-podium .tvx-place[data-rank="3"] .tvx-step {
+  height: 64px;
+}
+.tvs-podium .tvx-step b {
+  font-size: 44px;
+}
+.tvs-honours {
+  position: absolute;
+  top: 150px;
+  right: 60px;
+  bottom: 130px;
+  width: 560px;
+  padding: 26px 28px;
+  overflow: hidden;
+  border-radius: 30px;
+  background: color-mix(in oklab, var(--dusk) 88%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 30px 60px -30px var(--tvx-ink);
+  -webkit-mask-image: linear-gradient(to bottom, black 88%, transparent);
+  mask-image: linear-gradient(to bottom, black 88%, transparent);
+}
+.tvs-honours h2 {
+  margin: 0 0 16px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.tvs-honours ul {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvs-honours li {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  grid-template-areas:
+    "face name"
+    "face list";
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 6px;
+}
+.tvs-honours li > :first-child {
+  grid-area: face;
+  align-self: start;
+}
+.tvs-honour-name {
+  grid-area: name;
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvs-honour-list {
+  grid-area: list;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tvs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 14px 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--gel) 20%, var(--dusk-2));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gel) 40%, transparent);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tvs-chip svg {
+  flex: none;
+  color: var(--gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvx-room > .tvs-glitter {
+    animation: none;
+  }
+}

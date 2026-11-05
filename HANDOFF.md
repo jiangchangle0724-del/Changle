@@ -27,7 +27,10 @@ installs on its own. Node 22, as in CI.
    cutout, performer and design-token tests, build), `suibian.yml` and `been-there.yml` (each with
    browser tests in Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the
    Workers runtime), and `party.yml` (the party base's tests, the party server's types, tests and
-   build).
+   build). They run once per change: on the pull request (a newer push stops the older run), and on
+   `main` after each merge, not again for every push to a branch. GitHub Actions minutes cost money
+   once the free plan's monthly allowance is used up (it ran out on 2026-11-03), so a new workflow
+   follows the same pattern (`branches: [main]` under `push`, and the `concurrency` block).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
@@ -78,8 +81,10 @@ Phones in a browser, with both local servers above running (Python 3 with Playwr
 ```sh
 python3 scripts/local_check.py     # one phone: every game opens and plays a turn
 python3 scripts/net_test.py        # four phones at one table, online
+python3 scripts/watch_players_check.py # three players and a seat that just watches: no game counts it
 python3 scripts/party_test.py      # the newer games, one phone and online
 python3 scripts/tv_test.py         # the big screen
+python3 scripts/watch_test.py      # every game's own big-screen view, on two TVs and a phone that only watches
 python3 scripts/account_check.py   # sign-in, profile, friends, chat
 python3 scripts/tune_quiz_check.py # Name That Tune's multiple choice, 20 songs, sound on, memory watched
 python3 scripts/dj_check.py        # the DJ booth's speaker in WebKit and Chromium, and a table of phones

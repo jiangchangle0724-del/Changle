@@ -183,7 +183,10 @@ def main():
             while phase(tv) != "scores":
                 ph = phase(tv)
                 if ph == "present":
-                    host.get_by_role("button", name="开始投票" if LANG == "zh" else "Open the vote").click()
+                    # (a person reads the answers first: the host's buttons take a second press in the
+                    # same moment as a double tap, and a stamp from the last matchup may land meanwhile)
+                    host.wait_for_timeout(700)
+                    press(host, host.get_by_role("button", name="开始投票" if LANG == "zh" else "Open the vote"))
                     until(lambda: phase(tv) == "vote", 3000)
                 elif ph == "vote":
                     vote_all(phones)
@@ -215,7 +218,10 @@ def main():
             while phase(tv) != "scores":
                 ph = phase(tv)
                 if ph == "present":
-                    host.get_by_role("button", name="开始投票" if LANG == "zh" else "Open the vote").click()
+                    # (a person reads the answers first: the host's buttons take a second press in the
+                    # same moment as a double tap, and a stamp from the last matchup may land meanwhile)
+                    host.wait_for_timeout(700)
+                    press(host, host.get_by_role("button", name="开始投票" if LANG == "zh" else "Open the vote"))
                     until(lambda: phase(tv) == "vote", 3000)
                 elif ph == "vote":
                     vote_all(phones)

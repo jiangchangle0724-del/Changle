@@ -14,8 +14,9 @@ export function polar(lat: number, lon: number, r: number): [number, number] {
   return [d * Math.sin(lon * RAD), d * Math.cos(lon * RAD)];
 }
 
-/** Points along the shortest path over the globe between two places, as [lat, lon]. */
-export function greatCircle(a: [number, number], b: [number, number], steps = 48): [number, number][] {
+/** Points along the shortest path over the globe between two places, as [lat, lon]; or, `long`, the
+ * other way round the same great circle. */
+export function greatCircle(a: [number, number], b: [number, number], steps = 48, long = false): [number, number][] {
   const toV = ([lat, lon]: [number, number]) => [
     Math.cos(lat * RAD) * Math.cos(lon * RAD),
     Math.cos(lat * RAD) * Math.sin(lon * RAD),
@@ -24,8 +25,9 @@ export function greatCircle(a: [number, number], b: [number, number], steps = 48
   const va = toV(a);
   const vb = toV(b);
   const dot = Math.min(1, Math.max(-1, va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2]));
-  const omega = Math.acos(dot);
-  if (omega < 1e-6) return [a, b];
+  // (the long way: the same circle at the angle that's left; the same formula traces it)
+  const omega = long ? 2 * Math.PI - Math.acos(dot) : Math.acos(dot);
+  if (omega < 1e-6 || Math.abs(Math.sin(omega)) < 1e-9) return [a, b];
   const out: [number, number][] = [];
   for (let i = 0; i <= steps; i++) {
     const f = i / steps;
@@ -39,9 +41,21 @@ export function greatCircle(a: [number, number], b: [number, number], steps = 48
   return out;
 }
 
+/**
+ * A flight's route on the board's map, as [lat, lon]: the great circle between the two cities, the short
+ * way, unless that dips off the map's southern edge (Sydney to Buenos Aires passes Antarctica); then the
+ * other way round the same circle, which stays on the map (it climbs north instead, never below the
+ * lower of the two cities).
+ */
+export function mapRoute(from: string, to: string, steps = 64): [number, number][] {
+  const short = greatCircle(COORDS[from], COORDS[to], steps);
+  if (short.every(([lat]) => lat >= WORLD_LAT_MIN + 2)) return short;
+  return greatCircle(COORDS[from], COORDS[to], steps, true);
+}
+
 /** SVG path for a flight between two cities on the polar map of radius r. */
 export function flightPath(from: string, to: string, r: number): string {
-  const pts = greatCircle(COORDS[from], COORDS[to]).map(([lat, lon]) => polar(lat, lon, r));
+  const pts = mapRoute(from, to).map(([lat, lon]) => polar(lat, lon, r));
   return "M" + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L");
 }
 

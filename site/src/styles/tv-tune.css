@@ -1,0 +1,415 @@
+/*
+ * 猜歌名 on the big screen (party/tune/TvTune.tsx): the music show in the violet gel. The stage
+ * (TuneStage: two performers, the record, everyone at the table on the front edge) drawn large
+ * on the left, what the room needs to know about the song on the right.
+ */
+
+/* ---------- the stage, large ---------- */
+.tvt-stage {
+  position: absolute;
+  left: 34px;
+  top: 128px;
+  width: 1040px;
+  bottom: 96px;
+  display: flex;
+  align-items: flex-end;
+}
+.tvt .tn-stage {
+  --mate-h: 150px;
+  width: 100%;
+  margin: 0;
+  padding: 40px 30px 22px;
+  gap: 18px;
+}
+.tvt .tn-stage.has-crew {
+  padding-bottom: calc(26px + var(--mate-h) * 0.62);
+}
+.tvt .tn-crew.is-crowded {
+  --mate-h: 104px;
+}
+.tvt .tn-stage-lights {
+  border-radius: 40px;
+}
+.tvt .tn-stage-floor {
+  height: 54px;
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--gel) calc(35% + 45% * var(--beat)), transparent),
+    0 24px 50px -16px var(--tvx-ink);
+}
+.tvt .tn-stage.has-crew .tn-stage-floor {
+  height: calc(54px + var(--mate-h) * 0.55);
+}
+.tvt .tn-avatar {
+  height: 420px;
+}
+.tvt .tn-stage .vinyl-disc {
+  width: 290px;
+  box-shadow:
+    0 0 0 3px var(--line-soft),
+    0 0 calc(20px + 60px * var(--voice)) color-mix(in oklab, var(--gel) 50%, transparent),
+    inset 0 0 60px color-mix(in oklab, var(--tvx-ink) 60%, transparent);
+}
+.tvt .tn-stage .vinyl-label {
+  font-size: 44px;
+}
+.tvt .tn-stage .eq {
+  gap: 8px;
+  height: 34px;
+}
+.tvt .tn-stage .eq i {
+  width: 10px;
+  border-radius: 5px;
+}
+.tvt .vinyl.is-spinning .eq i {
+  animation-name: tvt-eq;
+}
+@keyframes tvt-eq {
+  from {
+    height: 6px;
+  }
+  to {
+    height: 34px;
+  }
+}
+.tvt .tn-mate-name {
+  margin-top: 6px;
+  padding: 3px 14px 4px;
+  font-size: 22px;
+}
+.tvt .tn-step {
+  font-size: 24px;
+  padding-top: 6px;
+}
+/* everyone's name under their feet */
+.tvt-names {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -34px;
+  height: 34px;
+  z-index: 4;
+  pointer-events: none;
+}
+.tvt-names span {
+  position: absolute;
+  top: 0;
+  max-width: 190px;
+  padding: 2px 14px 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  translate: -50% 0;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 22px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    left 0.65s var(--ease-out),
+    opacity 0.4s;
+}
+.tvt-names span[data-state="dim"],
+.tvt-names span[data-state="miss"] {
+  opacity: 0.45;
+}
+
+/* the end: the podium */
+.tvt-end-title {
+  position: absolute;
+  top: 120px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+}
+.tvt-end-title .tvx-bi {
+  align-items: center;
+  font-size: 56px;
+}
+.tvt-podium {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 104px;
+}
+
+/* ---------- the side: what the room needs to know ---------- */
+.tvt-side {
+  position: absolute;
+  top: 140px;
+  right: 50px;
+  bottom: 116px;
+  width: 470px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.tvt-side .tvx-bi {
+  align-items: flex-start;
+  font-size: 40px;
+}
+.tvt-ready,
+.tvt-listen,
+.tvt-answer,
+.tvt-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.tvt-note {
+  margin: 0;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.tvt-miss {
+  margin: 0;
+  color: color-mix(in oklab, var(--stop) 80%, var(--moon));
+  font-size: 28px;
+  font-weight: 800;
+}
+.tvt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvt-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvt-chips li.is-mode {
+  background: var(--gel);
+  color: var(--night);
+  box-shadow: 0 0 30px -6px var(--gel);
+}
+
+/* three clips, three prices */
+.tvt-ladder {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvt-ladder li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 22px 10px;
+  border-radius: 999px;
+  background: var(--dusk-2);
+  color: var(--fog);
+  font-size: 24px;
+  font-weight: 800;
+  transition:
+    background 0.3s,
+    color 0.3s,
+    transform 0.4s var(--ease-pop);
+}
+.tvt-ladder b {
+  font-family: var(--font-display);
+  font-size: 36px;
+}
+.tvt-ladder li.is-now {
+  background: var(--gel);
+  color: var(--night);
+  transform: scale(1.12);
+  box-shadow: 0 0 30px -4px var(--gel);
+}
+.tvt-ladder li.is-past {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.tvt-buzz {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+}
+.tvt-buzz > svg {
+  flex: none;
+  color: var(--gel);
+  filter: drop-shadow(0 0 16px var(--gel));
+  animation: tvt-zap 1.2s ease-in-out infinite;
+}
+@keyframes tvt-zap {
+  50% {
+    transform: scale(1.12) rotate(-6deg);
+  }
+}
+.tvt-locked {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 800;
+}
+.tvt-locked .tvx-faces {
+  filter: grayscale(0.8);
+}
+.tvt-answered {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  margin: 0;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 800;
+}
+
+/* the four titles */
+.tvt-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvt-titles li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px 12px 12px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--dusk-2) 94%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 45%, transparent);
+  transition:
+    opacity 0.4s,
+    background 0.4s,
+    box-shadow 0.4s,
+    transform 0.4s var(--ease-pop);
+}
+.tvt-letter {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--gel);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+}
+.tvt-title-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tvt-title-text strong {
+  overflow: hidden;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvt-title-text small {
+  overflow: hidden;
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvt-titles li.is-right {
+  background: color-mix(in oklab, var(--go) 26%, var(--dusk-2));
+  box-shadow:
+    inset 0 0 0 3px var(--go),
+    0 0 40px -10px var(--go);
+  transform: scale(1.04);
+}
+.tvt-titles li.is-right .tvt-letter {
+  background: var(--go);
+}
+.tvt-titles li.is-off {
+  opacity: 0.4;
+}
+
+/* someone buzzed in */
+.tvt-buzzer {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1.1;
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+
+/* the answer */
+.tvt-song {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 26px;
+  border-radius: 26px;
+  background: color-mix(in oklab, var(--gel) 18%, var(--dusk-2));
+  box-shadow:
+    inset 0 0 0 2px var(--gel),
+    0 0 50px -16px var(--gel);
+  animation: tvx-pop 0.6s var(--ease-pop) both;
+}
+.tvt-song strong {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+.tvt-song small {
+  color: var(--moon);
+  font-size: 28px;
+  font-weight: 700;
+}
+.tvt-credit {
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 600;
+}
+.tvt-got {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--haze);
+  font-size: 30px;
+  font-weight: 800;
+}
+.tvt-got.is-yes {
+  color: var(--go);
+}
+.tvt-board.is-small {
+  padding: 18px 22px;
+}
+.tvt-board.is-small h2 {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvt-buzz > svg,
+  .tvt-buzzer,
+  .tvt-song {
+    animation: none;
+  }
+}

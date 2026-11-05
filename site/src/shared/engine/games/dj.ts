@@ -12,7 +12,7 @@
 import { SONG_ROWS } from "../../../data/songs";
 import { ENERGY, FAKE_MIX, heatLean, LEAN_MS, mixFor, playing } from "../../dj/curve";
 import { DANCE } from "../../dj/dance";
-import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, styleOn } from "../../dj/deck";
+import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, rested, styleOn } from "../../dj/deck";
 import { hintOf, styleForRequest, trackFor } from "../../dj/requests";
 import {
   ASK_CHARS,
@@ -25,6 +25,7 @@ import {
   KEEP_DONE,
   KNOB_STEP,
   MOVES,
+  OVER_SONG,
   PAD_IDS,
   QUEUE_MAX,
   REQ_CHARS,
@@ -80,6 +81,7 @@ function fresh(set: number): RoomState {
     crateV: 0,
     mine: false,
     voice: true,
+    shuffle: false,
     dance: {},
     danceBar: { bar: -1, n: 0, good: 0 },
     combo: 0,
@@ -96,6 +98,7 @@ function norm(s: RoomState): RoomState {
   s.crateV ??= 0;
   s.mine ??= false;
   s.voice ??= true;
+  s.shuffle ??= false;
   s.dance ??= {};
   s.danceBar ??= { bar: -1, n: 0, good: 0 };
   s.combo ??= 0;
@@ -201,10 +204,16 @@ function swapped(s: RoomState, api: Api) {
   air(s, api);
 }
 
-/** 真歌时间 is over (the big screen says the song ended, someone skipped it, or the time ran out): the DJ comes back. */
+/**
+ * 真歌时间 is over (the big screen says the song ended, someone skipped it, or the time ran out): the
+ * DJ comes back, and plays a while before it drops into the next song asked for by itself (songs and
+ * the DJ take turns); the table can build up and drop into it sooner.
+ */
 function songOver(s: RoomState, api: Api) {
-  s.deck.song = null;
+  const d = s.deck;
+  d.song = null;
   api.clear("song");
+  if (d.up && !d.drop) api.timer("req", api.now + DECK.songGapMs);
 }
 
 /** The recap's record (今晚回顾): what's on the air, kept each time it changes. */
@@ -246,9 +255,13 @@ function nextReq(s: RoomState, api: Api) {
   // a night of the host's songs plays the ones asked for from them (the others wait for the stand-in)
   const ok = (r: SongReq) => !d.local || (!!r.local && s.crate.some((x) => x.id === r.local));
   // first come, first played, but one player's two songs 10 minutes apart: the others' go first
-  // (alone, it plays: nobody's turn is taken)
-  const first = reqOrder(d.reqs, d.reqOn, api.now).find(ok);
-  if (!first) return;
+  // (alone, it plays: nobody's turn is taken); the host's 随机: any of the waiting ones (of the
+  // rested players', while there are some)
+  const line = reqOrder(d.reqs, d.reqOn, api.now).filter(ok);
+  if (!line.length) return;
+  const fair = line.filter((r) => rested(d.reqOn, r.by, api.now));
+  const from = fair.length ? fair : line;
+  const first = s.shuffle ? from[api.int(from.length)] : line[0];
   const i = d.reqs.indexOf(first);
   const r = d.reqs.splice(i, 1)[0];
   d.up = r;
@@ -562,7 +575,9 @@ export const dj: GameDef<RoomState> = {
         const d = s.deck;
         const now = api.now;
         if (s.phase === "end" || (d.reqAt[pid] ?? -Infinity) > now - DECK.reqGapMs) return api.quiet();
-        if (d.reqs.length >= DECK.reqMax || d.up?.by === pid || d.reqs.some((r) => r.by === pid)) return api.quiet();
+        // (a few each in the 歌单, the one up next counted)
+        const theirs = d.reqs.filter((r) => r.by === pid).length + (d.up?.by === pid ? 1 : 0);
+        if (d.reqs.length >= DECK.reqMax || theirs >= DECK.reqEach) return api.quiet();
         let r: SongReq;
         if (d.local) {
           // a night of the host's songs: one of them (named for everyone: they're the host's)
@@ -621,7 +636,8 @@ export const dj: GameDef<RoomState> = {
       case "pad": {
         const d = s.deck;
         const pad = g.pad as PadId;
-        if (!playing(s.phase) || s.deck.song || !PAD_IDS.includes(pad)) return api.quiet();
+        // (over a whole song from YouTube: the pads that are a sound of their own)
+        if (!playing(s.phase) || !PAD_IDS.includes(pad) || (d.song && !OVER_SONG.includes(pad))) return api.quiet();
         const now = api.now;
         // a phone's per padTakeMs, and the same pad once for the whole room per roomPadGapMs (two
         // people on the horn at the same moment is one horn): a table mashing can't pile them up
@@ -718,6 +734,7 @@ export const dj: GameDef<RoomState> = {
         next.crateV = s.crateV;
         next.mine = s.mine;
         next.voice = s.voice;
+        next.shuffle = s.shuffle;
         // the night's dancing, like its 🔥
         next.dance = s.dance;
         Object.assign(s, next);
@@ -832,6 +849,13 @@ export const dj: GameDef<RoomState> = {
         const on = g.on === true;
         if (!host || s.voice === on) return api.quiet();
         s.voice = on;
+        return;
+      }
+      case "shuffle": {
+        // the host, from their phone: the 歌单 in a random order, or first come, first played
+        const on = g.on === true;
+        if (!host || s.shuffle === on) return api.quiet();
+        s.shuffle = on;
         return;
       }
       default:
@@ -985,7 +1009,8 @@ export const dj: GameDef<RoomState> = {
         // how a song file sent from the host's phone went: told to that phone
         const code = typeof g.code === "number" && Number.isInteger(g.code) && g.code >= 0 && g.code < SONG_SENT.length ? g.code : -1;
         const id = typeof g.id === "number" && Number.isSafeInteger(g.id) && g.id >= 0 ? g.id : -1;
-        if (!fromSpeaker(s, sid, api) || typeof g.by !== "string" || !api.has(g.by) || code < 0 || id < 0) return false;
+        // (to a phone still at the table, a host who just watches too)
+        if (!fromSpeaker(s, sid, api) || typeof g.by !== "string" || !api.online(g.by) || code < 0 || id < 0) return false;
         api.fx("song", g.by, [code, id]);
         return true;
       }
@@ -1105,6 +1130,7 @@ export const dj: GameDef<RoomState> = {
       crateV: s.crateV,
       mine: s.mine,
       voice: s.voice,
+      shuffle: s.shuffle,
       dance: s.dance,
       combo: s.combo,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },

@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowUp, ChevronLeft } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, ApiError } from "../lib/api";
-import { gsap, LIGHTS, reduced, setLight } from "../lib/anim";
+import { EASE, LIGHTS, play, reduced, setLight } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { clockOf } from "../lib/time";
 import { useStore } from "../store";
@@ -158,7 +158,7 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
     lastId.current = last.id;
     if (prev === null || prev === last.id || reduced()) return;
     const el = log.current?.querySelector<HTMLElement>(`[data-mid="${last.id}"] .bubble, [data-mid="${last.id}"] .bubble-emoji`);
-    if (el) gsap.fromTo(el, { scale: 0.86, y: 10, opacity: 0 }, { scale: 1, y: 0, opacity: 1, duration: 0.42, ease: "back.out(2.2)", clearProps: "transform,opacity" });
+    play(el, [{ transform: "translateY(10px) scale(0.86)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 420, easing: EASE.pop });
   }, [lines]);
 
   const loadEarlier = async () => {

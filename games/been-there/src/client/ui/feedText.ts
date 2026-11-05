@@ -164,6 +164,8 @@ export function feedText(v: RoomView, f: FeedItem): string | null {
       return t("log_party", { team: seatName(v, f.seat), why: t(`party_${f.why}` as Key), dare: dareText(f) });
     case "party-done":
       return t(f.how === "skip" ? "log_partySkipped" : "log_partyDone", { team: seatName(v, f.seat) });
+    case "idle":
+      return t("log_idle", { team: seatName(v, f.seat) });
     case "quiz": {
       const q = QUIZ[f.item];
       const bin = (i: number) => tx(TRASH_QUIZ[i].bin);

@@ -66,6 +66,22 @@ export function DrawGuess({ onBack }: { onBack: () => void }) {
 
   const diffLabel = (d: Difficulty) => (d === 1 ? (lang === "zh" ? "简单" : "Easy") : d === 2 ? (lang === "zh" ? "中等" : "Medium") : lang === "zh" ? "困难" : "Hard");
 
+  const actions =
+    phase === "word" && word && lidOpen ? (
+      <motion.button type="button" className="btn btn-lg btn-primary" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} onClick={startDrawing}>
+        {lang === "zh" ? "开始画" : "Start drawing"}
+      </motion.button>
+    ) : phase === "draw" && word ? (
+      <>
+        <button type="button" className="btn btn-lg btn-penalty" onClick={() => penalty.show({ who: [drawer.name], kind: "sip", note: tr(word) }, nextTurn)}>
+          {lang === "zh" ? "没人猜到" : "Nobody got it"}
+        </button>
+        <button type="button" className="btn btn-lg btn-jade" onClick={() => setPhase("who")}>
+          {lang === "zh" ? "猜中了" : "Someone got it"}
+        </button>
+      </>
+    ) : undefined;
+
   const rules = (
     <p>
       {lang === "zh"
@@ -80,7 +96,7 @@ export function DrawGuess({ onBack }: { onBack: () => void }) {
       rules={rules}
       onBack={onBack}
       penalty={penalty.call}
-      onPenaltyDone={penalty.done}
+      onPenaltyDone={penalty.done} roster={{ turn: drawer?.id }} actions={actions}
     >
       {/* the scores so far: at the start of each round, under the difficulty (the top bar holds buttons only) */}
       <AnimatePresence mode="wait">
@@ -131,11 +147,6 @@ export function DrawGuess({ onBack }: { onBack: () => void }) {
                 </p>
               </div>
             </Cloche>
-            {lidOpen && (
-              <motion.button type="button" className="btn btn-primary btn-lg btn-block" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} onClick={startDrawing}>
-                {lang === "zh" ? "开始画" : "Start drawing"}
-              </motion.button>
-            )}
           </motion.div>
         )}
 
@@ -158,14 +169,6 @@ export function DrawGuess({ onBack }: { onBack: () => void }) {
             </div>
             <DrawingPlate ref={plate} disabled={timeUp} />
             {timeUp && <p className="hint" style={{ textAlign: "center" }}>{lang === "zh" ? "时间到" : "Time's up"}</p>}
-            <div className="row" style={{ gap: 10 }}>
-              <button type="button" className="btn btn-penalty btn-block" onClick={() => penalty.show({ who: [drawer.name], kind: "sip", note: tr(word) }, nextTurn)}>
-                {lang === "zh" ? "没人猜到" : "Nobody got it"}
-              </button>
-              <button type="button" className="btn btn-jade btn-block" onClick={() => setPhase("who")}>
-                {lang === "zh" ? "猜中了" : "Someone got it"}
-              </button>
-            </div>
           </motion.div>
         )}
 

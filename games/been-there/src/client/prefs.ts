@@ -1,5 +1,6 @@
-// What this phone remembers: who it is (to get back to the same seat), name, language, sound.
-import type { Lang } from "../room/protocol";
+// What this phone remembers: who it is (to get back to the same seat), name, language, sound, the
+// board's size, and the quiz questions it has been asked.
+import { SEEN_KEEP, type Lang } from "../room/protocol";
 
 const memory = new Map<string, string>();
 function get(k: string): string | null {
@@ -39,6 +40,22 @@ export function identity(scope = "") {
 }
 
 const prefersReduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** How big the board is drawn on a phone or laptop: small fits all of it, medium and large are bigger
+ * than their box and pan (ui/mapView.ts). The big screen always fits the whole board. */
+export type MapSize = "s" | "m" | "l";
+export const MAP_SIZES: MapSize[] = ["s", "m", "l"];
+
+/**
+ * Until the player picks one: medium on a phone (its screen under 600 px across the short way, held
+ * either way), where the whole board is only about 300 to 370 px wide; small, the whole board, on a
+ * tablet or a computer, where it's 560 to 640 px already.
+ */
+export function defaultMapSize(): MapSize {
+  const w = typeof screen !== "undefined" && screen.width ? screen.width : typeof innerWidth === "number" ? innerWidth : 1024;
+  const h = typeof screen !== "undefined" && screen.height ? screen.height : typeof innerHeight === "number" ? innerHeight : 768;
+  return Math.min(w, h) < 600 ? "m" : "s";
+}
 
 export const prefs = {
   get name() {
@@ -96,4 +113,34 @@ export const prefs = {
   set shake(v: boolean) {
     set("bt.shake", v ? "1" : "0");
   },
+  /** The board's size on this phone (the menu, or the button on the board), remembered. */
+  get mapSize(): MapSize {
+    const v = get("bt.map");
+    return v === "s" || v === "m" || v === "l" ? v : defaultMapSize();
+  },
+  set mapSize(v: MapSize) {
+    set("bt.map", v);
+  },
 };
+
+const SEEN = "bt.seenTrivia";
+
+/**
+ * The waiting teams' questions this phone has been asked (their ids, oldest first, the newest
+ * SEEN_KEEP). It sends them when it joins a room, which then asks it ones it hasn't seen first.
+ */
+export function seenTrivia(): string[] {
+  try {
+    const list: unknown = JSON.parse(get(SEEN) ?? "[]");
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string").slice(-SEEN_KEEP) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** This phone has been asked question `id`. */
+export function rememberTrivia(id: string) {
+  const list = seenTrivia().filter((x) => x !== id);
+  list.push(id);
+  set(SEEN, JSON.stringify(list.slice(-SEEN_KEEP)));
+}

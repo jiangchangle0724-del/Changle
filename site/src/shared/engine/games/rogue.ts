@@ -193,7 +193,8 @@ export const rogue: GameDef<S> = {
       }
 
       case "skip": {
-        if (!host) return;
+        // (the turn or card the host meant to skip: a second tap, or one sent late, mustn't skip the next one too)
+        if (!host || (g.at !== undefined && g.at !== `${s.phase}:${s.turn}`)) return;
         if (s.phase === "draw") {
           s.turn = api.next(s.turn);
           return;
@@ -230,7 +231,8 @@ export const rogue: GameDef<S> = {
       case "grab": {
         const n = intIn(g.n, 1, 99);
         const gr = s.grab;
-        if (s.phase !== "grab" || !gr || n === null) return;
+        // (players only: someone just watching, host or not, takes no number)
+        if (s.phase !== "grab" || !gr || n === null || !api.has(pid)) return;
         if (gr.claimed[pid] === undefined && n === gr.next) {
           gr.claimed[pid] = n;
           gr.last = { n, pid, at: api.now };
@@ -309,7 +311,7 @@ export const rogue: GameDef<S> = {
       }
       case "tap": {
         const it = s.interrupt;
-        if (!it || it.kind !== "nose" || pid === it.by || it.taps[pid] !== undefined) return;
+        if (!it || it.kind !== "nose" || pid === it.by || it.taps[pid] !== undefined || !api.has(pid)) return;
         it.taps[pid] = api.now;
         const others = api.ids().filter((id) => id !== it.by);
         if (others.every((id) => it.taps[id] !== undefined)) resolveNose(s, api, false);
