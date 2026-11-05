@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { play } from "../lib/motion";
 import { useStore } from "../store";
 import { cleanAmount as clean, convert, CURRENCIES, type Code, type FxState } from "./fx";
+import { RateStatus, updatedText } from "./RateStatus";
 
 /** CAD = CNY = USD = HKD: type in any row, the others follow. */
 export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
@@ -56,6 +57,7 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
           <RefreshCw ref={spinner} size={15} />
         </button>
       </header>
+      <RateStatus fx={fx} />
       <div className="fx-list">
         {CURRENCIES.map((c) => {
           const active = c.code === base.code;
@@ -65,6 +67,7 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
               <span className="fx-name">{lang === "zh" ? c.zh : c.en}</span>
               <input
                 className="fx-input tabular"
+                disabled={!active && !fx.rates}
                 inputMode="decimal"
                 enterKeyHint="done"
                 value={value(c.code)}
@@ -90,12 +93,4 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
       </div>
     </section>
   );
-}
-
-function updatedText(at: number, lang: "zh" | "en") {
-  const mins = Math.round((Date.now() - at) / 60000);
-  if (mins < 1) return lang === "zh" ? "刚刚更新" : "Updated just now";
-  const rtf = new Intl.RelativeTimeFormat(lang === "zh" ? "zh-CN" : "en", { numeric: "auto" });
-  const when = mins < 60 ? rtf.format(-mins, "minute") : mins < 60 * 48 ? rtf.format(-Math.round(mins / 60), "hour") : rtf.format(-Math.round(mins / 1440), "day");
-  return lang === "zh" ? `${when}更新` : `Updated ${when}`;
 }

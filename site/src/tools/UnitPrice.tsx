@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { cleanAmount, convert, CURRENCIES, type Code, type FxState } from "./fx";
+import { RateStatus } from "./RateStatus";
 
 type Unit = { id: string; zh: string; en: string; size: number };
 
@@ -24,7 +25,7 @@ const VOLUME: Unit[] = [
 const SYMBOL: Record<Code, string> = { CAD: "$", CNY: "¥", USD: "US$", HKD: "HK$" };
 
 /** Price per kg, lb, 斤, oz and per litre or gallon, with the same price in a second currency. */
-export function UnitPrice({ fx }: { fx: FxState }) {
+export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   const { lang } = useStore();
   const [state, setState] = useState(() => {
     try {
@@ -67,6 +68,7 @@ export function UnitPrice({ fx }: { fx: FxState }) {
           </button>
         </div>
       </header>
+      <RateStatus fx={fx} showAge />
 
       <div className="price-input">
         <select className="price-cur" value={state.cur} onChange={(e) => set({ cur: e.target.value as Code })} aria-label={lang === "zh" ? "货币" : "Currency"}>
