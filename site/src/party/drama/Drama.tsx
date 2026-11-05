@@ -6,11 +6,12 @@ import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
 import { sfx } from "../../lib/sfx";
-import { BRIEF_MS, drama } from "../../shared/engine/games/drama";
+import { BRIEF_MS, drama as rules } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
-import { DramaActionHost } from "./ShellActions";
+import { useWakeLock } from "../sensors";
+import { DramaActionHost, useSettle } from "./ShellActions";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
@@ -64,6 +65,20 @@ function saveWaiting(list: Waiting[]) {
     /* storage can be unavailable: the scene still plays tonight */
   }
 }
+
+/**
+ * The rules as online but for the two clocks a table of phones needs: online everyone reads and
+ * votes at once, and the clocks stop the night waiting on a phone that went to sleep. Here the one
+ * phone goes round, so the act starts when the last actor has read their card and the reveal
+ * comes when the last ballot is in, however long the phone takes to get round. The act's own
+ * clock and the twist stay.
+ */
+const drama: typeof rules = {
+  ...rules,
+  timer: (s, key, data, api) => {
+    if (key !== "brief" && key !== "vote") rules.timer?.(s, key, data, api);
+  },
+};
 
 /**
  * One phone: the same rules as online, run on this phone. The phone goes round the actors so
@@ -163,6 +178,11 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     if (v.phase === "end") sfx.win();
   }, [round, v.phase]);
   useEffect(() => holdBackground(), []);
+  // the phone lies on the table through the scene: the screen stays on until the curtain call
+  useWakeLock(v.phase !== "setup" && v.phase !== "end");
+  // the buttons all sit in one spot at the bottom: a double tap's second tap would press the next
+  // screen's (the next actor's card, the vote before the scene, the next act before the reveal)
+  const settle = useSettle(`${v.round}|${v.phase}|${step.k}|${"i" in step ? step.i : ""}|${v.ready.length}|${v.voted.length}|${v.cast.map((c) => c.pid).join(",")}`);
   // the house before the curtain, then the set itself
   const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
@@ -196,7 +216,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   let turn: string | undefined;
   if (v.phase === "setup") {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" disabled={ids.length < 3} onClick={() => act(host, "start")}>
+      <button type="button" className="btn btn-primary btn-lg" disabled={ids.length < 3} onClick={settle(() => act(host, "start"))}>
         <Play size={18} />
         {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : zh ? "开演" : "Curtain up"}
       </button>
@@ -215,11 +235,11 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     if (step.k === "intro") {
       actions = (
         <>
-          <button type="button" className="btn btn-ghost btn-lg" onClick={() => act(host, "skip")}>
+          <button type="button" className="btn btn-ghost btn-lg" onClick={settle(() => act(host, "skip"))}>
             <SkipForward size={14} />
             {zh ? "换个剧本" : "Another scene"}
           </button>
-          <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "pass", i: 0 })}>
+          <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => setStep({ k: "pass", i: 0 }))}>
             {zh ? "发身份牌" : "Deal the cards"}
           </button>
         </>
@@ -240,7 +260,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         turn = pid;
         if (step.k === "pass") {
           actions = (
-            <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "card", i: step.i })}>
+            <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => setStep({ k: "card", i: step.i }))}>
               {zh ? `我是 ${nameOf(pid)}` : `I'm ${nameOf(pid)}`}
             </button>
           );
@@ -269,7 +289,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     }
   } else if (v.phase === "act") {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "cut")}>
+      <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "cut"))}>
         <Clapperboard size={18} />
         {zh ? "演完了，开始投票" : "That's a wrap: vote"}
       </button>
@@ -302,7 +322,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     const pid = left[0];
     if (step.k === "intro" || !pid) {
       actions = (
-        <button type="button" className="btn btn-primary btn-lg" disabled={!pid} onClick={() => setStep({ k: "pass", i: 0 })}>
+        <button type="button" className="btn btn-primary btn-lg" disabled={!pid} onClick={settle(() => setStep({ k: "pass", i: 0 }))}>
           {zh ? "传手机投票" : "Pass it round to vote"}
         </button>
       );
@@ -316,7 +336,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       turn = pid;
       if (step.k === "pass") {
         actions = (
-          <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "card", i: 0 })}>
+          <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => setStep({ k: "card", i: 0 }))}>
             {zh ? `我是 ${nameOf(pid)}` : `I'm ${nameOf(pid)}`}
           </button>
         );
@@ -339,7 +359,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     }
   } else if (v.phase === "reveal" && v.result) {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "next")}>
+      <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "next"))}>
         {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
       </button>
     );
@@ -352,10 +372,10 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   } else if (v.phase === "end") {
     actions = (
       <>
-        <button type="button" className="btn btn-lg btn-ghost" onClick={() => game.reset()}>
+        <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => game.reset())}>
           {zh ? "重新选剧本" : "Back to the setup"}
         </button>
-        <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "more")}>
+        <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "more"))}>
           {zh ? "再演三幕" : "Three more acts"}
         </button>
       </>
