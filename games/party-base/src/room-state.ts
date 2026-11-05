@@ -127,6 +127,13 @@ export function reduce(state: RoomState, ev: RoomEvent): RoomState {
       if (ev.routineStartAt < ev.at) throw new RoomError('start_in_past', 'routineStartAt must be in the future (count-in)');
       return touch({ ...state, phase: 'dancing', routineStartAt: ev.routineStartAt }, ev.at);
 
+    case 'LEARNING_DONE':
+      // The room's own step (no host): the teaching ran to its end and the dance carries straight
+      // on, so its beat 0 is where the timeline puts it, even when this event comes a moment late.
+      requirePhase(state, ['learning'], ev.type);
+      if (!Number.isFinite(ev.routineStartAt)) throw new RoomError('bad_start', 'routineStartAt must be a time');
+      return touch({ ...state, phase: 'dancing', routineStartAt: ev.routineStartAt }, ev.at);
+
     case 'RESTART_SECTION':
       requireHost(state, ev.byPlayerId);
       requirePhase(state, ['dancing', 'learning'], ev.type);
@@ -138,8 +145,9 @@ export function reduce(state: RoomState, ev: RoomEvent): RoomState {
       return touch({ ...state, phase: 'results', routineStartAt: null }, ev.at);
 
     case 'BACK_TO_LOBBY':
+      // (from dancing too: the host can stop a song at any moment)
       requireHost(state, ev.byPlayerId);
-      requirePhase(state, ['results', 'learning', 'calibrating'], ev.type);
+      requirePhase(state, ['results', 'learning', 'dancing', 'calibrating'], ev.type);
       return touch({ ...state, phase: 'lobby', routineStartAt: null }, ev.at);
 
     case 'END_ROOM':

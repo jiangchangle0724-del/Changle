@@ -1,8 +1,8 @@
 # party-base · 契约 / Contracts
 
-共用底座，给「一起跳 · Dance Along」和「打碟 · DJ Booth」两个游戏用。全部是纯 TypeScript 函数，没有运行时依赖，不碰网络、音频、DOM。Durable Object、页面、Worker 都只是调用它。
+一起跳 · Dance Along 的底座（打碟 · DJ Booth 原计划也用，后来做在主站里，`site/src/party/dj/`，没用它）。全部是纯 TypeScript 函数，没有运行时依赖，不碰网络、音频、DOM。Durable Object、页面、Worker 都只是调用它。
 
-Shared base for both party games. Pure functions only: no network, audio or DOM. The Durable Object, pages and Workers call into it.
+The base under 一起跳 · Dance Along (打碟 · DJ Booth was planned on it too, then built in the site instead). Pure functions only: no network, audio or DOM. The Durable Object, pages and Workers call into it.
 
 ## 时间 / Time
 
@@ -25,14 +25,17 @@ Shared base for both party games. Pure functions only: no network, audio or DOM.
 
 ```
 lobby ──START_CALIBRATION──▶ calibrating ──CALIBRATED / SKIP──▶ lobby
-lobby ──START_LEARNING────▶ learning ──START_DANCING──▶ dancing ──FINISH──▶ results
+lobby ──START_LEARNING────▶ learning ──START_DANCING / LEARNING_DONE──▶ dancing ──FINISH──▶ results
 results ──START_LEARNING / START_DANCING──▶ (再来一首)      results ──BACK_TO_LOBBY──▶ lobby
+learning / dancing / calibrating ──BACK_TO_LOBBY──▶ lobby（主人随时可以停）
 任何阶段 ──SPEAKER_DISCONNECTED──▶ lobby（没声音就没游戏）    主人 ──END_ROOM──▶ ended（终态）
 ```
 
+`learning` 是跳之前的全部：热身，学的时候还有教学（每个动作看一遍、跟一遍）。`dancing` 是倒数、整支舞和收尾。教学放完，房间自己发 `LEARNING_DONE`（不用主人），舞的第 0 拍放在时间线算好的地方，就算这个事件晚到一点也不挪。
+
 规则：
 - 第一个进房的人是主人；主人走了，最早进来的人接任。
-- 只有主人能推进状态、踢人。主人不能踢自己。
+- 只有主人能推进状态、踢人（`LEARNING_DONE`、`FINISH`、`CALIBRATED` 由房间和音箱端发）。主人不能踢自己。
 - 没有音箱端不能开始任何东西。
 - `START_DANCING.routineStartAt` 必须在未来（给倒数留时间）。
 - 房间上限 15 人，单场 30 分钟上限由 DO 计时，`overSessionLimit()` 判断。
@@ -47,10 +50,8 @@ results ──START_LEARNING / START_DANCING──▶ (再来一首)      result
 
 ## 测试 / Tests
 
-`npm test`。40 个用例覆盖：对时抗抖动、拍子网格、乐句边界、校准成功 / 太少 / 太散 / 零延迟、完美舞者、晚 120 ms 的舞者、沙发土豆、半拍舞者、校准前后打分差异、团体连击、状态机全流程和全部守卫。
+`npm test`。42 个用例覆盖：对时抗抖动、拍子网格、乐句边界、校准成功 / 太少 / 太散 / 零延迟、完美舞者、晚 120 ms 的舞者、沙发土豆、半拍舞者、校准前后打分差异、团体连击、状态机全流程和全部守卫（包括教学放完自己接着跳、跳到一半停下）。
 
-## 下一步接线 / Wiring (A1)
+## 接线 / Wiring
 
-1. Durable Object `PartyRoom`：持久化 `RoomState`，每个 WebSocket 消息转成 `RoomEvent` 过 `reduce()`，广播新 state；对 `ping` 回 `{speakerAt}`（音箱端的时钟由音箱端上报）。
-2. 音箱端页面：「开始」按钮启动 AudioContext 并开 Wake Lock；120 BPM 节拍音；校准步骤播 8 下 click 并记录 speaker time。
-3. 手机端页面：加入、8 次 ping 做对时、按拍闪屏；DeviceMotion 在 A2 再接。
+`games/party-server` 用这个底座：Durable Object `PartyRoom` 存 `RoomState`，每个页面消息转成 `RoomEvent` 过 `reduce()`；音箱端页面出声、计时、校准；手机对时、按拍闪屏，按一个大按钮代替传感器（A2 换成 DeviceMotion），用 `WINDOW_MS` 的窗口判每一拍，把舞的每一拍发给房间；房间算全场连击和结算（`summarize`）。见 `games/party-server/README.md`。
