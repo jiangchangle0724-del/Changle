@@ -143,6 +143,26 @@ function conn(c: { socket: boolean; direct: boolean }): void {
   if (c.socket) $('path').textContent = c.direct ? '直连' : '绕路中';
 }
 
+// ---------- 防误触：连按两下不放大，长按不弹菜单 ----------
+// 逻辑都走 pointer 事件；这里只把触摸的默认动作掐掉（Safari 的双击缩放只认 touchend 的 preventDefault）。
+const pad = $('pad');
+for (const type of ['touchstart', 'touchend', 'touchmove'] as const) {
+  pad.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+let lastTap = 0;
+document.addEventListener(
+  'touchend',
+  (e) => {
+    const now = performance.now();
+    const typing = e.target instanceof HTMLInputElement;
+    if (now - lastTap < 350 && !typing) e.preventDefault();
+    lastTap = now;
+  },
+  { passive: false },
+);
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+pad.addEventListener('contextmenu', (e) => e.preventDefault());
+
 // ---------- 摇杆（左半边）----------
 const zone = $('stickzone');
 const stick = $('stick');

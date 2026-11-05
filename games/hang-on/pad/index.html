@@ -17,10 +17,13 @@
     --mine: var(--p0);
     color-scheme: dark;
   }
+  /* 手机上连按两下不能放大：manipulation 关掉双击缩放（Safari 只认这个），手柄区再用 none 连拖动一起关。 */
+  html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   html, body { height: 100%; }
   [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; overscroll-behavior: none;
-    -webkit-user-select: none; user-select: none; touch-action: none; -webkit-touch-callout: none; }
+    -webkit-user-select: none; user-select: none; touch-action: manipulation; -webkit-touch-callout: none; }
+  #pad, #pad * { touch-action: none; }
   button { font: inherit; }
   .btn { background: var(--ink); color: var(--card-ink); border: 0; border-radius: 999px; padding: 12px 20px; font-weight: 700; font-size: 16px; cursor: pointer; min-height: 48px; }
   .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
