@@ -5,7 +5,8 @@ nothing secret is anywhere in the page (a player's word, card, task or vote befo
 and there are no errors. Against the local dev servers (HANDOFF.md).
 
 usage: python3 scripts/watch_test.py [base_url] [zh|en] [game ...]
-games: superlatives undercover tune drama punchline trip dj (trip last: it sends the table off to 到此一游)
+games: superlatives undercover tune drama truth wheel dice rogue punchline trip dj
+(trip last: it sends the table off to 到此一游)
 Screenshots of every phase go to $SHOTS (default: scratchpad/watch).
 """
 import json, os, re, sys, time
@@ -23,7 +24,7 @@ os.makedirs(OUT, exist_ok=True)
 ZH = LANG == "zh"
 NAMES = ["Steve", "Mia", "小林"]
 # the games with a show of their own on the big screen (the .tvx stage; Punchline has its own, older one)
-SHOWS = ("superlatives", "undercover", "tune", "drama")
+SHOWS = ("superlatives", "undercover", "tune", "drama", "truth", "wheel", "dice", "rogue")
 
 
 def L(zh, en):
@@ -200,8 +201,14 @@ def t_superlatives(t):
     t.tv.wait_for_timeout(700)
     players[1].locator(".ballot .nominee", has_text=NAMES[2]).click()
     ok(until(lambda: len(view(t.tv)["voted"]) == 2), "superlatives: two votes in")
-    t.tv.wait_for_timeout(800)
-    shot(t.screens, "sup-02-votes-in")
+    # (the vote has a clock: look first, then the pictures)
+    ok(until(lambda: t.tv.locator('.tvx-person[data-state="voted"]').count() == 2, 3000), "superlatives: the two who voted light up")
+    for pg in t.screens:
+        txt = pg.evaluate("() => document.body.innerText")
+        ok(all(txt.count(n) == 1 for n in NAMES), f"superlatives: the {pg._name} names nobody twice before the reveal (no who-voted-for-whom)")
+    views_clean(t, "superlatives vote")
+    t.tv.wait_for_timeout(500)
+    shot([t.tv, t.watcher], "sup-02-votes-in")
     # held upright, the watching phone lays the stage on its side (turn the phone and it reads)
     t.watcher.set_viewport_size({"width": 390, "height": 844})
     ok(until(lambda: t.watcher.locator(".watch-turn.is-turned").count() == 1, 3000), "superlatives: a watching phone held upright lays the big screen on its side")
@@ -211,11 +218,7 @@ def t_superlatives(t):
     shot([t.watcher], "sup-02b-upright")
     t.watcher.set_viewport_size({"width": 844, "height": 390})
     ok(until(lambda: t.watcher.locator(".watch-turn.is-turned").count() == 0, 3000), "superlatives: sideways again, the right way up")
-    ok(t.tv.locator('.tvx-person[data-state="voted"]').count() == 2, "superlatives: the two who voted light up")
-    for pg in t.screens:
-        txt = pg.evaluate("() => document.body.innerText")
-        ok(all(txt.count(n) == 1 for n in NAMES), f"superlatives: the {pg._name} names nobody twice before the reveal (no who-voted-for-whom)")
-    views_clean(t, "superlatives vote")
+    ok(view(t.tv)["phase"] == "vote", "superlatives: still voting (a machine this busy can let the clock run out)")
     players[2].locator(".ballot .nominee", has_text=NAMES[0]).click()
     ok(t.wait_phase("reveal"), "superlatives: all in, the reveal")
     t.tv.wait_for_timeout(300)
@@ -364,7 +367,9 @@ def t_tune(t):
     ok(t.tv.locator('.tn-mate[data-state="spot"]').count() == 1 and t.tv.locator(".tvt-titles li").count() == 4, "tune: Mia in the spotlight, the four titles up")
     no_answer_yet(t, "tune answer")
     v = view(mia)
-    shot([t.tv], "tn-03-answer")
+    # (ten seconds to answer: a picture only when there's time for one)
+    if view(t.tv)["answerEndsAt"] - time.time() * 1000 > 6000:
+        shot([t.tv], "tn-03-answer")
     right = P.tune_index(v)
     mia.locator(".tn-option").nth(v["options"].index(next(o for o in v["options"] if o != right))).click()
     ok(until(lambda: view(t.tv)["phase"] == "listen" and me(mia) in view(t.tv)["locked"]), "tune: wrong, Mia is locked out and the music goes on")
@@ -640,9 +645,289 @@ def t_dj(browser):
     host.context.close()
 
 
+# ------------------------------------------------------------------ batch 2: truth or dare, the wheel, 7-8-9, rogue thirteen
+
+def by_pid(t, pid):
+    return next(g for g in t.players if me(g) == pid)
+
+
+def pen_on(t, timeout=5000):
+    """The penalty on the screens: the strip along the bottom of the TV."""
+    return until(lambda: t.tv.locator(".tv-pen").count() > 0, timeout)
+
+
+def spin_bottle(t):
+    """The spinner flicks the bottle. (A phone's bottle counts a watcher's seat as a slot, the
+    server doesn't: a spin that lands there isn't taken, and the spinner flicks again.)"""
+    for _ in range(5):
+        g = by_pid(t, view(t.host)["spinner"])
+        clear_stamps([g], wait=False)
+        btn = g.get_by_role("button", name=L("转瓶子", "Spin the bottle"))
+        until(lambda: btn.is_enabled(), 8000)
+        btn.click()
+        if until(lambda: view(t.tv)["phase"] == "choose", 4000):
+            return True
+    return False
+
+
+def t_truth(t):
+    t.start("truth")
+    ok(t.wait_phase("spin"), "truth: the bottle waits")
+    t.tv.wait_for_timeout(1200)
+    shot(t.screens, "td-01-spin")
+    ok(t.tv.locator(".tvtd-seat").count() == 3 and t.watcher.locator(".tvtd-seat").count() == 3, "truth: the three players around the table (the watcher isn't one)")
+    for r, kind in enumerate(("truth", "dare")):
+        ok(spin_bottle(t), f"truth: the bottle spins ({r})")
+        ok(until(lambda: t.tv.locator(".tvtd-seat.is-picked").count() == 1, 10000), f"truth: the bottle lands on someone ({r})")
+        chosen = by_pid(t, view(t.tv)["chosen"])
+        picked = t.tv.locator(".tvtd-seat.is-picked .tvtd-seat-name").inner_text()
+        ok(picked == chosen._name, f"truth: the screen lights up whoever the table picked ({picked}, {chosen._name})")
+        if r == 0:
+            t.tv.wait_for_timeout(700)
+            shot(t.screens, "td-02-choose")
+        clear_stamps([chosen], wait=False)
+        chosen.get_by_role("button", name=L("真心话", "Truth") if kind == "truth" else L("大冒险", "Dare")).click()
+        ok(t.wait_phase("card"), f"truth: a {kind} card ({r})")
+        prompt = view(chosen)["prompt"]
+        ok(until(lambda: t.tv.locator(f".tvtd-cover.is-{kind}").count() == 1, 4000), f"truth: the card under its cover, {kind}")
+        t.tv.wait_for_timeout(700)
+        # read out at the table first: not one word of it on a screen
+        no_secrets(t, [prompt["zh"], prompt["en"]], f"truth card {r}")
+        shot(t.screens if r == 0 else [t.tv], f"td-0{3 + r}-card")
+        chosen.locator(".cloche-dome").click()
+        chosen.wait_for_timeout(800)
+        if r == 0:
+            chosen.get_by_role("button", name=L("做完了", "Done it")).click()
+        else:
+            chosen.get_by_role("button", name=L("放弃，认罚", "Pass. Penalty.")).click()
+            ok(pen_on(t), "truth: refused, the penalty goes up on the screens")
+            shot([t.tv], "td-05-refused")
+        ok(t.wait_phase("spin"), f"truth: back to the bottle ({r})")
+        clear_stamps(t.players)
+    t.end()
+
+
+def t_wheel(t):
+    t.start("wheel")
+    ok(t.wait_phase("spin"), "wheel: the wheel waits")
+    t.tv.wait_for_timeout(1200)
+    shot(t.screens, "wh-01-spin")
+    n = len(view(t.tv)["slices"])
+    ok(t.tv.locator(".tvw-slice").count() == n and t.watcher.locator(".tvw-slice").count() == n, f"wheel: all {n} slices on the wheel")
+    seen = set()
+    # (one slice in ten is a truth, one a dare: spin until one comes up)
+    for r in range(18):
+        clear_stamps(t.players)
+        turn = by_pid(t, view(t.host)["turn"])
+        turn.get_by_role("button", name=L("转一个", "Spin")).first.click()
+        ok(until(lambda: view(t.tv)["phase"] != "spin", 4000), f"wheel: spin {r}")
+        if "spinning" not in seen:
+            seen.add("spinning")
+            t.tv.wait_for_timeout(500)
+            shot([t.tv], "wh-02-spinning")
+        # landed: the slice on the screen, or (spin again) the wheel waits for another go
+        until(lambda: view(t.tv)["phase"] not in ("spinning",), 12000)
+        until(lambda: t.tv.locator(".tvw-chip").count() == 1 or view(t.tv)["phase"] == "spin", 6000)
+        v = view(t.tv)
+        ph = v["phase"]
+        if ph == "spin":
+            continue
+        label = v["slices"][v["result"]]["label"]
+        chip = t.tv.locator(".tvw-chip").inner_text()
+        ok(label["zh"] in chip or label["en"] in chip or v["slices"][v["result"]]["kind"] == "drink", f"wheel: the slice it stopped on, large ({chip.splitlines()[0]})")
+        if ph not in seen:
+            seen.add(ph)
+            t.tv.wait_for_timeout(600)
+            shot(t.screens if ph != "result" or "shot-result" not in seen else [t.tv], f"wh-03-{ph}")
+            seen.add("shot-result")
+        if ph == "pick":
+            turn.locator(".picker .chip:not([disabled])").first.click()
+            ok(pen_on(t), "wheel: whoever they pick, the penalty on the screens")
+        elif ph == "prompt":
+            p = v["prompt"]
+            ok(t.tv.locator(".tvw-prompt-main").inner_text().strip() in (p["zh"], p["en"]), "wheel: the truth or dare it landed on (on every phone too)")
+            turn.get_by_role("button", name=L("做完了", "Done")).click()
+        until(lambda: view(t.tv)["phase"] == "result", 4000)
+        clear_stamps(t.players)
+        turn.get_by_role("button", name=L("下一个", "Next")).click()
+        until(lambda: view(t.tv)["phase"] == "spin", 4000)
+        if {"result", "prompt"} <= seen:
+            break
+    print("  wheel phases seen:", sorted(x for x in seen if not x.startswith("shot")), flush=True)
+    ok("prompt" in seen, "wheel: a truth or a dare came up and showed")
+    t.end()
+
+
+def t_dice(t):
+    t.start("dice")
+    ok(t.wait_phase("roll"), "dice: the dice wait")
+    t.tv.wait_for_timeout(1200)
+    shot(t.screens, "dc-01-roll")
+    ok(t.tv.locator(".tvdc-dice .die").count() == 2 and t.tv.locator(".tvdc-rules li").count() == 5, "dice: two dice, the glass, the rules along the bottom")
+    for r in range(4):
+        clear_stamps(t.players)
+        before = view(t.host)["roll"]
+        turn = by_pid(t, view(t.host)["turn"])
+        turn.get_by_role("button", name=L("掷骰子", "Roll")).last.click()
+        ok(until(lambda: view(t.tv)["roll"] == before + 1, 4000), f"dice: roll {r}")
+        if r == 0:
+            t.tv.wait_for_timeout(300)
+            shot([t.tv], "dc-02-rolling")
+        ok(until(lambda: t.tv.locator(".tvdc-sum").count() == 1, 6000), f"dice: the dice land ({r})")
+        v = view(t.tv)
+        ok(t.tv.locator(".tvdc-sum").inner_text() == str(sum(v["dice"])) and t.tv.locator(".tvdc-rules li.is-now").count() == 1, f"dice: {v['dice']} and what it means ({v['outcome']})")
+        if r < 2:
+            t.tv.wait_for_timeout(600)
+            shot(t.screens if r == 0 else [t.tv], f"dc-0{3 + r}-{v['outcome']}")
+        if r == 1:
+            # the watching phone held upright: the stage lies on its side
+            t.watcher.set_viewport_size({"width": 390, "height": 844})
+            ok(until(lambda: t.watcher.locator(".watch-turn.is-turned .tvdc-dice").count() == 1, 3000), "dice: held upright, the watching phone lays the stage on its side")
+            t.watcher.wait_for_timeout(400)
+            shot([t.watcher], "dc-05-upright")
+            t.watcher.set_viewport_size({"width": 844, "height": 390})
+        if v["phase"] == "assign":
+            shot([t.tv], "dc-ones")
+            turn.locator(".picker .chip").nth(1).click()
+            until(lambda: view(t.tv)["phase"] == "result", 4000)
+        clear_stamps(t.players)
+        turn.get_by_role("button", name=L("下一个", "Next")).first.click()
+        until(lambda: view(t.tv)["phase"] == "roll", 4000)
+    t.end()
+
+
+def t_rogue(t):
+    t.start("rogue")
+    ok(t.wait_phase("draw"), "rogue: the deck waits")
+    t.tv.wait_for_timeout(1200)
+    shot(t.screens, "rg-01-draw")
+    seen = set()
+    for r in range(16):
+        clear_stamps(t.players)
+        v = view(t.host)
+        if v["phase"] != "draw" or v["interrupt"]:
+            break
+        by_pid(t, v["turn"]).locator(".pcard-back").click()
+        ok(until(lambda: view(t.tv)["phase"] != "draw", 4000), f"rogue: draw {r}")
+        t.tv.wait_for_timeout(1000)
+        v = view(t.tv)
+        rank, phase = v["card"]["rank"], v["phase"]
+        seen.add(rank)
+        ok(t.tv.locator(".tvr-title").count() == 1 and t.tv.locator(".pcard-front").count() == 1, f"rogue: {rank} and its rule on the screens ({phase})")
+        if "card" not in seen:
+            seen.add("card")
+            shot(t.screens, "rg-02-card")
+        drawer = by_pid(t, v["drawer"])
+        if phase == "pick":
+            drawer.locator(".picker .chip:not([disabled])").first.click()
+        elif phase == "garden-pick":
+            drawer.get_by_role("button", name=L("水果园", "Fruits")).click()
+            until(lambda: view(t.tv)["phase"] == "garden")
+            for _ in range(2):
+                sp = by_pid(t, view(t.host)["garden"]["speaker"])
+                clear_stamps([sp], wait=False)
+                sp.get_by_role("button", name=re.compile(L("我说完了", "Said it"))).click()
+                time.sleep(0.5)
+            ok(until(lambda: t.tv.locator(".tvr-game .tvr-big").count() == 1, 3000), "rogue: the garden, whose turn to name one, the clock")
+            shot(t.screens if "garden" not in seen else [t.tv], "rg-03-garden")
+            seen.add("garden")
+            try:
+                drawer.get_by_role("button", name=re.compile(L("重复了", "repeated"))).click(timeout=3000)
+            except Exception:
+                pass
+        elif phase == "grab":
+            ok(until(lambda: t.tv.locator(".tvr-next").count() == 1, 3000), "rogue: the race for the next number")
+            for g in t.players:
+                clear_stamps([g], wait=False)
+                if g.locator(".grab-btn").count():
+                    g.locator(".grab-btn").dispatch_event("pointerdown")
+                    time.sleep(0.5)
+                    if "grab" not in seen:
+                        seen.add("grab")
+                        t.tv.wait_for_timeout(400)
+                        shot([t.tv, t.watcher], "rg-04-grab")
+        elif phase == "sevens-start":
+            drawer.locator(".num-btn", has_text=re.compile(r"^5$")).click()
+            until(lambda: view(t.tv)["phase"] == "sevens")
+            for _ in range(3):
+                sv = view(t.host)["sevens"]
+                if not sv:
+                    break
+                sp = by_pid(t, sv["speaker"])
+                clear_stamps([sp], wait=False)
+                if sv["n"] % 7 == 0 or "7" in str(sv["n"]):
+                    sp.get_by_role("button", name=L("过", "Pass")).click()
+                else:
+                    sp.locator(".sevens-num").click()
+                time.sleep(0.5)
+            ok(until(lambda: t.tv.locator(".tvr-log li.is-next").count() == 1, 3000), "rogue: counting sevens, who's next and what's been said")
+            shot(t.screens if "sevens" not in seen else [t.tv], "rg-05-sevens")
+            seen.add("sevens")
+            sv = view(t.host)["sevens"]
+            if sv:
+                sp = by_pid(t, sv["speaker"])
+                clear_stamps([sp], wait=False)
+                # a wrong call ends the count
+                if sv["n"] % 7 == 0 or "7" in str(sv["n"]):
+                    sp.locator(".sevens-num").click()
+                else:
+                    sp.get_by_role("button", name=L("过", "Pass")).click()
+        if not until(lambda: view(t.tv)["phase"] == "done", 8000):
+            # (a round that didn't wrap up by itself: the host ends the card)
+            try:
+                t.host.get_by_role("button", name=L("结束这张牌", "End this card")).click(timeout=3000)
+            except Exception:
+                pass
+            ok(until(lambda: view(t.tv)["phase"] == "done", 4000), f"rogue: {rank} done")
+        clear_stamps(t.players)
+        holders = view(t.host)["holders"]
+        if holders and "powers" not in seen and t.tv.locator(".tvr-powers li").count():
+            seen.add("powers")
+            shot([t.tv], "rg-06-powers")
+        if holders.get("camera") and "camera" not in seen:
+            seen.add("camera")
+            cam = by_pid(t, holders["camera"])
+            cam.get_by_role("button", name=L("照相机", "Camera")).click()
+            ok(until(lambda: t.tv.locator(".tvr-stop.is-camera").count() == 1, 3000), "rogue: the camera stops the whole screen")
+            t.tv.wait_for_timeout(500)
+            shot(t.screens, "rg-07-camera")
+            ok(until(lambda: cam.get_by_text(L("谁动了？", "Who moved?")).count(), 6000), "rogue: then the camera holder judges")
+            cam.locator(".interrupt-stage .picker .chip:not([disabled])").first.click()
+            until(lambda: not view(t.tv)["interrupt"], 4000)
+            clear_stamps(t.players)
+        if holders.get("nose") and "nose" not in seen:
+            seen.add("nose")
+            nose = by_pid(t, holders["nose"])
+            nose.get_by_role("button", name=L("摸鼻子", "Nose")).click()
+            ok(until(lambda: t.tv.locator(".tvr-stop.is-nose").count() == 1, 3000), "rogue: the nose stops the whole screen")
+            others = [g for g in t.players if g is not nose]
+
+            def tap(g):
+                # (six seconds to tap: on a busy machine the moment can be gone already)
+                if g.locator(".nose-btn").count():
+                    try:
+                        g.locator(".nose-btn").dispatch_event("pointerdown", timeout=2000)
+                    except Exception:
+                        pass
+
+            tap(others[0])
+            t.tv.wait_for_timeout(500)
+            shot([t.tv, t.watcher], "rg-08-nose")
+            for g in others[1:]:
+                tap(g)
+            until(lambda: not view(t.tv)["interrupt"], 6000)
+            clear_stamps(t.players)
+        v = view(t.host)
+        if v["phase"] == "done":
+            by_pid(t, v["drawer"]).get_by_role("button", name=L("下一位抽牌", "Next player draws")).click()
+            until(lambda: view(t.tv)["phase"] == "draw", 4000)
+    print("  rogue seen:", sorted(seen), flush=True)
+    t.end()
+
+
 # ------------------------------------------------------------------ main
 
-TESTS = {"superlatives": t_superlatives, "undercover": t_undercover, "tune": t_tune, "drama": t_drama, "punchline": t_punchline, "trip": t_trip}
+TESTS = {"superlatives": t_superlatives, "undercover": t_undercover, "tune": t_tune, "drama": t_drama, "truth": t_truth, "wheel": t_wheel, "dice": t_dice, "rogue": t_rogue, "punchline": t_punchline, "trip": t_trip}
 
 
 def main():

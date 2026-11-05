@@ -1,0 +1,122 @@
+/*
+ * 命运转盘 on the big screen (online/games/TvWheel.tsx): the wheel, large, in the blue gel; whose
+ * turn and what the slice says on the right.
+ */
+
+/* ---------- the wheel ---------- */
+.tvw-wheel {
+  position: absolute;
+  left: 70px;
+  top: 112px;
+  width: 720px;
+  height: 760px;
+}
+.tvw-wheel svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.tvw-wheel .is-hit path {
+  stroke: var(--moon);
+  stroke-width: 5;
+}
+.tvw-wheel.is-landed .is-hit {
+  animation: tvw-hit 1.2s ease-in-out 3;
+}
+@keyframes tvw-hit {
+  50% {
+    opacity: 0.72;
+  }
+}
+
+/* ---------- the side ---------- */
+.tvw-side {
+  position: absolute;
+  left: 850px;
+  right: 60px;
+  top: 150px;
+  bottom: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  text-align: center;
+  animation: tvx-enter 0.5s var(--ease-out) both;
+}
+.tvw-head {
+  margin: 0;
+}
+.tvw-head .tvx-bi {
+  align-items: center;
+  font-size: 64px;
+}
+.tvw-who {
+  margin-top: 44px;
+}
+.tvw-line {
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.tvw-chip {
+  max-width: 100%;
+  margin: 0;
+  padding: 20px 44px 24px;
+  border-radius: 36px;
+  color: var(--night);
+  box-shadow: 0 0 80px -16px var(--gel);
+  animation: tvx-pop 0.55s var(--ease-pop) both;
+}
+.tvw-chip .tvx-bi {
+  align-items: center;
+  font-size: 76px;
+}
+.tvw-chip .tvx-bi-main {
+  line-height: 1.1;
+}
+.tvw-chip .tvx-bi-sub {
+  color: color-mix(in oklab, var(--night) 72%, transparent);
+}
+
+/* a truth or a dare the wheel landed on: on every phone, so here too */
+.tvw-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 30px 36px 34px;
+  border-radius: 30px;
+  background: color-mix(in oklab, var(--gel) 14%, var(--dusk-2));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 50%, transparent);
+  animation: tvx-enter 0.5s var(--ease-out) 0.25s both;
+}
+.tvw-prompt-main {
+  margin: 0;
+  color: var(--moon);
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.tvw-prompt-sub {
+  margin: 0;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvw-side,
+  .tvw-chip,
+  .tvw-prompt,
+  .tvw-wheel.is-landed .is-hit {
+    animation: none;
+  }
+}

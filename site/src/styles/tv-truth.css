@@ -1,0 +1,220 @@
+/*
+ * 真心话大冒险 on the big screen (online/games/TvTruth.tsx): the table from above in the pink gel,
+ * everyone around it and the bottle in the middle; whose turn, who it picked and truth or dare
+ * on the right. The card stays under its cover: it's read out at the table.
+ */
+
+.tvtd {
+  --truth: var(--moon);
+  --dare: var(--gel-amber);
+}
+
+/* ---------- the table ---------- */
+.tvtd-table {
+  position: absolute;
+  left: 60px;
+  top: 128px;
+  width: 720px;
+  height: 720px;
+}
+.tvtd-table svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.tvtd-seat {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  translate: -50% -50%;
+  transition:
+    scale 0.4s var(--ease-pop),
+    opacity 0.3s;
+}
+.tvtd-seat .avatar {
+  box-shadow: 0 0 0 4px var(--night);
+}
+.tvtd-seat-name {
+  max-width: 150px;
+  padding: 2px 14px 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tvx-ink) 70%, transparent);
+  color: var(--moon);
+  font-size: 24px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvtd-seat.is-turn .avatar {
+  box-shadow:
+    0 0 0 4px var(--night),
+    0 0 0 9px var(--moon);
+}
+.tvtd-seat.is-picked {
+  z-index: 2;
+  scale: 1.3;
+}
+.tvtd-seat.is-picked .avatar {
+  box-shadow:
+    0 0 0 4px var(--night),
+    0 0 0 10px var(--gel),
+    0 0 50px 10px color-mix(in oklab, var(--gel) 60%, transparent);
+}
+.tvtd-seat.is-picked .tvtd-seat-name {
+  background: var(--gel);
+  color: var(--night);
+}
+.tvtd-seat.is-away {
+  opacity: 0.45;
+}
+
+/* ---------- the side ---------- */
+.tvtd-side {
+  position: absolute;
+  left: 840px;
+  right: 60px;
+  top: 150px;
+  bottom: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  text-align: center;
+  animation: tvx-enter 0.5s var(--ease-out) both;
+}
+.tvtd-head {
+  margin: 0;
+}
+.tvtd-head .tvx-bi {
+  align-items: center;
+  font-size: 60px;
+}
+.tvtd-name {
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow: 0 0 40px color-mix(in oklab, var(--gel) 50%, transparent);
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvtd-who {
+  /* (in the spotlight a figure grows and rises: room for it) */
+  margin: 44px 0 0;
+}
+.tvtd-face {
+  box-shadow:
+    0 0 0 6px var(--night),
+    0 0 0 12px var(--gel),
+    0 0 70px 14px color-mix(in oklab, var(--gel) 55%, transparent);
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvtd-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.tvtd-line svg {
+  flex: none;
+  color: var(--gel);
+}
+.tvtd-note {
+  margin: 0;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 600;
+}
+
+/* truth or dare */
+.tvtd-pick {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.tvtd-or {
+  color: var(--haze);
+  font-size: 30px;
+  font-weight: 700;
+}
+.tvtd-kind,
+.tvtd-tag {
+  display: inline-flex;
+  padding: 16px 36px 18px;
+  border-radius: 999px;
+  color: var(--night);
+}
+.tvtd-kind .tvx-bi,
+.tvtd-tag .tvx-bi {
+  align-items: center;
+  font-size: 44px;
+}
+.tvtd-kind .tvx-bi-sub,
+.tvtd-tag .tvx-bi-sub {
+  color: color-mix(in oklab, var(--night) 70%, transparent);
+}
+.tvtd-kind.is-truth,
+.tvtd-tag.is-truth {
+  background: var(--truth);
+}
+.tvtd-kind.is-dare,
+.tvtd-tag.is-dare {
+  background: var(--dare);
+}
+.tvtd-tag {
+  margin: 0;
+  box-shadow: 0 0 60px -10px color-mix(in oklab, var(--gel) 70%, transparent);
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+
+/* the card under its cover */
+.tvtd-cover {
+  width: 300px;
+  filter: drop-shadow(0 18px 30px color-mix(in oklab, var(--tvx-ink) 60%, transparent));
+  animation: tvtd-rattle 2.6s ease-in-out 0.6s infinite;
+}
+.tvtd-cover svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@keyframes tvtd-rattle {
+  0%,
+  78%,
+  100% {
+    rotate: 0deg;
+  }
+  82% {
+    rotate: -3deg;
+  }
+  88% {
+    rotate: 3deg;
+  }
+  94% {
+    rotate: -1.5deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvtd-side,
+  .tvtd-name,
+  .tvtd-tag,
+  .tvtd-cover {
+    animation: none;
+  }
+  .tvtd-seat {
+    transition: none;
+  }
+}
