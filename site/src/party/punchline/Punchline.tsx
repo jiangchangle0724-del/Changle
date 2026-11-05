@@ -3,6 +3,7 @@ import { Hand, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { PUNCH_FINAL, PUNCH_PROMPTS, PUNCH_SAFETY } from "../../data/punchline";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import type { PenaltyCall } from "../../components/PenaltyStamp";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
@@ -38,6 +39,9 @@ type Phase =
   | { k: "show"; m: number; step: Step; at: number }
   | { k: "scores"; at: number }
   | { k: "end"; at: number; winners: string[]; last: string[] };
+type Draft = { texts: Record<number, string>; safe: Record<number, boolean> };
+type Pending = { call: PenaltyCall; ms: number };
+type Kept = { round: number; order: Player[]; matches: LMatch[]; phase: Phase; scores: Record<string, number>; before: Record<string, number>; tally: number[]; drafts: Record<string, Draft>; cards: number[]; finals: number[]; quips: number[]; pending: Pending | null; advancing: boolean };
 
 const SIDE = ["#e765f0", "#31b9ff"];
 const FINAL_COLORS = ["#e765f0", "#31b9ff", "#ffb82e", "#4be38f", "#ff6b5e", "#8c86ff", "#2ed3d9", "#f5df3b"];
@@ -49,22 +53,38 @@ const range = (n: number) => Array.from({ length: n }, (_, i) => i);
  * and the table votes by show of hands while someone counts on the phone.
  */
 export function Punchline({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="punchline" version={1}>
+      {(saved) => <PunchGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function PunchGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, lang, sound } = useStore();
   const zh = lang === "zh";
-  const deck = useRef(new Deck<T>(PUNCH_PROMPTS));
-  const finals = useRef(new Deck<T>(PUNCH_FINAL));
-  const quips = useRef(new Deck<T>(PUNCH_SAFETY));
+  const [firstDecks] = useState(() => {
+    const deck = new Deck<T>(PUNCH_PROMPTS), finals = new Deck<T>(PUNCH_FINAL), quips = new Deck<T>(PUNCH_SAFETY);
+    if (saved) { deck.restore(saved.cards); finals.restore(saved.finals); quips.restore(saved.quips); }
+    return { deck, finals, quips };
+  });
+  const deck = useRef(firstDecks.deck);
+  const finals = useRef(firstDecks.finals);
+  const quips = useRef(firstDecks.quips);
   // up to eight write; anyone else at the table is the audience and votes
   const writers = useMemo(() => players.slice(0, MAX_WRITERS), [players]);
   const audience = useMemo(() => players.slice(MAX_WRITERS), [players]);
-  const [round, setRound] = useState(1);
-  const [order, setOrder] = useState<Player[]>(writers);
-  const [roundAt, setRoundAt] = useState(0);
-  const [matches, setMatches] = useState<LMatch[]>([]);
-  const [phase, setPhase] = useState<Phase>({ k: "setup" });
-  const [scores, setScores] = useState<Record<string, number>>({});
-  const [before, setBefore] = useState<Record<string, number>>({});
-  const [tally, setTally] = useState<number[]>([]);
+  const [round, setRound] = useState(saved?.round ?? 1);
+  const [order, setOrder] = useState<Player[]>(saved?.order ?? writers);
+  const [roundAt, setRoundAt] = useState(() => saved ? Date.now() : 0);
+  const [matches, setMatches] = useState<LMatch[]>(saved?.matches ?? []);
+  const [phase, setPhase] = useState<Phase>(() => saved ? ("at" in saved.phase ? { ...saved.phase, at: Date.now() } : saved.phase) : { k: "setup" });
+  const [scores, setScores] = useState<Record<string, number>>(saved?.scores ?? {});
+  const [before, setBefore] = useState<Record<string, number>>(saved?.before ?? {});
+  const [tally, setTally] = useState<number[]>(saved?.tally ?? []);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(saved?.drafts ?? {});
+  const [pending, setPending] = useState<Pending | null>(saved?.pending ?? null);
+  const [advancing, setAdvancing] = useState(saved?.advancing ?? false);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
   const final = round >= ROUNDS;
@@ -84,6 +104,7 @@ export function Punchline({ onBack }: { onBack: () => void }) {
   );
 
   const startRound = (r: number, from: Record<string, number>) => {
+    setDrafts({});
     const ord = shuffle(writers);
     const n = ord.length;
     const blank = (prompt: T, authors: string[]): LMatch => ({
@@ -108,6 +129,7 @@ export function Punchline({ onBack }: { onBack: () => void }) {
   const mineIn = (pid: string) => matches.map((m, k) => ({ m, k })).filter(({ m }) => m.authors.includes(pid));
 
   const submit = (pid: string, texts: Record<number, { text: string; safety: boolean }>) => {
+    setDrafts((d) => { const next = { ...d }; delete next[pid]; return next; });
     const next = matches.map((m, k) => {
       const t = texts[k];
       if (!t) return m;
@@ -144,19 +166,23 @@ export function Punchline({ onBack }: { onBack: () => void }) {
   const stamp = useRef<{ timer: number; call: PenaltyCall } | null>(null);
   useEffect(() => () => window.clearTimeout(stamp.current?.timer), []);
   const later = (call: PenaltyCall, ms: number) => {
+    setPending({ call, ms });
     window.clearTimeout(stamp.current?.timer);
     const timer = window.setTimeout(() => {
       stamp.current = null;
+      setPending(null);
       penalty.show(call);
     }, ms);
     stamp.current = { timer, call };
   };
-  const stampFirst = (then: () => void) => {
+  const stampFirst = (then: () => void, advance = false) => {
     const waiting = stamp.current;
     if (!waiting) return false;
     window.clearTimeout(waiting.timer);
     stamp.current = null;
-    penalty.show(waiting.call, then);
+    setPending(null);
+    setAdvancing(advance);
+    penalty.show(waiting.call, () => { setAdvancing(false); then(); });
     return true;
   };
 
@@ -205,7 +231,7 @@ export function Punchline({ onBack }: { onBack: () => void }) {
 
   const afterResult = () => {
     if (phase.k !== "show") return;
-    if (stampFirst(afterResult)) return;
+    if (stampFirst(afterResult, true)) return;
     if (phase.m + 1 < matches.length) return openShow(phase.m + 1);
     if (!final) return setPhase({ k: "scores", at: Date.now() });
     const vals = writers.map((p) => scores[p.id] ?? 0);
@@ -216,6 +242,17 @@ export function Punchline({ onBack }: { onBack: () => void }) {
     setPhase({ k: "end", at: Date.now(), winners, last });
     if (last.length) later({ who: last.map((id) => name[id]), kind: "full", note: zh ? "神回复：最后一名" : "Punchline: last place" }, 6500);
   };
+
+  const continued = useRef(false);
+  useEffect(() => {
+    if (saved?.advancing && !continued.current) {
+      continued.current = true;
+      setAdvancing(false);
+      afterResult();
+    } else if (saved?.pending) later(saved.pending.call, saved.pending.ms);
+    // The restored show restarts its wait, but scores and landed penalties never replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const rules = (
     <p>
@@ -340,6 +377,10 @@ export function Punchline({ onBack }: { onBack: () => void }) {
       </button>
     ) : undefined;
 
+  // Drafts are kept on every edit. Private writing returns behind its writer's curtain;
+  // show clocks restart from the beginning of their step, with the answers and votes intact.
+  const keptPhase: Phase = phase.k === "write" ? { k: "pass", i: phase.i } : "at" in phase ? { ...phase, at: 0 } : phase;
+  useKeepProgress<Kept>({ round, order, matches, phase: keptPhase, scores, before, tally, drafts, cards: deck.current.keep(), finals: finals.current.keep(), quips: quips.current.keep(), pending, advancing }, phase.k !== "setup" && phase.k !== "end");
   return (
     <PunchActionHost.Provider value={actionHost}>
       <GameShell
@@ -376,7 +417,7 @@ export function Punchline({ onBack }: { onBack: () => void }) {
             </>
           )}
 
-          {phase.k === "write" && writer && <SoloWrite key={`${round}-${writer.id}`} items={mineIn(writer.id)} who={writer.name} quip={() => quips.current.draw().card} onDone={(texts) => submit(writer.id, texts)} />}
+          {phase.k === "write" && writer && <SoloWrite key={`${round}-${writer.id}`} items={mineIn(writer.id)} who={writer.name} draft={drafts[writer.id] ?? { texts: {}, safe: {} }} onDraft={(draft) => setDrafts((d) => ({ ...d, [writer.id]: draft }))} quip={() => quips.current.draw().card} onDone={(texts) => submit(writer.id, texts)} />}
 
           {phase.k === "show" && matches[phase.m] && (
             <>
@@ -454,11 +495,10 @@ function Tally({ m, final, tally, setTally, voters }: { m: LMatch; final: boolea
   );
 }
 
-function SoloWrite({ items, who, quip, onDone }: { items: { m: LMatch; k: number }[]; who: string; quip: () => T; onDone: (texts: Record<number, { text: string; safety: boolean }>) => void }) {
+function SoloWrite({ items, who, draft, onDraft, quip, onDone }: { items: { m: LMatch; k: number }[]; who: string; draft: Draft; onDraft: (draft: Draft) => void; quip: () => T; onDone: (texts: Record<number, { text: string; safety: boolean }>) => void }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const [texts, setTexts] = useState<Record<number, string>>({});
-  const [safe, setSafe] = useState<Record<number, boolean>>({});
+  const { texts, safe } = draft;
   const formId = useId();
   const ready = items.every(({ k }) => (texts[k] ?? "").trim());
   return (
@@ -482,8 +522,7 @@ function SoloWrite({ items, who, quip, onDone }: { items: { m: LMatch; k: number
               maxLength={80}
               value={texts[k] ?? ""}
               onChange={(e) => {
-                setTexts((t) => ({ ...t, [k]: e.target.value }));
-                setSafe((s) => ({ ...s, [k]: false }));
+                onDraft({ texts: { ...texts, [k]: e.target.value }, safe: { ...safe, [k]: false } });
               }}
               placeholder={zh ? "写一个让大家笑出声的答案" : "Write something that gets a laugh"}
               aria-label={zh ? "你的答案" : "Your answer"}
@@ -495,8 +534,7 @@ function SoloWrite({ items, who, quip, onDone }: { items: { m: LMatch; k: number
               className="link-btn"
               onClick={() => {
                 const q = quip();
-                setTexts((t) => ({ ...t, [k]: zh ? q.zh : q.en }));
-                setSafe((s) => ({ ...s, [k]: true }));
+                onDraft({ texts: { ...texts, [k]: zh ? q.zh : q.en }, safe: { ...safe, [k]: true } });
                 sfx.pop();
               }}
             >
