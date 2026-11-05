@@ -1,13 +1,8 @@
 import { useStore } from "../store";
 import { Skeleton } from "../ui/Skeleton";
-import { Fit } from "./Frame";
 import "./states.css";
 
-/** The TV's own stage, seats and code panel while its files or first answer arrive. */
-export default function TvLoading() {
-  return <Fit><TvLoadingStage /></Fit>;
-}
-
+/** The TV's own stage, seats and code panel while the table's first answer arrives. */
 export function TvLoadingStage() {
   const { lang } = useStore();
   return <div className="tv-loading-stage" aria-busy="true">

@@ -246,7 +246,7 @@ function Shell() {
   if (route.kind === "tv")
     return (
       <SiteGate signIn={null}>
-        <Suspense fallback={(() => { const target = TvApp as typeof TvApp & { Loading?: typeof TvApp }; const Shape = target.Loading ??= lazy(() => import("./tv/TvLoading")); return <Suspense fallback={<div aria-busy="true" style={{ position: "fixed", inset: 0, background: "var(--night)" }} />}><Shape /></Suspense>; })()}>
+        <Suspense fallback={null}>
           <TvApp key={`${route.code ?? "new"}:${route.game ?? ""}`} code={route.code} game={route.game} />
         </Suspense>
       </SiteGate>
