@@ -39,6 +39,41 @@
   min-width: 0;
 }
 
+/* the tally ‹ opens once a game is under way: who paid the most, everyone's count, three ways on */
+.game-tally-headline {
+  margin: 0 0 var(--space-4);
+  font: 800 var(--text-lg) / var(--leading-tight) var(--font-display);
+  overflow-wrap: anywhere;
+}
+.game-tally-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.game-tally-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.game-tally-count {
+  flex: none;
+  color: var(--color-text-2);
+  font-weight: 700;
+}
+.game-tally-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+/* keep playing: the main one, last and the whole width */
+.game-tally-actions > :last-child {
+  grid-column: 1 / -1;
+}
+
 /* a phone on its side (see styles/landscape.css): the bar is shorter and says the name in one
    language, as the old one did, so a big picture on the left still starts 46px down; beside that
    picture, tonight's people and the buttons keep to the right-hand column */

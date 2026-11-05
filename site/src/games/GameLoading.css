@@ -1,0 +1,71 @@
+/*
+ * A game's screen while its file downloads (GameLoading.tsx): the shape of the game shell, so the
+ * page is never blank. Loaded with the front door, so it stays small.
+ */
+.game-loading {
+  gap: var(--space-2);
+  min-height: calc(100dvh - var(--safe-bottom) - var(--space-6));
+}
+.game-loading-bar {
+  display: grid;
+  grid-template-columns: var(--tap) minmax(0, 1fr) var(--tap);
+  align-items: center;
+  gap: var(--space-2);
+  min-height: calc(var(--bar-h) + var(--safe-top));
+  padding: var(--safe-top) var(--space-2) 0;
+  border-radius: var(--r-small);
+  background: var(--color-sheet);
+}
+.game-loading-back {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--color-text);
+}
+.game-loading-bar h1 {
+  display: grid;
+  margin: 0;
+  font: 800 var(--text-md) / var(--leading-tight) var(--font-display);
+  text-align: center;
+}
+.game-loading-bar small {
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.game-loading-people {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+.game-loading-people > span {
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--r-pill);
+}
+.game-loading-stage {
+  flex: 1;
+  display: grid;
+  min-height: calc(var(--tap) * 5);
+}
+/* the stage fills the height; the slow-network line sits under it */
+.game-loading-stage .ui-skeleton-region {
+  display: flex;
+  flex-direction: column;
+}
+.game-loading-stage .ui-skeleton {
+  flex: 1;
+}
+.game-loading-stage .ui-skeleton-shape {
+  height: 100%;
+  min-height: calc(var(--tap) * 4);
+}
+.game-loading-action {
+  height: calc(var(--tap) + var(--space-4));
+  margin-bottom: var(--space-2);
+  border-radius: var(--r-pill);
+}
