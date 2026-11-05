@@ -25,8 +25,8 @@
 
 ## 测试
 
-- `games/party-base`：`npm test`（42 个）；`games/party-server`：`npm run typecheck`、`npm test`（62 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
-- 浏览器里把一支舞从头跳到结算：`games/party-server/scripts/song-check.cjs`（Worker 要带 `--var ALLOW_TEST_SETTINGS:1` 跑，见 README），约两分半
+- `games/party-base`：`npm test`（42 个）；`games/party-server`：`npm run typecheck`、`npm test`（68 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
+- 浏览器里把一支舞从头跳到结算：`games/party-server/scripts/song-check.cjs`（Worker 要带 `--var ALLOW_TEST_SETTINGS:1` 跑，见 README），约两分半；中间会让一台手机断网 2.5 秒
 - 对时：`games/party-server/scripts/timing-check.cjs`（本地，或 `BASE=https://changle.ca` 测线上）
 
 ## 定过的事
@@ -47,12 +47,14 @@
   - 结算：简单只发奖不排名，中等和困难再加分数榜。最稳：离拍子最近（在踩准够四分之一的人里比）；最嗨：连着踩准最多拍；最努力：动的拍子最多。先一人一个，人少时一个人可以拿几个。
   - 全场连击：一拍里正在跳的人有六成踩准就算，满 32 拍放一次烟花。点过按钮的手机才算在跳。
   - 测试用的短舞（两个动作 16 拍）只在本地检查时能开（`ALLOW_TEST_SETTINGS`），页面上不列。
+  - 房间的时钟是音箱端页面的 `performance.timeOrigin + performance.now()`，不是 `performance.now()` 本身：音箱端页面跳舞中途刷新，舞接着在原地放（浏览器里测过）。
+  - 手机断网时发不出去的小节，连回来以后整支舞已发的小节再发一遍（房间每拍留最新的，重发没坏处）。
 
 ## 现在
 
 - 已合并：A1 对时、C1 动作库（#95）、C5 学跳流程（#107），动作库有自己的 CI（#106）。
 - 做好了，推上了 GitHub，还没开 PR（见「还剩什么」第一条）：
-  - 分支 `claude/dance-first-song`：一支舞从学到跳到结算，手机按钮代替传感器。本地全部测试和两个浏览器检查都过了。
+  - 分支 `claude/dance-first-song`：一支舞从学到跳到结算，手机按钮代替传感器。另一个审查代理看过代码，找出 5 个问题，都修了，每个都加了测试。本地全部测试和浏览器检查都过了（整支舞、对时、一支真舞自己从热身放到结算、跳到一半刷新音箱端）。
   - 分支 `claude/dance-cards`：这份档案，和三张 Codex 卡：C2 重写，新写 C3 电视画面、C4 手机画面。
 - 现在 changle.ca/party 线上还是 A1（节拍器）。上面的分支合并后，线上就能用按钮跳完整的一支舞。
 
@@ -74,7 +76,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-05 一起跳: one dance from learning it to the results, a button standing in for the motion sensor（分支 `claude/dance-first-song`）
+- 2026-11-05 一起跳: fixes from a review — the speaker's clock across a reload, restarts, ids, dropped bars（分支 `claude/dance-first-song`）
+- 2026-11-05 一起跳: one dance from learning it to the results, a button standing in for the motion sensor（同上）
 - 2026-11-05 dance: the library's types written out, so the room and the pages import it without zod（同上）
 - 2026-11-05 party-base: the room moves into the dance by itself; the host can stop a dance（同上）
 - 2026-11-02 Home: 一起跳 · Dance Along under "coming soon"
@@ -90,4 +93,5 @@
 - 2026-11-02 建档案。
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
 - 2026-11-02 首页「即将上线」加了一起跳卡片；「八步摇」确认不改。
-- 2026-11-05 Steve 说「你来帮我做」：按建议留在 /party，做了一支舞从学到跳到结算（按钮代替传感器），重写 C2 卡，写了 C3、C4 卡。浏览器检查时发现并修了：页面的按钮样式盖掉了 `hidden`，「看结果」一直露着，早按会被房间拒绝；电视 720p 时下半截（接下来、连击条）掉出屏幕。仓库在 GitHub 上改了名，开 PR 要 Steve 同意按新名字接。
+- 2026-11-05 Steve 说「你来帮我做」：按建议留在 /party，做了一支舞从学到跳到结算（按钮代替传感器），重写 C2 卡，写了 C3、C4 卡。浏览器检查时发现并修了：页面的按钮样式盖掉了 `hidden`，「看结果」一直露着，早按会被房间拒绝；电视 720p 时下半截（接下来、连击条）掉出屏幕。
+- 2026-11-05 另一个代理审查代码，找出并修了：音箱端刷新后房间的时钟从 0 重来（A1 起就有）；这一段再来在倒数时再按一次会退两段、能清掉全部成绩；用 `toString` 这类名字当手机 id 能让结算出错；陌生的舞的 id 会一直存在内存里；断网时的小节丢了。又顺手修了：倒数第一拍常常来不及放（现在点了以后等 0.6 秒再倒数）；点按钮的时间按手指按下的那一刻算。仓库在 GitHub 上改了名，开 PR 要 Steve 同意按新名字接。
