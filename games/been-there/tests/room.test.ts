@@ -384,8 +384,7 @@ const busy = (g: Table["game"]) => !!g.s.pending && g.s.pending.k !== "end" && g
  * Play on until a team lands on a city and a question is on its way, then let the move play on the
  * screens and the table settle what the landing asks of it (the team buys or doesn't, an auction
  * runs): the landing's question is up. The team that landed doesn't end its turn: the scripted phones
- * move only when asked to, and here they are asked to stop when the landing is settled. (A landing
- * that sends its team on takes its question away: then it's the next landing on a city.)
+ * move only when asked to, and here they are asked to stop when the landing is settled.
  */
 function nextQuestion(t: Table) {
   const g = t.game;
@@ -653,44 +652,39 @@ test("what a landing asks of the table comes first: its question waits for the p
   assert.deepEqual(rio.t.refusals, []);
 });
 
-test("a team that moves on before its question is up takes the question with it; a second visit's question comes sooner", () => {
-  /** A game where the first team throws 4 + 4 (Mexico City, and doubles: it throws again), then `next`. */
-  const afterDoubles = (next: [number, number]) => {
-    const t = new Table({ ...OFTEN, dice: [4, 4, ...next] }, 5);
-    lobby(t, 3);
-    t.send(t.phones[0], { t: "start" });
-    const g = t.game;
-    const seat = g.s.turn;
-    const rolls = () => t.seen.filter((f) => f.t === "game" && f.e.t === "roll").length;
-    const thrower = t.phones.find((p) => t.view(p).you.seats.includes(seat))!;
-    const act = () => {
-      const v = t.view(thrower).game!;
-      const k = v.s.pending?.k;
-      // (Mexico City has its visitor ban two faces of the dice: the fives and sixes, which this test doesn't throw)
-      t.send(thrower, { t: "act", d: v.decision, a: k === "ban" ? { pair: 2 } : k === "buy" ? { yes: true } : {}, seat });
-    };
-    act();
-    assert.equal(rolls(), 1);
-    assert.equal(dueOf(g)?.city, "mexicocity");
-    assert.equal(dueOf(g)?.seat, seat);
-    // The team settles what Mexico City asks of it and throws again, before the question is up.
-    for (let i = 0; i < 20 && rolls() < 2; i++) act();
-    assert.equal(rolls(), 2);
-    assert.equal(g.s.turn, seat, "still its turn");
-    assert.equal(upIn(g), null);
-    return { t, g, seat };
+test("a team that moves on before its question is up leaves it in place: it's about the city the team has just been to; a second visit's question comes sooner", () => {
+  // The first team throws 4 + 4: Mexico City, and doubles, so it throws again: 1 + 2, Istanbul.
+  const t0 = new Table({ ...OFTEN, dice: [4, 4, 1, 2] }, 5);
+  lobby(t0, 3);
+  t0.send(t0.phones[0], { t: "start" });
+  const g = t0.game;
+  const seat = g.s.turn;
+  const rolls = () => t0.seen.filter((f) => f.t === "game" && f.e.t === "roll").length;
+  const thrower = t0.phones.find((p) => t0.view(p).you.seats.includes(seat))!;
+  const act = () => {
+    const v = t0.view(thrower).game!;
+    const k = v.s.pending?.k;
+    // (Mexico City has its visitor ban two faces of the dice: the fives and sixes, which this test doesn't throw)
+    t0.send(thrower, { t: "act", d: v.decision, a: k === "ban" ? { pair: 2 } : k === "buy" ? { yes: true } : {}, seat });
   };
-  // 1 + 2 more: Istanbul. The question on its way is Istanbul's now.
-  const a = afterDoubles([1, 2]);
-  assert.equal(cityUnder(a.g), "istanbul");
-  assert.deepEqual(dueOf(a.g), { city: "istanbul", seat: a.seat, at: a.t.clock.t + TIMING.landing * 0.05 });
-  // 1 + 3 more: the currency exchange, not a city. No question is on its way any more.
-  const b = afterDoubles([1, 3]);
-  assert.equal(cityUnder(b.g), null);
-  assert.equal(dueOf(b.g), null, "Mexico City's question went with the team");
-  b.t.clock.t += 60_000;
-  b.t.room.tick();
-  assert.equal(upIn(b.g), null);
+  act();
+  assert.equal(rolls(), 1);
+  const first = { ...dueOf(g)! };
+  assert.equal(first.city, "mexicocity");
+  assert.equal(first.seat, seat);
+  // The team settles what Mexico City asks of it and throws again, before the question is up.
+  for (let i = 0; i < 20 && rolls() < 2; i++) act();
+  assert.equal(rolls(), 2);
+  assert.equal(g.s.turn, seat, "still its turn");
+  assert.equal(cityUnder(g), "istanbul");
+  assert.equal(upIn(g), null);
+  assert.deepEqual(dueOf(g), first, "Mexico City's question keeps its place (a newer landing doesn't put it off)");
+  // The team buys Istanbul too; at Mexico City's time the question comes up, about Mexico City.
+  for (let i = 0; i < 5 && g.s.pending?.k === "buy"; i++) act();
+  t0.clock.t = first.at;
+  t0.room.tick();
+  t0.settle();
+  assert.equal(cityOf(upIn(g)!.qid), "mexicocity");
 
   // A city the team has been to before has no landing scene to wait for: its question comes once the move has played.
   const { t } = quizTable({ trivia: false }, 5);
@@ -876,14 +870,13 @@ test("nobody there to answer yet: the question waits for the turn to pass, so a 
   slow.t.clock.t = slow.due.at + 5 * 60_000;
   endTurn(slow.t, slow.p);
   assert.equal(cityOf(upIn(slow.g)!.qid), "istanbul");
-  // A team that isn't on that city any more (sent on by another team's landing, say) takes its question away.
+  // A team that isn't on that city any more (sent on by another team's landing, say) still has it
+  // asked: it's about the city the team has just been to.
   const moved = alone();
   moved.t.clock.t = moved.due.at;
   moved.g.s.ps[moved.me].pos = 12;
   endTurn(moved.t, moved.p);
-  assert.equal(upIn(moved.g), null);
-  assert.equal(dueOf(moved.g), null);
-  assert.equal(moved.g.triviaAt, moved.g.startedAt, "the quiz isn't resting: the next landing can bring one");
+  assert.equal(cityOf(upIn(moved.g)!.qid), "istanbul");
 
   // A newer landing doesn't take the place of a question on its way, nor of one waiting for the
   // table: first come…
@@ -969,7 +962,7 @@ test("the one-phone demo: the question waits for the move of the team that lande
   assert.equal(room.openTrivia("tokyo"), "asked");
   assert.equal(solo.view(sp).game!.trivia?.answerFor, me);
 
-  // Three teams of people at the phone, and a question waiting (the first team is standing in Istanbul).
+  // Three teams of people at the phone, and a question waiting (the first team has landed in Istanbul).
   // It doesn't come up in the middle of another team's move either: only between two turns.
   const three = new Table({ hotseat: true, ...OFTEN, inOrder: true, dice: [5, 6, 1, 3] }, 3);
   const tp = phone(3);
@@ -989,7 +982,7 @@ test("the one-phone demo: the question waits for the move of the team that lande
   three.room.tick();
   three.settle();
   assert.equal(upIn(tg), null, "not over the second team's move");
-  assert.equal(dueOf(tg)?.city, "istanbul", "the first team still stands there: its question waits");
+  assert.equal(dueOf(tg)?.city, "istanbul", "its question waits");
   endTurn(three, tp);
   assert.equal(tg.s.turn, 2);
   const between = three.view(tp).game!.trivia!;
