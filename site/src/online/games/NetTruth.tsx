@@ -210,8 +210,8 @@ export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) 
       </AnimatePresence>
 
       <HostRow>
-        {v.phase === "spin" && !mySpin && <HostButton onClick={() => g("skip")}>{ui("skip")}</HostButton>}
-        {v.phase !== "spin" && !chosenMe && <HostButton onClick={() => g(v.phase === "card" ? "done" : "skip")}>{ui("skip")}</HostButton>}
+        {v.phase === "spin" && !mySpin && <HostButton onClick={() => g("skip", { at: `spin:${v.spinner}` })}>{ui("skip")}</HostButton>}
+        {v.phase !== "spin" && !chosenMe && <HostButton onClick={() => g(v.phase === "card" ? "done" : "skip", { at: `${v.phase}:${v.chosen}` })}>{ui("skip")}</HostButton>}
       </HostRow>
     </NetFrame>
   );

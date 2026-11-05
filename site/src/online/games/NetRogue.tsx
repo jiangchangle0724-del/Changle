@@ -122,9 +122,9 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
       <Powers v={v} />
 
       <HostRow>
-        {v.phase === "draw" && !myTurn && <HostButton onClick={() => g("skip")}>{ui("skip")}</HostButton>}
+        {v.phase === "draw" && !myTurn && <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{ui("skip")}</HostButton>}
         {(v.phase === "garden" || v.phase === "grab" || v.phase === "sevens" || v.phase === "garden-pick" || v.phase === "sevens-start" || v.phase === "pick") && !drawer && (
-          <HostButton onClick={() => g("skip")}>{lang === "zh" ? "结束这张牌" : "End this card"}</HostButton>
+          <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{lang === "zh" ? "结束这张牌" : "End this card"}</HostButton>
         )}
       </HostRow>
 

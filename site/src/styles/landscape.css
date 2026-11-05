@@ -320,7 +320,8 @@
   }
   .screen .sh-stage.is-phone {
     min-height: 0;
-    max-height: calc(100vh - 60px);
+    /* the visible height: on an iPhone, 100vh is the height with Safari's bars hidden */
+    max-height: calc(100dvh - 60px);
   }
 
   /* the penalty: the stamp and its glass on the left, who pays and the buttons on the right */

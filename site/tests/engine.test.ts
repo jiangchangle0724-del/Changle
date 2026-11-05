@@ -79,6 +79,74 @@ test("room basics: join, errors, host transfer, kick", () => {
   ok(t.eng.hello("p2", "back", false) === "kicked", "kicked cannot return");
 });
 
+test("names: two people at one table never share a name", () => {
+  const eng = new RoomEngine(freshRoom("NAME", clock), host);
+  const name = (pid: string) => eng.d.seats.find((s) => s.id === pid)?.name;
+  eng.hello("a", "Steve", true);
+  eng.hello("b", "Steve", false);
+  eng.hello("c", " steve ", false);
+  eng.hello("d", "Ｓｔｅｖｅ", false);
+  ok(name("a") === "Steve" && name("b") === "Steve 2" && name("c") === "steve 3" && name("d") === "Ｓｔｅｖｅ 4", `the same name gets a number (${eng.d.seats.map((s) => s.name).join(", ")})`);
+  eng.setOnline("b", false);
+  eng.hello("b", "Steve", false);
+  eng.hello("a", "Steve", false);
+  ok(name("a") === "Steve" && name("b") === "Steve 2", "coming back keeps each one's name");
+  eng.act("c", { a: "rename", name: "Steve 2" });
+  ok(name("c") === "Steve 2 2", `renaming to a name in use doesn't take it (${name("c")})`);
+  eng.act("c", { a: "rename", name: "Cat" });
+  eng.act("c", { a: "rename", name: "Cat" });
+  ok(name("c") === "Cat", "renaming to your own name keeps it");
+  eng.hello("e", "Christopherson", false);
+  eng.hello("f", "Christopherson", false);
+  ok(name("f") === "Christophers 2" && Array.from(name("f") ?? "").length <= 14, `a long name still fits 14 (${name("f")})`);
+  eng.hello("g", "小明", false);
+  eng.hello("h", "小明", false);
+  ok(name("h") === "小明 2", `Chinese names too (${name("h")})`);
+  eng.act("a", { a: "leave" });
+  eng.hello("b", "Steve", false);
+  ok(name("b") === "Steve", "once the first Steve has gone, the second one is just Steve");
+});
+
+test("start: a second tap on Start doesn't deal the game again", () => {
+  const t = setup(4);
+  const first = t.act("p0", { a: "start", game: "king" });
+  ok(first.events.some((e) => e.k === "fx" && e.fx === "start"), "the game starts");
+  const dealt = JSON.stringify(t.eng.d.game?.s);
+  const again = t.act("p0", { a: "start", game: "king" });
+  ok(!again.events.length && JSON.stringify(t.eng.d.game?.s) === dealt, "the same game again: nothing happens");
+  t.act("p0", { a: "start", game: "dice" });
+  ok(t.eng.d.game?.id === "dice", "another game still takes over");
+});
+
+test("skip: the host's second tap on Skip doesn't skip the next player too", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "dice" });
+  t.g("p0", "skip", { at: "roll:p0" });
+  ok(t.view<V<"dice">>("p0").turn === "p1", "dice: skip moves the turn on");
+  t.g("p0", "skip", { at: "roll:p0" });
+  ok(t.view<V<"dice">>("p0").turn === "p1", "dice: the same skip again does nothing");
+  t.g("p0", "skip");
+  ok(t.view<V<"dice">>("p0").turn === "p2", "dice: a skip that names no turn still works");
+  t.act("p0", { a: "start", game: "truth" });
+  const tv = t.view<V<"truth">>("p0");
+  t.g("p0", "skip", { at: `spin:${tv.spinner}` });
+  const next = t.view<V<"truth">>("p0").spinner;
+  t.g("p0", "skip", { at: `spin:${tv.spinner}` });
+  ok(next !== tv.spinner && t.view<V<"truth">>("p0").spinner === next, "truth: one skip, not two");
+  t.act("p0", { a: "start", game: "wheel" });
+  const wv = t.view<V<"wheel">>("p0");
+  t.g("p0", "skip", { at: `${wv.phase}:${wv.turn}` });
+  const wt = t.view<V<"wheel">>("p0").turn;
+  t.g("p0", "skip", { at: `${wv.phase}:${wv.turn}` });
+  ok(wt !== wv.turn && t.view<V<"wheel">>("p0").turn === wt, "wheel: one skip, not two");
+  t.act("p0", { a: "start", game: "rogue" });
+  const rv = t.view<V<"rogue">>("p0");
+  t.g("p0", "skip", { at: `${rv.phase}:${rv.turn}` });
+  const rt = t.view<V<"rogue">>("p0").turn;
+  t.g("p0", "skip", { at: `${rv.phase}:${rv.turn}` });
+  ok(rt !== rv.turn && t.view<V<"rogue">>("p0").turn === rt, "rogue: one skip, not two");
+});
+
 test("leave: seat freed, host handed on, game told", () => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "dice" });
@@ -586,6 +654,28 @@ test("limbo: lean to pass, miss and drink, last one wins", () => {
   t.advance(16_000);
   v = t.view<V<"limbo">>("p0");
   ok(v.phase === "end" && v.winner === "p1", "time up: p0 misses, p1 wins");
+});
+
+test("limbo: nobody leans at all, nobody wins for it: everyone drinks, same bar again", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "go");
+  t.advance(3600);
+  t.advance(16_000);
+  let v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "result" && v.winner === null && v.alive.length === 3 && v.out.length === 0, "time up with no leans: no champion, nobody out");
+  t.advance(700);
+  ok(t.pens().some((p) => ["p0", "p1", "p2"].every((id) => p.who.includes(id))), "everyone drinks");
+  t.advance(6400);
+  v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "go" && v.angle === 20 && v.failed.length === 0, "the same bar again, from a clean slate");
+  t.advance(3600);
+  t.g("p0", "best", { deg: 12 });
+  t.g("p1", "fail");
+  t.g("p2", "fail");
+  t.advance(16_000);
+  v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "end" && v.winner === "p0", "nobody made it, but p0 leaned furthest: p0 wins");
 });
 
 test("limbo blind: lean to the target unseen, furthest off drinks and goes, last one wins", () => {

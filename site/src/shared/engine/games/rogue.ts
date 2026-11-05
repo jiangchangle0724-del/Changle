@@ -193,7 +193,8 @@ export const rogue: GameDef<S> = {
       }
 
       case "skip": {
-        if (!host) return;
+        // (the turn or card the host meant to skip: a second tap, or one sent late, mustn't skip the next one too)
+        if (!host || (g.at !== undefined && g.at !== `${s.phase}:${s.turn}`)) return;
         if (s.phase === "draw") {
           s.turn = api.next(s.turn);
           return;
