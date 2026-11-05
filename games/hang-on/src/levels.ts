@@ -2,6 +2,7 @@
  * 关卡表：levels/*.json 里所有关（C1 做的 12 关），按文件名排；最后附上彩蛋关「桌上杂技」。
  * 关卡文件还没合并进来时，表里就只有彩蛋关。A1 的手感原型关不进大厅，开发页 `?level=proto-01` 还能开。
  */
+import { pickLang, tr } from './i18n';
 import { sampleLevel, showcaseLevel, type Level } from './physics/level';
 
 const files = import.meta.glob('../levels/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
@@ -37,12 +38,10 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
 export function teachLabel(l: Level): string {
   if (!l.teaches) return '';
   const t = TEACHES[l.teaches];
-  return t ? `这关教：${t.zh} · ${t.en}` : `这关教：${l.teaches}`;
+  return tr(`这关教：${t?.zh ?? l.teaches}`, `This level teaches: ${t?.en ?? l.teaches}`);
 }
 
-/** 关卡给人看的名字。 */
+/** 关卡给人看的名字（当前语言）。 */
 export function levelTitle(l: Level, i: number): string {
-  const name = l.name?.zh ?? l.id;
-  const en = l.name?.en ? ` · ${l.name.en}` : '';
-  return `${i + 1}. ${name}${en}`;
+  return `${i + 1}. ${pickLang(l.name, l.id)}`;
 }

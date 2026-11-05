@@ -6,7 +6,7 @@ import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Pt } from '../physics/level';
 import type { Player } from '../physics/world';
-import { DEFAULT_LOOK, type Look } from '../look';
+import { ARM_COLORS, DEFAULT_LOOK, type Look } from '../look';
 import { CREAM, GLOVES, INK, OUTLINE, hex } from './art';
 
 const R = CFG.bodyR;
@@ -32,6 +32,8 @@ export class Dumpling {
   private readonly inner = new Container();
   private readonly body = new Graphics();
   private readonly face = new Graphics();
+  /** 脸上的小东西（胡子、雀斑、创可贴），换装时画一次。 */
+  private readonly extras = new Graphics();
   private readonly glasses = new Graphics();
   private readonly hat = new Graphics();
   private readonly label: Text;
@@ -58,7 +60,7 @@ export class Dumpling {
     this.reduced = reducedMotion;
     this.label = new Text({ text: name, style: NAME_STYLE, resolution: 2 });
     this.label.anchor.set(0.5, 1);
-    this.inner.addChild(this.body, this.face, this.glasses, this.hat);
+    this.inner.addChild(this.body, this.face, this.extras, this.glasses, this.hat);
     this.stretchC.addChild(this.inner);
     this.bodyC.addChild(this.stretchC);
     this.view.addChild(this.shadow, this.arms, this.bodyC, this.label);
@@ -81,6 +83,7 @@ export class Dumpling {
     this.look = look;
     this.drawHat();
     this.drawGlasses();
+    this.drawExtras();
     this.faceKey = '';
   }
 
@@ -220,7 +223,7 @@ export class Dumpling {
         this.noodle(g, pts);
         g.stroke({ width: 15, color: OUTLINE, cap: 'round', join: 'round' });
         this.noodle(g, pts);
-        g.stroke({ width: 10, color: 0xf6e7c8, cap: 'round', join: 'round' });
+        g.stroke({ width: 10, color: ARM_COLORS[this.look.arms] ?? ARM_COLORS.noodle, cap: 'round', join: 'round' });
       }
       const h = arm.hand;
       g.circle(h.x, h.y, CFG.handR + 2.5).fill(OUTLINE);
@@ -303,6 +306,58 @@ export class Dumpling {
         const y = -14 + t * 2;
         g.moveTo(x, y - 6).quadraticCurveTo(x + 3.5, y, x, y + 3).quadraticCurveTo(x - 3.5, y, x, y - 6).fill(0x8ec5e8);
       }
+    }
+  }
+
+  private drawExtras(): void {
+    const g = this.extras;
+    g.clear();
+    switch (this.look.face) {
+      case 'mustache':
+        // 两撇往上翘的胡子，正好压在嘴上面
+        g.moveTo(0, 4).quadraticCurveTo(-5, 0.5, -10, 4.5).quadraticCurveTo(-12.5, 7.5, -9, 8).quadraticCurveTo(-6, 6, 0, 7).closePath().fill(0x3a2a2a);
+        g.moveTo(0, 4).quadraticCurveTo(5, 0.5, 10, 4.5).quadraticCurveTo(12.5, 7.5, 9, 8).quadraticCurveTo(6, 6, 0, 7).closePath().fill(0x3a2a2a);
+        break;
+      case 'freckles':
+        for (const s of [-1, 1]) {
+          for (const [x, y] of [
+            [12, 6],
+            [15.5, 8.5],
+            [10.5, 9.5],
+            [16, 4.5],
+          ] as const) {
+            g.circle(s * x, y, 1.2).fill({ color: 0x9a5a3a, alpha: 0.75 });
+          }
+        }
+        break;
+      case 'bandage': {
+        // 斜贴在右脸上
+        const cx = 12;
+        const cy = 7;
+        const a = 0.45;
+        const c = Math.cos(a);
+        const sn = Math.sin(a);
+        const pt = (x: number, y: number): number[] => [cx + x * c - y * sn, cy + x * sn + y * c];
+        const band = [...pt(-8, -3), ...pt(8, -3), ...pt(8, 3), ...pt(-8, 3)];
+        g.poly(band).fill(0xf3d0a0).stroke({ width: 1.2, color: 0xb08a60, join: 'round' });
+        const pad = [...pt(-3, -2.4), ...pt(3, -2.4), ...pt(3, 2.4), ...pt(-3, 2.4)];
+        g.poly(pad).fill(0xfbe6c8);
+        for (const [x, y] of [
+          [-5.5, 0],
+          [5.5, 0],
+        ] as const) {
+          const [px, py] = pt(x, y) as [number, number];
+          g.circle(px, py, 0.7).fill(0xb08a60);
+        }
+        break;
+      }
+      case 'beard':
+        // 下半张脸一圈，从两颊绕到下巴，嘴露在外面
+        g.arc(0, 0, R - 0.5, 0.25, Math.PI - 0.25).arc(0, 3, R - 8, Math.PI - 0.45, 0.45, true).closePath().fill(0x5a3a2a);
+        g.arc(0, 3, R - 8, Math.PI - 0.45, 0.45, true).stroke({ width: 1.2, color: 0x3a2418, alpha: 0.6 });
+        break;
+      default:
+        break;
     }
   }
 

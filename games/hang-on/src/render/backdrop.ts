@@ -33,6 +33,7 @@ export class Backdrop {
   private readonly layers: Layer[] = [];
   private W = 0;
   private H = 0;
+  private skyGrad: FillGradient | null = null;
   private steamT = 0;
   private rainT = 0;
   rain = false;
@@ -57,8 +58,9 @@ export class Backdrop {
     this.W = W;
     this.H = H;
     const sky = this.sky.clear();
-    const grad = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.skyTop }, { offset: 1, color: this.pal.skyBottom }] });
-    sky.rect(0, 0, W, H).fill(grad);
+    // 渐变是 local 坐标，只建一次
+    this.skyGrad ??= new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.skyTop }, { offset: 1, color: this.pal.skyBottom }] });
+    sky.rect(0, 0, W, H).fill(this.skyGrad);
     if (this.world === 'van') this.stars(sky, W, H);
     const period = Math.max(1600, Math.ceil(W / 100) * 100);
     this.layers.forEach((l, i) => {
@@ -70,6 +72,12 @@ export class Backdrop {
       }
       l.g[1].x = period;
     });
+  }
+
+  destroy(): void {
+    this.skyGrad?.destroy();
+    this.skyGrad = null;
+    this.view.destroy({ children: true });
   }
 
   /** camX / camY：镜头中心（世界坐标）；levelH 用来算竖直视差。 */
@@ -190,7 +198,7 @@ export class Backdrop {
 
   private steam(dt: number): void {
     this.steamT += dt;
-    const every = 0.12;
+    const every = 0.22;
     while (this.steamT >= every) {
       this.steamT -= every;
       const b: Burst = {
@@ -202,10 +210,10 @@ export class Backdrop {
         speed: [18, 40],
         angle: -Math.PI / 2,
         spread: 0.5,
-        life: [5, 8],
-        size: [90, 170],
-        grow: 1.8,
-        alpha: 0.07,
+        life: [4, 6],
+        size: [90, 160],
+        grow: 1.7,
+        alpha: 0.08,
         drag: 0.1,
       };
       this.fx.burst(b);

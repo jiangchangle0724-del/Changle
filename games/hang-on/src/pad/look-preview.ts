@@ -1,8 +1,8 @@
 /**
- * 手柄页上的小预览：2D canvas 画一个糯米团，看自己选的帽子、眼镜、眼睛。
- * 和主机的 Pixi 画法是两套（手柄页不能带 Pixi），形状尽量一样。
+ * 糯米团的小预览：2D canvas 画一个，看选的帽子、眼镜、眼睛、脸、袖子。手柄页的换装和主机大厅的座位卡都用它。
+ * 和主机游戏里的 Pixi 画法是两套（手柄页不能带 Pixi），形状尽量一样。
  */
-import type { Look } from '../look';
+import { ARM_COLORS, GLOVES, type Look } from '../look';
 
 const INK = '#2a1f3a';
 const OUTLINE = '#3a2a2a';
@@ -26,8 +26,8 @@ export function drawLook(canvas: HTMLCanvasElement, look: Look, color: string): 
   // 手套和短胳膊
   ctx.lineCap = 'round';
   for (const [side, glove] of [
-    [-1, '#63b3ed'],
-    [1, '#f6ad55'],
+    [-1, GLOVES[0]],
+    [1, GLOVES[1]],
   ] as const) {
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 15;
@@ -35,7 +35,7 @@ export function drawLook(canvas: HTMLCanvasElement, look: Look, color: string): 
     ctx.moveTo(side * 14, -8);
     ctx.quadraticCurveTo(side * 38, -30, side * 44, -4);
     ctx.stroke();
-    ctx.strokeStyle = '#f6e7c8';
+    ctx.strokeStyle = ARM_COLORS[look.arms] ?? ARM_COLORS.noodle;
     ctx.lineWidth = 10;
     ctx.stroke();
     circle(side * 44, -4, 12.5, OUTLINE);
@@ -81,6 +81,8 @@ export function drawLook(canvas: HTMLCanvasElement, look: Look, color: string): 
   ctx.moveTo(-5, 9);
   ctx.quadraticCurveTo(0, 12.5, 5, 9);
   ctx.stroke();
+  // 脸上的小东西
+  drawExtras(ctx, look, circle);
   // 眼镜
   ctx.lineWidth = 2.2;
   if (look.glasses === 'round') {
@@ -240,4 +242,58 @@ export function drawLook(canvas: HTMLCanvasElement, look: Look, color: string): 
       break;
   }
   ctx.restore();
+}
+
+function drawExtras(ctx: CanvasRenderingContext2D, look: Look, circle: (x: number, y: number, r: number, fill: string) => void): void {
+  switch (look.face) {
+    case 'mustache':
+      ctx.fillStyle = '#3a2a2a';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(0, 4);
+        ctx.quadraticCurveTo(s * 5, 0.5, s * 10, 4.5);
+        ctx.quadraticCurveTo(s * 12.5, 7.5, s * 9, 8);
+        ctx.quadraticCurveTo(s * 6, 6, 0, 7);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    case 'freckles':
+      for (const s of [-1, 1]) {
+        for (const [x, y] of [
+          [12, 6],
+          [15.5, 8.5],
+          [10.5, 9.5],
+          [16, 4.5],
+        ] as const) circle(s * x, y, 1.2, 'rgba(154,90,58,.75)');
+      }
+      break;
+    case 'bandage':
+      ctx.save();
+      ctx.translate(12, 7);
+      ctx.rotate(0.45);
+      ctx.fillStyle = '#f3d0a0';
+      ctx.strokeStyle = '#b08a60';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.rect(-8, -3, 16, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#fbe6c8';
+      ctx.fillRect(-3, -2.4, 6, 4.8);
+      circle(-5.5, 0, 0.7, '#b08a60');
+      circle(5.5, 0, 0.7, '#b08a60');
+      ctx.restore();
+      break;
+    case 'beard':
+      ctx.fillStyle = '#5a3a2a';
+      ctx.beginPath();
+      ctx.arc(0, 0, 23.5, 0.25, Math.PI - 0.25);
+      ctx.arc(0, 3, 16, Math.PI - 0.45, 0.45, true);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    default:
+      break;
+  }
 }

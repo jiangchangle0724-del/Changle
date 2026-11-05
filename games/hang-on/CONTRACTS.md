@@ -44,8 +44,14 @@ type PadInput = {
 
 ## 样子契约（A3）
 
-手柄选的样子 `Look = { hat, glasses, eyes }`（可选项在 `src/look.ts`），连上房间时和改了之后经房间发给主机
-（`LinkMsg { k: 'look', look }`，走可靠的 WebSocket，不走数据通道）。手套颜色不能换：左蓝右橙是辨左右用的；馅儿色跟座位走。
+手柄选的样子 `Look = { hat, glasses, eyes, face, arms, voice }`（可选项和中英名字在 `src/look.ts`），连上房间时和改了之后
+经房间发给主机（`LinkMsg { k: 'look', look }`，走可靠的 WebSocket，不走数据通道），主机用 `cleanLook()` 收拾。
+手套颜色不能换：左蓝右橙是辨左右用的，袖子也不许用蓝和橙；馅儿色跟座位走。`voice` 是摔下去时的尖叫，`auto` 按座位分四个音高。
+
+## 语言契约（A3）
+
+玩家看到的字中英都有。页面里写死的字用 `data-en`（`data-en-label` / `data-en-ph` / `data-en-title`）标英文，代码里用
+`tr('中文', 'English')`（`src/i18n.ts`）。语言先看 `?lang=`，再看自己记的，再跟主站设置，最后看手机语言；主机和手柄各自切。
 
 ## 房间契约
 

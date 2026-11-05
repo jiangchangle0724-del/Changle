@@ -83,7 +83,7 @@ export function materialOf(name: string | undefined): MaterialStyle {
   return (name && MATERIALS[name]) || DEFAULT_MATERIAL;
 }
 
-export const GLOVES = ['#63b3ed', '#f6ad55'] as const;
+export { GLOVES } from '../look';
 export const INK = '#2a1f3a';
 export const OUTLINE = '#3a2a2a';
 export const CREAM = '#fff6e9';
@@ -348,21 +348,32 @@ export function textures(): Textures {
   return cache;
 }
 
-/** 一团软光：径向渐变，中心 alpha 最大，边上到零。 */
+/**
+ * 一团软光：径向渐变，中心 alpha 最大，边上到零。渐变是 local 坐标（相对每个形状的外框），
+ * 所以同一种颜色和亮度的光只建一个渐变（它背后是一张贴图），每帧画也不会越建越多。
+ */
+const glows = new Map<string, FillGradient>();
 export function glow(g: Graphics, x: number, y: number, r: number, color: string | number, alpha: number): void {
   const c = typeof color === 'number' ? '#' + color.toString(16).padStart(6, '0') : color;
-  const grad = new FillGradient({
-    type: 'radial',
-    center: { x: 0.5, y: 0.5 },
-    innerRadius: 0,
-    outerCenter: { x: 0.5, y: 0.5 },
-    outerRadius: 0.5,
-    colorStops: [
-      { offset: 0, color: `${c}${Math.round(alpha * 255).toString(16).padStart(2, '0')}` },
-      { offset: 0.45, color: `${c}${Math.round(alpha * 0.45 * 255).toString(16).padStart(2, '0')}` },
-      { offset: 1, color: `${c}00` },
-    ],
-  });
+  const a = Math.round(alpha * 100) / 100;
+  const key = `${c}|${a}`;
+  let grad = glows.get(key);
+  if (!grad) {
+    const hx = (v: number): string => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0');
+    grad = new FillGradient({
+      type: 'radial',
+      center: { x: 0.5, y: 0.5 },
+      innerRadius: 0,
+      outerCenter: { x: 0.5, y: 0.5 },
+      outerRadius: 0.5,
+      colorStops: [
+        { offset: 0, color: `${c}${hx(a)}` },
+        { offset: 0.45, color: `${c}${hx(a * 0.45)}` },
+        { offset: 1, color: `${c}00` },
+      ],
+    });
+    glows.set(key, grad);
+  }
   g.circle(x, y, r).fill(grad);
 }
 

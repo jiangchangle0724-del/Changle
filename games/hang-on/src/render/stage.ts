@@ -65,6 +65,8 @@ export class Stage {
   private trails: Trail[] = [];
   private slow = 0;
   private flashA = 0;
+  private vignetteGrad: FillGradient | null = null;
+  private abyssGrad: FillGradient | null = null;
   private t = 0;
   private bubbleT = 0;
   private W = 1;
@@ -124,7 +126,7 @@ export class Stage {
     this.app.renderer.resize(W, H);
     this.backdrop?.resize(W, H);
     const v = this.vignette.clear();
-    const grad = new FillGradient({
+    const grad = (this.vignetteGrad ??= new FillGradient({
       type: 'radial',
       center: { x: 0.5, y: 0.5 },
       innerRadius: 0,
@@ -135,7 +137,7 @@ export class Stage {
         { offset: 0.6, color: 'rgba(0,0,0,0)' },
         { offset: 1, color: 'rgba(0,0,0,0.42)' },
       ],
-    });
+    }));
     v.rect(0, 0, W, H).fill(grad);
     this.flash.clear().rect(0, 0, W, H).fill(0xffffff);
     this.flash.alpha = 0;
@@ -147,7 +149,7 @@ export class Stage {
   setLevel(level: Level): void {
     this.world_ = level.world === 'van' ? 'van' : 'table';
     this.pal = PALETTES[this.world_];
-    this.backdrop?.view.destroy({ children: true });
+    this.backdrop?.destroy();
     this.terrain?.view.destroy({ children: true });
     this.backdrop = new Backdrop(this.world_, this.pal, this.screenFx);
     this.backdrop.rain = this.world_ === 'van' && (level.teaches === 'ice' || level.rects.some((r) => r.material === 'ice'));
@@ -156,8 +158,9 @@ export class Stage {
     this.terrain = new Terrain(level, this.world_, this.pal);
     this.world.addChildAt(this.terrain.view, 1);
     const a = this.abyssBody.clear();
-    const grad = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.abyssTop }, { offset: 1, color: this.pal.abyssBottom }] });
-    a.rect(-3000, level.deathY - 8, level.w + 6000, 1400).fill(grad);
+    this.abyssGrad?.destroy();
+    this.abyssGrad = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.abyssTop }, { offset: 1, color: this.pal.abyssBottom }] });
+    a.rect(-3000, level.deathY - 8, level.w + 6000, 1400).fill(this.abyssGrad);
     this.cam.x = level.spawn.x;
     this.cam.y = level.spawn.y - 60;
     this.screenFx.clear();
@@ -514,13 +517,13 @@ export class Stage {
     }
     // 冒泡和蒸汽
     this.bubbleT += dt;
-    const every = table ? 0.08 : 0.2;
+    const every = table ? 0.12 : 0.24;
     while (this.bubbleT >= every) {
       this.bubbleT -= every;
       const bx = this.cam.x - halfW + Math.random() * halfW * 2;
       if (table) {
         this.fx.burst({ x: bx, y: y + 10, n: 1, texture: 'dot', colors: [0xffd9a0], speed: [20, 50], angle: -Math.PI / 2, spread: 0.3, life: [0.4, 0.8], size: [6, 12], grow: 1.6, alpha: 0.7 });
-        if (Math.random() < 0.5) this.fx.burst({ x: bx, y: y - 10, n: 1, texture: 'puff', colors: [0xffffff], speed: [20, 45], angle: -Math.PI / 2, spread: 0.4, life: [2.5, 4], size: [50, 110], grow: 2, alpha: 0.12, drag: 0.2 });
+        if (Math.random() < 0.4) this.fx.burst({ x: bx, y: y - 10, n: 1, texture: 'puff', colors: [0xffffff], speed: [20, 45], angle: -Math.PI / 2, spread: 0.4, life: [2, 3.2], size: [50, 100], grow: 2, alpha: 0.12, drag: 0.2 });
       } else {
         this.fx.burst({ x: bx, y: y + 6, n: 1, texture: 'dot', colors: [0xffffff], speed: [0, 10], life: [0.6, 1.2], size: [3, 6], grow: 0.2, alpha: 0.6 });
       }

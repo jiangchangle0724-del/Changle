@@ -3,6 +3,7 @@
  * 掉进汤里、复活、检查点、弹簧、饼干碎、背叛（全场「哦——」）、召唤、过关、倒数。
  * 浏览器要用户点过一次才让出声：attach() 挂在第一次按键 / 点击上。静音记在 localStorage。
  */
+import type { Voice } from '../look';
 import type { Sim, SimEvent } from '../physics/world';
 
 type Wave = OscillatorType;
@@ -44,6 +45,8 @@ class Sfx {
   /** 世界坐标 → 左右声道（-1..1），主机按镜头给。 */
   panOf: ((x: number, y: number) => number) | null = null;
   private lastAt = new Map<string, number>();
+  /** 每个玩家选的嗓子（主机按座位设）。 */
+  private voices: Voice[] = [];
 
   constructor() {
     try {
@@ -69,6 +72,17 @@ class Sfx {
 
   get ready(): boolean {
     return !!this.ctx && this.ctx.state === 'running';
+  }
+
+  setVoice(player: number, voice: Voice): void {
+    this.voices[player] = voice;
+  }
+
+  /** 手柄页换嗓子时试听一下（这一下点击本身就开了声音）。 */
+  async previewVoice(voice: Voice, player = 0): Promise<void> {
+    await this.unlock();
+    if (!this.ready || this.muted_) return;
+    this.screamAs(voice, player, 0);
   }
 
   /** 第一次按键 / 点击时开声音。 */
@@ -203,11 +217,45 @@ class Sfx {
     this.tone({ freq: 1200, to: 900, wave: 'sine', dur: 0.04, vol: 0.12 });
   }
 
-  /** 尖叫：锯齿波带颤音，一路往下滑，每个人的嗓子不一样。 */
+  /** 尖叫：按这个人选的嗓子叫；默认按座位分四个音高。 */
   private scream(player: number, pan: number): void {
-    const base = SCREAM_HZ[player % SCREAM_HZ.length] as number;
-    this.tone({ freq: base * 1.15, to: base * 0.5, wave: 'sawtooth', dur: 0.62, attack: 0.03, vol: 0.22, vibrato: [base * 0.06, 11], pan, lowpass: 2400 });
-    this.tone({ freq: base * 2.3, to: base * 1.0, wave: 'square', dur: 0.5, attack: 0.03, vol: 0.05, vibrato: [base * 0.1, 11], pan, lowpass: 3000 });
+    this.screamAs(this.voices[player] ?? 'auto', player, pan);
+  }
+
+  private screamAs(voice: Voice, player: number, pan: number): void {
+    const seat = SCREAM_HZ[player % SCREAM_HZ.length] as number;
+    switch (voice) {
+      case 'high':
+        // 尖嗓：又高又抖
+        this.tone({ freq: 980, to: 520, wave: 'sawtooth', dur: 0.55, attack: 0.02, vol: 0.18, vibrato: [70, 14], pan, lowpass: 3600 });
+        this.tone({ freq: 1960, to: 1040, wave: 'square', dur: 0.45, attack: 0.02, vol: 0.04, vibrato: [120, 14], pan, lowpass: 4200 });
+        return;
+      case 'low':
+        // 粗嗓：低、长、往下沉
+        this.tone({ freq: 230, to: 105, wave: 'sawtooth', dur: 0.8, attack: 0.04, vol: 0.3, vibrato: [10, 7], pan, lowpass: 1400 });
+        this.tone({ freq: 460, to: 210, wave: 'square', dur: 0.6, attack: 0.04, vol: 0.05, vibrato: [18, 7], pan, lowpass: 1600 });
+        return;
+      case 'duck':
+        // 鸭子：方波、鼻音、快颤，三声嘎
+        for (let k = 0; k < 3; k++) this.tone({ freq: 620 - k * 60, to: 380 - k * 40, wave: 'square', dur: 0.16, attack: 0.01, vol: 0.14, vibrato: [90, 28], pan, lowpass: 1500, delay: k * 0.17 });
+        return;
+      case 'robot': {
+        // 机器人：一格一格往下掉的音，方波
+        const steps = [720, 640, 560, 480, 400, 330, 270];
+        steps.forEach((f, k) => this.tone({ freq: f, wave: 'square', dur: 0.085, attack: 0.004, vol: 0.12, pan, lowpass: 2600, delay: k * 0.08 }));
+        return;
+      }
+      case 'opera':
+        // 歌剧：先唱上去，再长长地滑下来，宽颤音
+        this.tone({ freq: 660, to: 880, wave: 'triangle', dur: 0.32, attack: 0.05, vol: 0.22, vibrato: [22, 6], pan });
+        this.tone({ freq: 880, to: 330, wave: 'triangle', dur: 0.9, attack: 0.05, vol: 0.22, vibrato: [30, 6], pan, delay: 0.3 });
+        this.tone({ freq: 1760, to: 660, wave: 'sine', dur: 0.9, attack: 0.05, vol: 0.05, vibrato: [60, 6], pan, delay: 0.3 });
+        return;
+      default:
+        // 默认：锯齿波带颤音一路往下滑，四个座位四个音高
+        this.tone({ freq: seat * 1.15, to: seat * 0.5, wave: 'sawtooth', dur: 0.62, attack: 0.03, vol: 0.22, vibrato: [seat * 0.06, 11], pan, lowpass: 2400 });
+        this.tone({ freq: seat * 2.3, to: seat * 1.0, wave: 'square', dur: 0.5, attack: 0.03, vol: 0.05, vibrato: [seat * 0.1, 11], pan, lowpass: 3000 });
+    }
   }
 
   private splash(pan: number, hot: boolean): void {
