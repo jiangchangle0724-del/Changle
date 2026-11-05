@@ -59,7 +59,7 @@
     min-height: var(--tap-crowded);
   }
   .game-screen:has(
-      > .game-body :is(.bottle-stage, .tn-stage, .deck-stack, .plate-draw, .plate-watch, .dm-stagebox),
+      > .game-body :is(.bottle-stage, .tn-stage, .deck-stack, .plate-draw, .plate-watch, .dm-stagebox, .eu-table),
       > .game-body > :is(.card-stage, .dice-stage, .wheel-svg),
       > .game-body .tn > .vinyl,
       > .game-body .fz > .floor,
