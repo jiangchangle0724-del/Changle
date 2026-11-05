@@ -1,5 +1,5 @@
 import { Check, Shuffle } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { TITLES } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
@@ -7,8 +7,7 @@ import type { T } from "../../i18n";
 import { Deck } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
 import { usePenaltyText, useStore } from "../../store";
-import { NameFace } from "../common";
-import { gsap, reduced } from "../../lib/anim";
+import { NameFace, PassCurtain } from "../common";
 import { AwardCard, AwardReveal, Ceremony } from "./parts";
 import "../../styles/party.css";
 
@@ -167,7 +166,7 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
         {(phase.k === "pass" || phase.k === "ballot" || phase.k === "point") && <AwardCard title={title} round={round} total={total} />}
 
         {phase.k === "pass" && voter && (
-          <AwardPass name={voter.name} note={zh ? `第 ${phase.i + 1} 票，共 ${players.length} 票` : `Vote ${phase.i + 1} of ${players.length}`} />
+          <PassCurtain name={voter.name} note={zh ? `第 ${phase.i + 1} 票，共 ${players.length} 票` : `Vote ${phase.i + 1} of ${players.length}`} />
         )}
 
         {phase.k === "ballot" && voter && (
@@ -236,20 +235,3 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
   );
 }
 
-/** This game's pass curtain keeps the existing reveal animation; its button lives in actions. */
-function AwardPass({ name, note }: { name: string; note: string }) {
-  const { lang } = useStore();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (reduced() || !ref.current) return;
-    gsap.fromTo(ref.current.querySelector(".pass-name"), { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(1.6)", clearProps: "transform,opacity" });
-  }, [name]);
-  return (
-    <div className="pass-curtain" ref={ref}>
-      <NameFace name={name} size={84} />
-      <p className="pass-lead">{lang === "zh" ? "把手机交给" : "Pass the phone to"}</p>
-      <p className="pass-name">{name}</p>
-      <p className="hint pass-note">{note}</p>
-    </div>
-  );
-}
