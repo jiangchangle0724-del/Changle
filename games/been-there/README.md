@@ -39,6 +39,14 @@ there along the great circle, its own token flying it once it's down on the ring
 world stays printed, each city washed in its region's colour. The pictures are made ready ahead of
 time (`npm run satellite`) and ship with the game: 73 KB for a phone, 600 KB for the big screen.
 
+Rio's samba: a team that lands on Rio may dance for the table's scores. Its phone shows a ready
+card (stand up, leave room for a step), and nothing starts until it presses Start; left alone for a
+minute, it starts by itself. Then every screen counts down five seconds and a carnival dancer teaches
+a 40-second lesson to a samba band: eight figures, the words on screen and spoken, the spot under
+the foot to move lit up. Full screen on the dancing team's phone, small over the judges' buttons
+(which light up when it's over), big on the big screen. A computer team dances a short one straight
+away.
+
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
 ## How it sits inside changle.ca
@@ -143,6 +151,11 @@ minute). Nothing is downloaded: previews stream from Apple. `npm test` checks th
 
 ## Numbers you might want to change
 
+* Rio's samba, in `TIMING` (`src/room/protocol.ts`): how long the ready card waits before the lesson
+  starts by itself (`danceReady`, 60 s), the countdown (`danceCount`, 5 s), the lesson (`dance`, 40 s:
+  64 beats and a pose, so a longer lesson is a slower one) and a computer team's short dance
+  (`danceBot`, 10 s). The lesson's figures, their words and the teacher's drawing are in
+  `src/client/ui/Samba.tsx`; the band is `samba()` in `src/client/sound.ts`.
 * Exchange rates for prices in local money: `RATES` in `src/client/local.ts`, with the date they're
   from (`RATES_DATE`, shown on the credits page). The game's $ counts as US dollars.
 * How each city's hello is said and what it means: `HELLO` in `src/client/local.ts`.

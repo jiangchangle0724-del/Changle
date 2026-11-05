@@ -125,6 +125,21 @@ interface HeldForfeit {
   at: number;
 }
 
+/**
+ * Rio's dance for the `scores` decision up now. A person's team gets a ready card and starts the
+ * lesson itself (Start, then a countdown on every screen); a computer team's is short and starts at once.
+ */
+interface DancePlan {
+  /** The lesson's length. */
+  len: number;
+  /** The countdown before it (0 for a computer team: nobody to get ready). */
+  count: number;
+  /** A computer team's: two figures and the pose. */
+  short: boolean;
+  /** While it waits for Start: when it starts by itself, or null if it never does (the one-phone demo). */
+  auto: number | null;
+}
+
 interface Game {
   s: E.GameState;
   seats: string[];
@@ -150,8 +165,13 @@ interface Game {
   moveAt?: number;
   deadline: number | null;
   silenceUntil: number | null;
-  /** Rio: when the dance started (the judges wait for TIMING.dance after it). Missing in older saves. */
+  /**
+   * Rio: when the lesson of the dance up now starts (the judges wait until it's over), or null while
+   * its team hasn't pressed Start. Missing in older saves.
+   */
   danceAt?: number | null;
+  /** Rio: the dance up now (see openDance). Missing in rooms from before the ready step. */
+  dancePlan?: DancePlan | null;
   auction: LiveAuction | null;
   quiz: Quiz | null;
   trivia: Trivia | null;
@@ -274,6 +294,9 @@ export class Room {
     this.env = env;
     // Bot styles hold Infinity, which JSON turns into null: always restore them by id.
     if (st.game) for (const b of st.game.brains) b.style = E.STYLES[b.style.id] ?? E.STYLES.balanced;
+    // A room from before Rio's ready step, read back mid-dance: that dance is the 10.6 s one of then, already on.
+    if (st.game && st.game.danceAt != null && !st.game.dancePlan && st.game.s.pending?.k === "scores")
+      st.game.dancePlan = { len: 10_600 * (st.settings.speed ?? 1), count: 0, short: true, auto: null };
     // Rooms and saves from before the waiting players' quiz, and from before its questions had ids.
     if (st.game) {
       const g = st.game as Game & { triviaUsed?: number[] };
@@ -366,10 +389,52 @@ export class Room {
     return TIMING[k] * this.speed();
   }
 
-  /** Rio's dance is still on (the judges wait for it). */
+  // ---------- Rio's dance ----------
+
+  /**
+   * Rio: a team has said it will dance, and the judges' scores are up. A person's team gets a ready
+   * card: the lesson starts when it presses Start (startDance), or by itself after TIMING.danceReady,
+   * so that nobody holds the game (not in the one-phone demo, as with the turn clock). A computer
+   * team, or a team the computer is covering, has nobody to get ready: it dances the short one at
+   * once. The judges' time (the decision's deadline) is set when the dance starts.
+   */
+  private openDance(dancer: number) {
+    const g = this.st.game!;
+    g.danceAt = null;
+    if (this.botControlled(dancer)) {
+      g.dancePlan = { len: this.ms("danceBot"), count: 0, short: true, auto: null };
+      this.startDance();
+      return;
+    }
+    g.dancePlan = {
+      len: this.ms("dance"),
+      count: this.ms("danceCount"),
+      short: false,
+      auto: this.st.settings.hotseat ? null : this.now + this.ms("danceReady"),
+    };
+  }
+
+  /** The dance begins: the countdown from now, then the lesson. The judges' 25 s start when it's over. */
+  private startDance() {
+    const g = this.st.game!;
+    const plan = g.dancePlan;
+    if (!plan) return;
+    plan.auto = null;
+    g.danceAt = this.now + plan.count;
+    g.deadline = g.danceAt + plan.len + this.ms("vote");
+    this.dirty = true;
+  }
+
+  /** When Rio's dance is over: Infinity while its team hasn't started it, 0 when none is up. */
+  private danceEnd(g: Game): number {
+    if (g.s.pending?.k !== "scores" || !g.dancePlan) return 0;
+    return g.danceAt == null ? Infinity : g.danceAt + g.dancePlan.len;
+  }
+
+  /** Rio's dance isn't over yet (the judges wait for it): not started, counting down, or being danced. */
   private dancing() {
     const g = this.st.game;
-    return !!g?.danceAt && this.now < g.danceAt + this.ms("dance");
+    return !!g && this.now < this.danceEnd(g);
   }
 
   // ---------- output ----------
@@ -630,6 +695,13 @@ export class Room {
         if (!E.act(g.s, seat, a)) return this.toast(id, "cantDoThat");
         return this.afterMove();
       }
+      case "dance-go": {
+        // Rio: the dancing team is ready (any of its phones says so), while its dance waits for that.
+        const pd = g.s.pending;
+        if (pd?.k !== "scores" || !g.dancePlan || g.danceAt != null) return;
+        if (!mine.includes(pd.dancer)) return this.toast(id, "notYours");
+        return this.startDance();
+      }
       case "manage": {
         const seat = pickSeat(msg.seat, mine);
         if (seat < 0 || !isInt(msg.at)) return;
@@ -836,6 +908,7 @@ export class Room {
     g.deadline = later(g.deadline);
     g.silenceUntil = later(g.silenceUntil);
     g.danceAt = later(g.danceAt ?? null);
+    if (g.dancePlan && g.dancePlan.auto !== null) g.dancePlan.auto += shift;
     g.pendingSince += shift;
     if (g.idleFrom !== undefined) g.idleFrom += shift;
     if (g.moveAt !== undefined) g.moveAt += shift;
@@ -908,6 +981,7 @@ export class Room {
       g.deadline = null;
       g.silenceUntil = null;
       g.danceAt = null;
+      g.dancePlan = null;
       if (pd?.k !== "auction") g.auction = null;
       if (pd?.k !== "quiz") g.quiz = null;
       if (pd?.k === "auction") {
@@ -931,9 +1005,8 @@ export class Room {
         };
       } else if (pd?.k === "silence") g.silenceUntil = now + this.ms("silence");
       else if (pd?.k === "scores") {
-        // Rio: every screen plays the dance first; the judges' time starts when it's over.
-        g.danceAt = now;
-        g.deadline = now + this.ms("dance") + this.ms("vote");
+        // Rio: every screen plays the dance first, once its team is ready; the judges' time starts when it's over.
+        this.openDance(pd.dancer);
       } else if (pd && E.SIMULTANEOUS.has(pd.k)) g.deadline = now + this.ms("vote");
     }
     // A new turn: settle the spectators' bets on the last one and open betting on this one.
@@ -1304,10 +1377,12 @@ export class Room {
    * The turn clock for the decision up now. When the team the game is waiting for does nothing on it
    * for TIMING.idle, everyone sees a countdown of TIMING.idleWarn, and then the computer makes that one
    * move for the team, as it does for a phone that dropped; the team plays its next move itself. It
-   * counts from the decision (once a throw's ride and landing, Seoul's silence or Rio's dance are over)
+   * counts from the decision (once a throw's ride and landing or Seoul's silence are over)
    * or the team's last move, whichever is later, and stands still with every other clock in a pause
    * or a party forfeit. None for computer teams (or a team the computer already covers), for
-   * decisions with a clock of their own (auctions, votes, Shanghai's quiz), or in the one-phone demo.
+   * decisions with a clock of their own (auctions, votes, Shanghai's quiz, Rio's judges: their time
+   * starts when the dance is over, and the dance starts by itself if its team never does, see
+   * openDance), or in the one-phone demo.
    */
   private turnClock(g: Game): { seat: number; warnAt: number; at: number } | null {
     const s = g.s;
@@ -1319,7 +1394,6 @@ export class Room {
       g.idleFrom ?? g.pendingSince,
       g.moveAt === undefined ? 0 : g.moveAt + this.ms("landing"),
       g.silenceUntil ?? 0,
-      g.danceAt ? g.danceAt + this.ms("dance") : 0,
     );
     const warnAt = from + this.ms("idle");
     return { seat, warnAt, at: warnAt + this.ms("idleWarn") };
@@ -1434,11 +1508,16 @@ export class Room {
       } else if (tv) times.push(tv.revealUntil);
       const pd = s.pending;
       if (pd && pd.k !== "auction" && pd.k !== "quiz") {
-        const after = Math.max(g.pendingSince + this.ms("bot"), g.silenceUntil ?? 0, g.danceAt ? g.danceAt + this.ms("dance") : 0);
+        const after = Math.max(g.pendingSince + this.ms("bot"), g.silenceUntil ?? 0, this.danceEnd(g));
         for (const seat of E.whoMustAct(s)) {
           const team = this.teamAt(seat);
           if (!team || team.bot || team.autoplay) times.push(after);
           else if (g.awaySince[seat] !== undefined) times.push(Math.max(after, g.awaySince[seat] + this.ms("takeover")));
+        }
+        // Rio: a dance its team hasn't started starts by itself (at once, if the computer now plays for that team).
+        if (pd.k === "scores" && g.dancePlan && g.danceAt == null) {
+          if (this.botControlled(pd.dancer)) times.push(this.now);
+          else if (g.dancePlan.auto !== null) times.push(g.dancePlan.auto);
         }
       }
       for (const t of g.trades) times.push(t.createdAt + this.ms("offer"));
@@ -1551,6 +1630,20 @@ export class Room {
       }
       if (now >= q.endsAt + 1500) {
         this.answerQuiz(-1);
+        return true;
+      }
+      return false;
+    }
+    if (pd.k === "scores" && g.dancePlan && g.danceAt == null) {
+      // Rio: the dance waits for its team's Start. Left alone long enough, it starts by itself; and if
+      // the computer has taken that team over meanwhile, nobody is there to press: its short dance, now.
+      if (this.botControlled(pd.dancer)) {
+        g.dancePlan = { len: this.ms("danceBot"), count: 0, short: true, auto: null };
+        this.startDance();
+        return true;
+      }
+      if (g.dancePlan.auto !== null && now >= g.dancePlan.auto) {
+        this.startDance();
         return true;
       }
       return false;
@@ -1717,7 +1810,10 @@ export class Room {
       trades: g.trades.map((t) => ({ id: t.id, from: t.from, to: t.to, give: t.give, get: t.get, expiresAt: t.createdAt + this.ms("offer"), byBot: t.byBot })),
       answered,
       peek,
-      dance: g.danceAt && s.pending?.k === "scores" ? { seat: s.pending.dancer, at: g.danceAt, ms: this.ms("dance") } : null,
+      dance:
+        g.dancePlan && s.pending?.k === "scores"
+          ? { seat: s.pending.dancer, at: g.danceAt ?? null, count: g.dancePlan.count, ms: g.dancePlan.len, short: g.dancePlan.short, auto: g.danceAt == null ? g.dancePlan.auto : null }
+          : null,
       bets: g.bets && {
         seat: g.bets.seat,
         open: g.bets.open,

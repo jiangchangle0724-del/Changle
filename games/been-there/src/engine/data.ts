@@ -148,8 +148,8 @@ export const CITIES: City[] = [
     rule: {
       title: t("狂欢节打分", "Carnival Judges"),
       text: t(
-        "你可以跳 10 秒桑巴。其他每队同时亮出 1 到 10 分，去掉一个最低分（只有一个就不去），每分 $5，银行付给你。",
-        "You may dance samba for 10 seconds. Every other team shows 1 to 10 at once; drop the lowest unless it's the only one. The bank pays you $5 a point.",
+        "你可以跟老师跳 40 秒桑巴。其他每队同时亮出 1 到 10 分，去掉一个最低分（只有一个就不去），每分 $5，银行付给你。",
+        "You may dance samba with the teacher for 40 seconds. Every other team shows 1 to 10 at once; drop the lowest unless it's the only one. The bank pays you $5 a point.",
       ),
     },
     basis: t(
