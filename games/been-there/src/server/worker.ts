@@ -99,7 +99,8 @@ export default {
     if (parts[0] !== "api") return env.ASSETS.fetch(req);
 
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
-      const body = (await req.json().catch(() => ({}))) as Partial<Settings> & Opening & { test?: { speed?: number; testRounds?: number; dice?: unknown; inOrder?: unknown } };
+      const body = (await req.json().catch(() => ({}))) as Partial<Settings> &
+        Opening & { test?: { speed?: number; testRounds?: number; dice?: unknown; inOrder?: unknown; triviaEvery?: unknown } };
       const settings: Partial<Settings> = {};
       if (body.mode === "target" || body.mode === 15 || body.mode === 60) settings.mode = body.mode;
       if (env.ALLOW_TEST_SETTINGS === "1" && body.test) {
@@ -107,6 +108,7 @@ export default {
         if (typeof body.test.testRounds === "number") settings.testRounds = Math.max(1, Math.round(body.test.testRounds));
         if (Array.isArray(body.test.dice)) settings.dice = body.test.dice.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 6).slice(0, 40);
         if (body.test.inOrder === true) settings.inOrder = true;
+        if (typeof body.test.triviaEvery === "number" && body.test.triviaEvery >= 0) settings.triviaEvery = body.test.triviaEvery;
       }
       for (let i = 0; i < 40; i++) {
         const code = roomCode();

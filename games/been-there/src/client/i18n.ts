@@ -61,8 +61,8 @@ const S = {
   partyHint: ["默认关。打开后，付大额租金、进入境审查、破产时要做一个小惩罚，游戏停下来等做完", "Off by default. When on, big rents, Immigration and going broke call for a forfeit, and the game waits until it's done"],
   triviaSwitch: ["城市抢答", "City trivia"],
   triviaSwitchHint: [
-    "默认开。一队走棋时，等着的队抢答一道城市题：先答对的 +{amount}，答错扣 {fine}，不想答点「这题不答」。关掉就整局不出题",
-    "On by default. While one team takes its turn, the others race to answer a question about a city: first right answer wins {amount}, a wrong one costs {fine}, and anyone can skip. Off: no questions all game",
+    "默认开。大约每 {mins} 分钟一题：有队落到一座城市，等着的队抢答一道关于这座城的题。先答对的 +{amount}，答错扣 {fine}，不想答点「这题不答」。关掉就整局不出题",
+    "On by default. About every {mins} minutes, when a team lands on a city, the teams waiting race to answer a question about that city: first right answer wins {amount}, a wrong one costs {fine}, and anyone can skip. Off: no questions all game",
   ],
   start: ["开始", "Start"],
   needTwo: ["至少要两队（可以加电脑队）", "Need at least two teams (computer teams count)"],

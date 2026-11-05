@@ -1,12 +1,13 @@
-// The waiting teams' quiz (抢答): every question in the bank is well formed, and the next question is
-// picked the way the room promises (never twice in a game; what the phones haven't seen first).
+// The waiting teams' quiz (抢答): every question in the bank is well formed, and a landing's question is
+// picked the way the room promises (about that city; never twice in a game; what the phones haven't
+// seen first; not the one the arrival card answers while a big screen shows it).
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { CITIES, type Text } from "../src/engine";
 import { random } from "../src/engine/rng";
-import { LEGACY_ORDER, SEEN_KEEP, TRIVIA, TRIVIA_BY_ID, TRIVIA_ID, pickTrivia, triviaSources, type TriviaQuestion } from "../src/room/trivia";
+import { LEGACY_ORDER, SEEN_KEEP, TRIVIA, TRIVIA_BY_ID, TRIVIA_ID, onArrivalCard, pickTrivia, triviaSources, type TriviaQuestion } from "../src/room/trivia";
 
 /** What a phone screen holds: longest question, option and fact, in characters. */
 const MAX = {
@@ -88,44 +89,56 @@ function bigBank(): TriviaQuestion[] {
   );
 }
 
-test("picking: never a question asked already this game; none left, no question", () => {
+test("picking: a question about the city landed on, never one asked already this game; none left about it, no question", () => {
   const bank = bigBank();
   const h = { seed: 3 };
   const asked: string[] = [];
-  for (let i = 0; i < bank.length; i++) {
-    const id = pickTrivia({ bank, asked, near: new Set(), seen: [], random: () => random(h) });
-    assert.ok(id, `a question at pick ${i}`);
-    assert.ok(!asked.includes(id), `${id} came round again`);
-    asked.push(id);
+  for (const c of CITIES) {
+    for (let i = 0; i < 8; i++) {
+      const id = pickTrivia({ bank, city: c.id, asked, cardShown: false, seen: [], random: () => random(h) });
+      assert.ok(id, `a question about ${c.id} at pick ${i}`);
+      assert.equal(bank.find((q) => q.id === id)!.city, c.id, `${id} isn't about ${c.id}`);
+      assert.ok(!asked.includes(id), `${id} came round again`);
+      asked.push(id);
+    }
+    assert.equal(pickTrivia({ bank, city: c.id, asked, cardShown: false, seen: [], random: () => random(h) }), null, `${c.id}: all eight asked`);
   }
   assert.equal(new Set(asked).size, bank.length, "all 176 asked, each once");
-  assert.equal(pickTrivia({ bank, asked, near: new Set(), seen: [], random: () => random(h) }), null);
+  assert.equal(pickTrivia({ bank, city: "atlantis", asked: [], cardShown: false, seen: [], random: () => random(h) }), null, "a city the bank has nothing about");
 });
 
-test("picking: not about a city the team on turn could land on, then what the fewest phones have seen, spread over the cities", () => {
+test("picking: what the fewest of the phones have seen comes first", () => {
   const bank = bigBank();
   const h = { seed: 8 };
-  const near = new Set(CITIES.slice(0, 20).map((c) => c.id));
-  for (let i = 0; i < 50; i++) {
-    const id = pickTrivia({ bank, asked: [], near, seen: [], random: () => random(h) })!;
-    assert.ok(!near.has(TRIVIA_BY_ID.get(id)?.city ?? bank.find((q) => q.id === id)!.city), `${id} is about a city in reach`);
+  const tokyo = bank.filter((q) => q.city === "tokyo").map((q) => q.id);
+  // Two phones have seen all of Tokyo's but its 3rd question; one of them hasn't seen its 5th either.
+  const seen = [tokyo.filter((id) => id !== "tokyo-03"), tokyo.filter((id) => id !== "tokyo-03" && id !== "tokyo-05")];
+  const pick = (asked: string[]) => pickTrivia({ bank, city: "tokyo", asked, cardShown: false, seen, random: () => random(h) });
+  assert.equal(pick([]), "tokyo-03");
+  assert.equal(pick(["tokyo-03"]), "tokyo-05");
+  // One every phone has seen is still better than none.
+  const third = pick(["tokyo-03", "tokyo-05"]);
+  assert.ok(third && tokyo.includes(third) && third !== "tokyo-03" && third !== "tokyo-05");
+  // With nothing to choose by, any of the city's: over many picks, every one of them.
+  const got = new Set<string>();
+  for (let i = 0; i < 400; i++) got.add(pickTrivia({ bank, city: "tokyo", asked: [], cardShown: false, seen: [], random: () => random(h) })!);
+  assert.deepEqual([...got].sort(), tokyo);
+});
+
+test("the question a city's arrival card answers: one a city, never asked about a landing there while a big screen has the card up", () => {
+  // (the card prints the fact behind the city's rule, and that question comes from the same page)
+  for (const c of CITIES) {
+    const mine = TRIVIA.filter((q) => q.city === c.id);
+    assert.deepEqual(mine.filter(onArrivalCard).map((q) => q.id), [`${c.id}-01`], c.id);
+    assert.ok(mine.length >= 6, `${c.id}: at least five questions its card doesn't answer`);
   }
-  // Every city in reach: still a question (the nearest ones are better than none).
-  const all = new Set(CITIES.map((c) => c.id));
-  assert.ok(pickTrivia({ bank, asked: [], near: all, seen: [], random: () => random(h) }));
-
-  // Two phones have seen everything but Tokyo's 3rd question; one of them hasn't seen Venice's 1st.
-  const everything = bank.map((q) => q.id);
-  const seen = [everything.filter((id) => id !== "tokyo-03"), everything.filter((id) => id !== "tokyo-03" && id !== "venice-01")];
-  assert.equal(pickTrivia({ bank, asked: [], near: new Set(), seen, random: () => random(h) }), "tokyo-03");
-  assert.equal(pickTrivia({ bank, asked: ["tokyo-03"], near: new Set(), seen, random: () => random(h) }), "venice-01");
-  // …but never at the cost of a city in reach.
-  assert.notEqual(pickTrivia({ bank, asked: [], near: new Set(["tokyo"]), seen, random: () => random(h) }), "tokyo-03");
-
-  // With nothing else to choose by, the cities take turns: 22 questions in a row, 22 different cities.
-  const asked: string[] = [];
-  for (let i = 0; i < CITIES.length; i++) asked.push(pickTrivia({ bank, asked, near: new Set(), seen: [], random: () => random(h) })!);
-  assert.equal(new Set(asked.map((id) => id.split("-")[0])).size, CITIES.length);
+  const h = { seed: 4 };
+  for (const c of CITIES)
+    for (let i = 0; i < 40; i++) assert.notEqual(pickTrivia({ city: c.id, asked: [], cardShown: true, seen: [], random: () => random(h) }), `${c.id}-01`);
+  // With no big screen nothing shows that fact on a landing: it can be asked. With one, once the others have been, none.
+  const others = TRIVIA.filter((q) => q.city === "bangkok" && q.id !== "bangkok-01").map((q) => q.id);
+  assert.equal(pickTrivia({ city: "bangkok", asked: others, cardShown: false, seen: [], random: () => random(h) }), "bangkok-01");
+  assert.equal(pickTrivia({ city: "bangkok", asked: others, cardShown: true, seen: [], random: () => random(h) }), null);
 });
 
 test("the credits page's sources: grouped by city in board order, each listed once", () => {
