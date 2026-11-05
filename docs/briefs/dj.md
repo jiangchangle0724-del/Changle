@@ -53,21 +53,21 @@
   - #151 当音箱的那台不再自己刷新：屏幕保持常亮，灯光层省内存，声音卡住时能点一下接着放。
   - #152 歌单和放歌时的音效：歌单、主人的随机或按顺序、歌和 DJ 轮流、放 YouTube 时也能按音效、气笛重做成夜店三连声。
   - #134 林波舞的四种花样（归林波舞对话）。
-- #129 跟着跳的 3D 教练：Steve 同意合并，加了「手机当音箱时用画的教练」之后，GitHub Actions 因为账单问题跑不了，CI 没过，等账单处理好再合。
-- #162 给 iPhone 当音箱减负：地板网格改成平面画法（同样的样子，iPhone 尺寸下约省 85 MB），替身 DJ 的录音存成 16 位（录音内存减半）。等 CI 和 Steve 点头。
+- 11 月 5 日上线（Steve 同意）：
+  - #162 给 iPhone 当音箱减负：地板网格改成平面画法（同样的样子，iPhone 尺寸下约省 85 MB），替身 DJ 的录音存成 16 位（录音内存减半）。
+  - #129 跟着跳的 3D 教练：电视或电脑有显卡时教练是 3D 的；没有显卡、画得太慢、或者手机当音箱时，用画的教练。
 
 ## 还剩什么
 
 - YouTube 搜歌要 Steve 在 Cloudflare 给 `changle-rooms` 加 `YOUTUBE_API_KEY`。没加之前，贴链接照样能放。
-- GitHub Actions 停了：GitHub 说账户付款失败或超出花费上限（Billing & plans）。Steve 处理之后，所有 PR 的 CI 才能跑，#129 才能合。
-- 闪退（Steve 11-02：当音箱的是 iPhone，整页自己刷新）：iPhone 默认 30 秒自动锁屏，锁了 Safari 常会重新加载页面。#151 让屏幕常亮（iOS 16.4 以上），#162 再省内存。在那台 iPhone 上再试一晚。还会刷新的话，剩下最大的是页面本身（脚本和界面）和五道光束（约 25 MB）。
+- 闪退（Steve 11-02：当音箱的是 iPhone，整页自己刷新）：iPhone 默认 30 秒自动锁屏，锁了 Safari 常会重新加载页面。#151 让屏幕常亮（iOS 16.4 以上），#162 再省内存，都上线了。在那台 iPhone 上再试一晚（插着电，关掉低电量模式）。还会刷新的话，剩下最大的是页面本身（脚本和界面）和五道光束（约 25 MB）。
 - 合成的 7 个音效等 Steve 听完再调。
 - 方案里的下一步：DJ 的大脑（A4）、玩家描述的歌（A5），以 `docs/dj-booth.md` 的任务表为准。
 - 还没在真 iPhone 上试过跟着跳的动作感应。
 
 ## 交给别的对话
 
-- 游戏 · 林波舞：Steve 11-02 在打碟对话里选了「Limbo 再加体感花样」，这边做了 PR #134（稳住、跟着动的杆、歪着过、派对）。请林波舞对话接手：审一遍，在真手机上试 3°、10°、1 秒这几个数。Codex 的 ui-C2 林波舞迁移要等 #134 合并后再开，不然会和 `Limbo.tsx` 冲突。
+- 游戏 · 林波舞：Steve 11-02 在打碟对话里选了「Limbo 再加体感花样」，这边做了 PR #134（稳住、跟着动的杆、歪着过、派对），11-03 合并上线了。请林波舞对话接手：审一遍，在真手机上试 3°、10°、1 秒这几个数。Codex 的 ui-C2 林波舞迁移是 #148。
 - 工具 · 随便：Steve 推荐（`tools/suibian/src/data/picks.json`）还空着，等 Steve 给每家店的店名（有分店写地址）、一句理由、探店链接。
 - 游戏 · 猜歌名：猜歌还在用 Apple Music 的 30 秒试听。Apple 的条款只许用来推广卖歌，娱乐用途不行（`LICENSES.md` 记着）。请和 Steve 定：换来源，还是接受这个风险。
 
@@ -75,6 +75,12 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-03 打碟 · DJ Booth: a lighter speaker page for a phone
+- 2026-11-03 打碟 · DJ Booth: a phone playing the speaker keeps the drawn coach
+- 2026-11-03 打碟 · DJ Booth: the night's playlist, and sounds over a whole song
+- 2026-11-02 打碟 · DJ Booth: the 3D coach only where a graphics chip draws it
+- 2026-11-02 打碟 · DJ Booth: the TV page stays awake, and takes less memory
+- 2026-11-02 打碟 · DJ Booth: the dancing coach in 3D
 - 2026-11-02 打碟 · DJ Booth: the YouTube lookups live under the rooms server's /api
 - 2026-11-02 打碟 · DJ Booth: songs asked for play whole from YouTube, not Apple
 - 2026-11-02 打碟 · DJ Booth: dancing along on the TV (跟着跳)
@@ -91,3 +97,4 @@
 - 2026-11-02 建档案。
 - 2026-11-02 晚上：整串打碟合并上线（#127）；开了 #129、#151、#152；替林波舞对话做了 #134。
 - 2026-11-03 凌晨：Steve 同意后合并 #151、#152、#134，部署都成功。#129 等 CI。查闪退时，本地测试的页面有几分钟连到了线上房间服务器（开发服务器启动时漏了 `VITE_ROOMS_URL`），开了几张测试桌，没有别的影响。
+- 2026-11-05：GitHub 账单处理好，CI 又能跑了。仓库改名为 `jiangchangle0724-del/Changle`，现在是公开的。#162、#129 的截图检查先卡在林波舞的旧基准图（#134 改了选玩法那一行），#136 已经换了新图，合进最新的 main 就过了，不用加 `update-screenshots`。Steve 同意后合并 #162 和 #129。
