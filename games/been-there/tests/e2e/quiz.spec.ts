@@ -346,6 +346,14 @@ test("抢答在小手机、横着拿的手机、英文 iPhone SE（最长的题�
     await tv.page.screenshot({ path: "test-results/quiz-tv-1366x768.png" });
     tvChecked = true;
   };
+  /**
+   * When each phone's team got to ending its turn. These phones tap as fast as they can, and a
+   * landing's question waits for the table to be free: a team that ends its turn the moment it can
+   * leaves it free only for an instant. So, as people do, a team holds its turn a few seconds before
+   * ending it, and the question comes up then.
+   */
+  const ending = new Map<string, number>();
+  const HOLD = 8_000;
   const until = Date.now() + 200_000;
   while (Date.now() < until && (shot.size < phones.length || !tvChecked || !revealShot)) {
     for (const p of phones) {
@@ -377,7 +385,11 @@ test("抢答在小手机、横着拿的手机、英文 iPhone SE（最长的题�
             await checkTv();
           });
       }
-      await tap(p);
+      if (await p.page.locator('.decide[data-kind="end"]').count()) {
+        if (!ending.has(p.name)) ending.set(p.name, Date.now());
+      } else ending.delete(p.name);
+      const holding = Date.now() - (ending.get(p.name) ?? 0) < HOLD;
+      await tap(p, holding ? { skip: ["end"] } : {});
     }
     await checkTv();
     await small.page.waitForTimeout(100);
