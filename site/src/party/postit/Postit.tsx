@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HEADS_DECKS, type HeadsDeck } from "../../data/postit";
+import { DeckPicker } from "./DeckPicker";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
@@ -193,15 +194,7 @@ export function Postit({ onBack }: { onBack: () => void }) {
         {phase.k === "setup" && (
           <>
             <p className="pi-lead">{zh ? "选一组词" : "Pick a deck"}</p>
-            <div className="deck-grid">
-              {HEADS_DECKS.map((d) => (
-                <button key={d.id} type="button" className={`deck-pick ${deck.id === d.id ? "is-on" : ""}`} aria-pressed={deck.id === d.id} onClick={() => setDeck(d)}>
-                  <strong>{zh ? d.name.zh : d.name.en}</strong>
-                  <small>{zh ? `${d.words.length} 个词` : `${d.words.length} words`}</small>
-                  <span className="deck-sample">{d.words.slice(0, 3).map((w) => (zh ? w.zh : w.en)).join(zh ? "、" : ", ")}</span>
-                </button>
-              ))}
-            </div>
+            <DeckPicker deck={deck} onPick={setDeck} zh={zh} />
             <span className="field-label">{zh ? "每人多久" : "Time each"}</span>
             <div className="seg" role="group">
               {[45, 60, 90].map((s) => (
