@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import type { T } from "../../i18n";
 import { useStore } from "../../store";
 
-/** A yellow sticky note. `null` is your own forehead: a question mark. */
-export function Sticky({ note, size = "md", tilt = 0 }: { note: T | null; size?: "sm" | "md" | "lg"; tilt?: number }) {
+/** A yellow sticky note. `null` is your own forehead: a question mark. `chip`: one line of it, in a sentence. */
+export function Sticky({ note, size = "md", tilt = 0 }: { note: T | null; size?: "sm" | "md" | "lg" | "chip"; tilt?: number }) {
   const { lang } = useStore();
   const main = note ? (lang === "zh" ? note.zh : note.en) : "?";
   const other = note && note.zh !== note.en ? (lang === "zh" ? note.en : note.zh) : null;

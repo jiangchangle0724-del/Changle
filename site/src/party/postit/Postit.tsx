@@ -5,12 +5,12 @@ import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
-import { gsap, reduced } from "../../lib/anim";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
-import { enableSensors, useSensorStatus, useTilt, useWakeLock } from "../sensors";
+import { enableSensors, upOf, useSensorStatus, useTilt, useWakeLock } from "../sensors";
+import { HeadsStage } from "./HeadsStage";
 import "../../styles/party.css";
 
 type Turn = { word: T; ok: boolean }[];
@@ -19,8 +19,17 @@ type Run = { i: number; pile: T[]; word: T | null; left: number };
 type Kept = { deck: string; seconds: number; phase: Phase; turns: Record<string, Turn>; run: Run | null };
 
 /**
- * One phone: the forehead game as Heads Up. Hold the phone to your forehead, screen out.
- * The table gives clues. Nod down when you get it, tip back to pass.
+ * How far the screen faces the floor (a nod) or the ceiling (tipped back), and how close to upright
+ * it has to come back between two: the component of "up" along the screen's own face, so the same
+ * held upright or on its side. (Upright, these are the old angles: 50° forward, 55° back, 35°.)
+ */
+const NOD = 0.77;
+const TIP = 0.82;
+const LEVEL = 0.57;
+
+/**
+ * One phone: the forehead game as Heads Up. Hold the phone to your forehead, screen out, upright or
+ * on its side. The table gives clues. Nod down when you get it, tip back to pass.
  */
 export function Postit({ onBack }: { onBack: () => void }) {
   return (
@@ -57,7 +66,8 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
     ? { i: phase.i, pile: pile.current, word: playing && !flash ? word : null, left: playing ? left : resume.current?.left ?? seconds }
     : phase.k === "ready" ? resume.current : null;
   useKeepProgress<Kept>({ deck: deck.id, seconds, phase: playing || phase.k === "count" ? { k: "ready", i: phase.i } : phase, turns, run }, phase.k !== "setup" && phase.k !== "final");
-  const tilt = useTilt(playing && sensors === "on");
+  // (from the countdown on: the stage turns with the phone while it is being raised)
+  const tilt = useTilt((phase.k === "count" || playing) && sensors === "on");
   useWakeLock(phase.k === "count" || playing);
 
   const draw = () => {
@@ -138,25 +148,20 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
     }, 550);
   };
 
-  // nod down = got it, tip back = pass; come back to upright before the next one counts
+  // nod down = got it, tip back = pass; come back to upright before the next one counts. Read from
+  // which way the screen faces, so it is the same with the phone upright or on its side
   useEffect(() => {
     if (!tilt || !playing || flash) return;
-    const b = tilt.beta;
-    const down = Math.abs(b) > 140;
-    const up = b > -20 && b < 35;
-    const level = b > 55 && b < 125;
-    if (armed.current && (down || up)) {
+    const z = upOf(tilt.beta, tilt.gamma)[2];
+    const down = z < -NOD;
+    const back = z > TIP;
+    const level = Math.abs(z) < LEVEL;
+    if (armed.current && (down || back)) {
       armed.current = false;
       answer(down);
     } else if (!armed.current && level) armed.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tilt]);
-
-  const stage = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!word || reduced() || !stage.current) return;
-    gsap.fromTo(stage.current.querySelector(".heads-word"), { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: "back.out(2)", clearProps: "transform,opacity" });
-  }, [word]);
 
   const finish = () => {
     setPhase({ k: "final" });
@@ -172,8 +177,8 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   const rules = (
     <p>
       {zh
-        ? `轮到的人把手机举到额头上，屏幕朝外。大家看着屏幕上的词给提示（可以说、可以比划，不能直接说出那个词）。猜对了就低头点一下手机，想跳过就仰头。没有动作感应的话，点屏幕右边算猜对，左边跳过。每人一轮，猜得最少的${custom ? "受罚" : "喝"}。`
-        : `Whoever's up holds the phone to their forehead, screen facing out. Everyone else gives clues for the word on screen (talk, act it out, just don't say it). Got it? Nod the phone down. Pass? Tip it back. No motion sensor? Tap the right side for got it, the left to pass. One round each; fewest right ${custom ? "takes the penalty" : "drinks"}.`}
+        ? `轮到的人把手机举到额头上，屏幕朝外，竖着横着都行，词会跟着转正。大家看着屏幕上的词给提示（可以说、可以比划，不能直接说出那个词）。猜对了就低头点一下手机，想跳过就仰头。没有动作感应的话，点屏幕下半边算猜对，上半边跳过。每人一轮，猜得最少的${custom ? "受罚" : "喝"}。`
+        : `Whoever's up holds the phone to their forehead, screen facing out, upright or on its side: the word turns to read the right way up. Everyone else gives clues for the word on screen (talk, act it out, just don't say it). Got it? Nod the phone down. Pass? Tip it back. No motion sensor? Tap the lower half of the screen for got it, the upper half to pass. One round each; fewest right ${custom ? "takes the penalty" : "drinks"}.`}
     </p>
   );
 
@@ -253,45 +258,13 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
                 {zh ? "仰头：跳过" : "Tip back: pass"}
               </span>
             </div>
-            <p className="hint">{zh ? "把手机竖着举到额头上，屏幕朝外，别偷看。" : "Hold the phone upright on your forehead, screen out. No peeking."}</p>
-            {sensors === "none" || sensors === "denied" ? <p className="hint">{zh ? "这部手机没有动作感应：点屏幕右边算猜对，左边跳过。" : "No motion sensor here: tap the right side for got it, the left to pass."}</p> : null}
+            <p className="hint">{zh ? "把手机举到额头上，屏幕朝外，竖着横着都行。别偷看。" : "Hold the phone to your forehead, screen out, upright or on its side. No peeking."}</p>
+            {sensors === "none" || sensors === "denied" ? <p className="hint">{zh ? "这部手机没有动作感应：点屏幕下半边算猜对，上半边跳过。" : "No motion sensor here: tap the lower half for got it, the upper half to pass."}</p> : null}
           </div>
         )}
 
         {(phase.k === "count" || phase.k === "play") && (
-          <div className={`heads-stage ${flash ? `is-${flash}` : ""}`} ref={stage}>
-            {phase.k === "count" ? (
-              <span className="heads-count tabular" key={phase.n}>
-                {phase.n}
-              </span>
-            ) : (
-              <>
-                <div className="heads-top">
-                  <span className="heads-time tabular">{left}</span>
-                  <span className="heads-score tabular">
-                    <Check size={16} strokeWidth={3} />
-                    {myTurn.filter((x) => x.ok).length}
-                  </span>
-                </div>
-                {flash ? (
-                  <span className="heads-flash">{flash === "ok" ? (zh ? "对！" : "Got it!") : zh ? "跳过" : "Pass"}</span>
-                ) : (
-                  word && (
-                    <span className="heads-word">
-                      <span>{zh ? word.zh : word.en}</span>
-                      <small>{zh ? word.en : word.zh}</small>
-                    </span>
-                  )
-                )}
-                <button type="button" className="heads-zone heads-left" aria-label={zh ? "跳过" : "Pass"} disabled={!!flash} onClick={() => answer(false)} />
-                <button type="button" className="heads-zone heads-right" aria-label={zh ? "猜对" : "Got it"} disabled={!!flash} onClick={() => answer(true)} />
-                <span className="heads-hints" aria-hidden="true">
-                  <span>{zh ? "跳过" : "Pass"}</span>
-                  <span>{zh ? "猜对" : "Got it"}</span>
-                </span>
-              </>
-            )}
-          </div>
+          <HeadsStage count={phase.k === "count" ? phase.n : null} word={word} zh={zh} left={left} score={myTurn.filter((x) => x.ok).length} flash={flash} tilt={tilt} onAnswer={answer} />
         )}
 
         {phase.k === "done" && cur && (

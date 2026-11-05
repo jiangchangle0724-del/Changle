@@ -13,7 +13,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": []
+    "types": ["vite/client"]
   },
   "include": ["src/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["src/server/worker.ts"]

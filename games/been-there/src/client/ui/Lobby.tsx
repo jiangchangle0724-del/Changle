@@ -1,6 +1,6 @@
 import qrcode from "qrcode-generator";
 import { useState } from "preact/hooks";
-import { MAX_TEAMS, MAX_TEAM_SIZE, TRIVIA_PRIZE, TRIVIA_WRONG, type RoomView } from "../../room/protocol";
+import { MAX_TEAMS, MAX_TEAM_SIZE, TIMING, TRIVIA_PRIZE, TRIVIA_WRONG, type RoomView } from "../../room/protocol";
 import type { Mode, StyleId } from "../../engine";
 import { backToTable, joinUrl, onChangle, tableFrom } from "../base";
 import { colon, money, t, type Key } from "../i18n";
@@ -174,7 +174,7 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
             <input type="checkbox" checked={v.settings.trivia !== false} onChange={(e) => send({ t: "settings", trivia: (e.target as HTMLInputElement).checked })} />
             <span>
               <b>{t("triviaSwitch")}</b>
-              <small>{t("triviaSwitchHint", { amount: money(TRIVIA_PRIZE), fine: money(TRIVIA_WRONG) })}</small>
+              <small>{t("triviaSwitchHint", { mins: TIMING.triviaEvery / 60_000, amount: money(TRIVIA_PRIZE), fine: money(TRIVIA_WRONG) })}</small>
             </span>
           </label>
           <Btn kind="primary" wide disabled={!ready} onClick={() => send({ t: "start" })}>

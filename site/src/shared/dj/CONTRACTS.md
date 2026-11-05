@@ -40,6 +40,8 @@ It is built inside the site, not as its own project: the rules run on the site's
 | Lyria: the relay on the rooms server | `site/worker/lyria.ts` (in the table's Durable Object, `index.ts`) |
 | Lyria: the speaker's side | `site/src/party/dj/lyria/` (`LyriaDj.ts`, `prompts.ts`, `beat.ts`), switched in `useBooth.ts` |
 | A fake Lyria for local runs | `site/scripts/fake_lyria.mjs`; the chain's check `site/scripts/dj_lyria_check.py` |
+| A whole song from YouTube on the speaker | `site/src/party/dj/TubePlayer.tsx` (the screen), `tube.ts` (the one player: ready, on the bar) |
+| Finding a song's video (phone, rooms server) | `site/src/party/dj/phone/youtube.ts`, `site/worker/youtube.ts`; the link box in `phone/DeckPad.tsx` |
 
 ## The night (`RoomState`, the rules in `games/dj.ts`)
 
@@ -156,6 +158,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `shuffle` `{ on }` | the host | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
 | `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
 | `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
+| `nosong` `{ id }` | the speaker | The video of the song up next won't play here (YouTube said so while the TV got it ready): it comes off that song (`ytNo`), whose drop plays the DJ's remix alone. Only the song up next with a video; said again, nothing more. |
 
 - **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
   `ask` is null for everyone but its player and the host until it has passed the text check
@@ -426,26 +429,69 @@ then, since Apple's terms keep its 30-second previews to promoting the songs, "�
 A phone finds a song's video on YouTube (`phone/youtube.ts`, through the rooms server:
 `worker/youtube.ts`): a pasted link (any kind: watch, youtu.be, shorts, music.youtube.com) by its
 id, its title and channel from YouTube's oEmbed, no key needed; or a search, once the owner has set
-`YOUTUBE_API_KEY` in Cloudflare (six embeddable videos, cached a day at the edge: a search is a
-hundredth of the key's daily quota; without the key the phone asks for a link). A song picked from
-the list takes the search's first video for its title and artist, three seconds at most; none: the
-remix alone. The request carries `yt` (the video) and `ytT` (its title on YouTube); a found song's
-name shows only to its player and the host, as a typed one's does (the big screen sees a song was
-asked for, until its player shows it). When the drop into it lands, **真歌时间**: the room sets
-`song` (the video, whose it is, and `at`, two bars on: `DECK.songFadeBars`); the speaker gives way
-over those two bars (`Speaker.giveWay`, after everything else, so the lights still read the music),
-and the big screen plays the whole song in YouTube's own player (`TubePlayer.tsx`, youtube-nocookie,
-big in the middle: never downloaded, never mixed). The deck waits: no build-up, no fader, none of
-the pads that work the music (the room turns them away; the phones say why and show who it's for);
-a drop that was due waits for it. The pads that are a sound of their own still play (`OVER_SONG`):
-the speaker plays them at once (the DJ's beat isn't the song's) at a club tempo, through a way out
-of their own past the fade (`overSong`, under its own ceiling), which takes over as the DJ fades
-and hands back as it returns. When it ends (or can't be played), the big screen says `songdone` and
-the DJ comes back over three seconds, the remix in its style carrying on; its player or the host
-can skip it from their phone (`songskip`); 12 minutes at most (the timer `song`). Then the DJ has
-its turn (Steve: "歌和 DJ 轮流"): the next song on the 歌单, up next already, waits at least a minute
-(`DECK.songGapMs`) before the DJ drops into it by itself; the table can build up and drop sooner. The speaker's clip player (`clip/clip.ts`,
-a clip on the drop's bar over the deck's drums) has no source now: Apple's previews are gone.
+`YOUTUBE_API_KEY` in Cloudflare (six embeddable videos, cached a week at the edge; `{ nokey }`
+without a key, or with one that can't search; `{ quota }` once the key's day is used up).
+
+- **Searching spends the key's day** (a search is a hundredth of it): the phone searches YouTube
+  as you type only when the site's song list has nothing for what's typed (900 ms after the typing
+  stops); a song picked from the list is searched once, when it's sent (its title and artist; three
+  seconds at most), and the same song again costs nothing at the edge.
+- **No video found** (no key, the day used up, nothing found or too slow) and the song doesn't go
+  in yet (Steve on Nov 4: a song picked from the list played as the remix, not the song): the phone
+  asks for its link (`NeedLink` in `phone/DeckPad.tsx`), says why, has a button that opens
+  YouTube's own search for it (its app, on a phone that has it), a box for the link copied there
+  (a 粘贴 button reads it off the clipboard where the browser lets it), looked up as it's pasted;
+  with it, the song goes in by its name with the video (`req` `{ song, text, yt }`); or 不用链接 sends
+  it as the DJ's remix alone, or the box is closed.
+- The request carries `yt` (the video) and `ytT` (its title on YouTube); a found song's name shows
+  only to its player and the host, as a typed one's does (the big screen's deck board says a song
+  was asked for, until its player shows it).
+
+**On the big screen** (`TubePlayer.tsx`, `tube.ts`; Steve on Nov 4: the video took seconds to load
+after the drop, and the two didn't meet). One YouTube player for the page (youtube-nocookie), made
+the first time a song from YouTube is up next and kept all night; YouTube's IFrame API loads as
+soon as one is asked for.
+
+- **Up next** (`up` with `yt`): it waits in sight in a corner of the TV (top right, under the code
+  to scan), loaded, its start buffered: played muted until its own picture moves (an ad YouTube
+  shows first plays out there, muted), then held at 0:00 with its sound back on. The note under it
+  says how ready it is.
+- **Its drop:** once someone has pressed in time, or the DJ drops it itself (a drop into the deck
+  the song's on: `drop.to` off the air), the TV knows it starts on that drop's bar, at the moment
+  the speaker plays the bar (from its own beat, `barTime`, not the room's clock): the video rolls in
+  muted a little ahead (what it took to start the last few times, plus 0.12 s: a tenth of a second
+  or so of the song's very start goes by unheard) and its sound comes on on the bar; the speaker
+  lets go on that bar (`Speaker.giveWay` from an audio time, 0.12 s, after everything else, so the
+  lights still read the music), the drop's boom, crash and whoosh ringing on over the song's start
+  through the pads' own way out (`overSong`). A drop on its way that nobody has pressed in time yet
+  rolls the video muted just before its bar anyway (`expect`): a press that reaches the TV a moment
+  before the bar (as they do) still starts it right on the bar; no press, it's held at its start
+  again 0.7 s after the bar. The player comes to the middle once the song is heard (or the room says
+  it plays); the drop's celebration goes up top, clear of it, with no style named.
+- **What a browser allows:** Chrome lets it start with sound after the speaker's start tap. Safari,
+  and every browser on an iPhone or iPad, wants one tap on the video itself first (`tapFirst`):
+  ready in its corner, the note asks for it (it plays a moment, then is held at its start again);
+  after one tap the same player starts every song by itself all night. A song that won't start by
+  itself (untapped, or the browser said no) asks for a tap on the video, big, and the DJ plays on
+  meanwhile, never silence; when it's heard, the DJ gives way.
+- **Can't be played here** (YouTube's error: removed, private, or its owner keeps it on YouTube):
+  found while getting it ready, the speaker says `nosong` and the room takes the video off the song
+  up next (`ytNo`: its player's phone says why), so its drop plays the DJ's remix alone; found once
+  it was to play, `songdone`.
+
+When the drop into it lands, **真歌时间**: the room sets `song` (the video, whose it is, and `at`, the
+drop's bar). The deck waits: no build-up, no fader, none of the pads that work the music (the room
+turns them away; the phones say why and show who it's for); a drop that was due waits for it. The
+pads that are a sound of their own still play (`OVER_SONG`): the speaker plays them at once (the
+DJ's beat isn't the song's) at a club tempo, through their own way out past the fade, under its own
+ceiling, which takes over as the DJ fades and hands back as it returns. When it ends (or can't be
+played), the big screen says `songdone` and the DJ comes back over three seconds, the remix in its
+style carrying on; its player or the host can skip it from their phone (`songskip`); 12 minutes at
+most (the timer `song`). Then the DJ has its turn (Steve: "歌和 DJ 轮流"): the next song on the 歌单, up
+next already, waits at least a minute (`DECK.songGapMs`) before the DJ drops into it by itself; the
+table can build up and drop sooner. A big screen opened again mid-song picks the song up where the
+room is. The speaker's clip player (`clip/clip.ts`, a clip on the drop's bar over the deck's drums)
+has no source now: Apple's previews are gone.
 
 ## A night of the host's songs (`local`, Nov 2)
 
@@ -637,13 +683,23 @@ every frame changes only opacity or a transform.
   made-up songs, the tags, and the local DJ on a pretend speaker; `tests/engine.test.ts` the room's
   rules for them.
 - `python3 scripts/dj_youtube_check.py [chromium|webkit]`: whole songs from YouTube in browsers,
-  a TV and three phones (YouTube's player and the rooms server's lookups stood in for: this machine
-  can't reach YouTube): a pasted link and a search, each up next and dropped into; the DJ fading out
-  under the whole song, the phones' decks waiting but for the pads that are a sound of their own
-  (the air horn over the song, at once, on its own way out), who can skip it; it ends, and the DJ
-  comes back; the 歌单 on every phone, who can take one out, the TV's count, the host's 随机; one
-  skipped; no key: the phone asks for a link; nothing goes to Apple.
-  `tests/dj.test.ts` has the links and the search answer; `tests/engine.test.ts` the room's side.
+  a TV and three phones (YouTube's player stood in for by one that behaves like it: it loads,
+  buffers a video's start, plays an ad first, refuses a video kept on YouTube, and can want a tap
+  like Safari; the rooms server's lookups stood in for, the key on or off): a pasted link waiting
+  ready in the TV's corner (held at 0:00, never heard) and heard on its drop's bar, the DJ playing
+  up to the bar and letting go on it; the phones' decks waiting but for the pads that are a sound of
+  their own (the air horn over the song, at once, on its own way out), who can skip it; it ends, and
+  the DJ comes back; the 歌单 on every phone, who can take one out, the TV's count, the host's 随机;
+  a song picked from the list with the key on (one search, none while typing it, an ad played out
+  muted first, on its bar); no key: a list song asks for its link (YouTube's search a tap away, a
+  pasted link plays it whole, or the remix alone); a video that won't play here comes off its song
+  (the phone says why) and its drop plays the remix; a TV that wants a tap (opened again): one tap
+  in the corner and the song starts by itself on its bar, untapped the DJ plays on until someone
+  taps; nothing goes to Apple. The song's start against the bar is printed: this two-core machine
+  without a graphics chip runs the page's timers up to 0.3 s late, so that's its line here.
+  `tests/dj.test.ts` has the links, the search answer and the TV's player against the same stand-in
+  (ready, on its moment within 40 ms, the roll for a press that comes late, an ad, a video that
+  won't play, a browser that wants a tap); `tests/engine.test.ts` the room's side.
 - `python3 scripts/dj_mine_check.py [chromium|webkit]`: 我的歌 from the host's phone in browsers:
   two made-up songs and a broken file sent from the host's phone, each one's word back (added,
   can't be played, the same one again: already there), the TV listening to them like its own; a

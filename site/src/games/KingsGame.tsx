@@ -5,6 +5,7 @@ import { Deck, randInt, shuffle } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { COMMANDS, commandText, type Command } from "../data/king";
 import { GameShell, usePenalty } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { Cloche } from "../components/Cloche";
 import { DareTimer } from "../components/DareTimer";
 import { durationOf } from "../lib/duration";
@@ -14,25 +15,42 @@ import { UI, fill } from "../i18n";
 
 type Token = "K" | number;
 type Phase = "draw" | "king" | "command" | "refusers";
+type Kept = { tokens: Token[]; dealIndex: number; phase: Phase; command: { text: string; other: string; seconds: number | null; n: number } | null; taken: number[]; round: number; commands: number[]; paid: boolean };
 
 export function KingsGame({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="king" version={1}>
+      {(saved) => <KingGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function KingGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang, sound } = useStore();
-  const commands = useRef(new Deck<Command>(COMMANDS));
-  const [tokens, setTokens] = useState<Token[]>(() => deal(players.length));
-  const [dealIndex, setDealIndex] = useState(0);
+  const [firstDeck] = useState(() => {
+    const deck = new Deck<Command>(COMMANDS);
+    if (saved) deck.restore(saved.commands);
+    return deck;
+  });
+  const commands = useRef(firstDeck);
+  const [tokens, setTokens] = useState<Token[]>(() => saved && !saved.paid ? saved.tokens : deal(players.length));
+  const [dealIndex, setDealIndex] = useState(saved?.paid ? 0 : saved?.dealIndex ?? 0);
   const [pulled, setPulled] = useState<number | null>(null); // which stick in the holder was pulled
   const [revealed, setRevealed] = useState(false);
-  const [phase, setPhase] = useState<Phase>("draw");
+  const [phase, setPhase] = useState<Phase>(saved?.paid ? "draw" : saved?.phase ?? "draw");
   useEffect(() => {
     if (phase === "king" && sound) sfx.crown();
   }, [phase, sound]);
   /** `seconds`: the command names a time ("对视 30 秒"), so it gets a countdown; `n` tells draws apart */
-  const [command, setCommand] = useState<{ text: string; other: string; seconds: number | null; n: number } | null>(null);
+  const [command, setCommand] = useState<Kept["command"]>(saved?.paid ? null : saved?.command ?? null);
   const [lidOpen, setLidOpen] = useState(false);
-  const [taken, setTaken] = useState<number[]>([]);
-  const [round, setRound] = useState(1);
+  const [taken, setTaken] = useState<number[]>(saved?.paid ? [] : saved?.taken ?? []);
+  const [round, setRound] = useState((saved?.round ?? 1) + (saved?.paid ? 1 : 0));
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
+  const [played, setPlayed] = useState(!!saved);
+  // A half-read stick is hidden again; the number and all confirmed sticks stay the same.
+  useKeepProgress<Kept>({ tokens, dealIndex, phase, command, taken, round, commands: commands.current.keep(), paid: !!penalty.call }, played);
 
   const king = useMemo(() => {
     const i = tokens.indexOf("K");
@@ -44,6 +62,7 @@ export function KingsGame({ onBack }: { onBack: () => void }) {
 
   const pull = (stickIndex: number) => {
     if (pulled !== null || taken.includes(stickIndex)) return;
+    setPlayed(true);
     setPulled(stickIndex);
     if (sound) {
       sfx.woodblock(1.3, 0.7);

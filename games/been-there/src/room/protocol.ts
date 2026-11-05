@@ -24,6 +24,22 @@ export const TIMING = {
   quiz: 5_000,
   /** Seoul: the silent ten seconds. */
   silence: 10_000,
+  /**
+   * Waiting players' quiz: at least this long between two questions. Once it has passed, the next
+   * team to land on a city brings one, about that city.
+   */
+  triviaEvery: 8 * 60_000,
+  /** …and this long from the start of a game to its first: a short game sees the quiz before it's half over. */
+  triviaFirst: 4 * 60_000,
+  /**
+   * …which comes up this long after the landing, once every screen has played the move and its stamp
+   * (ui/ridePlan.ts: 4.2 s at the most), so the question never says where a token is going to land.
+   * After a team's first visit to the city it waits for `landing` instead: the landing scene plays first.
+   * What the landing asks of the table comes first too (a purchase, an auction, a vote, Rio's dance):
+   * after one the waiting teams had a part in, the question leaves them this long again to see how
+   * it came out. And one that had to wait never comes up sooner than this after a team's throw.
+   */
+  triviaLand: 4_500,
   /** Waiting players' quiz: time to answer. */
   trivia: 12_000,
   /** …then the answer and its source stay up this long. */
@@ -80,6 +96,8 @@ export interface Settings {
   news?: boolean;
   /** The waiting teams' quiz (城市抢答), on unless the host turns it off. Missing (on) in rooms and saves from before the switch. */
   trivia?: boolean;
+  /** Tests only: ms between two of the quiz's questions instead of TIMING.triviaEvery (0: every landing on a city brings one). */
+  triviaEvery?: number;
   /** One device controls every human team (the single-device demo). */
   hotseat: boolean;
   /** Tests only: end after this many rounds. */
@@ -200,7 +218,7 @@ export interface QuizView {
   answer?: { choice: number | null; bin: number; right: boolean };
 }
 
-/** The waiting players' quiz: a question about one of the cities, for the teams whose turn it isn't. */
+/** The waiting players' quiz: a question about the city a team has just landed on, for the teams whose turn it isn't. */
 export interface TriviaView {
   /** This asking of it (a room-wide number). */
   id: number;

@@ -1,5 +1,10 @@
 # C2: the dancers' asset pipeline (FBX to GLB, compressed, with a list)
 
+> **过时 · Superseded (Nov 5):** don't send this card. The dancing coach (跟着跳) went another way:
+> a CC0 robot with its own dances (`site/public/models/robot.glb`, `Coach3D.tsx`, PR #129) and Name
+> That Tune's drawn performer, not Mixamo's characters. There's no FBX pipeline to build. Kept for
+> the record.
+
 **Files:** `site/scripts/assets/` (new: everything below), the outputs in `site/public/dancers/`
 (the GLBs and `manifest.json`), a test rig `site/tests/fixtures/dj/bounce-120.fbx` (made by your
 script), and in `site/package.json` one script, `"assets": "node scripts/assets/build.mjs"`, plus
