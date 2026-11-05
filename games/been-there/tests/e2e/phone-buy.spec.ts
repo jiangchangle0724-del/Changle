@@ -23,7 +23,9 @@ for (const [label, device] of [
     await quizOff(a);
     await a.page.getByRole("button", { name: "开始", exact: true }).click();
     await expect(a.page.locator(".game")).toBeVisible();
-    // play along (never answering a buy question for us) until phone A is asked to buy
+    // play along (never answering a buy question for us) until phone A is asked to buy. Phone A
+    // never bids in an auction: on GitHub it once spent all its cash there, could afford no city of
+    // its own, and went broke before it was asked.
     const buy = a.page.locator('.decide[data-kind="buy"] .btn.primary');
     const until = Date.now() + 200_000;
     let asked = false;
@@ -34,7 +36,7 @@ for (const [label, device] of [
       }
       // (a city A can't afford: pass on it, and wait for the next one)
       const broke = await a.page.locator('.decide[data-kind="buy"] .btn.primary.off').count();
-      await tap(a, broke ? { declineBuys: true } : { skip: ["buy"] });
+      await tap(a, broke ? { declineBuys: true, bid: 0 } : { skip: ["buy"], bid: 0 });
       await tap(b, { declineBuys: true });
       await a.page.waitForTimeout(150);
     }
