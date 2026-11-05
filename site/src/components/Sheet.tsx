@@ -8,6 +8,7 @@ import { useStore } from "../store";
 /** Open sheets, bottom to top: Esc closes only the top one. */
 const stack: number[] = [];
 let sheetIds = 0;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * A bottom sheet. It rises with a little weight, can be swiped down by its handle, and
@@ -79,16 +80,56 @@ export function Sheet({
     play(card.current, [{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 550, easing: EASE.settle });
   }, [mounted, open]);
 
+  // (the latest onClose, read when Esc is pressed: an effect that depended on it re-ran on every
+  // render of the page under the sheet, and moved this sheet to the top of the stack each time)
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     stack.push(id);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && stack[stack.length - 1] === id && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && stack[stack.length - 1] === id && closeRef.current();
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
       stack.splice(stack.indexOf(id), 1);
     };
-  }, [open, onClose, id]);
+  }, [open, id]);
+
+  // with a keyboard or a screen reader: focus moves into the sheet as it opens, Tab goes round
+  // inside it, and focus goes back to whatever opened it once it closes
+  const opener = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const node = card.current;
+    if (!open || !mounted || !node) return;
+    const at = document.activeElement as HTMLElement | null;
+    if (node.contains(at)) return;
+    if (!opener.current && at && at !== document.body) opener.current = at;
+    node.focus({ preventScroll: true });
+  }, [open, mounted]);
+  useEffect(() => {
+    if (open) return;
+    const to = opener.current;
+    opener.current = null;
+    const at = document.activeElement;
+    // only when focus would otherwise be lost (in the closing sheet, or nowhere)
+    if (to?.isConnected && (!at || at === document.body || !!card.current?.contains(at))) to.focus({ preventScroll: true });
+  }, [open]);
+  const keepFocus = (e: React.KeyboardEvent) => {
+    const node = card.current;
+    if (e.key !== "Tab" || e.defaultPrevented || !node || !node.contains(e.target as Node)) return;
+    const list = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.getClientRects().length > 0);
+    if (!list.length) return e.preventDefault();
+    const first = list[0];
+    const last = list[list.length - 1];
+    const at = document.activeElement;
+    if (e.shiftKey && (at === first || at === node)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && at === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   // swipe down on the handle area to dismiss
   const drag = useRef<{ y: number; t: number } | null>(null);
@@ -127,6 +168,8 @@ export function Sheet({
         aria-labelledby={title ? titleId : undefined}
         aria-label={title ? undefined : label}
         className="sheet"
+        tabIndex={-1}
+        onKeyDown={keepFocus}
         style={gel ? ({ ["--gel" as string]: gel } as React.CSSProperties) : undefined}
       >
         <div className="sheet-grip" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>

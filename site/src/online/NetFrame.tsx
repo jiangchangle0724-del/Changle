@@ -6,6 +6,7 @@ import { Sheet } from "../components/Sheet";
 import { BiTitle } from "../components/TopBar";
 import type { T } from "../i18n";
 import { useStore } from "../store";
+import { watchable } from "../tv/views";
 import { InviteSheet } from "./Invite";
 import { ConnectionBanner, ReactionDock } from "./Overlays";
 import { useRoom } from "./RoomContext";
@@ -43,7 +44,7 @@ export function NetFrame({
   /** Bring new actions into view (a game screen); the lobby is a list people scroll themselves. */
   follow?: boolean;
 }) {
-  const { room, me, act, screen: bigScreen } = useRoom();
+  const { room, me, act, isHost, screen: bigScreen } = useRoom();
   const { ui, lang } = useStore();
   const watching = !!room?.game && !!room.seats.find((s) => s.id === me)?.watch;
   const [tableOpen, setTableOpen] = useState(false);
@@ -100,7 +101,15 @@ export function NetFrame({
         {watching && (
           <div className="watch-strip" role="status">
             <Eye size={15} aria-hidden="true" />
-            <span>{lang === "zh" ? "旁观中：这局你不参加，画面可以投到电视上" : "Watching: you sit this one out. Mirror this screen to a TV"}</span>
+            <span>
+              {isHost && watchable(gid)
+                ? lang === "zh"
+                  ? "旁观中。你是主人，主人的按钮留在这里；把主人交给别人，这台手机就显示大屏画面"
+                  : "Watching. You host, so the host's buttons stay here; make someone else host and this phone shows the big-screen view"
+                : lang === "zh"
+                  ? "旁观中：这局你不参加，画面可以投到电视上"
+                  : "Watching: you sit this one out. Mirror this screen to a TV"}
+            </span>
             <button type="button" className="link-btn" onClick={() => act({ a: "watch", on: false })}>
               {lang === "zh" ? "上桌" : "Play"}
             </button>

@@ -10,6 +10,7 @@ import type { KingView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
+import { useWatching } from "../players";
 import { HostButton, HostRow, SeatPicker, useYourTurn, Waiting } from "./common";
 import { Moment } from "../../components/Figure";
 
@@ -19,6 +20,8 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
   const { ui, tr, lang } = useStore();
   const pen = usePenaltyText();
   const inRound = v.inRound.includes(me);
+  // (just watching: no stick this round, nor the next)
+  const watching = useWatching();
   const amKing = v.king === me;
   const ready = v.ready.includes(me);
   useYourTurn(v.phase === "crown" && amKing);
@@ -61,6 +64,7 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
     () => Array.from({ length: v.count }, (_, i) => ({ i, h: 150 + ((i * 37) % 5) * 6, x: 60 + (240 / Math.max(1, v.count - 1)) * i })),
     [v.count],
   );
+  const hit = Math.min(24, 120 / Math.max(1, v.count - 1));
 
   const pull = (i: number) => {
     if (v.phase !== "deal" || v.pulled || !inRound) return;
@@ -107,9 +111,11 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
           <motion.div key={`deal-${v.round}`} className="stack" style={{ gap: 12 }} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
             <p className="hint" style={{ textAlign: "center" }}>
               {!inRound
-                ? lang === "zh"
-                  ? "这一轮发签时你还没入座，下一轮带上你"
-                  : "You sat down after this round was dealt. Next round."
+                ? watching
+                  ? "\u00a0"
+                  : lang === "zh"
+                    ? "这一轮发签时你还没入座，下一轮带上你"
+                    : "You sat down after this round was dealt. Next round."
                 : !v.pulled
                   ? lang === "zh"
                     ? "抽一支签，只有你看得到"
@@ -136,10 +142,18 @@ export function NetKing({ v, onLeave }: { v: KingView; onLeave: () => void }) {
                     animate={{ y: isMine ? -150 : goneOther ? -90 : 0, opacity: goneOther ? 0 : 1, rotate: isMine ? -3 : 0 }}
                     transition={{ type: "spring", stiffness: 220, damping: 20 }}
                     onClick={() => canPull && pull(s.i)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      canPull && pull(s.i);
+                    }}
                     role="button"
-                    aria-label={`stick ${s.i + 1}`}
+                    tabIndex={canPull ? 0 : -1}
+                    aria-label={lang === "zh" ? `第 ${s.i + 1} 支签` : `Stick ${s.i + 1}`}
                     aria-disabled={!canPull}
                   >
+                    {/* a finger-wide target round the thin stick (as wide as the gap to the next one allows) */}
+                    <rect x={s.x - hit} y={170 - s.h - 12} width={hit * 2} height={s.h + 122} fill="transparent" />
                     <rect x={s.x - 5} y={170 - s.h} width={10} height={s.h + 110} rx={4} fill="url(#bamboo)" />
                     <AnimatePresence>
                       {isMine && revealed && token !== null && (

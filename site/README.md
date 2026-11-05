@@ -26,9 +26,11 @@
 | 你画我猜 Draw & Guess | 在手机上画 | 2+ |
 | 一本正经 Straight Face | 一个冷门词，只有老实人知道真意思，其他人现编，裁判找老实人。还没上首页：只有 `changle.ca/g/straight-face/play` 能进，联机还没做 | 3 到 9 |
 
-**大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏在手机上玩，大屏幕显示桌号和谁在玩。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。
+**大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏（最佳称号、谁是卧底、猜歌名、戏精大赏、真心话大冒险、命运转盘、七八九、流氓十三张、国王游戏、我从来没有、额头便利贴、木头人蹦迪、尤克牌、你画我猜、林波舞）在大屏幕上也有自己的画面（轮到谁、谁投了票、揭晓、领奖台），不会出现任何人的词、手牌和票，真心话大冒险的题目也等被指到的人念出来，额头便利贴上还没猜出来的词、你画我猜的词（这一轮结束前）也不会上屏；到此一游开始以后，大屏幕自己去它的大屏页面，打碟时大屏幕就是音箱。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。座位设成「只看」的手机，在这些游戏里整屏显示大屏画面，横过来投屏到电视就行。
 
 **打碟 · DJ Booth**（还没放上首页，只有这个地址）：电视或电脑打开 `changle.ca/dj`，这台设备就是音箱。点「开始派对」开始放歌；大家扫码入座，手机按 🔥，大屏上看得到是谁按的，人跟着拍子跳；主人在手机上把一晚拖到暖场、推高、顶点、收尾，每场最长 4 小时。现在放的是「试音版 DJ」：在音箱上用网站自己的乐器现场录的浩室，125 BPM；接 Google 的 Lyria 是下一步。只测声音、不开桌：`changle.ca/dj/test`。方案在仓库根目录的 `docs/dj-booth.md`，各部分怎么接在 `src/shared/dj/CONTRACTS.md`。
+
+**藏在人群里 · Hide in the Crowd**（`changle.ca/hide`，首页卡片 `changle.ca/g/hide-in-the-crowd`）：每人用自己的手机控制人群里的一个人，混在 18 个电脑带着走的路人里；走得像路人就没人认得出，认出对手就出拳，打中得 1 分，打到路人自己愣一下。先到 3 分、或者 75 秒后分最多的赢；每局结束被认出最多的人喝一口（主人可以关掉，桌上设的惩罚会跟过去）。从一张桌开始：主人选它，大家的手机和大屏自己过去，玩完回到这桌。大屏显示整个人群，不标出谁是真人。2 到 8 人；一部手机就是对三个电脑对手的练习。代码在本仓库的 `games/hide-crowd`，桌上的接入在 `src/party/hide/`。
 
 **生活工具**：随便 · Whatever's Fine（吃什么？随便。让大家的手机来定：每人一部手机选餐厅，在 `changle.ca/eat`，代码在本仓库的 `tools/suibian`，工具页签里的卡片是 `src/tools/Suibian.tsx`）、实时汇率（加币、人民币、美金、港元）、联动的世界时钟、单价换算（$/kg、$/lb、$/斤、$/oz、$/gal）。
 
@@ -85,6 +87,8 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 
 到此一游和 随便 各自是独立的 Worker（本仓库的 `games/been-there` 和 `tools/suibian`）。本地要连着试，在它们的文件夹里分别跑 `npx wrangler dev --port 8799` 和 `npx wrangler dev --port 8798`，网站的 `/trip` 和 `/eat` 会代理过去（`vite.config.ts`）。
 
+藏在人群里也是独立的 Worker（`games/hide-crowd`）：在它的文件夹里跑 `npm run build && npx wrangler dev --port 8797 --var STANDALONE:1`，网站的 `/hide` 会代理过去；`python3 scripts/hide_test.py` 从一张桌子把交接、一局和回到这桌走一遍。
+
 测试（`scripts/` 里的几个需要上面两个都在跑）：
 
 ```bash
@@ -94,14 +98,17 @@ npx tsx tests/performer.test.ts     # 猜歌名台上两个小人：每个舞步
 npx tsx tests/tokens.test.ts        # 设计 token：和 global.css 同名的值一致，src/ui 里只用 token
 npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的旧链接
 npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读出几秒，中英文说的时间一样
+npx tsx tests/hide.test.ts          # 藏在人群里在桌上的替身规则：主人开局、只开一次
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字
 python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
+python3 scripts/watch_players_check.py # 三个玩家加一个只看的座位：瓶子停在服务器选的人上，名单和计数里没有只看的人
 python3 scripts/local_check.py      # 单机回归
 python3 scripts/party_test.py       # 七个新游戏，单机和联机
 python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回复
+python3 scripts/watch_test.py       # 每个游戏自己的大屏画面：两台电视和一部只看的手机，每个阶段、没有秘密、没有报错
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥

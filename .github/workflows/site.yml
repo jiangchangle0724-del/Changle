@@ -1,11 +1,12 @@
 # Runs every time the changle.ca site changes: types, the room engine's rules (incl. 到此一游's
-# hand-off), 一本正经's engine and card bank, the DJ booth's player and stand-in DJ, the anime avatar's drawing words, Name That
-# Tune's performers (every move, frame by frame), the design tokens (docs/DESIGN.md), the site's
-# addresses, the times read off timed dares for their countdowns, a production build (which also
-# writes one page per game for search engines and share cards), and the home page's first download
-# staying within its budget (scripts/budget.ts). The phone-in-a-browser scripts in site/scripts
-# need the table server and the site running, so they stay a local step (see site/README.md).
-# Only this folder.
+# hand-off), 藏在人群里's hand-off (tests/hide.test.ts), 一本正经's engine and card bank
+# (tests/straightface.test.ts), the DJ booth's player and stand-in DJ, the anime avatar's drawing
+# words, Name That Tune's performers (every move, frame by frame), the design tokens (docs/DESIGN.md),
+# the site's addresses, the times read off timed dares for their countdowns, a production build (which
+# also writes one page per game for search engines and share cards), and the home page's first
+# download staying within its budget (scripts/budget.ts). The phone-in-a-browser scripts in
+# site/scripts need the table server and the site running, so they stay a local step (see
+# site/README.md). Only this folder.
 name: site
 
 on:
@@ -43,6 +44,7 @@ jobs:
       - run: npx tsx tests/dj.test.ts
       - run: npx tsx tests/dj-presets.test.ts
       - run: npx tsx tests/trip.test.ts
+      - run: npx tsx tests/hide.test.ts
       - run: npx tsx tests/draw.test.ts
       - run: npx tsx tests/cutout.test.ts
       - run: npx tsx tests/performer.test.ts

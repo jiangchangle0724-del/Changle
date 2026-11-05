@@ -19,7 +19,9 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # (the browser tests alone took 22 to 25 minutes in Chromium and WebKit before the phone checks of
+    # issue #37 were added)
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: games/been-there

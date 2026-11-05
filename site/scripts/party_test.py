@@ -11,7 +11,7 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 
@@ -369,7 +369,7 @@ def t_freeze_single(browser):
     pg.wait_for_timeout(500)
     pg.locator(".fz-catch-btn").first.click()
     shot(pg, "fz-freeze")
-    pg.locator(".fz button.btn-primary").click()
+    pg.locator(".game-actions button.btn-primary").click()
     pg.wait_for_timeout(900)
     ok(pg.locator(".stamp-layer").count() == 1, "the caught dancer drinks before the music comes back")
     clear_stamps([pg])
@@ -1058,7 +1058,7 @@ def t_euchre_single(browser):
                 pg.wait_for_timeout(700)
                 shot(pg, "eu-result")
                 shots.add("result")
-            btn = pg.locator(".eu-result .btn-primary")
+            btn = pg.locator(".game-actions .btn-primary")
             if "再来一局" in btn.inner_text():
                 pg.wait_for_timeout(900)
                 clear_stamps([pg])
@@ -1232,11 +1232,11 @@ def t_drama_single(browser):
     pg.get_by_role("button", name="发身份牌").click()
     culprits = 0
     for _ in range(actors):
-        pg.locator(".pass-curtain .btn-primary").click()
+        pg.locator(".game-actions .btn-primary").click()
         pg.locator(".dm-card-back").click()
         pg.wait_for_timeout(800)
         culprits += pg.locator(".dm-card-secret.is-culprit").count()
-        pg.locator(".dm-cardwrap .btn-primary").click()
+        pg.locator(".game-actions .btn-primary").click()
         pg.wait_for_timeout(300)
     ok(culprits == 1, "one actor's card says they're the culprit")
     ok(until(lambda: pg.locator(".dm-clock").count() == 1, 3000), "the curtain opens and the clock runs")
@@ -1246,7 +1246,7 @@ def t_drama_single(browser):
     pg.get_by_role("button", name="传手机投票").click()
     voters = 5 - actors
     for k in range(voters):
-        pg.locator(".pass-curtain .btn-primary").click()
+        pg.locator(".game-actions .btn-primary").click()
         pg.locator(".dm-suspect").nth(k % actors).click()
         rows = pg.locator(".dm-rates li")
         for r in range(rows.count()):

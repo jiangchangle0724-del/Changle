@@ -3,7 +3,7 @@
 // comes up for our move and goes away with the bar's button or a flick down.
 // (The shake is played into the page as motion events.)
 import { expect, test } from "@playwright/test";
-import { closeAll, createRoom, explain, joinWithTeam, newPhone, tap } from "./phones";
+import { closeAll, createRoom, explain, joinWithTeam, newPhone, quizOff, tap } from "./phones";
 
 test.afterEach(closeAll);
 
@@ -46,6 +46,7 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，行动窗口�
   });
   await joinWithTeam(p, code);
   await p.page.getByRole("button", { name: "加一个电脑队" }).click();
+  await quizOff(p);
   await p.page.getByRole("button", { name: "开始", exact: true }).click();
   await expect(p.page.locator(".game")).toBeVisible();
   const tab = (name: string) => p.page.locator("nav.tabs").getByRole("button", { name });

@@ -34,20 +34,63 @@ const CHUNK = RATE / 4;
 const AHEAD_S = 5;
 /** a section that takes longer than this to record is given up on for now */
 const RENDER_TIMEOUT_MS = 90_000;
-/** recordings kept (about 7 MB each): what both decks play this stretch and the next song's start, and a few more */
+/** recordings kept (about 3.5 MB each in 16 bits): what both decks play this stretch and the next song's start, and a few more */
 const KEEP_MADE = 16;
 /** a song lasts this many sections (8 bars each: about two minutes) */
 export const TRACK_SECTIONS = 8;
 
-type Carry = { l: Float32Array; r: Float32Array; at: number };
+/**
+ * A recording as it's kept: in 16 bits, half the memory of the renderer's 32 (Steve plays the booth
+ * from his iPhone, and a phone's page has the least to spare). Each sample is `k` times its value
+ * over 32767: the loudest one is exact, the rest within a 32767th of it, as a CD's are.
+ */
+export type Kept = { id: string; frames: number; tail: number; l: Int16Array; r: Int16Array; k: number };
+
+/** A recording in 16 bits (into `into`, a recording that went, when it's the same length). */
+export function pack(rec: Rendered, into?: { l: Int16Array; r: Int16Array }): Kept {
+  const n = rec.l.length;
+  let peak = 0;
+  for (let i = 0; i < n; i++) {
+    const a = Math.abs(rec.l[i]);
+    const b = Math.abs(rec.r[i]);
+    if (a > peak) peak = a;
+    if (b > peak) peak = b;
+  }
+  const k = peak > 0 ? peak : 1;
+  const l = into && into.l.length === n ? into.l : new Int16Array(n);
+  const r = into && into.r.length === n ? into.r : new Int16Array(n);
+  const s = 32767 / k;
+  for (let i = 0; i < n; i++) {
+    l[i] = Math.round(rec.l[i] * s);
+    r[i] = Math.round(rec.r[i] * s);
+  }
+  return { id: rec.id, frames: rec.frames, tail: rec.tail, l, r, k };
+}
+
+/** `n` frames of a kept recording from `from`, back to the player's 32 bits (silence past its end). */
+function unpack(rec: Kept, from: number, n: number): [Float32Array, Float32Array] {
+  const l = new Float32Array(n);
+  const r = new Float32Array(n);
+  const m = Math.max(0, Math.min(n, rec.l.length - from));
+  const k = rec.k;
+  for (let i = 0; i < m; i++) {
+    l[i] = (rec.l[from + i] * k) / 32767;
+    r[i] = (rec.r[from + i] * k) / 32767;
+  }
+  return [l, r];
+}
+
+/** A section's ring-out, laid over the start of the next. */
+type Carry = { l: Int16Array; r: Int16Array; k: number; at: number };
+const carryOf = (rec: Kept): Carry => ({ l: rec.l.subarray(rec.frames), r: rec.r.subarray(rec.frames), k: rec.k, at: 0 });
 /** a stretch of both decks; each deck's drums alone (`bedA`, `bedB`) once a clip first plays over it (null: not recorded in time) */
-type Slot = { base: string; a: Rendered; b: Rendered | null; bedA?: Rendered | null; bedB?: Rendered | null };
+type Slot = { base: string; a: Kept; b: Kept | null; bedA?: Kept | null; bedB?: Kept | null };
 
 export class FakeDj {
   readonly bpm = BPM;
   /** it plays two decks in step (Lyria plays one) */
   readonly decks = true;
-  private made = new Map<string, Rendered>();
+  private made = new Map<string, Kept>();
   private making: Promise<void> | null = null;
   private wanted: string[] = [];
   /** every recording the plan wants, made or not (what to keep) */
@@ -86,8 +129,10 @@ export class FakeDj {
   /** sections recorded so far (the checks read it) */
   renders = 0;
 
-  /** the sound of recordings that have gone, to record the next ones into (see renderSection) */
-  private spare: { l: Float32Array; r: Float32Array }[] = [];
+  /** the sound of recordings that have gone, to keep the next ones in (WebKit is slow to give back
+   *  what a recording took, and a night records one every half minute or so: reusing it keeps the
+   *  page's memory flat) */
+  private spare: { l: Int16Array; r: Int16Array }[] = [];
   /** the slot that just went out (its ring-out may still be playing over the next) */
   private last: Slot | null = null;
   /** each deck's clip of a song asked for by name, over its own sound when it plays */
@@ -99,7 +144,7 @@ export class FakeDj {
   private bedCarryB: Carry | null = null;
 
   /** `render` records a section (the tests hand in their own) */
-  constructor(private render: (sec: Section, rate: number, spare?: () => { l: Float32Array; r: Float32Array } | undefined) => Promise<Rendered> = renderSection) {
+  constructor(private render: (sec: Section, rate: number) => Promise<Rendered> = renderSection) {
     // local runs: the checks look inside (scripts/dj_deck_check.py)
     if (typeof window !== "undefined" && import.meta.env?.DEV) (window as unknown as { __fakeDj: FakeDj }).__fakeDj = this;
   }
@@ -331,10 +376,10 @@ export class FakeDj {
     const tooLong = new Promise<never>((_, no) => {
       timer = window.setTimeout(() => no(new Error("too long")), RENDER_TIMEOUT_MS);
     });
-    this.making = Promise.race([this.render(sec, RATE, () => this.spare.pop()), tooLong])
-      .then((r) => {
+    this.making = Promise.race([this.render(sec, RATE), tooLong])
+      .then((raw) => {
         this.renders += 1;
-        this.made.set(id, r);
+        this.made.set(id, pack(raw, this.spare.pop()));
         this.trim();
         if (this.made.size === 1) this.onReady?.();
       })
@@ -349,7 +394,7 @@ export class FakeDj {
   }
 
   /** A deck's section for this slot in song `track`: its style's if recorded, else the style it played last, else nothing. */
-  private pick(base: string, want: StyleId | null, played: StyleId | null, track: number): { r: Rendered; style: StyleId } | null {
+  private pick(base: string, want: StyleId | null, played: StyleId | null, track: number): { r: Kept; style: StyleId } | null {
     for (const st of [want, played]) {
       const r = st ? this.made.get(sectionOf(st, base, track)) : undefined;
       if (r && st) return { r, style: st };
@@ -437,10 +482,10 @@ export class FakeDj {
     } else this.bedCarryB = null;
     this.off += n;
     if (this.off >= cur.a.frames) {
-      this.carryA = { l: cur.a.l.subarray(cur.a.frames), r: cur.a.r.subarray(cur.a.frames), at: 0 };
-      this.carryB = cur.b ? { l: cur.b.l.subarray(cur.b.frames), r: cur.b.r.subarray(cur.b.frames), at: 0 } : null;
-      this.bedCarryA = cur.bedA ? { l: cur.bedA.l.subarray(cur.bedA.frames), r: cur.bedA.r.subarray(cur.bedA.frames), at: 0 } : null;
-      this.bedCarryB = cur.bedB ? { l: cur.bedB.l.subarray(cur.bedB.frames), r: cur.bedB.r.subarray(cur.bedB.frames), at: 0 } : null;
+      this.carryA = carryOf(cur.a);
+      this.carryB = cur.b ? carryOf(cur.b) : null;
+      this.bedCarryA = cur.bedA ? carryOf(cur.bedA) : null;
+      this.bedCarryB = cur.bedB ? carryOf(cur.bedB) : null;
       this.prev = cur.base;
       this.last = cur;
       this.cur = null;
@@ -462,13 +507,12 @@ export class FakeDj {
     const rec = cur[key] ?? null;
     const c = side === "a" ? this.bedCarryA : this.bedCarryB;
     if (!rec && !c) return null;
-    const l = rec ? rec.l.slice(from, from + n) : new Float32Array(n);
-    const r = rec ? rec.r.slice(from, from + n) : new Float32Array(n);
+    const [l, r] = rec ? unpack(rec, from, n) : [new Float32Array(n), new Float32Array(n)];
     if (c) {
       const m = Math.min(n, c.l.length - c.at);
       for (let i = 0; i < m; i++) {
-        l[i] += c.l[c.at + i];
-        r[i] += c.r[c.at + i];
+        l[i] += (c.l[c.at + i] * c.k) / 32767;
+        r[i] += (c.r[c.at + i] * c.k) / 32767;
       }
       c.at += m;
       if (c.at >= c.l.length) {
@@ -479,14 +523,13 @@ export class FakeDj {
     return [l, r];
   }
 
-  private slice(rec: Rendered | null, n: number, c: Carry | null): [Float32Array, Float32Array] {
-    const l = rec ? rec.l.slice(this.off, this.off + n) : new Float32Array(n);
-    const r = rec ? rec.r.slice(this.off, this.off + n) : new Float32Array(n);
+  private slice(rec: Kept | null, n: number, c: Carry | null): [Float32Array, Float32Array] {
+    const [l, r] = rec ? unpack(rec, this.off, n) : [new Float32Array(n), new Float32Array(n)];
     if (c) {
       const m = Math.min(n, c.l.length - c.at);
       for (let i = 0; i < m; i++) {
-        l[i] += c.l[c.at + i];
-        r[i] += c.r[c.at + i];
+        l[i] += (c.l[c.at + i] * c.k) / 32767;
+        r[i] += (c.r[c.at + i] * c.k) / 32767;
       }
       c.at += m;
       if (c.at >= c.l.length) {

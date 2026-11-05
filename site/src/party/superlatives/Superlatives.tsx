@@ -1,7 +1,8 @@
 import { Check, Shuffle } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TITLES } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import type { PenaltyCall } from "../../components/PenaltyStamp";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { Deck } from "../../lib/random";
@@ -38,6 +39,10 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
     setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
   };
 
+  /** The winner's stamp, waiting for the reveal to play out (2.9 s). */
+  const stamp = useRef<{ timer: number; call: PenaltyCall } | null>(null);
+  useEffect(() => () => window.clearTimeout(stamp.current?.timer), []);
+
   const reveal = (winners: string[], counts: Record<string, number>) => {
     setAwards((a) => {
       const next = { ...a };
@@ -45,7 +50,12 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
       return next;
     });
     setPhase({ k: "reveal", winners, counts });
-    window.setTimeout(() => penalty.show({ who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en }), 2900);
+    const call: PenaltyCall = { who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en };
+    const timer = window.setTimeout(() => {
+      stamp.current = null;
+      penalty.show(call);
+    }, 2900);
+    stamp.current = { timer, call };
   };
 
   const castVote = (voter: string, target: string) => {
@@ -65,6 +75,15 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
   };
 
   const next = () => {
+    // moving on before the winner's stamp landed: it comes now, and the next award after it
+    // (it used to land 2.9 s later on top of the next award's ballot)
+    const waiting = stamp.current;
+    if (waiting) {
+      window.clearTimeout(waiting.timer);
+      stamp.current = null;
+      penalty.show(waiting.call, next);
+      return;
+    }
     if (round >= total) {
       setPhase({ k: "ceremony" });
       sfx.win();
@@ -89,8 +108,54 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
 
   const voter = phase.k === "pass" || phase.k === "ballot" ? players[phase.i] : null;
 
+  const actions =
+    phase.k === "setup" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={startRound}>
+        {zh ? "开始颁奖" : "Start the awards"}
+      </button>
+    ) : phase.k === "pass" && voter ? (
+      <>
+        {Object.keys(votes).length === 0 && (
+          <button type="button" className="btn btn-ghost btn-lg" onClick={() => setTitle(deck.current.draw().card)}>
+            <Shuffle size={14} /> {zh ? "换一个称号" : "A different title"}
+          </button>
+        )}
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase({ k: "ballot", i: phase.i })}>
+          {zh ? `我是 ${voter.name}` : `I'm ${voter.name}`}
+        </button>
+      </>
+    ) : phase.k === "point" ? (
+      <>
+        {Object.keys(votes).length === 0 && (
+          <button type="button" className="btn btn-ghost btn-lg" onClick={() => setTitle(deck.current.draw().card)}>
+            <Shuffle size={14} /> {zh ? "换一个称号" : "A different title"}
+          </button>
+        )}
+        <button type="button" className="btn btn-primary btn-lg" disabled={!picked.length} onClick={() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1])))}>
+          {zh ? "颁奖" : "Give the award"}
+        </button>
+      </>
+    ) : phase.k === "reveal" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={next}>
+        {round >= total ? (zh ? "开颁奖典礼" : "On to the awards") : zh ? "下一个奖" : "Next award"}
+      </button>
+    ) : phase.k === "ceremony" ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        onClick={() => {
+          setTotal((n) => n + 5);
+          setRound((r) => r + 1);
+          setTitle(deck.current.draw().card);
+          startRound();
+        }}
+      >
+        {zh ? "再来五个奖" : "Five more awards"}
+      </button>
+    ) : undefined;
+
   return (
-    <GameShell title={GAME_BY_ID.superlatives.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={GAME_BY_ID.superlatives.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: voter?.id }} status={{ kind: "round", current: phase.k === "setup" ? 1 : round, total }} actions={actions}>
       <div className="sup">
         {phase.k === "setup" && (
           <div className="stack" style={{ gap: 16 }}>
@@ -114,16 +179,13 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
                 ))}
               </div>
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={startRound}>
-              {zh ? "开始颁奖" : "Start the awards"}
-            </button>
           </div>
         )}
 
         {(phase.k === "pass" || phase.k === "ballot" || phase.k === "point") && <AwardCard title={title} round={round} total={total} />}
 
         {phase.k === "pass" && voter && (
-          <PassCurtain name={voter.name} note={zh ? `第 ${phase.i + 1} 票，共 ${players.length} 票` : `Vote ${phase.i + 1} of ${players.length}`} onReady={() => setPhase({ k: "ballot", i: phase.i })} />
+          <PassCurtain name={voter.name} note={zh ? `第 ${phase.i + 1} 票，共 ${players.length} 票` : `Vote ${phase.i + 1} of ${players.length}`} />
         )}
 
         {phase.k === "ballot" && voter && (
@@ -168,9 +230,6 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
             <p className="hint" style={{ textAlign: "center" }}>
               {zh ? "平票就多选几个" : "A tie? Pick them all."}
             </p>
-            <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!picked.length} onClick={() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1])))}>
-              {zh ? "颁奖" : "Give the award"}
-            </button>
           </>
         )}
 
@@ -181,36 +240,17 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
               winners={phase.winners.map((id) => ({ id, name: name[id], face: face(id), count: phase.counts[id] ?? 0 }))}
               nominees={mode === "secret" ? Object.keys(phase.counts).map((id) => ({ id, name: name[id], face: face(id), count: phase.counts[id] })) : []}
             />
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={next}>
-              {round >= total ? (zh ? "开颁奖典礼" : "On to the awards") : zh ? "下一个奖" : "Next award"}
-            </button>
           </>
         )}
 
         {phase.k === "ceremony" && (
           <>
             <Ceremony shelves={players.map((p) => ({ id: p.id, name: p.name, face: face(p.id), awards: awards[p.id] ?? [] }))} />
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              onClick={() => {
-                setTotal((n) => n + 5);
-                setRound((r) => r + 1);
-                setTitle(deck.current.draw().card);
-                startRound();
-              }}
-            >
-              {zh ? "再来五个奖" : "Five more awards"}
-            </button>
           </>
         )}
 
-        {(phase.k === "pass" || phase.k === "point") && Object.keys(votes).length === 0 && (
-          <button type="button" className="link-btn sup-skip" onClick={() => setTitle(deck.current.draw().card)}>
-            <Shuffle size={14} /> {zh ? "换一个称号" : "A different title"}
-          </button>
-        )}
       </div>
     </GameShell>
   );
 }
+

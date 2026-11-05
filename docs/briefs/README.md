@@ -36,13 +36,15 @@ changle.ca 按对话分工：一个 Claude Project 下面 29 个对话，每个�
 | 游戏 · 你画我猜 | [draw.md](draw.md) | changle.ca/g/draw-and-guess |
 | 游戏 · 一本正经 | [straightface.md](straightface.md) | changle.ca/g/straight-face（先藏着，`/play` 能进） |
 
-## 大游戏和工具（7 个）
+## 大游戏和工具（8 个）
 
 | 对话名 | 档案 | 网址 |
 | --- | --- | --- |
 | 游戏 · 到此一游 | [trip.md](trip.md) | changle.ca/trip |
+| 游戏 · 藏在人群里 | [hide-crowd.md](hide-crowd.md) | changle.ca/hide |
 | 游戏 · 一起跳 | [dance.md](dance.md) | changle.ca/party |
 | 游戏 · 打碟 | [dj.md](dj.md) | changle.ca/dj |
+| 游戏 · 抓紧了 | [hang-on.md](hang-on.md) | 未定 |
 | 工具 · 随便 | [suibian.md](suibian.md) | changle.ca/eat |
 | 工具 · 玩什么 | [events.md](events.md) | changle.ca/go |
 | 工具 · 生活小工具 | [tools.md](tools.md) | changle.ca/tools |

@@ -3,10 +3,11 @@ import type { RoomView } from "../../room/protocol";
 import { BUZZ, allowShake, buzz, canBuzz, canShake } from "../controls";
 import { BASE, backToTable, tableFrom } from "../base";
 import { isIPhone, toggleFullscreen } from "../fullscreen";
-import { getLang, setLang, t } from "../i18n";
-import { prefs } from "../prefs";
+import { getLang, setLang, t, type Key } from "../i18n";
+import { MAP_SIZES, prefs } from "../prefs";
 import { setMuted } from "../sound";
 import { getState, send, update } from "../store";
+import { setMapSize } from "./Board";
 import { Btn, Sheet } from "./common";
 import { Credits } from "./Credits";
 import { FullscreenGuide, useFullscreen } from "./Fullscreen";
@@ -63,6 +64,26 @@ export function LangToggle() {
   );
 }
 
+/** 地图大小: small fits the whole board; medium and large draw it bigger and drag (ui/mapView.ts). */
+function MapSizeSetting() {
+  const size = prefs.mapSize;
+  return (
+    <div class="setting-row">
+      <span>
+        <b id="map-size-label">{t("mapSize")}</b>
+        <small>{t("mapSizeHint")}</small>
+      </span>
+      <div class="seg" role="group" aria-labelledby="map-size-label">
+        {MAP_SIZES.map((m) => (
+          <button key={m} type="button" aria-pressed={size === m} onClick={() => setMapSize(m)}>
+            {t(`map_${m}` as Key)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function toggleMute() {
   prefs.muted = !prefs.muted;
   setMuted(prefs.muted);
@@ -102,6 +123,7 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
         <p>
           {t("language")} <LangToggle />
         </p>
+        <MapSizeSetting />
         <label class="radio">
           <input type="checkbox" checked={!prefs.muted} onChange={toggleMute} />
           <span>

@@ -520,8 +520,10 @@
   color: var(--night);
   box-shadow: 0 16px 36px -16px var(--gel);
 }
+/* (night text like the line above: a 68% night was 4.03:1 on the pink) */
 .mode-primary small {
-  color: rgba(14, 12, 34, 0.68);
+  color: var(--night);
+  font-weight: 500;
 }
 .game-card-soon {
   display: flex;

@@ -155,8 +155,40 @@ export function Postit({ onBack }: { onBack: () => void }) {
   const cur = phase.k !== "setup" && phase.k !== "final" ? people[phase.i] : null;
   const myTurn = cur ? turns[cur.id] ?? [] : [];
 
+  const actions =
+    phase.k === "setup" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase({ k: "ready", i: 0 })}>
+        {zh ? "开始" : "Start"}
+      </button>
+    ) : phase.k === "ready" && cur ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => void begin(phase.i)}>
+        {sensors === "asking" ? (zh ? "正在开启动作感应" : "Turning on motion") : zh ? "举好了，开始" : "Ready, go"}
+      </button>
+    ) : phase.k === "done" && cur ? (
+      phase.i + 1 < people.length ? (
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase({ k: "ready", i: phase.i + 1 })}>
+          {zh ? `下一位：${people[phase.i + 1].name}` : `Next: ${people[phase.i + 1].name}`}
+        </button>
+      ) : (
+        <button type="button" className="btn btn-primary btn-lg" onClick={finish}>
+          {zh ? "看谁猜得最多" : "See who got the most"}
+        </button>
+      )
+    ) : phase.k === "final" ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        onClick={() => {
+          setTurns({});
+          setPhase({ k: "setup" });
+        }}
+      >
+        {zh ? "换一组词再来" : "Another deck"}
+      </button>
+    ) : undefined;
+
   return (
-    <GameShell title={GAME_BY_ID.postit.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={GAME_BY_ID.postit.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: cur?.id }} actions={actions}>
       <div className="pi">
         {phase.k === "setup" && (
           <>
@@ -178,9 +210,6 @@ export function Postit({ onBack }: { onBack: () => void }) {
                 </button>
               ))}
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setPhase({ k: "ready", i: 0 })}>
-              {zh ? "开始" : "Start"}
-            </button>
           </>
         )}
 
@@ -200,9 +229,6 @@ export function Postit({ onBack }: { onBack: () => void }) {
               </span>
             </div>
             <p className="hint">{zh ? "把手机竖着举到额头上，屏幕朝外，别偷看。" : "Hold the phone upright on your forehead, screen out. No peeking."}</p>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => void begin(phase.i)}>
-              {sensors === "asking" ? (zh ? "正在开启动作感应" : "Turning on motion") : zh ? "举好了，开始" : "Ready, go"}
-            </button>
             {sensors === "none" || sensors === "denied" ? <p className="hint">{zh ? "这部手机没有动作感应：点屏幕右边算猜对，左边跳过。" : "No motion sensor here: tap the right side for got it, the left to pass."}</p> : null}
           </div>
         )}
@@ -255,15 +281,6 @@ export function Postit({ onBack }: { onBack: () => void }) {
                 </li>
               ))}
             </ul>
-            {phase.i + 1 < people.length ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setPhase({ k: "ready", i: phase.i + 1 })}>
-                {zh ? `下一位：${people[phase.i + 1].name}` : `Next: ${people[phase.i + 1].name}`}
-              </button>
-            ) : (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={finish}>
-                {zh ? "看谁猜得最多" : "See who got the most"}
-              </button>
-            )}
           </>
         )}
 
@@ -271,16 +288,6 @@ export function Postit({ onBack }: { onBack: () => void }) {
           <>
             <h2 className="pl-board-title">{zh ? "结果" : "Results"}</h2>
             <Leaderboard rows={people.map((p) => ({ id: p.id, name: p.name, score: (turns[p.id] ?? []).filter((x) => x.ok).length, face: <NameFace name={p.name} size={40} /> }))} unit={zh ? "个" : ""} />
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              onClick={() => {
-                setTurns({});
-                setPhase({ k: "setup" });
-              }}
-            >
-              {zh ? "换一组词再来" : "Another deck"}
-            </button>
           </>
         )}
       </div>

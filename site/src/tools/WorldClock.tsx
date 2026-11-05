@@ -119,8 +119,9 @@ export function WorldClock() {
                   <X size={18} />
                 </button>
               ) : (
-                <button type="button" className="clock-time tabular" onClick={() => setEditing(c)} aria-label={lang === "zh" ? `设置${c.zh}的时间` : `Set the time in ${c.en}`}>
+                <button type="button" className="clock-time tabular" onClick={() => setEditing(c)}>
                   {timeText(p, lang)}
+                  <span className="ui-visually-hidden">{lang === "zh" ? `，设置${c.zh}的时间` : `, set the time in ${c.en}`}</span>
                 </button>
               )}
             </div>

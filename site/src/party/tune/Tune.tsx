@@ -1,5 +1,6 @@
+import { TuneAction, TuneActionHost } from "./ShellActions";
 import { Check, Disc3, Eye, Music, Play, Radio, RotateCcw, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TUNES } from "../../data/tunes";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
@@ -34,8 +35,13 @@ export function Tune({ onBack }: { onBack: () => void }) {
   const [quiz, setQuiz] = useState(false);
   const [total, setTotal] = useState(8);
   const [phase, setPhase] = useState<"setup" | "play" | "end">("setup");
+  const [actionHost, setActionHost] = useState<HTMLDivElement | null>(null);
+  const [shellRound, setShellRound] = useState(1);
+  const [answerTurn, setAnswerTurn] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const penalty = usePenalty();
+  // the game has its own sound (the songs, the melodies, the DJ's music app): the lounge music waits
+  useEffect(() => holdBackground(), []);
 
   // the buzzer board has room for eight
   const ranked = mode === "pads" ? people.slice(0, 8) : people;
@@ -51,6 +57,29 @@ export function Tune({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const actions =
+    phase === "setup" ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        onClick={() => {
+          setScores({});
+          setShellRound(1);
+          setAnswerTurn(null);
+          setPhase("play");
+        }}
+      >
+        <Play size={18} />
+        {zh ? "开始" : "Start"}
+      </button>
+    ) : phase === "end" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase("setup")}>
+        {zh ? "再来一局" : "Play again"}
+      </button>
+    ) : (
+      <div className="row" style={{ gap: "var(--space-3)", alignItems: "stretch" }} ref={setActionHost} />
+    );
+
   const rules = (
     <p>
       {zh
@@ -60,67 +89,68 @@ export function Tune({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <GameShell title={GAME_BY_ID.tune.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
-      <div className="tn">
-        {phase === "setup" && (
-          <>
-            <Vinyl spinning={false} label={<Music size={30} strokeWidth={2.4} />} />
-            <div className="seg" role="group">
-              <button type="button" aria-pressed={mode === "songs"} onClick={() => setMode("songs")}>
-                <Radio size={15} /> {zh ? "真歌" : "Real songs"}
-              </button>
-              <button type="button" aria-pressed={mode === "melody"} onClick={() => setMode("melody")}>
-                <Music size={15} /> {zh ? "旋律" : "Melody"}
-              </button>
-              <button type="button" aria-pressed={mode === "pads"} onClick={() => setMode("pads")}>
-                <Disc3 size={15} /> {zh ? "抢答器" : "Buzzers"}
-              </button>
-            </div>
-            {mode === "songs" && <PoolPicker pool={pool} onPick={setPool} />}
-            {mode !== "pads" && <AnswerPicker quiz={quiz} onPick={setQuiz} />}
-            {mode !== "pads" ? (
-              <div className="seg seg-sm" role="group" style={{ alignSelf: "center" }}>
-                {[5, 8, 12, 20].map((n) => (
-                  <button key={n} type="button" aria-pressed={total === n} onClick={() => setTotal(n)}>
-                    {zh ? `${n} 首` : `${n} songs`}
-                  </button>
-                ))}
+    <TuneActionHost.Provider value={actionHost}>
+      <GameShell
+        title={GAME_BY_ID.tune.name}
+        rules={rules}
+        onBack={onBack}
+        penalty={penalty.call}
+        onPenaltyDone={penalty.done}
+        roster={{ turn: phase === "play" && mode === "pads" ? (answerTurn ?? undefined) : undefined }}
+        status={phase === "play" && mode !== "pads" ? { kind: "round", current: shellRound, total } : undefined}
+        actions={actions}
+      >
+        <div className="tn">
+          {phase === "setup" && (
+            <>
+              <Vinyl spinning={false} label={<Music size={30} strokeWidth={2.4} />} />
+              <div className="seg" role="group">
+                <button type="button" aria-pressed={mode === "songs"} onClick={() => setMode("songs")}>
+                  <Radio size={15} /> {zh ? "真歌" : "Real songs"}
+                </button>
+                <button type="button" aria-pressed={mode === "melody"} onClick={() => setMode("melody")}>
+                  <Music size={15} /> {zh ? "旋律" : "Melody"}
+                </button>
+                <button type="button" aria-pressed={mode === "pads"} onClick={() => setMode("pads")}>
+                  <Disc3 size={15} /> {zh ? "抢答器" : "Buzzers"}
+                </button>
               </div>
-            ) : (
-              <p className="hint" style={{ textAlign: "center" }}>
-                {zh ? "把手机平放在桌子中间，DJ 用自己的音乐 App 放歌。" : "Lay the phone flat in the middle. The DJ plays songs from their own music app."}
-                {people.length > 8 && (zh ? " 抢答器最多 8 个按钮，名单前 8 位参加。" : " The board has eight pads: the first eight names play.")}
-              </p>
-            )}
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              onClick={() => {
-                setScores({});
-                setPhase("play");
-              }}
-            >
-              <Play size={18} />
-              {zh ? "开始" : "Start"}
-            </button>
-          </>
-        )}
+              {mode === "songs" && <PoolPicker pool={pool} onPick={setPool} />}
+              {mode !== "pads" && <AnswerPicker quiz={quiz} onPick={setQuiz} />}
+              {mode !== "pads" ? (
+                <div className="seg seg-sm" role="group" style={{ alignSelf: "center" }}>
+                  {[5, 8, 12, 20].map((n) => (
+                    <button key={n} type="button" aria-pressed={total === n} onClick={() => setTotal(n)}>
+                      {zh ? `${n} 首` : `${n} songs`}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="hint" style={{ textAlign: "center" }}>
+                  {zh ? "把手机平放在桌子中间，DJ 用自己的音乐 App 放歌。" : "Lay the phone flat in the middle. The DJ plays songs from their own music app."}
+                  {people.length > 8 && (zh ? " 抢答器最多 8 个按钮，名单前 8 位参加。" : " The board has eight pads: the first eight names play.")}
+                </p>
+              )}
+            </>
+          )}
 
-        {phase === "play" && mode === "songs" && <SongRounds total={total} pool={pool} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />}
-        {phase === "play" && mode === "melody" && <MelodyRounds total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
-        {phase === "play" && mode === "pads" && <Pads people={people} scores={scores} setScores={setScores} onEnd={() => finish(scores)} onWrong={(name) => penalty.show({ who: [name], kind: "sip", note: zh ? "抢答错了" : "Wrong answer" })} />}
+          {phase === "play" && mode === "songs" && (
+            <SongRounds onRound={setShellRound} total={total} pool={pool} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
+          )}
+          {phase === "play" && mode === "melody" && <MelodyRounds onRound={setShellRound} total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
+          {phase === "play" && mode === "pads" && (
+            <Pads onTurn={setAnswerTurn} people={people} scores={scores} setScores={setScores} onEnd={() => finish(scores)} onWrong={(name) => penalty.show({ who: [name], kind: "sip", note: zh ? "抢答错了" : "Wrong answer" })} />
+          )}
 
-        {phase === "end" && (
-          <>
-            <h2 className="pl-board-title">{zh ? "最终得分" : "Final scores"}</h2>
-            <Leaderboard rows={ranked.map((p) => ({ id: p.id, name: p.name, score: scores[p.id] ?? 0, face: <NameFace name={p.name} size={40} /> }))} />
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setPhase("setup")}>
-              {zh ? "再来一局" : "Play again"}
-            </button>
-          </>
-        )}
-      </div>
-    </GameShell>
+          {phase === "end" && (
+            <>
+              <h2 className="pl-board-title">{zh ? "最终得分" : "Final scores"}</h2>
+              <Leaderboard rows={ranked.map((p) => ({ id: p.id, name: p.name, score: scores[p.id] ?? 0, face: <NameFace name={p.name} size={40} /> }))} />
+            </>
+          )}
+        </div>
+      </GameShell>
+    </TuneActionHost.Provider>
   );
 }
 
@@ -139,6 +169,7 @@ function SongRounds({
   scores,
   setScores,
   onEnd,
+  onRound,
   onOffline,
   onEmpty,
 }: {
@@ -149,6 +180,7 @@ function SongRounds({
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
   onEnd: (final: Record<string, number>) => void;
+  onRound: (round: number) => void;
   onOffline: () => void;
   onEmpty: () => void;
 }) {
@@ -161,6 +193,7 @@ function SongRounds({
   const played = useRef(new Set<number>());
   const avoid = useRef(new Set(heardSongs()));
   const [round, setRound] = useState(1);
+  useLayoutEffect(() => onRound(round), [round, onRound]);
   const [song, setSong] = useState<Song | null>(null);
   const [next, setNext] = useState<Song | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -175,7 +208,6 @@ function SongRounds({
   /** the performers react: a cheer for the right title, a shrug for a wrong one */
   const [cue, setCue] = useState<StageCue | null>(null);
 
-  useEffect(() => holdBackground(), []);
   useEffect(() => {
     loadSongbook().then(setBook, () => setFailed(true));
   }, []);
@@ -236,9 +268,11 @@ function SongRounds({
         <p className="hint" style={{ textAlign: "center" }}>
           {zh ? "这个歌单还没有歌，换一个语言或类别试试。" : "No songs in this pool yet. Try another language or category."}
         </p>
-        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onEmpty}>
-          {zh ? "换歌单" : "Pick another"}
-        </button>
+        <TuneAction>
+          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onEmpty}>
+            {zh ? "换歌单" : "Pick another"}
+          </button>
+        </TuneAction>
       </>
     );
   if (failed)
@@ -247,10 +281,12 @@ function SongRounds({
         <p className="hint" style={{ textAlign: "center" }}>
           {zh ? "歌单没加载出来，可能没联网。可以先玩不用联网的旋律模式。" : "The song list didn't load; the phone may be offline. Melody mode works without internet."}
         </p>
-        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onOffline}>
-          <Music size={18} />
-          {zh ? "换旋律模式" : "Switch to melody"}
-        </button>
+        <TuneAction>
+          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onOffline}>
+            <Music size={18} />
+            {zh ? "换旋律模式" : "Switch to melody"}
+          </button>
+        </TuneAction>
       </>
     );
   if (!song)
@@ -305,7 +341,7 @@ function SongRounds({
       {quiz && choices.length === 4 && (
         <QuizChoices
           choices={choices.map((c) => ({ id: c.id, t: c.t, a: c.a, ae: c.ae }))}
-          mine={revealed ? song.id : tried[tried.length - 1] ?? null}
+          mine={revealed ? song.id : (tried[tried.length - 1] ?? null)}
           answer={revealed ? song.id : null}
           disabled={startedAt === null}
           onPick={(id) => {
@@ -335,20 +371,26 @@ function SongRounds({
               </button>
             ))}
           </div>
-          <button type="button" className="btn btn-ghost btn-block" onClick={() => award(null)}>
-            {zh ? "没人猜到" : "Nobody got it"}
-          </button>
+          <TuneAction>
+            <button type="button" className="btn btn-lg btn-ghost btn-block" onClick={() => award(null)}>
+              {zh ? "没人猜到" : "Nobody got it"}
+            </button>
+          </TuneAction>
         </>
       ) : (
         <>
-          <button type="button" className="btn btn-ghost btn-block" disabled={!canPlay} onClick={() => play(0)}>
-            <RotateCcw size={16} />
-            {zh ? "从头再放" : "From the top"}
-          </button>
-          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={reveal}>
-            <Eye size={18} />
-            {zh ? "揭晓歌名" : "Reveal the title"}
-          </button>
+          <TuneAction>
+            <button type="button" className="btn btn-lg btn-ghost btn-block" disabled={!canPlay} onClick={() => play(0)}>
+              <RotateCcw size={16} />
+              {zh ? "从头再放" : "From the top"}
+            </button>
+          </TuneAction>
+          <TuneAction>
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={reveal}>
+              <Eye size={18} />
+              {zh ? "揭晓歌名" : "Reveal the title"}
+            </button>
+          </TuneAction>
         </>
       )}
     </>
@@ -362,6 +404,7 @@ function MelodyRounds({
   scores,
   setScores,
   onEnd,
+  onRound,
 }: {
   total: number;
   quiz: boolean;
@@ -369,12 +412,14 @@ function MelodyRounds({
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
   onEnd: (final: Record<string, number>) => void;
+  onRound: (round: number) => void;
 }) {
   const { lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const deck = useRef<number[]>(shuffle(TUNES.map((_, i) => i)));
   const [round, setRound] = useState(1);
+  useLayoutEffect(() => onRound(round), [round, onRound]);
   const [tune, setTune] = useState(() => deck.current.pop()!);
   const [stage, setStage] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -446,7 +491,7 @@ function MelodyRounds({
       {quiz && (
         <QuizChoices
           choices={options.map((o) => tuneChoice(o, zh))}
-          mine={revealed ? tune : tried[tried.length - 1] ?? null}
+          mine={revealed ? tune : (tried[tried.length - 1] ?? null)}
           answer={revealed ? tune : null}
           onPick={(id) => {
             if (id === tune) {
@@ -473,9 +518,11 @@ function MelodyRounds({
               </button>
             ))}
           </div>
-          <button type="button" className="btn btn-ghost btn-block" onClick={() => award(null)}>
-            {zh ? "没人猜到" : "Nobody got it"}
-          </button>
+          <TuneAction>
+            <button type="button" className="btn btn-lg btn-ghost btn-block" onClick={() => award(null)}>
+              {zh ? "没人猜到" : "Nobody got it"}
+            </button>
+          </TuneAction>
         </>
       ) : (
         <>
@@ -491,10 +538,12 @@ function MelodyRounds({
               </button>
             )}
           </div>
-          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={reveal}>
-            <Eye size={18} />
-            {zh ? "揭晓歌名" : "Reveal the title"}
-          </button>
+          <TuneAction>
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={reveal}>
+              <Eye size={18} />
+              {zh ? "揭晓歌名" : "Reveal the title"}
+            </button>
+          </TuneAction>
         </>
       )}
     </>
@@ -507,16 +556,19 @@ function Pads({
   setScores,
   onEnd,
   onWrong,
+  onTurn,
 }: {
   people: { id: string; name: string }[];
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
   onEnd: () => void;
   onWrong: (name: string) => void;
+  onTurn: (pid: string | null) => void;
 }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const [first, setFirst] = useState<string | null>(null);
+  useLayoutEffect(() => onTurn(first), [first, onTurn]);
   const [locked, setLocked] = useState<string[]>([]);
   const buzz = (id: string, i: number) => {
     if (first || locked.includes(id)) return;
@@ -566,25 +618,33 @@ function Pads({
         })}
       </div>
       {first ? (
-        <div className="row" style={{ gap: 10 }}>
-          <button type="button" className="btn btn-ghost btn-lg btn-block" onClick={() => judge(false)}>
-            <X size={18} />
-            {zh ? "不对" : "Wrong"}
-          </button>
-          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => judge(true)}>
-            <Check size={18} />
-            {zh ? "对了" : "Right"}
-          </button>
-        </div>
+        <>
+          <TuneAction>
+            <button type="button" className="btn btn-ghost btn-lg btn-block" onClick={() => judge(false)}>
+              <X size={18} />
+              {zh ? "不对" : "Wrong"}
+            </button>
+          </TuneAction>
+          <TuneAction>
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => judge(true)}>
+              <Check size={18} />
+              {zh ? "对了" : "Right"}
+            </button>
+          </TuneAction>
+        </>
       ) : (
-        <div className="row" style={{ gap: 10 }}>
-          <button type="button" className="btn btn-ghost btn-block" onClick={() => setLocked([])}>
-            {zh ? "下一首" : "Next song"}
-          </button>
-          <button type="button" className="btn btn-ghost btn-block" onClick={onEnd}>
-            {zh ? "结束，看分数" : "Finish"}
-          </button>
-        </div>
+        <>
+          <TuneAction>
+            <button type="button" className="btn btn-lg btn-ghost btn-block" onClick={() => setLocked([])}>
+              {zh ? "下一首" : "Next song"}
+            </button>
+          </TuneAction>
+          <TuneAction>
+            <button type="button" className="btn btn-lg btn-ghost btn-block" onClick={onEnd}>
+              {zh ? "结束，看分数" : "Finish"}
+            </button>
+          </TuneAction>
+        </>
       )}
     </>
   );

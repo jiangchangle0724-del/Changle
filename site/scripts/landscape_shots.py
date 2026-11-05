@@ -64,7 +64,7 @@ with sync_playwright() as p:
     go(ctx, "#/g/freeze", "freeze", lambda pg: (pg.get_by_role("button", name="放音乐").click(), pg.wait_for_timeout(1500)))
     go(ctx, "#/g/limbo", "limbo", lambda pg: (pg.get_by_role("button", name="放音乐，开始").click(), pg.wait_for_timeout(800)))
     go(ctx, "#/g/tune", "tune-setup")
-    go(ctx, "#/g/tune", "tune-play", lambda pg: (pg.locator(".tn .btn-primary").first.click(), pg.wait_for_timeout(1500)))
+    go(ctx, "#/g/tune", "tune-play", lambda pg: (pg.locator(".game-actions .btn-primary").first.click(), pg.wait_for_timeout(1500)))
     go(ctx, "#/g/euchre", "euchre", lambda pg: (pg.locator(".btn-primary").first.click(), pg.wait_for_timeout(1500)))
     go(ctx, "#/g/trip", "trip", wait=1500)
     b.close()

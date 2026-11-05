@@ -5,8 +5,11 @@ import { gsap, reduced } from "../lib/anim";
 import type { Player } from "../store";
 import { useStore } from "../store";
 
-/** "Pass the phone to Amy": a curtain that keeps the next screen private until they tap. */
-export function PassCurtain({ name, note, onReady }: { name: string; note?: string; onReady: () => void }) {
+/**
+ * "Pass the phone to Amy": a curtain that keeps the next screen private until they tap. A game in the
+ * shell's bottom bar (GameShell `actions`) puts its own 我是 Amy button there and leaves out `onReady`.
+ */
+export function PassCurtain({ name, note, onReady }: { name: string; note?: string; onReady?: () => void }) {
   const { lang } = useStore();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -19,9 +22,11 @@ export function PassCurtain({ name, note, onReady }: { name: string; note?: stri
       <p className="pass-lead">{lang === "zh" ? "把手机交给" : "Pass the phone to"}</p>
       <p className="pass-name">{name}</p>
       {note && <p className="hint pass-note">{note}</p>}
-      <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onReady}>
-        {lang === "zh" ? `我是 ${name}` : `I'm ${name}`}
-      </button>
+      {onReady && (
+        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onReady}>
+          {lang === "zh" ? `我是 ${name}` : `I'm ${name}`}
+        </button>
+      )}
     </div>
   );
 }
