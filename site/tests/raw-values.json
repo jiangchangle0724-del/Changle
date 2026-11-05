@@ -1,10 +1,7 @@
 {
   "src/styles/home.css": {
-    "font": 40,
-    "color": 10,
-    "shadow": 18,
-    "radius": 24,
-    "time": 18
+    "color": 5,
+    "shadow": 6
   },
   "src/styles/account.css": {
     "font": 35,
