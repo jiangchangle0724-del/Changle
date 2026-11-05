@@ -2,8 +2,10 @@
 three phones. Ben pastes a YouTube link, Cat searches (the owner's key: on); each song up next, the
 table drops into it, the DJ fades out over two bars and the TV plays the whole song in YouTube's player
 (a stand-in for it here: this machine can't reach YouTube), the phones' decks waiting; it ends, or its
-player skips it, and the DJ comes back. Without the key a search says links still work. Nothing goes to
-Apple any more.
+player skips it, and the DJ comes back. Over the song the pads that are a sound of their own still play
+(the air horn, the siren...; Steve on Nov 2), the others wait. The songs asked for make the night's
+歌单 (playlist) on every phone, the host switches it to 随机, and after a song the DJ plays its turn
+before the next. Without the key a search says links still work. Nothing goes to Apple any more.
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
 usage: python3 scripts/dj_youtube_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
@@ -108,14 +110,44 @@ with sync_playwright() as p:
     ok(until(lambda: tv.evaluate("() => window.__yt && window.__yt.playing && window.__yt.video") == BEN_ID, 8000), "two bars on, the whole song plays (Ben's video)")
     gain = tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value")
     ok(gain < 0.05, f"the DJ has faded out under it ({gain:.3f})")
-    ok(until(lambda: amy.locator(".djk-song").count() == 1 and amy.locator(".djk-pad").first.is_disabled(), 3000), "the phones say so, their decks waiting")
+    ok(until(lambda: amy.locator(".djk-song").count() == 1 and amy.locator(".djk-pad.is-echo").is_disabled(), 3000), "the phones say so, the pads that work the music waiting")
+    ok(not amy.locator(".djk-pad.is-horn").is_disabled() and not cat.locator(".djk-pad.is-siren").is_disabled(), "the air horn, the siren and the other sounds of their own still play")
+    over = lambda: tv.evaluate("() => window.__fakeDj.speaker.overSong.gain.value")
+    ok(until(lambda: over() > 0.9, 4000), f"over the song the pads have their own way out ({over():.2f})")
+    n0 = tv.evaluate("() => window.__djBooth.deck().log.filter((x) => x.k === 'horn').length")
+    amy.locator(".djk-pad.is-horn").click()
+    ok(until(lambda: tv.evaluate("() => window.__djBooth.deck().log.filter((x) => x.k === 'horn').length") > n0, 3000), "Amy's air horn plays on the TV, over the song, at once")
     ok(cat.locator(".djk-song button").count() == 0 and ben.locator(".djk-song button").count() == 1 and amy.locator(".djk-song button").count() == 1, "Ben (his song) and Amy (the host) can skip it, Cat can't")
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-1-song.png"))
     amy.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-amy-1-song.png"))
     tv.evaluate("() => window.__yt.end()")
     ok(until(lambda: deck(tv).get("song") is None and tv.locator(".dj-tube").count() == 0, 4000), "it ends: the player goes, the room's song time is over")
     ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 5000), "and the DJ comes back")
+    ok(until(lambda: over() < 0.05, 5000), "the pads go back through the DJ's chain")
     ok(until(lambda: not amy.locator(".djk-pad").first.is_disabled(), 3000), "the decks too")
+
+    # the 歌单: Ben puts two more on it, everyone sees the list; the host switches it to 随机 and back
+    ben.wait_for_timeout(5200)
+    for vid in ("aaaaaaaaaa1", "aaaaaaaaaa2"):
+        ben.locator(".djk-req-input").fill(f"https://youtu.be/{vid}")
+        ok(until(lambda: ben.locator(".djk-req-hit.is-yt").count() > 0, 4000), f"Ben finds {vid}")
+        ben.locator(".djk-req-hit.is-yt").first.click()
+        ben.locator(".djk-req-send").click()
+        ben.wait_for_timeout(5200)
+    ok(until(lambda: amy.locator(".djk-list-row").count() == 2 and cat.locator(".djk-list-row").count() == 2, 4000), f"every phone shows the playlist ({cat.locator('.djk-list-row').count()} songs)")
+    ok("Ben" in text(cat, ".djk-list-row") and cat.locator(".djk-list-out").count() == 0, "Cat sees whose they are, and can't take Ben's out")
+    ok(ben.locator(".djk-list-out").count() == 2 and amy.locator(".djk-list-out").count() == 2, "Ben can take his out, and so can the host")
+    ok(until(lambda: "1 more on the playlist" in text(tv, ".dk-req.is-up") or "歌单里还有 1 首" in text(tv, ".dk-req.is-up"), 3000), f"the TV names the next and the playlist ({text(tv, '.dk-req.is-up')!r})")
+    amy.get_by_role("button", name="随机").click()
+    ok(until(lambda: "随机放" in text(cat, ".djk-list-mode"), 3000), "the host switches it to 随机: the others see it")
+    amy.get_by_role("button", name="按顺序").click()
+    ok(until(lambda: cat.locator(".djk-list-mode").count() == 0, 3000), "and back to 按顺序")
+    amy.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-amy-2-playlist.png"))
+    # (Ben's two leave the list, so Cat's comes up next)
+    for _ in range(2):
+        ben.locator(".djk-list-out").first.click()
+        ben.wait_for_timeout(300)
+    ok(until(lambda: amy.locator(".djk-list-row").count() == 0, 3000), "Ben takes his out again")
 
     # Cat searches (the key is on), her song plays, she skips it
     cat.locator(".djk-req-input").fill("shape of you")

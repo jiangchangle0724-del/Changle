@@ -1,7 +1,7 @@
 import { Plus, RotateCcw, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "../components/Sheet";
-import { gsap, reduced } from "../lib/anim";
+import { EASE, play } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { useStore } from "../store";
 import { CITIES, CITY_BY_ID, dayDiff, DEFAULT_CITIES, offsetMin, partsIn, zonedToUtc, type City } from "./tz";
@@ -62,8 +62,10 @@ export function WorldClock() {
   useLayoutEffect(() => {
     const jumped = lastPinned.current !== pinned && !dragging.current;
     lastPinned.current = pinned;
-    if (!jumped || reduced() || !list.current) return;
-    gsap.fromTo(list.current.querySelectorAll(".clock-time"), { yPercent: -35, opacity: 0.2 }, { yPercent: 0, opacity: 1, stagger: 0.03, duration: 0.45 });
+    if (!jumped || !list.current) return;
+    list.current.querySelectorAll(".clock-time").forEach((el, i) =>
+      play(el, [{ transform: "translateY(-35%)", opacity: 0.2 }, { transform: "none", opacity: 1 }], { duration: 450, delay: i * 30, easing: EASE.settle, fill: "backwards" }),
+    );
   }, [pinned]);
 
   const dragging = useRef(false);
