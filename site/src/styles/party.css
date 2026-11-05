@@ -1150,54 +1150,8 @@ button.pl-answer:disabled {
   background: color-mix(in oklab, var(--gel) 16%, var(--dusk-2));
   box-shadow: inset 0 0 0 2px var(--gel);
 }
-.heads-how {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin: 6px 0 2px;
-}
-.heads-how > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: var(--dusk);
-  font-size: 14px;
-  font-weight: 700;
-}
-.heads-how > span.is-ok {
-  background: color-mix(in oklab, var(--go) 18%, var(--dusk));
-  color: var(--go);
-}
-/* the word fills the whole screen: it is read by the room, not by the holder */
-.heads-stage {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 20px);
-  background: var(--gel-lemon);
-  color: var(--night);
-  text-align: center;
-  transition: background-color 0.18s;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.heads-stage.is-ok {
-  background: var(--go);
-}
-.heads-stage.is-pass {
-  background: var(--gel-tangerine);
-}
-.heads-count {
-  font-family: var(--font-display);
-  font-size: 140px;
-  font-weight: 800;
-  animation: heads-pop 0.9s var(--ease-out) both;
-}
+/* the one-phone forehead game's stage, its curtain chips and its turn list: party/postit/heads.css.
+   Its countdown's pop stays here: Limbo's count uses it too */
 @keyframes heads-pop {
   from {
     scale: 1.6;
@@ -1207,100 +1161,6 @@ button.pl-answer:disabled {
     scale: 1;
     opacity: 1;
   }
-}
-.heads-top {
-  position: absolute;
-  top: calc(var(--safe-top) + 14px);
-  left: 18px;
-  right: 18px;
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 800;
-}
-.heads-score {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.heads-word {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-width: 100%;
-}
-.heads-word > span {
-  font-family: var(--font-display);
-  font-size: clamp(40px, 13vw, 84px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
-  overflow-wrap: anywhere;
-}
-.heads-word > small {
-  font-size: clamp(18px, 5vw, 28px);
-  font-weight: 700;
-  opacity: 0.6;
-}
-.heads-flash {
-  font-family: var(--font-display);
-  font-size: 64px;
-  font-weight: 800;
-}
-.heads-zone {
-  position: absolute;
-  top: 70px;
-  bottom: 0;
-  width: 50%;
-  background: transparent;
-}
-.heads-left {
-  left: 0;
-}
-.heads-right {
-  right: 0;
-}
-.heads-hints {
-  position: absolute;
-  bottom: calc(var(--safe-bottom) + 16px);
-  left: 20px;
-  right: 20px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-  font-weight: 700;
-  opacity: 0.45;
-  pointer-events: none;
-}
-.heads-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.heads-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: var(--dusk-2);
-  color: var(--haze);
-  font-weight: 700;
-}
-.heads-list li small {
-  margin-left: auto;
-  color: var(--color-text-2);
-  font-weight: 600;
-}
-.heads-list li.is-ok {
-  color: var(--moon);
-}
-.heads-list li.is-ok svg {
-  color: var(--go);
 }
 
 /* ---------- freeze dance ---------- */
