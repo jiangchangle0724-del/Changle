@@ -331,8 +331,51 @@ export function Limbo({ onBack }: { onBack: () => void }) {
   // a moving bar sways while someone follows it, and waits at its top otherwise
   const sway = moving ? { bar, startAt: phase.k === "try" ? phase.t0 : Number.MAX_SAFE_INTEGER, clock: phoneClock } : undefined;
 
+  const actions =
+    phase.k === "setup" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => void start()}>
+        <Play size={18} />
+        {zh ? "放音乐，开始" : "Music on, let's go"}
+      </button>
+    ) : phase.k === "ready" && cur ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase({ k: "count", i: phase.i, n: 3 })}>
+        {zh ? "准备好了" : "Ready"}
+      </button>
+    ) : phase.k === "try" && !blind && sensors !== "on" ? (
+      <>
+        <button type="button" className="btn btn-ghost btn-lg" onClick={() => verdict(phase.i, false)}>
+          <X size={18} />
+          {moving ? (zh ? "跟丢了" : "Lost it") : zh ? "没过" : "Missed"}
+        </button>
+        <button type="button" className="btn btn-primary btn-lg" disabled={moving && left > 0} onClick={() => verdict(phase.i, true)}>
+          <Check size={18} />
+          {moving ? (zh ? "跟住了" : "Kept up") : zh ? "过了" : "Made it"}
+        </button>
+      </>
+    ) : phase.k === "verdict" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={nextTurn}>
+        {phase.i + 1 < alive.length ? (zh ? `下一个：${name[alive[phase.i + 1]]}` : `Next: ${name[alive[phase.i + 1]]}`) : blind ? (zh ? "看看谁差得最远" : "Who was furthest off?") : zh ? "这一杆结束" : "End of this bar"}
+      </button>
+    ) : phase.k === "bar" ? (
+      <button type="button" className="btn btn-primary btn-lg" disabled={alive.some((id) => !passed.includes(id) && !failed.includes(id))} onClick={() => settle(failed, passed)}>
+        {zh ? "放低横杆" : "Lower the bar"}
+      </button>
+    ) : phase.k === "end" ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        onClick={() => {
+          setBar(classicBar());
+          setLevel(0);
+          setPhase({ k: "setup" });
+        }}
+      >
+        {zh ? "再来一局" : "Play again"}
+      </button>
+    ) : undefined;
+
   return (
-    <GameShell title={GAME_BY_ID.limbo.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={GAME_BY_ID.limbo.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: cur?.id, out: phase.k === "setup" ? [] : phase.k === "end" && phase.winner ? people.filter((p) => p.id !== phase.winner).map((p) => p.id) : people.filter((p) => !alive.includes(p.id) || (!blind && failed.includes(p.id))).map((p) => p.id) }} status={phase.k !== "setup" ? { kind: "round", current: level + 1 } : undefined} actions={actions}>
       <div className="lb">
         {phase.k !== "end" && <LimboScene angle={angle} level={level} side={kind === "tilt" ? bar.side : 0} sway={sway} />}
         {phase.k !== "setup" && phase.k !== "end" && (
@@ -351,10 +394,6 @@ export function Limbo({ onBack }: { onBack: () => void }) {
             </p>
             {people.length < 2 && <p className="hint" style={{ textAlign: "center" }}>{zh ? "盲仰要两个人以上" : "Blind lean needs two or more players"}</p>}
             {note && <p className="hint" role="alert" style={{ textAlign: "center" }}>{note}</p>}
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => void start()}>
-              <Play size={18} />
-              {zh ? "放音乐，开始" : "Music on, let's go"}
-            </button>
           </>
         )}
 
@@ -368,9 +407,6 @@ export function Limbo({ onBack }: { onBack: () => void }) {
                 ? zh ? `手机竖着贴在胸口，屏幕朝自己，凭感觉仰到 ${angle}°，停住不动就锁定。看不到自己的角度。` : `Phone upright on your chest, screen facing you. Lean to what feels like ${angle}° and hold still to lock it. You won't see your angle.`
                 : barHow(bar, angle, zh)}
             </p>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setPhase({ k: "count", i: phase.i, n: 3 })}>
-              {zh ? "准备好了" : "Ready"}
-            </button>
           </div>
         )}
 
@@ -390,19 +426,7 @@ export function Limbo({ onBack }: { onBack: () => void }) {
               ) : (
                 <LeanGauge lean={lean.lean} target={angle} hold={lean.hold} />
               )
-            ) : (
-              // no motion sensor: the table watches and taps
-              <div className="row" style={{ gap: 10 }}>
-                <button type="button" className="btn btn-ghost btn-lg btn-block" onClick={() => verdict(phase.i, false)}>
-                  <X size={18} />
-                  {moving ? (zh ? "跟丢了" : "Lost it") : zh ? "没过" : "Missed"}
-                </button>
-                <button type="button" className="btn btn-primary btn-lg btn-block" disabled={moving && left > 0} onClick={() => verdict(phase.i, true)}>
-                  <Check size={18} />
-                  {moving ? (zh ? "跟住了" : "Kept up") : zh ? "过了" : "Made it"}
-                </button>
-              </div>
-            )}
+            ) : null}
             <p className="hint lb-time tabular">{moving && left <= 0 ? (zh ? "横杆停了，跟住了吗？" : "The bar stopped. Did they keep up?") : zh ? `还剩 ${left} 秒` : `${left}s left`}</p>
           </>
         )}
@@ -419,9 +443,6 @@ export function Limbo({ onBack }: { onBack: () => void }) {
                 {moving ? (phase.ok ? (zh ? "跟住了" : "Kept up") : zh ? "跟丢了" : "Lost it") : phase.ok ? (zh ? "过了" : "Under") : zh ? "没过" : "Didn't make it"}
               </p>
             )}
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={nextTurn}>
-              {phase.i + 1 < alive.length ? (zh ? `下一个：${name[alive[phase.i + 1]]}` : `Next: ${name[alive[phase.i + 1]]}`) : blind ? (zh ? "看看谁差得最远" : "Who was furthest off?") : zh ? "这一杆结束" : "End of this bar"}
-            </button>
           </>
         )}
 
@@ -447,9 +468,6 @@ export function Limbo({ onBack }: { onBack: () => void }) {
                 );
               })}
             </ul>
-            <button type="button" className="btn btn-primary btn-lg btn-block" disabled={alive.some((id) => !passed.includes(id) && !failed.includes(id))} onClick={() => settle(failed, passed)}>
-              {zh ? "放低横杆" : "Lower the bar"}
-            </button>
           </>
         )}
 
@@ -463,17 +481,6 @@ export function Limbo({ onBack }: { onBack: () => void }) {
                 <strong>{name[phase.winner]}</strong>
               </span>
             )}
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              onClick={() => {
-                setBar(classicBar());
-                setLevel(0);
-                setPhase({ k: "setup" });
-              }}
-            >
-              {zh ? "再来一局" : "Play again"}
-            </button>
           </div>
         )}
 
