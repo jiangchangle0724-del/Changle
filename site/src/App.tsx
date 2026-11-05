@@ -254,7 +254,7 @@ function Shell() {
   if (route.kind === "djtest")
     return (
       <SiteGate signIn={null}>
-        <Suspense fallback={(() => { const target = DjTestPage as typeof DjTestPage & { Loading?: typeof DjTestPage }; const Shape = target.Loading ??= lazy(() => import("./party/dj/TestLoading")); return <Suspense fallback={<div className="screen" aria-busy="true" />}><Shape /></Suspense>; })()}>
+        <Suspense fallback={null}>
           <DjTestPage />
         </Suspense>
       </SiteGate>
