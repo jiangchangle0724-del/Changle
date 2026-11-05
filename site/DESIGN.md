@@ -212,7 +212,7 @@ The app is a dark room at a party, and the only color in it is light. The ground
 
 Density is low and the type is big because the phone is a prop passed around a dim table, read at arm's length, tapped with one thumb. Every screen is bilingual: titles show both languages at once, the reader's language leading large and the other riding beneath it smaller, and a 中 / EN toggle switches every string in place. Shared components use CSS motion; GSAP remains in the home page, legacy sheets and game sequences. Motion is settled and weighted for ordinary moves, and saved up for the penalty, which is the loudest thing the app ever does: the room flashes, one huge word slams down, a glass slides in and drains.
 
-When a game brings its own physical objects, they render as themselves inside the room: Euchre's playing cards are white card stock with real suit marks, lit from above by the jade gel. 到此一游 brings a whole printed world (a round board, city posters, passport stamps, boarding passes, six characters): it plays at changle.ca/trip from its own code (`games/been-there` in the changle-ca repository), and its frame, from the top bar to the sheets, is this system, lit by its vermilion gel.
+When a game brings its own physical objects, they render as themselves inside the room: Euchre's playing cards are white card stock with real suit marks, lit from above by the jade gel. 到此一游 brings a whole printed world (a round board, city posters, passport stamps, boarding passes, six characters): it plays at changle.ca/trip from its own code (`games/been-there` in the Changle repository), and its frame, from the top bar to the sheets, is this system, lit by its vermilion gel.
 
 **Key Characteristics:**
 - Night ground, moonlight text, one current gel per screen.

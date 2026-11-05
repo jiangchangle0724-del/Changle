@@ -64,12 +64,13 @@ test("藏在人群里 needs two players at a table", () => {
   ok(e.view("p1").game?.id === "hide", "two can");
 });
 
-test("its card: an online game at changle.ca/g/hide-in-the-crowd, last on the board, last in the table's list", () => {
+test("its card: an online game at changle.ca/g/hide-in-the-crowd, last on the board, its place in the table's list kept", () => {
   const g = GAME_BY_ID.hide;
   ok(g && g.ready && !g.hidden && g.category === "online", "a ready online game");
   ok(g.slug === "hide-in-the-crowd" && g.name.zh === "藏在人群里" && g.name.en === "Hide in the Crowd", "its name and address");
-  ok(GAMES[GAMES.length - 1].id === "hide", "its card comes after every other, so the others keep their places");
-  ok(ONLINE_GAMES[ONLINE_GAMES.length - 1] === "hide" && ONLINE_MIN.hide === 2, "the table's list has it last (old tables keep their index)");
+  // it went in after every game before it, so theirs kept their places; games added since go after it, so its own stays put
+  ok(GAMES.findIndex((x) => x.id === "hide") === 19, "its card comes after every game before it, so the others keep their places");
+  ok(ONLINE_GAMES.indexOf("hide") === 18 && ONLINE_MIN.hide === 2, "its place in the table's list stays where it went in (old tables keep their index)");
   ok(g.minPlayers === 2 && g.maxPlayers === 8, "2 to 8 players");
   const route = parse("/g/hide-in-the-crowd/play");
   ok(route.kind === "game" && route.id === "hide", "its one-phone address opens the practice page");

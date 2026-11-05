@@ -394,20 +394,35 @@ export class Speaker {
     this.master.gain.setTargetAtTime(0, t, Math.max(0.01, seconds / 4));
   }
 
-  /** The DJ gives way to a whole song (真歌时间: it plays in YouTube's player, not here), or comes back: over `seconds`. */
-  giveWay(away: boolean, seconds: number) {
+  /**
+   * The DJ gives way to a whole song (真歌时间: it plays in YouTube's player, not here), or comes
+   * back: over `seconds`, from audio time `at` (now, when it's left out or has passed: the drop's bar
+   * when the song starts on it). The pads' own way out takes over as the DJ fades, so the drop's boom
+   * and crash ring on over the song's first moment, and hands back as it returns.
+   */
+  giveWay(away: boolean, seconds: number, at?: number) {
     this.away = away;
-    const t = this.ctx.currentTime;
+    const now = this.ctx.currentTime;
+    const t = Math.max(now, at ?? now);
     const end = t + Math.max(0.05, seconds);
     for (const [g, to] of [
       [this.talkFade, away ? 0 : 1],
-      // (the pads' own way out takes over as the DJ fades, and hands back as it returns)
       [this.overSong, away ? this.volume : 0],
     ] as const) {
-      g.gain.cancelScheduledValues(t);
-      g.gain.setValueAtTime(g.gain.value, t);
+      const v = g.gain.value;
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(v, now);
+      if (t > now) g.gain.setValueAtTime(v, t);
       g.gain.linearRampToValueAtTime(to, end);
     }
+  }
+
+  /**
+   * The audio time something heard at server time `at` plays at, the server's clock reading `now`
+   * (the room's bars are told in heard time, deck/driver.ts `reportGrid`): the drop's bar, for one.
+   */
+  audioTimeOf(at: number, now: number): number {
+    return this.heardTime() + (at - now) / 1000;
   }
 
   /** Back up to the volume after a fade. */

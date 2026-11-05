@@ -1,6 +1,7 @@
 import { Check, Crown, Play, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground, startGroove, type GrooveHandle } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
@@ -33,6 +34,8 @@ import "../../styles/party.css";
 
 type Mode = LimboPick;
 type Phase = { k: "setup" } | { k: "ready"; i: number } | { k: "count"; i: number; n: number } | { k: "try"; i: number; ends: number; t0: number } | { k: "verdict"; i: number; ok: boolean } | { k: "bar" } | { k: "end"; winner: string | null };
+type Pending = { k: "blind" | "level"; stay: string[] } | { k: "retry" } | { k: "end"; winner: string | null };
+type Kept = { mode: Mode; level: number; bar: LimboBar; alive: string[]; passed: string[]; failed: string[]; best: Record<string, number>; phase: Phase; target: number; locks: Record<string, number>; pending: Pending | null };
 
 /** The picker's order: the phone-measured ways first, then blind lean, then a real bar. */
 const MODES: Mode[] = ["classic", "steady", "moving", "tilt", "party", "blind", "bar"];
@@ -40,26 +43,35 @@ const pick = (n: number) => Math.floor(Math.random() * n);
 
 /** One phone: pass it round and let it measure each lean, or run a real bar with music and a scorecard. */
 export function Limbo({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="limbo" version={1}>
+      {(saved) => <LimboGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   // the dance floor has its own music: the lounge music waits
   useEffect(() => holdBackground(), []);
   const { players, lang } = useStore();
   const zh = lang === "zh";
   const people = useMemo(() => (players.length ? players : [{ id: "me", name: zh ? "你" : "You" }]), [players, zh]);
   const name = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p.name])), [people]);
-  const [mode, setMode] = useState<Mode>("classic");
-  const [level, setLevel] = useState(0);
+  const [mode, setMode] = useState<Mode>(saved?.mode ?? "classic");
+  const [level, setLevel] = useState(saved?.level ?? 0);
   /** this bar: classic, or one of the variants (party mode draws a new one each bar) */
-  const [bar, setBar] = useState<LimboBar>(classicBar);
-  const [alive, setAlive] = useState<string[]>(people.map((p) => p.id));
-  const [passed, setPassed] = useState<string[]>([]);
-  const [failed, setFailed] = useState<string[]>([]);
+  const [bar, setBar] = useState<LimboBar>(() => saved?.bar ?? classicBar());
+  const [alive, setAlive] = useState<string[]>(saved?.alive ?? people.map((p) => p.id));
+  const [passed, setPassed] = useState<string[]>(saved?.passed ?? []);
+  const [failed, setFailed] = useState<string[]>(saved?.failed ?? []);
   /** how far each person leaned at the current bar (the tiebreak when nobody gets under it) */
-  const [best, setBest] = useState<Record<string, number>>({});
-  const [phase, setPhase] = useState<Phase>({ k: "setup" });
+  const [best, setBest] = useState<Record<string, number>>(saved?.best ?? {});
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? { k: "setup" });
   const [left, setLeft] = useState(15);
   /** blind lean: this round's target and the angle each person locked */
-  const [target, setTarget] = useState(BLIND_TARGETS[0]);
-  const [locks, setLocks] = useState<Record<string, number>>({});
+  const [target, setTarget] = useState(saved?.target ?? BLIND_TARGETS[0]);
+  const [locks, setLocks] = useState<Record<string, number>>(saved?.locks ?? {});
+  const [pending, setPending] = useState<Pending | null>(saved?.pending ?? null);
   const [note, setNote] = useState("");
   const blind = mode === "blind";
   const realBar = mode === "bar";
@@ -68,6 +80,8 @@ export function Limbo({ onBack }: { onBack: () => void }) {
   const sensors = useSensorStatus();
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
+  // No sensor reading or countdown survives: the same person gets ready for the same bar.
+  useKeepProgress<Kept>({ mode, level, bar, alive, passed, failed, best, phase: phase.k === "count" || phase.k === "try" ? { k: "ready", i: phase.i } : phase, target, locks, pending }, phase.k !== "setup" && phase.k !== "end");
   const music = useRef<GrooveHandle | null>(null);
   const angle = blind ? target : limboAngle(level);
   const newTarget = () => {
@@ -205,6 +219,7 @@ export function Limbo({ onBack }: { onBack: () => void }) {
       sfx.drum(0.8);
       setPhase({ k: "ready", i: 0 });
     };
+    setPending(stay.length <= 1 ? { k: "end", winner: stay[0] ?? null } : { k: "blind", stay });
     penalty.show(
       {
         who: losers.map((id) => name[id]),
@@ -221,7 +236,7 @@ export function Limbo({ onBack }: { onBack: () => void }) {
             ? `盲仰差了 ${worst}°`
             : `Blind lean: ${worst}° off`,
       },
-      after,
+      () => { setPending(null); after(); },
     );
   };
 
@@ -245,8 +260,10 @@ export function Limbo({ onBack }: { onBack: () => void }) {
       if (stay.length === 1) return finish(stay[0]);
       nextLevel(stay);
     };
-    if (drinkers.length && !solo)
-      penalty.show({ who: drinkers.map((id) => name[id]), kind: "sip", note: again ? (zh ? `${angle}° 谁都没过，再来一次` : `Nobody made ${angle}°. Try it again`) : zh ? `${angle}° 没过去` : `Missed the ${angle}° bar` }, after);
+    if (drinkers.length && !solo) {
+      setPending(again ? { k: "retry" } : stay.length <= 1 ? { k: "end", winner: stay[0] ?? deepest } : { k: "level", stay });
+      penalty.show({ who: drinkers.map((id) => name[id]), kind: "sip", note: again ? (zh ? `${angle}° 谁都没过，再来一次` : `Nobody made ${angle}°. Try it again`) : zh ? `${angle}° 没过去` : `Missed the ${angle}° bar` }, () => { setPending(null); after(); });
+    }
     else after();
   };
 
@@ -297,6 +314,26 @@ export function Limbo({ onBack }: { onBack: () => void }) {
     } else setPhase({ k: "bar" });
   };
 
+  // A stamp already counted its penalty. Finish only its pending transition on return.
+  const continued = useRef(false);
+  useEffect(() => {
+    if (!saved?.pending || continued.current) return;
+    continued.current = true;
+    setPending(null);
+    const p = saved.pending;
+    if (p.k === "end") finish(p.winner);
+    else if (p.k === "retry") retryBar();
+    else if (p.k === "level") nextLevel(p.stay);
+    else {
+      setAlive(p.stay);
+      setLevel((l) => l + 1);
+      newTarget();
+      setPhase({ k: "ready", i: 0 });
+    }
+    // The restored stamp is consumed once, including StrictMode's effect replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const drink = custom ? (zh ? "受罚" : "penalty") : zh ? "喝一口" : "drink";
   const rules = (
     <>
@@ -338,7 +375,7 @@ export function Limbo({ onBack }: { onBack: () => void }) {
         {zh ? "放音乐，开始" : "Music on, let's go"}
       </button>
     ) : phase.k === "ready" && cur ? (
-      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase({ k: "count", i: phase.i, n: 3 })}>
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => { playMusic(); setPhase({ k: "count", i: phase.i, n: 3 }); }}>
         {zh ? "准备好了" : "Ready"}
       </button>
     ) : phase.k === "try" && !blind && sensors !== "on" ? (

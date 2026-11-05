@@ -1,6 +1,6 @@
-// The waiting teams' quiz (抢答): which question comes next. The questions themselves are plain data in
-// triviaBank.ts. Only the room imports these (the server, and the one-phone demo that runs the room in
-// the page), and the server's list of sources for the credits page: phones never hold the answers.
+// The waiting teams' quiz (抢答): which question a landing brings. The questions themselves are plain
+// data in triviaBank.ts. Only the room imports these (the server, and the one-phone demo that runs the
+// room in the page), and the server's list of sources for the credits page: phones never hold the answers.
 import { CITIES } from "../engine";
 import { SEEN_KEEP } from "./protocol";
 import { TRIVIA, type TriviaQuestion } from "./triviaBank";
@@ -41,11 +41,21 @@ export const LEGACY_ORDER = [
   "hongkong-01",
 ];
 
+const RULE_SOURCE: ReadonlyMap<string, string> = new Map(CITIES.map((c) => [c.id, c.source]));
+
+/**
+ * Whether a city's arrival card answers this question: the one taken from the page the city's rule
+ * comes from. Its fact is the 真实事实 a big screen prints on the card when a team lands there.
+ */
+export const onArrivalCard = (q: TriviaQuestion) => RULE_SOURCE.get(q.city) === q.source;
+
 export interface PickOptions {
+  /** The city a team has just landed on: the question is about it. */
+  city: string;
   /** Asked already this game: never again. */
   asked: readonly string[];
-  /** Cities the team on turn could land on with this throw (its arrival card would give the answer away). */
-  near: ReadonlySet<string>;
+  /** A big screen is on, with the city's arrival card up: not the question that card answers. */
+  cardShown: boolean;
   /** The question ids each phone the question is for has seen in earlier games. */
   seen: readonly (readonly string[])[];
   /** Numbers in [0, 1). */
@@ -55,40 +65,20 @@ export interface PickOptions {
 }
 
 /**
- * The next question's id, or null once every question has been asked this game. Never one asked
- * already; then, where there's a choice: not about a city the team on turn could land on, one the
- * fewest of the phones have seen before, about a city asked about least so far this game.
+ * A question about `city`, or null when this game has none left to ask about it. Never one asked
+ * already this game, nor, with the arrival card up on a big screen, the one that card answers; where
+ * there's a choice, one the fewest of the phones have seen before.
  */
 export function pickTrivia(o: PickOptions): string | null {
-  const bank = o.bank ?? TRIVIA;
   const asked = new Set(o.asked);
-  const fresh = bank.filter((q) => !asked.has(q.id));
+  const fresh = (o.bank ?? TRIVIA).filter((q) => q.city === o.city && !asked.has(q.id) && !(o.cardShown && onArrivalCard(q)));
   if (!fresh.length) return null;
   const seen = o.seen.map((ids) => new Set(ids));
-  const cityOf = new Map(bank.map((q) => [q.id, q.city]));
-  const perCity = new Map<string, number>();
-  for (const id of o.asked) {
-    const city = cityOf.get(id) ?? id.replace(/-\d+$/, "");
-    perCity.set(city, (perCity.get(city) ?? 0) + 1);
-  }
-  const score = (q: TriviaQuestion) => [o.near.has(q.city) ? 1 : 0, seen.filter((s) => s.has(q.id)).length, perCity.get(q.city) ?? 0];
-  let best: number[] | null = null;
-  let pool: TriviaQuestion[] = [];
-  for (const q of fresh) {
-    const s = score(q);
-    const cmp = best ? compare(s, best) : -1;
-    if (cmp < 0) {
-      best = s;
-      pool = [q];
-    } else if (cmp === 0) pool.push(q);
-  }
+  const times = (q: TriviaQuestion) => seen.filter((s) => s.has(q.id)).length;
+  const least = Math.min(...fresh.map(times));
+  const pool = fresh.filter((q) => times(q) === least);
   return pool[Math.floor(o.random() * pool.length)].id;
 }
-
-const compare = (a: number[], b: number[]) => {
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
-  return 0;
-};
 
 /** Every question's source, grouped by city in board order, each listed once (the credits page). */
 export function triviaSources(bank: readonly TriviaQuestion[] = TRIVIA): { city: string; sources: string[] }[] {
