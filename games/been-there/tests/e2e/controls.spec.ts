@@ -79,14 +79,26 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，行动窗口�
       const asked = answers.length;
       // Four firm jolts, back to back. (Made by hand: WebKit, iPhone's engine, won't let a page build a
       // DeviceMotionEvent. And no timers in between, which a slow test browser may stretch.)
-      await p.page.evaluate(() => {
-        for (let i = 0; i < 4; i++) {
-          const e = new Event("devicemotion");
-          Object.defineProperties(e, { acceleration: { value: { x: 22, y: 4, z: 0 } }, accelerationIncludingGravity: { value: { x: 22, y: 13, z: 0 } } });
-          window.dispatchEvent(e);
-        }
-      });
-      await expect.poll(() => answers.length, { message: "the shake sends a roll", timeout: 3_000 }).toBeGreaterThan(asked);
+      const shake = () =>
+        p.page.evaluate(() => {
+          for (let i = 0; i < 4; i++) {
+            const e = new Event("devicemotion");
+            Object.defineProperties(e, { acceleration: { value: { x: 22, y: 4, z: 0 } }, accelerationIncludingGravity: { value: { x: 22, y: 13, z: 0 } } });
+            window.dispatchEvent(e);
+          }
+        });
+      // The page starts listening for motion just after it draws the hint (an effect, after paint): on
+      // a busy test machine a shake that comes at once can come before it, so one that did nothing is
+      // shaken again. (One that counted makes any more within 1.5 s count for nothing.)
+      await expect
+        .poll(
+          async () => {
+            if (answers.length === asked) await shake();
+            return answers.length;
+          },
+          { message: "the shake sends a roll", timeout: 3_000, intervals: [300] },
+        )
+        .toBeGreaterThan(asked);
       await expect.poll(throws, { message: "the dice are thrown", timeout: 5_000 }).toBeGreaterThan(before);
     }
   }
