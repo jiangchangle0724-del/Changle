@@ -17,7 +17,8 @@ import { serverNow, update } from "../store";
 import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
 import { LandStamp, Ride } from "./Ride";
-import { ridesOn, walkOf, type RidePlan } from "./ridePlan";
+import { moveInPlay, ridesOn, walkOf, type RidePlan } from "./ridePlan";
+import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
 
 export { reducedMotion };
@@ -66,7 +67,7 @@ export function moodOf(v: RoomView, seat: number): Mood {
 export const thisGame = (v: RoomView) => (f: FeedItem) => !v.game || f.at >= v.game.startedAt;
 
 /** The latest flight: a token reaching a city in a different region from the last city it visited. */
-export function latestFlight(v: RoomView): Flight | null {
+export function latestFlight(v: RoomView): (Flight & { seat: number }) | null {
   const lands = v.feed.filter((f) => f.t === "game" && f.e.t === "land" && CITY_AT[(f.e as { at: number }).at]).filter(thisGame(v)) as {
     id: number;
     e: Extract<GameEvent, { t: "land" }>;
@@ -81,7 +82,24 @@ export function latestFlight(v: RoomView): Flight | null {
     from = CITY_AT[lands[i].e.at];
     break;
   }
-  return from && from.group !== to.group ? { from: from.id, to: to.id, key: last.id } : null;
+  return from && from.group !== to.group ? { from: from.id, to: to.id, key: last.id, seat: last.e.p } : null;
+}
+
+/** A flight takes off a moment after the token is down on its city: the stamp first, then the trip. */
+const TAKE_OFF = 250;
+
+/**
+ * The latest flight as the map flies it: the team's own token flies the route, taking off a moment
+ * after its token is down on the ring and stamped (it walks there first: nothing tells the landing
+ * before the stamp), on every screen in step with the move. A flight seen after its move is over goes
+ * at once. (The big screen's globe flies it once the move has played: GlobeLayer.)
+ */
+export function flightToFly(v: RoomView): Flight | null {
+  const f = latestFlight(v);
+  if (!f) return null;
+  const m = moveInPlay(v);
+  const at = m && m.seat === f.seat ? performance.now() + (m.land + TAKE_OFF - serverNow()) : undefined;
+  return { from: f.from, to: f.to, key: f.key, kind: teamOf(v, f.seat)?.color ?? f.seat, at };
 }
 
 /**
@@ -172,6 +190,9 @@ export function Board({
     return [{ seat, at: p.pos, kind, mood: moodOf(v, seat), badge: { color: TEAM_COLORS[kind], letter: TEAM_LETTERS[kind] } }];
   });
   const tokenScale = big ? TOKEN_SCALE.tv : TOKEN_SCALE.phone;
+  // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
+  // show the globe) the board draws it flat, under the ring.
+  const sat = !(globe && globeWanted());
   let table = (
     <RoundBoard
       marks={marks}
@@ -180,13 +201,14 @@ export function Board({
       active={s.ps[s.turn]?.pos}
       turn={s.turn}
       tokenScale={tokenScale}
-      flight={latestFlight(v)}
+      flight={globe && globeOn ? null : flightToFly(v)}
       onPick={ride ? undefined : setOpen}
       reduced={reducedMotion()}
       rig={rig}
       riding={ride ? ride.seat : null}
       focusAt={focusAt}
       walks={walks}
+      sat={sat}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -224,7 +246,7 @@ export function Board({
           a flight on it waits for the token to land) */}
       {globe && (
         <div class="board-cam board-under">
-          <GlobeLayer flight={ride ? null : latestFlight(v)} focus={CITY_AT[focus]?.id ?? null} onOn={setGlobeOn} />
+          <GlobeLayer flight={ride ? null : flightToFly(v)} focus={CITY_AT[focus]?.id ?? null} onOn={setGlobeOn} busy={!!ride} />
         </div>
       )}
       {/* (the map's size and where it's dragged to: ui/mapView.ts) */}
