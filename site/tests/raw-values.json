@@ -4,24 +4,16 @@
     "shadow": 6
   },
   "src/styles/account.css": {
-    "font": 35,
-    "color": 7,
-    "shadow": 23,
-    "radius": 28,
-    "time": 7
-  },
-  "src/styles/admin.css": {
-    "font": 9,
-    "color": 2,
-    "shadow": 8,
+    "color": 4,
+    "shadow": 12,
     "radius": 3
   },
+  "src/styles/admin.css": {
+    "shadow": 2
+  },
   "src/styles/avatar.css": {
-    "font": 8,
-    "color": 13,
-    "shadow": 12,
-    "radius": 8,
-    "time": 8
+    "color": 4,
+    "shadow": 7
   },
   "src/styles/online.css": {
     "font": 52,
