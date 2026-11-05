@@ -110,8 +110,30 @@ export function Euchre({ onBack }: { onBack: () => void }) {
 
   const v = viewOf(st.current, 0, SEATS, target);
 
+  const dealNext = () => {
+    const s = st.current;
+    if (!s) return;
+    if (s.phase === "end") start();
+    else if (s.phase === "hand") {
+      nextHand(s, Math.random);
+      sfx.shuffle();
+      bump();
+    }
+  };
+  const actions =
+    v.phase === "setup" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={start}>
+        <Play size={18} />
+        {zh ? "发牌" : "Deal"}
+      </button>
+    ) : (v.phase === "hand" || v.phase === "end") && v.result ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={dealNext}>
+        {v.phase === "end" ? (zh ? "再来一局" : "Play again") : zh ? "发下一手" : "Deal the next hand"}
+      </button>
+    ) : undefined;
+
   return (
-    <GameShell title={GAME_BY_ID.euchre.name} rules={<EuchreRules />} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={GAME_BY_ID.euchre.name} rules={<EuchreRules />} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} status={v.phase !== "setup" ? { kind: "round", current: v.handNo } : undefined} actions={actions}>
       {v.phase === "setup" ? (
         <div className="eu eu-setup">
           <p className="eu-setup-lead">{zh ? "你和对面的电脑一队，对打左右两个电脑。" : "You and the bot across from you are a team, against the two bots on either side."}</p>
@@ -142,10 +164,6 @@ export function Euchre({ onBack }: { onBack: () => void }) {
                 </button>
               ))}
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={start}>
-              <Play size={18} />
-              {zh ? "发牌" : "Deal"}
-            </button>
           </div>
         </div>
       ) : (
@@ -156,16 +174,7 @@ export function Euchre({ onBack }: { onBack: () => void }) {
             haptic(8);
             move(0, mv);
           }}
-          onNext={() => {
-            const s = st.current;
-            if (!s) return;
-            if (s.phase === "end") start();
-            else if (s.phase === "hand") {
-              nextHand(s, Math.random);
-              sfx.shuffle();
-              bump();
-            }
-          }}
+
         />
       )}
     </GameShell>

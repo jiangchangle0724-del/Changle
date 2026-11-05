@@ -2,23 +2,29 @@
   "name": "@changle/hang-on",
   "version": "0.1.0",
   "private": true,
-  "description": "抓紧了 · Hang On：Rapier2D 物理（A1）。手感原型在 proto/，契约在 CONTRACTS.md。",
+  "description": "抓紧了 · Hang On：Rapier2D 物理（A1）、房间和局域网链路（A2）、页面。契约在 CONTRACTS.md。",
   "type": "module",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "wrangler types > /dev/null && tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
+    "build": "vite build",
+    "dev": "node scripts/dev.mjs",
     "play": "vite --open /play.html",
     "record": "vite --open /play.html?record=1",
     "ip-check": "node scripts/ip-check.mjs",
-    "build": "vite build"
+    "link-check": "node scripts/link-check.mjs",
+    "deploy": "vite build && wrangler deploy"
   },
   "dependencies": {
-    "@dimforge/rapier2d-compat": "0.21.0"
+    "@dimforge/rapier2d-compat": "0.21.0",
+    "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
+    "playwright": "^1.63.0",
     "typescript": "^5.6.0",
     "vite": "^7.3.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "wrangler": "4.157.0"
   }
 }

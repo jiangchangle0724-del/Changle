@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+<title>抓紧了 · Hang On · 手柄</title>
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1d2a4a">
+<style>
+  :root {
+    --bg: #1d2a4a; --ink: #fff6e9; --ink-soft: #d9d2e8; --panel: rgba(16, 20, 40, .62); --card: #f8efe2; --card-ink: #2a1f3a;
+    --p0: #F28CA6; --p1: #9BCF83; --p2: #F8C56D; --p3: #8EC5E8; --glove-l: #63b3ed; --glove-r: #f6ad55;
+    --good: #9BCF83; --warn: #F8C56D; --bad: #ef5a5a;
+    --font-display: "Baloo 2", "Noto Sans SC", system-ui, sans-serif;
+    --font-body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+    --mine: var(--p0);
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; touch-action: none; -webkit-touch-callout: none; }
+  button { font: inherit; }
+  .btn { background: var(--ink); color: var(--card-ink); border: 0; border-radius: 999px; padding: 12px 20px; font-weight: 700; font-size: 16px; cursor: pointer; min-height: 48px; }
+  .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
+  .btn:disabled { opacity: .5; }
+
+  /* 加入 */
+  #join { position: fixed; inset: 0; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-left, 0px)); }
+  .card { background: var(--card); color: var(--card-ink); border-radius: 22px; padding: 24px 24px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); box-sizing: border-box; }
+  .card h1 { font-family: var(--font-display); font-weight: 800; font-size: 26px; margin: 0 0 4px; }
+  .card p { margin: 0 0 12px; line-height: 1.6; font-size: 14px; }
+  .field { display: grid; gap: 6px; margin-bottom: 12px; }
+  .field label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+  .field input { font: inherit; font-size: 20px; padding: 10px 12px; border-radius: 12px; border: 2px solid rgba(42,31,58,.2); background: #fff; color: var(--card-ink); min-height: 48px; box-sizing: border-box; width: 100%; }
+  .field input.code { font-family: var(--font-display); font-weight: 800; letter-spacing: .3em; text-transform: uppercase; font-size: 28px; }
+  .card .btn { background: var(--card-ink); color: var(--ink); width: 100%; }
+  .err { color: var(--bad); font-weight: 700; min-height: 1.4em; }
+
+  /* 手柄 */
+  #pad { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr; }
+  .bar { display: flex; align-items: center; gap: 8px; padding: calc(6px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px)); font-size: 13px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+  .bar .me { display: inline-flex; align-items: center; gap: 8px; background: var(--mine); color: var(--card-ink); border-radius: 999px; padding: 4px 12px 4px 6px; font-weight: 700; }
+  .bar .me .dot { width: 14px; height: 14px; border-radius: 50%; background: rgba(0,0,0,.25); }
+  .bar .chip { background: var(--panel); border-radius: 999px; padding: 4px 10px; display: inline-flex; gap: 6px; align-items: center; }
+  .bar .hand { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--glove-l); box-sizing: border-box; }
+  .bar .hand.r { border-color: var(--glove-r); }
+  .bar .hand.on { background: var(--glove-l); } .bar .hand.r.on { background: var(--glove-r); }
+  .bar .ms.good { color: var(--good); } .bar .ms.warn { color: var(--warn); } .bar .ms.bad { color: var(--bad); }
+  .bar .conn { margin-left: auto; opacity: .85; }
+  .bar .conn.bad { color: var(--bad); opacity: 1; font-weight: 700; }
+  .zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); min-height: 0; }
+  .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,.06); border: 2px dashed rgba(255,255,255,.22); overflow: hidden; }
+  .stickzone .hint { position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; color: var(--ink-soft); text-align: center; line-height: 1.5; pointer-events: none; }
+  .stick { position: absolute; width: 140px; height: 140px; margin: -70px 0 0 -70px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); pointer-events: none; }
+  .stick .knob { position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%; background: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+  .grabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grab { border-radius: 22px; border: 3px solid var(--glove-l); background: rgba(99,179,237,.14); color: var(--ink); font-family: var(--font-display); font-weight: 800; font-size: 26px; display: grid; place-items: center; line-height: 1.1; text-align: center; touch-action: none; }
+  .grab small { font-family: var(--font-body); font-weight: 500; font-size: 12px; opacity: .8; }
+  .grab.r { border-color: var(--glove-r); background: rgba(246,173,85,.14); }
+  .grab.down { background: var(--glove-l); color: var(--card-ink); }
+  .grab.r.down { background: var(--glove-r); }
+  .flash { position: fixed; inset: 0; background: var(--bad); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .flash.on { opacity: .6; transition: none; }
+  .turn { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); text-align: center; padding: 24px; font-size: 18px; line-height: 1.6; z-index: 5; }
+  @media (orientation: landscape) { .turn { display: none; } }
+  @media (orientation: portrait) and (min-width: 700px) { .turn { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .flash { transition: none; } }
+</style>
+</head>
+<body>
+<div id="join">
+  <form class="card" id="joinForm">
+    <h1>抓紧了 · Hang On</h1>
+    <p>电视上的房间码，和你的名字。</p>
+    <div class="field"><label for="code">房间码</label><input id="code" class="code" inputmode="latin" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="ABCD" required></div>
+    <div class="field"><label for="name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="糯米团"></div>
+    <p class="err" id="err"></p>
+    <button class="btn" id="joinBtn" type="submit">加入</button>
+  </form>
+</div>
+
+<div id="pad" hidden>
+  <div class="bar">
+    <span class="me"><span class="dot"></span><span id="meName">糯米团</span></span>
+    <span class="chip" title="左手 / 右手"><span class="hand" id="handL"></span><span class="hand r" id="handR"></span></span>
+    <span class="chip">💀 <b id="deaths">0</b></span>
+    <span class="chip">⏱ <b class="ms" id="rtt">—</b></span>
+    <span class="chip" id="path">连接中</span>
+    <span class="conn" id="conn">连接中…</span>
+  </div>
+  <div class="zones">
+    <div class="stickzone" id="stickzone">
+      <div class="hint">这边按住拖动<br>= 方向</div>
+      <div class="stick" id="stick" hidden><div class="knob" id="knob"></div></div>
+    </div>
+    <div class="grabs">
+      <button class="grab" id="grabL" type="button" aria-label="左手抓">左手<small>按住 = 抓</small></button>
+      <button class="grab r" id="grabR" type="button" aria-label="右手抓">右手<small>按住 = 抓</small></button>
+    </div>
+  </div>
+</div>
+<div class="flash" id="flash"></div>
+<div class="turn" id="turn" hidden>把手机横过来<br><small>左手拖方向，右手两个大键抓</small></div>
+
+<script type="module" src="/src/pad/main.ts"></script>
+</body>
+</html>

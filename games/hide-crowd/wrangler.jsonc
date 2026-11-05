@@ -1,0 +1,28 @@
+// Cloudflare settings for 藏在人群里 · Hide in the Crowd: its own Worker, one of changle.ca's games,
+// like 到此一游 (games/been-there). Once Cloudflare is connected to the repository (README.md, the
+// one-time step), merging into main builds the pages into dist/client/hide and deploys. No secrets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hide-crowd",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-19",
+  // The pages are in dist/client/hide, so they answer at /hide/…; the API and the room, big-screen,
+  // practice and credits links go to the Worker first.
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/hide", "/hide/", "/hide/api/*", "/hide/r/*", "/hide/tv", "/hide/tv/*", "/hide/practice", "/hide/credits"]
+  },
+  // One of changle.ca's games: it answers at changle.ca/hide. (The rest of changle.ca is the site.)
+  // With routes set, wrangler leaves the workers.dev address off, so /hide is its only address.
+  "routes": [
+    { "pattern": "changle.ca/hide", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/hide/*", "zone_name": "changle.ca" }
+  ],
+  // One Durable Object per room. SQLite-backed Durable Objects work on Cloudflare's free plan.
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "HideRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HideRoom"] }],
+  "build": { "command": "node scripts/build.mjs" },
+  "observability": { "enabled": true }
+}

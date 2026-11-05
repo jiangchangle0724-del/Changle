@@ -1,20 +1,28 @@
-# 抓紧了 · Hang On：物理的 20 条手感检查和附加检查、类型检查、法律线（docs/ 之外不出现原版的名字）。
-# 只在 games/hang-on 变动时跑。
+# 抓紧了 · Hang On：物理的 20 条手感检查和附加检查、房间逻辑、类型检查、页面构建、法律线
+# （docs/ 之外不出现原版的名字），以及联机检查（一台主机页加两个手柄页对着本地的房间服务：
+# 直连、绕路、掐线 5 秒内回来）。只在 games/hang-on 变动时跑。
 name: hang-on
 
 on:
   push:
+    branches: [main]
     paths: ["games/hang-on/**", ".github/workflows/hang-on.yml"]
   pull_request:
     paths: ["games/hang-on/**", ".github/workflows/hang-on.yml"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  physics:
+  checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: games/hang-on
+    env:
+      WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -25,4 +33,36 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
       - run: npm run ip-check
+
+  link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: games/hang-on
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/hang-on/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: 起本地房间服务
+        run: |
+          (npx wrangler dev --port 8787 --ip 127.0.0.1 > wrangler.log 2>&1 &)
+          for i in $(seq 1 45); do
+            if curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8787/hang-on/api/rooms | grep -q 200; then echo up; exit 0; fi
+            sleep 2
+          done
+          echo "wrangler dev 没起来"; cat wrangler.log; exit 1
+      - run: npm run link-check
+      - run: cat wrangler.log
+        if: failure()

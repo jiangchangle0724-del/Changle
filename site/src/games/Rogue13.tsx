@@ -199,7 +199,7 @@ export function PlayingCard({ card, onDraw, drawLabel, canDraw = true }: { card:
         transition={{ type: "spring", stiffness: 260, damping: 24 }}
         style={{ transformStyle: "preserve-3d" }}
       >
-        <button type="button" className="pcard-face pcard-back" onClick={onDraw} aria-label={drawLabel} disabled={!canDraw} style={canDraw ? undefined : { cursor: "default" }}>
+        <button type="button" className="pcard-face pcard-back" onClick={onDraw} aria-label={canDraw ? undefined : drawLabel} disabled={!canDraw} style={canDraw ? undefined : { cursor: "default" }}>
           <svg viewBox="0 0 200 280" aria-hidden="true">
             <defs>
               <pattern id="lattice" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
