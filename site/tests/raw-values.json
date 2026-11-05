@@ -1,0 +1,72 @@
+{
+  "src/styles/home.css": {
+    "font": 40,
+    "color": 10,
+    "shadow": 18,
+    "radius": 24,
+    "time": 18
+  },
+  "src/styles/account.css": {
+    "font": 35,
+    "color": 7,
+    "shadow": 23,
+    "radius": 28,
+    "time": 7
+  },
+  "src/styles/admin.css": {
+    "font": 9,
+    "color": 2,
+    "shadow": 8,
+    "radius": 3
+  },
+  "src/styles/avatar.css": {
+    "font": 8,
+    "color": 13,
+    "shadow": 12,
+    "radius": 8,
+    "time": 8
+  },
+  "src/styles/online.css": {
+    "font": 52,
+    "color": 7,
+    "shadow": 18,
+    "radius": 22,
+    "time": 13
+  },
+  "src/styles/tools.css": {
+    "font": 23,
+    "color": 1,
+    "shadow": 9,
+    "radius": 11,
+    "time": 3
+  },
+  "src/styles/components.css": {
+    "font": 32,
+    "color": 12,
+    "shadow": 7,
+    "radius": 10,
+    "time": 3
+  },
+  "src/styles/global.css": {
+    "font": 22,
+    "color": 5,
+    "shadow": 11,
+    "radius": 11,
+    "time": 19
+  },
+  "src/styles/landscape.css": {
+    "font": 7
+  },
+  "src/components/PlayersSheet.tsx": {
+    "font": 1
+  },
+  "src/components/SettingsSheet.tsx": {
+    "font": 2
+  },
+  "src/online/OnlineSheet.tsx": {
+    "font": 1
+  },
+  "src/online/TableSheet.tsx": {
+    "font": 3
+  }
+}
