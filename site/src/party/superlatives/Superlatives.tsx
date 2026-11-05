@@ -2,6 +2,7 @@ import { Check, Shuffle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TITLES } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import type { PenaltyCall } from "../../components/PenaltyStamp";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
@@ -14,26 +15,47 @@ import "../../styles/party.css";
 
 type Mode = "secret" | "point";
 type Phase = { k: "setup" } | { k: "pass"; i: number } | { k: "ballot"; i: number } | { k: "point" } | { k: "reveal"; winners: string[]; counts: Record<string, number> } | { k: "ceremony" };
+type Kept = { mode: Mode; total: number; round: number; title: T; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
 
 /** One phone: pass it round for a secret ballot, or count fingers and tap the winner. */
 export function Superlatives({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="superlatives" version={1}>
+      {(saved) => <SuperGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, lang } = useStore();
   const zh = lang === "zh";
-  const deck = useRef(new Deck<T>(TITLES));
-  const [mode, setMode] = useState<Mode>("secret");
-  const [total, setTotal] = useState(8);
-  const [round, setRound] = useState(1);
-  const [title, setTitle] = useState<T>(() => deck.current.draw().card);
-  const [phase, setPhase] = useState<Phase>({ k: "setup" });
-  const [votes, setVotes] = useState<Record<string, string>>({});
-  const [picked, setPicked] = useState<string[]>([]);
-  const [awards, setAwards] = useState<Record<string, T[]>>({});
+  const [firstDeck] = useState(() => {
+    const deck = new Deck<T>(TITLES);
+    if (saved) deck.restore(saved.cards);
+    return deck;
+  });
+  const deck = useRef(firstDeck);
+  const [mode, setMode] = useState<Mode>(saved?.mode ?? "secret");
+  const [total, setTotal] = useState(saved?.total ?? 8);
+  const [round, setRound] = useState(saved?.round ?? 1);
+  const [title, setTitle] = useState<T>(() => saved?.title ?? deck.current.draw().card);
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? { k: "setup" });
+  const [votes, setVotes] = useState<Record<string, string>>(saved?.votes ?? {});
+  const [picked, setPicked] = useState<string[]>(saved?.picked ?? []);
+  const [awards, setAwards] = useState<Record<string, T[]>>(saved?.awards ?? {});
+  const [paid, setPaid] = useState(saved?.paid ?? false);
+  const [advance, setAdvance] = useState(saved?.advance ?? false);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
   const name = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p.name])), [players]);
   const face = (id: string) => (size: number) => <NameFace name={name[id] ?? "?"} size={size} />;
+  // Hide private ballots again; a vote in the 220 ms hand-off already belongs to the next voter.
+  const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i + (votes[players[phase.i].id] ? 1 : 0) } : phase;
+  useKeepProgress<Kept>({ mode, total, round, title, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
 
   const startRound = () => {
+    setPaid(false);
+    setAdvance(false);
     setVotes({});
     setPicked([]);
     setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
@@ -53,6 +75,7 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
     const call: PenaltyCall = { who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en };
     const timer = window.setTimeout(() => {
       stamp.current = null;
+      setPaid(true);
       penalty.show(call);
     }, 2900);
     stamp.current = { timer, call };
@@ -81,9 +104,12 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
     if (waiting) {
       window.clearTimeout(waiting.timer);
       stamp.current = null;
+      setPaid(true);
+      setAdvance(true);
       penalty.show(waiting.call, next);
       return;
     }
+    setAdvance(false);
     if (round >= total) {
       setPhase({ k: "ceremony" });
       sfx.win();
@@ -93,6 +119,26 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
     setTitle(deck.current.draw().card);
     startRound();
   };
+
+  // Replay only the waiting step, never an award or a penalty that already landed.
+  const advanced = useRef(false);
+  useEffect(() => {
+    if (saved?.advance && saved.paid) {
+      if (advanced.current) return;
+      advanced.current = true;
+      next();
+    } else if (saved?.phase.k === "reveal" && !saved.paid) {
+      const call: PenaltyCall = { who: saved.phase.winners.map((id) => name[id]), kind: "sip", note: zh ? title.zh : title.en };
+      const timer = window.setTimeout(() => {
+        stamp.current = null;
+        setPaid(true);
+        penalty.show(call);
+      }, 2900);
+      stamp.current = { timer, call };
+    }
+    // The restored reveal is initialized once; later reveals schedule their own stamp.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const rules = (
     <p>
