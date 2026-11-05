@@ -4,6 +4,9 @@ import { KINDS, type DramaScene } from "../data/drama";
 import type { T } from "../i18n";
 import { api } from "../lib/api";
 import { useStore } from "../store";
+import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
+import { useToast } from "../ui/Toast";
 
 type Sent = { id: number; uid: string; name: string; email: string; lang: string; status: "new" | "live" | "no"; at: number; scene: DramaScene };
 type List = { waiting: Sent[]; live: Sent[]; counts: { waiting: number; live: number } };
@@ -13,17 +16,20 @@ type List = { waiting: Sent[]; live: Sent[]; counts: { waiting: number; live: nu
  * (every table can draw them, with the writer's name) or turned down; a live one can come off.
  */
 export function AdminScenes() {
+  const toast = useToast();
   const { lang } = useStore();
   const zh = lang === "zh";
   const [list, setList] = useState<List | null>(null);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(0);
   const [showLive, setShowLive] = useState(false);
 
   const load = useCallback(async () => {
+    setFailed(false);
     try {
       setList(await api<List>("/admin/scenes"));
     } catch {
-      /* the page shows the network notice */
+      setFailed(true);
     }
   }, []);
   useEffect(() => {
@@ -35,6 +41,8 @@ export function AdminScenes() {
     try {
       await api(`/admin/scenes/${id}`, { body: { status } });
       await load();
+    } catch {
+      toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
     } finally {
       setBusy(0);
     }
@@ -98,7 +106,7 @@ export function AdminScenes() {
         {zh ? "戏精大赏 · 剧本投稿" : "Drama Queens · scenes sent in"}
         {!!list?.counts.waiting && <span className="adm-badge tabular">{list.counts.waiting}</span>}
       </h2>
-      {list && !list.waiting.length && <p className="hint adm-empty">{zh ? "没有等审核的剧本。" : "Nothing waiting."}</p>}
+      {failed ? <EmptyState tone="error" title={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => void load() }} /> : !list ? <Skeleton lang={lang} lines={3} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} /> : !list.waiting.length && <EmptyState title={zh ? "没有等审核的剧本。" : "Nothing waiting."} />}
       {list?.waiting.map((x) => card(x, "review"))}
       {!!list?.live.length && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowLive((s) => !s)}>
