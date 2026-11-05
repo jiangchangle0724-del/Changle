@@ -106,6 +106,8 @@ export function TubePlayer({ v, zh, nameOf, now, done }: { v: DjView; zh: boolea
 
   if (!song) return null;
   const req = v.deck.now?.id === song.id ? v.deck.now : null;
+  // the playlist's next, after the DJ's turn
+  const next = v.deck.up;
   const title = req?.text ?? null;
   return (
     <section className={`dj-tube ${due ? "is-on" : ""}`} aria-label={zh ? "整首歌" : "The whole song"}>
@@ -118,7 +120,17 @@ export function TubePlayer({ v, zh, nameOf, now, done }: { v: DjView; zh: boolea
       </div>
       <p className="dj-tube-note">
         <SkipForward size={16} aria-hidden="true" />
-        {stuck ? (zh ? "没自己开始的话，点一下视频" : "If it hasn't started, tap the video") : zh ? "放完 DJ 就回来；点歌的人和主人在手机上可以切歌" : "The DJ comes back when it ends; whoever asked, or the host, can skip it from their phone"}
+        {stuck
+          ? zh
+            ? "没自己开始的话，点一下视频"
+            : "If it hasn't started, tap the video"
+          : next
+            ? zh
+              ? `放完 DJ 接一段，再放 ${nameOf(next.by)} 点的歌。点歌的人和主人在手机上可以切歌`
+              : `When it ends the DJ plays a while, then ${nameOf(next.by)}'s song. Whoever asked, or the host, can skip it from their phone`
+            : zh
+              ? "放完 DJ 就回来；点歌的人和主人在手机上可以切歌"
+              : "The DJ comes back when it ends; whoever asked, or the host, can skip it from their phone"}
       </p>
     </section>
   );

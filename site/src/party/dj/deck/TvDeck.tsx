@@ -71,7 +71,7 @@ export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
             <ListMusic size={24} aria-hidden="true" />
             <span>
               {zh ? `下一首：${reqLine(d.up, nameOf(d.up.by), zh)}` : `Up next: ${reqLine(d.up, nameOf(d.up.by), zh)}`}
-              {d.reqs.length > 0 && <small>{zh ? ` · 后面还有 ${d.reqs.length} 首` : ` · ${d.reqs.length} more waiting`}</small>}
+              {d.reqs.length > 0 && <small>{zh ? ` · 歌单里还有 ${d.reqs.length} 首${v.shuffle ? "，随机放" : ""}` : ` · ${d.reqs.length} more on the playlist${v.shuffle ? ", shuffled" : ""}`}</small>}
             </span>
           </span>
         )}

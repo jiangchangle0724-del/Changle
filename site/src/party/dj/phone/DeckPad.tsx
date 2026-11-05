@@ -1,9 +1,9 @@
-import { ChevronsUp, ListMusic, X } from "lucide-react";
+import { ChevronsUp, ListMusic, ListOrdered, Shuffle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { heatLean } from "../../../shared/dj/curve";
 import { chargeNow, COLD_LEAN, countdown, cued, grade, hasB, hintFor, loaded, offAir, onAir, pressBy, reqOrder, rested, tally } from "../../../shared/dj/deck";
-import { DECK, MOVES, PAD_IDS, REQ_CHARS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
+import { DECK, MOVES, OVER_SONG, PAD_IDS, REQ_CHARS, STYLE_IDS, type DeckSide, type PadId, type StyleId } from "../../../shared/dj/types";
 import type { DjView, ReqView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
 import { useStore } from "../../../store";
@@ -32,8 +32,9 @@ export function DeckPad({ v }: { v: DjView }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const d = v.deck;
-  // (while a whole song plays on the TV, the deck waits)
-  const live = v.phase !== "wait" && v.phase !== "end" && !d.song;
+  // (while a whole song plays on the TV, the deck waits, all but the pads that are a sound of their own)
+  const playingNow = v.phase !== "wait" && v.phase !== "end";
+  const live = playingNow && !d.song;
   const t = now();
   // smooth while something moves: the countdown, the build-up falling back
   useTicker(live && (!!d.drop || chargeNow(d, t) > 0), d.drop ? 50 : 200);
@@ -87,7 +88,7 @@ export function DeckPad({ v }: { v: DjView }) {
         <Fader v={v} me={me} now={now} g={g} nameOf={nameOf} zh={zh} live={live} />
         <div className="djk-pads">
           {PAD_IDS.map((p) => (
-            <Pad key={p} pad={p} live={live} braking={MOVES.includes(p) && !!d.drop} g={g} zh={zh} />
+            <Pad key={p} pad={p} live={live || (playingNow && !!d.song && OVER_SONG.includes(p))} braking={MOVES.includes(p) && !!d.drop} g={g} zh={zh} />
           ))}
         </div>
         <BuildDrop v={v} now={now} g={g} zh={zh} live={live} />
@@ -98,6 +99,7 @@ export function DeckPad({ v }: { v: DjView }) {
         ))}
       </p>
       <Requests v={v} me={me} g={g} zh={zh} />
+      <Playlist v={v} me={me} g={g} zh={zh} />
       <Picks v={v} me={me} g={g} zh={zh} side={off} />
     </section>
   );
@@ -117,7 +119,7 @@ function SongTime({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; zh: b
       <span className="djk-song-title">
         {s.by === me ? (zh ? `电视上在放你点的整首${name ? ` ${name}` : ""}` : `The TV plays yours, whole${name ? `: ${name}` : ""}`) : zh ? `电视上在放 ${nameOf(s.by)} 点的整首${name ? ` ${name}` : ""}` : `The TV plays ${nameOf(s.by)}'s song, whole${name ? `: ${name}` : ""}`}
       </span>
-      <span className="djk-song-note">{zh ? "放完 DJ 就回来，打碟台先停一下" : "The DJ comes back when it ends; the deck waits till then"}</span>
+      <span className="djk-song-note">{zh ? "放完 DJ 接一段，再放歌单里的下一首。气笛、警笛这些音效照样能按" : "The DJ plays a while when it ends, then the next song on the playlist. The air horn, the siren and the other sounds still play"}</span>
       {can && (
         <button type="button" className="btn btn-ghost btn-block" onClick={() => g("songskip")}>
           {zh ? "切歌" : "Skip it"}
@@ -323,7 +325,9 @@ function BuildDrop({ v, now, g, zh, live }: { v: DjView; now: () => number; g: G
           {result.text}
         </span>
       ) : (
-        <span className="djk-build-note">{zh ? "大家一起狂点，满了倒数 Drop" : "Everyone tap fast. Full starts the count to the drop"}</span>
+        <span className="djk-build-note">
+          {d.song ? (zh ? "整首歌放完，DJ 回来再蓄力" : "Build up again once the song ends and the DJ is back") : zh ? "大家一起狂点，满了倒数 Drop" : "Everyone tap fast. Full starts the count to the drop"}
+        </span>
       )}
     </div>
   );
@@ -422,6 +426,72 @@ function search(b: Book, q: string): Entry[] {
 const ytReq = (h: YtHit) => [h.id, h.t, h.a];
 
 /**
+ * The night's 歌单 (Steve on Nov 2: "很多人点歌要把它们放到一个playlist，可选择随机排序或按顺序"):
+ * the song up next, then the waiting ones in the order they'll come up (the host's 随机: any of them
+ * next). Songs and the DJ take turns: a song, the DJ a while, the next. Whoever asked for one, and
+ * the host, can take it out; the host switches 按顺序 and 随机.
+ */
+function Playlist({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
+  const d = v.deck;
+  const { isHost, nameOf, now } = useRoom();
+  const waiting = v.shuffle ? d.reqs : reqOrder(d.reqs, d.reqOn ?? {}, now());
+  const rows = [...(d.up ? [{ r: d.up, up: true }] : []), ...waiting.map((r) => ({ r, up: false }))];
+  if (!rows.length && !isHost) return null;
+  return (
+    <section className="djk-list" aria-label={zh ? "歌单" : "Playlist"}>
+      <div className="djk-list-head">
+        <span className="djk-list-title">
+          <ListOrdered size={22} aria-hidden="true" />
+          {zh ? `歌单 ${rows.length} 首` : `Playlist: ${rows.length}`}
+        </span>
+        {isHost ? (
+          <div className="seg djk-list-seg" role="group" aria-label={zh ? "歌单怎么放" : "How the playlist plays"}>
+            <button type="button" aria-pressed={!v.shuffle} onClick={() => g("shuffle", { on: false })}>
+              {zh ? "按顺序" : "In order"}
+            </button>
+            <button type="button" aria-pressed={!!v.shuffle} onClick={() => g("shuffle", { on: true })}>
+              <Shuffle size={15} aria-hidden="true" />
+              {zh ? "随机" : "Shuffle"}
+            </button>
+          </div>
+        ) : (
+          v.shuffle && (
+            <span className="djk-list-mode">
+              <Shuffle size={15} aria-hidden="true" />
+              {zh ? "随机放" : "Shuffled"}
+            </span>
+          )
+        )}
+      </div>
+      {rows.length ? (
+        <ol className="djk-list-rows">
+          {rows.map(({ r, up }, i) => {
+            const theirs = r.by === me;
+            const name = songName(r, zh);
+            return (
+              <li key={r.id} className={`djk-list-row ${up ? "is-up" : ""} ${theirs ? "is-mine" : ""}`}>
+                <span className="djk-list-n tabular">{up ? (zh ? "下一首" : "Next") : v.shuffle ? "·" : i + 1}</span>
+                <span className="djk-list-song">
+                  <span className="djk-list-t">{name ?? (r.yt ? (zh ? "一首 YouTube 上的歌" : "A song from YouTube") : zh ? "一首歌" : "A song")}</span>
+                  <span className="djk-list-by">{theirs ? (zh ? "你点的" : "Yours") : zh ? `${nameOf(r.by)} 点的` : `${nameOf(r.by)}'s`}</span>
+                </span>
+                {(theirs || isHost) && (
+                  <button type="button" className="djk-list-out" aria-label={zh ? "从歌单拿掉" : "Take it off the playlist"} onClick={() => g("unreq", { id: r.id })}>
+                    <X size={18} aria-hidden="true" />
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="djk-list-empty">{zh ? "还没人点歌。点的歌和 DJ 轮流放" : "Nobody has asked for a song yet. The songs and the DJ take turns"}</p>
+      )}
+    </section>
+  );
+}
+
+/**
  * Ask for a song: the whole song on YouTube plays on the big screen after its drop (Steve on Nov 2:
  * a link, or a search once the owner has set YouTube's key), then the DJ's remix in its style; a
  * name with no YouTube video gets the remix alone. Suggestions come from the site's song list (a
@@ -475,14 +545,16 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     return found.hits.slice(0, hits.length ? 3 : 6).map((h, i) => ({ id: -1 - i, t: h.t, a: h.a, c: 0, tk: fold(h.t), key: fold(`${h.t} ${h.a}`), yt: h }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.local, pick, found, typed, hits, b]);
-  // where this player's song stands, in the order the room plays them (one player's two songs 10
-  // minutes apart: theirs waits behind the others' for a while)
+  // where this player's songs stand, in the order the room plays them (one player's two songs 10
+  // minutes apart: theirs waits behind the others' for a while; the host's 随机: any of them next)
   const order = reqOrder(d.reqs, d.reqOn ?? {}, now());
   const waitAt = order.findIndex((r) => r.by === me);
   const resting = waitAt >= 0 && !rested(d.reqOn ?? {}, me, now()) && waitAt > 0;
-  // (one up next or waiting comes first: one of theirs can be on the air while the next waits)
+  const mineN = d.reqs.filter((r) => r.by === me).length + (d.up?.by === me ? 1 : 0);
+  // (the one up next or waiting first; one of theirs can be on the air while the next waits)
   const mine: { r: ReqView; at: "now" | "up" | "wait"; ahead: number } | null =
     d.up?.by === me ? { r: d.up, at: "up", ahead: 0 } : waitAt >= 0 ? { r: order[waitAt], at: "wait", ahead: waitAt + (d.up ? 1 : 0) } : d.now?.by === me ? { r: d.now, at: "now", ahead: 0 } : null;
+  const enough = mineN >= DECK.reqEach;
   const full = d.reqs.length >= DECK.reqMax;
   const ended = v.phase === "end";
 
@@ -494,7 +566,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   };
   const send = (e: FormEvent) => {
     e.preventDefault();
-    if (ended || full || finding) return;
+    if (ended || full || enough || finding) return;
     if (d.local) {
       // one of the host's songs: picked, or typed out exactly (else it isn't one of them)
       const k = using ? using.fold(q.trim()) : "";
@@ -542,31 +614,21 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     });
   };
 
-  if (mine && mine.at !== "now") {
-    const song = songName(mine.r, zh) ?? "";
-    return (
-      <div className="djk-req">
-        <span className="djk-req-title">
-          <ListMusic size={24} aria-hidden="true" />
-          {zh ? "点歌" : "Ask for a song"}
-        </span>
-        <div className="djk-req-mine" aria-live="polite">
-          <span>
-            {mine.at === "up"
-              ? zh
-                ? `下一首就是你点的 ${song}，大家蓄力 Drop 进去`
-                : `Yours is up next: ${song}. Build up and drop into it`
-              : zh
-                ? `你点的 ${song} 在排队，前面还有 ${mine.ahead} 首${resting ? "。你刚放过一首，10 分钟内别人的先放" : ""}`
-                : `Yours is in line: ${song}, ${mine.ahead} ahead${resting ? ". You just had one, so for 10 minutes the others go first" : ""}`}
-          </span>
-          <button type="button" className="djk-req-cancel" onClick={() => g("unreq", { id: mine.r.id })}>
-            {zh ? "不点了" : "Take it back"}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // where theirs stands, over the box
+  const standing =
+    mine && mine.at !== "now"
+      ? mine.at === "up"
+        ? zh
+          ? `下一首就是你点的 ${songName(mine.r, zh) ?? ""}，大家蓄力 Drop 进去`
+          : `Yours is up next: ${songName(mine.r, zh) ?? ""}. Build up and drop into it`
+        : v.shuffle
+          ? zh
+            ? `你点的歌在歌单里，随机放`
+            : `Yours is on the playlist, played in a random order`
+          : zh
+            ? `你点的 ${songName(mine.r, zh) ?? ""} 在排队，前面还有 ${mine.ahead} 首${resting ? "。你刚放过一首，10 分钟内别人的先放" : ""}`
+            : `Yours is in line: ${songName(mine.r, zh) ?? ""}, ${mine.ahead} ahead${resting ? ". You just had one, so for 10 minutes the others go first" : ""}`
+      : null;
 
   return (
     <form className="djk-req" onSubmit={send}>
@@ -574,15 +636,24 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
         <ListMusic size={24} aria-hidden="true" />
         {zh ? "点歌" : "Ask for a song"}
       </span>
+      {standing && (
+        <span className="djk-req-mine" aria-live="polite">
+          {standing}
+        </span>
+      )}
       <span className="djk-req-note">
-        {mine?.at === "now"
+        {enough
+          ? zh
+            ? `你在歌单里有 ${DECK.reqEach} 首了，放掉一首再点`
+            : `You have ${DECK.reqEach} on the playlist. Ask again once one has played`
+          : mine?.at === "now"
           ? mine.r.local || mine.r.yt
             ? zh
-              ? `正在放你点的 ${songName(mine.r, zh) ?? ""}，还可以再点一首`
-              : `Yours is on: ${songName(mine.r, zh) ?? ""}. You can ask for another`
+              ? `正在放你点的 ${songName(mine.r, zh) ?? ""}，还可以再点`
+              : `Yours is on: ${songName(mine.r, zh) ?? ""}. You can ask for more`
             : zh
-              ? `正在放 DJ 按 ${songName(mine.r, zh) ?? ""} 做的 Remix（YouTube 上没找到这首），还可以再点一首`
-              : `On now: the DJ's remix for ${songName(mine.r, zh) ?? ""} (not found on YouTube). You can ask for another`
+              ? `正在放 DJ 按 ${songName(mine.r, zh) ?? ""} 做的 Remix（YouTube 上没找到这首），还可以再点`
+              : `On now: the DJ's remix for ${songName(mine.r, zh) ?? ""} (not found on YouTube). You can ask for more`
           : full
             ? zh
               ? `点歌排满了（${DECK.reqMax} 首），放掉几首再点`
@@ -621,7 +692,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
             open();
             setQ(e.target.value);
           }}
-          disabled={ended}
+          disabled={ended || enough}
         />
       )}
       {hits.length + onTube.length > 0 && (
@@ -646,7 +717,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
         </ul>
       )}
       {failed && !using && <span className="djk-req-note">{d.local ? (zh ? "歌单没加载出来，等一下再点" : "The song list didn't load. Try again in a moment") : zh ? "曲库没加载出来，直接输入歌名也行" : "The song list didn't load. Typing the name works too"}</span>}
-      <button type="submit" className="djk-req-send" disabled={ended || full || finding || (!pick && !q.trim())}>
+      <button type="submit" className="djk-req-send" disabled={ended || full || enough || finding || (!pick && !q.trim())}>
         {finding ? (zh ? "在找这首歌…" : "Finding it…") : zh ? "点这首" : "Ask for it"}
       </button>
     </form>
