@@ -1,11 +1,9 @@
-import { createContext, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { API, SERVER } from "../config";
 import { api, sessionToken, setSessionToken, siteNotice } from "../lib/api";
 import type { Choices } from "../shared/draw";
 
 export type Gender = "female" | "male" | "nonbinary" | "private";
-// Keep the sheet's loading UI out of the front door, just like the sign-in form itself.
-AccountProvider.SignInLoading = lazy(() => import("./SignInLoading").then((m) => ({ default: m.SignInLoading })));
 /** `figure`: their face is an AI-drawn anime figure (at /figure/:id), not a photo or a letter. */
 /** `frame`: a reward frame round their face ("gold": a game they wished for went live). */
 export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; figure?: boolean; frame?: string };

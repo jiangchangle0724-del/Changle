@@ -271,7 +271,7 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
             {lines?.length === 0 && other && (
               <li className="chat-hello">
                 <Avatar uid={other.id} name={other.name} av={other.av} ac={other.ac} size={72} frame={other.frame} />
-                <EmptyState title={zh ? `和 ${other.name} 打个招呼` : `Say hi to ${other.name}`} />
+                <p>{zh ? `和 ${other.name} 打个招呼` : `Say hi to ${other.name}`}</p>
                 <div className="picker chat-ideas">
                   {ideas.map((t) => (
                     <button key={t} type="button" className="chip" onClick={() => void send(t)}>

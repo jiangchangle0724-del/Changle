@@ -43,7 +43,8 @@
   padding: var(--space-1) 0;
 }
 /* the shapes: tonight's people, the stage, the button; a soft light passes over them */
-.game-loading i {
+.game-loading i,
+.sheet-loading i {
   display: block;
   background: linear-gradient(90deg, var(--color-surface) 30%, var(--color-line-soft), var(--color-surface) 70%) 0 0 / 300% 100%;
   animation: game-loading-shimmer calc(var(--dur-emphasis) * 5) var(--ease-out) infinite;
@@ -88,6 +89,16 @@
   margin-top: var(--space-2);
   border-radius: var(--r-panel);
 }
+/* the sign-in sheet (SignInLoading): two fields */
+.sheet-loading {
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+.sheet-loading-field {
+  height: var(--tap);
+  border-radius: var(--r-small);
+}
 @keyframes game-loading-shimmer {
   from {
     background-position: 100% 0;
@@ -97,7 +108,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .game-loading i {
+  .game-loading i,
+  .sheet-loading i {
     animation: none;
   }
 }

@@ -270,7 +270,7 @@ function Shell() {
     <SiteGate
       signIn={
         signInUsed && (
-          <Suspense fallback={signInOpen && <Suspense fallback={<div className="sheet-backdrop"><div className="sheet" style={{ minHeight: "calc(var(--tap) * 6)" }} /></div>}><AccountProvider.SignInLoading /></Suspense>}>
+          <Suspense fallback={signInOpen && Loading && <Loading.SignInLoading lang={lang} onClose={() => openSignIn(false)} />}>
             <SignInSheet />
           </Suspense>
         )
