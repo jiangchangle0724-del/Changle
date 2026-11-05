@@ -293,7 +293,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
   const tx = (x: T) => (zh ? x.zh : x.en);
   return (
     <div className="dm-cardwrap">
-      <div className={`dm-card ${flipped ? "is-flipped" : ""} ${card.culprit ? "is-culprit" : ""} ${pk ? "is-style" : ""}`}>
+      <div className={`dm-card ${flipped ? "is-flipped" : ""} ${card.culprit ? "is-culprit" : ""}`}>
         <div className="dm-card-inner" ref={inner} style={reduced() && flipped ? { transform: "rotateY(180deg)" } : undefined}>
           <button type="button" className="dm-card-back" onClick={flip} aria-label={zh ? "翻开身份牌" : "Turn your card over"}>
             {backOk ? <img src={art("card-back")} alt="" onError={() => setBackOk(false)} /> : <DramaIcon size={64} strokeWidth={1.6} />}

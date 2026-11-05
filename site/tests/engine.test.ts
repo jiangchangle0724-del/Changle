@@ -1389,6 +1389,33 @@ test("drama: every acting style explains itself, in Chinese and in English, each
   ok(pkStyle(null) === undefined && pkStyle({ zh: "没有这个演法", en: "No such style" }) === undefined, "a name nobody knows has no example (the card falls back to the plain line)");
 });
 
+test("drama: every built-in scene in both languages, and an evening of hard scenes for a table of three or four", () => {
+  type V = V<"drama">;
+  const cjk = /[㐀-鿿]/;
+  ok(new Set(DRAMA_SCENES.map((s) => s.id)).size === DRAMA_SCENES.length, "no two scenes share an id");
+  const bad = DRAMA_SCENES.filter((s) => {
+    const texts = [s.title, s.setup, s.culprit, s.culpritCard, s.ask, s.twist, ...s.roles.flatMap((r) => [r.name, r.brief, r.alibi])];
+    return s.roles.length < 2 || s.roles.length > 4 || !texts.every((x) => cjk.test(x.zh) && !!x.en && !cjk.test(x.en));
+  });
+  ok(!bad.length, `every scene has two to four roles and every line in Chinese and in English (${bad.map((s) => s.id).join(", ")})`);
+  // three or four at the table put two on stage: on hard, scenes written for two, an evening's worth
+  const two = DRAMA_SCENES.filter((s) => s.diff === "hard" && s.roles.length === 2);
+  ok(two.filter((s) => s.level === "all").length >= 10 && two.length >= 16, "ten all-ages hard scenes for two actors, sixteen for a spicy table");
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { diff: "hard" });
+  t.g("p0", "start");
+  const seen = new Set<string>();
+  for (let i = 0; i < 10; i++) {
+    const v = t.view<V>("p0");
+    const sc = DRAMA_SCENES.find((x) => x.id === v.scene?.id);
+    ok(v.phase === "brief" && v.cast.length === 2 && sc?.diff === "hard" && sc.level === "all" && sc.roles.length === 2, `four at the table, scene ${i + 1}: hard, all ages, written for two`);
+    if (sc) seen.add(sc.id);
+    t.g("p0", "skip");
+  }
+  ok(seen.size === 10, "ten different scenes before one comes round again");
+});
+
 test("euchre: bots fill seats, legal play, hands score", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "euchre" });
