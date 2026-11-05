@@ -6,6 +6,7 @@ import { useRoomEvent } from "../../online/RoomContext";
 import { DANCE, moveAt } from "../../shared/dj/dance";
 import { Choreo } from "../tune/moves";
 import { Performer } from "../tune/performer";
+import { Coach3D } from "./Coach3D";
 
 /** The performer's drawing box (party/tune/stage.tsx): the body fills it, arms and hair reach outside. */
 const VIEWBOX = "44 10 112 286";
@@ -22,6 +23,10 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
   const svg = useRef<SVGSVGElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [beat, setBeat] = useState(-1);
+  // the robot in 3D once it's loaded (the drawn coach till then, and on a screen without WebGL)
+  const [three, setThree] = useState<"try" | "on" | "off">("try");
+  const threeOn = useRef(false);
+  threeOn.current = three === "on";
   // the whole floor danced together long enough: fireworks
   useRoomEvent((e) => {
     if (e.k !== "fx" || e.fx !== "dance") return;
@@ -53,7 +58,8 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
       }
       const i = Math.floor(b);
       c.pinMove = moveAt(i).move.id;
-      c.frame(dt, now, b * period, i, period, clock.energy(), 0);
+      // (the drawn coach rests while the robot dances)
+      if (!threeOn.current) c.frame(dt, now, b * period, i, period, clock.energy(), 0);
       if (i !== last) setBeat((last = i));
     };
     gsap.ticker.add(tick);
@@ -74,7 +80,10 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
         <Footprints size={22} aria-hidden="true" />
         {zh ? "跟着跳" : "Dance along"}
       </span>
-      <svg className="dj-coach-svg" viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
+      <div className="dj-coach-stage">
+        <svg className={`dj-coach-svg ${three === "on" ? "is-off" : ""}`} viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
+        {three !== "off" && <Coach3D clock={clock} onReady={() => setThree("on")} onFail={() => setThree("off")} />}
+      </div>
       {m ? (
         <div className="dj-coach-moves">
           <span className="dj-coach-now">{L(m.move)}</span>
