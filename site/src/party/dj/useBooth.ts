@@ -523,7 +523,17 @@ export function useBooth({
   const wakes = useRef(0);
   useEffect(() => {
     if (!speaker) return;
-    const id = window.setInterval(() => setStopped(!speaker.running), 1000);
+    // (also stopped: a sound that says it's running while its clock stands still, as a tablet's
+    // can after the screen went dark: nudged once by itself, then the tap wakes it)
+    let last = speaker.ctx.currentTime;
+    let still = 0;
+    const id = window.setInterval(() => {
+      const t = speaker.ctx.currentTime;
+      still = speaker.running && document.visibilityState === "visible" && t === last ? still + 1 : 0;
+      last = t;
+      if (still === 3) speaker.nudge();
+      setStopped(!speaker.running || still >= 5);
+    }, 1000);
     return () => window.clearInterval(id);
   }, [speaker]);
   const wake = useCallback(() => {

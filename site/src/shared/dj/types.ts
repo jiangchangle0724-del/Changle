@@ -190,6 +190,9 @@ export type PadId = "echo" | "sweep" | "horn" | "brake" | "siren" | "laser" | "s
 export const PAD_IDS: PadId[] = ["echo", "sweep", "horn", "brake", "siren", "laser", "scratch", "rewind", "vinyl", "bassdrop", "reverse", "whistle"];
 /** the pads that move the music itself (the brake, a scratch, a rewind): one at a time, never into a drop */
 export const MOVES: PadId[] = ["brake", "scratch", "rewind"];
+/** the pads that are a sound of their own, not something done to the music: they also play over a
+ *  whole song from YouTube (Steve on Nov 2: "在播放youtube 音乐的时候我还是要可以放DJ 相关的音效来热场") */
+export const OVER_SONG: PadId[] = ["horn", "siren", "laser", "vinyl", "bassdrop", "reverse", "whistle"];
 
 export type DeckSide = "a" | "b";
 
@@ -418,11 +421,13 @@ export const DECK = {
   minBeats: 17,
   /** countdowns nobody pressed before the DJ drops it by itself */
   maxMisses: 1,
-  /** songs asked for by name: `reqMax` waiting for the whole table, one each (waiting or up
-   *  next), a phone's taken one per `reqGapMs`. Up next: if the table hasn't dropped into it
-   *  `reqWaitMs` after it's ready, the DJ starts the countdown itself (and drops it if nobody
-   *  presses); its remix is named on the screens for `reqPlayMs` after its drop */
-  reqMax: 8,
+  /** songs asked for by name (the night's 歌单, Steve on Nov 2: "很多人点歌要把它们放到一个
+   *  playlist"): `reqMax` waiting for the whole table, `reqEach` each (waiting or up next), a
+   *  phone's taken one per `reqGapMs`. Up next: if the table hasn't dropped into it `reqWaitMs`
+   *  after it's ready, the DJ starts the countdown itself (and drops it if nobody presses); its
+   *  remix is named on the screens for `reqPlayMs` after its drop */
+  reqMax: 30,
+  reqEach: 3,
   reqGapMs: 5000,
   reqWaitMs: 40_000,
   reqPlayMs: 90_000,
@@ -430,6 +435,9 @@ export const DECK = {
    *  plays at most this long (the big screen says when it ends; this is in case it never does) */
   songFadeBars: 2,
   songMaxMs: 12 * 60_000,
+  /** after a whole song, the DJ plays at least this long before it drops into the next one by
+   *  itself (Steve: "歌和 DJ 轮流"); the table can build up and drop into it sooner */
+  songGapMs: 60_000,
   /** a player whose song came on the air this recently waits behind the others' songs (alone, it
    *  still plays: nobody's turn is taken) */
   reqAgainMs: 600_000,
@@ -506,6 +514,7 @@ export type DjCommand =
   /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
   | { x: "mine"; on: boolean }
   | { x: "voice"; on: boolean }
+  | { x: "shuffle"; on: boolean }
   | { x: "dance"; bar: number; n: number; of: number }
   // the mixer (anyone at the table)
   /** a knob, -1 to 1 (0: as the music plays) */
@@ -568,6 +577,9 @@ export type RoomState = {
   mine: boolean;
   /** 报幕: the big screen says who a song asked for is from as the countdown into it starts (the host can turn it off) */
   voice: boolean;
+  /** the 歌单 in a random order (the host's switch, Steve on Nov 2: "可选择随机排序或按顺序"):
+   *  the next song asked for is any of the waiting ones, else first come, first played */
+  shuffle: boolean;
   /** 跟着跳 (shared/dj/dance.ts): each dancer's night, the bar the floor is being counted on, and the floor's combo (0 to 1) */
   dance: Record<string, Dancer>;
   danceBar: { bar: number; n: number; good: number };

@@ -46,6 +46,9 @@ export class Speaker {
   private talk: GainNode;
   /** and gives way to a whole song from YouTube (giveWay) */
   private talkFade: GainNode;
+  /** the pads that are a sound of their own, over a whole song: their own way out, past the fade */
+  private overSong: GainNode;
+  private away = false;
   private room: GainNode;
   /** the beginner deck's effects (fx.ts plays them): the filters the music passes through, the echo's send, and where its own sounds go */
   readonly fxNodes: FxNodes;
@@ -141,6 +144,18 @@ export class Speaker {
     darker.connect(this.master);
     const synth = ctx.createGain();
     synth.connect(this.master);
+    // over a whole song from YouTube (giveWay) the pads that are a sound of their own still play
+    // (Steve on Nov 2: the effects to hype the floor, over the song too): their own way out, past
+    // the DJ's fade, under a ceiling of their own
+    this.overSong = ctx.createGain();
+    this.overSong.gain.value = 0;
+    const overLimit = ctx.createDynamicsCompressor();
+    overLimit.threshold.value = -1.5;
+    overLimit.knee.value = 0;
+    overLimit.ratio.value = 20;
+    overLimit.attack.value = 0.001;
+    overLimit.release.value = 0.08;
+    synth.connect(this.overSong).connect(overLimit).connect(ctx.destination);
     // the stand-in's room: a short reverb on the mix above the bass, about as loud as the one its
     // recordings used to carry (offlineBus: WebKit keeps an offline reverb in memory for good)
     const roomHp = ctx.createBiquadFilter();
@@ -199,6 +214,18 @@ export class Speaker {
     } catch {
       /* fine */
     }
+  }
+  /**
+   * A sound that says it's running while its clock stands still: stop it and start it again (each
+   * given a moment: one that never answers doesn't hold anything up).
+   */
+  nudge() {
+    const c = this.ctx;
+    if (c.state !== "running") return;
+    const wait = (p: Promise<void>) => Promise.race([p, new Promise<void>((ok) => window.setTimeout(ok, 1500))]);
+    void wait(c.suspend())
+      .then(() => wait(c.resume()))
+      .catch(() => {});
   }
 
   /**
@@ -354,6 +381,10 @@ export class Speaker {
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setTargetAtTime(this.volume, t, 0.05);
+    if (this.away) {
+      this.overSong.gain.cancelScheduledValues(t);
+      this.overSong.gain.setTargetAtTime(this.volume, t, 0.05);
+    }
   }
 
   /** Fade everything out over about `seconds` (the end of a set). */
@@ -365,11 +396,18 @@ export class Speaker {
 
   /** The DJ gives way to a whole song (真歌时间: it plays in YouTube's player, not here), or comes back: over `seconds`. */
   giveWay(away: boolean, seconds: number) {
-    const g = this.talkFade;
+    this.away = away;
     const t = this.ctx.currentTime;
-    g.gain.cancelScheduledValues(t);
-    g.gain.setValueAtTime(g.gain.value, t);
-    g.gain.linearRampToValueAtTime(away ? 0 : 1, t + Math.max(0.05, seconds));
+    const end = t + Math.max(0.05, seconds);
+    for (const [g, to] of [
+      [this.talkFade, away ? 0 : 1],
+      // (the pads' own way out takes over as the DJ fades, and hands back as it returns)
+      [this.overSong, away ? this.volume : 0],
+    ] as const) {
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(to, end);
+    }
   }
 
   /** Back up to the volume after a fade. */
