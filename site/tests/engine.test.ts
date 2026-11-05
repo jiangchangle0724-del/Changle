@@ -1438,10 +1438,9 @@ test("drama: how to act a scene: every guide fits its scene, in Chinese and in E
     if (![...gd.beats, ...gd.roles.flatMap((r) => [r.play, r.first])].every(both)) bad.push(`${id}: a line missing or in the wrong language`);
   }
   ok(!bad.length, `every guide matches its scene (${bad.join("; ")})`);
-  // every all-ages scene, and every easy one (spicy hard comes in the next batch)
-  const most = DRAMA_SCENES.filter((s) => s.level === "all" || s.diff === "easy");
-  const missing = most.filter((s) => !DRAMA_GUIDES[s.id]).map((s) => s.id);
-  ok(!missing.length, `every all-ages scene and every easy one has a guide (${missing.join(", ")})`);
+  // every built-in scene has one (a new scene comes with its guide)
+  const missing = DRAMA_SCENES.filter((s) => !DRAMA_GUIDES[s.id]).map((s) => s.id);
+  ok(!missing.length, `every built-in scene has a guide (${missing.join(", ")})`);
   ok(DRAMA_GENERIC_BEATS.length >= 3 && DRAMA_TIPS.length === 5 && [...DRAMA_GENERIC_BEATS, ...DRAMA_TIPS].every(both), "any other scene still has steps to follow, and a first-timer has five tips");
   // the card and the cast list ask for a role's guide by the role's name
   const sc = DRAMA_SCENES.find((s) => s.id === "family-new-year-dumplings")!;
