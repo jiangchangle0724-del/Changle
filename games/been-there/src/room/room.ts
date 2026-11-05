@@ -189,9 +189,10 @@ interface Game {
    * A landing that brings a question: the city, the team that landed there, and when its move has
    * played and the question may come up (see landedOn). `busy`: teams that are waiting have had a
    * part in what the game has been busy with since (an auction, a vote, Rio's scores): when that is
-   * over, the question gives them a moment to see how it came out (see afterMove).
+   * over, the question gives them a moment to see how it came out (see afterMove). `nobody`: its
+   * time came with nobody there to answer it (see dueTrivia), so a newer landing takes its place.
    */
-  triviaDue?: { city: string; seat: number; at: number; busy?: boolean } | null;
+  triviaDue?: { city: string; seat: number; at: number; busy?: boolean; nobody?: boolean } | null;
   trades: Trade[];
   bets: Bets | null;
   /** When each human seat's last phone went away. */
@@ -1201,15 +1202,15 @@ export class Room {
    * and stamped the landing (so the question doesn't say where the token is going), and after the
    * landing scene of a team's first visit, which a big screen plays for everyone.
    *
-   * A question on its way for an earlier landing gives way to this one: the question is about the
-   * city a team has just landed on. Not to a computer team's landing, though: theirs come one on top
-   * of another, and would take away the question a person playing them is about to get. One whose
-   * time has come and is still waiting (see dueTrivia) gives way to any newer landing.
+   * One for an earlier landing, on its way or waiting for the table, keeps its place: first come. (A
+   * newer landing taking it over would put the question off again each time: where teams play fast,
+   * it would never come.) Only one that waits for someone to answer it gives way to this landing:
+   * by the time someone can, this is the city a team has just landed on.
    */
   private landedOn(city: string, firstVisit = false) {
     const g = this.st.game!;
     if (this.st.settings.trivia === false || g.trivia) return;
-    if (g.triviaDue && this.now < g.triviaDue.at && this.teamAt(g.s.turn)?.bot) return;
+    if (g.triviaDue && !g.triviaDue.nobody) return;
     if (this.now - (g.triviaAt ?? g.startedAt) < this.triviaGap()) return;
     g.triviaDue = { city, seat: g.s.turn, at: this.now + this.ms(firstVisit ? "landing" : "triviaLand") };
     this.dirty = true;
@@ -1227,7 +1228,7 @@ export class Room {
    * Someone there: with nobody (only computer teams are waiting: a person playing against the
    * computer is on their own turn; or the people's phones have gone) it waits, and comes up when
    * there is: when that turn is over, most often, so a person alone is asked about the city they
-   * have just been to. On one phone for every team (the one-phone demo) the phone is busy with the
+   * have just been to. Meanwhile a newer landing takes its place (see landedOn). On one phone for every team (the one-phone demo) the phone is busy with the
    * move of the people on turn, so there it comes up between two turns, before the next team has
    * thrown, or while a computer team moves.
    *
@@ -1258,7 +1259,13 @@ export class Room {
     const betweenTurns = s.pending?.k === "roll" && s.ps[s.turn].dbl === 0;
     if (this.st.settings.hotseat && people && !betweenTurns) return false;
     const asked = this.openTrivia(due.city);
-    if (asked === "nobody") return false;
+    if (asked === "nobody") {
+      if (!due.nobody) {
+        due.nobody = true;
+        this.dirty = true;
+      }
+      return false;
+    }
     drop();
     return asked === "asked";
   }
