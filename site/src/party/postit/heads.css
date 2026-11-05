@@ -1,0 +1,219 @@
+/*
+ * 额头便利贴 on one phone (HeadsStage.tsx, Postit.tsx): the phone on a forehead, screen out.
+ * The yellow stage is the card the room reads, turned to stand upright however the phone is held;
+ * around it, the how-to chips on the "up next" curtain and the list after each turn.
+ * (The online game's styles are in styles/party.css.)
+ */
+
+/* "nod down: got it / tip back: pass", on the curtain before each turn */
+.heads-how {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 var(--space-1);
+}
+.heads-how > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-pill);
+  background: var(--color-sheet);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.heads-how > span.is-ok {
+  background: color-mix(in oklab, var(--color-success) 18%, var(--color-sheet));
+  color: var(--color-success);
+}
+
+/* the whole screen: it is read by the room, not by the one holding it */
+.heads-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background: var(--gel-lemon);
+  color: var(--color-on-accent);
+  text-align: center;
+  transition: background-color var(--dur-enter) var(--ease-out);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.heads-stage.is-ok {
+  background: var(--color-success);
+}
+.heads-stage.is-pass {
+  background: var(--gel-tangerine);
+}
+
+/*
+ * The card itself, turned with the phone (HeadsStage sets its size and turn). The clock and score
+ * along its top, "pass" under them, the word in the middle, "got it" at the bottom; the two tap
+ * halves lie over it all. Its padding keeps clear of the notch and the home bar, wherever they are.
+ */
+.heads-turn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  translate: -50% -50%;
+  display: grid;
+  /* one column the card's own width: a big word must not widen it (it gets smaller instead) */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: calc(var(--safe-top) + var(--space-3)) max(var(--space-4), env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + var(--space-3)) max(var(--space-4), env(safe-area-inset-left, 0px));
+  transition: rotate var(--dur-emphasis) var(--ease-out);
+}
+/* turned a quarter on a page that stayed upright: the notch is now at one side, the home bar at the other */
+.heads-turn.is-turn-90 {
+  padding: var(--space-3) calc(var(--safe-bottom) + var(--space-4)) var(--space-3) calc(var(--safe-top) + var(--space-4));
+}
+.heads-turn.is-turn-left {
+  padding: var(--space-3) calc(var(--safe-top) + var(--space-4)) var(--space-3) calc(var(--safe-bottom) + var(--space-4));
+}
+.heads-turn.is-turn-180 {
+  padding: calc(var(--safe-bottom) + var(--space-3)) var(--space-4) calc(var(--safe-top) + var(--space-3));
+}
+
+/* 3, 2, 1 */
+.heads-count {
+  grid-row: 1 / -1;
+  place-self: center;
+  font-family: var(--font-display);
+  font-size: var(--text-poster);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  /* (the keyframes are in styles/party.css, shared with Limbo's count) */
+  animation: heads-pop 0.9s var(--ease-out) both;
+}
+
+.heads-top {
+  justify-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+}
+.heads-score {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* what a tap on each half means (a nod and a tip back do the same) */
+.heads-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  /* night at three quarters on the bright stage: still 7:1 */
+  opacity: 0.76;
+}
+
+/* the word fills what is left; HeadsStage sets --word to the biggest size that fits (fitWord) */
+.heads-middle {
+  align-self: stretch;
+  justify-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.heads-word {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--word, var(--text-3xl)) * 0.16);
+  max-width: 100%;
+}
+.heads-word > span {
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-size: var(--word, var(--text-3xl));
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: var(--leading-tight);
+  /* a word never breaks in the middle (Watermel/on, Spider-/Man, 哈利·/波特): each is kept whole
+     (.heads-w), and the whole gets smaller instead; only the spaces between words wrap */
+  overflow-wrap: normal;
+  text-wrap: balance;
+}
+.heads-w {
+  white-space: nowrap;
+}
+.heads-word > small {
+  max-width: 100%;
+  font-size: max(var(--text-lg), calc(var(--word, var(--text-3xl)) * 0.34));
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  opacity: 0.76;
+  text-wrap: balance;
+}
+.heads-flash {
+  place-self: center;
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+}
+
+/* the two tap halves, over the whole card: the upper one passes, the lower one is got it */
+.heads-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 50%;
+  border: 0;
+  background: transparent;
+}
+.heads-zone:focus-visible {
+  outline: 3px solid var(--color-on-accent);
+  outline-offset: -6px;
+}
+.heads-pass {
+  top: 0;
+}
+.heads-ok {
+  bottom: 0;
+}
+
+/* after each turn: the words, right ones ticked */
+.heads-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.heads-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  color: var(--color-text-2);
+  font-weight: 700;
+}
+.heads-list li small {
+  margin-left: auto;
+  color: var(--color-text-2);
+  font-weight: 600;
+}
+.heads-list li.is-ok {
+  color: var(--color-text);
+}
+.heads-list li.is-ok svg {
+  color: var(--color-success);
+}

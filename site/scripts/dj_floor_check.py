@@ -45,6 +45,9 @@ def tap(pg, sel, n, gap_ms=450):
 def ask(pg, words):
     pg.locator(".djk-req-input").fill(words)
     pg.locator(".djk-req-send").click()
+    # (no YouTube key here: with no video found the phone asks for a link; the remix alone)
+    if until(lambda: pg.locator(".djk-need-remix").count() == 1, 5000):
+        pg.locator(".djk-need-remix").click()
 
 
 def said(tv):

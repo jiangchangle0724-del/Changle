@@ -5,9 +5,14 @@ import { useStore } from "../store";
 import { LangTab } from "../components/TopBar";
 import { Sheet } from "../components/Sheet";
 import { PenaltyStamp, type PenaltyCall } from "../components/PenaltyStamp";
+import { useBackCloses, useBackGuard } from "../router";
 import { GameHeader } from "../ui/GameHeader";
 import { RosterChip } from "../ui/RosterChip";
 import type { GameHeaderProps } from "../ui/types";
+import { useGameRun } from "./GameRun";
+import { GameTally } from "./GameTally";
+import { useKeeping } from "./Resume";
+import { clearSaved, writeSavedDots } from "./saved";
 import "../ui/base.css";
 import "./GameShell.css";
 
@@ -37,6 +42,8 @@ const DOTS: Record<PenaltyCall["kind"], number> = { sip: 1, two: 2, full: 1, eve
  * languages, the round or the seconds left, sound, rules), optionally tonight's people under it with
  * the turn and the penalties so far, the game itself, and optionally its one or two buttons kept at
  * the bottom by the thumb. Penalties land with the stamp; the rules sheet switches language mid-game.
+ * Once the game is under way, ‹ and the phone's back open the tally first (GameTally): keep playing,
+ * start over, or another game.
  */
 export function GameShell({
   title,
@@ -67,17 +74,48 @@ export function GameShell({
 }) {
   const { ui, lang, sound, setSound, players } = useStore();
   const [rulesOpen, setRulesOpen] = useState(false);
+  const run = useGameRun();
+  // a game that keeps its progress (Resume.tsx): the penalty count goes with it, and comes back with it
+  const keeping = useKeeping();
 
-  // the penalties so far, counted from the stamps this game showed
-  const [dots, setDots] = useState<Record<string, number>>({});
+  // under way: someone's turn, a round, or a penalty so far; from then on leaving asks first
+  const [started, setStarted] = useState(!!keeping?.dots);
+  const going = !!penalty || !!roster?.turn || !!status;
   useEffect(() => {
-    if (!penalty || !roster) return;
+    if (going) setStarted(true);
+  }, [going]);
+  const [tallyOpen, setTallyOpen] = useState(false);
+  // leaving for good: nothing catches the back button any more
+  const [leaving, setLeaving] = useState(false);
+  useBackGuard(started && !tallyOpen && !leaving, () => setTallyOpen(true));
+  // the phone's back on a stamp is its Continue, like Esc
+  useBackCloses(!!penalty, onPenaltyDone);
+  // leaving or starting over from the tally: what the game kept goes too (nothing to come back to)
+  const leave = () => {
+    setLeaving(true);
+    if (keeping) clearSaved(keeping.game);
+    onBack();
+  };
+  const again = run
+    ? () => {
+        if (keeping) clearSaved(keeping.game);
+        run.restart();
+      }
+    : undefined;
+
+  // the penalties so far, counted from the stamps this game showed (the people row's dots, the tally)
+  const [dots, setDots] = useState<Record<string, number>>(() => keeping?.dots ?? {});
+  useEffect(() => {
+    if (!penalty) return;
     const names = penalty.who.length ? penalty.who : players.map((p) => p.name);
     const n = DOTS[penalty.kind];
     if (n) setDots((d) => Object.fromEntries([...Object.entries(d), ...names.map((name) => [name, (d[name] ?? 0) + n])]));
     // counted once per stamp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [penalty]);
+  useEffect(() => {
+    if (keeping && Object.keys(dots).length) writeSavedDots(keeping.game, dots);
+  }, [keeping, dots]);
 
   // the row scrolls sideways when the table is long: bring whoever's turn it is into the middle
   const rosterRow = useRef<HTMLDivElement>(null);
@@ -97,7 +135,7 @@ export function GameShell({
       <GameHeader
         title={title}
         lang={lang}
-        onBack={onBack}
+        onBack={started ? () => setTallyOpen(true) : onBack}
         status={status}
         sound={{ on: sound, onToggle: () => setSound(!sound) }}
         onHelp={() => setRulesOpen(true)}
@@ -126,19 +164,20 @@ export function GameShell({
         </div>
         <div className="rules-text">{rules}</div>
       </Sheet>
+      <GameTally open={tallyOpen} dots={dots} gel={run?.gel} onKeep={() => setTallyOpen(false)} onAgain={again} onLeave={leave} />
       <PenaltyStamp call={penalty} onDone={onPenaltyDone} />
     </div>
     </MotionConfig>
   );
 }
 
-/** Rotate through players for "whose turn" games. */
-export function useTurnOrder() {
+/** Rotate through players for "whose turn" games; `start` is whose turn it was in a game kept for later. */
+export function useTurnOrder(start = 0) {
   const { players } = useStore();
   // `n` counts the turns taken, so each turn passes once: a second tap on a button that is already
   // leaving the screen (a quick double tap, or the old screen still fading out) calls next() from
   // the turn that has already ended, and must not skip the next player.
-  const [turn, setTurn] = useState({ i: 0, n: 0 });
+  const [turn, setTurn] = useState({ i: start, n: 0 });
   const len = Math.max(1, players.length);
   const i = turn.i;
   const current = players[i % len];

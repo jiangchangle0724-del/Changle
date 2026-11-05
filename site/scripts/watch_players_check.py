@@ -249,7 +249,8 @@ def t_postit(host, everyone, watcher, names):
     asker = by_pid(everyone, view(host)["turn"])
     asker.locator(".pi-ask input").fill("我是动物吗？")
     asker.locator(".pi-ask button[type=submit]").click()
-    ok(until(lambda: watcher.locator(".pi-question").count()), "[post-it] the watcher hears the question")
+    # (a phone that only watches shows the big screen's view of the game, where the question is .tvp-question)
+    ok(until(lambda: watcher.locator(".tvp-question, .pi-question").count()), "[post-it] the watcher hears the question")
     ok(watcher.locator(".pi-reply").count() == 0, "[post-it] and has no answer buttons")
     others = [g for g in everyone if g is not watcher and g is not asker]
     ok(all(g.locator(".pi-reply").count() == 3 for g in others), "[post-it] the other two players answer")

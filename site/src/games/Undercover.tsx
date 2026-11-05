@@ -6,6 +6,7 @@ import { pick, shuffle } from "../lib/random";
 import { WORD_PAIRS, type WordPair } from "../data/undercover";
 import { sfx } from "../lib/sfx";
 import { GameShell, usePenalty } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { Cloche } from "../components/Cloche";
 import { TimerArc } from "../components/TimerArc";
 import { PlayerPicker } from "../components/PlayerPicker";
@@ -19,22 +20,46 @@ function defaultUndercovers(n: number) {
   return n <= 5 ? 1 : n <= 8 ? 2 : 3;
 }
 
+/** What a game under way keeps on the phone, to pick up after a reload: the words and who has which. */
+type Kept = {
+  undercovers: number;
+  withBlank: boolean;
+  phase: Phase;
+  pair: WordPair | null;
+  seats: Seat[];
+  dealIndex: number;
+  round: number;
+  eliminated: Seat | null;
+  winner: "civilians" | "undercovers" | null;
+  firstSpeaker: Player | null;
+};
+
 export function Undercover({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="undercover" version={1}>
+      {(saved) => <UndercoverGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang } = useStore();
-  const [undercovers, setUndercovers] = useState(defaultUndercovers(players.length));
-  const [withBlank, setWithBlank] = useState(false);
-  const [phase, setPhase] = useState<Phase>("setup");
-  const [pair, setPair] = useState<WordPair | null>(null);
-  const [seats, setSeats] = useState<Seat[]>([]);
-  const [dealIndex, setDealIndex] = useState(0);
+  const [undercovers, setUndercovers] = useState(saved?.undercovers ?? defaultUndercovers(players.length));
+  const [withBlank, setWithBlank] = useState(saved?.withBlank ?? false);
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? "setup");
+  const [pair, setPair] = useState<WordPair | null>(saved?.pair ?? null);
+  const [seats, setSeats] = useState<Seat[]>(saved?.seats ?? []);
+  const [dealIndex, setDealIndex] = useState(saved?.dealIndex ?? 0);
   const [lidOpen, setLidOpen] = useState(false);
-  const [round, setRound] = useState(1);
+  const [round, setRound] = useState(saved?.round ?? 1);
   const [timerOn, setTimerOn] = useState(false);
   const [timerKey, setTimerKey] = useState(0);
-  const [eliminated, setEliminated] = useState<Seat | null>(null);
-  const [winner, setWinner] = useState<"civilians" | "undercovers" | null>(null);
-  const [firstSpeaker, setFirstSpeaker] = useState<Player | null>(null);
+  const [eliminated, setEliminated] = useState<Seat | null>(saved?.eliminated ?? null);
+  const [winner, setWinner] = useState<"civilians" | "undercovers" | null>(saved?.winner ?? null);
+  const [firstSpeaker, setFirstSpeaker] = useState<Player | null>(saved?.firstSpeaker ?? null);
   const penalty = usePenalty();
+  // kept from the deal to the end (a word half-read comes back with its lid closed again)
+  useKeepProgress<Kept>({ undercovers, withBlank, phase, pair, seats, dealIndex, round, eliminated, winner, firstSpeaker }, phase !== "setup" && phase !== "end");
 
   const maxUndercovers = Math.max(1, Math.min(3, players.length - 3));
   // the blank sits on the undercover's side, so it needs the room a side that size has online

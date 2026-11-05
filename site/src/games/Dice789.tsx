@@ -4,6 +4,7 @@ import { usePenaltyText, useStore } from "../store";
 import { randInt } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { Glass } from "../components/Glass";
 import { Die } from "../components/Dice";
 import { PlayerPicker } from "../components/PlayerPicker";
@@ -12,22 +13,37 @@ import { potStep } from "../shared/engine/games/dice";
 
 type Outcome = "seven" | "eight" | "nine" | "ones" | "safe";
 
+/** What a game under way keeps on the phone, to pick up after a reload: the shared glass and whose roll it is. */
+type Kept = { dice: [number, number]; level: number; pot: number; outcome: Outcome | null; assigning: boolean; turn: number };
+
 export function Dice789({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="dice" version={1}>
+      {(saved) => <DiceGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function DiceGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, lang, sound } = useStore();
-  const [dice, setDice] = useState<[number, number]>([3, 4]);
+  const [dice, setDice] = useState<[number, number]>(saved?.dice ?? [3, 4]);
   const [rolling, setRolling] = useState(false);
-  const [level, setLevel] = useState(0.3);
+  const [level, setLevel] = useState(saved?.level ?? 0.3);
   // with the table's own penalty the glass is a pot of it, counted in times (from 1)
-  const [pot, setPot] = useState(1);
-  const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [assigning, setAssigning] = useState(false);
-  const turn = useTurnOrder();
+  const [pot, setPot] = useState(saved?.pot ?? 1);
+  const [outcome, setOutcome] = useState<Outcome | null>(saved?.outcome ?? null);
+  const [assigning, setAssigning] = useState(saved?.assigning ?? false);
+  const turn = useTurnOrder(saved?.turn ?? 0);
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
   const me = turn.current;
+  // kept from the first roll on (the game has no end: leaving from the tally drops it)
+  const [rolled, setRolled] = useState(!!saved);
+  useKeepProgress<Kept>({ dice, level, pot, outcome, assigning, turn: turn.index }, rolled);
 
   const roll = () => {
     if (rolling) return;
+    setRolled(true);
     setOutcome(null);
     setRolling(true);
     if (sound) sfx.dice(0.95);

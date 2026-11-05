@@ -334,6 +334,10 @@ export type PostitView = {
   /** everyone's note; this phone's own stays null until it is guessed (or the game ends) */
   notes: Record<string, T | null>;
   turn: string;
+  /** everyone else has theirs: this is `turn`'s last chance before the glass (absent from a server not yet updated) */
+  final?: boolean;
+  /** at the end: who drinks the glass, or null when nobody does (absent from a server not yet updated) */
+  last?: string | null;
   asking: string | null;
   replies: Record<string, PostitReply>;
   guess: { by: string; text: string; ok: boolean; at: number } | null;
