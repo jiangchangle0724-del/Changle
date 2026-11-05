@@ -1,0 +1,624 @@
+/*
+ * 最后一张 · Last Card on the big screen (party/lastcard/TvLastCard.tsx), and on a phone that only
+ * watches. The table under the game's gel, the face-up card big enough to read across the room,
+ * the colour in force, whose turn and which way, every player's card count, what just happened.
+ * Sizes are stage pixels on the 1600x900 stage (as in tv-show.css); colours are the site's tokens,
+ * the game's gel and the four card colours named in lastcard.css.
+ */
+
+/* ---------- before the deal ---------- */
+.tvlc-top {
+  position: absolute;
+  left: 120px;
+  right: 120px;
+  top: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+.tvlc-head {
+  margin: 0;
+}
+.tvlc-head .tvx-bi {
+  align-items: center;
+  font-size: 72px;
+}
+.tvlc-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.tvlc-rule {
+  padding: 6px 22px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 30px;
+}
+.tvlc-fan {
+  position: absolute;
+  left: 50%;
+  top: 356px;
+  width: 0;
+  height: 160px;
+}
+.tvlc-fan > .lc-card {
+  position: absolute;
+  bottom: 0;
+  left: -56px;
+  width: 112px;
+  transform-origin: 50% 120%;
+  filter: drop-shadow(0 16px 24px var(--night));
+  animation: tvlc-deal 0.7s var(--ease-pop) both;
+}
+.tvlc-fan > .lc-card:nth-child(1) {
+  transform: translateX(-232px) rotate(-16deg);
+}
+.tvlc-fan > .lc-card:nth-child(2) {
+  transform: translateX(-116px) rotate(-8deg);
+  animation-delay: 0.08s;
+}
+.tvlc-fan > .lc-card:nth-child(3) {
+  transform: translateY(-18px);
+  animation-delay: 0.16s;
+}
+.tvlc-fan > .lc-card:nth-child(4) {
+  transform: translateX(116px) rotate(8deg);
+  animation-delay: 0.24s;
+}
+.tvlc-fan > .lc-card:nth-child(5) {
+  transform: translateX(232px) rotate(16deg);
+  animation-delay: 0.32s;
+}
+@keyframes tvlc-deal {
+  from {
+    opacity: 0;
+    translate: 0 60px;
+  }
+}
+.tvlc-lineup {
+  position: absolute;
+  left: 80px;
+  right: 80px;
+  bottom: 96px;
+}
+
+/* ---------- the table ---------- */
+.tvlc-table,
+.tvlc-result {
+  position: absolute;
+  left: 80px;
+  top: 128px;
+  width: 1030px;
+  height: 440px;
+  border-radius: 44px;
+  background:
+    radial-gradient(80% 110% at 50% -15%, color-mix(in oklab, var(--gel) 26%, transparent), transparent 70%),
+    radial-gradient(120% 100% at 50% 50%, var(--dusk-2), var(--night-2));
+  box-shadow:
+    inset 0 0 0 2px var(--line-soft),
+    0 40px 80px -40px var(--night);
+}
+.tvlc-table {
+  display: grid;
+  grid-template-columns: 170px 250px minmax(0, 1fr);
+  align-items: center;
+  gap: 54px;
+  padding: 40px 48px;
+}
+.tvlc-pile {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+.tvlc-pile-stack {
+  position: relative;
+  width: 150px;
+  aspect-ratio: 100 / 140;
+}
+.tvlc-pile-stack > .lc-card {
+  position: absolute;
+  inset: 0;
+}
+.tvlc-pile-stack > .lc-card:nth-child(1) {
+  transform: translate(-8px, 8px);
+}
+.tvlc-pile-stack > .lc-card:nth-child(2) {
+  transform: translate(-4px, 4px);
+}
+.tvlc-pile-n {
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvlc-discard {
+  position: relative;
+  width: 250px;
+  aspect-ratio: 100 / 140;
+}
+.tvlc-under,
+.tvlc-under::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background: var(--dusk-3);
+  transform: rotate(-8deg);
+}
+.tvlc-under::after {
+  content: "";
+  background: var(--dusk-2);
+  transform: rotate(13deg);
+}
+.tvlc-faceup {
+  position: absolute;
+  inset: 0;
+  border-radius: 26px;
+  box-shadow: 0 30px 60px -24px var(--night);
+  transform: rotate(-2deg);
+  animation: tvlc-land 0.45s var(--ease-out) both;
+}
+@keyframes tvlc-land {
+  from {
+    opacity: 0;
+    transform: translateY(-120px) rotate(-14deg) scale(1.12);
+  }
+}
+.tvlc-pending {
+  position: absolute;
+  top: -22px;
+  right: -34px;
+  z-index: 2;
+  padding: 8px 22px 10px;
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1;
+}
+.tvlc-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  padding: 10px 34px 14px;
+  border-radius: 999px;
+  background: var(--gel);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 68px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 0 60px -10px var(--gel);
+  transform: translate(-50%, -50%) rotate(-6deg);
+  animation: tvlc-flash 1.5s var(--ease-out) forwards;
+}
+.tvlc-flash.is-warn {
+  background: var(--warn);
+  box-shadow: 0 0 60px -10px var(--warn);
+}
+.tvlc-flash.is-stop {
+  background: var(--stop);
+  box-shadow: 0 0 60px -10px var(--stop);
+}
+@keyframes tvlc-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-6deg) scale(1.8);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(-6deg) scale(1);
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-6deg) scale(1);
+  }
+}
+.tvlc-info {
+  display: grid;
+  gap: 22px;
+  justify-items: start;
+  min-width: 0;
+}
+.tvlc-info p {
+  margin: 0;
+}
+.tvlc-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 30px 12px 18px;
+  border-radius: 999px;
+  color: var(--night);
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvlc-colour .lc-mark {
+  width: 54px;
+  height: 54px;
+}
+.tvlc-colour.is-r {
+  background: var(--lc-red);
+}
+.tvlc-colour.is-y {
+  background: var(--lc-yellow);
+}
+.tvlc-colour.is-g {
+  background: var(--lc-green);
+}
+.tvlc-colour.is-b {
+  background: var(--lc-blue);
+}
+.tvlc-colour > span,
+.tvlc-turn,
+.tvlc-next {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  line-height: 1.1;
+}
+.tvlc-colour small,
+.tvlc-turn small,
+.tvlc-next small {
+  font-size: 22px;
+  font-weight: 700;
+}
+.tvlc-turn small,
+.tvlc-next small {
+  color: var(--haze);
+}
+.tvlc-colour b {
+  font-family: var(--font-display);
+  font-size: 46px;
+  font-weight: 900;
+}
+.tvlc-turn b {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvlc-next b {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 32px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tvlc-next svg {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  color: var(--gel);
+}
+.tvlc-stack {
+  color: var(--warn);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+/* ---------- what just happened ---------- */
+.tvlc-log {
+  position: absolute;
+  left: 1140px;
+  right: 50px;
+  top: 128px;
+  height: 440px;
+  padding: 26px 30px;
+  overflow: hidden;
+  border-radius: 36px;
+  background: color-mix(in oklab, var(--dusk) 90%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.tvlc-log h2 {
+  margin: 0 0 14px;
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 800;
+}
+.tvlc-log ol {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvlc-log li {
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.tvlc-log li.is-new {
+  padding-left: 16px;
+  box-shadow: inset 4px 0 0 var(--gel);
+  color: var(--moon);
+  font-size: 28px;
+  animation: tvx-enter 0.4s var(--ease-out) both;
+}
+
+/* ---------- everyone, in turn order (clear of the penalty bar that comes up along the bottom) ---------- */
+.tvlc-seats {
+  position: absolute;
+  left: 40px;
+  right: 40px;
+  top: 604px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvlc-dir {
+  display: grid;
+  place-items: center;
+  height: 84px;
+  color: color-mix(in oklab, var(--gel) 70%, var(--haze));
+}
+.tvlc-dir svg {
+  width: 26px;
+  height: 26px;
+}
+.tvlc-seat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 132px;
+  transition:
+    transform 0.45s var(--ease-pop),
+    opacity 0.4s;
+}
+.tvlc-seats.is-many .tvlc-seat {
+  width: 112px;
+}
+.tvlc-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  transition: box-shadow 0.4s;
+}
+.tvlc-seat.is-turn {
+  transform: translateY(-12px);
+}
+.tvlc-seat.is-turn .tvlc-face {
+  box-shadow:
+    0 0 0 5px var(--night-2),
+    0 0 0 10px var(--gel),
+    0 0 44px 10px color-mix(in oklab, var(--gel) 50%, transparent);
+}
+.tvlc-seat.is-away {
+  opacity: 0.45;
+}
+.tvlc-plate {
+  max-width: 100%;
+  padding: 3px 12px 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvlc-seat.is-turn .tvlc-plate,
+.tvlc-seat.is-winner .tvlc-plate {
+  background: var(--gel);
+  color: var(--night);
+}
+.tvlc-seat.is-most .tvlc-plate {
+  background: var(--warn);
+  color: var(--night);
+}
+/* how many cards they hold: a little card held up beside the face */
+.tvlc-count {
+  position: absolute;
+  top: -10px;
+  right: -30px;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 58px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--dusk-3);
+  box-shadow:
+    0 0 0 3px var(--night-2),
+    inset 0 0 0 2px var(--line-soft);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  rotate: 8deg;
+}
+.tvlc-seat.is-turn .tvlc-count {
+  background: var(--gel);
+  color: var(--night);
+}
+.tvlc-wins {
+  position: absolute;
+  bottom: -6px;
+  left: -18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--night-2);
+  color: var(--gel-amber);
+  font-size: 22px;
+  font-weight: 900;
+}
+.tvlc-wins svg {
+  width: 22px;
+  height: 22px;
+}
+.tvlc-flag {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  z-index: 2;
+  padding: 4px 14px 6px;
+  border-radius: 999px;
+  translate: -50% 0;
+  rotate: -4deg;
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  white-space: nowrap;
+  animation: tvx-badge 0.5s var(--ease-pop) both;
+}
+.tvlc-flag.is-called {
+  background: var(--gel);
+}
+.tvlc-flag.is-open {
+  background: var(--warn);
+}
+
+/* ---------- a round's end ---------- */
+.tvlc-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 30px;
+  padding: 30px 44px;
+}
+.tvlc-winner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+}
+.tvlc-winner-fig {
+  --fig-h: 230px;
+  display: grid;
+  justify-items: center;
+}
+.tvlc-crown {
+  margin-bottom: -6px;
+  color: var(--gel-amber);
+  filter: drop-shadow(0 0 14px color-mix(in oklab, var(--gel-amber) 80%, transparent));
+  animation: tvx-pop 0.6s var(--ease-pop) both;
+}
+.tvlc-winner-fig .tvx-plate {
+  display: none;
+}
+.tvlc-winner-words {
+  display: grid;
+  gap: 12px;
+}
+.tvlc-winner-name {
+  margin: 0;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 68px;
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow: 0 0 40px color-mix(in oklab, var(--gel) 45%, transparent);
+  text-wrap: balance;
+}
+.tvlc-winner-name span {
+  /* (a long name wraps before "出完了！", never inside it) */
+  white-space: nowrap;
+}
+.tvlc-winner-words .tvlc-line {
+  justify-content: flex-start;
+}
+.tvlc-left h2 {
+  margin: 0 0 12px;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvlc-left ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvlc-left li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 20px 6px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk) 80%, transparent);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvlc-left li.is-most {
+  background: var(--warn);
+  color: var(--night);
+}
+.tvlc-left-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvlc-left b {
+  font-family: var(--font-display);
+  font-size: 32px;
+}
+.tvlc-most {
+  margin: 14px 0 0;
+  color: var(--warn);
+  font-size: 28px;
+  font-weight: 800;
+}
+
+/* ---------- the match's end ---------- */
+.tvlc-podium {
+  position: absolute;
+  left: 80px;
+  right: 80px;
+  top: 300px;
+}
+.tvx.tvlc.is-end .tvlc-top {
+  top: 150px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvlc-faceup,
+  .tvlc-fan > .lc-card,
+  .tvlc-colour,
+  .tvlc-log li.is-new,
+  .tvlc-flag {
+    animation: none;
+  }
+  .tvlc-flash {
+    animation: lc-flash-still 1.5s linear forwards;
+  }
+  .tvlc-seat {
+    transition: none;
+  }
+}
