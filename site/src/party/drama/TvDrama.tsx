@@ -1,7 +1,7 @@
 import { Clapperboard, Eye, Feather, Film, Sparkles, Star } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
-import { KINDS } from "../../data/drama";
+import { GROUPS, KINDS } from "../../data/drama";
 import { CSET_NAME } from "../../data/dramaClassics";
 import { gsap, reduced } from "../../lib/anim";
 import { sfx } from "../../lib/sfx";
@@ -218,6 +218,7 @@ function Setup({ v }: { v: DramaView }) {
           {v.mode === "classic" && <li>{zh ? CSET_NAME[v.cset ?? "zh"].zh : CSET_NAME[v.cset ?? "zh"].en}</li>}
           <li>{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</li>
           {v.mode !== "classic" && <li>{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</li>}
+          {v.mode === "show" && (v.groups ?? []).length > 0 && <li>{GROUPS.filter((x) => v.groups!.includes(x.key)).map((x) => (zh ? x.name.zh : x.name.en)).join(zh ? "、" : ", ")}</li>}
           <li>{zh ? `${v.total} 幕` : `${v.total} acts`}</li>
           <li>{v.pen === "drink" ? (pen.isCustom ? pen.text : zh ? "输了喝" : "Losers drink") : v.pen === "move" ? (zh ? "输了运动" : "Losers exercise") : zh ? "输了整蛊" : "Losers do a forfeit"}</li>
         </ul>
@@ -273,10 +274,12 @@ function Brief({ v, sound }: { v: DramaView; sound: boolean }) {
 function Bill({ v, credit }: { v: DramaView; credit: string | null }) {
   const { zh, tr } = useLang();
   const kind = KINDS.find((k) => k.key === v.scene?.kind);
+  const group = GROUPS.find((x) => x.key === v.scene?.group);
   return (
     <>
       <p className="tvd-act">
         {v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : v.mode === "classic" ? (zh ? "名场面" : "Famous scene") : kind ? tr(kind.name) : zh ? "本幕" : "This act"}
+        {group && ` · ${tr(group.name)}`}
       </p>
       {v.scene && (
         <>

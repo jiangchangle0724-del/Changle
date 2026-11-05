@@ -1,5 +1,6 @@
 import type { T } from "../i18n";
 import { SCENES } from "./drama";
+import { GROUP_GUIDES } from "./dramaGroupGuides";
 
 /**
  * 戏精大赏 · how to act a scene, for people who never have.
@@ -1453,6 +1454,8 @@ export const GUIDES: Record<string, SceneGuide> = {
       r(t("抱着一大摞剧本数来数去，越数越慌。", "Counting and recounting a stack of scripts, more panicked each time."), t("「剧本一共二十份……十九……怎么是十九份？」", "“Twenty copies of the script… nineteen… why are there nineteen?”")),
     ],
   },
+  // the scenes set in one community's everyday life
+  ...GROUP_GUIDES,
 };
 
 /** The guide for a built-in scene, if it has one yet. */

@@ -1,4 +1,4 @@
-import { ANY_SECRETS, ANY_TWISTS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaLevel, type DramaScene } from "../../../data/drama";
+import { ANY_SECRETS, ANY_TWISTS, GROUPS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaGroup, type DramaLevel, type DramaScene } from "../../../data/drama";
 import { CLASSICS, type ClassicScene, type ClassicSet } from "../../../data/dramaClassics";
 import type { T } from "../../../i18n";
 import { cleanScene, hasText } from "../../dramaScene";
@@ -19,6 +19,10 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  *
  * 名场面 (`classic`): famous film and TV moments, from a Chinese set or an English one (the host
  * picks); no culprit, the audience gives stars, like the duel.
+ *
+ * Whose stories (`groups`): the host can pick any of the communities with scenes of their own
+ * (Chinese, Canadian, South Asian, Filipino...). Their scenes come first; everyone's fill in when
+ * they run out for the cast on stage. Other groups' scenes stay out.
  *
  * Points: a right guess 1; a culprit nobody pins 3; each actor their average stars, rounded.
  * The penalty: the actor(s) with the fewest stars, plus the culprit if caught, or else everyone
@@ -67,6 +71,8 @@ type S = {
   /** 名场面: which set the host picked, and the famous scene on now (its index) */
   cset: ClassicSet;
   classic: number | null;
+  /** whose stories come first (none: everyone's only) */
+  groups: DramaGroup[];
   culprit: string | null;
   tasks: Record<string, number>;
   pk: { line: number; styles: Record<string, number> } | null;
@@ -127,25 +133,36 @@ const isSolo = (sc: DramaScene | null) => !!sc && sc.roles.length === 1 && (sc.s
  * spicy table gets the spicy scenes first, then the rest. `k`: how many it is played with.
  */
 function pickScene(s: S, lo: number, hi: number, api: Api): Option & { k: number } {
-  const all: Option[] = [...SCENES.map((x, i) => ({ s: x, i, w: null })), ...s.lib.map((w) => ({ s: w.scene, i: null, w }))];
+  // the host's groups' scenes and everyone's (another group's stay out)
+  const groups = s.groups ?? [];
+  const all: Option[] = [...SCENES.map((x, i) => ({ s: x, i, w: null })), ...s.lib.map((w) => ({ s: w.scene, i: null, w }))].filter((o) => !o.s.group || groups.includes(o.s.group));
   const key = (o: Option) => o.w?.id ?? o.s.id;
   const level = all.filter((o) => s.level === "spicy" || o.s.level === "all");
   const fits = (o: Option) => {
     const [a, b] = sceneSizes(o.s);
     return a <= hi && b >= lo;
   };
-  const same = level.filter((o) => o.s.diff === s.diff && fits(o));
-  const other = level.filter((o) => o.s.diff !== s.diff && fits(o));
+  // the groups' scenes first, then everyone's
+  const tiers = groups.length ? [level.filter((o) => !!o.s.group), level.filter((o) => !o.s.group)] : [level];
+  const same = (tier: Option[]) => tier.filter((o) => o.s.diff === s.diff && fits(o));
+  const other = (tier: Option[]) => tier.filter((o) => o.s.diff !== s.diff && fits(o));
   const fresh = (list: Option[]) => list.filter((o) => !s.used.includes(key(o)));
   const again = (list: Option[]) => {
     // all of them played: start them over
     s.used = s.used.filter((id) => !list.some((o) => key(o) === id));
     return list;
   };
-  let list = fresh(same);
-  if (!list.length) list = fresh(other);
-  if (!list.length && same.length) list = again(same);
-  if (!list.length && other.length) list = again(other);
+  let list: Option[] = [];
+  for (const tier of tiers) {
+    list = fresh(same(tier));
+    if (!list.length) list = fresh(other(tier));
+    if (list.length) break;
+  }
+  for (const tier of tiers) {
+    if (list.length) break;
+    if (same(tier).length) list = again(same(tier));
+    else if (other(tier).length) list = again(other(tier));
+  }
   if (!list.length) {
     const pool = level.length ? level : all;
     const gap = (o: Option) => {
@@ -544,6 +561,7 @@ export const drama: GameDef<S> = {
       order: [],
       cset: "zh",
       classic: null,
+      groups: [],
       culprit: null,
       tasks: {},
       pk: null,
@@ -568,11 +586,13 @@ export const drama: GameDef<S> = {
     s.order ??= [];
     s.cset ??= "zh";
     s.classic ??= null;
+    s.groups ??= [];
     switch (g.x) {
       case "config": {
         if (!host || s.phase !== "setup") return;
         if (g.mode === "show" || g.mode === "pk" || g.mode === "classic") s.mode = g.mode;
         if (g.cset === "zh" || g.cset === "en") s.cset = g.cset;
+        if (Array.isArray(g.groups)) s.groups = GROUPS.map((x) => x.key).filter((k) => (g.groups as unknown[]).includes(k));
         if (g.level === "all" || g.level === "spicy") s.level = g.level;
         if (g.diff === "easy" || g.diff === "hard") s.diff = g.diff;
         if (g.pen === "drink" || g.pen === "move" || g.pen === "prank") s.pen = g.pen;
@@ -740,7 +760,7 @@ export const drama: GameDef<S> = {
       pen: s.pen,
       round: s.round,
       total: s.total,
-      scene: live && scene ? { id: scene.id, kind: scene.kind, title: scene.title, setup: scene.setup, ask: scene.ask, culprit: scene.culprit } : null,
+      scene: live && scene ? { id: scene.id, kind: scene.kind, title: scene.title, setup: scene.setup, ask: scene.ask, culprit: scene.culprit, ...(scene.group ? { group: scene.group } : {}) } : null,
       cast: live
         ? s.cast.map((c, j) => {
             if (scene) return { pid: c, role: scene.roles[s.roles[j]].name, brief: scene.roles[s.roles[j]].brief };
@@ -750,6 +770,7 @@ export const drama: GameDef<S> = {
           })
         : [],
       cset: s.cset ?? "zh",
+      groups: s.groups ?? [],
       classic: cl ? { id: cl.id, set: cl.set, show: cl.show, year: cl.year, title: cl.title, setup: cl.setup, beats: cl.beats, see: cl.see } : null,
       pk: live && s.pk ? { line: PK_LINES[s.pk.line], styles: Object.fromEntries(Object.entries(s.pk.styles).map(([c, i]) => [c, PK_STYLES[i].s])) } : null,
       me: (s.phase === "brief" || s.phase === "act" || s.phase === "vote") ? card(s, pid) : null,
