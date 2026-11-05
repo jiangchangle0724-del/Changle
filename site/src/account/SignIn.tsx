@@ -9,11 +9,17 @@ import { useAccount, type SelfUser } from "./AccountContext";
 import type { Drawn } from "./avatar/Maker";
 import { figureBody } from "./avatar/pics";
 import { ProfileForm, type FaceKind, type ProfileValues } from "./ProfileForm";
+import { ToastProvider, useToast } from "../ui/Toast";
 
 type Step = { k: "email" } | { k: "code"; email: string; dev?: string } | { k: "profile"; email: string; ticket: string };
 
 /** Sign in or sign up with an email code. New people fill in their profile after the code. */
 export function SignInSheet() {
+  return <ToastProvider><SignIn /></ToastProvider>;
+}
+
+function SignIn() {
+  const toast = useToast();
   const { signInOpen, openSignIn, signedIn } = useAccount();
   const { lang } = useStore();
   const zh = lang === "zh";
@@ -129,7 +135,7 @@ export function SignInSheet() {
         }
         if (show === "photo" && photo) signedIn(d.token, (await api<{ user: SelfUser }>("/me/avatar", { method: "PUT", raw: photo, type: "image/jpeg" })).user);
       } catch {
-        /* the face can be added later */
+        toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
       }
       sfx.win();
       openSignIn(false);

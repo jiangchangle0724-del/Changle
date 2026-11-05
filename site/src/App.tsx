@@ -270,7 +270,7 @@ function Shell() {
     <SiteGate
       signIn={
         signInUsed && (
-          <Suspense fallback={null}>
+          <Suspense fallback={signInOpen && <Suspense fallback={<div className="sheet-backdrop"><div className="sheet" style={{ minHeight: "calc(var(--tap) * 6)" }} /></div>}><AccountProvider.SignInLoading /></Suspense>}>
             <SignInSheet />
           </Suspense>
         )
