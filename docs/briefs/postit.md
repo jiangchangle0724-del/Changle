@@ -13,9 +13,9 @@
 - 规则（联机时在房间服务器上跑）：`site/src/shared/engine/games/postit.ts`
 - 联机画面：`site/src/party/postit/NetPostit.tsx`、`net.css`（横屏两栏）、`parts.tsx`（便利贴和额头）
 - 大屏：`site/src/party/postit/TvPostit.tsx`，样式 `site/src/styles/tv-postit.css`
-- 单机画面：`site/src/party/postit/Postit.tsx`；额头上那块黄屏 `HeadsStage.tsx` 和 `heads.css`；选词 `DeckPicker.tsx` 和 `setup.css`
+- 单机画面：`site/src/party/postit/Postit.tsx`；额头上那块黄屏 `HeadsStage.tsx` 和 `heads.css`；选词 `DeckPicker.tsx` 和 `setup.css`（联机主人选词组的单子也用它，带大杂烩那张）
 - 联机的样式还在共用的 `site/src/styles/party.css`（`.pi-`、`.sticky`、`.forehead`、`.deck-pick`）；倒计时的 `heads-pop` 动画也在那里，林波舞也用
-- 内容：`site/src/data/postit.ts`。联机随机发的 `NOTES`、判断猜对的 `guessMatches`、单机的 19 组词 `HEADS_DECKS` 和三类 `DECK_GROUPS`
+- 内容：`site/src/data/postit.ts`。联机默认随机发的大杂烩 `NOTES`、判断猜对的 `guessMatches`、单机的 19 组词 `HEADS_DECKS` 和三类 `DECK_GROUPS`、词组的名字 `deckName`
 - 首页卡片：`site/src/games/registry.ts` 里 id 是 `postit` 的那一项（共用文件，只改这一项）
 - 联机画面的数据 `PostitView`：共用的 `site/src/shared/protocol.ts` 里这一段
 
@@ -47,23 +47,26 @@
 - 单机的词按屏幕大小放到最大（最大和惩罚盖章一样大），一个词不拆成两行。
 - 单机 19 组词，三类：经典、派对（有点辣、欢乐时光、爆笑瞬间）、世界（中国风、日本、韩国、东南亚、印度、中东、意大利、法国、拉丁美洲、加拿大）。世界类只放这个文化出名、受欢迎的东西：吃的、地方、节日、电影、名人，不拿人开玩笑。有点辣只到约会和夜生活，不露骨。同一个词只在一组里。
 - 测试里新加的 postit 测试不动共用的随机种子（`sameDice`），不然后面戏精大赏的测试抽到的人会变。
+- 2026-11-05 Steve 要：联机时主人可以选「随机来一个」和到时间没写的便利贴从哪组出。默认还是大杂烩（`NOTES`：人物、动物、东西），也可以选单机的 19 组之一。写便利贴的时候和一局结束时能选，玩的时候不能；已经贴上的不变；再来一局还用这组。词组里的词如果大杂烩里也有，别的叫法照样算对（孙悟空也能猜美猴王）。
+- 大屏上写便利贴时，选了别的组，就写在「几张写好了」那一行后面（大杂烩不写）。不另起一行，免得字压到下面的小人。
 
 ## 现在
 
-- 三个 PR 等 Steve 合并，合在一起本地测过，互不冲突：
-  - #182 联机：连点发送不再清空问题；中途入座能玩；轮数一样和最后一次机会；短便利贴整句能猜；7 人以上回答时看得到提问人额头上的字；横屏左右两栏；对比度、小字、1 guess。合并会重新部署房间服务器。
-  - #183 单机横屏：竖着横着都能玩，词跟着手机转正，低头和仰头按屏幕朝向判断。
-  - #185 单机 13 组新词，分三类。截图对比的 game-post-it 是有意改的，要加 `update-screenshots` 标签更新基准（Steve 定）。
-- 这份档案的更新是第四个 PR，最好最后合。
+- #182（联机）和 #183（单机横屏）2026-11-05 合并，已经上线。房间服务器是 #184 合并时（15:53）才部署上的：#182 的合并没有触发 changle-rooms 的构建（见交给别的对话）。
+- 两个 PR 等 Steve 合并：
+  - #185 单机 13 组新词，分三类。截图对比的 game-post-it 是有意改的，基准已经用 `update-screenshots` 标签更新（Steve 同意）。
+  - #209 联机主人选随机的词从哪组出。从 #185 接着做，要在 #185 后面合。合并会重新部署房间服务器；合并后看合并提交上有没有 `Workers Builds: changle-rooms`。没有的话服务器还是旧规则，主人看不到选组的按钮（服务器没更新时不显示），要手动部署（HANDOFF.md 里的办法）。
+- 这份档案的更新（#186）最后合。
+- Codex 的 #197（ui-C10：单机刷新后接着猜）只改 `Postit.tsx`，是 #182、#183 合并前写的，现在和 main 冲突，要 Codex 先合 main。它按 id 存词组，#185 的新词组也接得上。
 
 ## 还剩什么
 
 - 在真手机上横着举玩一局，看低头和仰头的灵敏度合不合适。阈值在 `Postit.tsx` 的 `NOD`、`TIP`、`LEVEL`。
-- 联机「随机来一个」还只从 `NOTES`（人物、动物、东西）里出。可以让主人选一类（比如世界、派对），要 Steve 定。
-- ui-C10（中途刷新能接着玩）的卡里有这个游戏，等 Codex 做。
+- #197 合了以后，在单机里试一下新词组加刷新：选一组新词，猜两个，刷新，接着猜的还是这组。
 
 ## 交给别的对话
 
+- 平台 · 首页与上线：#182 的合并提交（0102e18）改了 `site/src/shared/` 和 `site/src/data/`，Cloudflare 却没有构建 changle-rooms，合并提交上只有 Cloudflare Pages 和 been-there。之后 #184 合并时才部署上。要查一下 Workers Builds 那边为什么这次跳过了（build watch paths，或者是不是和紧接着的合并撞了）。
 - 平台 · 全站设计：
   - `site / visual` 的 game-superlatives 截图对比时好时坏：main 上 #178、#180 两次是红的，#171 和 #182 是绿的。不碰最佳称号的 PR（比如 #183）也会因为它显示失败，重跑一次可能就过。
   - 联机底部的表情按钮高 42，不到 44；桌号按钮的读屏名字不含屏幕上的人数（axe 的 label-content-name-mismatch）。两处都在共用的 NetFrame。
@@ -75,6 +78,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-05 (#209) 额头便利贴 online: the host picks the deck the notes nobody writes come from
 - 2026-11-05 (#185) 额头便利贴 on one phone: 13 new decks on three shelves (Party, World)
 - 2026-11-05 (#183) 额头便利贴 on one phone: hold it upright or sideways; the word turns, the nod is read either way
 - 2026-11-05 (#182) 额头便利贴 online: the question stays, late arrivals play, everyone gets as many turns
@@ -89,3 +93,4 @@
 - 2026-11-02 建档案。
 - 2026-11-04 全面检查：单机、联机 2 到 15 部手机、大屏，中英文、竖屏横屏都玩了，找到联机 5 个问题、单机 4 个问题和几处小问题。
 - 2026-11-05 全部修好，开了 #182、#183、#185。仓库改名为 jiangchangle0724-del/Changle，这个对话接上了新名字。
+- 2026-11-05 Steve 说合并 #182、#183，#185 加截图标签，联机随机也要能选词组。合了 #182、#183，#185 的基准更新了，开了 #209。
