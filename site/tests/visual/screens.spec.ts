@@ -3,7 +3,16 @@ import { test, expect, players } from './fixtures';
 import { axeKnown } from './axe-known';
 import { writeFile } from 'node:fs/promises';
 
-type Screen = { name: string; path: string; ready: string; lang?: 'zh' | 'en'; desktop?: boolean; empty?: boolean; action?: 'players' | 'code' | 'sheet' };
+/** `hide`: parts of the screen left out of the comparison: still laid out, just not drawn */
+type Screen = { name: string; path: string; ready: string; lang?: 'zh' | 'en'; desktop?: boolean; empty?: boolean; action?: 'players' | 'code' | 'sheet'; hide?: string[] };
+/**
+ * 最佳称号 opens on an award drawn at random. Math.random is seeded here, but when the loading shape's
+ * file lands while the game's first render is under way, React starts that render over and the deck is
+ * shuffled again (61 or 120 draws): which award shows depends on when the two files arrive, so the same
+ * build passed or failed on that one title. The title is hidden, not masked: a mask is drawn the size of
+ * the title, and that changes with the award. The rest of the screen still counts.
+ */
+const HIDE: Record<string, string[]> = { superlatives: ['.award-title'] };
 const screens: Screen[] = [
   ...(['zh', 'en'] as const).flatMap(lang => [
     { name: `home-${lang}`, path: '/', ready: '.board', lang },
@@ -20,7 +29,7 @@ const screens: Screen[] = [
     'truth-or-dare', 'rogue-thirteen', 'superlatives', 'kings-game', 'drama-queens',
     'post-it', 'limbo', 'never-have-i-ever', 'seven-eight-nine', 'freeze-dance',
     'wheel-of-fate', 'undercover', 'name-that-tune', 'punchline', 'draw-and-guess',
-  ].map(slug => ({ name: `game-${slug}`, path: `/g/${slug}/play`, ready: '.game-body' })),
+  ].map(slug => ({ name: `game-${slug}`, path: `/g/${slug}/play`, ready: '.game-body', hide: HIDE[slug] })),
   { name: 'tv', path: '/tv', ready: '.tv-lobby' },
   ...['Button', 'Tile', 'Sheet', 'Tabs', 'Pill', 'RosterChip', 'OTPInput', 'EmptyState', 'GameHeader', 'PenaltyCard']
     .map(name => ({ name: `component-${name}`, path: `/ui-preview.html#${name}`, ready: `[data-preview="${name}"]`, ...(name === 'Sheet' ? { action: 'sheet' as const } : {}) })),
@@ -60,6 +69,7 @@ for (const screen of screens) {
     await testInfo.attach('axe-results', { path: axePath, contentType: 'application/json' });
     // Soft assertion ensures a failed accessibility audit still captures the visual diff.
     expect.soft(unexpected, `${screen.name}: untriaged serious/critical axe violations`).toEqual([]);
+    if (screen.hide) await page.addStyleTag({ content: `${screen.hide.join(', ')} { visibility: hidden !important; }` });
     await expect(page).toHaveScreenshot(`${screen.name}.png`);
   });
   });
