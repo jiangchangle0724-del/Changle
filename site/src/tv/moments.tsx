@@ -158,6 +158,11 @@ export function useScreenFx(on: boolean) {
       case "collide":
         sfx.clash();
         return;
+      // 国王游戏: a number steps up for the order
+      case "called":
+        sfx.woodblock(1.2, 0.8);
+        window.setTimeout(() => sfx.pop(), 90);
+        return;
       case "grab":
         sfx.pluck(Math.min(10, Math.max(0, (e.data?.[0] ?? 2) - 2)), 0.9);
         return;
