@@ -1058,7 +1058,7 @@ def t_euchre_single(browser):
                 pg.wait_for_timeout(700)
                 shot(pg, "eu-result")
                 shots.add("result")
-            btn = pg.locator(".eu-result .btn-primary")
+            btn = pg.locator(".game-actions .btn-primary")
             if "再来一局" in btn.inner_text():
                 pg.wait_for_timeout(900)
                 clear_stamps([pg])
