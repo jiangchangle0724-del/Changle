@@ -92,6 +92,30 @@ function expectWhole(box: QuizBox, label: string) {
 }
 
 /**
+ * The answer and its fact on a phone that has answered the question `id`, once it closes: at once if
+ * its answer was right, otherwise when every team is done with it (the other phones pass) or its time
+ * is up. Checked whole, then kept as a screenshot. False if it never came.
+ */
+async function revealOn(p: Phone, id: string, others: Phone[]): Promise<boolean> {
+  for (const end = Date.now() + 20_000; Date.now() < end; ) {
+    const box = await quizBox(p.page);
+    if (box?.state === "reveal" && box.id === id) {
+      expectWhole(box, "the answer and its fact");
+      await expect(p.page.locator(".quizpop .trivia-fact")).toContainText("你知道吗");
+      await p.page.screenshot({ path: "test-results/quiz-375x667-answer.png" });
+      return true;
+    }
+    if (box && box.id !== id) return false;
+    for (const o of others) {
+      const skip = o.page.locator(`.quizpop[data-id="${id}"] .quizpop-skip`);
+      if (await skip.isVisible().catch(() => false)) await skip.click({ timeout: 1000 }).catch(() => {});
+    }
+    await p.page.waitForTimeout(100);
+  }
+  return false;
+}
+
+/**
  * A phone never shows answers it can't give: the only answer buttons are the pop-up's, all of them
  * live; the card in the play window for a phone the question isn't for has none.
  */
@@ -293,7 +317,6 @@ test("抢答在小手机、横着拿的手机、英文 iPhone SE（最长的题�
   const shot = new Set<string>();
   let tvChecked = false;
   let revealShot = false;
-  let answered = false;
   const until = Date.now() + 200_000;
   while (Date.now() < until && (shot.size < phones.length || !tvChecked || !revealShot)) {
     for (const p of phones) {
@@ -311,18 +334,16 @@ test("抢答在小手机、横着拿的手机、英文 iPhone SE（最长的题�
             .click({ timeout: 2000 })
             .catch(() => {});
       }
-      if (box?.state === "ask" && p === small && !answered)
-        answered = await p.page
+      if (box?.state === "ask" && p === small && !revealShot) {
+        const answered = await p.page
           .locator(`.quizpop[data-id="${box.id}"] button.trivia-opt`)
           .first()
           .click({ timeout: 2000 })
           .then(() => true)
           .catch(() => false);
-      if (box?.state === "reveal" && p === small && !revealShot) {
-        expectWhole(box, "the answer and its fact");
-        await expect(p.page.locator(".quizpop .trivia-fact")).toContainText("你知道吗");
-        await p.page.screenshot({ path: "test-results/quiz-375x667-answer.png" });
-        revealShot = true;
+        // Its answer comes out once the question closes (at once if it was right, or when the other
+        // phones are done with it), for a few seconds: wait for it here, not a round of taps later.
+        if (answered) revealShot = await revealOn(small, box.id, [sideways, english]);
       }
       await tap(p);
     }
