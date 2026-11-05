@@ -1,0 +1,19 @@
+{
+  // Worker 和 Durable Object：Workers 运行时的类型（wrangler types 生成 worker-configuration.d.ts）。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["./worker-configuration.d.ts"]
+  },
+  "include": ["src/server/**/*.ts", "src/net/protocol.ts", "worker-configuration.d.ts"],
+  "exclude": ["src/server/*.test.ts"]
+}

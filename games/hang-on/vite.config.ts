@@ -1,10 +1,17 @@
 import { defineConfig } from 'vite';
 
-// 开发页只有 play.html；build 出来的 dist/ 是一页可直接打开的静态文件（相对路径，放哪都能开）。
+// 三个页面：/（主机）、/pad/（手柄）、/play.html（物理开发页）。build 出到 dist/hang-on，Worker 的静态
+// 资源根是 dist，所以线上就是 changle.ca/hang-on/、/hang-on/pad/。
 export default defineConfig({
-  base: './',
+  base: '/hang-on/',
   build: {
-    rollupOptions: { input: 'play.html' },
+    outDir: 'dist/hang-on',
+    rollupOptions: { input: { host: 'index.html', pad: 'pad/index.html', play: 'play.html' } },
     target: 'es2022',
+    chunkSizeWarningLimit: 4000,
+  },
+  server: {
+    // 本地开发：vite 出页面，wrangler dev 出房间（npm run dev 两个一起起）
+    proxy: { '/hang-on/api': { target: 'http://127.0.0.1:8787', ws: true }, '/hang-on/r': 'http://127.0.0.1:8787' },
   },
 });
