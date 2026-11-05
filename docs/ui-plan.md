@@ -223,7 +223,7 @@
 | C2 | 把剩下 14 个游戏迁进 GameShell，一个游戏一个 PR | Codex | 视觉回归通过 |
 | C3 | /eat 换皮：引 tokens 和组件包，顶栏、登录对齐主站 | Codex | 一致性盘点零差异 |
 | C4 | 中文字体栈、行高、lang 切换、触控目标 44 | Codex | 安卓加 iPhone 截图对比 |
-| C5 | 空状态、骨架屏、错误文案全站补齐（文案由你定稿） | Codex | 每个状态有截图 |
+| C5 | 空状态、骨架屏、错误文案全站补齐（文案由你定稿） | Codex | 每个状态有截图。2026-11-05 做完：文案 Steve 定稿，样板 #214，7 个地方 #218 到 #224 |
 | C6 | Playwright 视觉回归套件加 axe 自动化 | Codex | CI 上跑通 |
 | C7 | robots.txt、_headers 缓存、manifest、service worker、分享图 Worker | Codex | Lighthouse SEO 和最佳实践达标 |
 | C8 | 一致性盘点：拿 DESIGN.md 逐页找裸写值 | Codex | 清单归零 |
