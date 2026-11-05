@@ -42,30 +42,43 @@
   gap: var(--space-2);
   padding: var(--space-1) 0;
 }
-.game-loading-people > span {
+/* the shapes: tonight's people, the stage, the button; a soft light passes over them */
+.game-loading i {
+  display: block;
+  background: linear-gradient(90deg, var(--color-surface) 30%, var(--color-line-soft), var(--color-surface) 70%) 0 0 / 300% 100%;
+  animation: game-loading-shimmer calc(var(--dur-emphasis) * 5) var(--ease-out) infinite;
+}
+.game-loading-people i {
   width: var(--tap);
   height: var(--tap);
   border-radius: var(--r-pill);
 }
 .game-loading-stage {
   flex: 1;
-  display: grid;
   min-height: calc(var(--tap) * 5);
+  border-radius: var(--r-panel);
 }
-/* the stage fills the height; the slow-network line sits under it */
-.game-loading-stage .ui-skeleton-region {
-  display: flex;
-  flex-direction: column;
-}
-.game-loading-stage .ui-skeleton {
-  flex: 1;
-}
-.game-loading-stage .ui-skeleton-shape {
-  height: 100%;
-  min-height: calc(var(--tap) * 4);
+.game-loading-slow {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
 }
 .game-loading-action {
   height: calc(var(--tap) + var(--space-4));
   margin-bottom: var(--space-2);
   border-radius: var(--r-pill);
+}
+@keyframes game-loading-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-loading i {
+    animation: none;
+  }
 }

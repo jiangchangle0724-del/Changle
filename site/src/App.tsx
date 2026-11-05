@@ -5,7 +5,7 @@ import { initAudio, startMusic, stopMusic } from "./lib/sfx";
 import { EASE, play, setLight } from "./lib/motion";
 import { Home } from "./home/Home";
 import { GAME_BY_ID, type GameId } from "./games/registry";
-import { GameLoading } from "./games/GameLoading";
+import type { GameLoading } from "./games/GameLoading";
 import { GameRun } from "./games/GameRun";
 import { back, go, titleOf, useRoute, type Route } from "./router";
 import { AccountProvider, useAccount } from "./account/AccountContext";
@@ -86,6 +86,21 @@ function Shell() {
   const [restarts, setRestarts] = useState(0);
   const gel = route.kind === "game" ? GAME_BY_ID[route.id].gel : "";
   const run = useMemo(() => ({ gel, restart: () => setRestarts((n) => n + 1) }), [gel]);
+  // a game's shape while its own file downloads (GameLoading): a small file of its own, fetched once
+  // this page has settled (at once when it opens on a game), so the front door doesn't carry it
+  const [Loading, setLoading] = useState<typeof GameLoading | null>(null);
+  const opensOnGame = useRef(route.kind === "game");
+  useEffect(() => {
+    let live = true;
+    const timer = window.setTimeout(
+      () => void import("./games/GameLoading").then((m) => live && setLoading(() => m.GameLoading)),
+      opensOnGame.current ? 0 : 1500,
+    );
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, []);
   const [signInUsed, setSignInUsed] = useState(false);
   useEffect(() => {
     if (signInOpen) setSignInUsed(true);
@@ -257,7 +272,7 @@ function Shell() {
           <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>
             {route.kind === "game" && !short ? (
               // a game: its shape while its file downloads, and what its shell can ask of the page
-              <Suspense fallback={<GameLoading id={route.id} lang={lang} />}>
+              <Suspense fallback={Loading && <Loading id={route.id} lang={lang} />}>
                 <GameRun.Provider value={run}>{screen}</GameRun.Provider>
               </Suspense>
             ) : (
