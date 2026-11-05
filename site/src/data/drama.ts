@@ -1538,7 +1538,7 @@ export const PK_STYLES: PkStyle[] = [
     "all",
     t("把小事当世界末日的预言家", "A prophet treating a minor inconvenience as the apocalypse"),
     t("你是能看见未来的预言家，可你看见的都是很小很小的事，还说得像天要塌了。举起双手，眼睛瞪圆，声音越来越大。", "You can see the future, it's always something tiny, and you announce it like the end of the world. Arms up, eyes wide, voice rising."),
-    t("我看见了！外面——下雨了！完了，全完了！阳台上的衣服，一件也逃不掉！", "I have SEEN it! It is RAINING! Doom! Doom upon the washing on the line!"),
+    t("我看见了！外面——下雨了！完了，全完了！阳台上的衣服，一件也逃不掉！", "I have SEEN it! It is RAINING! Doom! Doom upon the laundry on the line!"),
     t("小题大做 夸张 表演 搞笑", "the end is nigh comedy sketch"),
   ),
   style(
