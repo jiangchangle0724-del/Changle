@@ -36,7 +36,7 @@ export function OnlineSheet({ open, onClose, game, focusCode }: { open: boolean;
 
   return (
     <Sheet open={open} onClose={onClose} title={ui("onlineTitle")} gel={g?.gel}>
-      <p className="hint" style={{ marginBottom: 16, fontSize: 15 }}>
+      <p className="hint" style={{ marginBottom: 16, fontSize: "var(--text-md)" }}>
         {g ? (lang === "zh" ? `开一桌${g.name.zh}，每人用自己的手机入座。` : `Open a ${g.name.en} table. Everyone sits down on their own phone.`) : ui("onlineBlurb")}
       </p>
       <label className="field-label" htmlFor="online-name">

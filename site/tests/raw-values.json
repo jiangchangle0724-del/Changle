@@ -16,11 +16,10 @@
     "shadow": 7
   },
   "src/styles/online.css": {
-    "font": 52,
-    "color": 7,
-    "shadow": 18,
-    "radius": 22,
-    "time": 13
+    "font": 2,
+    "color": 2,
+    "shadow": 6,
+    "radius": 1
   },
   "src/styles/tools.css": {
     "font": 23,
@@ -51,11 +50,5 @@
   },
   "src/components/SettingsSheet.tsx": {
     "font": 2
-  },
-  "src/online/OnlineSheet.tsx": {
-    "font": 1
-  },
-  "src/online/TableSheet.tsx": {
-    "font": 3
   }
 }
