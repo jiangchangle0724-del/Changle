@@ -1,6 +1,6 @@
 # party-base 开工包 · changle.ca
 
-这个包解压到 `changle-ca` 仓库根目录，目录会直接对上：
+这个包解压到 `Changle` 仓库根目录，目录会直接对上：
 
 ```
 docs/dj-booth.md                       打碟方案（文档第一个 tab 的导出）

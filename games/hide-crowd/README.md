@@ -92,7 +92,7 @@ limits (100,000 requests, 100,000 writes, 13,000 GB-s) cover a few hundred round
 
 这个游戏是一个新的 Worker，名字 `hide-crowd`，要像随便、到此一游一样接到 GitHub：之后每次合并进 `main`，Cloudflare 自己构建、上线。先做这一步，再合并这个改动（不然首页的卡片点进去，`changle.ca/hide` 还没有东西）。
 
-1. **新建 Worker。** 打开 Cloudflare 后台 → Workers & Pages → Create → 选 Import a repository（从 GitHub 导入）→ 选 `changle-ca` 这个仓库。
+1. **新建 Worker。** 打开 Cloudflare 后台 → Workers & Pages → Create → 选 Import a repository（从 GitHub 导入）→ 选 `Changle` 这个仓库。
 2. **填设置。**
    - Project name（名字）：`hide-crowd`（必须和 `wrangler.jsonc` 里的 `name` 一模一样）
    - Root directory（根目录）：`/games/hide-crowd`
