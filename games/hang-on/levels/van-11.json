@@ -1,0 +1,73 @@
+{
+  "id": "van-11",
+  "world": "van",
+  "name": {
+    "zh": "雨中快抓",
+    "en": "Rain Grip"
+  },
+  "teaches": "ice",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 980,
+    "y": 400,
+    "w": 260,
+    "h": 160
+  },
+  "checkpoints": [],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 390,
+      "h": 160,
+      "material": "ice"
+    },
+    {
+      "kind": "ground",
+      "x": 460,
+      "y": 560,
+      "w": 180,
+      "h": 22,
+      "material": "ice"
+    },
+    {
+      "kind": "ground",
+      "x": 710,
+      "y": 560,
+      "w": 180,
+      "h": 22,
+      "material": "ice"
+    },
+    {
+      "kind": "ground",
+      "x": 960,
+      "y": 560,
+      "w": 280,
+      "h": 160,
+      "material": "ice"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 400,
+      "w": 40,
+      "h": 320,
+      "material": "ice"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-11.json"
+}

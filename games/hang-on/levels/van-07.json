@@ -1,0 +1,73 @@
+{
+  "id": "van-07",
+  "world": "van",
+  "name": {
+    "zh": "天车门把手",
+    "en": "SkyTrain Handles"
+  },
+  "teaches": "door",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 950,
+    "y": 400,
+    "w": 290,
+    "h": 160
+  },
+  "checkpoints": [],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 450,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 450,
+      "y": 480,
+      "w": 100,
+      "h": 240,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 630,
+      "y": 480,
+      "w": 100,
+      "h": 240,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 730,
+      "y": 560,
+      "w": 510,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 400,
+      "w": 40,
+      "h": 320,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-07.json"
+}

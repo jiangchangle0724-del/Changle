@@ -13,6 +13,7 @@
     "play": "vite --open /play.html",
     "record": "vite --open /play.html?record=1",
     "ip-check": "node scripts/ip-check.mjs",
+    "levels": "node scripts/run-levels.mjs",
     "link-check": "node scripts/link-check.mjs",
     "deploy": "vite build && wrangler deploy"
   },
