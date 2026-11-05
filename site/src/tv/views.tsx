@@ -28,15 +28,16 @@ const VIEWS: { [K in GameId]?: ViewOf<K> } = {
   euchre: lazy(() => import("../party/euchre/TvEuchre")),
   draw: lazy(() => import("../online/games/TvDraw")),
   limbo: lazy(() => import("../party/limbo/TvLimbo")),
+  lastcard: lazy(() => import("../party/lastcard/TvLastCard")),
 };
 
 export const hasTvView = (id: GameId | null | undefined): boolean => !!id && !!VIEWS[id];
 
 /**
  * The games a phone that only watches shows as the big screen does: their own view, or, for the
- * two with big screens of their own (到此一游's, the DJ booth's speaker), the way there.
+ * three with big screens of their own (到此一游's, 藏在人群里's, the DJ booth's speaker), the way there.
  */
-export const watchable = (id: GameId | null | undefined): boolean => hasTvView(id) || id === "trip" || id === "dj";
+export const watchable = (id: GameId | null | undefined): boolean => hasTvView(id) || id === "trip" || id === "hide" || id === "dj";
 
 /** The game on the big screen: its own view (loaded when the game starts), never anyone's secrets. */
 export function TvView({ v, sound, fallback = null }: { v: GameView; sound: boolean; fallback?: ReactNode }) {
@@ -88,6 +89,9 @@ export function publicView(v: GameView): GameView {
       return { ...v, prompt: null };
     case "punchline":
       return { ...v, mine: [], match: v.match ? { ...v.match, mine: null, myVotes: [], canVote: false, maxVotes: 0 } : null };
+    case "lastcard":
+      // nobody's hand, not even the card just drawn: only how many each holds and what's face up
+      return { ...v, hand: [], legal: [], drawn: null };
     default:
       return v;
   }

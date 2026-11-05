@@ -11,7 +11,10 @@
  * - 系绳：身体到抓点的 rope joint，长度 = 胳膊长 + 肩宽 + 2，两人成链时面条不会被拉成橡皮筋。
  * - 挂着时：摇杆 = 身体想去的方向，对身体施力（和原型一样），再加横向助力。
  * - 绳子：一串胶囊小刚体 + 转动关节，锚点到绳尾再加一根 rope joint 防拉长。
- * - 关卡：静态矩形（按材质给摩擦）、跷跷板（铰接板）、箱子（动态方块）。
+ * - 关卡：静态矩形（按材质给摩擦）、跷跷板（铰接板）、箱子（动态方块）、
+ *   饼干平台（A3：到点就关掉碰撞体，抓着它的手一起松开）、弹簧蜡烛（A3：身体落在顶上就给一个向上的冲量）。
+ * - 背叛（A3）：松开抓着的队友之后，队友没抓到东西也没落地就摔死了，算松手的人一笔。
+ * - 召唤（A3）：手柄的 act = summon，摔死还没复活的队友直接从你身上掉出来。
  *
  * 单位：像素、秒；y 向下。主机是唯一跑物理的地方（铁律 1）。
  */
@@ -24,7 +27,7 @@ import {
   PLAYER_COLORS,
   TETHER_LEN,
 } from './config';
-import type { Level, Pt, Rect } from './level';
+import type { FadingDef, Level, Pt, Rect, SpringDef } from './level';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -77,7 +80,8 @@ type ColInfo =
   | { kind: 'terrain'; rect: Rect }
   | { kind: 'rope'; rope: number; link: number }
   | { kind: 'player'; player: number; part: 'body' | 'arm' | 'hand'; arm: number }
-  | { kind: 'prop'; prop: number };
+  | { kind: 'prop'; prop: number }
+  | { kind: 'spring'; spring: number; rect: Rect };
 
 export interface Arm {
   side: -1 | 1;
@@ -112,6 +116,49 @@ export interface Player {
   face: Face;
   /** 身体是否压在一个朝上的面上。 */
   ground: boolean;
+  /** 刚被谁松开（背叛判定用）：没抓到东西也没落地就摔死，算那个人一笔。 */
+  heldBy: { by: number; t: number } | null;
+  /** 抓过几次。 */
+  grabs: number;
+  /** 松手害队友摔死几次。 */
+  betrayals: number;
+  /** 弹簧的冷却（秒），免得一次落地弹好几下。 */
+  springCd: number;
+  /** 手柄的偶发动作，等下一步处理。 */
+  pendingAct: 'summon' | 'emote' | null;
+  actAt: number;
+}
+
+/** 饼干平台的当前样子（画面用）。 */
+export interface Fading {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  material?: string;
+  /** 现在在不在。 */
+  on: boolean;
+  /** 距离下一次切换还有几秒。 */
+  left: number;
+  onS: number;
+  offS: number;
+}
+
+/** 弹簧蜡烛的当前样子（画面用）。 */
+export interface Spring {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  power: number;
+  /** 上一次被弹到现在几秒（没弹过是 Infinity）。 */
+  hit: number;
+}
+
+export interface Betrayal {
+  by: number;
+  victim: number;
+  t: number;
 }
 
 export interface Rope {
@@ -135,10 +182,18 @@ export interface Prop {
 
 export type SimEvent =
   | { type: 'grab'; player: number; kind: GripKind; x: number; y: number }
-  | { type: 'release'; player: number }
-  | { type: 'death'; player: number }
-  | { type: 'respawn'; player: number }
+  | { type: 'release'; player: number; kind: GripKind; x: number; y: number }
+  /** 落地（身体从空中压到地上），speed 是落地前的竖直速度。 */
+  | { type: 'land'; player: number; speed: number }
+  | { type: 'death'; player: number; x: number; y: number }
+  | { type: 'respawn'; player: number; summoned: boolean }
   | { type: 'checkpoint'; index: number }
+  | { type: 'bounce'; player: number; spring: number }
+  /** 饼干平台没了 / 回来了。 */
+  | { type: 'fade'; index: number; on: boolean }
+  /** by 松开 victim 之后 victim 摔死了。 */
+  | { type: 'betrayal'; by: number; victim: number }
+  | { type: 'summon'; player: number; who: number[] }
   | { type: 'win' };
 
 export interface TeleportOpts {
@@ -189,7 +244,11 @@ export class Sim {
   readonly players: Player[] = [];
   readonly ropes: Rope[] = [];
   readonly props: Prop[] = [];
-  /** 本帧发生的事（抓、松、死、复活、检查点、过关），每次 step 清空。 */
+  readonly fadings: Fading[] = [];
+  readonly springs: Spring[] = [];
+  /** 背叛榜：谁松开谁、什么时候。 */
+  readonly betrayals: Betrayal[] = [];
+  /** 本帧发生的事（抓、松、死、复活、检查点、过关……），每次 step 清空。 */
   readonly events: SimEvent[] = [];
   time = 0;
   won = false;
@@ -201,8 +260,8 @@ export class Sim {
   private readonly terrain: RB;
   private readonly grabShape: RAPIER.Ball;
   private readonly grips = new Map<Joint, { player: number; arm: number; g: GripInternal }>();
+  private readonly fadingCols: { def: FadingDef; col: Col }[] = [];
   private acc = 0;
-  private warned = new Set<string>();
 
   constructor(level: Level, nPlayers: number) {
     this.level = level;
@@ -216,14 +275,8 @@ export class Sim {
     // 地形：一个固定刚体，每块矩形一个碰撞体
     this.terrain = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     for (const r of level.rects) this.addRect(r, frictionOf(r.material), 0);
-    for (const r of level.fading ?? []) {
-      this.warnOnce('fading', '关卡里的 fading 平台在 A1 里先当普通平台。');
-      this.addRect(r, frictionOf(r.material), 0);
-    }
-    for (const r of level.springs ?? []) {
-      this.warnOnce('springs', '关卡里的 spring 在 A1 里先当高弹性平台。');
-      this.addRect(r, frictionOf(r.material), 0.9);
-    }
+    for (const r of level.fading ?? []) this.addFading(r);
+    for (const r of level.springs ?? []) this.addSpring(r);
     for (const def of level.ropes ?? []) this.addRope(def.anchor, def.segments, def.segLen);
     for (const def of level.seesaws ?? []) this.addSeesaw(def.pivot, def.w, def.h ?? 14, frictionOf(def.material));
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
@@ -233,7 +286,7 @@ export class Sim {
 
   // ---------------------------------------------------------------- 关卡物件
 
-  private addRect(r: Rect, friction: number, restitution: number): void {
+  private addRect(r: Rect, friction: number, restitution: number): Col {
     const desc = RAPIER.ColliderDesc.cuboid(r.w / 2, r.h / 2)
       .setTranslation(r.x + r.w / 2, r.y + r.h / 2)
       .setFriction(friction)
@@ -241,6 +294,48 @@ export class Sim {
       .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL));
     const col = this.world.createCollider(desc, this.terrain);
     this.info.set(col.handle, { kind: 'terrain', rect: r });
+    return col;
+  }
+
+  /** 饼干平台：普通地形，到点就关掉碰撞体。 */
+  private addFading(def: FadingDef): void {
+    const col = this.addRect(def, frictionOf(def.material), 0);
+    this.fadingCols.push({ def, col });
+    const onS = Math.max(0.2, def.on ?? CFG.fadeOn);
+    const offS = Math.max(0.2, def.off ?? CFG.fadeOff);
+    this.fadings.push({ x: def.x, y: def.y, w: def.w, h: def.h, material: def.material, on: true, left: onS, onS, offS });
+    this.tickFading(this.fadings.length - 1);
+  }
+
+  /** 弹簧蜡烛：能站能抓，身体落在顶上就弹。 */
+  private addSpring(def: SpringDef): void {
+    const col = this.addRect(def, frictionOf(def.material), 0);
+    const index = this.springs.length;
+    this.info.set(col.handle, { kind: 'spring', spring: index, rect: def });
+    this.springs.push({ x: def.x, y: def.y, w: def.w, h: def.h, power: def.power ?? 1, hit: Infinity });
+  }
+
+  /** 饼干平台的钟：算这一步它在不在，变了就开关碰撞体、松开抓着它的手。 */
+  private tickFading(i: number): void {
+    const f = this.fadings[i];
+    const fc = this.fadingCols[i];
+    if (!f || !fc) return;
+    const cycle = f.onS + f.offS;
+    const t = (((this.time + (fc.def.phase ?? 0)) % cycle) + cycle) % cycle;
+    const on = t < f.onS;
+    f.left = on ? f.onS - t : cycle - t;
+    if (on === f.on) return;
+    f.on = on;
+    fc.col.setEnabled(on);
+    if (!on) {
+      for (const [, entry] of [...this.grips]) {
+        if (entry.g.kind === 'terrain' && entry.g.rect === fc.def) {
+          const holder = this.players[entry.player];
+          if (holder) this.release(holder, entry.arm);
+        }
+      }
+    }
+    this.events.push({ type: 'fade', index: i, on });
   }
 
   private addRope(anchor: Pt, n: number, segLen: number): void {
@@ -374,6 +469,12 @@ export class Sim {
       deaths: 0,
       face: 'idle',
       ground: false,
+      heldBy: null,
+      grabs: 0,
+      betrayals: 0,
+      springCd: 0,
+      pendingAct: null,
+      actAt: -10,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -477,6 +578,11 @@ export class Sim {
     p.aim.y = l < 0.12 ? 0 : ay;
     p.grab[0] = !!input.gl;
     p.grab[1] = !!input.gr;
+    // 偶发动作：手柄会连发几帧保证送到，1 秒内同一个动作只算一次
+    if ((input.act === 'summon' || input.act === 'emote') && this.time - p.actAt >= CFG.actCooldown) {
+      p.actAt = this.time;
+      p.pendingAct = input.act;
+    }
   }
 
   /**
@@ -505,6 +611,8 @@ export class Sim {
     this.world.propagateModifiedBodyPositionsToColliders();
     p.dead = false;
     p.deadT = 0;
+    p.heldBy = null;
+    p.springCd = CFG.springCooldown;
     this.refreshPlayer(p);
   }
 
@@ -531,6 +639,8 @@ export class Sim {
   private substep(): void {
     const dt = CFG.step;
     this.time += dt;
+    for (let i = 0; i < this.fadings.length; i++) this.tickFading(i);
+    for (const s of this.springs) s.hit += dt;
     for (const p of this.players) if (!p.dead) this.control(p);
     for (const p of this.players) {
       if (p.dead) continue;
@@ -541,7 +651,14 @@ export class Sim {
       });
     }
     this.world.step();
-    for (const p of this.players) this.refreshPlayer(p);
+    for (const p of this.players) {
+      const wasGround = p.ground;
+      const vyBefore = p.body.vy;
+      this.refreshPlayer(p);
+      if (!p.dead && p.ground && !wasGround && vyBefore > CFG.landSpeed) this.events.push({ type: 'land', player: p.id, speed: vyBefore });
+      if (p.ground) p.heldBy = null;
+      p.springCd = Math.max(0, p.springCd - dt);
+    }
     for (const rope of this.ropes) this.refreshRope(rope);
     for (const prop of this.props) {
       const t = prop.rb.translation();
@@ -550,9 +667,28 @@ export class Sim {
       prop.angle = prop.rb.rotation();
     }
     this.lifeAndDeath(dt);
+    this.acts();
     this.checkpoints();
     this.checkWin();
     for (const p of this.players) this.updateFace(p);
+  }
+
+  /** 手柄的偶发动作：召唤 = 摔死还没复活的队友立刻从你身上掉出来。 */
+  private acts(): void {
+    for (const p of this.players) {
+      const act = p.pendingAct;
+      p.pendingAct = null;
+      if (!act || p.dead || act !== 'summon') continue;
+      const who: number[] = [];
+      for (const q of this.players) {
+        if (!q.dead) continue;
+        this.teleport(q.id, p.body.x, p.body.y - CFG.bodyR * 2);
+        q.face = 'idle';
+        who.push(q.id);
+        this.events.push({ type: 'respawn', player: q.id, summoned: true });
+      }
+      if (who.length) this.events.push({ type: 'summon', player: p.id, who });
+    }
   }
 
   /** 一步里的操作：挂着时对身体施力，没抓着的手伸向摇杆方向。 */
@@ -622,7 +758,8 @@ export class Sim {
     let best: { col: Col; point: Pt; d: number; info: ColInfo } | null = null;
     this.world.intersectionsWithShape(h, 0, this.grabShape, (col) => {
       const info = this.info.get(col.handle);
-      if (!info) return true;
+      // 关掉的碰撞体（消失中的饼干）这一步查询还查得到，自己跳过
+      if (!info || !col.isEnabled()) return true;
       if (info.kind === 'player') {
         const other = this.players[info.player];
         if (info.player === p.id || !other || other.dead) return true;
@@ -648,8 +785,9 @@ export class Sim {
     );
     joint.setContactsEnabled(false);
     const tether = this.world.createImpulseJoint(RAPIER.JointData.rope(TETHER_LEN, { x: 0, y: 0 }, local), p.rb, target, true);
+    const kind: GripKind = info.kind === 'spring' ? 'terrain' : info.kind;
     const grip: GripInternal = {
-      kind: info.kind,
+      kind,
       x: point.x,
       y: point.y,
       t: 0,
@@ -658,13 +796,15 @@ export class Sim {
       target,
       local,
     };
-    if (info.kind === 'terrain') grip.rect = info.rect;
+    if (info.kind === 'terrain' || info.kind === 'spring') grip.rect = info.rect;
     if (info.kind === 'player') grip.player = info.player;
     if (info.kind === 'rope') grip.rope = info.rope;
     if (info.kind === 'prop') grip.prop = info.prop;
     arm.grip = grip;
     this.grips.set(joint, { player: p.id, arm: k, g: grip });
-    this.events.push({ type: 'grab', player: p.id, kind: info.kind, x: point.x, y: point.y });
+    p.grabs++;
+    p.heldBy = null;
+    this.events.push({ type: 'grab', player: p.id, kind, x: point.x, y: point.y });
   }
 
   private release(p: Player, k: number): void {
@@ -675,7 +815,12 @@ export class Sim {
     this.world.removeImpulseJoint(g.tether, true);
     this.grips.delete(g.joint);
     arm.grip = null;
-    this.events.push({ type: 'release', player: p.id });
+    // 松开的是队友，而队友此刻悬空又没抓着别的：记下来，几秒内摔死就是背叛
+    if (g.kind === 'player' && g.player !== undefined && !p.dead) {
+      const victim = this.players[g.player];
+      if (victim && !victim.dead && !victim.ground && !victim.arms.some((a) => a.grip)) victim.heldBy = { by: p.id, t: this.time };
+    }
+    this.events.push({ type: 'release', player: p.id, kind: g.kind, x: g.x, y: g.y });
   }
 
   private releaseAll(p: Player): void {
@@ -719,8 +864,9 @@ export class Sim {
     }
     // 地面：身体和某个碰撞体的接触法线朝上
     p.ground = false;
+    let springHit = -1;
     this.world.contactPairsWith(p.bodyCol, (other) => {
-      if (p.ground) return;
+      if (p.ground && springHit >= 0) return;
       this.world.contactPair(p.bodyCol, other, (manifold, flipped) => {
         if (manifold.numContacts() === 0) return;
         let close = false;
@@ -729,9 +875,27 @@ export class Sim {
         const n = manifold.normal();
         const ny = flipped ? -n.y : n.y;
         // 法线从身体指向对方：对方在身体下面时 y 为正（y 向下）
-        if (ny > 0.5) p.ground = true;
+        if (ny > 0.5) {
+          p.ground = true;
+          const info = this.info.get(other.handle);
+          if (info?.kind === 'spring') springHit = info.spring;
+        }
       });
     });
+    // 弹簧蜡烛：身体压在顶上就弹起来（冷却里不重复弹）
+    if (springHit >= 0 && !p.dead && p.springCd <= 0) {
+      const s = this.springs[springHit];
+      if (s) {
+        // 整个人一起弹：身体和两条胳膊都给同样的向上速度，不然胳膊的阻尼会把身体拽住
+        const launch = CFG.springLaunch * s.power;
+        p.rb.setLinvel({ x: p.body.vx, y: 0 }, true);
+        p.rb.applyImpulse({ x: 0, y: -p.rb.mass() * launch }, true);
+        for (const arm of p.arms) for (const rb of arm.segs) rb.applyImpulse({ x: 0, y: -rb.mass() * launch }, true);
+        p.springCd = CFG.springCooldown;
+        s.hit = 0;
+        this.events.push({ type: 'bounce', player: p.id, spring: springHit });
+      }
+    }
   }
 
   private refreshRope(rope: Rope): void {
@@ -750,7 +914,15 @@ export class Sim {
         p.deadT = 0;
         p.deaths++;
         p.face = 'scream';
-        this.events.push({ type: 'death', player: p.id });
+        this.events.push({ type: 'death', player: p.id, x: p.body.x, y: p.body.y });
+        const held = p.heldBy;
+        p.heldBy = null;
+        if (held && this.time - held.t <= CFG.betrayalWindow) {
+          const by = this.players[held.by];
+          if (by) by.betrayals++;
+          this.betrayals.push({ by: held.by, victim: p.id, t: this.time });
+          this.events.push({ type: 'betrayal', by: held.by, victim: p.id });
+        }
         this.releaseAll(p);
         this.releaseGripsOn(p.id);
       }
@@ -760,7 +932,7 @@ export class Sim {
           const s = this.spawnPoint(p.id);
           this.teleport(p.id, s.x, s.y);
           p.face = 'idle';
-          this.events.push({ type: 'respawn', player: p.id });
+          this.events.push({ type: 'respawn', player: p.id, summoned: false });
         }
       }
     }
@@ -805,12 +977,6 @@ export class Sim {
     else if (vy > 1000) p.face = 'scream';
     else if (Math.abs(vy) > 380 || Math.abs(vx) > 700) p.face = 'fly';
     else p.face = 'idle';
-  }
-
-  private warnOnce(key: string, msg: string): void {
-    if (this.warned.has(key)) return;
-    this.warned.add(key);
-    console.warn(`[hang-on] ${msg}`);
   }
 
   /** 释放 wasm 里的世界。 */

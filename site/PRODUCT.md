@@ -39,6 +39,8 @@ Also on the home screen: a wishlist where anyone can suggest games and features,
 
 一本正经 · Straight Face (in the works, 2026-11-04; one phone only so far, at changle.ca/g/straight-face/play, off the board until the owner has played it): a judge, an obscure word, one honest player who read the real meaning and bluffers who make one up; the judge questions, tags one suspect and names the honest one. Our own name, rules and card bank in the Call My Bluff / Balderdash family. Plan: `docs/straight-face.md`.
 
+最后一张 · Last Card (in the works, 2026-11-05; online only, hidden from the board until the owner has played it: changle.ca/g/last-card/play opens a table for it): the shedding card game everyone already knows, under our own name and with card faces of our own. 108 cards in four stage-gel colours, each colour with its own shape (a triangle, a circle, a square, a star) so they read apart without colour; skips, reverses, +2s, wilds and +4 wilds; call last card at one card or draw 2 if someone catches you first. The host picks stacking (+2 on +2, +4 on +4) and how many rounds win the match. Penalties: a sip for taking a +2, two for a +4 or a stack of four or more, a sip for being caught, and at each round's end a sip for whoever holds the most cards. 2 to 10 players; each phone sees only its own hand, and the big screen shows the table, never a hand.
+
 Not planned: UNO (Mattel trademark).
 
 Terminology: 惩罚 / penalty; 喝一口 / sip; 喝两口 / two sips; 喝一杯 / finish the drink; 指定 / assign; 尤克 / euchred.
