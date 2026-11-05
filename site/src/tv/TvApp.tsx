@@ -19,6 +19,9 @@ import { useCodeField } from "../online/codeField";
 import { TvCorner, TvPenalties, TvReactions, useScreenFx } from "./moments";
 import { joinLink, siteHost, useQr, Wordmark } from "./parts";
 import { hasTvView, TvView } from "./views";
+import { Fit } from "./Frame";
+import { TvLoadingStage } from "./TvLoading";
+import "./states.css";
 // the DJ booth brings the speaker (its own sound chain and music): only DJ tables load it
 const TvDj = lazy(() => import("../party/dj/TvDj"));
 
@@ -74,7 +77,11 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   }, [up, code]);
 
   let body: ReactNode;
-  if (stopped?.kind === "error" && !(stopped.code === "exists" && create))
+  if (stopped?.kind === "error" && (stopped.code === "paused" || stopped.code === "banned"))
+    body = <TvNotice title={stopped.code === "paused" ? (zh ? "changle 暂停中" : "changle is closed for now") : (zh ? "这台设备已被停用" : "This device has been blocked")}>
+      <p>{stopped.code === "paused" ? (zh ? "站长在整理，过一会儿再来。" : "The owner is tidying up. Come back in a while.") : (zh ? "有问题请联系站长。" : "Ask the site's owner if you think this is a mistake.")}</p>
+    </TvNotice>;
+  else if (stopped?.kind === "error" && !(stopped.code === "exists" && create))
     body = (
       <TvNotice title={stopped.code === "no-room" ? (zh ? `没有 ${code} 这张桌，可能已经散了` : `Table ${code} isn't open, or it has ended`) : zh ? "连不上这张桌" : "Can't reach this table"}>
         <button type="button" className="tv-btn tv-btn-main" onClick={onFresh}>
@@ -91,7 +98,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
         </button>
       </TvNotice>
     );
-  else if (!room) body = <TvNotice title={status === "reconnecting" ? (zh ? "正在重新连接…" : "Reconnecting…") : zh ? "正在开桌…" : "Opening the table…"} spinning />;
+  else if (!room) body = <TvLoadingStage />;
   else if (room.game && own) body = <TvView v={room.game} sound={audio} fallback={<TvNotice title={zh ? GAME_BY_ID[room.game.id].name.zh : GAME_BY_ID[room.game.id].name.en} spinning />} />;
   else if (room.game?.id === "trip") body = <TvTrip v={room.game} table={code} />;
   else if (room.game?.id === "hide") body = <TvHide v={room.game} table={code} Notice={TvNotice} />;
@@ -109,6 +116,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
     <Fit>
       <TablePenalty value={room?.penalty ?? ""}>
         {body}
+        {status === "reconnecting" && <div className="tv-reconnecting" role="status">{zh ? "网断了，正在重连" : "Connection lost. Reconnecting"}</div>}
         {room?.playing && room.playing !== "dj" && <TvCorner code={code} />}
         {room && <TvReactions />}
         {room && <TvPenalties room={room} sound={audio} />}
@@ -120,24 +128,6 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
 }
 
 /* ------------------------------------------------------------------ the 1600x900 canvas, scaled to the screen */
-
-function Fit({ children }: { children: ReactNode }) {
-  const [k, setK] = useState(1);
-  useLayoutEffect(() => {
-    const fit = () => setK(Math.min(window.innerWidth / 1600, window.innerHeight / 900));
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, []);
-  return (
-    <div className="tv-fit">
-      {/* pinned to the screen's centre, then scaled: a grid cell would grow to the canvas's own size and push it off a narrow screen (a phone that only watches) */}
-      <div className="tv-canvas" style={{ transform: `translate(-50%, -50%) scale(${k})` }}>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ sound: a TV needs one click first */
 
@@ -315,7 +305,7 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
       <section className="tv-join-panel">
         <h1 className="tv-call">{zh ? "拿出手机，扫码入座" : "Grab your phone and scan to sit down"}</h1>
         <div className="tv-join-body">
-          <div className="tv-qr">{qr && <div dangerouslySetInnerHTML={{ __html: qr }} />}</div>
+          <div className="tv-qr">{qr ? <div dangerouslySetInnerHTML={{ __html: qr }} /> : <p className="tv-qr-fallback">{zh ? `扫不了就输入桌号 ${code}` : `Can't scan? Enter table ${code}`}</p>}</div>
           <div className="tv-code-block">
             <span className="tv-code-label">{zh ? "桌号" : "Table code"}</span>
             <span className="tv-code tabular" aria-label={code.split("").join(" ")}>

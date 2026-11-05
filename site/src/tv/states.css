@@ -1,0 +1,38 @@
+.tv-loading-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  gap: var(--space-8);
+  padding: calc(var(--space-8) * 3);
+  background: radial-gradient(ellipse at center, var(--color-surface), var(--night));
+}
+.tv-loading-panels {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-8);
+}
+.tv-loading-stage .ui-skeleton-slow { font-size: var(--text-xl); }
+.tv-loading-stage > a { justify-self: center; }
+.tv-reconnecting {
+  position: absolute;
+  z-index: 5;
+  top: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  line-height: var(--leading);
+}
+.tv-qr-fallback {
+  padding: var(--space-3);
+  color: var(--night);
+  font-size: var(--text-xl);
+  line-height: var(--leading);
+  text-align: center;
+}
+
+.tv-notice-actions > p, .watch-away .ui-skeleton-slow { font-size: var(--text-xl); }
