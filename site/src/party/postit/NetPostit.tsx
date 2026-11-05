@@ -11,8 +11,12 @@ import { useWatching } from "../../online/players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "../../online/games/common";
 import type { PostitReply, PostitView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
+import { deckName } from "../../data/postit";
+import { Sheet } from "../../components/Sheet";
+import { DeckPicker, MIX } from "./DeckPicker";
 import { Forehead, Sticky, tiltFor } from "./parts";
 import "../../styles/party.css";
+import "./net.css";
 import { Figure } from "../../components/Figure";
 
 const REPLY: Record<PostitReply, [string, string]> = { yes: ["是", "Yes"], no: ["不是", "No"], maybe: ["不确定", "Not sure"] };
@@ -31,71 +35,92 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
   const rules = (
     <p>
       {zh
-        ? `每个人给下一位写一张便利贴（一个人物、动物或东西），也可以让系统随机出。所有人都能看到别人额头上的字，只有自己的看不到。轮到你时，问一个只能回答是或不是的问题（说出来，或者打在手机上），其他人在手机上回答。然后可以猜，也可以跳过。${custom ? "猜错受罚，最后一个猜出来的也受罚。" : "猜错喝一口，最后一个猜出来的喝一杯。"}`
-        : `Everyone writes a note for the next player: a person, an animal, a thing (or lets the deck pick). Every phone shows everyone's forehead except your own. On your turn, ask a yes-or-no question (out loud, or typed), and the others answer on their phones. Then guess, or pass. ${custom ? "A wrong guess takes the penalty, and so does the last one to get it." : "A wrong guess is a sip; the last one to get it drinks a full glass."}`}
+        ? `每个人给下一位写一张便利贴（一个人物、动物或东西），也可以让系统随机出。所有人都能看到别人额头上的字，只有自己的看不到。轮到你时，问一个只能回答是或不是的问题（说出来，或者打在手机上），其他人在手机上回答。然后可以猜，也可以跳过。${custom ? "猜错受罚，最后一个没猜出来的也受罚。" : "猜错喝一口，最后一个没猜出来的喝一杯。"}每个人的轮数一样：别人都猜出来了、你还少问一轮，就有最后一次机会。`
+        : `Everyone writes a note for the next player: a person, an animal, a thing (or lets the deck pick). Every phone shows everyone's forehead except your own. On your turn, ask a yes-or-no question (out loud, or typed), and the others answer on their phones. Then guess, or pass. ${custom ? "A wrong guess takes the penalty, and so does the last one still guessing." : "A wrong guess is a sip; the last one still guessing drinks a full glass."} Everyone gets the same number of turns: if the others have theirs and you are a turn behind, you get a last chance.`}
     </p>
   );
 
   return (
     <NetFrame title={GAME_BY_ID.postit.name} rules={rules} onLeave={onLeave}>
-      <div className="pi">
+      <div className={`pi ${v.phase === "write" ? "" : "is-table"}`}>
         {v.phase === "write" && <WritePhase v={v} />}
 
         {v.phase !== "write" && (
           <>
-            {v.phase === "play" && <TurnLine pid={v.turn} lead={zh ? "现在提问" : "Asking now"} mineText={zh ? "轮到你提问" : "Your turn to ask"} />}
-            {v.phase === "end" && <p className="pi-end">{zh ? "全部揭晓" : "All revealed"}</p>}
-            <div className="forehead-wall">
-              {v.order.map((id) => (
-                <Forehead
-                  key={id}
-                  figure={!!seat(id)}
-                  face={seat(id) ? <Figure seat={seat(id)!} /> : <SeatFace seat={seat(id)} size={46} />}
-                  name={id === me ? (zh ? "你" : "You") : nameOf(id)}
-                  note={v.notes[id]}
-                  tilt={tiltFor(id)}
-                  turn={v.phase === "play" && v.turn === id}
-                  solved={v.solved.includes(id)}
-                >
-                  {v.phase === "play" && v.replies[id] && <span className={`pi-reply-tag is-${v.replies[id]}`}>{REPLY[v.replies[id]][zh ? 0 : 1]}</span>}
-                </Forehead>
-              ))}
+            {/* upright, the two halves are one column; on a phone held sideways the wall is on the left and the turn's business stays put on the right (net.css) */}
+            <div className="pi-side">
+              {v.phase === "play" &&
+                (v.final ? (
+                  <TurnLine pid={v.turn} lead={zh ? "最后一次机会" : "Last chance"} mineText={zh ? "你的最后一次机会" : "Your last chance"} />
+                ) : (
+                  <TurnLine pid={v.turn} lead={zh ? "现在提问" : "Asking now"} mineText={zh ? "轮到你提问" : "Your turn to ask"} />
+                ))}
+              {v.phase === "end" && <p className="pi-end">{zh ? "全部揭晓" : "All revealed"}</p>}
+              <div className="forehead-wall">
+                {v.order.map((id) => (
+                  <Forehead
+                    key={id}
+                    figure={!!seat(id)}
+                    face={seat(id) ? <Figure seat={seat(id)!} /> : <SeatFace seat={seat(id)} size={46} />}
+                    name={id === me ? (zh ? "你" : "You") : nameOf(id)}
+                    note={v.notes[id]}
+                    tilt={tiltFor(id)}
+                    turn={v.phase === "play" && v.turn === id}
+                    solved={v.solved.includes(id)}
+                  >
+                    {v.phase === "play" && v.replies[id] && <span className={`pi-reply-tag is-${v.replies[id]}`}>{REPLY[v.replies[id]][zh ? 0 : 1]}</span>}
+                  </Forehead>
+                ))}
+              </div>
             </div>
 
-            <GuessToast v={v} />
+            <div className="pi-main">
+              <GuessToast v={v} />
 
-            {v.phase === "play" && (mine ? <AskPanel v={v} /> : <ReplyPanel v={v} />)}
+              {v.phase === "play" && (mine ? <AskPanel v={v} /> : <ReplyPanel v={v} />)}
 
-            {v.phase === "play" && solvedMe && !mine && <p className="hint" style={{ textAlign: "center" }}>{zh ? "你已经猜出来了，帮大家回答问题" : "You got yours. Help the others by answering."}</p>}
+              {v.phase === "play" && solvedMe && !mine && <p className="hint" style={{ textAlign: "center" }}>{zh ? "你已经猜出来了，帮大家回答问题" : "You got yours. Help the others by answering."}</p>}
 
-            {v.phase === "end" && (
-              <ol className="pi-order">
-                {v.solved.map((id, i) => (
-                  <li key={id}>
-                    <span className="tabular">{i + 1}</span>
-                    <SeatFace seat={seat(id)} size={26} />
-                    <strong>{nameOf(id)}</strong>
-                    <small className="hint">{zh ? `猜了 ${v.tries[id] ?? 0} 次` : `${v.tries[id] ?? 0} guesses`}</small>
-                  </li>
-                ))}
-                {v.order
-                  .filter((id) => !v.solved.includes(id))
-                  .map((id) => (
-                    <li key={id} className="is-last">
-                      <span>!</span>
+              {v.phase === "end" && (
+                <ol className="pi-order">
+                  {v.solved.map((id, i) => (
+                    <li key={id}>
+                      <span className="tabular">{i + 1}</span>
                       <SeatFace seat={seat(id)} size={26} />
                       <strong>{nameOf(id)}</strong>
-                      <small>{custom ? (zh ? "最后一个，受罚" : "Last one: penalty") : zh ? "最后一个，喝一杯" : "Last one: a full glass"}</small>
+                      <small className="hint">{zh ? `猜了 ${v.tries[id] ?? 0} 次` : `${v.tries[id] ?? 0} ${v.tries[id] === 1 ? "guess" : "guesses"}`}</small>
                     </li>
                   ))}
-              </ol>
-            )}
+                  {v.order
+                    .filter((id) => !v.solved.includes(id))
+                    .map((id) =>
+                      // (`last` is who drinks the glass; a server not yet updated doesn't say, and there it was always the one left)
+                      v.last === undefined || v.last === id ? (
+                        <li key={id} className="is-last">
+                          <span>!</span>
+                          <SeatFace seat={seat(id)} size={26} />
+                          <strong>{nameOf(id)}</strong>
+                          <small>{custom ? (zh ? "最后一个，受罚" : "Last one: penalty") : zh ? "最后一个，喝一杯" : "Last one: a full glass"}</small>
+                        </li>
+                      ) : (
+                        <li key={id}>
+                          <span>-</span>
+                          <SeatFace seat={seat(id)} size={26} />
+                          <strong>{nameOf(id)}</strong>
+                          <small className="hint">{zh ? "没猜完，大家先走了" : "Still guessing when the others left"}</small>
+                        </li>
+                      ),
+                    )}
+                </ol>
+              )}
 
-            <HostRow>
-              {v.phase === "play" && v.guess && !v.guess.ok && !v.solved.includes(v.guess.by) && <HostButton onClick={() => g("accept")}>{zh ? `算 ${nameOf(v.guess.by)} 猜对` : `Count ${nameOf(v.guess.by)} as right`}</HostButton>}
-              {v.phase === "play" && !mine && <HostButton onClick={() => g("pass")}>{zh ? `跳过 ${nameOf(v.turn)}` : `Skip ${nameOf(v.turn)}`}</HostButton>}
-              {v.phase === "end" && <HostButton onClick={() => g("again")}>{zh ? "再来一局" : "Play again"}</HostButton>}
-            </HostRow>
+              <HostRow>
+                {v.phase === "play" && v.guess && !v.guess.ok && !v.solved.includes(v.guess.by) && v.order.includes(v.guess.by) && <HostButton onClick={() => g("accept")}>{zh ? `算 ${nameOf(v.guess.by)} 猜对` : `Count ${nameOf(v.guess.by)} as right`}</HostButton>}
+                {v.phase === "play" && !mine && <HostButton onClick={() => g("pass")}>{zh ? `跳过 ${nameOf(v.turn)}` : `Skip ${nameOf(v.turn)}`}</HostButton>}
+                {v.phase === "end" && <DeckChoice v={v} />}
+                {v.phase === "end" && <HostButton onClick={() => g("again")}>{zh ? "再来一局" : "Play again"}</HostButton>}
+              </HostRow>
+            </div>
           </>
         )}
       </div>
@@ -113,7 +138,8 @@ function GuessToast({ v }: { v: PostitView }) {
     if (!at || !ref.current || reduced()) return;
     gsap.fromTo(ref.current, { y: 12, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)", clearProps: "transform,opacity" });
   }, [at]);
-  if (!v.guess || v.phase !== "play") return null;
+  // (at the end too: the last guess of the game stays on show; not one by someone who has gone)
+  if (!v.guess || v.phase === "write" || !v.order.includes(v.guess.by)) return null;
   const who = v.guess.by === me ? (zh ? "你" : "You") : nameOf(v.guess.by);
   return (
     <div className={`pi-toast ${v.guess.ok ? "is-ok" : "is-no"}`} ref={ref} role="status">
@@ -150,7 +176,15 @@ function WritePhase({ v }: { v: PostitView }) {
               <p className="hint">{zh ? "贴好了。可以重写，或者随机换一个。" : "Stuck on. Rewrite it, or let the deck pick another."}</p>
             </div>
           ) : (
-            <p className="hint">{zh ? "一个人物、动物或东西，大家都知道的那种。别让 TA 看到。" : "A person, an animal or a thing everyone knows. Don't let them see."}</p>
+            <p className="hint">
+              {!v.pick || v.pick === MIX
+                ? zh
+                  ? "一个人物、动物或东西，大家都知道的那种。别让 TA 看到。"
+                  : "A person, an animal or a thing everyone knows. Don't let them see."
+                : zh
+                  ? `写一个大家都知道的，也可以随机来一个，从「${deckName(v.pick).zh}」里出。别让 TA 看到。`
+                  : `Write something everyone knows, or let the deck pick one from ${deckName(v.pick).en}. Don't let them see.`}
+            </p>
           )}
           <form
             className="pi-note-form"
@@ -176,8 +210,42 @@ function WritePhase({ v }: { v: PostitView }) {
         </div>
       )}
       <HostRow>
+        <DeckChoice v={v} />
         <HostButton onClick={() => g("begin")}>{zh ? "不等了，没写的随机" : "Start now, random for the rest"}</HostButton>
       </HostRow>
+    </>
+  );
+}
+
+/**
+ * The host: where the notes nobody writes come from. The mixed bag of people, animals and things,
+ * or any of the one-phone game's decks. In a sheet; a deck is picked when it is tapped.
+ */
+function DeckChoice({ v }: { v: PostitView }) {
+  const { g, isHost } = useRoom();
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const [open, setOpen] = useState(false);
+  // (a rooms server not yet updated doesn't say which, and deals from the mixed bag whatever is
+  // tapped: no button until it does)
+  const pick = v.pick;
+  if (!isHost || pick === undefined) return null;
+  return (
+    <>
+      <HostButton onClick={() => setOpen(true)}>{zh ? `随机的词：${deckName(pick).zh}` : `Random notes: ${deckName(pick).en}`}</HostButton>
+      <Sheet open={open} onClose={() => setOpen(false)} title={zh ? "没写的便利贴从哪组出" : "Where unwritten notes come from"}>
+        <p className="hint">{zh ? "「随机来一个」和到时间没写的，都从这组里出。已经贴上的不变。" : "Pick for me, and every note not written in time, comes from here. Notes already stuck on stay."}</p>
+        <DeckPicker
+          value={pick}
+          mix
+          browse
+          zh={zh}
+          onPick={(id) => {
+            g("pick", { id });
+            setOpen(false);
+          }}
+        />
+      </Sheet>
     </>
   );
 }
@@ -186,23 +254,34 @@ function AskPanel({ v }: { v: PostitView }) {
   const { g } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
+  const custom = usePenaltyText().isCustom;
   const [q, setQ] = useState("");
   const [guess, setGuess] = useState("");
   const counts = { yes: 0, no: 0, maybe: 0 } as Record<PostitReply, number>;
   for (const r of Object.values(v.replies)) counts[r]++;
   return (
     <div className="pi-panel">
+      {v.final && (
+        <p className="pi-last" role="status">
+          {zh
+            ? `别人都猜出来了，这是你最后一次机会：问完再猜。猜错或放弃，${custom ? "受罚" : "喝一杯"}。`
+            : `Everyone else has theirs. This is your last chance: ask, then guess. Miss or give up, and ${custom ? "the penalty is yours" : "it's the full glass"}.`}
+        </p>
+      )}
       <form
         className="field pi-ask"
         onSubmit={(e) => {
           e.preventDefault();
-          g("ask", { text: q.trim() });
+          // (a second tap on send finds the box empty: the question already asked stays)
+          const text = q.trim();
+          if (!text) return;
+          g("ask", { text });
           setQ("");
           sfx.pop();
         }}
       >
         <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} placeholder={zh ? "问一个是非题，比如：我是动物吗？" : "Ask yes or no: am I an animal?"} aria-label={zh ? "问题" : "Question"} />
-        <button type="submit" className="btn btn-moon btn-sm" aria-label={zh ? "发问" : "Ask"}>
+        <button type="submit" className="btn btn-moon btn-sm" aria-label={zh ? "发问" : "Ask"} disabled={!q.trim()}>
           <Send size={15} />
         </button>
       </form>
@@ -230,7 +309,7 @@ function AskPanel({ v }: { v: PostitView }) {
         </div>
         <div className="row" style={{ gap: 10 }}>
           <button type="button" className="btn btn-ghost btn-block" onClick={() => g("pass")}>
-            {zh ? "先不猜，下一位" : "Pass for now"}
+            {v.final ? (zh ? "放弃" : "Give up") : zh ? "先不猜，下一位" : "Pass for now"}
           </button>
           <button type="submit" className="btn btn-primary btn-block" disabled={!guess.trim()}>
             {zh ? "猜" : "Guess"}
@@ -242,16 +321,26 @@ function AskPanel({ v }: { v: PostitView }) {
 }
 
 function ReplyPanel({ v }: { v: PostitView }) {
-  const { me, g, nameOf } = useRoom();
+  const { room, me, g, nameOf } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
   const my = v.replies[me];
   // (someone just watching hears the question, and leaves the answers to the players)
   const watching = useWatching();
+  // what the question is about, beside the answers: at a long table the asker's forehead has
+  // scrolled off the top by the time the buttons are in view
+  const about = v.notes[v.turn];
   return (
     <div className="pi-panel">
+      {about && (
+        <p className="pi-about">
+          <SeatFace seat={room?.seats.find((s) => s.id === v.turn)} size={28} />
+          <span>{zh ? `${nameOf(v.turn)} 额头上是` : `On ${nameOf(v.turn)}'s forehead:`}</span>
+          <Sticky note={about} size="chip" />
+        </p>
+      )}
       {v.asking ? <p className="pi-question">{v.asking}</p> : <Waiting>{zh ? `等 ${nameOf(v.turn)} 提问` : `Waiting for ${nameOf(v.turn)} to ask`}</Waiting>}
-      {!watching && (
+      {!watching && v.order.includes(me) && (
         <div className="pi-replies" role="group" aria-label={zh ? "回答" : "Answer"}>
           {(["yes", "no", "maybe"] as const).map((r) => (
             <button

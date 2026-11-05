@@ -10,11 +10,17 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/physics/` | Rapier2D 物理（A1）：`world.ts` 世界和玩家，`config.ts` 手感参数，`level.ts` 关卡类型和样例关，`replay.ts` 无头回放 |
 | `src/physics/feel.test.ts` | 原型的 20 条手感检查，移植到 Rapier 版 |
 | `src/physics/extras.test.ts` | 检查点、跷跷板和箱子、回放、步长 |
+| `src/physics/gameplay.test.ts` | A3 的玩法：饼干平台、弹簧蜡烛、背叛判定、召唤、落地事件 |
+| `src/render/` | 画面（A3，Pixi 8）：`stage.ts` 镜头、图层、事件→动效、慢动作；`backdrop.ts` 两个世界的视差背景；`terrain.ts` 平台按材质贴图、饼干、蜡烛、灯、旗；`dumpling.ts` 糯米团（脸、帽子、眼镜、挤压拉伸、复活掉落）；`fx.ts` 粒子池；`art.ts` 色板和程序画的贴图 |
+| `src/audio/sfx.ts` | 音效（A3）：全部 WebAudio 现场合成，没有音频文件；每个人的尖叫音高不同 |
+| `src/look.ts` | 换装的选项（帽子、眼镜、眼睛、脸、袖子、嗓子）和中英名字，手柄页和主机共用 |
+| `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
+| `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关）加彩蛋关「桌上杂技」 |
 | `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入 |
 | `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计 |
-| `index.html` + `src/host/` | 主机页：开房、房间码和二维码、座位、左上角延迟表、跑物理画画面、键盘也能加入 |
-| `pad/index.html` + `src/pad/` | 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓 |
-| `play.html` + `src/dev/` + `src/render/` | 物理开发页：不联网，键盘 / 鼠标 / 触屏直接玩，能录回放 |
+| `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜）、声音开关，键盘也能加入 |
+| `pad/index.html` + `src/pad/` | 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓；「样子」换装；队友摔死时亮「召唤队友」 |
+| `play.html` + `src/dev/` | 物理开发页：不联网，键盘 / 鼠标 / 触屏直接玩，画面和主机页同一套，能录回放 |
 | `scripts/link-check.mjs` | 联机检查：一台主机页加两个手柄页对着本地房间服务跑一遍（直连、绕路、掐线 5 秒内回来） |
 | `scripts/ip-check.mjs` | 法律线：docs/ 之外不出现原版的名字 |
 | `proto/` | 最早的 Verlet 软体手感原型，零依赖，留作参照（`node proto/sim.test.mjs`） |
@@ -28,14 +34,26 @@ npm run typecheck   # 页面和 Worker 各一套类型
 npm run build       # 三个页面 → dist/hang-on
 npm run dev         # 整套本地跑：http://<这台电脑的 IP>:8787/hang-on/，手机同一个 Wi-Fi 扫码进来
 npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwright 的 Chromium：npx playwright install chromium）
-npm run play        # 只跑物理：http://localhost:5173/play.html
+npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=4 放 4 个人量帧时间）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON
 npm run ip-check    # 法律线，CI 里为零才合并
 ```
 
-主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓，自己一个人也能试。
-「绕路模式」是测试用的开关：不直连，全部经 Cloudflare 中转，看看备用路好不好用。
-控制台里 `hangOn.sim`、`hangOn.peers()` 看状态；手柄页 `hangOnPad.link.simulateDrop()` 模拟关 Wi-Fi。
+主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓、R 召唤，自己一个人也能试。
+「绕路模式」是测试用的开关：不直连，全部经 Cloudflare 中转，看看备用路好不好用。`?render=0` 只跑物理不画画面（联机检查用）。
+控制台里 `hangOn.sim`、`hangOn.peers()`、`hangOn.pickLevel(i)` 看状态和换关；手柄页 `hangOnPad.link.simulateDrop()` 模拟关 Wi-Fi。
+
+## 画面是怎么画的（A3）
+
+Pixi 8，WebGL（没有就退到 canvas）。除了两张远景画，全部程序画：
+
+- 屏幕空间：天空渐变 → 三层视差剪影（年夜饭桌：灯笼、碗、茶壶、蒸笼；温哥华：雪山、吊桥、楼群的灯、海边的树）→ 蒸汽 / 雨 → 世界 → 暗角。
+- 世界空间：深渊的汤 → 平台（茶布、木头、瓷、钢、冰五种贴图，细木条画成筷子）→ 物件 → 绳子（面条）→ 拖尾 → 糯米团 → 粒子 → 汤面（人掉进去就被盖住）。
+- 镜头跟着活着的人的中心走，人散开就缩到都能看见，关卡比画面窄就居中。
+- 动效读 `docs/hang-on.md` 的「动效清单」：抓上冒星闪手套、沿速度拉伸、落地压扁、眼睛跟摇杆、拖尾、摔死慢 0.3 秒加抖镜头加闪一下、复活从天上掉、过关纸屑加一起跳、「×× 松手了」横幅。`prefers-reduced-motion` 下不抖不闪不拉伸、粒子减半。
+- 换装：手柄页选帽子、眼镜、眼睛、脸（胡子、雀斑、创可贴）、袖子颜色、嗓子（摔下去怎么叫），经房间发给主机；大厅的座位卡画出每个人的样子。手套左蓝右橙不能换。
+- 中英：主机右上角、手柄加入页各有一个语言键；默认跟主站的设置或手机语言。
+- 远景画：`art/<世界>-far.webp` 有就用（现在两张都是 ChatGPT 生的，来源记在 `art/README.md`），铺满、压暗、跟镜头挪一小段，远、中两层剪影藏掉；删掉图就回到全程序画。
 
 ## 链路是怎么走的
 
@@ -69,10 +87,11 @@ sim.events;              // 本帧的 grab / release / death / respawn / checkpo
 
 关卡是 JSON（`Level` 类型，字段见 `CONTRACTS.md`「关卡契约」），`runReplay(level, replay)` 按录好的输入无头跑一关。
 
-## 上线（还没连）
+## 上线
 
-和一起跳（`games/party-server`）一个模式：自己的 Worker，连上 GitHub 之后合并 `main` 就部署。
-在 Cloudflare 里新建 Workers Builds 连接，名字 `hang-on`（必须和 `wrangler.jsonc` 的 `name` 一样）：
-根目录 `/games/hang-on`，构建命令 `npm run build`，部署命令 `npx wrangler deploy`，
-监视路径 `games/hang-on/*`，预览分支的构建关掉（Durable Object 不在预览里）。没有密钥，没有数据库。
-连好之后 `changle.ca/hang-on/`（主机）和 `changle.ca/hang-on/pad/`（手柄）就答话；网址以后要改只改 `wrangler.jsonc` 的 `routes` 和 `vite.config.ts` 的 `base`。
+和一起跳（`games/party-server`）一个模式：自己的 Worker，合并 `main` 就部署。2026-11-04 连上 Cloudflare：
+Workers Builds 名字 `hang-on`（和 `wrangler.jsonc` 的 `name` 一样），根目录 `/games/hang-on`，构建命令 `npm run build`，
+部署命令 `npx wrangler deploy`，监视路径 `games/hang-on/*`，预览分支的构建关着（Durable Object 不在预览里），
+API token「suibian build token」。没有密钥，没有数据库。
+`changle.ca/hang-on/`（主机）和 `changle.ca/hang-on/pad/`（手柄）答话；网址以后要改只改 `wrangler.jsonc` 的 `routes` 和 `vite.config.ts` 的 `base`。
+`BASE=https://changle.ca npm run link-check` 对着线上跑一遍联机检查（11-04 全过：直连往返约 20 ms，绕 Cloudflare 约 120 ms）。

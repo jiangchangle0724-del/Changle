@@ -128,6 +128,26 @@ Each of these was measured or is tested. Check them again after a change.
    375x667, a phone held sideways, a 320 px iPhone SE in English with the longest question the bank
    allows, and the big screen at 1366x768. Only a phone that can answer gets the pop-up (with
    这题不答 to pass); others read it in their play window.
+   **It comes rarely, and with a landing**: once eight minutes have passed since the last question
+   (four since the game's start, for its first), the next team to land on a city brings the teams
+   waiting a question about that city. It comes up when the move has played and the stamp is down, 4.5 s after the throw, or
+   10 s after it on a team's first visit, when the landing scene plays first (on a big screen, for
+   everyone). A question that popped up at the start of every turn kept
+   covering the play window. While a big screen is on, the question isn't the one its arrival card
+   answers (the fact behind the city's rule, printed there).
+   **It needs someone there to answer.** With only computer teams waiting (a person playing the
+   computer, on their own turn) it waits until that turn is over: the person is asked about the city
+   they've just been to, while the computer teams move. On one phone for every team it never comes
+   up over a move: between two turns, before the next team throws, or while a computer team moves.
+   **It never covers what the landing asks of the table.** It waits for the team to decide whether to
+   buy, and for an auction, a vote or Rio's dance and scores; after one the waiting teams took part in,
+   it leaves them 4.5 s to see how it came out. One that had to wait doesn't come up over another
+   team's move either: 4.5 s after the throw at the soonest.
+   **First come.** Once a landing has brought a question, it keeps it until it comes up, even when
+   that team moves on (doubles, a card, Immigration) or others land meanwhile: it's about the city
+   the team has just been to. Taking it over with each newer landing would start its wait again
+   each time, and where teams play fast it never came. Only one waiting for someone to answer it
+   gives way to a newer landing.
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
    wear their letter too).
@@ -341,7 +361,8 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   has flown there on the globe, which it does after the move). Nothing tells the landing before
   the stamp, on any screen (`moveInPlay`): the dice under the board show when they settle, the
   log's lines from the throw on and what the table is waiting for when the token lands, the
-  standings and every team's cash with the question.
+  standings and every team's cash with the question. The waiting teams' quiz question about the
+  city, when the landing brings one, is held back on the server until the move has played.
 * **What it gives way to** (`rideUrgent`). An auction or Shanghai's quiz for this team cuts it short
   and brings the question straight back; a table vote waits for it unless that would leave less
   than 15 s to answer. A shake doesn't throw again while it plays.
@@ -358,12 +379,24 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
 * **Money:** coins fly from whoever pays to whoever is paid, once the token is down. On the big
   screen, every payment; on a phone, its own team's.
 * **Sent to Immigration:** the gate comes down over the board.
-* **Rio's samba** (`ui/Samba.tsx`): a team that says it will dance gets a 10.6 s lesson on every
-  screen, from the server's moment (protocol `TIMING.dance`): four beats counted in, twelve of the
-  basic step at 100 a minute, a pose. The teacher is a mirror, the foot to move lights up, the word
-  is spoken a little ahead of the beat. Full screen on the dancing team's phone, small over the
-  judges' buttons (which light up when it's over: their 25 s start then), big over the big screen's
-  board, where the band plays (or on the dancer's phone when there's no big screen).
+* **Rio's samba** (`ui/Samba.tsx`). A team that says it will dance gets a ready card on its phone,
+  under the top bar: stand up, leave room for a step, what comes next, and one big Start. The
+  other phones and the big screen say whom they're waiting for. Nothing starts until Start is
+  pressed; left alone for 60 s it starts by itself (the card counts its last 15 s; never in the
+  one-phone demo). Then every screen counts down 5 4 3 2 1 from the server's moment, a whistle to
+  each numeral, and plays the same 40 s lesson (protocol `TIMING` and `DanceView`): eight figures
+  of eight beats at 100 a minute (slowly, the step, bounce, to the side, hips, hands up, shoulders,
+  all together) and a pose. The teacher is a carnival dancer drawn as a person (hair and feathers,
+  a face, a top and skirt in the team's colour, arms with elbows, legs with knees, shoes) and a
+  mirror of you: the spot under the foot to move lights up, and the figure's word is on screen and
+  spoken a little ahead of the beat. She is a paper puppet: each part is drawn once, on a layer of
+  its own, and a frame only moves the layers (a CSS transform each, the compositor's work). Nothing
+  is painted again as she dances but the two ribbons while they fly, and the words beside her when
+  they change. Full screen on the dancing team's phone, small over the judges' buttons (which light
+  up when it's over: their 25 s start then), big over the big screen's board, where the band plays
+  (or on the dancer's phone when there's no big screen). A computer team, or one the computer is
+  covering, has nobody to get ready or to teach: it dances a short one at once (10 s: two figures
+  and the pose). The room's song is hushed from the ready card to the lesson's end.
 * **Vibration** (`controls.ts`) works where a page is allowed to vibrate: Android. It buzzes on
   your turn, your press on the dice (or any answer), the landing, money in and out, a city bought, a
   card, Immigration, an auction, a trade offer and going broke. iPhones can't buzz from a page: the
@@ -378,11 +411,16 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   (`app.webmanifest`) starts that web app at changle.ca, the table, not at an old game.
 * **Watching on a TV** (menu, 旁观): any device can become the room's big screen in place, keeping
   the sound it was allowed to play; one opened straight on the board asks for a tap to turn sound on.
-* **Photosensitivity** (WCAG 2.3.1 and 2.3.3). Measured on films of every screen through a throw,
-  the samba and a turn call: at most 2 flashes a second over 25% of a 10-degree field (3 with a
-  stricter field a quarter of the screen across), no red flashes. Reduced motion (the phone's
-  setting or the menu's) plays every beat flat and still: no lean, no push, no tumble, a standing
-  teacher.
+* **Photosensitivity** (WCAG 2.3.1 and 2.3.3). Measured on films of every screen through a throw
+  and a turn call: at most 2 flashes a second over 25% of a 10-degree field (3 with a stricter
+  field a quarter of the screen across), no red flashes. Rio's samba, from the countdown to the
+  pose, filmed at 30 frames a second of the game's clock on all three screens: over 25% of a
+  10-degree field, at most 1 flash a second on the dancing team's phone and on a judge's (2 a
+  second reach 23% of one) and 2 on the big screen (3 a second reach 19% of one); with the
+  stricter field, 3 on the phones and 2 on the big screen; nothing anywhere flashes 4 times in a
+  second, and nothing red. Reduced motion (the phone's setting or the menu's) plays every beat flat
+  and still: no lean, no push, no tumble, and a teacher who stands still while she waits and
+  counts, then holds each beat's pose for the whole beat.
 
 Also still to do: the ten-minute playtest on real phones (the script and record sheet are in the
 beat sheet's document), with people who haven't seen the game.

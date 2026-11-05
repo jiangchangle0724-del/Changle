@@ -1,12 +1,14 @@
 /**
- * 开发页：键盘 / 鼠标 / 触屏开 Rapier 物理，canvas 画画面。`npm run play`。
+ * 开发页：键盘 / 鼠标 / 触屏开 Rapier 物理，Pixi 画画面（和主机页同一套）。`npm run play`。
+ * `?level=table-03` 选关（levels/ 里的 id），不给就是彩蛋关；`?players=4` 放 4 个人（量帧时间用，只有 P1 P2 能操作）。
  * 带回放录制：`?record=1` 一进来就录，或者点「录制」；停止时下载 replays 用的 JSON（每物理步一帧）。
  */
+import { LEVELS, levelById } from '../levels';
 import { CFG } from '../physics/config';
-import { sampleLevel } from '../physics/level';
 import type { Replay } from '../physics/replay';
 import { createSim, type PadInput, type Sim } from '../physics/world';
-import { Renderer } from '../render/canvas';
+import { Stage } from '../render/stage';
+import { sfx } from '../audio/sfx';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -15,10 +17,14 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 const canvas = $<HTMLCanvasElement>('stage');
-const renderer = new Renderer(canvas);
-const level = sampleLevel();
-let sim: Sim = await createSim(level, 1);
-let nPlayers = 1;
+const query = new URLSearchParams(location.search);
+const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
+const stage = await Stage.create(canvas);
+stage.setLevel(level);
+let nPlayers = Math.max(1, Math.min(4, Number(query.get('players')) || 1));
+let sim: Sim = await createSim(level, nPlayers);
+stage.syncPlayers(sim);
+sfx.attach(document);
 
 // ---------- 输入 ----------
 const keys = new Set<string>();
@@ -128,7 +134,7 @@ function readInputs(): PadInput[] {
     ay = touch.ay;
   }
   if (!ax && !ay && mouse.active && !isTouch) {
-    const s = renderer.toScreen(p1.body);
+    const s = stage.toScreen(p1.body);
     const dx = mouse.x - s.x;
     const dy = mouse.y - s.y;
     const d = Math.hypot(dx, dy);
@@ -186,25 +192,25 @@ let acc = 0;
 const DT = CFG.step;
 let frameTimes: number[] = [];
 
-addEventListener('resize', () => renderer.resize());
-renderer.resize();
+addEventListener('resize', () => stage.resize());
 
 function frame(now: number): void {
   const t0 = performance.now();
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  acc += dt;
+  acc += dt * stage.timeScale;
   const inputs = readInputs();
   inputs.forEach((input, i) => sim.setInput(i, input));
   while (acc >= DT) {
     sim.step(DT);
-    renderer.handleEvents(sim, sim.events);
+    stage.handleEvents(sim, sim.events);
+    sfx.handleEvents(sim, sim.events);
     for (const ev of sim.events) if (ev.type === 'win') showWin();
     if (recording && !sim.won) recording.frames.push(inputs.map((x) => ({ ...x })));
     acc -= DT;
   }
-  renderer.updateCamera(sim, dt);
-  renderer.draw(sim, dt);
+  stage.updateCamera(sim, dt);
+  stage.draw(sim, dt);
   $('clock').textContent = sim.time.toFixed(1);
   $('deaths').textContent = String(sim.players.reduce((s, p) => s + p.deaths, 0));
   frameTimes.push(performance.now() - t0);
@@ -229,13 +235,15 @@ async function restart(): Promise<void> {
   sim.destroy();
   sim = await createSim(level, nPlayers);
   winEl.hidden = true;
-  renderer.reset();
+  stage.reset();
+  stage.syncPlayers(sim);
 }
 $('again').addEventListener('click', () => void restart());
 $('reset').addEventListener('click', () => void restart());
 $('p2btn').addEventListener('click', (e) => {
   nPlayers = nPlayers === 1 ? 2 : 1;
   sim.setPlayers(nPlayers);
+  stage.syncPlayers(sim);
   (e.currentTarget as HTMLButtonElement).textContent = nPlayers === 1 ? '+ 第二个人' : '− 第二个人';
 });
 setTimeout(() => {
@@ -254,7 +262,9 @@ canvas.addEventListener(
   get sim() {
     return sim;
   },
+  stage,
   CFG,
+  LEVELS,
 };
 
 requestAnimationFrame(frame);

@@ -14,7 +14,7 @@ import {
   type Action,
   type Pending,
 } from "../../engine";
-import type { RoomView } from "../../room/protocol";
+import { TIMING, type RoomView } from "../../room/protocol";
 import { cardTitle, colon, money, spaceName, t, tx, type Key } from "../i18n";
 import { BUZZ, allowShake, buzz, onShake, shakeState } from "../controls";
 import { send } from "../store";
@@ -159,13 +159,19 @@ function Strip({ label, at }: { label: string; at?: number }) {
   );
 }
 
-/** Rio's judges: the 1 to 10 buttons light up once the dance is over (the vote's 25 s start then). */
+/**
+ * Rio's judges: the 1 to 10 buttons light up once the dance is over (the vote's 25 s start then). Until
+ * then the lesson plays small above them: the dancing team getting ready, the countdown, the dance.
+ */
 function Scores({ v, dancer, act }: { v: RoomView; dancer: number; act: (a: Action) => void }) {
   const dance = useDanceClock(v);
   const dancing = dance !== null && !dance.over;
+  // (the one-phone demo: this phone is the dancing team's too, and shows the lesson full screen over
+  // these buttons until it's over; a second teacher dancing unseen under it would only cost frames)
+  const covered = dancing && v.you.seats.includes(dance.seat);
   return (
     <>
-      {dance && <SambaLesson v={v} size="small" />}
+      {dance && !covered && <SambaLesson v={v} size="small" />}
       <p class="ask">{dancing ? t("sambaWatch", { team: seatName(v, dancer) }) : t("scoreAsk", { team: seatName(v, dancer) })}</p>
       <div class="choices grid5">
         {Array.from({ length: 10 }, (_, i) => (
@@ -440,7 +446,7 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
     case "dance":
       return (
         <>
-          <p class="ask">{t("danceAsk")}</p>
+          <p class="ask">{t("danceAsk", { secs: TIMING.dance / 1000 })}</p>
           <div class="choices">
             <HapticBtn kind="primary" onClick={() => act({ yes: true })}>
               {t("dance")}

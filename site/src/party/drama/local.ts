@@ -11,11 +11,14 @@ import type { Fx, GameAction, GameView, PenaltyKind } from "../../shared/protoco
 export type LocalPenalty = { who: string[]; kind: PenaltyKind; note?: T; say?: T };
 export type LocalEvent = { k: "penalty"; p: LocalPenalty } | { k: "fx"; fx: Fx; pid?: string };
 
-type Timer = { key: string; at: number; data?: unknown };
+type Timer = { key: string; at: number; wait: number; data?: unknown };
+/** Plain waiting steps, with fresh waits on return; no running clock or timer handles. */
+export type LocalKept<S> = { state: S; pending: { key: string; wait: number; data?: unknown }[] };
 
-export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string[], onEvent: (e: LocalEvent) => void, customPenalty = false) {
-  const state = useRef<S | null>(null);
-  const timers = useRef<Timer[]>([]);
+export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string[], onEvent: (e: LocalEvent) => void, customPenalty = false, saved: LocalKept<S> | null = null) {
+  const [first] = useState<LocalKept<S> | null>(() => saved ? JSON.parse(JSON.stringify(saved)) as LocalKept<S> : null);
+  const state = useRef<S | null>(first?.state ?? null);
+  const timers = useRef<Timer[]>(first?.pending.map((p) => ({ ...p, at: Date.now() + p.wait })) ?? []);
   const [, bump] = useState(0);
   const emit = useRef(onEvent);
   emit.current = onEvent;
@@ -59,14 +62,14 @@ export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string
       penalty: (who, kind, note, opts) => {
         const p: LocalPenalty = { who: who.filter((x) => list().includes(x)), kind, note, say: opts?.say };
         if (!p.who.length) return;
-        if (opts?.delay) timers.current.push({ key: `pen:${Math.random()}`, at: Date.now() + opts.delay, data: p });
+        if (opts?.delay) timers.current.push({ key: `pen:${Math.random()}`, at: Date.now() + opts.delay, wait: opts.delay, data: p });
         else emit.current({ k: "penalty", p });
       },
       fx: (fx, pid) => emit.current({ k: "fx", fx, pid }),
       spin: () => {},
       timer: (key, at, data) => {
         timers.current = timers.current.filter((x) => x.key !== `g:${key}`);
-        timers.current.push({ key: `g:${key}`, at, data });
+        timers.current.push({ key: `g:${key}`, at, wait: Math.max(0, at - self.now), data });
       },
       clear: (key) => {
         timers.current = timers.current.filter((x) => x.key !== `g:${key}`);
@@ -112,5 +115,6 @@ export function useLocalGame<S, V extends GameView>(def: GameDef<S>, ids: string
     state.current = def.init(api());
     bump((n) => n + 1);
   }, [def, api]);
-  return useMemo(() => ({ act, view, reset }), [act, view, reset]);
+  const keep = useCallback((): LocalKept<S> => ({ state: state.current as S, pending: timers.current.map(({ key, wait, data }) => ({ key, wait, data })) }), []);
+  return useMemo(() => ({ act, view, reset, keep }), [act, view, reset, keep]);
 }

@@ -46,7 +46,8 @@ def t_hide_online(browser):
     ok(num in mia.url, f"both phones went to room {num}")
     tv.wait_for_url(re.compile(r"/hide/tv/" + num + r"\?table=" + code), timeout=10000)
     ok(True, "the big screen followed to the game's big screen")
-    ok(until(lambda: kev.get_by_role("button", name="打开它的大屏").count() == 1), "a seat that watches gets the game's big screen")
+    # (full screen, as in 到此一游; once he hosts the table, NetHide's own button to it)
+    ok(until(lambda: kev.locator(".watch .watch-away").count() == 1 and kev.get_by_role("button", name="打开藏在人群里的大屏").count() == 1), "a seat that watches gets the way to the game's big screen")
     ok("/t/" in kev.url, "and stays at the table")
     kev.screenshot(path=os.path.join(OUT, "hide-table-watching.png"))
     for g in (host, mia):

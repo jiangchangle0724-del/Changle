@@ -10,11 +10,12 @@ import { useCue, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import { BRIEF_MS } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
-import { perfAt } from "../sensors";
+import { perfAt, useWakeLock } from "../sensors";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { loadLibrary, SceneWriter, TableScenes } from "./writer";
 import { useStore } from "../../store";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
+import { useSettle } from "./ShellActions";
 import { dramaSfx } from "./sound";
 
 export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) {
@@ -45,16 +46,32 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
 
   // the host's phone brings a dozen scenes from the public library, once
   const libAsked = useRef(false);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryFailed, setLibraryFailed] = useState(false);
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
   useEffect(() => {
     if (!isHost || v.lib > 0 || libAsked.current) return;
     libAsked.current = true;
-    void loadLibrary(zh ? "zh" : "en", seats).then((chunks) => chunks.forEach((scenes) => g("lib", { scenes })));
+    const ctl = new AbortController();
+    let settled = false;
+    setLibraryLoading(true);
+    setLibraryFailed(false);
+    void loadLibrary(zh ? "zh" : "en", seats, ctl.signal).then(
+      (chunks) => { if (!ctl.signal.aborted) chunks.forEach((scenes) => g("lib", { scenes })); },
+      () => { if (!ctl.signal.aborted) setLibraryFailed(true); },
+    ).finally(() => { settled = true; if (!ctl.signal.aborted) setLibraryLoading(false); });
+    return () => { ctl.abort(); if (!settled) libAsked.current = false; setLibraryLoading(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, v.lib]);
-  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} />;
+  }, [isHost, v.lib, libraryAttempt]);
+  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = false; setLibraryAttempt((n) => n + 1); } }} />;
 
   // the scene has its own sound: the lounge music waits
   useEffect(() => holdBackground(), []);
+  // phones that sleep through the scene make the vote wait for them: the screens stay on
+  useWakeLock(v.phase !== "setup" && v.phase !== "end");
+  // a button that comes into view is brought up to where the finger is: a double tap's second tap
+  // would press it (交卷, then 现在揭晓 before the others have voted)
+  const settle = useSettle(`${v.round}|${v.phase}|${v.voted.length > 0}|${!!v.myVote}|${v.ready.includes(me)}|${v.cast.map((c) => c.pid).join(",")}`);
   useCue(v.phase === "brief", () => {
     dramaSfx.chimes();
     dramaSfx.deal();
@@ -98,7 +115,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             <SetupPanel cfg={v} disabled={!isHost} onChange={(c) => g("config", c)} />
             {tableScenes}
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={players.length < 3} onClick={() => g("start")}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={players.length < 3} onClick={settle(() => g("start"))}>
                 <Play size={18} />
                 {players.length < 3 ? (zh ? "至少三个人才能开演" : "Needs at least three") : zh ? "开演" : "Curtain up"}
               </button>
@@ -123,6 +140,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   card={v.me}
                   culprit={v.scene?.culprit ?? null}
                   pk={v.mode === "pk"}
+                  line={v.pk?.line}
                   onDone={() => g("ready")}
                   doneLabel={zh ? "记住了，准备开演" : "Got it. Ready"}
                 />
@@ -134,11 +152,11 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
               </>
             )}
             <HostRow>
-              <HostButton onClick={() => g("go")}>
+              <HostButton onClick={settle(() => g("go"))}>
                 <Clapperboard size={14} />
                 {zh ? "直接开演" : "Start now"}
               </HostButton>
-              <HostButton onClick={() => g("skip")}>
+              <HostButton onClick={settle(() => g("skip"))}>
                 <SkipForward size={14} />
                 {zh ? "换个剧本" : "Another scene"}
               </HostButton>
@@ -162,11 +180,11 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   <Eye size={16} />
                   {peek ? (zh ? "收起我的牌" : "Hide my card") : zh ? "再看一眼我的牌" : "Peek at my card"}
                 </button>
-                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} />}
+                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} line={v.pk?.line} />}
               </>
             )}
             {(acting || isHost) && (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("cut")}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("cut"))}>
                 {zh ? "演完了，开始投票" : "That's a wrap: vote"}
               </button>
             )}
@@ -184,7 +202,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             )}
             {player && !acting && v.myVote && <p className="dm-wait-note">{zh ? `已交卷，等其他人（${v.voted.length}/${audience}）` : `Sent. Waiting for the rest (${v.voted.length}/${audience})`}</p>}
             <HostRow>
-              {v.voted.length > 0 && <HostButton onClick={() => g("reveal")}>{zh ? "现在揭晓" : "Reveal now"}</HostButton>}
+              {v.voted.length > 0 && <HostButton onClick={settle(() => g("reveal"))}>{zh ? "现在揭晓" : "Reveal now"}</HostButton>}
             </HostRow>
           </>
         )}
@@ -193,7 +211,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
           <>
             <Reveal v={v} actors={actors} me={me} face={face} />
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("next")}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("next"))}>
                 {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
               </button>
             ) : (
@@ -207,7 +225,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
           <>
             <Finale v={v} ids={players.map((s) => s.id)} nameOf={nameOf} face={face} me={me} />
             {isHost && (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("more")}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("more"))}>
                 {zh ? "再演三幕" : "Three more acts"}
               </button>
             )}

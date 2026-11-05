@@ -213,6 +213,24 @@
 - 弹层开着时，手机的返回键先关弹层，不离开页面（`router.ts` 的 `useBackCloses`）。页面地址本身就代表这个弹层的（游戏卡 `/g/<slug>`），传 `history={false}`。
 - 出错时说人话，给一个能做的动作，不出现错误码。
 
+### 空的、在加载、出错了（UI 计划 C5，文案 Steve 2026-11-05 定稿）
+
+- 空的：`EmptyState`，说缺什么、下一步做什么，最多一个动作。
+- 在加载：先出内容的样子，不留白屏。列表和卡片用 `Skeleton`；整页用 `PageLoading`（`games/GameLoading.tsx`，和游戏的加载样子在同一个按需下载的小文件里），能返回。2 秒后说「网有点慢，马上就好」。按钮上正在做的事（发送中、保存中）照旧写在按钮上。
+- 出错了：`EmptyState` 加 `tone="error"`。标题说哪里没出来，正文说为什么，按钮写「再试一次」。断网和「没有」分开说：断网时不说「找不到」「还没有」「没搜到」。
+- 点了没成功（加好友、点赞、审核）：`Toast` 说一句。`ToastProvider` 放在按需下载的那一块里，不进首页的第一次下载。
+- 样板：心愿单的列表（`home/WishlistTab.tsx`），整页加载（`App.tsx`、`account/` 四个页面）。
+
+全站通用的话：
+
+| 什么时候 | 中文 | English |
+| --- | --- | --- |
+| 加载超过 2 秒 | 网有点慢，马上就好 | Slow connection, nearly there |
+| 拿数据失败 | 没连上，检查一下网络 | Couldn't connect. Check your connection |
+| 搜索失败 | 没搜成，检查一下网络 | The search didn't go through. Check your connection |
+| 点了没成功 | 没成功，再试一次 | That didn't go through. Try again |
+| 出错时的按钮 | 再试一次 | Try again |
+
 ## 已经落地的规则
 
 - 首页游戏卡已按类型上色；共用 Tile 支持工具的 amber 类型色。游戏房间仍用自己的 gel。

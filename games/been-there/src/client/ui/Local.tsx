@@ -76,8 +76,8 @@ export function LocalSong({ v }: { v: RoomView }) {
   const mine = !!cue && songPlayer(v, cue.seat) === v.you.id;
   const hush = songHushed(v, now);
   const g = v.game;
-  // (the silence and the samba end on a clock: look again then)
-  useAt(hush && g ? Math.max(g.silenceUntil ?? 0, g.dance ? g.dance.at + g.dance.ms : 0) : 0);
+  // (the silence and the samba end on a clock: look again then; a samba still waiting for its team's Start has none yet)
+  useAt(hush && g ? Math.max(g.silenceUntil ?? 0, g.dance && g.dance.at !== null ? g.dance.at + g.dance.ms : 0) : 0);
   useEffect(() => {
     music.want(
       mine && cue

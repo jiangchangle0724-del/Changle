@@ -5,6 +5,7 @@ import { EASE, play } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { useStore } from "../store";
 import { CITIES, CITY_BY_ID, dayDiff, DEFAULT_CITIES, offsetMin, partsIn, zonedToUtc, type City } from "./tz";
+import { EmptyState } from "../ui/EmptyState";
 
 const KEY = "changle.clock.cities";
 const LOCAL_TZ = (() => {
@@ -158,6 +159,7 @@ export function WorldClock() {
         }}
       />
       <Sheet open={adding} onClose={() => setAdding(false)} title={lang === "zh" ? "加城市" : "Add a city"}>
+        {CITIES.every((c) => ids.includes(c.id)) && <EmptyState title={lang === "zh" ? "城市都加上了" : "Every city is already here"} />}
         <div className="picker">
           {CITIES.filter((c) => !ids.includes(c.id)).map((c) => (
             <button

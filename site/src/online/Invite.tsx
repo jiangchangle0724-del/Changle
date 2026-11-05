@@ -66,8 +66,8 @@ export function InviteCard({ code }: { code: string }) {
           {code}
         </span>
       </p>
-      <div className="invite-qr" aria-hidden={!qr}>
-        {qr ? <div className="invite-qr-svg" dangerouslySetInnerHTML={{ __html: qr }} /> : <div className="invite-qr-blank" />}
+      <div className="invite-qr">
+        {qr ? <div className="invite-qr-svg" dangerouslySetInnerHTML={{ __html: qr }} /> : <p style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--night)" }}>{lang === "zh" ? `扫不了就输入桌号 ${code}` : `Can't scan? Enter table ${code}`}</p>}
       </div>
       <p className="hint-ink invite-help">{ui("inviteHelp")}</p>
       <p className="invite-link">{link.replace(/^https?:\/\//, "")}</p>

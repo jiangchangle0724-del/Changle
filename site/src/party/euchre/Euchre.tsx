@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useAccount } from "../../account/AccountContext";
 import { Avatar } from "../../account/Avatar";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
+import type { PenaltyCall } from "../../components/PenaltyStamp";
 import { GAME_BY_ID } from "../../games/registry";
 import { haptic, sfx } from "../../lib/sfx";
 import { applyMove, BOT_NAMES, botMove, collectTrick, newGame, nextHand, team, viewOf, type EMove, type EState } from "../../shared/euchre";
@@ -20,21 +22,44 @@ const SEATS: EuchreSeatView[] = [
   { pid: null, bot: BOT_NAMES[3] },
 ];
 const POS = ["bottom", "left", "top", "right"] as const;
+type Owed = { call: PenaltyCall; delay: number };
+type Kept = { target: number; state: EState | null; owed: Owed | null };
 
 /** One phone: you and a computer partner against two computer players. */
 export function Euchre({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="euchre" version={1}>
+      {(saved) => <EuchreGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function EuchreGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { lang, tr } = useStore();
   const { me: account } = useAccount();
   const zh = lang === "zh";
   const penalty = usePenalty();
-  const [target, setTarget] = useState(10);
-  const st = useRef<EState | null>(null);
+  const [target, setTarget] = useState(saved?.target ?? 10);
+  // The rules mutate their state: give them a private copy of the kept plain data.
+  const [firstState] = useState<EState | null>(() => saved?.state ? JSON.parse(JSON.stringify(saved.state)) as EState : null);
+  const st = useRef<EState | null>(firstState);
+  const [owed, setOwed] = useState<Owed | null>(saved?.owed ?? null);
   const [, setVer] = useState(0);
   const bump = () => setVer((n) => n + 1);
   const timers = useRef<number[]>([]);
   const later = (fn: () => void, ms: number) => timers.current.push(window.setTimeout(fn, ms));
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
   const myName = zh ? "你" : "You";
+  useKeepProgress<Kept>({ target, state: st.current, owed }, !!st.current && st.current.phase !== "end");
+  // Keep a hand's delayed penalty until it actually lands; a landed stamp is never replayed.
+  useEffect(() => {
+    if (!owed) return;
+    const id = window.setTimeout(() => {
+      setOwed(null);
+      penalty.show(owed.call);
+    }, owed.delay);
+    return () => window.clearTimeout(id);
+  }, [owed, penalty.show]);
 
   const move = (seat: number, mv: EMove) => {
     const s = st.current;
@@ -69,13 +94,13 @@ export function Euchre({ onBack }: { onBack: () => void }) {
       if (s.winner === 0) later(() => sfx.win(), 300);
       else {
         later(() => sfx.sadTrombone(0.8), 300);
-        later(() => penalty.show({ who: [myName], kind: "two", note: zh ? "尤克牌：输了这局" : "Euchre: lost the game" }), 1700);
+        setOwed({ call: { who: [myName], kind: "two", note: zh ? "尤克牌：输了这局" : "Euchre: lost the game" }, delay: 1700 });
       }
     } else if (phase === "hand" && s.result) {
       const r = s.result;
       if (r.euchre && r.makers === 0) {
         later(() => sfx.wrong(), 300);
-        later(() => penalty.show({ who: [myName], kind: "sip", note: zh ? "尤克牌：被尤克了" : "Euchre: you got euchred" }), 1300);
+        setOwed({ call: { who: [myName], kind: "sip", note: zh ? "尤克牌：被尤克了" : "Euchre: you got euchred" }, delay: 1300 });
       } else if (r.team === 0) later(() => sfx.correct(), 300);
     }
     bump();

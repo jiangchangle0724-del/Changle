@@ -7,6 +7,9 @@ import { clockOf } from "../lib/time";
 import { useStore } from "../store";
 import { useAccount, useLive, type ChatMsg, type PublicUser } from "./AccountContext";
 import { Avatar, AV_COLORS, colorFor } from "./Avatar";
+import { PageLoading } from "../games/GameLoading";
+import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
 
 type Line = ChatMsg & { state?: "sending" | "failed" };
 
@@ -42,6 +45,8 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
   const [state, setState] = useState<"ok" | "not-friends" | "missing" | "offline">("ok");
   const [more, setMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [earlierFailed, setEarlierFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [text, setText] = useState("");
   const [below, setBelow] = useState(0);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -67,13 +72,15 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
     if (status !== "in") return;
     let gone = false;
     setLines(null);
-    void api<{ user: PublicUser; relation: string }>(`/users/${id}`).then(
-      (d) => !gone && setOther(d.user),
-      (e) => !gone && e instanceof ApiError && e.status === 404 && setState("missing"),
-    );
-    void api<{ messages: ChatMsg[] }>(`/chat/${id}`).then(
-      (d) => {
+    setState("ok");
+    setEarlierFailed(false);
+    void Promise.all([
+      api<{ user: PublicUser; relation: string }>(`/users/${id}`),
+      api<{ messages: ChatMsg[] }>(`/chat/${id}`),
+    ]).then(
+      ([profile, d]) => {
         if (gone) return;
+        setOther(profile.user);
         setLines(d.messages);
         setMore(d.messages.length >= PAGE);
         setState("ok");
@@ -91,7 +98,7 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
     return () => {
       gone = true;
     };
-  }, [id, status, markRead]);
+  }, [id, status, markRead, attempt]);
 
   useEffect(() => {
     const on = () => document.visibilityState === "visible" && markRead();
@@ -166,11 +173,14 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
     const first = lines.find((x) => typeof x.id === "number" && x.id > 0);
     if (!first) return;
     setLoadingMore(true);
+    setEarlierFailed(false);
     try {
       const d = await api<{ messages: ChatMsg[] }>(`/chat/${id}?before=${first.id}`);
       keep.current = { h: document.documentElement.scrollHeight, y: window.scrollY };
       setLines((cur) => [...d.messages.filter((m) => !cur?.some((x) => x.id === m.id)), ...(cur ?? [])]);
       setMore(d.messages.length >= PAGE);
+    } catch {
+      setEarlierFailed(true);
     } finally {
       setLoadingMore(false);
     }
@@ -207,7 +217,7 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
     el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
   }, [text]);
 
-  if (status === "loading") return <div className="screen" />;
+  if (status === "loading") return <PageLoading lang={lang} />;
   if (status === "out")
     return (
       <div className="screen chat">
@@ -244,18 +254,17 @@ export function ChatPage({ id, onBack }: { id: string; onBack: () => void }) {
         </div>
       )}
       {state === "offline" && (
-        <div className="empty">
-          <p>{zh ? "聊天没加载出来，检查一下网络" : "The chat didn't load. Check your connection"}</p>
-        </div>
+        <EmptyState tone="error" title={zh ? "聊天没加载出来" : "The chat didn't load."} body={zh ? "检查一下网络" : "Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => setAttempt((n) => n + 1) }} />
       )}
 
       {state === "ok" && (
         <>
+          {lines === null && <Skeleton lang={lang} lines={5} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />}
           <ol className="chat-log" ref={log} aria-live="polite">
             {more && (
               <li className="chat-more">
                 <button type="button" className="link-btn" onClick={() => void loadEarlier()} disabled={loadingMore}>
-                  {loadingMore ? (zh ? "加载中" : "Loading") : zh ? "看更早的消息" : "Earlier messages"}
+                  {loadingMore ? (zh ? "加载中" : "Loading") : earlierFailed ? (zh ? "没加载出来，点这里再试" : "Didn't load. Tap to try again") : zh ? "看更早的消息" : "Earlier messages"}
                 </button>
               </li>
             )}

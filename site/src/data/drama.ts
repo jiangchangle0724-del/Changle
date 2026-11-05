@@ -988,6 +988,200 @@ export const SCENES: DramaScene[] = [
     twist: t("奶奶突然想起来：每个红包里还夹了一张彩票，其中一张刚刚中了一万块。", "Grandma suddenly remembers she tucked a lottery ticket into each envelope, and one of them just won ten thousand dollars."),
   },
 
+  // ---- 2026-11-05: more hard scenes for two actors (a table of three or four on hard had two to go round)
+  {
+    id: "office-money-tree",
+    kind: "office",
+    level: "all",
+    diff: "hard",
+    title: t("发财树枯了", "The Money Tree Is Dead"),
+    setup: t("老板出差一周回来，办公室那棵养了八年的发财树叶子全黄了，土里还有一股咖啡味。这一周只有两个人有办公室钥匙。", "The boss gets back from a week away and finds the office money tree, eight years old and treated like family, gone completely yellow. The soil smells of coffee. Only two people had keys that week."),
+    roles: [
+      role(t("前台", "Receptionist"), t("负责浇花，说每天都照着老板写的单子照顾", "Waters the plants, exactly as the boss's care sheet says"), t("你一直偷偷剪发财树的枝条，插在小盆里拿到网上卖，一盆三十块", "You've been snipping cuttings off the tree and selling them online, thirty bucks a pot")),
+      role(t("IT 小哥", "IT guy"), t("周末来公司修服务器，加了两天班", "Came in over the weekend to fix the server; two days of overtime"), t("机房的网线乱成一团，你把发财树搬进去挡着，拍了张「修好了」的照片交差，周一早上才搬回来", "The server room is a cable disaster, so you parked the tree in front of it for your 'all fixed' photo and only moved it back Monday morning")),
+    ],
+    culprit: t("害死发财树的人", "The plant killer"),
+    culpritCard: t("你每天把喝剩的冰美式倒进花盆，觉得提神的东西对树也好。叶子黄了以后，你偷偷换了一层新土。一口咬定是暖气开太大，把树烤坏了。", "Every day you've poured your leftover iced coffee into the pot, figuring a pick-me-up would do it good. When the leaves yellowed, you swapped the top layer of soil. Insist the heating was up too high and cooked it."),
+    ask: t("谁害死了发财树？", "Who killed the money tree?"),
+    twist: t("花店打来电话：「您订的同款发财树到了，八百八十八块。您说一定要在老板发现之前送到，对吧？」", "The plant shop calls: 'Your replacement money tree is in. Same size, $888. You said it had to arrive before the boss noticed, right?'"),
+  },
+  {
+    id: "office-skytrain-laptop",
+    kind: "office",
+    level: "all",
+    diff: "hard",
+    title: t("天车上丢了电脑", "Lost on the SkyTrain"),
+    setup: t("两个同事见完客户，坐天车回公司。装着明天提案的公司电脑不见了，两个人都说电脑一路都在对方手里。", "Two coworkers ride the SkyTrain back from a client meeting, and the company laptop with tomorrow's pitch on it is gone. Each says the other was holding it the whole way."),
+    roles: [
+      role(t("项目经理", "Project manager"), t("这份提案是 TA 熬了三个通宵做出来的", "Pulled three all-nighters on that pitch"), t("你昨晚把公司电脑带回家打游戏，游戏账号还登着，最怕 IT 查到", "You took the laptop home last night to play games, your account is still logged in, and you dread IT finding out")),
+      role(t("实习生", "Intern"), t("第一次见客户，回来的路上一直在发消息", "First client meeting ever; texted the whole ride back"), t("你趁客户茶歇，偷偷去面试了客户公司的职位，包里还装着对方给的申请表", "During the client's coffee break you snuck off to interview for a job at their company, and the application form is still in your bag")),
+    ],
+    culprit: t("弄丢电脑的人", "The one who lost it"),
+    culpritCard: t("你在车站的奶茶店排队时把电脑放在柜台上，拿了奶茶就走了，电脑根本没上车。坚持说一定是在天车上被人偷了，还要马上报警、调监控。", "You put the laptop down at the bubble tea shop by the station, grabbed your drink and walked out. It never got on the train. Insist it was stolen on the SkyTrain and push to call the police."),
+    ask: t("谁把电脑弄丢了？", "Who lost the laptop?"),
+    twist: t("车站旁边的奶茶店发了一条动态：「昨天下午有位客人把电脑忘在店里了，点的是黑糖珍珠奶茶，三分糖，加珍珠。快来拿！」", "The bubble tea shop by the station posts: 'Laptop left here yesterday afternoon. Brown sugar milk tea, 30% sweet, extra pearls. Come and get it!'"),
+  },
+  {
+    id: "family-mom-phone-locked",
+    kind: "family",
+    level: "all",
+    diff: "hard",
+    title: t("妈妈的手机锁了", "Mom's Phone Is Locked"),
+    setup: t("妈妈在厨房做饭，手机放在客厅茶几上。等她出来，手机因为密码输错太多次被锁了一个小时，可家族视频十分钟后就要开始了。", "Mom's cooking and her phone is on the coffee table. When she comes out, it's locked for an hour after too many wrong passcodes, and the big family video call starts in ten minutes."),
+    roles: [
+      role(t("老大", "Older sibling"), t("回家过周末，一直在客厅看电视", "Home for the weekend; on the sofa watching TV the whole time"), t("你上个月看到过妈妈的密码，一直偷偷用她的账号点外卖", "You saw Mom's passcode last month and have been ordering takeout on her account ever since")),
+      role(t("老二", "Younger sibling"), t("说自己一直在房间里写作业", "Says they were in their room doing homework"), t("你上周把妈妈的手机掉进了洗碗池，偷偷用大米吸干了，一直没敢说。它最近老是自己乱点", "You dropped Mom's phone in the sink last week, dried it in a bag of rice and never said a word. It's been tapping things by itself ever since")),
+    ],
+    culprit: t("锁了手机的人", "The one who locked it"),
+    culpritCard: t("妈妈正要把你小学演「一棵树」的照片发进家族群，你想偷偷删掉，结果密码猜错了十次。就说手机放在那儿自己一直亮，八成是坏了。", "Mom was about to post your school-play photo (you were Tree Number Three) to the family group chat. You tried to delete it and got the passcode wrong ten times. Say the phone kept lighting up by itself; it must be broken."),
+    ask: t("谁把妈妈的手机锁了？", "Who locked Mom's phone?"),
+    twist: t("一个小时到了，手机解锁，屏幕停在家族群，输入框里有一句没发出去的话：「妈，那张千万别发！」", "The hour's up. The phone unlocks on the family group chat, with an unsent message in the box: 'Mom, do NOT post that one!'"),
+  },
+  {
+    id: "family-new-car-scratch",
+    kind: "family",
+    level: "all",
+    diff: "hard",
+    title: t("新车上的划痕", "The Scratch on Dad's New Car"),
+    setup: t("爸爸的新车才提了一周，车门上就多了一道长长的划痕，上面还抹了一层指甲油想盖住。这个周末只有两个孩子借过车。", "Dad's had his new car for exactly one week, and now there's a long scratch down the door, dabbed over with nail polish to hide it. The only people who borrowed it this weekend were the two kids."),
+    roles: [
+      role(t("老大", "Older sibling"), t("借车去机场接朋友", "Borrowed it for an airport run"), t("你其实开车去了爸爸不让去的演唱会，停车小票还在兜里", "You actually drove to the concert Dad said you couldn't go to, and the parking stub is still in your pocket")),
+      role(t("老二", "Younger sibling"), t("刚拿到驾照，借车去练停车", "Just got their licence; borrowed it to practise parking"), t("你让朋友开着车绕了小区一圈，可爸爸说过谁都不许碰这辆车", "You let a friend take it round the block, when Dad said nobody else drives it, ever")),
+    ],
+    culprit: t("刮了车的人", "The one who scratched it"),
+    culpritCard: t("你在地下停车场倒车时蹭到了柱子，用妈妈的指甲油补了补。一口咬定车停在路边时被人划的，还说看见一个骑滑板车的小孩在旁边转悠。", "You clipped a pillar reversing in an underground parkade and touched it up with Mom's nail polish. Insist someone keyed it on the street, and that you saw a kid on a scooter hanging around."),
+    ask: t("谁刮了爸爸的车？", "Who scratched Dad's car?"),
+    twist: t("爸爸想起来，新车装了行车记录仪，整个周末都在录。可里面的存储卡不见了。", "Dad remembers the new car has a dashcam that recorded all weekend. But the memory card is missing."),
+  },
+  {
+    id: "show-rehearsal-leak",
+    kind: "show",
+    level: "all",
+    diff: "hard",
+    title: t("彩排视频提前泄露", "The Leaked Rehearsal"),
+    setup: t("才艺大赛决赛前一晚，两位决赛选手准备合演的惊喜压轴节目，彩排视频被人发到了网上，一夜播放破万。彩排室里只有他们两个人。", "The night before the talent show final, the rehearsal of the two finalists' secret closing duet turns up online and racks up ten thousand views overnight. They were the only two people in the rehearsal room."),
+    roles: [
+      role(t("主唱", "Lead singer"), t("歌是 TA 写的，最怕被人抄", "Wrote the song and is terrified of being copied"), t("你把彩排的十秒钟发进了只有三个好朋友能看的私密动态，以为不会传出去", "You posted ten seconds of the rehearsal to your close-friends story, just three people, and figured it would go no further")),
+      role(t("伴舞", "Dancer"), t("每次彩排都用手机录，说只是为了自己复习动作", "Films every rehearsal, purely to review the moves, they say"), t("你偷偷练会了对方的部分，打算万一对方临阵退缩就自己上，手机里全是这些视频", "You've secretly learned the other one's part in case they chicken out, and your phone is full of those clips")),
+    ],
+    culprit: t("偷发视频的人", "The leaker"),
+    culpritCard: t("视频是你用小号发的，想在决赛前先涨一波粉。装得比谁都生气，说一定是有人在彩排室窗外偷拍。", "You posted it from a secret account to grab some followers before the final. Act angrier than anyone and say someone must have filmed through the rehearsal room window."),
+    ask: t("谁把彩排视频发到了网上？", "Who leaked the rehearsal?"),
+    twist: t("主办方宣布：视频播放量破十万了，发视频的人可以直接当大赛的宣传大使，只要当场打开手机，给大家看看原视频。", "The organizers announce: the video just hit 100,000 views, and whoever posted it can be the show's official ambassador. They just have to show everyone the original file on their phone."),
+  },
+  {
+    id: "love-library-letter",
+    kind: "love",
+    level: "all",
+    diff: "hard",
+    title: t("还书里夹着情书", "A Love Letter in a Library Book"),
+    setup: t("图书馆收回的一本小说里，夹着一封没署名的情书，写给「每周三坐在窗边的那个人」。最近只有两个志愿者经手过这本书。", "A returned library novel has an unsigned love letter tucked inside, addressed to 'the person who sits by the window every Wednesday'. Only two volunteers have handled that book lately."),
+    roles: [
+      role(t("管借还的志愿者", "Checkout volunteer"), t("每本书都过 TA 的手，说从来不翻开看", "Every book passes through their hands; says they never open them"), t("你一直偷偷把自己写的诗夹进还回来的书里，想看看有没有人喜欢", "You've been slipping your own poems into returned books to see if anyone likes them")),
+      role(t("整理书架的志愿者", "Shelving volunteer"), t("每周三都来，说是因为周三人少", "Comes in every Wednesday, supposedly because it's quiet"), t("你周三来其实是为了看窗边那个人，可你连对方叫什么都不知道", "You come on Wednesdays to look at the person by the window, and you don't even know their name")),
+    ],
+    culprit: t("写情书的人", "The secret admirer"),
+    culpritCard: t("情书是你写的。你不敢当面说，夹进书里又后悔了，正想把它找回来。千万别承认，就说这字一看就是别人写的。", "You wrote it, lost your nerve, slipped it into the book, and now you'd give anything to get it back. Don't admit it. Say the handwriting is obviously someone else's."),
+    ask: t("情书是谁写的？", "Who wrote the love letter?"),
+    twist: t("窗边那个人走过来说：「信我收到了。周三下午三点，我在门口等写信的人。记得带上同一支紫色的笔。」", "The person from the window walks over: 'I got your letter. Wednesday, 3 p.m., I'll be waiting by the door. Bring the same purple pen.'"),
+  },
+  {
+    id: "crime-porch-package",
+    kind: "crime",
+    level: "all",
+    diff: "hard",
+    title: t("门廊上的快递", "The Package on the Porch"),
+    setup: t("两户租客共用一个门廊。房东的一个快递，箱子上写着「易碎，请勿无人签收」，在门口放了二十分钟就不见了。那段时间只有两位租客在家。", "Two tenants share one porch. A box for the landlord, marked 'FRAGILE: DO NOT LEAVE UNATTENDED', sat out there for twenty minutes and vanished. Only the two tenants were home."),
+    roles: [
+      role(t("楼上的租客", "Upstairs tenant"), t("在家上班，窗户正对着门廊", "Works from home; their window looks right onto the porch"), t("你蹭房东家的 Wi-Fi 好几个月了，所以对他什么时候收快递一清二楚", "You've been mooching the landlord's Wi-Fi for months, which is why you know his delivery schedule so well")),
+      role(t("楼下的租客", "Downstairs tenant"), t("说那二十分钟在洗澡，什么都没听见", "Says they were in the shower those twenty minutes and heard nothing"), t("你偷偷在后院养了一只鸡，租约不许。那二十分钟你其实在后院捂着它，怕快递员听见它叫", "You're secretly keeping a chicken in the backyard, against the lease, and you spent those twenty minutes out back keeping it quiet")),
+    ],
+    culprit: t("偷快递的人", "The porch pirate"),
+    culpritCard: t("快递是你拿的。你以为是房东订的新烤箱，想先帮他收着，拆开一看是一套很贵的茶具，还摔碎了一个杯子。坚持说看见一辆陌生的车在门口停过。", "You took it, thinking it was the landlord's new toaster oven and you'd hold it for him. Inside was a very expensive tea set, and you broke a cup. Insist you saw a strange car idling out front."),
+    ask: t("谁拿了房东的快递？", "Who took the landlord's package?"),
+    twist: t("门铃摄像头发来通知：「下午 2:02 检测到移动，录像已保存。」可录像只有三秒，只拍到一只袖子。", "The doorbell camera sends an alert: 'Motion detected 2:02 p.m. Clip saved.' The clip is three seconds long and shows one sleeve."),
+  },
+  {
+    id: "palace-decree-extra-stroke",
+    kind: "palace",
+    level: "all",
+    diff: "hard",
+    title: t("圣旨多了一笔", "A Thousand, Apparently"),
+    setup: t("皇上金口一开，赏修桥的工匠们「银十两」。可圣旨送到工地时，上面写的是「银千两」。这道圣旨只经过两个人的手。", "The emperor announced a reward of ten silver pieces for the bridge builders. When the decree reached the building site, it said a thousand. Only two people handled that decree."),
+    roles: [
+      role(t("翰林学士", "Court scribe"), t("圣旨是 TA 一笔一画写的", "Wrote out the decree by hand, every stroke"), t("你第一遍写错了一个字，怕挨罚，连夜模仿皇上的笔迹重抄了一遍，写坏的那张还藏在袖子里", "You blotted the first copy and, terrified of punishment, rewrote the whole thing overnight in the emperor's hand. The spoiled copy is still up your sleeve")),
+      role(t("传旨太监", "Palace messenger"), t("圣旨是 TA 一路捧着送去的", "Carried the decree all the way across the city"), t("你路上忍不住偷看了圣旨，封口是你用一粒米饭粘回去的", "You couldn't resist a peek on the way, and you stuck the seal back down with a grain of rice")),
+    ],
+    culprit: t("改了圣旨的人", "The forger"),
+    culpritCard: t("你在「十」上添了一撇，十两就变成了千两，因为修桥的工头是你亲舅舅。一口咬定皇上说的就是一千两，是别人听错了。", "With one sneaky brushstroke you turned ten into a thousand, because the bridge builders' foreman is your uncle. Insist the emperor clearly said a thousand and everyone else misheard."),
+    ask: t("谁改了圣旨？", "Who changed the decree?"),
+    twist: t("皇上说要亲自在朝堂上宣读这道圣旨，还要把写旨用的那支笔拿来看看。", "The emperor wants to read the decree aloud to the whole court himself, and asks to see the brush it was written with."),
+  },
+  {
+    id: "love-valentine-lunch",
+    kind: "love",
+    level: "spicy",
+    diff: "hard",
+    title: t("情人节中午的双人餐", "Valentine's Lunch for Two"),
+    setup: t("一对情侣的共同账户里，多了一笔情人节中午的消费：一家法餐厅，两人位，四百八十块。两个人都说那天中午在公司加班，根本没出门。", "A couple's joint account shows a $480 charge from Valentine's Day at lunchtime: a French bistro, table for two. Both of them swear they worked straight through lunch that day."),
+    roles: [
+      role(t("做饭的那个", "The one who cooks"), t("总说那家餐厅太贵，不如自己做", "Always says that bistro is overpriced and home cooking is better"), t("你偷偷在那家餐厅报了一节做菜课，想学会他们的招牌意面给对方一个惊喜，学费是从共同账户里扣的", "You secretly booked a cooking class at that very bistro to learn their famous pasta as a surprise, and paid from the joint account")),
+      role(t("洗碗的那个", "The one who does the dishes"), t("管着家里的账，每一笔都记在表格里", "Keeps the household budget; every cent goes in a spreadsheet"), t("那天中午你其实和妈妈在隔壁的茶楼吃了饭，刷的是共同账户的卡，小票还在你兜里", "You actually had lunch with your mom at the dim sum place next door that day, on the joint card, and the receipt is in your pocket")),
+    ],
+    culprit: t("偷偷约会的人", "The secret date"),
+    culpritCard: t("那顿午饭是你和前任吃的，说好只是「把东西还给对方」，结果一吃就是两个小时。坚持说一定是餐厅刷错了卡，这种事经常发生。", "That lunch was you and your ex, supposedly just to return some things, and it ran two hours. Insist the bistro must have charged the wrong card; it happens all the time."),
+    ask: t("情人节中午是谁去约会了？", "Who went on the Valentine's lunch date?"),
+    twist: t("餐厅打来电话：「您情人节那天落在七号桌的围巾我们还留着。对了，您订位时的备注写的是：别让我对象知道。」", "The bistro calls: 'We still have the scarf you left at table seven on the fourteenth. Oh, and the note on your booking said: don't tell my partner.'"),
+  },
+  {
+    id: "palace-hairpin-guardroom",
+    kind: "palace",
+    level: "spicy",
+    diff: "hard",
+    title: t("侍卫房里的凤钗", "The Hairpin in the Guardroom"),
+    setup: t("皇后最珍贵的凤钗，在一个侍卫的房间里被找到了，宫里一下子传开：皇后和侍卫有私情？皇后说凤钗三天前就不见了，这三天只有两个人进过她的寝宫。", "The empress's precious phoenix hairpin has turned up in a palace guard's room, and the court is buzzing about an affair. She says it vanished three days ago, and only two people have been in her chambers since."),
+    roles: [
+      role(t("贴身宫女", "The empress's maid"), t("每天给皇后梳头，凤钗一直由她收着", "Does the empress's hair every morning and looks after the hairpin"), t("那个侍卫是你的同乡，你们常在他房里偷偷说家乡话，你去过那间房很多次", "The guard is from your home village. You often sneak into his room to chat in your dialect, so you've been in there plenty of times")),
+      role(t("贵妃", "Noble Consort"), t("前几天来给皇后请安，说只坐了一会儿", "Came to pay her respects a few days ago; says she only stayed a moment"), t("你上个月借凤钗去仿了一支一模一样的，怕人知道你在偷偷学皇后的派头", "Last month you borrowed the hairpin to have an exact copy made, and you're terrified anyone will find out you've been dressing like the empress")),
+    ],
+    culprit: t("栽赃的人", "The one who planted it"),
+    culpritCard: t("凤钗是你偷的。你把它藏进侍卫的房间，想让大家以为皇后和侍卫有私情。装得比谁都震惊，再时不时叹一句「无风不起浪」。", "You stole the hairpin and hid it in the guard's room so the court would think the empress has a lover. Act more shocked than anyone, and keep sighing 'no smoke without fire'."),
+    ask: t("谁把凤钗放进了侍卫房？", "Who planted the hairpin?"),
+    twist: t("侍卫被带上殿，说：「这支凤钗我从没见过。可钗上的香味我闻过，就是今天站在这里的某一位身上的。」", "The guard is brought in. 'I've never seen that hairpin before. But the perfume on it, I know it. It belongs to someone standing right here.'"),
+  },
+  {
+    id: "family-designer-bag",
+    kind: "family",
+    level: "spicy",
+    diff: "hard",
+    title: t("名牌包变成了假的", "The Designer Bag Is a Fake"),
+    setup: t("林阿姨珍藏了二十年的名牌包，今天拿去鉴定，居然是假的。可当年是在专卖店买的，小票还留着。这个月只有两个人借过这个包。", "Mrs. Lin's designer handbag, her pride and joy for twenty years, has just been appraised as a fake. She bought it at the boutique and still has the receipt. Only two people borrowed it this month."),
+    roles: [
+      role(t("儿媳", "Daughter-in-law"), t("上周借包去参加公司年会", "Borrowed the bag last week for her company gala"), t("你在年会上把红酒洒进了包里，偷偷拿去干洗还换了内衬，最怕婆婆往里看", "You spilled red wine inside it at the gala and secretly had it cleaned and relined, and you're praying your mother-in-law never looks inside")),
+      role(t("女儿", "Daughter"), t("说只是借去拍了几张照片发网上", "Says she only borrowed it for a few photos to post online"), t("你一直在网上偷偷卖妈妈的旧衣服，这个包就在你的「待卖」清单上，照片都拍好了", "You've been quietly selling Mom's old clothes online, and the bag is on your 'to sell' spreadsheet, photos and all")),
+    ],
+    culprit: t("调包的人", "The bag swapper"),
+    culpritCard: t("你把真包卖了，放回去一个夜市买的仿品，钱拿去还了一张瞒着全家的信用卡。坚持说这个包从一开始就是假的，当年被专卖店骗了。", "You sold the real bag, put a night-market copy back in its place, and used the money to pay off a credit card nobody in the family knows about. Insist it was a fake from day one and the boutique conned her."),
+    ask: t("谁把包调了包？", "Who swapped the bag?"),
+    twist: t("专卖店打来电话：「林阿姨，好消息！上周有人把一个包卖回给我们，编号和您的一模一样。您要不要买回去？」", "The boutique calls: 'Good news, Mrs. Lin! Someone sold us a bag last week, and the serial number matches yours. Would you like to buy it back?'"),
+  },
+  {
+    id: "show-charity-stream",
+    kind: "show",
+    level: "spicy",
+    diff: "hard",
+    title: t("慈善直播少了三千块", "The Charity Stream Is $3,000 Short"),
+    setup: t("两位主播合办的慈善直播刚结束，后台就显示善款少了三千块。转账记录被删了，账号密码只有他们两个人知道。", "Two streamers have just wrapped a joint charity livestream, and the backend shows $3,000 missing from the donations. The transfer record has been deleted, and only the two of them know the password."),
+    roles: [
+      role(t("主播", "Host"), t("直播间是 TA 的，粉丝都是冲着 TA 来的", "It's their channel; the fans come for them"), t("直播一开始你自己刷了一千块礼物，想让场面热闹一点，最怕被粉丝发现", "At the start you sent $1,000 in gifts to yourself to get the hype going, and you're terrified the fans will find out")),
+      role(t("副播", "Co-host"), t("管后台和转账，说自己一直盯着屏幕", "Runs the backend and the payouts; says they never took their eyes off the screen"), t("你从善款里借了五百块买了一盏补光灯，打算下个月悄悄补回去", "You borrowed $500 from the donations for a new ring light and planned to quietly pay it back next month")),
+    ],
+    culprit: t("挪用善款的人", "The one who took it"),
+    culpritCard: t("三千块是你转走的，拿去付了一块买不起的名表的尾款，又把记录删了。一口咬定是平台出了故障，还要当场给客服打电话。", "You moved the $3,000 out to make the last payment on a watch you couldn't afford, then deleted the record. Insist it's a platform glitch and offer to call support live on stream."),
+    ask: t("谁拿了那三千块？", "Who took the $3,000?"),
+    twist: t("名表店发了一条动态：「恭喜老顾客喜提新表！」照片里只露出一只手腕，戴着今晚直播的慈善手环。", "A watch shop posts: 'Congratulations to our loyal customer on the new watch!' The photo shows only a wrist, wearing tonight's charity wristband."),
+  },
+
   // ---- all ages, hard, three actors
   {
     id: "office-recalled-message",
@@ -1426,7 +1620,7 @@ export const PK_LINES: T[] = [
   t("你的麦克风还开着。", "Your microphone is still on."),
   t("好，现在轮到我了。", "All right. My turn."),
   t("你怎么现在才告诉我？", "Why are you only telling me now?"),
-  t("这个红包是给我的吗？", "Is this red envelope for me?"),
+  t("这个红包是给我的吗？", "Is this present for me?"),
   t("我们还是做朋友吧。", "Let's just be friends."),
   t("你身上怎么有香水味？", "Why do you smell like perfume?"),
   t("这道题我会。", "I know this one."),
@@ -1434,36 +1628,218 @@ export const PK_LINES: T[] = [
   t("你看起来一点都没变。", "You haven't changed a bit."),
   t("我有一个秘密要告诉你。", "I have a secret to tell you."),
   t("别回头，有人在看我们。", "Don't turn around. Someone's watching us."),
-  t("最后一个月饼是你吃的吗？", "Did you eat the last mooncake?"),
+  t("最后一个月饼是你吃的吗？", "Did you eat the last doughnut?"),
 ];
 
-export const PK_STYLES: { s: T; level: DramaLevel }[] = [
-  { s: t("刚失恋", "Just got dumped"), level: "all" },
-  { s: t("中了彩票", "Just won the lottery"), level: "all" },
-  { s: t("被老板骂了", "Just got chewed out by the boss"), level: "all" },
-  { s: t("刚睡醒", "Just woke up"), level: "all" },
-  { s: t("琼瑶剧女主", "Melodrama heroine"), level: "all" },
-  { s: t("新闻主播", "News anchor"), level: "all" },
-  { s: t("霸道总裁", "Domineering CEO"), level: "all" },
-  { s: t("喝多了", "One drink too many"), level: "spicy" },
-  { s: t("撩人", "Flirting hard"), level: "spicy" },
-  { s: t("努力忍住笑的法官", "A judge desperately holding back laughter"), level: "all" },
-  { s: t("暴雨中还坚持优雅的宾客", "A party guest determined to look elegant in a downpour"), level: "all" },
-  { s: t("把小事当世界末日的预言家", "A prophet treating a minor inconvenience as the apocalypse"), level: "all" },
-  { s: t("深夜推销神秘锅具的主持人", "A late-night host selling mysterious cookware"), level: "all" },
-  { s: t("刚发现自己一直没静音", "Someone who has just realised the mic was on"), level: "all" },
-  { s: t("表面祝福前任，心里在算旧账", "Congratulating an ex while mentally tallying old debts"), level: "spicy" },
-  { s: t("刚发现自己才是备选方案", "Someone who has just realised they’re the backup plan"), level: "spicy" },
-  { s: t("宫斗赢了却必须装无辜", "A palace schemer who has won and must look innocent"), level: "spicy" },
-  { s: t("第一次上台演讲，紧张到发抖", "Shaking through their first public speech"), level: "all" },
-  { s: t("武侠片里的大侠", "A martial arts movie hero"), level: "all" },
-  { s: t("刚被求婚", "Just got proposed to"), level: "all" },
-  { s: t("幼儿园老师", "A kindergarten teacher"), level: "all" },
-  { s: t("宫斗剧里的皇后", "The empress in a palace drama"), level: "all" },
-  { s: t("第一次见对象的父母", "Meeting the partner's parents for the first time"), level: "all" },
-  { s: t("偷偷搞暧昧被当场抓包", "Caught flirting with someone they shouldn't"), level: "spicy" },
-  { s: t("同时约了两个人，两人刚好撞上", "Double-booked two dates, who've just met each other"), level: "spicy" },
+/**
+ * 演技 PK: one way of saying a line, explained so that someone who has never acted can do it.
+ *
+ * `how` says what it is and what to do with your voice, face and hands, in words a ten-year-old
+ * follows. `demo` is the everyday sentence `PK_DEMO` said that way. `see` is what to search for to
+ * watch people doing it.
+ *
+ * The two languages are written for two audiences, not translated: the Chinese leans on what a
+ * Chinese speaker grew up watching (琼瑶剧, 宫斗剧, 电视购物), the English on what an English speaker
+ * did (soap operas, Snow White's queen, infomercials). A style's two names still mean the same
+ * thing, because at a mixed table one phone shows the Chinese and the next the English.
+ */
+export type PkStyle = { s: T; level: DramaLevel; how: T; demo: T; see: T };
+
+/** The everyday sentence every style's example says (no full stop: it sits inside a label). */
+export const PK_DEMO: T = t("外面下雨了", "It's raining");
+
+const style = (level: DramaLevel, s: T, how: T, demo: T, see: T): PkStyle => ({ s, level, how, demo, see });
+
+export const PK_STYLES: PkStyle[] = [
+  style(
+    "all",
+    t("刚失恋", "Just got dumped"),
+    t("最喜欢的人刚跟你说了再见。声音又小又慢，说到一半吸一下鼻子，眼睛只看地上。", "The person you like most just said goodbye. Small, slow voice. Sniff halfway through and keep your eyes on the floor."),
+    t("外面……下雨了。（吸鼻子）连老天都在替我哭。", "It's raining... (sniff) Of course it is. And he kept the umbrella."),
+    t("失恋 哭戏 名场面", "heartbroken breakup scene acting"),
+  ),
+  style(
+    "all",
+    t("中了彩票", "Just won the lottery"),
+    t("你刚发现自己中了大奖。先愣住两秒，然后越说越快、越说越大声，最后忍不住跳起来。", "You just found out you won millions. Freeze for two seconds, then get faster and louder until you can't help jumping."),
+    t("外面下雨了？下吧下吧！今天全场的奶茶我请！", "It's raining? WHO CARES! Pizza for everyone! For the whole street!"),
+    t("中大奖 现场 反应", "lottery winner reaction"),
+  ),
+  style(
+    "all",
+    t("被老板骂了", "Just got chewed out by the boss"),
+    t("你刚被老板当着所有人的面批评，就像被老师点名罚站。低着头，声音发虚，说一句偷看一眼。", "You just got told off in front of everyone, like being sent to the principal's office. Head down, tiny careful voice, checking it's safe to speak."),
+    t("外、外面下雨了……对不起，是我没看好天气，我马上改。", "It's, um... raining. Sorry. That's on me. I'll have it fixed by Monday."),
+    t("被领导批评 小品 搞笑", "getting yelled at by the boss comedy sketch"),
+  ),
+  style(
+    "all",
+    t("刚睡醒", "Just woke up"),
+    t("闹钟响了三遍你才爬起来。眼睛半睁，字都黏在一起，中间打一个大哈欠。", "The alarm went off three times and you're still not really awake. Eyes half shut, words stuck together, one giant yawn in the middle."),
+    t("外面……（哈欠）……下雨了……让我再睡五分钟……", "'S raining... (huge yawn) ...five more minutes."),
+    t("刚睡醒 说话 搞笑", "just woke up voice funny"),
+  ),
+  style(
+    "all",
+    t("琼瑶剧女主", "A soap-opera heroine"),
+    t("琼瑶剧是很有名的老爱情电视剧，女主角碰到一点小事就哭得像天塌了。手捂胸口，眼泪汪汪，一句话要问三遍。", "Like the star of a daytime soap opera or a telenovela: the smallest thing is a tragedy. Gasp, hand on heart, turn away, then turn back with tears."),
+    t("下雨了！你说，它为什么要下雨！你说啊！我不听，我不听，我不听！", "(gasp) It's raining. How could you... how COULD you... let it rain on me?"),
+    t("琼瑶剧 哭戏 名场面", "soap opera overacting parody"),
+  ),
+  style(
+    "all",
+    t("新闻主播", "News anchor"),
+    t("像晚上七点在电视上播新闻的人。坐直，脸上没有表情，每个字都清清楚楚，不快也不慢。", "Like the person reading the six o'clock news. Sit up straight, serious face, every word clear and even, a tiny pause before the big news."),
+    t("观众朋友们，晚上好。今天的主要内容有：外面，下雨了。", "Good evening. Our top story tonight: it is raining. More on that after the break."),
+    t("新闻主播 播音腔 模仿", "news anchor voice impression"),
+  ),
+  style(
+    "all",
+    t("霸道总裁", "An ice-cold billionaire boss"),
+    t("网络小说里又有钱又神气的大老板：从来不商量，只下命令。下巴抬高，声音压低，说完就转身走。", "The rich, scary boss from a movie, who never asks and only gives orders, and never needs to raise their voice. Chin up, slow and quiet, then walk off."),
+    t("外面下雨了。（停两秒）让它停。", "It's raining. (two-second stare) Have someone fix that."),
+    t("霸道总裁 名场面", "scary boss movie scene"),
+  ),
+  style(
+    "spicy",
+    t("喝多了", "One drink too many"),
+    t("你喝多了，还硬说自己没醉。说话拖长音，身子轻轻晃，把一件小事讲得特别认真。", "You've had one too many and insist you're totally fine. Stretch your words, sway a little, and be very, very sincere about nothing at all."),
+    t("外——面——下雨了。我没醉！我跟你说，这个雨，它是我兄弟。", "Iiit's raining. No, listen. Listen. The rain... the rain gets me."),
+    t("醉酒 演技 名场面", "actors playing tipsy funny scene"),
+  ),
+  style(
+    "spicy",
+    t("撩人", "Flirting hard"),
+    t("像偶像剧里放电的主角。说话放慢，眼睛一直看着对方，说完挑一下眉毛。", "Like the smooth talker in a rom-com. Slow right down, hold eye contact one beat too long, and finish with a raised eyebrow."),
+    t("外面下雨了……（靠近一点）你没带伞，我也没带，这不是巧了吗。", "It's raining... (lean in) and you forgot your umbrella. Funny. I only brought one."),
+    t("偶像剧 撩人 名场面", "rom com flirting scene"),
+  ),
+  style(
+    "all",
+    t("努力忍住笑的法官", "A judge desperately holding back laughter"),
+    t("你是最严肃的法官，可是刚看到一件特别好笑的事。板着脸，咬住嘴唇，肩膀偷偷发抖，差点笑出声又憋回去。", "You're the most serious judge in the land and you've just seen something hilarious. Stern face, bite your lip, shoulders shaking, nearly crack, pull it back."),
+    t("本庭宣布：外面……噗……（清嗓子）外面下雨了。肃静！", "The court finds that it is... pfff... (clears throat) raining. Order! Order."),
+    t("主持人 忍笑 名场面", "trying not to laugh on live tv"),
+  ),
+  style(
+    "all",
+    t("暴雨中还坚持优雅的宾客", "A party guest determined to look elegant in a downpour"),
+    t("你穿着最漂亮的衣服去吃酒席，结果被大雨淋得湿透，还要装作一点事都没有。一直微笑，腰挺直，声音又甜又稳。", "You came to the garden party in your best outfit, you are soaked to the skin, and you will not admit anything is wrong. Fixed smile, straight back, sweet steady voice."),
+    t("外面下雨了呢。（抹一把脸上的水）没事没事，这样……更凉快。", "It's raining. (wring out a sleeve, keep smiling) How refreshing. Lovely party."),
+    t("淋雨 保持优雅 搞笑", "staying classy in the rain funny"),
+  ),
+  style(
+    "all",
+    t("把小事当世界末日的预言家", "A prophet treating a minor inconvenience as the apocalypse"),
+    t("你是能看见未来的预言家，可你看见的都是很小很小的事，还说得像天要塌了。举起双手，眼睛瞪圆，声音越来越大。", "You can see the future, it's always something tiny, and you announce it like the end of the world. Arms up, eyes wide, voice rising."),
+    t("我看见了！外面——下雨了！完了，全完了！阳台上的衣服，一件也逃不掉！", "I have SEEN it! It is RAINING! Doom! Doom upon the laundry on the line!"),
+    t("小题大做 夸张 表演 搞笑", "the end is nigh comedy sketch"),
+  ),
+  style(
+    "all",
+    t("深夜推销神秘锅具的主持人", "A late-night host selling mysterious cookware"),
+    t("像电视购物里卖东西的主持人。说话飞快，激动得不得了，举着一口看不见的锅，一直喊这个价钱有多划算。", "Like the host of a late-night TV infomercial. Talk fast, be far too excited, hold up an invisible pan and keep shouting about the amazing deal."),
+    t("外面下雨了！别怕！这口神奇的锅，下雨也能炒菜！不要九九八，只要九十八！", "It's RAINING! But wait, there's more! This pan cooks in ANY weather! Call now!"),
+    t("电视购物 名场面", "infomercial but wait there's more"),
+  ),
+  style(
+    "all",
+    t("刚发现自己一直没静音", "Someone who has just realised the mic was on"),
+    t("上网课时你以为自己关了麦，说了一堆不该说的话，现在才发现大家全听见了。说到一半突然卡住，眼睛瞪大，声音越来越小。", "You thought you were on mute in the video call and said things you shouldn't have. Freeze mid-sentence, eyes wide, voice shrinking to nothing."),
+    t("外面下雨了，这课好无聊啊，我……（僵住）……大家，都听得见吗？", "It's raining, and this meeting is so bor— (freeze) ...can everybody hear me?"),
+    t("忘记静音 网课 社死", "forgot to mute zoom call fail"),
+  ),
+  style(
+    "spicy",
+    t("表面祝福前任，心里在算旧账", "Congratulating an ex while mentally tallying old debts"),
+    t("你在恭喜以前的男朋友或女朋友，脸上笑得很甜，心里却在一条一条数他欠你的东西。笑容不动，牙齿咬紧，每个「恭喜」都说得特别重。", "You're congratulating your ex with the sweetest smile while secretly counting everything they still owe you. Smile fixed, teeth together, lean on every “so happy for you”."),
+    t("外面下雨了，恭喜你们呀。（咬着牙笑）这把伞，还是我买的呢。", "It's raining! So happy for you both. (smile harder) Is that my umbrella?"),
+    t("前任婚礼 祝福 名场面", "congratulating my ex awkward scene"),
+  ),
+  style(
+    "spicy",
+    t("刚发现自己才是备选方案", "Someone who has just realised they’re the backup plan"),
+    t("你以为人家最想约的是你，刚刚才知道：是别人没空，才轮到你。先笑着，笑到一半慢慢僵住，最后小声重复一遍。", "You thought you were their first pick. You've just worked out you were the “everyone else was busy” pick. Start smiling, let it slowly fall, repeat the bad news quietly."),
+    t("外面下雨了，所以你来找我……（笑容慢慢没了）哦，是因为他没空啊。", "It's raining, so you called me! ...Oh. (smile fades) Because she cancelled."),
+    t("备胎 扎心 名场面", "realizing you were the second choice scene"),
+  ),
+  style(
+    "spicy",
+    t("宫斗赢了却必须装无辜", "A royal-court schemer who has won and must look innocent"),
+    t("古装宫廷剧里，你刚用计把对手赶走，现在要装作什么都不知道。眼睛睁大，手帕捂嘴，声音软软的，嘴角却忍不住往上翘。", "At the royal court you just got your rival sent away, and now you have to look as if you know nothing about it. Big innocent eyes, hand on your chest, soft voice, and a smile that keeps escaping."),
+    t("外面下雨了？哎呀，姐姐怎么偏偏今天被罚跪在院子里，真叫人心疼。", "It's raining? Oh no. And poor Lady Anne was told to wait outside. Whoever suggested that?"),
+    t("宫斗剧 装无辜 名场面", "villain pretending to be innocent scene"),
+  ),
+  style(
+    "all",
+    t("第一次上台演讲，紧张到发抖", "Shaking through their first public speech"),
+    t("你第一次站在全校同学面前讲话。手在抖，声音也在抖，老是忘词，说两个字就偷看一眼手心里的小抄。", "It's your very first speech in front of the whole school. Shaky hands, shaky voice, you keep losing your place and peeking at the notes on your palm."),
+    t("大、大家好。外面……（看手心）……下、下雨了。谢谢大家。", "H-hello everyone. It's... (check hand) ...r-raining. Thank you. Can I sit down now?"),
+    t("第一次上台 演讲 紧张 搞笑", "nervous first speech funny"),
+  ),
+  style(
+    "all",
+    t("武侠片里的大侠", "A kung fu movie hero"),
+    t("武侠片里功夫最高的那个人。站得笔直，手背在身后，话很少，说得又慢又稳，说完抱拳，或者仰天大笑三声。", "The calm master from a kung fu film, like Master Shifu in Kung Fu Panda. Stand tall, hands behind your back, very few words, long pauses, and finish with a slow bow."),
+    t("（看着窗外）下雨了。好雨。这位兄台，请！（抱拳）", "(look at the sky) It is raining. (long pause) The rain does not hurry. Neither do I."),
+    t("武侠片 大侠 出场 名场面", "kung fu master wise scene"),
+  ),
+  style(
+    "all",
+    t("刚被求婚", "Just got proposed to"),
+    t("你最喜欢的人刚刚单膝跪下，问你愿不愿意结婚。手捂着嘴，又哭又笑，话都说不完整，一个劲儿点头。", "The person you love just got down on one knee. Hands over your mouth, laughing and crying at once, can't finish a sentence, nodding like mad."),
+    t("外面下雨了……我愿意！（又哭又笑）我愿意，我愿意！", "It's raining... oh my... yes! YES! (happy tears) A thousand times yes!"),
+    t("求婚 现场 反应 感动", "surprise proposal reaction"),
+  ),
+  style(
+    "all",
+    t("幼儿园老师", "A kindergarten teacher"),
+    t("像在跟三岁的小朋友说话。声音甜甜的，说得很慢，动作很大，不管什么事都要拍手夸一夸。", "Like talking to a room of three-year-olds. Sweet sing-song voice, nice and slow, big gestures, and a “good job” for absolutely everything."),
+    t("小朋友们～外面下雨啦！小雨点来做客咯，我们一起说：你——好——呀！", "Ooh, friends, look! It's raining! Can everybody say “rain”? Goood job!"),
+    t("幼儿园老师 说话 语气 模仿", "kindergarten teacher voice"),
+  ),
+  style(
+    "all",
+    t("宫斗剧里的皇后", "The queen in a royal court drama"),
+    t("古装宫廷剧里管着整个后宫的人。坐得端端正正，说话又慢又轻，脸上带着笑，可是每句话都让人后背发凉。自己叫自己「本宫」。", "The queen who runs the palace, like the Evil Queen in Snow White. Sit very straight, speak slowly and softly, keep smiling, and make every polite word sound like a threat."),
+    t("外面下雨了。（端起茶杯）本宫倒要看看，是谁，许它下的。", "It's raining. (sip of tea) How brave of the weather. Without asking me."),
+    t("宫斗剧 皇后 名场面", "evil queen movie scene"),
+  ),
+  style(
+    "all",
+    t("第一次见对象的父母", "Meeting the partner's parents for the first time"),
+    t("你第一次去男朋友或女朋友家吃饭，特别想让他爸妈喜欢你。坐得笔直，客气过头，每句话后面都加「叔叔阿姨」，还一直傻笑。", "First dinner with your partner's parents and you badly want them to like you. Sit too straight, be far too polite, laugh at nothing, compliment everything."),
+    t("叔叔阿姨好！外面下雨了，您家这个雨……下得真好，真好。", "It's raining, sir. Ma'am. Lovely rain you have here. Did you make it yourselves?"),
+    t("第一次见家长 紧张 搞笑", "meeting the parents awkward dinner scene"),
+  ),
+  style(
+    "spicy",
+    t("偷偷搞暧昧被当场抓包", "Caught flirting with someone they shouldn't"),
+    t("你正偷偷跟别人说甜言蜜语，一回头，你的对象就站在后面。吓一大跳，说话结巴，拼命解释，越解释越乱。", "You were whispering sweet things to someone, turned around, and your partner was standing right there. Jump, stammer, explain far too much, make it worse."),
+    t("外、外面下雨了！我们就是在聊……聊天气！真的！你听我解释！", "It's raining! We were just... talking about the rain! The weather! I can explain!"),
+    t("被抓包 名场面 电视剧", "caught red handed sitcom scene"),
+  ),
+  style(
+    "spicy",
+    t("同时约了两个人，两人刚好撞上", "Double-booked two dates, who've just met each other"),
+    t("你同一天约了两个人，结果他们在门口碰上了，现在一起盯着你。左边看一眼，右边看一眼，对两边说的话还不能一样，急得直冒汗。", "You made two dates for the same night and they've just met at the door. Both are staring at you. Look left, look right, tell each one a different story, sweat."),
+    t("外面下雨了！（对左边）所以我叫表妹来送伞，（对右边）……这位，也是表妹。", "It's raining! (to the left) So my cousin dropped by. (to the right) This is... also my cousin."),
+    t("修罗场 名场面", "two dates same night sitcom scene"),
+  ),
 ];
+
+/** The style a card or a cast list names (found by its Chinese name, the same on every phone). */
+export function pkStyle(name: T | null | undefined): PkStyle | undefined {
+  return name ? PK_STYLES.find((x) => x.s.zh === name.zh) : undefined;
+}
+
+/**
+ * Where to watch people doing a style: a video search (bilibili in Chinese, YouTube in English),
+ * so the link can't go dead the way one video's address does.
+ */
+export function pkSeeUrl(lang: "zh" | "en", query: string) {
+  return lang === "zh" ? `https://search.bilibili.com/all?keyword=${encodeURIComponent(query)}` : `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
 
 /** When the table plays for exercise or pranks instead of drinks. */
 export const PENALTIES: { move: Record<DramaDiff, T[]>; prank: Record<DramaLevel, T[]> } = {
