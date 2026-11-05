@@ -58,10 +58,10 @@ def hand(pg, idx, path, hold_ms=0):
     pg.mouse.up()
 
 
-RENDER = """async ([name, bpm]) => {
+RENDER = """async ([name, bpm, take]) => {
   const beat = 60 / bpm, sr = 48000, len = 5 * beat;
   const c = new OfflineAudioContext(1, Math.ceil(len * sr), sr);
-  const end = window.__club[name](c, c.destination, 0.5 * beat, beat);
+  const end = window.__club[name](c, c.destination, 0.5 * beat, beat, take);
   const d = (await c.startRendering()).getChannelData(0);
   const span = (a, b) => d.subarray(Math.floor(a * sr), Math.floor(b * sr));
   const rms = (x) => Math.sqrt(x.reduce((s, v) => s + v * v, 0) / Math.max(1, x.length));
@@ -97,6 +97,29 @@ with sync_playwright() as p:
     ok(rv["late"] > 4 * rv["early"] and rv["after"] < 1e-4 and abs(rv["end"] - 2 * rv["beat"]) < 1e-6, f"反向镲: it swells ({rv['early']:.4f} to {rv['late']:.4f}) and stops on the beat after next")
     wh = tv.evaluate(RENDER, ["whistle", bpm])
     ok(2400 < wh["hz"] < 3400 and wh["first"] > 0.02 and wh["gap"] < wh["first"] / 4, f"口哨: a whistle about {wh['hz']:.0f} Hz, in blasts")
+    # a press's take (club.ts nextTake): a semitone up at half the level, here, to hear it plainly
+    wt = tv.evaluate(RENDER, ["whistle", bpm, {"cents": 100, "level": 0.5}])
+    ok(abs(wt["hz"] / wh["hz"] - 2 ** (100 / 1200)) < 0.012 and abs(wt["first"] / wh["first"] - 0.5) < 0.05,
+       f"a take moves a pad's pitch and level ({wt['hz'] / wh['hz']:.4f} the pitch, {wt['first'] / wh['first']:.2f} the level)")
+    # the boom's tail closes to nothing before its sound stops, so it doesn't click off
+    tail = tv.evaluate("""async (bpm) => {
+      const beat = 60 / bpm, sr = 48000;
+      const c = new OfflineAudioContext(1, Math.ceil(4 * beat * sr), sr);
+      const end = window.__club.bassDrop(c, c.destination, 0.25 * beat, beat);
+      const d = (await c.startRendering()).getChannelData(0);
+      const peak = (a, b) => { let m = 0; for (let i = Math.floor(a * sr); i < Math.floor(b * sr); i++) m = Math.max(m, Math.abs(d[i])); return m; };
+      return { last: peak(end - 0.002, end), before: peak(end - 0.2, end - 0.1), after: peak(end, end + 0.05) };
+    }""", bpm)
+    ok(tail["last"] < 0.15 * tail["before"] and tail["after"] < 1e-4, f"低音炸弹: its tail closes before it stops, no click ({tail['last']:.5f} in its last 2 ms, {tail['before']:.5f} a little before)")
+    once = tv.evaluate("""() => {
+      const c = new OfflineAudioContext(1, 4800, 48000);
+      let made = 0;
+      const a = window.__club.noiseOnce(c, 'probe', 480, () => made++);
+      const b = window.__club.noiseOnce(c, 'probe', 480, () => made++);
+      const other = window.__club.noiseOnce(new OfflineAudioContext(1, 4800, 48000), 'probe', 480, () => made++);
+      return { same: a === b, made, other: other !== a };
+    }""")
+    ok(once["same"] and once["made"] == 2 and once["other"], f"a sound's noise is made once per speaker, not on every press ({once})")
 
     phones = []
     for name in ("Amy", "Ben"):
