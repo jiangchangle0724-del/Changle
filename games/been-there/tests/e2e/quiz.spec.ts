@@ -93,10 +93,10 @@ function expectWhole(box: QuizBox, label: string) {
 
 /**
  * The answer and its fact on a phone that has answered the question `id`, once it closes: at once if
- * its answer was right, otherwise when every team is done with it (the other phones pass) or its time
- * is up. Checked whole, then kept as a screenshot. False if it never came.
+ * its answer was right, otherwise when every team is done with it or its time is up. Checked whole,
+ * then kept as a screenshot. `meanwhile` runs while it waits. False if it never came.
  */
-async function revealOn(p: Phone, id: string, others: Phone[]): Promise<boolean> {
+async function revealOn(p: Phone, id: string, meanwhile: () => Promise<void>): Promise<boolean> {
   for (const end = Date.now() + 20_000; Date.now() < end; ) {
     const box = await quizBox(p.page);
     if (box?.state === "reveal" && box.id === id) {
@@ -106,10 +106,7 @@ async function revealOn(p: Phone, id: string, others: Phone[]): Promise<boolean>
       return true;
     }
     if (box && box.id !== id) return false;
-    for (const o of others) {
-      const skip = o.page.locator(`.quizpop[data-id="${id}"] .quizpop-skip`);
-      if (await skip.isVisible().catch(() => false)) await skip.click({ timeout: 1000 }).catch(() => {});
-    }
+    await meanwhile();
     await p.page.waitForTimeout(100);
   }
   return false;
@@ -317,22 +314,47 @@ test("抢答在小手机、横着拿的手机、英文 iPhone SE（最长的题�
   const shot = new Set<string>();
   let tvChecked = false;
   let revealShot = false;
+  /** A question up for this phone: checked whole and kept as a screenshot, once a phone. */
+  const shoot = async (p: Phone, box: QuizBox) => {
+    expectWhole(box, `${p.name} ${sizes[p.name]}`);
+    await fits(p, `the question at ${sizes[p.name]}`, ".quizpop");
+    await p.page.screenshot({ path: `test-results/quiz-${sizes[p.name]}.png` });
+    shot.add(p.name);
+  };
+  /** This phone passes on the question `id`. */
+  const pass = (p: Phone, id: string) =>
+    p.page
+      .locator(`.quizpop[data-id="${id}"]`)
+      .getByRole("button", { name: p === english ? "Skip" : "这题不答" })
+      .click({ timeout: 2000 })
+      .catch(() => {});
+  /** The big screen with a question: at the head of its "now" column, all of it on the screen. */
+  const checkTv = async () => {
+    if (tvChecked) return;
+    const q = await tv.page.evaluate(() => {
+      const card = document.querySelector<HTMLElement>(".tv-now .trivia");
+      if (!card || card.getAnimations().some((a) => a.playState === "running")) return null;
+      const r = card.getBoundingClientRect();
+      const col = document.querySelector(".tv-now")!.getBoundingClientRect();
+      return { first: card.parentElement?.firstElementChild === card, top: r.top, colTop: col.top, bottom: r.bottom, h: innerHeight, w: innerWidth, right: r.right };
+    });
+    if (!q) return;
+    expect(q.first, "the question heads the column").toBe(true);
+    expect(Math.abs(q.top - q.colTop)).toBeLessThanOrEqual(2);
+    expect(q.bottom).toBeLessThanOrEqual(q.h);
+    expect(q.right).toBeLessThanOrEqual(q.w);
+    await tv.page.screenshot({ path: "test-results/quiz-tv-1366x768.png" });
+    tvChecked = true;
+  };
   const until = Date.now() + 200_000;
   while (Date.now() < until && (shot.size < phones.length || !tvChecked || !revealShot)) {
     for (const p of phones) {
       await noDeadAnswers(p);
       const box = await quizBox(p.page);
       if (box?.state === "ask" && !shot.has(p.name)) {
-        expectWhole(box, `${p.name} ${sizes[p.name]}`);
-        await fits(p, `the question at ${sizes[p.name]}`, ".quizpop");
-        await p.page.screenshot({ path: `test-results/quiz-${sizes[p.name]}.png` });
-        shot.add(p.name);
-        // the others skip (unless the small phone's answer, below, has closed it first)
-        if (p !== small)
-          await p.page
-            .getByRole("button", { name: p === english ? "Skip" : "这题不答" })
-            .click({ timeout: 2000 })
-            .catch(() => {});
+        await shoot(p, box);
+        // the others pass (unless the small phone's answer, below, has closed it first)
+        if (p !== small) await pass(p, box.id);
       }
       if (box?.state === "ask" && p === small && !revealShot) {
         const answered = await p.page
@@ -343,27 +365,21 @@ test("抢答在小手机、横着拿的手机、英文 iPhone SE（最长的题�
           .catch(() => false);
         // Its answer comes out once the question closes (at once if it was right, or when the other
         // phones are done with it), for a few seconds: wait for it here, not a round of taps later.
-        if (answered) revealShot = await revealOn(small, box.id, [sideways, english]);
+        // Meanwhile the other phones and the big screen are looked at as above, and the phones pass.
+        if (answered)
+          revealShot = await revealOn(small, box.id, async () => {
+            for (const o of [sideways, english]) {
+              const b = await quizBox(o.page);
+              if (b?.state !== "ask" || b.id !== box.id) continue;
+              if (!shot.has(o.name)) await shoot(o, b);
+              await pass(o, b.id);
+            }
+            await checkTv();
+          });
       }
       await tap(p);
     }
-    if (!tvChecked) {
-      const q = await tv.page.evaluate(() => {
-        const card = document.querySelector<HTMLElement>(".tv-now .trivia");
-        if (!card || card.getAnimations().some((a) => a.playState === "running")) return null;
-        const r = card.getBoundingClientRect();
-        const col = document.querySelector(".tv-now")!.getBoundingClientRect();
-        return { first: card.parentElement?.firstElementChild === card, top: r.top, colTop: col.top, bottom: r.bottom, h: innerHeight, w: innerWidth, right: r.right };
-      });
-      if (q) {
-        expect(q.first, "the question heads the column").toBe(true);
-        expect(Math.abs(q.top - q.colTop)).toBeLessThanOrEqual(2);
-        expect(q.bottom).toBeLessThanOrEqual(q.h);
-        expect(q.right).toBeLessThanOrEqual(q.w);
-        await tv.page.screenshot({ path: "test-results/quiz-tv-1366x768.png" });
-        tvChecked = true;
-      }
-    }
+    await checkTv();
     await small.page.waitForTimeout(100);
   }
   if (shot.size < phones.length) for (const p of phones) await explain(p, "quiz");
