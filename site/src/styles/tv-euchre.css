@@ -1,0 +1,381 @@
+/*
+ * 尤克牌 on the big screen (party/euchre/TvEuchre.tsx): the table from above in the game's gel,
+ * four seats in two teams, only the cards on the table; trump, the bids, the tricks and the score.
+ */
+
+.tveu {
+  --felt: color-mix(in oklab, var(--gel) 16%, var(--dusk));
+  --team-0: var(--gel-cyan);
+  --team-1: var(--gel-coral);
+}
+
+/* the score */
+.tveu-score {
+  position: absolute;
+  left: 60px;
+  top: 150px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tveu-team {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 14px 20px;
+  border-radius: 24px;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  box-shadow: inset 4px 0 0 var(--team-color);
+}
+.tveu-team.is-t0,
+.tveu-seat.is-t0,
+.tveu-result.is-t0 {
+  --team-color: var(--team-0);
+}
+.tveu-team.is-t1,
+.tveu-seat.is-t1,
+.tveu-result.is-t1 {
+  --team-color: var(--team-1);
+}
+.tveu-team-name {
+  color: var(--moon);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.tveu-team b {
+  grid-row: span 2;
+  color: var(--team-color);
+  font-family: var(--font-display);
+  font-size: 60px;
+  font-weight: 900;
+  line-height: 1;
+}
+.tveu-tricks {
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tveu-team.is-win {
+  background: color-mix(in oklab, var(--team-color) 28%, var(--dusk-2));
+}
+
+/* trump */
+.tveu-trump {
+  position: absolute;
+  right: 60px;
+  top: 150px;
+  width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 16px 20px;
+  border-radius: 24px;
+  background: color-mix(in oklab, var(--dusk-2) 92%, transparent);
+  color: var(--moon);
+  font-size: 26px;
+  font-weight: 800;
+  animation: tvx-pop 0.45s var(--ease-pop) both;
+}
+.tveu-trump > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tveu-trump-name {
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.tveu-trump small {
+  color: var(--haze);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tveu-trump-suit {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  flex: none;
+  border-radius: 20px;
+  background: var(--card-face);
+  color: var(--card-ink);
+  font-size: 56px;
+  line-height: 1;
+}
+.tveu-trump.is-red .tveu-trump-suit {
+  color: var(--card-red);
+}
+
+/* the table: the felt, a seat on each side, the trick in the middle */
+.tveu-table {
+  position: absolute;
+  left: 420px;
+  right: 420px;
+  top: 100px;
+  bottom: 30px;
+}
+.tveu-felt {
+  position: absolute;
+  inset: 110px 70px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--felt), color-mix(in oklab, var(--felt) 60%, var(--night)));
+  box-shadow:
+    inset 0 0 0 6px color-mix(in oklab, var(--gel) 30%, var(--dusk-3)),
+    0 30px 60px -30px var(--tvx-ink);
+}
+.tveu-seat {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  translate: -50% -50%;
+  text-align: center;
+}
+.tveu-seat.is-north {
+  left: 50%;
+  top: 13%;
+}
+.tveu-seat.is-south {
+  left: 50%;
+  top: 87%;
+}
+.tveu-seat.is-west {
+  left: 4%;
+  top: 50%;
+}
+.tveu-seat.is-east {
+  left: 96%;
+  top: 50%;
+}
+/* the seat nearest the room holds its cards above it, on the table */
+.tveu-seat.is-south .tveu-backs {
+  order: -1;
+}
+.tveu-face {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: var(--dusk-3);
+  box-shadow:
+    0 0 0 4px var(--night),
+    0 0 0 8px var(--team-color);
+  color: var(--haze);
+}
+/* whose turn: a ring of the room's light round the team's, breathing */
+.tveu-seat.is-turn .tveu-face {
+  box-shadow:
+    0 0 0 4px var(--night),
+    0 0 0 8px var(--team-color),
+    0 0 0 14px var(--gel),
+    0 0 50px 16px color-mix(in oklab, var(--gel) 55%, transparent);
+  animation: tveu-turn 1.4s ease-in-out infinite alternate;
+}
+@keyframes tveu-turn {
+  to {
+    scale: 1.08;
+  }
+}
+.tveu-seat.is-out {
+  opacity: 0.45;
+}
+/* the name plate under a face, as under every figure (tv-show.css .tvx-plate) */
+.tveu-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 16px 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--moon);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.tveu-dealer {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--moon);
+  color: var(--night);
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 900;
+}
+.tveu-backs {
+  display: flex;
+}
+.tveu-backs .ecard + .ecard {
+  margin-left: -26px;
+}
+/* a bid: a bubble beside the face, toward the middle of the table */
+.tveu-bid {
+  position: absolute;
+  top: 22px;
+  left: calc(50% + 58px);
+  padding: 4px 16px 6px;
+  border-radius: 999px;
+  font-size: 24px;
+  font-weight: 800;
+  white-space: nowrap;
+  animation: tvx-pop 0.4s var(--ease-pop) both;
+}
+.tveu-seat.is-south .tveu-bid {
+  top: auto;
+  bottom: 62px;
+}
+.tveu-seat.is-east .tveu-bid {
+  left: auto;
+  right: calc(50% + 58px);
+}
+.tveu-bid.is-pass {
+  background: var(--dusk-3);
+  color: var(--moon);
+}
+.tveu-bid.is-bid {
+  background: var(--gel);
+  color: var(--night);
+}
+
+/* the middle of the table: the card turned up, then the trick, each card toward who played it */
+.tveu-middle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+.tveu-up,
+.tveu-play {
+  position: absolute;
+  translate: -50% -50%;
+}
+.tveu-up .ecard,
+.tveu-play .ecard {
+  scale: 1.5;
+}
+.tveu-up.is-down {
+  opacity: 0.35;
+  rotate: 90deg;
+}
+.tveu-play {
+  animation: tveu-in 0.35s var(--ease-out) both;
+}
+.tveu-play.is-south {
+  top: 85px;
+}
+.tveu-play.is-north {
+  top: -85px;
+}
+.tveu-play.is-west {
+  left: -120px;
+}
+.tveu-play.is-east {
+  left: 120px;
+}
+.tveu-play:has(.is-win) {
+  z-index: 1;
+}
+@keyframes tveu-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+/* a hand's result, and the game's end, on the felt between the seats */
+.tveu-result {
+  position: absolute;
+  left: 50%;
+  top: calc(100px + (100% - 130px) / 2);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: 560px;
+  padding: 28px 40px 32px;
+  translate: -50% -50%;
+  border-radius: 36px;
+  background: color-mix(in oklab, var(--dusk-2) 94%, transparent);
+  box-shadow:
+    inset 0 0 0 3px var(--team-color),
+    0 0 100px -20px var(--team-color);
+  text-align: center;
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tveu-result-crown {
+  /* a winner's crown: the podium's colour (tv-show.css .tvx-crown) */
+  color: var(--gel-amber);
+  filter: drop-shadow(0 0 24px color-mix(in oklab, var(--gel-amber) 60%, transparent));
+}
+.tveu-result-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0;
+  color: var(--team-color);
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 1.1;
+}
+.tveu-result-team {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 40px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tveu-result-what {
+  font-size: 60px;
+}
+.tveu-result.is-end .tveu-result-what {
+  font-size: 68px;
+}
+.tveu-result-sub {
+  margin: 0;
+  color: var(--moon);
+  font-size: 28px;
+  font-weight: 700;
+  text-wrap: balance;
+}
+.tveu-note {
+  position: absolute;
+  left: 50%;
+  top: calc(100px + (100% - 130px) / 2);
+  max-width: 520px;
+  margin: 0;
+  translate: -50% -50%;
+  color: var(--moon);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tveu-seat.is-turn .tveu-face,
+  .tveu-trump,
+  .tveu-bid,
+  .tveu-play,
+  .tveu-result {
+    animation: none;
+  }
+}

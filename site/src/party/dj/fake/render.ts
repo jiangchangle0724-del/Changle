@@ -26,11 +26,10 @@ export type Rendered = {
 };
 
 /**
- * `spare`: the sound of a recording that has gone, to record into (WebKit is slow to give back
- * what a recording took, and a night records one every half minute or so: reusing it keeps the
- * page's memory flat). The recording is copied out of the renderer's own buffer either way.
+ * The recording is the renderer's own buffer, levelled; the stand-in keeps it in 16 bits (FakeDj's
+ * `pack`, into a recording that has gone) and lets this one go.
  */
-export async function renderSection(sec: Section, rate = 48000, spare?: () => { l: Float32Array; r: Float32Array } | undefined): Promise<Rendered> {
+export async function renderSection(sec: Section, rate = 48000): Promise<Rendered> {
   const frames = sectionFrames(rate);
   const tail = Math.round(TAIL_S * rate);
   const oc = new OfflineAudioContext(2, frames + tail, rate);
@@ -110,12 +109,8 @@ export async function renderSection(sec: Section, rate = 48000, spare?: () => { 
   }
 
   const buf = await oc.startRendering();
-  const into = spare?.();
-  const n = buf.length;
-  const l = into && into.l.length === n ? into.l : new Float32Array(n);
-  const r = into && into.r.length === n ? into.r : new Float32Array(n);
-  l.set(buf.getChannelData(0));
-  r.set(buf.getChannelData(1));
+  const l = buf.getChannelData(0);
+  const r = buf.getChannelData(1);
   level(l, r, frames, sec.level);
   return { id: sec.id, frames, tail, l, r };
 }
