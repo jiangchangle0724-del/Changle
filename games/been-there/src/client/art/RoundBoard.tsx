@@ -10,6 +10,7 @@ import { BOARD, CITY_AT, GROUPS } from "../../engine";
 import { CharacterArt, type Mood } from "./characters";
 import { SpaceGlyph } from "./icons";
 import { RouteMap, type Flight } from "./RouteMap";
+import { useSatMap } from "./SatMap";
 import { shapePath } from "./shapes";
 import { CODE_PATH, NEWS_PATH, OWNER_PATH } from "./boardType";
 
@@ -28,6 +29,8 @@ export interface TokenMark {
   /** Character index (= team colour index). */
   kind: number;
   mood?: Mood;
+  /** The team's colour and letter, worn beside the token when it shares its space. */
+  badge?: { color: string; letter: string };
 }
 
 /** What a first-person move needs to drive the table (ui/Ride.tsx). */
@@ -56,11 +59,58 @@ const RN = 330;
 const RMAP = 320;
 const STEP = 360 / BOARD.length;
 
+/** A city's space, printed in a wash of its region's colour over the board's navy (`k` of it, mixed as
+ * light mixes, which keeps the colour warm rather than muddy): the city cards' colours round the ring.
+ * The airport codes on them stay at 4.4:1 or more against it. */
+export function tint(color: string, k = 0.2, base = "#1c2238"): string {
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const srgb = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+  const a = rgb(color);
+  const b = rgb(base);
+  return `#${a.map((x, i) => Math.round(255 * srgb(lin(b[i]) + (lin(x) - lin(b[i])) * k)).toString(16).padStart(2, "0")).join("")}`;
+}
+const TINT: Record<number, string> = Object.fromEntries(GROUPS.map((g) => [g.id, tint(g.color)]));
+
 /** Angle of a space, degrees clockwise from 12 o'clock; Departure sits at the bottom. */
 export const angleOf = (at: number) => 180 + at * STEP;
 export const xy = (deg: number, r: number): [number, number] => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg * Math.PI) / 180)];
 /** Where the tokens stand: just inside the ring of spaces. */
 export const TOKEN_R = RT;
+
+/** How big a token is drawn (board units per unit of its drawing): on a phone or a laptop, and on the
+ * big screen, whose board is twice as wide. The drawing is 120 across and stands on (60, 70). */
+export const TOKEN_SCALE = { phone: 0.8, tv: 0.62 };
+const ART_X = 60;
+const ART_Y = 70;
+/** How wide the characters are drawn, of their 120. */
+const ART_W = 92;
+
+export interface Slot {
+  /** Degrees round the ring from the space's middle. */
+  fan: number;
+  /** How far from the board's middle. */
+  ring: number;
+  /** How much smaller than a token on its own. */
+  k: number;
+}
+
+/**
+ * Where each of `n` tokens on one space stands: in pairs side by side, each pair further in toward the
+ * middle of the board, and smaller the more there are, so every character stays whole and none hides
+ * another (up to six: every team on one city).
+ */
+export function slots(n: number, scale: number): Slot[] {
+  const k = n <= 1 ? 1 : n === 2 ? 0.92 : n <= 4 ? 0.85 : 0.76;
+  const w = ART_W * scale * k;
+  return Array.from({ length: n }, (_, i) => {
+    const row = Math.floor(i / 2);
+    const alone = n - row * 2 === 1;
+    const along = alone ? 0 : ((i % 2) - 0.5) * 1.04 * w;
+    const ring = RT - row * 0.84 * w;
+    return { fan: (along / ring) * (180 / Math.PI), ring, k };
+  });
+}
 
 function wedge(at: number, ro = RO) {
   const a0 = angleOf(at) - STEP / 2;
@@ -145,6 +195,9 @@ export function RoundBoard({
   riding,
   focusAt = 180,
   walks,
+  turn,
+  tokenScale = TOKEN_SCALE.phone,
+  sat,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -152,6 +205,10 @@ export function RoundBoard({
   focus?: number;
   /** Space of the token whose turn it is. */
   active?: number;
+  /** The seat whose turn it is: its token hops (not the others sharing its space). */
+  turn?: number;
+  /** How big the tokens are (TOKEN_SCALE). */
+  tokenScale?: number;
   flight?: Flight | null;
   onPick?: (at: number) => void;
   reduced?: boolean;
@@ -168,8 +225,16 @@ export function RoundBoard({
   /** When other teams' tokens start walking and how long a space takes (performance.now() ms), so
    * they move in step with the thrower's ride. */
   walks?: Record<number, { start: number; per: number }>;
+  /** The real world in the middle (art/SatMap.ts), under the board: on a phone or a laptop, and on the big
+   * screen when its globe can't be shown. */
+  sat?: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const satRef = useRef<HTMLCanvasElement>(null);
+  const ridingRef = useRef(false);
+  ridingRef.current = riding !== undefined && riding !== null;
+  // (painted once its pictures are in, never while a move plays: the board draws the map until then)
+  const satOn = useSatMap(satRef, !!sat, () => ridingRef.current);
   const cam = useRef<SVGGElement>(null);
   const ref = useRef<SVGGElement>(null);
   const rot = useRef(focusAt - angleOf(focus));
@@ -186,6 +251,8 @@ export function RoundBoard({
     const g = ref.current;
     if (!g) return;
     g.setAttribute("transform", `rotate(${r.toFixed(2)})`);
+    // (the world under the board turns with the table)
+    if (satRef.current) satRef.current.style.transform = `rotate(${r.toFixed(2)}deg)`;
     upright(r, near);
   };
   const upright = (r: number, near?: { at: number; span: number }) => {
@@ -246,13 +313,16 @@ export function RoundBoard({
           turned = true;
           apply(start + delta);
         }
-        if (svg) svg.style.opacity = p < 1 ? Math.abs(2 * p - 1).toFixed(3) : "";
+        const o = p < 1 ? Math.abs(2 * p - 1).toFixed(3) : "";
+        if (svg) svg.style.opacity = o;
+        if (satRef.current) satRef.current.style.opacity = o;
         if (p < 1) raf = requestAnimationFrame(step);
       };
       raf = requestAnimationFrame(step);
       return () => {
         cancelAnimationFrame(raf);
         if (svg) svg.style.opacity = "";
+        if (satRef.current) satRef.current.style.opacity = "";
         if (!turned) apply(start + delta);
       };
     }
@@ -337,11 +407,16 @@ export function RoundBoard({
   for (const t of tokens) bySpace.set(t.at, [...(bySpace.get(t.at) ?? []), t]);
 
   return (
-    <svg ref={svgRef} class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}`} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
+    <>
+    {/* (the satellite map, under the board: it shows through the middle once it's painted) */}
+    {sat && <canvas ref={satRef} class={`satmap${satOn ? " on" : ""}`} width={1} height={1} style={{ transform: `rotate(${r.toFixed(2)}deg)` }} aria-hidden="true" />}
+    <svg ref={svgRef} class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}${satOn ? " sat-on" : ""}`} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
       <g ref={cam}>
-      <circle r={RO + 8} fill="var(--board-rim)" />
+      <circle class="rim" r={RO + 8} fill="var(--board-rim)" />
+      {/* (round the big screen's globe, which stands where the flat map is: styles.css .globe-on) */}
+      <path class="rim-ring" d={`M${-RO - 8} 0a${RO + 8} ${RO + 8} 0 1 0 ${2 * (RO + 8)} 0a${RO + 8} ${RO + 8} 0 1 0 ${-2 * (RO + 8)} 0M${-RMAP + 2} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${2 * (RMAP - 2)} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${-2 * (RMAP - 2)} 0Z`} fill="var(--board-rim)" fill-rule="evenodd" />
       <g ref={ref} transform={`rotate(${r})`}>
-        <RouteMap r={RMAP} flight={flight} reduced={reduced} />
+        <RouteMap r={RMAP} flight={flight} reduced={reduced} turned={() => rot.current} />
         {BOARD.map((sp, at) => {
           const city = CITY_AT[at];
           const group = city ? GROUPS.find((g) => g.id === city.group)! : null;
@@ -353,7 +428,7 @@ export function RoundBoard({
           const [bx, by] = xy(deg, (RO + RB) / 2);
           return (
             <g key={at} class={`sp k-${sp.k}${at === active ? " active" : ""}${mark?.mortgaged ? " mort" : ""}`} onClick={onPick ? () => onPick(at) : undefined}>
-              <path d={wedge(at, corner ? RO + 6 : RO)} class={corner ? "wedge corner-w" : "wedge"} />
+              <path d={wedge(at, corner ? RO + 6 : RO)} class={corner ? "wedge corner-w" : "wedge"} style={group ? { fill: TINT[group.id] } : undefined} />
               {group && <path d={band(at)} fill={group.color} />}
               {group && (
                 <Up x={bx} y={by} rot={r}>
@@ -401,31 +476,48 @@ export function RoundBoard({
             </g>
           );
         })}
-        {[...bySpace.entries()].map(([at, list]) =>
-          list.map((tk, i) => {
-            const n = list.length;
-            const fan = (i - (n - 1) / 2) * 5.2 * (n > 3 ? 0.8 : 1);
-            const ring = RT - (n > 3 && i % 2 ? 46 : 0);
-            const [x, y] = xy(angleOf(at) + fan, ring);
-            return (
-              <Up key={tk.seat} x={x} y={y} rot={r} extra={{ "data-seat": tk.seat, "data-fan": fan.toFixed(2), "data-ring": ring }}>
-                <g class={`token${at === active && tk.mood !== "sad" ? " now" : ""}${tk.seat === riding ? " ridden" : ""}`}>
-                  <ellipse cx="0" cy="26" rx="22" ry="7" fill="rgba(0,0,0,.18)" />
-                  <g transform="translate(-34 -40) scale(0.57)">
-                    {/* A new mood plays its reaction once (a new animation name restarts it): a jump for
-                        good news, a shake for a bill… */}
-                    <g class={`react r-${tk.mood ?? "idle"}`}>
-                      <CharacterArt kind={tk.kind} mood={tk.mood} />
+        {/* (one list, keyed by seat: a token that moves to another space keeps its drawing, which walks) */}
+        {[...bySpace.entries()].flatMap(([at, list]) => {
+          const place = slots(list.length, tokenScale);
+          return (
+            list
+              .map((tk, i) => ({ tk, slot: place[i] }))
+              // (the rows further in first: the pair on the ring stands in front of them)
+              .sort((a, b) => a.slot.ring - b.slot.ring)
+              .map(({ tk, slot }) => {
+                const s = tokenScale * slot.k;
+                const [x, y] = xy(angleOf(at) + slot.fan, slot.ring);
+                const now = (turn === undefined ? at === active : tk.seat === turn) && tk.mood !== "sad";
+                return (
+                  <Up key={tk.seat} x={x} y={y} rot={r} extra={{ "data-seat": tk.seat, "data-fan": slot.fan.toFixed(2), "data-ring": slot.ring.toFixed(1) }}>
+                    <g class={`token${now ? " now" : ""}${tk.seat === riding ? " ridden" : ""}`} data-k={slot.k}>
+                      <ellipse cx="0" cy={(45 * s).toFixed(1)} rx={(38 * s).toFixed(1)} ry={(12 * s).toFixed(1)} fill="rgba(0,0,0,.18)" />
+                      <g class="hop">
+                        <g transform={`translate(${(-ART_X * s).toFixed(1)} ${(-ART_Y * s).toFixed(1)}) scale(${s.toFixed(3)})`}>
+                          {/* A new mood plays its reaction once (a new animation name restarts it): a jump for
+                              good news, a shake for a bill… */}
+                          <g class={`react r-${tk.mood ?? "idle"}`}>
+                            <CharacterArt kind={tk.kind} mood={tk.mood} />
+                          </g>
+                        </g>
+                        {/* Sharing a space: the team's letter at its shoulder, as on the cities it owns. */}
+                        {list.length > 1 && tk.badge && (
+                          <g class="tk-badge" transform={`translate(${(40 * s).toFixed(1)} ${(-46 * s).toFixed(1)})`}>
+                            <circle r="15" fill={tk.badge.color} stroke="var(--board-paper)" stroke-width="2.5" />
+                            <path class="owner" d={OWNER_PATH[tk.badge.letter]} transform="scale(0.88)" />
+                          </g>
+                        )}
+                      </g>
                     </g>
-                  </g>
-                </g>
-              </Up>
-            );
-          }),
-        )}
+                  </Up>
+                );
+              })
+          );
+        })}
       </g>
       </g>
       {center}
     </svg>
+    </>
   );
 }

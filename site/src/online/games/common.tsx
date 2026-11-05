@@ -5,6 +5,7 @@ import { PlayerPicker } from "../../components/PlayerPicker";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import { useCue, useRoom } from "../RoomContext";
+import { usePlayers } from "../players";
 import { Figure } from "../../components/Figure";
 
 /** Whose move it is, said in words: your own name never appears, "your turn" does. */
@@ -44,12 +45,23 @@ export function Waiting({ children }: { children: ReactNode }) {
   );
 }
 
+/** When a host button was last pressed (any of them: the one tapped may be gone and another in its place). */
+let hostTapAt = -Infinity;
+/** A quick double tap is one press: the second half would land on whatever the first one put there (skip the next player too). */
+const HOST_TAP_GAP = 600;
+
 /** Host-only buttons carry the crown, so everyone knows why only one phone has them. */
 export function HostButton({ onClick, children, disabled }: { onClick: () => void; children: ReactNode; disabled?: boolean }) {
   const { isHost } = useRoom();
   if (!isHost) return null;
+  const press = () => {
+    const now = performance.now();
+    if (now - hostTapAt < HOST_TAP_GAP) return;
+    hostTapAt = now;
+    onClick();
+  };
   return (
-    <button type="button" className="btn btn-ghost btn-sm host-btn" onClick={onClick} disabled={disabled}>
+    <button type="button" className="btn btn-ghost btn-sm host-btn" onClick={press} disabled={disabled}>
       <Crown size={14} strokeWidth={2.4} />
       {children}
     </button>
@@ -76,8 +88,8 @@ export function SeatPicker({
   onPick: (pid: string) => void;
   tone?: "lacquer" | "porcelain";
 }) {
-  const { room } = useRoom();
-  const seats = (room?.seats ?? []).filter((s) => !only || only.includes(s.id));
+  // (players only: someone just watching is never picked or voted for)
+  const seats = usePlayers().filter((s) => !only || only.includes(s.id));
   return <PlayerPicker players={seats} exclude={exclude} selected={selected} tone={tone} onPick={(p) => onPick(p.id)} />;
 }
 

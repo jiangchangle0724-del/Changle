@@ -80,6 +80,43 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
 
   const held = useMemo(() => (Object.entries(holders) as [Rank, Player][]).filter(([, p]) => p), [holders]);
 
+  const actions =
+    phase === "idle" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={draw}>
+        {lang === "zh" ? "抽牌" : "Draw"}
+      </button>
+    ) : phase === "revealed" && card && rule && words ? (
+      <button type="button" className={`btn btn-lg ${rule.kind === "hold" ? "btn-primary" : "btn-penalty"}`} onClick={resolve}>
+        {rule.kind === "pick"
+          ? ui("pickOne")
+          : rule.kind === "group"
+            ? lang === "zh"
+              ? "玩完了，谁输了"
+              : "Played it. Who lost?"
+            : rule.kind === "hold"
+              ? lang === "zh"
+                ? "记住了"
+                : "Got it"
+              : rule.kind === "self-sip" || rule.kind === "self-full"
+                ? custom
+                  ? ui("iTakeIt")
+                  : lang === "zh"
+                    ? "我喝"
+                    : "I drink"
+                : rule.kind === "left" || rule.kind === "right"
+                  ? lang === "zh"
+                    ? "罚"
+                    : "Penalty"
+                  : custom
+                    ? ui("whoPenalty")
+                    : ui("whoDrinks")}
+      </button>
+    ) : phase === "group-loser" ? (
+      <button type="button" className="btn btn-lg btn-ghost" style={{ color: "var(--haze)" }} onClick={endTurn}>
+        {lang === "zh" ? "没人输，下一位" : "No one lost. Next."}
+      </button>
+    ) : undefined;
+
   const rules = (
     <ul className="rule-list">
       {RULES.map((r) => (
@@ -96,7 +133,7 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <GameShell title={UI.gameRogue} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={UI.gameRogue} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: turn.current?.id }} actions={actions}>
       <div className="turn-line">
         <span className="hint">{ui("yourTurn")}</span>
         <span className="turn-name">{turn.current?.name}</span>
@@ -120,21 +157,6 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
             <h2 className={`rule-title ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
             <p className="rule-body">{tr(words.rule)}</p>
             {reshuffled && <p className="hint-ink">{ui("deckReshuffled")}</p>}
-            <div className="row" style={{ gap: 10, marginTop: 14 }}>
-              <button type="button" className={`btn btn-block ${rule.kind === "hold" ? "btn-primary" : "btn-penalty"}`} onClick={resolve}>
-                {rule.kind === "pick"
-                  ? ui("pickOne")
-                  : rule.kind === "group"
-                    ? lang === "zh" ? "玩完了，谁输了" : "Played it. Who lost?"
-                    : rule.kind === "hold"
-                      ? lang === "zh" ? "记住了" : "Got it"
-                      : rule.kind === "self-sip" || rule.kind === "self-full"
-                        ? custom ? ui("iTakeIt") : lang === "zh" ? "我喝" : "I drink"
-                        : rule.kind === "left" || rule.kind === "right"
-                          ? lang === "zh" ? "罚" : "Penalty"
-                          : custom ? ui("whoPenalty") : ui("whoDrinks")}
-              </button>
-            </div>
           </motion.div>
         )}
 
@@ -148,11 +170,6 @@ export function Rogue13({ onBack }: { onBack: () => void }) {
               tone="lacquer"
               onPick={(p) => penalty.show({ who: [p.name], kind: "sip", note: tr(words.title) }, endTurn)}
             />
-            {phase === "group-loser" && (
-              <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 12, color: "var(--haze)" }} onClick={endTurn}>
-                {lang === "zh" ? "没人输，下一位" : "No one lost. Next."}
-              </button>
-            )}
           </motion.div>
         )}
       </AnimatePresence>

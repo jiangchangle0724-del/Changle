@@ -96,6 +96,24 @@ export function validPid(pid: unknown): pid is string {
   return typeof pid === "string" && /^[A-Za-z0-9_-]{1,48}$/.test(pid) && !(pid in Object.prototype);
 }
 
+/**
+ * The name a seat goes by: the one asked for, unless someone else at the table already has it
+ * (in any case, or in full-width letters); then "Steve 2", "Steve 3"... so turns, votes and
+ * penalties never leave a table guessing which Steve. Still 14 characters at most.
+ */
+export function uniqueName(seats: { id: string; name: string }[], pid: string, name: string): string {
+  const key = (n: string) => n.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  const taken = new Set(seats.filter((s) => s.id !== pid).map((s) => key(s.name)));
+  if (!taken.has(key(name))) return name;
+  const chars = Array.from(name);
+  for (let n = 2; n <= MAX_SEATS + 1; n++) {
+    const tail = ` ${n}`;
+    const next = chars.slice(0, 14 - tail.length).join("").trimEnd() + tail;
+    if (!taken.has(key(next))) return next;
+  }
+  return name;
+}
+
 function blankOut(): Output {
   return { changed: false, light: false, persist: false, events: [], relay: [], strokesReset: false, kicked: [], records: [] };
 }
@@ -181,7 +199,7 @@ export class RoomEngine {
     let back = false;
     if (!seat) {
       if (d.seats.length >= MAX_SEATS) return "full";
-      seat = { id: pid, name, on: true, at: now };
+      seat = { id: pid, name: uniqueName(d.seats, pid, name), on: true, at: now };
       if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
       d.seats.push(seat);
       this.event({ k: "join", pid });
@@ -190,7 +208,7 @@ export class RoomEngine {
     } else {
       back = !seat.on;
       seat.on = true;
-      seat.name = name;
+      seat.name = uniqueName(d.seats, pid, name);
       if (who) Object.assign(seat, { uid: who.uid, av: who.av, ac: who.ac, fg: who.fg ?? 0, fr: who.fr });
       else if (seat.uid) Object.assign(seat, { uid: undefined, av: undefined, ac: undefined, fg: undefined, fr: undefined });
     }
@@ -311,7 +329,9 @@ export class RoomEngine {
         return;
       }
       case "start": {
-        if (!host || !(a.game in GAMES)) return;
+        // (a second tap on the lobby's Start, or one sent again after a reconnect, would deal the
+        // game that has just begun all over again)
+        if (!host || d.game?.id === a.game || !(a.game in GAMES)) return;
         if (this.players().length < ONLINE_MIN[a.game]) return;
         this.startGame(a.game);
         return;
@@ -384,7 +404,7 @@ export class RoomEngine {
       case "rename": {
         const name = clean(a.name, 14);
         if (!name) return;
-        seat.name = name;
+        seat.name = uniqueName(d.seats, pid, name);
         this.out.changed = true;
         return;
       }
@@ -468,6 +488,9 @@ export class RoomEngine {
   private gameAct(pid: string, g: { x: string; [k: string]: unknown }) {
     const gd = this.gameDef();
     if (!gd || !this.d.game) return;
+    // someone just watching makes no moves in the game (no vote, answer, guess or grab); a host
+    // who watches still runs the table (skip, next, reveal...)
+    if (pid !== this.d.host && this.d.seats.some((s) => s.id === pid && s.watch)) return;
     this.lightAct = false;
     this.quietAct = false;
     gd.def.act(this.d.game.s, pid, g, this.api());
@@ -710,7 +733,8 @@ export class RoomEngine {
         return b;
       },
       ids,
-      has: (pid: string) => this.d.seats.some((s) => s.id === pid),
+      // (a player, as in ids(): someone just watching is never picked, voted for or waited on)
+      has: (pid: string) => this.players().some((s) => s.id === pid),
       online: (pid: string) => this.d.seats.some((s) => s.id === pid && s.on),
       isHost: (pid: string) => pid === this.d.host,
       isOwner: (pid: string) => this.d.seats.some((s) => s.id === pid && !!s.owner),

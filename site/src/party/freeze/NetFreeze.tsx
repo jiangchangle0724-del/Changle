@@ -6,6 +6,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
+import { usePlayers, useWatching } from "../../online/players";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { FreezeView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
@@ -25,6 +26,9 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
   const zh = lang === "zh";
   const custom = usePenaltyText().isCustom;
   const seats = room?.seats ?? [];
+  // who dances: the players (someone just watching isn't on the floor)
+  const players = usePlayers();
+  const justWatching = useWatching();
   const seat = (id: string) => seats.find((s) => s.id === id);
   const sensors = useSensorStatus();
   const alive = v.alive.includes(me);
@@ -136,9 +140,9 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
                     ? "动了喝一口，然后接着跳"
                     : "Move and you drink, then keep dancing"}
             </p>
-            {sensorButton}
+            {!justWatching && sensorButton}
             <ul className="fz-roster">
-              {seats.map((s) => (
+              {players.map((s) => (
                 <li key={s.id}>
                   <SeatFace seat={s} size={40} />
                   <span>{s.id === me ? (zh ? "你" : "You") : s.name}</span>
@@ -170,7 +174,7 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
             <DanceFloor groove={v.groove}>
               <span className="fz-round tabular">{zh ? `第 ${v.round} 轮` : `Round ${v.round}`}</span>
             </DanceFloor>
-            {!alive && <p className="hint" style={{ textAlign: "center" }}>{zh ? "你出局了，看大家跳" : "You're out. Enjoy the show."}</p>}
+            {!alive && !justWatching && <p className="hint" style={{ textAlign: "center" }}>{zh ? "你出局了，看大家跳" : "You're out. Enjoy the show."}</p>}
             {alive && sensors === "on" && <p className="fz-sensor-on">{zh ? "手机拿在手里跳，音乐一停就拿稳" : "Dance with the phone in hand. When it stops, hold still."}</p>}
           </>
         )}

@@ -8,21 +8,24 @@ import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { NetPlate } from "../NetPlate";
 import { useRoom } from "../RoomContext";
+import { usePlayers, useWatching } from "../players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "./common";
 
 const ROUND_S = 80;
 
 export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
-  const { room, me, isHost, g, nameOf, offset } = useRoom();
+  const { me, isHost, g, nameOf, offset } = useRoom();
   const { ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const drawer = v.drawer === me;
   const solved = v.solved.includes(me);
+  const players = usePlayers();
+  const watching = useWatching();
   useYourTurn(drawer && v.phase === "pick");
 
   const ranked = useMemo(
-    () => (room?.seats ?? []).map((s) => ({ id: s.id, name: s.name, pts: v.scores[s.id] ?? 0 })).sort((a, b) => b.pts - a.pts),
-    [room, v.scores],
+    () => players.map((s) => ({ id: s.id, name: s.name, pts: v.scores[s.id] ?? 0 })).sort((a, b) => b.pts - a.pts),
+    [players, v.scores],
   );
   const diffLabel = (d: 1 | 2 | 3) => (d === 1 ? (lang === "zh" ? "简单" : "Easy") : d === 2 ? (lang === "zh" ? "中等" : "Medium") : lang === "zh" ? "困难" : "Hard");
 
@@ -112,7 +115,7 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                 <Check size={18} strokeWidth={3} />
                 {lang === "zh" ? "你猜中了，等其他人" : "You got it. Waiting for the others."}
               </p>
-            ) : (
+            ) : watching ? null : (
               <form
                 className="field guess-field"
                 onSubmit={(e) => {

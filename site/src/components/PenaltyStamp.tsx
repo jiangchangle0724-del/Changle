@@ -78,6 +78,36 @@ export function PenaltyStamp({
     if (emptied) setLevel(0.02);
   }, [emptied]);
 
+  // with a keyboard or a screen reader: the stamp covers the whole screen, so focus moves onto its
+  // first button, Tab stays on the stamp's buttons, and Esc lets it go like its own button does
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+  useEffect(() => {
+    const root = layer.current;
+    if (!call || !root) return;
+    const before = document.activeElement as HTMLElement | null;
+    root.querySelector<HTMLElement>(".stamp-foot button")?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        doneRef.current();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const list = Array.from(root.querySelectorAll<HTMLElement>("button:not([disabled]), a[href]"));
+      if (!list.length) return;
+      const i = list.indexOf(document.activeElement as HTMLElement);
+      e.preventDefault();
+      list[(i + (e.shiftKey ? -1 : 1) + list.length) % list.length].focus();
+    };
+    // (capture: Esc closes the stamp, not a sheet under it)
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      if (before?.isConnected && (document.activeElement === document.body || root.contains(document.activeElement))) before.focus({ preventScroll: true });
+    };
+  }, [call]);
+
   useLayoutEffect(() => {
     if (!call || !layer.current) return;
     const q = gsap.utils.selector(layer);

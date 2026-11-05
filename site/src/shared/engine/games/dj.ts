@@ -1009,7 +1009,8 @@ export const dj: GameDef<RoomState> = {
         // how a song file sent from the host's phone went: told to that phone
         const code = typeof g.code === "number" && Number.isInteger(g.code) && g.code >= 0 && g.code < SONG_SENT.length ? g.code : -1;
         const id = typeof g.id === "number" && Number.isSafeInteger(g.id) && g.id >= 0 ? g.id : -1;
-        if (!fromSpeaker(s, sid, api) || typeof g.by !== "string" || !api.has(g.by) || code < 0 || id < 0) return false;
+        // (to a phone still at the table, a host who just watches too)
+        if (!fromSpeaker(s, sid, api) || typeof g.by !== "string" || !api.online(g.by) || code < 0 || id < 0) return false;
         api.fx("song", g.by, [code, id]);
         return true;
       }

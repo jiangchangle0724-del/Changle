@@ -5,9 +5,10 @@ import { render } from "preact";
 import { BASE, backToTable, onChangle, tableFrom } from "./base";
 import { setLang, t } from "./i18n";
 import { api, connectWs } from "./net";
-import { identity, prefs } from "./prefs";
+import { identity, prefs, seenTrivia } from "./prefs";
 import { installAudioUnlock, setMuted } from "./sound";
-import { getState, onServer, setConn, update } from "./store";
+import { installKeyboard } from "./keyboard";
+import { getState, onServer, send, setConn, update } from "./store";
 import { App } from "./ui/App";
 import { Home } from "./ui/Home";
 import { setReduced, toggleMute } from "./ui/Settings";
@@ -16,6 +17,7 @@ setLang(prefs.lang);
 setMuted(prefs.muted);
 setReduced(prefs.reduced);
 installAudioUnlock();
+installKeyboard();
 // iPhone Safari only shows a button pressed (:active) when the page listens for touches.
 document.addEventListener("touchstart", () => {}, { passive: true });
 document.addEventListener("keydown", (e) => {
@@ -56,7 +58,14 @@ async function route() {
       connectWs(
         room[2],
         { cid, key, name: prefs.name || (screen ? t("bigScreen") : ""), lang: prefs.lang, role: screen ? "screen" : "player" },
-        { onMsg: onServer, onStatus: (status, why) => update(why ? { status, fatal: why } : { status }) },
+        {
+          onMsg: onServer,
+          onStatus: (status, why) => {
+            update(why ? { status, fatal: why } : { status });
+            // (a phone tells the room which quiz questions it has been asked before, each time it connects)
+            if (status === "open" && !screen) send({ t: "seen", ids: seenTrivia() });
+          },
+        },
       ),
     );
     document.title = `${t("title")} · ${room[2]}`;

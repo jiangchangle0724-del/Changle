@@ -1,13 +1,34 @@
-// 素材来源 · Credits: where every city fact, photo, recording, font, map line and borrowed piece of
-// code comes from, with its licence. Opened from the home screen and from the in-game menu.
+// 素材来源 · Credits: where every city fact, quiz question, photo, recording, font, map line and borrowed
+// piece of code comes from, with its licence. Opened from the home screen and from the in-game menu.
+import { useEffect, useState } from "preact/hooks";
 import { CITIES, NEWS } from "../../engine";
 import { BASE } from "../base";
-import { t, tx, type Key } from "../i18n";
+import { getLang, t, tx, type Key } from "../i18n";
+import { RATES_DATE } from "../local";
 import { PHOTOS, RECORDINGS, type Credit } from "../media";
+import { knownTriviaSources, loadTriviaSources } from "../triviaSources";
 import { hostOf } from "./common";
+import { CITY_SONGS, songText } from "./localSong";
 
 /** [name, licence, link]. A licence of "" means public domain. */
 type Item = [string, string, string];
+
+/** The satellite map's pictures (art/satellite.ts, made by scripts/satellite.mjs): each with its maker,
+ * its page and what was done to it. */
+export const SATELLITE: { name: { zh: string; en: string }; who: string; url: string }[] = [
+  {
+    name: { zh: "白天：「蓝色弹珠：新一代」，2004 年 7 月", en: "By day: Blue Marble: Next Generation, July 2004" },
+    who: "Reto Stöckli, NASA Earth Observatory",
+    url: "https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/",
+  },
+  {
+    name: { zh: "夜里：「黑色弹珠」，夜晚的地球，2016 年", en: "After dark: Black Marble, Earth at Night, 2016" },
+    who: "Joshua Stevens, NASA Earth Observatory; Suomi NPP VIIRS data: Miguel Román, NASA Goddard",
+    url: "https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/",
+  },
+];
+/** NASA's terms for its pictures. */
+export const NASA_TERMS = "https://www.nasa.gov/nasa-brand-center/images-and-media/";
 
 const PARTS: [Key, Item[]][] = [
   [
@@ -53,6 +74,8 @@ export function Credits() {
           </li>
         ))}
       </ol>
+      <h3>{t("creditsTrivia")}</h3>
+      <QuizSources />
       <h3>{t("creditsNews")}</h3>
       <ol class="credits-facts">
         {NEWS.map((n) => (
@@ -79,6 +102,25 @@ export function Credits() {
           </ul>
         </section>
       ))}
+      <section class="credits-satellite">
+        <h3>{t("creditsSatellite")}</h3>
+        <p class="muted">{t("creditsSatelliteText")}</p>
+        <ul>
+          {SATELLITE.map((m) => (
+            <li key={m.url}>
+              <a href={m.url} target="_blank" rel="noopener noreferrer">
+                {tx(m.name)}
+              </a>{" "}
+              · {m.who} · <small class="muted">{t("publicDomain")}</small>
+            </li>
+          ))}
+          <li>
+            <a href={NASA_TERMS} target="_blank" rel="noopener noreferrer">
+              {t("creditsNasaTerms")}
+            </a>
+          </li>
+        </ul>
+      </section>
       <h3>{t("creditsArt")}</h3>
       <p>{t("creditsArtText")}</p>
       <h3>{t("creditsPhotos")}</h3>
@@ -89,8 +131,77 @@ export function Credits() {
       <h3>{t("creditsRecordings")}</h3>
       <p class="muted">{t("creditsRecordingsText")}</p>
       <MediaList of={RECORDINGS} />
+      <h3>{t("creditsSongs")}</h3>
+      <p class="muted">{t("creditsSongsText")}</p>
+      <SongList />
+      <h3>{t("creditsRates")}</h3>
+      <p class="muted">{t("creditsRatesText", { date: dateText(RATES_DATE) })}</p>
       <Licences />
     </div>
+  );
+}
+
+/** A city with more sources than this lists them folded away, under its name and how many there are. */
+const FOLD = 2;
+
+/** "en.wikipedia.org/wiki/Burj_Khalifa", shortened: enough to tell two pages on one site apart. */
+function shortUrl(url: string) {
+  try {
+    const u = new URL(url);
+    let path = decodeURIComponent(u.pathname).replace(/\/$/, "");
+    if (path.length > 38) path = `${path.slice(0, 37)}…`;
+    return `${u.host.replace(/^www\./, "")}${path}`;
+  } catch {
+    return url;
+  }
+}
+
+/** The quiz's sources, by city; a city with many of them folds them away. */
+function QuizSources() {
+  const [list, setList] = useState(knownTriviaSources());
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!list) void loadTriviaSources().then((x) => (x ? setList(x) : setFailed(true)));
+  }, []);
+  if (!list) return <p class="muted">{t(failed ? "creditsTriviaNone" : "creditsTriviaLoading")}</p>;
+  const link = (url: string, text: string) => (
+    <a href={url} target="_blank" rel="noopener noreferrer">
+      {text}
+    </a>
+  );
+  return (
+    <ol class="credits-facts credits-quiz">
+      {list.map(({ city, sources }) => {
+        const c = CITIES.find((x) => x.id === city);
+        const name = c ? tx(c.name) : city;
+        return (
+          <li key={city}>
+            {sources.length > FOLD ? (
+              <details>
+                <summary>
+                  <b>{name}</b> · {t("creditsTriviaCount", { n: sources.length })}
+                </summary>
+                <ul>
+                  {sources.map((u) => (
+                    <li key={u}>{link(u, shortUrl(u))}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : (
+              <>
+                <b>{name}</b>
+                {sources.map((u) => (
+                  <span key={u}>
+                    {" · "}
+                    {link(u, hostOf(u))}
+                  </span>
+                ))}
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -117,6 +228,45 @@ function MediaList({ of }: { of: Record<string, Credit> }) {
           </li>
         );
       })}
+    </ol>
+  );
+}
+
+/** "2026 年 11 月 2 日" / "2 November 2026". */
+function dateText(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (getLang() === "zh") return `${y} 年 ${m} 月 ${d} 日`;
+  const month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m - 1];
+  return `${d} ${month} ${y}`;
+}
+
+/** Each city's local hits, folded away under its name, each linked to the song on Apple Music. */
+function SongList() {
+  const lang = getLang();
+  return (
+    <ol class="credits-facts credits-quiz credits-songs">
+      {CITIES.filter((c) => CITY_SONGS[c.id]?.length).map((c) => (
+        <li key={c.id}>
+          <details>
+            <summary>
+              <b>{tx(c.name)}</b> · {t("creditsSongsCount", { n: CITY_SONGS[c.id].length })}
+            </summary>
+            <ul>
+              {CITY_SONGS[c.id].map((s) => {
+                const { title, artist } = songText(s, lang);
+                return (
+                  <li key={s.id}>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" lang="und">
+                      {title}
+                    </a>{" "}
+                    · <span lang="und">{artist}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        </li>
+      ))}
     </ol>
   );
 }

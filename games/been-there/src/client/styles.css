@@ -306,7 +306,7 @@ input::placeholder {
   background: transparent;
   color: var(--haze);
   padding: 0 14px;
-  min-height: 36px;
+  min-height: 44px;
   cursor: pointer;
   transition:
     background-color 0.2s,
@@ -396,7 +396,7 @@ input::placeholder {
 .chip.small b {
   width: 20px;
   height: 20px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 .shape {
   vertical-align: -1px;
@@ -444,7 +444,8 @@ input::placeholder {
 .over {
   max-width: 560px;
   margin: 0 auto;
-  padding: calc(24px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
+  padding: calc(24px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(48px + env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
   display: grid;
   /* One column that never grows past the screen, whatever a row inside wants. */
   grid-template-columns: minmax(0, 1fr);
@@ -470,7 +471,8 @@ details summary {
   color: var(--haze);
   font-weight: 700;
   font-size: 0.9rem;
-  min-height: 32px;
+  min-height: 44px;
+  padding-block: 11px;
 }
 details > *:not(summary) {
   margin-top: 8px;
@@ -532,7 +534,7 @@ details > *:not(summary) {
 input.teamname {
   font-weight: 700;
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   padding: 6px 12px;
   border-radius: 12px;
 }
@@ -548,6 +550,7 @@ fieldset {
   margin: 0;
   padding: 14px 16px;
   display: grid;
+  align-content: start;
   gap: 10px;
   background: var(--surface);
   box-shadow: var(--shadow);
@@ -566,7 +569,14 @@ legend {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+  min-height: 44px;
   cursor: pointer;
+}
+.radio:not(:has(small)) {
+  align-items: center;
+}
+.radio:not(:has(small)) input {
+  margin-top: 0;
 }
 .radio input {
   min-height: auto;
@@ -594,7 +604,7 @@ legend {
   display: flex;
   gap: 8px;
   align-items: center;
-  min-height: 36px;
+  min-height: 44px;
 }
 .check input {
   min-height: auto;
@@ -639,7 +649,7 @@ legend {
 }
 .stat small {
   color: var(--haze);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 .clock {
@@ -816,7 +826,23 @@ legend {
 .sheet-bg[hidden] {
   display: none;
 }
+/* A phone's keyboard is up over a field in a sheet or the play window (keyboard.ts): the sheet, or the
+   window, sits above it, no taller than what's left of the screen. */
+.kb-open .sheet-bg {
+  bottom: var(--kb, 0px);
+}
+.kb-open .sheet {
+  max-height: calc(var(--vvh, 100vh) - 12px);
+}
+@media (max-width: 959px), (max-height: 600px) {
+  .kb-open .playwin {
+    top: auto;
+    bottom: calc(var(--kb, 0px) + 8px);
+    max-height: calc(var(--vvh, 100vh) - 16px);
+  }
+}
 button.banner {
+  min-height: 44px;
   cursor: pointer;
 }
 .menu-btn {
@@ -828,7 +854,7 @@ button.banner {
   border-radius: 999px;
   box-shadow: inset 0 0 0 1.5px var(--line);
   color: inherit;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 14px;
   white-space: nowrap;
   flex: none;
@@ -844,8 +870,8 @@ button.banner {
 .fs-btn {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex: none;
   padding: 0;
   border: 0;
@@ -929,10 +955,10 @@ button.banner {
   box-shadow: 0 0 0 2px var(--dusk);
   border-radius: 999px;
   font-style: normal;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 800;
-  min-width: 18px;
-  line-height: 18px;
+  min-width: 20px;
+  line-height: 20px;
 }
 /* Every question is a panel with a ticket's printed strip across the top. When it's your move, the
    panel is ringed in the gel. */
@@ -1055,8 +1081,8 @@ button.banner {
   flex: 1;
 }
 .peek button {
-  min-width: 40px;
-  min-height: 40px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .standings {
   list-style: none;
@@ -1087,7 +1113,7 @@ button.banner {
 .tag {
   border-radius: 999px;
   padding: 0 8px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.6;
   color: var(--haze);
@@ -1187,8 +1213,18 @@ button.banner {
 }
 .sides {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+}
+/* (a side's cities wrap their names rather than push the sheet wider than the phone) */
+.sides fieldset {
+  min-width: 0;
+}
+/* The narrowest phones: what you give over what you get. */
+@media (max-width: 359px) {
+  .sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .sides input[type="number"] {
   width: 100%;
@@ -1201,7 +1237,9 @@ button.banner {
   gap: 10px;
   box-shadow: var(--shadow);
 }
-/* The waiting players' quiz: a panel with the ticket strip, and three answers as the site's options. */
+/* The waiting players' quiz: a panel with the ticket strip, and three answers as the site's options.
+   An answer is a button (ringed in the gel) only where it can be tapped: on the phone that can answer,
+   in its pop-up. Everywhere else the answers are plain text, so nothing looks tappable that isn't. */
 .trivia {
   background: var(--surface);
   border-radius: 20px;
@@ -1255,15 +1293,15 @@ button.banner {
   background: var(--dusk);
   color: var(--ink);
   box-shadow: inset 0 0 0 1.5px var(--line);
-  cursor: pointer;
   transition:
     transform 0.16s var(--ease-out),
     box-shadow 0.2s,
     opacity 0.2s;
 }
-/* Still open: each answer is ringed in the gel, as the site marks what you can tap. */
-.trivia-opt:not(:disabled) {
+/* An answer to tap: ringed in the gel, as the site marks what you can tap. */
+button.trivia-opt {
   box-shadow: inset 0 0 0 2px var(--gel);
+  cursor: pointer;
 }
 .trivia-opt b {
   display: grid;
@@ -1278,9 +1316,6 @@ button.banner {
 .trivia-opt span {
   padding: 4px 0;
   line-height: 1.3;
-}
-.trivia-opt:disabled {
-  cursor: default;
 }
 .trivia.closed .trivia-opt:not(.right),
 .trivia-opt.picked:not(.right) {
@@ -1298,7 +1333,7 @@ button.banner {
 .trivia-opt.right span {
   text-decoration: none;
 }
-.trivia-opt:not(:disabled):active {
+button.trivia-opt:active {
   transform: scale(0.97);
 }
 .trivia-status {
@@ -1324,9 +1359,21 @@ button.banner {
   letter-spacing: 0;
 }
 .trivia-fact {
-  font-size: 0.85rem;
+  display: grid;
+  gap: 2px;
+  font-size: 0.875rem;
   line-height: 1.5;
   color: var(--muted);
+}
+/* 你知道吗 · Did you know */
+.trivia-fact b {
+  font: 700 0.75rem/1.4 var(--ui);
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+.trivia-fact b:lang(zh) {
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 .trivia-fact a {
   overflow-wrap: anywhere;
@@ -1354,9 +1401,144 @@ button.banner {
 .trivia.big .trivia-fact {
   font-size: 1rem;
 }
-/* Once the answer is out, the big screen keeps only the right one, with the story behind it. */
-.trivia.big.closed .trivia-options li:not(.right) {
+/* Once the answer is out, the big screen keeps only the right one, with the story behind it (and a
+   phone, the one its team picked). */
+.trivia.big.closed .trivia-options li:not(.right),
+.quizpop.reveal .trivia-options li:not(.right):not(.picked) {
   display: none;
+}
+/* ---------- the quiz pops up (ui/Trivia.tsx QuizPop) ----------
+   At the top of the screen, in the same place every time, over everything on a phone but a party
+   forfeit: dropped down like a notification, ringed in the gel because it's yours to answer. It takes
+   no taps for its first 350 ms (.settling), like every new question. (Over the landing scene too: only
+   the forfeit and the speed test's readout in the corner, which takes no taps, are stacked higher;
+   tests/trivia.test.ts holds every layer to that.) */
+.quizpop {
+  position: fixed;
+  z-index: 60;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: max(10px, env(safe-area-inset-left, 0px));
+  right: max(10px, env(safe-area-inset-right, 0px));
+  max-width: 560px;
+  margin-inline: auto;
+  /* (all of it fits a phone, tests/e2e/quiz.spec.ts; on the smallest screens it scrolls inside) */
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 2px var(--gel),
+    0 26px 60px -16px rgba(0, 0, 0, 0.9);
+  animation: pop-down 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.quizpop.locked,
+.quizpop.reveal {
+  box-shadow:
+    inset 0 0 0 1px var(--line-soft),
+    0 26px 60px -16px rgba(0, 0, 0, 0.9);
+}
+.quizpop.settling {
+  pointer-events: none;
+}
+@keyframes pop-down {
+  from {
+    opacity: 0;
+    transform: translateY(-28px);
+  }
+}
+.quizpop .trivia-about {
+  min-height: 24px;
+}
+/* Answered: a slim bar with what the team picked, until the answer is out. */
+.trivia-picked {
+  font-weight: 600;
+}
+/* Put it away, once answered or answered for (a 44 px target, in the corner). */
+.quizpop-x {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px auto;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--haze);
+  cursor: pointer;
+}
+.quizpop .countdown + .quizpop-x {
+  margin-left: 0;
+}
+.quizpop-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.quizpop-foot .muted {
+  min-width: 0;
+}
+/* 这题不答: a ghost pill, clear of the answers. */
+.quizpop-skip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 0.95rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .quizpop {
+    animation: none;
+  }
+}
+/* A phone held sideways: across the top, the answers side by side, so all of it fits the short screen. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .quizpop {
+    top: max(6px, env(safe-area-inset-top, 0px));
+    max-width: 780px;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .quizpop .pass-strip {
+    margin: -12px -16px 0;
+    padding: 6px 16px;
+  }
+  .quizpop .trivia-q {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .quizpop .trivia-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-top: 8px;
+  }
+  .quizpop.reveal .trivia-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .quizpop .trivia-opt {
+    min-height: 48px;
+    height: 100%;
+    gap: 8px;
+    padding: 6px 10px 6px 8px;
+  }
+}
+/* The turn clock's last 15 seconds (ui/TurnClock.tsx): on a phone under the top bar, and at the top of
+   the question it's about. */
+.idle-warn.note {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--warn) 16%, transparent);
+  color: var(--warn);
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+.boardcenter .idle-warn {
+  color: var(--warn);
 }
 /* On the big screen a question has the "now" column to itself while it's up (about 18 s): the arrival
    card and the news step aside, and come back when it closes. Nobody scrolls a TV, and with all three
@@ -1371,6 +1553,108 @@ button.banner {
   width: 100%;
   max-width: 640px;
   margin-inline: auto;
+}
+/* The map at the size picked on a phone or a laptop (ui/mapView.ts): its box keeps it, so the page never
+   gets wider, and a bigger map is dragged round inside it (a drag there moves the map, not the page). */
+.boardwrap.zoomable {
+  overflow: hidden;
+  border-radius: 18px;
+}
+.boardwrap.zoomed {
+  touch-action: none;
+  cursor: grab;
+}
+.boardwrap.zoomed.dragging {
+  cursor: grabbing;
+}
+.board-pan {
+  position: relative;
+  transform-origin: 0 0;
+}
+.board-pan.moving {
+  will-change: transform;
+}
+/* The map's size: a round button in the board's top right corner, clear of the round board at its
+   smallest. Its three marks say which size it is. */
+.map-size {
+  position: absolute;
+  z-index: 3;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--night) 74%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  color: var(--moon);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 0.16s var(--ease-out),
+    box-shadow 0.2s;
+}
+.map-size:active {
+  transform: scale(0.94);
+}
+@media (hover: hover) {
+  .map-size:hover {
+    box-shadow: inset 0 0 0 1.5px var(--dim);
+  }
+}
+.map-size .pips {
+  display: flex;
+  gap: 3px;
+}
+.map-size .pips i {
+  width: 5px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--dim);
+}
+.map-size .pips i.on {
+  background: var(--gel);
+}
+/* What a bigger map does, for a moment at the foot of the board. */
+.map-hint {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 10px;
+  max-width: calc(100% - 24px);
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--night) 82%, transparent);
+  color: var(--moon);
+  font: 600 0.85rem/1.3 var(--font);
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: map-hint 2.6s ease both;
+}
+@keyframes map-hint {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  12%,
+  80% {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-hint {
+    animation: none;
+  }
 }
 /* The big screen's 3D globe sits exactly over the map circle (radius 320 of the board's 1000). */
 .boardwrap .globe {
@@ -1387,6 +1671,20 @@ button.banner {
 }
 .boardwrap .globe.on {
   opacity: 1;
+}
+/* It lies under the board, so the tokens stand on it: once it's up, the flat map steps aside and the
+   board's dark rim is a ring round it. */
+.roundboard .rim-ring {
+  display: none;
+}
+.boardwrap.globe-on .roundboard .rim {
+  display: none;
+}
+.boardwrap.globe-on .roundboard .rim-ring {
+  display: inline;
+}
+.boardwrap.globe-on .roundboard .routemap {
+  visibility: hidden;
 }
 .boardwrap .center-disc {
   position: absolute;
@@ -1648,25 +1946,36 @@ button.banner {
   box-shadow:
     0 -20px 60px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  padding: 8px max(18px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
-  display: grid;
-  gap: 12px;
+  padding: 0 max(18px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+}
+/* (what's in a sheet, one under the other) */
+.sheet > * + * {
+  margin-top: 12px;
 }
 .sheet::before {
   content: "";
-  justify-self: center;
+  display: block;
   width: 40px;
   height: 5px;
   border-radius: 99px;
   background: var(--line);
-  margin: 2px 0 -6px;
+  margin: 10px auto 6px;
 }
+/* The sheet's name and its close button stay at the top while what's in it scrolls under them. */
 .sheet header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   min-height: 48px;
+}
+.sheet > header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-inline: calc(-1 * max(18px, env(safe-area-inset-left, 0px))) calc(-1 * max(18px, env(safe-area-inset-right, 0px)));
+  padding-inline: max(18px, env(safe-area-inset-left, 0px)) max(18px, env(safe-area-inset-right, 0px));
+  background: var(--dusk);
 }
 .sheet header h2 {
   margin: 0;
@@ -1695,9 +2004,26 @@ button.banner {
   display: grid;
   gap: 14px;
 }
+/* A setting with a choice of three (the map's size): its name and what it does, the pills beside them
+   or, on a narrow phone, under them. */
+.setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+.setting-row > span {
+  display: grid;
+  flex: 1 1 12em;
+  min-width: 0;
+}
+.setting-row small {
+  color: var(--muted);
+}
 .sheet-back {
   display: flex;
-  margin: -6px 0 2px -14px;
+  margin: 6px 0 2px -14px;
 }
 .credits {
   display: grid;
@@ -1726,6 +2052,17 @@ button.banner {
 .credits-media {
   columns: auto;
   gap: 4px;
+}
+.credits ol.credits-quiz {
+  list-style: none;
+  padding-left: 0;
+}
+.credits-quiz summary {
+  cursor: pointer;
+}
+.credits-quiz details ul {
+  padding: 2px 0 6px 1.1em;
+  font-size: 0.85rem;
 }
 .credits a {
   overflow-wrap: anywhere;
@@ -2134,7 +2471,7 @@ button.banner {
   .cityframe {
     width: min(100%, calc((88vh - 150px) * 16 / 9));
     width: min(100%, calc((88dvh - 150px) * 16 / 9));
-    justify-self: center;
+    margin-inline: auto;
   }
   .stage {
     grid-area: stage;
@@ -2306,9 +2643,10 @@ button.banner {
   max-width: none;
 }
 /* Nobody scrolls a TV: the side never grows past the screen. The standings always show; the log
-   takes what's left and fades out at the bottom. */
+   takes what's left and fades out at the bottom. (A named container: the side's width decides its
+   columns, below, even for the log, whose nearest container is the table itself.) */
 .tv-side {
-  container-type: inline-size;
+  container: side / inline-size;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -2349,6 +2687,8 @@ button.banner {
 .tv-table .feed {
   flex: 1 1 0;
   min-height: 0;
+  /* (its lines from the top, however few) */
+  align-content: start;
   overflow: hidden;
   -webkit-mask-image: linear-gradient(#000 calc(100% - 56px), transparent);
   mask-image: linear-gradient(#000 calc(100% - 56px), transparent);
@@ -2393,8 +2733,8 @@ button.banner {
   overflow: hidden;
 }
 /* Two columns where there's room (16:9 and 16:10 screens): now on the left (the arrival with its wide
-   poster, the news, the question), the table on the right. */
-@container (min-width: 520px) {
+   poster, the news, the question), the table on the right, with the log under the standings. */
+@container side (min-width: 520px) {
   .tv-table {
     order: 0;
   }
@@ -2894,7 +3234,8 @@ h2.departures {
   --wh: 88vmin;
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* (under the quiz's pop-up, .quizpop) */
+  z-index: 59;
   overflow: hidden;
   background: var(--cabin);
   color: #f4ead5;
@@ -3584,7 +3925,8 @@ h2.departures {
   position: absolute;
   top: max(10px, 2.5%);
   left: max(10px, 2.5%);
-  width: min(58%, 270px);
+  /* (on the smallest phones it takes a little more of the sky, for "Rio de Janeiro" on one line) */
+  width: min(max(58%, 196px), 270px);
   margin: 0;
   padding: 8px 10px 9px;
   list-style: none;
@@ -3615,11 +3957,10 @@ h2.departures {
 .ride-board:not(.shown) {
   display: none;
 }
+/* A name never shortens: one that doesn't fit wraps onto a second line, at the same size. */
 .ride-board .row-name {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .ride-board .row.card,
 .ride-board .row.stay {
@@ -4507,4 +4848,177 @@ h2.departures {
   100% {
     opacity: 0;
   }
+}
+
+/* ---------- being there (issue #44, ui/Local.tsx): the arrival's local part, local money, the local hit ----------
+   Small and quiet: they ride along under the city's name and never crowd the question above them. */
+.arrival-say {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.arrival-now,
+.arrival-cur-line,
+.arrival-rent {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.arrival-cur {
+  color: var(--muted);
+}
+.arrival-time,
+.arrival-wx {
+  color: var(--ink);
+  white-space: nowrap;
+}
+.arrival.big .arrival-say,
+.arrival.big .arrival-now,
+.arrival.big .arrival-rent {
+  font-size: 0.95rem;
+}
+/* A game amount in the city's own money: beside it, smaller and quieter, never on its own line's start. */
+.local-money {
+  margin-left: 0.4em;
+  font-size: 0.86em;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.local-money::before {
+  content: "(";
+}
+.local-money::after {
+  content: ")";
+}
+/* (Chinese brackets bring their own space) */
+:lang(zh) .local-money {
+  margin-left: 0;
+}
+:lang(zh) .local-money::before {
+  content: "（";
+}
+:lang(zh) .local-money::after {
+  content: "）";
+}
+
+/* Now playing: a small record and the song, where it plays, and the way to all of it on Apple Music.
+   A row of its own across the bottom of the arrival card. */
+.now-playing {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px 7px 8px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--night) 55%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.np-disc {
+  width: 30px;
+  height: 30px;
+  display: block;
+}
+.np-vinyl {
+  fill: #121019;
+  stroke: rgba(245, 244, 253, 0.18);
+  stroke-width: 0.8;
+}
+.np-groove {
+  fill: none;
+  stroke: rgba(245, 244, 253, 0.12);
+  stroke-width: 0.7;
+}
+.np-label {
+  fill: var(--gel);
+}
+.np-hole {
+  fill: #121019;
+}
+/* It turns while the song is on, here or on the device playing it (33 1/3 turns a minute). */
+.now-playing:is([data-state="playing"], [data-state="elsewhere"]) .np-disc {
+  animation: np-spin 1.8s linear infinite;
+}
+@keyframes np-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .now-playing .np-disc {
+    animation: none;
+  }
+}
+.np-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.np-song {
+  font-size: 0.86rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.np-song b {
+  font-weight: 700;
+}
+.np-song span {
+  color: var(--muted);
+}
+.np-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.now-playing[data-state="playing"] .np-where {
+  color: var(--gel);
+  font-weight: 600;
+}
+.now-playing:is([data-state="muted"], [data-state="failed"], [data-state="blocked"]) .np-where {
+  color: var(--warn);
+}
+.np-link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--ink) 40%, transparent);
+  text-underline-offset: 2px;
+  /* (a link to tap, with room round it, without making the row taller) */
+  padding: 6px 0;
+  margin: -6px 0;
+}
+.np-on {
+  min-height: 44px;
+  margin: -12px 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gel);
+  font: 700 0.75rem var(--font);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .np-link:hover {
+    text-decoration-color: currentColor;
+  }
+}
+.now-playing.big {
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  padding: 10px 14px 10px 10px;
+}
+.now-playing.big .np-disc {
+  width: 44px;
+  height: 44px;
+}
+.now-playing.big .np-song {
+  font-size: 1.1rem;
+}
+.now-playing.big .np-meta {
+  font-size: 0.9rem;
 }

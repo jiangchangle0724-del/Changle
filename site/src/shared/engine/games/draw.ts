@@ -82,7 +82,8 @@ export const draw: GameDef<S> = {
         return;
       }
       case "guess": {
-        if (s.phase !== "draw" || pid === s.drawer || s.solved.includes(pid) || s.word === null) return;
+        // (players only: someone just watching, host or not, doesn't guess or score)
+        if (s.phase !== "draw" || pid === s.drawer || s.solved.includes(pid) || s.word === null || !api.has(pid)) return;
         const text = clean(g.text, 24);
         if (!text) return;
         const w = DRAW_WORDS[s.word];

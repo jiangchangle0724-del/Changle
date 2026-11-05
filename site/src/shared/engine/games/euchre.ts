@@ -114,7 +114,8 @@ export const euchre: GameDef<S> = {
       case "sit": {
         // take a computer player's seat before the game starts (or move to it)
         const seat = Number(g.seat);
-        if (s.phase !== "setup" || !Number.isInteger(seat) || seat < 0 || seat > 3 || s.seats[seat]) return;
+        // (players only: someone just watching, host or not, doesn't take a seat)
+        if (s.phase !== "setup" || !Number.isInteger(seat) || seat < 0 || seat > 3 || s.seats[seat] || !api.has(pid)) return;
         const was = s.seats.indexOf(pid);
         if (was >= 0) s.seats[was] = null;
         s.seats[seat] = pid;

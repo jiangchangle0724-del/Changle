@@ -2,6 +2,7 @@ import { Hand, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PUNCH_FINAL, PUNCH_PROMPTS, PUNCH_SAFETY } from "../../data/punchline";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import type { PenaltyCall } from "../../components/PenaltyStamp";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { Deck, shuffle } from "../../lib/random";
@@ -134,6 +135,30 @@ export function Punchline({ onBack }: { onBack: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showKey]);
 
+  /**
+   * A stamp that waits for the show to play out (the vote reveal, the final standings). Moving on
+   * before it lands brings it first, then goes on: it used to land seconds later on top of the
+   * next prompt, or of the next game.
+   */
+  const stamp = useRef<{ timer: number; call: PenaltyCall } | null>(null);
+  useEffect(() => () => window.clearTimeout(stamp.current?.timer), []);
+  const later = (call: PenaltyCall, ms: number) => {
+    window.clearTimeout(stamp.current?.timer);
+    const timer = window.setTimeout(() => {
+      stamp.current = null;
+      penalty.show(call);
+    }, ms);
+    stamp.current = { timer, call };
+  };
+  const stampFirst = (then: () => void) => {
+    const waiting = stamp.current;
+    if (!waiting) return false;
+    window.clearTimeout(waiting.timer);
+    stamp.current = null;
+    penalty.show(waiting.call, then);
+    return true;
+  };
+
   const reveal = () => {
     if (phase.k !== "show") return;
     const mi = phase.m;
@@ -149,26 +174,22 @@ export function Punchline({ onBack }: { onBack: () => void }) {
       sweep = r.sweep >= 0 ? r.sweep : null;
       if (r.winner >= 0) {
         const loser = m.authors[1 - r.winner];
-        window.setTimeout(
-          () =>
-            penalty.show({
-              who: [name[loser]],
-              kind: sweep !== null ? "two" : "sip",
-              note:
-                sweep !== null
-                  ? zh
-                    ? "神回复：一票都没有"
-                    : "Punchline: not a single vote"
-                  : custom
-                    ? zh
-                      ? "神回复：票少的受罚"
-                      : "Punchline: fewer votes takes the penalty"
-                    : zh
-                      ? "神回复：票少的喝"
-                      : "Punchline: fewer votes drinks",
-            }),
-          5200,
-        );
+        later({
+          who: [name[loser]],
+          kind: sweep !== null ? "two" : "sip",
+          note:
+            sweep !== null
+              ? zh
+                ? "神回复：一票都没有"
+                : "Punchline: not a single vote"
+              : custom
+                ? zh
+                  ? "神回复：票少的受罚"
+                  : "Punchline: fewer votes takes the penalty"
+                : zh
+                  ? "神回复：票少的喝"
+                  : "Punchline: fewer votes drinks",
+        }, 5200);
       }
     }
     setMatches((ms) => ms.map((x, k) => (k === mi ? { ...x, counts, points, sweep } : x)));
@@ -183,6 +204,7 @@ export function Punchline({ onBack }: { onBack: () => void }) {
 
   const afterResult = () => {
     if (phase.k !== "show") return;
+    if (stampFirst(afterResult)) return;
     if (phase.m + 1 < matches.length) return openShow(phase.m + 1);
     if (!final) return setPhase({ k: "scores", at: Date.now() });
     const vals = writers.map((p) => scores[p.id] ?? 0);
@@ -191,7 +213,7 @@ export function Punchline({ onBack }: { onBack: () => void }) {
     const winners = writers.filter((p) => (scores[p.id] ?? 0) === hi).map((p) => p.id);
     const last = lo < hi ? writers.filter((p) => (scores[p.id] ?? 0) === lo).map((p) => p.id) : [];
     setPhase({ k: "end", at: Date.now(), winners, last });
-    if (last.length) window.setTimeout(() => penalty.show({ who: last.map((id) => name[id]), kind: "full", note: zh ? "神回复：最后一名" : "Punchline: last place" }), 6500);
+    if (last.length) later({ who: last.map((id) => name[id]), kind: "full", note: zh ? "神回复：最后一名" : "Punchline: last place" }, 6500);
   };
 
   const rules = (
@@ -337,8 +359,11 @@ export function Punchline({ onBack }: { onBack: () => void }) {
               type="button"
               className="btn btn-primary btn-lg btn-block"
               onClick={() => {
-                setScores({});
-                startRound(1, {});
+                const again = () => {
+                  setScores({});
+                  startRound(1, {});
+                };
+                if (!stampFirst(again)) again();
               }}
             >
               {zh ? "再来一局" : "Play again"}

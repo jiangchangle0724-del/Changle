@@ -7,14 +7,36 @@ screen (TV or laptop) shows the board. It plays at changle.ca/trip and starts fr
 Step 4 made the full game playable online; step 5 gave it its look: the golden age of travel
 (1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
 an air-age route map, and six token characters. Step 6 adds the city content: a quiz for the teams
-waiting their turn (one question per city, from the same sourced fact as its rule), the real fact
+waiting their turn (176 questions, eight a city, each with its source and a 你知道吗 fact; it pops up
+at the top of the phone, any phone can skip a question, none comes twice in a game, and a phone
+gets ones it hasn't seen first; the host can turn it off in the lobby), the real fact
 on the big screen's arrival card, a drink-free set of party forfeits (each one holds the game until
 its team taps Done, or the host skips it), and a credits page listing
 every source and licence. Each city now also has a real photo (Wikimedia Commons) beside its
 poster, and a few seconds of a real recording made there (Freesound) when a team first lands. A
 team's own move plays first-person on its phone: the camera follows the token round the board past
 every city to where it lands. Phones can go full screen (iPhones from the Home Screen) and, where
-they're allowed to, vibrate at the big moments. More facts per city are still to come.
+they're allowed to, vibrate at the big moments. A team that stays connected but does nothing gets a
+turn clock: after 60 seconds on a decision, every screen counts down 15 more, then the computer
+makes that one move for it. On a phone the player picks the map's size (small fits the whole board,
+medium and large draw it bigger and drag round with a finger, following the team on turn); phones
+start at medium. Tokens are bigger, and several on one city stand side by side with their letters;
+every screen fits a phone down to 320 px, its buttons 44 px or more, above the keyboard.
+
+Being there (issue #44, parts 2 and 3): every arrival card shows the city's local time and weather
+right now, its hello (how to say it and what it means, in Chinese and English) and its money, and
+prices and rents show what they come to in that money too ("$250 ≈ ¥39,000"). A team's first landing
+in a city plays the city's recording, as before; landing there again plays a well-known song from that
+city's country (3 to 5 a city, Apple's 30-second previews, looked up and streamed from Apple at play
+time) until the team's turn ends, with "Now playing" and a link to Apple Music on every screen. One
+device plays it: the big screen if there is one, otherwise the landing team's phone.
+
+The real world (issue #44, part 1): the middle of the board is NASA's satellite pictures, the Blue
+Marble where the sun is up right now and the Black Marble's city lights where it has set, with a soft
+dusk between; the big screen's globe wears the same pictures. A team crossing to another region flies
+there along the great circle, its own token flying it once it's down on the ring. The ring round the
+world stays printed, each city washed in its region's colour. The pictures are made ready ahead of
+time (`npm run satellite`) and ship with the game: 73 KB for a phone, 600 KB for the big screen.
 
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
@@ -44,13 +66,13 @@ How the game looks and moves, and what a design change has to keep: [DESIGN.md](
 | Folder | What it is |
 | --- | --- |
 | `src/engine` | The rules, one copy shared by the simulator, the server and the browser. Recovered from the step-3 bundle; `tests/engine.test.ts` proves it still gives the step-3 report's numbers exactly. |
-| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`trivia.ts`, answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off, saves. No networking inside, so it's easy to test. |
+| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`triviaBank.ts` holds the questions, `trivia.ts` picks the next one; answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off and the turn clock, saves. No networking inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker. Each room is one Durable Object that keeps the game and saves it after every move. |
 | `src/client` | The web pages: phone screens, the big screen, Chinese/English. |
 | `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |
 | `src/client/fonts` | Font subsets made by `npm run fonts` (SIL Open Font License; licences alongside). |
 | `src/local` | The single-device demo (`dist/demo.html`): the same client with the room running in the page. |
-| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the map. |
+| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the drawn map; `satellite.mjs` remakes the satellite pictures from NASA's (needs ImageMagick with WebP). |
 | `src/samples` | The step-5 style sheet (three art directions side by side), built to `dist/styles.html`. |
 | `tests` | Engine and room tests (Node), and phone-in-a-browser tests (`tests/e2e`, Playwright). |
 
@@ -72,7 +94,8 @@ this game with `npx wrangler dev --port 8799`.
 ```sh
 npm run typecheck
 npm test             # rules reproduce the step-3 report (17,000 games) + room scenarios
-npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its seat back; two simultaneous bids
+npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its seat back; two simultaneous bids;
+                     # the map's size, shared cities and every key screen on 390x844, 375x667 and 320x568
 npm run sim          # print the step-3 report numbers again
 npm run fonts        # after adding Chinese text: rebuild the font subsets (a test reminds you)
 npm run build        # then open dist/demo.html: the whole game on one page
@@ -90,10 +113,42 @@ Durable Objects with SQLite storage work on the free plan.
 
 From a computer instead: `npx wrangler login`, then `npm run deploy`.
 
+## Add quiz questions
+
+The questions are plain data in `src/room/triviaBank.ts`: copy an entry and change it. Each has an
+id that is never reused (`cairo-09`: phones remember the ids they've been asked), its city, the
+question, three options with the right one first, a one-line fact for after the answer, and the
+https page it comes from (the credits page lists it). `npm test` checks every entry
+(`tests/trivia.test.ts`): a unique id, a city in the game, three different options, both languages,
+no em dashes or curly quotes, and lengths that fit a phone. Only the room imports the bank, so the
+answers never reach a phone.
+
+## Change the local hits
+
+Each city's songs are picked in `scripts/songs.mjs` (`PICKS`: artist, title, Apple's track id, and what
+a Chinese or English reader sees where Apple's title isn't readable for them). `npm run songs` checks
+every one with Apple's Lookup API (the call a phone makes at play time): the right song by the right
+artist, not explicit, not live, a remix, karaoke, an instrumental, a re-recording or a cover, with a
+30-second preview; a track id that no longer answers is searched for again in the city's storefront.
+It writes `src/client/songs.json` (the game's data: id, storefront, title, artist, the preview found
+then as the fallback, the Apple Music link) and takes a few minutes (Apple answers about 20 requests a
+minute). Nothing is downloaded: previews stream from Apple. `npm test` checks the list
+(`tests/local.test.ts`): 3 to 5 a city, every field, both languages readable.
+
 ## Numbers you might want to change
 
-* Room timings (auction countdown, vote time, how soon the computer covers a dropped phone):
-  `TIMING` in `src/room/protocol.ts`.
+* Exchange rates for prices in local money: `RATES` in `src/client/local.ts`, with the date they're
+  from (`RATES_DATE`, shown on the credits page). The game's $ counts as US dollars.
+* How each city's hello is said and what it means: `HELLO` in `src/client/local.ts`.
+* How loud a song plays and how far it dips under the game's sounds: `SONG_VOLUME` in
+  `src/client/music.ts`, `DUCK` in `src/client/sound.ts`.
+* How wide dusk is on the satellite map (`DUSK` in `src/client/art/satellite.ts`), how long a flight takes
+  on the map (`FLY_MS` in `src/client/art/RouteMap.tsx`), how strongly a city's space takes its region's
+  colour (`tint` in `src/client/art/RoundBoard.tsx`), and which NASA month the day picture is
+  (`SOURCES` in `scripts/satellite.mjs`).
+
+* Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, the
+  quiz's time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.
 * Prices, rents, target lines: `src/engine/config.ts`. After changing them, run `npm run sim`
   to see the effect; `npm test` will then (deliberately) fail until `tests/fixtures/report.json`
   is updated to the new numbers.

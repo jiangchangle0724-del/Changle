@@ -105,8 +105,42 @@ export function Freeze({ onBack }: { onBack: () => void }) {
     </p>
   );
 
+  const actions =
+    phase === "setup" ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        onClick={() => {
+          setAlive(players.map((p) => p.id));
+          dance(1);
+        }}
+      >
+        <Play size={18} />
+        {zh ? "放音乐" : "Start the music"}
+      </button>
+    ) : phase === "freeze" || phase === "judge" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={judge}>
+        {moved.length ? (
+          zh ? (
+            `抓到 ${moved.length} 个，继续跳`
+          ) : (
+            `Caught ${moved.length}. Keep dancing`
+          )
+        ) : (
+          <>
+            <Check size={18} />
+            {zh ? "没人动，继续跳" : "Nobody moved. Keep dancing"}
+          </>
+        )}
+      </button>
+    ) : phase === "end" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase("setup")}>
+        {zh ? "再来一局" : "Play again"}
+      </button>
+    ) : undefined;
+
   return (
-    <GameShell title={GAME_BY_ID.freeze.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done}>
+    <GameShell title={GAME_BY_ID.freeze.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ out: phase === "setup" ? [] : players.filter((p) => !alive.includes(p.id)).map((p) => p.id) }} status={phase !== "setup" && round > 0 ? { kind: "round", current: round } : undefined} actions={actions}>
       <div className="fz">
         {phase === "setup" && (
           <>
@@ -135,17 +169,6 @@ export function Freeze({ onBack }: { onBack: () => void }) {
             <p className="hint" style={{ textAlign: "center" }}>
               {zh ? "把手机放在大家都听得到的地方，裁判看着大家。" : "Put the phone where everyone can hear it. The judge watches the floor."}
             </p>
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              onClick={() => {
-                setAlive(players.map((p) => p.id));
-                dance(1);
-              }}
-            >
-              <Play size={18} />
-              {zh ? "放音乐" : "Start the music"}
-            </button>
           </>
         )}
 
@@ -185,14 +208,6 @@ export function Freeze({ onBack }: { onBack: () => void }) {
                   );
                 })}
             </div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={judge}>
-              {moved.length ? (zh ? `抓到 ${moved.length} 个，继续跳` : `Caught ${moved.length}. Keep dancing`) : (
-                <>
-                  <Check size={18} />
-                  {zh ? "没人动，继续跳" : "Nobody moved. Keep dancing"}
-                </>
-              )}
-            </button>
           </>
         )}
 
@@ -206,9 +221,6 @@ export function Freeze({ onBack }: { onBack: () => void }) {
                 <strong>{name[alive[0]]}</strong>
               </span>
             )}
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => setPhase("setup")}>
-              {zh ? "再来一局" : "Play again"}
-            </button>
           </div>
         )}
       </div>

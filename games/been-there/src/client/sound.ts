@@ -42,9 +42,55 @@ export const audioReady = () => !muted && !!ctx && ctx.state === "running";
 /** Seconds on the audio clock now (to schedule music against). */
 export const audioNow = () => ctx?.currentTime ?? 0;
 
+/** The page's audio, once a tap has allowed it (for the local hits, music.ts), or null. */
+export const audioCtx = (): AudioContext | null => (ctx && ctx.state !== "closed" ? ctx : null);
+
+/**
+ * Where a local hit plays (music.ts): under the game's own sounds, which duck it while they play. Every
+ * sound below calls `duck` with when it ends; nothing is done while no song is on.
+ */
+let bus: GainNode | null = null;
+let songOn = false;
+let duckEnd = 0;
+/** How far a song dips under a game sound, and how quickly it comes back. */
+const DUCK = 0.3;
+const DUCK_BACK = 0.6;
+
+export function musicBus(): GainNode | null {
+  if (!ctx) return null;
+  if (!bus || bus.context !== ctx) {
+    bus = ctx.createGain();
+    bus.connect(ctx.destination);
+  }
+  return bus;
+}
+
+/** A song is on (or isn't): game sounds duck it from now on. */
+export function setSongOn(on: boolean) {
+  songOn = on;
+  if (!on) duckEnd = 0;
+}
+
+function duck(until: number) {
+  if (!songOn || !bus || !ctx) return;
+  const now = ctx.currentTime;
+  duckEnd = Math.max(duckEnd, until);
+  const g = bus.gain;
+  try {
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(DUCK, now + 0.04);
+    g.setValueAtTime(DUCK, Math.max(now + 0.04, duckEnd));
+    g.linearRampToValueAtTime(1, Math.max(now + 0.04, duckEnd) + DUCK_BACK);
+  } catch {
+    // (an engine that won't take the ramps: the song just doesn't dip)
+  }
+}
+
 function tone(freq: number, dur: number, opts: { type?: OscillatorType; vol?: number; at?: number; slide?: number } = {}) {
   if (muted || !ctx || ctx.state !== "running") return;
   const t0 = ctx.currentTime + (opts.at ?? 0);
+  duck(t0 + dur);
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = opts.type ?? "sine";
@@ -62,6 +108,7 @@ function tone(freq: number, dur: number, opts: { type?: OscillatorType; vol?: nu
 function burst(dur: number, o: { vol?: number; at?: number; type?: BiquadFilterType; freq?: number; q?: number; sweep?: number } = {}) {
   if (muted || !ctx || ctx.state !== "running") return;
   const t0 = ctx.currentTime + (o.at ?? 0);
+  duck(t0 + dur);
   const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -89,6 +136,7 @@ function bell(freq: number, o: { at?: number; vol?: number; dur?: number } = {})
 function swell(dur: number, o: { at?: number; vol?: number; type?: BiquadFilterType; freq?: number; q?: number; sweep?: number } = {}) {
   if (muted || !ctx || ctx.state !== "running") return;
   const t0 = ctx.currentTime + (o.at ?? 0);
+  duck(t0 + dur);
   const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -112,6 +160,7 @@ function swell(dur: number, o: { at?: number; vol?: number; type?: BiquadFilterT
 function chord(freqs: number[], dur: number, o: { at?: number; vol?: number; type?: OscillatorType; detune?: number } = {}) {
   if (muted || !ctx || ctx.state !== "running") return;
   const t0 = ctx.currentTime + (o.at ?? 0);
+  duck(t0 + dur);
   const voices = freqs.length * (o.detune ? 2 : 1);
   const peak = (o.vol ?? 0.05) / Math.sqrt(voices);
   const out = ctx.createGain();
@@ -191,6 +240,7 @@ function cityClip(id: string): boolean {
   src.buffer = buf;
   src.connect(gain).connect(ctx.destination);
   src.start();
+  duck(ctx.currentTime + buf.duration);
   return true;
 }
 

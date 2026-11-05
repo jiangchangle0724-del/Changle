@@ -1,20 +1,24 @@
 import type { ComponentChildren, VNode } from "preact";
-import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { RoundBoard, TOKEN_R, angleOf, xy, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
+import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
-import { colon, groupName, money, spaceName, t, tx } from "../i18n";
+import { colon, groupName, money, spaceName, t, tx, type Key } from "../i18n";
+import { MAP_SIZES, prefs, type MapSize } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
+import { ZOOM, useMapView } from "./mapView";
 import { currentNews, newsTag } from "./News";
 import { reducedMotion } from "../motion";
-import { serverNow } from "../store";
+import { serverNow, update } from "../store";
+import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
 import { LandStamp, Ride } from "./Ride";
-import { ridesOn, walkOf, type RidePlan } from "./ridePlan";
+import { moveInPlay, ridesOn, walkOf, type RidePlan } from "./ridePlan";
+import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
 
 export { reducedMotion };
@@ -63,7 +67,7 @@ export function moodOf(v: RoomView, seat: number): Mood {
 export const thisGame = (v: RoomView) => (f: FeedItem) => !v.game || f.at >= v.game.startedAt;
 
 /** The latest flight: a token reaching a city in a different region from the last city it visited. */
-export function latestFlight(v: RoomView): Flight | null {
+export function latestFlight(v: RoomView): (Flight & { seat: number }) | null {
   const lands = v.feed.filter((f) => f.t === "game" && f.e.t === "land" && CITY_AT[(f.e as { at: number }).at]).filter(thisGame(v)) as {
     id: number;
     e: Extract<GameEvent, { t: "land" }>;
@@ -78,7 +82,24 @@ export function latestFlight(v: RoomView): Flight | null {
     from = CITY_AT[lands[i].e.at];
     break;
   }
-  return from && from.group !== to.group ? { from: from.id, to: to.id, key: last.id } : null;
+  return from && from.group !== to.group ? { from: from.id, to: to.id, key: last.id, seat: last.e.p } : null;
+}
+
+/** A flight takes off a moment after the token is down on its city: the stamp first, then the trip. */
+const TAKE_OFF = 250;
+
+/**
+ * The latest flight as the map flies it: the team's own token flies the route, taking off a moment
+ * after its token is down on the ring and stamped (it walks there first: nothing tells the landing
+ * before the stamp), on every screen in step with the move. A flight seen after its move is over goes
+ * at once. (The big screen's globe flies it once the move has played: GlobeLayer.)
+ */
+export function flightToFly(v: RoomView): Flight | null {
+  const f = latestFlight(v);
+  if (!f) return null;
+  const m = moveInPlay(v);
+  const at = m && m.seat === f.seat ? performance.now() + (m.land + TAKE_OFF - serverNow()) : undefined;
+  return { from: f.from, to: f.to, key: f.key, kind: teamOf(v, f.seat)?.color ?? f.seat, at };
 }
 
 /**
@@ -132,6 +153,9 @@ export function Board({
   const g = v.game!;
   const s = g.s;
   const [open, setOpen] = useState<number | null>(null);
+  // The big screen's globe is up: it stands under the board where the flat map was, so the tokens
+  // stand on it (and the flat map steps aside).
+  const [globeOn, setGlobeOn] = useState(false);
   const { focus, at: focusAt } = useFocus(v, !!big);
   const rig = useRef<Rig | null>(null);
   const throwing = useThrowing();
@@ -159,20 +183,32 @@ export function Board({
       news: news && city && news.item.cities.includes(city.id) ? newsTag(news.item) : undefined,
     };
   });
-  const tokens: TokenMark[] = s.ps.flatMap((p, seat) => (p.out ? [] : [{ seat, at: p.pos, kind: teamOf(v, seat)?.color ?? 0, mood: moodOf(v, seat) }]));
+  const tokens: TokenMark[] = s.ps.flatMap((p, seat) => {
+    if (p.out) return [];
+    const team = teamOf(v, seat);
+    const kind = team?.color ?? 0;
+    return [{ seat, at: p.pos, kind, mood: moodOf(v, seat), badge: { color: TEAM_COLORS[kind], letter: TEAM_LETTERS[kind] } }];
+  });
+  const tokenScale = big ? TOKEN_SCALE.tv : TOKEN_SCALE.phone;
+  // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
+  // show the globe) the board draws it flat, under the ring.
+  const sat = !(globe && globeWanted());
   let table = (
     <RoundBoard
       marks={marks}
       tokens={tokens}
       focus={focus}
       active={s.ps[s.turn]?.pos}
-      flight={latestFlight(v)}
+      turn={s.turn}
+      tokenScale={tokenScale}
+      flight={globe && globeOn ? null : flightToFly(v)}
       onPick={ride ? undefined : setOpen}
       reduced={reducedMotion()}
       rig={rig}
       riding={ride ? ride.seat : null}
       focusAt={focusAt}
       walks={walks}
+      sat={sat}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -181,18 +217,50 @@ export function Board({
     if (still.current?.key !== ride.key) still.current = { key: ride.key, board: table };
     table = still.current.board;
   } else still.current = null;
+  // The map's size on a phone or a laptop (ui/mapView.ts); the big screen always fits the whole board.
+  const wrap = useRef<HTMLDivElement>(null);
+  const pan = useRef<HTMLDivElement>(null);
+  const zoomable = !big;
+  const size: MapSize = zoomable ? prefs.mapSize : "s";
+  // (this phone's own move: its camera has the view, ui/Ride.tsx; the map's button steps aside)
+  const moving = !!ride || throwing;
+  const onTurn = s.ps[s.turn] && !s.ps[s.turn].out ? s.turn : null;
+  const map = useMapView(wrap, pan, rig, {
+    zoom: ZOOM[size],
+    follow: zoomable ? onTurn : null,
+    turnKey: `${g.startedAt}:${s.turns}`,
+    moveKey: `${s.turn}:${s.ps[s.turn]?.pos}`,
+    reduced: reducedMotion(),
+  });
+  const hint = useMapHint(zoomable && size !== "s" && !moving);
+  const pick = (next: MapSize) => {
+    setMapSize(next);
+    map.recentre();
+    hint.show(next);
+  };
   return (
-    <div class={`boardwrap${ride ? " on-ride" : ""}`}>
+    <div class={`boardwrap${ride ? " on-ride" : ""}${zoomable ? " zoomable" : ""}${zoomable && size !== "s" && !moving ? " zoomed" : ""}${globe && globeOn ? " globe-on" : ""}`} ref={wrap} data-map={size}>
       {/* (behind the board: the sky the board leans back into on a ride) */}
       {ride && <div class="ride-sky" key={`sky-${ride.key}`} />}
-      {/* (the frame a move's camera moves: ui/Ride.tsx) */}
-      <div class="board-view">{table}</div>
-      {/* (what's drawn over the middle of the board moves with the big screen's camera on a move;
-          a flight on the globe waits for the token to land) */}
-      {(globe || center) && (
+      {/* (the big screen's globe, under the board where its flat map is, moving with the camera on a move;
+          a flight on it waits for the token to land) */}
+      {globe && (
+        <div class="board-cam board-under">
+          <GlobeLayer flight={ride ? null : flightToFly(v)} focus={CITY_AT[focus]?.id ?? null} onOn={setGlobeOn} busy={!!ride} />
+        </div>
+      )}
+      {/* (the map's size and where it's dragged to: ui/mapView.ts) */}
+      <div class="board-pan" ref={pan}>
+        {/* (the frame a move's camera moves: ui/Ride.tsx) */}
+        <div class="board-view">{table}</div>
+        {landings.map((l) => (
+          <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
+        ))}
+      </div>
+      {/* (what's drawn over the middle of the board moves with the big screen's camera on a move) */}
+      {center && (
         <div class="board-cam">
-          {globe && <GlobeLayer flight={ride ? null : latestFlight(v)} focus={CITY_AT[focus]?.id ?? null} />}
-          {center && <div class="center-disc">{center}</div>}
+          <div class="center-disc">{center}</div>
         </div>
       )}
       {ride && (
@@ -206,6 +274,8 @@ export function Board({
           urgent={!!urgent}
           onReady={onRideReady}
           onDone={onRideDone ?? (() => {})}
+          scale={tokenScale}
+          map={zoomable ? { zoom: ZOOM[size], release: map.release, adopt: map.adopt } : null}
         />
       )}
       {/* (this phone's dice are in the air: they tumble at once, before the server answers) */}
@@ -214,13 +284,68 @@ export function Board({
           <Dice dice={[3, 5]} seed={7} size={40} />
         </div>
       )}
-      {landings.map((l) => (
-        <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
-      ))}
       {over}
+      {zoomable && !moving && <MapSizeButton size={size} onPick={pick} />}
+      {zoomable && !moving && hint.text && (
+        <p class="map-hint" key={hint.key} aria-hidden="true">
+          {hint.text}
+        </p>
+      )}
       {open !== null && <SpaceSheet v={v} at={open} onClose={() => setOpen(null)} />}
     </div>
   );
+}
+
+/** The map's size, remembered on this phone; every screen draws again with it. */
+export function setMapSize(size: MapSize) {
+  prefs.mapSize = size;
+  update({});
+}
+
+const nextSize = (size: MapSize): MapSize => MAP_SIZES[(MAP_SIZES.indexOf(size) + 1) % MAP_SIZES.length];
+
+/**
+ * The map's size, in the board's top right corner (clear of the round board at its smallest): a tap
+ * makes it bigger, and from the largest back to the whole board. Its three marks say which size it is.
+ */
+function MapSizeButton({ size, onPick }: { size: MapSize; onPick: (s: MapSize) => void }) {
+  const now = t(`map_${size}` as Key);
+  const label = size === "l" ? t("mapWhole", { size: now }) : t("mapBigger", { size: now });
+  const level = MAP_SIZES.indexOf(size);
+  return (
+    <button type="button" class="map-size" aria-label={label} title={label} onClick={() => onPick(nextSize(size))}>
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2" />
+        <path d="M15.4 15.4L20.5 20.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" />
+        <path d={size === "l" ? "M7.6 10.5h5.8" : "M7.6 10.5h5.8M10.5 7.6v5.8"} stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+      <span class="pips" aria-hidden="true">
+        {MAP_SIZES.map((m, i) => (
+          <i key={m} class={i <= level ? "on" : ""} />
+        ))}
+      </span>
+    </button>
+  );
+}
+
+/** Some words on the board for a moment: that a bigger map drags (the first time it's shown, and
+ * whenever its size is picked), or that it's all there. */
+let hinted = false;
+function useMapHint(zoomed: boolean) {
+  const [shown, setShown] = useState<{ text: string; key: number } | null>(null);
+  const show = (size: MapSize) => setShown({ text: `${t(`map_${size}` as Key)} · ${t(size === "s" ? "mapAll" : "mapDrag")}`, key: Date.now() });
+  useEffect(() => {
+    if (!zoomed || hinted) return;
+    hinted = true;
+    const id = window.setTimeout(() => setShown({ text: t("mapDrag"), key: Date.now() }), 1200);
+    return () => clearTimeout(id);
+  }, [zoomed]);
+  useEffect(() => {
+    if (!shown) return;
+    const id = window.setTimeout(() => setShown(null), 2600);
+    return () => clearTimeout(id);
+  }, [shown?.key]);
+  return { text: shown?.text ?? "", key: shown?.key ?? 0, show };
 }
 
 /**
@@ -302,12 +427,14 @@ export function SpaceSheet({ v, at, onClose }: { v: RoomView; at: number; onClos
       )}
       {deed && (
         <p>
-          {t("price")} <Money n={priceOf(s, at)} /> · {t("owner")}{colon()}
+          {t("price")} <Money n={priceOf(s, at)} />
+          <LocalMoney city={city?.id} n={priceOf(s, at)} /> · {t("owner")}{colon()}
           {deed.owner >= 0 ? <SeatChip v={v} seat={deed.owner} /> : t("unowned")}
           {deed.owner >= 0 && !deed.mort && (
             <>
               {" "}
               · {t("rentNow", { rent: money(rentAt(s, at, 7)) })}
+              <LocalMoney city={city?.id} n={rentAt(s, at, 7)} />
             </>
           )}
           {deed.mort && ` · ${t("mortgaged")}`}
