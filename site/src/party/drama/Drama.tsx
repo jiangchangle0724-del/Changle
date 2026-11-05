@@ -196,7 +196,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // screen's (the next actor's card, the vote before the scene, the next act before the reveal)
   const settle = useSettle(`${v.round}|${v.phase}|${step.k}|${"i" in step ? step.i : ""}|${v.ready.length}|${v.voted.length}|${v.cast.map((c) => c.pid).join(",")}`);
   // the house before the curtain, then the set itself
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" || v.mode === "classic" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : v.mode === "classic" ? "classic" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
@@ -218,7 +218,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={live}>
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live={live}>
         <Cast actors={actors} />
         <Curtain open={open} />
         {extra}

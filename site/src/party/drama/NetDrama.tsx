@@ -81,7 +81,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
     dramaSfx.deal();
   });
   // the house before the curtain, then the set itself; every phone in step
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" || v.mode === "classic" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : v.mode === "classic" ? "classic" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
@@ -103,7 +103,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   const voters = v.peer ? v.cast.length : audience;
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={live}>
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live={live}>
         <Cast actors={actors} />
         <Curtain open={open} />
         {extra}

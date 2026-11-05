@@ -14,6 +14,9 @@ import { GROUPS as DRAMA_GROUPS, PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCEN
 import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dramaSizes } from "../src/shared/engine/games/drama";
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { CLASSICS as DRAMA_CLASSICS, CLASSIC_TIPS as DRAMA_CLASSIC_TIPS, CSET_NAME as DRAMA_CSET_NAME } from "../src/data/dramaClassics";
+import { DRAWN_ART as DRAMA_DRAWN_ART } from "../src/data/dramaArt";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -1608,6 +1611,14 @@ test("drama: whose stories: the host's groups come first, everyone's fill in, ot
   w.g("p0", "start");
   const first = sceneOf(w.view<V>("p1")).group;
   ok(first === "ca" || first === "kr", "one of the picked groups' scenes first");
+});
+
+test("drama: every picture the backdrops ask for is there", () => {
+  const dir = fileURLToPath(new URL("../public/drama/", import.meta.url));
+  const known = /^(classic|group-(cn|ca|sa|ph|kr|jp|ir|eu))$/;
+  for (const name of DRAMA_DRAWN_ART) ok(known.test(name) && existsSync(`${dir}${name}.webp`), `${name}: a name the backdrop uses, with its file`);
+  for (const k of ["family", "love", "office", "crime", "palace", "show"]) ok(existsSync(`${dir}kind-${k}.webp`), `kind-${k}: the first set's picture`);
+  ok(existsSync(`${dir}stage.webp`) && existsSync(`${dir}pk.webp`), "the empty stage and the duel");
 });
 
 test("drama: every group has scenes for two to five actors, all ages, with guides", () => {
