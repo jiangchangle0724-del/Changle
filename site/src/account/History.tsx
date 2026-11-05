@@ -1,6 +1,7 @@
 import { GAME_BY_ID, isGameId } from "../games/registry";
 import { ago } from "../lib/time";
 import { useStore } from "../store";
+import { EmptyState } from "../ui/EmptyState";
 
 export type HistoryRow = { id: number; game: string; mode: "online" | "single" | string; room: string; players: string[]; drinks: number; minutes: number; at: number };
 
@@ -10,9 +11,7 @@ export function HistoryList({ rows, empty }: { rows: HistoryRow[]; empty?: strin
   const zh = lang === "zh";
   if (!rows.length)
     return (
-      <div className="empty">
-        <p>{empty ?? (zh ? "还没有记录。玩一局，这里就会出现。" : "Nothing yet. Play a game and it shows up here.")}</p>
-      </div>
+      <EmptyState title={empty ?? (zh ? "还没有记录。" : "Nothing yet.")} body={!empty ? (zh ? "玩一局，这里就会出现。" : "Play a game and it shows up here.") : undefined} />
     );
   return (
     <ul className="history">
@@ -25,7 +24,7 @@ export function HistoryList({ rows, empty }: { rows: HistoryRow[]; empty?: strin
               {Icon && <Icon size={22} strokeWidth={1.9} />}
             </span>
             <span className="history-main">
-              <strong>{g ? (zh ? g.name.zh : g.name.en) : r.game}</strong>
+              <strong>{g ? (zh ? g.name.zh : g.name.en) : zh ? "一个已经下架的游戏" : "A game that's no longer here"}</strong>
               <small>
                 {r.players.length ? (zh ? `和 ${r.players.slice(0, 5).join("、")}${r.players.length > 5 ? " 等" : ""}` : `with ${r.players.slice(0, 5).join(", ")}${r.players.length > 5 ? "…" : ""}`) : ""}
               </small>

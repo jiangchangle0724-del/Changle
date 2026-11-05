@@ -1,8 +1,8 @@
 import { Copy, LogOut, Pencil, ShieldCheck, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { TopBar } from "../components/TopBar";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { LIGHTS, setLight } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { useStore } from "../store";
@@ -15,6 +15,9 @@ import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
 import { ProfileForm } from "./ProfileForm";
 import { PageLoading } from "../games/GameLoading";
+import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
+import { ToastProvider, useToast } from "../ui/Toast";
 
 export type Stats = { games: number; drinks: number; favorite: string | null; friends: number };
 
@@ -22,25 +25,43 @@ export const GENDER_LABEL: Record<string, [string, string]> = { female: ["女", 
 
 /** /me: your profile, the games you played, your friends (/me/friends). */
 export function MePage({ onBack }: { onBack: () => void }) {
+  return <ToastProvider><Profile onBack={onBack} /></ToastProvider>;
+}
+
+function Profile({ onBack }: { onBack: () => void }) {
+  const toast = useToast();
   const { me, status, openSignIn, signOut, setMe } = useAccount();
   const { lang } = useStore();
   const zh = lang === "zh";
   const [tab, setTab] = useState<"history" | "friends">(() => (window.location.pathname.endsWith("/friends") ? "friends" : "history"));
   const [hist, setHist] = useState<{ history: HistoryRow[]; stats: Stats } | null>(null);
+  const [historyFailed, setHistoryFailed] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const { lists, load } = useFriends();
+  const { lists, load, failed: friendsFailed, loading: friendsLoading } = useFriends();
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryFailed(false);
+    try {
+      setHist(await api<{ history: HistoryRow[]; stats: Stats }>("/me/history"));
+    } catch {
+      setHistoryFailed(true);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
   useEffect(() => setLight(LIGHTS.me), []);
   useEffect(() => {
     if (status !== "in") return;
-    void api<{ history: HistoryRow[]; stats: Stats }>("/me/history").then(setHist, () => {});
-  }, [status]);
+    void loadHistory();
+  }, [status, loadHistory]);
   useLive((e) => {
-    if (e.t === "friends") void api<{ history: HistoryRow[]; stats: Stats }>("/me/history").then(setHist, () => {});
+    if (e.t === "friends") void loadHistory();
   });
 
   if (status === "loading") return <PageLoading lang={lang} />;
@@ -70,8 +91,8 @@ export function MePage({ onBack }: { onBack: () => void }) {
       setMe(d.user);
       setEditing(false);
       sfx.correct();
-    } catch {
-      setError(zh ? "没保存上，检查一下填的内容" : "Couldn't save. Check the fields");
+    } catch (e) {
+      setError(e instanceof ApiError && e.status < 500 ? (zh ? "没保存上，检查一下填的内容" : "Couldn't save. Check the fields") : (zh ? "没保存上，检查一下网络" : "Couldn't save. Check your connection"));
     } finally {
       setBusy(false);
     }
@@ -83,7 +104,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
       setMe(d.user);
       sfx.pop();
     } catch {
-      setError(zh ? "照片没传上去，换一张试试" : "The photo didn't upload. Try another");
+      toast(zh ? "照片没传上去，换一张试试" : "The photo didn't upload. Try another");
     }
   };
 
@@ -94,7 +115,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
       setMe(d.user);
       sfx.pop();
     } catch {
-      setError(zh ? "头像没存上，再试一次" : "The avatar didn't save. Try again");
+      toast(zh ? "头像没存上，再试一次" : "The avatar didn't save. Try again");
     }
   };
 
@@ -103,7 +124,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
       setMe((await api<{ user: SelfUser }>("/me/figure/use", { method: "POST", body: {} })).user);
       sfx.pop();
     } catch {
-      setError(zh ? "没换过来，再试一次" : "That didn't switch. Try again");
+      toast(zh ? "没换过来，再试一次" : "That didn't switch. Try again");
     }
   };
 
@@ -142,7 +163,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
       </header>
       {me.bio && <p className="me-bio">{me.bio}</p>}
 
-      <div className="stats">
+      {!hist && historyLoading ? <Skeleton lang={lang} shape="block" height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} /> : <div className="stats">
         <div className="stat">
           <strong className="tabular">{hist?.stats.games ?? "–"}</strong>
           <span>{zh ? "局游戏" : "games"}</span>
@@ -155,7 +176,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
           <strong className="tabular">{lists?.friends.length ?? "–"}</strong>
           <span>{zh ? "个好友" : "friends"}</span>
         </div>
-      </div>
+      </div>}
       <FavoriteGame id={hist?.stats.favorite ?? null} />
 
       <div
@@ -183,10 +204,10 @@ export function MePage({ onBack }: { onBack: () => void }) {
       </div>
 
       <div role="tabpanel" id="me-history-panel" aria-labelledby="me-history-tab" hidden={tab !== "history"} tabIndex={0}>
-        {tab === "history" && <HistoryList rows={hist?.history ?? []} />}
+        {tab === "history" && (historyFailed ? <EmptyState tone="error" title={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => void loadHistory() }} /> : historyLoading && !hist ? <Skeleton lang={lang} lines={4} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} /> : <HistoryList rows={hist?.history ?? []} />)}
       </div>
       <div role="tabpanel" id="me-friends-panel" aria-labelledby="me-friends-tab" hidden={tab !== "friends"} tabIndex={0}>
-        {tab === "friends" && <FriendsPanel lists={lists} reload={() => void load()} />}
+        {tab === "friends" && <FriendsPanel lists={lists} failed={friendsFailed} loading={friendsLoading} reload={() => void load()} />}
       </div>
 
       <div className="me-foot">
@@ -223,7 +244,7 @@ export function MePage({ onBack }: { onBack: () => void }) {
           onFigure={(f) => void keepFigure(f)}
           onUseFigure={() => void showFigure()}
           onPhoto={(b) => void photo(b)}
-          onRemovePhoto={() => void api<{ user: SelfUser }>("/me/avatar", { method: "DELETE" }).then((d) => setMe(d.user), () => {})}
+          onRemovePhoto={() => void api<{ user: SelfUser }>("/me/avatar", { method: "DELETE" }).then((d) => setMe(d.user), () => toast(zh ? "没成功，再试一次" : "That didn't go through. Try again"))}
           onSubmit={(v) => void save(v)}
         />
       </Sheet>

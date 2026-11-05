@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang } from "../i18n";
 import { back } from "../router";
+import { Sheet } from "../components/Sheet";
 import { GAME_BY_ID, type GameId } from "./registry";
 import "./GameLoading.css";
 
@@ -71,6 +72,29 @@ export function PageLoading({ lang }: { lang: Lang }) {
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The sign-in sheet while its form's file is on the way (the form is a file of its own): the sheet
+ * already up with its title, two shimmering fields, and the slow line after two seconds (C5).
+ */
+export function SignInLoading({ lang, onClose }: { lang: Lang; onClose: () => void }) {
+  const slow = useSlow();
+  const zh = lang === "zh";
+  return (
+    <Sheet open onClose={onClose} title={zh ? "登录 / 注册" : "Sign in or sign up"}>
+      <div className="sheet-loading" aria-busy="true">
+        <span className="ui-visually-hidden">{zh ? "加载中" : "Loading"}</span>
+        <i className="sheet-loading-field" aria-hidden="true" />
+        <i className="sheet-loading-field page-loading-short" aria-hidden="true" />
+        {slow && (
+          <p className="game-loading-slow" role="status">
+            {zh ? "网有点慢，马上就好" : "Slow connection, nearly there"}
+          </p>
+        )}
+      </div>
+    </Sheet>
   );
 }
 
