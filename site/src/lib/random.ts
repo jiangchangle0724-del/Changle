@@ -43,4 +43,15 @@ export class Deck<T> {
     this.cards = shuffle(this.source);
     this.used = [];
   }
+  /** What a game keeps to deal on after a reload: the cards still to come, as places in the source. */
+  keep(): number[] {
+    return this.cards.map((c) => this.source.indexOf(c)).filter((i) => i >= 0);
+  }
+  /** Deal on from what keep() gave; places no longer in the source are dropped (empty: a fresh shuffle). */
+  restore(kept: readonly number[]) {
+    const cards = kept.map((i) => this.source[i]).filter((c): c is T => c !== undefined);
+    if (!cards.length) return;
+    this.cards = cards;
+    this.used = this.source.filter((c) => !cards.includes(c));
+  }
 }
