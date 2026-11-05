@@ -1,5 +1,3 @@
-import { gsap } from "./anim";
-
 /**
  * The spin on the game board: a light walks across the tiles, slowing into the target.
  * Pure timing so every phone at an online table can replay the same walk from the same plan.
@@ -24,10 +22,13 @@ export function runSweep(
 ) {
   const plan = sweepPlan(count, from, to, opts.laps ?? 2);
   const scale = opts.duration ? opts.duration / plan.duration : 1;
-  const tl = gsap.timeline({ onComplete: opts.onDone });
-  plan.times.forEach((t, i) => {
-    const idx = (from + i + 1) % count;
-    tl.call(() => opts.onStep(idx, (i + 1) / plan.steps), [], t * scale);
-  });
-  return tl;
+  // each step on its own timer, all measured from the start (so they don't drift); the walk ends
+  // with its last step
+  const timers = plan.times.map((t, i) =>
+    window.setTimeout(() => {
+      opts.onStep((from + i + 1) % count, (i + 1) / plan.steps);
+      if (i === plan.steps - 1) opts.onDone();
+    }, t * scale * 1000),
+  );
+  return { kill: () => timers.forEach((id) => window.clearTimeout(id)) };
 }

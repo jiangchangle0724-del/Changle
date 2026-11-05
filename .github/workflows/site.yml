@@ -10,9 +10,17 @@ name: site
 
 on:
   push:
+    branches: [main]
     paths: ["site/**", ".github/workflows/site.yml"]
   pull_request:
     paths: ["site/**", ".github/workflows/site.yml"]
+
+# One run per change: a branch's pushes are checked through its pull request, and main after each
+# merge (each push used to run twice, once for the push and once for the PR). A newer push to the
+# same pull request stops the older run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -42,3 +50,32 @@ jobs:
       - run: npx tsx tests/duration.test.ts
       - run: npm run build
       - run: npx tsx scripts/budget.ts
+
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - run: npm run build
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            site/test-results/
+            site/playwright-report/
+          retention-days: 14

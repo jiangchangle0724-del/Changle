@@ -110,6 +110,33 @@ export function leanOf(beta: number) {
   return Math.max(0, Math.min(90, 90 - beta));
 }
 
+const RAD = Math.PI / 180;
+
+/** Which way is up, in the phone's own axes (x to its right edge, y to its top, z out of the screen): a unit vector. */
+export function upOf(beta: number, gamma: number): [number, number, number] {
+  const cb = Math.cos(beta * RAD);
+  return [-cb * Math.sin(gamma * RAD), Math.sin(beta * RAD), cb * Math.cos(gamma * RAD)];
+}
+
+/**
+ * How far back someone is leaning and how far they tilt to one side (right is positive), holding
+ * the phone upright against their chest, from where "up" points in it. Gamma alone can't say: near
+ * upright it jumps (a phone standing straight up reports a sideways tilt as gamma ±90). With no
+ * sideways tilt, the lean is leanOf's.
+ */
+export function leanAndSide(beta: number, gamma: number) {
+  const [x, y, z] = upOf(beta, gamma);
+  const lean = Math.asin(Math.max(-1, Math.min(1, z))) / RAD;
+  return { lean: Math.max(0, Math.min(90, lean)), side: Math.atan2(-x, y) / RAD };
+}
+
+/** The angle between two directions (unit vectors, or a sum of them for their average), in degrees. */
+export function degreesApart(a: [number, number, number], b: [number, number, number]) {
+  const n = Math.hypot(...a) * Math.hypot(...b);
+  if (!n) return 0;
+  return Math.acos(Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / n))) / RAD;
+}
+
 /**
  * Calls `onMove` when the phone moves more than a held-still phone does: a shaky hand stays
  * quiet, a dance step does not. Two strong samples in a row count, so one bump doesn't.
