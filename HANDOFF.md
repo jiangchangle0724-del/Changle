@@ -175,12 +175,13 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 藏在人群里 (`games/hide-crowd`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
-| 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (the libraries' hand-over; the same value as the GitHub secret) | `ALLOW_TEST` (local and tests only) |
+| 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (optional, never needed live: the libraries' hand-over from a run outside GitHub) | `ALLOW_TEST` (local and tests only) |
 
-GitHub Actions use one secret: `EVENTS_HANDOFF_KEY`, the same value as the What's On Worker's, for
-`.github/workflows/events-libraries.yml` (each morning at 05:50 it hands the Vancouver and Richmond
-libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go in a git-ignored
-`.dev.vars` next to the Worker's `wrangler.jsonc`.
+GitHub Actions use no secrets. `.github/workflows/events-libraries.yml` (each morning at 05:50 it
+hands the Vancouver and Richmond libraries' pages to the What's On Worker) signs in with GitHub's own
+OIDC token, which the Worker checks against GitHub's public keys (`tools/events/src/oidc.ts`,
+`tools/events/README.md`). Locally, secrets go in a git-ignored `.dev.vars` next to the Worker's
+`wrangler.jsonc`.
 
 ## Working rules
 
