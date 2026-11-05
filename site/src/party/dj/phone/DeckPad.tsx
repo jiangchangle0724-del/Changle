@@ -12,6 +12,8 @@ import type { CrateSong } from "../../../shared/dj/types";
 import { DROP_WORDS, hintText, localName, mixSaid, PADS, songName } from "../deck/words";
 import { ytIdOf, type YtHit } from "../../../shared/dj/youtube";
 import { ytInfo, ytSearch } from "./youtube";
+import { EmptyState } from "../../../ui/EmptyState";
+import { Skeleton } from "../../../ui/Skeleton";
 import { MixerPad } from "./MixerPad";
 import { Platter, type Move } from "./Platter";
 import { STYLE_NAMES } from "../parts";
@@ -492,7 +494,7 @@ function Playlist({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
 }
 
 /** Why a song has no video from YouTube yet: the search isn't on (the owner's key), today's searches are used up, or it found none. */
-type NoTube = "nokey" | "quota" | "none";
+type NoTube = "nokey" | "quota" | "none" | "network";
 /** A song waiting for its YouTube link (the search couldn't give one): from the song list (`song`), or a name typed in. */
 type Need = { song?: number; text: string; artist?: string; why: NoTube };
 
@@ -527,11 +529,19 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   const typed = q.trim();
   const link = ytIdOf(typed);
   const [found, setFound] = useState<{ q: string; hits: YtHit[] } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const [noTube, setNoTube] = useState<"nokey" | "quota" | null>(null);
   const [need, setNeed] = useState<Need | null>(null);
   useEffect(() => {
-    if (d.local || pick || need) return;
-    if (!link && (Array.from(typed).length < 3 || hits.length > 0 || noTube)) return;
+    setSearchFailed(false);
+    setFound(null);
+    if (d.local || pick || need || (!link && (Array.from(typed).length < 3 || hits.length > 0 || noTube))) {
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
     let gone = false;
     const id = window.setTimeout(
       () => {
@@ -540,7 +550,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           if (gone) return;
           if (list === "nokey" || list === "quota") setNoTube(list);
           else setFound({ q: typed, hits: list });
-        });
+        }).catch(() => { if (!gone) setSearchFailed(true); }).finally(() => { if (!gone) setSearching(false); });
       },
       link ? 50 : 900,
     );
@@ -548,7 +558,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
       gone = true;
       window.clearTimeout(id);
     };
-  }, [d.local, pick, need, typed, link, noTube, hits.length]);
+  }, [d.local, pick, need, typed, link, noTube, hits.length, searchAttempt]);
   const fold = b?.fold ?? ((x: string) => x.toLowerCase());
   const onTube: Entry[] = useMemo(() => {
     if (d.local || pick || !found || found.q !== typed) return [];
@@ -570,7 +580,8 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
 
   // the link pasted for a song that needs one, looked up as it's pasted
   const [pasted, setPasted] = useState("");
-  const [pastedHit, setPastedHit] = useState<YtHit | "none" | "finding" | null>(null);
+  const [pastedHit, setPastedHit] = useState<YtHit | "none" | "finding" | "offline" | null>(null);
+  const [pasteAttempt, setPasteAttempt] = useState(0);
   useEffect(() => {
     const id = ytIdOf(pasted);
     if (!id) {
@@ -579,11 +590,11 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     }
     let gone = false;
     setPastedHit("finding");
-    void ytInfo(id).then((h) => !gone && setPastedHit(h ?? "none"));
+    void ytInfo(id).then((h) => !gone && setPastedHit(h ?? "none"), () => !gone && setPastedHit("offline"));
     return () => {
       gone = true;
     };
-  }, [pasted]);
+  }, [pasted, pasteAttempt]);
 
   const [finding, setFinding] = useState(false);
   const sent = () => {
@@ -605,8 +616,13 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     const id = ytIdOf(words);
     if (!id && noTube) return { why: noTube };
     const late = new Promise<"late">((ok) => window.setTimeout(() => ok("late"), 3000));
-    const r = await Promise.race([id ? ytInfo(id).then((h) => (h ? [h] : [])) : ytSearch(words), late]);
-    if (r === "late") return { why: "none" };
+    let r: Awaited<ReturnType<typeof ytSearch>> | "late";
+    try {
+      r = await Promise.race([id ? ytInfo(id).then((h) => (h ? [h] : [])) : ytSearch(words), late]);
+    } catch {
+      return { why: "network" };
+    }
+    if (r === "late") return { why: "network" };
     if (r === "nokey" || r === "quota") {
       setNoTube(r);
       return { why: r };
@@ -615,6 +631,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   };
   /** A song that wants its video: found, it goes in with it; not found, the phone asks for its link. */
   const withTube = (s: { song?: number; text: string; artist?: string }) => {
+    if (finding) return;
     setFinding(true);
     void lookup(s.artist ? `${s.text} ${s.artist}` : s.text).then((r) => {
       setFinding(false);
@@ -637,7 +654,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     }
     if (need) {
       // the link pasted for it (its own buttons send the remix alone, or take it back)
-      if (pastedHit && pastedHit !== "none" && pastedHit !== "finding") ask(need, pastedHit);
+      if (pastedHit && typeof pastedHit === "object") ask(need, pastedHit);
       return;
     }
     if (pick?.yt) {
@@ -720,7 +737,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
         </span>
       )}
       {need ? (
-        <NeedLink need={need} zh={zh} pasted={pasted} hit={pastedHit} setPasted={setPasted} remix={() => ask(need)} drop={() => setNeed(null)} />
+        <NeedLink need={need} zh={zh} pasted={pasted} hit={pastedHit} setPasted={setPasted} retry={() => withTube(need)} retryPaste={() => setPasteAttempt((n) => n + 1)} remix={() => ask(need)} drop={() => setNeed(null)} />
       ) : pick ? (
         <span className="djk-req-pick">
           <span>{pick.yt ? `${pick.t} · YouTube` : zh ? `${pick.a}《${pick.t}》` : `${pick.t} (${pick.a})`}</span>
@@ -767,6 +784,9 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           ))}
         </ul>
       )}
+      {(searching || finding) && <Skeleton lang={zh ? "zh" : "en"} lines={3} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />}
+      {!need && searchFailed && <EmptyState tone="error" title={zh ? "没搜成，检查一下网络" : "The search didn't go through. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => setSearchAttempt((n) => n + 1) }} />}
+      {!need && !searching && !searchFailed && found?.q === typed && !hits.length && !found.hits.length && <EmptyState title={zh ? "没搜到这首，换个说法试试" : "Nothing came up. Try other words"} />}
       {failed && !using && <span className="djk-req-note">{d.local ? (zh ? "歌单没加载出来，等一下再点" : "The song list didn't load. Try again in a moment") : zh ? "曲库没加载出来，直接输入歌名也行" : "The song list didn't load. Typing the name works too"}</span>}
       {!need && (
         <button type="submit" className="djk-req-send" disabled={ended || full || enough || finding || (!pick && !q.trim())}>
@@ -783,7 +803,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
  * the link copied there is pasted back (a button reads it off the clipboard where the browser
  * lets it). Or it goes in as the DJ's remix alone, or is taken back.
  */
-function NeedLink({ need, zh, pasted, hit, setPasted, remix, drop }: { need: Need; zh: boolean; pasted: string; hit: YtHit | "none" | "finding" | null; setPasted: (s: string) => void; remix: () => void; drop: () => void }) {
+function NeedLink({ need, zh, pasted, hit, setPasted, retry, retryPaste, remix, drop }: { need: Need; zh: boolean; pasted: string; hit: YtHit | "none" | "finding" | "offline" | null; setPasted: (s: string) => void; retry: () => void; retryPaste: () => void; remix: () => void; drop: () => void }) {
   const words = need.artist ? `${need.artist} ${need.text}` : need.text;
   const name = need.artist ? (zh ? `${need.artist}《${need.text}》` : `${need.text} (${need.artist})`) : zh ? `《${need.text}》` : `"${need.text}"`;
   const canPaste = typeof navigator !== "undefined" && !!navigator.clipboard?.readText;
@@ -805,7 +825,7 @@ function NeedLink({ need, zh, pasted, hit, setPasted, remix, drop }: { need: Nee
         : zh
           ? "YouTube 上没搜到这首。去 YouTube 找找，复制链接贴回这里"
           : "No video came up for it. Look on YouTube, copy the link and paste it here";
-  const ok = hit && hit !== "none" && hit !== "finding" ? hit : null;
+  const ok = hit && typeof hit === "object" ? hit : null;
   return (
     <div className="djk-need" role="group" aria-label={zh ? "这首歌的 YouTube 链接" : "This song's YouTube link"}>
       <span className="djk-need-song">
@@ -814,7 +834,7 @@ function NeedLink({ need, zh, pasted, hit, setPasted, remix, drop }: { need: Nee
           <X size={20} aria-hidden="true" />
         </button>
       </span>
-      <span className="djk-req-note">{why}</span>
+      {need.why === "network" ? <EmptyState tone="error" title={zh ? "没连上 YouTube，检查一下网络" : "Couldn't reach YouTube. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: retry }} /> : <span className="djk-req-note">{why}</span>}
       <a className="djk-need-find" href={`https://www.youtube.com/results?search_query=${encodeURIComponent(words)}`} target="_blank" rel="noopener noreferrer">
         <Search size={18} aria-hidden="true" />
         {zh ? "去 YouTube 找这首" : "Find it on YouTube"}
@@ -837,7 +857,7 @@ function NeedLink({ need, zh, pasted, hit, setPasted, remix, drop }: { need: Nee
           </button>
         )}
       </span>
-      {hit && (
+      {hit === "offline" ? <EmptyState tone="error" title={zh ? "没连上 YouTube，检查一下网络" : "Couldn't reach YouTube. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: retryPaste }} /> : hit && (
         <span className={`djk-need-hit ${ok ? "is-ok" : ""}`} aria-live="polite">
           {hit === "finding" ? (zh ? "在看这个链接…" : "Checking the link…") : hit === "none" ? (zh ? "这不是能放的 YouTube 链接" : "That isn't a YouTube link that can play here") : zh ? `找到了：${ok!.t}` : `Found: ${ok!.t}`}
         </span>

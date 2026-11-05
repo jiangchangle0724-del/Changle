@@ -1,0 +1,13 @@
+.dj-tube .ui-empty {
+  width: 100%;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+.dj-tube .ui-empty h2,
+.dj-tube .ui-empty button {
+  font-size: var(--text-xl);
+}
+.dj-tube.is-on.is-offline .dj-tube-slot {
+  aspect-ratio: auto;
+  height: calc(var(--tap) * 5);
+}
