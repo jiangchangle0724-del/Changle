@@ -2,7 +2,7 @@
   "name": "party-server",
   "version": "0.1.0",
   "private": true,
-  "description": "一起跳 · Dance Along (and later 打碟 · DJ Booth): the room server and pages at changle.ca/party, wiring games/party-base",
+  "description": "一起跳 · Dance Along: the room server and pages at changle.ca/party, wiring games/party-base and games/dance",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
