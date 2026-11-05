@@ -248,7 +248,7 @@ export function GameExitSheet({ open, onClose, onLeave }: { open: boolean; onClo
   if (!isHost)
     return (
       <Sheet open={open} onClose={onClose} title={ui("leaveTable")}>
-        <p className="hint" style={{ fontSize: 16, marginBottom: 18 }}>
+        <p className="hint" style={{ fontSize: "var(--text-md)", marginBottom: 18 }}>
           {zh ? "想换个游戏的话，主人点左上角的返回，结束这局，大家会一起回到大厅。" : "Want a different game? The host taps back to end this one, and everyone goes back to the lobby together."}
         </p>
         <div className="row" style={{ gap: 10 }}>
@@ -264,7 +264,7 @@ export function GameExitSheet({ open, onClose, onLeave }: { open: boolean; onClo
     );
   return (
     <Sheet open={open} onClose={onClose} title={zh ? "结束这局？" : "End this game?"}>
-      <p className="hint" style={{ fontSize: 16, marginBottom: 18 }}>
+      <p className="hint" style={{ fontSize: "var(--text-md)", marginBottom: 18 }}>
         {zh ? "大家一起回到大厅，选下一个游戏。没有人会离开这桌。" : "Everyone goes back to the lobby to pick the next game. Nobody leaves the table."}
       </p>
       <div className="row" style={{ gap: 10 }}>
@@ -293,7 +293,7 @@ export function LeaveSheet({ open, onClose, onLeave }: { open: boolean; onClose:
   const { ui } = useStore();
   return (
     <Sheet open={open} onClose={onClose} title={ui("leaveTable")}>
-      <p className="hint" style={{ fontSize: 16, marginBottom: 18 }}>
+      <p className="hint" style={{ fontSize: "var(--text-md)", marginBottom: 18 }}>
         {ui("leaveConfirm")}
       </p>
       <div className="row" style={{ gap: 10 }}>
