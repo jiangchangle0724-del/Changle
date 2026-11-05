@@ -123,6 +123,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   card={v.me}
                   culprit={v.scene?.culprit ?? null}
                   pk={v.mode === "pk"}
+                  line={v.pk?.line}
                   onDone={() => g("ready")}
                   doneLabel={zh ? "记住了，准备开演" : "Got it. Ready"}
                 />
@@ -162,7 +163,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   <Eye size={16} />
                   {peek ? (zh ? "收起我的牌" : "Hide my card") : zh ? "再看一眼我的牌" : "Peek at my card"}
                 </button>
-                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} />}
+                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} line={v.pk?.line} />}
               </>
             )}
             {(acting || isHost) && (

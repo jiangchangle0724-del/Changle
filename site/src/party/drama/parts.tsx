@@ -1,7 +1,7 @@
 import { DramaAction } from "./ShellActions";
-import { Clapperboard, Drama as DramaIcon, Eye, Feather, Sparkles, Star, VenetianMask } from "lucide-react";
+import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { KINDS, type DramaKind } from "../../data/drama";
+import { KINDS, PK_DEMO, pkSeeUrl, pkStyle, type DramaKind, type PkStyle } from "../../data/drama";
 import type { T } from "../../i18n";
 import { confetti } from "../../lib/confetti";
 import { gsap, reduced } from "../../lib/anim";
@@ -216,19 +216,24 @@ export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string
   const zh = lang === "zh";
   return (
     <ul className="dm-roster">
-      {v.cast.map((c) => (
-        <li key={c.pid} className={v.ready.includes(c.pid) ? "is-ready" : ""}>
-          <span className="dm-roster-face">{face(c.pid, 40)}</span>
-          <span className="dm-roster-main">
-            <strong>
-              {zh ? c.role.zh : c.role.en}
-              <small>{nameOf(c.pid)}</small>
-            </strong>
-            {(zh ? c.brief.zh : c.brief.en) && <span>{zh ? c.brief.zh : c.brief.en}</span>}
-          </span>
-          {v.phase === "brief" && <span className="dm-roster-state">{v.ready.includes(c.pid) ? (zh ? "看好了" : "Ready") : zh ? "在看牌" : "Reading"}</span>}
-        </li>
-      ))}
+      {v.cast.map((c) => {
+        // a role's public line; in a duel, what the actor's style looks like, so the audience knows what to watch for
+        const about = v.mode === "pk" ? pkStyle(c.role)?.how : c.brief;
+        const line = about ? (zh ? about.zh : about.en) : "";
+        return (
+          <li key={c.pid} className={v.ready.includes(c.pid) ? "is-ready" : ""}>
+            <span className="dm-roster-face">{face(c.pid, 40)}</span>
+            <span className="dm-roster-main">
+              <strong>
+                {zh ? c.role.zh : c.role.en}
+                <small>{nameOf(c.pid)}</small>
+              </strong>
+              {line && <span>{line}</span>}
+            </span>
+            {v.phase === "brief" && <span className="dm-roster-state">{v.ready.includes(c.pid) ? (zh ? "看好了" : "Ready") : zh ? "在看牌" : "Reading"}</span>}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -236,12 +241,44 @@ export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string
 /* ------------------------------------------------------------------ the secret card */
 
 /**
- * An actor's private card: dealt face down, flipped with a tap. The culprit's side is marked
- * with the mask; everyone also has a secret task.
+ * A duel card under the style's name, for someone who has never acted: what the style is and what
+ * to do, the everyday sentence said that way, and the line to say tonight. A style this phone
+ * doesn't know yet (an older page at a newer table) gets the plain line.
  */
-export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean }) {
+function StyleHelp({ st, line }: { st: PkStyle | undefined; line?: T | null }) {
   const { lang } = useStore();
   const zh = lang === "zh";
+  const tx = (x: T) => (zh ? x.zh : x.en);
+  return (
+    <>
+      <p className="dm-card-brief">{st ? tx(st.how) : zh ? "用这种状态说出台词，演得越像分越高。" : "Say the line in this state. The more convincing, the more stars."}</p>
+      {st && (
+        <div className="dm-card-task dm-card-demo">
+          <p className="dm-card-label">{zh ? `比如把「${PK_DEMO.zh}」说成` : `For example, “${PK_DEMO.en}” becomes`}</p>
+          <p>{tx(st.demo)}</p>
+        </div>
+      )}
+      {line && tx(line) && (
+        <div className="dm-card-secret dm-card-line">
+          <p className="dm-card-label">{zh ? "你要说的台词" : "The line you say"}</p>
+          <p>{zh ? `「${line.zh}」` : `“${line.en}”`}</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * An actor's private card: dealt face down, flipped with a tap. The culprit's side is marked
+ * with the mask; everyone also has a secret task. In a duel it explains the style instead
+ * (`line` is the line both actors say), and once it's turned over, a link under it goes to
+ * videos of people doing that style.
+ */
+export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell, line }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean; line?: T | null }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const st = pk ? pkStyle(card.secret) : undefined;
+  const title = pk ? card.secret : role;
   const [flipped, setFlipped] = useState(false);
   const [backOk, setBackOk] = useState(true);
   const inner = useRef<HTMLDivElement>(null);
@@ -256,7 +293,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
   const tx = (x: T) => (zh ? x.zh : x.en);
   return (
     <div className="dm-cardwrap">
-      <div className={`dm-card ${flipped ? "is-flipped" : ""} ${card.culprit ? "is-culprit" : ""}`}>
+      <div className={`dm-card ${flipped ? "is-flipped" : ""} ${card.culprit ? "is-culprit" : ""} ${pk ? "is-style" : ""}`}>
         <div className="dm-card-inner" ref={inner} style={reduced() && flipped ? { transform: "rotateY(180deg)" } : undefined}>
           <button type="button" className="dm-card-back" onClick={flip} aria-label={zh ? "翻开身份牌" : "Turn your card over"}>
             {backOk ? <img src={art("card-back")} alt="" onError={() => setBackOk(false)} /> : <DramaIcon size={64} strokeWidth={1.6} />}
@@ -269,7 +306,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
               </span>
             )}
             <p className="dm-card-label">{pk ? (zh ? "你的演法" : "Your style") : zh ? "你的角色" : "Your role"}</p>
-            <h3 className="dm-card-role">{tx(pk ? card.secret : role)}</h3>
+            <h3 className={`dm-card-role ${(zh ? title.zh.length > 8 : title.en.length > 22) ? "is-long" : ""}`}>{tx(title)}</h3>
             {!pk && tx(brief) && <p className="dm-card-brief">{tx(brief)}</p>}
             {!pk && (
               <div className={`dm-card-secret ${card.culprit ? "is-culprit" : ""}`}>
@@ -280,7 +317,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
                 <p>{tx(card.secret)}</p>
               </div>
             )}
-            {pk && <p className="dm-card-brief">{zh ? "用这种状态说出台词，演得越像分越高。" : "Say the line in this state. The more convincing, the more stars."}</p>}
+            {pk && <StyleHelp st={st} line={line} />}
             {tx(card.task) && (
               <div className="dm-card-task">
                 <p className="dm-card-label">{zh ? "秘密任务" : "Secret task"}</p>
@@ -290,6 +327,18 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
           </div>
         </div>
       </div>
+      {st && flipped && (
+        <a
+          className="dm-card-see"
+          href={pkSeeUrl(zh ? "zh" : "en", tx(st.see))}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={zh ? "看看别人怎么演（在新页面打开视频搜索）" : "Watch how others play it (opens a video search in a new page)"}
+        >
+          {zh ? "看看别人怎么演" : "Watch how others play it"}
+          <ExternalLink size={16} strokeWidth={2.4} aria-hidden="true" />
+        </a>
+      )}
       {onDone && (
         <DramaAction inShell={inShell}>
           <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!flipped} onClick={onDone}>

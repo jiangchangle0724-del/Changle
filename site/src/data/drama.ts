@@ -1426,7 +1426,7 @@ export const PK_LINES: T[] = [
   t("你的麦克风还开着。", "Your microphone is still on."),
   t("好，现在轮到我了。", "All right. My turn."),
   t("你怎么现在才告诉我？", "Why are you only telling me now?"),
-  t("这个红包是给我的吗？", "Is this red envelope for me?"),
+  t("这个红包是给我的吗？", "Is this present for me?"),
   t("我们还是做朋友吧。", "Let's just be friends."),
   t("你身上怎么有香水味？", "Why do you smell like perfume?"),
   t("这道题我会。", "I know this one."),
@@ -1434,36 +1434,218 @@ export const PK_LINES: T[] = [
   t("你看起来一点都没变。", "You haven't changed a bit."),
   t("我有一个秘密要告诉你。", "I have a secret to tell you."),
   t("别回头，有人在看我们。", "Don't turn around. Someone's watching us."),
-  t("最后一个月饼是你吃的吗？", "Did you eat the last mooncake?"),
+  t("最后一个月饼是你吃的吗？", "Did you eat the last doughnut?"),
 ];
 
-export const PK_STYLES: { s: T; level: DramaLevel }[] = [
-  { s: t("刚失恋", "Just got dumped"), level: "all" },
-  { s: t("中了彩票", "Just won the lottery"), level: "all" },
-  { s: t("被老板骂了", "Just got chewed out by the boss"), level: "all" },
-  { s: t("刚睡醒", "Just woke up"), level: "all" },
-  { s: t("琼瑶剧女主", "Melodrama heroine"), level: "all" },
-  { s: t("新闻主播", "News anchor"), level: "all" },
-  { s: t("霸道总裁", "Domineering CEO"), level: "all" },
-  { s: t("喝多了", "One drink too many"), level: "spicy" },
-  { s: t("撩人", "Flirting hard"), level: "spicy" },
-  { s: t("努力忍住笑的法官", "A judge desperately holding back laughter"), level: "all" },
-  { s: t("暴雨中还坚持优雅的宾客", "A party guest determined to look elegant in a downpour"), level: "all" },
-  { s: t("把小事当世界末日的预言家", "A prophet treating a minor inconvenience as the apocalypse"), level: "all" },
-  { s: t("深夜推销神秘锅具的主持人", "A late-night host selling mysterious cookware"), level: "all" },
-  { s: t("刚发现自己一直没静音", "Someone who has just realised the mic was on"), level: "all" },
-  { s: t("表面祝福前任，心里在算旧账", "Congratulating an ex while mentally tallying old debts"), level: "spicy" },
-  { s: t("刚发现自己才是备选方案", "Someone who has just realised they’re the backup plan"), level: "spicy" },
-  { s: t("宫斗赢了却必须装无辜", "A palace schemer who has won and must look innocent"), level: "spicy" },
-  { s: t("第一次上台演讲，紧张到发抖", "Shaking through their first public speech"), level: "all" },
-  { s: t("武侠片里的大侠", "A martial arts movie hero"), level: "all" },
-  { s: t("刚被求婚", "Just got proposed to"), level: "all" },
-  { s: t("幼儿园老师", "A kindergarten teacher"), level: "all" },
-  { s: t("宫斗剧里的皇后", "The empress in a palace drama"), level: "all" },
-  { s: t("第一次见对象的父母", "Meeting the partner's parents for the first time"), level: "all" },
-  { s: t("偷偷搞暧昧被当场抓包", "Caught flirting with someone they shouldn't"), level: "spicy" },
-  { s: t("同时约了两个人，两人刚好撞上", "Double-booked two dates, who've just met each other"), level: "spicy" },
+/**
+ * 演技 PK: one way of saying a line, explained so that someone who has never acted can do it.
+ *
+ * `how` says what it is and what to do with your voice, face and hands, in words a ten-year-old
+ * follows. `demo` is the everyday sentence `PK_DEMO` said that way. `see` is what to search for to
+ * watch people doing it.
+ *
+ * The two languages are written for two audiences, not translated: the Chinese leans on what a
+ * Chinese speaker grew up watching (琼瑶剧, 宫斗剧, 电视购物), the English on what an English speaker
+ * did (soap operas, Snow White's queen, infomercials). A style's two names still mean the same
+ * thing, because at a mixed table one phone shows the Chinese and the next the English.
+ */
+export type PkStyle = { s: T; level: DramaLevel; how: T; demo: T; see: T };
+
+/** The everyday sentence every style's example says (no full stop: it sits inside a label). */
+export const PK_DEMO: T = t("外面下雨了", "It's raining");
+
+const style = (level: DramaLevel, s: T, how: T, demo: T, see: T): PkStyle => ({ s, level, how, demo, see });
+
+export const PK_STYLES: PkStyle[] = [
+  style(
+    "all",
+    t("刚失恋", "Just got dumped"),
+    t("最喜欢的人刚跟你说了再见。声音又小又慢，说到一半吸一下鼻子，眼睛只看地上。", "The person you like most just said goodbye. Small, slow voice. Sniff halfway through and keep your eyes on the floor."),
+    t("外面……下雨了。（吸鼻子）连老天都在替我哭。", "It's raining... (sniff) Of course it is. And he kept the umbrella."),
+    t("失恋 哭戏 名场面", "heartbroken breakup scene acting"),
+  ),
+  style(
+    "all",
+    t("中了彩票", "Just won the lottery"),
+    t("你刚发现自己中了大奖。先愣住两秒，然后越说越快、越说越大声，最后忍不住跳起来。", "You just found out you won millions. Freeze for two seconds, then get faster and louder until you can't help jumping."),
+    t("外面下雨了？下吧下吧！今天全场的奶茶我请！", "It's raining? WHO CARES! Pizza for everyone! For the whole street!"),
+    t("中大奖 现场 反应", "lottery winner reaction"),
+  ),
+  style(
+    "all",
+    t("被老板骂了", "Just got chewed out by the boss"),
+    t("你刚被老板当着所有人的面批评，就像被老师点名罚站。低着头，声音发虚，说一句偷看一眼。", "You just got told off in front of everyone, like being sent to the principal's office. Head down, tiny careful voice, checking it's safe to speak."),
+    t("外、外面下雨了……对不起，是我没看好天气，我马上改。", "It's, um... raining. Sorry. That's on me. I'll have it fixed by Monday."),
+    t("被领导批评 小品 搞笑", "getting yelled at by the boss comedy sketch"),
+  ),
+  style(
+    "all",
+    t("刚睡醒", "Just woke up"),
+    t("闹钟响了三遍你才爬起来。眼睛半睁，字都黏在一起，中间打一个大哈欠。", "The alarm went off three times and you're still not really awake. Eyes half shut, words stuck together, one giant yawn in the middle."),
+    t("外面……（哈欠）……下雨了……让我再睡五分钟……", "'S raining... (huge yawn) ...five more minutes."),
+    t("刚睡醒 说话 搞笑", "just woke up voice funny"),
+  ),
+  style(
+    "all",
+    t("琼瑶剧女主", "A soap-opera heroine"),
+    t("琼瑶剧是很有名的老爱情电视剧，女主角碰到一点小事就哭得像天塌了。手捂胸口，眼泪汪汪，一句话要问三遍。", "Like the star of a daytime soap opera or a telenovela: the smallest thing is a tragedy. Gasp, hand on heart, turn away, then turn back with tears."),
+    t("下雨了！你说，它为什么要下雨！你说啊！我不听，我不听，我不听！", "(gasp) It's raining. How could you... how COULD you... let it rain on me?"),
+    t("琼瑶剧 哭戏 名场面", "soap opera overacting parody"),
+  ),
+  style(
+    "all",
+    t("新闻主播", "News anchor"),
+    t("像晚上七点在电视上播新闻的人。坐直，脸上没有表情，每个字都清清楚楚，不快也不慢。", "Like the person reading the six o'clock news. Sit up straight, serious face, every word clear and even, a tiny pause before the big news."),
+    t("观众朋友们，晚上好。今天的主要内容有：外面，下雨了。", "Good evening. Our top story tonight: it is raining. More on that after the break."),
+    t("新闻主播 播音腔 模仿", "news anchor voice impression"),
+  ),
+  style(
+    "all",
+    t("霸道总裁", "An ice-cold billionaire boss"),
+    t("网络小说里又有钱又神气的大老板：从来不商量，只下命令。下巴抬高，声音压低，说完就转身走。", "The rich, scary boss from a movie, who never asks and only gives orders, and never needs to raise their voice. Chin up, slow and quiet, then walk off."),
+    t("外面下雨了。（停两秒）让它停。", "It's raining. (two-second stare) Have someone fix that."),
+    t("霸道总裁 名场面", "scary boss movie scene"),
+  ),
+  style(
+    "spicy",
+    t("喝多了", "One drink too many"),
+    t("你喝多了，还硬说自己没醉。说话拖长音，身子轻轻晃，把一件小事讲得特别认真。", "You've had one too many and insist you're totally fine. Stretch your words, sway a little, and be very, very sincere about nothing at all."),
+    t("外——面——下雨了。我没醉！我跟你说，这个雨，它是我兄弟。", "Iiit's raining. No, listen. Listen. The rain... the rain gets me."),
+    t("醉酒 演技 名场面", "actors playing tipsy funny scene"),
+  ),
+  style(
+    "spicy",
+    t("撩人", "Flirting hard"),
+    t("像偶像剧里放电的主角。说话放慢，眼睛一直看着对方，说完挑一下眉毛。", "Like the smooth talker in a rom-com. Slow right down, hold eye contact one beat too long, and finish with a raised eyebrow."),
+    t("外面下雨了……（靠近一点）你没带伞，我也没带，这不是巧了吗。", "It's raining... (lean in) and you forgot your umbrella. Funny. I only brought one."),
+    t("偶像剧 撩人 名场面", "rom com flirting scene"),
+  ),
+  style(
+    "all",
+    t("努力忍住笑的法官", "A judge desperately holding back laughter"),
+    t("你是最严肃的法官，可是刚看到一件特别好笑的事。板着脸，咬住嘴唇，肩膀偷偷发抖，差点笑出声又憋回去。", "You're the most serious judge in the land and you've just seen something hilarious. Stern face, bite your lip, shoulders shaking, nearly crack, pull it back."),
+    t("本庭宣布：外面……噗……（清嗓子）外面下雨了。肃静！", "The court finds that it is... pfff... (clears throat) raining. Order! Order."),
+    t("主持人 忍笑 名场面", "trying not to laugh on live tv"),
+  ),
+  style(
+    "all",
+    t("暴雨中还坚持优雅的宾客", "A party guest determined to look elegant in a downpour"),
+    t("你穿着最漂亮的衣服去吃酒席，结果被大雨淋得湿透，还要装作一点事都没有。一直微笑，腰挺直，声音又甜又稳。", "You came to the garden party in your best outfit, you are soaked to the skin, and you will not admit anything is wrong. Fixed smile, straight back, sweet steady voice."),
+    t("外面下雨了呢。（抹一把脸上的水）没事没事，这样……更凉快。", "It's raining. (wring out a sleeve, keep smiling) How refreshing. Lovely party."),
+    t("淋雨 保持优雅 搞笑", "staying classy in the rain funny"),
+  ),
+  style(
+    "all",
+    t("把小事当世界末日的预言家", "A prophet treating a minor inconvenience as the apocalypse"),
+    t("你是能看见未来的预言家，可你看见的都是很小很小的事，还说得像天要塌了。举起双手，眼睛瞪圆，声音越来越大。", "You can see the future, it's always something tiny, and you announce it like the end of the world. Arms up, eyes wide, voice rising."),
+    t("我看见了！外面——下雨了！完了，全完了！阳台上的衣服，一件也逃不掉！", "I have SEEN it! It is RAINING! Doom! Doom upon the laundry on the line!"),
+    t("小题大做 夸张 表演 搞笑", "the end is nigh comedy sketch"),
+  ),
+  style(
+    "all",
+    t("深夜推销神秘锅具的主持人", "A late-night host selling mysterious cookware"),
+    t("像电视购物里卖东西的主持人。说话飞快，激动得不得了，举着一口看不见的锅，一直喊这个价钱有多划算。", "Like the host of a late-night TV infomercial. Talk fast, be far too excited, hold up an invisible pan and keep shouting about the amazing deal."),
+    t("外面下雨了！别怕！这口神奇的锅，下雨也能炒菜！不要九九八，只要九十八！", "It's RAINING! But wait, there's more! This pan cooks in ANY weather! Call now!"),
+    t("电视购物 名场面", "infomercial but wait there's more"),
+  ),
+  style(
+    "all",
+    t("刚发现自己一直没静音", "Someone who has just realised the mic was on"),
+    t("上网课时你以为自己关了麦，说了一堆不该说的话，现在才发现大家全听见了。说到一半突然卡住，眼睛瞪大，声音越来越小。", "You thought you were on mute in the video call and said things you shouldn't have. Freeze mid-sentence, eyes wide, voice shrinking to nothing."),
+    t("外面下雨了，这课好无聊啊，我……（僵住）……大家，都听得见吗？", "It's raining, and this meeting is so bor— (freeze) ...can everybody hear me?"),
+    t("忘记静音 网课 社死", "forgot to mute zoom call fail"),
+  ),
+  style(
+    "spicy",
+    t("表面祝福前任，心里在算旧账", "Congratulating an ex while mentally tallying old debts"),
+    t("你在恭喜以前的男朋友或女朋友，脸上笑得很甜，心里却在一条一条数他欠你的东西。笑容不动，牙齿咬紧，每个「恭喜」都说得特别重。", "You're congratulating your ex with the sweetest smile while secretly counting everything they still owe you. Smile fixed, teeth together, lean on every “so happy for you”."),
+    t("外面下雨了，恭喜你们呀。（咬着牙笑）这把伞，还是我买的呢。", "It's raining! So happy for you both. (smile harder) Is that my umbrella?"),
+    t("前任婚礼 祝福 名场面", "congratulating my ex awkward scene"),
+  ),
+  style(
+    "spicy",
+    t("刚发现自己才是备选方案", "Someone who has just realised they’re the backup plan"),
+    t("你以为人家最想约的是你，刚刚才知道：是别人没空，才轮到你。先笑着，笑到一半慢慢僵住，最后小声重复一遍。", "You thought you were their first pick. You've just worked out you were the “everyone else was busy” pick. Start smiling, let it slowly fall, repeat the bad news quietly."),
+    t("外面下雨了，所以你来找我……（笑容慢慢没了）哦，是因为他没空啊。", "It's raining, so you called me! ...Oh. (smile fades) Because she cancelled."),
+    t("备胎 扎心 名场面", "realizing you were the second choice scene"),
+  ),
+  style(
+    "spicy",
+    t("宫斗赢了却必须装无辜", "A royal-court schemer who has won and must look innocent"),
+    t("古装宫廷剧里，你刚用计把对手赶走，现在要装作什么都不知道。眼睛睁大，手帕捂嘴，声音软软的，嘴角却忍不住往上翘。", "At the royal court you just got your rival sent away, and now you have to look as if you know nothing about it. Big innocent eyes, hand on your chest, soft voice, and a smile that keeps escaping."),
+    t("外面下雨了？哎呀，姐姐怎么偏偏今天被罚跪在院子里，真叫人心疼。", "It's raining? Oh no. And poor Lady Anne was told to wait outside. Whoever suggested that?"),
+    t("宫斗剧 装无辜 名场面", "villain pretending to be innocent scene"),
+  ),
+  style(
+    "all",
+    t("第一次上台演讲，紧张到发抖", "Shaking through their first public speech"),
+    t("你第一次站在全校同学面前讲话。手在抖，声音也在抖，老是忘词，说两个字就偷看一眼手心里的小抄。", "It's your very first speech in front of the whole school. Shaky hands, shaky voice, you keep losing your place and peeking at the notes on your palm."),
+    t("大、大家好。外面……（看手心）……下、下雨了。谢谢大家。", "H-hello everyone. It's... (check hand) ...r-raining. Thank you. Can I sit down now?"),
+    t("第一次上台 演讲 紧张 搞笑", "nervous first speech funny"),
+  ),
+  style(
+    "all",
+    t("武侠片里的大侠", "A kung fu movie hero"),
+    t("武侠片里功夫最高的那个人。站得笔直，手背在身后，话很少，说得又慢又稳，说完抱拳，或者仰天大笑三声。", "The calm master from a kung fu film, like Master Shifu in Kung Fu Panda. Stand tall, hands behind your back, very few words, long pauses, and finish with a slow bow."),
+    t("（看着窗外）下雨了。好雨。这位兄台，请！（抱拳）", "(look at the sky) It is raining. (long pause) The rain does not hurry. Neither do I."),
+    t("武侠片 大侠 出场 名场面", "kung fu master wise scene"),
+  ),
+  style(
+    "all",
+    t("刚被求婚", "Just got proposed to"),
+    t("你最喜欢的人刚刚单膝跪下，问你愿不愿意结婚。手捂着嘴，又哭又笑，话都说不完整，一个劲儿点头。", "The person you love just got down on one knee. Hands over your mouth, laughing and crying at once, can't finish a sentence, nodding like mad."),
+    t("外面下雨了……我愿意！（又哭又笑）我愿意，我愿意！", "It's raining... oh my... yes! YES! (happy tears) A thousand times yes!"),
+    t("求婚 现场 反应 感动", "surprise proposal reaction"),
+  ),
+  style(
+    "all",
+    t("幼儿园老师", "A kindergarten teacher"),
+    t("像在跟三岁的小朋友说话。声音甜甜的，说得很慢，动作很大，不管什么事都要拍手夸一夸。", "Like talking to a room of three-year-olds. Sweet sing-song voice, nice and slow, big gestures, and a “good job” for absolutely everything."),
+    t("小朋友们～外面下雨啦！小雨点来做客咯，我们一起说：你——好——呀！", "Ooh, friends, look! It's raining! Can everybody say “rain”? Goood job!"),
+    t("幼儿园老师 说话 语气 模仿", "kindergarten teacher voice"),
+  ),
+  style(
+    "all",
+    t("宫斗剧里的皇后", "The queen in a royal court drama"),
+    t("古装宫廷剧里管着整个后宫的人。坐得端端正正，说话又慢又轻，脸上带着笑，可是每句话都让人后背发凉。自己叫自己「本宫」。", "The queen who runs the palace, like the Evil Queen in Snow White. Sit very straight, speak slowly and softly, keep smiling, and make every polite word sound like a threat."),
+    t("外面下雨了。（端起茶杯）本宫倒要看看，是谁，许它下的。", "It's raining. (sip of tea) How brave of the weather. Without asking me."),
+    t("宫斗剧 皇后 名场面", "evil queen movie scene"),
+  ),
+  style(
+    "all",
+    t("第一次见对象的父母", "Meeting the partner's parents for the first time"),
+    t("你第一次去男朋友或女朋友家吃饭，特别想让他爸妈喜欢你。坐得笔直，客气过头，每句话后面都加「叔叔阿姨」，还一直傻笑。", "First dinner with your partner's parents and you badly want them to like you. Sit too straight, be far too polite, laugh at nothing, compliment everything."),
+    t("叔叔阿姨好！外面下雨了，您家这个雨……下得真好，真好。", "It's raining, sir. Ma'am. Lovely rain you have here. Did you make it yourselves?"),
+    t("第一次见家长 紧张 搞笑", "meeting the parents awkward dinner scene"),
+  ),
+  style(
+    "spicy",
+    t("偷偷搞暧昧被当场抓包", "Caught flirting with someone they shouldn't"),
+    t("你正偷偷跟别人说甜言蜜语，一回头，你的对象就站在后面。吓一大跳，说话结巴，拼命解释，越解释越乱。", "You were whispering sweet things to someone, turned around, and your partner was standing right there. Jump, stammer, explain far too much, make it worse."),
+    t("外、外面下雨了！我们就是在聊……聊天气！真的！你听我解释！", "It's raining! We were just... talking about the rain! The weather! I can explain!"),
+    t("被抓包 名场面 电视剧", "caught red handed sitcom scene"),
+  ),
+  style(
+    "spicy",
+    t("同时约了两个人，两人刚好撞上", "Double-booked two dates, who've just met each other"),
+    t("你同一天约了两个人，结果他们在门口碰上了，现在一起盯着你。左边看一眼，右边看一眼，对两边说的话还不能一样，急得直冒汗。", "You made two dates for the same night and they've just met at the door. Both are staring at you. Look left, look right, tell each one a different story, sweat."),
+    t("外面下雨了！（对左边）所以我叫表妹来送伞，（对右边）……这位，也是表妹。", "It's raining! (to the left) So my cousin dropped by. (to the right) This is... also my cousin."),
+    t("修罗场 名场面", "two dates same night sitcom scene"),
+  ),
 ];
+
+/** The style a card or a cast list names (found by its Chinese name, the same on every phone). */
+export function pkStyle(name: T | null | undefined): PkStyle | undefined {
+  return name ? PK_STYLES.find((x) => x.s.zh === name.zh) : undefined;
+}
+
+/**
+ * Where to watch people doing a style: a video search (bilibili in Chinese, YouTube in English),
+ * so the link can't go dead the way one video's address does.
+ */
+export function pkSeeUrl(lang: "zh" | "en", query: string) {
+  return lang === "zh" ? `https://search.bilibili.com/all?keyword=${encodeURIComponent(query)}` : `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
 
 /** When the table plays for exercise or pranks instead of drinks. */
 export const PENALTIES: { move: Record<DramaDiff, T[]>; prank: Record<DramaLevel, T[]> } = {

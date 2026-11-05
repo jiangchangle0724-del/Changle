@@ -1316,6 +1316,36 @@ def t_drama_written(browser):
         g.context.close()
 
 
+def t_drama_duel(browser):
+    """演技 PK: the cast list and each card explain the style, the card carries the line and a link to videos."""
+    for lang, site, word, labels in (("zh", "https://search.bilibili.com/all?keyword=", "下雨", ("演技 PK", "开演", "发身份牌")), ("en", "https://www.youtube.com/results?search_query=", "rain", ("Acting duel", "Curtain up", "Deal the cards"))):
+        pg = phone(browser, f"duel-{lang}", lang=lang, players=PLAYERS)
+        pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+        pg.wait_for_selector(".dm-marquee")
+        pg.get_by_role("button", name=labels[0], exact=True).click()
+        pg.get_by_role("button", name=labels[1]).click()
+        pg.wait_for_selector(".dm-roster")
+        ok(pg.locator(".dm-roster li").count() == 2 and pg.locator(".dm-roster-main > span").count() == 2, f"[{lang}] a duel: two actors, and the cast list says what each style looks like")
+        line = pg.locator(".dm-title").first.inner_text().split("\n")[0].strip("「」\"“” ")
+        pg.get_by_role("button", name=labels[2]).click()
+        for i in range(2):
+            pg.locator(".game-actions .btn-primary").click()
+            ok(pg.locator(".dm-card-see").count() == 0, f"[{lang}] card {i + 1}: face down, nothing gives the style away")
+            pg.locator(".dm-card-back").click()
+            pg.wait_for_timeout(800)
+            ok(len(pg.locator(".dm-card-brief").inner_text()) > 12 and word in pg.locator(".dm-card-demo").inner_text(), f"[{lang}] card {i + 1}: what to do, and the everyday sentence said that way")
+            ok(line in pg.locator(".dm-card-line").inner_text(), f"[{lang}] card {i + 1}: the line to say is on the card")
+            see = pg.locator(".dm-card-see")
+            ok(see.count() == 1 and (see.get_attribute("href") or "").startswith(site) and see.get_attribute("target") == "_blank", f"[{lang}] card {i + 1}: a link to videos of the style, opening in a new page")
+            if i == 0:
+                shot(pg, "dm-duel-card")
+            pg.locator(".game-actions .btn-primary").click()
+            pg.wait_for_timeout(300)
+        ok(until(lambda: pg.locator(".dm-clock").count() == 1, 3000), f"[{lang}] both have read their cards: the duel is on")
+        errors([pg])
+        pg.context.close()
+
+
 def t_drama_online(browser):
     host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay", "Kev", "Lu"])
     everyone = [host] + guests
@@ -1371,7 +1401,7 @@ def t_drama_online(browser):
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
     "superlatives": [t_superlatives_single, t_superlatives_online],
-    "drama": [t_drama_single, t_drama_online, t_drama_written],
+    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],

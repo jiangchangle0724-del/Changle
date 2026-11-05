@@ -256,6 +256,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               card={card}
               culprit={v.scene?.culprit ?? null}
               pk={v.mode === "pk"}
+              line={v.pk?.line}
               onDone={() => {
                 act(pid, "ready");
                 setStep({ k: "pass", i: step.i + 1 });
