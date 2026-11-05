@@ -1,5 +1,6 @@
-// What this phone remembers: who it is (to get back to the same seat), name, language, sound.
-import type { Lang } from "../room/protocol";
+// What this phone remembers: who it is (to get back to the same seat), name, language, sound, and the
+// quiz questions it has been asked.
+import { SEEN_KEEP, type Lang } from "../room/protocol";
 
 const memory = new Map<string, string>();
 function get(k: string): string | null {
@@ -97,3 +98,25 @@ export const prefs = {
     set("bt.shake", v ? "1" : "0");
   },
 };
+
+const SEEN = "bt.seenTrivia";
+
+/**
+ * The waiting teams' questions this phone has been asked (their ids, oldest first, the newest
+ * SEEN_KEEP). It sends them when it joins a room, which then asks it ones it hasn't seen first.
+ */
+export function seenTrivia(): string[] {
+  try {
+    const list: unknown = JSON.parse(get(SEEN) ?? "[]");
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string").slice(-SEEN_KEEP) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** This phone has been asked question `id`. */
+export function rememberTrivia(id: string) {
+  const list = seenTrivia().filter((x) => x !== id);
+  list.push(id);
+  set(SEEN, JSON.stringify(list.slice(-SEEN_KEEP)));
+}

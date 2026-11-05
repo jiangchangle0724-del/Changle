@@ -25,6 +25,7 @@ import { sfx } from "../sound";
 import { startThrow } from "./throwing";
 import { SambaLesson, useDanceClock } from "./Samba";
 import { quizItemText } from "./feedText";
+import { IdleNote, useIdleWarn, type IdleWarn } from "./TurnClock";
 
 /** One line saying what the table is waiting for (for people who aren't deciding, and the big screen). */
 export function pendingSummary(v: RoomView): string {
@@ -94,14 +95,16 @@ export function Decision({ v }: { v: RoomView }) {
     buzz(BUZZ.tap);
     send({ t: "act", d: g.decision, a, seat: acting });
   };
+  // (the turn clock's last 15 seconds, at the top of the question it's about)
+  const idle = useIdleWarn(v);
   return (
     <div key={key} class={settled ? "settle" : "settle settling"}>
-      <Panel v={v} acting={acting} act={act} />
+      <Panel v={v} acting={acting} act={act} idle={idle} />
     </div>
   );
 }
 
-function Panel({ v, acting, act }: { v: RoomView; acting: number | undefined; act: (a: Action) => void }) {
+function Panel({ v, acting, act, idle }: { v: RoomView; acting: number | undefined; act: (a: Action) => void; idle: IdleWarn | null }) {
   const g = v.game!;
   const s = g.s;
   const pd = s.pending;
@@ -111,10 +114,11 @@ function Panel({ v, acting, act }: { v: RoomView; acting: number | undefined; ac
   if (pd.k === "auction" && g.auction) return <AuctionPanel v={v} />;
   if (pd.k === "quiz" && g.quiz) return <QuizPanel v={v} />;
   if (pd.k === "silence") return <SilencePanel v={v} acting={acting} act={act} pd={pd} />;
-  if (acting === undefined) return <Waiting v={v} />;
+  if (acting === undefined) return <Waiting v={v} idle={idle} />;
   return (
     <div class="decide" data-kind={pd.k}>
       <Strip label={t("boardingPass")} at={s.ps[acting]?.pos} />
+      {idle && <IdleNote v={v} warn={idle} />}
       {mine.length > 1 && (
         <p class="acting">
           <SeatChip v={v} seat={acting} />
@@ -183,13 +187,14 @@ function Votes({ v }: { v: RoomView }) {
   );
 }
 
-function Waiting({ v }: { v: RoomView }) {
+function Waiting({ v, idle }: { v: RoomView; idle?: IdleWarn | null }) {
   const g = v.game!;
   const pd = g.s.pending!;
   const simultaneous = SIMULTANEOUS.includes(pd.k);
   return (
     <div class="decide waiting" aria-live="polite">
       <p>{pendingSummary(v)}</p>
+      {idle && <IdleNote v={v} warn={idle} />}
       {simultaneous && <Votes v={v} />}
       {!simultaneous && g.mustAct.length > 0 && (
         <p class="muted">

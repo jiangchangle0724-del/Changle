@@ -1,9 +1,11 @@
-// 素材来源 · Credits: where every city fact, photo, recording, font, map line and borrowed piece of
-// code comes from, with its licence. Opened from the home screen and from the in-game menu.
+// 素材来源 · Credits: where every city fact, quiz question, photo, recording, font, map line and borrowed
+// piece of code comes from, with its licence. Opened from the home screen and from the in-game menu.
+import { useEffect, useState } from "preact/hooks";
 import { CITIES, NEWS } from "../../engine";
 import { BASE } from "../base";
 import { t, tx, type Key } from "../i18n";
 import { PHOTOS, RECORDINGS, type Credit } from "../media";
+import { knownTriviaSources, loadTriviaSources } from "../triviaSources";
 import { hostOf } from "./common";
 
 /** [name, licence, link]. A licence of "" means public domain. */
@@ -53,6 +55,8 @@ export function Credits() {
           </li>
         ))}
       </ol>
+      <h3>{t("creditsTrivia")}</h3>
+      <QuizSources />
       <h3>{t("creditsNews")}</h3>
       <ol class="credits-facts">
         {NEWS.map((n) => (
@@ -91,6 +95,70 @@ export function Credits() {
       <MediaList of={RECORDINGS} />
       <Licences />
     </div>
+  );
+}
+
+/** A city with more sources than this lists them folded away, under its name and how many there are. */
+const FOLD = 2;
+
+/** "en.wikipedia.org/wiki/Burj_Khalifa", shortened: enough to tell two pages on one site apart. */
+function shortUrl(url: string) {
+  try {
+    const u = new URL(url);
+    let path = decodeURIComponent(u.pathname).replace(/\/$/, "");
+    if (path.length > 38) path = `${path.slice(0, 37)}…`;
+    return `${u.host.replace(/^www\./, "")}${path}`;
+  } catch {
+    return url;
+  }
+}
+
+/** The quiz's sources, by city; a city with many of them folds them away. */
+function QuizSources() {
+  const [list, setList] = useState(knownTriviaSources());
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!list) void loadTriviaSources().then((x) => (x ? setList(x) : setFailed(true)));
+  }, []);
+  if (!list) return <p class="muted">{t(failed ? "creditsTriviaNone" : "creditsTriviaLoading")}</p>;
+  const link = (url: string, text: string) => (
+    <a href={url} target="_blank" rel="noopener noreferrer">
+      {text}
+    </a>
+  );
+  return (
+    <ol class="credits-facts credits-quiz">
+      {list.map(({ city, sources }) => {
+        const c = CITIES.find((x) => x.id === city);
+        const name = c ? tx(c.name) : city;
+        return (
+          <li key={city}>
+            {sources.length > FOLD ? (
+              <details>
+                <summary>
+                  <b>{name}</b> · {t("creditsTriviaCount", { n: sources.length })}
+                </summary>
+                <ul>
+                  {sources.map((u) => (
+                    <li key={u}>{link(u, shortUrl(u))}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : (
+              <>
+                <b>{name}</b>
+                {sources.map((u) => (
+                  <span key={u}>
+                    {" · "}
+                    {link(u, hostOf(u))}
+                  </span>
+                ))}
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
