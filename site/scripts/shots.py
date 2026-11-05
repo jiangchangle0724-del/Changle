@@ -39,7 +39,7 @@ def run(viewport, tag, scale):
         shot(ctx, "", f"{tag}-table-players.png", "zh", actions=lambda pg: (pg.locator(".table-strip .chip").first.click(), pg.wait_for_timeout(700)))
         shot(ctx, "#/g/rogue", f"{tag}-rogue-1.png")
         shot(ctx, "#/g/rogue", f"{tag}-rogue-2.png", actions=lambda pg: (pg.locator(".pcard-back").click(), pg.wait_for_timeout(1400)))
-        shot(ctx, "#/g/rogue", f"{tag}-rogue-3-stamp.png", actions=lambda pg: (pg.locator(".pcard-back").click(), pg.wait_for_timeout(1400), pg.locator(".rule-card .btn-primary").click(), pg.wait_for_timeout(300), pg.locator(".picker .chip").first.click() if pg.locator(".picker .chip").count() else None, pg.wait_for_timeout(1600)))
+        shot(ctx, "#/g/rogue", f"{tag}-rogue-3-stamp.png", actions=lambda pg: (pg.locator(".pcard-back").click(), pg.wait_for_timeout(1400), pg.locator(".game-actions .btn").click(), pg.wait_for_timeout(300), pg.locator(".picker .chip").first.click() if pg.locator(".picker .chip").count() else None, pg.wait_for_timeout(1600)))
         shot(ctx, "#/g/truth", f"{tag}-truth-1.png")
         shot(ctx, "#/g/truth", f"{tag}-truth-2.png", actions=lambda pg: (pg.locator(".game-actions .btn-primary").click(), pg.wait_for_timeout(5200)))
         shot(ctx, "#/g/truth", f"{tag}-truth-3.png", actions=lambda pg: (pg.locator(".game-actions .btn-primary").click(), pg.wait_for_timeout(5200), pg.locator(".game-actions .btn-porcelain").click(), pg.wait_for_timeout(600)))

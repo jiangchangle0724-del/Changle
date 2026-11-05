@@ -87,7 +87,7 @@ with sync_playwright() as p:
         pg.locator(".pcard-back").click(); pg.wait_for_timeout(1200)
         if i == 0:
             snap(pg, "rogue-card.png")
-        pg.locator(".rule-card .btn").first.click(); pg.wait_for_timeout(700)
+        pg.locator(".game-actions .btn").first.click(); pg.wait_for_timeout(700)
         if pg.locator(".rule-card .picker").count():
             snap(pg, "rogue-pick.png")
             pg.locator(".rule-card .picker .chip").first.click(); pg.wait_for_timeout(1300)
