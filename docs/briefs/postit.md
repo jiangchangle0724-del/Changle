@@ -62,7 +62,7 @@
 ## 现在
 
 - 2026-11-05 都合并上线了：#182（联机）、#183（单机横屏）、#185（13 组新词）、#209（联机主人选词组），还有 Codex 的 #197（单机刷新后接着猜）。#185 和 #209 的合并都构建了 changle-rooms。#182 的合并没有触发 changle-rooms 的构建，规则是 #184 合并时（15:53）才部署上的（见交给别的对话）。
-- 设计改版的 PR（#DESIGN）等 Steve：截图对比的 game-post-it 是有意改的，要 `update-screenshots` 标签更新基准，CI 绿了再合。不动规则，不用重新部署房间服务器。
+- 设计改版的 PR（#235）等 Steve：截图对比的 game-post-it 是有意改的，要 `update-screenshots` 标签更新基准，CI 绿了再合。不动规则，不用重新部署房间服务器。
 
 ## 还剩什么
 
@@ -84,6 +84,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-05 (#235) 额头便利贴: real sticky notes, with sounds, buzzes and ChatGPT pictures
 - 2026-11-05 (#209) 额头便利贴 online: the host picks the deck the notes nobody writes come from
 - 2026-11-05 (#185) 额头便利贴 on one phone: 13 new decks on three shelves (Party, World)
 - 2026-11-05 (#197) ui(C10): resume Post-it behind its curtain
