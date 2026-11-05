@@ -143,9 +143,9 @@ Each of these was measured or is tested. Check them again after a change.
    **It never covers what the landing asks of the table.** It waits for the team to decide whether to
    buy, and for an auction, a vote or Rio's dance and scores; after one the waiting teams took part in,
    it leaves them 4.5 s to see how it came out. One that had to wait doesn't come up over another
-   team's move either: 4.5 s after the throw at the soonest. A newer landing by a team of people
-   brings the question about its own city instead (a computer team's doesn't, while one is on its way:
-   theirs come one on top of another).
+   team's move either: 4.5 s after the throw at the soonest. First come: a newer landing doesn't
+   take its place (where teams play fast, taking it over each time would put it off for good), only
+   one that is waiting for someone to answer it.
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
    wear their letter too).
