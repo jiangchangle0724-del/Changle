@@ -11,6 +11,9 @@ import { useWatching } from "../../online/players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "../../online/games/common";
 import type { PostitReply, PostitView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
+import { deckName } from "../../data/postit";
+import { Sheet } from "../../components/Sheet";
+import { DeckPicker, MIX } from "./DeckPicker";
 import { Forehead, Sticky, tiltFor } from "./parts";
 import "../../styles/party.css";
 import "./net.css";
@@ -114,6 +117,7 @@ export function NetPostit({ v, onLeave }: { v: PostitView; onLeave: () => void }
               <HostRow>
                 {v.phase === "play" && v.guess && !v.guess.ok && !v.solved.includes(v.guess.by) && v.order.includes(v.guess.by) && <HostButton onClick={() => g("accept")}>{zh ? `算 ${nameOf(v.guess.by)} 猜对` : `Count ${nameOf(v.guess.by)} as right`}</HostButton>}
                 {v.phase === "play" && !mine && <HostButton onClick={() => g("pass")}>{zh ? `跳过 ${nameOf(v.turn)}` : `Skip ${nameOf(v.turn)}`}</HostButton>}
+                {v.phase === "end" && <DeckChoice v={v} />}
                 {v.phase === "end" && <HostButton onClick={() => g("again")}>{zh ? "再来一局" : "Play again"}</HostButton>}
               </HostRow>
             </div>
@@ -172,7 +176,15 @@ function WritePhase({ v }: { v: PostitView }) {
               <p className="hint">{zh ? "贴好了。可以重写，或者随机换一个。" : "Stuck on. Rewrite it, or let the deck pick another."}</p>
             </div>
           ) : (
-            <p className="hint">{zh ? "一个人物、动物或东西，大家都知道的那种。别让 TA 看到。" : "A person, an animal or a thing everyone knows. Don't let them see."}</p>
+            <p className="hint">
+              {!v.pick || v.pick === MIX
+                ? zh
+                  ? "一个人物、动物或东西，大家都知道的那种。别让 TA 看到。"
+                  : "A person, an animal or a thing everyone knows. Don't let them see."
+                : zh
+                  ? `写一个大家都知道的，也可以随机来一个，从「${deckName(v.pick).zh}」里出。别让 TA 看到。`
+                  : `Write something everyone knows, or let the deck pick one from ${deckName(v.pick).en}. Don't let them see.`}
+            </p>
           )}
           <form
             className="pi-note-form"
@@ -198,8 +210,41 @@ function WritePhase({ v }: { v: PostitView }) {
         </div>
       )}
       <HostRow>
+        <DeckChoice v={v} />
         <HostButton onClick={() => g("begin")}>{zh ? "不等了，没写的随机" : "Start now, random for the rest"}</HostButton>
       </HostRow>
+    </>
+  );
+}
+
+/**
+ * The host: where the notes nobody writes come from. The mixed bag of people, animals and things,
+ * or any of the one-phone game's decks. In a sheet; a deck is picked when it is tapped.
+ */
+function DeckChoice({ v }: { v: PostitView }) {
+  const { g, isHost } = useRoom();
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const [open, setOpen] = useState(false);
+  // (a server not yet updated doesn't say: it deals from the mixed bag)
+  const pick = v.pick ?? MIX;
+  if (!isHost) return null;
+  return (
+    <>
+      <HostButton onClick={() => setOpen(true)}>{zh ? `随机的词：${deckName(pick).zh}` : `Random notes: ${deckName(pick).en}`}</HostButton>
+      <Sheet open={open} onClose={() => setOpen(false)} title={zh ? "没写的便利贴从哪组出" : "Where unwritten notes come from"}>
+        <p className="hint">{zh ? "「随机来一个」和到时间没写的，都从这组里出。已经贴上的不变。" : "Pick for me, and every note not written in time, comes from here. Notes already stuck on stay."}</p>
+        <DeckPicker
+          value={pick}
+          mix
+          browse
+          zh={zh}
+          onPick={(id) => {
+            g("pick", { id });
+            setOpen(false);
+          }}
+        />
+      </Sheet>
     </>
   );
 }

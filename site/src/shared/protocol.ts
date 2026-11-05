@@ -338,6 +338,8 @@ export type PostitView = {
   final?: boolean;
   /** at the end: who drinks the glass, or null when nobody does (absent from a server not yet updated) */
   last?: string | null;
+  /** where the notes nobody writes come from: a one-phone deck's id, or "mix" (absent from a server not yet updated: the mix) */
+  pick?: string;
   asking: string | null;
   replies: Record<string, PostitReply>;
   guess: { by: string; text: string; ok: boolean; at: number } | null;

@@ -1,4 +1,4 @@
-import { guessMatches, NOTES } from "../../../data/postit";
+import { guessMatches, HEADS_DECKS, NOTES } from "../../../data/postit";
 import type { T } from "../../../i18n";
 import type { PostitReply, PostitView } from "../../protocol";
 import { clean, range, t, type Api, type GameDef } from "../api";
@@ -12,6 +12,9 @@ import { clean, range, t, type Api, type GameDef } from "../api";
  * Everyone gets the same number of turns: when one player is left and the others have had one go
  * more, that player has a last chance before the glass. The first to ask moves on a seat each game.
  * Someone who sits down mid-game is dealt a note from the deck and plays from there.
+ *
+ * The host can have the notes nobody writes come from one of the one-phone decks (日本, 有点辣...)
+ * instead of the mixed bag of people, animals and things.
  */
 
 type Written = { note: T; alias: string[]; by: string };
@@ -37,6 +40,10 @@ type S = {
   round?: number;
   /** at the end: who drinks the glass (null: nobody). Not kept by games that ended before 2026-11 */
   last?: string | null;
+  /** the one-phone deck the notes nobody writes come from (HEADS_DECKS' id); none: NOTES, the mixed bag */
+  pick?: string;
+  /** what is left of that deck this game, shuffled (`deck` above is the mixed bag's) */
+  pile?: { id: string; left: number[] };
 };
 
 const WRITE_MS = 75_000;
@@ -50,7 +57,17 @@ function targetOf(s: S, writer: string) {
   return i < 0 ? null : s.order[(i + 1) % s.order.length];
 }
 
+/** The other names a deck word goes by, where the mixed bag knows it (孙悟空: 美猴王, monkey king...). */
+const ALIASES = new Map(NOTES.map((n) => [n.t.zh, n.alias ?? []]));
+
+/** A note nobody wrote: from the deck the host picked, or the mixed bag. No note comes up twice before its deck has been through. */
 function fromDeck(s: S, api: Api, by: string): Written {
+  const picked = s.pick ? HEADS_DECKS.find((d) => d.id === s.pick) : undefined;
+  if (picked) {
+    if (!s.pile || s.pile.id !== picked.id || !s.pile.left.length) s.pile = { id: picked.id, left: api.shuffle(range(picked.words.length)) };
+    const word = picked.words[s.pile.left.pop()!];
+    return { note: word, alias: ALIASES.get(word.zh) ?? [], by };
+  }
   if (!s.deck.length) s.deck = api.shuffle(range(NOTES.length));
   const note = NOTES[s.deck.pop()!];
   return { note: note.t, alias: note.alias ?? [], by };
@@ -178,6 +195,15 @@ export const postit: GameDef<S> = {
       case "begin": {
         if (!host || s.phase !== "write") return;
         startPlay(s, api);
+        return;
+      }
+      case "pick": {
+        // the host: where the notes nobody writes come from ("mix": the mixed bag). While the notes
+        // are being written, or at the end for the next game; one already dealt stays as it is
+        const id = String(g.id ?? "");
+        const next = id === "mix" ? undefined : HEADS_DECKS.some((d) => d.id === id) ? id : null;
+        if (!host || s.phase === "play" || next === null || next === s.pick) return api.quiet();
+        s.pick = next;
         return;
       }
       case "ask": {
@@ -325,6 +351,7 @@ export const postit: GameDef<S> = {
       notes,
       turn: s.turn,
       final: s.phase === "play" && !!s.final && s.final === s.turn,
+      pick: s.pick ?? "mix",
       ...(s.phase === "end" && s.last !== undefined ? { last: s.last } : {}),
       asking: s.asking,
       replies: s.replies,
