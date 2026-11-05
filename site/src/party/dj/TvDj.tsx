@@ -177,15 +177,15 @@ export default function TvDj({ v }: { v: DjView }) {
     dancing.n++;
     dancing.floor[pid] = { share: danceShare(d), hot: d.streak >= 2 };
   }
-  // 真歌时间: the DJ gives way to a whole song from YouTube over the two bars after its drop, and
-  // comes back when it's over
-  const songAt = v.deck?.song?.at ?? 0;
-  useEffect(() => {
-    if (!speaker) return;
-    if (songAt) speaker.giveWay(true, Math.max(0.5, (songAt - now()) / 1000));
-    else speaker.giveWay(false, 3);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speaker, songAt]);
+  // (真歌时间: TubePlayer tells the speaker when to give way to a whole song from YouTube, on its
+  // drop's bar as this speaker plays it, and when to come back)
+  const barTime = useMemo(
+    () => (bar: number) => {
+      const f = dj.beatFrame(bar * 4);
+      return f === null || !speaker ? null : speaker.timeOfFrame(f);
+    },
+    [dj, speaker],
+  );
   // 报幕: who the song coming in is from, as its countdown starts
   useAnnounce(v, speaker, nameOf, zh, live && v.voice !== false);
 
@@ -233,7 +233,7 @@ export default function TvDj({ v }: { v: DjView }) {
 
       <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
-      {live && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} done={(id) => g("songdone", { id })} />}
+      {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} />}
       {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}

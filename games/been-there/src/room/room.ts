@@ -157,8 +157,22 @@ interface Game {
   trivia: Trivia | null;
   /** Questions asked this game (ids): never again in it (see openTrivia). */
   triviaAsked: string[];
-  /** Turn number of the last quiz opened (one at most per turn). */
+  /** Turn number at the last check for a team joining the question that is up (see joinTrivia). */
   triviaTurn: number;
+  /**
+   * When the last question came up (the game's start, before its first): the next one is at least
+   * TIMING.triviaEvery after it (TIMING.triviaFirst for the first). Missing in rooms from before
+   * questions came with landings.
+   */
+  triviaAt?: number;
+  /**
+   * A landing that brings a question: the city, the team that landed there, and when its move has
+   * played and the question may come up (see landedOn). `busy`: teams that are waiting have had a
+   * part in what the game has been busy with since (an auction, a vote, Rio's scores): when that is
+   * over, the question gives them a moment to see how it came out (see afterMove). `nobody`: its
+   * time came with nobody there to answer it (see dueTrivia), so a newer landing takes its place.
+   */
+  triviaDue?: { city: string; seat: number; at: number; busy?: boolean; nobody?: boolean } | null;
   trades: Trade[];
   bets: Bets | null;
   /** When each human seat's last phone went away. */
@@ -325,6 +339,9 @@ export class Room {
         trivia: null,
         triviaAsked: g.triviaAsked ?? askedBefore((g as { triviaUsed?: number[] }).triviaUsed),
         triviaTurn: g.triviaTurn ?? -1,
+        // (the next question waits its time from here: the save's times are another room's)
+        triviaAt: now,
+        triviaDue: null,
         // (the turn clock starts afresh: the save's times are another room's)
         idleFrom: now,
         moveAt: undefined,
@@ -774,6 +791,8 @@ export class Room {
       trivia: null,
       triviaAsked: [],
       triviaTurn: -1,
+      triviaAt: now,
+      triviaDue: null,
       trades: [],
       bets: null,
       awaySince: {},
@@ -833,6 +852,9 @@ export class Room {
       g.trivia.revealUntil += shift;
       for (const k of Object.keys(g.trivia.botAt)) g.trivia.botAt[Number(k)] += shift;
     }
+    // (time stood still doesn't count toward the next question)
+    if (g.triviaAt !== undefined) g.triviaAt += shift;
+    if (g.triviaDue) g.triviaDue.at += shift;
     for (const t of g.trades) t.createdAt += shift;
     for (const k of Object.keys(g.awaySince)) g.awaySince[Number(k)] += shift;
   }
@@ -856,12 +878,22 @@ export class Room {
     if (!g) return;
     const s = g.s;
     const now = this.now;
+    // Where the team on turn has come to rest in this step, if it landed anywhere: a city, or null for
+    // any other space; and whether it's the team's first time there (a new stamp: its landing scene plays).
+    let landed: string | null | undefined;
+    let firstVisit = false;
     for (const e of s.events ?? []) {
       this.push({ t: "game", e });
       // Side events don't make anyone's pending decision stale.
       if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus" && e.t !== "fine") g.progress += 1;
       // (every screen plays a throw's ride and landing from now: the turn clock waits for them)
       if (e.t === "roll" || e.t === "move") g.moveAt = now;
+      if (e.t === "land" && e.p === s.turn) {
+        const sp = E.BOARD[e.at];
+        landed = sp.k === "city" && s.ps[e.p].pos === e.at ? sp.id : null;
+        firstVisit = false;
+      } else if (e.t === "stamp" && e.p === s.turn && e.city === landed) firstVisit = true;
+      else if (e.t === "jail" && e.p === s.turn) landed = null; // (sent to Immigration from wherever it stood)
       this.watch(e);
     }
     if (s.events) s.events = [];
@@ -909,13 +941,28 @@ export class Room {
       this.settleBets();
       g.bets = { turns: s.turns, seat: s.turn, open: true, bets: {}, paidRent: false };
     }
-    // …and deal the waiting teams a quiz question, unless the last one is still up (then the team
-    // that was on turn when it came up is one of the waiting teams now: it joins in).
+    // …and if a quiz question is still up, the team that was on turn when it came up is one of the
+    // waiting teams now: it joins in.
     if (!s.over && g.triviaTurn !== s.turns) {
       g.triviaTurn = s.turns;
-      if (!g.trivia) this.openTrivia();
-      else if (!g.trivia.closed) this.joinTrivia(g.trivia);
+      if (g.trivia && !g.trivia.closed) this.joinTrivia(g.trivia);
     }
+    // A landing on a city may bring the waiting teams a question about it (see landedOn).
+    if (!s.over && landed) this.landedOn(landed, firstVisit);
+    // What a landing asks of the table comes before its question. When teams that are waiting have a
+    // part in it (an auction, a vote, Rio's dance to watch and score), the question also leaves them
+    // time to see how it came out, once the game is back to a team ending its turn or about to throw.
+    const due = g.triviaDue;
+    if (!s.over && due) {
+      if (this.othersBusy(s)) due.busy = true;
+      else if (due.busy && !this.busy(s)) {
+        due.busy = false;
+        due.at = Math.max(due.at, now + this.ms("triviaLand"));
+      }
+    }
+    // …and one that was waiting (for that, or for someone to answer it) comes up when it can: a
+    // decision has been made, a turn has passed.
+    if (!s.over) this.dueTrivia();
     if (s.over) {
       this.settleBets();
       g.bets = null;
@@ -923,6 +970,7 @@ export class Room {
       g.auction = null;
       g.quiz = null;
       g.trivia = null;
+      g.triviaDue = null;
     }
     // Drop trade offers that can no longer happen.
     g.trades = g.trades.filter((t) => {
@@ -1046,29 +1094,122 @@ export class Room {
     this.afterMove();
   }
 
+  /** How long the quiz rests before its next question: between two, or (shorter) from the game's start to its first. */
+  private triviaGap() {
+    const test = this.st.settings.triviaEvery;
+    const every = typeof test === "number" ? test : this.ms("triviaEvery");
+    return this.st.game!.triviaAsked.length ? every : Math.min(every, this.ms("triviaFirst"));
+  }
+
   /**
-   * Ask the teams whose turn it isn't a question (trivia.ts picks it): never one asked already this
-   * game, and where it can, not about a city the team on turn could land on with this throw, and one
-   * the phones it's for haven't been asked before. Once every question has been asked, none.
+   * The game is busy with what a landing asks of the table (a purchase to decide, an auction, a vote,
+   * a card, Rio's dance and its scores): anything but a team ending its turn or about to throw.
    */
-  private openTrivia() {
+  private busy(s: E.GameState) {
+    const k = s.pending?.k;
+    return !!k && k !== "end" && k !== "roll";
+  }
+
+  /** …and people whose turn it isn't have a part in it: they bid, vote, score or answer. */
+  private othersBusy(s: E.GameState) {
+    const pd = s.pending;
+    if (!pd || !this.busy(s)) return false;
+    const part = E.SIMULTANEOUS.has(pd.k) ? E.activePlayers(s) : E.whoMustAct(s);
+    return part.some((q) => q !== s.turn && !this.botControlled(q));
+  }
+
+  /**
+   * The team on turn has landed on `city`. If the quiz is on and has rested long enough since its
+   * last question, this landing brings one: about this city, once every screen has played the move
+   * and stamped the landing (so the question doesn't say where the token is going), and after the
+   * landing scene of a team's first visit, which a big screen plays for everyone.
+   *
+   * One for an earlier landing, on its way or waiting for the table, keeps its place: first come,
+   * even when its own team has moved on since (doubles, a card, Immigration): it's about the city
+   * that team has just been to. (A newer landing taking it over would put the question off again
+   * each time: where teams play fast, it would never come.) Only one that waits for someone to
+   * answer it gives way to this landing: by the time someone can, this is the city a team has just
+   * landed on.
+   */
+  private landedOn(city: string, firstVisit = false) {
+    const g = this.st.game!;
+    if (this.st.settings.trivia === false || g.trivia) return;
+    if (g.triviaDue && !g.triviaDue.nobody) return;
+    if (this.now - (g.triviaAt ?? g.startedAt) < this.triviaGap()) return;
+    g.triviaDue = { city, seat: g.s.turn, at: this.now + this.ms(firstVisit ? "landing" : "triviaLand") };
+    this.dirty = true;
+  }
+
+  /**
+   * The question a landing is owed comes up, if its time has come, the table is free for it and
+   * someone is there to answer.
+   *
+   * Free: what the landing asks of the table is settled (the game is waiting for a team to end its
+   * turn or to throw: a question never comes up over an auction, a vote or Rio's dance, see
+   * afterMove), and no throw of a team of people is still being played on the screens (a question
+   * that had to wait doesn't come up over the next team's move).
+   *
+   * Someone there: with nobody (only computer teams are waiting: a person playing against the
+   * computer is on their own turn; or the people's phones have gone) it waits, and comes up when
+   * there is: when that turn is over, most often, so a person alone is asked about the city they
+   * have just been to. Meanwhile a newer landing takes its place (see landedOn). On one phone for
+   * every team (the one-phone demo) the phone is busy with the move of the people on turn, so there
+   * it comes up between two turns, before the next team has thrown, or while a computer team moves.
+   */
+  private dueTrivia(): boolean {
+    const g = this.st.game!;
+    const due = g.triviaDue;
+    if (!due || this.now < due.at || g.trivia || this.stopped(g)) return false;
+    const s = g.s;
+    const drop = () => {
+      g.triviaDue = null;
+      this.dirty = true;
+      return false;
+    };
+    // (afterMove calls again when what the table is busy with is settled)
+    if (this.busy(s)) return false;
+    const people = !this.teamAt(s.turn)?.bot;
+    const played = (g.moveAt ?? 0) + this.ms("triviaLand");
+    if (people && this.now < played) {
+      due.at = played;
+      this.dirty = true;
+      return false;
+    }
+    const betweenTurns = s.pending?.k === "roll" && s.ps[s.turn].dbl === 0;
+    if (this.st.settings.hotseat && people && !betweenTurns) return false;
+    const asked = this.openTrivia(due.city);
+    if (asked === "nobody") {
+      if (!due.nobody) {
+        due.nobody = true;
+        this.dirty = true;
+      }
+      return false;
+    }
+    drop();
+    return asked === "asked";
+  }
+
+  /**
+   * Ask the teams whose turn it isn't a question about `city`, where a team has just landed
+   * (trivia.ts picks it): never one asked already this game, nor the one the city's arrival card
+   * answers while a big screen has that card up, and where it can, one the phones it's for haven't
+   * been asked before. "nobody": none of the teams waiting has a person with a phone here to answer
+   * it. "none": every question about this city has been asked.
+   */
+  private openTrivia(city: string): "asked" | "nobody" | "none" {
     const g = this.st.game!;
     const s = g.s;
-    if (this.st.settings.trivia === false) return;
+    if (this.st.settings.trivia === false || g.trivia) return "none";
     const eligible = E.activePlayers(s).filter((seat) => seat !== s.turn);
-    if (!eligible.length) return;
-    // Not about a city the team on turn could land on with this roll: its arrival card (the rule,
-    // the fact behind it) would give the answer away.
-    const near = new Set<string>();
-    for (let k = 0; k <= 12; k++) {
-      const sp = E.BOARD[(((s.ps[s.turn].pos + k * s.dir) % E.BOARD_SIZE) + E.BOARD_SIZE) % E.BOARD_SIZE];
-      if (sp.k === "city") near.add(sp.id);
-    }
-    const players = Object.values(this.st.members).filter((m) => m.role === "player");
+    const members = Object.values(this.st.members);
+    const players = members.filter((m) => m.role === "player");
     const askedOf = players.filter((m) => this.seatsFor(m).some((x) => eligible.includes(x)));
-    const qid = pickTrivia({ asked: g.triviaAsked, near, seen: askedOf.map((m) => m.seen ?? []), random: () => this.env.random() });
-    if (!qid) return;
+    if (!askedOf.some((m) => m.online > 0)) return "nobody";
+    const cardShown = members.some((m) => m.role === "screen" && m.online > 0);
+    const qid = pickTrivia({ city, asked: g.triviaAsked, cardShown, seen: askedOf.map((m) => m.seen ?? []), random: () => this.env.random() });
+    if (!qid) return "none";
     g.triviaAsked.push(qid);
+    g.triviaAt = this.now;
     // Everyone here has been asked it now: the next game in this room starts with others.
     for (const m of players) m.seen = [...(m.seen ?? []).filter((x) => x !== qid), qid].slice(-SEEN_KEEP);
     const order = [0, 1, 2];
@@ -1094,6 +1235,7 @@ export class Room {
       skipped: [],
     };
     this.dirty = true;
+    return "asked";
   }
 
   /**
@@ -1283,6 +1425,8 @@ export class Room {
       }
       if (g.quiz) times.push(this.botControlled(g.quiz.visitor) ? Math.min(g.quiz.botAt, g.quiz.endsAt) : g.quiz.endsAt + 1500);
       if (g.deadline !== null) times.push(g.deadline);
+      // (one already waiting for someone to answer has no time of its own: a move brings it up)
+      if (g.triviaDue && g.triviaDue.at > this.now) times.push(g.triviaDue.at);
       const tv = g.trivia;
       if (tv && !tv.closed) {
         times.push(tv.endsAt);
@@ -1351,6 +1495,8 @@ export class Room {
       return keep;
     });
     if (g.trades.length !== before) this.dirty = true;
+    // A landing's question comes up now that its move has played on every screen.
+    if (this.dueTrivia()) return true;
     const tv = g.trivia;
     if (tv && !tv.closed) {
       for (const [k, at] of Object.entries(tv.botAt)) {

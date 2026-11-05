@@ -1,16 +1,29 @@
-"""打碟 · DJ Booth, whole songs from YouTube (Steve on Nov 2: "换成 YouTube 放整首"), in browsers: a TV and
-three phones. Ben pastes a YouTube link, Cat searches (the owner's key: on); each song up next, the
-table drops into it, the DJ fades out over two bars and the TV plays the whole song in YouTube's player
-(a stand-in for it here: this machine can't reach YouTube), the phones' decks waiting; it ends, or its
-player skips it, and the DJ comes back. Over the song the pads that are a sound of their own still play
-(the air horn, the siren...; Steve on Nov 2), the others wait. The songs asked for make the night's
-歌单 (playlist) on every phone, the host switches it to 随机, and after a song the DJ plays its turn
-before the next. Without the key a search says links still work. Nothing goes to Apple any more.
+"""打碟 · DJ Booth, whole songs from YouTube (Steve on Nov 2: "换成 YouTube 放整首"; on Nov 4: a song picked
+from the list didn't play the song itself, and the video took seconds to start after the drop), in
+browsers: a TV and three phones.
+
+The TV's YouTube player is a stand-in that behaves like the real one (this machine can't play
+YouTube): it takes a moment to load, buffers a video's start the first time it plays, plays an ad
+first when told to, refuses a video its owner keeps on YouTube, and, like Safari, can want a tap on
+the video before it plays with sound. The rooms server's YouTube lookups are stood in for on the
+phones (the key on, or off).
+
+What it checks: a song up next waits ready in a corner of the TV (loaded, its start buffered, held
+at 0:00); on its drop's bar it starts (within a fraction of a second, heard) and comes to the
+middle, the DJ letting go on that bar, not before; it ends, or its player skips it, and the DJ
+comes back. An ad plays out muted in the corner before the song is ready. A song picked from the
+song list goes in with its video when the search finds one (one search, none while typing it); with
+no key the phone asks for the song's link (YouTube's own search a tap away), and a link pasted
+there plays it whole; or it goes in as the remix alone. A video YouTube won't play here comes off
+the song (its player's phone says why) and its drop plays the remix. A TV that wants a tap: one tap
+on the video in its corner and it starts by itself on the drop; untapped, the DJ plays on until
+someone taps. Over a song the pads that are a sound of their own still play; the 歌单 on every
+phone, the host's 随机. Nothing goes to Apple.
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
 usage: python3 scripts/dj_youtube_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
 """
-import json, os, sys, tempfile, time
+import json, os, sys, tempfile, time, urllib.parse
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -20,18 +33,77 @@ BASE = "http://127.0.0.1:5173/"
 WHICH = next((a for a in sys.argv[1:] if a in ("chromium", "webkit")), "chromium")
 OUT = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "dj-youtube"))
 os.makedirs(OUT, exist_ok=True)
-BEN_ID, CAT_ID = "kJQP7kiw5Fk", "fRh_vgS2dFE"
+BEN_ID, CAT_ID, QT_ID, LINK_ID, AD_ID, BAD_ID, ZZ_ID, SAF1, SAF2 = "kJQP7kiw5Fk", "fRh_vgS2dFE", "qingtian001", "pastedlink1", "withanad001", "notallowed1", "zzpartymix1", "safarione01", "safaritwo01"
 
-# YouTube's IFrame API, standing in: a player that says it's ready, plays when asked, ends on cue
-FAKE_YT = """window.YT = { Player: function (el, o) {
-  const f = document.createElement('iframe'); f.className = 'fake-yt'; f.dataset.video = o.videoId; f.title = 'YouTube';
-  el.appendChild(f); const me = this; window.__yt = { video: o.videoId, playing: false, end: () => o.events.onStateChange({ data: 0 }) };
-  this.playVideo = () => { window.__yt.playing = true; setTimeout(() => o.events.onStateChange({ data: 1 }), 30); };
-  this.destroy = () => { f.remove(); window.__yt = null; };
-  setTimeout(() => o.events.onReady({ target: me }), 30);
-} }; if (window.onYouTubeIframeAPIReady) window.onYouTubeIframeAPIReady();"""
+# YouTube's IFrame API, standing in: a player that loads, buffers a video's start the first time,
+# plays an ad first (__ytConf.ads), errors on a video it won't play (__ytConf.bad), and with
+# __ytConf.sound false wants a tap on the video before it plays with sound (muted is fine)
+FAKE_YT = r"""(() => {
+const C = (window.__ytConf = Object.assign({ readyMs: 500, bufferMs: 900, againMs: 180, ads: {}, bad: {}, sound: true }, window.__ytConf || {}));
+window.YT = { Player: function (el, o) {
+  const f = document.createElement('iframe'); f.className = 'fake-yt'; f.title = 'YouTube';
+  f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#14223a';
+  el.replaceWith(f);
+  const ev = o.events || {};
+  const S = (window.__yt = { video: o.videoId, state: -1, t: 0, muted: false, activated: false, loaded: {}, adLeft: Object.assign({}, C.ads), heard: [], log: [] });
+  let tick = 0, pend = 0, last = 0;
+  const note = (k, x) => S.log.push([Math.round(performance.now()), k, x]);
+  const set = (st) => { if (S.state === st) return; S.state = st; note('state', st); if (ev.onStateChange) ev.onStateChange({ data: st }); };
+  const halt = () => { clearInterval(tick); tick = 0; clearTimeout(pend); pend = 0; };
+  const inAd = () => S.adLeft[S.video] > 0;
+  const heard = () => { const sp = window.__fakeDj && window.__fakeDj.speaker; S.heard.push({ video: S.video, at: performance.now(), ctx: sp ? sp.heardTime() : null }); note('heard', S.video); };
+  const run = () => {
+    last = performance.now();
+    tick = setInterval(() => {
+      const now = performance.now(); const dt = (now - last) / 1000; last = now;
+      if (inAd()) { S.adLeft[S.video] -= dt * 1000; if (!inAd()) { note('ad over', S.video); if (!S.muted) heard(); } return; }
+      S.t += dt;
+    }, 20);
+  };
+  const play = (byUser) => {
+    if (C.bad[S.video]) { setTimeout(() => ev.onError && ev.onError({ data: C.bad[S.video] }), 150); return; }
+    if (!S.muted && !C.sound && !S.activated && !byUser) { note('blocked', S.video); if (ev.onAutoplayBlocked) ev.onAutoplayBlocked(); return; }
+    if (byUser) S.activated = true;
+    if (S.state === 1) return;
+    halt(); set(3);
+    pend = setTimeout(() => {
+      pend = 0; S.loaded[S.video] = true;
+      // (its sound came on while it was getting going, with no tap: the browser won't have it)
+      if (!S.muted && !C.sound && !S.activated) { set(2); note('paused by the browser', S.video); return; }
+      set(1); if (!S.muted && !inAd()) heard(); run();
+    }, S.loaded[S.video] ? C.againMs : C.bufferMs);
+  };
+  this.playVideo = () => { note('playVideo', S.muted ? 'muted' : 'sound'); play(false); };
+  this.pauseVideo = () => { note('pauseVideo', ''); halt(); if (S.state === 1 || S.state === 3) set(2); };
+  this.seekTo = (s) => { note('seekTo', s); S.t = s; };
+  this.mute = () => { S.muted = true; };
+  this.unMute = () => {
+    if (!S.muted) return;
+    S.muted = false;
+    // like Safari: a video playing muted pauses when its sound comes on with no tap
+    if (S.state === 1 && !C.sound && !S.activated) { halt(); set(2); note('paused by the browser', S.video); return; }
+    if (S.state === 1 && !inAd()) heard();
+  };
+  this.isMuted = () => S.muted;
+  this.setVolume = () => {};
+  this.cueVideoById = (id) => { halt(); S.video = id; S.t = 0; set(-1); setTimeout(() => set(5), 80); };
+  this.loadVideoById = (id) => { this.cueVideoById(id); setTimeout(() => play(false), 100); };
+  this.getPlayerState = () => S.state;
+  this.getCurrentTime = () => (inAd() ? 0 : S.t);
+  this.destroy = () => { halt(); f.remove(); window.__yt = null; };
+  S.end = () => { halt(); set(0); };
+  S.userTap = () => play(true);
+  const me = this;
+  setTimeout(() => ev.onReady && ev.onReady({ target: me }), C.readyMs);
+} };
+if (window.onYouTubeIframeAPIReady) window.onYouTubeIframeAPIReady();
+})();"""
 
-apple = []
+# the speaker's DJ (its fade under a whole song), every 20 ms, on the audio clock
+SAMPLER = """try { new PerformanceObserver((l) => { for (const e of l.getEntries()) (window.__long ||= []).push([Math.round(e.startTime), Math.round(e.duration)]); }).observe({ type: 'longtask', buffered: true }); } catch (e) {}
+setInterval(() => { const sp = window.__fakeDj && window.__fakeDj.speaker; if (!sp) return; (window.__fades ||= []).push([sp.ctx.currentTime, sp.talkFade.gain.value]); if (window.__fades.length > 4000) window.__fades.splice(0, 2000); }, 20);"""
+
+apple, searches = [], []
 key_on = [True]
 
 
@@ -46,35 +118,123 @@ def text(pg, sel):
 
 def yt_api(route):
     url = route.request.url
+    hdr = {"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"}
     if "/yt/info" in url:
         vid = url.split("id=")[1][:11]
-        body = {"id": vid, "t": "Despacito (official video)" if vid == BEN_ID else "Some song", "a": "Luis Fonsi"}
-        return route.fulfill(status=200, body=json.dumps(body), headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"})
+        named = {BEN_ID: ("Despacito (official video)", "Luis Fonsi"), QT_ID: ("周杰倫 Jay Chou【晴天 Sunny Day】", "JVR Music"), LINK_ID: ("Pasted song", "Someone")}
+        t, a = named.get(vid, ("Some song", "Some channel"))
+        return route.fulfill(status=200, body=json.dumps({"id": vid, "t": t, "a": a}), headers=hdr)
+    q = urllib.parse.unquote_plus(url.split("q=")[1]) if "q=" in url else ""
+    searches.append(q)
     if not key_on[0]:
-        return route.fulfill(status=200, body='{"nokey":true}', headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"})
-    body = {"hits": [{"id": CAT_ID, "t": "Shape of You (Official Video)", "a": "Ed Sheeran"}]}
-    return route.fulfill(status=200, body=json.dumps(body), headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"})
+        return route.fulfill(status=200, body='{"nokey":true}', headers=hdr)
+    hit = {"id": CAT_ID, "t": "Shape of You (Official Video)", "a": "Ed Sheeran"} if "shape of you" in q.lower() else {"id": QT_ID, "t": "周杰倫 Jay Chou【晴天 Sunny Day】", "a": "JVR Music"} if "晴天" in q else {"id": ZZ_ID, "t": "ZZ party mix", "a": "Some channel"}
+    return route.fulfill(status=200, body=json.dumps({"hits": [hit]}), headers=hdr)
 
 
-def drop_into(tv, phones, who):
+def press_drop(ph):
+    """DROP on the cue, as a quick thumb would."""
+    if until(lambda: ph.locator(".djk-drop.is-now").count() > 0, 30000, 15):
+        ph.locator(".djk-drop").dispatch_event("pointerdown")
+        return True
+    return False
+
+
+def drop_into(tv, phones, who, whole=True, press=None):
+    """The song up next is `who`'s: the speaker cues its deck, the table builds up and drops into it
+    (`press`: that phone presses DROP on the cue; else the DJ drops it after a countdown nobody
+    pressed). Whole: the room says the whole song plays. (A deck still changing when the build-up
+    fills keeps the drop on the deck that's on, as it should: the table builds up again.)"""
     side = "b" if deck(tv).get("fader", 0) <= 0.5 else "a"
     ok(until(lambda: (deck(tv).get("up") or {}).get("by") == who, 6000), "up next")
     ok(until(lambda: bool((deck(tv).get("sounding") or {}).get(side)) and (deck(tv).get("sounding") or {}).get(side) == deck(tv).get(side), 40000, 250), f"the speaker plays it on deck {side.upper()}")
-    end = time.time() + 30
-    while time.time() < end and not deck(tv).get("drop"):
-        for ph in phones:
-            ph.evaluate("() => { const b = document.querySelector('.djk-charge'); if (b) for (let i = 0; i < 3; i++) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }")
-        phones[0].wait_for_timeout(150)
-    ok(bool(deck(tv).get("drop")), "the table builds it up")
-    ok(until(lambda: (deck(tv).get("song") or {}).get("by") == who, 60000, 100), "it lands (the table's drop or the DJ's): the whole song's time")
+    into = False
+    for _ in range(4):
+        end = time.time() + 30
+        while time.time() < end and not deck(tv).get("drop"):
+            for ph in phones:
+                ph.evaluate("() => { const b = document.querySelector('.djk-charge'); if (b) for (let i = 0; i < 3; i++) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }")
+            phones[0].wait_for_timeout(150)
+        dr = deck(tv).get("drop") or {}
+        if dr.get("to") == side:
+            into = True
+            break
+        # (into the deck that's on: let it land, wait for the deck to settle, build up again)
+        until(lambda: not deck(tv).get("drop"), 30000, 200)
+        until(lambda: (deck(tv).get("sounding") or {}).get(side) == deck(tv).get(side), 30000, 250)
+    ok(into, "the table builds it up, into its deck")
+    if press is not None:
+        ok(press_drop(press), "DROP pressed on the cue")
+    if whole:
+        ok(until(lambda: (deck(tv).get("song") or {}).get("by") == who, 60000, 50), "it lands (the table's drop or the DJ's): the whole song's time")
+    else:
+        landed = until(lambda: (deck(tv).get("now") or {}).get("by") == who and not deck(tv).get("drop"), 60000, 50)
+        if not landed:
+            dk = deck(tv)
+            print("   (the deck:", {k: dk.get(k) for k in ("a", "b", "fader", "up", "now", "drop", "last", "sounding")}, ")")
+        ok(landed, "it lands")
+
+
+def last_drop(tv):
+    return tv.evaluate("() => { const l = window.__djBooth.deck().log.filter((x) => x.k === 'drop'); return l.length ? l[l.length - 1].at : null; }")
+
+
+def heard_at(tv, vid, after=None):
+    """When the whole song was first heard (after audio time `after`), on the audio clock (None: not yet)."""
+    return tv.evaluate("([v, a]) => { const h = ((window.__yt && window.__yt.heard) || []).filter((x) => x.video === v && (a === null || x.ctx >= a)); return h.length ? h[0].ctx : null; }", [vid, after])
+
+
+def fade_at(tv, t):
+    """The DJ's level at audio time t (the sampler's nearest reading)."""
+    return tv.evaluate("(t) => { const f = window.__fades || []; let best = null; for (const x of f) if (best === null || Math.abs(x[0] - t) < Math.abs(best[0] - t)) best = x; return best ? best[1] : null; }", t)
+
+
+def fade_most(tv, t0, t1):
+    return tv.evaluate("([a, b]) => Math.max(0, ...(window.__fades || []).filter((x) => x[0] >= a && x[0] <= b).map((x) => x[1]))", [t0, t1])
+
+
+def on_the_drop(tv, vid, what):
+    """The song is heard on its drop's bar, and the DJ lets go on that bar, not before."""
+    ok(until(lambda: last_drop(tv) is not None and heard_at(tv, vid, last_drop(tv) - 1) is not None, 8000, 50), f"{what}: the song is heard")
+    at = last_drop(tv)
+    h = heard_at(tv, vid, at - 1)
+    off = (h - at) if (at is not None and h is not None) else None
+    # (within a few tens of ms on an idle machine, tests/dj.test.ts; this one runs a TV and three
+    # phones on two cores with no graphics chip, and the page's own timers can run 0.1 to 0.3 s late)
+    ok(off is not None and abs(off) < 0.3, f"{what}: heard on the drop's bar ({'%+.0f ms' % (off * 1000) if off is not None else '?'})")
+    tv.wait_for_timeout(500)
+    n = tv.evaluate("([a, b]) => (window.__fades || []).filter((x) => x[0] >= a && x[0] <= b).length", [at - 0.4, at - 0.06])
+    before, after = fade_most(tv, at - 0.4, at - 0.06), fade_at(tv, at + 0.35)
+    ok(n >= 3 and before > 0.9 and after is not None and after < 0.05, f"{what}: the DJ plays up to the bar and lets go on it ({before:.2f} before over {n} readings, {after:.2f} after)")
+    if off is None or abs(off) >= 0.3 or n < 3 or before <= 0.9:
+        # (what happened, to see why)
+        print("   tube:", tv.evaluate("() => window.__tube && window.__tube.log.slice(-14)"))
+        print("   yt:", tv.evaluate("() => window.__yt && window.__yt.log.slice(-14)"))
+        print("   drops:", tv.evaluate("() => window.__djBooth.deck().log.filter((x) => x.k === 'drop').slice(-3)"), "heard:", h)
+        gaps = tv.evaluate("([a, b]) => { const f = (window.__fades || []).filter((x) => x[0] >= a && x[0] <= b); let g = 0; for (let i = 1; i < f.length; i++) g = Math.max(g, f[i][0] - f[i - 1][0]); return [f.length, g]; }", [at - 2, at + 1])
+        print("   readings around the bar, and the longest gap between them (the page busy):", gaps)
+        print("   long tasks (start, ms), the last few:", tv.evaluate("() => (window.__long || []).slice(-6)"), "now:", tv.evaluate("() => Math.round(performance.now())"))
+    return off
+
+
+def said(tv, zh, en):
+    """The TV's note under its YouTube player says this (the TV's in either language)."""
+    t = text(tv, ".dj-tube-note")
+    return zh in t or en in t
+
+
+def tube(tv):
+    return tv.evaluate("() => { const e = document.querySelector('.dj-tube'); return e ? e.className : ''; }")
 
 
 with sync_playwright() as p:
     br = getattr(p, WHICH).launch()
     chrome = br if WHICH == "chromium" else p.chromium.launch()
-    tv = br.new_context(viewport={"width": 1600, "height": 900}).new_page()
+    tvc = br.new_context(viewport={"width": 1600, "height": 900})
+    tv = tvc.new_page()
     tv.route("https://www.youtube.com/iframe_api", lambda r: r.fulfill(status=200, body=FAKE_YT, headers={"Content-Type": "text/javascript"}))
     tv.route("https://audio-ssl.itunes.apple.com/**", lambda r: (apple.append(r.request.url), r.abort()))
+    tv.add_init_script(SAMPLER)
     errs = []
     tv.on("pageerror", lambda e: errs.append(str(e)))
     tv.on("console", lambda m: errs.append(m.text) if m.type == "error" and "WebSocket" not in m.text else None)
@@ -97,19 +257,24 @@ with sync_playwright() as p:
     amy, ben, cat = phones
     pid = {n: ph.evaluate("() => window.__room.you") for n, ph in zip(("Amy", "Ben", "Cat"), phones)}
     ok("YouTube" in text(ben, ".djk-req-note"), f"the phone says what asking does ({text(ben, '.djk-req-note')!r})")
+    ok("is-off" in tube(tv), "no song from YouTube yet: the TV's player is out of sight")
 
-    # Ben pastes a link
+    # Ben pastes a link: it waits ready in a corner of the TV, and starts on its drop's bar
     ben.locator(".djk-req-input").fill(f"https://youtu.be/{BEN_ID}?si=abc")
     ok(until(lambda: "YouTube" in text(ben, ".djk-req-hit.is-yt"), 4000), f"a pasted link: its video, by name ({text(ben, '.djk-req-hit.is-yt')!r})")
     ben.locator(".djk-req-hit.is-yt").first.click()
     ben.locator(".djk-req-send").click()
     ok(until(lambda: any(r.get("yt") == BEN_ID for r in [deck(tv).get("up") or {}] + deck(tv).get("reqs", [])), 4000), "the room has it, with its video")
     ok((deck(tv).get("up") or {}).get("text") is None, "the TV doesn't read its name before it plays")
-    drop_into(tv, phones, pid["Ben"])
-    ok(until(lambda: tv.locator(".dj-tube").count() == 1, 3000), "the TV shows the song's player")
-    ok(until(lambda: tv.evaluate("() => window.__yt && window.__yt.playing && window.__yt.video") == BEN_ID, 8000), "two bars on, the whole song plays (Ben's video)")
-    gain = tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value")
-    ok(gain < 0.05, f"the DJ has faded out under it ({gain:.3f})")
+    ok(until(lambda: "is-next" in tube(tv), 3000), "the TV shows it up next, in a corner")
+    ok(until(lambda: said(tv, "准备好了", "Ready"), 8000), f"it gets ready there ({text(tv, '.dj-tube-note')!r})")
+    st = tv.evaluate("() => window.__yt && { video: window.__yt.video, state: window.__yt.state, t: window.__yt.t, muted: window.__yt.muted, heard: window.__yt.heard.length }")
+    ok(st and st["video"] == BEN_ID and st["state"] == 2 and st["t"] < 0.5 and not st["muted"] and st["heard"] == 0, f"loaded, its start buffered, held at 0:00 with its sound on, never heard ({st})")
+    tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-0-next.png"))
+    drop_into(tv, phones, pid["Ben"], press=amy)
+    on_the_drop(tv, BEN_ID, "Ben's link, Amy's DROP")
+    tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-1-drop.png"))
+    ok(until(lambda: "is-on" in tube(tv), 2000), "the player comes to the middle")
     ok(until(lambda: amy.locator(".djk-song").count() == 1 and amy.locator(".djk-pad.is-echo").is_disabled(), 3000), "the phones say so, the pads that work the music waiting")
     ok(not amy.locator(".djk-pad.is-horn").is_disabled() and not cat.locator(".djk-pad.is-siren").is_disabled(), "the air horn, the siren and the other sounds of their own still play")
     over = lambda: tv.evaluate("() => window.__fakeDj.speaker.overSong.gain.value")
@@ -121,7 +286,7 @@ with sync_playwright() as p:
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-1-song.png"))
     amy.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-amy-1-song.png"))
     tv.evaluate("() => window.__yt.end()")
-    ok(until(lambda: deck(tv).get("song") is None and tv.locator(".dj-tube").count() == 0, 4000), "it ends: the player goes, the room's song time is over")
+    ok(until(lambda: deck(tv).get("song") is None and "is-off" in tube(tv), 4000), "it ends: the player goes out of sight, the room's song time is over")
     ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 5000), "and the DJ comes back")
     ok(until(lambda: over() < 0.05, 5000), "the pads go back through the DJ's chain")
     ok(until(lambda: not amy.locator(".djk-pad").first.is_disabled(), 3000), "the decks too")
@@ -149,25 +314,127 @@ with sync_playwright() as p:
         ben.wait_for_timeout(300)
     ok(until(lambda: amy.locator(".djk-list-row").count() == 0, 3000), "Ben takes his out again")
 
-    # Cat searches (the key is on), her song plays, she skips it
+    # Cat picks Shape of You from the song list (the key is on): one search finds its video, none
+    # while she types; an ad plays out muted in the TV's corner, then it's ready, and it starts on its drop
+    tv.evaluate(f"() => {{ window.__ytConf.ads['{CAT_ID}'] = 2500; window.__yt.adLeft['{CAT_ID}'] = 2500; }}")
+    n_search = len(searches)
     cat.locator(".djk-req-input").fill("shape of you")
-    ok(until(lambda: "Shape of You" in text(cat, ".djk-req-hit.is-yt"), 4000), "a search: YouTube's videos")
+    ok(until(lambda: cat.locator(".djk-req-hit").filter(has_text="Ed Sheeran").count() >= 1, 8000, 100), "the song list has it")
+    cat.wait_for_timeout(1500)
+    ok(len(searches) == n_search and cat.locator(".djk-req-hit.is-yt").count() == 0, f"no YouTube search while the list has it ({searches[n_search:]})")
+    cat.locator(".djk-req-hit").filter(has_text="Ed Sheeran").first.click()
+    cat.locator(".djk-req-send").click()
+    ok(until(lambda: (deck(tv).get("up") or {}).get("yt") == CAT_ID and (deck(tv).get("up") or {}).get("song") is not None, 5000), "it goes in by its name on the list, with the video the search found")
+    ok(len(searches) == n_search + 1, f"one search for it ({searches[n_search:]})")
+    ok(until(lambda: said(tv, "广告", "an ad"), 6000), f"YouTube's ad plays first, muted, in its corner ({text(tv, '.dj-tube-note')!r})")
+    ok(until(lambda: said(tv, "准备好了", "Ready"), 10000), "then it's ready")
+    ok(tv.evaluate(f"() => window.__yt.heard.filter((x) => x.video === '{CAT_ID}').length") == 0, "the ad was never heard, nor the song yet")
+    drop_into(tv, phones, pid["Cat"])
+    on_the_drop(tv, CAT_ID, "Cat's pick, the DJ's own drop")
+    ok(until(lambda: cat.locator(".djk-song button").count() == 1, 3000), "her phone can skip it")
+    cat.locator(".djk-song button").click()
+    ok(until(lambda: deck(tv).get("song") is None and "is-off" in tube(tv), 4000), "she skips it: the DJ comes back")
+    ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 5000), "the DJ is heard again")
+
+    # no key: Ben picks 晴天 from the list, the phone asks for its link (YouTube's search a tap
+    # away); he pastes one and it plays whole (Steve's Nov 4 bug: it played as a remix)
+    key_on[0] = False
+    ben.wait_for_timeout(5200)
+    ben.locator(".djk-req-input").fill("晴天")
+    ok(until(lambda: ben.locator(".djk-req-hit").filter(has_text="周杰伦").count() >= 1, 8000, 100), "Ben types 晴天: the song list suggests Jay Chou's")
+    ben.locator(".djk-req-hit").filter(has_text="周杰伦").first.click()
+    ben.locator(".djk-req-send").click()
+    ok(until(lambda: ben.locator(".djk-need").count() == 1, 5000), "no key: it doesn't go in as a remix, the phone asks for its link")
+    ok(not any(r.get("by") == pid["Ben"] for r in deck(tv).get("reqs", [])) and (deck(tv).get("up") or {}).get("by") != pid["Ben"], "nothing sent yet")
+    note = text(ben, ".djk-need .djk-req-note")
+    ok("链接" in note and "还没开通" in note, f"it says why ({note!r})")
+    href = ben.locator(".djk-need-find").get_attribute("href") or ""
+    ok("youtube.com/results" in href and "%E6%99%B4%E5%A4%A9" in href and ben.locator(".djk-need-find").get_attribute("target") == "_blank", f"a tap opens YouTube's own search for it ({href})")
+    ben.locator(".djk-need").scroll_into_view_if_needed()
+    ben.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-ben-3-link.png"))
+    ben.locator(".djk-need-paste input").fill("not a link")
+    ok(until(lambda: "不是" in text(ben, ".djk-need-hit"), 3000) and ben.locator(".djk-need .djk-req-send").is_disabled(), "something that isn't a link: it says so, and can't go in")
+    ben.locator(".djk-need-paste input").fill(f"https://www.youtube.com/watch?v={QT_ID}&feature=share")
+    ok(until(lambda: "找到了" in text(ben, ".djk-need-hit"), 4000), f"the link pasted: its video ({text(ben, '.djk-need-hit')!r})")
+    ben.locator(".djk-need .djk-req-send").click()
+    ok(until(lambda: (deck(tv).get("up") or {}).get("yt") == QT_ID and (deck(tv).get("up") or {}).get("text") == "晴天", 5000), "晴天 goes in by its name, with the pasted video")
+    ok(ben.locator(".djk-need").count() == 0, "the box is done")
+    drop_into(tv, phones, pid["Ben"])
+    on_the_drop(tv, QT_ID, "晴天, no key, a pasted link")
+    ben.locator(".djk-song button").click()
+    ok(until(lambda: deck(tv).get("song") is None, 4000), "Ben skips it")
+
+    # no key: Cat picks one and wants the remix alone; a typed name says links work
+    cat.wait_for_timeout(5200)
+    cat.locator(".djk-req-input").fill("晴天")
+    ok(until(lambda: cat.locator(".djk-req-hit").filter(has_text="周杰伦").count() >= 1, 8000, 100), "Cat types 晴天 too")
+    cat.locator(".djk-req-hit").filter(has_text="周杰伦").first.click()
+    cat.locator(".djk-req-send").click()
+    ok(until(lambda: cat.locator(".djk-need").count() == 1, 5000), "she's asked for its link")
+    cat.locator(".djk-need-remix").click()
+    ok(until(lambda: any(r.get("by") == pid["Cat"] and r.get("yt") is None and r.get("text") == "晴天" for r in [deck(tv).get("up") or {}] + deck(tv).get("reqs", [])), 4000), "the remix alone: it goes in with no video")
+    cat.locator(".djk-list-out").first.click()
+    ok(until(lambda: cat.locator(".djk-list-row").count() == 0, 3000), "(and she takes it back out)")
+    amy.wait_for_timeout(200)
+    amy.locator(".djk-req-input").fill("some song name")
+    ok(until(lambda: "贴一个 YouTube 链接" in text(amy, ".djk-req-note") and amy.locator(".djk-req-hit.is-yt").count() == 0, 5000), f"no key: a typed name, the phone says links work ({text(amy, '.djk-req-note')!r})")
+    amy.locator(".djk-req-input").fill("")
+
+    # a video YouTube won't play here: the TV finds out while getting it ready, the video comes off
+    # the song, its player's phone says why, and its drop plays the DJ's remix
+    tv.evaluate(f"() => {{ window.__ytConf.bad['{BAD_ID}'] = 150; }}")
+    amy.wait_for_timeout(5200)
+    amy.locator(".djk-req-input").fill(f"https://youtu.be/{BAD_ID}")
+    ok(until(lambda: amy.locator(".djk-req-hit.is-yt").count() > 0, 4000), "Amy pastes a link to a video its owner keeps on YouTube")
+    amy.locator(".djk-req-hit.is-yt").first.click()
+    amy.locator(".djk-req-send").click()
+    ok(until(lambda: (deck(tv).get("up") or {}).get("ytNo") is True and (deck(tv).get("up") or {}).get("yt") is None, 12000), "the TV tells the room: the video comes off it")
+    ok(until(lambda: "不让" in text(amy, ".djk-req-mine"), 3000), f"Amy's phone says why ({text(amy, '.djk-req-mine')!r})")
+    drop_into(tv, phones, pid["Amy"], whole=False)
+    ok(deck(tv).get("song") is None and tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, "it lands as the DJ's remix: no song, the DJ never stops")
+
+    # a TV that wants a tap on the video first (as Safari does): opened again, it says so in the
+    # corner; one tap there and the song starts by itself on its drop
+    tv.add_init_script("window.__tubeTapFirst = true; window.__ytConf = { sound: false };")
+    tv.reload(wait_until="load")
+    tv.locator(".dj-start-btn").click()
+    ok(until(lambda: tv.evaluate("() => !!(window.__djBooth && window.__djBooth.stats() && window.__djBooth.stats().state === 'playing')"), 20000), "the TV, opened again, plays on after its start tap")
+    ben.wait_for_timeout(1500)
+    ben.locator(".djk-req-input").fill(f"https://youtu.be/{SAF1}")
+    ok(until(lambda: ben.locator(".djk-req-hit.is-yt").count() > 0, 4000), "Ben pastes another")
+    ben.locator(".djk-req-hit.is-yt").first.click()
+    ben.locator(".djk-req-send").click()
+    ok(until(lambda: said(tv, "点一下视频", "one tap on the video"), 15000), f"ready in its corner, the TV asks for one tap on the video ({text(tv, '.dj-tube-note')!r})")
+    tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-2-tap-first.png"))
+    tv.evaluate("() => window.__yt.userTap()")
+    ok(until(lambda: said(tv, "准备好了", "Ready"), 4000), "tapped: it's held ready again, and may start by itself")
+    ok(tv.evaluate("() => window.__yt.state") == 2, "(paused back at its start)")
+    drop_into(tv, phones, pid["Ben"])
+    on_the_drop(tv, SAF1, "a TV that wanted a tap, tapped once")
+    ben.locator(".djk-song button").click()
+    ok(until(lambda: deck(tv).get("song") is None, 4000), "skipped")
+
+    # ...and if the browser still won't start one by itself, the DJ plays on until someone taps it
+    tv.evaluate("() => { window.__yt.activated = false; }")
+    cat.wait_for_timeout(5200)
+    cat.locator(".djk-req-input").fill(f"https://youtu.be/{SAF2}")
+    ok(until(lambda: cat.locator(".djk-req-hit.is-yt").count() > 0, 4000), "Cat pastes one")
     cat.locator(".djk-req-hit.is-yt").first.click()
     cat.locator(".djk-req-send").click()
     drop_into(tv, phones, pid["Cat"])
-    ok(until(lambda: tv.evaluate("() => window.__yt && window.__yt.video") == CAT_ID, 8000), "Cat's video plays")
-    ok(until(lambda: cat.locator(".djk-song button").count() == 1, 3000), "her phone can skip it")
+    at = last_drop(tv)
+    ok(until(lambda: said(tv, "点一下视频开始放", "Tap the video to start it"), 6000), f"it won't start by itself: the TV asks for a tap ({text(tv, '.dj-tube-note')!r})")
+    ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 4000), "and the DJ plays on meanwhile (no silence)")
+    tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-3-tap.png"))
+    tv.evaluate("() => window.__yt.userTap()")
+    ok(until(lambda: heard_at(tv, SAF2, at - 1) is not None, 4000), "someone taps it: the song plays")
+    ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") < 0.05, 3000), "and the DJ gives way to it")
     cat.locator(".djk-song button").click()
-    ok(until(lambda: deck(tv).get("song") is None and tv.locator(".dj-tube").count() == 0, 4000), "she skips it: the DJ comes back")
+    ok(until(lambda: deck(tv).get("song") is None and tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 6000), "skipped: the DJ comes back")
 
-    # no key: a search says links still work; a typed name gets the remix
-    key_on[0] = False
-    amy.locator(".djk-req-input").fill("some song name")
-    ok(until(lambda: "贴一个 YouTube 链接" in text(amy, ".djk-req-note") and amy.locator(".djk-req-hit.is-yt").count() == 0, 5000), f"no key: the phone asks for a link instead ({text(amy, '.djk-req-note')!r})")
     ok(not apple, f"nothing went to Apple ({apple[:2]})")
     st = tv.evaluate("() => window.__djBooth.stats()")
     ok(st["state"] == "playing" and st["stalls"] == 0, f"the music never stalled ({st})")
-
     bad = [e for e in errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not bad, f"no errors {bad[:3]}")
     br.close()

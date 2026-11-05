@@ -1,4 +1,4 @@
-import { ChevronsUp, ListMusic, ListOrdered, Shuffle, X } from "lucide-react";
+import { ChevronsUp, ClipboardPaste, ListMusic, ListOrdered, Search, Shuffle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { heatLean } from "../../../shared/dj/curve";
@@ -380,7 +380,7 @@ function Picks({ v, me, g, zh, side }: { v: DjView; me: string; g: G; zh: boolea
 
 /* ------------------------------------------------------------------ songs asked for by name */
 
-/** A song on the site's list (or one of the host's: `local`; or one found on Apple: `apple`), ready to search: its title and the whole line folded the same way. */
+/** A song on the site's list (or one of the host's: `local`; or a video found on YouTube: `yt`), ready to search: its title and the whole line folded the same way. */
 type Entry = { id: number; t: string; a: string; c: number; tk: string; key: string; local?: string; yt?: YtHit };
 type Book = { list: Entry[]; fold: (x: string) => string; simplify: (x: string) => string };
 let book: Promise<Book> | null = null;
@@ -422,7 +422,7 @@ function search(b: Book, q: string): Entry[] {
   return hits.slice(0, 6).map((h) => h[1]);
 }
 
-/** An Apple song as the room takes it: [track id, title, artist, preview, storefront]. */
+/** A YouTube video as the room takes it: [video id, title, channel]. */
 const ytReq = (h: YtHit) => [h.id, h.t, h.a];
 
 /**
@@ -491,12 +491,20 @@ function Playlist({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   );
 }
 
+/** Why a song has no video from YouTube yet: the search isn't on (the owner's key), today's searches are used up, or it found none. */
+type NoTube = "nokey" | "quota" | "none";
+/** A song waiting for its YouTube link (the search couldn't give one): from the song list (`song`), or a name typed in. */
+type Need = { song?: number; text: string; artist?: string; why: NoTube };
+
 /**
- * Ask for a song: the whole song on YouTube plays on the big screen after its drop (Steve on Nov 2:
- * a link, or a search once the owner has set YouTube's key), then the DJ's remix in its style; a
- * name with no YouTube video gets the remix alone. Suggestions come from the site's song list (a
- * song picked there shows by name to everyone) and from YouTube; one song each, waiting or up next.
- * On a night of the host's songs: those, the whole song.
+ * Ask for a song: the whole song on YouTube plays on the big screen from its drop (Steve on Nov 2:
+ * a link, or a search once the owner has set YouTube's key), then the DJ's remix in its style.
+ * Suggestions come from the site's song list (a song picked there shows by name to everyone) and,
+ * when the list has nothing for what's typed, from YouTube (each search costs the key's daily
+ * allowance: none while the list has the song); a few each, waiting or up next. A song with no video
+ * found asks for its link before it goes in (Steve on Nov 4: a song picked from the list played as
+ * the remix, not the song): a button opens YouTube's own search for it, the link copied there is
+ * pasted back, or it goes in as the DJ's remix alone. On a night of the host's songs: those, whole.
  */
 function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
   const d = v.deck;
@@ -514,31 +522,33 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   };
   const using = d.local ? (crate?.book ?? null) : b;
   const hits = useMemo(() => (using && !pick && q.trim() ? search(using, q) : []), [using, q, pick]);
-  // YouTube, a moment after the typing stops: a pasted link's video, or a search (once the owner
-  // has set YouTube's key; till then, links only)
+  // YouTube, a moment after the typing stops: a pasted link's video (free), or a search when the
+  // song list has nothing for it (only once the owner has set YouTube's key; till then, links)
   const typed = q.trim();
   const link = ytIdOf(typed);
   const [found, setFound] = useState<{ q: string; hits: YtHit[] } | null>(null);
-  const [noKey, setNoKey] = useState(false);
+  const [noTube, setNoTube] = useState<"nokey" | "quota" | null>(null);
+  const [need, setNeed] = useState<Need | null>(null);
   useEffect(() => {
-    if (d.local || pick || Array.from(typed).length < 2 || (noKey && !link)) return;
+    if (d.local || pick || need) return;
+    if (!link && (Array.from(typed).length < 3 || hits.length > 0 || noTube)) return;
     let gone = false;
     const id = window.setTimeout(
       () => {
         const ask = link ? ytInfo(link).then((h) => (h ? [h] : [])) : ytSearch(typed);
         void ask.then((list) => {
           if (gone) return;
-          if (list === "nokey") setNoKey(true);
+          if (list === "nokey" || list === "quota") setNoTube(list);
           else setFound({ q: typed, hits: list });
         });
       },
-      link ? 50 : 500,
+      link ? 50 : 900,
     );
     return () => {
       gone = true;
       window.clearTimeout(id);
     };
-  }, [d.local, pick, typed, link, noKey]);
+  }, [d.local, pick, need, typed, link, noTube, hits.length]);
   const fold = b?.fold ?? ((x: string) => x.toLowerCase());
   const onTube: Entry[] = useMemo(() => {
     if (d.local || pick || !found || found.q !== typed) return [];
@@ -558,11 +568,61 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   const full = d.reqs.length >= DECK.reqMax;
   const ended = v.phase === "end";
 
+  // the link pasted for a song that needs one, looked up as it's pasted
+  const [pasted, setPasted] = useState("");
+  const [pastedHit, setPastedHit] = useState<YtHit | "none" | "finding" | null>(null);
+  useEffect(() => {
+    const id = ytIdOf(pasted);
+    if (!id) {
+      setPastedHit(pasted.trim() ? "none" : null);
+      return;
+    }
+    let gone = false;
+    setPastedHit("finding");
+    void ytInfo(id).then((h) => !gone && setPastedHit(h ?? "none"));
+    return () => {
+      gone = true;
+    };
+  }, [pasted]);
+
   const [finding, setFinding] = useState(false);
   const sent = () => {
     haptic(15);
     setQ("");
     setPick(null);
+    setNeed(null);
+    setPasted("");
+  };
+  /** A song in: with its video (the whole song plays on the TV), or the DJ's remix alone. */
+  const ask = (s: { song?: number; text: string }, yt?: YtHit) => {
+    if (s.song !== undefined) g("req", { song: s.song, text: s.text, ...(yt ? { yt: ytReq(yt) } : {}) });
+    else g("req", yt ? { yt: ytReq(yt) } : { text: s.text });
+    sent();
+  };
+  /** YouTube's video for some words (a link: its own), within 3 seconds; or why there's none. */
+  const lookup = async (words: string): Promise<{ hit?: YtHit; why?: NoTube }> => {
+    if (found && found.q === words && found.hits.length) return { hit: found.hits[0] };
+    const id = ytIdOf(words);
+    if (!id && noTube) return { why: noTube };
+    const late = new Promise<"late">((ok) => window.setTimeout(() => ok("late"), 3000));
+    const r = await Promise.race([id ? ytInfo(id).then((h) => (h ? [h] : [])) : ytSearch(words), late]);
+    if (r === "late") return { why: "none" };
+    if (r === "nokey" || r === "quota") {
+      setNoTube(r);
+      return { why: r };
+    }
+    return r.length ? { hit: r[0] } : { why: "none" };
+  };
+  /** A song that wants its video: found, it goes in with it; not found, the phone asks for its link. */
+  const withTube = (s: { song?: number; text: string; artist?: string }) => {
+    setFinding(true);
+    void lookup(s.artist ? `${s.text} ${s.artist}` : s.text).then((r) => {
+      setFinding(false);
+      if (r.hit) return ask(s, r.hit);
+      setNeed({ ...s, why: r.why ?? "none" });
+      setPick(null);
+      setQ("");
+    });
   };
   const send = (e: FormEvent) => {
     e.preventDefault();
@@ -575,43 +635,26 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
       g("req", { local: hit.local });
       return sent();
     }
+    if (need) {
+      // the link pasted for it (its own buttons send the remix alone, or take it back)
+      if (pastedHit && pastedHit !== "none" && pastedHit !== "finding") ask(need, pastedHit);
+      return;
+    }
     if (pick?.yt) {
       g("req", { yt: ytReq(pick.yt) });
       return sent();
     }
-    if (pick) {
-      // one from the song list: its video on YouTube too, when the search can find it
-      return withTube(`${pick.t} ${pick.a}`, (top) => g("req", { song: pick.id, text: pick.t, ...(top ? { yt: ytReq(top) } : {}) }));
-    }
+    // one from the song list: its video on YouTube too
+    if (pick) return withTube({ song: pick.id, text: pick.t, artist: pick.a });
     const text = q.trim();
     if (!text) return;
     // typed out a song on the list exactly: that one (so it shows by name)
     const k = b ? b.fold(text) : "";
     const same = b?.list.filter((x) => x.tk === k || x.key === k) ?? [];
     const hit = same.find((x) => x.c) ?? same[0];
-    if (hit) return withTube(`${hit.t} ${hit.a}`, (top) => g("req", { song: hit.id, text: hit.t, ...(top ? { yt: ytReq(top) } : {}) }));
-    // else YouTube's best match for it (a link: that video); else the name alone (the remix alone)
-    return withTube(text, (top) => g("req", top ? { yt: ytReq(top) } : { text }));
-  };
-  /** YouTube's first video for some words (a link: its own), within 3 seconds, then `go`. */
-  const withTube = (words: string, go: (top: YtHit | undefined) => void) => {
-    if (found && found.q === words) {
-      go(found.hits[0]);
-      return sent();
-    }
-    const id = ytIdOf(words);
-    if (noKey && !id) {
-      go(undefined);
-      return sent();
-    }
-    setFinding(true);
-    const late = new Promise<YtHit[]>((ok) => window.setTimeout(() => ok([]), 3000));
-    const ask = id ? ytInfo(id).then((h) => (h ? [h] : [])) : ytSearch(words).then((l) => (l === "nokey" ? [] : l));
-    void Promise.race([ask, late]).then((list) => {
-      setFinding(false);
-      go(list[0]);
-      sent();
-    });
+    if (hit) return withTube({ song: hit.id, text: hit.t, artist: hit.a });
+    // else YouTube's best match for it (a link: that video)
+    return withTube({ text });
   };
 
   // where theirs stands, over the box
@@ -619,8 +662,8 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
     mine && mine.at !== "now"
       ? mine.at === "up"
         ? zh
-          ? `下一首就是你点的 ${songName(mine.r, zh) ?? ""}，大家蓄力 Drop 进去`
-          : `Yours is up next: ${songName(mine.r, zh) ?? ""}. Build up and drop into it`
+          ? `下一首就是你点的 ${songName(mine.r, zh) ?? ""}，大家蓄力 Drop 进去${mine.r.ytNo ? "。YouTube 不让这首在别的网站放，Drop 进去放 DJ 的 Remix" : ""}`
+          : `Yours is up next: ${songName(mine.r, zh) ?? ""}. Build up and drop into it${mine.r.ytNo ? ". YouTube won't play it outside YouTube, so its drop plays the DJ's remix" : ""}`
         : v.shuffle
           ? zh
             ? `你点的歌在歌单里，随机放`
@@ -641,36 +684,44 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           {standing}
         </span>
       )}
-      <span className="djk-req-note">
-        {enough
-          ? zh
-            ? `你在歌单里有 ${DECK.reqEach} 首了，放掉一首再点`
-            : `You have ${DECK.reqEach} on the playlist. Ask again once one has played`
-          : mine?.at === "now"
-          ? mine.r.local || mine.r.yt
+      {!need && (
+        <span className="djk-req-note">
+          {enough
             ? zh
-              ? `正在放你点的 ${songName(mine.r, zh) ?? ""}，还可以再点`
-              : `Yours is on: ${songName(mine.r, zh) ?? ""}. You can ask for more`
-            : zh
-              ? `正在放 DJ 按 ${songName(mine.r, zh) ?? ""} 做的 Remix（YouTube 上没找到这首），还可以再点`
-              : `On now: the DJ's remix for ${songName(mine.r, zh) ?? ""} (not found on YouTube). You can ask for more`
-          : full
-            ? zh
-              ? `点歌排满了（${DECK.reqMax} 首），放掉几首再点`
-              : `The line is full (${DECK.reqMax} songs). Try again in a bit`
-            : d.local
-              ? zh
-                ? `搜主人的这 ${v.crateN} 首歌，点中了下一首就放原曲`
-                : `Search the host's ${v.crateN} songs. The one you pick plays next`
-              : noKey
+              ? `你在歌单里有 ${DECK.reqEach} 首了，放掉一首再点`
+              : `You have ${DECK.reqEach} on the playlist. Ask again once one has played`
+            : mine?.at === "now"
+              ? mine.r.local || mine.r.yt
                 ? zh
-                  ? "输入歌名或歌手，或者贴一个 YouTube 链接：贴链接的会在电视上放整首，再接 DJ 按它的风格做的 Remix"
-                  : "Type a song or an artist, or paste a YouTube link: a link plays the whole song on the TV, then the DJ's remix in its style"
+                  ? `正在放你点的 ${songName(mine.r, zh) ?? ""}，还可以再点`
+                  : `Yours is on: ${songName(mine.r, zh) ?? ""}. You can ask for more`
                 : zh
-                  ? "输入歌名或歌手，或者贴 YouTube 链接。Drop 进去之后电视上放 YouTube 上的整首，再接 DJ 按它的风格做的 Remix"
-                  : "Type a song or an artist, or paste a YouTube link. After its drop the TV plays the whole song from YouTube, then the DJ's remix in its style"}
-      </span>
-      {pick ? (
+                  ? `正在放 DJ 按 ${songName(mine.r, zh) ?? ""} 做的 Remix${mine.r.ytNo ? "（YouTube 不让这首在别的网站放）" : ""}，还可以再点`
+                  : `On now: the DJ's remix for ${songName(mine.r, zh) ?? ""}${mine.r.ytNo ? " (YouTube won't play the song outside YouTube)" : ""}. You can ask for more`
+              : full
+                ? zh
+                  ? `点歌排满了（${DECK.reqMax} 首），放掉几首再点`
+                  : `The line is full (${DECK.reqMax} songs). Try again in a bit`
+                : d.local
+                  ? zh
+                    ? `搜主人的这 ${v.crateN} 首歌，点中了下一首就放原曲`
+                    : `Search the host's ${v.crateN} songs. The one you pick plays next`
+                  : noTube === "nokey"
+                    ? zh
+                      ? "输入歌名或歌手，或者贴一个 YouTube 链接。自动搜 YouTube 还没开通：要在电视上放整首，就贴这首歌的链接"
+                      : "Type a song or an artist, or paste a YouTube link. The YouTube search isn't on yet: to play a song whole on the TV, paste its link"
+                    : noTube === "quota"
+                      ? zh
+                        ? "输入歌名或歌手，或者贴一个 YouTube 链接。今天的 YouTube 自动搜索用完了，贴链接照样放整首"
+                        : "Type a song or an artist, or paste a YouTube link. Today's YouTube searches are used up: a link still plays it whole"
+                      : zh
+                        ? "输入歌名或歌手，或者贴 YouTube 链接。Drop 进去之后电视上放 YouTube 上的整首，再接 DJ 按它的风格做的 Remix"
+                        : "Type a song or an artist, or paste a YouTube link. After its drop the TV plays the whole song from YouTube, then the DJ's remix in its style"}
+        </span>
+      )}
+      {need ? (
+        <NeedLink need={need} zh={zh} pasted={pasted} hit={pastedHit} setPasted={setPasted} remix={() => ask(need)} drop={() => setNeed(null)} />
+      ) : pick ? (
         <span className="djk-req-pick">
           <span>{pick.yt ? `${pick.t} · YouTube` : zh ? `${pick.a}《${pick.t}》` : `${pick.t} (${pick.a})`}</span>
           <button type="button" aria-label={zh ? "换一首" : "Choose another"} onClick={() => setPick(null)}>
@@ -695,7 +746,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           disabled={ended || enough}
         />
       )}
-      {hits.length + onTube.length > 0 && (
+      {!need && hits.length + onTube.length > 0 && (
         <ul className="djk-req-hits" aria-label={d.local ? (zh ? "主人的歌" : "The host's songs") : zh ? "找到的歌" : "Songs found"}>
           {hits.map((h) => (
             <li key={h.id}>
@@ -717,9 +768,86 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
         </ul>
       )}
       {failed && !using && <span className="djk-req-note">{d.local ? (zh ? "歌单没加载出来，等一下再点" : "The song list didn't load. Try again in a moment") : zh ? "曲库没加载出来，直接输入歌名也行" : "The song list didn't load. Typing the name works too"}</span>}
-      <button type="submit" className="djk-req-send" disabled={ended || full || enough || finding || (!pick && !q.trim())}>
-        {finding ? (zh ? "在找这首歌…" : "Finding it…") : zh ? "点这首" : "Ask for it"}
-      </button>
+      {!need && (
+        <button type="submit" className="djk-req-send" disabled={ended || full || enough || finding || (!pick && !q.trim())}>
+          {finding ? (zh ? "在 YouTube 上找这首…" : "Finding it on YouTube…") : zh ? "点这首" : "Ask for it"}
+        </button>
+      )}
     </form>
+  );
+}
+
+/**
+ * A song the search couldn't give a video for: the TV plays it whole only from YouTube, so the phone
+ * asks for its link. A button opens YouTube's own search for it (its app, on a phone that has it);
+ * the link copied there is pasted back (a button reads it off the clipboard where the browser
+ * lets it). Or it goes in as the DJ's remix alone, or is taken back.
+ */
+function NeedLink({ need, zh, pasted, hit, setPasted, remix, drop }: { need: Need; zh: boolean; pasted: string; hit: YtHit | "none" | "finding" | null; setPasted: (s: string) => void; remix: () => void; drop: () => void }) {
+  const words = need.artist ? `${need.artist} ${need.text}` : need.text;
+  const name = need.artist ? (zh ? `${need.artist}《${need.text}》` : `${need.text} (${need.artist})`) : zh ? `《${need.text}》` : `"${need.text}"`;
+  const canPaste = typeof navigator !== "undefined" && !!navigator.clipboard?.readText;
+  const paste = () => {
+    navigator.clipboard
+      .readText()
+      .then((t) => t && setPasted(t.trim()))
+      .catch(() => {});
+  };
+  const why =
+    need.why === "nokey"
+      ? zh
+        ? "电视放整首要这首歌的 YouTube 链接（自动搜 YouTube 还没开通）。去 YouTube 找到它，分享里复制链接，贴回这里"
+        : "The TV plays it whole from its YouTube link (the YouTube search isn't on yet). Find it on YouTube, copy its link from Share, and paste it here"
+      : need.why === "quota"
+        ? zh
+          ? "今天的 YouTube 自动搜索用完了。去 YouTube 找到它，复制链接贴回这里，照样放整首"
+          : "Today's YouTube searches are used up. Find it on YouTube, copy its link and paste it here: it still plays whole"
+        : zh
+          ? "YouTube 上没搜到这首。去 YouTube 找找，复制链接贴回这里"
+          : "No video came up for it. Look on YouTube, copy the link and paste it here";
+  const ok = hit && hit !== "none" && hit !== "finding" ? hit : null;
+  return (
+    <div className="djk-need" role="group" aria-label={zh ? "这首歌的 YouTube 链接" : "This song's YouTube link"}>
+      <span className="djk-need-song">
+        <span>{name}</span>
+        <button type="button" aria-label={zh ? "不点这首了" : "Don't ask for it"} onClick={drop}>
+          <X size={20} aria-hidden="true" />
+        </button>
+      </span>
+      <span className="djk-req-note">{why}</span>
+      <a className="djk-need-find" href={`https://www.youtube.com/results?search_query=${encodeURIComponent(words)}`} target="_blank" rel="noopener noreferrer">
+        <Search size={18} aria-hidden="true" />
+        {zh ? "去 YouTube 找这首" : "Find it on YouTube"}
+      </a>
+      <span className="djk-need-paste">
+        <input
+          className="djk-req-input"
+          type="url"
+          inputMode="url"
+          value={pasted}
+          placeholder={zh ? "贴 YouTube 链接" : "Paste the YouTube link"}
+          aria-label={zh ? "这首歌的 YouTube 链接" : "The song's YouTube link"}
+          autoComplete="off"
+          onChange={(e) => setPasted(e.target.value)}
+        />
+        {canPaste && (
+          <button type="button" className="djk-req-cancel" onClick={paste}>
+            <ClipboardPaste size={18} aria-hidden="true" />
+            {zh ? "粘贴" : "Paste"}
+          </button>
+        )}
+      </span>
+      {hit && (
+        <span className={`djk-need-hit ${ok ? "is-ok" : ""}`} aria-live="polite">
+          {hit === "finding" ? (zh ? "在看这个链接…" : "Checking the link…") : hit === "none" ? (zh ? "这不是能放的 YouTube 链接" : "That isn't a YouTube link that can play here") : zh ? `找到了：${ok!.t}` : `Found: ${ok!.t}`}
+        </span>
+      )}
+      <button type="submit" className="djk-req-send" disabled={!ok}>
+        {zh ? "点这首（电视放整首）" : "Ask for it (the TV plays it whole)"}
+      </button>
+      <button type="button" className="djk-req-cancel djk-need-remix" onClick={remix}>
+        {zh ? "不用链接，只放 DJ 的 Remix" : "No link: the DJ's remix alone"}
+      </button>
+    </div>
   );
 }

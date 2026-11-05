@@ -144,13 +144,16 @@ export function DropParty({ v }: { v: DjView }) {
   if (!show) return <canvas ref={canvas} className="dk-confetti" aria-hidden="true" />;
   const perfect = show.hits.filter((h) => h.grade === "perfect").map((h) => nameOf(h.pid));
   const all = show.hits.map((h) => nameOf(h.pid));
+  // a drop into a whole song from YouTube: up top, clear of the song's player (which starts on it),
+  // and no style named (the song plays, not the deck)
+  const song = !!v.deck.song;
   return (
-    <div className={`dk-dropped ${perfect.length ? "is-perfect" : ""}`} role="status">
+    <div className={`dk-dropped ${perfect.length ? "is-perfect" : ""} ${song ? "is-song" : ""}`} role="status">
       <canvas ref={canvas} className="dk-confetti" aria-hidden="true" />
       <span className="dk-dropped-word">{perfect.length ? (zh ? "完美 Drop" : "Perfect drop") : "DROP"}</span>
       <span className="dk-dropped-who">
         {show.auto ? (zh ? "DJ 帮大家按了" : "The DJ pressed it for you") : (perfect.length ? perfect : all).slice(0, 5).join(zh ? "、" : ", ")}
-        <span className="dk-dropped-style"> · {L(STYLE_NAMES[show.style], zh)}</span>
+        {!song && <span className="dk-dropped-style"> · {L(STYLE_NAMES[show.style], zh)}</span>}
       </span>
     </div>
   );
