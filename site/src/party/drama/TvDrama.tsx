@@ -286,8 +286,9 @@ function Bill({ v, credit }: { v: DramaView; credit: string | null }) {
           <p className="tvd-setup">{tr(v.scene.setup)}</p>
           <p className="tvd-hunt">
             <MiniMask />
-            {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
+            {v.options ? (zh ? "台上的人藏着一个秘密，是下面哪一个？" : "The actor is hiding one of these. Which?") : zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
           </p>
+          {v.options && <SecretList v={v} />}
         </>
       )}
       {v.pk && (
@@ -299,6 +300,27 @@ function Bill({ v, credit }: { v: DramaView; credit: string | null }) {
         </>
       )}
     </>
+  );
+}
+
+/** A monologue's three secrets; at the reveal, the votes for each and the real one marked. */
+function SecretList({ v, counts, answer }: { v: DramaView; counts?: Record<string, number>; answer?: number | null }) {
+  const { zh, tr } = useLang();
+  return (
+    <ol className="dm-secret-results tvd-secrets">
+      {(v.options ?? []).map((o, i) => (
+        <li key={i} className={answer === i ? "is-true" : ""}>
+          <span className="dm-secret-mark" aria-hidden="true">
+            {String.fromCharCode(65 + i)}
+          </span>
+          <span>
+            {tr(o)}
+            {answer === i && <strong>{zh ? "（真的）" : " (the real one)"}</strong>}
+          </span>
+          {counts && <small className="tabular">{zh ? `${counts[String(i)] ?? 0} 票` : `${counts[String(i)] ?? 0} ${counts[String(i)] === 1 ? "vote" : "votes"}`}</small>}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -322,12 +344,13 @@ function Vote({ v, sound }: { v: DramaView; sound: boolean }) {
   const { zh, tr } = useLang();
   const { seat, players } = useSeats();
   useArrivals(v.voted, sound);
-  const audience = players.filter((s) => !v.cast.some((c) => c.pid === s.id));
+  // the audience votes; with nobody watching, the actors vote on each other
+  const audience = v.peer ? players.filter((s) => v.cast.some((c) => c.pid === s.id)) : players.filter((s) => !v.cast.some((c) => c.pid === s.id));
   const voted = audience.filter((s) => v.voted.includes(s.id));
   return (
     <aside className="tvd-side tvd-ballot">
       <h1 className="tvd-ask">
-        <Bi t={{ zh: "观众投票", en: "The audience votes" }} />
+        <Bi t={v.peer ? { zh: "演员互投", en: "The actors vote" } : { zh: "观众投票", en: "The audience votes" }} />
       </h1>
       {v.mode === "show" && v.scene && (
         <p className="tvd-q">
@@ -335,6 +358,7 @@ function Vote({ v, sound }: { v: DramaView; sound: boolean }) {
           {tr(v.scene.ask)}
         </p>
       )}
+      {v.mode === "show" && v.options && <SecretList v={v} />}
       <p className="tvd-q">
         <Star size={30} strokeWidth={2.4} />
         {zh ? "再给每个演员的演技打星" : "Then stars for every actor"}
@@ -366,9 +390,13 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
         ? "谁演得更像？"
         : "Who sold it?"
       : r.caught
-        ? zh
-          ? `「${v.scene?.culprit.zh}」就是 ${culprit?.name ?? "TA"}！`
-          : `${culprit?.name ?? "They"} did it!`
+        ? v.options
+          ? zh
+            ? "秘密被猜中了！"
+            : "Busted! The secret's out."
+          : zh
+            ? `「${v.scene?.culprit.zh}」就是 ${culprit?.name ?? "TA"}！`
+            : `${culprit?.name ?? "They"} did it!`
         : zh
           ? `${culprit?.name ?? "TA"} 骗过了所有人！`
           : `${culprit?.name ?? "They"} fooled everyone!`;
@@ -385,7 +413,8 @@ function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
   const step = useSteps([1.6, 2.9, 3.9], `${v.round}-${v.scene?.id ?? v.pk?.line.zh}`);
   return (
     <aside className="tvd-side tvd-truths">
-      {step >= 1 && v.mode === "show" && (
+      {step >= 1 && v.mode === "show" && v.options && <SecretList v={v} counts={r.counts} answer={r.answer ?? null} />}
+      {step >= 1 && v.mode === "show" && !v.options && (
         <p className="tvd-counts">
           {actors.map((a) => (
             <span key={a.pid}>

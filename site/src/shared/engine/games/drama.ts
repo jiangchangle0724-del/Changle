@@ -10,6 +10,12 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * task; in a duel, two players say the same line in two styles. The audience then guesses the
  * culprit and gives each actor 1 to 5 stars for how convincing they were.
  *
+ * Who acts: each player says whether they want to go on stage or just watch (`want`, kept from
+ * one scene to the next). The scene fits the volunteers, one to eight of them; a scene for one is a
+ * monologue, and the audience picks the actor's real secret out of three. Nobody volunteering,
+ * a few of those who don't mind go up, whoever has acted least first. With nobody left watching,
+ * the actors vote on each other (never on themselves).
+ *
  * Points: a right guess 1; a culprit nobody pins 3; each actor their average stars, rounded.
  * The penalty: the actor(s) with the fewest stars, plus the culprit if caught, or else everyone
  * the culprit fooled. Best actor (most stars) takes a trophy.
@@ -21,6 +27,7 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
 
 type Mode = "show" | "pk";
 type Pen = "drink" | "move" | "prank";
+type Want = "act" | "watch";
 type Vote = { guess: string | null; stars: Record<string, number> };
 /** A scene a player wrote: here at the table (`by` is their seat) or for the public library (`credit`). */
 type Written = { id: string; scene: DramaScene; by: string | null; credit: string };
@@ -46,9 +53,13 @@ type S = {
   /** a generic secret for each role its writer left blank, and a generic twist */
   fill: Record<string, number>;
   twistPick: number;
+  /** who wants to go on stage next, and who'd rather watch (no entry: either is fine) */
+  want: Record<string, Want>;
   cast: string[];
   /** cast[i] plays roles[i] of the scene */
   roles: number[];
+  /** a monologue: the order the audience sees the three secrets in (the true one is 0) */
+  order: number[];
   culprit: string | null;
   tasks: Record<string, number>;
   pk: { line: number; styles: Record<string, number> } | null;
@@ -67,18 +78,30 @@ type S = {
 
 export const BRIEF_MS = 60_000;
 const ACT_MS: Record<DramaDiff, number> = { easy: 90_000, hard: 120_000 };
+/** a monologue is shorter; a big cast gets fifteen seconds more for each actor past four */
+const SOLO_MS: Record<DramaDiff, number> = { easy: 60_000, hard: 75_000 };
+const PER_ACTOR_MS = 15_000;
 const PK_MS = 45_000;
 const VOTE_MS = 50_000;
+/** the most on stage at once */
+export const MAX_CAST = 8;
 
-/** How many act at once: at least two, and keep two people watching once the table allows. */
+/**
+ * How many act at once when nobody has volunteered: at least two, and keep two people watching
+ * once the table allows (up to six on stage for a big table).
+ */
 export function castSize(n: number) {
-  return Math.max(2, Math.min(4, n - 2));
+  return Math.max(2, Math.min(6, n - 2));
+}
+
+/** The cast sizes a scene plays with: every role, or from `min` (the roles it can't do without) up. */
+export function sceneSizes(sc: DramaScene): [number, number] {
+  const hi = sc.roles.length;
+  return [Math.max(1, Math.min(hi, sc.min ?? hi)), hi];
 }
 
 /** One scene the table could play: built in (its index) or written. */
 type Option = { s: DramaScene; i: number | null; w: Written | null };
-
-const fitsTable = (sc: DramaScene, level: DramaLevel, diff: DramaDiff) => sc.diff === diff && (level === "spicy" || sc.level === "all");
 
 /** The scene on now, wherever it came from. */
 function current(s: S): DramaScene | null {
@@ -86,45 +109,111 @@ function current(s: S): DramaScene | null {
   return s.scene !== null ? SCENES[s.scene] : null;
 }
 
-function pickScene(s: S, n: number, api: Api): Option {
-  // a scene written here tonight goes first
-  const mine = s.mine.find((w) => !s.used.includes(w.id));
-  if (mine) {
-    s.used.push(mine.id);
-    return { s: mine.scene, i: null, w: mine };
-  }
-  const max = castSize(n);
+/** A monologue: one actor, and three secrets for the audience to choose from. */
+const isSolo = (sc: DramaScene | null) => !!sc && sc.roles.length === 1 && (sc.secrets?.length ?? 0) >= 2;
+
+/**
+ * A scene for `lo` to `hi` actors: one not played yet at the table's difficulty, else at the other,
+ * else one played before. Nothing written for that many (a last resort): the nearest in size. A
+ * spicy table gets the spicy scenes first, then the rest. `k`: how many it is played with.
+ */
+function pickScene(s: S, lo: number, hi: number, api: Api): Option & { k: number } {
   const all: Option[] = [...SCENES.map((x, i) => ({ s: x, i, w: null })), ...s.lib.map((w) => ({ s: w.scene, i: null, w }))];
   const key = (o: Option) => o.w?.id ?? o.s.id;
-  let pool = all.filter((o) => fitsTable(o.s, s.level, s.diff));
-  if (!pool.length) pool = all;
-  const fits = pool.filter((o) => o.s.roles.length <= max);
-  let fresh = (fits.length ? fits : pool).filter((o) => !s.used.includes(key(o)));
-  if (!fresh.length) {
-    // everything has been played: start the library over
-    s.used = s.used.filter((id) => !pool.some((o) => key(o) === id));
-    fresh = fits.length ? fits : pool;
+  const level = all.filter((o) => s.level === "spicy" || o.s.level === "all");
+  const fits = (o: Option) => {
+    const [a, b] = sceneSizes(o.s);
+    return a <= hi && b >= lo;
+  };
+  const same = level.filter((o) => o.s.diff === s.diff && fits(o));
+  const other = level.filter((o) => o.s.diff !== s.diff && fits(o));
+  const fresh = (list: Option[]) => list.filter((o) => !s.used.includes(key(o)));
+  const again = (list: Option[]) => {
+    // all of them played: start them over
+    s.used = s.used.filter((id) => !list.some((o) => key(o) === id));
+    return list;
+  };
+  let list = fresh(same);
+  if (!list.length) list = fresh(other);
+  if (!list.length && same.length) list = again(same);
+  if (!list.length && other.length) list = again(other);
+  if (!list.length) {
+    const pool = level.length ? level : all;
+    const gap = (o: Option) => {
+      const [a, b] = sceneSizes(o.s);
+      return a > hi ? a - hi : lo - b;
+    };
+    const best = Math.min(...pool.map(gap));
+    list = pool.filter((o) => gap(o) === best);
   }
-  // a spicy table gets the spicy scenes first, then the rest
   if (s.level === "spicy") {
-    const hot = fresh.filter((o) => o.s.level === "spicy");
-    if (hot.length) fresh = hot;
+    const hot = list.filter((o) => o.s.level === "spicy");
+    if (hot.length) list = hot;
   }
-  const pick = fresh[api.int(fresh.length)];
-  s.used.push(key(pick));
-  return pick;
+  const pick = list[api.int(list.length)];
+  if (!s.used.includes(key(pick))) s.used.push(key(pick));
+  // as many as the scene takes, within what the table offers (a last resort: fewer than it needs)
+  return { ...pick, k: Math.min(sceneSizes(pick.s)[1], hi) };
 }
 
-/** Whoever has acted least goes on next (ties at random); a scene's writer is always in it. */
-function pickCast(s: S, k: number, api: Api, must: string | null = null): string[] {
-  const ids = api.shuffle(api.ids());
-  ids.sort((a, b) => (s.acted[a] ?? 0) - (s.acted[b] ?? 0));
-  if (must && ids.includes(must)) return [must, ...ids.filter((x) => x !== must)].slice(0, k);
-  return ids.slice(0, k);
+/** Which of a scene's roles are on with `k` actors: the ones it can't do without, then any of the rest. */
+function rolesFor(sc: DramaScene, k: number, api: Api): number[] {
+  const all = sc.roles.map((_, i) => i);
+  const [lo, hi] = sceneSizes(sc);
+  if (k >= hi) return all;
+  if (k >= lo) return [...all.slice(0, lo), ...api.shuffle(all.slice(lo)).slice(0, k - lo)].sort((a, b) => a - b);
+  // fewer actors than it needs (a last resort): any k of its roles
+  return api.shuffle(all).slice(0, k).sort((a, b) => a - b);
+}
+
+/** Whoever has acted least goes first (ties at random). */
+function byTurns(s: S, ids: string[], api: Api): string[] {
+  const out = api.shuffle(ids);
+  out.sort((a, b) => (s.acted[a] ?? 0) - (s.acted[b] ?? 0));
+  return out;
+}
+
+/** Who said they want to act, and who doesn't mind either way (the rest only watch). */
+function lineup(s: S, api: Api) {
+  const ids = api.ids();
+  // (a table that started before players could choose has no choices yet)
+  const want = s.want ?? {};
+  return { ids, vol: ids.filter((p) => want[p] === "act"), free: ids.filter((p) => !want[p]) };
+}
+
+/**
+ * The next scene written at this table, if it can be played now: its writer and at least one more.
+ * `turns` false only counts them (a view mustn't roll dice).
+ */
+function nextWritten(s: S, api: Api, turns = true): { w: Written; order: string[] } | null {
+  const w = s.mine.find((x) => !s.used.includes(x.id));
+  if (!w) return null;
+  const { ids, vol, free } = lineup(s, api);
+  // its writer is always on stage (so nobody guesses a story they wrote), then the volunteers
+  const writer = w.by && ids.includes(w.by) ? w.by : null;
+  const sort = (list: string[]) => (turns ? byTurns(s, list, api) : list);
+  const order = [...(writer ? [writer] : []), ...sort(vol.filter((p) => p !== writer)), ...sort(free.filter((p) => p !== writer))];
+  return order.length >= 2 ? { w, order: order.slice(0, w.scene.roles.length) } : null;
+}
+
+/**
+ * Who goes on next, for the setup and reveal screens: `lo` to `hi` actors (the same number, once
+ * anyone has volunteered), or `ok` false when nobody can (everyone only wants to watch).
+ */
+function upNext(s: S, api: Api): { lo: number; hi: number; ok: boolean; auto: boolean } {
+  const { ids, vol, free } = lineup(s, api);
+  if (s.mode === "pk") return { lo: 2, hi: 2, ok: vol.length + free.length >= 2, auto: !vol.length };
+  const w = nextWritten(s, api, false);
+  if (w) return { lo: w.order.length, hi: w.order.length, ok: true, auto: false };
+  if (vol.length) {
+    const k = Math.min(MAX_CAST, vol.length);
+    return { lo: k, hi: k, ok: true, auto: false };
+  }
+  const hi = Math.min(castSize(ids.length), free.length);
+  return { lo: Math.min(2, hi), hi, ok: hi > 0, auto: true };
 }
 
 function newRound(s: S, api: Api) {
-  const n = api.ids().length;
   s.votes = {};
   s.ready = [];
   s.result = null;
@@ -137,8 +226,10 @@ function newRound(s: S, api: Api) {
   s.cur = null;
   s.fill = {};
   s.roles = [];
+  s.order = [];
+  const { ids, vol, free } = lineup(s, api);
   if (s.mode === "pk") {
-    s.cast = pickCast(s, 2, api);
+    s.cast = [...byTurns(s, vol, api), ...byTurns(s, free, api)].slice(0, 2);
     let lines = PK_LINES.map((_, i) => i).filter((i) => !s.pkUsed.includes(i));
     if (!lines.length) {
       s.pkUsed = [];
@@ -149,25 +240,40 @@ function newRound(s: S, api: Api) {
     const styles = api.shuffle(PK_STYLES.map((x, i) => ({ x, i })).filter(({ x }) => s.level === "spicy" || x.level === "all")).slice(0, 2);
     s.pk = { line, styles: Object.fromEntries(s.cast.map((pid, j) => [pid, styles[j % styles.length].i])) };
   } else {
-    const pick = pickScene(s, n, api);
+    // a scene written here tonight goes first; else one for the volunteers, all of them (up to
+    // eight); else two to a few of those who don't mind
+    const mine = nextWritten(s, api);
+    let pick: Option & { k: number };
+    let people: string[];
+    if (mine) {
+      s.used.push(mine.w.id);
+      pick = { s: mine.w.scene, i: null, w: mine.w, k: mine.order.length };
+      people = mine.order;
+    } else if (vol.length) {
+      const k = Math.min(MAX_CAST, vol.length);
+      pick = pickScene(s, k, k, api);
+      people = byTurns(s, vol, api);
+    } else {
+      const hi = Math.min(castSize(ids.length), free.length);
+      pick = pickScene(s, Math.min(2, hi), hi, api);
+      people = byTurns(s, free, api);
+    }
     const scene = pick.s;
-    const k = Math.min(scene.roles.length, castSize(n));
     s.scene = pick.i;
     s.cur = pick.w;
-    // whoever wrote it plays in it, so nobody guesses a story they wrote
-    const writer = pick.w?.by && api.ids().includes(pick.w.by) ? pick.w.by : null;
-    s.cast = pickCast(s, k, api, writer);
-    // which roles are on tonight (all of them, unless the table is too small), in a random order
-    s.roles = api.shuffle(scene.roles.map((_, i) => i)).slice(0, k).sort((a, b) => a - b);
-    s.cast = api.shuffle(s.cast);
+    s.roles = rolesFor(scene, pick.k, api);
+    s.cast = api.shuffle(people.slice(0, s.roles.length));
     s.culprit = s.cast[api.int(s.cast.length)];
     const tasks = api.shuffle(TASKS[s.diff].map((_, i) => i));
     s.cast.forEach((pid, j) => (s.tasks[pid] = tasks[j % tasks.length]));
-    // a role whose writer left its secret blank gets a generic one (no two the same)
-    const secrets = api.shuffle(ANY_SECRETS.map((_, i) => i));
-    s.cast.forEach((pid, j) => {
-      if (!hasText(scene.roles[s.roles[j]].alibi)) s.fill[pid] = secrets[j % secrets.length];
-    });
+    if (isSolo(scene)) s.order = api.shuffle(scene.secrets!.map((_, i) => i));
+    else {
+      // a role whose writer left its secret blank gets a generic one (no two the same)
+      const secrets = api.shuffle(ANY_SECRETS.map((_, i) => i));
+      s.cast.forEach((pid, j) => {
+        if (!hasText(scene.roles[s.roles[j]].alibi)) s.fill[pid] = secrets[j % secrets.length];
+      });
+    }
     s.twistPick = api.int(ANY_TWISTS.length);
   }
   for (const pid of s.cast) s.acted[pid] = (s.acted[pid] ?? 0) + 1;
@@ -177,10 +283,17 @@ function newRound(s: S, api: Api) {
   api.fx("card");
 }
 
+/** How long the scene runs: a duel, a monologue, or a scene, longer for a big cast. */
+function actLength(s: S): number {
+  if (s.mode === "pk") return PK_MS;
+  if (s.cast.length <= 1) return SOLO_MS[s.diff];
+  return ACT_MS[s.diff] + Math.max(0, s.cast.length - 4) * PER_ACTOR_MS;
+}
+
 function startAct(s: S, api: Api) {
   api.clear("brief");
   s.phase = "act";
-  s.actMs = s.mode === "pk" ? PK_MS : ACT_MS[s.diff];
+  s.actMs = actLength(s);
   s.endsAt = api.now + s.actMs;
   api.timer("act", s.endsAt);
   if (s.mode === "show") {
@@ -192,6 +305,14 @@ function startAct(s: S, api: Api) {
 
 function audience(s: S, api: Api) {
   return api.ids().filter((pid) => !s.cast.includes(pid));
+}
+
+/** With nobody left in the audience, the actors vote on each other. */
+const peerVote = (s: S, api: Api) => s.cast.length > 1 && audience(s, api).length === 0;
+
+/** Who votes: the audience, or else the actors still at the table. */
+function voters(s: S, api: Api): string[] {
+  return peerVote(s, api) ? s.cast.filter((pid) => api.has(pid)) : audience(s, api);
 }
 
 function startVote(s: S, api: Api) {
@@ -206,8 +327,8 @@ function startVote(s: S, api: Api) {
 }
 
 function everyoneVoted(s: S, api: Api) {
-  const aud = audience(s, api);
-  return aud.length > 0 && aud.every((pid) => s.votes[pid]);
+  const vs = voters(s, api);
+  return vs.length > 0 && vs.every((pid) => s.votes[pid]);
 }
 
 function penaltyText(s: S, api: Api): T | null {
@@ -221,10 +342,13 @@ function card(s: S, pid: string): DramaCard | null {
   if (s.mode === "pk" && s.pk) return { secret: PK_STYLES[s.pk.styles[pid]].s, culprit: false, task: t("", "") };
   const scene = current(s);
   if (!scene) return null;
+  const task = TASKS[s.diff][s.tasks[pid] ?? 0];
+  // a monologue: the actor's real secret, and what to do about it
+  if (isSolo(scene)) return { secret: scene.culpritCard, culprit: false, task };
   const role = scene.roles[s.roles[s.cast.indexOf(pid)]];
   const culprit = s.culprit === pid;
   const alibi = hasText(role.alibi) ? role.alibi : ANY_SECRETS[s.fill[pid] ?? 0];
-  return { secret: culprit ? scene.culpritCard : alibi, culprit, task: TASKS[s.diff][s.tasks[pid] ?? 0] };
+  return { secret: culprit ? scene.culpritCard : alibi, culprit, task };
 }
 
 /** The twist: the writer's, or a generic one. */
@@ -239,21 +363,25 @@ function written(raw: unknown, id: string, by: string | null, credit: string): W
   return { id, scene: { ...r.scene, id }, by, credit };
 }
 
+/** A monologue's answer: where the true secret sits in the order the audience saw. */
+const answerOf = (s: S) => (s.order?.length ? s.order.indexOf(0) : null);
+
 function reveal(s: S, api: Api) {
   api.clear("vote");
-  const aud = audience(s, api);
+  const vs = voters(s, api);
+  const solo = isSolo(current(s));
   const counts: Record<string, number> = {};
   const sums: Record<string, { n: number; sum: number }> = {};
-  for (const pid of s.cast) {
-    counts[pid] = 0;
-    sums[pid] = { n: 0, sum: 0 };
-  }
-  for (const voter of aud) {
+  for (const pid of s.cast) sums[pid] = { n: 0, sum: 0 };
+  // the votes for each suspect, or in a monologue for each of the three secrets
+  if (solo) s.order.forEach((_, i) => (counts[String(i)] = 0));
+  else for (const pid of s.cast) counts[pid] = 0;
+  for (const voter of vs) {
     const v = s.votes[voter];
     if (!v) continue;
     if (v.guess && counts[v.guess] !== undefined) counts[v.guess] += 1;
     for (const pid of s.cast) {
-      const st = v.stars[pid];
+      const st = pid === voter ? 0 : v.stars[pid];
       if (st) {
         sums[pid].n += 1;
         sums[pid].sum += st;
@@ -265,7 +393,8 @@ function reveal(s: S, api: Api) {
   const rated = s.cast.filter((pid) => sums[pid].n > 0);
   const hi = Math.max(0, ...rated.map((pid) => stars[pid]));
   const lo = Math.min(6, ...rated.map((pid) => stars[pid]));
-  const best = rated.length ? rated.filter((pid) => stars[pid] === hi) : [];
+  // best actor is a contest: a monologue has nobody to beat
+  const best = rated.length > 1 ? rated.filter((pid) => stars[pid] === hi) : [];
   // with everyone level, nobody stands out as the worst
   const worst = rated.length && lo < hi ? rated.filter((pid) => stars[pid] === lo) : [];
 
@@ -281,14 +410,17 @@ function reveal(s: S, api: Api) {
   let right: string[] = [];
   const losers = new Set(worst);
   if (s.mode === "show" && s.culprit) {
+    // the culprit (in a monologue, the actor's real secret) is caught by the most votes; the
+    // culprit's own vote, with the actors voting, never counts as fooled
+    const target = solo ? String(answerOf(s)) : s.culprit;
     const top = Math.max(0, ...Object.values(counts));
-    caught = top > 0 && counts[s.culprit] === top;
-    right = aud.filter((pid) => s.votes[pid]?.guess === s.culprit);
+    caught = top > 0 && counts[target] === top;
+    right = vs.filter((pid) => s.votes[pid]?.guess === target);
     for (const pid of right) add(pid, 1);
     if (caught) losers.add(s.culprit);
     else {
       add(s.culprit, 3);
-      for (const pid of aud) if (s.votes[pid] && s.votes[pid].guess !== s.culprit) losers.add(pid);
+      for (const pid of vs) if (pid !== s.culprit && s.votes[pid] && s.votes[pid].guess !== target) losers.add(pid);
     }
   }
   for (const pid of best) s.awards[pid] = (s.awards[pid] ?? 0) + 1;
@@ -299,7 +431,7 @@ function reveal(s: S, api: Api) {
     if (c) cards[pid] = c;
   }
   const say = losers.size ? penaltyText(s, api) : null;
-  s.result = { culprit: s.culprit, caught, counts, stars, cards, best, losers: [...losers], right, penalty: say, gained };
+  s.result = { culprit: s.culprit, caught, counts, stars, cards, best, losers: [...losers], right, penalty: say, gained, answer: answerOf(s) };
   s.phase = "reveal";
   api.fx(caught || s.mode === "pk" ? "reveal" : "wrong", s.culprit ?? undefined);
   if (best.length) api.fx("award", best[0]);
@@ -343,8 +475,10 @@ export const drama: GameDef<S> = {
       wn: 0,
       fill: {},
       twistPick: 0,
+      want: {},
       cast: [],
       roles: [],
+      order: [],
       culprit: null,
       tasks: {},
       pk: null,
@@ -364,6 +498,9 @@ export const drama: GameDef<S> = {
 
   act(s, pid, g, api) {
     const host = api.isHost(pid);
+    // a table that started before players could choose who acts
+    s.want ??= {};
+    s.order ??= [];
     switch (g.x) {
       case "config": {
         if (!host || s.phase !== "setup") return;
@@ -375,8 +512,16 @@ export const drama: GameDef<S> = {
         if (total !== null && g.total !== undefined) s.total = total;
         return;
       }
+      case "want": {
+        // on stage next, or just watching: each player says for themselves (the one phone, for anyone)
+        const who = typeof g.who === "string" ? g.who : pid;
+        if (!api.ids().includes(who) || (who !== pid && !host)) return;
+        if (g.want === "act" || g.want === "watch") s.want[who] = g.want;
+        else delete s.want[who];
+        return;
+      }
       case "start": {
-        if (!host || s.phase !== "setup" || api.ids().length < 3) return;
+        if (!host || s.phase !== "setup" || api.ids().length < 3 || !upNext(s, api).ok) return;
         s.round = 1;
         newRound(s, api);
         return;
@@ -399,16 +544,21 @@ export const drama: GameDef<S> = {
         return;
       }
       case "vote": {
-        if (s.phase !== "vote" || s.cast.includes(pid) || !api.has(pid)) return;
+        // the audience votes; with nobody watching, the actors do, on everyone but themselves
+        if (s.phase !== "vote" || !api.has(pid) || s.cast.includes(pid) !== peerVote(s, api)) return;
+        const others = s.cast.filter((c) => c !== pid);
         const raw = (g.stars ?? {}) as Record<string, unknown>;
         const stars: Record<string, number> = {};
-        for (const c of s.cast) {
+        for (const c of others) {
           const n = intIn(raw[c], 1, 5);
           if (n !== null && raw[c] !== undefined) stars[c] = n;
         }
-        const guess = s.mode === "show" && typeof g.guess === "string" && s.cast.includes(g.guess) ? g.guess : null;
+        // a suspect (never yourself), or in a monologue one of the three secrets
+        const solo = s.order.length > 0;
+        const guess =
+          s.mode !== "show" || typeof g.guess !== "string" ? null : solo ? (/^\d$/.test(g.guess) && Number(g.guess) < s.order.length ? g.guess : null) : others.includes(g.guess) ? g.guess : null;
         if (s.mode === "show" && !guess) return;
-        if (Object.keys(stars).length !== s.cast.length) return;
+        if (Object.keys(stars).length !== others.length) return;
         s.votes[pid] = { guess, stars };
         if (everyoneVoted(s, api)) reveal(s, api);
         return;
@@ -420,7 +570,7 @@ export const drama: GameDef<S> = {
       }
       case "skip": {
         // a new scene with a new cast (someone left, or nobody likes this one)
-        if (!host || (s.phase !== "brief" && s.phase !== "act")) return;
+        if (!host || (s.phase !== "brief" && s.phase !== "act") || !upNext(s, api).ok) return;
         for (const c of s.cast) s.acted[c] = Math.max(0, (s.acted[c] ?? 1) - 1);
         api.clear("brief");
         api.clear("act");
@@ -434,12 +584,13 @@ export const drama: GameDef<S> = {
           finish(s, api);
           return;
         }
+        if (!upNext(s, api).ok) return;
         s.round += 1;
         newRound(s, api);
         return;
       }
       case "more": {
-        if (!host || s.phase !== "end") return;
+        if (!host || s.phase !== "end" || !upNext(s, api).ok) return;
         s.total += 3;
         s.round += 1;
         newRound(s, api);
@@ -495,7 +646,7 @@ export const drama: GameDef<S> = {
       if (Object.keys(s.votes).length) reveal(s, api);
       else {
         // nobody voted: the scene still ends, without points
-        s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards: Object.fromEntries(s.cast.map((c) => [c, card(s, c)!]).filter(([, v]) => v)), best: [], losers: [], right: [], penalty: null, gained: {} };
+        s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards: Object.fromEntries(s.cast.map((c) => [c, card(s, c)!]).filter(([, v]) => v)), best: [], losers: [], right: [], penalty: null, gained: {}, answer: answerOf(s) };
         s.phase = "reveal";
       }
     }
@@ -507,9 +658,10 @@ export const drama: GameDef<S> = {
     if (s.phase === "brief" && s.cast.length && s.cast.every((c) => s.ready.includes(c) || !api.has(c) || c === pid)) startAct(s, api);
   },
 
-  view(s, pid): DramaView {
+  view(s, pid, api): DramaView {
     const scene = current(s);
     const live = s.phase !== "setup" && s.phase !== "end";
+    const ids = api.ids();
     return {
       id: "drama",
       phase: s.phase,
@@ -537,6 +689,11 @@ export const drama: GameDef<S> = {
       // what's been written here: titles only, the cards stay secret until played
       mine: s.mine.map((w) => ({ id: w.id, title: w.scene.title, by: w.by, played: s.used.includes(w.id) })),
       lib: s.lib.length,
+      want: Object.fromEntries(Object.entries(s.want ?? {}).filter(([p]) => ids.includes(p))),
+      next: upNext(s, api),
+      peer: live && peerVote(s, api),
+      // a monologue's three secrets, for the audience to choose from
+      options: live && isSolo(scene) && s.order?.length ? s.order.map((i) => scene!.secrets![i]) : null,
     };
   },
 };

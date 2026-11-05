@@ -192,11 +192,18 @@ export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }
             </p>
           )}
           <p className="dm-setup">{zh ? v.scene.setup.zh : v.scene.setup.en}</p>
-          <p className="dm-hunt">
-            <MiniMask />
-            {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
-          </p>
+          {v.options ? (
+            <Secrets v={v} />
+          ) : (
+            <p className="dm-hunt">
+              <MiniMask />
+              {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
+            </p>
+          )}
           <Beats beats={sceneGuide(v.scene.id)?.beats ?? GENERIC_BEATS} />
+          {v.peer && v.phase !== "reveal" && (
+            <p className="dm-peer-note">{zh ? "这一幕没人当观众：演完以后，演员互相猜、互相打星，不能投自己。" : "Nobody's watching this one: when it's over, the actors guess and rate each other (never themselves)."}</p>
+          )}
         </>
       )}
       {v.pk && (
@@ -208,6 +215,30 @@ export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }
         </>
       )}
       <Tags v={v} />
+    </div>
+  );
+}
+
+/** A monologue: the actor is hiding one of these three; the audience watches for which. */
+function Secrets({ v }: { v: DramaView }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="dm-hunt-secrets">
+      <p>
+        <MiniMask />
+        {zh ? "台上的人藏着一个秘密，是下面哪一个？" : "The actor is hiding one of these. Which?"}
+      </p>
+      <ol>
+        {(v.options ?? []).map((o, i) => (
+          <li key={i}>
+            <span className="dm-secret-mark" aria-hidden="true">
+              {String.fromCharCode(65 + i)}
+            </span>
+            {zh ? o.zh : o.en}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -499,17 +530,51 @@ export function Slate({ onDone }: { onDone?: () => void }) {
 
 export type Ballot = { guess: string | null; stars: Record<string, number> };
 
-/** Pick the culprit (in a scene), then 1 to 5 stars for each actor. */
-export function BallotForm({ v, actors, onSubmit, submitted, inShell }: { v: DramaView; actors: Actor[]; onSubmit: (b: Ballot) => void; submitted?: Ballot | null; inShell?: boolean }) {
+/**
+ * Pick the culprit (in a scene), then 1 to 5 stars for each actor. In a monologue the pick is one of
+ * the three secrets; with nobody watching, an actor votes too, on everyone but themselves (`me`).
+ */
+export function BallotForm({ v, actors: all, onSubmit, submitted, inShell, me }: { v: DramaView; actors: Actor[]; onSubmit: (b: Ballot) => void; submitted?: Ballot | null; inShell?: boolean; me?: string }) {
   const { lang } = useStore();
   const zh = lang === "zh";
+  const actors = me ? all.filter((a) => a.pid !== me) : all;
   const [guess, setGuess] = useState<string | null>(submitted?.guess ?? null);
   const [stars, setStars] = useState<Record<string, number>>(submitted?.stars ?? {});
   const show = v.mode === "show";
+  const options = show ? v.options ?? null : null;
   const complete = (!show || !!guess) && actors.every((a) => stars[a.pid]);
   return (
     <div className="dm-ballot">
-      {show && v.scene && (
+      {options && v.scene && (
+        <section>
+          <p className="dm-ask">
+            <MiniMask />
+            {zh ? v.scene.ask.zh : v.scene.ask.en}
+          </p>
+          <div className="dm-secrets" role="radiogroup" aria-label={zh ? v.scene.ask.zh : v.scene.ask.en}>
+            {options.map((o, i) => (
+              <button
+                key={i}
+                type="button"
+                role="radio"
+                aria-checked={guess === String(i)}
+                className={`dm-secret ${guess === String(i) ? "is-on" : ""}`}
+                onClick={() => {
+                  setGuess(String(i));
+                  sfx.tap();
+                  haptic(8);
+                }}
+              >
+                <span className="dm-secret-mark" aria-hidden="true">
+                  {String.fromCharCode(65 + i)}
+                </span>
+                {zh ? o.zh : o.en}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      {show && !options && v.scene && (
         <section>
           <p className="dm-ask">
             <MiniMask />
@@ -636,15 +701,21 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
   }, [key]);
   const tx = (x: T) => (zh ? x.zh : x.en);
   const culpritActor = actors.find((a) => a.pid === r.culprit);
+  // a monologue: the answer is one of the three secrets, not a person
+  const options = v.mode === "show" ? v.options ?? null : null;
   const headline =
     v.mode === "pk"
       ? zh
         ? "谁演得更像？"
         : "Who sold it?"
       : r.caught
-        ? zh
-          ? `「${v.scene?.culprit.zh}」就是 ${culpritActor?.name ?? "TA"}！`
-          : `${culpritActor?.name ?? "They"} did it!`
+        ? options
+          ? zh
+            ? "秘密被猜中了！"
+            : "Busted! The secret's out."
+          : zh
+            ? `「${v.scene?.culprit.zh}」就是 ${culpritActor?.name ?? "TA"}！`
+            : `${culpritActor?.name ?? "They"} did it!`
         : zh
           ? `${culpritActor?.name ?? "TA"} 骗过了所有人！`
           : `${culpritActor?.name ?? "They"} fooled everyone!`;
@@ -652,8 +723,8 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
     <div className="dm-reveal">
       <canvas className="dm-confetti" ref={canvas} aria-hidden="true" />
       <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live>
-        <div className={`dm-spot-culprit ${step >= 1 && v.mode === "show" ? "is-on" : ""}`} aria-hidden="true" />
-        <Cast actors={actors} culprit={step >= 1 && v.mode === "show" ? r.culprit : null} best={step >= 3 ? r.best : []} />
+        <div className={`dm-spot-culprit ${step >= 1 && v.mode === "show" && !options ? "is-on" : ""}`} aria-hidden="true" />
+        <Cast actors={actors} culprit={step >= 1 && v.mode === "show" && !options ? r.culprit : null} best={step >= 3 ? r.best : []} />
       </Backdrop>
       <div className="dm-verdict" data-step={step}>
         {step === 0 ? (
@@ -661,7 +732,23 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
         ) : (
           <h2 className={`dm-headline ${r.caught ? "is-caught" : ""}`}>{headline}</h2>
         )}
-        {step >= 1 && v.mode === "show" && (
+        {step >= 1 && options && (
+          <ol className="dm-secret-results">
+            {options.map((o, i) => (
+              <li key={i} className={r.answer === i ? "is-true" : ""}>
+                <span className="dm-secret-mark" aria-hidden="true">
+                  {String.fromCharCode(65 + i)}
+                </span>
+                <span>
+                  {tx(o)}
+                  {r.answer === i && <strong>{zh ? "（真的）" : " (the real one)"}</strong>}
+                </span>
+                <small className="tabular">{zh ? `${r.counts[String(i)] ?? 0} 票` : `${r.counts[String(i)] ?? 0} ${r.counts[String(i)] === 1 ? "vote" : "votes"}`}</small>
+              </li>
+            ))}
+          </ol>
+        )}
+        {step >= 1 && v.mode === "show" && !options && (
           <p className="hint dm-count">
             {actors.map((a) => `${a.name} ${r.counts[a.pid] ?? 0}${zh ? " 票" : ""}`).join(zh ? "，" : " · ")}
             {!zh && " votes"}
@@ -721,7 +808,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
                 : zh
                   ? "没有人猜对"
                   : "Nobody guessed right"}
-              {!r.caught && (zh ? "；坏人逍遥法外 +3" : "; the culprit walks free: +3")}
+              {!r.caught && (options ? (zh ? "；秘密没被猜中，演员 +3" : "; the secret stayed hidden: +3 to the actor") : zh ? "；坏人逍遥法外 +3" : "; the culprit walks free: +3")}
             </p>
           )}
           {r.losers.length > 0 && r.penalty && (
@@ -835,15 +922,17 @@ export function Rules() {
   const { lang } = useStore();
   return lang === "zh" ? (
     <>
-      <p>每一幕抽一个狗血剧本，几个人上台演，其余的人当观众。每个演员会拿到一张只有自己能看的身份牌：自己的角色、一个小秘密和一个秘密任务。其中一个人偷偷是「坏人」（小三、凶手、内鬼……），他的牌上写着他干了什么。</p>
-      <p>演到一半会弹出一个剧情反转。演完以后，观众先猜谁是坏人，再给每个演员的演技打 1 到 5 星。</p>
+      <p>每一幕开始前，每个人选「我要上台」「都行」或「我只看」。剧本按上台的人数来分，一个人到八个人都有；没人报名时，从选「都行」的人里随机抽几个上台。</p>
+      <p>每个演员会拿到一张只有自己能看的身份牌：自己的角色、一个小秘密和一个秘密任务。其中一个人偷偷是「坏人」（小三、凶手、内鬼……），他的牌上写着他干了什么。一个人上台时是独角戏：台上的人藏着三个秘密里的一个，观众猜是哪一个。</p>
+      <p>演到一半会弹出一个剧情反转。演完以后，观众先猜谁是坏人，再给每个演员的演技打 1 到 5 星。没人当观众时，演员互相猜、互相打星，不能投自己。</p>
       <p>计分：猜对 +1；没被多数人认出来的坏人 +3；每个演员加平均星数。受罚：星最少的演员；坏人被认出来就一起罚，没被认出来，被他骗了的观众受罚。星最多的拿下本幕最佳演员。</p>
       <p>演技 PK：两个人用不同的状态说同一句台词，观众打分，分低的受罚。</p>
     </>
   ) : (
     <>
-      <p>Each act draws a melodramatic scene. A few players go on stage; the rest are the audience. Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the homewrecker, the killer, the mole...), and their card says what they did.</p>
-      <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars.</p>
+      <p>Before each act, everyone picks “I'll act”, “Either way” or “Just watching”. The scene fits however many go up, from one to eight; with no volunteers, a few of the “Either way” crowd go up at random.</p>
+      <p>Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the homewrecker, the killer, the mole...), and their card says what they did. With one on stage, it's a monologue: the actor is hiding one of three secrets, and the audience guesses which.</p>
+      <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars. With nobody watching, the actors guess and rate each other, never themselves.</p>
       <p>Points: a right guess +1; a culprit most people miss +3; every actor gets their average stars. Penalty: the actor with the fewest stars, plus the culprit if caught, or everyone the culprit fooled if not. Most stars wins best actor.</p>
       <p>Acting duel: two players say the same line in two different states; the audience scores, and the lower score pays.</p>
     </>

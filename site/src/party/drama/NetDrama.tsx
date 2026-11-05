@@ -16,6 +16,7 @@ import { loadLibrary, SceneWriter, TableScenes } from "./writer";
 import { useStore } from "../../store";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { useSettle } from "./ShellActions";
+import { StageCall } from "./StageCall";
 import { dramaSfx } from "./sound";
 
 export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) {
@@ -63,6 +64,9 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
     return () => { ctl.abort(); if (!settled) libAsked.current = false; setLibraryLoading(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHost, v.lib, libraryAttempt]);
+  // who's on stage next: each player says for themselves
+  const stageCall = player && <StageCall v={v} ids={players.map((s) => s.id)} nameOf={nameOf} face={face} me={me} onWant={(want) => g("want", { want })} />;
+  const blocked = v.next ? !v.next.ok : false;
   const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = false; setLibraryAttempt((n) => n + 1); } }} />;
 
   // the scene has its own sound: the lounge music waits
@@ -94,6 +98,9 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   useCue(v.phase === "end", () => sfx.win());
 
   const audience = players.filter((s) => !v.cast.some((c) => c.pid === s.id)).length;
+  // the audience votes; with nobody watching, the actors do, on each other
+  const voter = player && (v.peer ? acting : !acting);
+  const voters = v.peer ? v.cast.length : audience;
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
       <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={live}>
@@ -113,11 +120,12 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
               <Marquee />
             </div>
             <SetupPanel cfg={v} disabled={!isHost} onChange={(c) => g("config", c)} />
+            {stageCall}
             {tableScenes}
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={players.length < 3} onClick={settle(() => g("start"))}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={players.length < 3 || blocked} onClick={settle(() => g("start"))}>
                 <Play size={18} />
-                {players.length < 3 ? (zh ? "至少三个人才能开演" : "Needs at least three") : zh ? "开演" : "Curtain up"}
+                {players.length < 3 ? (zh ? "至少三个人才能开演" : "Needs at least three") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "开演" : "Curtain up"}
               </button>
             ) : (
               <Waiting>{zh ? "等主人选好剧本" : "Waiting for the host to pick the show"}</Waiting>
@@ -190,19 +198,21 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                 {zh ? "演完了，开始投票" : "That's a wrap: vote"}
               </button>
             )}
-            {!acting && !isHost && player && <p className="dm-wait-note">{zh ? "好好看，等会儿要投票：谁是坏人？谁演得最像？" : "Watch closely: you'll vote on the culprit and the acting."}</p>}
+            {!acting && !isHost && player && <p className="dm-wait-note">{v.options ? (zh ? "好好看，等会儿要猜：台上的人藏着哪个秘密？" : "Watch closely: you'll guess which secret they're hiding.") : zh ? "好好看，等会儿要投票：谁是坏人？谁演得最像？" : "Watch closely: you'll vote on the culprit and the acting."}</p>}
           </>
         )}
 
         {v.phase === "vote" && (
           <>
             {stage(false, false)}
-            {player && !acting ? (
-              <BallotForm key={`${v.round}`} v={v} actors={actors} submitted={v.myVote} onSubmit={(b) => g("vote", b)} />
+            {voter ? (
+              <BallotForm key={`${v.round}`} v={v} actors={actors} submitted={v.myVote} onSubmit={(b) => g("vote", b)} me={v.peer ? me : undefined} />
+            ) : v.peer ? (
+              <Waiting>{zh ? `演员在互相打分（${v.voted.length}/${voters}）` : `The actors are rating each other (${v.voted.length}/${voters})`}</Waiting>
             ) : (
-              <Waiting>{zh ? `观众在投票（${v.voted.length}/${audience}）` : `The audience is voting (${v.voted.length}/${audience})`}</Waiting>
+              <Waiting>{zh ? `观众在投票（${v.voted.length}/${voters}）` : `The audience is voting (${v.voted.length}/${voters})`}</Waiting>
             )}
-            {player && !acting && v.myVote && <p className="dm-wait-note">{zh ? `已交卷，等其他人（${v.voted.length}/${audience}）` : `Sent. Waiting for the rest (${v.voted.length}/${audience})`}</p>}
+            {voter && v.myVote && <p className="dm-wait-note">{zh ? `已交卷，等其他人（${v.voted.length}/${voters}）` : `Sent. Waiting for the rest (${v.voted.length}/${voters})`}</p>}
             <HostRow>
               {v.voted.length > 0 && <HostButton onClick={settle(() => g("reveal"))}>{zh ? "现在揭晓" : "Reveal now"}</HostButton>}
             </HostRow>
@@ -213,12 +223,13 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
           <>
             <Reveal v={v} actors={actors} me={me} face={face} />
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("next"))}>
-                {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={v.round < v.total && blocked} onClick={settle(() => g("next"))}>
+                {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "下一幕" : "Next act"}
               </button>
             ) : (
               <Waiting>{zh ? "等主人拉开下一幕" : "Waiting for the host"}</Waiting>
             )}
+            {v.round < v.total && stageCall}
             {tableScenes}
           </>
         )}
@@ -226,9 +237,10 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
         {v.phase === "end" && (
           <>
             <Finale v={v} ids={players.map((s) => s.id)} nameOf={nameOf} face={face} me={me} />
+            {stageCall}
             {isHost && (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("more"))}>
-                {zh ? "再演三幕" : "Three more acts"}
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={blocked} onClick={settle(() => g("more"))}>
+                {blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "再演三幕" : "Three more acts"}
               </button>
             )}
           </>

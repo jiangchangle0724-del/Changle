@@ -637,6 +637,8 @@ export type DramaView = {
     penalty: T | null;
     /** points each player got this round */
     gained: Record<string, number>;
+    /** a monologue: which of `options` was the actor's real secret */
+    answer?: number | null;
   } | null;
   scores: Record<string, number>;
   /** best-actor awards so far */
@@ -647,6 +649,14 @@ export type DramaView = {
   mine: { id: string; title: T; by: string | null; played: boolean }[];
   /** how many public-library scenes this table has drawn */
   lib: number;
+  /** who wants to act in the next scene, and who only wants to watch (no entry: either) */
+  want?: Record<string, "act" | "watch">;
+  /** the next scene's cast: `lo` to `hi` actors (one number once anyone volunteers); `ok` false when nobody can go on */
+  next?: { lo: number; hi: number; ok: boolean; auto: boolean };
+  /** nobody is watching: the actors vote on each other */
+  peer?: boolean;
+  /** a monologue: three secrets, one of them the actor's, for the audience to choose from */
+  options?: T[] | null;
 };
 
 /** 打碟 · DJ Booth (the shapes behind it: src/shared/dj/types.ts). */

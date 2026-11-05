@@ -12,6 +12,7 @@ import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { useWakeLock } from "../sensors";
 import { DramaActionHost, useSettle } from "./ShellActions";
+import { StageCall } from "./StageCall";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
@@ -209,6 +210,11 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // a face on a little body, in the colour the player's face has everywhere else
   const actors: Actor[] = v.cast.map((c) => ({ pid: c.pid, role: c.role, name: nameOf(c.pid), face: (size: number) => face(c.pid, size), body: <Figure seat={{ id: nameOf(c.pid), name: nameOf(c.pid), on: true }} /> }));
   const audience = ids.filter((pid) => !v.cast.some((c) => c.pid === pid));
+  // the phone goes round the audience to vote; with nobody watching, round the actors
+  const voters = v.peer ? v.cast.map((c) => c.pid) : audience;
+  // who acts next: the phone taps their names (nobody tapped: picked at random)
+  const blocked = v.next ? !v.next.ok : false;
+  const stageCall = <StageCall v={v} ids={ids} nameOf={nameOf} face={face} onWant={(want, who) => act(host, "want", { who, want })} />;
 
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
@@ -227,9 +233,9 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   let turn: string | undefined;
   if (v.phase === "setup") {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" disabled={ids.length < 3} onClick={settle(() => act(host, "start"))}>
+      <button type="button" className="btn btn-primary btn-lg" disabled={ids.length < 3 || blocked} onClick={settle(() => act(host, "start"))}>
         <Play size={18} />
-        {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : zh ? "开演" : "Curtain up"}
+        {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "开演" : "Curtain up"}
       </button>
     );
     body = (
@@ -238,6 +244,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           <Marquee />
         </div>
         <SetupPanel cfg={v} onChange={(c) => act(host, "config", c)} />
+        {ids.length >= 3 && stageCall}
         {tableScenes}
       </>
     );
@@ -322,8 +329,12 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         <p className="dm-wait-note">
           {v.mode === "show"
             ? zh
-              ? "手机放桌上，演到一半会有剧情反转，大声念出来！"
-              : "Phone on the table. Halfway through, a plot twist lands: read it out loud!"
+              ? v.options
+                ? "手机放桌上，大家盯紧台上的人：TA 藏着哪个秘密？演到一半的剧情反转，要大声念出来！"
+                : "手机放桌上，演到一半会有剧情反转，大声念出来！"
+              : v.options
+                ? "Phone on the table, eyes on the actor: which secret are they hiding? Read the plot twist out loud when it lands!"
+                : "Phone on the table. Halfway through, a plot twist lands: read it out loud!"
             : zh
               ? "两人轮流用自己的状态说这句台词"
               : "Each says the line in their own style"}
@@ -331,7 +342,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       </>
     );
   } else if (v.phase === "vote") {
-    const left = audience.filter((pid) => !v.voted.includes(pid));
+    const left = voters.filter((pid) => !v.voted.includes(pid));
     const pid = left[0];
     if (step.k === "intro" || !pid) {
       actions = (
@@ -342,7 +353,19 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       body = (
         <>
           {stage(false, false)}
-          <p className="dm-wait-note">{zh ? `轮到观众投票：谁是坏人？谁演得最像？（${v.voted.length}/${audience.length}）` : `The audience votes: who's the culprit, and who acted best? (${v.voted.length}/${audience.length})`}</p>
+          <p className="dm-wait-note">
+            {v.peer
+              ? zh
+                ? `没人当观众：演员轮流投票，猜谁是坏人、给别人打星，不能投自己（${v.voted.length}/${voters.length}）`
+                : `Nobody watched, so the actors take turns: guess the culprit and rate the others, never yourself (${v.voted.length}/${voters.length})`
+              : v.options
+                ? zh
+                  ? `轮到观众投票：台上的人藏着哪个秘密？演得像不像？（${v.voted.length}/${voters.length}）`
+                  : `The audience votes: which secret were they hiding, and how convincing were they? (${v.voted.length}/${voters.length})`
+                : zh
+                  ? `轮到观众投票：谁是坏人？谁演得最像？（${v.voted.length}/${voters.length}）`
+                  : `The audience votes: who's the culprit, and who acted best? (${v.voted.length}/${voters.length})`}
+          </p>
         </>
       );
     } else {
@@ -362,6 +385,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
             key={`${v.round}-${pid}`}
             v={game.view(pid)}
             actors={actors}
+            me={v.peer ? pid : undefined}
             onSubmit={(b) => {
               act(pid, "vote", b);
               setStep({ k: "pass", i: 0 });
@@ -372,13 +396,14 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     }
   } else if (v.phase === "reveal" && v.result) {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "next"))}>
-        {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
+      <button type="button" className="btn btn-primary btn-lg" disabled={v.round < v.total && blocked} onClick={settle(() => act(host, "next"))}>
+        {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "下一幕" : "Next act"}
       </button>
     );
     body = (
       <>
         <Reveal v={v} actors={actors} face={face} />
+        {v.round < v.total && stageCall}
         {tableScenes}
       </>
     );
@@ -388,14 +413,15 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => game.reset())}>
           {zh ? "重新选剧本" : "Back to the setup"}
         </button>
-        <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "more"))}>
-          {zh ? "再演三幕" : "Three more acts"}
+        <button type="button" className="btn btn-primary btn-lg" disabled={blocked} onClick={settle(() => act(host, "more"))}>
+          {blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "再演三幕" : "Three more acts"}
         </button>
       </>
     );
     body = (
       <>
         <Finale v={v} ids={ids} nameOf={nameOf} face={face} />
+        {stageCall}
       </>
     );
   }

@@ -11,6 +11,7 @@ import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, t
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
 import { PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
+import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dramaSizes } from "../src/shared/engine/games/drama";
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
@@ -1396,10 +1397,14 @@ test("drama: every built-in scene in both languages, and an evening of hard scen
   const cjk = /[㐀-鿿]/;
   ok(new Set(DRAMA_SCENES.map((s) => s.id)).size === DRAMA_SCENES.length, "no two scenes share an id");
   const bad = DRAMA_SCENES.filter((s) => {
-    const texts = [s.title, s.setup, s.culprit, s.culpritCard, s.ask, s.twist, ...s.roles.flatMap((r) => [r.name, r.brief, r.alibi])];
-    return s.roles.length < 2 || s.roles.length > 4 || !texts.every((x) => cjk.test(x.zh) && !!x.en && !cjk.test(x.en));
+    // a monologue: one role (no secret of its own) and three secrets to choose from; a big scene
+    // can play with fewer, never with fewer than two
+    const solo = s.roles.length === 1;
+    const texts = [s.title, s.setup, s.culprit, s.culpritCard, s.ask, s.twist, ...s.roles.flatMap((r) => (solo ? [r.name, r.brief] : [r.name, r.brief, r.alibi])), ...(s.secrets ?? [])];
+    const shape = solo ? s.secrets?.length === 3 && s.min === undefined : !s.secrets && s.roles.length <= DRAMA_MAX_CAST && (s.min === undefined || (s.min >= 2 && s.min < s.roles.length));
+    return !shape || !texts.every((x) => cjk.test(x.zh) && !!x.en && !cjk.test(x.en));
   });
-  ok(!bad.length, `every scene has two to four roles and every line in Chinese and in English (${bad.map((s) => s.id).join(", ")})`);
+  ok(!bad.length, `every scene has one to eight roles (a monologue three secrets) and every line in Chinese and in English (${bad.map((s) => s.id).join(", ")})`);
   // three or four at the table put two on stage: on hard, scenes written for two, an evening's worth
   const two = DRAMA_SCENES.filter((s) => s.diff === "hard" && s.roles.length === 2);
   ok(two.filter((s) => s.level === "all").length >= 10 && two.length >= 16, "ten all-ages hard scenes for two actors, sixteen for a spicy table");
@@ -1442,6 +1447,124 @@ test("drama: how to act a scene: every guide fits its scene, in Chinese and in E
   const sc = DRAMA_SCENES.find((s) => s.id === "family-new-year-dumplings")!;
   ok(dramaRoleGuide(sc.id, sc.roles[1].name) === DRAMA_GUIDES[sc.id].roles[1], "a role's guide is found by its name");
   ok(dramaRoleGuide(sc.id, { zh: "没有这个角色", en: "Nobody" }) === undefined && dramaRoleGuide("w1", sc.roles[0].name) === undefined, "a role that isn't there, or a scene a player wrote, has none");
+});
+
+test("drama: who acts: each player says on stage or watching, and the scene fits however many go up", () => {
+  type V = V<"drama">;
+  const t = setup(10);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { total: 20 });
+  const st = () => t.eng.d.game!.s as { cast: string[]; culprit: string; order: number[]; scene: number | null };
+  let v = t.view<V>("p4");
+  ok(v.next?.ok && v.next.auto && v.next.lo === 2 && v.next.hi === dramaCastSize(10), "nobody has said: two to six of them go up");
+  t.g("p1", "want", { want: "act" });
+  t.g("p2", "want", { who: "p3", want: "watch" });
+  ok(t.view<V>("p4").want?.p1 === "act" && !t.view<V>("p4").want?.p3, "I say for myself; a guest can't say for someone else");
+  t.g("p0", "want", { who: "p3", want: "watch" });
+  ok(t.view<V>("p4").want?.p3 === "watch", "the host can (the one phone says for everyone)");
+  v = t.view<V>("p4");
+  ok(v.next?.ok && !v.next.auto && v.next.lo === 1 && v.next.hi === 1, "one volunteer: one goes up");
+
+  // one volunteer: a monologue, and the audience picks the real secret out of three
+  t.g("p0", "start");
+  v = t.view<V>("p4");
+  const sc = DRAMA_SCENES[st().scene!];
+  ok(v.phase === "brief" && v.cast.length === 1 && v.cast[0].pid === "p1" && sc.roles.length === 1, "the volunteer, alone on stage");
+  ok(v.options?.length === 3 && v.options.some((o) => o.zh === sc.secrets![0].zh), "everyone sees the three secrets");
+  ok(t.view<V>("p1").me?.secret.zh === sc.culpritCard.zh && !t.view<V>("p1").me?.culprit, "the actor's card is the real secret and what to do");
+  ok(!JSON.stringify(v).includes(sc.culpritCard.zh), "nobody else sees which one it is");
+  t.g("p1", "ready");
+  ok(t.view<V>("p4").phase === "act" && t.view<V>("p4").actMs === 60_000, "a monologue runs a minute");
+  t.advance(61_000);
+  const answer = String(st().order.indexOf(0));
+  const wrong = answer === "0" ? "1" : "0";
+  const crowd = t.ids.filter((id) => id !== "p1");
+  t.g("p4", "vote", { guess: "p1", stars: { p1: 4 } });
+  ok(t.view<V>("p4").voted.length === 0, "a monologue's guess is one of the secrets");
+  t.g("p1", "vote", { guess: answer, stars: {} });
+  ok(t.view<V>("p4").voted.length === 0, "the actor doesn't vote");
+  crowd.forEach((id, i) => t.g(id, "vote", { guess: i < 6 ? answer : wrong, stars: { p1: 4 } }));
+  v = t.view<V>("p4");
+  ok(v.phase === "reveal" && v.result!.answer === Number(answer) && v.result!.caught, "most found the secret: caught");
+  ok(v.result!.right.length === 6 && v.result!.losers.join() === "p1" && !v.result!.best.length && !v.awards.p1, "six were right; the actor pays, and a monologue has no best actor to beat");
+
+  // eight want to act: a scene for eight, and a longer one
+  t.g("p1", "want", { want: "watch" });
+  for (const id of ["p2", "p4", "p5", "p6", "p7", "p8", "p9", "p0"]) t.g(id, "want", { want: "act" });
+  ok(t.view<V>("p4").next?.lo === 8, "eight volunteers: eight go up");
+  t.g("p0", "next");
+  v = t.view<V>("p4");
+  const big = DRAMA_SCENES[st().scene!];
+  const [lo, hi] = dramaSizes(big);
+  ok(v.cast.length === 8 && lo <= 8 && hi >= 8 && st().cast.every((c) => t.view<V>("p4").want?.[c] === "act"), "all eight on stage, in a scene written for that many");
+  for (const c of st().cast) t.g(c, "ready");
+  ok(t.view<V>("p4").actMs === 150_000, "eight actors: a minute more than four");
+  t.g("p0", "cut");
+  ok(!t.view<V>("p4").peer, "two still watch: they vote");
+  // nine volunteers: eight go up, whoever has acted least
+  t.g("p3", "want", { want: "act" });
+  t.g("p0", "reveal");
+  for (const id of ["p1", "p3"]) t.g(id, "vote", { guess: st().cast[0], stars: Object.fromEntries(st().cast.map((c) => [c, 3])) });
+  t.g("p0", "next");
+  ok(st().cast.length === 8 && st().cast.includes("p3"), "nine want to act: eight go up, and the one who hasn't yet is among them");
+  // everyone would rather watch: nobody can go on
+  for (const id of t.ids) t.g(id, "want", { want: "watch" });
+  t.g("p0", "skip");
+  ok(!t.view<V>("p4").next?.ok && st().cast.includes("p3"), "everyone only watching: no new scene");
+  for (const id of t.ids) t.g(id, "want", { want: null });
+  ok(t.view<V>("p4").next?.auto && !Object.keys(t.view<V>("p4").want ?? {}).length, "and back to anyone");
+});
+
+test("drama: nobody watching: the actors vote on each other, never on themselves", () => {
+  type V = V<"drama">;
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "drama" });
+  for (const id of t.ids) t.g(id, "want", { want: "act" });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string };
+  ok(s.cast.length === 3 && t.view<V>("p0").peer === true, "all three act: they'll vote on each other");
+  for (const c of s.cast) t.g(c, "ready");
+  t.g("p0", "cut");
+  const innocents = s.cast.filter((c) => c !== s.culprit);
+  const others = (me: string) => s.cast.filter((c) => c !== me);
+  t.g(innocents[0], "vote", { guess: innocents[0], stars: Object.fromEntries(others(innocents[0]).map((c) => [c, 3])) });
+  ok(t.view<V>("p0").voted.length === 0, "nobody suspects themselves");
+  t.g(innocents[0], "vote", { guess: s.culprit, stars: { [s.culprit]: 3 } });
+  ok(t.view<V>("p0").voted.length === 0, "stars for everyone else");
+  t.g(innocents[0], "vote", { guess: s.culprit, stars: { [s.culprit]: 2, [innocents[1]]: 5, [innocents[0]]: 1 } });
+  t.g(innocents[1], "vote", { guess: innocents[0], stars: { [s.culprit]: 2, [innocents[0]]: 4 } });
+  t.g(s.culprit, "vote", { guess: innocents[0], stars: { [innocents[0]]: 4, [innocents[1]]: 5 } });
+  const v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.result!.counts[innocents[0]] === 2 && !v.result!.caught, "the culprit's own vote counts: an innocent takes the blame");
+  ok(v.result!.stars[innocents[0]] === 4 && v.result!.stars[innocents[1]] === 5 && v.result!.stars[s.culprit] === 2, "my stars for myself don't count");
+  ok(v.result!.losers.includes(innocents[1]) && !v.result!.losers.includes(innocents[0]) && v.scores[s.culprit] === 2 + 3, "the fooled one pays; the culprit isn't 'fooled' by their own vote, and walks off with three");
+  ok(v.result!.right.join() === innocents[0] && v.result!.best.join() === innocents[1], "one guessed right; most stars wins");
+});
+
+test("drama: a scene written for every number of actors, at every table", () => {
+  type V = V<"drama">;
+  const missing: string[] = [];
+  for (const level of ["all", "spicy"] as const) {
+    for (const diff of ["easy", "hard"] as const) {
+      for (let k = 1; k <= DRAMA_MAX_CAST; k++) {
+        const t = setup(10);
+        t.act("p0", { a: "start", game: "drama" });
+        t.g("p0", "config", { level, diff });
+        t.ids.forEach((id, i) => t.g(id, "want", { want: i < k ? "act" : "watch" }));
+        t.g("p0", "start");
+        const v = t.view<V>("p9");
+        const sc = DRAMA_SCENES.find((x) => x.id === v.scene?.id);
+        const [lo, hi] = sc ? dramaSizes(sc) : [0, 0];
+        if (!sc || v.cast.length !== k || lo > k || hi < k || (level === "all" && sc.level !== "all")) missing.push(`${level} ${diff} ${k}: ${sc?.id ?? "none"} with ${v.cast.length}`);
+      }
+    }
+  }
+  ok(!missing.length, `every table finds a scene for one to eight actors (${missing.join("; ")})`);
+  // tables of four to six get choices: several scenes for each of those numbers, on easy
+  for (let k = 4; k <= 6; k++) {
+    const n = DRAMA_SCENES.filter((s) => s.level === "all" && s.diff === "easy" && dramaSizes(s)[0] <= k && dramaSizes(s)[1] >= k).length;
+    ok(n >= 4, `all ages, easy, ${k} actors: ${n} scenes`);
+  }
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {

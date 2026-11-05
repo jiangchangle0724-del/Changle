@@ -1328,6 +1328,159 @@ def t_drama_single(browser):
     pg.context.close()
 
 
+def deal_cards(pg, n):
+    """One phone: hand the phone round the actors, each turning their card and passing it on."""
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="发身份牌").click()
+    for _ in range(n):
+        pg.wait_for_timeout(DM_SETTLE)
+        pg.locator(".game-actions .btn-primary").click()
+        pg.locator(".dm-card-back").click()
+        pg.wait_for_timeout(800)
+        pg.locator(".game-actions .btn-primary").click()
+    return until(lambda: pg.locator(".dm-clock").count() == 1, 3000)
+
+
+def t_drama_cast_single(browser):
+    """Who acts, on one phone: tap the names. One name: a monologue, and the audience picks the actor's
+    secret out of three. Every name: nobody's watching, so the actors vote on each other."""
+    pg = phone(browser, "cast-solo", players=PLAYERS)
+    pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+    pg.wait_for_selector(".dm-stagecall")
+    ok(pg.locator(".dm-stagecall-names .ui-pill-toggle").count() == 4, "one phone: every name, ready to tap")
+    ok("随机抽" in pg.locator(".dm-stagecall-next").inner_text(), "nobody tapped: picked at random")
+    pg.locator(".dm-stagecall-names .ui-pill-toggle", has_text="Mia").click()
+    ok("独角戏" in pg.locator(".dm-stagecall-next").inner_text(), "one name tapped: a one-person show next")
+    shot(pg, "dmc-stagecall")
+    pg.get_by_role("button", name="开演").click()
+    pg.wait_for_selector(".dm-roster")
+    ok(pg.locator(".dm-roster li").count() == 1 and pg.locator(".dm-roster li", has_text="Mia").count() == 1, "Mia, alone on stage")
+    ok(pg.locator(".dm-hunt-secrets li").count() == 3 and pg.locator(".dm-hunt").count() == 0, "the playbill lists the three secrets instead of a culprit to find")
+    shot(pg, "dmc-solo-brief")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="发身份牌").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.locator(".game-actions .btn-primary").click()
+    pg.locator(".dm-card-back").click()
+    pg.wait_for_timeout(800)
+    ok(pg.locator(".dm-card-secret").count() == 1 and pg.locator(".dm-card-secret.is-culprit").count() == 0, "Mia's card: her real secret and what to do, no culprit's mask")
+    shot(pg, "dmc-solo-card")
+    pg.locator(".game-actions .btn-primary").click()
+    ok(until(lambda: pg.locator(".dm-clock").count() == 1, 3000), "the monologue starts")
+    pg.wait_for_timeout(1600)
+    pg.get_by_role("button", name="演完了，开始投票").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="传手机投票").click()
+    for k in range(3):
+        pg.wait_for_timeout(DM_SETTLE)
+        pg.locator(".game-actions .btn-primary").click()
+        ok(pg.locator(".dm-secret").count() == 3 and pg.locator(".dm-suspect").count() == 0 and pg.locator(".dm-rates li").count() == 1, f"ballot {k + 1}: one of three secrets, and stars for Mia")
+        pg.locator(".dm-secret").nth(k % 3).click()
+        pg.locator(".dm-rates li").first.locator(".dm-star").nth(3).click()
+        if k == 0:
+            shot(pg, "dmc-solo-ballot")
+        pg.get_by_role("button", name="交卷").click()
+    ok(until(lambda: pg.locator(".dm-reveal").count() == 1, 3000), "every ballot in: the reveal")
+    ok(until(lambda: pg.locator(".dm-secret-results li").count() == 3, 4000) and pg.locator(".dm-secret-results li.is-true").count() == 1, "the votes for each secret, the real one marked")
+    pg.wait_for_timeout(3000)
+    shot(pg, "dmc-solo-reveal")
+    ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 9000), "then the penalty")
+    clear_stamps([pg])
+    for n in ["Steve", "Jay", "Kev"]:
+        pg.locator(".dm-stagecall-names .ui-pill-toggle", has_text=n).click()
+    ok("互相" in pg.locator(".dm-stagecall-next").inner_text(), "all four tapped: nobody watching, they'll vote on each other")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="下一幕").click()
+    ok(until(lambda: pg.locator(".dm-roster li").count() == 4, 3000) and pg.locator(".dm-peer-note").count() == 1, "four on stage; the playbill says they'll vote on each other")
+    shot(pg, "dmc-peer-brief")
+    ok(deal_cards(pg, 4), "four cards read: the scene starts")
+    pg.wait_for_timeout(1600)
+    pg.get_by_role("button", name="演完了，开始投票").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    ok(pg.locator(".dm-wait-note", has_text="演员轮流投票").count() == 1, "the phone goes round the actors")
+    pg.get_by_role("button", name="传手机投票").click()
+    names = set()
+    for k in range(4):
+        pg.wait_for_timeout(DM_SETTLE)
+        who = pg.locator(".game-actions .btn-primary").inner_text().replace("我是", "").strip()
+        names.add(who)
+        pg.locator(".game-actions .btn-primary").click()
+        suspects = pg.locator(".dm-suspect")
+        ok(suspects.count() == 3 and pg.locator(".dm-rates li").count() == 3 and pg.locator(".dm-suspect", has_text=who).count() == 0, f"{who}'s ballot: the other three, never themselves")
+        suspects.nth(k % 3).click()
+        rows = pg.locator(".dm-rates li")
+        for r in range(rows.count()):
+            rows.nth(r).locator(".dm-star").nth((r + k) % 5).click()
+        if k == 0:
+            shot(pg, "dmc-peer-ballot")
+        pg.get_by_role("button", name="交卷").click()
+    ok(len(names) == 4, "every actor voted once")
+    ok(until(lambda: pg.locator(".dm-truths li").count() == 4, 6000), "the reveal: every card")
+    errors([pg])
+    pg.context.close()
+
+
+def t_drama_cast_online(browser):
+    """Who acts, online: each player says for themselves; everyone sees it; the scene fits the volunteers."""
+    host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
+    everyone = [host] + guests
+    start_game(host, everyone, "drama")
+    ok(all(until(lambda g=g: g.locator(".dm-stagecall .ui-tabs-segmented").count() == 1, 4000) for g in everyone), "every phone asks: on stage next, either, or just watching")
+    for g in everyone:
+        g.get_by_role("radio", name="我只看").click()
+    ok(until(lambda: not view(host)["next"]["ok"], 3000), "everyone only wants to watch: nobody can go on")
+    ok(host.get_by_role("button", name="还没人上台").is_disabled(), "and the host can't start")
+    guests[0].get_by_role("radio", name="我要上台").click()
+    guests[1].get_by_role("radio", name="我要上台").click()
+    ok(until(lambda: view(host)["next"]["lo"] == 2 and host.locator(".dm-stagecall-who", has_text="Mia").count() == 1, 3000), "two volunteers: everyone sees who, and two go up")
+    shot(host, "dmc-online-stagecall")
+    host.get_by_role("button", name="开演").click()
+    ok(until(lambda: view(host)["phase"] == "brief", 5000), "curtain up")
+    cast = sorted(c["pid"] for c in view(host)["cast"])
+    ok(cast == sorted([me(guests[0]), me(guests[1])]), "the two volunteers are the cast")
+
+    def play_through(actors, voters, peer):
+        for a in actors:
+            a.locator(".dm-card-back").click()
+            a.wait_for_timeout(700)
+            a.locator(".dm-cardwrap .btn-primary").click()
+        ok(until(lambda: view(host)["phase"] == "act", 4000), "every card read: action")
+        actors[0].wait_for_timeout(DM_SETTLE)
+        actors[0].get_by_role("button", name="演完了，开始投票").click()
+        ok(until(lambda: view(host)["phase"] == "vote", 4000) and view(host)["peer"] == peer, f"the vote ({'the actors, on each other' if peer else 'the audience'})")
+        n = len(view(host)["cast"])
+        for k, g in enumerate(voters):
+            g.wait_for_selector(".dm-ballot")
+            mine = me(g) if peer else None
+            ok(g.locator(".dm-suspect").count() == (n - 1 if peer else n), f"{g._name}'s ballot: {'everyone but themselves' if peer else 'every actor'}")
+            g.locator(".dm-suspect").nth(k % g.locator(".dm-suspect").count()).click()
+            rows = g.locator(".dm-rates li")
+            for r in range(rows.count()):
+                rows.nth(r).locator(".dm-star").nth((r + k) % 5).click()
+            if peer and k == 0:
+                shot(g, "dmc-online-peer-ballot")
+            g.get_by_role("button", name="交卷").click()
+        ok(until(lambda: view(host)["phase"] == "reveal", 5000), "every vote in: the reveal")
+
+    actors = [g for g in everyone if me(g) in cast]
+    play_through(actors, [g for g in everyone if me(g) not in cast], False)
+    # the penalty lands eight seconds after the reveal: wait for it before moving on
+    until(lambda: any(g.locator(".stamp-layer").count() for g in everyone), 9500)
+    clear_stamps(everyone)
+    # next time everyone goes up: nobody's left watching, so the actors vote on each other
+    for g in everyone:
+        g.get_by_role("radio", name="我要上台").click()
+    ok(until(lambda: view(host)["next"]["lo"] == 4, 3000), "all four want to act")
+    host.wait_for_timeout(DM_SETTLE)
+    host.get_by_role("button", name="下一幕").click()
+    ok(until(lambda: view(host)["phase"] == "brief" and len(view(host)["cast"]) == 4, 5000) and view(host)["peer"], "act two: all four on stage")
+    ok(until(lambda: host.locator(".dm-peer-note").count() == 1, 3000) or host.locator(".dm-cardwrap").count() == 1, "the actors know they'll vote on each other")
+    play_through(everyone, everyone, True)
+    errors(everyone)
+    for g in everyone:
+        g.context.close()
+
+
 def write_scene(pg, title, by=None):
     """Fill in 戏精大赏's scene form and add it to the table."""
     pg.locator(".dm-written .btn").click()
@@ -1395,7 +1548,7 @@ def t_drama_duel(browser):
             ok(pg.locator(".dm-card-see").count() == 0, f"[{lang}] card {i + 1}: face down, nothing gives the style away")
             pg.locator(".dm-card-back").click()
             pg.wait_for_timeout(800)
-            ok(len(pg.locator(".dm-card-brief").inner_text()) > 12 and word in pg.locator(".dm-card-demo").inner_text(), f"[{lang}] card {i + 1}: what to do, and the everyday sentence said that way")
+            ok(len(pg.locator(".dm-card-brief").inner_text()) > 12 and word in pg.locator(".dm-card-demo").inner_text().lower(), f"[{lang}] card {i + 1}: what to do, and the everyday sentence said that way")
             ok(line in pg.locator(".dm-card-line").inner_text(), f"[{lang}] card {i + 1}: the line to say is on the card")
             see = pg.locator(".dm-card-see")
             ok(see.count() == 1 and (see.get_attribute("href") or "").startswith(site) and see.get_attribute("target") == "_blank", f"[{lang}] card {i + 1}: a link to videos of the style, opening in a new page")
@@ -1486,7 +1639,7 @@ def t_drama_online(browser):
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
     "superlatives": [t_superlatives_single, t_superlatives_online],
-    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written],
+    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],

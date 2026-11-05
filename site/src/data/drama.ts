@@ -1,9 +1,10 @@
 import type { T } from "../i18n";
+import { CAST_SCENES } from "./dramaCasts";
 
 /**
  * 戏精大赏 · Drama Queens: the scene library.
  *
- * A scene is a short improv set-up for 2 to 4 actors. Everyone sees the title, the set-up and the
+ * A scene is a short improv set-up for 1 to 8 actors. Everyone sees the title, the set-up and the
  * cast list; each actor also gets a private card. One actor, picked at random each time, is secretly
  * the culprit (the 小三, the killer, the mole...) and gets `culpritCard` instead of their own
  * `alibi`; the audience watches, then votes who the culprit is and rates how convincing each actor
@@ -14,10 +15,16 @@ import type { T } from "../i18n";
  *   too (that is what makes the guessing hard);
  * - `twist` lands on every phone halfway through and should shake the scene up for everyone.
  *
+ * A big scene can play with fewer: `min` is how many roles the story can't do without, listed
+ * first; the roles after them join when there are more actors (so nothing in the set-up, the
+ * culprit's card, the twist or the guide may depend on them). A monologue has one role and
+ * `secrets`: three things the actor might be hiding, the true one first; the actor's card
+ * (`culpritCard`) says what to do so the audience can catch it, and which wrong one to point at.
+ *
  * `level`: "all" is fine for any table (family, office, school); "spicy" (微辣) allows affairs,
  * exes, palace schemes, money and scandal, but nothing sexual, no slurs, no real people.
- * `diff`: "easy" scenes are obvious set-ups with 2 or 3 roles; "hard" ones have 2 to 4 roles (two
- * for small tables), a subtler culprit and red herrings that point several ways.
+ * `diff`: "easy" scenes are obvious set-ups; "hard" ones have a subtler culprit and red herrings
+ * that point several ways. The table gets scenes written for exactly as many actors as it puts up.
  *
  * Chinese and English are both first-class: write the English as a native would say it, not a
  * translation (names, food and jokes may differ between the two).
@@ -45,8 +52,12 @@ export type DramaScene = {
   title: T;
   /** the public premise, one or two sentences */
   setup: T;
-  /** 2 to 4 roles; any one of them may secretly be the culprit */
+  /** 1 to 8 roles; any one of them may secretly be the culprit */
   roles: DramaRole[];
+  /** fewer actors can play it: the first `min` roles are needed, the rest join if there are more actors */
+  min?: number;
+  /** a monologue (one role): three secrets the audience chooses from, the actor's real one first */
+  secrets?: T[];
   /** the hidden identity the audience hunts for */
   culprit: T;
   /** the culprit's private card: what they did and what to hide */
@@ -1567,6 +1578,8 @@ export const SCENES: DramaScene[] = [
     ask: t("谁是那位面具舞伴？", "Who was the masked dancer?"),
     twist: t("王爷宣布：谁能跳出他昨晚跳的那支舞，他就娶谁。说完就开始哼那段曲子。", "The prince announces he'll marry whoever can dance last night's steps, and starts humming the tune."),
   },
+  // a monologue, and casts of four to eight
+  ...CAST_SCENES,
 ];
 
 /** A private rule for each actor on top of their card. */
