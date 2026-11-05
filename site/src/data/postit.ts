@@ -192,14 +192,66 @@ function close(a: string, b: string) {
   return slips(a, b) <= (b.length >= 9 ? 2 : 1);
 }
 
+const HANZI = /[㐀-鿿]/;
+/** What people say round a guess: "我猜我是一只…吗", "I think I'm a… right?" */
+const LEAD_ZH = /^(?:那|嗯|哦|啊|所以|我猜|我觉得|我想|我认为|应该|可能|大概|也许|难道|肯定|一定|会不会|该不会|是不是|就|我|是|叫)*(?:一个|一只|一位|一条|一头|一种|一名|一台|一部|一座|一颗|个|只)?/;
+const TAIL_ZH = /(?:吗|吧|呢|啊|呀|嘛|么|对吧|对不对|对吗|是吧|是吗|没错吧)+$/;
+const LEAD_EN = new Set("i im am are is it its this that a an the think guess bet say maybe probably perhaps must might could be so oh um uh well ok okay hmm definitely some kind sort of like just my answer".split(" "));
+const TAIL_EN = new Set("right maybe probably please lol haha i think guess am is it".split(" "));
+const ARTICLES = new Set(["a", "an", "the"]);
+
+const wordsOf = (x: string) =>
+  x
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/['’]/g, "")
+    .split(/[\s·・.,，。!！?？"“”\-_()（）]+/)
+    .filter(Boolean);
+
+/**
+ * A guess with the words round it taken off: "我是不是猫？" and "I think I'm a cat, right?" both
+ * say cat. Something is always left: a guess that is nothing but such words stays as it is.
+ */
+function bareGuess(guess: string) {
+  if (HANZI.test(guess)) {
+    const all = strip(guess);
+    return all.replace(TAIL_ZH, "").replace(LEAD_ZH, "") || all;
+  }
+  const words = wordsOf(guess);
+  let a = 0;
+  let b = words.length;
+  while (b - a > 1 && LEAD_EN.has(words[a])) a++;
+  while (b - a > 1 && TAIL_EN.has(words[b - 1])) b--;
+  return words.slice(a, b).join("");
+}
+
+/** A note's name without its article ("The Beatles", "A cat"). A Chinese name stays whole: 只狼 is not 狼. */
+function bareName(name: string) {
+  if (HANZI.test(name)) return strip(name);
+  const words = wordsOf(name);
+  return words.slice(words.length > 1 && ARTICLES.has(words[0]) ? 1 : 0).join("");
+}
+
+/** The same word, give or take a slip in a long name or an s on the end ("cats" for "cat"). */
+function same(a: string, b: string) {
+  if (close(a, b)) return true;
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  return short.length >= 3 && !HANZI.test(long) && long === `${short}s`;
+}
+
 /** Does a guess name this note, in either language or a common nickname? */
 export function guessMatches(guess: string, note: { zh: string; en: string }, alias: string[] = []) {
   const g = strip(guess);
   if (!g) return false;
+  const bare = bareGuess(guess);
   return [note.zh, note.en, ...alias].some((name) => {
     const n2 = strip(name);
     if (!n2) return false;
     if (close(g, n2)) return true;
+    // "我是猫", "I'm a cat", "cats?": the name itself once the words round it are gone, so a note
+    // of one character or three letters can be guessed in a sentence too
+    const core = bareName(name);
+    if (bare && core && same(bare, core)) return true;
     // "is it harry potter" / "是不是孙悟空": the name inside a short question, not a list of names
     const cjk = /[\u3400-\u9fff]/.test(n2);
     const extra = g.length - n2.length;
