@@ -24,6 +24,9 @@ for (const g of GAMES) {
   ok(gameFrom(g.slug) === g.id && gameFrom(g.id) === g.id, `${g.slug} and the old id ${g.id} both find ${g.id}`);
   if (g.hidden) {
     ok(same(at(`/g/${g.slug}`), { kind: "home", tab: "party" }), `/g/${g.slug} is home: a hidden game has no card`);
+    const play = at(`/g/${g.slug}/play`);
+    if (g.speaker) ok(same(play, { kind: "tv", game: g.id }), `/g/${g.slug}/play is its big screen`);
+    else ok(g.ready ? same(play, { kind: "game", id: g.id }) : play.kind === "home", `/g/${g.slug}/play ${g.ready ? "opens the hidden game: its own address is the only way in" : "is home (not playable yet)"}`);
     continue;
   }
   ok(same(at(`/g/${g.slug}`), { kind: "home", tab: "party", game: g.id }), `/g/${g.slug} is its card over home`);

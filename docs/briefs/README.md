@@ -14,7 +14,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 29 个对话，每个�
 | 平台 · 账号与头像 | [accounts.md](accounts.md) | 登录、个人页、AI 头像、好友、聊天、后台 |
 | 平台 · 大屏 | [tv.md](tv.md) | changle.ca/tv |
 
-## 小游戏（16 个）
+## 小游戏（17 个）
 
 | 对话名 | 档案 | 网址 |
 | --- | --- | --- |
@@ -34,6 +34,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 29 个对话，每个�
 | 游戏 · 猜歌名 | [tune.md](tune.md) | changle.ca/g/name-that-tune |
 | 游戏 · 神回复 | [punchline.md](punchline.md) | changle.ca/g/punchline |
 | 游戏 · 你画我猜 | [draw.md](draw.md) | changle.ca/g/draw-and-guess |
+| 游戏 · 一本正经 | [straightface.md](straightface.md) | changle.ca/g/straight-face（先藏着，`/play` 能进） |
 
 ## 大游戏和工具（8 个）
 

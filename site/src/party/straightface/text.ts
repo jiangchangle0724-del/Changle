@@ -1,0 +1,91 @@
+/** Every word the one-phone screen says, in both languages (the rules sheet switches them mid-game). */
+import type { T } from "../../i18n";
+
+const t = (zh: string, en: string): T => ({ zh, en });
+
+export const S = {
+  // roles
+  judge: t("裁判", "Judge"),
+  honest: t("老实人", "The honest one"),
+  bluffer: t("瞎编的人", "A bluffer"),
+  // setup
+  level: t("难度", "Difficulty"),
+  level1: t("半熟", "Half-known"),
+  level2: t("冷门", "Niche"),
+  level3: t("没人听过", "Obscure"),
+  packs: t("词包", "Packs"),
+  seedsOn: t("新手模式", "Beginner mode"),
+  seedsHint: t("瞎编的人会看到两条可以编的方向", "Bluffers see two angles they could run with"),
+  betsOn: t("全场押注", "Side bets"),
+  betsHint: t("解释完后，大家押谁是老实人", "After the explanations, everyone bets on who was honest"),
+  seated: t("{n} 人在座，每人当一次裁判，大约 {m} 分钟。", "{n} at the table, each judges once: about {m} minutes."),
+  tooMany: t("最多 9 人。先在「今晚的人」里减到 9 个。", "Nine at most. Trim tonight's people to nine first."),
+  bestWith: t("4 到 9 人最好玩；3 人是二选一。", "Best with 4 to 9; with 3 it is a coin toss."),
+  start: t("开始", "Start"),
+  // the term
+  termUp: t("这一轮的词", "This round's word"),
+  showTable: t("把屏幕转给大家看，然后开始传手机。", "Turn the screen to the table, then start passing the phone."),
+  startPassing: t("开始传手机", "Start passing the phone"),
+  levelDealt: t("抽到的难度", "Dealt at"),
+  // peeking
+  passTo: t("把手机交给", "Pass the phone to"),
+  backToJudge: t("交回给裁判", "Back to the judge"),
+  holdToSee: t("按住看身份", "Hold to see your part"),
+  holdHint: t("只有你能看。松手就黑，{n} 秒到自动结束。", "Only you see this. Let go and it goes dark; it ends by itself after {n} seconds."),
+  youAreHonest: t("你是老实人", "You are the honest one"),
+  honestHint: t("等会儿照着这段说，说得像自己早就知道。", "Say this as if you have always known it."),
+  youAreBluffer: t("你是瞎编的人", "You are bluffing"),
+  blufferHint: t("等会儿现编一个解释，一本正经地说。", "Make up a meaning and say it with a straight face."),
+  seedsLead: t("可以往这些方向编：", "Angles you could run with:"),
+  peekDone: t("看好了", "Seen"),
+  secondsLeft: t("还剩 {n} 秒", "{n}s left"),
+  // explaining
+  order: t("发言顺序", "Speaking order"),
+  orderHint: t("程序随机排的，不按座位。", "Shuffled by the game, not seat order."),
+  startSpeaking: t("开始发言", "Start the explanations"),
+  nowSpeaking: t("正在解释", "Explaining now"),
+  nextSpeaker: t("下一位", "Next speaker"),
+  lastSpeaker: t("都说完了", "All done"),
+  tag: t("贴疑点", "Tag a suspect"),
+  tagged: t("疑点贴给了 {name}", "Tag on {name}"),
+  tagWho: t("疑点贴给谁？贴中瞎编的人 +1，贴到老实人 −2。贴了的人不能再被指认。", "Tag whom? A bluffer: +1. The honest one: −2. The tagged player can no longer be accused."),
+  tagCancel: t("先不贴", "Not now"),
+  ask: t("可以问：", "You could ask:"),
+  moreAsks: t("换几个问题", "Other questions"),
+  // bets
+  betWho: t("{name}，你押谁是老实人？", "{name}, who do you think is honest?"),
+  betHint: t("押中 +1。老实人也要按一下，不然一看就知道。", "Right: +1. The honest one taps too, or everyone would know."),
+  betsDone: t("大家都押完了", "All bets are in"),
+  // accusing
+  accuseWho: t("{name}，谁是老实人？", "{name}, who is the honest one?"),
+  accuseHint: t("指对了，你和老实人各得分。指错了，瞎编的人得分。", "Right: you and the honest one both score. Wrong: the bluffer scores."),
+  taggedMark: t("疑点", "tagged"),
+  // reveal
+  truth: t("真释义", "The real meaning"),
+  funFact: t("冷知识", "Fun fact"),
+  honestWas: t("老实人是", "The honest one was"),
+  skip: t("直接看完", "Show everything"),
+  nextRound: t("下一轮", "Next round"),
+  seeResult: t("看结果", "See the result"),
+  masterPicks: t("{name} 是大忽悠，指定一个人{penalty}", "{name} is the master bluffer: pick someone to {penalty}"),
+  drinkWord: t("喝一口", "drink"),
+  penaltyWord: t("受罚", "take the penalty"),
+  penFooled: t("看走眼", "Fooled"),
+  penCaught: t("被当场抓包", "Caught bluffing"),
+  penMaster: t("{name} 指定的", "Picked by {name}"),
+  // between rounds and the end
+  scores: t("比分", "Scores"),
+  nextJudge: t("下一轮裁判", "Next judge"),
+  startRound: t("开始第 {n} 轮", "Start round {n}"),
+  finished: t("打完了", "Game over"),
+  winner: t("{name} 赢了", "{name} wins"),
+  tie: t("{names} 并列第一，一起{penalty}", "{names} tie for first and {penalty} together"),
+  fooledOnce: t("骗到裁判 1 次", "fooled the judge once"),
+  fooledTimes: t("骗到裁判 {n} 次", "fooled the judge {n} times"),
+  learned: t("今晚学到的 {n} 个词", "{n} words you learned tonight"),
+  playAgain: t("再来一局", "Play again"),
+  points: t("分", "pts"),
+  round: t("第 {n} 轮", "Round {n}"),
+} as const;
+
+export type SKey = keyof typeof S;
