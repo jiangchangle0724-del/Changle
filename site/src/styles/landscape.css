@@ -72,7 +72,7 @@
   }
 
   /* ---- the big picture on the left, when the screen has one ---- */
-  .game-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox),
+  .game-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox, .eu-table),
   .net-body:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox) {
     padding-left: calc(44% + 20px);
   }
@@ -113,6 +113,17 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
+  }
+  /* one phone, Euchre: the card table is the big picture on the left, the score, your hand and
+     the buttons on the right; it keeps its own grid of four seats */
+  .game-body .eu-table {
+    position: absolute;
+    left: 0;
+    top: 46px;
+    bottom: 0;
+    width: 44%;
+    margin: 0;
+    align-content: center;
   }
   /* online, the reactions row sits along the bottom */
   .net-body .bottle-stage,
@@ -233,7 +244,7 @@
     justify-content: flex-start;
   }
   /* text-heavy games: one comfortable column instead of a wall of text */
-  .game-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox)) > *,
+  .game-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox, .eu-table)) > *,
   .net-body:not(:has(.bottle-stage, > .card-stage, > .dice-stage, > .wheel-svg, .tn-stage, .tn > .vinyl, .deck-stack, .plate-draw, .plate-watch, .fz > .floor, .lb > .limbo-scene, .dm-stagebox)) > * {
     max-width: 640px;
     width: 100%;
