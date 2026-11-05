@@ -357,19 +357,229 @@ test("a computer team can't take a city from a team whose phones dropped: it sen
 // (The question bank itself is checked in trivia.test.ts.)
 
 const cityOf = (qid: string) => TRIVIA_BY_ID.get(qid)!.city;
+/** The city a team stands on (null on any other space): the team on turn, unless a seat is given. */
+const cityUnder = (g: Table["game"], seat = g.s.turn) => {
+  const sp = E.BOARD[g.s.ps[seat].pos];
+  return sp.k === "city" ? sp.id : null;
+};
+/** A test room for the quiz itself: every landing on a city brings a question, with no rest between two. */
+const OFTEN = { triviaEvery: 0 };
+/** The room's private parts the quiz tests reach for. */
+type QuizRoom = { landedOn(city: string): void; openTrivia(city: string): void };
+/**
+ * The question on its way and the one that is up, read through a function: after an assertion on the
+ * property itself, TypeScript would take it to stay as asserted through everything the room does next.
+ */
+const dueOf = (g: Table["game"]) => g.triviaDue ?? null;
+const upIn = (g: Table["game"]) => g.trivia;
 
-test("waiting teams race to answer: a wrong answer locks you out, the first right one wins", () => {
+/**
+ * Play on until a team lands on a city and a question is on its way, then let the move play on the
+ * screens: the landing's question is up. (In a game just started, the team that landed is still on
+ * turn: the scripted phones move only when asked to.)
+ */
+function nextQuestion(t: Table) {
+  const g = t.game;
+  t.playUntil(() => !!g.triviaDue);
+  const due = g.triviaDue!;
+  assert.equal(due.city, cityUnder(g, due.seat), "the question on its way is about the city its team landed on");
+  t.clock.t = due.at;
+  t.room.tick();
+  t.settle();
+  assert.ok(g.trivia, "the landing brought a question");
+  return g.trivia!;
+}
+
+/**
+ * A table whose game is under way with a question up (a test room where every landing on a city
+ * brings one): the team that landed, still on turn; the others, the teams it's for; each one's seat.
+ * With the quiz off, the game has only started: the first team hasn't thrown.
+ */
+function quizTable(settings: Partial<import("../src/room/protocol").Settings> = {}, seed = 5, humans = 3, bots = 0) {
+  const t = new Table({ ...OFTEN, ...settings }, seed);
+  const ps = lobby(t, humans, bots);
+  t.send(ps[0], { t: "start" });
+  if (settings.trivia !== false) nextQuestion(t);
+  const seatOf = (p: Phone) => t.view(p).you.seats[0];
+  const onTurn = ps.find((p) => seatOf(p) === t.game.s.turn)!;
+  const others = ps.filter((p) => p !== onTurn);
+  return { t, ps, seatOf, onTurn, others };
+}
+
+test("a landing on a city brings the waiting teams a question about that city, once its move has played on every screen", () => {
+  // (the first throw, 5 + 6, lands on Istanbul)
+  const t = new Table({ ...OFTEN, dice: [5, 6] }, 5);
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  const g = t.game;
+  const seatOf = (p: Phone) => t.view(p).you.seats[0];
+  const onTurn = ps.find((p) => seatOf(p) === g.s.turn)!;
+  const other = ps.find((p) => p !== onTurn)!;
+  assert.equal(upIn(g), null, "a new turn brings no question by itself");
+  assert.equal(dueOf(g), null);
+  const thrown = t.clock.t;
+  t.send(onTurn, { t: "act", d: g.decision, a: {}, seat: g.s.turn });
+  assert.equal(cityUnder(g), "istanbul");
+  // (the team's first visit to Istanbul: the question waits for the move and the landing scene to play)
+  assert.deepEqual(g.triviaDue, { city: "istanbul", seat: g.s.turn, at: thrown + TIMING.landing * 0.05 }, "the question waits for the move and the landing scene");
+  assert.equal(upIn(g), null);
+  assert.equal(t.view(other).game!.trivia, null, "nothing on a phone says where the token is going");
+  assert.ok(t.room.nextWake()! <= g.triviaDue!.at, "the room wakes up for it");
+  t.clock.t = g.triviaDue!.at - 1;
+  t.room.tick();
+  t.settle();
+  assert.equal(upIn(g), null, "not a moment before");
+  t.clock.t += 1;
+  t.room.tick();
+  t.settle();
+  const tv = g.trivia!;
+  assert.ok(tv, "the stamp is down: the question comes up");
+  assert.equal(cityOf(tv.qid), "istanbul");
+  assert.equal(dueOf(g), null);
+  assert.equal(g.triviaAt, t.clock.t, "the quiz's rest before the next one starts here");
+  assert.deepEqual(
+    [...tv.eligible].sort(),
+    ps
+      .filter((p) => p !== onTurn)
+      .map(seatOf)
+      .sort(),
+    "for the teams whose turn it isn't",
+  );
+  assert.equal(t.view(other).game!.trivia!.city, "istanbul");
+  assert.equal(t.view(onTurn).game!.trivia!.answerFor, null);
+
+  // A landing anywhere else brings none (1 + 3: the departure tax).
+  const t2 = new Table({ ...OFTEN, dice: [1, 3] }, 5);
+  const ps2 = lobby(t2, 3);
+  t2.send(ps2[0], { t: "start" });
+  const g2 = t2.game;
+  t2.send(ps2.find((p) => t2.view(p).you.seats[0] === g2.s.turn)!, { t: "act", d: g2.decision, a: {}, seat: g2.s.turn });
+  assert.equal(E.BOARD[g2.s.ps[g2.s.turn].pos].k, "tax");
+  assert.equal(dueOf(g2), null);
+  t2.clock.t += 60_000;
+  t2.room.tick();
+  assert.equal(upIn(g2), null);
+});
+
+test("the quiz rests eight minutes between two questions, and four from the start of a game to its first; a pause doesn't count", () => {
+  // (a room at its real pace but for the tests' clock, a twentieth of the real one)
+  const ms = (k: keyof typeof TIMING) => TIMING[k] * 0.05;
+  assert.equal(TIMING.triviaEvery, 8 * 60_000);
+  assert.equal(TIMING.triviaFirst, 4 * 60_000);
   const t = new Table({}, 5);
   const ps = lobby(t, 3);
   t.send(ps[0], { t: "start" });
   const g = t.game;
+  const room = t.room as unknown as QuizRoom;
+  const start = t.clock.t;
+  assert.equal(g.triviaAt, start);
+  room.landedOn("tokyo");
+  assert.equal(dueOf(g), null, "too early: a landing in a game's first minutes brings none");
+  t.clock.t = start + ms("triviaFirst") - 1;
+  room.landedOn("tokyo");
+  assert.equal(dueOf(g), null, "still resting a moment before the four minutes are up");
+  // A pause in between: its time is not the quiz's.
+  t.send(ps[0], { t: "pause", on: true });
+  t.clock.t += 5 * 60_000;
+  t.send(ps[0], { t: "pause", on: false });
+  room.landedOn("tokyo");
+  assert.equal(dueOf(g), null, "the pause didn't count");
+  t.clock.t += 1;
+  room.landedOn("tokyo");
+  assert.deepEqual(g.triviaDue, { city: "tokyo", seat: g.s.turn, at: t.clock.t + ms("triviaLand") }, "four minutes of play: this landing brings the game's first");
+  room.landedOn("paris");
+  assert.equal(g.triviaDue!.city, "tokyo", "one at a time: a landing while one is on its way changes nothing");
+  // A pause before it comes up moves it on too.
+  const due = g.triviaDue!.at;
+  t.send(ps[0], { t: "pause", on: true });
+  t.clock.t += 1000;
+  t.room.tick();
+  assert.equal(upIn(g), null, "nothing comes up in a pause");
+  t.send(ps[0], { t: "pause", on: false });
+  assert.equal(g.triviaDue!.at, due + 1000);
+  t.clock.t = g.triviaDue!.at;
+  t.room.tick();
+  t.settle();
+  const first = g.trivia!;
+  assert.equal(cityOf(first.qid), "tokyo");
+  const asked = t.clock.t;
+  // The rest starts again from the question: nothing until eight more minutes have gone by.
+  room.landedOn("paris");
+  assert.equal(dueOf(g), null, "not while a question is up");
+  t.clock.t = first.endsAt;
+  t.room.tick();
+  t.clock.t = g.trivia!.revealUntil;
+  t.room.tick();
+  t.settle();
+  assert.equal(upIn(g), null);
+  t.clock.t = asked + ms("triviaFirst");
+  room.landedOn("paris");
+  assert.equal(dueOf(g), null, "four minutes on: that was for the first, now it's eight");
+  t.clock.t = asked + ms("triviaEvery") - 1;
+  room.landedOn("paris");
+  assert.equal(dueOf(g), null, "resting still");
+  t.clock.t += 1;
+  room.landedOn("paris");
+  assert.equal(g.triviaDue?.city, "paris");
+});
+
+test("a team that moves on before its question is up takes the question with it; a second visit's question comes sooner", () => {
+  /** A game where the first team throws 4 + 4 (Mexico City, and doubles: it throws again), then `next`. */
+  const afterDoubles = (next: [number, number]) => {
+    const t = new Table({ ...OFTEN, dice: [4, 4, ...next] }, 5);
+    lobby(t, 3);
+    t.send(t.phones[0], { t: "start" });
+    const g = t.game;
+    const seat = g.s.turn;
+    const rolls = () => t.seen.filter((f) => f.t === "game" && f.e.t === "roll").length;
+    const thrower = t.phones.find((p) => t.view(p).you.seats.includes(seat))!;
+    const act = () => {
+      const v = t.view(thrower).game!;
+      const k = v.s.pending?.k;
+      // (Mexico City has its visitor ban two faces of the dice: the fives and sixes, which this test doesn't throw)
+      t.send(thrower, { t: "act", d: v.decision, a: k === "ban" ? { pair: 2 } : k === "buy" ? { yes: true } : {}, seat });
+    };
+    act();
+    assert.equal(rolls(), 1);
+    assert.equal(dueOf(g)?.city, "mexicocity");
+    assert.equal(dueOf(g)?.seat, seat);
+    // The team settles what Mexico City asks of it and throws again, before the question is up.
+    for (let i = 0; i < 20 && rolls() < 2; i++) act();
+    assert.equal(rolls(), 2);
+    assert.equal(g.s.turn, seat, "still its turn");
+    assert.equal(upIn(g), null);
+    return { t, g, seat };
+  };
+  // 1 + 2 more: Istanbul. The question on its way is Istanbul's now.
+  const a = afterDoubles([1, 2]);
+  assert.equal(cityUnder(a.g), "istanbul");
+  assert.deepEqual(dueOf(a.g), { city: "istanbul", seat: a.seat, at: a.t.clock.t + TIMING.landing * 0.05 });
+  // 1 + 3 more: the currency exchange, not a city. No question is on its way any more.
+  const b = afterDoubles([1, 3]);
+  assert.equal(cityUnder(b.g), null);
+  assert.equal(dueOf(b.g), null, "Mexico City's question went with the team");
+  b.t.clock.t += 60_000;
+  b.t.room.tick();
+  assert.equal(upIn(b.g), null);
+
+  // A city the team has been to before has no landing scene to wait for: its question comes once the move has played.
+  const { t } = quizTable({ trivia: false }, 5);
+  t.room.st.settings.trivia = true;
+  (t.room as unknown as QuizRoom).landedOn("paris");
+  assert.equal(dueOf(t.game)!.at, t.clock.t + TIMING.triviaLand * 0.05);
+  assert.ok(TIMING.triviaLand < TIMING.landing);
+  // (the longest move, from the press on the dice to the stamp and the question's return: tests/ride-oracle.test.ts)
+  assert.ok(TIMING.triviaLand >= 4200, "never before the token is down");
+});
+
+test("waiting teams race to answer: a wrong answer locks you out, the first right one wins", () => {
+  const { t, seatOf, onTurn, others } = quizTable({}, 5);
+  const g = t.game;
   const tv = g.trivia!;
-  assert.ok(tv, "a question opens with the first turn");
-  const seatOf = (p: Phone) => t.view(p).you.seats[0];
-  const onTurn = ps.find((p) => seatOf(p) === g.s.turn)!;
-  const [slow, quick] = ps.filter((p) => p !== onTurn);
+  const [slow, quick] = others;
   const shown = t.view(slow).game!.trivia!;
   assert.equal(shown.city, cityOf(tv.qid));
+  assert.equal(shown.city, cityUnder(g), "about the city the team on turn has just landed on");
   assert.equal(shown.key, tv.qid, "phones get the question's id, to remember it");
   assert.equal(shown.answerFor, seatOf(slow));
   assert.equal(t.view(onTurn).game!.trivia!.answerFor, null, "the team on turn doesn't answer");
@@ -405,86 +615,174 @@ test("waiting teams race to answer: a wrong answer locks you out, the first righ
   t.send(quick, { t: "trivia", id: tv.id, choice: right });
   assert.equal(g.s.ps[seatOf(quick)].cash, cash[seatOf(quick)] + TRIVIA_PRIZE, "one prize per question");
 
-  t.playUntil(() => g.trivia?.id !== tv.id);
+  t.clock.t = g.trivia!.revealUntil;
+  t.room.tick();
+  t.settle();
+  assert.equal(upIn(g), null, "the answer has been up long enough: it goes");
   assert.deepEqual(t.refusals, []);
 });
 
-test("nobody right: the question times out, shows the answer, then the next turn asks another", () => {
-  const t = new Table({}, 8);
-  const ps = lobby(t, 2);
-  t.send(ps[0], { t: "start" });
+test("nobody right: the question times out and shows the answer; a later landing brings another", () => {
+  const { t, ps } = quizTable({}, 8, 2);
   const g = t.game;
   const first = g.trivia!;
-  const firstTurn = g.s.turns;
-  t.playUntil(() => !!g.trivia?.closed);
+  t.clock.t = first.endsAt;
+  t.room.tick();
+  t.settle();
+  assert.equal(g.trivia!.closed, true);
   assert.equal(g.trivia!.winner, null);
   const shown = t.view(ps[1]).game!.trivia!;
   assert.equal(shown.correct, first.order.indexOf(0), "the answer is shown when time runs out");
-  t.playUntil(() => !!g.trivia && g.trivia.id !== first.id);
-  assert.ok(g.s.turns > firstTurn, "a later turn asks a new question");
+  t.clock.t = g.trivia!.revealUntil;
+  t.room.tick();
+  t.settle();
+  assert.equal(upIn(g), null);
+  const second = nextQuestion(t);
+  assert.notEqual(second.id, first.id);
+  assert.notEqual(second.qid, first.qid);
 });
 
-test("never the same question twice in one game: once every one has been asked, the quiz rests", () => {
-  const t = new Table({ testRounds: 60 }, 9);
+test("never the same question twice in one game, each about the city just landed on; a city with none left brings none", () => {
+  const t = new Table({ ...OFTEN, testRounds: 60 }, 9);
   lobby(t, 1, 3);
   t.send(t.phones[0], { t: "start" });
   const g = t.game;
   const asked: number[] = [];
   const ids: string[] = [];
+  let onItsWay: string | null = null;
+  let noted: unknown = null;
   const note = () => {
+    if (g.triviaDue && g.triviaDue !== noted) {
+      noted = g.triviaDue;
+      assert.equal(g.triviaDue.seat, g.s.turn);
+      assert.equal(g.triviaDue.city, cityUnder(g), "a question on its way is about the city the team on turn has just landed on");
+    }
+    if (g.triviaDue) onItsWay = g.triviaDue.city;
     const tv = g.trivia;
     if (tv && asked.at(-1) !== tv.id) {
       asked.push(tv.id);
       ids.push(tv.qid);
+      assert.equal(cityOf(tv.qid), onItsWay, "the question that comes up is the landing's");
     }
   };
-  t.playUntil(() => (note(), ids.length >= 30 || g.s.over));
-  assert.ok(ids.length >= 30, `only ${ids.length} questions in a long game`);
+  // (one person and three computer teams: a landing brings a question when the person is one of the
+  // teams waiting and none is up, a good ten times in a long game)
+  t.playUntil(() => (note(), ids.length >= 10 || g.s.over));
+  assert.ok(ids.length >= 10, `only ${ids.length} questions in a long game`);
   assert.equal(new Set(ids).size, ids.length, "no question twice");
-  // The same game later on, with all but three questions asked: those three, then no more.
-  t.playUntil(() => !g.trivia || g.s.over);
-  const last = TRIVIA.map((q) => q.id)
-    .filter((id) => !g.triviaAsked.includes(id))
-    .slice(-3);
-  g.triviaAsked = TRIVIA.map((q) => q.id).filter((id) => !last.includes(id));
-  let turnsAfter = 0;
-  t.playUntil(() => {
-    note();
-    if (g.triviaAsked.length === TRIVIA.length && !g.trivia) turnsAfter += 1;
-    return turnsAfter > 300 || g.s.over;
-  });
-  assert.deepEqual(ids.slice(-3).sort(), [...last].sort(), "the last three, once each");
-  assert.equal(new Set(ids).size, ids.length, "no question twice, all game");
-  assert.equal(g.triviaAsked.length, TRIVIA.length);
-  assert.equal(new Set(g.triviaAsked).size, TRIVIA.length);
-  assert.equal(g.trivia, null, "and then the quiz rests");
+  assert.deepEqual(g.triviaAsked, ids);
+
+  // The same game later on, with one of Tokyo's questions left to ask: that one, then none about Tokyo.
+  t.playUntil(() => (!g.trivia && !g.triviaDue) || g.s.over);
+  assert.equal(g.s.over, false);
+  const room = t.room as unknown as QuizRoom;
+  const tokyo = TRIVIA.filter((q) => q.city === "tokyo").map((q) => q.id);
+  const last = tokyo.find((id) => !g.triviaAsked.includes(id)) ?? tokyo[3];
+  g.triviaAsked = [...g.triviaAsked.filter((id) => id !== last), ...tokyo.filter((id) => id !== last && !g.triviaAsked.includes(id))];
+  const human = t.view(t.phones[0]).you.seats[0];
+  // (the person's team has to be one of the waiting teams: it's for them)
+  t.playUntil(() => (g.s.turn !== human && !g.trivia && !g.triviaDue) || g.s.over);
+  assert.equal(g.s.over, false);
+  room.openTrivia("tokyo");
+  assert.equal(upIn(g)?.qid, last, "the one left");
+  g.trivia = null;
+  const before = [...g.triviaAsked];
+  room.openTrivia("tokyo");
+  assert.equal(upIn(g), null, "none left about Tokyo: landing there brings none");
+  assert.deepEqual(g.triviaAsked, before);
+  room.openTrivia("paris");
+  const paris = upIn(g);
+  assert.ok(paris === null || cityOf(paris.qid) === "paris", "other cities still have theirs");
 });
 
-test("the quiz never asks about a city the team on turn could land on with this roll", () => {
-  const t = new Table({}, 12);
-  const ps = lobby(t, 3);
+test("nobody there to answer, no question: the quiz waits for another landing", () => {
+  // One person and two computer teams. The person's own landing would be for the computers alone.
+  const t = new Table({ ...OFTEN }, 6);
+  const ps = lobby(t, 1, 2);
   t.send(ps[0], { t: "start" });
   const g = t.game;
-  const room = t.room as unknown as { openTrivia(): void };
-  for (let pos = 0; pos < E.BOARD_SIZE; pos++) {
-    const s = g.s;
-    s.ps[s.turn].pos = pos;
-    const near = new Set<string>();
-    for (let k = 0; k <= 12; k++) {
-      const sp = E.BOARD[(((pos + k * s.dir) % E.BOARD_SIZE) + E.BOARD_SIZE) % E.BOARD_SIZE];
-      if (sp.k === "city") near.add(sp.id);
-    }
-    for (let n = 0; n < 5; n++) {
-      g.trivia = null;
-      g.triviaAsked = [];
-      room.openTrivia();
-      assert.ok(!near.has(cityOf(g.trivia!.qid)), `asked about ${cityOf(g.trivia!.qid)} from space ${pos}`);
-    }
+  const room = t.room as unknown as QuizRoom;
+  const me = t.view(ps[0]).you.seats[0];
+  t.playUntil(() => g.s.turn === me && !g.trivia && !g.triviaDue);
+  const at = g.triviaAt;
+  const asked = [...g.triviaAsked];
+  room.openTrivia("venice");
+  assert.equal(upIn(g), null, "only computer teams are waiting");
+  assert.deepEqual(g.triviaAsked, asked, "no question was used up");
+  assert.equal(g.triviaAt, at, "and the quiz isn't resting: the next landing can bring one");
+  // On a computer team's turn the person is one of the waiting teams.
+  t.playUntil(() => g.s.turn !== me && !g.trivia && !g.triviaDue);
+  room.openTrivia("venice");
+  assert.equal(cityOf(g.trivia!.qid), "venice");
+  assert.equal(t.view(ps[0]).game!.trivia!.answerFor, me);
+  // …unless their phone has gone: then nobody is there.
+  g.trivia = null;
+  t.room.leave(ps[0].id);
+  room.openTrivia("paris");
+  assert.equal(upIn(g), null, "the person's phone is away");
+});
+
+test("the one-phone demo: a landing's question is for the other team at the same phone; a person alone gets the computer teams' landings", () => {
+  // Two teams of people at one phone: the one that isn't on turn answers.
+  const t = new Table({ hotseat: true, ...OFTEN }, 3);
+  const dp = phone(1);
+  t.join(dp, "Me");
+  t.send(dp, { t: "team", op: "create" });
+  t.send(dp, { t: "team", op: "create" });
+  t.send(dp, { t: "start" });
+  const g = t.game;
+  nextQuestion(t);
+  const shown = t.view(dp).game!.trivia!;
+  assert.equal(shown.forYou, true);
+  assert.equal(shown.answerFor, 1 - g.s.turn, "the phone answers for the team that's waiting");
+  assert.equal(shown.city, cityUnder(g));
+
+  // A person alone with a computer team: their own landing is for the computer alone, so it brings none…
+  const solo = new Table({ hotseat: true, ...OFTEN }, 3);
+  const sp = phone(2);
+  solo.join(sp, "Me");
+  solo.send(sp, { t: "team", op: "create" });
+  solo.send(sp, { t: "bot", op: "add", style: "balanced" });
+  solo.send(sp, { t: "start" });
+  const sg = solo.game;
+  const me = solo.view(sp).you.seats[0];
+  const room = solo.room as unknown as QuizRoom;
+  solo.playUntil(() => sg.s.turn === me && !sg.trivia && !sg.triviaDue);
+  room.openTrivia("tokyo");
+  assert.equal(upIn(sg), null);
+  // …and the computer team's landing is for the person.
+  solo.playUntil(() => sg.s.turn !== me && !sg.trivia && !sg.triviaDue);
+  room.openTrivia("tokyo");
+  assert.equal(solo.view(sp).game!.trivia?.answerFor, me);
+});
+
+test("a big screen prints the fact behind a city's rule on its arrival card: the landing's question isn't that one", () => {
+  const { t } = quizTable({}, 5);
+  const g = t.game;
+  const room = t.room as unknown as QuizRoom;
+  const others = TRIVIA.filter((q) => q.city === "bangkok" && q.id !== "bangkok-01").map((q) => q.id);
+  // No big screen: phones don't show that fact on a landing, so it can be asked.
+  g.trivia = null;
+  g.triviaAsked = [...others];
+  room.openTrivia("bangkok");
+  assert.equal(upIn(g)?.qid, "bangkok-01");
+  // A big screen on: with the others asked, none.
+  assert.ok(t.room.join("member-9-xxxxxxxx", "key-9-secret-xxxx", { role: "screen" }));
+  g.trivia = null;
+  g.triviaAsked = [...others];
+  room.openTrivia("bangkok");
+  assert.equal(upIn(g), null);
+  // …and with all of them to choose from, never that one.
+  for (let i = 0; i < 30; i++) {
+    g.trivia = null;
+    g.triviaAsked = [];
+    room.openTrivia("bangkok");
+    assert.notEqual(upIn(g)!.qid, "bangkok-01");
   }
 });
 
 test("computer teams answer the quiz, but the computer covering for absent people doesn't", () => {
-  const t = new Table({}, 6);
+  const t = new Table({ ...OFTEN }, 6);
   const ps = lobby(t, 2, 2);
   t.send(ps[0], { t: "start" });
   const away = t.game.seats.indexOf(t.room.st.members[ps[1].id].team!);
@@ -501,9 +799,7 @@ test("computer teams answer the quiz, but the computer covering for absent peopl
 });
 
 test("pausing holds the quiz clock, and a saved game comes back without a stale question", () => {
-  const t = new Table({}, 7);
-  const ps = lobby(t, 3);
-  t.send(ps[0], { t: "start" });
+  const { t, ps } = quizTable({}, 7);
   const tv = t.game.trivia!;
   const left = tv.endsAt - t.clock.t;
   t.send(ps[0], { t: "pause", on: true });
@@ -521,23 +817,28 @@ test("pausing holds the quiz clock, and a saved game comes back without a stale 
   // Saves from before the quiz have none of its fields.
   delete file.game.triviaAsked;
   delete file.game.triviaTurn;
+  delete file.game.triviaAt;
+  delete file.game.triviaDue;
   const t2 = new Table();
   t2.room = Room.fromSave("5678", file, makeEnv(t2.clock, 3));
   assert.equal(t2.game.trivia, null);
   assert.deepEqual(t2.game.triviaAsked, []);
+  assert.equal(t2.game.triviaDue, null);
+  assert.equal(t2.game.triviaAt, t2.clock.t, "the quiz's rest starts afresh in the new room");
   for (const p of ps) t2.join(p, "again");
   const teams = t2.view(ps[0]).teams.filter((x) => !x.bot);
   ps.forEach((p, i) => t2.send(p, { t: "team", op: "join", team: teams[i].id }));
   t2.send(ps[0], { t: "pause", on: false });
-  t2.playUntil(() => t2.game.s.turns >= t.game.s.turns + 3 && !!t2.game.trivia);
+  // (the save kept the test room's settings: the next landing on a city brings a question)
+  t2.playUntil(() => t2.game.s.turns >= t.game.s.turns + 3);
+  nextQuestion(t2);
 });
 
 test("rooms and saves from before question ids: what was asked carries over, a question up is dropped", () => {
-  const t = new Table({}, 7);
-  const ps = lobby(t, 2);
-  t.send(ps[0], { t: "start" });
+  const { t, ps } = quizTable({}, 7, 2);
   t.room.handle(ps[0].id, { t: "save" });
   const file = JSON.parse(JSON.stringify(t.settle().save!.file));
+  assert.ok(file.game.trivia, "a question is up");
   // How a save looked then: questions counted by their place in the list of 22.
   delete file.game.triviaAsked;
   file.game.triviaUsed = [0, 11, 21];
@@ -550,34 +851,36 @@ test("rooms and saves from before question ids: what was asked carries over, a q
   delete st.game.triviaAsked;
   st.game.triviaUsed = [3];
   st.game.trivia = { ...st.game.trivia, q: 3, qid: undefined };
+  // (and from before questions came with landings: no time of the last one, none on its way)
+  delete st.game.triviaAt;
+  delete st.game.triviaDue;
   const back = new Room(st, makeEnv(t.clock, 4));
   assert.equal(back.st.game!.trivia, null, "a question from the old list isn't shown");
   assert.deepEqual(back.st.game!.triviaAsked, ["mexicocity-01"]);
   assert.equal("triviaUsed" in back.st.game!, false);
+  // Such a room counts the quiz's rest from the game's start.
+  const room = back as unknown as QuizRoom;
+  back.st.settings.triviaEvery = 1000;
+  back.st.game!.startedAt = t.clock.t - 999;
+  room.landedOn("tokyo");
+  assert.equal(back.st.game!.triviaDue ?? null, null);
+  back.st.game!.startedAt = t.clock.t - 1000;
+  room.landedOn("tokyo");
+  assert.equal(back.st.game!.triviaDue?.city, "tokyo");
 });
 
-/** A table whose game is under way: the team on turn, the others, and each one's seat. */
-function quizTable(settings: Partial<import("../src/room/protocol").Settings> = {}, seed = 5, humans = 3, bots = 0) {
-  const t = new Table(settings, seed);
-  const ps = lobby(t, humans, bots);
-  t.send(ps[0], { t: "start" });
-  const seatOf = (p: Phone) => t.view(p).you.seats[0];
-  const onTurn = ps.find((p) => seatOf(p) === t.game.s.turn)!;
-  const others = ps.filter((p) => p !== onTurn);
-  return { t, ps, seatOf, onTurn, others };
-}
-
 /**
- * The bug Steve saw ("sometimes the quiz can't be answered"): a question comes up at the start of a
- * team's turn, for the other teams. That team plays its turn out in a few seconds while the question
- * is still up, and on its phone the question sat there with three answers that did nothing when
- * tapped (and a line saying the first right answer wins). Now a team joins in once its turn is over.
+ * The bug Steve saw ("sometimes the quiz can't be answered"): a question was up, for the other teams,
+ * when a team's turn ended a few seconds later, and on its phone the question sat there with three
+ * answers that did nothing when tapped (and a line saying the first right answer wins). Now a team
+ * joins in once its turn is over: the team whose landing brought the question, most often.
  */
-test("a team on turn when a question comes up can answer it once its turn is over", () => {
-  // (a throw of 5 + 6 lands on Istanbul, for sale: buy it, end the turn; no clock needed)
+test("the team on turn when a question comes up can answer it once its turn is over", () => {
+  // (a throw of 5 + 6 lands on Istanbul, for sale: its question comes up; buy it, end the turn)
   const { t, seatOf, onTurn, others } = quizTable({ dice: [5, 6] }, 5);
   const g = t.game;
   const tv = g.trivia!;
+  assert.equal(cityOf(tv.qid), "istanbul");
   const first = seatOf(onTurn);
   assert.equal(t.view(onTurn).game!.trivia!.answerFor, null, "not during its own turn");
   const turns = g.s.turns;
@@ -651,9 +954,9 @@ test("这题不答 (skip): no charge, the question goes from that phone, and it 
 });
 
 test("这题不答 on one phone of a team of two: the other phone can still answer for the team", () => {
-  // (a seed where the pair's team isn't on turn, so the question is for it)
+  // (a seed where the pair's team isn't the one whose landing brings the question, so it's for the pair)
   for (let seed = 1; seed < 50; seed++) {
-    const t = new Table({}, seed);
+    const t = new Table({ ...OFTEN }, seed);
     const ps = lobby(t, 2);
     const mate = phone(7);
     t.join(mate, "Mate");
@@ -661,8 +964,8 @@ test("这题不答 on one phone of a team of two: the other phone can still answ
     t.send(ps[0], { t: "start" });
     const g = t.game;
     const pair = t.view(ps[1]).you.seats[0];
+    const tv = nextQuestion(t);
     if (pair === g.s.turn) continue;
-    const tv = g.trivia!;
     t.send(ps[1], { t: "trivia-skip", id: tv.id });
     assert.equal(g.trivia!.closed, false, "one of the two phones skipped: the team is still in");
     assert.equal(t.view(mate).game!.trivia!.answerFor, pair, "the other phone answers for the team");
@@ -674,16 +977,17 @@ test("这题不答 on one phone of a team of two: the other phone can still answ
 });
 
 test("phones send the questions they've seen; the room asks the ones they haven't first", () => {
-  const t = new Table({}, 9);
+  // (the first throw, 5 + 6, lands on Istanbul: of its questions, the phones have seen all but two)
+  const t = new Table({ ...OFTEN, dice: [5, 6] }, 9);
   const ps = lobby(t, 2);
-  const fresh = ["tokyo-01", "venice-01"];
+  const fresh = ["istanbul-03", "istanbul-07"];
   const seen = TRIVIA.map((q) => q.id).filter((id) => !fresh.includes(id));
   for (const p of ps) t.send(p, { t: "seen", ids: seen });
   t.send(ps[0], { t: "start" });
-  // (from Departure, the team on turn can reach none of these two cities with this throw)
-  assert.ok(fresh.includes(t.game.trivia!.qid), `asked ${t.game.trivia!.qid}, which they've seen`);
+  const tv = nextQuestion(t);
+  assert.ok(fresh.includes(tv.qid), `asked ${tv.qid}, which they've seen`);
   // The room remembers what it asked, for the next game in this room.
-  assert.ok(t.room.st.members[ps[0].id].seen!.includes(t.game.trivia!.qid));
+  assert.ok(t.room.st.members[ps[0].id].seen!.includes(tv.qid));
   // Anything that isn't a list of question ids is left out; a phone keeps only its newest ids.
   t.send(ps[1], { t: "seen", ids: ["<b>", 42, "tokyo-01", "tokyo-01", "x".repeat(300)] as unknown as string[] });
   assert.deepEqual(t.room.st.members[ps[1].id].seen, ["tokyo-01"]);
@@ -695,7 +999,7 @@ test("phones send the questions they've seen; the room asks the ones they haven'
 });
 
 test("the host can turn the quiz off for the whole game in the lobby; it's on unless they do", () => {
-  const t = new Table({}, 4);
+  const t = new Table({ ...OFTEN }, 4);
   const ps = lobby(t, 2, 1);
   assert.equal(t.view(ps[1]).settings.trivia, true, "on by default");
   t.send(ps[1], { t: "settings", trivia: false });
@@ -706,7 +1010,12 @@ test("the host can turn the quiz off for the whole game in the lobby; it's on un
   t.send(ps[0], { t: "start" });
   t.send(ps[0], { t: "settings", trivia: true });
   assert.equal(t.view(ps[1]).settings.trivia, false, "not mid-game");
-  t.playUntil(() => t.game.s.turns >= 15 || t.game.s.over);
+  let onItsWay = 0;
+  t.playUntil(() => {
+    if (t.game.triviaDue) onItsWay += 1;
+    return t.game.s.turns >= 15 || t.game.s.over;
+  });
+  assert.equal(onItsWay, 0, "no landing brings a question");
   assert.equal(t.game.trivia, null);
   assert.deepEqual(t.game.triviaAsked, []);
   assert.ok(!t.seen.some((f) => f.t === "game" && (f.e.t === "bonus" || f.e.t === "fine")), "no quiz money either way");
@@ -870,8 +1179,8 @@ test("party mode deals a forfeit that fits what happened, and doesn't repeat one
 });
 
 /** A party table whose game is under way, the first team's turn up. */
-function partyTable(seed = 11) {
-  const t = new Table({ party: true }, seed);
+function partyTable(seed = 11, settings: Partial<import("../src/room/protocol").Settings> = {}) {
+  const t = new Table({ party: true, ...settings }, seed);
   const ps = lobby(t, 3);
   t.send(ps[0], { t: "start" });
   const seatOf = (p: Phone) => t.view(p).you.seats[0];
@@ -880,8 +1189,10 @@ function partyTable(seed = 11) {
 }
 
 test("a party forfeit holds the game, every clock with it, until its team says it's done", () => {
-  const { t, ps, seatOf, deal } = partyTable();
+  const { t, ps, seatOf, deal } = partyTable(11, OFTEN);
   const g = t.game;
+  // (a team lands on a city and its question comes up: one more clock for the forfeit to hold)
+  nextQuestion(t);
   const onTurn = ps.find((p) => seatOf(p) === g.s.turn)!;
   const doer = ps.find((p) => p !== onTurn)!;
   const other = ps.find((p) => p !== onTurn && p !== doer)!;
@@ -967,13 +1278,10 @@ test("a forfeit nobody closes lets the game go on after a while; computer teams 
 });
 
 test("a wrong answer in the waiting teams' quiz costs a little, never more than the team has", () => {
-  const t = new Table({}, 5);
-  const ps = lobby(t, 3);
-  t.send(ps[0], { t: "start" });
+  const { t, seatOf, others } = quizTable({}, 5);
   const g = t.game;
   const tv = g.trivia!;
-  const seatOf = (p: Phone) => t.view(p).you.seats[0];
-  const [x, y] = ps.filter((p) => seatOf(p) !== g.s.turn);
+  const [x, y] = others;
   const wrong = (tv.order.indexOf(0) + 1) % 3;
   g.s.ps[seatOf(x)].cash = 4;
   g.s.ps[seatOf(y)].cash = 0;

@@ -128,6 +128,13 @@ Each of these was measured or is tested. Check them again after a change.
    375x667, a phone held sideways, a 320 px iPhone SE in English with the longest question the bank
    allows, and the big screen at 1366x768. Only a phone that can answer gets the pop-up (with
    这题不答 to pass); others read it in their play window.
+   **It comes rarely, and with a landing**: once eight minutes have passed since the last question
+   (four since the game's start, for its first), the next team to land on a city brings the teams
+   waiting a question about that city. It comes up when the move has played and the stamp is down, 4.5 s after the throw, or
+   10 s after it on a team's first visit, when the landing scene plays first (a question on a phone
+   that can answer cuts that scene short). A question that popped up at the start of every turn kept
+   covering the play window. While a big screen is on, the question isn't the one its arrival card
+   answers (the fact behind the city's rule, printed there).
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
    wear their letter too).
@@ -341,7 +348,8 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   has flown there on the globe, which it does after the move). Nothing tells the landing before
   the stamp, on any screen (`moveInPlay`): the dice under the board show when they settle, the
   log's lines from the throw on and what the table is waiting for when the token lands, the
-  standings and every team's cash with the question.
+  standings and every team's cash with the question. The waiting teams' quiz question about the
+  city, when the landing brings one, is held back on the server until the move has played.
 * **What it gives way to** (`rideUrgent`). An auction or Shanghai's quiz for this team cuts it short
   and brings the question straight back; a table vote waits for it unless that would leave less
   than 15 s to answer. A shake doesn't throw again while it plays.
