@@ -36,7 +36,8 @@
   },
   "src/styles/global.css": {
     "color": 1,
-    "shadow": 2
+    "shadow": 2,
+    "time": 2
   },
   "src/styles/landscape.css": {
     "font": 5
