@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type { Difficulty } from '../../party-base/src/types';
+import type { Move, MoveLibrary, Routine, Section } from './types';
 
 export type { Difficulty } from '../../party-base/src/types';
+export type { Move, MoveLibrary, Routine, Section } from './types';
 
 export const difficultySchema = z.enum(['easy', 'medium', 'hard'] satisfies [Difficulty, ...Difficulty[]]);
 const difficultyRank: Record<Difficulty, number> = { easy: 0, medium: 1, hard: 2 };
@@ -117,7 +119,12 @@ export const librarySchema = z.object({ moves: movesSchema, routines: routinesSc
   });
 });
 
-export type Move = z.infer<typeof moveSchema>;
-export type Section = z.infer<typeof sectionSchema>;
-export type Routine = z.infer<typeof routineSchema>;
-export type MoveLibrary = z.infer<typeof librarySchema>;
+// types.ts spells these types out (so the room server can import the library without zod);
+// they must stay exactly what the schemas parse to. A mismatch fails the type check here.
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+export const typesMatchSchemas: [
+  Same<z.infer<typeof moveSchema>, Move>,
+  Same<z.infer<typeof sectionSchema>, Section>,
+  Same<z.infer<typeof routineSchema>, Routine>,
+  Same<z.infer<typeof librarySchema>, MoveLibrary>,
+] = [true, true, true, true];

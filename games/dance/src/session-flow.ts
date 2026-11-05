@@ -1,6 +1,6 @@
 import { beatAt, beatTime, countInPhrase, nextPhraseStart } from '../../party-base/src/beat-clock';
 import type { BeatMap } from '../../party-base/src/types';
-import type { Move, Routine } from '../data/schema';
+import type { Move, Routine } from '../data/types';
 
 export type SessionPhase = 'warmup' | 'watch' | 'follow' | 'countdown' | 'dance' | 'cooldown';
 
