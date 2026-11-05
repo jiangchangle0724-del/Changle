@@ -203,11 +203,11 @@ libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go i
   `docs/codex-tasks/dj/` (C1 presets is done).
 
 * 一本正经 · Straight Face (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
-  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 47
-  cards and the one-phone flow are done (2026-11-04) and hidden from the board: only
-  `changle.ca/g/straight-face/play` opens it until Steve has played a round on his phone. Next:
-  online (A3: a `GameDef` wrapping the same engine), the card bank to 300 (Codex C1,
-  `docs/codex-tasks/straightface/`).
+  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 111
+  cards in eight packs (four of them Chinese: rare characters, dialects, idioms, dish names) and the
+  one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online
+  table until A3 (a `GameDef` wrapping the same engine) adds it to `ONLINE_GAMES`. Next: A3, the card
+  bank to 300 (Codex C1, `docs/codex-tasks/straightface/`).
 
 * 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
   and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the

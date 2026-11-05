@@ -104,6 +104,21 @@ test("straightface: validateCard requires funFact and source, refuses a brackete
   ok(lintDeck([base]).length === 0, "lint passes the plain term");
 });
 
+test("straightface: the Chinese packs show the original word on both sides, may quote it, and each has enough cards", () => {
+  for (const p of ["zi", "fangyan", "chengyu", "caiming"]) {
+    const deck = cards.filter((c) => c.pack === p);
+    ok(deck.length >= 12, `${p}: ${deck.length} cards`);
+    for (const c of deck) {
+      ok(c.term.en.startsWith(c.term.zh) && c.term.en.length > c.term.zh.length, `${c.id}: the English side is the original characters plus a reading`);
+      // every phone's font draws the basic CJK block; nothing rarer goes on the card
+      ok([...c.term.zh].every((ch) => /[一-鿿]/.test(ch)), `${c.id}: the card's characters are all in the basic CJK block`);
+    }
+  }
+  const base = cards[0];
+  const idiom: Card = { ...base, id: "idiom", term: { zh: "七月流火", en: "七月流火 qī yuè liú huǒ" }, definition: { zh: "七月流火说的是天要转凉。", en: "The heat is ending." } };
+  ok(lintDeck([idiom]).length === 0, "a Chinese original may quote itself in its definition");
+});
+
 test("straightface: pickCard prefers the asked level, avoids used cards, falls back sanely, keeps adult cards out", () => {
   const rng = mulberry32(7);
   const used: string[] = [];

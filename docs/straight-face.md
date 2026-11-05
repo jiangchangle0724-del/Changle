@@ -47,7 +47,7 @@
 
 ## 词库
 
-结构见 `site/src/shared/straightface/types.ts` 的 `Card`，校验见 `cards.ts`：中文释义 ≤ 60 字，英文 ≤ 160 字符，两条掰料 ≤ 40 字且不得泄露真释义，`funFact` 和 `source` 必填（没有合适链接写 `editorial`），词名只写原文或音译、不带括号注释（`lintDeck` 会提示中文词名和释义重复的）。已写 47 张（`site/src/data/straightface.ts`），四个包：trivia 12、vancouver 14、food 10、slang 11；难度 3 只有 4 张，扩库时每包至少补到 15 张。扩库管线：维基分类页和 Wiktionary 加拿大英语条目选词 → AI 只取事实自己造句并附来源 → 校验器和 lint → Codex 对来源核事实 → Steve 抽 10% → 上线后出场 10 次以上且命中率 80% 以上的卡降难度或下架。
+结构见 `site/src/shared/straightface/types.ts` 的 `Card`，校验见 `cards.ts`：中文释义 ≤ 60 字，英文 ≤ 160 字符，两条掰料 ≤ 40 字且不得泄露真释义，`funFact` 和 `source` 必填（没有合适链接写 `editorial`），词名只写原文或音译、不带括号注释（`lintDeck` 会提示中文词名和释义重复的）。已写 111 张（`site/src/data/straightface.ts`），八个包：生僻字 14、方言 16、成语典故 16、菜名来历 18、trivia 12、vancouver 14、food 10、slang 11；难度 3 只有 12 张，扩库时每包至少补到 15 张。中文原词（生僻字、方言、成语、菜名）的 `term.en` 是同样的字加读音（拼音；粤语用粤拼，闽南语用台罗），卡面大字是原词、下面一行是读音。扩库管线：维基分类页和 Wiktionary 加拿大英语条目选词 → AI 只取事实自己造句并附来源 → 校验器和 lint → Codex 对来源核事实 → Steve 抽 10% → 上线后出场 10 次以上且命中率 80% 以上的卡降难度或下架。
 
 ## 分工
 
@@ -57,6 +57,6 @@ Codex：C1 扩库到 300、C2 界面组件并替换 A2 的占位、C3 电视布�
 
 ## 验收门
 
-- A 能玩（第 1 周末）：引擎测试全过；视图漏洞审查零发现；偷看不漏；Steve 用 iPhone 真机跑完 4 人局，然后去掉 `hidden`。
+- A 能玩（第 1 周末）：引擎测试全过；视图漏洞审查零发现；偷看不漏；Steve 用 iPhone 真机跑完 4 人局，然后去掉 `hidden`（2026-11-05 Steve 决定加了中文词包就上线，`hidden` 已去掉；真机局还是要跑）。
 - B 好玩（第 2 周末）：6 人测试过门，含 2 个不会撒谎的人至少各骗到裁判一次；命中率落在人数对应区间；一轮 ≤ 3.5 分钟。
 - C 站得住（第 4 周末）：联机 8 人 0 掉线；电视 3 米可读；词库 300 张过质量门；CIPO、BGG、Steam、App Store 和 grep 过。

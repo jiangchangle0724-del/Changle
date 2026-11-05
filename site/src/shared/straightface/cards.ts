@@ -36,11 +36,14 @@ export function validateCard(c: Card): string[] {
  * Warnings, not errors: things an editor must look at. The big one is a Chinese term that is really a
  * translation of the meaning ("雨后泥土味 Petrichor"): the term is shown to the whole table, so a gloss
  * gives the answer away. Flags any run of 2+ Chinese characters shared by term.zh and definition.zh.
+ * A Chinese original (an idiom, a dish, a dialect word: the English side shows the same characters)
+ * is the word itself, not a gloss, so its definition may quote it.
  */
 export function lintCard(c: Card): string[] {
   const warns: string[] = [];
   const zhTerm = c.term?.zh ?? "";
   const zhDef = c.definition?.zh ?? "";
+  if (zhTerm.trim() && (c.term?.en ?? "").trim().startsWith(zhTerm.trim())) return warns;
   const seen = new Set<string>();
   for (let i = 0; i + 1 < zhTerm.length; i++) {
     const pair = zhTerm.slice(i, i + 2);

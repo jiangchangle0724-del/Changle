@@ -310,7 +310,8 @@ export const GAMES: GameMeta[] = [
     ready: true,
   },
   {
-    // 一本正经: new (2026-11-04), hidden until Steve has played it on a real phone (the brief's gate A); its address works
+    // 一本正经: new (2026-11-04), on the board since 2026-11-05. One phone only until the rooms server runs it (A3),
+    // so its card offers no online table (GameSheet shows that button only for ONLINE_GAMES)
     id: "straightface",
     slug: "straight-face",
     name: t("一本正经", "Straight Face"),
@@ -330,7 +331,6 @@ export const GAMES: GameMeta[] = [
     category: "brain",
     minutes: 15,
     ready: true,
-    hidden: true,
     newUntil: "2026-12-15",
     solo: { min: 3, hint: t("4 到 9 人最好玩，手机传着看身份", "Best with 4 to 9. The phone goes round for a private peek") },
   },
