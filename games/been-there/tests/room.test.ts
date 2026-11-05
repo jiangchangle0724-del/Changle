@@ -102,6 +102,14 @@ class Table {
       const pd = g.s.pending;
       if (!pd) continue;
       if ("votes" in pd) assert.deepEqual(pd.votes, {}, "votes stay hidden until everyone has answered");
+      // Rio: a dance waits for its team's Start. One of its phones presses it; everyone else waits.
+      if (pd.k === "scores" && g.dance && g.dance.at === null) {
+        if (v.you.seats.includes(g.dance.seat)) {
+          this.send(p, { t: "dance-go" });
+          return true;
+        }
+        continue;
+      }
       for (const seat of v.you.seats) {
         if (pd.k === "auction" && g.auction) {
           const min = g.auction.price === 0 ? 10 : g.auction.price + 10;
@@ -116,7 +124,7 @@ class Table {
         if (pd.k === "quiz") continue;
         if (pd.k === "silence" && g.silenceUntil && v.now < g.silenceUntil) continue;
         // (Rio's judges: the buttons light up once the dance is over)
-        if (pd.k === "scores" && g.dance && v.now < g.dance.at + g.dance.ms) continue;
+        if (pd.k === "scores" && g.dance && (g.dance.at === null || v.now < g.dance.at + g.dance.ms)) continue;
         const state = structuredClone(g.s);
         const brains = state.ps.map(() => p.brain);
         const key = `${g.decision}:${seat}`;
@@ -178,7 +186,7 @@ class Table {
    */
   wait() {
     const g = this.room.st.game;
-    const own = [g?.silenceUntil ?? 0, g?.danceAt ? g.danceAt + TIMING.dance * (this.room.st.settings.speed ?? 1) : 0].filter((x) => x > this.clock.t);
+    const own = [g?.silenceUntil ?? 0, g?.danceAt && g.dancePlan ? g.danceAt + g.dancePlan.len : 0].filter((x) => x > this.clock.t);
     const w = Math.min(this.room.nextWake() ?? Infinity, ...own);
     this.clock.t = Math.max(this.clock.t + 50, Math.min(Number.isFinite(w) ? w : this.clock.t + 1000, this.clock.t + 60_000));
     this.room.tick();
@@ -635,14 +643,19 @@ test("what a landing asks of the table comes first: its question waits for the p
   assert.deepEqual(vote.t.refusals, []);
 
   // Rio: the team dances, every screen plays it, and the teams the question is for are the judges.
-  // It waits for the dance and the scores.
+  // It waits while the team gets ready, the countdown, the lesson and the scores.
   const rio = table([4, 5]);
   rio.act(rio.ps[0]);
   rio.act(rio.ps[0], { yes: true });
   assert.equal(asks(rio.g), "scores");
   assert.equal(dueOf(rio.g)?.busy, true);
+  rio.at(dueOf(rio.g)!.at + ms("danceReady") / 2);
+  assert.equal(upIn(rio.g), null, "not while the team gets ready to dance");
+  rio.t.send(rio.ps[0], { t: "dance-go" });
+  rio.at(rio.g.danceAt! + ms("dance") / 2);
+  assert.equal(upIn(rio.g), null, "not over the lesson");
   rio.at(rio.g.deadline! - 1);
-  assert.equal(upIn(rio.g), null, "not over the dance, nor while the judges score it");
+  assert.equal(upIn(rio.g), null, "nor while the judges score it");
   for (const p of rio.ps.slice(1)) rio.act(p, { score: 8 });
   assert.equal(asks(rio.g), "buy");
   rio.act(rio.ps[0], { yes: true });
@@ -1572,38 +1585,187 @@ test("a room opened from a changle.ca table keeps the host role for the table's 
   assert.equal(odd.view("x").table, null);
 });
 
-test("Rio: every screen plays the dance first, and the judges' 25 s start when it's over", () => {
-  const t = new Table({ speed: 1 }, 8);
-  const ps = lobby(t, 3);
+// ---------- Rio's dance ----------
+
+/** A table whose team on turn is in Rio and has just said it will dance: its phone, a judge's, and when it said so. */
+function rioTable(settings: Partial<import("../src/room/protocol").Settings> = {}, humans = 3, bots = 0, seed = 8) {
+  const t = new Table({ speed: 1, trivia: false, ...settings }, seed);
+  const ps = lobby(t, humans, bots);
   t.send(ps[0], { t: "start" });
   const s = t.game.s;
-  const dancer = s.turn;
-  const dancerPhone = ps.find((p) => t.view(p).you.seats.includes(dancer))!;
-  // The team on turn is in Rio, and says it will dance.
+  // (a person's team on turn)
+  const dancerPhone = ps.find((p) => t.view(p).you.seats.includes(s.turn)) ?? ps[0];
+  const dancer = t.view(dancerPhone).you.seats.includes(s.turn) ? s.turn : t.view(dancerPhone).you.seats[0];
+  s.turn = dancer;
   s.pending = { k: "dance", who: dancer };
   t.send(dancerPhone, { t: "act", d: t.view(dancerPhone).game!.decision, a: { yes: true }, seat: dancer });
-  const start = t.clock.t;
-  assert.deepEqual(t.view(ps[0]).game!.dance, { seat: dancer, at: start, ms: TIMING.dance });
-  assert.equal(t.game.deadline, start + TIMING.dance + TIMING.vote, "the vote's time starts after the dance");
-  // A judge who scores mid-dance is told to watch first; nothing is counted.
-  const judge = ps.find((p) => p !== dancerPhone)!;
-  const seat = t.view(judge).you.seats[0];
-  t.send(judge, { t: "act", d: t.view(judge).game!.decision, a: { score: 7 }, seat });
-  assert.equal(judge.toasts.at(-1), "stillDancing");
+  assert.equal(t.game.s.pending?.k, "scores");
+  const judge = ps.find((p) => p !== dancerPhone);
   const votes = () => (t.game.s.pending?.k === "scores" ? t.game.s.pending.votes : {});
+  const score = (p: Phone, n = 7) => {
+    const seat = t.view(p).you.seats.find((x) => x !== dancer)!;
+    t.send(p, { t: "act", d: t.view(p).game!.decision, a: { score: n }, seat });
+    return seat;
+  };
+  return { t, ps, dancer, dancerPhone, judge, said: t.clock.t, votes, score };
+}
+
+test("Rio: the dance waits for its team's Start, counts down on every screen, and the judges' 25 s start when the lesson is over", () => {
+  const { t, ps, dancer, dancerPhone, judge, said, votes, score } = rioTable();
+  // The ready card: nothing has started. Every screen knows the countdown and the lesson to come.
+  assert.deepEqual(t.view(ps[0]).game!.dance, { seat: dancer, at: null, count: TIMING.danceCount, ms: TIMING.dance, short: false, auto: said + TIMING.danceReady });
+  assert.equal(t.game.deadline, null, "the judges' time hasn't started");
+  // A judge who scores now is told to watch first, and only the dancing team can start it.
+  score(judge!);
+  assert.equal(judge!.toasts.at(-1), "stillDancing");
+  t.send(judge!, { t: "dance-go" });
+  assert.equal(judge!.toasts.at(-1), "notYours");
+  assert.equal(t.view(ps[0]).game!.dance!.at, null);
+  // The team takes its time, then presses Start: five seconds on every screen, then the lesson.
+  t.clock.t += 12_000;
+  t.send(dancerPhone, { t: "dance-go" });
+  const at = t.clock.t + TIMING.danceCount;
+  assert.deepEqual(t.view(judge!).game!.dance, { seat: dancer, at, count: TIMING.danceCount, ms: TIMING.dance, short: false, auto: null });
+  assert.equal(t.game.deadline, at + TIMING.dance + TIMING.vote, "the vote's time starts after the dance");
+  // (a second press changes nothing)
+  t.clock.t += 1000;
+  t.send(dancerPhone, { t: "dance-go" });
+  assert.equal(t.view(judge!).game!.dance!.at, at);
+  // Through the countdown and the lesson the judges wait; the room wakes when it's over, not before.
+  score(judge!);
+  assert.equal(judge!.toasts.at(-1), "stillDancing");
   assert.deepEqual(votes(), {});
-  // The room's clock wakes for the dance's end (a computer judge scores then, not before).
-  t.clock.t = start + TIMING.dance - 1;
+  t.clock.t = at + TIMING.dance - 1;
   t.room.tick();
   t.settle();
+  score(judge!);
   assert.deepEqual(votes(), {});
-  t.clock.t = start + TIMING.dance;
+  t.clock.t = at + TIMING.dance;
   t.room.tick();
   t.settle();
-  const told = judge.toasts.length;
-  t.send(judge, { t: "act", d: t.view(judge).game!.decision, a: { score: 7 }, seat });
-  assert.equal(judge.toasts.length, told, "no toast: the score counts");
+  const told = judge!.toasts.length;
+  const seat = score(judge!);
+  assert.equal(judge!.toasts.length, told, "no toast: the score counts");
   assert.equal(votes()[seat], 7);
+  // The dance's own messages mean nothing once it's being scored, or on any other decision.
+  t.send(dancerPhone, { t: "dance-go" });
+  assert.equal(t.view(judge!).game!.dance!.at, at);
+  assert.deepEqual(t.refusals, []);
+});
+
+test("Rio: a dance nobody starts begins by itself after a minute, so nobody holds the game; not in the one-phone demo", () => {
+  const { t, ps, said } = rioTable();
+  assert.equal(t.room.nextWake(), said + TIMING.danceReady, "the room wakes for it");
+  t.clock.t = said + TIMING.danceReady - 1;
+  t.room.tick();
+  t.settle();
+  assert.equal(t.view(ps[0]).game!.dance!.at, null);
+  t.clock.t = said + TIMING.danceReady;
+  t.room.tick();
+  t.settle();
+  const d = t.view(ps[0]).game!.dance!;
+  assert.equal(d.at, t.clock.t + TIMING.danceCount, "the countdown, then the lesson");
+  assert.equal(d.auto, null);
+  assert.equal(t.game.deadline, d.at! + TIMING.dance + TIMING.vote);
+
+  // One phone plays every team: it starts when the people round it press Start, however long that takes.
+  const demo = new Table({ hotseat: true, trivia: false, speed: 1 }, 3);
+  const dp = phone(1);
+  demo.join(dp, "Me");
+  demo.send(dp, { t: "team", op: "create" });
+  demo.send(dp, { t: "team", op: "create" });
+  demo.send(dp, { t: "start" });
+  const s = demo.game.s;
+  const dancer = s.turn;
+  s.pending = { k: "dance", who: dancer };
+  demo.send(dp, { t: "act", d: demo.view(dp).game!.decision, a: { yes: true }, seat: dancer });
+  assert.equal(demo.view(dp).game!.dance!.auto, null);
+  demo.clock.t += 10 * 60_000;
+  demo.room.tick();
+  demo.settle();
+  assert.equal(demo.view(dp).game!.dance!.at, null, "still waiting");
+  demo.send(dp, { t: "dance-go" });
+  assert.equal(demo.view(dp).game!.dance!.at, demo.clock.t + TIMING.danceCount);
+});
+
+test("Rio: a computer team dances a short one straight away, and so does a team the computer takes over while it gets ready", () => {
+  // A computer team on turn in Rio: it says yes when its turn to think comes, and its dance is on.
+  const t = new Table({ speed: 1, trivia: false }, 4);
+  const ps = lobby(t, 1, 1);
+  t.send(ps[0], { t: "start" });
+  const bot = t.game.seats.findIndex((id) => !!t.room.st.teams.find((x) => x.id === id)?.bot);
+  t.game.s.turn = bot;
+  t.game.s.pending = { k: "dance", who: bot };
+  (t.room as unknown as { afterMove(): void }).afterMove();
+  t.clock.t += TIMING.bot;
+  t.room.tick();
+  t.settle();
+  assert.equal(t.game.s.pending?.k, "scores", "a computer team dances (all but the saver always do)");
+  const at = t.clock.t;
+  assert.deepEqual(t.view(ps[0]).game!.dance, { seat: bot, at, count: 0, ms: TIMING.danceBot, short: true, auto: null });
+  assert.equal(t.game.deadline, at + TIMING.danceBot + TIMING.vote);
+  const mine = t.view(ps[0]).you.seats[0];
+  t.send(ps[0], { t: "act", d: t.view(ps[0]).game!.decision, a: { score: 9 }, seat: mine });
+  assert.equal(ps[0].toasts.at(-1), "stillDancing");
+  t.clock.t = at + TIMING.danceBot;
+  t.send(ps[0], { t: "act", d: t.view(ps[0]).game!.decision, a: { score: 9 }, seat: mine });
+  assert.ok(t.seen.some((f) => f.t === "game" && f.e.t === "rule" && f.e.city === "rio"), "scored, and the bank paid");
+
+  // A person's team says yes, then all its phones drop off: after the takeover time the computer plays
+  // for it, nobody is there to press Start, and the short dance begins.
+  const r = rioTable({}, 2);
+  r.t.room.leave(r.dancerPhone.id);
+  r.t.phones = r.t.phones.filter((p) => p !== r.dancerPhone);
+  r.t.settle();
+  const left = r.t.clock.t;
+  assert.equal(r.t.view(r.judge!).game!.dance!.at, null);
+  assert.ok(r.t.room.nextWake()! <= left + TIMING.takeover, "the room wakes when the computer takes over");
+  r.t.clock.t = left + TIMING.takeover;
+  r.t.room.tick();
+  r.t.settle();
+  assert.deepEqual(r.t.view(r.judge!).game!.dance, { seat: r.dancer, at: r.t.clock.t, count: 0, ms: TIMING.danceBot, short: true, auto: null });
+
+  // A team handed to the computer (托管) while its ready card is up: the same.
+  const h = rioTable({}, 2);
+  h.t.send(h.dancerPhone, { t: "autoplay", on: true });
+  assert.equal(h.t.room.nextWake(), h.t.clock.t, "the room wakes at once");
+  h.t.room.tick();
+  h.t.settle();
+  assert.equal(h.t.view(h.judge!).game!.dance!.short, true);
+  assert.equal(h.t.view(h.judge!).game!.dance!.at, h.t.clock.t);
+});
+
+test("Rio: a pause holds the ready card's clock, the countdown and the lesson", () => {
+  const { t, ps, dancerPhone, said } = rioTable();
+  t.clock.t += 20_000;
+  t.send(ps[0], { t: "pause", on: true });
+  t.clock.t += 5 * 60_000;
+  t.room.tick();
+  t.settle();
+  assert.equal(t.view(ps[0]).game!.dance!.at, null, "it doesn't start by itself in a pause");
+  t.send(dancerPhone, { t: "dance-go" });
+  assert.equal(dancerPhone.toasts.at(-1), "paused");
+  t.send(ps[0], { t: "pause", on: false });
+  assert.equal(t.view(ps[0]).game!.dance!.auto, said + TIMING.danceReady + 5 * 60_000, "its minute goes on from where it stopped");
+  t.send(dancerPhone, { t: "dance-go" });
+  const at = t.clock.t + TIMING.danceCount;
+  t.clock.t += 2000;
+  t.send(ps[0], { t: "pause", on: true });
+  t.clock.t += 60_000;
+  t.send(ps[0], { t: "pause", on: false });
+  assert.equal(t.view(ps[0]).game!.dance!.at, at + 60_000);
+  assert.equal(t.game.deadline, at + 60_000 + TIMING.dance + TIMING.vote);
+});
+
+test("Rio: a room read back from before the ready step shows the dance that was on as the short one it was", () => {
+  const { t, ps, dancer, dancerPhone } = rioTable();
+  t.send(dancerPhone, { t: "dance-go" });
+  const st = JSON.parse(JSON.stringify(t.room.st));
+  // How a dance looked then: only when it started.
+  delete st.game.dancePlan;
+  st.game.danceAt = t.clock.t - 3000;
+  const back = new Room(st, makeEnv(t.clock, 2));
+  assert.deepEqual(back.view(ps[0].id).game!.dance, { seat: dancer, at: t.clock.t - 3000, count: 0, ms: 10_600, short: true, auto: null });
 });
 
 test("a test room can keep the teams in the order they were made: the first team made throws first", () => {

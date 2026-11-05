@@ -4735,7 +4735,8 @@ h2.departures {
 /* ---------- Rio's samba lesson (ui/Samba.tsx) ----------
    The teacher dances a mirror of you; the footprints light up the foot to move, and the word and the
    count say the same. Full screen on the dancing team's phone, small over the judges' buttons, big
-   over the big screen's board. It never takes a tap. */
+   over the big screen's board. It takes one tap, on the dancing team's phone: Start, on the ready
+   card that comes first. After that (the countdown, the lesson) it takes none. */
 .samba {
   display: grid;
   justify-items: center;
@@ -4743,11 +4744,28 @@ h2.departures {
   text-align: center;
   pointer-events: none;
 }
-.samba svg {
+/* The teacher: a square the pose is measured in, and in it each part of her on a layer of its own. A
+   frame moves the layers (a transform each, Samba.tsx draw): the phone's compositor does that without
+   drawing anything again. */
+.samba-fig {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.samba-part {
+  position: absolute;
+  will-change: transform;
+}
+.samba-part svg,
+.samba-ribbons {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   overflow: visible;
+}
+.samba-ribbons {
+  position: absolute;
+  inset: 0;
 }
 .samba-cue {
   font: 700 1.15rem/1.2 var(--ui);
@@ -4772,11 +4790,12 @@ h2.departures {
   z-index: 56;
   align-content: center;
   padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  /* (solid: the play window's own lines showed through, under the teacher's words) */
   background:
     radial-gradient(70% 50% at 50% 30%, color-mix(in oklab, var(--gel) 22%, transparent), transparent 70%),
-    color-mix(in srgb, var(--night) 94%, transparent);
+    var(--night);
 }
-.samba-full svg {
+.samba-full .samba-fig {
   width: min(78vw, 46vh, 380px);
 }
 .samba-full .samba-count {
@@ -4787,6 +4806,91 @@ h2.departures {
 }
 .samba-full.over {
   animation: samba-out 0.6s ease both;
+}
+/* The ready card: under the top bar (Samba.tsx sets its top) and under the sheets, so the menu stays in
+   reach while the team gets ready (the sound may still be off). Its Start button is the one thing here
+   that takes a tap. */
+.samba-full.ready {
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  overflow-y: auto;
+  pointer-events: auto;
+  background:
+    radial-gradient(70% 50% at 50% 26%, color-mix(in oklab, var(--gel) 22%, transparent), transparent 70%),
+    var(--night);
+}
+/* (in the middle while there's room; on a short screen it scrolls from its top, and Start stays in view) */
+.samba-full.ready > :first-child {
+  margin-top: auto;
+}
+.samba-full.ready > :last-child {
+  margin-bottom: auto;
+}
+.samba-full.ready .samba-fig {
+  flex: none;
+  width: min(62vw, 32vh, 300px);
+}
+.samba-how {
+  max-width: 26em;
+  color: var(--moon);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.samba-full.ready .haptic-btn {
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  width: min(100%, 340px);
+  min-height: 58px;
+  margin-top: 6px;
+  font-size: 1.15rem;
+}
+.samba-auto {
+  min-height: 1.4em;
+  color: var(--haze);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+/* The countdown: the numeral is the news. */
+.samba-full.count .samba-count {
+  font-size: min(6.5rem, 24vh);
+}
+.samba-tv.count .samba-count {
+  font-size: clamp(5rem, 16vh, 10rem);
+}
+/* A phone on its side: the teacher on the left, the words (and Start) beside her. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .samba-full,
+  .samba-full.ready {
+    display: grid;
+    grid-template-columns: auto minmax(0, 22rem);
+    justify-content: center;
+    justify-items: start;
+    align-items: center;
+    column-gap: 24px;
+    text-align: left;
+  }
+  .samba-full .samba-fig {
+    grid-row: 1 / span 4;
+    width: min(44vw, 80vh);
+  }
+  .samba-full.ready .samba-fig {
+    grid-row: 1 / span 5;
+    width: min(32vw, 60vh);
+    margin: 0;
+  }
+  .samba-full.ready > :last-child {
+    margin: 0;
+  }
+}
+/* A very short phone held upright: the words and Start, without the teacher. */
+@media (orientation: portrait) and (max-height: 520px) {
+  .samba-full.ready .samba-fig {
+    display: none;
+  }
 }
 @keyframes samba-out {
   to {
@@ -4800,7 +4904,7 @@ h2.departures {
   gap: 4px 14px;
   text-align: left;
 }
-.samba-small svg {
+.samba-small .samba-fig {
   grid-row: 1 / span 2;
   width: 112px;
 }
@@ -4814,7 +4918,7 @@ h2.departures {
   align-content: center;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--night) 90%, transparent) 62%, transparent);
 }
-.samba-tv svg {
+.samba-tv .samba-fig {
   width: min(58%, 62vh);
 }
 .samba-tv .samba-cue {
