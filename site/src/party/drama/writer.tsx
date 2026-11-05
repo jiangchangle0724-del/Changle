@@ -1,5 +1,5 @@
 import { Feather, Plus, Send, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "../../account/AccountContext";
 import { Sheet } from "../../components/Sheet";
 import { KINDS, type DramaKind, type DramaLevel } from "../../data/drama";
@@ -8,6 +8,9 @@ import { api, ApiError } from "../../lib/api";
 import { cleanScene, SCENE_LIMITS as L } from "../../shared/dramaScene";
 import type { DramaView, SeatView } from "../../shared/protocol";
 import { useStore } from "../../store";
+import { EmptyState } from "../../ui/EmptyState";
+import { Skeleton } from "../../ui/Skeleton";
+import { ToastProvider, useToast } from "../../ui/Toast";
 
 type RoleDraft = { name: string; brief: string; alibi: string };
 export type Draft = { title: string; setup: string; kind: DramaKind; level: DramaLevel; roles: RoleDraft[]; culprit: string; culpritCard: string; twist: string };
@@ -43,19 +46,26 @@ type Mine = { id: number; title: T; status: "new" | "live" | "no"; at: number };
  * with you on stage), and, signed in, to the public library for the site's owner to approve.
  * `writers`: on one phone, who is writing (they'll be cast in it).
  */
-export function SceneWriter({
-  open,
-  onClose,
-  onAdd,
-  level,
-  writers,
-}: {
+type SceneWriterProps = {
   open: boolean;
   onClose: () => void;
   onAdd: (scene: Draft, by?: string) => void;
   level: DramaLevel;
   writers?: { id: string; name: string }[];
-}) {
+};
+
+export function SceneWriter(props: SceneWriterProps) {
+  return <ToastProvider><Writer {...props} /></ToastProvider>;
+}
+
+function Writer({
+  open,
+  onClose,
+  onAdd,
+  level,
+  writers,
+}: SceneWriterProps) {
+  const toast = useToast();
   const { lang } = useStore();
   const zh = lang === "zh";
   const { me, openSignIn } = useAccount();
@@ -66,6 +76,8 @@ export function SceneWriter({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Mine[] | null>(null);
+  const [mineFailed, setMineFailed] = useState(false);
+  const [mineLoading, setMineLoading] = useState(false);
 
   // the draft survives closing the sheet (and the phone locking)
   useEffect(() => {
@@ -76,20 +88,29 @@ export function SceneWriter({
     }
   }, [d]);
 
-  const loadMine = () => {
+  const loadMine = useCallback(async (signal?: AbortSignal) => {
     if (!me) return;
-    api<{ scenes: Mine[] }>("/scenes/mine")
-      .then((r) => setMine(r.scenes))
-      .catch(() => setMine([]));
-  };
+    setMine(null);
+    setMineFailed(false);
+    setMineLoading(true);
+    try {
+      const r = await api<{ scenes: Mine[] }>("/scenes/mine", { signal });
+      if (!signal?.aborted) setMine(r.scenes);
+    } catch {
+      if (!signal?.aborted) setMineFailed(true);
+    } finally {
+      if (!signal?.aborted) setMineLoading(false);
+    }
+  }, [me?.id]);
   useEffect(() => {
+    const ctl = new AbortController();
     if (open) {
       setError("");
       setNote("");
-      loadMine();
+      void loadMine(ctl.signal);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, me?.id]);
+    return () => ctl.abort();
+  }, [open, loadMine]);
 
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
   const setRole = (i: number, p: Partial<RoleDraft>) => setD((x) => ({ ...x, roles: x.roles.map((r, j) => (j === i ? { ...r, ...p } : r)) }));
@@ -251,11 +272,13 @@ export function SceneWriter({
           <Send size={17} /> {zh ? "加到这一桌" : "Add it to this table"}
         </button>
 
-        {me && mine && mine.length > 0 && (
+        {me && (mineFailed || mineLoading || !!mine?.length) && (
           <section className="dw-mine">
             <span className="field-label">{zh ? "我投过的剧本" : "Scenes I've sent"}</span>
+            {mineFailed && <EmptyState tone="error" title={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => void loadMine() }} />}
+            {mineLoading && <Skeleton lang={lang} lines={3} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />}
             <ul>
-              {mine.map((m) => (
+              {mine?.map((m) => (
                 <li key={m.id}>
                   <span className="dw-mine-title">{tx(m.title)}</span>
                   <span className={`dw-status is-${m.status}`}>{status(m.status)}</span>
@@ -265,8 +288,7 @@ export function SceneWriter({
                     aria-label={zh ? "删掉这个投稿" : "Delete this one"}
                     onClick={() => {
                       void api(`/scenes/${m.id}`, { method: "DELETE" })
-                        .catch(() => {})
-                        .then(loadMine);
+                        .then(() => loadMine(), () => toast(zh ? "没成功，再试一次" : "That didn't go through. Try again"));
                     }}
                   >
                     <Trash2 size={15} />
@@ -285,7 +307,7 @@ export function SceneWriter({
  * On the setup screen (and between scenes): the scenes written at this table, a button to write
  * one, and how many from the public library are mixed in.
  */
-export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove }: { v: DramaView; me: string; isHost: boolean; nameOf: (pid: string) => string; onWrite: () => void; onRemove: (id: string) => void }) {
+export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove, library }: { v: DramaView; me: string; isHost: boolean; nameOf: (pid: string) => string; onWrite: () => void; onRemove: (id: string) => void; library?: { loading: boolean; failed: boolean; retry: () => void } }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const waiting = v.mine.filter((w) => !w.played);
@@ -315,6 +337,8 @@ export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove }: { v: D
         <p className="hint">{zh ? "写好的剧本下一幕先演，编剧亲自上台。" : "A scene written here is played next, with its writer on stage."}</p>
       )}
       {v.lib > 0 && <p className="hint">{zh ? `还会混进 ${v.lib} 个大家投稿的剧本。` : `Plus ${v.lib} scenes from the public library, mixed in.`}</p>}
+      {library?.loading && <Skeleton lang={lang} lines={3} slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />}
+      {library?.failed && <EmptyState tone="error" title={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: library.retry }} />}
     </section>
   );
 }
@@ -323,15 +347,11 @@ export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove }: { v: D
  * The public library: a dozen approved scenes in this language, a few at a time so each
  * message stays small for the table. A scene by someone sitting here is marked as theirs (they'll be on stage in it).
  */
-export async function loadLibrary(lang: "zh" | "en", seats: SeatView[] = []): Promise<unknown[][]> {
-  try {
-    const r = await api<{ scenes: { id: number; uid: string; name: string; scene: unknown }[] }>(`/scenes?lang=${lang}&n=12`);
-    const list = r.scenes.map((x) => ({ id: x.id, name: x.name, scene: x.scene, by: seats.find((s) => s.uid && s.uid === x.uid)?.id }));
-    const chunks: unknown[][] = [];
-    // (a table takes messages up to 32,000 characters: three scenes at a time stay well under)
-    for (let i = 0; i < list.length; i += 3) chunks.push(list.slice(i, i + 3));
-    return chunks;
-  } catch {
-    return [];
-  }
+export async function loadLibrary(lang: "zh" | "en", seats: SeatView[] = [], signal?: AbortSignal): Promise<unknown[][]> {
+  const r = await api<{ scenes: { id: number; uid: string; name: string; scene: unknown }[] }>(`/scenes?lang=${lang}&n=12`, { signal });
+  const list = r.scenes.map((x) => ({ id: x.id, name: x.name, scene: x.scene, by: seats.find((s) => s.uid && s.uid === x.uid)?.id }));
+  const chunks: unknown[][] = [];
+  // (a table takes messages up to 32,000 characters: three scenes at a time stay well under)
+  for (let i = 0; i < list.length; i += 3) chunks.push(list.slice(i, i + 3));
+  return chunks;
 }

@@ -156,13 +156,24 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const credit = v.credit?.pid ? nameOf(v.credit.pid) : (v.credit?.name ?? null);
   // a dozen scenes from the public library, whenever the setup screen has none
   const libAsked = useRef(-1);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryFailed, setLibraryFailed] = useState(false);
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
   useEffect(() => {
     if (v.phase !== "setup" || v.lib > 0 || libAsked.current === v.round) return;
     libAsked.current = v.round;
-    void loadLibrary(zh ? "zh" : "en").then((chunks) => chunks.forEach((scenes) => act(host, "lib", { scenes })));
+    const ctl = new AbortController();
+    let settled = false;
+    setLibraryLoading(true);
+    setLibraryFailed(false);
+    void loadLibrary(zh ? "zh" : "en", [], ctl.signal).then(
+      (chunks) => { if (!ctl.signal.aborted) chunks.forEach((scenes) => act(host, "lib", { scenes })); },
+      () => { if (!ctl.signal.aborted) setLibraryFailed(true); },
+    ).finally(() => { settled = true; if (!ctl.signal.aborted) setLibraryLoading(false); });
+    return () => { ctl.abort(); if (!settled) libAsked.current = -1; setLibraryLoading(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v.phase, v.lib, v.round]);
-  const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} />;
+  }, [v.phase, v.lib, v.round, libraryAttempt]);
+  const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = -1; setLibraryAttempt((n) => n + 1); } }} />;
   const round = `${v.round}-${v.phase}`;
   const last = useRef(saved ? round : "");
   useEffect(() => {
