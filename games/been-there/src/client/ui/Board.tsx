@@ -14,6 +14,7 @@ import { ZOOM, useMapView } from "./mapView";
 import { currentNews, newsTag } from "./News";
 import { reducedMotion } from "../motion";
 import { serverNow, update } from "../store";
+import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
 import { LandStamp, Ride } from "./Ride";
 import { ridesOn, walkOf, type RidePlan } from "./ridePlan";
@@ -404,12 +405,14 @@ export function SpaceSheet({ v, at, onClose }: { v: RoomView; at: number; onClos
       )}
       {deed && (
         <p>
-          {t("price")} <Money n={priceOf(s, at)} /> · {t("owner")}{colon()}
+          {t("price")} <Money n={priceOf(s, at)} />
+          <LocalMoney city={city?.id} n={priceOf(s, at)} /> · {t("owner")}{colon()}
           {deed.owner >= 0 ? <SeatChip v={v} seat={deed.owner} /> : t("unowned")}
           {deed.owner >= 0 && !deed.mort && (
             <>
               {" "}
               · {t("rentNow", { rent: money(rentAt(s, at, 7)) })}
+              <LocalMoney city={city?.id} n={rentAt(s, at, 7)} />
             </>
           )}
           {deed.mort && ` · ${t("mortgaged")}`}

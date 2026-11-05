@@ -65,6 +65,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/globe/` | The big screen's 3D globe (three.js): the night side, city lights, flights. |
 | `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
+| `src/client/music.ts`, `ui/localSong.ts`, `ui/Local.tsx`, `src/client/local.ts`, `src/client/songs.json` | Being there: the local hit a second visit plays (the player; which song, when, on which device; "Now playing"), the arrival card's local part, prices in local money, and the data (songs, hellos, exchange rates). |
 | `src/client/i18n.ts` | Every word on screen, in Chinese and English. |
 
 ## Tokens
@@ -190,6 +191,42 @@ which goes round the three, its marks saying which it is. The big screen always 
 * **Where else it shows.** Held sideways, the box is the board's square on the left. Other teams' tokens
   walk and stamp on the bigger map (their stamp is inside the frame that moves). The one-phone demo
   plays the same.
+
+## Being there: the local hit, the arrival's local part, local money
+
+Issue #44's parts 2 and 3 (its part 1, the satellite map, is still to come).
+
+* **The arrival card says where you are, right now**: the city's hello in its own script, how to say
+  it (谐音 for a Chinese reader, a respelling with the stressed part in capitals for an English one;
+  none where the reader can read it already) and what it means; the local time (`Intl`, the city's
+  IANA time zone, `art/places.ts`); the weather now (`weather.ts`); the local money and what $1 comes
+  to there; and on a landing that paid rent, the rent in that money. Small and quiet, under the city's
+  name. On the big screen the money rides on the hello's line, so the card still fits its column at
+  1600x900 without shrinking (at 1366x768 `FitColumn` takes it to 94%).
+* **Prices in local money** sit beside the game's: in the buy prompt and the auction (`CityBrief`), and
+  in a city's sheet (price, rent now). Smaller, muted, in brackets: "$250 (≈ ¥39,000)", "$250（约 3.9 万日元）".
+  Rounded to two figures: it says roughly how much, never more. A fixed rate table with its date
+  (`local.ts`); nothing for Las Vegas and New York, where the game's $ is the money already.
+* **A first landing plays the city's recording; landing there again plays a local hit** from just
+  after the stamp until the team's turn ends (or it moves on: doubles, a card, Immigration), then
+  fades out over 2 s. The 30-second preview loops with a 1.5 s crossfade. A city's songs come round in
+  turn (each landing there moves them on by one, from a place of each game's own), so the same one
+  doesn't play twice running. No song for a team the computer is playing: its turn is over before its
+  token is down on the screens.
+* **One device plays it**, so a room never hears the same song from several phones a little out of
+  step: the big screen when one is on (as with the city recordings and Rio's band), otherwise the
+  first online phone of the team that landed, otherwise the host's. Every other screen shows "Now
+  playing" and where it plays ("大屏正在播放", "Mia 的手机正在播放"). A phone's is a row across the bottom
+  of the arrival card; the big screen's sits under the standings, clear of the arrival card.
+* **Under the game's own sounds.** Every sound the game makes ducks the song (to 30%, back over 0.6 s
+  after it ends, `sound.ts`), and it's held down altogether through a pause, Seoul's ten seconds of
+  silence and Rio's samba lesson. Nothing is fetched or played while the sound is off on the device
+  that would play it; its "Now playing" says so, with a button to turn the sound on.
+* **Apple's terms for previews**: the song is looked up when it plays (the iTunes Lookup API, in the
+  storefront it was found in), streamed from Apple and never stored; "Now playing" names the song and
+  its artist and links to it on Apple Music ("在 Apple Music 听完整版"); the credits page lists every
+  song. The preview URL found when the list was made is the fallback if the lookup doesn't answer.
+* **The record turns** while the song is on, 33⅓ turns a minute; it stands still with reduced motion.
 
 ## Your move, first-person
 

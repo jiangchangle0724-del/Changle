@@ -1060,3 +1060,16 @@ test("Rio: every screen plays the dance first, and the judges' 25 s start when i
   assert.equal(judge.toasts.length, told, "no toast: the score counts");
   assert.equal(votes()[seat], 7);
 });
+
+test("a test room can keep the teams in the order they were made: the first team made throws first", () => {
+  const seatOf = (settings: Partial<import("../src/room/protocol").Settings>, seed: number) => {
+    const t = new Table(settings, seed);
+    const ps = lobby(t, 1, 2);
+    t.send(ps[0], { t: "start" });
+    return t.view(ps[0]).you.seats[0];
+  };
+  const seeds = Array.from({ length: 12 }, (_, i) => i + 1);
+  assert.deepEqual(seeds.map((n) => seatOf({ inOrder: true }, n)), seeds.map(() => 0));
+  // (otherwise the order is drawn)
+  assert.ok(seeds.some((n) => seatOf({}, n) !== 0));
+});

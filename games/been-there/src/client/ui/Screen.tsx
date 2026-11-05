@@ -20,6 +20,7 @@ import { joinUrl, tableFrom } from "../base";
 import { Qr } from "./Lobby";
 import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
 import { NewsBanner } from "./News";
+import { LocalSong, TvNowPlaying } from "./Local";
 import { rowsOf } from "./Ride";
 import { rideEnd, rideLand, rideReady, useTableMove, type RidePlan } from "./ridePlan";
 import { SambaLesson, useDanceClock } from "./Samba";
@@ -131,6 +132,7 @@ function TvGame({ v }: { v: RoomView }) {
           <div class="tv-table">
             <h2 class="departures">{t("departures")}</h2>
             <Standings v={v} big />
+            <TvNowPlaying v={v} />
             {g.bets && (
               <p class="muted">
                 {t("betQuestion", { team: seatName(v, g.bets.seat) })} {t("betOdds", { yes: g.bets.yes, no: g.bets.no })}
@@ -142,6 +144,7 @@ function TvGame({ v }: { v: RoomView }) {
       </aside>
       <CoinFx v={v} after={rideReady(move)} />
       <Touchdown v={v} big after={rideEnd(move)} />
+      <LocalSong v={v} />
       <ForfeitHold v={v} big />
       <SoundHint />
     </main>

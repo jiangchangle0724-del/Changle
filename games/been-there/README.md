@@ -23,6 +23,14 @@ medium and large draw it bigger and drag round with a finger, following the team
 start at medium. Tokens are bigger, and several on one city stand side by side with their letters;
 every screen fits a phone down to 320 px, its buttons 44 px or more, above the keyboard.
 
+Being there (issue #44, parts 2 and 3): every arrival card shows the city's local time and weather
+right now, its hello (how to say it and what it means, in Chinese and English) and its money, and
+prices and rents show what they come to in that money too ("$250 ≈ ¥39,000"). A team's first landing
+in a city plays the city's recording, as before; landing there again plays a well-known song from that
+city's country (3 to 5 a city, Apple's 30-second previews, looked up and streamed from Apple at play
+time) until the team's turn ends, with "Now playing" and a link to Apple Music on every screen. One
+device plays it: the big screen if there is one, otherwise the landing team's phone.
+
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
 ## How it sits inside changle.ca
@@ -108,7 +116,25 @@ https page it comes from (the credits page lists it). `npm test` checks every en
 no em dashes or curly quotes, and lengths that fit a phone. Only the room imports the bank, so the
 answers never reach a phone.
 
+## Change the local hits
+
+Each city's songs are picked in `scripts/songs.mjs` (`PICKS`: artist, title, Apple's track id, and what
+a Chinese or English reader sees where Apple's title isn't readable for them). `npm run songs` checks
+every one with Apple's Lookup API (the call a phone makes at play time): the right song by the right
+artist, not explicit, not live, a remix, karaoke, an instrumental, a re-recording or a cover, with a
+30-second preview; a track id that no longer answers is searched for again in the city's storefront.
+It writes `src/client/songs.json` (the game's data: id, storefront, title, artist, the preview found
+then as the fallback, the Apple Music link) and takes a few minutes (Apple answers about 20 requests a
+minute). Nothing is downloaded: previews stream from Apple. `npm test` checks the list
+(`tests/local.test.ts`): 3 to 5 a city, every field, both languages readable.
+
 ## Numbers you might want to change
+
+* Exchange rates for prices in local money: `RATES` in `src/client/local.ts`, with the date they're
+  from (`RATES_DATE`, shown on the credits page). The game's $ counts as US dollars.
+* How each city's hello is said and what it means: `HELLO` in `src/client/local.ts`.
+* How loud a song plays and how far it dips under the game's sounds: `SONG_VOLUME` in
+  `src/client/music.ts`, `DUCK` in `src/client/sound.ts`.
 
 * Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, the
   quiz's time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.

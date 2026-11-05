@@ -3,10 +3,12 @@
 import { useEffect, useState } from "preact/hooks";
 import { CITIES, NEWS } from "../../engine";
 import { BASE } from "../base";
-import { t, tx, type Key } from "../i18n";
+import { getLang, t, tx, type Key } from "../i18n";
+import { RATES_DATE } from "../local";
 import { PHOTOS, RECORDINGS, type Credit } from "../media";
 import { knownTriviaSources, loadTriviaSources } from "../triviaSources";
 import { hostOf } from "./common";
+import { CITY_SONGS, songText } from "./localSong";
 
 /** [name, licence, link]. A licence of "" means public domain. */
 type Item = [string, string, string];
@@ -93,6 +95,11 @@ export function Credits() {
       <h3>{t("creditsRecordings")}</h3>
       <p class="muted">{t("creditsRecordingsText")}</p>
       <MediaList of={RECORDINGS} />
+      <h3>{t("creditsSongs")}</h3>
+      <p class="muted">{t("creditsSongsText")}</p>
+      <SongList />
+      <h3>{t("creditsRates")}</h3>
+      <p class="muted">{t("creditsRatesText", { date: dateText(RATES_DATE) })}</p>
       <Licences />
     </div>
   );
@@ -185,6 +192,45 @@ function MediaList({ of }: { of: Record<string, Credit> }) {
           </li>
         );
       })}
+    </ol>
+  );
+}
+
+/** "2026 年 11 月 2 日" / "2 November 2026". */
+function dateText(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (getLang() === "zh") return `${y} 年 ${m} 月 ${d} 日`;
+  const month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m - 1];
+  return `${d} ${month} ${y}`;
+}
+
+/** Each city's local hits, folded away under its name, each linked to the song on Apple Music. */
+function SongList() {
+  const lang = getLang();
+  return (
+    <ol class="credits-facts credits-quiz credits-songs">
+      {CITIES.filter((c) => CITY_SONGS[c.id]?.length).map((c) => (
+        <li key={c.id}>
+          <details>
+            <summary>
+              <b>{tx(c.name)}</b> · {t("creditsSongsCount", { n: CITY_SONGS[c.id].length })}
+            </summary>
+            <ul>
+              {CITY_SONGS[c.id].map((s) => {
+                const { title, artist } = songText(s, lang);
+                return (
+                  <li key={s.id}>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" lang="und">
+                      {title}
+                    </a>{" "}
+                    · <span lang="und">{artist}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        </li>
+      ))}
     </ol>
   );
 }
