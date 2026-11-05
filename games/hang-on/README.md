@@ -69,10 +69,11 @@ sim.events;              // 本帧的 grab / release / death / respawn / checkpo
 
 关卡是 JSON（`Level` 类型，字段见 `CONTRACTS.md`「关卡契约」），`runReplay(level, replay)` 按录好的输入无头跑一关。
 
-## 上线（还没连）
+## 上线
 
-和一起跳（`games/party-server`）一个模式：自己的 Worker，连上 GitHub 之后合并 `main` 就部署。
-在 Cloudflare 里新建 Workers Builds 连接，名字 `hang-on`（必须和 `wrangler.jsonc` 的 `name` 一样）：
-根目录 `/games/hang-on`，构建命令 `npm run build`，部署命令 `npx wrangler deploy`，
-监视路径 `games/hang-on/*`，预览分支的构建关掉（Durable Object 不在预览里）。没有密钥，没有数据库。
-连好之后 `changle.ca/hang-on/`（主机）和 `changle.ca/hang-on/pad/`（手柄）就答话；网址以后要改只改 `wrangler.jsonc` 的 `routes` 和 `vite.config.ts` 的 `base`。
+和一起跳（`games/party-server`）一个模式：自己的 Worker，合并 `main` 就部署。2026-11-04 连上 Cloudflare：
+Workers Builds 名字 `hang-on`（和 `wrangler.jsonc` 的 `name` 一样），根目录 `/games/hang-on`，构建命令 `npm run build`，
+部署命令 `npx wrangler deploy`，监视路径 `games/hang-on/*`，预览分支的构建关着（Durable Object 不在预览里），
+API token「suibian build token」。没有密钥，没有数据库。
+`changle.ca/hang-on/`（主机）和 `changle.ca/hang-on/pad/`（手柄）答话；网址以后要改只改 `wrangler.jsonc` 的 `routes` 和 `vite.config.ts` 的 `base`。
+`BASE=https://changle.ca npm run link-check` 对着线上跑一遍联机检查（11-04 全过：直连往返约 20 ms，绕 Cloudflare 约 120 ms）。

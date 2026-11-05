@@ -17,6 +17,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
 | changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes (connected 2026-11-01, `games/party-server/README.md`) |
+| changle.ca/hang-on: 抓紧了 · Hang On (the host screen; phones at /hang-on/pad, the QR code's link /hang-on/r/CODE) | `games/hang-on/` (physics, the room server, the pages) | Worker `hang-on` (Durable Objects) | by itself on merge when `games/hang-on/*` changes (connected 2026-11-04, `games/hang-on/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
 installs on its own. Node 22, as in CI.

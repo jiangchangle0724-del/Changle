@@ -1,6 +1,6 @@
 # 游戏 · 抓紧了（hang-on）
 
-对话名「游戏 · 抓紧了」。网址 changle.ca/hang-on（Worker 还没连 Cloudflare，还没上首页）。档案建于 2026-11-02，A1 做完时写；以后由这个对话维护。
+对话名「游戏 · 抓紧了」。网址 changle.ca/hang-on（已上线，还没上首页）。档案建于 2026-11-02，A1 做完时写；以后由这个对话维护。
 
 ## 它是什么
 
@@ -40,25 +40,25 @@
 
 ## 现在
 
-- A1 已合并：Rapier 物理、20 条检查全过、键盘可玩、physics-notes。不装东西就能玩的试玩页：https://claude.ai/artifact/U9shPyHZwd4Duft79KK194
-- A2 做完，在 PR（分支 `game/hang-on-a2`）：房间 Worker + Durable Object、WebRTC 数据通道直连、3 秒没通走中转、断线自己回来、延迟表、主机页和基础手柄页，联机检查全过（无头 Chromium 里直连 0.2 秒接上，掐线 0.7 秒回来）。
-- 还没连 Cloudflare，所以线上还没有；本地 `npm run dev` 手机扫码能玩。
+- A1 已合并（#137）：Rapier 物理、20 条检查全过、键盘可玩、physics-notes。不装东西就能玩的试玩页：https://claude.ai/artifact/U9shPyHZwd4Duft79KK194
+- A2 已合并（#165），Worker `hang-on` 11-04 连上 Cloudflare 并部署：changle.ca/hang-on/ 是主机页，手机扫码进 changle.ca/hang-on/pad/。对着线上跑联机检查全过（直连往返约 20 ms，绕路约 120 ms）。
+- C1（12 关关卡）11-04 已发给 Codex（Codex App，分支 codex/ho-c1-levels），等它开 PR，Claude Code 审。
 
 ## 还剩什么
 
 - 联机门（A2 + A4）：Steve 真机实测，按 `docs/field-notes/hang-on-link-test.md` 填：HDMI 下按键到画面 ≤ 80 ms，关 Wi-Fi 再开 5 秒内回来，微信里是不是直连。浏览器级的「离线」模拟不会断 WebRTC，所以掐线那条只在真机上算数。
-- 连 Cloudflare（Steve 在 Cloudflare 里建 Workers Builds 连接，步骤在 README「上线」）；连好后 HANDOFF.md 的表加一行（平台对话）。
-- 发 Codex：`docs/codex-tasks/hang-on/ho-C1-levels.md`（12 关）可以发了（A1 已合并）；`ho-C4-tests.md` 的物理回归部分也可以。C1 做关前要先补 `fading` 和 `springs` 两种物件（A1 先当普通平台）。
+- 审 Codex 的 C1 PR；`ho-C4-tests.md` 的物理回归部分也可以发了。`fading` 和 `springs` 两种物件物理还没实现（当普通平台），C1 这次不用它们，补上之后关卡再改。
 - A3 Pixi 渲染和动效、A4 手柄页打磨（震动已有；横屏锁、两摇杆设置、在线状态、首包 ≤ 50 KB 的验证）、A5 大厅、关卡流程、结算页、背叛榜。
 - A2 的已知简化：玩的中途有座位被踢，玩家下标会整体前移（大厅里会重排）；观众（role=watch）只计数，没有页面；`PadInput.act` 只收不处理。都归 A5。
 - 还没在首页登记（新游戏第一个 PR 要 `hidden: true` 登记，但 A1、A2 的指令都只做自己的事，先不碰 site/）。
 
 ## 交给别的对话
 
-- 平台 · 首页与上线：Worker `hang-on` 连上 Cloudflare 之后，HANDOFF.md 的表加一行（changle.ca/hang-on，`games/hang-on/`，Worker `hang-on`）；首页登记一张藏着的卡（`hidden: true`）。
+- 平台 · 首页与上线：首页登记一张藏着的卡（`hidden: true`），网址 changle.ca/hang-on。
 
 ## 最近的改动
 
+- 2026-11-04 合并 #165（A2），Worker hang-on 连 Cloudflare 上线；C1 发给 Codex
 - 2026-11-04 A2：房间 Worker + Durable Object、WebRTC 链路、主机页、手柄页、联机检查、CI link job
 - 2026-11-04 合并 #137（A1）
 - 2026-11-02 A1：Rapier2D 物理、20 条检查、开发页、physics-notes、CI、ip-check
@@ -67,4 +67,4 @@
 ## 记录
 
 - 2026-11-02 建档案；A1 做完。
-- 2026-11-04 Steve 过手感门，合并 A1，做 A2。
+- 2026-11-04 Steve 过手感门，合并 A1，做 A2；A2 合并上线，Cloudflare 和 Codex 都由 Claude 控制电脑操作。
