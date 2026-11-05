@@ -8,6 +8,7 @@ import type { UcRole, UndercoverView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useRoom } from "../RoomContext";
+import { usePlayers, useWatching } from "../players";
 import { HostButton, HostRow, SeatPicker, useYourTurn, Waiting } from "./common";
 import { Moment } from "../../components/Figure";
 
@@ -16,6 +17,9 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
   const { ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const seats = room?.seats ?? [];
+  // who gets a word: the players (the server deals to them only; someone just watching sits it out)
+  const players = usePlayers();
+  const watching = useWatching();
   const outSeat = v.phase === "reveal" && v.out ? seats.find((s) => s.id === v.out!.pid) : undefined;
   const inGame = v.inGame.includes(me);
   const alive = v.alive.includes(me);
@@ -97,12 +101,12 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                 </button>
               </div>
               <p className="hint-ink" style={{ marginTop: 10 }}>
-                {lang === "zh" ? `${seats.length} 人在座，至少 4 人。白板没有词，跟卧底一伙：白板也出局，平民才赢。` : `${seats.length} seated, 4 needed. A blank gets no word and plays on the undercover's side: civilians win only when the blank is out too.`}
+                {lang === "zh" ? `${players.length} 人在玩，至少 4 人。白板没有词，跟卧底一伙：白板也出局，平民才赢。` : `${players.length} playing, 4 needed. A blank gets no word and plays on the undercover's side: civilians win only when the blank is out too.`}
                 {!v.blank && v.uc + 1 > v.maxSide && (lang === "zh" ? `${v.uc} 个卧底时，${3 * (v.uc + 1) + 1} 人以上才能加白板。` : ` With ${v.uc} undercover${v.uc > 1 ? "s" : ""}, a blank needs ${3 * (v.uc + 1) + 1} or more players.`)}
               </p>
             </div>
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("deal")} disabled={seats.length < 4}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("deal")} disabled={players.length < 4}>
                 {lang === "zh" ? "发词" : "Deal the words"}
               </button>
             ) : (
@@ -133,7 +137,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                     </motion.button>
                   ))}
               </>
-            ) : (
+            ) : watching ? null : (
               <Waiting>{lang === "zh" ? "这局发词时你还没入座，看他们玩，下一局带上你" : "You sat down after the deal. Watch this one; you're in next game."}</Waiting>
             )}
           </motion.div>
@@ -201,7 +205,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                 </p>
                 <SeatPicker only={v.alive} exclude={[me]} selected={v.myVote ? [v.myVote] : []} onPick={(pid) => g("vote", { target: pid })} />
               </>
-            ) : (
+            ) : watching ? null : (
               <Waiting>{lang === "zh" ? "你已出局，看他们投" : "You're out. Watch the vote."}</Waiting>
             )}
           </motion.div>

@@ -1,0 +1,135 @@
+/*
+ * 木头人蹦迪 on the big screen (party/freeze/TvFreeze.tsx): the dance floor and everyone dancing
+ * in the game's gel, "不许动！" when the track cuts, who moved, the last one standing.
+ */
+
+.tvfz-top {
+  position: absolute;
+  left: 120px;
+  right: 120px;
+  top: 140px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+.tvfz-head {
+  margin: 0;
+}
+.tvfz-head .tvx-bi {
+  align-items: center;
+  font-size: 72px;
+}
+.tvfz-line,
+.tvfz-dance {
+  max-width: 1100px;
+  margin: 0;
+  color: var(--moon);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.tvfz-dance {
+  font-size: 44px;
+  font-weight: 900;
+  animation: tvfz-bop 0.5s ease-in-out infinite alternate;
+}
+@keyframes tvfz-bop {
+  to {
+    translate: 0 -6px;
+  }
+}
+.tvfz-row {
+  position: absolute;
+  left: 80px;
+  right: 80px;
+  bottom: 120px;
+}
+.tvfz-crown {
+  /* a winner's crown: the podium's colour (tv-show.css .tvx-crown) */
+  color: var(--gel-amber);
+  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gel-amber) 60%, transparent));
+  animation: tvx-pop 0.6s var(--ease-pop) both;
+}
+.tvfz-big {
+  margin: 0;
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: 68px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-shadow: 0 0 40px color-mix(in oklab, var(--gel) 45%, transparent);
+  text-wrap: balance;
+  animation: tvx-pop 0.5s var(--ease-pop) both;
+}
+.tvfz-big.is-caught {
+  color: var(--stop);
+}
+.tvfz-big.is-still {
+  color: var(--go);
+}
+
+/* the floor, behind the dancers */
+.tvfz-floor {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 760px;
+  translate: -50% -50%;
+  opacity: 0.85;
+  scale: 1.6;
+}
+
+/* the moment the track cuts */
+.tvfz-stop {
+  margin: 0;
+  animation: tvfz-slam 0.35s var(--ease-pop) both;
+}
+.tvfz-stop .tvx-bi {
+  align-items: center;
+  font-size: 150px;
+}
+.tvfz-stop .tvx-bi-main {
+  color: var(--moon);
+  text-shadow:
+    0 0 30px var(--gel),
+    0 0 90px var(--gel);
+}
+@keyframes tvfz-slam {
+  from {
+    opacity: 0;
+    scale: 1.8;
+  }
+}
+.tvfz.is-freeze .tvx-wash {
+  filter: saturate(0.4) brightness(0.8);
+}
+
+/* everyone on the floor, large */
+.tvfz-dancers {
+  position: absolute;
+  left: 60px;
+  right: 60px;
+  bottom: 110px;
+}
+.tvfz-dancers .lineup {
+  --fig-h: 300px;
+  gap: 40px;
+  height: calc(var(--fig-h) + 40px);
+}
+.tvfz-dancers .lineup.is-crowded {
+  --fig-h: 200px;
+  gap: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvfz-dance,
+  .tvfz-crown,
+  .tvfz-big,
+  .tvfz-stop {
+    animation: none;
+  }
+}

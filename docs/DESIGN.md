@@ -3,7 +3,7 @@
 主站、/eat 和以后的每个工具、游戏共用这一套。三样东西各管一件事：
 
 - `site/src/styles/tokens.css`：所有的值，颜色、字号、间距、圆角、阴影、动效。只在这里定义。
-- `site/src/ui/types.ts`：12 个组件的接口。组件做在 `site/src/ui/`（Codex 卡 C1）。
+- `site/src/ui/types.ts`：12 个组件的接口。组件已在 `site/src/ui/` 实现，预览在 `site/ui-preview.html`。
 - 这份文件：规则，和为什么。
 
 `site/DESIGN.md` 写的是现在线上的样子和创意方向：夜里的一个房间，每个游戏一盏色灯。这个方向不变。
@@ -67,7 +67,7 @@
 
 同类同色。卡片整块用类型色，上面放夜色字。2026-11-01 Steve 定的：游戏卡和工具卡按这 5 类上色，
 不再一个游戏一种颜色；进了游戏以后，房间的光还是那个游戏自己的颜色（上面那句）。每个游戏属于哪一类，
-写在 `games/registry.ts` 的 `category` 字段，2026-11-02 Steve 定的：
+写在 `site/src/games/registry.ts` 的 `category` 字段，2026-11-02 Steve 定的：
 
 - 喝酒局：真心话大冒险、流氓十三张、国王游戏、我从来没有、七八九、命运转盘
 - 动脑：谁是卧底、最佳称号、戏精大赏、额头便利贴、尤克牌、猜歌名、你画我猜
@@ -123,7 +123,7 @@
 | `--text-xl` | 22 | 26 | 弹层标题、题目 |
 | `--text-2xl` | 28 | 34 | 页面标题、比分 |
 | `--text-3xl` | 40 | 48 | 大标题、桌号 |
-| `--text-4xl` | 64 | 64 | 电视画面（`?view=tv`）、巨型数字 |
+| `--text-4xl` | 64 | 64 | 电视画面（`/tv`）、巨型数字 |
 | `--text-poster` | 88 到 156，跟屏宽 | 156 | 只给惩罚盖章和倒计时 |
 
 - 后三档标题在 370 到 1440 宽之间平滑变大（`clamp`）。桌面最大是手机的 1.2 倍，这个倍数是我定的，可以调。
@@ -169,26 +169,32 @@
 - 图标用 lucide 线稿，`--icon-sm` 24 和 `--icon-lg` 48 两档。不用 emoji 当图标。
 - 手机一栏，最宽 `--page-max` 560。720 以上两栏：左边今晚的人和联机，右边游戏 3 列；1200 以上 4 列（A4）。
   断点没法写成 CSS 变量，统一用 `@media (min-width: 720px)` 和 `@media (min-width: 1200px)`。
-- 游戏壳：顶栏 `--bar-h` 56 加顶部安全区，底部动作区 `--dock-h` 72 加底部安全区（A5）。
+- 游戏壳（`site/src/games/GameShell.tsx`，A5）：顶栏 `--bar-h` 56 加顶部安全区，底部动作区 `--dock-h` 72 加底部安全区。
+  - 顶栏：返回、两种语言的游戏名、轮次或剩余秒数（用字写：第 3 轮、还剩 12 秒）、声音、玩法，最多再加一个游戏自己的按钮（图标加名字）。
+    手机上声音、玩法和那个按钮收进「⋯」，菜单里每项都写名字；720 宽以上全摆在栏里。
+  - 玩家条：今晚的人。轮到谁谁有圈，并滚到中间；出局的变淡；每次受罚在名字下加一个点。
+  - 底部动作区：这一刻的一到两个按钮，主按钮在右边，就在拇指下。游戏正文里不再放这些按钮。
+  - 横屏：顶栏变矮，只写一种语言；左边有大画面（瓶子、转盘、骰子……）时，玩家条和按钮在右边一栏。
 
 ## 组件
 
-接口在 `site/src/ui/types.ts`。C1 照着做，一个组件一个文件，每个配一个预览页。
+12 个组件已实现，接口在 `site/src/ui/types.ts`，一个组件一个文件。`site/ui-preview.html` 展示全部组件，
+每个组件的预览在 `site/src/ui/preview/<Name>.tsx`；迁移旧页面时逐步换用它们。
 
 | 组件 | 用途 | 现在对应的代码 |
 | --- | --- | --- |
-| Button | 所有「点了会发生事」的东西；一屏一个主按钮 | `.btn` 一家 |
-| Tile | 网格里的一个游戏或工具，或首页顶上的大卡 | `home/Tile.tsx` |
-| Sheet | 从底下升起的弹层：菜单、玩家、设置、玩法、游戏介绍 | `components/Sheet.tsx` |
-| Tabs | 同一页里切换视图，或者胶囊形的单选 | `.tabs`、`.seg` |
-| Pill | 小标签（新、2 到 8 人），或能开关的筛选芯片 | `.chip`、`.tag` |
-| RosterChip | 今晚在场的一个人：头像加名字 | 各处的头像排 |
-| OTPInput | 6 位邮箱验证码，或 4 位桌号 | `account/SignIn.tsx` 的 `.otp` |
-| Toast | 自己出现、自己消失的一句话 | `online/Overlays.tsx` 的 `ToastLayer` |
-| EmptyState | 什么都还没有、或者没加载出来时说的话，带一个动作 | `.empty` |
-| Skeleton | 加载时的灰色占位，不让屏幕空着 | 没有 |
-| GameHeader | 每个游戏顶上 56 高的栏：返回、名字、轮次或倒计时、声音、电视 | `components/TopBar.tsx` |
-| PenaltyCard | 所有游戏共用的惩罚：喝一口、5 个俯卧撑、表演 | `components/PenaltyStamp.tsx` |
+| Button | 所有「点了会发生事」的东西；一屏一个主按钮 | `site/src/ui/Button.tsx` |
+| Tile | 网格里的一个游戏或工具，或首页顶上的大卡 | `site/src/ui/Tile.tsx` |
+| Sheet | 从底下升起的弹层：菜单、玩家、设置、玩法、游戏介绍 | `site/src/ui/Sheet.tsx` |
+| Tabs | 同一页里切换视图，或者胶囊形的单选 | `site/src/ui/Tabs.tsx` |
+| Pill | 小标签（新、2 到 8 人），或能开关的筛选芯片 | `site/src/ui/Pill.tsx` |
+| RosterChip | 今晚在场的一个人：头像加名字 | `site/src/ui/RosterChip.tsx` |
+| OTPInput | 6 位邮箱验证码，或 4 位桌号 | `site/src/ui/OTPInput.tsx` |
+| Toast | 自己出现、自己消失的一句话 | `site/src/ui/Toast.tsx` |
+| EmptyState | 什么都还没有、或者没加载出来时说的话，带一个动作 | `site/src/ui/EmptyState.tsx` |
+| Skeleton | 加载时的灰色占位，不让屏幕空着 | `site/src/ui/Skeleton.tsx` |
+| GameHeader | 每个游戏顶上 56 高的栏：返回、名字、轮次或倒计时、声音、电视 | `site/src/ui/GameHeader.tsx` |
+| PenaltyCard | 所有游戏共用的惩罚：喝一口、5 个俯卧撑、表演 | `site/src/ui/PenaltyCard.tsx` |
 
 组件之间的约定：
 
@@ -199,20 +205,26 @@
 - 弹层开着时，手机的返回键先关弹层，不离开页面（`router.ts` 的 `useBackCloses`）。页面地址本身就代表这个弹层的（游戏卡 `/g/<slug>`），传 `history={false}`。
 - 出错时说人话，给一个能做的动作，不出现错误码。
 
+## 已经落地的规则
+
+- 首页游戏卡已按类型上色；共用 Tile 支持工具的 amber 类型色。游戏房间仍用自己的 gel。
+- 中文正文行高 1.65、英文 1.5，正文跟着 `--leading`；页面允许双指缩放。
+- 共用的小按钮、芯片和语言开关至少 44，挨得近的分段按钮用 48。
+- 危险按钮已用夜色字，对比度从 3.2:1 到 6.0:1。
+- 面板、弹层和静按钮里的 `.muted` 已从 fog 换成 haze。
+
 ## 和现在不一样的地方
 
-- 游戏卡和工具卡按 5 类上色，现在是一个游戏一种颜色。
+- 工具页仍是现有面板，后续迁移成 amber 类型色的卡片。
 - 间距换成 4 的倍数，6 和 10 不再用（现在 6px 用了 144 次）。
 - 字号从 49 种收成 7 档，加电视、海报两档。
-- 危险按钮（惩罚按钮）的字从白色换成夜色，对比度从 3.2:1 到 6.0:1。
-- 小按钮、芯片从 40 高改成 44，语言开关从 32 改成 44。
-- 面板上的次要数字从 fog 换成 haze。
 - 阴影收成 3 级加光晕；玻璃模糊同屏最多两处。
-- 动效以 CSS 为主（site/DESIGN.md 现在写的是全部用 GSAP）。
+- 动效以 CSS 为主；共用组件已用 CSS，首页、旧弹层和游戏中仍有 GSAP 等待迁移。
 
 ## 维护
 
 - 改 token：只改 tokens.css，同时改这份文件里对应的表。
-- `site/tests/tokens.test.ts` 在每次构建时检查：tokens.css 里和 global.css 同名的变量值完全一样
-  （迁移做完之前，载入 tokens.css 不改变任何页面）；`src/ui/` 里没有裸写的颜色和字号；字号和间距的刻度没被改动。
-- 迁移做完（C8 的清单归零）之后：global.css 改成引用 tokens.css，删掉重复的定义，site/DESIGN.md 并进这份（C9）。
+- `site/tests/tokens.test.ts` 在 CI 的构建前检查：tokens.css 里和 global.css 同名的变量值完全一样；
+  `src/ui/` 里没有裸写的颜色和字号；字号和间距的刻度没被改动。主站已载入 tokens.css，旧样式仍保留重复定义。
+- 迁移做完（C8 的清单归零）之后：global.css 改成引用 tokens.css，删掉重复的定义。
+  `site/DESIGN.md` 保留已实现的灯光和外观记录；规则以这份为准（C9）。

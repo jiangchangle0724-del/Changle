@@ -116,9 +116,11 @@ html.tv-mode .room-light {
   display: flex;
   gap: 12px;
 }
+/* (bottom left: the table's code and QR take the bottom right corner) */
 .tv-controls.is-game {
   top: auto;
-  right: 26px;
+  right: auto;
+  left: 26px;
   bottom: 28px;
   transition: opacity 0.5s;
 }

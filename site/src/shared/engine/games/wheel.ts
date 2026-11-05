@@ -118,7 +118,8 @@ export const wheel: GameDef<S> = {
         return;
       }
       case "skip": {
-        if (!host || s.phase === "spinning") return;
+        // (the turn the host meant to skip: a second tap, or one sent late, mustn't skip the next player too)
+        if (!host || s.phase === "spinning" || (g.at !== undefined && g.at !== `${s.phase}:${s.turn}`)) return;
         s.turn = api.next(s.turn);
         s.phase = "spin";
         s.result = null;

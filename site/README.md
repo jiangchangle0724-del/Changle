@@ -14,7 +14,7 @@
 | 国王游戏 King's Game | 抽号码，国王下命令 | 3+ |
 | 戏精大赏 Drama Queens | 几个人按剧本演，观众猜谁是坏人、给演技打星，演得最差的受罚；也可以两人飙同一句台词 | 3+ |
 | 额头便利贴 Post-it Note | 手机传一圈偷偷写 | 2+ |
-| 林波舞 Limbo | 手机测后仰角度；盲仰：看不到角度凭感觉仰到目标，差最远的喝 | 2+ |
+| 林波舞 Limbo | 手机测后仰角度；稳住（仰到位一动不动）、跟着动的杆（横杆上下浮动，跟丢超过 1 秒出局）、歪着过（还要往左或往右歪），派对每杆随机一种；盲仰：看不到角度凭感觉仰到目标，差最远的喝 | 2+ |
 | 我从来没有 Never Have I Ever | 还有“谁最有可能” | 2+ |
 | 尤克牌 Euchre | 你和三个电脑玩家 | 2+（空位电脑补） |
 | 七八九 Seven Eight Nine | 两颗骰子一个公杯 | 2+ |
@@ -25,7 +25,7 @@
 | 神回复 Punchline | 两人对决，大家投票，手机上整场演出 | 3+（超过 8 人的当观众） |
 | 你画我猜 Draw & Guess | 在手机上画 | 2+ |
 
-**大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏在手机上玩，大屏幕显示桌号和谁在玩。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。
+**大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏（最佳称号、谁是卧底、猜歌名、戏精大赏、真心话大冒险、命运转盘、七八九、流氓十三张、国王游戏、我从来没有、额头便利贴、木头人蹦迪、尤克牌、你画我猜、林波舞）在大屏幕上也有自己的画面（轮到谁、谁投了票、揭晓、领奖台），不会出现任何人的词、手牌和票，真心话大冒险的题目也等被指到的人念出来，额头便利贴上还没猜出来的词、你画我猜的词（这一轮结束前）也不会上屏；到此一游开始以后，大屏幕自己去它的大屏页面，打碟时大屏幕就是音箱。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。座位设成「只看」的手机，在这些游戏里整屏显示大屏画面，横过来投屏到电视就行。
 
 **打碟 · DJ Booth**（还没放上首页，只有这个地址）：电视或电脑打开 `changle.ca/dj`，这台设备就是音箱。点「开始派对」开始放歌；大家扫码入座，手机按 🔥，大屏上看得到是谁按的，人跟着拍子跳；主人在手机上把一晚拖到暖场、推高、顶点、收尾，每场最长 4 小时。现在放的是「试音版 DJ」：在音箱上用网站自己的乐器现场录的浩室，125 BPM；接 Google 的 Lyria 是下一步。只测声音、不开桌：`changle.ca/dj/test`。方案在仓库根目录的 `docs/dj-booth.md`，各部分怎么接在 `src/shared/dj/CONTRACTS.md`。
 
@@ -97,13 +97,45 @@ python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字
 python3 scripts/net_test.py         # 模拟几部手机把联机游戏玩一遍
+python3 scripts/watch_players_check.py # 三个玩家加一个只看的座位：瓶子停在服务器选的人上，名单和计数里没有只看的人
 python3 scripts/local_check.py      # 单机回归
 python3 scripts/party_test.py       # 七个新游戏，单机和联机
 python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回复
+python3 scripts/watch_test.py       # 每个游戏自己的大屏画面：两台电视和一部只看的手机，每个阶段、没有秘密、没有报错
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥
 ```
+
+## 视觉回归与无障碍（ui-C6）
+
+Node 22，在 `site/` 运行：
+
+```sh
+npm ci
+npx playwright install --with-deps chromium
+npx tsc --noEmit
+npm run build
+npx playwright test
+```
+
+测试自动构建组件预览页并启动 `vite preview`，覆盖 40 个手机/桌面状态。每个状态都跑
+WCAG 2.1 A/AA axe；新的 serious/critical 问题会失败。已有问题只能按具体屏幕、规则和节点
+记录在 `tests/visual/axe-known.ts`，附原因，不能关闭整条规则。HTML 报告及逐屏 axe JSON 在
+`playwright-report/`，CI 的 `visual-results` 附件还包含失败时的 expected/actual/diff 图和 trace。
+截图容差 `maxDiffPixelRatio: 0.001`，仅容许极小的像素噪声。测试隔离网络、固定时间及随机数，
+等待字体加载并减弱动效，不会发邮件或连接真实房间。
+
+中文使用系统字体，Windows/macOS 的本地图和 Linux CI 不同；本地视觉比较可能失败。
+**不要提交本机截图，也不要本地更新基准。** 有意改变外观后，在 PR 加上 `update-screenshots`
+标签（首次可用 `gh label create update-screenshots` 创建）。`visual-update.yml` 在 Ubuntu、
+Chromium、Noto CJK 字体下运行 `--update-snapshots`，只向该 PR 分支提交基准图，然后移除标签。
+若生成失败，检查附件，修复后移除再加标签。仅支持同仓库 PR，且生成期间不能改 PR head。
+机器人提交不会触发其他 CI：提交后再推一个提交（空提交也可），让 `site / visual` 对新基准
+正常比较。基准保存在 `tests/visual/__screenshots__/`。
+
+当前游戏清单比卡片多一个：为保持 40 张，本轮暂不含尤克牌，其余 15 个可玩游戏都覆盖；
+到此一游和打碟按卡片排除。增加覆盖时在 `tests/visual/screens.spec.ts` 加状态。
 
 ## 部署
 

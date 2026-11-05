@@ -4,9 +4,17 @@ name: suibian
 
 on:
   push:
+    branches: [main]
     paths: ["tools/suibian/**", ".github/workflows/suibian.yml"]
   pull_request:
     paths: ["tools/suibian/**", ".github/workflows/suibian.yml"]
+
+# One run per change: a branch's pushes are checked through its pull request, and main after each
+# merge (each push used to run twice, once for the push and once for the PR). A newer push to the
+# same pull request stops the older run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:

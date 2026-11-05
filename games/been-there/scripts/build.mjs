@@ -37,9 +37,10 @@ const appCss = async () =>
 await mkdir(`${out}/fonts`, { recursive: true });
 for (const f of FONT_FILES) await copyFile(`src/client/fonts/${f}`, `${out}/fonts/${f}`);
 await writeFile(`${out}/app.css`, await appCss());
-// The city photos and recordings (credited in src/client/media.ts). Pages fetch them when they're
-// needed, so they ship as files beside the game and stay out of the single-file pages.
-for (const kind of ["photos", "sounds"]) {
+// The city photos and recordings (credited in src/client/media.ts), and the satellite map's pictures
+// (scripts/satellite.mjs, credited on the credits page). Pages fetch them when they're needed, so they
+// ship as files beside the game and stay out of the single-file pages.
+for (const kind of ["photos", "sounds", "map"]) {
   await mkdir(`${out}/${kind}`, { recursive: true });
   for (const f of await readdir(`src/client/media/${kind}`)) if (!f.startsWith(".")) await copyFile(`src/client/media/${kind}/${f}`, `${out}/${kind}/${f}`);
 }
@@ -90,6 +91,11 @@ async function licences() {
     parts.push(`=== ${name}\n${url}\n\n${text.trim()}\n`);
   }
   parts.push("=== Weather data\nhttps://open-meteo.com/\n\nWeather data by Open-Meteo.com, licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/\n");
+  parts.push(
+    "=== Satellite map (map/*.webp)\nhttps://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/\nhttps://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/\n\n" +
+      "Blue Marble: Next Generation (July 2004, with topography and bathymetry) by Reto Stöckli, NASA Earth Observatory, and Black Marble 2016 by Joshua Stevens, NASA Earth Observatory, from Suomi NPP VIIRS data by Miguel Román, NASA Goddard Space Flight Center. " +
+      "Reprojected and resized for this game. NASA's images are not subject to copyright in the United States (public domain); their use here does not imply NASA's endorsement: https://www.nasa.gov/nasa-brand-center/images-and-media/\n",
+  );
   return `Been There, Bought That (到此一游): third-party licences\n\n${parts.join("\n")}`;
 }
 const LICENCES = await licences();

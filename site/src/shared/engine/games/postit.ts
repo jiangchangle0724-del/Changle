@@ -131,7 +131,8 @@ export const postit: GameDef<S> = {
       }
       case "reply": {
         const r = g.r;
-        if (s.phase !== "play" || pid === s.turn || (r !== "yes" && r !== "no" && r !== "maybe")) return;
+        // (players only: someone just watching, host or not, doesn't answer)
+        if (s.phase !== "play" || pid === s.turn || (r !== "yes" && r !== "no" && r !== "maybe") || !api.has(pid)) return;
         s.replies[pid] = r;
         return;
       }

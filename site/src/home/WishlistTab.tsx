@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Crown, Flame, Gamepad2, Send, Sparkles, Wrench } from "lucide-react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError } from "../lib/api";
-import { gsap, reduced } from "../lib/anim";
+import { EASE, play, reduced } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { savedName, saveName } from "../online/config";
 import { useStore } from "../store";
@@ -82,6 +82,8 @@ export function WishlistTab() {
   const [wishes, setWishes] = useState<Wish[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [sort, setSort] = useState<"top" | "new">("top");
+  /** how many times the list has arrived from the server */
+  const [loaded, setLoaded] = useState(0);
   const [draft, setDraft] = useState<Draft>(loadDraft);
   const { kind, text, desc, rules } = draft;
   const game = kind === "game";
@@ -97,6 +99,7 @@ export function WishlistTab() {
     try {
       const d = await api<{ wishes: Wish[] }>("/wishes", { signal });
       setWishes(d.wishes);
+      setLoaded((n) => n + 1);
       setFailed(false);
     } catch {
       if (!signal?.aborted) setFailed(true);
@@ -118,7 +121,16 @@ export function WishlistTab() {
 
   const ready = text.replace(/\s+/g, " ").trim().length >= NAME_MIN && within(tidy(desc).length, DESC) && within(tidy(rules).length, RULES);
 
-  const sorted = (wishes ?? []).slice().sort((a, b) => (sort === "top" ? b.votes - a.votes || b.at - a.at : b.at - a.at));
+  // The order is set when the list arrives, the sort changes or a wish is added, not by a vote: a
+  // wish that jumped up or down the list as you voted left a quick second tap on someone else's.
+  const count = wishes?.length ?? 0;
+  const order = useMemo(
+    () => (wishes ?? []).slice().sort((a, b) => (sort === "top" ? b.votes - a.votes || b.at - a.at : b.at - a.at)).map((w) => w.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sort, count, loaded],
+  );
+  const byId = new Map((wishes ?? []).map((w) => [w.id, w]));
+  const sorted = order.map((id) => byId.get(id)).filter((w): w is Wish => !!w);
   // made ones are off the list: they fold away under "already made"
   const open = sorted.filter((w) => w.status !== "done");
   const made = sorted.filter((w) => w.status === "done");
@@ -136,7 +148,7 @@ export function WishlistTab() {
       sfx.correct();
       requestAnimationFrame(() => {
         const el = list.current?.querySelector(`[data-wish="${d.wish.id}"]`);
-        if (el && !reduced()) gsap.fromTo(el, { y: -16, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.55, clearProps: "transform,opacity" });
+        play(el, [{ transform: "translateY(-16px) scale(0.97)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 550, easing: EASE.settle });
       });
     } catch (e) {
       const code = e instanceof ApiError ? e.code : "";
@@ -149,18 +161,34 @@ export function WishlistTab() {
     }
   };
 
+  // one vote on its way per wish, and a quick double tap is one tap (even when the answer is quicker
+  // than the second tap): it counts once, and answers can't land out of order
+  const voting = useRef(new Set<number>());
+  const tapped = useRef(new Map<number, number>());
   const vote = async (w: Wish, btn: HTMLElement) => {
+    const now = performance.now();
+    if (voting.current.has(w.id) || now - (tapped.current.get(w.id) ?? -Infinity) < 450) return;
+    tapped.current.set(w.id, now);
+    voting.current.add(w.id);
     const up = !w.voted;
     setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: up, votes: x.votes + (up ? 1 : -1) } : x)) ?? null);
     if (up) {
       sfx.pop();
       if (!reduced()) {
-        gsap.fromTo(btn.querySelector("svg"), { scale: 1.6, rotate: -14 }, { scale: 1, rotate: 0, duration: 0.6, ease: "elastic.out(1, 0.4)" });
+        // the flame jumps and wobbles back; a +1 floats up from the button
+        play(btn.querySelector("svg"), [
+          { transform: "scale(1.6) rotate(-14deg)" },
+          { transform: "scale(0.92) rotate(5deg)", offset: 0.4 },
+          { transform: "scale(1.04) rotate(-2deg)", offset: 0.7 },
+          { transform: "none" },
+        ], { duration: 600, easing: "ease-out" });
         const plus = document.createElement("span");
         plus.className = "vote-plus";
         plus.textContent = "+1";
         btn.appendChild(plus);
-        gsap.fromTo(plus, { y: 0, opacity: 1 }, { y: -26, opacity: 0, duration: 0.8, ease: "power2.out", onComplete: () => plus.remove() });
+        const rise = play(plus, [{ transform: "none", opacity: 1 }, { transform: "translateY(-26px)", opacity: 0 }], { duration: 800, easing: "cubic-bezier(0.33, 1, 0.68, 1)", fill: "forwards" });
+        if (rise) rise.onfinish = () => plus.remove();
+        else plus.remove();
       }
     }
     try {
@@ -168,6 +196,8 @@ export function WishlistTab() {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: d.voted, votes: d.votes } : x)) ?? null);
     } catch {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: w.voted, votes: w.votes } : x)) ?? null);
+    } finally {
+      voting.current.delete(w.id);
     }
   };
 
@@ -481,28 +511,30 @@ function Reveal({ open, id, children }: { open: boolean; id: string; children: R
     if (!el) return;
     const changed = was.current !== open;
     was.current = open;
-    gsap.killTweensOf(el);
+    // from wherever it is now, if it was still growing or folding
+    const from = el.hidden ? 0 : el.getBoundingClientRect().height;
+    const fromOpacity = el.hidden ? 0 : Number(getComputedStyle(el).opacity);
+    el.getAnimations().forEach((a) => a.cancel());
+    el.style.overflow = "";
     if (!changed || reduced()) {
       el.hidden = !open;
-      gsap.set(el, { clearProps: "height,opacity,overflow" });
       return;
     }
-    gsap.set(el, { overflow: "hidden" });
-    if (open) {
-      if (el.hidden) gsap.set(el, { height: 0, opacity: 0 });
-      el.hidden = false;
-      gsap.to(el, { height: "auto", opacity: 1, duration: 0.45, clearProps: "height,opacity,overflow" });
-    } else
-      gsap.to(el, {
-        height: 0,
-        opacity: 0,
-        duration: 0.26,
-        ease: "power2.in",
-        onComplete: () => {
-          el.hidden = true;
-          gsap.set(el, { clearProps: "height,opacity,overflow" });
-        },
-      });
+    el.style.overflow = "hidden";
+    el.hidden = false;
+    const to = open ? el.scrollHeight : 0;
+    const move = el.animate([{ height: `${from}px`, opacity: fromOpacity }, { height: `${to}px`, opacity: open ? 1 : 0 }], {
+      duration: open ? 450 : 260,
+      easing: open ? EASE.settle : EASE.leave,
+      fill: open ? "none" : "forwards",
+    });
+    move.onfinish = () => {
+      el.style.overflow = "";
+      if (!open) {
+        el.hidden = true;
+        move.cancel();
+      }
+    };
   }, [open]);
   return (
     <div ref={ref} id={id} className="wish-reveal">

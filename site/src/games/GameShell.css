@@ -1,0 +1,74 @@
+/*
+ * The game shell (GameShell.tsx, UI plan A5): tonight's people under the top bar, and the screen's
+ * one or two buttons at the bottom by the thumb. Loaded with the games, never with the home page.
+ */
+
+/* tonight's people under the top bar: the turn is bigger and ringed, the out are faded */
+.game-roster {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--gutter)) var(--space-2);
+  padding: var(--space-1) var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  /* a long table fades out at the edges, so it reads as a row that scrolls rather than one cut off */
+  mask-image: linear-gradient(90deg, transparent, black var(--gutter), black calc(100% - var(--gutter)), transparent);
+}
+.game-roster::-webkit-scrollbar {
+  display: none;
+}
+.game-roster > * {
+  flex: none;
+}
+
+/* the screen's one or two buttons, at the bottom by the thumb; the main one is last, on the right */
+.game-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  gap: var(--space-3);
+  min-height: var(--dock-h);
+  margin: var(--space-4) calc(-1 * var(--gutter)) calc(-1 * (var(--safe-bottom) + var(--space-4)));
+  padding: var(--space-3) var(--gutter) calc(var(--safe-bottom) + var(--space-3));
+  background: linear-gradient(to top, var(--color-bg) 72%, transparent);
+}
+.game-actions > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* a phone on its side (see styles/landscape.css): the bar is shorter and says the name in one
+   language, as the old one did, so a big picture on the left still starts 46px down; beside that
+   picture, tonight's people and the buttons keep to the right-hand column */
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  .game-screen > .ui-game-header {
+    min-height: calc(var(--tap) + var(--safe-top));
+    margin-bottom: calc(var(--space-1) / 2);
+  }
+  .game-screen > .ui-game-header h1 small {
+    display: none;
+  }
+  .game-actions {
+    min-height: 0;
+    margin-top: var(--space-2);
+    padding-block: var(--space-2) var(--safe-bottom);
+  }
+  .game-actions > .btn-lg {
+    min-height: var(--tap-crowded);
+  }
+  .game-screen:has(
+      > .game-body :is(.bottle-stage, .tn-stage, .deck-stack, .plate-draw, .plate-watch, .dm-stagebox, .eu-table),
+      > .game-body > :is(.card-stage, .dice-stage, .wheel-svg),
+      > .game-body .tn > .vinyl,
+      > .game-body .fz > .floor,
+      > .game-body .lb > .limbo-scene
+    )
+    > :is(.game-roster, .game-actions) {
+    margin-left: calc(44% + 20px);
+    padding-left: 0;
+    /* only the right edge fades here (the buttons stop a gutter short of it, so they don't) */
+    mask-image: linear-gradient(90deg, black calc(100% - var(--gutter)), transparent);
+  }
+}

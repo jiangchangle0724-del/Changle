@@ -93,7 +93,8 @@ export const dice: GameDef<S> = {
         return;
       }
       case "skip": {
-        if (!host) return;
+        // (the turn the host meant to skip: a second tap, or one sent late, mustn't skip the next player too)
+        if (!host || (g.at !== undefined && g.at !== `${s.phase}:${s.turn}`)) return;
         s.turn = api.next(s.turn);
         s.phase = "roll";
         s.outcome = null;

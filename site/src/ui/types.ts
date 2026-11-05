@@ -40,6 +40,8 @@ export type ButtonProps = ButtonCommon &
         block?: boolean;
         /** a leading icon */
         icon?: LucideIcon;
+        /** a switch that stays pressed, like sound on in the top bar's ⋯ menu */
+        pressed?: boolean;
         children: ReactNode;
       }
     | {
@@ -248,8 +250,8 @@ export type GameHeaderProps = {
   onTv?: () => void;
   /** opens the rules */
   onHelp?: () => void;
-  /** one more icon button, only if a game truly needs it */
-  extra?: ReactNode;
+  /** one more button, only if a game truly needs it: an icon in the bar, the icon and its name in the ⋯ menu */
+  extra?: { icon: LucideIcon; label: string; onClick: () => void };
 };
 
 /** Same shape as PenaltyCall in components/PenaltyStamp.tsx, so games keep passing what they pass today. */

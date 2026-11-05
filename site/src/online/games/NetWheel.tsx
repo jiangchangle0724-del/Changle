@@ -196,7 +196,7 @@ export function NetWheel({ v, onLeave }: { v: WheelView; onLeave: () => void }) 
       </AnimatePresence>
 
       <HostRow>
-        {v.phase !== "spinning" && !mine && <HostButton onClick={() => g("skip")}>{ui("skip")}</HostButton>}
+        {v.phase !== "spinning" && !mine && <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{ui("skip")}</HostButton>}
         {(v.phase === "spin" || v.phase === "result") && (
           <HostButton onClick={() => setEditing(true)}>
             <Pencil size={14} />

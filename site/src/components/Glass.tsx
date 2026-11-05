@@ -42,11 +42,14 @@ export function Glass({ level, size = 120, label }: { level: number; size?: numb
         </defs>
         {/* liquid */}
         <g clipPath={`url(#${inner})`}>
+          {/* only the top of the liquid moves: the glass's inside clips the rest (a moving height could
+              spring past zero for a frame, and a negative height is an error in the console) */}
           <motion.rect
             x={0}
             width={w}
+            height={h}
             initial={false}
-            animate={{ y: liquidTop, height: h - liquidTop }}
+            animate={{ y: liquidTop }}
             transition={{ type: "spring", stiffness: 90, damping: 16 }}
             fill={`url(#${beer})`}
           />

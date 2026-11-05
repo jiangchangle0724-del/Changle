@@ -3,7 +3,7 @@
 // of it. (The other tests answer by clicking in the page's script, which reaches a button even when
 // a person couldn't.) Played on an iPhone 13, the small iPhone SE, and an iPhone held sideways.
 import { devices, expect, test } from "@playwright/test";
-import { closeAll, createRoom, joinWithTeam, newPhone, tap } from "./phones";
+import { closeAll, createRoom, joinWithTeam, newPhone, quizOff, tap } from "./phones";
 
 test.afterEach(closeAll);
 
@@ -20,6 +20,7 @@ for (const [label, device] of [
     const b = await newPhone(browser, "看", { ...opts, locale: "zh-CN" });
     await joinWithTeam(a, code);
     await joinWithTeam(b, code);
+    await quizOff(a);
     await a.page.getByRole("button", { name: "开始", exact: true }).click();
     await expect(a.page.locator(".game")).toBeVisible();
     // play along (never answering a buy question for us) until phone A is asked to buy

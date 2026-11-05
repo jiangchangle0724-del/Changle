@@ -146,11 +146,50 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const actions =
+    prompt && result ? (
+      <>
+        <button
+          type="button"
+          className="btn btn-ghost btn-lg"
+          style={{ color: "var(--haze)" }}
+          onClick={() =>
+            penalty.show({ who: [me.name], kind: "sip" }, () => {
+              setResult(null);
+              setPrompt(null);
+              turn.next();
+            })
+          }
+        >
+          {ui("pass")}
+        </button>
+        <button
+          type="button"
+          className="btn btn-jade btn-lg"
+          onClick={() => {
+            setResult(null);
+            setPrompt(null);
+            turn.next();
+          }}
+        >
+          {lang === "zh" ? "做完了" : "Done"}
+        </button>
+      </>
+    ) : picking ? undefined : result ? (
+      <button type="button" className={`btn btn-lg ${result.kind === "safe" ? "btn-jade" : result.kind === "drink" || result.kind === "custom" ? "btn-penalty" : "btn-primary"}`} onClick={act}>
+        {result.kind === "again" ? ui("spin") : ui("continue")}
+      </button>
+    ) : (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => table.flick()} disabled={table.spinning}>
+        {table.spinning ? ui("spinning") : ui("spin")}
+      </button>
+    );
+
   const rules = (
     <p>
       {lang === "zh"
-        ? "轮到谁谁转，转盘停在指针上的那一格就是惩罚。点右上角的铅笔可以改成你们桌上自己的规矩。"
-        : "Whoever's turn it is spins. The slice that stops at the pointer is the penalty. Tap the pencil to write your own table rules into the wheel."}
+        ? "轮到谁谁转，转盘停在指针上的那一格就是惩罚。点右上角的铅笔（手机上在「⋯」里，叫「改转盘」）可以改成你们桌上自己的规矩。"
+        : "Whoever's turn it is spins. The slice that stops at the pointer is the penalty. Tap the pencil at the top right (on a phone it's Edit the wheel, behind ⋯) to write your own table rules into the wheel."}
     </p>
   );
 
@@ -161,11 +200,9 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
       onBack={onBack}
       penalty={penalty.call}
       onPenaltyDone={penalty.done}
-      right={
-        <button className="icon-btn" onClick={() => setEditing(true)} aria-label={lang === "zh" ? "改转盘" : "Edit the wheel"}>
-          <Pencil size={18} />
-        </button>
-      }
+      roster={{ turn: me?.id }}
+      actions={actions}
+      right={{ icon: Pencil, label: lang === "zh" ? "改转盘" : "Edit the wheel", onClick: () => setEditing(true) }}
     >
       <div className="turn-line">
         <span className="hint">{ui("yourTurn")}</span>
@@ -211,33 +248,6 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
             <p className="prompt-text">{tr(prompt)}</p>
             <p className="hint-ink prompt-other">{lang === "zh" ? prompt.en : prompt.zh}</p>
             {durationOf(prompt) !== null && <DareTimer seconds={durationOf(prompt)!} lang={lang} resetKey={drawn} />}
-            <div className="row" style={{ gap: 10, marginTop: 12 }}>
-              <button
-                type="button"
-                className="btn btn-ghost btn-block"
-                style={{ color: "var(--haze)" }}
-                onClick={() =>
-                  penalty.show({ who: [me.name], kind: "sip" }, () => {
-                    setResult(null);
-                    setPrompt(null);
-                    turn.next();
-                  })
-                }
-              >
-                {ui("pass")}
-              </button>
-              <button
-                type="button"
-                className="btn btn-jade btn-block"
-                onClick={() => {
-                  setResult(null);
-                  setPrompt(null);
-                  turn.next();
-                }}
-              >
-                {lang === "zh" ? "做完了" : "Done"}
-              </button>
-            </div>
           </motion.div>
         ) : picking ? (
           <motion.div key="pick" className="stack" style={{ gap: 10 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -258,17 +268,8 @@ export function WheelOfFate({ onBack }: { onBack: () => void }) {
         ) : result ? (
           <motion.div key="result" className="stack" style={{ gap: 10, alignItems: "center" }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <p className={`wheel-result ${lang === "zh" ? "zh-display" : "en-display"}`}>{label(result)}</p>
-            <button type="button" className={`btn btn-lg btn-block ${result.kind === "safe" ? "btn-jade" : result.kind === "drink" || result.kind === "custom" ? "btn-penalty" : "btn-primary"}`} onClick={act}>
-              {result.kind === "again" ? ui("spin") : ui("continue")}
-            </button>
           </motion.div>
-        ) : (
-          <motion.div key="spin" className="stack" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => table.flick()} disabled={table.spinning}>
-              {table.spinning ? ui("spinning") : ui("spin")}
-            </button>
-          </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
 
       <Sheet open={editing} onClose={() => setEditing(false)} title={lang === "zh" ? "改转盘" : "Edit the wheel"}>

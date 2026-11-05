@@ -7,12 +7,30 @@ import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useCue, useReached, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
-import type { LimboView } from "../../shared/protocol";
+import type { LimboKind, LimboView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useSensorStatus, useWakeLock } from "../sensors";
-import { blindError } from "../../shared/engine/games/limbo";
-import { BlindMeter, LeanGauge, LimboScene, blindLine, useBlindLock, useLean } from "./parts";
+import { LIMBO_MODES, blindError, classicBar } from "../../shared/engine/games/limbo";
+import {
+  BlindMeter,
+  FollowMeter,
+  HOLD_MS,
+  LeanGauge,
+  LimboScene,
+  ModePicker,
+  SteadyMeter,
+  TiltMeter,
+  barHow,
+  barTag,
+  blindLine,
+  modeName,
+  useBlindLock,
+  useFollow,
+  useLean,
+  usePose,
+  variantSteps,
+} from "./parts";
 import "../../styles/party.css";
 import { Lineup } from "../../components/Figure";
 
@@ -27,13 +45,20 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   const seat = (id: string) => seats.find((s) => s.id === id);
   const sensors = useSensorStatus();
   const blind = v.mode === "blind";
+  // (a rooms server from before the variants sends no bar: a classic one)
+  const bar = v.bar ?? classicBar();
+  const kind: LimboKind = blind ? "classic" : bar.kind;
+  const moving = kind === "moving";
   const alive = v.alive.includes(me);
   const passed = v.passed.includes(me);
   const failed = v.failed.includes(me);
   const locked = v.locked.includes(me);
   const open = useReached(v.phase === "go" ? v.startAt : null);
+  // a moving bar stops before the round ends: then whoever kept up says so
+  const moveEnd = v.startAt + bar.moveMs;
+  const stopped = useReached(v.phase === "go" && moving ? moveEnd : null);
   const countdown = useSecondsLeft(v.phase === "go" && !open ? v.startAt : null, now);
-  const timeLeft = useSecondsLeft(v.phase === "go" && open ? v.endsAt : null, now);
+  const timeLeft = useSecondsLeft(v.phase === "go" && open ? (moving && !stopped ? moveEnd : v.endsAt) : null, now);
   useWakeLock(v.phase === "go");
 
   useEffect(() => {
@@ -67,9 +92,14 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   });
   useCue(failed, () => sfx.sadTrombone(0.7));
 
-  const measuring = !blind && v.phase === "go" && open && alive && !passed && !failed && sensors === "on";
+  // this phone measures its own player, whichever kind of bar it is
+  const trying = !blind && v.phase === "go" && open && alive && !passed && !failed && sensors === "on";
+  const pass = (deg: number) => g("pass", { deg });
+  const classic = useLean(trying && kind === "classic", v.angle, pass);
+  const pose = usePose(trying && (kind === "steady" || kind === "tilt"), { target: v.angle, side: kind === "tilt" ? bar.side : 0, holdMs: kind === "steady" ? bar.hold : HOLD_MS, still: kind === "steady" }, pass);
+  const follow = useFollow(trying && moving, v.angle, bar, v.startAt, now, (kept, deg) => g(kept ? "pass" : "fail", { deg }));
+  const best = kind === "classic" ? classic.best : moving ? follow.best : pose.best;
   const lastSent = useRef(0);
-  const { lean, best, hold } = useLean(measuring, v.angle, (deg) => g("pass", { deg }));
 
   // blind lean: the phone locks the angle once you hold still, and never shows it before the round ends
   const leaningBlind = blind && v.phase === "go" && open && alive && !locked && sensors === "on";
@@ -86,25 +116,31 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   const players = v.alive.filter((id) => v.sensors.includes(id)).length;
   // share how far you're getting, now and then
   useEffect(() => {
-    if (!measuring) return;
+    if (!trying) return;
     const t = performance.now();
     if (best >= (v.best[me] ?? 0) + 4 && t - lastSent.current > 700) {
       lastSent.current = t;
       g("best", { deg: Math.round(best) });
     }
-  }, [best, measuring, v.best, me, g]);
+  }, [best, trying, v.best, me, g]);
 
+  const drink = custom ? (zh ? "受罚" : "penalty") : zh ? "喝一口" : "drink";
   const rules = (
     <>
       <p>
         {zh
-          ? `林波舞，手机当裁判。把手机竖着贴在胸口，屏幕对着自己，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局${custom ? "受罚" : "喝一口"}，最后剩下的人赢。没有动作感应的手机由主人判，或者自己说过没过。`
-          : `Limbo, with the phone as judge. Hold it upright against your chest, screen facing you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (${custom ? "penalty" : "drink"}). Last one standing wins. Phones without motion sensing are judged by the host, or by their owner's honesty.`}
+          ? `林波舞，手机当裁判。把手机竖着贴在胸口，屏幕对着自己，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局${drink}，最后剩下的人赢。没有动作感应的手机由主人判，或者自己说过没过。`
+          : `Limbo, with the phone as judge. Hold it upright against your chest, screen facing you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (${drink}). Last one standing wins. Phones without motion sensing are judged by the host, or by their owner's honesty.`}
       </p>
       <p>
         {zh
-          ? `盲仰：每轮给一个目标角度，但看不到自己仰了多少。凭感觉仰到那个角度，停住不动一秒半，手机就锁定。离目标最远的出局${custom ? "受罚" : "喝一口"}，最后剩下的人赢。要用动作感应，测不了的手机这局当观众。`
-          : `Blind lean: each round gives a target angle, but you can't see your own. Lean back to what feels like it and hold still for a second and a half; the phone locks it. Furthest from the target is out (${custom ? "penalty" : "drink"}). Last one standing wins. It needs motion sensing: phones that can't measure watch that game.`}
+          ? "主人开始前还可以选别的玩法。稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 1 秒就出局，每部手机上的横杆都在同一个位置。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。这几种没有动作感应也能玩，由主人判，或者自己说。"
+          : "The host can pick another way to play before the game. Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down, in the same place on every phone; follow it down and back up, and lose it for over a second and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random. All of these work without motion sensing too, judged by the host or by honesty."}
+      </p>
+      <p>
+        {zh
+          ? `盲仰：每轮给一个目标角度，但看不到自己仰了多少。凭感觉仰到那个角度，停住不动一秒半，手机就锁定。离目标最远的出局${drink}，最后剩下的人赢。要用动作感应，测不了的手机这局当观众。`
+          : `Blind lean: each round gives a target angle, but you can't see your own. Lean back to what feels like it and hold still for a second and a half; the phone locks it. Furthest from the target is out (${drink}). Last one standing wins. It needs motion sensing: phones that can't measure watch that game.`}
       </p>
     </>
   );
@@ -117,13 +153,20 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
       : v.passed.includes(id) ? "pass" : v.failed.includes(id) ? "fail" : v.alive.includes(id) ? "try" : "out";
   // blind result: closest first
   const order = (ids: string[]) => (blind && v.phase !== "go" ? [...ids].sort((a, b) => blindError(v.locks[a], v.angle) - blindError(v.locks[b], v.angle)) : ids);
+  const tag = blind ? "" : barTag(bar, zh, v.mode === "party");
+  const passWord = moving ? (zh ? "跟住了" : "Kept up") : zh ? "过了" : "Under";
+  const failWord = moving ? (zh ? "跟丢了" : "Lost it") : zh ? "没过" : "Missed";
+  const showBar = v.phase === "go" || v.phase === "result";
+  // between bars the scene already shows the next bar's angle, and its variant isn't drawn yet:
+  // the slant, the sway and the variant's name are for the bar being played
+  const live = v.phase === "go";
 
   return (
     <NetFrame title={GAME_BY_ID.limbo.name} rules={rules} onLeave={onLeave}>
       <div className="lb">
         {v.phase !== "end" && (
-          <LimboScene angle={v.angle} level={v.level}>
-            {(v.phase === "go" || v.phase === "result") && (
+          <LimboScene angle={v.angle} level={v.level} side={live && kind === "tilt" ? bar.side : 0} sway={live && moving ? { bar, startAt: v.startAt, clock: now } : undefined}>
+            {showBar && (
               <Lineup
                 lean={v.angle}
                 items={v.alive.filter((id) => seat(id)).map((id) => {
@@ -138,35 +181,36 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
           <p className="lb-level">
             {(!blind || v.phase === "result") && <strong className="tabular">{v.angle}°</strong>}
             {blind ? (zh ? ` 盲仰第 ${v.level + 1} 轮` : ` Blind round ${v.level + 1}`) : zh ? ` 第 ${v.level + 1} 杆` : ` Bar ${v.level + 1}`}
+            {tag && live && <span className="lb-tag">{tag}</span>}
           </p>
         )}
 
         {v.phase === "ready" && (
           <>
             {isHost ? (
-              <div className="seg" role="group" aria-label={zh ? "玩法" : "Mode"}>
-                <button type="button" aria-pressed={!blind} onClick={() => g("mode", { mode: "classic" })}>
-                  {zh ? "经典：过杆" : "Classic: under the bar"}
-                </button>
-                <button type="button" aria-pressed={blind} onClick={() => g("mode", { mode: "blind" })}>
-                  {zh ? "盲仰" : "Blind lean"}
-                </button>
-              </div>
+              <ModePicker modes={LIMBO_MODES} value={v.mode} onPick={(m) => g("mode", { mode: m })} />
             ) : (
-              <p className="hint" style={{ textAlign: "center" }}>{blind ? (zh ? "这局玩盲仰" : "This game: blind lean") : zh ? "这局玩经典过杆" : "This game: classic, under the bar"}</p>
+              <p className="hint" style={{ textAlign: "center" }}>{zh ? `这局玩：${modeName(v.mode, zh)}` : `This game: ${modeName(v.mode, zh)}`}</p>
             )}
-            {blind ? (
+            {v.mode === "blind" ? (
               <ol className="lb-steps">
                 <li>{zh ? "手机竖着贴在胸口，屏幕朝自己" : "Phone upright against your chest, screen facing you"}</li>
                 <li>{zh ? "每轮给一个目标角度，看不到自己仰了多少" : "Each round gives a target angle; you can't see your own"}</li>
                 <li>{zh ? "凭感觉仰到位，停住不动一秒半就锁定" : "Lean to what feels right and hold still for a second and a half"}</li>
                 <li>{zh ? `离目标最远的出局${custom ? "受罚" : "喝一口"}` : `Furthest from the target is out and ${custom ? "takes the penalty" : "drinks"}`}</li>
               </ol>
-            ) : (
+            ) : v.mode === "classic" ? (
               <ol className="lb-steps">
                 <li>{zh ? "手机竖着贴在胸口，屏幕朝自己" : "Phone upright against your chest, screen facing you"}</li>
                 <li>{zh ? "音乐一响，往后仰到要求的角度" : "When the music starts, lean back to the angle"}</li>
                 <li>{zh ? "坚持一秒多就算过，杆子会越来越低" : "Hold it for a second to pass. The bar keeps dropping."}</li>
+              </ol>
+            ) : (
+              <ol className="lb-steps">
+                <li>{zh ? "手机竖着贴在胸口，屏幕朝自己" : "Phone upright against your chest, screen facing you"}</li>
+                {variantSteps(v.mode, zh).map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
               </ol>
             )}
             {sensors !== "on" ? (
@@ -196,31 +240,50 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
           </>
         )}
 
-        {v.phase === "go" && !open && <p className="lb-count tabular">{countdown}</p>}
+        {v.phase === "go" && !open && (
+          <>
+            <p className="lb-count tabular">{countdown}</p>
+            {/* what this bar asks, while there's a moment to read it */}
+            {!blind && alive && kind !== "classic" && <p className="hint" style={{ textAlign: "center" }}>{barHow(bar, v.angle, zh)}</p>}
+          </>
+        )}
 
         {v.phase === "go" && open && alive && (
           <>
             {blind ? (
               <BlindMeter target={v.angle} steady={blindLock.steady} locked={locked} />
             ) : passed ? (
-              <p className="lb-verdict is-pass">{zh ? "过了！" : "Under!"}</p>
+              <p className="lb-verdict is-pass">{passWord}</p>
             ) : failed ? (
-              <p className="lb-verdict is-fail">{zh ? "没过" : "Didn't make it"}</p>
+              <p className="lb-verdict is-fail">{failWord}</p>
             ) : sensors === "on" ? (
-              <LeanGauge lean={lean} target={v.angle} hold={hold} />
+              kind === "steady" ? (
+                <SteadyMeter target={v.angle} holdMs={bar.hold} pose={pose} />
+              ) : kind === "tilt" ? (
+                <TiltMeter target={v.angle} side={bar.side} pose={pose} />
+              ) : moving ? (
+                <FollowMeter follow={follow} />
+              ) : (
+                <LeanGauge lean={classic.lean} target={v.angle} hold={classic.hold} />
+              )
             ) : (
-              <div className="row" style={{ gap: 10 }}>
-                <button type="button" className="btn btn-ghost btn-lg btn-block" onClick={() => g("fail")}>
-                  <X size={18} />
-                  {zh ? "没过" : "Missed"}
-                </button>
-                <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("pass", { deg: v.angle })}>
-                  <Check size={18} />
-                  {zh ? "我过了" : "I made it"}
-                </button>
-              </div>
+              <>
+                {kind !== "classic" && <p className="hint" style={{ textAlign: "center" }}>{barHow(bar, v.angle, zh)}</p>}
+                <div className="row" style={{ gap: 10 }}>
+                  <button type="button" className="btn btn-ghost btn-lg btn-block" onClick={() => g("fail")}>
+                    <X size={18} />
+                    {moving ? (zh ? "跟丢了" : "Lost it") : zh ? "没过" : "Missed"}
+                  </button>
+                  <button type="button" className="btn btn-primary btn-lg btn-block" disabled={moving && !stopped} onClick={() => g("pass", { deg: v.angle })}>
+                    <Check size={18} />
+                    {moving ? (zh ? "我跟住了" : "I kept up") : zh ? "我过了" : "I made it"}
+                  </button>
+                </div>
+              </>
             )}
-            <p className="hint lb-time tabular">{zh ? `还剩 ${timeLeft} 秒` : `${timeLeft}s left`}</p>
+            <p className="hint lb-time tabular">
+              {moving && stopped ? (zh ? `横杆停了，还有 ${timeLeft} 秒说结果` : `The bar stopped. ${timeLeft}s to say how it went`) : zh ? `还剩 ${timeLeft} 秒` : `${timeLeft}s left`}
+            </p>
           </>
         )}
         {v.phase === "go" && open && !alive && (
@@ -240,10 +303,11 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
                   <span className="lb-person-best tabular">{blind ? (shown ? blindLine(zh, v.locks[id], v.angle) : "") : v.best[id] ? `${v.best[id]}°` : ""}</span>
                   {judgeable ? (
                     <span className="lb-judge">
-                      <button type="button" className="icon-btn" aria-label={zh ? "没过" : "Missed"} onClick={() => g("judge", { pid: id, ok: false })}>
+                      <button type="button" className="icon-btn" aria-label={failWord} onClick={() => g("judge", { pid: id, ok: false })}>
                         <X size={18} />
                       </button>
-                      <button type="button" className="icon-btn" aria-label={zh ? "过了" : "Made it"} onClick={() => g("judge", { pid: id, ok: true })}>
+                      {/* nobody has kept up with a moving bar until it stops */}
+                      <button type="button" className="icon-btn" aria-label={passWord} disabled={moving && !stopped} onClick={() => g("judge", { pid: id, ok: true })}>
                         <Check size={18} />
                       </button>
                     </span>
@@ -251,7 +315,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
                     <span className="lb-person-state">
                       {blind
                         ? st === "locked" ? (zh ? "锁定了" : "Locked") : st === "out" ? (zh ? "出局" : "Out") : st === "pass" ? (zh ? "留下" : "Stays") : zh ? "在仰" : "Leaning"
-                        : st === "pass" ? (zh ? "过了" : "Under") : st === "fail" ? (zh ? "没过" : "Missed") : st === "out" ? (zh ? "出局" : "Out") : zh ? "在仰" : "Leaning"}
+                        : st === "pass" ? passWord : st === "fail" ? failWord : st === "out" ? (zh ? "出局" : "Out") : moving ? (zh ? "在跟" : "Following") : zh ? "在仰" : "Leaning"}
                     </span>
                   )}
                 </li>
@@ -260,7 +324,16 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
           </ul>
         )}
 
-        {v.phase === "result" && <p className="hint" style={{ textAlign: "center" }}>{blind ? (zh ? "下一轮换个角度……" : "A new angle next round…") : zh ? "杆子要降了……" : "Lowering the bar…"}</p>}
+        {v.phase === "result" && (
+          <p className="hint" style={{ textAlign: "center" }}>
+            {blind
+              ? zh ? "下一轮换个角度……" : "A new angle next round…"
+              : // everyone still in missed it and nobody leaned at all: the same bar again
+                v.alive.length > 0 && v.alive.every((id) => v.failed.includes(id))
+                ? zh ? "谁都没过，这一杆再来……" : "Nobody made it. Same bar again…"
+                : zh ? "杆子要降了……" : "Lowering the bar…"}
+          </p>
+        )}
 
         {v.phase === "end" && (
           <div className="fz-result">
