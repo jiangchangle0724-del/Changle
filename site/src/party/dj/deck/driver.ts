@@ -11,7 +11,7 @@
  */
 import { beatsLeft, chargeNow, COUNT_SPAN } from "../../../shared/dj/deck";
 import { hasB, onAir } from "../../../shared/dj/deck";
-import { MIX_FX, MIX_KNOBS, type DeckSide, type DropState, type MixFx, type MixKnob, type PadId } from "../../../shared/dj/types";
+import { MIX_FX, MIX_KNOBS, OVER_SONG, type DeckSide, type DropState, type MixFx, type MixKnob, type PadId } from "../../../shared/dj/types";
 import type { DeckView } from "../../../shared/protocol";
 import { DeckFx } from "../speaker/fx";
 import { GATE_STEPS } from "../speaker/mixer";
@@ -107,9 +107,30 @@ export class DeckDriver {
     this.tick();
   }
 
-  /** Someone pressed a pad: it plays from the next beat. */
+  /**
+   * Someone pressed a pad: it plays from the next beat. Over a whole song from YouTube (the DJ
+   * faded out, its beat not the song's) the pads that are a sound of their own play at once, at a
+   * club tempo, and the others don't.
+   */
   pad(pad: PadId) {
     if (!this.on) return;
+    const song = this.deck?.song;
+    if (song && this.now() >= song.at - 500) {
+      if (!OVER_SONG.includes(pad)) return;
+      const at = this.sp.ctx.currentTime + 0.03;
+      const beat = 60 / 124;
+      const play: Partial<Record<PadId, () => boolean>> = {
+        horn: () => this.fx.horn(at, beat),
+        siren: () => this.fx.siren(at, beat),
+        laser: () => this.fx.laser(at, beat),
+        vinyl: () => this.fx.vinyl(at, beat),
+        bassdrop: () => this.fx.bassDrop(at, beat),
+        reverse: () => this.fx.reverse(at, beat),
+        whistle: () => this.fx.whistle(at, beat),
+      };
+      if (play[pad]?.()) this.note(pad, at, NaN);
+      return;
+    }
     const nb = this.nextBeat();
     if (!nb) return;
     const beat = 60 / this.dj.bpm;
