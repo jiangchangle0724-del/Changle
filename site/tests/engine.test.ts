@@ -2101,7 +2101,7 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   const other = dv("p3").deck.reqs[0];
   ok(other.text === null && other.artist === undefined && other.ytT === undefined && other.yt === ID, "another phone reads neither its title nor its channel (the video is the big screen's to play)");
   ok(dv("p1").deck.reqs[0].text === "Despacito", "the host reads it");
-  // the drop into it: the DJ fades out, then the song plays whole, the deck waiting
+  // the drop into it: the song plays whole from the drop's bar, the deck waiting
   sc("live", { source: "fake" });
   sc("grid", { at: clock, bar: 0, bpm: 125 });
   ok(dv("p1").deck.up?.yt === ID, "up next");
@@ -2116,7 +2116,7 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   g("p1", "drop", { c: clock });
   advance(dr.at - clock + 5);
   const song = dv("p1").deck.song;
-  ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock + 2 * 4 * 480, "it lands: the whole song plays from two bars on (the DJ fades out first)");
+  ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock, "it lands: the whole song plays from the drop's bar (the big screen has it ready, the DJ lets go with the boom)");
   ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "echo" })) && nothing(g("p1", "pad", { pad: "brake" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no fader, none of the pads that work the music");
   ok(!nothing(g("p1", "pad", { pad: "horn" })) && !nothing(g("p2", "pad", { pad: "siren" })), "but the pads that are a sound of their own play over it (Steve: the effects to hype the floor)");
   ok(nothing(g("p3", "songskip")), "only its player or the host can skip it");
@@ -2133,6 +2133,24 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   advance(auto!.at - clock + 5);
   ok(dv("p1").deck.song?.by === "p3", "it plays whole");
   ok(!nothing(g("p3", "songskip")) && dv("p1").deck.song === null, "its player skips it: the DJ comes back");
+  // a video YouTube won't play here: the big screen finds out while getting it ready
+  advance(6000);
+  g("p2", "req", { yt: ["zyxwvutsrqp", "Gone song", "Chan"] });
+  const dead = dv("p1").deck.up;
+  ok(dead?.yt === "zyxwvutsrqp", "Ben's next is up, with its video");
+  ok(!e.screenAct("tv-other", { x: "nosong", id: dead!.id }), "another screen can't take it off");
+  ok(!sc("nosong", { id: "someone-else" }), "nor a word about a song that isn't up next");
+  ok(sc("nosong", { id: dead!.id }), "the speaker's word that it won't play is taken");
+  const stripped = dv("p2").deck.up;
+  ok(stripped?.id === dead!.id && stripped.yt === undefined && stripped.ytT === undefined && stripped.ytNo === true, "the video comes off it, and its player's phone can say why");
+  ok(!sc("nosong", { id: dead!.id }), "said again: nothing more to do");
+  advance(70_000);
+  sc("decks", { a: dv("p1").deck.a, b: dv("p1").deck.b });
+  advance(6000);
+  const plain = dv("p1").deck.drop;
+  ok(!!plain, "the DJ drops into it");
+  advance(plain!.at - clock + 5);
+  ok(dv("p1").deck.now?.id === dead!.id && dv("p1").deck.song === null, "it lands as the DJ's remix alone: no whole song to wait for");
 });
 
 test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随机 or 按顺序; after a whole song the DJ plays a minute before the next", () => {

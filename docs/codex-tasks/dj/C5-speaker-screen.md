@@ -1,5 +1,9 @@
 # C5: the big screen (the songs, ❄️ and drops, what the floor wants, readable from 3 m)
 
+> **过时 · Superseded (Nov 5):** don't send this card. Claude Code built the big screen since: the
+> deck board, the songs asked for, ❄️, 报幕, the night's recap, the coach, the whole song from
+> YouTube (`TvDj.tsx`, `deck/TvDeck.tsx`, `TubePlayer.tsx`, CONTRACTS.md). Kept for the record.
+
 > **Changed Nov 1:** the big screen now has the beginner deck (`site/src/party/dj/deck/TvDeck.tsx`
 > and `dj-deck.css`, CONTRACTS.md "The beginner deck"): the two decks and the fader in place of the
 > old record pair at the top, the build-up meter, who pressed which pad, the countdown and the drop.
