@@ -135,6 +135,11 @@ Each of these was measured or is tested. Check them again after a change.
    that can answer cuts that scene short). A question that popped up at the start of every turn kept
    covering the play window. While a big screen is on, the question isn't the one its arrival card
    answers (the fact behind the city's rule, printed there).
+   **It needs someone there to answer.** With only computer teams waiting (a person playing the
+   computer, on their own turn) it waits until that turn is over: the person is asked about the city
+   they've just been to, while the computer teams move. On one phone for every team it never comes
+   up over a move: between two turns, before the next team throws, or while a computer team moves.
+   It waits as long as its team still stands on that city.
 8. **Never colour alone.** Each region's cities have a shape (on the board, the stamps and the city
    lists) and each team a letter and a character, for colour-blind players (tokens sharing a space
    wear their letter too).
