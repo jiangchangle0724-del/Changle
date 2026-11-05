@@ -77,11 +77,11 @@ async function session(relay) {
   const x1 = await host.evaluate(() => hangOn.sim.players[0].body.x);
   check(`${label}：P1 往前拽动了`, x1 > x0 + 10, `${(x1 - x0).toFixed(0)} px`);
 
-  // 手柄 2 也在发：seq 在涨
+  // 手柄 2 也在发：seq 在涨（CI 的机器偶尔卡一下，最多等 2 秒）
   const seqA = await host.evaluate(() => hangOn.peers()[1].input?.seq ?? 0);
-  await sleep(300);
+  const t5 = await until(async () => (await host.evaluate(() => hangOn.peers()[1].input?.seq ?? 0)) > seqA, 2000);
   const seqB = await host.evaluate(() => hangOn.peers()[1].input?.seq ?? 0);
-  check(`${label}：手柄 2 的输入在流`, seqB > seqA, `seq ${seqA} → ${seqB}`);
+  check(`${label}：手柄 2 的输入在流`, t5 >= 0 && seqB > seqA, `seq ${seqA} → ${seqB}，${t5} ms`);
 
   // 手柄给自己的小包：颜色、手、延迟
   const st = await pads[0].page.evaluate(() => ({ path: document.getElementById('path').textContent, rtt: document.getElementById('rtt').textContent, handL: document.getElementById('handL').classList.contains('on') }));
