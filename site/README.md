@@ -29,6 +29,8 @@
 
 **打碟 · DJ Booth**（还没放上首页，只有这个地址）：电视或电脑打开 `changle.ca/dj`，这台设备就是音箱。点「开始派对」开始放歌；大家扫码入座，手机按 🔥，大屏上看得到是谁按的，人跟着拍子跳；主人在手机上把一晚拖到暖场、推高、顶点、收尾，每场最长 4 小时。现在放的是「试音版 DJ」：在音箱上用网站自己的乐器现场录的浩室，125 BPM；接 Google 的 Lyria 是下一步。只测声音、不开桌：`changle.ca/dj/test`。方案在仓库根目录的 `docs/dj-booth.md`，各部分怎么接在 `src/shared/dj/CONTRACTS.md`。
 
+**藏在人群里 · Hide in the Crowd**（`changle.ca/hide`，首页卡片 `changle.ca/g/hide-in-the-crowd`）：每人用自己的手机控制人群里的一个人，混在 18 个电脑带着走的路人里；走得像路人就没人认得出，认出对手就出拳，打中得 1 分，打到路人自己愣一下。先到 3 分、或者 75 秒后分最多的赢；每局结束被认出最多的人喝一口（主人可以关掉，桌上设的惩罚会跟过去）。从一张桌开始：主人选它，大家的手机和大屏自己过去，玩完回到这桌。大屏显示整个人群，不标出谁是真人。2 到 8 人；一部手机就是对三个电脑对手的练习。代码在本仓库的 `games/hide-crowd`，桌上的接入在 `src/party/hide/`。
+
 **生活工具**：随便 · Whatever's Fine（吃什么？随便。让大家的手机来定：每人一部手机选餐厅，在 `changle.ca/eat`，代码在本仓库的 `tools/suibian`，工具页签里的卡片是 `src/tools/Suibian.tsx`）、实时汇率（加币、人民币、美金、港元）、联动的世界时钟、单价换算（$/kg、$/lb、$/斤、$/oz、$/gal）。
 
 **账号**（可选）：邮箱验证码登录，头像、名字、城市、简介，游戏记录，加好友聊天。不登录也能玩所有游戏。
@@ -83,6 +85,8 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 
 到此一游和 随便 各自是独立的 Worker（本仓库的 `games/been-there` 和 `tools/suibian`）。本地要连着试，在它们的文件夹里分别跑 `npx wrangler dev --port 8799` 和 `npx wrangler dev --port 8798`，网站的 `/trip` 和 `/eat` 会代理过去（`vite.config.ts`）。
 
+藏在人群里也是独立的 Worker（`games/hide-crowd`）：在它的文件夹里跑 `npm run build && npx wrangler dev --port 8797 --var STANDALONE:1`，网站的 `/hide` 会代理过去；`python3 scripts/hide_test.py` 从一张桌子把交接、一局和回到这桌走一遍。
+
 测试（`scripts/` 里的几个需要上面两个都在跑）：
 
 ```bash
@@ -92,6 +96,7 @@ npx tsx tests/performer.test.ts     # 猜歌名台上两个小人：每个舞步
 npx tsx tests/tokens.test.ts        # 设计 token：和 global.css 同名的值一致，src/ui 里只用 token
 npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的旧链接
 npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读出几秒，中英文说的时间一样
+npx tsx tests/hide.test.ts          # 藏在人群里在桌上的替身规则：主人开局、只开一次
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来

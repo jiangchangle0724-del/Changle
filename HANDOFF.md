@@ -13,6 +13,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca: the party games (a game's card at `/g/<slug>`, the game at `/g/<slug>/play`), tables at `/t/<CODE>`, tools tab, accounts, big screen at `/tv`, DJ booth at `/dj` (addresses: `site/src/router.ts`) | `site/` (Vite, React, TypeScript) | Cloudflare Pages project `changle` | by itself when a PR touching `site/` is merged into `main` |
 | rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
+| changle.ca/hide: 藏在人群里 · Hide in the Crowd | `games/hide-crowd/` | Worker `hide-crowd` (Durable Objects) | by itself on merge when `games/hide-crowd/*` changes, once Steve has connected it (`games/hide-crowd/README.md`) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
 | changle.ca/party: 一起跳 · Dance Along (and later 打碟 · DJ Booth): rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` (pure logic, no deploy of its own) | Worker `party` (Durable Objects) | by itself on merge when either folder changes (connected 2026-11-01, `games/party-server/README.md`) |
@@ -23,14 +24,15 @@ installs on its own. Node 22, as in CI.
 ## How a change reaches changle.ca
 
 1. Branch from `main` (one branch per change), commit, push, open a PR.
-2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, DJ booth, trip, draw,
-   cutout, performer and design-token tests, build), `suibian.yml` and `been-there.yml` (each with
-   browser tests in Chromium and WebKit), `events.yml` (What's On: parsers and a whole run, in the
-   Workers runtime), and `party.yml` (the party base's tests, the party server's types, tests and
-   build). They run once per change: on the pull request (a newer push stops the older run), and on
-   `main` after each merge, not again for every push to a branch. GitHub Actions minutes cost money
-   once the free plan's monthly allowance is used up (it ran out on 2026-11-03), so a new workflow
-   follows the same pattern (`branches: [main]` under `push`, and the `concurrency` block).
+2. CI must be green: `.github/workflows/site.yml` (site: tsc, engine, DJ booth, trip, hide, draw,
+   cutout, performer and design-token tests, build), `suibian.yml`, `been-there.yml` and
+   `hide-crowd.yml` (each with browser tests in Chromium and WebKit), `events.yml` (What's On:
+   parsers and a whole run, in the Workers runtime), and `party.yml` (the party base's tests, the
+   party server's types, tests and build). They run once per change: on the pull request (a newer
+   push stops the older run), and on `main` after each merge, not again for every push to a branch.
+   GitHub Actions minutes cost money once the free plan's monthly allowance is used up (it ran out
+   on 2026-11-03), so a new workflow follows the same pattern (`branches: [main]` under `push`, and
+   the `concurrency` block).
 3. The owner (Steve) says yes, then merge. Merging deploys, as in the table above; each Cloudflare
    build shows up as a check on the merge commit ("Cloudflare Pages", "Workers Builds: ...").
 4. The rooms Worker's Cloudflare settings: root directory `/site`, no build command, deploy command
@@ -68,6 +70,7 @@ npx tsx tests/engine.test.ts    # every game's rules, as the rooms server runs t
 npx tsx tests/dj.test.ts        # the DJ booth's player (on a pretend audio thread) and stand-in DJ
 npx tsx tests/dj-presets.test.ts # the DJ booth's 12 style presets for Lyria
 npx tsx tests/trip.test.ts
+npx tsx tests/hide.test.ts      # 藏在人群里's stand-in rules at a table
 npx tsx tests/draw.test.ts
 npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
 npx tsx tests/tokens.test.ts    # design tokens match global.css; src/ui uses tokens only
@@ -149,6 +152,13 @@ under changle.ca, a Cloudflare Workers Builds connection with that folder as roo
 like `.github/workflows/been-there.yml`. Another session has been working on 到此一游: check its
 open PRs before changing `games/been-there`.
 
+`games/hide-crowd` (藏在人群里 · Hide in the Crowd, at changle.ca/hide) is made the same way: a
+crowd game moved 20 times a second by one Durable Object per room, a 3D arena in three.js, its own
+big screen. Its hand-off is `site/src/party/hide/`, its stand-in rules
+`site/src/shared/engine/games/hide.ts`, its workflow `.github/workflows/hide-crowd.yml`. To run it
+with the site: `npm run build && npx wrangler dev --port 8797 --var STANDALONE:1` in its folder (the
+site's `/hide` is proxied there), then `python3 scripts/hide_test.py` in `site`.
+
 ## A tool (the 随便 pattern)
 
 `tools/suibian` is its own Worker at changle.ca/eat; its card in the site's Tools tab is
@@ -163,6 +173,7 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
+| 藏在人群里 (`games/hide-crowd`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (the libraries' hand-over; the same value as the GitHub secret) | `ALLOW_TEST` (local and tests only) |
 
 GitHub Actions use one secret: `EVENTS_HANDOFF_KEY`, the same value as the What's On Worker's, for

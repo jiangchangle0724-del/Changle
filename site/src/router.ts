@@ -12,7 +12,7 @@
  * every link ever shared, and 到此一游's own links, still land in the right place.
  *
  * No router library: the History API, plus one click handler so an ordinary <a href="/me"> stays
- * inside the page. /eat, /go and /trip are other Workers: links there load a real page.
+ * inside the page. /eat, /go, /trip and /hide are other Workers: links there load a real page.
  */
 import { useEffect, useRef, useState } from "react";
 import { GAMES, GAME_BY_ID, isGameId, type GameId } from "./games/registry";
@@ -316,7 +316,7 @@ export function back() {
 }
 
 /** The other Workers on changle.ca: a link there is a real page load. */
-const elsewhere = (path: string) => /^\/(eat|go|trip)(\/|$)/.test(path);
+const elsewhere = (path: string) => /^\/(eat|go|trip|hide)(\/|$)/.test(path);
 
 function current(first = false): Route {
   // a sheet's entry left over from before a reload: no sheet is open now
