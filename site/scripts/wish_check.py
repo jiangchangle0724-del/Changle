@@ -42,7 +42,7 @@ def phone(browser, reduced=False):
 def open_wishes(page):
     page.goto(ac.BASE + "#/wish")
     page.wait_for_selector(".wish-form")
-    page.wait_for_selector(".wish > .wish-list:not([aria-busy]), .wish > .empty", timeout=10000)
+    page.wait_for_selector(".wish > .wish-list:not([aria-busy]), .wish > .ui-empty", timeout=10000)
     page.wait_for_timeout(700)
 
 
