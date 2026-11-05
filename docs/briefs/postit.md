@@ -65,7 +65,7 @@
 ## 交给别的对话
 
 - 平台 · 全站设计：
-  - main 上 `site / visual` 的 game-superlatives 截图对比从 #178 起是红的（#171 还是绿的），所以不碰最佳称号的 PR（比如 #183）也显示失败。
+  - `site / visual` 的 game-superlatives 截图对比时好时坏：main 上 #178、#180 两次是红的，#171 和 #182 是绿的。不碰最佳称号的 PR（比如 #183）也会因为它显示失败，重跑一次可能就过。
   - 联机底部的表情按钮高 42，不到 44；桌号按钮的读屏名字不含屏幕上的人数（axe 的 label-content-name-mismatch）。两处都在共用的 NetFrame。
   - 单机游戏壳横屏时，`.game-body` 能滚动、里面却没有能按的东西（比如结果页），axe 报 scrollable-region-focusable（GameShell）。
 - 游戏 · 戏精大赏：`engine.test.ts` 里 those who watched get on stage next 靠共用随机种子的顺序，前面多一个抽随机数的测试就会失败。建议这个测试自己定种子。
