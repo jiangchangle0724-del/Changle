@@ -50,7 +50,7 @@ with sync_playwright() as p:
     pg.goto(BASE + "#/g/dice", wait_until="networkidle"); pg.wait_for_timeout(500)
     for _ in range(12):
         pg.get_by_role("button", name="掷骰子").click(); pg.wait_for_timeout(1300)
-        btn = pg.locator(".stack .btn-lg").first
+        btn = pg.locator(".game-actions .btn-lg").first
         label = btn.inner_text()
         btn.click(); pg.wait_for_timeout(1300)
         if pg.locator(".stamp-layer").count():
