@@ -34,11 +34,24 @@ type PadInput = {
   ay: number;         // 摇杆 y，-1..1（上为负）
   gl: boolean;        // 左手抓
   gr: boolean;        // 右手抓
-  act?: 'summon' | 'emote';   // 偶发动作，可省
+  act?: 'summon' | 'emote';   // 偶发动作，可省。手柄连发十几帧保证送到，主机 1 秒内同一个动作只算一次
 };
 ```
 
-主机 → 手柄只发小包，每 250 ms 一条：`{ color, hands:[bool,bool], deaths, rttMs, phase }`。
+`summon`（A3）：摔死还没复活的队友立刻从按键的人身上掉出来。
+
+主机 → 手柄只发小包，每 250 ms 一条：`{ color, hands:[bool,bool], deaths, rttMs, phase, direct, teamDead }`。
+
+## 样子契约（A3）
+
+手柄选的样子 `Look = { hat, glasses, eyes, face, arms, voice }`（可选项和中英名字在 `src/look.ts`），连上房间时和改了之后
+经房间发给主机（`LinkMsg { k: 'look', look }`，走可靠的 WebSocket，不走数据通道），主机用 `cleanLook()` 收拾。
+手套颜色不能换：左蓝右橙是辨左右用的，袖子也不许用蓝和橙；馅儿色跟座位走。`voice` 是摔下去时的尖叫，`auto` 按座位分四个音高。
+
+## 语言契约（A3）
+
+玩家看到的字中英都有。页面里写死的字用 `data-en`（`data-en-label` / `data-en-ph` / `data-en-title`）标英文，代码里用
+`tr('中文', 'English')`（`src/i18n.ts`）。语言先看 `?lang=`，再看自己记的，再跟主站设置，最后看手机语言；主机和手柄各自切。
 
 ## 房间契约
 
@@ -63,6 +76,9 @@ type PadInput = {
   "replay": "replays/table-03.json"
 }
 ```
+
+`fading`（饼干平台）：`{ x, y, w, h, material?, on?, off?, phase? }`，在 `on` 秒、消失 `off` 秒（默认 3 / 2），`phase` 把这块的钟往后拨几秒；消失时抓着它的手一起松开。
+`springs`（弹簧蜡烛）：`{ x, y, w, h, power? }`，身体落在顶上就弹，`power` 1 约弹 250 px（5 个身高）；侧面能抓。
 
 每关必须附一个回放脚本（`replays/*.json`，每帧 4 人的 `PadInput`），`npm run levels` 用它无头跑通整关，用时在 `par.seconds` 的 0.5 到 2 倍之间才算合格。
 
