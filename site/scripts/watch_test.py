@@ -5,8 +5,9 @@ nothing secret is anywhere in the page (a player's word, card, task or vote befo
 and there are no errors. Against the local dev servers (HANDOFF.md).
 
 usage: python3 scripts/watch_test.py [base_url] [zh|en] [game ...]
-games: superlatives undercover tune drama truth wheel dice rogue king prompts postit freeze euchre draw limbo punchline trip dj
-(trip last: it sends the table off to 到此一游)
+games: superlatives undercover tune drama truth wheel dice rogue king prompts postit freeze euchre draw limbo punchline trip dj hide trip-host
+(trip last: it sends the table off to 到此一游; dj, hide and trip-host each open a table of their own.
+Neither game's own server is needed: its answers and pages are stood in for.)
 Screenshots of every phase go to $SHOTS (default: scratchpad/watch).
 """
 import json, os, re, sys, time
@@ -643,6 +644,9 @@ def t_dj(browser):
     g.wait_for_timeout(500)
     g.locator(".table-watch button").click()
     ok(until(lambda: any(s["id"] == me(g) and s.get("watch") for s in room(g)["seats"])), "dj: Lu just watches")
+    ok(until(lambda: tv.locator(".dj-floor .dj-dancer").count() == 1, 5000), "dj: one dancer on the big screen's floor: watching, Lu doesn't dance")
+    ok("Steve" in tv.locator(".dj-floor").inner_text() and "Lu" not in tv.locator(".dj-floor").inner_text(), "dj: ...it's Steve")
+    shot([tv], "dj-00-floor")
     g.keyboard.press("Escape")
     btn = g.get_by_role("button", name=L("打开音箱页", "Open the speaker page"))
     ok(until(lambda: btn.count() == 1, 5000), "dj: the watcher gets the way to the booth's speaker page")
@@ -654,6 +658,128 @@ def t_dj(browser):
     tv.context.close()
     g.context.close()
     host.context.close()
+
+
+# ------------------------------------------------------------------ games with a Worker of their own: a table of two and a watcher
+
+def small_table(browser, tag):
+    """Steve (hosting) and Mia play; Lu, held sideways, just watches."""
+    host, guests, code = P.seat_table(browser, ["Steve", "Mia"], LANG)
+    w = sit(browser, code, "Lu", 844, 390)
+    w._name = f"{tag}-watcher"
+    w.locator(".table-btn").click()
+    w.wait_for_timeout(500)
+    w.locator(".table-watch button").click()
+    ok(until(lambda: any(s["id"] == me(w) and s.get("watch") for s in room(host)["seats"])), f"{tag}: Lu just watches")
+    w.keyboard.press("Escape")
+    w.wait_for_timeout(400)
+    return host, guests[0], w, code
+
+
+def stand_in(pages, game, phase=None):
+    """The game's own server and pages, stood in for: the host's phone is told it opened room 4321
+    (or the save it loads), the game's pages are blank, and its phase is `phase["p"]` when asked."""
+    for pg in pages:
+        pg.route(f"**/{game}/api/rooms", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"code": "4321"})))
+        pg.route(f"**/{game}/r/**", lambda r: r.fulfill(status=200, content_type="text/html", body=f"<p>{game}</p>"))
+        pg.route(f"**/{game}/tv/**", lambda r: r.fulfill(status=200, content_type="text/html", body=f"<p>{game} tv</p>"))
+        if phase is not None:
+            pg.route(f"**/{game}/api/rooms/4321", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"exists": True, "phase": phase["p"]})))
+
+
+def front(host, gid):
+    host.locator(f'.lobby .tile[data-tile="{P.GAME_INDEX[gid]}"]').click()
+    ok(until(lambda: room(host)["front"] == P.GAME_INDEX[gid]), f"the table turns to {gid}")
+
+
+def at(pg, pattern, timeout=8000):
+    """The page got to an address. (A wait of Playwright's own: reading page.url in a loop never
+    lets the stand-in pages above answer, so the page would never get there.)"""
+    try:
+        pg.wait_for_url(re.compile(pattern), timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+def page_errors(pages, label):
+    errs = [(pg._name, e) for pg in pages for e in pg._errs if "favicon" not in e and "WebSocket" not in e]
+    ok(not errs, f"{label}: no page errors {errs[:3]}")
+
+
+def t_hide(browser):
+    """藏在人群里: the big screen's lobby counts the players only and says where the game's big screen
+    is; a watching phone gets the way to it, as in 到此一游, and stays at the table."""
+    host, mia, w, code = small_table(browser, "hide")
+    tv = screen(browser, "hide-tv", 1280, 720, code)
+    ok(until(lambda: tv.locator(".tv-lobby").count() == 1, 8000), "hide: the big screen's lobby")
+    # the TV lobby: two players and a watcher are one short of a game for three
+    front(host, "superlatives")
+    need = lambda: tv.locator(".tv-front-need").inner_text().strip()
+    ok(until(lambda: need() == L("还差 1 人", "1 more to start"), 4000), f"hide: the TV lobby counts players only, not the watcher ({need()!r})")
+    shot([tv], "hide-01-tv-lobby-need")
+    front(host, "hide")
+    ok(until(lambda: need() == L("人够了，等主持人开始", "Ready when the host is"), 4000), f"hide: two players are enough for it ({need()!r})")
+    ok(L("藏在人群里在大屏幕上有自己的页面", "Hide in the Crowd has its own big-screen page") in tv.locator(".tv-front-note").inner_text(), "hide: the TV lobby says the game has a big screen of its own")
+    tv.wait_for_timeout(700)
+    shot([tv], "hide-02-tv-lobby")
+    stand_in([host, mia, w, tv], "hide")
+    host.locator(".lobby-actions .btn-primary").click()
+    ok(until(lambda: (view(w) or {}).get("id") == "hide", 6000), "hide: the game is up")
+    for g in (host, mia):
+        ok(at(g, r"/hide/r/4321\?table=" + code), f"hide: {g._name} goes into the game")
+    ok(at(tv, r"/hide/tv/4321\?table=" + code), "hide: the big screen goes to the game's own")
+    btn = w.get_by_role("button", name=L("打开藏在人群里的大屏", "Open its big screen"))
+    ok(until(lambda: btn.count() == 1 and w.locator(".watch .watch-away").count() == 1, 6000), "hide: the watching phone shows the way to the game's big screen, full screen")
+    ok(w.locator(".hide").count() == 0, "hide: ...not the table's phone screen")
+    ok(re.search(r"/t/" + code, w.url) is not None and "/hide/" not in w.url, "hide: the watcher isn't sent into the game as a player")
+    w.wait_for_timeout(500)
+    shot([w], "hide-03-watch")
+    page_errors([w, tv], "hide")
+    btn.click()
+    ok(at(w, r"/hide/tv/4321\?table=" + code, 5000), "hide: it opens the game's big screen for this table")
+    for pg in (host, mia, w, tv):
+        pg.context.close()
+
+
+def t_trip_host(browser):
+    """到此一游 while everyone's in it: the table's host role passes to the seat still at the table (a
+    watcher), which stays a watcher (not sent into the game), and ends the game at the table when
+    the game is over, so the others coming back land in the lobby."""
+    host, mia, w, code = small_table(browser, "trip-host")
+    phase = {"p": "playing"}
+    stand_in([host, mia, w], "trip", phase)
+    front(host, "trip")
+    host.locator(".lobby-actions .btn-primary").click()
+    ok(until(lambda: (view(w) or {}).get("id") == "trip", 6000), "trip-host: the game is up")
+    host.get_by_role("button", name=L("开一局", "Open a game")).click()
+    for g in (host, mia):
+        ok(at(g, r"/trip/r/4321\?table=" + code), f"trip-host: {g._name} goes into the game")
+    ok(until(lambda: w.get_by_role("button", name=L("打开到此一游的大屏", "Open its big screen")).count() == 1, 6000), "trip-host: the watcher has the way to the game's big screen")
+    # 25 seconds after Steve left the table, the table makes the seat still there its host
+    ok(until(lambda: room(w)["host"] == me(w), 45000, 500), "trip-host: Lu, still at the table, is the table's host now")
+    w.wait_for_timeout(1500)
+    ok("/trip/" not in w.url and re.search(r"/t/" + code, w.url) is not None, "trip-host: Lu still watches at the table, not sent into the game")
+    ok(w.get_by_role("button", name=L("打开到此一游的大屏", "Open its big screen")).count() == 1, "trip-host: ...with the way to the game's big screen")
+    ok(w.get_by_role("button", name=L("结束这局", "End the game")).count() == 1, "trip-host: ...and the host's button to end it")
+    w.evaluate("() => window.scrollTo(0, 0)")
+    w.wait_for_timeout(300)
+    shot([w], "trip-host-01-watching-host")
+    # Mia comes back to the table while the game goes on: it's still on there
+    mia.goto(BASE + f"t/{code}", wait_until="networkidle")
+    ok(until(lambda: room(mia) and (view(mia) or {}).get("id") == "trip", 8000), "trip-host: Mia is back at the table")
+    ok(until(lambda: mia.get_by_role("button", name=L("回到这局", "Back to the game")).count() == 1, 6000), "trip-host: ...where the trip is still on")
+    shot([mia], "trip-host-02-back")
+    # the game ends (Steve, its host, never comes back to the table): the table's host now ends it
+    # there. (The note the game's last screen leaves is read once, and a development build runs
+    # each effect twice, so on this server only the phones' check of the game's phase tells.)
+    phase["p"] = "over"
+    ok(until(lambda: room(mia) and room(mia)["game"] is None and room(w)["game"] is None, 20000, 300), "trip-host: Lu's phone, the table's host now, ended it: everyone's in the lobby")
+    w.wait_for_timeout(500)
+    shot([w, mia], "trip-host-03-lobby")
+    page_errors([w, mia], "trip-host")
+    for pg in (host, mia, w):
+        pg.context.close()
 
 
 # ------------------------------------------------------------------ batch 2: truth or dare, the wheel, 7-8-9, rogue thirteen
@@ -1307,6 +1433,22 @@ def t_limbo(t):
     t.tv.wait_for_timeout(900)
     ok(t.tv.locator(".tvx-person").count() == 3, "limbo: the three players (the watcher isn't one)")
     shot(t.screens, "lb-01-ready")
+    # a host who just watches keeps the phone screen (the host's buttons), but has nothing to lean with
+    host = t.host
+    sensing = lambda: host.locator(".lb button", has_text=re.compile(L("感应|测不了", "motion sensing|can't measure"))).count() + host.locator(".lb .fz-sensor-on").count()
+    ok(sensing() == 1, "limbo: a player has the motion sensing button")
+    host.locator(".table-btn").click()
+    host.wait_for_timeout(500)
+    host.locator(".table-watch button").click()
+    ok(until(lambda: any(x["id"] == me(host) and x.get("watch") for x in room(host)["seats"])), "limbo: the host just watches now")
+    host.keyboard.press("Escape")
+    host.wait_for_timeout(600)
+    ok(host.locator(".lb").count() == 1 and host.locator(".watch-strip").count() == 1, "limbo: a watching host keeps the phone screen, for the host's buttons")
+    ok(sensing() == 0, "limbo: ...with no motion sensing to turn on")
+    shot([host], "lb-01b-host-watching")
+    host.locator(".watch-strip .link-btn").click()
+    ok(until(lambda: not any(x["id"] == me(host) and x.get("watch") for x in room(host)["seats"])), "limbo: and plays again")
+    ok(until(lambda: sensing() == 1 and len(view(t.tv)["alive"]) == 3), "limbo: three players again, the host's button back")
     steve, mia, lin = t.players
     t.host.get_by_role("button", name=L("开始", "Start"), exact=True).click()
     ok(t.wait_phase("go"), "limbo: bar one")
@@ -1388,10 +1530,11 @@ TESTS = {"superlatives": t_superlatives, "undercover": t_undercover, "tune": t_t
 def main():
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        t = Table(browser)
-        for name, fn in TESTS.items():
-            if GAMES and name not in GAMES:
-                continue
+        # (the shared table only when one of its games is asked for)
+        table_tests = [name for name in TESTS if not GAMES or name in GAMES]
+        t = Table(browser) if table_tests else None
+        for name in table_tests:
+            fn = TESTS[name]
             print(f"--- {name}", flush=True)
             try:
                 fn(t)
@@ -1403,13 +1546,16 @@ def main():
                         t.end()
                 except Exception:
                     pass
-        no_errors(t)
-        if not GAMES or "dj" in GAMES:
-            print("--- dj", flush=True)
+        if t:
+            no_errors(t)
+        for name, fn in (("dj", t_dj), ("hide", t_hide), ("trip-host", t_trip_host)):
+            if GAMES and name not in GAMES:
+                continue
+            print(f"--- {name}", flush=True)
             try:
-                t_dj(browser)
+                fn(browser)
             except Exception as e:
-                ok(False, f"dj crashed: {e}")
+                ok(False, f"{name} crashed: {e}")
         browser.close()
     print("\nwatch test:", "ALL PASS" if not P.fails else f"{len(P.fails)} FAILED: {P.fails}")
     sys.exit(1 if P.fails else 0)

@@ -39,14 +39,15 @@ export interface CrateDef extends Rect {
   mass?: number;
 }
 
+/** 定时消失的饼干平台：在 `on` 秒、消失 `off` 秒，循环；`phase` 把这一块的钟往后拨几秒，几块错开用。 */
 export interface FadingDef extends Rect {
-  /** 可见（可站可抓）多少秒、消失多少秒。A1 先当普通平台。 */
   on?: number;
   off?: number;
+  phase?: number;
 }
 
+/** 弹簧蜡烛：身体落在它顶上就弹起来，`power` 是弹力倍数（1 = 弹起约一个身高的 5 倍）。 */
 export interface SpringDef extends Rect {
-  /** 弹力倍数。A1 先当高弹性平台。 */
   power?: number;
 }
 
@@ -104,5 +105,38 @@ export function sampleLevel(): Level {
     ropes: [{ anchor: { x: 720, y: 120 }, segments: 8, segLen: 38 }],
     deathY: 1040,
     par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 彩蛋关「桌上杂技」：A3 新加的物件都在这一关——饼干平台、弹簧蜡烛、面条绳、瓷碗、蒸笼箱子。
+ * 大厅里排在最后，也是开发页看动效用的关。
+ */
+export function showcaseLevel(): Level {
+  return {
+    id: 'bonus-01',
+    world: 'table',
+    name: { zh: '桌上杂技', en: 'Table Circus' },
+    teaches: 'combine',
+    w: 1280,
+    h: 720,
+    spawn: { x: 100, y: 536 },
+    goal: { x: 1040, y: 260, w: 200, h: 160 },
+    checkpoints: [{ x: 820, y: 262 }],
+    rects: [
+      { kind: 'ground', x: 0, y: 560, w: 300, h: 160, material: 'cloth' },
+      { kind: 'ground', x: 720, y: 300, w: 200, h: 20, material: 'wood' }, // 高处的筷子，蜡烛弹上来抓它
+      { kind: 'ground', x: 1000, y: 420, w: 280, h: 300, material: 'ceramic' },
+      { kind: 'wall', x: 1240, y: 200, w: 40, h: 220, material: 'ceramic' },
+    ],
+    fading: [
+      { x: 360, y: 540, w: 110, h: 24, material: 'wood', on: 4, off: 1.6 },
+      { x: 520, y: 500, w: 110, h: 24, material: 'wood', on: 4, off: 1.6, phase: 2 },
+    ],
+    springs: [{ x: 660, y: 600, w: 50, h: 120, power: 1.2 }],
+    ropes: [{ anchor: { x: 975, y: 120 }, segments: 7, segLen: 38 }],
+    crates: [{ x: 1030, y: 360, w: 44, h: 60, material: 'wood' }],
+    deathY: 790,
+    par: { seconds: 75, deathsPerPlayer: 3 },
   };
 }

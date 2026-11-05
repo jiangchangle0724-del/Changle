@@ -6,6 +6,7 @@ import { Deck } from "../lib/random";
 import { DRAW_WORDS, type Difficulty, type DrawWord } from "../data/drawGuess";
 import { sfx } from "../lib/sfx";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
+import { Resume, useKeepProgress } from "./Resume";
 import { Cloche } from "../components/Cloche";
 import { DrawingPlate, type DrawingPlateHandle } from "../components/DrawingPlate";
 import { TimerArc } from "../components/TimerArc";
@@ -14,29 +15,54 @@ import { UI } from "../i18n";
 
 type Phase = "pick" | "word" | "draw" | "who";
 const SECONDS = 60;
+type Kept = { phase: Phase; word: DrawWord | null; scores: Record<string, number>; turn: number; cards: Record<Difficulty, number[]> };
 
 export function DrawGuess({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="draw" version={1}>
+      {(saved) => <DrawGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function DrawGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
-  const decks = useRef<Record<Difficulty, Deck<DrawWord>>>({
-    1: new Deck(DRAW_WORDS.filter((w) => w.d === 1)),
-    2: new Deck(DRAW_WORDS.filter((w) => w.d === 2)),
-    3: new Deck(DRAW_WORDS.filter((w) => w.d === 3)),
+  const [firstDecks] = useState(() => {
+    const decks = {
+      1: new Deck(DRAW_WORDS.filter((w) => w.d === 1)),
+      2: new Deck(DRAW_WORDS.filter((w) => w.d === 2)),
+      3: new Deck(DRAW_WORDS.filter((w) => w.d === 3)),
+    };
+    if (saved) for (const d of [1, 2, 3] as Difficulty[]) decks[d].restore(saved.cards[d]);
+    return decks;
   });
-  const [phase, setPhase] = useState<Phase>("pick");
-  const [word, setWord] = useState<DrawWord | null>(null);
+  const decks = useRef(firstDecks);
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? "pick");
+  const [word, setWord] = useState<DrawWord | null>(saved?.word ?? null);
   const [lidOpen, setLidOpen] = useState(false);
   const [peek, setPeek] = useState(false);
   const [timeUp, setTimeUp] = useState(false);
   const [timerKey, setTimerKey] = useState(0);
-  const [scores, setScores] = useState<Record<string, number>>({});
+  const [scores, setScores] = useState<Record<string, number>>(saved?.scores ?? {});
   const plate = useRef<DrawingPlateHandle>(null);
-  const turn = useTurnOrder();
+  const turn = useTurnOrder(saved?.turn ?? 0);
   const penalty = usePenalty();
+  const [played, setPlayed] = useState(!!saved);
+  // A half-drawn picture returns to the same word behind its lid, with a fresh minute.
+  // A penalty stamp has already counted: return to the next drawer's difficulty choice.
+  useKeepProgress<Kept>({
+    phase: penalty.call ? "pick" : phase === "draw" ? "word" : phase,
+    word: penalty.call ? null : word,
+    scores,
+    turn: penalty.call ? (turn.index + 1) % Math.max(1, players.length) : turn.index,
+    cards: { 1: decks.current[1].keep(), 2: decks.current[2].keep(), 3: decks.current[3].keep() },
+  }, played);
 
   const drawer = turn.current;
 
   const chooseDifficulty = (d: Difficulty) => {
+    setPlayed(true);
     setWord(decks.current[d].draw().card);
     setLidOpen(false);
     setPhase("word");

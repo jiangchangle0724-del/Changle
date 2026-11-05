@@ -7,6 +7,7 @@ import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useCue, useReached, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
+import { useWatching } from "../../online/players";
 import type { LimboKind, LimboView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { useSecondsLeft } from "../common";
@@ -44,6 +45,8 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   const seats = room?.seats ?? [];
   const seat = (id: string) => seats.find((s) => s.id === id);
   const sensors = useSensorStatus();
+  // a seat that just watches (a host who watches keeps this screen for the host's buttons) has nothing to lean with
+  const watching = useWatching();
   const blind = v.mode === "blind";
   // (a rooms server from before the variants sends no bar: a classic one)
   const bar = v.bar ?? classicBar();
@@ -62,8 +65,8 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   useWakeLock(v.phase === "go");
 
   useEffect(() => {
-    if (sensors === "on" && !v.sensors.includes(me)) g("sensor", { on: true });
-  }, [sensors, v.sensors, me, g]);
+    if (!watching && sensors === "on" && !v.sensors.includes(me)) g("sensor", { on: true });
+  }, [watching, sensors, v.sensors, me, g]);
 
   // the calypso keeps playing level after level, on the same beat on every phone
   const playing = v.musicAt > 0 && (v.phase === "go" || v.phase === "result");
@@ -213,7 +216,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
                 ))}
               </ol>
             )}
-            {sensors !== "on" ? (
+            {watching ? null : sensors !== "on" ? (
               <button type="button" className="btn btn-ghost btn-block" disabled={sensors === "asking"} onClick={() => void enableSensors()}>
                 <Smartphone size={17} />
                 {sensors === "none" || sensors === "denied"
