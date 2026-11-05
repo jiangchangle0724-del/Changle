@@ -313,8 +313,8 @@ export const GAMES: GameMeta[] = [
     // 一本正经: new (2026-11-04), on the board since 2026-11-05. One phone only until the rooms server runs it (A3),
     // so its card offers no online table (GameSheet shows that button only for ONLINE_GAMES)
     id: "straightface",
-    slug: "straight-face",
-    name: t("一本正经", "Straight Face"),
+    slug: "in-all-seriousness",
+    name: t("一本正经", "In All Seriousness"),
     blurb: t("一个冷门词，只有一个人知道真意思", "One obscure word. Only one of you knows what it means."),
     how: t(
       "每轮一个裁判、一个冷门词。只有老实人看过真释义，其他人现编。大家轮流一本正经地解释，裁判追问、贴疑点，最后指认老实人。被指认的人得分，不管是不是老实人；指对了裁判也得分。裁判看走眼喝一口，骗到裁判的人指定一个人喝。",

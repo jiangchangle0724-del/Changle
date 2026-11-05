@@ -1,5 +1,5 @@
 /**
- * Game engine for 一本正经 · Straight Face: a pure reducer plus two view builders.
+ * Game engine for 一本正经 · In All Seriousness: a pure reducer plus two view builders.
  * No I/O. The pass-the-phone screen, the online GameDef (A3) and the TV screen all call this.
  */
 import { pickCard } from "./cards";

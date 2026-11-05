@@ -1,4 +1,6 @@
-# 一本正经 · Straight Face 游戏方案（仓库版）
+# 一本正经 · In All Seriousness 游戏方案（仓库版）
+
+英文名 2026-11-05 从 Straight Face 改成 In All Seriousness（Straight Face 已有同名的憋笑小游戏和桌游），网址 changle.ca/g/in-all-seriousness。代码里的 id、文件夹和这份文件的文件名还叫 straightface / straight-face，玩家看不到，不改。
 
 2026-11-02 定稿，2026-11-04 按仓库结构落地 · Steve Jiang · 完整版见 Claude 文档「一本正经 · Straight Face 游戏方案」（含同日审稿记录）。对话档案：`docs/briefs/straightface.md`。
 

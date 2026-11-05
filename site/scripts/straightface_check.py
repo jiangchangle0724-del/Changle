@@ -1,4 +1,4 @@
-"""一本正经 · Straight Face on one phone: a whole 4-player round at iPhone size, a screenshot of every
+"""一本正经 · In All Seriousness on one phone: a whole 4-player round at iPhone size, a screenshot of every
 step, and the rules the screen must keep (nothing private before the holder says it's them; the
 "pass to" line only once the peek clock has run out; the honest one shows after the fun fact).
 
@@ -56,9 +56,9 @@ def run(lang):
         pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
         zh = lang == "zh"
 
-        pg.goto(BASE + "/g/straight-face/play", wait_until="networkidle")
+        pg.goto(BASE + "/g/in-all-seriousness/play", wait_until="networkidle")
         pg.wait_for_timeout(800)
-        check("/g/straight-face/play" in pg.url, "the game's address opens the game")
+        check("/g/in-all-seriousness/play" in pg.url, "the game's address opens the game")
         snap(pg, "setup")
 
         # setup: level 3 so the fallback to level 2 shows, bets on

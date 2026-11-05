@@ -1,10 +1,10 @@
 # 游戏 · 一本正经（straightface）
 
-对话名「游戏 · 一本正经」。网址 changle.ca/g/straight-face（卡片）、changle.ca/g/straight-face/play（游戏）。档案建于 2026-11-04，2026-11-05 上首页。
+对话名「游戏 · 一本正经」。网址 changle.ca/g/in-all-seriousness（卡片）、changle.ca/g/in-all-seriousness/play（游戏）。档案建于 2026-11-04，2026-11-05 上首页。
 
 ## 它是什么
 
-一本正经 · Straight Face：每轮一个裁判、一个冷门词。其他人里只有一个老实人看过真释义，剩下的人现编。大家轮流一本正经地解释，裁判追问、可以给一个人贴「疑点」，最后指认老实人。被指认的人得分，不管是不是老实人；指对了裁判也得分。裁判看走眼喝一口，被疑点抓包的喝一口，骗到裁判的人指定一个人喝。每人当一次裁判，分最高的赢，同分看谁骗到裁判的次数多。
+一本正经 · In All Seriousness：每轮一个裁判、一个冷门词。其他人里只有一个老实人看过真释义，剩下的人现编。大家轮流一本正经地解释，裁判追问、可以给一个人贴「疑点」，最后指认老实人。被指认的人得分，不管是不是老实人；指对了裁判也得分。裁判看走眼喝一口，被疑点抓包的喝一口，骗到裁判的人指定一个人喝。每人当一次裁判，分最高的赢，同分看谁骗到裁判的次数多。
 
 同类游戏是 1965 年 BBC 的 Call My Bluff、桌游 Balderdash 和《瞎掰王 9UPPER》。玩法不受版权保护；名字、词库、美术全是我们自己的，一张卡都不许从别家抄。完整方案（为什么这样设计、老手会多做的事、验收门）在 `docs/straight-face.md`，更长的版本在 Claude 文档「一本正经 · Straight Face 游戏方案」。
 
@@ -51,6 +51,7 @@
 - 有名的成语和菜大家都知道意思，要骗的是来历：释义写真来历或大家常用错的真意思，掰料写似是而非的来历或常见的误用（七月流火「热得下火」）。
 - 有粗俗第二义的方言字不收（嬲因此拿掉）；不拿地方开玩笑。
 - 事实对过 Wiktionary 和中英文维基（2026-11-05）；查不到的写成「相传」「一说」或者删掉；嘎哈、嬢嬢两张没有词条，来源写 `editorial`。
+- 英文名：2026-11-05 从 Straight Face 改成 In All Seriousness，网址跟着改成 changle.ca/g/in-all-seriousness。原因：Straight Face 已有同名 iPhone 憋笑小游戏（StraightFace，BLINK SOFTWARE，2024）和几款 Straight Face / Keep a Straight Face 憋笑桌游；候选里 Deadpan、Dead Serious 已有桌游，Sounds Legit、No Joke 没选。代码里的 id 和文件夹还叫 `straightface`（玩家看不到，不改）。中文名一本正经没搜到同名游戏。
 - 不能联机的游戏，卡片上不显示联机按钮（以前每个上首页的游戏都能联机，一本正经是第一个只能单机的）。
 - 释义只取来源页的事实、自己造句，不抄维基原句，所以词库不被 CC BY-SA 传染（`LICENSES.md`）。
 
@@ -64,7 +65,7 @@
 - A3 联机：`site/src/shared/engine/games/straightface.ts` 包一层 `GameDef` 调用同一个引擎（`view(s, pid)` 就是 `privateView`），`protocol.ts` 加 id 和 view 类型，`site/src/online/games/` 加 `NetStraightFace.tsx`，电视页只收 `publicView`。加进 `ONLINE_GAMES` 以后，游戏卡片上的联机按钮自己就会出现。
 - A4：词库入 D1、见过的卡（联机取全桌并集）、每张卡的裁判命中率、「这卡有问题」。
 - C1 扩库到 300（Codex）、C2 组件替换 A2 的占位（Codex）、C4 测试补全（Codex），卡在 `docs/codex-tasks/straightface/`。
-- 名字：2026-11-05 搜过网页、App Store、Steam：英文名 Straight Face 已有一个同名 iPhone 憋笑小游戏（StraightFace，BLINK SOFTWARE，2024）和几款叫 Straight Face / Keep a Straight Face 的憋笑桌游，玩法和我们不同；中文名一本正经没搜到同名游戏；CIPO 还没查（要在 CIPO 网站手动搜）。换不换英文名 Steve 定。
+- 名字：In All Seriousness 在网页、App Store、Steam 没搜到同名游戏，CIPO 还没查（要在 CIPO 网站手动搜）。
 
 ## 交给别的对话
 

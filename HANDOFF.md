@@ -202,7 +202,7 @@ libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go i
   the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
   `docs/codex-tasks/dj/` (C1 presets is done).
 
-* 一本正经 · Straight Face (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
+* 一本正经 · In All Seriousness (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
   engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 111
   cards in eight packs (four of them Chinese: rare characters, dialects, idioms, dish names) and the
   one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online

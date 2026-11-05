@@ -1,5 +1,5 @@
 /**
- * The pieces of 一本正经 · Straight Face. Every piece takes a view object (PrivateView / PublicView or
+ * The pieces of 一本正经 · In All Seriousness. Every piece takes a view object (PrivateView / PublicView or
  * a slice of one), never the GameState: the one-phone screen and the online screens render the
  * same parts from what the engine's two view functions allow them to see.
  */

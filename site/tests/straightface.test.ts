@@ -1,4 +1,4 @@
-/* 一本正经 · Straight Face: the engine, the card bank and the two views. Run with `npx tsx tests/straightface.test.ts` */
+/* 一本正经 · In All Seriousness: the engine, the card bank and the two views. Run with `npx tsx tests/straightface.test.ts` */
 import { CARDS, PACKS } from "../src/data/straightface";
 import { lintDeck, pickCard, validateCard, validateDeck } from "../src/shared/straightface/cards";
 import { createGame, currentSpeaker, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";

@@ -1,5 +1,5 @@
 /**
- * 一本正经 · Straight Face: the card bank. Every card is original and bilingual; the term is what
+ * 一本正经 · In All Seriousness: the card bank. Every card is original and bilingual; the term is what
  * the whole table sees (an original name or a transliteration, never a gloss that explains it), the
  * definition is what the honest player reads, the seeds are what bluffers may lean on, the fun fact
  * shows on the reveal. `source` is where the facts were checked ("editorial" = checked by hand).
