@@ -24,6 +24,7 @@
 | 猜歌名 Name That Tune | 手机放旋律，或者当抢答器 | 2+ |
 | 神回复 Punchline | 两人对决，大家投票，手机上整场演出 | 3+（超过 8 人的当观众） |
 | 你画我猜 Draw & Guess | 在手机上画 | 2+ |
+| 一本正经 Straight Face | 一个冷门词，只有老实人知道真意思，其他人现编，裁判找老实人。还没上首页：只有 `changle.ca/g/straight-face/play` 能进，联机还没做 | 3 到 9 |
 
 **大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏在手机上玩，大屏幕显示桌号和谁在玩。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。
 
@@ -55,6 +56,7 @@
 - `src/data/punchline.ts` 神回复的题目
 - `src/data/postit.ts` 便利贴的备用词
 - `src/data/tunes.ts` 猜歌名的旋律
+- `src/data/straightface.ts` 一本正经的词卡（规则见 `src/shared/straightface/cards.ts`，扩库的任务卡在 `docs/codex-tasks/straightface/`）
 - `src/i18n.ts` 界面上的按钮和提示文字
 
 改完以后重新打包部署即可。

@@ -61,11 +61,13 @@ export function parse(pathname: string, search = ""): Route {
   if (p === "/login") return { kind: "home", tab: "party", open: "login" };
   if ((m = /^\/g\/([A-Za-z0-9-]+)(\/play)?$/.exec(p))) {
     const id = gameFrom(m[1]);
-    // (a hidden game, like the DJ booth, has no card: only its own address opens it)
-    if (id && !GAME_BY_ID[id].hidden) {
+    if (id) {
+      const g = GAME_BY_ID[id];
       // a game that plays from a big screen (the DJ booth) is played at that screen's address
-      if (m[2] && GAME_BY_ID[id].speaker) return { kind: "tv", game: id };
-      return m[2] && GAME_BY_ID[id].ready ? { kind: "game", id } : { kind: "home", tab: "party", game: id };
+      if (m[2] && g.speaker) return { kind: "tv", game: id };
+      if (m[2] && g.ready) return { kind: "game", id };
+      // (a hidden game has no card: only its own /play address opens it, nothing else is a page)
+      if (!g.hidden) return { kind: "home", tab: "party", game: id };
     }
   }
   if ((m = new RegExp(`^/t/${TABLE}$`).exec(p))) return { kind: "room", code: m[1].toUpperCase() };

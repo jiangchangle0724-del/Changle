@@ -188,6 +188,13 @@ libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go i
   the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
   `docs/codex-tasks/dj/` (C1 presets is done).
 
+* 一本正经 · Straight Face (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
+  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 47
+  cards and the one-phone flow are done (2026-11-04) and hidden from the board: only
+  `changle.ca/g/straight-face/play` opens it until Steve has played a round on his phone. Next:
+  online (A3: a `GameDef` wrapping the same engine), the card bank to 300 (Codex C1,
+  `docs/codex-tasks/straightface/`).
+
 * The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
   PR #34 (2026-11-01) and deployed fine.
 * 随便: its severe-allergy table is a draft, and its picks file is still empty.
