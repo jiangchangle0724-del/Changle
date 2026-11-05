@@ -63,7 +63,8 @@
       > .game-body > :is(.card-stage, .dice-stage, .wheel-svg),
       > .game-body .tn > .vinyl,
       > .game-body .fz > .floor,
-      > .game-body .lb > .limbo-scene
+      > .game-body .lb > .limbo-scene,
+      > .game-body .pl > .sh-stage.is-phone
     )
     > :is(.game-roster, .game-actions) {
     margin-left: calc(44% + 20px);
