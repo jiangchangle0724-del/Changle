@@ -47,7 +47,6 @@
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
-  perspective: 1400px;
 }
 /* a moment's light in the color of what just happened */
 .heads-stage::after {
@@ -86,6 +85,8 @@
   translate: -50% -50%;
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  /* (depth for the note peeling off) */
+  perspective: 1400px;
   padding: calc(var(--safe-top) + var(--space-2)) max(var(--space-2), env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + var(--space-3)) max(var(--space-2), env(safe-area-inset-left, 0px));
   transition: rotate var(--dur-emphasis) var(--ease-out);
 }
