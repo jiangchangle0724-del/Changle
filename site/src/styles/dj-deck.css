@@ -897,6 +897,79 @@
   gap: var(--space-2);
   font-weight: 700;
 }
+/* a song with no video found: its YouTube link asked for (find it on YouTube, paste it back) */
+.djk-need {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.djk-need-song {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--color-accent) 18%, var(--color-surface));
+  font-weight: 800;
+}
+.djk-need-song > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djk-need-song button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-2);
+  cursor: pointer;
+}
+.djk-need-find {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  padding: 0 var(--space-4);
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-weight: 800;
+  text-decoration: none;
+}
+.djk-need-find:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.djk-need-paste {
+  display: flex;
+  gap: var(--space-2);
+}
+.djk-need-paste .djk-req-input {
+  flex: 1;
+  min-width: 0;
+}
+.djk-need-paste .djk-req-cancel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: stretch;
+}
+.djk-need-hit {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.djk-need-hit.is-ok {
+  color: var(--color-text);
+}
 
 /* the 🔥 shrinks to make room for the deck */
 .djp-fire-wrap.is-small .djp-fire {
@@ -1493,6 +1566,23 @@
 }
 .dk-dropped.is-perfect .dk-dropped-word {
   color: var(--dk-perfect);
+}
+/* into a whole song: up top, over the decks, clear of the song's player in the middle */
+.dk-dropped.is-song {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-4);
+  padding-top: 164px;
+  background: none;
+}
+.dk-dropped.is-song .dk-dropped-word {
+  font-size: var(--text-4xl);
+  text-shadow: 0 0 30px color-mix(in oklab, var(--dk-drop) 70%, transparent);
+}
+.dk-dropped.is-song .dk-dropped-who {
+  margin-top: var(--space-2);
+  font-size: var(--text-xl);
 }
 .dk-dropped-style {
   color: var(--color-text-2);

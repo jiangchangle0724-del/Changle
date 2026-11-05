@@ -208,6 +208,12 @@ libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go i
   online (A3: a `GameDef` wrapping the same engine), the card bank to 300 (Codex C1,
   `docs/codex-tasks/straightface/`).
 
+* 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
+  and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the
+  big screen in `site/src/party/lastcard/`), done 2026-11-05 and hidden from the board:
+  `changle.ca/g/last-card/play` opens a table for it until Steve has played a round. Before it goes
+  on the board, its card needs an online-only mode (no one-phone button).
+
 * The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
   PR #34 (2026-11-01) and deployed fine.
 * 随便: its severe-allergy table is a draft, and its picks file is still empty.

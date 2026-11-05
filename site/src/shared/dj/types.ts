@@ -220,14 +220,13 @@ export type DropState = {
 export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: DropGrade }[]; auto: boolean; to: DeckSide; style: StyleId };
 
 /**
- * A song asked for by name on the beginner deck (Steve's ask on Nov 1). The booth can't have the
- * whole song, so it plays the 30 seconds Apple lets anyone hear of it (`p`, the preview the song
- * list has, or one the phone found on Apple), on the beat, over the DJ's own drums, and the DJ's
- * remix in its style carries on after it (Steve on Nov 2: the remix alone didn't sound like the
- * song he picked); a name that isn't a song anywhere gets the remix alone. One the player picked
- * from the site's song list (`song`) shows its title and artist, the list's, to the whole table; a
- * name they typed themself, or found on Apple, only they and the host read (the others see that
- * they asked for a song): nothing a player sends reaches the big screen unchecked.
+ * A song asked for by name on the beginner deck (Steve's ask on Nov 1). With its video on YouTube
+ * (`yt`: a pasted link, or a search) the whole song plays on the big screen in YouTube's own player
+ * once the table drops into it (真歌时间, Steve on Nov 2), and the DJ's remix in its style carries on
+ * after it; without one, the remix alone. One the player picked from the site's song list (`song`)
+ * shows its title and artist, the list's, to the whole table; a name they typed themself, or a
+ * video's title from YouTube, only they and the host read (the others see that they asked for a
+ * song): nothing a player sends reaches the big screen unchecked.
  */
 export type SongReq = {
   id: string;
@@ -243,6 +242,9 @@ export type SongReq = {
    *  (Steve on Nov 2, his plan's 观众点歌: never downloaded, never mixed), and its title there */
   yt?: string;
   ytT?: string;
+  /** the big screen found its video won't play outside YouTube (removed, private, or embedding off)
+   *  while getting it ready: the video was taken off it, its remix plays alone */
+  ytNo?: boolean;
   /** (a clip the DJ can play over its drums: no licensed source sets one now; LICENSES.md) */
   p?: string;
   /** one of the host's own songs (a night of them): its id in the room's `crate` */
@@ -431,9 +433,9 @@ export const DECK = {
   reqGapMs: 5000,
   reqWaitMs: 40_000,
   reqPlayMs: 90_000,
-  /** a whole song from YouTube: the DJ fades out over this many bars after its drop, and the song
-   *  plays at most this long (the big screen says when it ends; this is in case it never does) */
-  songFadeBars: 2,
+  /** a whole song from YouTube starts on its drop's bar (the big screen has it cued and buffered
+   *  while it's up next, and the DJ lets go with the drop's boom), and plays at most this long (the
+   *  big screen says when it ends; this is in case it never does) */
   songMaxMs: 12 * 60_000,
   /** after a whole song, the DJ plays at least this long before it drops into the next one by
    *  itself (Steve: "歌和 DJ 轮流"); the table can build up and drop into it sooner */
@@ -475,7 +477,7 @@ export type DjCommand =
   /** take back a song that isn't being checked or made yet (the host can take back anyone's) */
   | { x: "unask"; id: string }
   /** ask for a song by name (the deck): `song`, the song list's id when they picked it there;
-   *  `apple`, one the phone found on Apple: [track id, title, artist, preview, storefront];
+   *  `yt`, its video on YouTube (a pasted link or a search): [video id, title, channel];
    *  on a night of the host's songs, `local`: one of them */
   | { x: "req"; text?: string; song?: number; yt?: [string, string, string]; local?: string }
   | { x: "songskip" }
@@ -525,7 +527,10 @@ export type DjCommand =
   | { x: "mixoff" }
   /** the speaker: how a song file sent from the host's phone went (`code`: SONG_SENT), for that phone (`by`), the file's number (`id`) */
   | { x: "song"; by: string; id: number; code: number }
-  | { x: "songdone"; id: string };
+  | { x: "songdone"; id: string }
+  /** the speaker: the video of the song up next won't play here (YouTube's answer while getting it
+   *  ready): it comes off that song, which plays as the DJ's remix alone */
+  | { x: "nosong"; id: string };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;

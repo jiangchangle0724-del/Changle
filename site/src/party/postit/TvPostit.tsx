@@ -9,7 +9,8 @@ const WRITE_MS = 75_000;
 const REPLIES: { r: PostitReply; zh: string; en: string }[] = [
   { r: "yes", zh: "是", en: "Yes" },
   { r: "no", zh: "不是", en: "No" },
-  { r: "maybe", zh: "说不好", en: "Sort of" },
+  // (the same words as on the phones' buttons)
+  { r: "maybe", zh: "不确定", en: "Not sure" },
 ];
 
 /**
@@ -50,7 +51,8 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
     const word = note(s.id);
     return {
       seat: s,
-      state: !done && s.id === v.turn ? "spot" : v.solved.includes(s.id) ? "win" : done ? "lose" : "idle",
+      // (at the end, only whoever drinks the glass has lost: not someone still guessing when the others went home)
+      state: !done && s.id === v.turn ? "spot" : v.solved.includes(s.id) ? "win" : done && (v.last === undefined || v.last === s.id) ? "lose" : "idle",
       tag: <span className={`tvp-note ${word ? "is-open" : ""}`}>{word ?? "?"}</span>,
     };
   });
@@ -68,7 +70,11 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
           <>
             <p className="tvp-turn">
               <SeatFace seat={seat(v.turn)} size={64} />
-              {v.asking ? tx(`${name(v.turn)} 问：`, `${name(v.turn)} asks:`) : tx(`轮到 ${name(v.turn)}：问一个是不是的问题，或者直接猜`, `${name(v.turn)}'s turn: ask a yes-or-no question, or guess`)}
+              {v.asking
+                ? tx(`${name(v.turn)} 问：`, `${name(v.turn)} asks:`)
+                : v.final
+                  ? tx(`${name(v.turn)} 的最后一次机会：问一个是不是的问题，然后猜`, `${name(v.turn)}'s last chance: a yes-or-no question, then a guess`)
+                  : tx(`轮到 ${name(v.turn)}：问一个是不是的问题，或者直接猜`, `${name(v.turn)}'s turn: ask a yes-or-no question, or guess`)}
             </p>
             {v.asking && <p className="tvp-question">{v.asking}</p>}
             {v.asking && (
