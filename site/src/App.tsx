@@ -15,6 +15,7 @@ import { api } from "./lib/api";
 const Rogue13 = lazy(() => import("./games/Rogue13").then((m) => ({ default: m.Rogue13 })));
 const TruthDare = lazy(() => import("./games/TruthDare").then((m) => ({ default: m.TruthDare })));
 const Undercover = lazy(() => import("./games/Undercover").then((m) => ({ default: m.Undercover })));
+const StraightFace = lazy(() => import("./party/straightface/StraightFace").then((m) => ({ default: m.StraightFace })));
 const DrawGuess = lazy(() => import("./games/DrawGuess").then((m) => ({ default: m.DrawGuess })));
 const KingsGame = lazy(() => import("./games/KingsGame").then((m) => ({ default: m.KingsGame })));
 const PromptDecks = lazy(() => import("./games/PromptDecks").then((m) => ({ default: m.PromptDecks })));
@@ -150,6 +151,9 @@ function Shell() {
         break;
       case "undercover":
         screen = <Undercover onBack={back} />;
+        break;
+      case "straightface":
+        screen = <StraightFace onBack={back} />;
         break;
       case "draw":
         screen = <DrawGuess onBack={back} />;

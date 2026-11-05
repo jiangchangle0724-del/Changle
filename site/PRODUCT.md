@@ -37,6 +37,8 @@ Sixteen games, each one-phone and online: Truth or Dare, Rogue Thirteen, Superla
 
 Also on the home screen: a wishlist where anyone can suggest games and features, and a tip jar that shows Steve's Interac e-Transfer address (no payment processing in the app).
 
+一本正经 · Straight Face (in the works, 2026-11-04; one phone only so far, at changle.ca/g/straight-face/play, off the board until the owner has played it): a judge, an obscure word, one honest player who read the real meaning and bluffers who make one up; the judge questions, tags one suspect and names the honest one. Our own name, rules and card bank in the Call My Bluff / Balderdash family. Plan: `docs/straight-face.md`.
+
 Not planned: UNO (Mattel trademark).
 
 Terminology: 惩罚 / penalty; 喝一口 / sip; 喝两口 / two sips; 喝一杯 / finish the drink; 指定 / assign; 尤克 / euchred.

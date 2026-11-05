@@ -1,4 +1,4 @@
-# Where every sound comes from (打碟 · DJ Booth)
+# Where every sound comes from (打碟 · DJ Booth), and where 一本正经's words come from
 
 The plan's 版权台账 (`docs/dj-booth.md`, "老手会多做"): every sound the booth plays, where it comes
 from and on what terms. Update it with every new source. Last checked: 2026-11-02.
@@ -25,3 +25,19 @@ from and on what terms. Update it with every new source. Last checked: 2026-11-0
 
 * No interface stores audio on the site: `grep -rn "R2\|\.put(" site/worker` finds only the room's state (the host's songs by name, never their sound) and two small caches (exchange rates, the site's status). The only audio that passes through the rooms server is the host's phone to big screen relay above.
 * Every new sound source gets a row here in the same change that adds it.
+
+# 一本正经 · Straight Face: the card bank
+
+The game is in the family of Call My Bluff (BBC, 1965), Balderdash (1984) and 瞎掰王 / 9UPPER. A
+game mechanic is not protected; names, card texts and art are. So (2026-11-02, the plan):
+
+* The name, the rules' wording, every card and every picture are the site's own. Nothing is taken
+  from 瞎掰王 / 9UPPER: not a term, not a definition, not a seed. `grep -rn "瞎掰王\|9UPPER" site/src`
+  finds nothing but this note's neighbours.
+* Each card's `definition` and `funFact` state facts found on the page named in its `source`
+  (Wikipedia, Wiktionary, Oxford's word-of-the-year pages, or `editorial` when checked by hand) in
+  the site's own words. A fact is not copyrightable; a sentence is, so no sentence is copied or
+  lightly reworded from a source, and the card bank is not a derivative of Wikipedia's text (CC
+  BY-SA). The source link is a citation, not a licence.
+* The card bank lives in `site/src/data/straightface.ts`; the rules that keep it this way are
+  enforced by `site/src/shared/straightface/cards.ts` and `docs/codex-tasks/straightface/C1-cards.md`.

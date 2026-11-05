@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import { UsersRound } from "lucide-react";
 import type { T } from "../i18n";
 import type { Category } from "../ui/types";
@@ -18,6 +18,7 @@ export type GameId =
   | "freeze"
   | "wheel"
   | "undercover"
+  | "straightface"
   | "tune"
   | "punchline"
   | "draw"
@@ -301,6 +302,31 @@ export const GAMES: GameMeta[] = [
     category: "brain",
     minutes: 15,
     ready: true,
+  },
+  {
+    // 一本正经: new (2026-11-04), hidden until Steve has played it on a real phone (the brief's gate A); its address works
+    id: "straightface",
+    slug: "straight-face",
+    name: t("一本正经", "Straight Face"),
+    blurb: t("一个冷门词，只有一个人知道真意思", "One obscure word. Only one of you knows what it means."),
+    how: t(
+      "每轮一个裁判、一个冷门词。只有老实人看过真释义，其他人现编。大家轮流一本正经地解释，裁判追问、贴疑点，最后指认老实人。被指认的人得分，不管是不是老实人；指对了裁判也得分。裁判看走眼喝一口，骗到裁判的人指定一个人喝。",
+      "Each round: a judge and an obscure word. Only the honest one has read the real meaning; everyone else makes one up. Explain it in turn with a straight face; the judge asks, tags a suspect, then names the honest one. Whoever is named scores, honest or not; a right judge scores too. A fooled judge drinks, and the bluffer who fooled them picks someone to drink.",
+    ),
+    howCustom: t(
+      "每轮一个裁判、一个冷门词。只有老实人看过真释义，其他人现编。大家轮流一本正经地解释，裁判追问、贴疑点，最后指认老实人。被指认的人得分，不管是不是老实人；指对了裁判也得分。裁判看走眼受罚，骗到裁判的人指定一个人受罚。",
+      "Each round: a judge and an obscure word. Only the honest one has read the real meaning; everyone else makes one up. Explain it in turn with a straight face; the judge asks, tags a suspect, then names the honest one. Whoever is named scores, honest or not; a right judge scores too. A fooled judge takes the penalty, and the bluffer who fooled them picks someone to take it.",
+    ),
+    minPlayers: 3,
+    maxPlayers: 9,
+    gel: "#9d7bff",
+    icon: Speech,
+    category: "brain",
+    minutes: 15,
+    ready: true,
+    hidden: true,
+    newUntil: "2026-12-15",
+    solo: { min: 3, hint: t("4 到 9 人最好玩，手机传着看身份", "Best with 4 to 9. The phone goes round for a private peek") },
   },
   {
     id: "tune",
