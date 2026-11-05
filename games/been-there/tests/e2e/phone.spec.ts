@@ -3,7 +3,7 @@
 // city; every key screen at 390x844, 375x667 and 320x568 with no sideways scrolling and its buttons at
 // least 44 px, inside the screen; and the keyboard never covering a trade's amounts.
 import { devices, expect, test, type Page } from "@playwright/test";
-import { closeAll, createRoom, explain, joinWithTeam, newPhone, quizOff, tap, type Phone } from "./phones";
+import { closeAll, createRoom, explain, fits, joinWithTeam, newPhone, quizOff, tap, type Phone } from "./phones";
 
 test.afterEach(closeAll);
 
@@ -234,62 +234,11 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
   for (const p of phones) expect(p.errors).toEqual([]);
 });
 
-/**
- * No sideways scrolling, and every button in sight at least 44 px tall and inside the screen across.
- * `main` must also be whole on the screen: the one thing this screen asks for.
- */
-async function fits(p: Phone, label: string, main?: string) {
-  // (a window or sheet still sliding in is measured once it's there: on its way it's scaled down a little)
-  await p.page
-    .waitForFunction(
-      () =>
-        document.getAnimations().every((a) => {
-          const timing = a.effect?.getComputedTiming();
-          const target = (a.effect as KeyframeEffect | null)?.target as Element | null;
-          return a.playState !== "running" || !Number.isFinite(Number(timing?.endTime)) || !target?.matches?.(".playwin, .sheet-bg, .sheet, .quizpop");
-        }),
-      null,
-      { timeout: 3000 },
-    )
-    .catch(() => {});
-  const r = await p.page.evaluate((main) => {
-    const shown = (el: Element) => {
-      const s = getComputedStyle(el);
-      if (s.visibility === "hidden" || s.display === "none" || Number(s.opacity) === 0) return false;
-      const b = el.getBoundingClientRect();
-      if (b.width < 2 || b.height < 2) return false;
-      return !el.closest('[aria-hidden="true"], [hidden], .playwin[data-open="0"], .settling, .ride');
-    };
-    const small: string[] = [];
-    const out: string[] = [];
-    for (const el of document.querySelectorAll<HTMLElement>("button, .btn, summary, .seg button, [role=button]")) {
-      if (!shown(el) || el.matches("input")) continue;
-      const b = el.getBoundingClientRect();
-      const name = `${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 24)} (${el.className})`;
-      // (its own size, as laid out: not as a moment of an animation draws it)
-      const tall = el.offsetHeight || b.height;
-      if (tall < 43.5) small.push(`${name} ${el.offsetWidth || Math.round(b.width)}x${tall}`);
-      if (b.left < -1 || b.right > innerWidth + 1) out.push(`${name} at ${Math.round(b.left)}..${Math.round(b.right)} of ${innerWidth}`);
-    }
-    let whole: string | null = null;
-    if (main) {
-      const m = document.querySelector(main);
-      if (m) {
-        const b = m.getBoundingClientRect();
-        if (b.top < 0 || b.bottom > innerHeight + 1 || b.left < 0 || b.right > innerWidth + 1) whole = `${main} at ${Math.round(b.top)}..${Math.round(b.bottom)} of ${innerHeight}`;
-      }
-    }
-    return { wider: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, out, whole };
-  }, main);
-  expect(r.wider, `${p.name} ${label}: the page no wider than the phone`).toBeLessThanOrEqual(1);
-  expect(r.small, `${p.name} ${label}: buttons at least 44 px tall`).toEqual([]);
-  expect(r.out, `${p.name} ${label}: buttons inside the screen`).toEqual([]);
-  expect(r.whole, `${p.name} ${label}: what it asks for is whole on the screen`).toBeNull();
-}
-
 test("手机逐屏：大厅、自己的回合、别人的回合、抢答、拍卖、交易、设置、结局，在 390x844、375x667、320x568 上都不横向滚动，按钮至少 44px 而且在屏幕里", async ({ browser, request }) => {
   test.setTimeout(300_000);
-  const code = await createRoom(request, { mode: 60, test: { speed: 0.35, testRounds: 2 } });
+  // (every landing on a city brings a question here, for the phones waiting: in a real game they come
+  // about eight minutes apart, and a two-round game would see none)
+  const code = await createRoom(request, { mode: 60, test: { speed: 0.35, testRounds: 2, triviaEvery: 0 } });
   const { defaultBrowserType: _s, ...se } = devices["iPhone SE"];
   const a = await newPhone(browser, "甲", { ...iphone, viewport: { width: 390, height: 844 }, locale: "zh-CN" });
   const b = await newPhone(browser, "乙", { ...iphone, viewport: { width: 375, height: 667 }, locale: "zh-CN" });
@@ -304,7 +253,9 @@ test("手机逐屏：大厅、自己的回合、别人的回合、抢答、拍�
   await a.page.getByRole("button", { name: "开始", exact: true }).click();
   for (const p of phones) await expect(p.page.locator(".game")).toBeVisible();
   const seen = new Map<Phone, Set<string>>(phones.map((p) => [p, new Set<string>()]));
-  const want = ["turn", "others", "quiz", "menu", "trade", "finale"];
+  // (a question and an auction are checked when one comes: which phones a landing's question is for is
+  // up to the dice, and the quiz's own tests, quiz.spec.ts, check it on each of these sizes)
+  const want = ["turn", "others", "menu", "trade", "finale"];
   const state = (p: Phone) =>
     p.page.evaluate(() => {
       const q = (s: string) => document.querySelector(s);

@@ -36,13 +36,14 @@ Always:
 
 | Card | What | Files |
 | --- | --- | --- |
-| [C1](C1-presets.md) | The 12 style presets | `site/src/shared/dj/presets.ts` (new) |
-| [C2](C2-asset-pipeline.md) | The dancers' 3D files: FBX to GLB, compressed, with a list | `site/scripts/assets/` (new) |
-| [C4](C4-phone.md) | The phone: ❄️, drop, style knobs, asking for a song | `site/src/party/dj/phone/` (new), `NetDj.tsx`, `dj-phone.css` |
-| [C5](C5-speaker-screen.md) | The big screen: the songs, ❄️ and drops, what the floor wants, readable from 3 m | `site/src/party/dj/screen/` (new), `TvDj.tsx`, `Floor.tsx`, `dj.css` |
+| [C1](C1-presets.md) | The 12 style presets (done) | `site/src/shared/dj/presets.ts` (new) |
+| [C2](C2-asset-pipeline.md) | (superseded Nov 5: the coach is a CC0 robot) The dancers' 3D files: FBX to GLB, compressed, with a list | `site/scripts/assets/` (new) |
+| [C4](C4-phone.md) | (superseded Nov 5: built by Claude Code) The phone: ❄️, drop, style knobs, asking for a song | `site/src/party/dj/phone/` (new), `NetDj.tsx`, `dj-phone.css` |
+| [C5](C5-speaker-screen.md) | (superseded Nov 5: built by Claude Code) The big screen: the songs, ❄️ and drops, what the floor wants, readable from 3 m | `site/src/party/dj/screen/` (new), `TvDj.tsx`, `Floor.tsx`, `dj.css` |
 
 Order: C1 and C2 first (at the same time); then C4 and C5 (at the same time; their files don't
-overlap). C4 and C5 use C1's style names.
+overlap). C4 and C5 use C1's style names. (Nov 5: C1 is done; C2, C4 and C5 are superseded, so no
+card here is waiting for Codex. New cards for the plan's next steps get written when they start.)
 
 What to send Codex, one card at a time:
 

@@ -19,6 +19,7 @@ import { LyriaDj, pcmChunk } from "../src/party/dj/lyria/LyriaDj";
 import { FALLBACK_PROMPTS, lyriaFor } from "../src/party/dj/lyria/prompts";
 import { FAKE_MIX, mixFor } from "../src/shared/dj/curve";
 import { toGoogle } from "../worker/lyria";
+import { Tube } from "../src/party/dj/tube";
 import WORDS from "./fixtures/dj/lyria-prompt-words.json";
 
 let failures = 0;
@@ -1135,8 +1136,6 @@ await test("youtube: a link's video id, the search answer's videos, YouTube's es
   ok(hitsOf(null).length === 0 && hitsOf({ items: "x" }).length === 0, "an answer that isn't one: nothing");
 });
 
-console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
-process.exit(failures ? 1 : 0);
 
 await test("dance along: the routine on the beat count, a beat danced near it, the speaker's bars as times", () => {
   ok(moveAt(0).move.id === "stepClap" && moveAt(15).left === 1 && moveAt(16).move.id === "raiseRoof" && moveAt(15).next.id === "raiseRoof", "a move for 16 beats, then the next");
@@ -1146,3 +1145,271 @@ await test("dance along: the routine on the beat count, a beat danced near it, t
   const near = [{ t: 10_000 + 120, a: 4 }, { t: 10_480 - 200, a: 9 }, { t: 10_960, a: 1.5 }];
   ok(danced(near, [10_000, 10_480, 10_960]).join() === "true,false,false", "a beat is danced with a real move within 150 ms of it (too far, or too gentle, isn't)");
 });
+
+/* ------------------------------------------------------------------ 真歌时间: the TV's YouTube player (tube.ts), against a stand-in */
+
+/** YouTube's IFrame player, standing in (scripts/dj_youtube_check.py has the same in a browser): it
+ *  loads, buffers a video's start the first time it plays, plays an ad first, refuses a video its
+ *  owner keeps on YouTube, and (sound off) wants a tap before it plays with sound. */
+type YtEv = { onReady?: (e: { target: unknown }) => void; onStateChange?: (e: { data: number }) => void; onError?: (e: { data: number }) => void; onAutoplayBlocked?: () => void };
+class FakeYt {
+  static conf = { readyMs: 20, bufferMs: 60, againMs: 25, ads: {} as Record<string, number>, bad: {} as Record<string, number>, sound: true };
+  static last: FakeYt | null = null;
+  video: string;
+  state = -1;
+  t = 0;
+  muted = false;
+  activated = false;
+  heard: { video: string; at: number }[] = [];
+  private loaded: Record<string, boolean> = {};
+  private adLeft: Record<string, number>;
+  private tick: ReturnType<typeof setInterval> | 0 = 0;
+  private pend: ReturnType<typeof setTimeout> | 0 = 0;
+  private lastT = 0;
+  constructor(
+    _el: unknown,
+    private o: { videoId: string; events: YtEv },
+  ) {
+    this.video = o.videoId;
+    this.adLeft = { ...FakeYt.conf.ads };
+    FakeYt.last = this;
+    setTimeout(() => o.events.onReady?.({ target: this }), FakeYt.conf.readyMs);
+  }
+  private set(st: number) {
+    if (this.state === st) return;
+    this.state = st;
+    this.o.events.onStateChange?.({ data: st });
+  }
+  private halt() {
+    if (this.tick) clearInterval(this.tick);
+    if (this.pend) clearTimeout(this.pend);
+    this.tick = this.pend = 0;
+  }
+  private inAd() {
+    return (this.adLeft[this.video] ?? 0) > 0;
+  }
+  private hear() {
+    this.heard.push({ video: this.video, at: performance.now() });
+  }
+  private run() {
+    this.lastT = performance.now();
+    this.tick = setInterval(() => {
+      const now = performance.now();
+      const dt = now - this.lastT;
+      this.lastT = now;
+      if (this.inAd()) {
+        this.adLeft[this.video] -= dt;
+        if (!this.inAd() && !this.muted) this.hear();
+        return;
+      }
+      this.t += dt / 1000;
+    }, 5);
+  }
+  private go(byUser: boolean) {
+    const C = FakeYt.conf;
+    if (C.bad[this.video]) {
+      setTimeout(() => this.o.events.onError?.({ data: C.bad[this.video] }), 10);
+      return;
+    }
+    if (!this.muted && !C.sound && !this.activated && !byUser) {
+      this.o.events.onAutoplayBlocked?.();
+      return;
+    }
+    if (byUser) this.activated = true;
+    if (this.state === 1) return;
+    this.halt();
+    this.set(3);
+    this.pend = setTimeout(
+      () => {
+        this.pend = 0;
+        this.loaded[this.video] = true;
+        // (its sound came on while it was getting going, with no tap: the browser won't have it)
+        if (!this.muted && !C.sound && !this.activated) return this.set(2);
+        this.set(1);
+        if (!this.muted && !this.inAd()) this.hear();
+        this.run();
+      },
+      this.loaded[this.video] ? C.againMs : C.bufferMs,
+    );
+  }
+  playVideo() {
+    this.go(false);
+  }
+  pauseVideo() {
+    this.halt();
+    if (this.state === 1 || this.state === 3) this.set(2);
+  }
+  seekTo(s: number) {
+    this.t = s;
+  }
+  mute() {
+    this.muted = true;
+  }
+  unMute() {
+    if (!this.muted) return;
+    this.muted = false;
+    // like Safari: playing muted, its sound coming on with no tap pauses it
+    if (this.state === 1 && !FakeYt.conf.sound && !this.activated) {
+      this.halt();
+      this.set(2);
+      return;
+    }
+    if (this.state === 1 && !this.inAd()) this.hear();
+  }
+  isMuted() {
+    return this.muted;
+  }
+  setVolume() {}
+  cueVideoById(id: string) {
+    this.halt();
+    this.video = id;
+    this.t = 0;
+    this.set(-1);
+    setTimeout(() => this.set(5), 10);
+  }
+  loadVideoById(id: string) {
+    this.cueVideoById(id);
+    setTimeout(() => this.go(false), 15);
+  }
+  getPlayerState() {
+    return this.state;
+  }
+  getCurrentTime() {
+    return this.inAd() ? 0 : this.t;
+  }
+  destroy() {
+    this.halt();
+  }
+  end() {
+    this.halt();
+    this.set(0);
+  }
+  tap() {
+    this.go(true);
+  }
+}
+const gw = globalThis as unknown as Record<string, unknown>;
+gw.window ??= globalThis;
+gw.document ??= { createElement: () => ({ remove() {} }), head: { appendChild() {} } };
+gw.YT = { Player: FakeYt };
+const until = async (fn: () => boolean, ms = 3000) => {
+  const end = performance.now() + ms;
+  while (performance.now() < end) {
+    if (fn()) return true;
+    await sleep(4);
+  }
+  return fn();
+};
+/** A TV's player: what it said (in order), and when it set a start and said the song was heard. */
+function tvTube() {
+  const said: string[] = [];
+  const at: { timed?: number; playing?: number } = {};
+  const t = new Tube({
+    now: () => Date.now(),
+    status: (s) => said.push(`status:${s}`),
+    timed: (v, when) => {
+      said.push(`timed:${v}`);
+      at.timed = when;
+    },
+    playing: (v) => {
+      said.push(`playing:${v}`);
+      at.playing = performance.now();
+    },
+    blocked: (v) => said.push(`blocked:${v}`),
+    ended: (v) => said.push(`ended:${v}`),
+    bad: (v) => said.push(`bad:${v}`),
+  });
+  t.attach({ appendChild() {} } as unknown as HTMLElement);
+  return { t, said, at };
+}
+/** Get a video ready on a fresh player; its lead set to the stand-in's start time (what the TV learns). */
+async function readied(video: string) {
+  const tv = tvTube();
+  tv.t.prepare(video);
+  const ready = await until(() => tv.t.status === "ready");
+  tv.t.lead = FakeYt.conf.againMs;
+  return { ...tv, p: FakeYt.last!, ready };
+}
+
+await test("tube: the song up next waits ready (loaded, its start buffered, held at 0:00 with its sound on, never heard), then starts on its moment", async () => {
+  const { t, said, at, p, ready } = await readied("aaaaaaaaaa1");
+  ok(ready, `ready (${said.join(" ")})`);
+  ok(p.state === 2 && p.t < 0.5 && !p.muted && p.heard.length === 0, `buffered, held at its start, its sound on, never heard (state ${p.state}, ${p.t.toFixed(2)} s, muted ${p.muted})`);
+  const when = performance.now() + 400;
+  t.play("aaaaaaaaaa1", Date.now() + 400, when);
+  ok(said.includes("timed:aaaaaaaaaa1") && at.timed === when, "its start set for its moment: the DJ lets go then");
+  ok(await until(() => p.heard.length > 0, 2000), "heard");
+  const off = p.heard[0].at - when;
+  ok(Math.abs(off) < 40, `heard on its moment (${off.toFixed(0)} ms)`);
+  ok(await until(() => said.includes("playing:aaaaaaaaaa1")), "and says so");
+  p.end();
+  ok(await until(() => said.includes("ended:aaaaaaaaaa1")), "it ends: says so");
+  t.dispose();
+});
+
+await test("tube: a drop that may come into it rolls the video muted just before the bar; the word arriving late still starts it on the bar; no word, it goes back to its start", async () => {
+  const { t, p } = await readied("bbbbbbbbbb1");
+  const when = performance.now() + 300;
+  t.expect("bbbbbbbbbb1", Date.now() + 300, when);
+  await sleep(290);
+  ok((p.state === 1 || p.state === 3) && p.muted && p.heard.length === 0, `rolling, muted, as the bar comes (state ${p.state}, muted ${p.muted})`);
+  // the press reaches the TV 10 ms before the bar: too late to start a video then, not to unmute it
+  t.play("bbbbbbbbbb1", Date.now() + 10, when);
+  ok(await until(() => p.heard.length > 0, 1000), "heard");
+  const off = p.heard[0].at - when;
+  ok(Math.abs(off) < 40, `on the bar all the same (${off.toFixed(0)} ms)`);
+  t.dispose();
+  const b = await readied("bbbbbbbbbb2");
+  const when2 = performance.now() + 150;
+  b.t.expect("bbbbbbbbbb2", Date.now() + 150, when2);
+  await sleep(150 + 700 + 400);
+  ok(b.t.status === "ready" && b.p.state === 2 && b.p.t < 0.5 && !b.p.muted && b.p.heard.length === 0, `nobody pressed: back at its start, ready, never heard (state ${b.p.state}, ${b.p.t.toFixed(2)} s)`);
+  b.t.dispose();
+});
+
+await test("tube: an ad first plays out muted, then it's ready; a video YouTube won't play here says so", async () => {
+  FakeYt.conf.ads.ccccccccccc = 1900;
+  const tv = tvTube();
+  tv.t.prepare("ccccccccccc");
+  ok(await until(() => tv.t.status === "ad", 4000), `an ad: said (${tv.said.join(" ")})`);
+  ok(await until(() => tv.t.status === "ready", 4000), "then ready");
+  ok(FakeYt.last!.heard.length === 0, "the ad never heard");
+  tv.t.dispose();
+  delete FakeYt.conf.ads.ccccccccccc;
+  FakeYt.conf.bad.ddddddddddd = 150;
+  const bad = tvTube();
+  bad.t.prepare("ddddddddddd");
+  ok(await until(() => bad.said.includes("bad:ddddddddddd"), 3000) && bad.t.status === "bad", `won't play here: said (${bad.said.join(" ")})`);
+  bad.t.play("ddddddddddd", Date.now(), performance.now());
+  ok(bad.said.filter((x) => x === "bad:ddddddddddd").length === 2, "asked to play it anyway: said again, nothing starts");
+  bad.t.dispose();
+  delete FakeYt.conf.bad.ddddddddddd;
+});
+
+await test("tube: a browser that wants a tap: one tap on it while it waits ready, and it starts by itself; untapped, it asks for a tap instead of starting (the DJ plays on)", async () => {
+  gw.__tubeTapFirst = true;
+  FakeYt.conf.sound = false;
+  const a = await readied("eeeeeeeeee1");
+  ok(a.ready && !a.t.armed, "ready, not yet allowed to start by itself");
+  a.p.tap();
+  ok(await until(() => a.t.tapped && a.t.armed && a.p.state === 2 && a.p.t < 0.5, 2000), "tapped: held back at its start, and now it may");
+  a.t.lead = FakeYt.conf.againMs;
+  const when = performance.now() + 300;
+  a.t.play("eeeeeeeeee1", Date.now() + 300, when);
+  ok(await until(() => a.said.includes("timed:eeeeeeeeee1"), 500), "its start set");
+  ok(await until(() => a.p.heard.length > 1, 2000) && Math.abs(a.p.heard[1].at - when) < 40, `heard on its moment (${a.p.heard[1] ? (a.p.heard[1].at - when).toFixed(0) : "?"} ms)`);
+  a.t.dispose();
+  const b = await readied("eeeeeeeeee2");
+  b.t.play("eeeeeeeeee2", Date.now() + 200, performance.now() + 200);
+  ok(!b.said.includes("timed:eeeeeeeeee2"), "untapped: no start set for the DJ to let go on");
+  ok(await until(() => b.said.includes("blocked:eeeeeeeeee2") && b.t.status === "tap", 4000), `it won't start by itself: it asks for a tap (${b.said.slice(-3).join(" ")})`);
+  ok(b.p.heard.length === 0, "nothing heard meanwhile");
+  b.p.tap();
+  ok(await until(() => b.said.includes("playing:eeeeeeeeee2"), 2000), "tapped: the song is heard");
+  b.t.dispose();
+  delete gw.__tubeTapFirst;
+  FakeYt.conf.sound = true;
+});
+
+console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
+process.exit(failures ? 1 : 0);

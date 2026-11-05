@@ -434,3 +434,58 @@ siren pads are on and echo is off on the phones; the speaker's way out for them 
 chain (under 0.05). Ben puts two more on the 歌单: every phone shows the two, whose they are; Ben and
 the host can take them out, Cat can't; the TV says one more is waiting; the host's 随机 shows on
 Cat's phone, and back to 按顺序. `dj_deck_check.py` 66 of 66 in Chromium.
+
+## A song on its drop (Nov 5)
+
+Steve, with a screenshot of the 点歌 box ("正在放 DJ 按 Ed Sheeran 《The A Team》 做的 Remix（YouTube 上没找到这首）"):
+"我在这里选youtube 选歌后，点了drop之后并不会播放那首歌，只有放了youtube链接才可以。放了youtube 链接后也有个问题，点了drop
+之后，视频要加载好几秒才开始播放和那个drop 不能形成完美的衔接。"
+
+* **A pick from the list played as a remix.** The rooms server has no `YOUTUBE_API_KEY` yet, so the
+  phone's search for the song's video came back empty (`{"nokey":true}`), the request went in without
+  a video, and the phone blamed YouTube. Now a song with no video asks for its link first: a button
+  to YouTube's search for it, a paste box, or "不用链接，只放 DJ 的 Remix". YouTube is searched as you type
+  only when the song list has nothing (0.9 s after the last key), answers are kept a week, and a
+  day's quota running out says so.
+* **The video started seconds after the drop.** It only began to load once the drop had landed. Now
+  (`site/src/party/dj/tube.ts`) the song up next waits in a corner of the TV: loaded, an ad before
+  it played out there muted, its start buffered, held at 0:00 with its sound on. Just before the
+  drop's bar it rolls in muted (by the TV's measured start delay, plus 120 ms) and its sound comes
+  on on the bar, read off the speaker's own audio clock; the DJ lets go on the same bar, and the
+  boom and the crash ring over the song's first moment. A DROP word arriving late still starts it on
+  the bar. Safari wants one tap on the video first (the TV asks while it waits; untapped, the DJ
+  plays on). A video YouTube won't play outside YouTube goes back to the room as a remix.
+
+**`site/scripts/dj_youtube_check.py`**, the TV in Chromium against a stand-in for YouTube's player (this
+machine can't play YouTube: error 150): 113 of 113, no errors, twice. The song heard on the drop's
+bar, in the two runs: Ben's link on Amy's DROP −55 and +140 ms, Cat's pick on the DJ's own drop +21 and
+−12, 晴天 with no key and a pasted link −3 and +207, a TV that wanted a tap, tapped once, +12 and +33.
+The DJ plays up to the bar and lets go on it. No request went to Apple; the music never stalled. This
+machine runs the TV and three phones in one browser on two cores with no graphics chip, and the TV
+page's timers run late when it's busy: a third run with a typecheck going alongside had 晴天 +421 ms,
+past the check's 0.3 s line. The drop's boom and crash ring over a late start. **`site/tests/dj.test.ts`**: the player against a
+stand-in, its start within 40 ms. The other checks in Chromium: `dj_deck_check.py` 68, `dj_floor_check.py`
+41, `dj_dance_check.py` 26, `dj_mixer_check.py` 48, `dj_turntable_check.py` 33, `dj_mine_check.py` 26,
+`dj_local_check.py` 32, all passing. `dj_check.py` needs WebKit, which this machine doesn't have.
+
+Not heard here: the real YouTube, on real TVs. To try on a TV: one in Chrome, one in Safari (the tap),
+a smart TV's own browser.
+
+## The pads, after two sound skills (Nov 5)
+
+Steve: "最后find-skills 去找到与DJ 打碟做音乐相关的skill 给我装进去进行升级". Two skills went in
+(`LICENSES.md`), and the pads' sounds were checked against them (#187). As they ask already: the
+buses, the glue and the limiter, the dip under the TV's voice on a gain of its own, the beat off the
+clock the speakers are sounding. Changed:
+
+* The noise of the vinyl, the reverse cymbal, the bass drop's thump and the horn's air is made once
+  per speaker, not on every press. The page held up per press, before and after (the CPU slowed six
+  times in brackets): vinyl 15 to 28 ms (51 to 85), now 0.1 (1.7); reverse cymbal 9 to 13 (26 to
+  39), now 0.1 (1.8); bass drop 1 to 5 (13 to 23), now 0.2 (4.5).
+* Each press is one of five takes, never the one before: up to 1.5 dB louder or softer, a hair
+  higher or lower (the horn 25 cents, the siren and the whistle 30, the bass drop 40, the laser 60).
+* The bass drop's tail closes over its last 30 ms instead of clicking off (its last 2 ms 0.00009,
+  against 0.0095 a little before).
+
+`dj_turntable_check.py` 36 of 36 (three new), `dj_deck_check.py` 68, `dj_local_check.py` 32,
+`tests/dj-sound.test.ts`.

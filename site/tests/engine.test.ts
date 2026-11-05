@@ -12,6 +12,7 @@ import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
 import { SCENES as DRAMA_SCENES } from "../src/data/drama";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
+import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
 import { DARES, promptText } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS } from "../src/data/postit";
@@ -614,6 +615,211 @@ test("postit: chain of notes, hidden forehead, guesses", () => {
   ok(v.solved.includes("p1") || v.phase === "end", "p1 got it in Chinese");
   ok(v.phase === "end" || v.notes.p1?.zh === "孙悟空", "a solved player sees their own note");
 });
+
+/**
+ * The shared dice (seed) as they were before the test: tests further down rely on the draws they
+ * get (who is cast in 戏精大赏's second scene), so a new test here must not move them on.
+ */
+const sameDice = (fn: () => void) => () => {
+  const was = seed;
+  try {
+    fn();
+  } finally {
+    seed = was;
+  }
+};
+
+/** Every note written by hand, so a test knows what is on each forehead: `notes[i]` goes on player i. */
+function postitTable(notes: string[]) {
+  const t = setup(notes.length);
+  t.act("p0", { a: "start", game: "postit" });
+  notes.forEach((_, i) => t.g(`p${i}`, "write", { text: notes[(i + 1) % notes.length] }));
+  const pv = (pid = "p0") => t.view<V<"postit">>(pid);
+  ok(pv().phase === "play", "every note written: play");
+  return { ...t, pv };
+}
+
+test("postit: a second tap on send leaves the question and the answers alone", sameDice(() => {
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const t = postitTable(["猫", "狗", "龙"]);
+  const turn = t.pv().turn;
+  const other = t.ids.find((p) => p !== turn)!;
+  t.g(turn, "ask", { text: "我是动物吗？" });
+  t.g(other, "reply", { r: "yes" });
+  ok(nothing(t.g(turn, "ask", { text: "" })), "an empty question changes nothing");
+  ok(nothing(t.g(turn, "ask", { text: "   " })), "nor does one of spaces");
+  ok(t.pv().asking === "我是动物吗？" && t.pv().replies[other] === "yes", `the question and its answers are still there (${t.pv().asking}, ${JSON.stringify(t.pv().replies)})`);
+  t.g(turn, "ask", { text: "我会飞吗？" });
+  ok(t.pv().asking === "我会飞吗？" && !Object.keys(t.pv().replies).length, "a new question starts the answers again");
+}));
+
+test("postit: a note of one character or three letters can be guessed in a sentence", sameDice(() => {
+  const right = (zh: string, en: string, guess: string, alias: string[] = []) => guessMatches(guess, { zh, en }, alias);
+  for (const g of ["猫", "我是猫", "是不是猫", "我是一只猫吗？", "难道我是猫", "我猜是猫吧"]) ok(right("猫", "猫", g), `猫 <- ${g}`);
+  for (const g of ["cat", "a cat", "I am a cat", "am I a cat?", "I think I'm a cat, right?", "cats", "The Cat"]) ok(right("Cat", "Cat", g), `Cat <- ${g}`);
+  ok(right("龙", "Dragon", "我是龙", ["中国龙"]) && right("龙", "Dragon", "am I a dragon"), "the deck's one-character note too");
+  ok(right("The Beatles", "The Beatles", "beatles") && right("A Bug's Life", "A Bug's Life", "bugs life"), "a name's own article is not needed");
+  for (const g of ["狗", "我是熊猫", "猫和狗", "我不是猫", "catfish", "I am not a cat", "a cat or a dog", "scat"]) ok(!right("猫", "Cat", g), `猫 / Cat is not ${g}`);
+  ok(!right("只狼", "Sekiro", "狼") && right("只狼", "Sekiro", "我是只狼吗"), "a Chinese name is not cut down to fit");
+  ok(right("孙悟空", "Sun Wukong", "是不是孙悟空") && right("爱因斯坦", "Albert Einstein", "einstien", ["einstein"]) && !right("超人", "Superman", "蝙蝠侠"), "what counted before still counts");
+
+  const t = postitTable(["猫", "狗", "龙"]);
+  const turn = t.pv().turn;
+  const mine = ["猫", "狗", "龙"][Number(turn.slice(1))];
+  t.g(turn, "guess", { text: `我是${mine}吗？` });
+  t.advance(1000);
+  ok(t.pv().solved.includes(turn) && !t.pens().length, `at the table: 我是${mine}吗 is right, and nobody drinks`);
+}));
+
+test("postit: someone who sits down mid-game is dealt a note and plays", sameDice(() => {
+  const t = postitTable(["猫", "狗", "龙"]);
+  t.eng.hello("late", "Late", false);
+  t.eng.flush();
+  let lv = t.view<V<"postit">>("late");
+  ok(t.pv().order.join() === "p0,p1,p2,late", `they are on the end of the order (${t.pv().order.join()})`);
+  ok(lv.notes.late === null && lv.notes.p0?.zh === "猫" && lv.notes.p1?.zh === "狗" && lv.notes.p2?.zh === "龙", "they see everyone's note but their own");
+  ok(!!t.pv("p1").notes.late, "and the others see theirs, from the deck");
+  t.g(t.pv().turn, "ask", { text: "Am I famous?" });
+  t.g("late", "reply", { r: "no" });
+  ok(t.pv().replies.late === "no", "their answer counts now: they can see the note");
+  // round the table: their turn comes
+  for (let i = 0; i < 3; i++) t.g(t.pv().turn, "pass");
+  ok(t.pv().turn === "late", `their turn comes round (${t.pv().turn})`);
+  t.g("late", "guess", { text: t.pv("p0").notes.late!.zh });
+  ok(t.pv().solved.includes("late"), "and they can guess theirs");
+
+  // written notes: someone who joins while they are being written is on the end of the chain
+  const w = setup(3);
+  w.act("p0", { a: "start", game: "postit" });
+  w.g("p0", "write", { text: "A" });
+  w.g("p1", "write", { text: "B" });
+  w.g("p2", "write", { text: "C" });
+  ok(w.view<V<"postit">>("p0").phase === "play", "three notes: play");
+  const w2 = setup(3);
+  w2.act("p0", { a: "start", game: "postit" });
+  w2.g("p2", "write", { text: "for p0" });
+  w2.eng.hello("late", "Late", false);
+  w2.eng.flush();
+  let wv = w2.view<V<"postit">>("p2");
+  ok(wv.phase === "write" && wv.order.join() === "p0,p1,p2,late" && wv.myTarget === "late", `the last writer now writes for them (${wv.myTarget})`);
+  ok(w2.view<V<"postit">>("late").myTarget === "p0", "and they write for the first");
+  for (const p of ["p0", "p1", "p2"]) w2.g(p, "random");
+  wv = w2.view<V<"postit">>("p0");
+  ok(wv.phase === "play" && wv.written.length === 4, "everyone has a note: play");
+
+  // a seat that stops just watching mid-game joins the same way; one that starts watching is out
+  const s = postitTable(["猫", "狗", "龙"]);
+  s.act("p2", { a: "watch", on: true });
+  ok(s.pv().order.join() === "p0,p1", "watching: out of the game");
+  s.act("p2", { a: "watch", on: false });
+  lv = s.view<V<"postit">>("p2");
+  ok(s.pv().order.join() === "p0,p1,p2" && lv.notes.p2 === null && !!lv.notes.p0 && !!s.pv().notes.p2, "back at the table: a new note, and the others' in view");
+}));
+
+test("postit: everyone gets the same number of turns, and the first to ask moves on", sameDice(() => {
+  // two players: the first guesses right at once, and the second still gets a turn
+  let t = postitTable(["猫", "狗"]);
+  ok(t.pv().turn === "p0" && !t.pv().final, "the first seat asks first, the first game");
+  t.g("p0", "guess", { text: "猫" });
+  t.advance(3000);
+  let v = t.pv();
+  ok(v.phase === "play" && v.turn === "p1" && v.final === true && !t.pens().length, `the second player has a last chance (${v.phase}, ${v.turn}, final ${v.final})`);
+  t.g("p1", "guess", { text: "狗" });
+  t.advance(3000);
+  v = t.pv();
+  ok(v.phase === "end" && v.solved.length === 2 && !t.pens().length, "both got theirs: nobody drinks the glass");
+
+  // ...and a miss on the last chance is the glass, without a sip first
+  t = postitTable(["猫", "狗"]);
+  t.g("p0", "guess", { text: "猫" });
+  t.g("p1", "guess", { text: "不知道" });
+  t.advance(3000);
+  ok(t.pv().phase === "end" && t.pens().length === 1 && t.pens()[0].kind === "full" && t.pens()[0].who.join() === "p1", `the glass, once (${t.pens().map((p) => p.kind + ":" + p.who).join()})`);
+  ok(t.pv().last === "p1", "and every phone is told who drinks it");
+  // the game is over: the host can't count it after all (the glass has been called)
+  t.g("p0", "accept");
+  ok(!t.pv().solved.includes("p1") && t.pv().guess?.ok === false, "nothing is counted after the end");
+
+  // giving up on the last chance is the glass too
+  t = postitTable(["猫", "狗"]);
+  t.g("p0", "guess", { text: "猫" });
+  t.g("p1", "pass");
+  t.advance(3000);
+  ok(t.pv().phase === "end" && t.pens().length === 1 && t.pens()[0].kind === "full", "a pass on the last chance ends it");
+
+  // no extra turn for someone who has had as many as the rest
+  t = postitTable(["猫", "狗"]);
+  t.g("p0", "guess", { text: "错" });
+  t.g("p1", "guess", { text: "狗" });
+  t.advance(3000);
+  v = t.pv();
+  ok(v.phase === "end" && t.pens().filter((p) => p.kind === "full").map((p) => p.who.join()).join() === "p0", "the first player had a turn already: the game ends on them");
+
+  // three players: the last in the order hasn't had their turn when the other two get theirs
+  t = postitTable(["猫", "狗", "龙"]);
+  t.g("p0", "guess", { text: "猫" });
+  t.g("p1", "guess", { text: "狗" });
+  v = t.pv();
+  ok(v.phase === "play" && v.turn === "p2" && v.final === true, "the third player gets their turn, as a last chance");
+  t.g("p2", "guess", { text: "龙" });
+  ok(t.pv().phase === "end", "and takes it");
+
+  // the host counts a near miss while the one left is mid-turn: that turn becomes their last chance, question and all
+  const h = postitTable(["猫", "狗", "龙"]);
+  h.g("p0", "guess", { text: "猫" });
+  h.g("p1", "guess", { text: "小狗狗呀呀" });
+  h.g("p2", "ask", { text: "Am I big?" });
+  h.g("p0", "reply", { r: "yes" });
+  h.g("p0", "accept");
+  const hv = h.pv();
+  ok(hv.solved.includes("p1") && hv.turn === "p2" && hv.final === true && hv.asking === "Am I big?" && hv.replies.p0 === "yes", `p2's turn goes on as the last chance (${hv.turn}, ${hv.final}, ${hv.asking})`);
+
+  // the next game, the next seat asks first; and the one after that
+  t.g("p0", "again");
+  ["猫", "狗", "龙"].forEach((_, i) => t.g(`p${i}`, "write", { text: ["猫", "狗", "龙"][(i + 1) % 3] }));
+  ok(t.pv().phase === "play" && t.pv().turn === "p1", `second game: the second seat asks first (${t.pv().turn})`);
+  for (const p of ["p1", "p2", "p0"]) t.g(p, "guess", { text: ["猫", "狗", "龙"][Number(p.slice(1))] });
+  t.g("p0", "again");
+  t.g("p0", "begin");
+  ok(t.pv().turn === "p2", `third game: the third (${t.pv().turn})`);
+}));
+
+test("postit: when the others leave, nobody is told to drink the glass", sameDice(() => {
+  // two guessing, one goes home: the other is not "last"
+  let t = postitTable(["猫", "狗"]);
+  t.act("p1", { a: "leave" });
+  t.advance(3000);
+  ok(t.pv().phase === "end" && !t.pens().length && t.pv().last === null && t.pv().order.join() === "p0", "the only one left: the game ends, no glass, and the phones are told nobody drinks it");
+
+  // one has theirs, two are guessing, one of those leaves: the other gets a last chance, not the glass
+  t = postitTable(["猫", "狗", "龙"]);
+  t.g("p0", "guess", { text: "猫" });
+  t.g("p1", "pass");
+  t.act("p2", { a: "leave" });
+  t.advance(3000);
+  let v = t.pv();
+  ok(v.phase === "play" && v.turn === "p1" && v.final === true && !t.pens().length, `a last chance for the one still guessing (${v.phase}, ${v.turn}, ${v.final})`);
+  // the one who had theirs leaves too: nobody is left who got there first
+  t.act("p0", { a: "leave" });
+  t.advance(3000);
+  ok(t.view<V<"postit">>("p1").phase === "end" && !t.pens().length, "and then alone: over, no glass");
+
+  // someone with their note leaves during another's last chance: the last chance carries on
+  t = postitTable(["猫", "狗", "龙"]);
+  t.g("p0", "guess", { text: "猫" });
+  t.g("p1", "guess", { text: "狗" });
+  ok(t.pv().final === true && t.pv().turn === "p2", "p2 on a last chance");
+  t.act("p1", { a: "leave" });
+  v = t.pv();
+  ok(v.phase === "play" && v.turn === "p2" && v.final === true && v.solved.join() === "p0", `still p2's last chance, and the one who left is off the list (${v.solved.join()})`);
+  t.g("p2", "guess", { text: "错" });
+  t.advance(3000);
+  ok(t.pv().phase === "end" && t.pens().length === 1 && t.pens()[0].who.join() === "p2", "missed: the glass");
+  // leaving the table at the end screen calls no second glass
+  t.act("p2", { a: "leave" });
+  t.advance(3000);
+  ok(t.pens().length === 1, "nobody drinks twice");
+}));
 
 test("freeze: shared stop, motion reports, knockout to a winner", () => {
   const t = setup(3);
@@ -2102,7 +2308,7 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   const other = dv("p3").deck.reqs[0];
   ok(other.text === null && other.artist === undefined && other.ytT === undefined && other.yt === ID, "another phone reads neither its title nor its channel (the video is the big screen's to play)");
   ok(dv("p1").deck.reqs[0].text === "Despacito", "the host reads it");
-  // the drop into it: the DJ fades out, then the song plays whole, the deck waiting
+  // the drop into it: the song plays whole from the drop's bar, the deck waiting
   sc("live", { source: "fake" });
   sc("grid", { at: clock, bar: 0, bpm: 125 });
   ok(dv("p1").deck.up?.yt === ID, "up next");
@@ -2117,7 +2323,7 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   g("p1", "drop", { c: clock });
   advance(dr.at - clock + 5);
   const song = dv("p1").deck.song;
-  ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock + 2 * 4 * 480, "it lands: the whole song plays from two bars on (the DJ fades out first)");
+  ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock, "it lands: the whole song plays from the drop's bar (the big screen has it ready, the DJ lets go with the boom)");
   ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "echo" })) && nothing(g("p1", "pad", { pad: "brake" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no fader, none of the pads that work the music");
   ok(!nothing(g("p1", "pad", { pad: "horn" })) && !nothing(g("p2", "pad", { pad: "siren" })), "but the pads that are a sound of their own play over it (Steve: the effects to hype the floor)");
   ok(nothing(g("p3", "songskip")), "only its player or the host can skip it");
@@ -2134,6 +2340,24 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   advance(auto!.at - clock + 5);
   ok(dv("p1").deck.song?.by === "p3", "it plays whole");
   ok(!nothing(g("p3", "songskip")) && dv("p1").deck.song === null, "its player skips it: the DJ comes back");
+  // a video YouTube won't play here: the big screen finds out while getting it ready
+  advance(6000);
+  g("p2", "req", { yt: ["zyxwvutsrqp", "Gone song", "Chan"] });
+  const dead = dv("p1").deck.up;
+  ok(dead?.yt === "zyxwvutsrqp", "Ben's next is up, with its video");
+  ok(!e.screenAct("tv-other", { x: "nosong", id: dead!.id }), "another screen can't take it off");
+  ok(!sc("nosong", { id: "someone-else" }), "nor a word about a song that isn't up next");
+  ok(sc("nosong", { id: dead!.id }), "the speaker's word that it won't play is taken");
+  const stripped = dv("p2").deck.up;
+  ok(stripped?.id === dead!.id && stripped.yt === undefined && stripped.ytT === undefined && stripped.ytNo === true, "the video comes off it, and its player's phone can say why");
+  ok(!sc("nosong", { id: dead!.id }), "said again: nothing more to do");
+  advance(70_000);
+  sc("decks", { a: dv("p1").deck.a, b: dv("p1").deck.b });
+  advance(6000);
+  const plain = dv("p1").deck.drop;
+  ok(!!plain, "the DJ drops into it");
+  advance(plain!.at - clock + 5);
+  ok(dv("p1").deck.now?.id === dead!.id && dv("p1").deck.song === null, "it lands as the DJ's remix alone: no whole song to wait for");
 });
 
 test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随机 or 按顺序; after a whole song the DJ plays a minute before the next", () => {
