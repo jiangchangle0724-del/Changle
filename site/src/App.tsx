@@ -1,10 +1,12 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { StoreProvider, useStore } from "./store";
 import { setSoundEnabled } from "./lib/sound";
 import { initAudio, startMusic, stopMusic } from "./lib/sfx";
 import { EASE, play, setLight } from "./lib/motion";
 import { Home } from "./home/Home";
 import { GAME_BY_ID, type GameId } from "./games/registry";
+import type { GameLoading } from "./games/GameLoading";
+import { GameRun } from "./games/GameRun";
 import { back, go, titleOf, useRoute, type Route } from "./router";
 import { AccountProvider, useAccount } from "./account/AccountContext";
 import { PerkNews } from "./account/PerkNews";
@@ -81,6 +83,25 @@ function Shell() {
   // page first, to add people (or play online), instead of a game that can't work
   const short = route.kind === "game" && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
   const { signInOpen, openSignIn } = useAccount();
+  // 再来一局 in a game's tally: the same game again from nothing (a new key mounts it afresh)
+  const [restarts, setRestarts] = useState(0);
+  const gel = route.kind === "game" ? GAME_BY_ID[route.id].gel : "";
+  const run = useMemo(() => ({ gel, restart: () => setRestarts((n) => n + 1) }), [gel]);
+  // a game's shape while its own file downloads (GameLoading): a small file of its own, fetched once
+  // this page has settled (at once when it opens on a game), so the front door doesn't carry it
+  const [Loading, setLoading] = useState<typeof GameLoading | null>(null);
+  const opensOnGame = useRef(route.kind === "game");
+  useEffect(() => {
+    let live = true;
+    const timer = window.setTimeout(
+      () => void import("./games/GameLoading").then((m) => live && setLoading(() => m.GameLoading)),
+      opensOnGame.current ? 0 : 1500,
+    );
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, []);
   const [signInUsed, setSignInUsed] = useState(false);
   useEffect(() => {
     if (signInOpen) setSignInUsed(true);
@@ -211,7 +232,7 @@ function Shell() {
       : route.kind === "room"
         ? `room-${route.code}`
         : route.kind === "game"
-          ? route.id
+          ? `${route.id}.${restarts}`
           : route.kind === "me" || route.kind === "admin" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
             ? route.kind
             : `${route.kind}-${route.id}`;
@@ -253,7 +274,14 @@ function Shell() {
       <main className="app" style={route.kind === "game" ? ({ ["--gel" as string]: GAME_BY_ID[route.id].gel } as React.CSSProperties) : undefined}>
         <Scene sceneKey={key}>
           <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>
-            <Suspense fallback={null}>{screen}</Suspense>
+            {route.kind === "game" && !short ? (
+              // a game: its shape while its file downloads, and what its shell can ask of the page
+              <Suspense fallback={Loading && <Loading id={route.id} lang={lang} />}>
+                <GameRun.Provider value={run}>{screen}</GameRun.Provider>
+              </Suspense>
+            ) : (
+              <Suspense fallback={null}>{screen}</Suspense>
+            )}
           </ScreenGuard>
         </Scene>
       </main>

@@ -186,7 +186,12 @@ export const mark = () => (window.history.state ?? null) as HistoryMark | null;
 // Each open sheet has an entry of its own on top of its page's entry, so the phone's back button
 // closes the sheet instead of leaving the page.
 
-type Overlay = { token: string; close: () => void; pushed: boolean };
+/**
+ * An open sheet's entry. `close` runs when the sheet must go (the back button took its entry, or the
+ * page is changing). A guard (useBackGuard) has `popped` instead: it answers the back button only,
+ * and simply goes away when the page changes.
+ */
+type Overlay = { token: string; close: () => void; pushed: boolean; popped?: () => void };
 /** open sheets that keep an entry, bottom to top */
 const overlays: Overlay[] = [];
 /** entries on top whose sheets closed just now: the next sheet to open takes one over */
@@ -243,12 +248,12 @@ function onPop() {
   const i = top ? overlays.findIndex((o) => o.token === top) : -1;
   // the entry of a sheet that isn't open (from before a reload, or forward into a closed one)
   if (top && i < 0) window.history.replaceState({ inSite: mark()?.inSite } satisfies HistoryMark, "");
-  // the back button took these sheets' entries away: they close
+  // the back button took these sheets' entries away: they close (a guard hears the back button)
   for (let j = overlays.length - 1; j > i; j--) {
     const o = overlays[j];
     if (!o.pushed) continue;
     overlays.splice(j, 1);
-    o.close();
+    (o.popped ?? o.close)();
   }
   flush();
 }
@@ -379,6 +384,24 @@ export function useBackCloses(open: boolean, onClose: () => void, enabled = true
     pushOver(o);
     return () => closeOverlay(o.token);
   }, [open, enabled]);
+}
+
+/**
+ * While `active`, the phone's back button (or a swipe back) on this page calls `onBack` instead of
+ * leaving: a game under way shows its tally first. It keeps an entry of its own like an open sheet,
+ * but leaving the page another way (‹ in the tally, a link) just drops it, without calling onBack.
+ * One back press uses it up: set it active again to catch the next one.
+ */
+export function useBackGuard(active: boolean, onBack: () => void) {
+  const popped = useRef(onBack);
+  popped.current = onBack;
+  useEffect(() => {
+    if (!active) return;
+    const o: Overlay = { token: `${LOAD}.${++seq}`, close: () => {}, popped: () => popped.current(), pushed: false };
+    overlays.push(o);
+    pushOver(o);
+    return () => closeOverlay(o.token);
+  }, [active]);
 }
 
 /** Full link to a table, for the QR code and the invite. */
