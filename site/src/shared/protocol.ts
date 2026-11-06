@@ -432,6 +432,8 @@ export type TuneView = {
   quiz: boolean;
   /** songs mode: the four titles come without their singers, the wrong ones by the same singer */
   hard: boolean;
+  /** songs mode: one second first, then three, then the rest (each from `hook`) */
+  snap: boolean;
   phase: "ready" | "listen" | "answer" | "reveal" | "end";
   round: number;
   total: number;
@@ -456,6 +458,8 @@ export type TuneView = {
   audio: string | null;
   /** server time the preview's first second plays (moves on after a pause) */
   startAt: number;
+  /** one second: ms into the preview where every snippet starts */
+  hook: number;
   /** ms into the preview where the reveal picks up */
   revealPos: number;
   /** the next preview, so phones can load it while this one plays */

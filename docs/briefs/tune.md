@@ -31,11 +31,12 @@
 - 每首歌只加载一次，省内存。
 - 单机选择题是一桌人共用一部手机：猜错一个只锁这一个，其余还能接着猜。
 - 四选一分简单和难（参考 Soundle）。简单：每个歌名下写着歌手。难：只写歌名，错的三个尽量是同一个歌手的别的歌，不够再用别的歌手补。单机在选择题里选，联机选择题和抢答后的四选一都算，大屏幕也只写歌名。揭晓时照样写歌手。
+- 一秒猜歌（参考 Soundle 的 Snap）：真歌先放一秒，再放三秒，再一直放，都从同一处（hook）开始，猜到时放到第几段就是几分（3、2、1）。单机由拿手机的人点「多放一点」。联机所有手机一起放：0 秒放一秒，6 秒放三秒，13 秒起一直放，一局 25 秒（选择题 20 秒）；从哪儿放由主人的手机分析试听决定（第一次有人声的拍子，15 秒以内），发给服务器，其他手机照这个放；第一首在设置时就选好，大家先加载。抢答时暂停，答错后接着放刚才那段。
 
 ## 还剩什么
 
 - 选择题偶尔闪退（Steve 10-31 报的）：11-05 找到并修了一个很像的原因。台上跟着拍子变的灯光每一帧都改两个小人所在整块的样式，Chrome 内核里页面内存一首涨 150 MB 左右（6 首从 100 MB 到 1.2 GB），关掉这一项就不涨，小人跳舞本身不涨。改成只改发光的那几块、粗一点的台阶、变了才改以后，8 首都稳在 180 MB 上下。iPhone 是另一种内核，还要 Steve 在 iPhone 上连玩几十首确认。`scripts/tune_quiz_check.py` 现在也会在页面内存往上爬时报错。
-- 参考 Soundle 的四条（Steve 11-05 说都做）：选择题分难度（做了）、一秒猜歌、歌手专场和年代歌单、挑战链接。
+- 参考 Soundle 的四条（Steve 11-05 说都做）：选择题分难度（做了）、一秒猜歌（做了）、歌手专场和年代歌单、挑战链接。
 
 ## 交给别的对话
 
@@ -45,6 +46,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-05 Name That Tune: one second (一秒猜歌): a snippet, then three seconds, then the rest
 - 2026-11-05 Name That Tune: hard titles: no singers on them, the wrong ones by the same singer
 - 2026-11-05 Name That Tune: the stage's lights stop growing the page's memory song after song
 - 2026-11-05 Name That Tune: one phone, multiple choice: a wrong title locks only itself, the table guesses on

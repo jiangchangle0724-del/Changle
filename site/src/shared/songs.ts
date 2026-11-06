@@ -341,6 +341,22 @@ export function decoysFor(song: Song, all: Song[], rand: () => number, hard = fa
   return out;
 }
 
+/* ---------- one second (一秒猜歌, like Soundle's Snap): a snippet first, longer ones after ---------- */
+
+/**
+ * One-second rounds: when each of the three snippets starts (ms after the first) and how long the
+ * first two last, in seconds (the third plays on to the end of the round). The points go 3, 2, 1
+ * with them, as with the whole preview. All three start at the same spot in the song (its "hook").
+ */
+export const SNAP_GAPS = [0, 6000, 13_000];
+export const SNAP_SECONDS = [1, 3];
+/** how long a one-second round listens: 25 s, or 20 with the four titles up from the start */
+export const SNAP_MS = 25_000;
+export const SNAP_QUIZ_MS = 20_000;
+/** where the snippets start when nobody has worked it out for this preview: just past Apple's fade-in */
+export const DEFAULT_HOOK_MS = 1000;
+export const HOOK_MAX_MS = 20_000;
+
 /** The four titles as a phone shows them: on the hard level, without who sings them. */
 export function shownChoices(choices: Song[], hard: boolean): { id: number; t: string; a: string; ae: string }[] {
   return choices.map((c) => (hard ? { id: c.id, t: c.t, a: "", ae: "" } : { id: c.id, t: c.t, a: c.a, ae: c.ae }));

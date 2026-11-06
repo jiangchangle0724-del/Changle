@@ -10,10 +10,10 @@ import { holdBackground, type TuneHandle } from "../../lib/music";
 import { forgetPreviews, heardSongs, loadPreview, rememberSong, type PreviewHandle } from "../../lib/preview";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
-import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, shownChoices, type Song, type SongPool } from "../../shared/songs";
+import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, shownChoices, SNAP_SECONDS, type Song, type SongPool } from "../../shared/songs";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
-import { AnswerPicker, clipSeconds, CoverLabel, LevelPicker, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { AnswerPicker, clipSeconds, CoverLabel, hookOf, LevelPicker, playClip, PoolPicker, QuizChoices, SnapPicker, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
 import { loadSongbook } from "./songbook";
@@ -23,7 +23,7 @@ type Mode = "songs" | "melody" | "pads";
 type SongKept = { kind: "songs"; round: number; song: Song | null; next: Song | null; played: number[]; avoid: number[]; revealed: boolean; revealedAt: number; stage: number; choices: Song[]; tried: number[] };
 type MelodyKept = { kind: "melody"; round: number; tune: number; cards: number[]; stage: number; revealed: boolean; revealedAt: number; tried: number[]; options: number[] };
 type PadsKept = { kind: "pads"; first: string | null; locked: string[] };
-type KeepBase = { mode: Mode; pool: SongPool; quiz: boolean; hard?: boolean; total: number; scores: Record<string, number> };
+type KeepBase = { mode: Mode; pool: SongPool; quiz: boolean; hard?: boolean; snap?: boolean; total: number; scores: Record<string, number> };
 type Kept = KeepBase & { round: SongKept | MelodyKept | PadsKept };
 
 function ClearTune() {
@@ -54,13 +54,14 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   const [pool, setPool] = useState<SongPool>(saved?.pool ?? DEFAULT_POOL);
   const [quiz, setQuiz] = useState(saved?.quiz ?? false);
   const [hard, setHard] = useState(saved?.hard ?? false);
+  const [snap, setSnap] = useState(saved?.snap ?? false);
   const [total, setTotal] = useState(saved?.total ?? 8);
   const [phase, setPhase] = useState<"setup" | "play" | "end">(saved ? "play" : "setup");
   const [actionHost, setActionHost] = useState<HTMLDivElement | null>(null);
   const [shellRound, setShellRound] = useState(saved && saved.round.kind !== "pads" ? saved.round.round : 1);
   const [answerTurn, setAnswerTurn] = useState<string | null>(saved?.round.kind === "pads" ? saved.round.first : null);
   const [scores, setScores] = useState<Record<string, number>>(saved?.scores ?? {});
-  const keeping: KeepBase = { mode, pool, quiz, hard, total, scores };
+  const keeping: KeepBase = { mode, pool, quiz, hard, snap, total, scores };
   const penalty = usePenalty();
   // the game has its own sound (the songs, the melodies, the DJ's music app): the lounge music waits
   useEffect(() => holdBackground(), []);
@@ -106,8 +107,8 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   const rules = (
     <p>
       {zh
-        ? `真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的；可以选难，只写歌名，错的尽量是同一个歌手的歌。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，${custom ? "错了受罚。最后得分最低的受罚。" : "错了喝一口。最后得分最低的喝两口。"}`
-        : `Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it; on hard, titles only, the wrong ones by the same singer where possible. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: ${custom ? "right is a point, wrong takes the penalty. Lowest score takes the penalty." : "right is a point, wrong is a sip. Lowest score drinks two."}`}
+        ? `真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的；可以选难，只写歌名，错的尽量是同一个歌手的歌。一秒猜歌：先放一秒，猜不出点「多放一点」放三秒，再不行一直放，猜到的时候放到第几段就是几分（3、2、1 分）。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，${custom ? "错了受罚。最后得分最低的受罚。" : "错了喝一口。最后得分最低的喝两口。"}`
+        : `Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it; on hard, titles only, the wrong ones by the same singer where possible. One second: one second of the song first, Play more for three seconds, then the rest; 3, 2 or 1 points by how much had played. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: ${custom ? "right is a point, wrong takes the penalty. Lowest score takes the penalty." : "right is a point, wrong is a sip. Lowest score drinks two."}`}
     </p>
   );
 
@@ -142,6 +143,7 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
               {mode === "songs" && <PoolPicker pool={pool} onPick={setPool} />}
               {mode !== "pads" && <AnswerPicker quiz={quiz} onPick={setQuiz} />}
               {mode === "songs" && quiz && <LevelPicker hard={hard} onPick={setHard} />}
+              {mode === "songs" && <SnapPicker snap={snap} onPick={setSnap} />}
               {mode !== "pads" ? (
                 <div className="seg seg-sm" role="group" style={{ alignSelf: "center" }}>
                   {[5, 8, 12, 20].map((n) => (
@@ -160,7 +162,7 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
           )}
 
           {phase === "play" && mode === "songs" && (
-            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} total={total} pool={pool} quiz={quiz} hard={hard} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
+            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} total={total} pool={pool} quiz={quiz} hard={hard} snap={snap} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
           )}
           {phase === "play" && mode === "melody" && <MelodyRounds keeping={keeping} saved={firstSaved.current?.round.kind === "melody" ? firstSaved.current.round : null} onRound={setShellRound} total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
           {phase === "play" && mode === "pads" && (
@@ -193,6 +195,7 @@ function SongRounds({
   pool,
   quiz,
   hard,
+  snap,
   people,
   scores,
   setScores,
@@ -207,6 +210,8 @@ function SongRounds({
   pool: SongPool;
   quiz: boolean;
   hard: boolean;
+  /** one second: a snippet first, more on a tap (manual stages, like the melodies) */
+  snap: boolean;
   people: { id: string; name: string }[];
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
@@ -266,6 +271,10 @@ function SongRounds({
   useEffect(() => () => forgetPreviews(), []);
   const canPlay = audio.status === "ready" || audio.status === "failed";
   const beats = useMemo(() => (audio.url && audio.buf ? beatsFor(audio.url, audio.buf) : null), [audio.url, audio.buf]);
+  /** one second: where in the preview the snippets start (seconds), and whether one is playing */
+  const hookSec = useMemo(() => (snap ? hookOf(beats, audio.buf?.duration ?? 30) / 1000 : 0), [snap, beats, audio.buf]);
+  const [snipOn, setSnipOn] = useState(false);
+  const snipTimer = useRef(0);
   useEffect(() => {
     if (!song || !book || choicesFor.current === song.id) return;
     choicesFor.current = song.id;
@@ -282,17 +291,45 @@ function SongRounds({
     handle.current = startSong(audio, { offset: from, fadeIn: from ? 0.2 : 0.05 });
     setTiming(handle.current ? { startPerf: performance.now(), offset: from } : null);
   };
+  /** one second: play snippet `st` from the hook (1 s, 3 s, then the rest), or `seconds` of it at the reveal */
+  const playSnip = (st: number, seconds?: number) => {
+    if (waiting.current) {
+      waiting.current = false;
+      if (!revealed) setStartedAt(performance.now());
+    }
+    handle.current?.stop(0.05);
+    const short = seconds === undefined && st < SNAP_SECONDS.length;
+    const len = seconds ?? (short ? SNAP_SECONDS[st] : Math.max(1, (audio.buf?.duration ?? 30) - hookSec));
+    handle.current = startSong(audio, { offset: hookSec, seconds: len, fadeIn: short ? 0.03 : 0.2, fadeOut: short ? 0.12 : undefined });
+    if (seconds === undefined) setStage(st);
+    setTiming(handle.current ? { startPerf: performance.now(), offset: hookSec } : null);
+    setSnipOn(true);
+    window.clearTimeout(snipTimer.current);
+    snipTimer.current = window.setTimeout(() => setSnipOn(false), len * 1000 + 100);
+  };
   // the song starts as soon as it has loaded; the points clock starts with it
   useEffect(() => {
     if (waiting.current || !canPlay || revealed) return;
+    if (snap) {
+      playSnip(0);
+      setStartedAt(performance.now());
+      return () => handle.current?.stop(0.08);
+    }
     play(0);
     setStartedAt(performance.now());
     return () => handle.current?.stop(0.12);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canPlay, audio.url]);
-  useEffect(() => () => handle.current?.stop(0.1), []);
+  useEffect(
+    () => () => {
+      handle.current?.stop(0.1);
+      window.clearTimeout(snipTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
-    if (startedAt === null || revealed) return;
+    // (one second: the table moves the stages on itself)
+    if (snap || startedAt === null || revealed) return;
     const tick = () => {
       const t = performance.now() - startedAt;
       setStage(t < 8000 ? 0 : t < 18_000 ? 1 : 2);
@@ -356,6 +393,8 @@ function SongRounds({
     const now = next ?? (book ? pick(book) : null);
     if (!now) return onEnd(nextScores);
     handle.current?.stop(0.25);
+    window.clearTimeout(snipTimer.current);
+    setSnipOn(false);
     played.current.add(now.id);
     setRound((r) => r + 1);
     setRevealed(false);
@@ -370,12 +409,15 @@ function SongRounds({
     setRevealedAt(stage);
     setRevealed(true);
     sfx.reveal();
+    // one second: now the bit everyone heard pieces of, for a while
+    if (snap) playSnip(stage, 10);
   };
+  const live = snap ? snipOn : startedAt !== null;
   return (
     <>
       <p className="tn-round tabular">{zh ? `第 ${round} 首，共 ${total} 首` : `Song ${round} of ${total}`}</p>
-      <TuneStage singer={song.g} playing={startedAt !== null} beats={beats} timing={timing} mood={moodOf(song)} songKey={song.id} cue={cue}>
-        <Vinyl spinning={startedAt !== null} label={revealed ? <CoverLabel art={card.art} /> : "?"} />
+      <TuneStage singer={song.g} playing={live} beats={beats} timing={timing} mood={moodOf(song)} songKey={song.id} cue={cue}>
+        <Vinyl spinning={live} label={revealed ? <CoverLabel art={card.art} /> : "?"} />
       </TuneStage>
       <StageDots stage={revealed ? revealedAt : stage} />
       <SongStatus audio={audio} playing />
@@ -416,6 +458,27 @@ function SongRounds({
           <TuneAction>
             <button type="button" className="btn btn-lg btn-ghost btn-block" onClick={() => award(null)}>
               {zh ? "没人猜到" : "Nobody got it"}
+            </button>
+          </TuneAction>
+        </>
+      ) : snap ? (
+        <>
+          <div className="row tn-snip-row">
+            <button type="button" className="btn btn-ghost btn-block" disabled={!canPlay} onClick={() => playSnip(stage)}>
+              <RotateCcw size={16} />
+              {zh ? "再放一遍" : "Play again"}
+            </button>
+            {stage < 2 && (
+              <button type="button" className="btn btn-ghost btn-block" disabled={!canPlay} onClick={() => playSnip(stage + 1)}>
+                <Radio size={16} />
+                {zh ? "多放一点" : "Play more"}
+              </button>
+            )}
+          </div>
+          <TuneAction>
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={reveal}>
+              <Eye size={18} />
+              {zh ? "揭晓歌名" : "Reveal the title"}
             </button>
           </TuneAction>
         </>
