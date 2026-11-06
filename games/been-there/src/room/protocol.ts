@@ -8,6 +8,8 @@ export type Role = "player" | "screen";
 export const TIMING = {
   /** Computer players think this long before each move. */
   bot: 900,
+  /** A player's reactions (表情): one at most this often (ms); quicker ones are dropped. */
+  reactEvery: 1_500,
   /** First bid window of a live auction. */
   auctionOpen: 10_000,
   /** "Count to five": each bid restarts this countdown. */
@@ -93,6 +95,10 @@ export const TRIVIA_WRONG = 10;
 /** How many of the waiting teams' questions a phone remembers having been asked (their ids), and sends when it joins. */
 export const SEEN_KEEP = 200;
 
+/** The preset reactions (表情): each is one of the characters' moods, with its word (i18n `react_*`). */
+export const REACTIONS = ["happy", "shock", "sad", "curious", "smug"] as const;
+export type ReactionId = (typeof REACTIONS)[number];
+
 export const MAX_TEAMS = 6;
 export const MAX_TEAM_SIZE = 3;
 
@@ -155,6 +161,8 @@ export type ClientMsg =
   | { t: "forfeit"; id: number; op: "done" | "skip" }
   /** Rio: the dancing team is ready (its Start button): the countdown begins, then the lesson. */
   | { t: "dance-go" }
+  /** A preset reaction (表情): the team's character with a mood and its word. No typing. */
+  | { t: "react"; r: ReactionId }
   | { t: "save" }
   | { t: "again" }
   | { t: "ping" };
@@ -164,7 +172,9 @@ export type ServerMsg =
   | { t: "toast"; key: string; vars?: Record<string, string | number> }
   | { t: "saved"; code: string }
   | { t: "pong"; now: number }
-  | { t: "fatal"; key: string };
+  | { t: "fatal"; key: string }
+  /** Someone's reaction, to every page in the room as it happens (never kept in the room). */
+  | { t: "react"; id: number; team: string; r: ReactionId };
 
 /** A feed item: an engine event or a room event, numbered so clients can animate new ones. */
 export type FeedItem = { id: number; at: number } & (

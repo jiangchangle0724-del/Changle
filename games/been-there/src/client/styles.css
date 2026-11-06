@@ -1676,6 +1676,191 @@ button.trivia-opt:active {
     animation: none;
   }
 }
+/* Reactions (ui/Reactions.tsx): a phone's round button in the board's top left corner (the map's size
+   is in the top right) and the row of five faces it opens. The reactions come in under the button on a
+   phone (the board's lower part is under the play window on your turn) and rise off the bottom left
+   corner of the big screen's board, newest lowest. Decoration only: nothing in them takes a tap. */
+.react-pick {
+  position: absolute;
+  z-index: 4;
+  top: 4px;
+  left: 4px;
+}
+.react-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--night) 74%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 0.16s var(--ease-out),
+    opacity 0.2s;
+}
+.react-btn:active {
+  transform: scale(0.94);
+}
+.react-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.react-pick.open .react-btn {
+  box-shadow: inset 0 0 0 2px var(--team);
+}
+.react-row {
+  position: absolute;
+  top: 50px;
+  left: 0;
+  display: flex;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 18px;
+  background: var(--dusk);
+  box-shadow: var(--shadow), var(--lift);
+  animation: react-row-in 0.18s var(--ease-out);
+}
+.react-opt {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 52px;
+  min-height: 56px;
+  padding: 6px 4px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--moon);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.react-opt small {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.react-opt:active {
+  background: var(--dusk-3);
+}
+@media (hover: hover) {
+  .react-opt:hover {
+    background: var(--dusk-2);
+  }
+}
+@keyframes react-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+.reactions {
+  position: absolute;
+  z-index: 4;
+  left: 6px;
+  top: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.reaction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px 3px 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dusk) 94%, transparent);
+  box-shadow:
+    inset 0 0 0 2px var(--team),
+    var(--lift);
+  color: var(--moon);
+  animation: react-show 2.8s var(--ease-out) both;
+}
+.reaction-word {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.reaction-who {
+  font: 700 0.75rem var(--ui);
+  color: var(--team);
+}
+.reactions.big {
+  top: auto;
+  left: 2%;
+  bottom: 3%;
+  gap: 10px;
+}
+.reactions.big .reaction {
+  gap: 10px;
+  padding: 5px 22px 5px 5px;
+  animation-name: react-rise;
+}
+.reactions.big .reaction-word {
+  font-size: 1.6rem;
+}
+.reactions.big .reaction-who {
+  font-size: 1.1rem;
+}
+@keyframes react-show {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.85);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+@keyframes react-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.8);
+  }
+  10% {
+    opacity: 1;
+    transform: none;
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-22px);
+  }
+}
+/* With reduced motion a reaction only fades in and out, in place. */
+@keyframes react-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  8%,
+  80% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction,
+  .reactions.big .reaction {
+    animation-name: react-fade;
+  }
+  .react-row {
+    animation: none;
+  }
+}
+:root[data-reduced="1"] .reaction {
+  animation: react-fade 2.8s linear both !important;
+}
 /* The big screen's 3D globe sits exactly over the map circle (radius 320 of the board's 1000). */
 .boardwrap .globe {
   position: absolute;

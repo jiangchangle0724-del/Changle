@@ -1863,3 +1863,40 @@ test("more rules: hidden money: a phone sees only its own team's cash and worth,
   assert.deepEqual(end.worth, s.ps.map((_, i) => E.netWorth(s, i)));
   assert.deepEqual(t.refusals, []);
 });
+
+test("reactions: a team's player reacts, every page in the room hears it at once, nothing is kept, one per 1.5 s", () => {
+  const t = new Table();
+  const ps = lobby(t, 2);
+  assert.ok(t.room.join("member-9-xxxxxxxx", "key-9-secret-xxxx", { role: "screen" }));
+  const watcher = phone(7);
+  t.join(watcher, "W");
+  t.send(ps[0], { t: "start" });
+  t.settle();
+  const before = JSON.stringify(t.room.st);
+  const heard = () => {
+    const out = t.room.flush();
+    return { changed: out.changed, to: out.direct.filter(([, m]) => m.t === "react").map(([id, m]) => [id, m]) as [string, ServerMsg][] };
+  };
+  t.room.handle(ps[0].id, { t: "react", r: "shock" });
+  const first = heard();
+  assert.equal(first.changed, false, "nothing in the room changes");
+  assert.deepEqual(first.to.map(([id]) => id).sort(), [ps[0].id, ps[1].id, watcher.id, "member-9-xxxxxxxx"].sort(), "every page, the big screen too");
+  const msg = first.to[0][1] as Extract<ServerMsg, { t: "react" }>;
+  assert.equal(msg.r, "shock");
+  assert.equal(msg.team, t.room.st.members[ps[0].id].team);
+  // Too soon: dropped. A screen, a player with no team, or a reaction that isn't one: dropped.
+  t.room.handle(ps[0].id, { t: "react", r: "happy" });
+  t.room.handle("member-9-xxxxxxxx", { t: "react", r: "happy" });
+  t.room.handle(watcher.id, { t: "react", r: "happy" });
+  t.room.handle(ps[1].id, { t: "react", r: "dance" as never });
+  assert.equal(heard().to.length, 0);
+  t.clock.t += TIMING.reactEvery;
+  t.room.handle(ps[0].id, { t: "react", r: "happy" });
+  t.room.handle(ps[1].id, { t: "react", r: "smug" });
+  const second = heard();
+  assert.equal(second.to.length, 8, "two reactions, four pages each");
+  assert.ok(second.to.every(([, m]) => m.t === "react" && m.id > msg.id));
+  // (the room's lastSeen moves with any message; nothing else)
+  const strip = (s: string) => s.replace(/"lastSeen":\d+/g, "");
+  assert.equal(strip(JSON.stringify(t.room.st)), strip(before));
+});

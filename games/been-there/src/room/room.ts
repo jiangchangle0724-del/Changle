@@ -6,6 +6,7 @@ import * as E from "../engine";
 import {
   MAX_TEAMS,
   MAX_TEAM_SIZE,
+  REACTIONS,
   TIMING,
   TRIVIA_PRIZE,
   TRIVIA_WRONG,
@@ -18,6 +19,7 @@ import {
   type ServerMsg,
   type Settings,
   type PartyWhy,
+  type ReactionId,
   type TeamView,
   type TriviaView,
 } from "./protocol";
@@ -286,6 +288,9 @@ export class Room {
   st: RoomState;
   private env: RoomEnv;
   private direct: [string, ServerMsg][] = [];
+  /** When each member last reacted (表情), in this copy of the room only: reactions aren't kept. */
+  private reactAt = new Map<string, number>();
+  private reactId = 0;
   private dirty = false;
   private saveReq: Flush["save"] = null;
 
@@ -438,6 +443,19 @@ export class Room {
   }
 
   // ---------- output ----------
+
+  /**
+   * A reaction (表情) from a team's player, to every page in the room as it happens: never kept, and
+   * nothing else changes. One a player at most every 1.5 s.
+   */
+  private react(m: Member, r: unknown) {
+    if (!m.team || m.role !== "player" || !REACTIONS.includes(r as ReactionId)) return;
+    const last = this.reactAt.get(m.id);
+    if (last !== undefined && this.now - last < TIMING.reactEvery) return;
+    this.reactAt.set(m.id, this.now);
+    const out: ServerMsg = { t: "react", id: ++this.reactId, team: m.team, r: r as ReactionId };
+    for (const x of Object.values(this.st.members)) if (x.online > 0) this.direct.push([x.id, out]);
+  }
 
   private toast(member: string, key: string, vars?: Record<string, string | number>) {
     this.direct.push([member, { t: "toast", key, vars }]);
@@ -595,6 +613,8 @@ export class Room {
       case "ping":
         this.direct.push([id, { t: "pong", now: this.now }]);
         return;
+      case "react":
+        return this.react(m, msg.r);
       case "name": {
         const name = clampName(msg.name, m.name);
         if (name !== m.name) {

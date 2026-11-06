@@ -397,6 +397,15 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   (or on the dancer's phone when there's no big screen). A computer team, or one the computer is
   covering, has nobody to get ready or to teach: it dances a short one at once (10 s: two figures
   and the pose). The room's song is hushed from the ready card to the lesson's end.
+* **Reactions** (表情, `ui/Reactions.tsx`). A team's player taps the round button in the board's top left
+  corner (the map's size is in the top right) and picks one of five: its own character in a mood, with
+  its word (好耶！ 不会吧！ 呜呜… 嗯？ 嘿嘿). No typing, so there's nothing to watch over. Every screen in
+  the room shows it at once for 2.8 s, a pill in the team's colour with the face, the word and the
+  team's letter: on a phone under the button (on your turn the play window covers the board's lower
+  part), on the big screen rising off the board's bottom left corner, bigger, with a small sound. One a
+  player every 1.5 s (the room drops quicker ones), never kept, and drawn on a layer of its own, so one
+  arriving mid-move redraws nothing else. Not in the one-phone demo; with reduced motion they fade in
+  and out in place.
 * **Vibration** (`controls.ts`) works where a page is allowed to vibrate: Android. It buzzes on
   your turn, your press on the dice (or any answer), the landing, money in and out, a city bought, a
   card, Immigration, an auction, a trade offer and going broke. iPhones can't buzz from a page: the
