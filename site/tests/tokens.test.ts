@@ -4,8 +4,11 @@
  *     changes nothing on screen until the migration is done.
  *  2. The shared components in src/ui/ write no colors or font sizes of their own: tokens only.
  *  3. The type scale is the one docs/DESIGN.md promises.
+ *  4. The site's frame (UI plan C8) writes no raw font sizes, colors, shadows, corners or short
+ *     durations. Until C8 is done, a file may keep at most what tests/raw-values.json allows, and
+ *     that only goes down. `UPDATE_RAW=1 npx tsx tests/tokens.test.ts` writes the new, lower counts.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,7 +49,8 @@ for (const [k, v] of tokens) {
 // 2. src/ui/ uses tokens only
 function walk(dir: string): string[] {
   return readdirSync(join(here, dir)).flatMap((n) => {
-    const p = join(dir, n);
+    // forward slashes on every system, so tests/raw-values.json reads the same on Windows
+    const p = join(dir, n).replace(/\\/g, "/");
     return statSync(join(here, p)).isDirectory() ? walk(p) : [p];
   });
 }
@@ -77,6 +81,60 @@ ok(fluid("--text-2xl", 28, 34), "--text-2xl runs 28px to 34px");
 ok(fluid("--text-3xl", 40, 48), "--text-3xl runs 40px to 48px");
 ok(rem("--text-4xl") === "4rem", "--text-4xl is 64px");
 for (const n of [1, 2, 3, 4, 6, 8, 12]) ok(tokens.get(`--space-${n}`) === `${n * 4}px`, `--space-${n} is ${n * 4}px`);
+
+// 4. the site's frame uses tokens: raw values only go down (C8), to none
+// The frame: everything around the games. A game's own picture (party.css, drama.css, the TV's
+// screens, src/party/) keeps its art for now; so do spacing values and long choreography (> 600ms).
+const FRAME = [
+  ...["home", "account", "admin", "avatar", "online", "tools", "components", "global", "landscape"].map((n) => `src/styles/${n}.css`),
+  "src/games/GameShell.css",
+  "src/games/GameLoading.css",
+  "src/App.tsx",
+  ...["src/home", "src/account", "src/tools", "src/components"].flatMap((d) => walk(d)),
+  ...walk("src/online").filter((p) => !p.includes("/games/")),
+  ...walk("src/games").filter((p) => /\/Game\w*\.tsx$|\/Resume\.tsx$/.test(p)),
+].filter((p) => /\.(tsx|css)$/.test(p));
+type Raw = { font: number; color: number; shadow: number; radius: number; time: number };
+/** what a file writes out instead of a token; custom property declarations (--x: …) are definitions, not uses */
+function raw(p: string): Raw {
+  const src = read(p).replace(/\/\*[\s\S]*?\*\//g, "");
+  const r: Raw = { font: 0, color: 0, shadow: 0, radius: 0, time: 0 };
+  if (p.endsWith(".tsx")) {
+    r.font = (src.match(/fontSize\s*:\s*["']?\d/g) ?? []).length;
+    return r;
+  }
+  for (const m of src.matchAll(/(?:^|[;{\s])([a-z-]+)\s*:\s*([^;{}]+)/g)) {
+    const [, prop, value] = m;
+    if (prop.startsWith("--")) continue;
+    const v = value.replace(/var\([^()]*(\([^()]*\))?[^()]*\)/g, "");
+    if ((prop === "font-size" || prop === "font") && /\d(\.\d+)?px/.test(v)) r.font++;
+    r.color += (v.match(/#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\(/g) ?? []).length;
+    if (prop === "box-shadow" && v.trim() !== "none" && /\S/.test(v.replace(/,/g, ""))) r.shadow++;
+    if (/^border(-[a-z]+)*-radius$/.test(prop) && /\d(\.\d+)?(px|rem|em)/.test(v)) r.radius++;
+    if (/^(transition|animation)(-duration|-delay)?$/.test(prop))
+      r.time += [...v.matchAll(/(\d*\.?\d+)(ms|s)\b/g)].filter(([, n, u]) => Number(n) * (u === "s" ? 1000 : 1) <= 600 && Number(n) > 0).length;
+  }
+  return r;
+}
+const baselineFile = join(here, "tests/raw-values.json");
+const baseline: Record<string, Partial<Raw>> = JSON.parse(readFileSync(baselineFile, "utf8"));
+const now: Record<string, Partial<Raw>> = {};
+let rawLeft = 0;
+for (const p of FRAME) {
+  const r = raw(p);
+  const kept = Object.fromEntries(Object.entries(r).filter(([, n]) => n > 0)) as Partial<Raw>;
+  if (Object.keys(kept).length) now[p] = kept;
+  for (const [k, n] of Object.entries(r) as [keyof Raw, number][]) {
+    rawLeft += n;
+    const most = baseline[p]?.[k] ?? 0;
+    ok(n <= most, `${p}: ${n} raw ${k}${n > most ? ` (at most ${most}: use the tokens in src/styles/tokens.css)` : ""}`);
+  }
+}
+if (process.env.UPDATE_RAW) {
+  writeFileSync(baselineFile, JSON.stringify(now, null, 2) + "\n");
+  console.log("wrote tests/raw-values.json");
+}
+ok(true, `${FRAME.length} frame file(s) checked, ${rawLeft} raw value(s) left (C8 takes this to 0)`);
 
 if (failed) {
   console.log(`\n${failed} failure(s)`);

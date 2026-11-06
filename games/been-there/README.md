@@ -7,7 +7,8 @@ screen (TV or laptop) shows the board. It plays at changle.ca/trip and starts fr
 Step 4 made the full game playable online; step 5 gave it its look: the golden age of travel
 (1930s posters, luggage labels, passport stamps, boarding passes), a round turntable board around
 an air-age route map, and six token characters. Step 6 adds the city content: a quiz for the teams
-waiting their turn (176 questions, eight a city, each with its source and a 你知道吗 fact; it pops up
+waiting their turn (about every eight minutes, and four into a game for the first, a team's landing
+on a city brings them a question about that city, once what the landing asks of the table (a purchase, an auction, a vote) is settled; 176 questions, eight a city, each with its source and a 你知道吗 fact; it pops up
 at the top of the phone, any phone can skip a question, none comes twice in a game, and a phone
 gets ones it hasn't seen first; the host can turn it off in the lobby), the real fact
 on the big screen's arrival card, a drink-free set of party forfeits (each one holds the game until
@@ -38,6 +39,14 @@ there along the great circle, its own token flying it once it's down on the ring
 world stays printed, each city washed in its region's colour. The pictures are made ready ahead of
 time (`npm run satellite`) and ship with the game: 73 KB for a phone, 600 KB for the big screen.
 
+Rio's samba: a team that lands on Rio may dance for the table's scores. Its phone shows a ready
+card (stand up, leave room for a step), and nothing starts until it presses Start; left alone for a
+minute, it starts by itself. Then every screen counts down five seconds and a carnival dancer teaches
+a 40-second lesson to a samba band: eight figures, the words on screen and spoken, the spot under
+the foot to move lit up. Full screen on the dancing team's phone, small over the judges' buttons
+(which light up when it's over), big on the big screen. A computer team dances a short one straight
+away.
+
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
 ## How it sits inside changle.ca
@@ -66,7 +75,7 @@ How the game looks and moves, and what a design change has to keep: [DESIGN.md](
 | Folder | What it is |
 | --- | --- |
 | `src/engine` | The rules, one copy shared by the simulator, the server and the browser. Recovered from the step-3 bundle; `tests/engine.test.ts` proves it still gives the step-3 report's numbers exactly. |
-| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`triviaBank.ts` holds the questions, `trivia.ts` picks the next one; answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off and the turn clock, saves. No networking inside, so it's easy to test. |
+| `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`triviaBank.ts` holds the questions, `trivia.ts` picks the one a landing brings; answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off and the turn clock, saves. No networking inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker. Each room is one Durable Object that keeps the game and saves it after every move. |
 | `src/client` | The web pages: phone screens, the big screen, Chinese/English. |
 | `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |
@@ -101,7 +110,11 @@ npm run fonts        # after adding Chinese text: rebuild the font subsets (a te
 npm run build        # then open dist/demo.html: the whole game on one page
 ```
 
-GitHub runs the first three on every push, in Chromium and WebKit (`.github/workflows/been-there.yml`).
+GitHub runs the first three on each pull request and on main after each merge
+(`.github/workflows/been-there.yml`): the browser tests in Chromium and WebKit, in four parts at
+once, each engine in two halves, about 9 minutes. A part that fails can be run again on its own. A
+push that only changes Markdown or `docs/` after a passing run doesn't test the phones again, and
+Markdown alone in this folder runs nothing.
 
 ## Put it online
 
@@ -123,6 +136,11 @@ https page it comes from (the credits page lists it). `npm test` checks every en
 no em dashes or curly quotes, and lengths that fit a phone. Only the room imports the bank, so the
 answers never reach a phone.
 
+A question comes when a team lands on its city, so each city needs a few of its own. One a city (its
+`-01`) is taken from the page the city's rule comes from, and a big screen prints that same fact on
+the arrival card: the room leaves that question out while a big screen is on (`onArrivalCard` in
+`src/room/trivia.ts` tells by the source). A new question from another page is always askable.
+
 ## Change the local hits
 
 Each city's songs are picked in `scripts/songs.mjs` (`PICKS`: artist, title, Apple's track id, and what
@@ -137,6 +155,11 @@ minute). Nothing is downloaded: previews stream from Apple. `npm test` checks th
 
 ## Numbers you might want to change
 
+* Rio's samba, in `TIMING` (`src/room/protocol.ts`): how long the ready card waits before the lesson
+  starts by itself (`danceReady`, 60 s), the countdown (`danceCount`, 5 s), the lesson (`dance`, 40 s:
+  64 beats and a pose, so a longer lesson is a slower one) and a computer team's short dance
+  (`danceBot`, 10 s). The lesson's figures, their words and the teacher's drawing are in
+  `src/client/ui/Samba.tsx`; the band is `samba()` in `src/client/sound.ts`.
 * Exchange rates for prices in local money: `RATES` in `src/client/local.ts`, with the date they're
   from (`RATES_DATE`, shown on the credits page). The game's $ counts as US dollars.
 * How each city's hello is said and what it means: `HELLO` in `src/client/local.ts`.
@@ -147,8 +170,9 @@ minute). Nothing is downloaded: previews stream from Apple. `npm test` checks th
   colour (`tint` in `src/client/art/RoundBoard.tsx`), and which NASA month the day picture is
   (`SOURCES` in `scripts/satellite.mjs`).
 
-* Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, the
-  quiz's time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.
+* Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, how long
+  the quiz rests between two questions (`triviaEvery`, eight minutes: the lobby's switch says the
+  number; `triviaFirst`, four, before a game's first) and its time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.
 * Prices, rents, target lines: `src/engine/config.ts`. After changing them, run `npm run sim`
   to see the effect; `npm test` will then (deliberately) fail until `tests/fixtures/report.json`
   is updated to the new numbers.

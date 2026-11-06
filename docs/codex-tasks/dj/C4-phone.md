@@ -1,5 +1,10 @@
 # C4: the phone (❄️, style knobs, asking for a song)
 
+> **过时 · Superseded (Nov 5):** don't send this card. Claude Code built the phone since: the deck
+> as a DJ controller, ❄️ beside 🔥, songs asked for by name with the 歌单, YouTube links and the
+> link box, the mixer, 跟着跳 (`site/src/party/dj/phone/`, CONTRACTS.md). The style knobs (item 3)
+> were never asked for again. Kept for the record.
+
 > **Changed Nov 1:** the phone now has the beginner deck (`site/src/party/dj/phone/DeckPad.tsx`,
 > CONTRACTS.md "The beginner deck"): the crossfader, the pads, the build-up and DROP, and picking
 > the next style. `drop` is no longer a request: it's DROP in a drop's countdown, and it lives in

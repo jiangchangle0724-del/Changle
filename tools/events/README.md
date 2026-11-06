@@ -62,30 +62,35 @@ for preview branches are off: `wrangler preview` (beta) would need a `previews` 
 - The Vancouver and Richmond libraries come by a hand-over (`src/handoff.ts`): their site,
   BiblioCommons, answers the Worker 403 since 2 November, and 200 to the same request from anywhere
   else. At 05:50 the GitHub job `.github/workflows/events-libraries.yml` runs `npm run libraries`,
-  which reads their pages exactly as the run would and posts each to `POST /go/api/handoff` with the
-  key `EVENTS_HANDOFF_KEY`; the 06:00 run reads those pages, and fetches a page itself only when none
-  came. `/go/api/status` shows each step's `via` (`handoff` or `fetch`) and a `note`. To see what the
-  job would send, without sending it: `npm run libraries -- --dry-run`. The key is set once, below.
+  which reads their pages exactly as the run would and posts each to `POST /go/api/handoff`, signed
+  in with GitHub's own sign-in token (OIDC, `src/oidc.ts`): the Worker checks it against GitHub's
+  public keys and takes only this repository's `events-libraries` job on `main`. No secret to set on
+  either side (below). The 06:00 run reads those pages, and fetches a page itself only when none came.
+  `/go/api/status` shows each step's `via` (`handoff` or `fetch`) and a `note`. To see what the job
+  would send, without sending it: `npm run libraries -- --dry-run`. A key (`EVENTS_HANDOFF_KEY`, on
+  the Worker and where the script runs) is only for handing pages over from outside GitHub.
 
 It runs on the free plan: nothing here costs money.
 
-### 两个图书馆的「接力」（Steve 设一次）
+### 两个图书馆的「接力」（什么都不用设）
 
 温哥华和列治文图书馆的活动放在 BiblioCommons 上。11 月 2 日起，它拒绝 Cloudflare 发出的请求（403），同样的请求从别处发是通的。所以现在每天早上 5:50，GitHub 先替网站把这两个图书馆的活动抓好，交给网站；6:00 那一轮直接用交来的。哪天没交来，网站照旧自己去抓，并在日志里写明原因。
 
-交接要一把钥匙：GitHub 里一把，Cloudflare 里一把，两把必须一模一样。
+**不用钥匙，什么都不用设。** 网站靠 GitHub 自己的登录凭证认出交东西来的是我们的任务：每次任务开跑，GitHub 都给它开一张签了名的凭证（OIDC token），写明是哪个仓库、哪个分支、哪个任务、怎么开始跑的，很快就过期。网站用 GitHub 公开的钥匙核对签名，再一项一项核对：
 
-1. **做一把钥匙。** 在电脑上打开 PowerShell，粘贴下面这一行，回车：
-   ```powershell
-   $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | ForEach-Object { $_.ToString('x2') })
-   ```
-   出来的那一行 64 个字母和数字就是钥匙。也可以让密码管理器生成：至少 40 位，只要字母和数字。钥匙不要发给任何人，也不要贴进聊天。
-2. **放进 GitHub。** 打开仓库 → Settings → Secrets and variables → Actions → New repository secret。Name 填 `EVENTS_HANDOFF_KEY`，Secret 粘贴钥匙，点 Add secret。
-3. **放进 Cloudflare。** Workers & Pages → `changle-events` → Settings → Variables and Secrets → Add。Type 选 Secret，Variable name 填 `EVENTS_HANDOFF_KEY`，Value 粘贴同一把钥匙，点 Deploy。
-4. **手动跑一次，检查。** 这一步要等这个改动合并、Cloudflare 部署完（合并后几分钟）才能做。GitHub 仓库 → Actions → 左边点 `events-libraries` → 右边 Run workflow → 再点绿色的 Run workflow。等两三分钟：
-   - 绿色对勾：成了。点进去能看到两个图书馆各交了几页、多少活动。
-   - 红叉：点进去看红字那一行。`wrong key`：两把钥匙不一样，重新粘贴。`EVENTS_HANDOFF_KEY is not set on the Worker`：Cloudflare 那把还没加。`HTTP 403 from gateway.bibliocommons.com`：GitHub 也被图书馆挡了，告诉 Claude。
+- 是这个仓库，按 GitHub 给仓库和账号的数字编号认，仓库改名也不受影响；
+- 是 `main` 分支上的 `events-libraries` 这个任务；
+- 是每天定时跑的，或者在 Actions 里手动点开的；
+- 这张凭证是专门开给这次交接的，而且还没过期。
 
-手动跑那一次只是检查钥匙；第二天早上 6 点那一轮才真正用上。之后打开 changle.ca/go/api/status：`vpl` 和 `rpl` 那几行写着 `"via": "handoff"` 就对了；写着 `"via": "fetch"` 的话，看同一行的 `note` 和 `error`。
+别人 fork 的仓库、PR、别的分支、别的任务、过期的旧凭证，一律不收。GitHub 和 Cloudflare 两边都没有要保管、要粘贴的东西。
 
-不花钱：GitHub 每天跑两分钟左右，在私有仓库每月的免费额度里；Cloudflare 每天多二十来次请求和写入，在免费版额度里。
+**合并之后可以检查一次**（不查也行，第二天早上 5:50 会自己跑）：GitHub 仓库 → Actions → 左边点 `events-libraries` → 右边 Run workflow → 再点绿色的 Run workflow。要等合并后 Cloudflare 部署完（几分钟）再点。等两三分钟：
+- 绿色对勾：成了。点进去能看到两个图书馆各交了几页、多少活动。
+- 红叉：点进去看红字那一行，告诉 Claude。`HTTP 403 from gateway.bibliocommons.com`：GitHub 也被图书馆挡了。`GitHub token: ...`：网站没认这张凭证，后面写着哪一项不对。
+
+第二天早上打开 changle.ca/go/api/status：`vpl` 和 `rpl` 那几行写着 `"via": "handoff"` 就对了；写着 `"via": "fetch"` 的话，看同一行的 `note` 和 `error`。
+
+钥匙 `EVENTS_HANDOFF_KEY` 现在可有可无，只在 GitHub 以外跑 `npm run libraries` 时用（比如在电脑上交给本地的 `npm run dev`：同一把钥匙放进 `.dev.vars`，跑脚本时也设上）。GitHub 和 Cloudflare 上都不用加。
+
+不花钱：仓库是公开的，GitHub 跑这个任务不收钱；Cloudflare 每天多二十来次请求和写入，再加一次去 GitHub 取公开钥匙，都在免费版额度里。

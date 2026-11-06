@@ -2,23 +2,51 @@ import { Clapperboard, Play, SkipForward } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
 import { sfx } from "../../lib/sfx";
-import { BRIEF_MS, drama } from "../../shared/engine/games/drama";
+import { BRIEF_MS, drama as rules } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
-import { DramaActionHost } from "./ShellActions";
+import { useWakeLock } from "../sensors";
+import { DramaActionHost, useSettle } from "./ShellActions";
+import { StageCall } from "./StageCall";
 import { seedOf, startAmbience, type Scape } from "./ambience";
-import { useLocalGame, type LocalEvent } from "./local";
+import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
-import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
 /** Scenes written on this phone and not played yet: kept, so leaving the game doesn't lose them. */
 const WAITING = "changle.drama.waiting";
 type Waiting = { id: string; scene: Draft; by: string };
+type Step = { k: "intro" } | { k: "pass"; i: number } | { k: "card"; i: number };
+type DramaState = Parameters<typeof drama.act>[0];
+type Kept = { local: LocalKept<DramaState>; step: Step; waiting: Waiting[] };
+
+function keepDrama(raw: LocalKept<DramaState>): LocalKept<DramaState> {
+  const state = { ...raw.state, endsAt: 0, twistAt: 0 };
+  const pending = raw.pending.filter((p) => p.key.startsWith("pen:"));
+  if (state.phase === "brief" || state.phase === "act") {
+    if (state.phase === "act") { state.ready = []; state.twisted = false; }
+    state.phase = "brief";
+    pending.push({ key: "g:brief", wait: BRIEF_MS });
+  } else if (state.phase === "vote") {
+    const vote = raw.pending.find((p) => p.key === "g:vote");
+    if (vote) pending.push(vote);
+  }
+  return { state, pending };
+}
+
+function restoreDrama(kept: LocalKept<DramaState>): LocalKept<DramaState> {
+  const restored = JSON.parse(JSON.stringify(kept)) as LocalKept<DramaState>;
+  const key = restored.state.phase === "brief" ? "g:brief" : "g:vote";
+  const waiting = restored.pending.find((p) => p.key === key);
+  if (waiting) restored.state.endsAt = Date.now() + waiting.wait;
+  return restored;
+}
 
 function loadWaiting(): Waiting[] {
   try {
@@ -40,11 +68,33 @@ function saveWaiting(list: Waiting[]) {
 }
 
 /**
+ * The rules as online but for the two clocks a table of phones needs: online everyone reads and
+ * votes at once, and the clocks stop the night waiting on a phone that went to sleep. Here the one
+ * phone goes round, so the act starts when the last actor has read their card and the reveal
+ * comes when the last ballot is in, however long the phone takes to get round. The act's own
+ * clock and the twist stay.
+ */
+const drama: typeof rules = {
+  ...rules,
+  timer: (s, key, data, api) => {
+    if (key !== "brief" && key !== "vote") rules.timer?.(s, key, data, api);
+  },
+};
+
+/**
  * One phone: the same rules as online, run on this phone. The phone goes round the actors so
  * each reads their card in private, sits on the table while they act, then goes round the
  * audience for a secret ballot.
  */
 export function Drama({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="drama" version={1}>
+      {(saved) => <DramaGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, lang, tr } = useStore();
   const zh = lang === "zh";
   const penalty = usePenalty();
@@ -62,12 +112,13 @@ export function Drama({ onBack }: { onBack: () => void }) {
     [name, tr],
   );
   const custom = usePenaltyText().isCustom;
-  const game = useLocalGame<unknown, DramaView>(drama, ids, onEvent, custom);
+  const [firstGame] = useState(() => saved ? restoreDrama(saved.local) : null);
+  const game = useLocalGame<DramaState, DramaView>(drama, ids, onEvent, custom, firstGame);
   const v = game.view(host);
   const act = (pid: string, x: string, data: Record<string, unknown> = {}) => game.act(pid, { x, ...data });
 
   // a scene written here waits on the phone until it's played: leaving the game doesn't lose it
-  const waiting = useRef<Waiting[]>([]);
+  const waiting = useRef<Waiting[]>(saved?.waiting ?? []);
   const write = (scene: Draft, by?: string) => {
     const who = by && ids.includes(by) ? by : host;
     const before = new Set(game.view(host).mine.map((w) => w.id));
@@ -82,6 +133,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (restored.current || !host) return;
     restored.current = true;
+    if (saved) { saveWaiting(waiting.current); return; }
     for (const w of loadWaiting()) write(w.scene, w.by);
     saveWaiting(waiting.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,21 +151,32 @@ export function Drama({ onBack }: { onBack: () => void }) {
   }, [mineKey]);
 
   // who holds the phone right now, inside a phase: the card readers and the voters take turns
-  const [step, setStep] = useState<{ k: "intro" } | { k: "pass"; i: number } | { k: "card"; i: number }>({ k: "intro" });
+  const [step, setStep] = useState<Step>(saved?.step ?? { k: "intro" });
   const [slate, setSlate] = useState(false);
   const [writing, setWriting] = useState(false);
   const credit = v.credit?.pid ? nameOf(v.credit.pid) : (v.credit?.name ?? null);
   // a dozen scenes from the public library, whenever the setup screen has none
   const libAsked = useRef(-1);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryFailed, setLibraryFailed] = useState(false);
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
   useEffect(() => {
     if (v.phase !== "setup" || v.lib > 0 || libAsked.current === v.round) return;
     libAsked.current = v.round;
-    void loadLibrary(zh ? "zh" : "en").then((chunks) => chunks.forEach((scenes) => act(host, "lib", { scenes })));
+    const ctl = new AbortController();
+    let settled = false;
+    setLibraryLoading(true);
+    setLibraryFailed(false);
+    void loadLibrary(zh ? "zh" : "en", [], ctl.signal).then(
+      (chunks) => { if (!ctl.signal.aborted) chunks.forEach((scenes) => act(host, "lib", { scenes })); },
+      () => { if (!ctl.signal.aborted) setLibraryFailed(true); },
+    ).finally(() => { settled = true; if (!ctl.signal.aborted) setLibraryLoading(false); });
+    return () => { ctl.abort(); if (!settled) libAsked.current = -1; setLibraryLoading(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v.phase, v.lib, v.round]);
-  const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} />;
+  }, [v.phase, v.lib, v.round, libraryAttempt]);
+  const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = -1; setLibraryAttempt((n) => n + 1); } }} />;
   const round = `${v.round}-${v.phase}`;
-  const last = useRef("");
+  const last = useRef(saved ? round : "");
   useEffect(() => {
     if (last.current === round) return;
     last.current = round;
@@ -127,12 +190,17 @@ export function Drama({ onBack }: { onBack: () => void }) {
     if (v.phase === "end") sfx.win();
   }, [round, v.phase]);
   useEffect(() => holdBackground(), []);
+  // the phone lies on the table through the scene: the screen stays on until the curtain call
+  useWakeLock(v.phase !== "setup" && v.phase !== "end");
+  // the buttons all sit in one spot at the bottom: a double tap's second tap would press the next
+  // screen's (the next actor's card, the vote before the scene, the next act before the reveal)
+  const settle = useSettle(`${v.round}|${v.phase}|${step.k}|${"i" in step ? step.i : ""}|${v.ready.length}|${v.voted.length}|${v.cast.map((c) => c.pid).join(",")}`);
   // the house before the curtain, then the set itself
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : v.mode === "classic" ? "classic" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? ""}|${scape}`) });
+    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? ""}|${scape}`) });
     return () => a?.stop(0.8);
     // once per scene and phase
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,10 +210,15 @@ export function Drama({ onBack }: { onBack: () => void }) {
   // a face on a little body, in the colour the player's face has everywhere else
   const actors: Actor[] = v.cast.map((c) => ({ pid: c.pid, role: c.role, name: nameOf(c.pid), face: (size: number) => face(c.pid, size), body: <Figure seat={{ id: nameOf(c.pid), name: nameOf(c.pid), on: true }} /> }));
   const audience = ids.filter((pid) => !v.cast.some((c) => c.pid === pid));
+  // the phone goes round the audience to vote; with nobody watching, round the actors
+  const voters = v.peer ? v.cast.map((c) => c.pid) : audience;
+  // who acts next: the phone taps their names (nobody tapped: picked at random)
+  const blocked = v.next ? !v.next.ok : false;
+  const stageCall = <StageCall v={v} ids={ids} nameOf={nameOf} face={face} onWant={(want, who) => act(host, "want", { who, want })} />;
 
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={live}>
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live={live}>
         <Cast actors={actors} />
         <Curtain open={open} />
         {extra}
@@ -160,9 +233,9 @@ export function Drama({ onBack }: { onBack: () => void }) {
   let turn: string | undefined;
   if (v.phase === "setup") {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" disabled={ids.length < 3} onClick={() => act(host, "start")}>
+      <button type="button" className="btn btn-primary btn-lg" disabled={ids.length < 3 || blocked} onClick={settle(() => act(host, "start"))}>
         <Play size={18} />
-        {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : zh ? "开演" : "Curtain up"}
+        {ids.length < 3 ? (zh ? "至少三个人才能开演（先加名字）" : "Needs at least three players (add names)") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "开演" : "Curtain up"}
       </button>
     );
     body = (
@@ -171,6 +244,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
           <Marquee />
         </div>
         <SetupPanel cfg={v} onChange={(c) => act(host, "config", c)} />
+        {ids.length >= 3 && stageCall}
         {tableScenes}
       </>
     );
@@ -179,11 +253,11 @@ export function Drama({ onBack }: { onBack: () => void }) {
     if (step.k === "intro") {
       actions = (
         <>
-          <button type="button" className="btn btn-ghost btn-lg" onClick={() => act(host, "skip")}>
+          <button type="button" className="btn btn-ghost btn-lg" onClick={settle(() => act(host, "skip"))}>
             <SkipForward size={14} />
             {zh ? "换个剧本" : "Another scene"}
           </button>
-          <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "pass", i: 0 })}>
+          <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => setStep({ k: "pass", i: 0 }))}>
             {zh ? "发身份牌" : "Deal the cards"}
           </button>
         </>
@@ -193,6 +267,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
           {stage(false, false)}
           <Playbill v={v} credit={credit} />
           <Roster v={v} nameOf={nameOf} face={face} />
+          {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} />}
         </>
       );
     } else {
@@ -204,7 +279,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
         turn = pid;
         if (step.k === "pass") {
           actions = (
-            <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "card", i: step.i })}>
+            <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => setStep({ k: "card", i: step.i }))}>
               {zh ? `我是 ${nameOf(pid)}` : `I'm ${nameOf(pid)}`}
             </button>
           );
@@ -220,6 +295,10 @@ export function Drama({ onBack }: { onBack: () => void }) {
               card={card}
               culprit={v.scene?.culprit ?? null}
               pk={v.mode === "pk"}
+              line={v.pk?.line}
+              sceneId={v.scene?.id}
+              first={c.first ?? null}
+              see={v.classic ?? null}
               onDone={() => {
                 act(pid, "ready");
                 setStep({ k: "pass", i: step.i + 1 });
@@ -232,7 +311,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
     }
   } else if (v.phase === "act") {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "cut")}>
+      <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "cut"))}>
         <Clapperboard size={18} />
         {zh ? "演完了，开始投票" : "That's a wrap: vote"}
       </button>
@@ -252,34 +331,62 @@ export function Drama({ onBack }: { onBack: () => void }) {
         <p className="dm-wait-note">
           {v.mode === "show"
             ? zh
-              ? "手机放桌上，演到一半会有剧情反转，大声念出来！"
-              : "Phone on the table. Halfway through, a plot twist lands: read it out loud!"
-            : zh
-              ? "两人轮流用自己的状态说这句台词"
-              : "Each says the line in their own style"}
+              ? v.options
+                ? "手机放桌上，大家盯紧台上的人：TA 藏着哪个秘密？演到一半的剧情反转，要大声念出来！"
+                : "手机放桌上，演到一半会有剧情反转，大声念出来！"
+              : v.options
+                ? "Phone on the table, eyes on the actor: which secret are they hiding? Read the plot twist out loud when it lands!"
+                : "Phone on the table. Halfway through, a plot twist lands: read it out loud!"
+            : v.mode === "classic"
+              ? zh
+                ? "手机放桌上，照着剧情一步步演，记得说那句最有名的台词！"
+                : "Phone on the table. Follow the steps, and don't forget the famous line!"
+              : zh
+                ? "两人轮流用自己的状态说这句台词"
+                : "Each says the line in their own style"}
         </p>
       </>
     );
   } else if (v.phase === "vote") {
-    const left = audience.filter((pid) => !v.voted.includes(pid));
+    const left = voters.filter((pid) => !v.voted.includes(pid));
     const pid = left[0];
     if (step.k === "intro" || !pid) {
       actions = (
-        <button type="button" className="btn btn-primary btn-lg" disabled={!pid} onClick={() => setStep({ k: "pass", i: 0 })}>
+        <button type="button" className="btn btn-primary btn-lg" disabled={!pid} onClick={settle(() => setStep({ k: "pass", i: 0 }))}>
           {zh ? "传手机投票" : "Pass it round to vote"}
         </button>
       );
       body = (
         <>
           {stage(false, false)}
-          <p className="dm-wait-note">{zh ? `轮到观众投票：谁是坏人？谁演得最像？（${v.voted.length}/${audience.length}）` : `The audience votes: who's the culprit, and who acted best? (${v.voted.length}/${audience.length})`}</p>
+          <p className="dm-wait-note">
+            {v.peer
+              ? v.mode === "show"
+                ? zh
+                  ? `没人当观众：演员轮流投票，猜谁是坏人、给别人打星，不能投自己（${v.voted.length}/${voters.length}）`
+                  : `Nobody watched, so the actors take turns: guess the culprit and rate the others, never yourself (${v.voted.length}/${voters.length})`
+                : zh
+                  ? `没人当观众：演员轮流给别人打星，不能投自己（${v.voted.length}/${voters.length}）`
+                  : `Nobody watched, so the actors take turns rating the others, never themselves (${v.voted.length}/${voters.length})`
+              : v.mode !== "show"
+                ? zh
+                  ? `轮到观众打星：${v.mode === "classic" ? "谁最像原片" : "谁演得更像"}？（${v.voted.length}/${voters.length}）`
+                  : `The audience gives stars: ${v.mode === "classic" ? "who got closest to the original" : "who sold it"}? (${v.voted.length}/${voters.length})`
+              : v.options
+                ? zh
+                  ? `轮到观众投票：台上的人藏着哪个秘密？演得像不像？（${v.voted.length}/${voters.length}）`
+                  : `The audience votes: which secret were they hiding, and how convincing were they? (${v.voted.length}/${voters.length})`
+                : zh
+                  ? `轮到观众投票：谁是坏人？谁演得最像？（${v.voted.length}/${voters.length}）`
+                  : `The audience votes: who's the culprit, and who acted best? (${v.voted.length}/${voters.length})`}
+          </p>
         </>
       );
     } else {
       turn = pid;
       if (step.k === "pass") {
         actions = (
-          <button type="button" className="btn btn-primary btn-lg" onClick={() => setStep({ k: "card", i: 0 })}>
+          <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => setStep({ k: "card", i: 0 }))}>
             {zh ? `我是 ${nameOf(pid)}` : `I'm ${nameOf(pid)}`}
           </button>
         );
@@ -292,6 +399,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
             key={`${v.round}-${pid}`}
             v={game.view(pid)}
             actors={actors}
+            me={v.peer ? pid : undefined}
             onSubmit={(b) => {
               act(pid, "vote", b);
               setStep({ k: "pass", i: 0 });
@@ -302,34 +410,37 @@ export function Drama({ onBack }: { onBack: () => void }) {
     }
   } else if (v.phase === "reveal" && v.result) {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "next")}>
-        {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : zh ? "下一幕" : "Next act"}
+      <button type="button" className="btn btn-primary btn-lg" disabled={v.round < v.total && blocked} onClick={settle(() => act(host, "next"))}>
+        {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "下一幕" : "Next act"}
       </button>
     );
     body = (
       <>
         <Reveal v={v} actors={actors} face={face} />
+        {v.round < v.total && stageCall}
         {tableScenes}
       </>
     );
   } else if (v.phase === "end") {
     actions = (
       <>
-        <button type="button" className="btn btn-lg btn-ghost" onClick={() => game.reset()}>
+        <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => game.reset())}>
           {zh ? "重新选剧本" : "Back to the setup"}
         </button>
-        <button type="button" className="btn btn-primary btn-lg" onClick={() => act(host, "more")}>
-          {zh ? "再演三幕" : "Three more acts"}
+        <button type="button" className="btn btn-primary btn-lg" disabled={blocked} onClick={settle(() => act(host, "more"))}>
+          {blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "再演三幕" : "Three more acts"}
         </button>
       </>
     );
     body = (
       <>
         <Finale v={v} ids={ids} nameOf={nameOf} face={face} />
+        {stageCall}
       </>
     );
   }
 
+  useKeepProgress<Kept>({ local: keepDrama(game.keep()), step: v.phase === "act" ? { k: "intro" } : step.k === "card" ? { k: "pass", i: step.i } : step, waiting: waiting.current }, v.phase !== "setup" && v.phase !== "end");
   return (
     <DramaActionHost.Provider value={actionHost}>
       <GameShell

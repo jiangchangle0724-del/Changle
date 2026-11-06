@@ -114,6 +114,27 @@ source reads today's page from KV and parses it like a fetched one; only for a p
 does it fetch, and its `note` says so. One page a request, as one page is one step: the free plan's
 10 ms. The code for both ends is `src/handoff.ts`.
 
+The job signs in with GitHub Actions' own OIDC token (`src/oidc.ts`), so no secret is set anywhere.
+It asks the runner for a token with the audience `changle-events-handoff` (the workflow has
+`permissions: id-token: write`), one for each library, just before handing its pages over. The Worker
+takes a token only when all of these hold:
+
+- the header's `alg` is `RS256` (anything else, `none` and `HS256` included, is refused first), and
+  the signature checks out with the key its `kid` names in GitHub's JWKS
+  (`https://token.actions.githubusercontent.com/.well-known/jwks`, kept an hour in memory and in KV;
+  an unknown `kid` makes the Worker fetch it again, at most once a minute; KV is only written after a
+  token has passed);
+- `iss` is `https://token.actions.githubusercontent.com` and `aud` is `changle-events-handoff`;
+- `exp` is in the future, `iat` and `nbf` (when there) are not, a minute either way for clocks;
+- `repository_id` is `1431750616` and `repository_owner_id` is `332761129` (numbers that survive
+  renames; a fork has its own);
+- `ref` is `refs/heads/main`, and `workflow_ref` ends with
+  `/.github/workflows/events-libraries.yml@refs/heads/main`;
+- `event_name` is `schedule` or `workflow_dispatch`.
+
+A key (`EVENTS_HANDOFF_KEY`) still works when the Worker has one, for runs outside GitHub: the
+script sends it instead of a token when it's set.
+
 What decides what's published (`src/publish.ts`): in the window, not cancelled, live, not a merged
 duplicate, and seen at its source today, or its source failed today (then yesterday's stand). If a
 run has under half of yesterday's events, yesterday's stay up and the log says so.
@@ -125,10 +146,13 @@ run has under half of yesterday's events, yesterday's stay up and the log says s
 - `GET /go/api/status`: the last run step by step (the fetch log) and what's published.
 - `GET /go/preview`: what's published, day by day, with the same filters as links (`?lang=en` for
   English). Not linked from anywhere, `noindex`: for checking the run until the page (C7) exists.
-- `POST /go/api/handoff?source=vpl&date=YYYY-MM-DD&part=N`, `Authorization: Bearer <EVENTS_HANDOFF_KEY>`,
-  the page as the body: the GitHub job only. 401 without the right key (503 while the Worker has
-  none), 400 for another source, a date that isn't today in Vancouver, a part out of range or a body
-  that isn't an events page, 413 over 2 MB; otherwise kept (200), replacing that day's page.
+- `POST /go/api/handoff?source=vpl&date=YYYY-MM-DD&part=N`, `Authorization: Bearer <GitHub's OIDC token>`
+  (or `<EVENTS_HANDOFF_KEY>`, when the Worker has one), the page as the body: the GitHub job only.
+  401 without a token that passes every check above, or the key, saying which check failed
+  (`GitHub token: wrong ref`, `wrong key`, ...; never anything of the credential); 503 while GitHub's
+  keys can't be fetched; 400 for another source, a date that isn't today in Vancouver, a part out of
+  range or a body that isn't an events page; 413 over 2 MB; otherwise kept (200), replacing that
+  day's page.
 
 ## The golden set (黄金集)
 

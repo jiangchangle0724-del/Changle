@@ -5,7 +5,7 @@ import { initAudio, startMusic, stopMusic } from "./lib/sfx";
 import { EASE, play, setLight } from "./lib/motion";
 import { Home } from "./home/Home";
 import { GAME_BY_ID, type GameId } from "./games/registry";
-import type { GameLoading } from "./games/GameLoading";
+import type * as LoadingShapes from "./games/GameLoading";
 import { GameRun } from "./games/GameRun";
 import { back, go, titleOf, useRoute, type Route } from "./router";
 import { AccountProvider, useAccount } from "./account/AccountContext";
@@ -33,6 +33,8 @@ const Tune = lazy(() => import("./party/tune/Tune").then((m) => ({ default: m.Tu
 const Euchre = lazy(() => import("./party/euchre/Euchre").then((m) => ({ default: m.Euchre })));
 const TripSolo = lazy(() => import("./party/trip/TripSolo").then((m) => ({ default: m.TripSolo })));
 const HideSolo = lazy(() => import("./party/hide/HideSolo").then((m) => ({ default: m.HideSolo })));
+// 最后一张 plays only online: its own address opens a table for it
+const LastCardStart = lazy(() => import("./party/lastcard/Start").then((m) => ({ default: m.LastCardStart })));
 // the big screen (a TV or computer showing a table) lives outside the phone frame
 const TvApp = lazy(() => import("./tv/TvApp").then((m) => ({ default: m.TvApp })));
 const DjTestPage = lazy(() => import("./party/dj/TestPage").then((m) => ({ default: m.DjTestPage })));
@@ -87,15 +89,17 @@ function Shell() {
   const [restarts, setRestarts] = useState(0);
   const gel = route.kind === "game" ? GAME_BY_ID[route.id].gel : "";
   const run = useMemo(() => ({ gel, restart: () => setRestarts((n) => n + 1) }), [gel]);
-  // a game's shape while its own file downloads (GameLoading): a small file of its own, fetched once
-  // this page has settled (at once when it opens on a game), so the front door doesn't carry it
-  const [Loading, setLoading] = useState<typeof GameLoading | null>(null);
-  const opensOnGame = useRef(route.kind === "game");
+  // a game's or a page's shape while its own file downloads (GameLoading, PageLoading): a small file of
+  // its own, fetched once this page has settled (at once when it opens on a game or a page of its own in
+  // the phone frame; the big screen never shows it), so the front door doesn't carry it; if even that
+  // fails, the old blank wait
+  const [Loading, setLoading] = useState<typeof LoadingShapes | null>(null);
+  const opensElsewhere = useRef(route.kind !== "home" && route.kind !== "tv" && route.kind !== "djtest" && route.kind !== "dev");
   useEffect(() => {
     let live = true;
     const timer = window.setTimeout(
-      () => void import("./games/GameLoading").then((m) => live && setLoading(() => m.GameLoading)),
-      opensOnGame.current ? 0 : 1500,
+      () => void import("./games/GameLoading").then((m) => live && setLoading(m), () => {}),
+      opensElsewhere.current ? 0 : 1500,
     );
     return () => {
       live = false;
@@ -221,6 +225,9 @@ function Shell() {
       case "hide":
         screen = <HideSolo onBack={back} />;
         break;
+      case "lastcard":
+        screen = <LastCardStart onBack={back} />;
+        break;
       default:
         screen = null;
     }
@@ -263,7 +270,7 @@ function Shell() {
     <SiteGate
       signIn={
         signInUsed && (
-          <Suspense fallback={null}>
+          <Suspense fallback={signInOpen && Loading && <Loading.SignInLoading lang={lang} onClose={() => openSignIn(false)} />}>
             <SignInSheet />
           </Suspense>
         )
@@ -276,11 +283,11 @@ function Shell() {
           <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>
             {route.kind === "game" && !short ? (
               // a game: its shape while its file downloads, and what its shell can ask of the page
-              <Suspense fallback={Loading && <Loading id={route.id} lang={lang} />}>
+              <Suspense fallback={Loading && <Loading.GameLoading id={route.id} lang={lang} />}>
                 <GameRun.Provider value={run}>{screen}</GameRun.Provider>
               </Suspense>
             ) : (
-              <Suspense fallback={null}>{screen}</Suspense>
+              <Suspense fallback={Loading && <Loading.PageLoading lang={lang} />}>{screen}</Suspense>
             )}
           </ScreenGuard>
         </Scene>

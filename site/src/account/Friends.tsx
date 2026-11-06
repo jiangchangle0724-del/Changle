@@ -6,6 +6,9 @@ import { ago } from "../lib/time";
 import { useStore } from "../store";
 import { useAccount, useLive, type PublicUser } from "./AccountContext";
 import { Avatar } from "./Avatar";
+import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
+import { useToast } from "../ui/Toast";
 
 type FriendRow = PublicUser & { last: { from: string; body: string; at: number } | null; unread: number };
 type Lists = { friends: FriendRow[]; incoming: PublicUser[]; outgoing: PublicUser[] };
@@ -14,11 +17,17 @@ type Found = PublicUser & { relation: "self" | "friends" | "sent" | "received" |
 export function useFriends() {
   const { status } = useAccount();
   const [lists, setLists] = useState<Lists | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
     try {
       setLists(await api<Lists>("/friends"));
     } catch {
-      /* keep what we had */
+      setFailed(true);
+    } finally {
+      setLoading(false);
     }
   }, []);
   useEffect(() => {
@@ -27,41 +36,58 @@ export function useFriends() {
   useLive((e) => {
     if (e.t === "friends" || e.t === "msg") void load();
   });
-  return { lists, load };
+  return { lists, load, failed, loading };
 }
 
 /** Friends, requests, and finding people by friend code or name. */
-export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: () => void }) {
+export function FriendsPanel({ lists, reload, failed, loading }: { lists: Lists | null; reload: () => void; failed: boolean; loading: boolean }) {
+  const toast = useToast();
   const { me } = useAccount();
   const { lang } = useStore();
   const zh = lang === "zh";
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Found[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [pending, setPending] = useState<Set<string>>(new Set());
 
   const search = async () => {
     const s = q.trim();
     if (!s) return;
     setSearching(true);
+    setSearchFailed(false);
+    setFound(null);
     try {
       const d = await api<{ users: Found[] }>(`/users?q=${encodeURIComponent(s)}`);
       setFound(d.users);
     } catch {
-      setFound([]);
+      setSearchFailed(true);
     } finally {
       setSearching(false);
     }
   };
 
   const add = async (id: string) => {
-    sfx.pop();
-    await api(`/friends/${id}`, { body: {} }).catch(() => {});
-    setFound((f) => f?.map((u) => (u.id === id ? { ...u, relation: u.relation === "received" ? "friends" : "sent" } : u)) ?? null);
-    reload();
+    if (pending.has(id)) return;
+    setPending((p) => new Set(p).add(id));
+    try {
+      await api(`/friends/${id}`, { body: {} });
+      sfx.pop();
+      setFound((f) => f?.map((u) => (u.id === id ? { ...u, relation: u.relation === "received" ? "friends" : "sent" } : u)) ?? null);
+      reload();
+    } catch {
+      toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
+    } finally {
+      setPending((p) => { const next = new Set(p); next.delete(id); return next; });
+    }
   };
   const drop = async (id: string) => {
-    await api(`/friends/${id}`, { method: "DELETE" }).catch(() => {});
-    reload();
+    try {
+      await api(`/friends/${id}`, { method: "DELETE" });
+      reload();
+    } catch {
+      toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
+    }
   };
 
   return (
@@ -83,9 +109,11 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
         {me && <p className="hint">{zh ? `你的好友码是 ${me.handle}，发给朋友就能加你。` : `Your friend code is ${me.handle}. Share it so friends can add you.`}</p>}
       </form>
 
+      {searching && <Skeleton lang={lang} lines={3} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />}
+      {searchFailed && <EmptyState tone="error" title={zh ? "没搜成，检查一下网络" : "The search didn't go through. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => void search() }} />}
+      {found?.length === 0 && <EmptyState title={zh ? "没找到这个人" : "Nobody by that name or code"} />}
       {found && (
         <ul className="people">
-          {found.length === 0 && <li className="hint">{zh ? "没找到这个人" : "Nobody by that name or code"}</li>}
           {found.map((u) => (
             <li key={u.id} className="person">
               <a className="person-main" href={`/u/${u.id}`}>
@@ -96,13 +124,13 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
                 </span>
               </a>
               {u.relation === "none" && (
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => void add(u.id)}>
+                <button type="button" className="btn btn-primary btn-sm" disabled={pending.has(u.id)} onClick={() => void add(u.id)}>
                   <UserPlus size={15} />
                   {zh ? "加好友" : "Add"}
                 </button>
               )}
               {u.relation === "received" && (
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => void add(u.id)}>
+                <button type="button" className="btn btn-primary btn-sm" disabled={pending.has(u.id)} onClick={() => void add(u.id)}>
                   <Check size={15} />
                   {zh ? "通过" : "Accept"}
                 </button>
@@ -142,8 +170,8 @@ export function FriendsPanel({ lists, reload }: { lists: Lists | null; reload: (
 
       <section>
         <h3 className="list-title">{zh ? `好友 ${lists?.friends.length ?? 0}` : `Friends ${lists?.friends.length ?? 0}`}</h3>
-        {lists && lists.friends.length === 0 ? (
-          <p className="hint">{zh ? "还没有好友。在联机桌上点别人的头像，也能加好友。" : "No friends yet. You can also add people by tapping their face at an online table."}</p>
+        {failed ? <EmptyState tone="error" title={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: reload }} /> : loading && !lists ? <Skeleton lang={lang} lines={3} height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} /> : lists && lists.friends.length === 0 ? (
+          <EmptyState title={zh ? "还没有好友。" : "No friends yet."} body={zh ? "在联机桌上点别人的头像，也能加好友。" : "You can also add people by tapping their face at an online table."} />
         ) : (
           <ul className="people">
             {lists?.friends.map((u) => (

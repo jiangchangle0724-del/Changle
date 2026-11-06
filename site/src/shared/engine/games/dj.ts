@@ -189,9 +189,10 @@ function swapped(s: RoomState, api: Api) {
     // its player's next song waits behind the others' for a while; the recap keeps it
     d.reqOn[d.up.by] = api.now;
     d.heard = keep([...d.heard, d.up], DECK.heardMax);
-    // 真歌时间: a song from YouTube plays whole on the big screen once the DJ has faded out
+    // 真歌时间: a song from YouTube plays whole on the big screen, from the drop's bar (the screen
+    // had it ready while it was up next; the DJ lets go with the drop's boom)
     if (d.up.yt) {
-      d.song = { id: d.up.id, yt: d.up.yt, by: d.up.by, at: api.now + DECK.songFadeBars * 4 * beatMsOf(d.grid) };
+      d.song = { id: d.up.id, yt: d.up.yt, by: d.up.by, at: api.now };
       api.timer("song", d.song.at + DECK.songMaxMs);
     }
     d.up = null;
@@ -1003,6 +1004,16 @@ export const dj: GameDef<RoomState> = {
         // the whole song from YouTube ended on the big screen (or couldn't play): the DJ comes back
         if (!fromSpeaker(s, sid, api) || !s.deck.song || s.deck.song.id !== g.id) return false;
         songOver(s, api);
+        return true;
+      }
+      case "nosong": {
+        // the big screen, getting the song up next ready, heard from YouTube that its video won't
+        // play here (removed, private, or not allowed outside YouTube): the video comes off it, so
+        // its drop plays the DJ's remix alone, and its player's phone says why
+        const d = s.deck;
+        if (!fromSpeaker(s, sid, api) || !d.up || d.up.id !== g.id || !d.up.yt) return false;
+        const { yt: _yt, ytT: _ytT, ...rest } = d.up;
+        d.up = { ...rest, ytNo: true };
         return true;
       }
       case "song": {

@@ -1,4 +1,6 @@
-# 一本正经 · Straight Face 游戏方案（仓库版）
+# 一本正经 · In All Seriousness 游戏方案（仓库版）
+
+英文名 2026-11-05 从 Straight Face 改成 In All Seriousness（Straight Face 已有同名的憋笑小游戏和桌游），网址 changle.ca/g/in-all-seriousness。代码里的 id、文件夹和这份文件的文件名还叫 straightface / straight-face，玩家看不到，不改。
 
 2026-11-02 定稿，2026-11-04 按仓库结构落地 · Steve Jiang · 完整版见 Claude 文档「一本正经 · Straight Face 游戏方案」（含同日审稿记录）。对话档案：`docs/briefs/straightface.md`。
 
@@ -47,7 +49,7 @@
 
 ## 词库
 
-结构见 `site/src/shared/straightface/types.ts` 的 `Card`，校验见 `cards.ts`：中文释义 ≤ 60 字，英文 ≤ 160 字符，两条掰料 ≤ 40 字且不得泄露真释义，`funFact` 和 `source` 必填（没有合适链接写 `editorial`），词名只写原文或音译、不带括号注释（`lintDeck` 会提示中文词名和释义重复的）。已写 47 张（`site/src/data/straightface.ts`），四个包：trivia 12、vancouver 14、food 10、slang 11；难度 3 只有 4 张，扩库时每包至少补到 15 张。扩库管线：维基分类页和 Wiktionary 加拿大英语条目选词 → AI 只取事实自己造句并附来源 → 校验器和 lint → Codex 对来源核事实 → Steve 抽 10% → 上线后出场 10 次以上且命中率 80% 以上的卡降难度或下架。
+结构见 `site/src/shared/straightface/types.ts` 的 `Card`，校验见 `cards.ts`：中文释义 ≤ 60 字，英文 ≤ 160 字符，两条掰料 ≤ 40 字且不得泄露真释义，`funFact` 和 `source` 必填（没有合适链接写 `editorial`），词名只写原文或音译、不带括号注释（`lintDeck` 会提示中文词名和释义重复的）。已写 251 张（`site/src/data/straightface.ts`），17 个包，分三类（`PACK_AUDIENCE`）：中文局 9 个（生僻字、方言、成语典故、菜名来历、歇后语、中药名、地名由来、老物件、网络热词），英文局 5 个（Odd words、Idiom origins、Phobias、Canadian place names、Online slang），都能玩 3 个（冷知识、温村、吃喝）；开局默认选本桌语言的包。扩库时每包至少补到 15 张。图片（词包图标、三个角色、背景）是 ChatGPT 生的，见 `site/src/party/straightface/art/README.md`；声音是网站自己合成的。中文原词（生僻字、方言、成语、菜名）的 `term.en` 是同样的字加读音（拼音；粤语用粤拼，闽南语用台罗），卡面大字是原词、下面一行是读音。扩库管线：维基分类页和 Wiktionary 加拿大英语条目选词 → AI 只取事实自己造句并附来源 → 校验器和 lint → Codex 对来源核事实 → Steve 抽 10% → 上线后出场 10 次以上且命中率 80% 以上的卡降难度或下架。
 
 ## 分工
 
@@ -57,6 +59,6 @@ Codex：C1 扩库到 300、C2 界面组件并替换 A2 的占位、C3 电视布�
 
 ## 验收门
 
-- A 能玩（第 1 周末）：引擎测试全过；视图漏洞审查零发现；偷看不漏；Steve 用 iPhone 真机跑完 4 人局，然后去掉 `hidden`。
+- A 能玩（第 1 周末）：引擎测试全过；视图漏洞审查零发现；偷看不漏；Steve 用 iPhone 真机跑完 4 人局，然后去掉 `hidden`（2026-11-05 Steve 决定加了中文词包就上线，`hidden` 已去掉；真机局还是要跑）。
 - B 好玩（第 2 周末）：6 人测试过门，含 2 个不会撒谎的人至少各骗到裁判一次；命中率落在人数对应区间；一轮 ≤ 3.5 分钟。
 - C 站得住（第 4 周末）：联机 8 人 0 掉线；电视 3 米可读；词库 300 张过质量门；CIPO、BGG、Steam、App Store 和 grep 过。

@@ -1,4 +1,4 @@
-import { Eye, Luggage, MonitorSpeaker, Volume2, VolumeX, WifiOff, type LucideIcon } from "lucide-react";
+import { Eye, Luggage, MonitorSpeaker, UsersRound, Volume2, VolumeX, WifiOff, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { GAME_BY_ID } from "../games/registry";
@@ -7,15 +7,18 @@ import { holdBackground } from "../lib/music";
 import { unlockAudio } from "../lib/sfx";
 import { setSoundEnabled } from "../lib/sound";
 import { useRoom } from "../online/RoomContext";
+import { hideUrl, markWent as markWentHide } from "../party/hide/link";
 import { useWakeLock } from "../party/sensors";
 import { markWent, tripUrl } from "../party/trip/link";
-import type { GameView, TripView } from "../shared/protocol";
+import type { GameView, HideView, TripView } from "../shared/protocol";
 import { useStore } from "../store";
 import { TvCorner, TvPenalties, TvReactions } from "./moments";
 import { siteHost } from "./parts";
 import { TvView } from "./views";
 import "../styles/tv.css";
 import "../styles/tv-show.css";
+import { Skeleton } from "../ui/Skeleton";
+import "./states.css";
 
 /**
  * A phone that only watches, during a game: the big screen's view of it, full screen, to mirror
@@ -61,6 +64,7 @@ export default function Watch({ v }: { v: GameView }) {
 
   let body: ReactNode;
   if (v.id === "trip") body = <TripAway v={v} />;
+  else if (v.id === "hide") body = <HideAway v={v} />;
   else if (v.id === "dj") body = <DjAway />;
   else body = <TvView v={v} sound={showSound} fallback={<Loading />} />;
 
@@ -69,7 +73,7 @@ export default function Watch({ v }: { v: GameView }) {
       <div className={`watch-turn ${turned ? "is-turned" : ""}`} style={{ width: W, height: H }}>
         <div className="watch-canvas" style={{ transform: `translate(-50%, -50%) scale(${k})`, ["--gel" as string]: GAME_BY_ID[v.id].gel } as CSSProperties}>
           {body}
-          {v.id !== "dj" && v.id !== "trip" && <TvCorner code={code} />}
+          {v.id !== "dj" && v.id !== "trip" && v.id !== "hide" && <TvCorner code={code} />}
           <TvReactions />
           {/* (this phone already stamps a penalty out loud, as every phone at the table does) */}
           {room && <TvPenalties room={room} sound={false} />}
@@ -184,9 +188,11 @@ function Away({ icon: Icon, title, text, children }: { icon: LucideIcon; title: 
 }
 
 function Loading() {
+  const { lang } = useStore();
   return (
     <div className="watch-away">
-      <span className="tv-spinner" aria-hidden="true" />
+      <Skeleton lang={lang} shape="block" width="calc(var(--tap) * 12)" height="calc(var(--tap) * 6)" slowText={lang === "zh" ? "网有点慢，马上就好" : "Slow connection, nearly there"} />
+      <p>{lang === "zh" ? "加载中" : "Loading"}</p>
     </div>
   );
 }
@@ -212,6 +218,32 @@ function TripAway({ v }: { v: TripView }) {
         }}
       >
         {zh ? "打开到此一游的大屏" : "Open its big screen"}
+      </button>
+    </Away>
+  );
+}
+
+/** 藏在人群里 plays on a page of its own too, with a big screen of its own (the whole crowd): the way there. */
+function HideAway({ v }: { v: HideView }) {
+  const { code } = useRoom();
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  if (!v.code) return <Away icon={UsersRound} title={zh ? "藏在人群里：主人的手机正在开局" : "Hide in the Crowd: the host's phone is opening the game"} />;
+  return (
+    <Away
+      icon={UsersRound}
+      title={zh ? "藏在人群里有自己的大屏" : "Hide in the Crowd has a big screen of its own"}
+      text={zh ? "整个人群都在那一页上，不标出谁是真人。打开它，这台手机就是大屏，投到电视上大家一起看。" : "The whole crowd is on that page, and it never marks who's human. Open it and this phone is the big screen, to mirror to a TV."}
+    >
+      <button
+        type="button"
+        className="tv-btn tv-btn-main"
+        onClick={() => {
+          markWentHide(v.code!, true);
+          window.location.assign(hideUrl(v.code!, code, true));
+        }}
+      >
+        {zh ? "打开藏在人群里的大屏" : "Open its big screen"}
       </button>
     </Away>
   );

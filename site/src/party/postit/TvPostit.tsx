@@ -1,4 +1,5 @@
 import { Check, X } from "lucide-react";
+import { deckName } from "../../data/postit";
 import type { PostitReply, PostitView } from "../../shared/protocol";
 import { Bi, DoneBadge, FacesIn, RoundTag, TvClock, TvLineup, TvShow, useArrivals, useLang, useSeats, type Person } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
@@ -9,7 +10,8 @@ const WRITE_MS = 75_000;
 const REPLIES: { r: PostitReply; zh: string; en: string }[] = [
   { r: "yes", zh: "是", en: "Yes" },
   { r: "no", zh: "不是", en: "No" },
-  { r: "maybe", zh: "说不好", en: "Sort of" },
+  // (the same words as on the phones' buttons)
+  { r: "maybe", zh: "不确定", en: "Not sure" },
 ];
 
 /**
@@ -26,6 +28,9 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
 
   if (v.phase === "write") {
     const people: Person[] = table.map((s) => ({ seat: s, state: v.written.includes(s.id) ? "ready" : "idle", badge: v.written.includes(s.id) ? <DoneBadge /> : undefined }));
+    // the deck the host picked for the notes nobody writes (the mixed bag goes unsaid): on the count's
+    // line, so the heading keeps its height above the players
+    const pick = v.pick && v.pick !== "mix" ? tx(` · 随机的词：${deckName(v.pick).zh}`, ` · Random notes: ${deckName(v.pick).en}`) : "";
     return (
       <TvShow game="postit" className="tvp is-write" phase={v.phase} clock={<TvClock endsAt={v.endsAt} total={WRITE_MS} sound={sound} />}>
         <div className="tvp-top">
@@ -33,7 +38,10 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
             <Bi t={{ zh: "写便利贴", en: "Write the notes" }} />
           </h1>
           <p className="tvp-line">{tx("每人给一个人写一个词，贴在他额头上：他自己看不到，这块屏幕也不显示", "Everyone writes a word for someone else's forehead: they can't see it, and neither can this screen")}</p>
-          <p className="tvp-count tabular">{tx(`${v.written.length}/${table.length} 张写好了`, `${v.written.length} of ${table.length} written`)}</p>
+          <p className="tvp-count tabular">
+            {tx(`${v.written.length}/${table.length} 张写好了`, `${v.written.length} of ${table.length} written`)}
+            {pick}
+          </p>
         </div>
         <TvLineup people={people} big={250} className="tvp-row" />
       </TvShow>
@@ -50,7 +58,8 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
     const word = note(s.id);
     return {
       seat: s,
-      state: !done && s.id === v.turn ? "spot" : v.solved.includes(s.id) ? "win" : done ? "lose" : "idle",
+      // (at the end, only whoever drinks the glass has lost: not someone still guessing when the others went home)
+      state: !done && s.id === v.turn ? "spot" : v.solved.includes(s.id) ? "win" : done && (v.last === undefined || v.last === s.id) ? "lose" : "idle",
       tag: <span className={`tvp-note ${word ? "is-open" : ""}`}>{word ?? "?"}</span>,
     };
   });
@@ -68,7 +77,11 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
           <>
             <p className="tvp-turn">
               <SeatFace seat={seat(v.turn)} size={64} />
-              {v.asking ? tx(`${name(v.turn)} 问：`, `${name(v.turn)} asks:`) : tx(`轮到 ${name(v.turn)}：问一个是不是的问题，或者直接猜`, `${name(v.turn)}'s turn: ask a yes-or-no question, or guess`)}
+              {v.asking
+                ? tx(`${name(v.turn)} 问：`, `${name(v.turn)} asks:`)
+                : v.final
+                  ? tx(`${name(v.turn)} 的最后一次机会：问一个是不是的问题，然后猜`, `${name(v.turn)}'s last chance: a yes-or-no question, then a guess`)
+                  : tx(`轮到 ${name(v.turn)}：问一个是不是的问题，或者直接猜`, `${name(v.turn)}'s turn: ask a yes-or-no question, or guess`)}
             </p>
             {v.asking && <p className="tvp-question">{v.asking}</p>}
             {v.asking && (

@@ -20,8 +20,21 @@ const me = identity(".demo");
 let room!: Room;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
+/**
+ * Tests only: a browser test can script the dice (thrown in the order the teams were made) and the
+ * pace before the page loads, `window.__demoTest = { dice: [4, 5], speed: 0.3 }`, as it fixes the
+ * map's sun with `__sunAt`. Anything else there is ignored.
+ */
+function testSettings(): { dice?: number[]; inOrder?: boolean; speed?: number } {
+  const t = (globalThis as { __demoTest?: { dice?: unknown; speed?: unknown } }).__demoTest;
+  if (!t || typeof t !== "object") return {};
+  const dice = Array.isArray(t.dice) && t.dice.length && t.dice.every((d) => Number.isInteger(d) && d >= 1 && d <= 6) ? (t.dice as number[]) : null;
+  const speed = typeof t.speed === "number" && t.speed > 0 && t.speed <= 1 ? t.speed : null;
+  return { ...(dice ? { dice, inOrder: true } : {}), ...(speed ? { speed } : {}) };
+}
+
 function fresh() {
-  room = Room.create("DEMO", env, { hotseat: true });
+  room = Room.create("DEMO", env, { hotseat: true, ...testSettings() });
   room.join(me.cid, me.key, { name: prefs.name || (prefs.lang === "en" ? "Me" : "我"), lang: prefs.lang });
   room.handle(me.cid, { t: "seen", ids: seenTrivia() });
   room.handle(me.cid, { t: "team", op: "create" });

@@ -7,7 +7,7 @@
  * and the crossfader live in the player.
  */
 import { burst, busTo, crash, kick, noise, snare, type Bus } from "../../../lib/audio/engine";
-import { bassDrop, reverseCymbal, vinyl, whistle } from "./club";
+import { bassDrop, nextTake, noiseOnce, rand, reverseCymbal, vinyl, whistle, type Take } from "./club";
 import type { Speaker } from "./speaker";
 
 const OPEN_HZ = 22000;
@@ -31,6 +31,8 @@ export class DeckFx {
   private hornUntil = 0;
   private sirenUntil = 0;
   private until: Partial<Record<"bassdrop" | "reverse" | "whistle", number>> = {};
+  /** The take each pad played last (one of five), so its next press is another. */
+  private lastTake: Record<string, number> = {};
 
   constructor(private sp: Speaker) {
     this.bus = busTo(sp.ctx, sp.fxNodes.synth);
@@ -38,6 +40,18 @@ export class DeckFx {
 
   private get ctx() {
     return this.sp.ctx;
+  }
+
+  /**
+   * How this press of a pad comes out (club.ts `nextTake`): one of five pitches across ±`cents`,
+   * never the one it played last, and up to 1.5 dB louder or softer. The air horn mashed all night
+   * stays the air horn without sounding like a machine (audio-design suggests about ±1 semitone and
+   * ±2 dB for footsteps; these play over music, so less).
+   */
+  private take(pad: string, cents: number): Take {
+    const { i, take } = nextTake(this.lastTake[pad], cents);
+    this.lastTake[pad] = i;
+    return take;
   }
 
   /** Echo: a bar of the music repeating itself, three quarters of a beat apart, dying away. */
@@ -74,6 +88,7 @@ export class DeckFx {
   horn(at: number, beat: number) {
     if (at < this.hornUntil) return false;
     const c = this.ctx;
+    const take = this.take("horn", 25);
     const blasts: [number, number][] = [
       [0, 0.3],
       [0.5, 0.3],
@@ -115,6 +130,7 @@ export class DeckFx {
         const f = f0 * Math.pow(2, cents / 1200);
         const o = c.createOscillator();
         o.type = "sawtooth";
+        o.detune.value = take.cents;
         for (const [b, len] of blasts) {
           const t0 = at + b * beat;
           const t1 = t0 + len * beat;
@@ -134,17 +150,13 @@ export class DeckFx {
       }
     wob.start(at);
     wob.stop(end + 0.05);
-    // the air: a hiss in the horn's band, loudest as each blast starts
-    const n = Math.ceil((end - at + 0.1) * c.sampleRate);
-    const buf = c.createBuffer(1, n, c.sampleRate);
-    const d = buf.getChannelData(0);
-    let seed = 7;
-    for (let i = 0; i < n; i++) {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      d[i] = (seed / 4294967296) * 2 - 1;
-    }
+    // the air: a hiss in the horn's band, loudest as each blast starts (made once, club.ts noiseOnce)
+    const n = Math.ceil((2.6 * beat + 0.1) * c.sampleRate);
     const air = c.createBufferSource();
-    air.buffer = buf;
+    air.buffer = noiseOnce(c, "horn-air", n, (d) => {
+      const r = rand(7);
+      for (let i = 0; i < n; i++) d[i] = r() * 2 - 1;
+    });
     const band = c.createBiquadFilter();
     band.type = "bandpass";
     band.frequency.value = 2600;
@@ -156,9 +168,9 @@ export class DeckFx {
       const t0 = at + b * beat;
       const t1 = t0 + len * beat;
       g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(0.24, t0 + 0.012);
-      g.gain.linearRampToValueAtTime(0.2, t0 + 0.09);
-      g.gain.setValueAtTime(0.2, Math.max(t0 + 0.091, t1 - 0.04));
+      g.gain.linearRampToValueAtTime(0.24 * take.level, t0 + 0.012);
+      g.gain.linearRampToValueAtTime(0.2 * take.level, t0 + 0.09);
+      g.gain.setValueAtTime(0.2 * take.level, Math.max(t0 + 0.091, t1 - 0.04));
       g.gain.linearRampToValueAtTime(0, t1);
       airG.gain.setValueAtTime(0.5, t0);
       airG.gain.exponentialRampToValueAtTime(0.12, t0 + 0.08);
@@ -190,10 +202,10 @@ export class DeckFx {
     return true;
   }
 
-  /** 低音炸弹, 反向镲, 口哨 (club.ts): one of each at a time. */
+  /** 低音炸弹, 反向镲, 口哨 (club.ts): one of each at a time (the boom and the whistle each a take of their own). */
   bassDrop(at: number, beat: number) {
     if (at < (this.until.bassdrop ?? 0)) return false;
-    this.until.bassdrop = bassDrop(this.ctx, this.sp.fxNodes.synth, at, beat);
+    this.until.bassdrop = bassDrop(this.ctx, this.sp.fxNodes.synth, at, beat, this.take("bassdrop", 40));
     return true;
   }
   reverse(at: number, beat: number) {
@@ -203,7 +215,7 @@ export class DeckFx {
   }
   whistle(at: number, beat: number) {
     if (at < (this.until.whistle ?? 0)) return false;
-    this.until.whistle = whistle(this.ctx, this.sp.fxNodes.synth, at, beat);
+    this.until.whistle = whistle(this.ctx, this.sp.fxNodes.synth, at, beat, this.take("whistle", 30));
     return true;
   }
 
@@ -212,9 +224,11 @@ export class DeckFx {
     if (at < this.sirenUntil) return false;
     const c = this.ctx;
     const end = at + 2 * beat;
+    const take = this.take("siren", 30);
     const o = c.createOscillator();
     o.type = "square";
     o.frequency.value = 620;
+    o.detune.value = take.cents;
     const lfo = c.createOscillator();
     lfo.type = "triangle";
     lfo.frequency.value = 2 / beat;
@@ -229,8 +243,8 @@ export class DeckFx {
     g.gain.value = 0;
     g.gain.setValueAtTime(0, at);
     // (loud enough to call the floor over the music, or over a whole song)
-    g.gain.linearRampToValueAtTime(0.35, at + 0.02);
-    g.gain.setValueAtTime(0.35, end - 0.08);
+    g.gain.linearRampToValueAtTime(0.35 * take.level, at + 0.02);
+    g.gain.setValueAtTime(0.35 * take.level, end - 0.08);
     g.gain.linearRampToValueAtTime(0, end);
     o.connect(lp).connect(g).connect(this.sp.fxNodes.synth);
     for (const x of [o, lfo]) {
@@ -242,9 +256,10 @@ export class DeckFx {
     return true;
   }
 
-  /** Three laser zaps on the sixteenths, each a quick fall from high to low. */
+  /** Three laser zaps on the sixteenths, each a quick fall from high to low (each press a take of its own, wider than the others: it's a synth's zap, not an instrument). */
   laser(at: number, beat: number) {
     const c = this.ctx;
+    const take = this.take("laser", 60);
     const bp = c.createBiquadFilter();
     bp.type = "bandpass";
     bp.frequency.value = 1800;
@@ -255,11 +270,12 @@ export class DeckFx {
       const t0 = at + (k * beat) / 4;
       const o = c.createOscillator();
       o.type = "sawtooth";
+      o.detune.value = take.cents;
       o.frequency.setValueAtTime(3200, t0);
       o.frequency.exponentialRampToValueAtTime(180, t0 + len);
       const e = c.createGain();
       e.gain.setValueAtTime(0, t0);
-      e.gain.linearRampToValueAtTime(0.6, t0 + 0.004);
+      e.gain.linearRampToValueAtTime(0.6 * take.level, t0 + 0.004);
       e.gain.exponentialRampToValueAtTime(0.001, t0 + len);
       o.connect(e).connect(bp);
       o.start(t0);

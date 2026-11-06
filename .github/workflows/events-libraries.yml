@@ -2,9 +2,11 @@
 # (BiblioCommons) refuse requests from Cloudflare Workers (403 since 2 November 2026; the same request
 # from anywhere else gets 200). So every morning, before the Worker's 06:00 run, this job reads their
 # pages with exactly the requests the run makes (tools/events/scripts/libraries.ts) and hands each page
-# to the Worker at changle.ca/go/api/handoff with the key EVENTS_HANDOFF_KEY: a repository secret,
-# the same value as the Worker's secret of that name. The run then reads those pages; when nothing
-# was handed over it asks the libraries itself, as before, and its log says why.
+# to the Worker at changle.ca/go/api/handoff. It signs in with GitHub's own sign-in token (OIDC): GitHub
+# signs a token saying which repository, branch, workflow and event the job runs for, and the Worker
+# checks it against GitHub's public keys (tools/events/src/oidc.ts). It takes only this workflow, on
+# main, run by its schedule or by hand. No secret anywhere: nothing to set. The run then reads those
+# pages; when nothing was handed over it asks the libraries itself, as before, and its log says why.
 # Only on its schedule or by hand (Actions > events-libraries > Run workflow), never on pull requests.
 # It fails, red, when a library can't be read to the end or the Worker refuses a page.
 name: events-libraries
@@ -19,6 +21,9 @@ on:
 
 permissions:
   contents: read
+  # GitHub's sign-in token for the Worker. It only lets the job ask GitHub for that token: no access
+  # to the repository or anything else.
+  id-token: write
 
 concurrency:
   group: events-libraries
@@ -43,4 +48,3 @@ jobs:
         run: npm run libraries
         env:
           EVENTS_HANDOFF_URL: https://changle.ca/go/api/handoff
-          EVENTS_HANDOFF_KEY: ${{ secrets.EVENTS_HANDOFF_KEY }}

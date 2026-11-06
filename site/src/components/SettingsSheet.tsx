@@ -46,7 +46,7 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
       <div className="settings-row">
         <span className="stack" style={{ gap: 2 }}>
           {ui("music")}
-          <span className="hint" style={{ fontSize: 13 }}>
+          <span className="hint" style={{ fontSize: "var(--text-sm)" }}>
             {ui("musicHint")}
           </span>
         </span>
@@ -73,7 +73,7 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
               </button>
             ))}
           </div>
-          <p className="hint" style={{ fontSize: 13 }}>
+          <p className="hint" style={{ fontSize: "var(--text-sm)" }}>
             {ui("silentHint")}
           </p>
         </div>

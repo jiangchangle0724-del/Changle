@@ -1,6 +1,7 @@
-// The waiting players' quiz (抢答): while one team takes its turn, the others race to answer a question
-// about one of the cities. First right answer wins; a wrong answer locks that team out; 这题不答 passes
-// on it at no cost. When it closes, everyone it was for sees the answer, a fact (你知道吗) and its source.
+// The waiting players' quiz (抢答): about every eight minutes, when a team lands on a city, the others
+// race to answer a question about that city. First right answer wins; a wrong answer locks that team
+// out; 这题不答 passes on it at no cost. When it closes, everyone it was for sees the answer, a fact
+// (你知道吗) and its source.
 //
 // On a phone it pops up at the top of the screen, in the same place every time, over everything but a
 // party forfeit (QuizPop): the question, its three answers and 这题不答; once answered, a slim bar with

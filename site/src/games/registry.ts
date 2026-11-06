@@ -1,7 +1,8 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, GalleryHorizontalEnd, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import { UsersRound } from "lucide-react";
 import type { T } from "../i18n";
+import { LC_CALL, LC_NAME } from "../shared/lastcard/name";
 import type { Category } from "../ui/types";
 
 export type GameId =
@@ -24,7 +25,8 @@ export type GameId =
   | "draw"
   | "trip"
   | "dj"
-  | "hide";
+  | "hide"
+  | "lastcard";
 
 export type GameMeta = {
   id: GameId;
@@ -70,6 +72,10 @@ export type GameMeta = {
 };
 
 const t = (zh: string, en: string): T => ({ zh, en });
+
+/** 最后一张's how-to: one text, its last words the table's penalty (kept short: the home page carries it). */
+const lcHow = (zh: string, en: string) =>
+  t(`每人 7 张，跟颜色、数字或符号出牌，出不了就摸。剩一张要喊「${LC_CALL.zh}」，没喊被抓到摸 2 张。先出完的赢，剩牌最多的${zh}。`, `Seven cards each: match the colour, number or symbol, or draw. Call it at one card, or draw 2 if caught. First out wins; most cards left ${en}.`);
 
 /** In spectrum order: the grid reads as one sweep of stage light. */
 export const GAMES: GameMeta[] = [
@@ -180,8 +186,8 @@ export const GAMES: GameMeta[] = [
     slug: "post-it",
     name: t("额头便利贴", "Post-it Note"),
     blurb: t("贴在额头上，猜我是谁", "Stuck to your forehead. Who am I?"),
-    how: t("每个人额头上一张便利贴，别人都看得到，只有你看不到。轮流问是非题，猜错喝一口，最后一个猜出来的喝一杯。一部手机就举到额头上，大家给提示。", "A note on every forehead that everyone sees except you. Take turns asking yes or no questions; a wrong guess is a sip, the last to get it drinks a glass. On one phone, hold it to your forehead while the room gives clues."),
-    howCustom: t("每个人额头上一张便利贴，别人都看得到，只有你看不到。轮流问是非题，猜错受罚，最后一个猜出来的也受罚。一部手机就举到额头上，大家给提示。", "A note on every forehead that everyone sees except you. Take turns asking yes or no questions; a wrong guess takes the penalty, and so does the last to get it. On one phone, hold it to your forehead while the room gives clues."),
+    how: t("每个人额头上一张便利贴，别人都看得到，只有你看不到。轮流问是非题，猜错喝一口，最后一个没猜出来的喝一杯。一部手机就举到额头上，大家给提示。", "A note on every forehead that everyone sees except you. Take turns asking yes or no questions; a wrong guess is a sip, and the last one still guessing drinks a glass. On one phone, hold it to your forehead while the room gives clues."),
+    howCustom: t("每个人额头上一张便利贴，别人都看得到，只有你看不到。轮流问是非题，猜错受罚，最后一个没猜出来的也受罚。一部手机就举到额头上，大家给提示。", "A note on every forehead that everyone sees except you. Take turns asking yes or no questions; a wrong guess takes the penalty, and so does the last one still guessing. On one phone, hold it to your forehead while the room gives clues."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#f5df3b",
@@ -304,10 +310,11 @@ export const GAMES: GameMeta[] = [
     ready: true,
   },
   {
-    // 一本正经: new (2026-11-04), hidden until Steve has played it on a real phone (the brief's gate A); its address works
+    // 一本正经: new (2026-11-04), on the board since 2026-11-05. One phone only until the rooms server runs it (A3),
+    // so its card offers no online table (GameSheet shows that button only for ONLINE_GAMES)
     id: "straightface",
-    slug: "straight-face",
-    name: t("一本正经", "Straight Face"),
+    slug: "in-all-seriousness",
+    name: t("一本正经", "In All Seriousness"),
     blurb: t("一个冷门词，只有一个人知道真意思", "One obscure word. Only one of you knows what it means."),
     how: t(
       "每轮一个裁判、一个冷门词。只有老实人看过真释义，其他人现编。大家轮流一本正经地解释，裁判追问、贴疑点，最后指认老实人。被指认的人得分，不管是不是老实人；指对了裁判也得分。裁判看走眼喝一口，骗到裁判的人指定一个人喝。",
@@ -324,7 +331,6 @@ export const GAMES: GameMeta[] = [
     category: "brain",
     minutes: 15,
     ready: true,
-    hidden: true,
     newUntil: "2026-12-15",
     solo: { min: 3, hint: t("4 到 9 人最好玩，手机传着看身份", "Best with 4 to 9. The phone goes round for a private peek") },
   },
@@ -422,6 +428,26 @@ export const GAMES: GameMeta[] = [
     ready: true,
     newUntil: "2026-12-03",
     solo: { min: 0, hint: t("一台手机：和三个电脑对手练手", "One phone: practise against three computer rivals") },
+  },
+  // 最后一张: new (2026-11-05), online only, hidden until Steve has played a round. Its name lives in
+  // shared/lastcard/name.ts; /g/last-card/play opens a table for it (party/lastcard/Start.tsx)
+  {
+    id: "lastcard",
+    slug: "last-card",
+    name: LC_NAME,
+    blurb: t("跟色跟数，出光就赢", "Match it, shed it, win."),
+    how: lcHow("喝一口", "drinks"),
+    howCustom: lcHow("受罚", "takes the penalty"),
+    minPlayers: 2,
+    maxPlayers: 10,
+    gel: "#d36cff",
+    icon: GalleryHorizontalEnd,
+    category: "online",
+    minutes: 15,
+    ready: true,
+    hidden: true,
+    newUntil: "2026-12-20",
+    solo: { min: 0, hint: t("只能联机", "Online only") },
   },
 ];
 

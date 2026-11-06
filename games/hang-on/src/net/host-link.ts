@@ -3,6 +3,7 @@
  * 每 250 ms 量一次往返，直连 3 秒没通就标成「绕路」（输入照样经房间转过来）。
  * 手柄每次（重新）连上房间会说 hello，主机就重新发 offer，所以关 Wi-Fi 再开也能回来。
  */
+import { cleanLook, DEFAULT_LOOK, type Look } from '../look';
 import { RttMeter } from './latency';
 import {
   DIRECT_TIMEOUT_MS,
@@ -30,6 +31,8 @@ export interface PadPeer {
   /** 直连等过了 3 秒还没通（或断了），在走中转。 */
   relayed: boolean;
   rtt: RttMeter;
+  /** 手柄选的样子。 */
+  look: Look;
   input: PadInput | null;
   /** 上一条输入到的时刻（performance.now()）。 */
   lastInputAt: number;
@@ -42,6 +45,7 @@ export interface HostLinkEvents {
   onRoom?(room: RoomView): void;
   onPeers?(peers: PadPeer[]): void;
   onInput?(peer: PadPeer, input: PadInput): void;
+  onLook?(peer: PadPeer, look: Look): void;
   onFatal?(key: FatalKey): void;
   onSocket?(open: boolean): void;
 }
@@ -126,7 +130,7 @@ export class HostLink {
       seen.add(s.id);
       let p = this.peers.get(s.id);
       if (!p) {
-        p = { seat: s.id, name: s.name, color: s.color, connected: s.connected, direct: false, relayed: false, rtt: new RttMeter(), input: null, lastInputAt: 0, pc: null, dc: null, directTimer: null };
+        p = { seat: s.id, name: s.name, color: s.color, connected: s.connected, direct: false, relayed: false, rtt: new RttMeter(), look: DEFAULT_LOOK, input: null, lastInputAt: 0, pc: null, dc: null, directTimer: null };
         this.peers.set(s.id, p);
       }
       p.name = s.name;
@@ -148,6 +152,10 @@ export class HostLink {
     switch (data.k) {
       case 'hello':
         void this.offer(p);
+        return;
+      case 'look':
+        p.look = cleanLook(data.look);
+        this.ev.onLook?.(p, p.look);
         return;
       case 'sdp':
         if (data.sdp.type === 'answer' && p.pc) void p.pc.setRemoteDescription(data.sdp).catch(() => undefined);

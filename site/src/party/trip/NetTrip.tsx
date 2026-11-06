@@ -1,9 +1,10 @@
-import { Luggage, Plane } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Luggage, MonitorPlay, Plane } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { GAME_BY_ID } from "../../games/registry";
 import { NetFrame } from "../../online/NetFrame";
 import { useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
+import { useWatching } from "../../online/players";
 import type { TripView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { cameBackFromEnd, handOff, loadTrip, markWent, openTrip, tripPhase, tripUrl, wentTo } from "./link";
@@ -12,17 +13,21 @@ import "../../styles/trip.css";
 /**
  * 到此一游 at the table. The game itself is at changle.ca/trip: the host opens a room there, and
  * every phone goes to it on its own, once. A phone that comes back finds the game still on (and can
- * go back in) or over (and the host takes everyone back to the lobby).
+ * go back in) or over (and the host takes everyone back to the lobby). A seat that just watches
+ * stays here, with the way to the game's big screen (Watch.tsx, or this page when it hosts).
  */
 export function NetTrip({ v, onLeave }: { v: TripView; onLeave: () => void }) {
   const { room, me, isHost, g, act, nameOf } = useRoom();
   const { lang, sound } = useStore();
   const zh = lang === "zh";
   const table = room?.code ?? "";
+  const watching = useWatching();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [save, setSave] = useState("");
-  const [state, setState] = useState<"going" | "back" | "over">("going");
+  const [state, setState] = useState<"going" | "back" | "watch" | "over">("going");
+  // the game this phone opened: its host goes in to run it, even one who just watches
+  const opened = useRef<string | null>(null);
 
   const go = (code: string) => {
     handOff(nameOf(me), lang, sound);
@@ -32,21 +37,35 @@ export function NetTrip({ v, onLeave }: { v: TripView; onLeave: () => void }) {
 
   useEffect(() => {
     if (!v.code || !table) return;
-    if (cameBackFromEnd(v.code)) {
-      // the game's last screen sent us back: the trip is over
-      setState("over");
-      if (isHost) act({ a: "end" });
-      return;
-    }
-    if (!wentTo(v.code)) return go(v.code);
-    setState("back");
+    // the game's last screen sent us back: the trip is over
+    if (cameBackFromEnd(v.code)) return setState("over");
+    if (wentTo(v.code)) return setState("back");
+    // A seat that just watches isn't sent in as a player. (It can be the table's host by now: the
+    // role passes to a seat still here when the host has been in the game for a while.)
+    if (watching && opened.current !== v.code) return setState("watch");
+    go(v.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v.code, table, watching]);
+
+  // A phone at the table while the game goes on keeps an eye on it. (The table's host can change
+  // meanwhile, as above, and then that seat is the one to end it.)
+  useEffect(() => {
+    if (!v.code || (state !== "back" && state !== "watch")) return;
     let live = true;
-    void tripPhase(v.code).then((p) => live && (p === "over" || p === "gone") && setState("over"));
+    const check = () => void tripPhase(v.code!).then((p) => live && (p === "over" || p === "gone") && setState("over"));
+    check();
+    const timer = window.setInterval(check, 8_000);
     return () => {
       live = false;
+      window.clearInterval(timer);
     };
+  }, [v.code, state]);
+
+  // the trip is over: the table's host, whoever that is now, brings everyone back to the lobby
+  useEffect(() => {
+    if (state === "over" && isHost) act({ a: "end" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v.code, table]);
+  }, [state, isHost]);
 
   const open = async (from?: string) => {
     if (busy || !table) return;
@@ -54,8 +73,10 @@ export function NetTrip({ v, onLeave }: { v: TripView; onLeave: () => void }) {
     setError(null);
     const res = from ? await loadTrip(from, table) : await openTrip(table);
     setBusy(false);
-    if ("code" in res) g("open", { code: res.code });
-    else
+    if ("code" in res) {
+      opened.current = res.code;
+      g("open", { code: res.code });
+    } else
       setError(
         res.error === "noSave" || res.error === "badCode"
           ? zh
@@ -159,6 +180,27 @@ export function NetTrip({ v, onLeave }: { v: TripView; onLeave: () => void }) {
         ) : (
           <Waiting>{zh ? "等主人回到大厅" : "Waiting for the host"}</Waiting>
         )}
+      </>
+    );
+  else if (state === "watch")
+    body = (
+      <>
+        <Pass table={table} />
+        <p className="trip-lead">{zh ? "到此一游有自己的大屏：地图、城市和每一步。打开它，这台设备就是大屏，可以投到电视上。" : "Been There, Bought That has a big screen of its own: the map, the cities and every move. Open it and this device is the big screen, to mirror to a TV."}</p>
+        <button
+          type="button"
+          className="btn btn-primary btn-lg btn-block"
+          onClick={() => {
+            markWent(v.code!, true);
+            window.location.assign(tripUrl(v.code!, table, true));
+          }}
+        >
+          <MonitorPlay size={20} strokeWidth={2.2} />
+          {zh ? "打开到此一游的大屏" : "Open its big screen"}
+        </button>
+        <HostRow>
+          <HostButton onClick={() => act({ a: "end" })}>{zh ? "结束这局" : "End the game"}</HostButton>
+        </HostRow>
       </>
     );
   else

@@ -13,6 +13,7 @@ import {
 } from './protocol';
 import { RoomSocket, wsUrl } from './socket';
 import { ICE_SERVERS } from './ice';
+import type { Look } from '../look';
 
 export interface PadLinkEvents {
   onRoom?(room: RoomView): void;
@@ -52,6 +53,7 @@ export class PadLink {
   private pendingIce: RTCIceCandidateInit[] = [];
   private lastRelayAt = 0;
   private seq = 1;
+  private look: Look | null = null;
 
   constructor(
     readonly code: string,
@@ -65,10 +67,19 @@ export class PadLink {
       (m) => this.onMsg(m),
       (open) => {
         this.socketOpen = open;
-        if (open) this.relay({ k: 'hello' });
+        if (open) {
+          this.relay({ k: 'hello' });
+          if (this.look) this.relay({ k: 'look', look: this.look });
+        }
         this.ev.onConn?.({ socket: open, direct: this.direct });
       },
     );
+  }
+
+  /** 告诉主机自己的样子；每次重新连上房间也会再说一遍。 */
+  setLook(look: Look): void {
+    this.look = look;
+    if (this.socketOpen) this.relay({ k: 'look', look });
   }
 
   get isDirect(): boolean {

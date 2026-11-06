@@ -1,7 +1,10 @@
-/* 一本正经 · Straight Face: the engine, the card bank and the two views. Run with `npx tsx tests/straightface.test.ts` */
-import { CARDS, PACKS } from "../src/data/straightface";
+/* 一本正经 · In All Seriousness: the engine, the card bank and the two views. Run with `npx tsx tests/straightface.test.ts` */
+import { existsSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { CARDS, defaultPacks, PACK_AUDIENCE, PACKS } from "../src/data/straightface";
 import { lintDeck, pickCard, validateCard, validateDeck } from "../src/shared/straightface/cards";
-import { createGame, currentSpeaker, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
+import { createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
 import { mulberry32 } from "../src/shared/straightface/rng";
 import type { Card, GameState, Player, RoundState } from "../src/shared/straightface/types";
 
@@ -33,6 +36,7 @@ function test(name: string, fn: () => void) {
 }
 
 const cards = CARDS;
+const here = fileURLToPath(new URL("..", import.meta.url));
 const deps: Deps = { cards };
 const mk = (n: number): Player[] => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}`, seat: i }));
 
@@ -102,6 +106,42 @@ test("straightface: validateCard requires funFact and source, refuses a brackete
   const glossed: Card = { ...base, id: "glossed", term: { zh: "雨后泥土味 Petrichor", en: "Petrichor" } };
   ok(lintDeck([glossed]).length > 0, "lint flags a Chinese gloss");
   ok(lintDeck([base]).length === 0, "lint passes the plain term");
+});
+
+test("straightface: every pack has its table, its picture and enough cards; Chinese packs show the word with its reading, English packs the word itself", () => {
+  for (const p of PACKS) {
+    const deck = cards.filter((c) => c.pack === p);
+    // ten is enough to play a whole game of nine from one pack without a repeat
+    ok(deck.length >= 10, `${p}: ${deck.length} cards`);
+    ok(["zh", "en", "both"].includes(PACK_AUDIENCE[p]), `${p} says which table it is for`);
+    const art = join(here, "src/party/straightface/art/packs", `${p}.webp`);
+    ok(existsSync(art) && statSync(art).size < 40_000, `${p} has a picture under 40 KB`);
+    if (PACK_AUDIENCE[p] === "zh") {
+      for (const c of deck) {
+        ok(c.term.en.startsWith(c.term.zh) && c.term.en.length > c.term.zh.length, `${c.id}: the English side is the original characters plus a reading`);
+        // every phone's font draws the basic CJK block; nothing rarer goes on the card
+        ok([...c.term.zh].every((ch) => /[一-鿿A-Za-z0-9 ]/.test(ch)), `${c.id}: the card's characters are all in the basic CJK block`);
+      }
+    }
+    if (PACK_AUDIENCE[p] === "en") for (const c of deck) ok(c.term.zh === c.term.en, `${c.id}: an English word is the same on both sides`);
+  }
+  for (const r of ["judge", "honest", "bluffer"]) ok(existsSync(join(here, "src/party/straightface/art/roles", `${r}.webp`)), `the ${r} is drawn`);
+  ok(existsSync(join(here, "src/party/straightface/art/backdrop.webp")), "the room behind the game is drawn");
+  const base = cards[0];
+  const idiom: Card = { ...base, id: "idiom", term: { zh: "七月流火", en: "七月流火 qī yuè liú huǒ" }, definition: { zh: "七月流火说的是天要转凉。", en: "The heat is ending." } };
+  ok(lintDeck([idiom]).length === 0, "a Chinese original may quote itself in its definition");
+});
+
+test("straightface: a Chinese table starts with the Chinese packs, an English table with the English ones, both with the packs any table can play", () => {
+  const zh = defaultPacks("zh");
+  const en = defaultPacks("en");
+  ok(zh.every((p) => PACK_AUDIENCE[p] !== "en") && zh.some((p) => PACK_AUDIENCE[p] === "zh"), `zh: ${zh.join(",")}`);
+  ok(en.every((p) => PACK_AUDIENCE[p] !== "zh") && en.some((p) => PACK_AUDIENCE[p] === "en"), `en: ${en.join(",")}`);
+  ok(PACKS.filter((p) => PACK_AUDIENCE[p] === "both").every((p) => zh.includes(p) && en.includes(p)), "both tables get the packs for any table");
+  // the public view says which pack the word came from (the picture on the card), nothing more
+  const g = reduce(createGame(mk(4), { ...DEFAULT_OPTIONS, packs: ["chengyu"] }, 7), { type: "START_ROUND" }, deps);
+  const pub = publicView(g, deps);
+  ok(pub.pack === "chengyu", `the public view carries the pack (${pub.pack})`);
 });
 
 test("straightface: pickCard prefers the asked level, avoids used cards, falls back sanely, keeps adult cards out", () => {

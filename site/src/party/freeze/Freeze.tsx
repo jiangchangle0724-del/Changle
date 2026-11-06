@@ -1,6 +1,7 @@
 import { Check, Crown, Play } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
+import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import { pick, randInt } from "../../lib/random";
 import { holdBackground, startGroove, type GrooveHandle, type GrooveId } from "../../lib/music";
@@ -11,26 +12,40 @@ import { useWakeLock } from "../sensors";
 import { DanceFloor, FreezeFlash, TRACKS } from "./parts";
 import "../../styles/party.css";
 
-type Phase = "setup" | "dance" | "freeze" | "judge" | "end";
+type Phase = "setup" | "ready" | "dance" | "freeze" | "judge" | "end";
+type Kept = { mode: "out" | "drink"; track: GrooveId | "mix"; phase: Phase; round: number; groove: GrooveId; alive: string[]; moved: string[]; repeat: boolean };
 
 /** One phone plays DJ: the music cuts out at random, one person judges who moved. */
 export function Freeze({ onBack }: { onBack: () => void }) {
+  return (
+    <Resume<Kept> game="freeze" version={1}>
+      {(saved) => <FreezeGame onBack={onBack} saved={saved} />}
+    </Resume>
+  );
+}
+
+function FreezeGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   // the dance floor has its own music: the lounge music waits
   useEffect(() => holdBackground(), []);
   const { players, lang } = useStore();
   const zh = lang === "zh";
-  const [mode, setMode] = useState<"out" | "drink">("out");
-  const [track, setTrack] = useState<GrooveId | "mix">("mix");
-  const [phase, setPhase] = useState<Phase>("setup");
-  const [round, setRound] = useState(0);
-  const [groove, setGroove] = useState<GrooveId>("disco");
-  const [alive, setAlive] = useState<string[]>(players.map((p) => p.id));
-  const [moved, setMoved] = useState<string[]>([]);
+  const [mode, setMode] = useState<"out" | "drink">(saved?.mode ?? "out");
+  const [track, setTrack] = useState<GrooveId | "mix">(saved?.track ?? "mix");
+  const [phase, setPhase] = useState<Phase>(saved?.phase ?? "setup");
+  const [round, setRound] = useState(saved?.round ?? 0);
+  const [groove, setGroove] = useState<GrooveId>(saved?.groove ?? "disco");
+  const [alive, setAlive] = useState<string[]>(saved?.alive ?? players.map((p) => p.id));
+  const [moved, setMoved] = useState<string[]>(saved?.moved ?? []);
+  const repeat = saved?.repeat ?? false;
   const handle = useRef<GrooveHandle | null>(null);
   const timer = useRef(0);
   const penalty = usePenalty();
   // the "drink" mode is the one where you take the penalty and keep dancing: named for the penalty in settings
   const custom = usePenaltyText().isCustom;
+  // Mid-song: wait for the judge to start this round again. A counted stamp returns after it.
+  const stamped = !!penalty.call;
+  const keptPhase = stamped ? (mode === "out" && alive.length <= 1 ? "end" : "ready") : phase === "dance" ? "ready" : phase === "freeze" ? "judge" : phase;
+  useKeepProgress<Kept>({ mode, track, phase: keptPhase, round: round + (stamped ? 1 : 0), groove, alive, moved: stamped ? [] : moved, repeat: !stamped && (phase === "dance" || (phase === "ready" && repeat)) }, keptPhase !== "setup" && keptPhase !== "end");
   const name = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p.name])), [players]);
   useWakeLock(phase === "dance" || phase === "freeze");
 
@@ -42,8 +57,8 @@ export function Freeze({ onBack }: { onBack: () => void }) {
     [],
   );
 
-  const dance = (r: number) => {
-    const g = track === "mix" ? (r % 3 === 1 || r === 1 ? pick(TRACKS).id : groove) : track;
+  const dance = (r: number, same = false) => {
+    const g = same ? groove : track === "mix" ? (r % 3 === 1 || r === 1 ? pick(TRACKS).id : groove) : track;
     setGroove(g);
     setRound(r);
     setMoved([]);
@@ -118,6 +133,10 @@ export function Freeze({ onBack }: { onBack: () => void }) {
         <Play size={18} />
         {zh ? "放音乐" : "Start the music"}
       </button>
+    ) : phase === "ready" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => dance(round, repeat)}>
+        <Play size={18} /> {zh ? "放音乐" : "Start the music"}
+      </button>
     ) : phase === "freeze" || phase === "judge" ? (
       <button type="button" className="btn btn-primary btn-lg" onClick={judge}>
         {moved.length ? (
@@ -172,7 +191,7 @@ export function Freeze({ onBack }: { onBack: () => void }) {
           </>
         )}
 
-        {phase === "dance" && (
+        {(phase === "dance" || phase === "ready") && (
           <>
             <DanceFloor groove={groove}>
               <span className="fz-round tabular">{zh ? `第 ${round} 轮` : `Round ${round}`}</span>

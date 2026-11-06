@@ -69,11 +69,11 @@ describe("POST /go/api/handoff", () => {
   it("401 without the key or with a wrong one, and keeps nothing", async () => {
     const d = today();
     const tries: [Record<string, string>, string][] = [
-      [{}, "no key"],
-      [{ authorization: KEY }, "no key"], // not "Bearer <key>"
+      [{}, "no key or GitHub token"],
+      [{ authorization: KEY }, "no key or GitHub token"], // not "Bearer <key>"
       [{ authorization: `Bearer ${KEY}-not` }, "wrong key"],
       [{ authorization: `Bearer ${KEY.slice(0, -1)}` }, "wrong key"],
-      [{ authorization: "Bearer " }, "no key"],
+      [{ authorization: "Bearer " }, "no key or GitHub token"],
     ];
     for (const [headers, error] of tries) {
       const res = await post(`source=rpl&date=${d}&part=0`, rpl, headers);
@@ -84,10 +84,11 @@ describe("POST /go/api/handoff", () => {
     expect(await takeHandoff(env.CACHE, d, "rpl", 0)).toBeNull();
   });
 
-  it("503 while the Worker has no key of its own: nothing can be handed over", async () => {
+  it("401 for a key while the Worker has none of its own (GitHub's token is what it takes then: tests/oidc.test.ts)", async () => {
     const res = await post(`source=vpl&date=${today()}&part=0`, vpl, { authorization: `Bearer ${KEY}` }, env);
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "EVENTS_HANDOFF_KEY is not set on the Worker" });
+    expect(await takeHandoff(env.CACHE, today(), "vpl", 0)).toBeNull();
   });
 
   it("413 above the size limit, whether the body says its length or not", async () => {

@@ -17,6 +17,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
 | changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects) | by itself on merge when `games/party-server` or `games/party-base` changes (connected 2026-11-01, `games/party-server/README.md`; `games/dance` is still to be added to its watch paths) |
+| changle.ca/hang-on: 抓紧了 · Hang On (the host screen; phones at /hang-on/pad, the QR code's link /hang-on/r/CODE) | `games/hang-on/` (physics, the room server, the pages) | Worker `hang-on` (Durable Objects) | by itself on merge when `games/hang-on/*` changes (connected 2026-11-04, `games/hang-on/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
 installs on its own. Node 22, as in CI.
@@ -174,12 +175,13 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 藏在人群里 (`games/hide-crowd`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
-| 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (the libraries' hand-over; the same value as the GitHub secret) | `ALLOW_TEST` (local and tests only) |
+| 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (optional, never needed live: the libraries' hand-over from a run outside GitHub) | `ALLOW_TEST` (local and tests only) |
 
-GitHub Actions use one secret: `EVENTS_HANDOFF_KEY`, the same value as the What's On Worker's, for
-`.github/workflows/events-libraries.yml` (each morning at 05:50 it hands the Vancouver and Richmond
-libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go in a git-ignored
-`.dev.vars` next to the Worker's `wrangler.jsonc`.
+GitHub Actions use no secrets. `.github/workflows/events-libraries.yml` (each morning at 05:50 it
+hands the Vancouver and Richmond libraries' pages to the What's On Worker) signs in with GitHub's own
+OIDC token, which the Worker checks against GitHub's public keys (`tools/events/src/oidc.ts`,
+`tools/events/README.md`). Locally, secrets go in a git-ignored `.dev.vars` next to the Worker's
+`wrangler.jsonc`.
 
 ## Working rules
 
@@ -201,12 +203,19 @@ libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go i
   the plan: the DJ's brain (A4), songs players describe (A5); Codex's cards are in
   `docs/codex-tasks/dj/` (C1 presets is done).
 
-* 一本正经 · Straight Face (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
-  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 47
-  cards and the one-phone flow are done (2026-11-04) and hidden from the board: only
-  `changle.ca/g/straight-face/play` opens it until Steve has played a round on his phone. Next:
-  online (A3: a `GameDef` wrapping the same engine), the card bank to 300 (Codex C1,
-  `docs/codex-tasks/straightface/`).
+* 一本正经 · In All Seriousness (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
+  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 251
+  cards in 17 packs (nine for Chinese tables, five for English tables, three for any table; a table
+  starts with its own language's packs), pictures drawn with ChatGPT (pack icons, the three parts, the
+  room) and synthesised sound cues, and the one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online
+  table until A3 (a `GameDef` wrapping the same engine) adds it to `ONLINE_GAMES`. Next: A3, the card
+  bank to 300 (Codex C1, `docs/codex-tasks/straightface/`).
+
+* 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
+  and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the
+  big screen in `site/src/party/lastcard/`), done 2026-11-05 and hidden from the board:
+  `changle.ca/g/last-card/play` opens a table for it until Steve has played a round. Before it goes
+  on the board, its card needs an online-only mode (no one-phone button).
 
 * The rooms Worker was connected to Git on 2026-10-31; its first build from Git ran on the merge of
   PR #34 (2026-11-01) and deployed fine.

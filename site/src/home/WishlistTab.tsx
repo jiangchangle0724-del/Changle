@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Crown, Flame, Gamepad2, Send, Sparkles, Wrench } from "lucide-react";
+import { Check, ChevronDown, Crown, Flame, Gamepad2, Send, Sparkles, WifiOff, Wrench } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError } from "../lib/api";
 import { EASE, play, reduced } from "../lib/motion";
@@ -8,6 +8,9 @@ import { useStore } from "../store";
 import { useAccount } from "../account/AccountContext";
 import { Avatar } from "../account/Avatar";
 import { ago } from "../lib/time";
+import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
+import { ToastProvider, useToast } from "../ui/Toast";
 
 /** `text`: the name; `desc`: what it is; `rules`: how it's played (wishes from before they were asked for have neither). */
 export type Wish = { id: number; text: string; desc?: string; rules?: string; kind: "game" | "feature"; name: string; votes: number; status: "new" | "planned" | "done"; at: number; voted: boolean; mine: boolean };
@@ -77,6 +80,16 @@ function sorry(code: string, kind: Kind, zh: boolean): string {
 
 /** Ideas for what to add next: anyone can post, anyone can upvote; what got made folds away at the bottom. */
 export function WishlistTab() {
+  // a vote or a change that didn't go through says so for a moment (the toasts live with this tab)
+  return (
+    <ToastProvider>
+      <Wishlist />
+    </ToastProvider>
+  );
+}
+
+function Wishlist() {
+  const toast = useToast();
   const { lang } = useStore();
   const zh = lang === "zh";
   const [wishes, setWishes] = useState<Wish[] | null>(null);
@@ -196,6 +209,7 @@ export function WishlistTab() {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: d.voted, votes: d.votes } : x)) ?? null);
     } catch {
       setWishes((list) => list?.map((x) => (x.id === w.id ? { ...x, voted: w.voted, votes: w.votes } : x)) ?? null);
+      toast(zh ? "没投上，再试一次" : "The vote didn't go through. Try again");
     } finally {
       voting.current.delete(w.id);
     }
@@ -213,7 +227,8 @@ export function WishlistTab() {
       }
       sfx.tap();
     } catch {
-      /* nothing changed */
+      // nothing changed
+      toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
     }
   };
 
@@ -333,23 +348,22 @@ export function WishlistTab() {
       </div>
 
       {failed && !wishes ? (
-        <div className="empty">
-          <p>{zh ? "心愿单暂时打不开。" : "The wishlist didn't load."}</p>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void load()}>
-            {zh ? "再试一次" : "Try again"}
-          </button>
-        </div>
+        <EmptyState
+          tone="error"
+          icon={WifiOff}
+          title={zh ? "心愿单暂时打不开" : "The wishlist didn't load"}
+          body={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"}
+          action={{ label: zh ? "再试一次" : "Try again", onClick: () => void load() }}
+        />
       ) : !wishes ? (
-        <ul className="wish-list" aria-busy="true">
-          {[0, 1, 2].map((i) => (
-            <li key={i} className="wish-item is-ghost" />
-          ))}
-        </ul>
+        // three wishes' worth of shapes, and the slow-network line after two seconds
+        <Skeleton lang={lang} lines={3} height="calc(var(--tap) * 2)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />
       ) : open.length === 0 ? (
-        <div className="empty">
-          <Sparkles size={22} />
-          <p>{made.length ? (zh ? "心愿都实现了，下一个由你来许。" : "Every wish so far came true. Make the next one.") : zh ? "还没有心愿，第一个由你来写。" : "No wishes yet. Write the first one."}</p>
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          title={made.length ? (zh ? "心愿都实现了" : "Every wish so far came true") : zh ? "还没有心愿" : "No wishes yet"}
+          body={made.length ? (zh ? "下一个由你来许" : "Make the next one") : zh ? "第一个由你来写" : "Write the first one"}
+        />
       ) : (
         <ul className="wish-list" ref={list}>
           {open.map(card)}

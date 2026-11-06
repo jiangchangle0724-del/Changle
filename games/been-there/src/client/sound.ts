@@ -347,31 +347,60 @@ const CITY_SOUND: Record<string, () => void> = {
 
 /**
  * Rio's samba school, synthesised, at 100 beats a minute (Latin dance competitions' samba: 50 bars
- * a minute in 2/4): a whistle counts in four beats, then twelve beats of the band (the big surdo
- * heavy on the second beat and answered on the first, the shaker in sixteenths, the tamborim's
- * syncopation, the agogô's two bells marking the change of foot) and one last hit. `delay` is when
- * beat 0 falls, in seconds from now (negative: the band is already playing, and joins in time).
+ * a minute in 2/4): `beats` beats of the band (the big surdo heavy on the second beat and answered
+ * on the first, the shaker in sixteenths, the tamborim's syncopation, the agogô's two bells marking
+ * the change of foot; every eighth beat the snare rolls and the whistle calls the next figure) and
+ * one last hit. `delay` is when beat 0 falls, in seconds from now (negative: the band is already
+ * playing, and joins in time); `beat`, a beat's length in seconds.
+ *
+ * A lesson is 64 beats long: the band is put on the audio clock a few beats ahead as it goes, not all
+ * at once. Returns how to stop it (a pause, the page leaving the lesson).
  */
-export function samba(delay: number, bpm = 100) {
-  if (muted || !ctx || ctx.state !== "running") return;
-  const beat = 60 / bpm;
-  for (let b = 0; b < 17; b++) {
-    const at = delay + b * beat;
-    if (at < -0.02) continue;
-    if (b < 4) {
-      tone(b < 3 ? 2600 : 2500, b < 3 ? 0.12 : 0.42, { type: "sine", vol: 0.07, at, slide: b < 3 ? 2450 : 2250 });
-      continue;
-    }
-    if (b === 16) {
+export function samba(delay: number, beats: number, beat = 0.6): () => void {
+  if (muted || !ctx || ctx.state !== "running") return () => {};
+  const audio = ctx;
+  const t0 = audio.currentTime + delay;
+  let next = Math.max(0, Math.ceil((-delay - 0.02) / beat));
+  const play = (b: number) => {
+    // (when this beat falls, from now)
+    const at = Math.max(0, t0 + b * beat - audio.currentTime);
+    if (b >= beats) {
       tone(55, 0.6, { vol: 0.32, at, slide: 40 });
       burst(0.3, { type: "highpass", freq: 3000, q: 0.7, vol: 0.12, at });
-      continue;
+      return;
     }
-    const second = (b - 4) % 2 === 1;
+    const second = b % 2 === 1;
     tone(second ? 58 : 78, 0.35, { vol: second ? 0.34 : 0.2, at, slide: second ? 44 : 62 });
     for (let k = 0; k < 4; k++) burst(0.03, { type: "highpass", freq: 6000, q: 0.8, vol: k === 0 || k === 3 ? 0.06 : 0.028, at: at + (k * beat) / 4 });
-    for (const k of [[0, 3], [1, 2], [0, 2], [1, 3]][(b - 4) % 4]) burst(0.02, { type: "bandpass", freq: 2600, q: 6, vol: 0.08, at: at + (k * beat) / 4 });
+    for (const k of [[0, 3], [1, 2], [0, 2], [1, 3]][b % 4]) burst(0.02, { type: "bandpass", freq: 2600, q: 6, vol: 0.08, at: at + (k * beat) / 4 });
     tone(second ? 740 : 990, 0.14, { type: "triangle", vol: 0.035, at });
+    // The last beat of a figure: a roll on the snare, and the whistle calls the next one.
+    if (b % 8 === 7 && b < beats - 1) {
+      for (let k = 0; k < 4; k++) burst(0.05, { type: "bandpass", freq: 1900, q: 1.4, vol: 0.05 + k * 0.012, at: at + (k * beat) / 4 });
+      tone(2600, 0.1, { type: "sine", vol: 0.05, at: at + beat / 2, slide: 2450 });
+      tone(2600, 0.1, { type: "sine", vol: 0.05, at: at + (beat * 3) / 4, slide: 2450 });
+    }
+  };
+  const ahead = () => {
+    if (muted || audio.state !== "running") return;
+    while (next <= beats && t0 + next * beat < audio.currentTime + 1.6) play(next++);
+    if (next > beats) clearInterval(timer);
+  };
+  const timer = setInterval(ahead, 400);
+  ahead();
+  return () => clearInterval(timer);
+}
+
+/**
+ * The whistle counting down to a dance: a pip as each of the countdown's `steps` numerals comes up
+ * (5 4 3 2 1, a second each: `step`, in seconds), the last one long. `delay` is when the dance starts,
+ * in seconds from now.
+ */
+export function sambaCount(delay: number, steps: number, step = 1) {
+  for (let n = steps; n >= 1; n--) {
+    const at = delay - n * step;
+    if (at < -0.02) continue;
+    tone(n > 1 ? 2600 : 2500, (n > 1 ? 0.12 : 0.42) * Math.min(1, step), { type: "sine", vol: 0.07, at: Math.max(0, at), slide: n > 1 ? 2450 : 2250 });
   }
 }
 

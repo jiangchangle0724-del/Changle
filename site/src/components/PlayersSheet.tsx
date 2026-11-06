@@ -62,7 +62,7 @@ export function PlayersSheet({ open, onClose }: { open: boolean; onClose: () => 
           <button type="button" className="icon-btn" onClick={() => setSeats((n) => Math.max(2, n - 1))} aria-label="-">
             <Minus size={18} />
           </button>
-          <span className="tabular" style={{ minWidth: 28, textAlign: "center", fontWeight: 800, fontSize: 18 }}>
+          <span className="tabular" style={{ minWidth: 28, textAlign: "center", fontWeight: 800, fontSize: "var(--text-lg)" }}>
             {seats}
           </span>
           <button type="button" className="icon-btn" onClick={() => setSeats((n) => Math.min(15, n + 1))} aria-label="+">
