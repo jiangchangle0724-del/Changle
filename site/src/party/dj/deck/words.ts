@@ -122,3 +122,13 @@ export const DROP_WORDS = {
   early: t("还没到，看倒数", "Not yet. Watch the count"),
   late: t("晚了一点", "A bit late"),
 };
+
+/**
+ * 点歌模式's line under the floor and on the phones (no build-up, no DROP): what happens next.
+ * `song`: one plays on the TV now; `up`: one's next.
+ */
+export function jukeText(song: boolean, up: boolean, zh: boolean): string {
+  if (song) return zh ? "点歌模式：放完马上接下一首" : "Jukebox: the next song follows right after";
+  if (up) return zh ? "点歌模式：下一首几秒后开始" : "Jukebox: the next song starts in a moment";
+  return zh ? "点歌模式：在手机上点歌，一首接一首" : "Jukebox: ask for songs on your phone";
+}

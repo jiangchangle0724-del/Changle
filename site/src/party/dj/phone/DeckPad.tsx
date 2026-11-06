@@ -1,4 +1,4 @@
-import { ChevronsUp, ClipboardPaste, ListMusic, ListOrdered, Search, Shuffle, X } from "lucide-react";
+import { ChevronsUp, ClipboardPaste, Disc3, ListMusic, ListOrdered, Maximize2, Minimize2, Search, Shuffle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { heatLean } from "../../../shared/dj/curve";
@@ -9,7 +9,7 @@ import { haptic } from "../../../lib/sfx";
 import { useStore } from "../../../store";
 import { dataUrl } from "../../../online/config";
 import type { CrateSong } from "../../../shared/dj/types";
-import { DROP_WORDS, hintText, localName, mixSaid, PADS, songName } from "../deck/words";
+import { DROP_WORDS, hintText, jukeText, localName, mixSaid, PADS, songName } from "../deck/words";
 import { ytIdOf, type YtHit } from "../../../shared/dj/youtube";
 import { ytInfo, ytSearch } from "./youtube";
 import { EmptyState } from "../../../ui/EmptyState";
@@ -79,9 +79,10 @@ export function DeckPad({ v }: { v: DjView }) {
   // turntables, the mixer between them, the crossfader, the pads, the build-up and DROP
   return (
     <section className="djk" aria-label={zh ? "打碟台" : "The deck"}>
+      <JukeSwitch v={v} g={g} zh={zh} />
       {d.song && <SongTime v={v} me={me} g={g} zh={zh} nameOf={nameOf} />}
       <p className="djk-hint" aria-live="polite">
-        {hint ? hintText(hint, off, zh, d.local) : zh ? "音乐开始后就能打碟" : "The deck opens when the music starts"}
+        {v.juke && playingNow ? jukeText(!!d.song, !!d.up, zh) : hint ? hintText(hint, off, zh, d.local) : zh ? "音乐开始后就能打碟" : "The deck opens when the music starts"}
       </p>
       <div className="djk-console">
         <Decks v={v} on={on} zh={zh} lyria={lyria} live={live} hand={hand} />
@@ -93,7 +94,8 @@ export function DeckPad({ v }: { v: DjView }) {
             <Pad key={p} pad={p} live={live || (playingNow && !!d.song && OVER_SONG.includes(p))} braking={MOVES.includes(p) && !!d.drop} g={g} zh={zh} />
           ))}
         </div>
-        <BuildDrop v={v} now={now} g={g} zh={zh} live={live} />
+        {/* (点歌模式: no build-up and no DROP) */}
+        {!v.juke && <BuildDrop v={v} now={now} g={g} zh={zh} live={live} />}
       </div>
       <p className="djk-said" aria-live="polite">
         {said.map((s) => (
@@ -102,8 +104,30 @@ export function DeckPad({ v }: { v: DjView }) {
       </p>
       <Requests v={v} me={me} g={g} zh={zh} />
       <Playlist v={v} me={me} g={g} zh={zh} />
-      <Picks v={v} me={me} g={g} zh={zh} side={off} />
+      {!v.juke && <Picks v={v} me={me} g={g} zh={zh} side={off} />}
     </section>
+  );
+}
+
+/**
+ * 点歌模式, the host's switch (Steve on Nov 5: "关闭 drop ... 当成一个点歌器"): no build-up, no DROP and
+ * no picks, the songs asked for one after another, the DJ between them. The others read it on the
+ * line under it.
+ */
+function JukeSwitch({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
+  const { isHost } = useRoom();
+  if (!isHost || v.phase === "end") return null;
+  return (
+    <div className="seg djk-juke" role="group" aria-label={zh ? "歌怎么放" : "How the songs play"}>
+      <button type="button" aria-pressed={!v.juke} onClick={() => g("juke", { on: false })}>
+        <Disc3 size={16} aria-hidden="true" />
+        {zh ? "蓄力 Drop" : "Build and drop"}
+      </button>
+      <button type="button" aria-pressed={!!v.juke} onClick={() => g("juke", { on: true })}>
+        <ListMusic size={16} aria-hidden="true" />
+        {zh ? "点歌模式" : "Jukebox"}
+      </button>
+    </div>
   );
 }
 
@@ -121,7 +145,20 @@ function SongTime({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; zh: b
       <span className="djk-song-title">
         {s.by === me ? (zh ? `电视上在放你点的整首${name ? ` ${name}` : ""}` : `The TV plays yours, whole${name ? `: ${name}` : ""}`) : zh ? `电视上在放 ${nameOf(s.by)} 点的整首${name ? ` ${name}` : ""}` : `The TV plays ${nameOf(s.by)}'s song, whole${name ? `: ${name}` : ""}`}
       </span>
-      <span className="djk-song-note">{zh ? "放完 DJ 接一段，再放歌单里的下一首。气笛、警笛这些音效照样能按" : "The DJ plays a while when it ends, then the next song on the playlist. The air horn, the siren and the other sounds still play"}</span>
+      <span className="djk-song-note">
+        {v.juke
+          ? zh
+            ? "放完马上接歌单里的下一首，DJ 只垫几秒。气笛、警笛这些音效照样能按"
+            : "The next song on the playlist follows right after, the DJ just for a few seconds. The air horn, the siren and the other sounds still play"
+          : zh
+            ? "放完 DJ 接一段，再放歌单里的下一首。气笛、警笛这些音效照样能按"
+            : "The DJ plays a while when it ends, then the next song on the playlist. The air horn, the siren and the other sounds still play"}
+      </span>
+      {/* the video over the whole TV, or back in its corner (anyone at the table) */}
+      <button type="button" className="btn btn-ghost btn-block" aria-pressed={!!v.full} onClick={() => g("full", { on: !v.full })}>
+        {v.full ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+        {v.full ? (zh ? "电视上回到小窗" : "Back to the corner on the TV") : zh ? "电视上全屏看视频" : "Video over the whole TV"}
+      </button>
       {can && (
         <button type="button" className="btn btn-ghost btn-block" onClick={() => g("songskip")}>
           {zh ? "切歌" : "Skip it"}
@@ -487,7 +524,7 @@ function Playlist({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
           })}
         </ol>
       ) : (
-        <p className="djk-list-empty">{zh ? "还没人点歌。点的歌和 DJ 轮流放" : "Nobody has asked for a song yet. The songs and the DJ take turns"}</p>
+        <p className="djk-list-empty">{v.juke ? (zh ? "还没人点歌。点的歌一首接一首放" : "Nobody has asked for a song yet. They play one after another") : zh ? "还没人点歌。点的歌和 DJ 轮流放" : "Nobody has asked for a song yet. The songs and the DJ take turns"}</p>
       )}
     </section>
   );
@@ -678,9 +715,13 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   const standing =
     mine && mine.at !== "now"
       ? mine.at === "up"
-        ? zh
-          ? `下一首就是你点的 ${songName(mine.r, zh) ?? ""}，大家蓄力 Drop 进去${mine.r.ytNo ? "。YouTube 不让这首在别的网站放，Drop 进去放 DJ 的 Remix" : ""}`
-          : `Yours is up next: ${songName(mine.r, zh) ?? ""}. Build up and drop into it${mine.r.ytNo ? ". YouTube won't play it outside YouTube, so its drop plays the DJ's remix" : ""}`
+        ? v.juke
+          ? zh
+            ? `下一首就是你点的 ${songName(mine.r, zh) ?? ""}，前一首放完就开始${mine.r.ytNo ? "。YouTube 不让这首在别的网站放，放 DJ 的 Remix" : ""}`
+            : `Yours is up next: ${songName(mine.r, zh) ?? ""}. It starts when the one before ends${mine.r.ytNo ? ". YouTube won't play it outside YouTube, so the DJ plays its remix" : ""}`
+          : zh
+            ? `下一首就是你点的 ${songName(mine.r, zh) ?? ""}，大家蓄力 Drop 进去${mine.r.ytNo ? "。YouTube 不让这首在别的网站放，Drop 进去放 DJ 的 Remix" : ""}`
+            : `Yours is up next: ${songName(mine.r, zh) ?? ""}. Build up and drop into it${mine.r.ytNo ? ". YouTube won't play it outside YouTube, so its drop plays the DJ's remix" : ""}`
         : v.shuffle
           ? zh
             ? `你点的歌在歌单里，随机放`
@@ -731,9 +772,13 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
                       ? zh
                         ? "输入歌名或歌手，或者贴一个 YouTube 链接。今天的 YouTube 自动搜索用完了，贴链接照样放整首"
                         : "Type a song or an artist, or paste a YouTube link. Today's YouTube searches are used up: a link still plays it whole"
-                      : zh
-                        ? "输入歌名或歌手，或者贴 YouTube 链接。Drop 进去之后电视上放 YouTube 上的整首，再接 DJ 按它的风格做的 Remix"
-                        : "Type a song or an artist, or paste a YouTube link. After its drop the TV plays the whole song from YouTube, then the DJ's remix in its style"}
+                      : v.juke
+                        ? zh
+                          ? "输入歌名或歌手，或者贴 YouTube 链接。点的歌按顺序在电视上放 YouTube 上的整首"
+                          : "Type a song or an artist, or paste a YouTube link. The TV plays them whole from YouTube, in turn"
+                        : zh
+                          ? "输入歌名或歌手，或者贴 YouTube 链接。Drop 进去之后电视上放 YouTube 上的整首，再接 DJ 按它的风格做的 Remix"
+                          : "Type a song or an artist, or paste a YouTube link. After its drop the TV plays the whole song from YouTube, then the DJ's remix in its style"}
         </span>
       )}
       {need ? (

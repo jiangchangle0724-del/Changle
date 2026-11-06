@@ -82,6 +82,8 @@ function fresh(set: number): RoomState {
     mine: false,
     voice: true,
     shuffle: false,
+    juke: false,
+    full: false,
     dance: {},
     danceBar: { bar: -1, n: 0, good: 0 },
     combo: 0,
@@ -99,6 +101,8 @@ function norm(s: RoomState): RoomState {
   s.mine ??= false;
   s.voice ??= true;
   s.shuffle ??= false;
+  s.juke ??= false;
+  s.full ??= false;
   s.dance ??= {};
   s.danceBar ??= { bar: -1, n: 0, good: 0 };
   s.combo ??= 0;
@@ -152,7 +156,7 @@ function arm(s: RoomState, api: Api) {
 function land(s: RoomState, api: Api) {
   const d = s.deck;
   const dr = d.drop!;
-  d.last = { at: dr.at, bar: dr.bar, hits: dr.hits, auto: dr.hits.length === 0, to: dr.to, style: styleOn(d, dr.to) ?? d.a };
+  d.last = { at: dr.at, bar: dr.bar, hits: dr.hits, auto: dr.hits.length === 0, to: dr.to, style: styleOn(d, dr.to) ?? d.a, ...(dr.quiet ? { quiet: true } : {}) };
   for (const h of dr.hits) if (h.grade === "perfect") d.perfects[h.pid] = (d.perfects[h.pid] ?? 0) + 1;
   const was = onAir(d);
   d.fader = dr.to === "b" ? 1 : 0;
@@ -167,7 +171,7 @@ function land(s: RoomState, api: Api) {
   if (onAir(d) !== was) swapped(s, api);
   syncMix(s);
   // the drop didn't go into the song up next (its deck wasn't playing it yet): it waits again
-  if (d.up) api.timer("req", api.now + DECK.reqWaitMs);
+  if (d.up) api.timer("req", api.now + (s.juke ? DECK.jukeWaitMs : DECK.reqWaitMs));
   else nextReq(s, api);
   refill(s, api);
   // a host's song still ending (the drop stayed on it): the DJ tries again in a moment
@@ -208,13 +212,15 @@ function swapped(s: RoomState, api: Api) {
 /**
  * 真歌时间 is over (the big screen says the song ended, someone skipped it, or the time ran out): the
  * DJ comes back, and plays a while before it drops into the next song asked for by itself (songs and
- * the DJ take turns); the table can build up and drop into it sooner.
+ * the DJ take turns); the table can build up and drop into it sooner. 点歌模式: the next song in a
+ * few seconds, the DJ just between them.
  */
 function songOver(s: RoomState, api: Api) {
   const d = s.deck;
   d.song = null;
   api.clear("song");
-  if (d.up && !d.drop) api.timer("req", api.now + DECK.songGapMs);
+  if (!d.up) nextReq(s, api);
+  if (d.up && !d.drop) api.timer("req", api.now + (s.juke ? DECK.jukeGapMs : DECK.songGapMs));
 }
 
 /** The recap's record (今晚回顾): what's on the air, kept each time it changes. */
@@ -271,7 +277,7 @@ function nextReq(s: RoomState, api: Api) {
   else d.a = r.style;
   d.votes = {};
   syncMix(s);
-  api.timer("req", api.now + DECK.reqWaitMs);
+  api.timer("req", api.now + (s.juke ? DECK.jukeWaitMs : DECK.reqWaitMs));
 }
 
 /**
@@ -286,14 +292,18 @@ function autoDrop(s: RoomState, api: Api, key: "req" | "end") {
     api.timer(key, api.now + 5000);
     return;
   }
-  const side = cued(d, s.source === "lyria");
+  // 点歌模式 doesn't wait for the DJ's deck to have a YouTube song's style: the song plays whole
+  // (the DJ quiet under it), and that deck has its length to get there
+  const juke = s.juke;
+  const side = juke && d.up?.yt && key === "req" ? offAir(d) : cued(d, s.source === "lyria");
   if (!side) {
     api.timer(key, api.now + (key === "end" ? 3000 : 5000));
     return;
   }
-  const t = aim(d.grid, api.now);
-  d.drop = { ...t, misses: 0, auto: true, hits: [], to: side };
-  d.charge = 1;
+  // (点歌模式: the switch, on a bar a few seconds on, no countdown and no boom)
+  const t = juke ? aim(d.grid, api.now, DECK.jukeBeats, 1) : aim(d.grid, api.now);
+  d.drop = { ...t, misses: 0, auto: true, hits: [], to: side, ...(juke ? { quiet: true } : {}) };
+  d.charge = juke ? 0 : 1;
   d.chargeAt = api.now;
   api.timer("drop", t.at);
 }
@@ -623,7 +633,7 @@ export const dj: GameDef<RoomState> = {
       case "drop": {
         // DROP counts in the countdown only, once a phone
         const d = s.deck;
-        if (!playing(s.phase) || !d.drop || d.drop.hits.some((h) => h.pid === pid)) return api.quiet();
+        if (!playing(s.phase) || !d.drop || d.drop.quiet || d.drop.hits.some((h) => h.pid === pid)) return api.quiet();
         // when it was pressed, by the phone's clock (never later than now, nor much earlier)
         const c = typeof g.c === "number" && Number.isFinite(g.c) ? Math.min(api.now, Math.max(api.now - 1000, g.c)) : api.now;
         const gr = grade(d.drop, d.grid, c, api.now);
@@ -657,8 +667,8 @@ export const dj: GameDef<RoomState> = {
       case "charge": {
         const d = s.deck;
         const n = num(g.n, 0, DECK.maxTaps);
-        // (while a whole song plays, the deck waits)
-        if (!playing(s.phase) || d.drop || d.song || n === null) return api.quiet();
+        // (while a whole song plays, the deck waits; 点歌模式 has no build-up)
+        if (!playing(s.phase) || d.drop || d.song || s.juke || n === null) return api.quiet();
         d.pending += Math.round(n);
         // the taps are added a few times a second, and only then does the table hear about it (a
         // phone says 0 once its taps stop, so the last ones are never left waiting)
@@ -673,7 +683,7 @@ export const dj: GameDef<RoomState> = {
         const d = s.deck;
         // (while a drop is on its way the picks wait: it lands on the deck the floor had cued; and
         // while a song asked for is up next: the deck off the air is its)
-        if (s.phase === "end" || d.drop || d.up || d.local || !STYLE_IDS.includes(style) || (d.voteAt[pid] ?? -Infinity) > api.now - DECK.voteGapMs) return api.quiet();
+        if (s.phase === "end" || s.juke || d.drop || d.up || d.local || !STYLE_IDS.includes(style) || (d.voteAt[pid] ?? -Infinity) > api.now - DECK.voteGapMs) return api.quiet();
         d.voteAt[pid] = api.now;
         const mine = d.votes[pid];
         delete d.votes[pid];
@@ -736,6 +746,7 @@ export const dj: GameDef<RoomState> = {
         next.mine = s.mine;
         next.voice = s.voice;
         next.shuffle = s.shuffle;
+        next.juke = s.juke;
         // the night's dancing, like its 🔥
         next.dance = s.dance;
         Object.assign(s, next);
@@ -857,6 +868,30 @@ export const dj: GameDef<RoomState> = {
         const on = g.on === true;
         if (!host || s.shuffle === on) return api.quiet();
         s.shuffle = on;
+        return;
+      }
+      case "juke": {
+        // the host, from their phone: 点歌模式 (no build-up, no DROP, no picks: the songs asked for
+        // one after another), or the deck as it was
+        const on = g.on === true;
+        if (!host || s.juke === on) return api.quiet();
+        s.juke = on;
+        const d = s.deck;
+        if (on) {
+          d.charge = 0;
+          d.pending = 0;
+          d.chargeAt = api.now;
+          d.votes = {};
+        }
+        // a song up next waits as long as the deck it's in now says (a song playing: it waits for that)
+        if (d.up && !d.drop) api.timer("req", api.now + (on ? DECK.jukeWaitMs : DECK.reqWaitMs));
+        return;
+      }
+      case "full": {
+        // anyone at the table: the song's video over the whole TV, or back in its corner
+        const on = g.on === true;
+        if (s.full === on) return api.quiet();
+        s.full = on;
         return;
       }
       default:
@@ -1142,6 +1177,8 @@ export const dj: GameDef<RoomState> = {
       mine: s.mine,
       voice: s.voice,
       shuffle: s.shuffle,
+      juke: s.juke,
+      full: s.full,
       dance: s.dance,
       combo: s.combo,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },

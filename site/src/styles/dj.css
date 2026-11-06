@@ -444,59 +444,73 @@
   box-shadow: 0 0 12px var(--gel-lemon);
 }
 
-/* 真歌时间: a whole song from YouTube, in YouTube's own player: ready in a corner while it's up next
-   (top right, under the code to scan), big in the middle of the stage from its drop's bar. One
-   player all night: out of sight between songs (paused, never playing), never moved out of the page
-   (an iframe moved in the page loads again) */
+/* 真歌时间: a whole song from YouTube, in YouTube's own player, in a corner (top right, under the
+   code to scan): ready there while it's up next, and playing there, the floor and the coach in
+   sight (Steve on Nov 5: "不全屏的时候...只保持现在的位置大小"); over the whole TV when someone
+   asks from their phone. One player all night: out of sight between songs (paused, never playing),
+   never moved out of the page (an iframe moved in the page loads again) */
 .dj-tube {
   position: absolute;
-  top: 250px;
-  left: 350px;
+  top: 330px;
+  left: 1120px;
   z-index: 11;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 900px;
-  padding: 16px 18px 14px;
-  border-radius: 28px;
-  background: rgba(10, 6, 18, 0.94);
-  box-shadow:
-    inset 0 0 0 1px var(--line-soft),
-    0 30px 70px rgba(0, 0, 0, 0.6);
-  transition:
-    top var(--dur-emphasis) var(--ease-out),
-    left var(--dur-emphasis) var(--ease-out),
-    width var(--dur-emphasis) var(--ease-out);
-}
-.dj-tube.is-next,
-.dj-tube.is-off {
-  top: 330px;
-  left: 1120px;
-  width: 440px;
   gap: var(--space-2);
+  width: 440px;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--r-panel);
+  background: rgba(10, 6, 18, 0.94);
   box-shadow:
     var(--shadow-flat),
     0 0 0 3px color-mix(in oklab, var(--gel) 40%, transparent),
     var(--shadow-float);
+  transition:
+    top var(--dur-emphasis) var(--ease-out),
+    left var(--dur-emphasis) var(--ease-out),
+    width var(--dur-emphasis) var(--ease-out),
+    padding var(--dur-emphasis) var(--ease-out),
+    border-radius var(--dur-emphasis) var(--ease-out);
 }
 .dj-tube.is-off {
   visibility: hidden;
   pointer-events: none;
   transition: none;
 }
+/* the song over the whole TV (the stage is 16 by 9, like the video); a tap it wants still says so */
+.dj-tube.is-full {
+  top: 0;
+  left: 0;
+  z-index: 40;
+  gap: 0;
+  width: 1600px;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.dj-tube.is-full .dj-tube-head,
+.dj-tube.is-full .dj-tube-note:not(.is-ask) {
+  display: none;
+}
+.dj-tube.is-full .dj-tube-slot {
+  border-radius: 0;
+}
+.dj-tube.is-full .dj-tube-note.is-ask {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  transform: translateX(-50%);
+}
 .dj-tube-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   color: var(--moon);
-  font-size: 24px;
-  font-weight: 800;
-}
-.dj-tube.is-next .dj-tube-head,
-.dj-tube.is-off .dj-tube-head {
   font-size: var(--text-lg);
+  font-weight: 800;
 }
 .dj-tube-slot {
   position: relative;
