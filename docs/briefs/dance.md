@@ -52,20 +52,19 @@
 
 ## 现在
 
-- 已合并：A1 对时、C1 动作库（#95）、C5 学跳流程（#107），动作库有自己的 CI（#106）。
-- 开着等 Steve 点头（先合并 #202）：
-  - #202：一支舞从学到跳到结算，手机按钮代替传感器。另一个审查代理看过代码，找出 5 个问题，都修了，每个都加了测试。本地全部测试和浏览器检查都过了（整支舞、对时、一支真舞自己从热身放到结算、跳到一半刷新音箱端）。
-  - #203：这份档案，和三张 Codex 卡：C2 重写，新写 C3 电视画面、C4 手机画面。
-- 现在 changle.ca/party 线上还是 A1（节拍器）。#202 合并后，线上就能用按钮跳完整的一支舞。
+- 已合并：A1 对时、C1 动作库（#95）、C5 学跳流程（#107），动作库有自己的 CI（#106）；11-05 一支舞从学到跳到结算，手机按钮代替传感器（#202）；这份档案和三张 Codex 卡：C2 重写，新写 C3 电视画面、C4 手机画面（#203）。
+- 线上 changle.ca/party 能用按钮跳完整的一支舞。#202 部署后在正式站上用脚本跑过：对时（`timing-check.cjs`：三台手机的时钟误差都不到 1 毫秒，校准量出 179 毫秒，设的是 180，每拍闪光离拍子最多 11 毫秒）；一支真舞（一次性的脚本，没进仓库：音箱端加三台手机，主人选「直接跳」开始「广场初体验」，热身一分钟后房间自己进到跳，两分钟跳完看结果，最后结束房间）。一台每拍点、一台每拍晚 90 毫秒点、一台不点：结算、三个奖、6 次烟花、每台手机自己的那一行都对，页面没有报错。
+- 电视和手机的画面还是「能用」的样子，好看、3 米外看得清是 C3、C4。
 
 ## 还剩什么
 
-- 仓库在 GitHub 上改名叫 `jiangchangle0724-del/Changle` 了（旧名字会转过去）。11-05 Steve 同意后，这个对话按新名字接上了。Project 的说明里仓库名还是旧的，要 Steve 在 Project 设置里改。
-- Cloudflare：Worker `party` 的 build watch paths 加 `games/dance/*`。房间和页面现在读动作库，不加的话，只改了 `games/dance` 的合并不会重新部署。要 Steve 在 Cloudflare 里 Worker `party` 的构建设置里加（和当初接 Git 时填的地方一样）。不急：#202 也改了 `games/party-server`，合并时照常部署；以后只改 `games/dance` 的合并才需要它。
+- Project 的说明里仓库名还是旧的 `jiangchangle0724-del/changle-ca`，要改成 `jiangchangle0724-del/Changle`：GitHub 上改了名，推代码旧名字还能用，开 PR 要按新名字接仓库。在 claude.ai 打开 Project「Changle.ca」改说明。
+- Cloudflare：Worker `party` 的 build watch paths 加 `games/dance/*`。房间和页面读动作库，不加的话，只改了 `games/dance` 的合并不会重新部署。在 Cloudflare 打开 Worker `party`，Settings → Build 里的 Build watch paths 加一行 `games/dance/*`，保存。不急：以后只改 `games/dance` 的合并才需要它。
+- 上面两处都要登录。11-05 这个对话在 Steve 电脑上的浏览器里打开过，Cloudflare 和 claude.ai 都没登录，Steve 不在家，没改。Steve 自己改，或者登录以后让这个对话来点。
 - 真机测试（要 Steve）：Mac 或 iPad 投到 Apple TV，iPhone 扫码。先照 `docs/field-notes/2026-11-01.md` 第 2 节测对时；再跳一支简单舞：听鼓点和手机闪光是不是踩在一起，每一拍点按钮，看手机说「踩准了」准不准。
 - 下一步的顺序（建议）：C3、C4 发给 Codex（C3 先，它把主站的 tokens 接进来）；C2 可以同时发（先用假骨架把流水线做通）；A2 传感器（要真 iPhone 测）；A5 六首歌（Lyria 生成要花钱，先问 Steve）；A4 3D 教练（要 20 个动作的录像）。
 - C2 和 A4 要的录像：找会跳的朋友录 20 个动作，每个录 4 遍，用 Rokoko Video 或 DeepMotion 转成 Mixamo 骨骼的 FBX（`docs/codex-tasks/dance-C2-asset-pipeline.md`）。
-- 首页卡片还在「即将上线」。按钮版能玩以后，要不要先上首页，等 Steve 定。
+- 首页卡片还在「即将上线」。按钮版现在能玩了，要不要挪进首页的游戏里，等 Steve 定（怎么挪见「定过的事」）。
 - 方案里还没做的：每 3 首提醒喝水、30 分钟休息（C8）；电视的「背面跟随」视角和镜子提示（等 3D 教练）；困难模式比对动作形状（A3）；打分黄金集（C7）。
 
 ## 交给别的对话
@@ -76,6 +75,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-05 docs: 一起跳's brief after its first dance; Codex cards C2 (rewritten), C3 and C4（#203）
 - 2026-11-05 一起跳: fixes from a review — the speaker's clock across a reload, restarts, ids, dropped bars（#202）
 - 2026-11-05 一起跳: one dance from learning it to the results, a button standing in for the motion sensor（同上）
 - 2026-11-05 dance: the library's types written out, so the room and the pages import it without zod（同上）
@@ -96,3 +96,4 @@
 - 2026-11-05 Steve 说「你来帮我做」：按建议留在 /party，做了一支舞从学到跳到结算（按钮代替传感器），重写 C2 卡，写了 C3、C4 卡。浏览器检查时发现并修了：页面的按钮样式盖掉了 `hidden`，「看结果」一直露着，早按会被房间拒绝；电视 720p 时下半截（接下来、连击条）掉出屏幕。
 - 2026-11-05 另一个代理审查代码，找出并修了：音箱端刷新后房间的时钟从 0 重来（A1 起就有）；这一段再来在倒数时再按一次会退两段、能清掉全部成绩；用 `toString` 这类名字当手机 id 能让结算出错；陌生的舞的 id 会一直存在内存里；断网时的小节丢了。又顺手修了：倒数第一拍常常来不及放（现在点了以后等 0.6 秒再倒数）；点按钮的时间按手指按下的那一刻算。仓库在 GitHub 上改了名，开 PR 要 Steve 同意按新名字接。
 - 2026-11-05 早上 Steve 同意按新名字接仓库：开了 #202（代码）和 #203（档案和卡）。
+- 2026-11-05 晚上 Steve 说「合并」。main 往前走了 151 个提交，HANDOFF.md 的表撞了一行（main 加了 hang-on 那行），把 main 合进 #202，两行都留；本地测试和 CI 都过了，合并 #202。Cloudflare 部署好以后在正式站上跑了对时和一支真舞，都过了；再合并 #203。Project 说明的仓库名和 Cloudflare 的 watch path 要登录才能改，没改（见「还剩什么」）。
