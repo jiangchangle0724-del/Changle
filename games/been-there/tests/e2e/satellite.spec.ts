@@ -184,8 +184,10 @@ test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自�
   const flown = fs.find((f) => done(f) && f.hiddenFirst);
   expect(flown, `a flight flown on the map (seen: ${JSON.stringify(fs.map((f) => [f.from, f.to, f.hiddenFirst, !!f.flew, !!f.landed]))})`).toBeTruthy();
   const f = flown!;
-  // It waited for the token to walk round the ring and land, then took off.
-  expect(f.flew! - f.added, "the flight takes off after the token is down").toBeGreaterThan(500);
+  // It waited for the token to walk round the ring and land, then took off. (By the clock of the
+  // walk: a busy machine may draw the flight only late in the walk, so how long it was there before
+  // it took off varies, 416 ms once on GitHub. One that took off at once would show 0 to 16.)
+  expect(f.flew! - f.added, "the flight takes off after the token is down").toBeGreaterThan(200);
   // The token flew it: it moved, frame after frame, toward the city it lands on, and then stepped off
   // the map. (A busy machine may draw only a few of its frames: it's where they put it that counts.)
   expect(f.moves.length, "the token moves along the route").toBeGreaterThanOrEqual(2);

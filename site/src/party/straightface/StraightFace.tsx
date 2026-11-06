@@ -4,16 +4,18 @@
  * `privateView` allows the phone's holder to see and what `publicView` allows the table to see.
  */
 import { Tag } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import { CARDS, PACKS, PACK_NAMES, type Pack } from "../../data/straightface";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CARDS, defaultPacks, PACKS, type Pack } from "../../data/straightface";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { GAME_BY_ID } from "../../games/registry";
 import { sfx } from "../../lib/sfx";
+import { BACKDROP } from "./art";
+import { cue } from "./sounds";
 import { createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX_PLAYERS, MIN_PLAYERS, privateView, publicView, reduce, type Deps } from "../../shared/straightface/engine";
 import type { GameEvent, GameState, Level, PenaltyWhy } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace, PassCurtain } from "../common";
-import { Deltas, HoldToPeek, Lines, OrderStrip, PickOne, RevealSequence, SpeakerRing, TermCard, useSay, type RevealItem } from "./parts";
+import { Deltas, HoldToPeek, Lines, OrderStrip, PackPicker, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useSay, type RevealItem } from "./parts";
 import { S } from "./text";
 import "../../styles/party.css";
 import "./straightface.css";
@@ -30,7 +32,11 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
 
   // what the host chose before the first round
   const [level, setLevel] = useState<Level>(2);
-  const [packs, setPacks] = useState<Pack[]>([...PACKS]);
+  const [packs, setPacks] = useState<Pack[]>(() => defaultPacks(lang));
+  const packsTouched = useRef(false);
+  useEffect(() => {
+    if (!packsTouched.current) setPacks(defaultPacks(lang));
+  }, [lang]);
   const [seeds, setSeeds] = useState(true);
   const [bets, setBets] = useState(true);
 
@@ -78,7 +84,8 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     setCurtainFor(null);
     setRevealShown(false);
     setMasterFor(null);
-    sfx.cardSlide();
+    cue.deal();
+    cue.termUp();
   };
 
   const startRound = () => {
@@ -88,7 +95,8 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     setCurtainFor(null);
     setRevealShown(false);
     setMasterFor(null);
-    sfx.cardSlide();
+    cue.deal();
+    cue.termUp();
   };
 
   const pub = game ? publicView(game, deps) : null;
@@ -101,7 +109,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
   const handTo = (g: GameState) => {
     const next = publicView(g, deps).phoneHolderId;
     setCurtainFor(next);
-    sfx.whoosh();
+    cue.handOff();
   };
 
   const peeked = () => {
@@ -113,7 +121,9 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
   const bet = (target: string) => {
     if (!holder) return;
     const next = act({ type: "BET", playerId: holder, targetId: target });
-    if (next) handTo(next);
+    if (!next) return;
+    cue.bet(Object.keys(next.current?.bets ?? {}).length);
+    handTo(next);
   };
 
   const nextSpeaker = () => {
@@ -122,19 +132,19 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     setTagOpen(false);
     if (next.phase === "bets") handTo(next);
     else if (next.phase === "accuse") setCurtainFor(null);
-    else sfx.tap();
+    else cue.speakerUp();
   };
 
   const tag = (target: string) => {
     if (!judgeId) return;
-    act({ type: "TAG_SUSPECT", byPlayerId: judgeId, targetId: target });
+    if (act({ type: "TAG_SUSPECT", byPlayerId: judgeId, targetId: target })) cue.tag();
     setTagOpen(false);
   };
 
   const accuse = (target: string) => {
     if (!judgeId) return;
     const next = act({ type: "ACCUSE", byPlayerId: judgeId, targetId: target });
-    if (next) sfx.reveal();
+    if (next) cue.accuse();
   };
 
   // penalties land one stamp after another; the master bluffer's is a pick first
@@ -150,6 +160,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     const plain = r.result.penalties.filter((p) => p.why !== "master").map((p) => ({ who: p.playerId, why: p.why }));
     const master = r.result.penalties.find((p) => p.why === "master");
     setMasterFor(master?.playerId ?? null);
+    if (master) window.setTimeout(() => cue.master(), 300);
     window.setTimeout(() => stamp(plain), 400);
   };
   const masterPick = (target: string) => {
@@ -161,7 +172,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
 
   const nextRound = () => {
     const next = act({ type: "NEXT_ROUND" });
-    if (next?.phase === "finished") sfx.win();
+    if (next?.phase === "finished") cue.finale();
   };
 
   const levelLabel = (l: Level) => say(l === 1 ? S.level1 : l === 2 ? S.level2 : S.level3);
@@ -183,6 +194,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     const bad = n < MIN_PLAYERS || n > MAX_PLAYERS;
     body = (
       <div className="stack sf-setup">
+        <RoleCast />
         <div className="panel setup-panel">
           <span className="field-label">{say(S.level)}</span>
           <div className="seg" role="group" aria-label={say(S.level)}>
@@ -192,23 +204,16 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
               </button>
             ))}
           </div>
-          <span className="field-label">{say(S.packs)}</span>
-          <div className="sf-packs" role="group" aria-label={say(S.packs)}>
-            {PACKS.map((p) => {
-              const on = packs.includes(p);
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  className={`chip ${on ? "chip-selected" : ""}`}
-                  aria-pressed={on}
-                  onClick={() => setPacks((x) => (on ? (x.length > 1 ? x.filter((y) => y !== p) : x) : [...x, p]))}
-                >
-                  {lang === "zh" ? PACK_NAMES[p].zh : PACK_NAMES[p].en}
-                </button>
-              );
-            })}
-          </div>
+          <span className="field-label">
+            {say(S.packs)} <small className="sf-sub-inline">{say(S.packsPicked, { n: packs.length })}</small>
+          </span>
+          <PackPicker
+            picked={packs}
+            onChange={(next) => {
+              packsTouched.current = true;
+              setPacks(next);
+            }}
+          />
           <div className="settings-row ink">
             <span>
               {say(S.seedsOn)}
@@ -245,10 +250,13 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     turn = judgeId ?? undefined;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={pub.term!} level={pub.level} lead={say(S.termUp)} big />
-        <p className="hint sf-center">
-          {say(S.judge)}: <strong>{nameOf(judgeId)}</strong> · {say(S.showTable)}
-        </p>
+        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} lead={say(S.termUp)} big />
+        <div className="sf-judge-line">
+          <RoleArt role="judge" size={64} />
+          <p className="hint">
+            {say(S.judge)}: <strong>{nameOf(judgeId)}</strong> · {say(S.showTable)}
+          </p>
+        </div>
       </div>
     );
     actions = (
@@ -269,7 +277,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     const toJudge = curtainFor === judgeId;
     body = (
       <div className="stack sf-stage">
-        {!toJudge && pub.term && <TermCard term={pub.term} level={pub.level} />}
+        {!toJudge && pub.term && <TermCard term={pub.term} pack={pub.pack} level={pub.level} />}
         <PassCurtain name={nameOf(curtainFor)} note={toJudge ? say(S.backToJudge) : pub.phase === "bets" ? say(S.betHint) : undefined} onReady={() => setCurtainFor(null)} />
       </div>
     );
@@ -277,7 +285,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     turn = holder;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={pub.term!} level={pub.level} />
+        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} />
         <HoldToPeek key={holder} name={nameOf(holder)} view={holderView} seconds={pub.timers.peek} onDone={peeked} />
       </div>
     );
@@ -289,7 +297,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     const tagged = r.suspectId;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={pub.term!} level={pub.level} />
+        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} />
         {idx < 0 ? (
           <div className="panel sf-panel">
             <span className="field-label">{say(S.order)}</span>
@@ -344,7 +352,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     turn = holder;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={pub.term!} level={pub.level} />
+        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} />
         <p className="sup-ask">{say(S.betWho, { name: nameOf(holder) })}</p>
         <PickOne people={pub.speakOrder.filter((id) => id !== holder).map((id) => ({ id, name: names[id] }))} onPick={bet} />
       </div>
@@ -354,8 +362,11 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     const tagged = r.suspectId;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={pub.term!} level={pub.level} />
-        <p className="sup-ask">{say(S.accuseWho, { name: nameOf(judgeId) })}</p>
+        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} />
+        <div className="sf-judge-line">
+          <RoleArt role="judge" size={64} />
+          <p className="sup-ask">{say(S.accuseWho, { name: nameOf(judgeId) })}</p>
+        </div>
         <p className="hint sf-center">{say(S.accuseHint)}</p>
         <PickOne
           people={pub.speakOrder.map((id) => ({ id, name: names[id] }))}
@@ -372,7 +383,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
       {
         key: "truth",
         node: (
-          <TermCard term={pub.term!} level={pub.level} lead={say(S.truth)}>
+          <TermCard term={pub.term!} pack={pub.pack} level={pub.level} lead={say(S.truth)}>
             <p className="sf-def">{lang === "zh" ? rv.definition.zh : rv.definition.en}</p>
           </TermCard>
         ),
@@ -391,6 +402,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
         key: "honest",
         node: (
           <div className="sf-honest">
+            <RoleArt role="honest" size={96} />
             <span className="hint">{say(S.honestWas)}</span>
             <NameFace name={nameOf(rv.honestId)} size={64} />
             <strong>{nameOf(rv.honestId)}</strong>
@@ -476,9 +488,19 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     } else {
       body = (
         <div className="stack sf-stage">
-          <RevealSequence key={r.index} items={items} onAllShown={allShown} />
+          <RevealSequence
+            key={r.index}
+            items={items}
+            onAllShown={allShown}
+            onStep={(key) => {
+              if (key === "honest") cue.verdict(res.outcome === "judge_right");
+              else if (key === "points") cue.points();
+              else if (key !== "truth") sfx.tap();
+            }}
+          />
           {revealShown && masterFor && (
             <div className="panel sf-panel sf-master">
+              <RoleArt role="bluffer" size={80} className="sf-master-art" />
               <p className="sup-ask">{say(S.masterPicks, { name: nameOf(masterFor), penalty: pen.isCustom ? say(S.penaltyWord) : say(S.drinkWord) })}</p>
               <PickOne people={players.filter((p) => p.id !== masterFor).map((p) => ({ id: p.id, name: p.name }))} onPick={masterPick} size={50} />
             </div>
@@ -498,7 +520,10 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
 
   return (
     <GameShell title={GAME_BY_ID.straightface.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} status={status} roster={{ turn }} actions={actions}>
-      <div className="sf">{body}</div>
+      <div className="sf">
+        <div className="sf-backdrop" aria-hidden="true" style={{ backgroundImage: `url(${BACKDROP})` }} />
+        {body}
+      </div>
     </GameShell>
   );
 }

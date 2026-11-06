@@ -13,7 +13,28 @@ export interface Phone {
 
 /** What the running test opened (phones, a big screen): closed when it ends, by `closeAll`. */
 const opened: BrowserContext[] = [];
-export const track = (ctx: BrowserContext) => void opened.push(ctx);
+export const track = (ctx: BrowserContext) => {
+  opened.push(ctx);
+  void quietApple(ctx);
+};
+
+const quieted = new WeakMap<BrowserContext, Promise<void>>();
+/**
+ * Apple's song lookup (a second visit's local hit) answered from here, with no song, for every
+ * context a test opens: no test waits on Apple's servers, nor fails when they turn the page away
+ * (WebKit reports that as a page error). `local.spec.ts` answers it with a song of its own.
+ */
+export function quietApple(ctx: BrowserContext): Promise<void> {
+  const had = quieted.get(ctx);
+  if (had) return had;
+  const done = ctx
+    .route(/^https:\/\/itunes\.apple\.com\/lookup/, (route) =>
+      route.fulfill({ headers: { "access-control-allow-origin": "*" }, contentType: "text/javascript; charset=utf-8", body: JSON.stringify({ resultCount: 0, results: [] }) }),
+    )
+    .then(() => undefined);
+  quieted.set(ctx, done);
+  return done;
+}
 
 /**
  * Close everything the test opened. A context made with browser.newContext() otherwise outlives its
@@ -27,6 +48,7 @@ export async function closeAll() {
 export async function newPhone(browser: Browser, name: string, contextOptions: Parameters<Browser["newContext"]>[0]): Promise<Phone> {
   const ctx = await browser.newContext(contextOptions);
   track(ctx);
+  await quietApple(ctx);
   const page = await ctx.newPage();
   const phone: Phone = { name, ctx, page, errors: [], log: [], taps: 0 };
   watch(phone, page);
