@@ -2527,6 +2527,138 @@ button.trivia-opt:active {
 .over-again {
   animation: row-in 0.4s ease-out var(--at, 0s) both;
 }
+/* The report card (战报, ui/ReportCard.tsx): the awards the game earned, and how the dice fell against
+   the long run. On a phone under the standings; on the big screen it takes the standings' column in
+   turn with them, beside the winners' card. */
+.report {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: start;
+}
+.report h2 {
+  font: 700 1.1rem var(--ui);
+}
+.report .awards {
+  display: grid;
+  gap: 10px;
+}
+.report .award-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "award who"
+    "text text";
+  align-items: center;
+  gap: 2px 10px;
+}
+.report .award {
+  grid-area: award;
+  color: var(--gel);
+}
+.report .who {
+  grid-area: who;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.report .award-row small {
+  grid-area: text;
+}
+.dice-chart {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+}
+.dice-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.dice-chart .bar {
+  fill: var(--haze);
+  opacity: 0.75;
+}
+.dice-chart .dot {
+  fill: var(--gel);
+}
+.dice-chart .lbl {
+  fill: var(--dim);
+  font: 700 14.5px var(--ui);
+  text-anchor: middle;
+}
+.report-pic {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  box-shadow: var(--lift);
+}
+.report-in {
+  animation: row-in 0.4s ease-out var(--at, 0s) both;
+}
+.over .results li.report-slot {
+  display: block;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  animation: report-in 0.5s var(--ease-out) both;
+}
+.over.big .results.with-won li.report-slot {
+  grid-column: 2;
+  grid-row: 1 / span 6;
+}
+.over.big .results.reporting > li:not(.won):not(.report-slot) {
+  display: none;
+}
+/* (Heights follow the screen's, like the rest of the big screen's finale: a 720-pixel-tall one must fit.) */
+.report.big {
+  height: 100%;
+  align-content: center;
+  gap: min(14px, 1.6vh);
+  padding: min(24px, 2.8vh) min(28px, 3vh);
+}
+.report.big h2 {
+  font-size: min(1.6rem, 3.6vh);
+}
+.report.big .awards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: min(14px, 1.8vh) 24px;
+}
+.report.big .award-row {
+  font-size: min(1.3rem, 2.8vh);
+}
+.report.big .award-row small {
+  font-size: min(1.05rem, 2.2vh);
+}
+.over.big .report .chip .face {
+  width: min(34px, 4.4vh);
+  height: min(34px, 4.4vh);
+}
+.over.big .report .chip b {
+  width: min(28px, 3.6vh);
+  height: min(28px, 3.6vh);
+  font-size: min(0.95rem, 2vh);
+}
+.report.big .dice-chart svg {
+  justify-self: center;
+  width: auto;
+  max-width: 100%;
+  height: min(130px, 14vh);
+}
+.report.big .hint {
+  font-size: min(1rem, 2.2vh);
+}
+@keyframes report-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
 /* Paper falling: once, over everything, never in the way of a tap. */
 .confetti {
   position: fixed;
@@ -2652,7 +2784,9 @@ button.trivia-opt:active {
   .medal::before,
   .champion,
   .trip > span,
-  .over-again {
+  .over-again,
+  .report-in,
+  .over .results li.report-slot {
     animation: none;
   }
 }

@@ -1,5 +1,5 @@
 // What phones, the big screen and the server say to each other.
-import type { Action, CashChoice, GameState, ManageKind, Mode, Offer, StyleId, Text } from "../engine";
+import type { Action, CashChoice, GameEvent, GameState, ManageKind, Mode, Offer, StyleId, Text } from "../engine";
 
 export type Lang = "zh" | "en";
 export type Role = "player" | "screen";
@@ -342,6 +342,91 @@ export interface GameView {
   dance: DanceView | null;
   bets: { seat: number; open: boolean; yes: number; no: number; mine: boolean | null } | null;
   worth: number[];
+  /** What each seat did over the game (the finale's report card, 战报): only once the game is over. */
+  tally: Tally[] | null;
+}
+
+/** What one seat did over a game, kept by the room for the finale's report card (战报). */
+export interface Tally {
+  /** Throws of the dice, their pips in all, and how many were doubles. */
+  throws: number;
+  pips: number;
+  doubles: number;
+  /** How often each total of two dice came up: [0] is a total of 2, [10] of 12. */
+  totals: number[];
+  rentPaid: number;
+  rentGot: number;
+  /** The most rent paid at once, and on which space. */
+  topRent: { amount: number; at: number } | null;
+  /** Cities and routes bought outright, and won at auction. */
+  bought: number;
+  auctionsWon: number;
+  /** Quiz questions this seat answered first. */
+  quizWins: number;
+  /** Times sent to Immigration. */
+  jail: number;
+}
+
+export const emptyTally = (): Tally => ({
+  throws: 0,
+  pips: 0,
+  doubles: 0,
+  totals: Array(11).fill(0),
+  rentPaid: 0,
+  rentGot: 0,
+  topRent: null,
+  bought: 0,
+  auctionsWon: 0,
+  quizWins: 0,
+  jail: 0,
+});
+
+/** One of the rules' events, counted in the seats' tallies. */
+export function countEvent(tally: Tally[], e: GameEvent) {
+  const of = (seat: number) => (seat >= 0 ? tally[seat] : undefined);
+  switch (e.t) {
+    case "roll": {
+      const t = of(e.p);
+      if (!t) return;
+      t.throws += 1;
+      t.pips += e.dice.reduce((a, b) => a + b, 0);
+      if (e.dice.length === 2) {
+        t.totals[e.dice[0] + e.dice[1] - 2] += 1;
+        if (e.dice[0] === e.dice[1]) t.doubles += 1;
+      }
+      return;
+    }
+    case "rent": {
+      const t = of(e.p);
+      if (t) {
+        t.rentPaid += e.amount;
+        if (!t.topRent || e.amount > t.topRent.amount) t.topRent = { amount: e.amount, at: e.at };
+      }
+      const to = of(e.to);
+      if (to) to.rentGot += e.amount;
+      return;
+    }
+    case "buy": {
+      const t = of(e.p);
+      if (t) t.bought += 1;
+      return;
+    }
+    case "auction": {
+      const t = e.winner === null ? undefined : of(e.winner);
+      if (t) t.auctionsWon += 1;
+      return;
+    }
+    case "bonus": {
+      const t = of(e.p);
+      if (t && e.why === "trivia") t.quizWins += 1;
+      return;
+    }
+    case "jail": {
+      const t = of(e.p);
+      if (t) t.jail += 1;
+      return;
+    }
+  }
 }
 
 export interface RoomView {
