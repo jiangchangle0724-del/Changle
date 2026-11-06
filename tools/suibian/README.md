@@ -44,6 +44,17 @@ like a table's rating.
 any distance (Google's widest circle, 50 km, which covers Greater Vancouver from anywhere in the
 city; places are then picked by popularity and distance).
 
+**Where the places come from** (`src/engine/search.ts`). Google returns at most 20 restaurants per
+search, so asking one circle for its most popular and its nearest gave the same 40 places every
+time, and in a big area like Burnaby most restaurants never came up. Each table or solo pick now
+runs up to four searches: the whole circle's most popular; walking, also the nearest; for one person
+who chose a side of the menu, that side's restaurants alone; and with what's left, smaller circles
+inside the area (walk 15 minutes and up, every drive), turned a different way each time, or for any
+distance, other neighbourhoods picked at random. A search that fails doesn't lose the others. Then a
+small random nudge lets places that score about the same take turns, and for someone signed in,
+places their solo picks showed them in the last two weeks step back (about two-thirds of a Google
+star), so the next pick shows others first.
+
 ## Cards: descriptions, lists and picks
 
 Each card can carry more than Google's numbers, all from free sources:
@@ -179,8 +190,8 @@ in the browser; joining a table works in WeChat as before.
    server, never sent to phones).
 4. Billing → Budgets & alerts: a monthly budget (e.g. CA$20) with email alerts at 50% and 90%.
 5. APIs & Services → Places API (New) → Quotas: cap requests per day, e.g. Nearby Search 200,
-   Place Details 600, Place Photos 600. That is about 100 tables a day; past it, searches fail
-   until tomorrow instead of costing more.
+   Place Details 600, Place Photos 600. Each table or solo pick runs up to four searches, so that
+   is about 50 a day; past it, searches fail until tomorrow instead of costing more.
 6. Cloudflare: add Secret `GOOGLE_PLACES_KEY`.
 
 Check: open changle.ca/eat; the yellow "示例数据" banner is gone. Start a table where you are: round 1

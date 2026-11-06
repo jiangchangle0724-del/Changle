@@ -340,6 +340,8 @@ export class Room {
       center: this.st.center,
       range: this.st.range,
       now: this.env.now(),
+      // Near-equal places take turns from one table to the next (see JITTER).
+      random: this.env.random,
     });
     if (!ids.length) return this.fail("nothingFits");
     this.st.cards = ids;
