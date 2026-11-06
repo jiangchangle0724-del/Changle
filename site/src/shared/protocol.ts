@@ -430,6 +430,8 @@ export type TuneView = {
   pool: string;
   /** everyone answers at once from four titles, no buzzer */
   quiz: boolean;
+  /** songs mode: the four titles come without their singers, the wrong ones by the same singer */
+  hard: boolean;
   phase: "ready" | "listen" | "answer" | "reveal" | "end";
   round: number;
   total: number;

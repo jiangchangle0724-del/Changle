@@ -25,7 +25,7 @@ import { DARES, promptText } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
-import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
+import { CAT_BIT, decoysFor, fromRow, inPool, moodOf, pickSong, singersOf } from "../src/shared/songs";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
@@ -1473,6 +1473,46 @@ test("tune: pools by language and category, and the quiz where everyone answers"
   ok(t.view<V<"tune">>("p0").round === 2 && Object.keys(s.answers).length === 0, "next song: fresh answers");
   t.advance(2600 + 20_000);
   ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").right.length === 0, "nobody answered in time: the reveal, nobody scores");
+});
+
+test("tune: hard titles: no singers on them, and the wrong ones by the same singer", () => {
+  type Row = { id: number; t: string; a: string; l: number };
+  const all = SONG_ROWS.map(fromRow);
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const sameSinger = (a: string, b: string) => singersOf(a).some((n) => singersOf(b).includes(n));
+  ok(singersOf("周杰伦 & 五月天 阿信").join("|") === "周杰伦|五月天 阿信" && singersOf("JENNIE (from BLACKPINK)").join() === "jennie" && singersOf("Ed Sheeran feat. Travis Scott").join("|") === "ed sheeran|travis scott", "who sings a song: one name each");
+  ok(singersOf("Coldplay X BTS").join("|") === "coldplay|bts" && singersOf(`梅艳芳${String.fromCharCode(0x2028)}`).join() === "梅艳芳", "collaborations split, invisible characters dropped");
+  const sunny = all.find((x) => x.t === "晴天" && x.a === "周杰伦")!;
+  const easy = decoysFor(sunny, all, rand);
+  const hard = decoysFor(sunny, all, rand, true);
+  ok(easy.length === 3 && easy.every((x) => !sameSinger(x.a, sunny.a)) && new Set(easy.map((x) => x.a)).size === 3, "easy: three other singers");
+  ok(hard.length === 3 && hard.every((x) => sameSinger(x.a, sunny.a) && x.l === sunny.l) && new Set(hard.map((x) => norm(x.t))).size === 3, "hard: three more of 周杰伦's own songs, all different titles");
+  // a singer with just one or two other songs: those, and the rest from other singers
+  const few = all.find((x) => {
+    const own = new Set(all.filter((y) => y.l === x.l && y.id !== x.id && sameSinger(y.a, x.a) && norm(y.t) !== norm(x.t)).map((y) => norm(y.t)));
+    return own.size === 1;
+  })!;
+  const mixed = decoysFor(few, all, rand, true);
+  ok(mixed.length === 3 && mixed.filter((x) => sameSinger(x.a, few.a)).length === 1, "a singer with one other song: that one, then two by others");
+
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "hard", { on: true });
+  ok(!t.view<V<"tune">>("p0").hard, "only the host makes it hard");
+  t.g("p0", "pool", { pool: "zh:any" });
+  t.g("p0", "quiz", { on: true });
+  t.g("p0", "hard", { on: true });
+  ok(t.view<V<"tune">>("p1").hard, "the host makes it hard: every phone knows");
+  t.g("p0", "go");
+  const s = t.eng.d.game!.s as { song: Row; choices: Row[] };
+  const v = t.view<V<"tune">>("p1");
+  ok(v.choices?.length === 4 && v.choices.every((c) => c.a === "" && c.ae === ""), "titles only: no singer on any of the four");
+  const avail = new Set(all.filter((x) => x.l === s.song.l && x.id !== s.song.id && sameSinger(x.a, s.song.a) && norm(x.t) !== norm(s.song.t)).map((x) => norm(x.t))).size;
+  const own = s.choices.filter((c) => c.id !== s.song.id && sameSinger(c.a, s.song.a)).length;
+  ok(own === Math.min(3, avail), `the wrong ones by the same singer as far as there are any (${own} of ${Math.min(3, avail)})`);
+  t.advance(2600 + 20_000);
+  ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").song?.a === s.song.a, "the reveal still says who sings it");
 });
 
 test("tune: a pool of several languages and categories", () => {

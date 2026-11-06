@@ -246,6 +246,7 @@ function Ready({ v }: { v: TuneView }) {
         {v.mode === "songs" && langs.length > 0 && <li>{langs.join(zh ? "、" : ", ")}</li>}
         {v.mode === "songs" && <li>{cats.length ? cats.join(zh ? "、" : ", ") : zh ? "所有类别" : "Every kind"}</li>}
         {v.mode !== "dj" && <li>{v.quiz ? (zh ? "选择题" : "Multiple choice") : zh ? "抢答" : "Buzz in"}</li>}
+        {v.mode === "songs" && v.hard && <li>{zh ? "难：只写歌名" : "Hard: titles only"}</li>}
         <li className="tabular">{zh ? `${v.total} 首` : `${v.total} songs`}</li>
       </ul>
       <p className="tvt-note">
@@ -345,7 +346,7 @@ function Titles({ choices, answer }: { choices: QuizChoice[]; answer: number | n
           </span>
           <span className="tvt-title-text">
             <strong>{c.t}</strong>
-            <small>{zh ? c.a : c.ae}</small>
+            {(zh ? c.a : c.ae) && <small>{zh ? c.a : c.ae}</small>}
           </span>
         </li>
       ))}
