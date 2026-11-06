@@ -119,8 +119,10 @@ All merged into `main`:
 
 ## Open items
 
-* The severe-allergy table `SEVERE_RULES_OUT` in `src/engine/limits.ts` is a **draft** and needs
-  review by friends who have those allergies.
+* The severe-allergy table `SEVERE_RULES_OUT` in `src/engine/limits.ts`: the owner approved the
+  review page's suggested additions on 2026-11-05 and they are in. Still open, for friends who have
+  those allergies: oyster sauce (rule out other Chinese, HK café and Taiwanese for shellfish?),
+  other Chinese for peanut, and adding mustard as an allergen.
 * More places per pick (branch `claude/suibian-more-places`): up to four Nearby searches per table
   or solo pick instead of two (README, "Where the places come from"). Google's free allowance for
   this search is 1,000 a month, then US$40 per 1,000 (pricing page, 2026-11-03), so it now covers

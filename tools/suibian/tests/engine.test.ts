@@ -248,6 +248,30 @@ test("severe chili rules out the spicy cuisines; 'don't eat chili' only warns", 
   assert.deepEqual(check(place({ cuisine: "sichuan" }), avoid), { ok: true, warnings: [{ k: "allergy", allergen: "chili", level: "avoid" }] });
 });
 
+test("the reviewed table (2026-11-05): every allergen rules out the cuisines built on it, 'don't eat' still only warns", () => {
+  const severe = (a: AllergenId) => ({ ...cleanLimits({}), allergies: { [a]: "severe" as const } });
+  const out = (a: AllergenId, c: CuisineId) => !check(place({ cuisine: c }), severe(a)).ok;
+  // Added on review, one per reason on the page.
+  for (const c of ["hotpot", "hk_cafe", "taiwanese"] as const) assert.ok(out("peanut", c), `peanut ${c}`);
+  for (const c of ["vegetarian", "brunch"] as const) assert.ok(out("treenut", c), `tree nuts ${c}`);
+  for (const c of ["korean", "hotpot"] as const) assert.ok(out("shellfish", c), `shellfish ${c}`);
+  for (const c of ["ramen", "hotpot"] as const) assert.ok(out("fish", c), `fish ${c}`);
+  for (const c of ["ramen", "western"] as const) assert.ok(out("sesame", c), `sesame ${c}`);
+  for (const c of ["vegetarian", "sea"] as const) assert.ok(out("soy", c), `soy ${c}`);
+  assert.ok(out("egg", "brunch"));
+  for (const c of ["brunch", "italian", "indian"] as const) assert.ok(out("dairy", c), `dairy ${c}`);
+  for (const c of ["ramen", "italian"] as const) assert.ok(out("gluten", c), `gluten ${c}`);
+  // Still open on the page, so not ruled out yet: oyster sauce, and other Chinese for peanut.
+  for (const c of ["chinese", "hk_cafe", "taiwanese"] as const) assert.ok(!out("shellfish", c), `shellfish ${c} is still a question`);
+  assert.ok(!out("peanut", "chinese"));
+  // Every allergen on the card now has a list; "don't eat" never rules anything out.
+  for (const a of Object.keys(ALLERGENS) as AllergenId[]) {
+    assert.ok(SEVERE_RULES_OUT[a]?.length, `${a} has cuisines`);
+    const avoid = { ...cleanLimits({}), allergies: { [a]: "avoid" as const } };
+    for (const c of SEVERE_RULES_OUT[a]!) assert.ok(check(place({ cuisine: c }), avoid).ok, `${a} avoid ${c}`);
+  }
+});
+
 test("typed items: cleaned, merged without duplicates, and only ever warn", () => {
   const a = cleanLimits({ custom: [{ name: "  香菜 ", level: "avoid" }, { name: "Pork", level: "severe" }, { name: "" }, { name: "香菜" }, 42] });
   assert.deepEqual(a.custom, [
