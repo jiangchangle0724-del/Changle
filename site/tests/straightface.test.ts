@@ -111,11 +111,15 @@ test("straightface: validateCard requires funFact and source, refuses a brackete
   ok(lintDeck([base]).length === 0, "lint passes the plain term");
 });
 
+test("straightface: the bank holds 300 cards", () => {
+  ok(cards.length >= 300, `${cards.length} cards`);
+});
+
 test("straightface: every pack has its table, its picture and enough cards; Chinese packs show the word with its reading, English packs the word itself", () => {
   for (const p of PACKS) {
     const deck = cards.filter((c) => c.pack === p);
-    // ten is enough to play a whole game of nine from one pack without a repeat
-    ok(deck.length >= 10, `${p}: ${deck.length} cards`);
+    // fifteen: a game of nine from one pack never repeats a card, and every level has a few
+    ok(deck.length >= 15, `${p}: ${deck.length} cards`);
     ok(["zh", "en", "both"].includes(PACK_AUDIENCE[p]), `${p} says which table it is for`);
     const art = join(here, "src/party/straightface/art/packs", `${p}.webp`);
     ok(existsSync(art) && statSync(art).size < 40_000, `${p} has a picture under 40 KB`);
