@@ -87,11 +87,21 @@
 - 歌本谁都能写（和房间一样没有登录）：有人乱写一首歌的第一拍，那首歌就对不上拍子，在电视上重新对拍一次就好。真有人捣乱的话，可以让对拍走房间的连接，或者歌本留历史能退回去。
 - C3、C4 两张卡先别发：电视和手机现在有老师、小人、体感、YouTube，卡要按新页面重写（这个对话来写）。C2（动捕流水线）暂时用不上：老师是代码写的动画，以后要换真人动捕或者 AI 角色时再说。
 - 以后可以做：歌的副歌换一个招牌动作（要标出副歌在哪）；点歌（像打碟那样搜 YouTube）；大厅里老师先站着挥手；结算时老师欢呼；困难模式（A3）；喝水、休息提醒（C8）。
-- 首页卡片还在「即将上线」。按钮版现在能玩了，要不要挪进首页的游戏里，等 Steve 定（怎么挪见「定过的事」）。
+- 首页卡片还在「即将上线」。Steve 11-05 晚上说「上线」：挪进首页的游戏里要改主站的游戏卡、路由和规则引擎的表，交给「平台 · 首页与上线」（见「交给别的对话」）。那边做完、上线以后，拿掉这一条。
 - 方案里还没做的：每 3 首提醒喝水、30 分钟休息（C8）；电视的「背面跟随」视角和镜子提示（等 3D 教练）；困难模式比对动作形状（A3）；打分黄金集（C7）。
 
 ## 交给别的对话
 
+- 平台 · 首页与上线：一起跳上线（Steve 11-05 晚上说「上线」）。把首页的一起跳从 `site/src/games/registry.ts` 的 `SOON` 挪进 `GAMES`，删掉 `SOON` 里那条。
+  - 它跑在自己的 Worker 上，不在主站里：电视或电脑打开 `changle.ca/party/screen` 当舞台，点「开始」出二维码；手机扫码，或者打开 `changle.ca/party/join` 输 4 位房间码。没有一台手机的玩法，不开主站的联机桌，桌子的转盘和「现在玩这个」都不落在它上面。
+  - 像打碟一样大屏先开，可大屏不在主站里：卡片上「电视或电脑当舞台」的按钮整页跳到 `/party/screen`（不进主站的 `/tv`），`/g/<slug>/play` 也直接跳过去；手机上点它，说去电视上打开哪个网址。打碟那段卡片的字（开始派对、用手机打碟、进舞池）一起跳不能用。
+  - 卡片的字，换掉 `SOON` 里那段：
+    - 中文：「电视或电脑打开 changle.ca/party/screen 当舞台，大家扫码进来。电视上的 3D 老师先一段一段教，再跟着音乐一起跳，手里的手机知道你有没有踩在拍子上。6 支练习舞，还有一串热歌（江南Style、APT.、爱你……），零基础也能跳完一首。」
+    - English: "Open changle.ca/party/screen on a TV or computer: that's the stage. Everyone scans in. A 3D coach on the TV teaches a few easy moves, then everyone dances to the music, and the phone in your hand knows if you're on the beat. Six practice dances and a set of hit songs (Gangnam Style, APT. and more). Anyone can finish a song."
+    - 短的一句照旧：「跟着电视一起跳，手机听拍子」/ "Dance with the TV. Your phone keeps the beat."
+  - 1 到 15 人（房间最多 15 人），一轮 8 分钟左右（先教再跳），类别 body，颜色和图标照 `SOON` 里的（`#8f7bff`、Footprints），`newUntil` 上线后一个月。网址建议 `changle.ca/g/dance-along`（上线后不改）。
+  - `GameId` 加了它，规则引擎的 `GAMES` 和 `ONLINE_MIN` 也要有它，怎么处理没有桌上玩法的游戏由那边定。首页截图会变，要 `update-screenshots` 标签（先问 Steve）。
+  - 做完告诉这个对话，这边拿掉「还剩什么」里那条。
 - 游戏 · 打碟：知会一下，不用做什么。一起跳也用 YouTube 在电视上放歌（自己的 `games/party-server/src/client/tube.ts`，照打碟的规矩：一直露着、不下载、Safari 先点一下视频）。它跳舞要对准拍子，所以每 4 毫秒读一次视频的时钟，取最早的那个，误差几毫秒；打碟想更准可以参考。一起跳的 3D 老师是代码画的（`src/client/coach/`），打碟想换掉机器人也可以引。一起跳没有和打碟共用底座：打碟的「跟着跳」是主站里的另一套（10 个动作，每拍看手的加速度够不够 2.5 m/s²）；一起跳是 20 个动作、party-base 的打分。以后打碟想用一起跳的动作库或打分，`games/dance/` 和 `games/party-base/src/scoring.ts` 都是纯 TypeScript，可以直接引。一起跳接传感器（A2）时会参考打碟的 `site/src/party/dj/phone/DancePad.tsx`（iPhone 授权、去掉重力）。
 
 ## 最近的改动
@@ -125,3 +135,4 @@
 - 2026-11-05 晚上 Steve 说「合并」。main 往前走了 151 个提交，HANDOFF.md 的表撞了一行（main 加了 hang-on 那行），把 main 合进 #202，两行都留；本地测试和 CI 都过了，合并 #202。Cloudflare 部署好以后在正式站上跑了对时和一支真舞，都过了；再合并 #203。Project 说明的仓库名和 Cloudflare 的 watch path 要登录才能改，没改（见「还剩什么」）。
 - 2026-11-05 晚上 Steve 说对新手太难，要 3D 老师、体感互动、画面音效、热歌、更简单的舞。做了：代码画的 3D 老师（20 个动作的关键帧、IK、镜像、光带、光脚印、烟花），动作页；手机体感（峰值算一下，和点按钮同一条路）、电视上每人一个霓虹小人、音效；16 首热歌（YouTube 官方视频，先找了一个代理查视频能不能嵌、速度多少）、电视上的 YouTube 播放器和拍子对齐、歌曲对拍、歌本。舞台第一版在云端用软件画法截图检查，发了视频和截图给 Steve。三个 PR 开着等他点头。
 - 2026-11-05 晚上 Steve 说「合并」：按顺序合并 #266、#272、#283（后两个合并前把目标改成 main，CI 都绿，和 main 没冲突）。Cloudflare 部署好以后在正式站上查过，都对（见「现在」）。Project 说明里的仓库名 Steve 自己改好了，从「还剩什么」拿掉。
+- 2026-11-05 晚上 Steve 说「上线」：首页的一起跳从「即将上线」挪进游戏里。要改的是主站的游戏卡、路由和规则引擎的表（`GameId` 一加，引擎的 `GAMES`、`ONLINE_MIN` 都要有它），不是一行，按规矩写进「交给别的对话」给「平台 · 首页与上线」，连卡片的中英文字一起。
