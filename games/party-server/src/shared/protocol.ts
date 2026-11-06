@@ -3,6 +3,7 @@
 // common.ts pageClock, games/party-base/CONTRACTS.md), except `serverAt`, the room's own clock.
 import type { Difficulty, RoomState } from "../../../party-base/src/index";
 import type { Mode } from "./show";
+import type { Verdict } from "./taps";
 
 /** Host actions a phone may ask for. The room stamps `at` and fills in what's its to decide. */
 export type HostAction =
@@ -43,7 +44,13 @@ export type ClientMsg =
    * the room heard it, in ms (negative: early); null: no move near it. The phone scores (party-base's
    * scoreBeats); the room keeps the beats and works out the floor and the results.
    */
-  | { t: "beats"; from: number; offs: (number | null)[] };
+  | { t: "beats"; from: number; offs: (number | null)[] }
+  /**
+   * A phone while a dance plays, a few times a second: how much its player is moving (0 to 1), and
+   * with the first one after a beat is judged, that beat's verdict. Passed on to the speaker (each
+   * player's little dancer on the TV) and not kept: the beats above are what counts.
+   */
+  | { t: "pulse"; e: number; v?: Verdict | null };
 
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
@@ -52,6 +59,8 @@ export type ServerMsg =
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }
   | { t: "here"; playerId: string }
+  /** To the speaker: a phone's pulse (its player's movement now, a beat's verdict). */
+  | { t: "pulse"; playerId: string; e: number; v: Verdict | null }
   /** To the speaker, each time a phone's beats come in: the floor so far. */
   | ({ t: "floor" } & Floor)
   | { t: "error"; code: string; message: string }

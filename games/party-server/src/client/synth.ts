@@ -190,6 +190,76 @@ export class Synth {
     }
   }
 
+  // ---------- the room's sound effects (they react: played now, not on a beat)
+
+  /** A short glassy pop, `step` notes up a scale: a player on the beat (their little dancer lights up). */
+  pop(step: number, level = 0.14): void {
+    if (!this.ctx || !this.out) return;
+    const ctx = this.ctx;
+    const at = ctx.currentTime + 0.005;
+    const hz = 880 * 2 ** ([0, 2, 4, 7, 9, 12, 14, 16][((step % 8) + 8) % 8]! / 12);
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(hz * 1.5, at);
+    o.frequency.exponentialRampToValueAtTime(hz, at + 0.03);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(level, at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+    o.connect(g).connect(this.out);
+    o.start(at);
+    o.stop(at + 0.18);
+    this.keep(o);
+  }
+
+  /** A rising run of bells: the floor's streak went up another 8 beats together. */
+  sparkle(level = 0.18): void {
+    if (!this.ctx) return;
+    const now = performance.now() + PAGE_ORIGIN;
+    [0, 4, 7, 12].forEach((semi, k) => this.chimeNow(now + k * 70, 1046.5 * 2 ** (semi / 12), level * (1 - k * 0.12)));
+  }
+
+  /** Fireworks: a low boom, then crackles. */
+  boom(level = 0.5): void {
+    if (!this.ctx || !this.out) return;
+    const ctx = this.ctx;
+    const at = ctx.currentTime + 0.01;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(90, at);
+    o.frequency.exponentialRampToValueAtTime(35, at + 0.5);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(level, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.7);
+    o.connect(g).connect(this.out);
+    o.start(at);
+    o.stop(at + 0.75);
+    this.keep(o);
+    const base = performance.now() + PAGE_ORIGIN;
+    for (let k = 0; k < 9; k++) this.noiseHit(base + 250 + k * (60 + Math.random() * 90), 0.12 + Math.random() * 0.1, "highpass", 3000 + Math.random() * 4000, 0.04);
+  }
+
+  /** The results: a little fanfare. */
+  fanfare(level = 0.2): void {
+    if (!this.ctx) return;
+    const base = performance.now() + PAGE_ORIGIN + 30;
+    const notes: [number, number][] = [
+      [0, 523.25],
+      [150, 659.25],
+      [300, 783.99],
+      [450, 1046.5],
+      [450, 783.99],
+    ];
+    for (const [ms, hz] of notes) this.chimeNow(base + ms, hz, level);
+  }
+
+  /** A bell at speaker time t (no further ahead than the audio clock allows). */
+  private chimeNow(t: number, hz: number, level: number) {
+    // (a little ahead: the audio clock's view of "now" runs behind by the output's latency)
+    this.chime(Math.max(t, performance.now() + PAGE_ORIGIN + 80), hz, level);
+  }
+
   /** Stop everything scheduled. */
   hush(): void {
     for (const n of this.live) {

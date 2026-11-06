@@ -34,11 +34,11 @@ export function stageHint(s: Stage, metronome: boolean): string {
     case "watch":
       return tr("先看，放慢了", "Watch first, slowed down");
     case "follow":
-      return tr("跟着做，每一拍点一下手机", "Do it with me: tap your phone on every beat");
+      return tr("跟着做：手机拿在手里跳，或者每一拍点一下", "Do it with me: dance with your phone in hand, or tap it on every beat");
     case "countdown":
       return tr("要开始了", "Here it comes");
     case "dance":
-      return tr("每一拍点一下手机", "Tap your phone on every beat");
+      return tr("手机拿在手里跳，或者每一拍点一下", "Dance with your phone in hand, or tap it on every beat");
     case "cooldown":
       return tr("慢下来，深呼吸", "Slow down and breathe");
   }

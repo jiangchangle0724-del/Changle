@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { METRONOME_ID } from "../src/shared/catalog";
 import type { ServerMsg } from "../src/shared/protocol";
 import { buildShow, cachedShows, danceStart } from "../src/shared/show";
-import { COUNT_LEAD_MS, IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, validPlayerId, type From, type Out } from "../src/server/session";
+import { COUNT_LEAD_MS, IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, PULSE_GAP_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, validPlayerId, type From, type Out } from "../src/server/session";
 
 const SPEAKER: From = { role: "speaker", playerId: null };
 const ANN: From = { role: "player", playerId: "ann-000001" };
@@ -195,6 +195,35 @@ describe("the host's actions", () => {
     const { s } = ready();
     s.handle(BOB, { t: "here" });
     assert.deepEqual(s.flush().out, [{ to: "all", msg: { t: "here", playerId: "bob-000002" } }]);
+  });
+
+  it("a phone's pulse goes to the speaker while a dance plays, tidied, not too often, and isn't kept", () => {
+    const { s, clock } = ready();
+    s.handle(BOB, { t: "pulse", e: 0.5 });
+    assert.deepEqual(s.flush().out, [], "not in the lobby");
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    s.flush();
+    s.handle(BOB, { t: "pulse", e: 1.7, v: "hit" });
+    let { out, changed } = s.flush();
+    assert.deepEqual(out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 1, v: "hit" } }]);
+    assert.equal(changed, false, "nothing stored");
+    // movement only: one every PULSE_GAP_MS; a verdict always
+    clock.advance(PULSE_GAP_MS - 10);
+    s.handle(BOB, { t: "pulse", e: 0.333 });
+    assert.deepEqual(s.flush().out, []);
+    s.handle(BOB, { t: "pulse", e: 0.2, v: "miss" });
+    assert.deepEqual(s.flush().out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 0.2, v: "miss" } }]);
+    clock.advance(PULSE_GAP_MS);
+    s.handle(BOB, { t: "pulse", e: 0.333, v: "nonsense" as never });
+    ({ out } = s.flush());
+    assert.deepEqual(out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 0.33, v: null } }]);
+    // not from the speaker, a stranger, or without a number
+    clock.advance(PULSE_GAP_MS);
+    s.handle(SPEAKER, { t: "pulse", e: 0.5 });
+    s.handle({ role: "player", playerId: "cat-000003" }, { t: "pulse", e: 0.5 });
+    s.handle(ANN, { t: "pulse", e: Number.NaN });
+    s.handle(ANN, { t: "pulse", e: "1" as never });
+    assert.deepEqual(s.flush().out, []);
   });
 });
 

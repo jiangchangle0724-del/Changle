@@ -12,6 +12,7 @@ import { COMBO_FULL, type Floor, type Results, type RoutineInfo, type ServerMsg 
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
 import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tr, wsUrl } from "./common";
 import { anyGl, canCoach, doingAt, glowOf } from "./coach/index";
+import { Crowd, PLAYER_COLORS, type Dancer } from "./coach/crowd";
 import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
 import { awardName, awardWhy, bodyHint, clockOf, difficultyName, moveHow, moveName, moveOther, routineName, stageHint, stageName } from "./words";
@@ -62,6 +63,14 @@ let playing: Playing = { key: "", show: null, run: [], zero: null, next: 0, phra
 let plans = 0;
 let fireworksUntil = 0;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** Everyone's little dancer along the bottom of the TV (2D: every device draws it), and their pulses. */
+const crowd = new Crowd(reducedMotion);
+const pulses = new Map<string, { e: number; at: number; hitAt: number; shown: number; shownAt: number }>();
+/** How slowly a little dancer calms down between its player's moves (ms): it shouldn't flicker beat by beat. */
+const CALM_MS = 700;
+/** The last hit's pop, and how many in a row (each a note higher) */
+let popAt = 0;
+let popStep = 0;
 /** The 3D coach: undefined until first needed, null when this device can't draw it (the coach in words). */
 let coach3d: CoachStage | null | undefined;
 
@@ -123,6 +132,8 @@ function onMsg(m: ServerMsg) {
       results = m.results;
       rejoining = false;
       if (state.phase !== "dancing") floor = null;
+      if (state.phase === "results" && before === "dancing") synth.fanfare();
+      if (state.phase === "lobby") pulses.clear();
       plan();
       if (state.phase === "calibrating" && before !== "calibrating") startCalibration(1);
       if (state.phase !== "calibrating") stopCalibration();
@@ -134,7 +145,8 @@ function onMsg(m: ServerMsg) {
       if (floor && f.bursts > floor.bursts) {
         fireworksUntil = pageClock() + FIREWORKS_MS;
         coach3d?.burst(pageClock());
-      }
+        synth.boom();
+      } else if (floor && f.streak > floor.streak && Math.floor(f.streak / 8) > Math.floor(floor.streak / 8)) synth.sparkle();
       floor = f;
       renderStatus();
       return;
@@ -155,6 +167,18 @@ function onMsg(m: ServerMsg) {
     case "here":
       heres.set(m.playerId, performance.now() + 1500);
       return;
+    case "pulse": {
+      const local = performance.now();
+      const was = pulses.get(m.playerId);
+      const hit = m.v === "hit";
+      pulses.set(m.playerId, { e: m.e, at: local, hitAt: hit ? local : (was?.hitAt ?? 0), shown: was?.shown ?? 0, shownAt: was?.shownAt ?? local });
+      if (hit && local - popAt > 90) {
+        popStep = local - popAt < 700 ? popStep + 1 : 0;
+        popAt = local;
+        synth.pop(popStep);
+      }
+      return;
+    }
     case "fatal":
       // a reload of a room that's gone: open a new one
       if (rejoining && (m.key === "noRoom" || m.key === "ended")) {
@@ -311,10 +335,17 @@ function render() {
     stage.append(parts.count);
     if (state?.phase === "results" && results) stage.append(resultsCard(results));
   }
+  if (run) {
+    // everyone's little dancer, along the bottom
+    const host = el("div", "crowd");
+    stage.append(host);
+    requestAnimationFrame(() => crowd.attach(host));
+  } else {
+    parts.players = el("ul", "players");
+  }
   parts.status = el("p", "status");
   stage.append(parts.status);
-  parts.players = el("ul", "players");
-  stage.append(parts.players);
+  if (parts.players) stage.append(parts.players);
   main.append(stage);
   app.append(main);
   if (measure) {
@@ -511,7 +542,7 @@ function renderStatus() {
     const fill = parts.floorBar.firstElementChild as HTMLElement | null;
     const share = f && f.streak ? (f.streak % COMBO_FULL === 0 ? 1 : (f.streak % COMBO_FULL) / COMBO_FULL) : 0;
     if (fill) fill.style.width = `${Math.round(share * 100)}%`;
-    parts.floorText.textContent = f && f.dancers ? tr(`全场连击 ${f.streak} · ${f.dancers} 人在跳`, `Floor streak ${f.streak} · ${f.dancers} dancing`) : tr("每一拍点一下手机，全场一起涨连击", "Tap your phone on every beat: the whole floor builds the streak");
+    parts.floorText.textContent = f && f.dancers ? tr(`全场连击 ${f.streak} · ${f.dancers} 人在跳`, `Floor streak ${f.streak} · ${f.dancers} dancing`) : tr("拿着手机跳，或者每一拍点一下：全场一起涨连击", "Dance with your phone, or tap it on every beat: the whole floor builds the streak");
   }
 }
 
@@ -584,12 +615,32 @@ function frame3d(now: number) {
   c.frame({ doing, p: pos, beat: spot.i + spot.frac, now, glow: glowOf(b.move), hype });
 }
 
+/** Everyone's little dancer: the coach's move now, as hard as each of them is moving. */
+function frameCrowd(now: number) {
+  if (!state) return;
+  const spot = spotAt(playing.run, now);
+  const b = spot ? playing.run[spot.i]! : null;
+  const { doing, p: pos } = b && spot ? doingAt(b, spot.frac) : { doing: { kind: "idle" } as const, p: 0 };
+  const local = performance.now();
+  const list: Dancer[] = state.players.map((pl, i) => {
+    const pu = pulses.get(pl.id);
+    // up at once, down slowly
+    if (pu) {
+      pu.shown = Math.max(pu.e, pu.shown * Math.exp(-Math.max(0, local - pu.shownAt) / CALM_MS));
+      pu.shownAt = local;
+    }
+    return { id: pl.id, name: pl.name, color: PLAYER_COLORS[i % PLAYER_COLORS.length]!, e: pu?.shown ?? 0, at: pu?.at ?? -1e9, hitAt: pu?.hitAt ?? 0 };
+  });
+  crowd.frame(doing, pos, now / 1000, local, list);
+}
+
 /** Every frame: the coach, the big count, the "I'm here" lights, the timing readout. */
 function frame() {
   const now = pageClock();
   if (running()) {
     frameCoach(now);
     frame3d(now);
+    frameCrowd(now);
   }
   else if (parts.count) {
     // (the metronome before its start: nothing to count)
@@ -633,6 +684,7 @@ Object.assign(window, {
     origin: () => PAGE_ORIGIN,
     sync: () => sync.estimate(),
     state: () => state,
+    pulses: () => Object.fromEntries(pulses),
   },
 });
 

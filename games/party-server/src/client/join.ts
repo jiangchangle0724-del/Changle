@@ -12,6 +12,7 @@ import type { HostAction, Results, RoutineInfo, ServerMsg } from "../shared/prot
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
 import { BeatJudge, type Batch, type Judged, type Verdict } from "../shared/taps";
 import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tapTime, tr, wsUrl } from "./common";
+import { MotionSense } from "./motion";
 import { awardName, bodyHint, difficultyName, moveName, restHint, routineName, showMinutes, stageName, styleName, verdictText } from "./words";
 
 const app = document.getElementById("app")!;
@@ -50,6 +51,14 @@ const clockSet = () => sync.count >= MIN_PROBES;
 const speakerNow = (local = performance.now()): number | null => (clockSet() ? local + est.offsetMs : null);
 /** Back on the room after a drop: once its state is in, the dance's bars sent so far go again. */
 let resend = false;
+
+/** The motion sensor: each peak of the phone's motion is a move, as a tap of the big button is. */
+const motion = new MotionSense((local) => {
+  tapMove(local);
+  padPop();
+});
+/** When the big button was last tapped (this page's clock): the TV's energy for a player who taps. */
+let tappedAt = -1e9;
 
 function loadId(): string {
   try {
@@ -227,7 +236,16 @@ function track() {
   if (!tracking.judge && tracking.heard.length && now !== null && s?.difficulty) tracking.judge = new BeatJudge(tracking.heard, s.difficulty, now);
 }
 
-/** A tap on the big button (at `local`, this page's clock): a move, as the motion sensor's peak will be. */
+/** The big button bounces: a tap, or a move the sensor felt. */
+function padPop() {
+  const pad = parts.pad;
+  if (!pad) return;
+  pad.classList.remove("hit");
+  void pad.offsetWidth;
+  pad.classList.add("hit");
+}
+
+/** A tap on the big button, or a peak of the phone's motion (at `local`, this page's clock): a move. */
 function tapMove(local: number) {
   const at = speakerNow(local);
   if (at === null || !tracking.judge) return;
@@ -257,7 +275,7 @@ function judgeBeats(now: number) {
 
 // ---------- the page
 
-const parts: { count?: HTMLElement; sync?: HTMLElement; clock?: HTMLElement; stage?: HTMLElement; move?: HTMLElement; body?: HTMLElement; next?: HTMLElement; pad?: HTMLElement; verdict?: HTMLElement; meter?: HTMLElement; finish?: HTMLButtonElement } = {};
+const parts: { count?: HTMLElement; sync?: HTMLElement; clock?: HTMLElement; stage?: HTMLElement; move?: HTMLElement; body?: HTMLElement; next?: HTMLElement; pad?: HTMLElement; verdict?: HTMLElement; meter?: HTMLElement; level?: HTMLElement; finish?: HTMLButtonElement } = {};
 /** What the run's lines show, so a frame only touches the page when it changes. */
 let shown = "";
 /** The beat the room hears now: whether it's scored (the big button counts), and its stage. */
@@ -304,6 +322,10 @@ function render() {
     main.append(parts.count);
     if (state?.phase === "calibrating" && isHost()) main.append(tapPad());
     if (state?.phase === "results" && results) main.append(myResults(results));
+    if (state?.phase === "lobby" || state?.phase === "results") {
+      const m = motionSwitch();
+      if (m) main.append(m);
+    }
     const here = el("button", "btn here", tr("我在", "I'm here"));
     here.onclick = () => {
       sock?.send({ t: "here" });
@@ -440,9 +462,8 @@ function dancePanel(): HTMLElement {
   // pointerdown, not click: a click comes after the finger lifts, later than the tap
   pad.addEventListener("pointerdown", (e) => {
     tapMove(tapTime(e));
-    pad.classList.remove("hit");
-    void pad.offsetWidth;
-    pad.classList.add("hit");
+    tappedAt = performance.now();
+    padPop();
   });
   // (a keyboard works too: space or enter, held keys not repeated)
   pad.addEventListener("keydown", (e) => {
@@ -454,6 +475,34 @@ function dancePanel(): HTMLElement {
   parts.pad = pad;
   parts.meter = el("p", "dance-meter");
   box.append(parts.stage, parts.move, parts.body, parts.count, parts.next, pad, parts.meter);
+  const m = motionSwitch();
+  if (m) box.append(m);
+  return box;
+}
+
+/**
+ * Hold the phone and dance: the switch for the motion sensor (iPhones ask once, in this tap). The
+ * big button keeps working beside it. Nothing on a computer.
+ */
+function motionSwitch(): HTMLElement | null {
+  if (!MotionSense.supported()) return null;
+  const box = el("div", "motion");
+  if (motion.on) {
+    box.append(el("p", "motion-on", tr("体感开着：手机拿在手里，跟着老师跳就行", "Motion is on: hold your phone and dance with the coach")));
+    const lv = el("span", "motion-level");
+    lv.append(el("i"));
+    parts.level = lv;
+    box.append(lv);
+    return box;
+  }
+  const b = el("button", "btn motion-btn", tr("开体感：手机拿在手里跟着跳", "Use motion: hold your phone and dance"));
+  b.onclick = async () => {
+    const ok = await motion.start();
+    if (!ok) say(motion.denied ? tr("没拿到体感权限。可以在设置里允许，或者点大按钮跳。", "No motion access. Allow it in Settings, or tap the big button.") : tr("这台手机读不到体感，点大按钮跳也行。", "This phone has no motion sensor: tap the big button instead."));
+    render();
+  };
+  box.append(b);
+  if (motion.denied) box.append(el("p", "hint", tr("要用体感：iPhone 设置 → Safari → 运动与方向访问，打开后刷新。", "For motion: iPhone Settings → Safari → Motion & Orientation Access, then reload.")));
   return box;
 }
 
@@ -680,6 +729,33 @@ function showBeat(t: number) {
   renderBeat();
 }
 
+// ---------- the pulse: how this player is moving, for their little dancer on the TV
+
+/** How hard this player is moving now (0 to 1): the sensor's energy, or a tap's that fades. */
+function energyNow(): number {
+  const local = performance.now();
+  const tap = Math.exp(-Math.max(0, local - tappedAt) / 350);
+  return Math.max(motion.level(local), tap);
+}
+
+let pulse = { at: 0, e: -1, judged: -1 };
+/** Eight times a second while a dance plays: the energy, and a beat's verdict once it's judged. */
+setInterval(() => {
+  if (!running() || !sock?.isOpen) return;
+  const e = Math.round(energyNow() * 100) / 100;
+  const j = tracking.last;
+  const fresh = j && j.i !== pulse.judged ? j : null;
+  const now = performance.now();
+  if (parts.level) {
+    const fill = parts.level.firstElementChild as HTMLElement | null;
+    if (fill) fill.style.width = `${Math.round(e * 100)}%`;
+  }
+  // (nothing new: one now and then, so the TV sees a player who stopped)
+  if (!fresh && Math.abs(e - pulse.e) < 0.04 && now - pulse.at < 600) return;
+  sock.send({ t: "pulse", e, v: fresh ? fresh.verdict : null });
+  pulse = { at: now, e, judged: fresh ? fresh.i : pulse.judged };
+}, 125);
+
 // the clock drifts and Wi-Fi changes: a few more pings every 15 s
 setInterval(() => {
   if (sock?.isOpen) burst(3);
@@ -698,6 +774,9 @@ Object.assign(window, {
     act,
     /** the connection drops for `ms` (song-check: the bars sent meanwhile must still get there) */
     drop: (ms: number) => sock?.pause(ms),
+    /** a pretend hand: a reading of the motion sensor (m/s², gravity out) at this page's time */
+    motion: (a: number, t: number) => motion.feed(a, t),
+    energy: energyNow,
   },
 });
 
