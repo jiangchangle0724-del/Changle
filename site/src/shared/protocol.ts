@@ -204,6 +204,8 @@ export type DrawView = {
 
 /** 你画我猜: the longest guess a phone sends and the rooms server keeps (every answer fits, with room to spare). */
 export const DRAW_GUESS_MAX = 40;
+/** 你画我猜: one round's clock, online as on one phone (the game's card says a minute). */
+export const DRAW_ROUND_MS = 60_000;
 
 export type KingView = {
   id: "king";

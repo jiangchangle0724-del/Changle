@@ -552,6 +552,65 @@ test("draw: a drawer who leaves: no penalty for anyone else, the word goes up, t
   ok(ov.phase === "result" && ov.left === "p0" && o.eng.d.game !== null && ["p1", "p2"].includes(ov.drawer), "an older saved table: no crash, someone still here is next");
 });
 
+test("draw: the drawer taps a guess that's close enough, and it counts; a round is a minute", () => {
+  // (the random numbers this test uses are handed back afterwards: the games tested after it, drama's
+  // casting for one, deal exactly what they dealt before it was added)
+  const keep = seed;
+  try {
+    closeEnough();
+  } finally {
+    seed = keep;
+  }
+});
+
+function closeEnough() {
+  type V = Extract<GameView, { id: "draw" }>;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 2 });
+  const s = t.eng.d.game!.s as { word: number };
+  s.word = DRAW_WORDS.findIndex((w) => w.zh === "钟表");
+  ok(Math.round((t.view<V>("p0").endsAt - clock) / 1000) === 60, `a round is a minute (${Math.round((t.view<V>("p0").endsAt - clock) / 1000)} s)`);
+  t.g("p1", "guess", { text: "时钟" });
+  t.g("p2", "guess", { text: "闹钟" });
+  t.g("p3", "guess", { text: "时钟！" });
+  t.g("p2", "guess", { text: "时钟" });
+  let v = t.view<V>("p1");
+  ok(!v.solved.length && v.guesses.filter((x) => x.text.startsWith("时钟")).length === 3, "时钟 is not 钟表 by itself");
+  // nobody but the drawer can count a guess: not a guesser, not the host who isn't drawing
+  t.g("p1", "accept", { text: "时钟" });
+  ok(!t.view<V>("p1").solved.length, "a guesser can't count their own guess");
+  t.g("p0", "accept", { text: "猫" });
+  ok(!t.view<V>("p1").solved.length, "only a guess someone typed can be counted");
+  const before = t.events.filter((e) => e.k === "fx" && e.fx === "correct").length;
+  t.g("p0", "accept", { text: "时钟" });
+  v = t.view<V>("p1");
+  ok(v.solved.join() === "p1,p3,p2", `everyone who typed it got it, in the order they typed it (${v.solved.join()})`);
+  ok(v.scores.p1 === 4 && v.scores.p3 === 2 && v.scores.p2 === 2 && v.scores.p0 === 4, `scored as right guesses (${JSON.stringify(v.scores)})`);
+  ok(!v.guesses.some((x) => x.text.includes("时钟")), "the counted guess no longer shows to anyone");
+  ok(v.guesses.filter((x) => x.ok).length === 3 && v.guesses.some((x) => x.pid === "p2" && x.text === "闹钟"), `one 'got it' each, and the other guesses stay (${JSON.stringify(v.guesses)})`);
+  ok(t.events.filter((e) => e.k === "fx" && e.fx === "correct").length - before === 3, "the room hears each one");
+  ok(v.phase === "result" && !t.pens().length, "all three have it: the round is over, nobody drinks");
+
+  // counted once, typed again by someone else: right straight away
+  const u = setup(3);
+  u.act("p0", { a: "start", game: "draw" });
+  u.g("p0", "pick", { d: 1 });
+  (u.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "飞机");
+  u.g("p1", "guess", { text: "plane" });
+  u.g("p0", "accept", { text: "plane" });
+  ok(u.view<V>("p0").solved.join() === "p1" && u.view<V>("p0").phase === "draw", "plane counts for 飞机 / Airplane");
+  u.g("p2", "guess", { text: "Planes" });
+  ok(u.view<V>("p0").solved.join() === "p1,p2" && u.view<V>("p0").phase === "result", "and Planes, typed after, is right without a tap");
+  u.g("p0", "accept", { text: "plane" });
+  ok(u.view<V>("p0").solved.length === 2, "nothing to count once the round is over");
+  u.g("p0", "next");
+  u.g("p1", "pick", { d: 1 });
+  (u.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "飞机");
+  u.g("p2", "guess", { text: "plane" });
+  ok(!u.view<V>("p0").solved.length, "a new round starts with nothing counted");
+}
+
 test("king: private tokens, crown, called numbers", () => {
   const t = setup(5);
   t.act("p0", { a: "start", game: "king" });
