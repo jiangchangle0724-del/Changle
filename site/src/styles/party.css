@@ -3176,6 +3176,10 @@ button.ecard.is-legal:active {
   align-items: center;
   gap: var(--space-2);
 }
+/* (a small segmented control sits to the left on its own; here it's centered over its line) */
+.tn-level > .seg {
+  align-self: center;
+}
 
 /* ---------- quiz: four titles for everyone ---------- */
 
