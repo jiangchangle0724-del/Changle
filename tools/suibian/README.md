@@ -118,7 +118,7 @@ street number ("150-8888 River Rd") still match.
 | Folder | What it is |
 | --- | --- |
 | `src/base.ts` | `BASE = "/eat"`: where the tool lives on changle.ca. |
-| `src/engine` | The rules: cuisines, diet limits (with the draft severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
+| `src/engine` | The rules: cuisines, diet limits (with the severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
 | `src/room` | One table from lobby to result. No network inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker: rooms (one Durable Object each), Google Places, Google sign-in, users' diet cards, our per-restaurant ratings. |
 | `src/client` | The phone pages (Preact), Chinese and English: home, a table, rating, picking alone (`ui/Solo.tsx`), and the privacy and terms pages (`privacy.html`, `terms.html`, plain HTML at `/eat/privacy` and `/eat/terms`). |
@@ -217,7 +217,8 @@ be sure.
   the table: `TIMING` in `src/room/protocol.ts`. People per table, searches per table and
   ratings per table: `MAX_MEMBERS`, `MAX_SEARCHES` and `RATING_SLACK` there.
 * Score weights, cards per table, max per cuisine: `src/engine/pick.ts`.
-* Severe-allergy table (**draft, please review**): `SEVERE_RULES_OUT` in `src/engine/limits.ts`.
+* Severe-allergy table: `SEVERE_RULES_OUT` in `src/engine/limits.ts` (reviewed with the owner on
+  2026-11-05; every allergen now rules out the cuisines built on it, with the reason beside it).
 * Wait-estimate rules (peak hours, popularity): `src/engine/wait.ts`.
 * Uses per account per day (tables and solo picks together): `ROOMS_PER_DAY` in `src/server/worker.ts`.
 * How far each range reaches: `RANGES` and the tabs' `RANGE_MODES` in `src/engine/clock.ts`.

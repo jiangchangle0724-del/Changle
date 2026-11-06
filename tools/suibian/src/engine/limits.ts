@@ -16,20 +16,36 @@ export const ALLERGENS: Record<AllergenId, Text> = {
 };
 
 /**
- * DRAFT — needs review by people who live with these allergies.
- * A severe allergy rules out the cuisines where the allergen is in most dishes or in shared
- * sauces and fryers. Nobody publishes allergens per menu, so this is a cautious guess, and every
- * result still says "tell your server". Allergens not listed here (egg, dairy, gluten) are in too
- * many cuisines to rule any out; for those the card only warns.
+ * A severe allergy rules out the cuisines where the allergen is in most dishes, in shared sauces,
+ * broths and fryers, or is the whole menu (eggs at brunch, wheat noodles at ramen). Nobody
+ * publishes allergens per menu, so this is a cautious guess, and every result still says "tell
+ * your server".
+ *
+ * Reviewed with the owner on 2026-11-05 (the review page 「随便 · 严重过敏规则（请帮忙看）」):
+ * its suggested additions are in, each with its reason as a comment. Still open there, for friends
+ * who live with these allergies: oyster sauce (other Chinese, HK café, Taiwanese for shellfish),
+ * other Chinese for peanut, and mustard as an allergen of its own.
  */
 export const SEVERE_RULES_OUT: Partial<Record<AllergenId, CuisineId[]>> = {
-  peanut: ["thai", "sea", "vietnamese", "sichuan"],
-  treenut: ["indian", "middle_eastern"],
-  shellfish: ["seafood", "cantonese", "japanese", "thai", "vietnamese", "sea"],
-  fish: ["seafood", "japanese", "thai", "vietnamese", "sea", "korean"],
-  sesame: ["korean", "middle_eastern", "japanese", "sichuan", "cantonese", "chinese", "taiwanese", "hotpot", "hk_cafe"],
-  soy: ["cantonese", "hk_cafe", "sichuan", "hotpot", "taiwanese", "chinese", "japanese", "ramen", "korean"],
+  // + hot pot (crushed peanuts at the sauce bar), HK café (peanut-butter toast, satay), Taiwanese (peanut powder)
+  peanut: ["thai", "sea", "vietnamese", "sichuan", "hotpot", "hk_cafe", "taiwanese"],
+  // + vegetarian (cashew cream and cheese), brunch and cafés (almond flour in baking)
+  treenut: ["indian", "middle_eastern", "vegetarian", "brunch"],
+  // + Korean (kimchi salted with shrimp), hot pot (seafood broths, shacha sauce with dried shrimp)
+  shellfish: ["seafood", "cantonese", "japanese", "thai", "vietnamese", "sea", "korean", "hotpot"],
+  // + ramen (bonito and dried-sardine broths), hot pot (fish balls, shacha sauce with dried fish)
+  fish: ["seafood", "japanese", "thai", "vietnamese", "sea", "korean", "ramen", "hotpot"],
+  // + ramen (sesame seeds and oil, tantanmen), western (sesame burger buns)
+  sesame: ["korean", "middle_eastern", "japanese", "sichuan", "cantonese", "chinese", "taiwanese", "hotpot", "hk_cafe", "ramen", "western"],
+  // + vegetarian (tofu, soy milk, mock meat), Southeast Asian (sweet soy sauce)
+  soy: ["cantonese", "hk_cafe", "sichuan", "hotpot", "taiwanese", "chinese", "japanese", "ramen", "korean", "vegetarian", "sea"],
   chili: ["sichuan", "hotpot", "thai", "korean", "indian", "mexican", "sea"],
+  // Brunch menus are mostly eggs.
+  egg: ["brunch"],
+  // Butter, cheese and cream throughout; ghee and paneer in Indian cooking.
+  dairy: ["brunch", "italian", "indian"],
+  // The whole menu is wheat noodles, pasta or pizza.
+  gluten: ["ramen", "italian"],
 };
 
 /** Typed items: at most this many per person, each this long. */
