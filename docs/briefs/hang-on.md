@@ -48,13 +48,13 @@
 
 - A1 已合并（#137）：Rapier 物理、20 条检查全过、键盘可玩、physics-notes。不装东西就能玩的试玩页：https://claude.ai/artifact/U9shPyHZwd4Duft79KK194
 - A2 已合并（#165），Worker `hang-on` 11-04 连上 Cloudflare 并部署：changle.ca/hang-on/ 是主机页，手机扫码进 changle.ca/hang-on/pad/。对着线上跑联机检查全过（直连往返约 20 ms，绕路约 120 ms）。
-- C1（12 关关卡）Codex 已开 PR #172（codex/ho-c1-levels）：12 关 JSON、回放、`npm run levels`。没审完；它不用 fading / springs，合并后可以让它补一版把饼干和蜡烛放进关里。
+- C1（12 关关卡）PR #172（codex/ho-c1-levels）11-05 审完：在含 A3 的 main 上 12 关回放全过（用时、摔死和 Codex 的表一样），第 6 关真成链、第 10 关真丢人、单人都过不去。审查时补了：审查页和 12 张截图改用 A3 画面（原来的开发渲染器 A3 删了）、`src/render/plates.ts`（远景画地址单独放，Stage 不再依赖 Vite 才认的写法）、验收器允许饼干和蜡烛、CI 的 checks 跑 `npm run levels`。等 Steve 点头合并；合并后大厅里就是 1 到 12 关加彩蛋关。
 - A3 已合并（#179，11-05）并上线，changle.ca/hang-on 对着线上跑联机检查全过：Pixi 8 画面（两个世界的视差背景、五种材质贴图、糯米团带脸帽子眼镜、动效清单 8 条全做、慢动作、横幅）、WebAudio 合成音效、饼干平台和弹簧蜡烛的物理、背叛榜、召唤、结算页排行、大厅选关和座位卡、手柄页换装（六项）和召唤键、中英两套字、彩蛋关「桌上杂技」、两张 ChatGPT 远景画、手机双击不放大（#176，和上线记录 #173 一起随 #179 合并）。A5 的大厅、关卡流程、结算页、背叛榜这次一并做了一版。
 
 ## 还剩什么
 
 - 联机门（A2 + A4）：Steve 真机实测，按 `docs/field-notes/hang-on-link-test.md` 填：HDMI 下按键到画面 ≤ 80 ms，关 Wi-Fi 再开 5 秒内回来，微信里是不是直连。浏览器级的「离线」模拟不会断 WebRTC，所以掐线那条只在真机上算数。
-- 审 Codex 的 C1 PR #172 再合并；合并后发一张小卡让它把饼干（`fading`）和蜡烛（`springs`）放进几关，并给关里补检查点（12 关现在都是 `checkpoints: []`，摔死回起点）。`ho-C4-tests.md` 的物理回归部分也可以发了。
+- #172 合并后发一张小卡给 Codex：把饼干（`fading`）和蜡烛（`springs`）放进几关，长一点的关多放检查点（现在只有 table-04、van-08 各一个，van-12 两个）；关都只有一屏宽，第二版可以做长一些。`ho-C4-tests.md` 的物理回归部分也可以发了。
 - A3 的真机验收：Mac 接电视开主机页，`play.html?players=4` 看 ⏲ 的 p95 ≤ 20 ms；减弱动效模式看一眼。声音要点过一次页面才响（浏览器规矩）。
 - 音乐（Lyria 循环曲，C3）没做。以后要换远景画：照 `games/hang-on/art/README.md` 的规矩放图、登记来源。
 - A4 手柄页剩下的：两摇杆设置、首包 ≤ 50 KB 的验证（现在 JS 约 15 KB，gzip 6 KB）。

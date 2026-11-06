@@ -1,0 +1,57 @@
+{
+  "id": "table-02",
+  "world": "table",
+  "name": {
+    "zh": "碗沿小缝",
+    "en": "Between the Bowls"
+  },
+  "teaches": "gap",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 950,
+    "y": 400,
+    "w": 290,
+    "h": 160
+  },
+  "checkpoints": [],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 420,
+      "h": 160,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 500,
+      "y": 560,
+      "w": 740,
+      "h": 160,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 400,
+      "w": 40,
+      "h": 320,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-02.json"
+}
