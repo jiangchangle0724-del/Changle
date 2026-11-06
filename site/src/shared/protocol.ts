@@ -602,8 +602,8 @@ export type DramaCard = { secret: T; culprit: boolean; task: T };
 export type DramaView = {
   id: "drama";
   phase: "setup" | "brief" | "act" | "vote" | "reveal" | "end";
-  /** a scene with a hidden culprit, or a quick acting duel */
-  mode: "show" | "pk";
+  /** a scene with a hidden culprit, a quick acting duel, or a famous film or TV moment */
+  mode: "show" | "pk" | "classic";
   level: "all" | "spicy";
   diff: "easy" | "hard";
   /** what the losers do: drink, exercise, or a forfeit */
@@ -611,8 +611,8 @@ export type DramaView = {
   round: number;
   total: number;
   scene: { id: string; kind: string; title: T; setup: T; ask: T; culprit: T } | null;
-  /** who plays whom, in order */
-  cast: { pid: string; role: T; brief: T }[];
+  /** who plays whom, in order (a famous scene: `brief` is how to play the part, `first` its opening line) */
+  cast: { pid: string; role: T; brief: T; first?: T }[];
   pk: { line: T; styles: Record<string, T> } | null;
   /** this phone's own card while acting */
   me: DramaCard | null;
@@ -659,6 +659,10 @@ export type DramaView = {
   peer?: boolean;
   /** a monologue: three secrets, one of them the actor's, for the audience to choose from */
   options?: T[] | null;
+  /** 名场面: the set the host picked (Chinese film and TV, or English) */
+  cset?: "zh" | "en";
+  /** the famous scene on now; `see` is what to search for to watch the original */
+  classic?: { id: string; set: "zh" | "en"; show: T; year: number; title: T; setup: T; beats: T[]; see: string } | null;
 };
 
 /** 打碟 · DJ Booth (the shapes behind it: src/shared/dj/types.ts). */

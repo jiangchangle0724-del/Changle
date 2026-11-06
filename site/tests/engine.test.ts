@@ -13,6 +13,7 @@ import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/eng
 import { PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
 import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dramaSizes } from "../src/shared/engine/games/drama";
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
+import { CLASSICS as DRAMA_CLASSICS, CLASSIC_TIPS as DRAMA_CLASSIC_TIPS, CSET_NAME as DRAMA_CSET_NAME } from "../src/data/dramaClassics";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -1621,6 +1622,109 @@ test("drama: a scene written for every number of actors, at every table", () => 
     const n = DRAMA_SCENES.filter((s) => s.level === "all" && s.diff === "easy" && dramaSizes(s)[0] <= k && dramaSizes(s)[1] >= k).length;
     ok(n >= 4, `all ages, easy, ${k} actors: ${n} scenes`);
   }
+});
+
+test("drama: famous scenes: the host picks the films, every phone shows the parts and their lines, and only stars count", () => {
+  type V = V<"drama">;
+  const t = setup(5);
+  const st = () => t.eng.d.game!.s as { cast: string[]; culprit: string | null; classic: number | null; roles: number[] };
+  t.act("p0", { a: "start", game: "drama" });
+  ok(t.view<V>("p1").cset === "zh", "Chinese film and TV until the host says otherwise");
+  t.g("p0", "config", { mode: "classic", cset: "en", total: 2 });
+  t.g("p1", "config", { cset: "zh" });
+  let v = t.view<V>("p1");
+  ok(v.mode === "classic" && v.cset === "en", "the host picks famous scenes from English film and TV; a guest can't change it");
+  ok(v.next?.ok && v.next.auto && v.next.lo === 2 && v.next.hi === 3, "nobody has said: two or three of five go up");
+  t.g("p0", "start");
+  v = t.view<V>("p4");
+  const c = DRAMA_CLASSICS[st().classic!];
+  ok(v.phase === "brief" && v.classic?.id === c.id && c.set === "en" && !v.scene && !v.pk && !v.options, "an English famous scene: no culprit, no duel");
+  ok(v.classic!.beats.length === c.beats.length && v.classic!.setup.zh === c.setup.zh && v.classic!.year === c.year, "what happens and how it goes, on every phone");
+  ok(
+    v.cast.length >= 2 && v.cast.length <= 3 && v.cast.every((x, j) => x.role.zh === c.roles[st().roles[j]].name.zh && x.brief.zh === c.roles[st().roles[j]].play.zh && x.first?.zh === c.roles[st().roles[j]].first.zh),
+    "every part, how to play it and the line it opens with",
+  );
+  const lo = Math.min(c.min ?? c.roles.length, c.roles.length);
+  ok(st().roles.length === v.cast.length && c.roles.slice(0, Math.min(lo, v.cast.length)).every((_, i) => st().roles.includes(i)), "the parts the moment can't do without come first");
+  ok(st().culprit === null && v.cast.every((x) => { const me = t.view<V>(x.pid).me; return !!me && !me.culprit && !me.secret.zh && !me.task.zh; }), "nobody's a culprit, and nothing is secret");
+  ok(pkSeeUrl(v.classic!.set, v.classic!.see).startsWith("https://www.youtube.com/results?search_query="), "the original, to find on YouTube");
+  for (const x of v.cast) t.g(x.pid, "ready");
+  v = t.view<V>("p4");
+  ok(v.phase === "act" && v.actMs === 60_000 + (v.cast.length - 2) * 15_000 && !v.twistAt, "a minute, fifteen seconds more for each actor past two, and no plot twist");
+  t.advance(v.actMs + 1000);
+  ok(t.view<V>("p4").phase === "vote" && !t.view<V>("p4").twist, "time's up: the vote");
+  const cast = st().cast;
+  const aud = t.ids.filter((id) => !cast.includes(id));
+  const stars = Object.fromEntries(cast.map((id, i) => [id, i === 0 ? 5 : 2]));
+  t.g(aud[0], "vote", { guess: cast[0], stars });
+  ok(t.view<V>(aud[0]).myVote?.guess === null, "there's nobody to guess: only the stars count");
+  for (const a of aud.slice(1)) t.g(a, "vote", { stars });
+  v = t.view<V>("p4");
+  ok(v.phase === "reveal" && v.result!.best.join() === cast[0] && v.result!.losers.join() === cast.slice(1).join() && !v.result!.right.length && !v.result!.caught, "most stars takes best actor; the fewest pay");
+  ok(v.scores[cast[0]] === 5 && cast.slice(1).every((id) => v.scores[id] === 2), "each actor scores their stars");
+  t.advance(6000);
+  const pen = t.pens().at(-1);
+  ok(!!pen && pen.note?.zh === c.title.zh && pen.who.join() === cast.slice(1).join(), "the penalty names the moment");
+  t.g("p0", "next");
+  ok(DRAMA_CLASSICS[st().classic!].id !== c.id && DRAMA_CLASSICS[st().classic!].set === "en", "the next act: another one, from the same films");
+
+  // one volunteer, Chinese film and TV: a moment one person can carry
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p0", "config", { mode: "classic" });
+  u.g("p1", "want", { want: "act" });
+  ok(u.view<V>("p2").next?.lo === 1, "one volunteer: one goes up");
+  u.g("p0", "start");
+  const w = u.view<V>("p2");
+  ok(w.cast.length === 1 && w.cast[0].pid === "p1" && w.classic?.set === "zh" && !w.options, "a famous scene played solo, from Chinese film and TV");
+  ok(pkSeeUrl(w.classic!.set, w.classic!.see).startsWith("https://search.bilibili.com/all?keyword="), "the original, to find on Bilibili");
+  u.g("p1", "ready");
+  u.g("p1", "cut");
+  for (const a of ["p0", "p2", "p3"]) u.g(a, "vote", { stars: { p1: 4 } });
+  const r = u.view<V>("p2").result!;
+  ok(r.stars.p1 === 4 && !r.best.length && !r.losers.length, "alone on stage: nobody to beat, and nobody pays");
+});
+
+test("drama: every famous scene in both languages, with its parts, its steps and a search for the original", () => {
+  type V = V<"drama">;
+  const bi = (x: { zh: string; en: string }) => !!x.zh.trim() && !!x.en.trim();
+  const ids = new Set<string>();
+  for (const c of DRAMA_CLASSICS) {
+    ok(!ids.has(c.id), `${c.id}: one id`);
+    ids.add(c.id);
+    ok(bi(c.show) && bi(c.title) && bi(c.setup) && c.year > 1900 && c.year <= 2026, `${c.id}: the show, the moment and what happens, in both languages`);
+    ok(c.beats.length >= 3 && c.beats.every(bi), `${c.id}: how it goes, step by step`);
+    ok(c.roles.length >= 1 && c.roles.length <= 4 && c.roles.every((r) => bi(r.name) && bi(r.play) && bi(r.first)), `${c.id}: every part says how to play it and what to open with`);
+    ok(new Set(c.roles.map((r) => r.name.zh)).size === c.roles.length && new Set(c.roles.map((r) => r.name.en)).size === c.roles.length, `${c.id}: no two parts with the same name`);
+    ok(c.min === undefined || (Number.isInteger(c.min) && c.min >= 1 && c.min < c.roles.length), `${c.id}: the parts it can't do without`);
+    // the famous line, not the script
+    ok(c.roles.every((r) => r.first.zh.length <= 40 && r.first.en.length <= 90), `${c.id}: the opening lines stay short`);
+    ok(c.see.trim().length >= 4, `${c.id}: something to search for`);
+  }
+  ok(DRAMA_CLASSIC_TIPS.length === 5 && DRAMA_CLASSIC_TIPS.every(bi) && bi(DRAMA_CSET_NAME.zh) && bi(DRAMA_CSET_NAME.en), "the tips and the two sets, in both languages");
+  for (const set of ["zh", "en"] as const) {
+    const list = DRAMA_CLASSICS.filter((c) => c.set === set && c.level === "all");
+    ok(list.length >= 12, `${set}: ${list.length} famous scenes`);
+    // the exact number who volunteer, one to four, at every table
+    for (let k = 1; k <= 4; k++) {
+      const t = setup(6);
+      t.act("p0", { a: "start", game: "drama" });
+      t.g("p0", "config", { mode: "classic", cset: set });
+      t.ids.forEach((id, i) => t.g(id, "want", { want: i < k ? "act" : "watch" }));
+      t.g("p0", "start");
+      const v = t.view<V>("p5");
+      ok(v.classic?.set === set && v.cast.length === k && v.cast.every((x) => t.view<V>("p5").want?.[x.pid] === "act"), `${set}: ${k} volunteers, ${k} on stage`);
+    }
+  }
+  // more volunteers than any famous scene has parts: four go up
+  const t = setup(6);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { mode: "classic" });
+  for (const id of t.ids) t.g(id, "want", { want: "act" });
+  ok(t.view<V>("p1").next?.lo === 4, "six volunteers: the biggest famous scene takes four");
+  t.g("p0", "start");
+  const v = t.view<V>("p1");
+  ok(v.cast.length === 4 && !!v.peer === false, "four on stage, two watch and vote");
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {

@@ -1636,10 +1636,122 @@ def t_drama_online(browser):
     tv_ctx.close()
 
 
+def t_drama_classic(browser):
+    """名场面: one phone in English films (the setup, the playbill, every card, stars only, the reveal),
+    then an online table in Chinese films with the TV showing the steps."""
+    pg = phone(browser, "classic", players=PLAYERS)
+    pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+    pg.wait_for_selector(".dm-marquee")
+    pg.get_by_role("button", name="名场面", exact=True).click()
+    ok(until(lambda: pg.get_by_role("button", name="中文影视").get_attribute("aria-pressed") == "true", 2000), "famous scenes: Chinese film and TV to start with")
+    ok(pg.get_by_role("button", name="困难", exact=True).count() == 0, "no difficulty: the original sets it")
+    pg.get_by_role("button", name="英文影视").click()
+    shot(pg, "dmk-setup")
+    pg.get_by_role("button", name="开演").click()
+    pg.wait_for_selector(".dm-roster")
+    n = pg.locator(".dm-roster li").count()
+    ok(n == 2 and pg.locator(".dm-classic-show").count() == 1 and pg.locator(".dm-hunt").count() == 0, "a famous scene for two of four, the show it's from, nobody to find")
+    see = pg.locator(".dm-playbill .dm-see-original")
+    ok(see.count() == 1 and (see.get_attribute("href") or "").startswith("https://www.youtube.com/results?search_query=") and see.get_attribute("target") == "_blank", "the original, on YouTube, in a new page")
+    ok(pg.locator(".dm-beats li").count() >= 3 and pg.locator(".dm-roster-play").count() == 2 * n, "how it goes, and each part's way of playing it and first line")
+    ok(pg.locator(".dm-tips summary", has_text="名场面").count() == 1, "tips for a first famous scene")
+    shot(pg, "dmk-brief")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="发身份牌").click()
+    for i in range(n):
+        pg.wait_for_timeout(DM_SETTLE)
+        pg.locator(".game-actions .btn-primary").click()
+        ok(pg.locator(".dm-cardwrap .dm-see-original").count() == 0, f"card {i + 1}: face down")
+        pg.locator(".dm-card-back").click()
+        pg.wait_for_timeout(800)
+        ok(pg.locator(".dm-card-play").count() == 1 and pg.locator(".dm-card-first").count() == 1 and pg.locator(".dm-card-secret").count() == 0 and pg.locator(".dm-card-watermark").count() == 0, f"card {i + 1}: the part, how to play it, the first line, no secret")
+        ok(pg.locator(".dm-cardwrap .dm-see-original").count() == 1, f"card {i + 1}: and the original to watch")
+        if i == 0:
+            shot(pg, "dmk-card")
+        pg.locator(".game-actions .btn-primary").click()
+        pg.wait_for_timeout(300)
+    ok(until(lambda: pg.locator(".dm-clock").count() == 1, 3000), "every card read: action")
+    ok(pg.locator(".dm-wait-note", has_text="最有名的台词").count() == 1 and pg.locator(".dm-twist").count() == 0, "the phone says: follow the steps, say the famous line")
+    pg.wait_for_timeout(1600)
+    pg.get_by_role("button", name="演完了，开始投票").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    ok(pg.locator(".dm-wait-note", has_text="谁最像原片").count() == 1, "the audience gives stars")
+    pg.get_by_role("button", name="传手机投票").click()
+    for k in range(4 - n):
+        pg.wait_for_timeout(DM_SETTLE)
+        pg.locator(".game-actions .btn-primary").click()
+        ok(pg.locator(".dm-suspect").count() == 0 and pg.locator(".dm-rates li").count() == n and pg.locator(".dm-ask", has_text="像不像原片").count() == 1, f"ballot {k + 1}: stars only")
+        rows = pg.locator(".dm-rates li")
+        for r in range(n):
+            rows.nth(r).locator(".dm-star").nth(4 if r == 0 else 1).click()
+        if k == 0:
+            shot(pg, "dmk-ballot")
+        pg.get_by_role("button", name="交卷").click()
+    ok(until(lambda: pg.locator(".dm-headline", has_text="谁最像原版").count() == 1, 5000), "the reveal: who nailed it")
+    ok(until(lambda: pg.locator(".dm-best").count() == 1, 4000) and pg.locator(".dm-truth-secret").count() == 0, "best actor, and no secrets to show")
+    shot(pg, "dmk-reveal")
+    until(lambda: pg.locator(".stamp-layer").count() == 1, 7000)
+    clear_stamps([pg])
+    errors([pg])
+    pg.context.close()
+
+    host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
+    everyone = [host] + guests
+    tv_ctx = browser.new_context(viewport={"width": 1366, "height": 768})
+    tv = tv_ctx.new_page()
+    tv._errs = []
+    tv._name = "tv"
+    tv.on("pageerror", lambda e: tv._errs.append(str(e)))
+    tv.goto(BASE + f"#/tv/{code}", wait_until="networkidle")
+    start_game(host, everyone, "drama")
+    host.get_by_role("button", name="名场面", exact=True).click()
+    ok(until(lambda: view(guests[0])["mode"] == "classic" and view(guests[0])["cset"] == "zh", 3000), "online: the table sees famous scenes, Chinese film and TV")
+    ok(until(lambda: any(w in " ".join(tv.locator(".tvd-chips").all_inner_texts()) for w in ("中文影视", "Chinese film & TV")), 4000), "the TV says what's on tonight")
+    for g in guests[:3]:
+        g.get_by_role("radio", name="我要上台").click()
+    ok(until(lambda: view(host)["next"]["lo"] == 3, 3000), "three volunteers: three go up")
+    host.get_by_role("button", name="开演").click()
+    ok(until(lambda: view(host)["phase"] == "brief", 5000), "curtain up")
+    v = view(host)
+    ok(v["classic"] and v["classic"]["set"] == "zh" and len(v["cast"]) == 3 and all(c.get("first") for c in v["cast"]), "a Chinese famous scene for the three, every part with its line")
+    ok(until(lambda: tv.locator(".tvd-credit", has_text=str(v["classic"]["year"])).count() == 1 and tv.locator(".tvd-setup").count() == 1, 4000), "the TV shows the film, its year and what happens")
+    see = host.locator(".dm-playbill .dm-see-original")
+    ok(see.count() == 1 and (see.get_attribute("href") or "").startswith("https://search.bilibili.com/all?keyword="), "the original, on Bilibili")
+    tv.wait_for_timeout(800)
+    tv.screenshot(path=os.path.join(OUT, "dmk-brief-tv.png"))
+    actors = [g for g in everyone if me(g) in [c["pid"] for c in v["cast"]]]
+    for a in actors:
+        a.locator(".dm-card-back").click()
+        a.wait_for_timeout(700)
+        ok(a.locator(".dm-cardwrap .dm-see-original").count() == 1, f"{a._name}'s card: the original to watch")
+        a.locator(".dm-cardwrap .btn-primary").click()
+    ok(until(lambda: view(host)["phase"] == "act", 4000), "every card read: action")
+    tv.wait_for_timeout(1800)
+    tv.screenshot(path=os.path.join(OUT, "dmk-act-tv.png"))
+    actors[0].get_by_role("button", name="演完了，开始投票").click()
+    ok(until(lambda: view(host)["phase"] == "vote", 4000), "the vote")
+    host.wait_for_selector(".dm-ballot")
+    ok(host.locator(".dm-suspect").count() == 0 and host.locator(".dm-rates li").count() == 3, "the audience's ballot: stars for each")
+    rows = host.locator(".dm-rates li")
+    for r in range(3):
+        rows.nth(r).locator(".dm-star").nth(r + 1).click()
+    host.get_by_role("button", name="交卷").click()
+    ok(until(lambda: view(host)["phase"] == "reveal", 5000), "one in the audience, one vote: the reveal")
+    ok(until(lambda: any(w in (tv.locator(".tvd-headline").all_inner_texts() or [""])[0] for w in ("谁最像原版", "Who nailed it")), 5000), "the TV: who nailed it")
+    tv.wait_for_timeout(3500)
+    tv.screenshot(path=os.path.join(OUT, "dmk-reveal-tv.png"))
+    until(lambda: any(g.locator(".stamp-layer").count() for g in everyone), 7000)
+    clear_stamps(everyone)
+    errors(everyone + [tv])
+    for g in everyone:
+        g.context.close()
+    tv_ctx.close()
+
+
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
     "superlatives": [t_superlatives_single, t_superlatives_online],
-    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online],
+    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],

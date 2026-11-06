@@ -81,11 +81,11 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
     dramaSfx.deal();
   });
   // the house before the curtain, then the set itself; every phone in step
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" || v.mode === "classic" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
+    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
     return () => a?.stop(0.8);
     // once per scene and phase
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,6 +150,8 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   pk={v.mode === "pk"}
                   line={v.pk?.line}
                   sceneId={v.scene?.id}
+                  first={v.cast.find((c) => c.pid === me)!.first ?? null}
+                  see={v.classic ?? null}
                   onDone={() => g("ready")}
                   doneLabel={zh ? "记住了，准备开演" : "Got it. Ready"}
                 />
@@ -160,7 +162,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                 <Waiting>{zh ? `演员在偷偷看身份牌（${v.ready.length}/${v.cast.length}）` : `The actors are reading their cards (${v.ready.length}/${v.cast.length})`}</Waiting>
               </>
             )}
-            {v.mode === "show" && <FirstTimeTips />}
+            {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} />}
             <HostRow>
               <HostButton onClick={settle(() => g("go"))}>
                 <Clapperboard size={14} />
@@ -190,7 +192,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   <Eye size={16} />
                   {peek ? (zh ? "收起我的牌" : "Hide my card") : zh ? "再看一眼我的牌" : "Peek at my card"}
                 </button>
-                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} line={v.pk?.line} sceneId={v.scene?.id} />}
+                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} line={v.pk?.line} sceneId={v.scene?.id} first={v.cast.find((c) => c.pid === me)!.first ?? null} see={v.classic ?? null} />}
               </>
             )}
             {(acting || isHost) && (
@@ -198,7 +200,25 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                 {zh ? "演完了，开始投票" : "That's a wrap: vote"}
               </button>
             )}
-            {!acting && !isHost && player && <p className="dm-wait-note">{v.options ? (zh ? "好好看，等会儿要猜：台上的人藏着哪个秘密？" : "Watch closely: you'll guess which secret they're hiding.") : zh ? "好好看，等会儿要投票：谁是坏人？谁演得最像？" : "Watch closely: you'll vote on the culprit and the acting."}</p>}
+            {!acting && !isHost && player && (
+              <p className="dm-wait-note">
+                {v.mode === "classic"
+                  ? zh
+                    ? "好好看，等会儿给每个演员打星：谁最像原片？"
+                    : "Watch closely: you'll give each actor stars for how close they got to the original."
+                  : v.mode === "pk"
+                    ? zh
+                      ? "好好看，等会儿给两个人打星：谁演得更像？"
+                      : "Watch closely: you'll give both of them stars."
+                    : v.options
+                      ? zh
+                        ? "好好看，等会儿要猜：台上的人藏着哪个秘密？"
+                        : "Watch closely: you'll guess which secret they're hiding."
+                      : zh
+                        ? "好好看，等会儿要投票：谁是坏人？谁演得最像？"
+                        : "Watch closely: you'll vote on the culprit and the acting."}
+              </p>
+            )}
           </>
         )}
 

@@ -1,4 +1,5 @@
 import { ANY_SECRETS, ANY_TWISTS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaLevel, type DramaScene } from "../../../data/drama";
+import { CLASSICS, type ClassicScene, type ClassicSet } from "../../../data/dramaClassics";
 import type { T } from "../../../i18n";
 import { cleanScene, hasText } from "../../dramaScene";
 import type { DramaCard, DramaView } from "../../protocol";
@@ -16,6 +17,9 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * a few of those who don't mind go up, whoever has acted least first. With nobody left watching,
  * the actors vote on each other (never on themselves).
  *
+ * 名场面 (`classic`): famous film and TV moments, from a Chinese set or an English one (the host
+ * picks); no culprit, the audience gives stars, like the duel.
+ *
  * Points: a right guess 1; a culprit nobody pins 3; each actor their average stars, rounded.
  * The penalty: the actor(s) with the fewest stars, plus the culprit if caught, or else everyone
  * the culprit fooled. Best actor (most stars) takes a trophy.
@@ -25,7 +29,7 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * (written by players, approved by the site's owner), which mix in with the built-in ones.
  */
 
-type Mode = "show" | "pk";
+type Mode = "show" | "pk" | "classic";
 type Pen = "drink" | "move" | "prank";
 type Want = "act" | "watch";
 type Vote = { guess: string | null; stars: Record<string, number> };
@@ -60,6 +64,9 @@ type S = {
   roles: number[];
   /** a monologue: the order the audience sees the three secrets in (the true one is 0) */
   order: number[];
+  /** 名场面: which set the host picked, and the famous scene on now (its index) */
+  cset: ClassicSet;
+  classic: number | null;
   culprit: string | null;
   tasks: Record<string, number>;
   pk: { line: number; styles: Record<string, number> } | null;
@@ -82,6 +89,8 @@ const ACT_MS: Record<DramaDiff, number> = { easy: 90_000, hard: 120_000 };
 const SOLO_MS: Record<DramaDiff, number> = { easy: 60_000, hard: 75_000 };
 const PER_ACTOR_MS = 15_000;
 const PK_MS = 45_000;
+/** a famous scene: a minute, and fifteen seconds more for each actor past two */
+const CLASSIC_MS = 60_000;
 const VOTE_MS = 50_000;
 /** the most on stage at once */
 export const MAX_CAST = 8;
@@ -203,6 +212,16 @@ function nextWritten(s: S, api: Api, turns = true): { w: Written; order: string[
 function upNext(s: S, api: Api): { lo: number; hi: number; ok: boolean; auto: boolean } {
   const { ids, vol, free } = lineup(s, api);
   if (s.mode === "pk") return { lo: 2, hi: 2, ok: vol.length + free.length >= 2, auto: !vol.length };
+  if (s.mode === "classic") {
+    // as many as the biggest famous scene takes
+    const most = Math.max(...classicPool(s).map((c) => c.roles.length));
+    if (vol.length) {
+      const k = Math.min(most, vol.length);
+      return { lo: k, hi: k, ok: true, auto: false };
+    }
+    const hi = Math.min(castSize(ids.length), free.length, most);
+    return { lo: Math.min(2, hi), hi, ok: hi > 0, auto: true };
+  }
   const w = nextWritten(s, api, false);
   if (w) return { lo: w.order.length, hi: w.order.length, ok: true, auto: false };
   if (vol.length) {
@@ -211,6 +230,37 @@ function upNext(s: S, api: Api): { lo: number; hi: number; ok: boolean; auto: bo
   }
   const hi = Math.min(castSize(ids.length), free.length);
   return { lo: Math.min(2, hi), hi, ok: hi > 0, auto: true };
+}
+
+/** The famous scenes this table can draw: the host's set, at its spice level. */
+function classicPool(s: S): ClassicScene[] {
+  const set = s.cset ?? "zh";
+  const pool = CLASSICS.filter((c) => c.set === set && (s.level === "spicy" || c.level === "all"));
+  return pool.length ? pool : CLASSICS.filter((c) => c.set === set);
+}
+
+/** A famous scene for `lo` to `hi` actors, not played yet if there's one left; `k`: how many play it. */
+function pickClassic(s: S, lo: number, hi: number, api: Api): { i: number; k: number } {
+  const pool = classicPool(s).map((c) => ({ c, i: CLASSICS.indexOf(c) }));
+  const fits = pool.filter(({ c }) => Math.min(c.min ?? c.roles.length, c.roles.length) <= hi && c.roles.length >= lo);
+  const list = fits.length ? fits : pool;
+  let fresh = list.filter(({ c }) => !s.used.includes(c.id));
+  if (!fresh.length) {
+    s.used = s.used.filter((id) => !list.some(({ c }) => c.id === id));
+    fresh = list;
+  }
+  const pick = fresh[api.int(fresh.length)];
+  s.used.push(pick.c.id);
+  return { i: pick.i, k: Math.max(1, Math.min(pick.c.roles.length, hi)) };
+}
+
+/** A famous scene's parts for `k` actors: the ones it can't do without, then any of the rest. */
+function rolesForClassic(c: ClassicScene, k: number, api: Api): number[] {
+  const all = c.roles.map((_, i) => i);
+  const lo = Math.min(c.min ?? all.length, all.length);
+  if (k >= all.length) return all;
+  if (k >= lo) return [...all.slice(0, lo), ...api.shuffle(all.slice(lo)).slice(0, k - lo)].sort((a, b) => a - b);
+  return all.slice(0, k);
 }
 
 function newRound(s: S, api: Api) {
@@ -227,8 +277,18 @@ function newRound(s: S, api: Api) {
   s.fill = {};
   s.roles = [];
   s.order = [];
+  s.classic = null;
   const { ids, vol, free } = lineup(s, api);
-  if (s.mode === "pk") {
+  if (s.mode === "classic") {
+    // a famous scene for the volunteers (as many as it takes), else a few of those who don't mind
+    const most = Math.max(...classicPool(s).map((c) => c.roles.length));
+    const people = byTurns(s, vol.length ? vol : free, api);
+    const hi = Math.min(vol.length ? vol.length : Math.min(castSize(ids.length), people.length), most);
+    const pick = pickClassic(s, vol.length ? hi : Math.min(2, hi), hi, api);
+    s.classic = pick.i;
+    s.roles = rolesForClassic(CLASSICS[pick.i], pick.k, api);
+    s.cast = api.shuffle(people.slice(0, s.roles.length));
+  } else if (s.mode === "pk") {
     s.cast = [...byTurns(s, vol, api), ...byTurns(s, free, api)].slice(0, 2);
     let lines = PK_LINES.map((_, i) => i).filter((i) => !s.pkUsed.includes(i));
     if (!lines.length) {
@@ -283,9 +343,10 @@ function newRound(s: S, api: Api) {
   api.fx("card");
 }
 
-/** How long the scene runs: a duel, a monologue, or a scene, longer for a big cast. */
+/** How long the scene runs: a duel, a famous scene, a monologue, or a scene, longer for a big cast. */
 function actLength(s: S): number {
   if (s.mode === "pk") return PK_MS;
+  if (s.mode === "classic") return CLASSIC_MS + Math.max(0, s.cast.length - 2) * PER_ACTOR_MS;
   if (s.cast.length <= 1) return SOLO_MS[s.diff];
   return ACT_MS[s.diff] + Math.max(0, s.cast.length - 4) * PER_ACTOR_MS;
 }
@@ -340,6 +401,8 @@ function penaltyText(s: S, api: Api): T | null {
 function card(s: S, pid: string): DramaCard | null {
   if (!s.cast.includes(pid)) return null;
   if (s.mode === "pk" && s.pk) return { secret: PK_STYLES[s.pk.styles[pid]].s, culprit: false, task: t("", "") };
+  // a famous scene keeps nothing secret: the card is the part, how to play it is on every phone
+  if (s.mode === "classic") return { secret: t("", ""), culprit: false, task: t("", "") };
   const scene = current(s);
   if (!scene) return null;
   const task = TASKS[s.diff][s.tasks[pid] ?? 0];
@@ -433,11 +496,11 @@ function reveal(s: S, api: Api) {
   const say = losers.size ? penaltyText(s, api) : null;
   s.result = { culprit: s.culprit, caught, counts, stars, cards, best, losers: [...losers], right, penalty: say, gained, answer: answerOf(s) };
   s.phase = "reveal";
-  api.fx(caught || s.mode === "pk" ? "reveal" : "wrong", s.culprit ?? undefined);
+  api.fx(caught || s.mode !== "show" ? "reveal" : "wrong", s.culprit ?? undefined);
   if (best.length) api.fx("award", best[0]);
   if (losers.size) {
     const sc = current(s);
-    const note = s.mode === "show" && sc ? sc.title : PK_LINES[s.pk?.line ?? 0];
+    const note = s.mode === "show" && sc ? sc.title : s.mode === "classic" && s.classic !== null ? CLASSICS[s.classic].title : PK_LINES[s.pk?.line ?? 0];
     // after the reveal has played (drum roll, mask, cards, trophy) and been read
     api.penalty([...losers], "sip", note, { delay: s.mode === "show" ? 8000 : 5500, ...(say ? { say } : {}) });
   }
@@ -479,6 +542,8 @@ export const drama: GameDef<S> = {
       cast: [],
       roles: [],
       order: [],
+      cset: "zh",
+      classic: null,
       culprit: null,
       tasks: {},
       pk: null,
@@ -501,10 +566,13 @@ export const drama: GameDef<S> = {
     // a table that started before players could choose who acts
     s.want ??= {};
     s.order ??= [];
+    s.cset ??= "zh";
+    s.classic ??= null;
     switch (g.x) {
       case "config": {
         if (!host || s.phase !== "setup") return;
-        if (g.mode === "show" || g.mode === "pk") s.mode = g.mode;
+        if (g.mode === "show" || g.mode === "pk" || g.mode === "classic") s.mode = g.mode;
+        if (g.cset === "zh" || g.cset === "en") s.cset = g.cset;
         if (g.level === "all" || g.level === "spicy") s.level = g.level;
         if (g.diff === "easy" || g.diff === "hard") s.diff = g.diff;
         if (g.pen === "drink" || g.pen === "move" || g.pen === "prank") s.pen = g.pen;
@@ -662,6 +730,7 @@ export const drama: GameDef<S> = {
     const scene = current(s);
     const live = s.phase !== "setup" && s.phase !== "end";
     const ids = api.ids();
+    const cl = live && s.mode === "classic" && s.classic !== null ? CLASSICS[s.classic] : null;
     return {
       id: "drama",
       phase: s.phase,
@@ -672,7 +741,16 @@ export const drama: GameDef<S> = {
       round: s.round,
       total: s.total,
       scene: live && scene ? { id: scene.id, kind: scene.kind, title: scene.title, setup: scene.setup, ask: scene.ask, culprit: scene.culprit } : null,
-      cast: live ? s.cast.map((c, j) => (scene ? { pid: c, role: scene.roles[s.roles[j]].name, brief: scene.roles[s.roles[j]].brief } : { pid: c, role: s.pk ? PK_STYLES[s.pk.styles[c]].s : t("", ""), brief: t("", "") })) : [],
+      cast: live
+        ? s.cast.map((c, j) => {
+            if (scene) return { pid: c, role: scene.roles[s.roles[j]].name, brief: scene.roles[s.roles[j]].brief };
+            // a famous scene: the part, how to play it, and the line to open with
+            if (cl) return { pid: c, role: cl.roles[s.roles[j]].name, brief: cl.roles[s.roles[j]].play, first: cl.roles[s.roles[j]].first };
+            return { pid: c, role: s.pk ? PK_STYLES[s.pk.styles[c]].s : t("", ""), brief: t("", "") };
+          })
+        : [],
+      cset: s.cset ?? "zh",
+      classic: cl ? { id: cl.id, set: cl.set, show: cl.show, year: cl.year, title: cl.title, setup: cl.setup, beats: cl.beats, see: cl.see } : null,
       pk: live && s.pk ? { line: PK_LINES[s.pk.line], styles: Object.fromEntries(Object.entries(s.pk.styles).map(([c, i]) => [c, PK_STYLES[i].s])) } : null,
       me: (s.phase === "brief" || s.phase === "act" || s.phase === "vote") ? card(s, pid) : null,
       ready: s.ready,
