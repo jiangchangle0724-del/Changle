@@ -26,6 +26,7 @@ import { IdleNote, useIdleWarn } from "./TurnClock";
 import { useWakeLock } from "../wake";
 import { SpeedMeter } from "./SpeedMeter";
 import { SambaLesson, useDanceClock } from "./Samba";
+import { ReactBubbles, ReactButton } from "./Reactions";
 
 type Panel = "mine" | "trade" | "log";
 /** The parts of the play window, in the order they stack (see `asks` in Game). */
@@ -139,7 +140,13 @@ export function Game({ v }: { v: RoomView }) {
           urgent={urgent}
           onRideReady={setReadyKey}
           onRideDone={rideDone}
-          over={<JailFx v={v} ride={ride} />}
+          over={
+            <>
+              <JailFx v={v} ride={ride} />
+              <ReactBubbles v={v} />
+              <ReactButton v={v} hidden={!!ride} />
+            </>
+          }
         />
         <BoardNote v={v} />
       </main>
