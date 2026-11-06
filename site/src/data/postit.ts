@@ -355,6 +355,11 @@ export const HEADS_DECKS: HeadsDeck[] = [
   },
 ];
 
+/** The online game's own deck (NOTES): the mixed bag of people, animals and things. */
+export const MIX_NAME: T = s("大杂烩", "Mixed bag");
+/** A deck's name by its id; anything else is the mixed bag. */
+export const deckName = (id: string | undefined): T => HEADS_DECKS.find((d) => d.id === id)?.name ?? MIX_NAME;
+
 /** The deck picker's shelves, in order. */
 export const DECK_GROUPS: { id: DeckGroup; name: T }[] = [
   { id: "classic", name: s("经典", "Classics") },

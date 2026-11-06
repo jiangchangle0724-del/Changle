@@ -11,6 +11,8 @@ import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import type { Level, PrivateView, RoundResult } from "../../shared/straightface/types";
 import { NameFace } from "../common";
+import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightface";
+import { PACK_ART, ROLE_ART } from "./art";
 import { S } from "./text";
 
 const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
@@ -30,7 +32,10 @@ export function Bi({ t, className = "" }: { t: T; className?: string }) {
   const other = original ? t.en.slice(t.zh.length).trim() || main : lang === "zh" ? t.en : t.zh;
   return (
     <span className={`sf-bi ${className}`}>
-      <span className="sf-bi-main">{main}</span>
+      {/* an English word marked as English, so a Chinese page still hyphenates it properly */}
+      <span className="sf-bi-main" lang={/^[\x20-\x7e]+$/.test(main) ? "en" : undefined}>
+        {main}
+      </span>
       {other !== main && <span className="sf-bi-other">{other}</span>}
     </span>
   );
@@ -46,10 +51,23 @@ export function LevelDots({ level }: { level: Level }) {
   );
 }
 
-/** The word of the round, as big as the screen allows: the whole table reads it. */
-export function TermCard({ term, level, lead, big = false, children }: { term: T; level: Level | null; lead?: string; big?: boolean; children?: ReactNode }) {
+const isPack = (p: string | null | undefined): p is Pack => !!p && (PACKS as readonly string[]).includes(p);
+
+/** The word of the round, as big as the screen allows: the whole table reads it, under its pack's picture. */
+export function TermCard({ term, level, lead, big = false, pack, children }: { term: T; level: Level | null; lead?: string; big?: boolean; pack?: string | null; children?: ReactNode }) {
+  const { lang } = useStore();
+  // a long word (Hippopotomonstrosesquipedaliophobia) gets smaller type instead of breaking mid-word
+  const shown = term.zh.trim() !== "" && term.en.startsWith(term.zh) ? term.zh : lang === "zh" ? term.zh : term.en;
+  const longest = Math.max(...shown.split(/\s+/).map((w) => [...w].length));
+  const fit = longest >= 14 ? "is-xlong" : longest >= 10 ? "is-long" : "";
   return (
-    <div className={`sf-term panel ${big ? "is-big" : ""}`}>
+    <div className={`sf-term panel ${big ? "is-big" : ""} ${fit}`}>
+      {isPack(pack) && (
+        <span className="sf-term-pack">
+          <img src={PACK_ART[pack]} alt="" width={28} height={28} />
+          <span>{lang === "zh" ? PACK_NAMES[pack].zh : PACK_NAMES[pack].en}</span>
+        </span>
+      )}
       {lead && <p className="sf-term-lead">{lead}</p>}
       <Bi t={term} className="sf-term-word" />
       {level && <LevelDots level={level} />}
@@ -248,21 +266,30 @@ export type RevealItem = { key: string; node: ReactNode };
  * The reveal, one line at a time: the real meaning, the fun fact, who did what (nothing that gives
  * the honest one away), then the honest one, then the points. A tap shows the rest at once.
  */
-export function RevealSequence({ items, stepMs = 900, onAllShown }: { items: RevealItem[]; stepMs?: number; onAllShown: () => void }) {
+export function RevealSequence({ items, stepMs = 900, onAllShown, onStep }: { items: RevealItem[]; stepMs?: number; onAllShown: () => void; onStep?: (key: string) => void }) {
   const say = useSay();
   const [shown, setShown] = useState(1);
   const all = shown >= items.length;
   const onAll = useRef(onAllShown);
   onAll.current = onAllShown;
+  const onStepRef = useRef(onStep);
+  onStepRef.current = onStep;
+  const heard = useRef(new Set<string>());
+  useEffect(() => {
+    // each line makes its sound once, also when a tap shows the rest at once
+    for (const it of items.slice(0, shown)) {
+      if (heard.current.has(it.key)) continue;
+      heard.current.add(it.key);
+      if (onStepRef.current) onStepRef.current(it.key);
+      else if (heard.current.size > 1) sfx.tap();
+    }
+  }, [shown, items]);
   useEffect(() => {
     if (all) {
       onAll.current();
       return;
     }
-    const id = window.setTimeout(() => {
-      setShown((n) => n + 1);
-      sfx.tap();
-    }, stepMs);
+    const id = window.setTimeout(() => setShown((n) => n + 1), stepMs);
     return () => window.clearTimeout(id);
   }, [shown, all, stepMs]);
   return (
@@ -304,6 +331,90 @@ export function Deltas({ deltas, names }: { deltas: RoundResult["deltas"]; names
           {names[id]} <b className="tabular">{d > 0 ? `+${d}` : d}</b>
         </span>
       ))}
+    </div>
+  );
+}
+
+/** One of the three parts, drawn: only on screens the whole table may see. */
+export function RoleArt({ role, size = 88, className = "" }: { role: keyof typeof ROLE_ART; size?: number; className?: string }) {
+  return <img className={`sf-role-art ${className}`} src={ROLE_ART[role]} alt="" width={size} height={size} />;
+}
+
+/** Who is who, before the first round: the judge, the honest one, the bluffers. */
+export function RoleCast() {
+  const say = useSay();
+  const cast = [
+    { role: "judge", name: S.judge, line: S.roleJudgeLine },
+    { role: "honest", name: S.honest, line: S.roleHonestLine },
+    { role: "bluffer", name: S.bluffer, line: S.roleBlufferLine },
+  ] as const;
+  return (
+    <ul className="sf-cast">
+      {cast.map((c) => (
+        <li key={c.role}>
+          <RoleArt role={c.role} />
+          <strong>{say(c.name)}</strong>
+          <span>{say(c.line)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The packs, as pictures, in three groups: the table's own language first, then the ones any table can
+ * play, then the other language. A group's header picks all of it or none; at least one pack stays on.
+ */
+export function PackPicker({ picked, onChange }: { picked: Pack[]; onChange: (next: Pack[]) => void }) {
+  const say = useSay();
+  const { lang } = useStore();
+  const order: Audience[] = lang === "zh" ? ["zh", "both", "en"] : ["en", "both", "zh"];
+  const label: Record<Audience, T> = { zh: S.packsZh, en: S.packsEn, both: S.packsBoth };
+  const toggle = (p: Pack) => {
+    const on = picked.includes(p);
+    if (on && picked.length === 1) return;
+    sfx.tap();
+    onChange(on ? picked.filter((x) => x !== p) : [...picked, p]);
+  };
+  const toggleGroup = (group: Pack[]) => {
+    const allOn = group.every((p) => picked.includes(p));
+    const next = allOn ? picked.filter((p) => !group.includes(p)) : [...new Set([...picked, ...group])];
+    if (!next.length) return;
+    sfx.tap();
+    onChange(next);
+  };
+  return (
+    <div className="sf-pack-groups">
+      {order.map((a) => {
+        const group = PACKS.filter((p) => PACK_AUDIENCE[p] === a);
+        const allOn = group.every((p) => picked.includes(p));
+        return (
+          <section key={a} className="sf-pack-group">
+            <div className="sf-pack-group-head">
+              <span className="field-label">{say(label[a])}</span>
+              <button type="button" className="link-btn" onClick={() => toggleGroup(group)}>
+                {say(allOn ? S.groupNone : S.groupAll)}
+              </button>
+            </div>
+            <div className="sf-pack-grid" role="group" aria-label={say(label[a])}>
+              {group.map((p) => {
+                const on = picked.includes(p);
+                return (
+                  <button key={p} type="button" className={`sf-pack ${on ? "is-on" : ""}`} aria-pressed={on} onClick={() => toggle(p)}>
+                    <img src={PACK_ART[p]} alt="" width={48} height={48} loading="lazy" />
+                    <span>{lang === "zh" ? PACK_NAMES[p].zh : PACK_NAMES[p].en}</span>
+                    {on && (
+                      <span className="sf-pack-check" aria-hidden="true">
+                        <Check size={12} strokeWidth={3} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

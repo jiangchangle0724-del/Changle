@@ -299,6 +299,7 @@ export function publicView(state: GameState, deps: Deps): PublicView {
     roundsPlanned: state.roundsPlanned,
     judgeId: inRound && r ? r.judgeId : null,
     term: inRound && card ? card.term : null,
+    pack: inRound && card ? card.pack : null,
     level: inRound && r ? r.level : null,
     speakerId: currentSpeaker(state),
     speakOrder: inRound && r && state.phase !== "peek" ? r.speakOrder : [],
