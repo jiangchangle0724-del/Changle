@@ -44,7 +44,8 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   medal, stamps and falling paper).
 * **The printed things are drawn in code** (SVG, CSS, a canvas for the paper grain) and the sounds are
   synthesised in the browser. What's real comes as files, each credited: the cities' photos and
-  recordings (below), the songs (streamed from Apple) and the satellite pictures of the world.
+  recordings (below), the songs (streamed from Apple), the satellite pictures of the world, and the
+  game's own music (written for it in code, played with sampled instruments: "The music", below).
 
 ## See it while you work
 
@@ -71,6 +72,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
 | `src/client/music.ts`, `ui/localSong.ts`, `ui/Local.tsx`, `src/client/local.ts`, `src/client/songs.json` | Being there: the local hit a second visit plays (the player; which song, when, on which device; "Now playing"), the arrival card's local part, prices in local money, and the data (songs, hellos, exchange rates). |
+| `src/client/bgm.ts`, `ui/bgmPlan.ts`, `ui/Bgm.tsx`, `src/client/bgm.json`, `src/client/media/music/`, `scripts/music.mjs`, `scripts/music/` | The game's music: the player; what plays, how loud and on which device; the files and their loop points; the score and the script that plays and mixes it. |
 | `src/client/i18n.ts` | Every word on screen, in Chinese and English. |
 
 ## Tokens
@@ -253,6 +255,53 @@ Issue #44's parts 2 and 3 (its part 1, the satellite map: "The real world in the
   its artist and links to it on Apple Music ("在 Apple Music 听完整版"); the credits page lists every
   song. The preview URL found when the list was made is the fallback if the lookup doesn't answer.
 * **The record turns** while the song is on, 33⅓ turns a minute; it stands still with reduced motion.
+
+## The music
+
+The game's own music, written for it: **"Boarding Call" (登机广播)**, a medium swing in the manner of a
+1930s small band, the decade of the posters, and its ending for the results.
+
+* **The tune.** A 32-bar AABA song in F: the A is a riff that climbs to the top of the chord and comes
+  back, answered a step higher (I-VI-ii-V, the blue seventh on the way home); the bridge goes round the
+  cycle of dominants (A7 D7 G7 C7), a figure two bars long a fifth lower each time. Two choruses, 64 bars
+  at 125 a minute, 122.88 s, written to go round: the last bar turns back to the first.
+* **The band.** Clarinet (the tune), muted trumpet (the first chorus's bridge, then a second voice under
+  the clarinet), piano (sparse comping on the offbeats, three high notes where the tune rests, sixteen
+  bars of solo), rhythm guitar (four even strokes a bar, root, seventh and third), upright bass (in two
+  for the first sixteen bars, then walking), brushes (a swirl on every beat, a tap or the ride's "ding,
+  ding-a ding", the hi-hat on two and four, the bass drum felt more than heard; a fill at the end of each
+  eight). The first chorus is the tune; the second has the piano's sixteen, the clarinet's own bridge
+  and the shout, both horns together. Swing at 0.64 of the beat, each player a little uneven in their own
+  way (the clarinet a hair behind, the bass on top), all of it the same every time it's made.
+* **The ending** (11.3 s): the riff by everyone over two bars, three high piano notes alone, the band's
+  last chord on four, held, a cymbal swelling, and the final stroke. It starts with the exit stamp, so
+  the last chord comes as the paper falls.
+* **Made in code, played by samples.** `scripts/music/score.mjs` is the score (notes, voicings, the bass
+  line's search for its smoothest walk, the drums, the players' timing); `npm run music`
+  (`scripts/music.mjs`) has FluidSynth play each instrument alone with the GeneralUser GS SoundFont (S.
+  Christian Collins, its licence lets the music made with it be used freely, commercially too; fetched
+  at a fixed version, never committed), and ffmpeg mix them: a little EQ each, the balance measured where
+  each one plays, one room they all send to (an impulse response made in the script), levelled to -20
+  LUFS, true peak under -1.5 dBTP. The files: `theme.mp3` (stereo, 112 kbps, 1.7 MB) for the big screen,
+  `theme-mono.mp3` (64 kbps, 1.0 MB) for a phone, `finale.mp3` (155 KB); `tests/bgm.test.ts` holds their
+  sizes.
+* **The loop is the music going on.** The theme is played twice round and a bit, and the file is cut from
+  the second time round with a second either side; the player loops between those two points
+  (`bgm.json`), sample for sample the same music on both sides of the join (the script checks the second
+  time round against the third: -139 dB). 125 a minute makes a beat 0.48 s, a whole number of samples
+  and of milliseconds, so the join is exact.
+* **One device plays it** (`ui/bgmPlan.ts`): the big screen when one is on, otherwise the host's phone,
+  otherwise the first phone online; in the one-phone demo, that phone. A phone gets the mono file: about
+  24 MB once decoded, half the stereo one's.
+* **When.** From the game's start to its end, going round; nothing in the lobby. It fades in over 2.5 s,
+  sits at half volume under the game's sounds (each of which ducks it, `sound.ts`) and under the local
+  hits, and comes down out of the way: right down for a local hit (it's music too), Seoul's silence, Rio's
+  samba from the ready card to the scores, a party forfeit (one of them is humming a song) and a pause;
+  to 30% for a first visit's city recording. Then the ending, once.
+* **The menu's 背景音乐 / Music** turns it off on this device (`prefs.music`, on unless turned off); with the
+  sound off it's off too. Nothing is fetched or played while it's off, and nothing before the game starts.
+* **Cheap.** Fetched when it's about to play, never in the first load; scheduled on the audio clock; no
+  work on any frame.
 
 ## The real world in the middle
 

@@ -78,6 +78,13 @@ export const prefs = {
   set muted(v: boolean) {
     set("bt.muted", v ? "1" : "0");
   },
+  /** The game's music (bgm.ts), where this device is the one to play it. On unless turned off. */
+  get music() {
+    return get("bt.music") !== "0";
+  },
+  set music(v: boolean) {
+    set("bt.music", v ? "1" : "0");
+  },
   get reduced() {
     const v = get("bt.reduced");
     return v === null ? prefersReduced() : v === "1";

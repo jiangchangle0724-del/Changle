@@ -16,7 +16,8 @@
     "fonts": "node scripts/fonts.mjs",
     "songs": "node scripts/songs.mjs",
     "world": "node scripts/gen-world.mjs",
-    "satellite": "node scripts/satellite.mjs"
+    "satellite": "node scripts/satellite.mjs",
+    "music": "node scripts/music.mjs"
   },
   "dependencies": {
     "preact": "10.29.8",
