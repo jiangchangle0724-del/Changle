@@ -9,4 +9,14 @@
  * - `group-cn`, `group-ca`, `group-sa`, `group-ph`, `group-kr`, `group-jp`, `group-ir`, `group-eu`:
  *   a scene set in that community's everyday life
  */
-export const DRAWN_ART: ReadonlySet<string> = new Set<string>([]);
+export const DRAWN_ART: ReadonlySet<string> = new Set<string>([
+  "classic",
+  "group-cn",
+  "group-ca",
+  "group-sa",
+  "group-ph",
+  "group-kr",
+  "group-jp",
+  "group-ir",
+  "group-eu",
+]);
