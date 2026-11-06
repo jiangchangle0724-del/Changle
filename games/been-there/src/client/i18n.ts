@@ -64,6 +64,8 @@ const S = {
     "默认开。大约每 {mins} 分钟一题：有队落到一座城市，等着的队抢答一道关于这座城的题。先答对的 +{amount}，答错扣 {fine}，不想答点「这题不答」。关掉就整局不出题",
     "On by default. About every {mins} minutes, when a team lands on a city, the teams waiting race to answer a question about that city: first right answer wins {amount}, a wrong one costs {fine}, and anyone can skip. Off: no questions all game",
   ],
+  fx_sold: ["成交", "SOLD"],
+  fx_broke: ["破产", "BROKE"],
   reportTitle: ["战报", "Trip report"],
   award_landlord: ["收租王", "Top landlord"],
   award_dearest: ["最贵的一晚", "Priciest night"],
