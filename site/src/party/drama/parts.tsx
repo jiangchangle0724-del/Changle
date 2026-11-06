@@ -1,7 +1,7 @@
 import { DramaAction } from "./ShellActions";
 import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Film, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { KINDS, PK_DEMO, pkSeeUrl, pkStyle, type DramaKind, type PkStyle } from "../../data/drama";
+import { GROUPS, KINDS, PK_DEMO, pkSeeUrl, pkStyle, SCENES, type DramaKind, type PkStyle } from "../../data/drama";
 import { CLASSIC_TIPS, CSET_NAME } from "../../data/dramaClassics";
 import { FIRST_TIME_TIPS, GENERIC_BEATS, roleGuide, sceneGuide } from "../../data/dramaGuide";
 import type { T } from "../../i18n";
@@ -11,6 +11,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import type { DramaCard, DramaView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { Both, Leaderboard } from "../common";
+import { Pill } from "../../ui/Pill";
 import { dramaSfx } from "./sound";
 import "../../styles/party.css";
 import "../../styles/drama.css";
@@ -159,11 +160,13 @@ export function Tags({ v }: { v: Pick<DramaView, "mode" | "level" | "diff" | "sc
   const { lang } = useStore();
   const zh = lang === "zh";
   const kind = KINDS.find((k) => k.key === v.scene?.kind);
+  const group = GROUPS.find((x) => x.key === v.scene?.group);
   const classic = v.mode === "classic";
   return (
     <div className="dm-tags">
       {v.mode === "pk" ? <span className="dm-tag">{zh ? "演技 PK" : "Acting duel"}</span> : classic ? <span className="dm-tag">{zh ? "名场面" : "Famous scenes"}</span> : kind && <span className="dm-tag">{zh ? kind.name.zh : kind.name.en}</span>}
       {classic && <span className="dm-tag">{zh ? CSET_NAME[v.cset ?? "zh"].zh : CSET_NAME[v.cset ?? "zh"].en}</span>}
+      {group && <span className="dm-tag">{zh ? group.name.zh : group.name.en}</span>}
       <span className="dm-tag">{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</span>
       {/* a famous scene is as hard as the original makes it */}
       {!classic && <span className="dm-tag">{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</span>}
@@ -877,7 +880,10 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
 
 /* ------------------------------------------------------------------ setup */
 
-export type Config = Pick<DramaView, "mode" | "level" | "diff" | "pen" | "total" | "cset">;
+export type Config = Pick<DramaView, "mode" | "level" | "diff" | "pen" | "total" | "cset" | "groups">;
+
+/** The groups with scenes of their own, in the order the setup lists them. */
+const GROUPS_ON = GROUPS.filter((x) => SCENES.some((sc) => sc.group === x.key));
 
 export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange: (c: Partial<Config>) => void; disabled?: boolean }) {
   const { lang } = useStore();
@@ -936,7 +942,46 @@ export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange:
         { value: 5, label: "5" },
         { value: 8, label: "8" },
       ])}
+      {cfg.mode === "show" && GROUPS_ON.length > 0 && <GroupPicker picked={cfg.groups ?? []} onChange={(groups) => onChange({ groups })} disabled={disabled} />}
     </div>
+  );
+}
+
+/**
+ * Whose stories come first: any of the groups with scenes of their own. None picked, everyone's
+ * scenes only; some picked, theirs first and everyone's fill in. A guest sees what the host picked.
+ */
+function GroupPicker({ picked, onChange, disabled }: { picked: string[]; onChange: (groups: NonNullable<Config["groups"]>) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const name = (x: (typeof GROUPS)[number]) => (zh ? x.name.zh : x.name.en);
+  const on = GROUPS_ON.filter((x) => picked.includes(x.key));
+  return (
+    <>
+      <span className="field-label" id="dm-groups-label">
+        {zh ? "剧本背景" : "Whose stories"}
+      </span>
+      {disabled ? (
+        <p className="dm-groups-read">{on.length ? on.map(name).join(zh ? "、" : ", ") : zh ? "通用" : "Anyone's"}</p>
+      ) : (
+        <div className="dm-groups" role="group" aria-labelledby="dm-groups-label">
+          {GROUPS_ON.map((x) => (
+            <Pill
+              key={x.key}
+              kind="toggle"
+              tone="accent"
+              selected={picked.includes(x.key)}
+              onToggle={(sel) => onChange(GROUPS_ON.map((y) => y.key).filter((k) => (k === x.key ? sel : picked.includes(k))))}
+            >
+              {name(x)}
+            </Pill>
+          ))}
+        </div>
+      )}
+      <p className="dm-groups-hint">
+        {zh ? "不选就是通用的剧本。选了的先演，不够的时候用通用的补。" : "Pick none for everyone's stories. Pick some and theirs come first, with everyone's filling in."}
+      </p>
+    </>
   );
 }
 
@@ -993,6 +1038,7 @@ export function Rules() {
       <p>演到一半会弹出一个剧情反转。演完以后，观众先猜谁是坏人，再给每个演员的演技打 1 到 5 星。没人当观众时，演员互相猜、互相打星，不能投自己。</p>
       <p>计分：猜对 +1；没被多数人认出来的坏人 +3；每个演员加平均星数。受罚：星最少的演员；坏人被认出来就一起罚，没被认出来，被他骗了的观众受罚。星最多的拿下本幕最佳演员。</p>
       <p>演技 PK：两个人用不同的状态说同一句台词，观众打分，分低的受罚。</p>
+      <p>剧本背景：主人可以选几个人群（中国、加拿大、南亚、菲律宾……），选了的人群的剧本先演，不够时用通用的补。</p>
       <p>名场面：主人选中文影视还是英文影视，上台的人照着有名的电影、电视剧片段演。牌上写着你演谁、怎么演、开口第一句，还能点开原片看看。观众打星，分低的受罚。</p>
     </>
   ) : (
@@ -1002,6 +1048,7 @@ export function Rules() {
       <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars. With nobody watching, the actors guess and rate each other, never themselves.</p>
       <p>Points: a right guess +1; a culprit most people miss +3; every actor gets their average stars. Penalty: the actor with the fewest stars, plus the culprit if caught, or everyone the culprit fooled if not. Most stars wins best actor.</p>
       <p>Acting duel: two players say the same line in two different states; the audience scores, and the lower score pays.</p>
+      <p>Whose stories: the host can pick some of the communities (Chinese, Canadian, South Asian, Filipino...). Their scenes come first, and everyone's fill in when they run out.</p>
       <p>Famous scenes: the host picks Chinese or English film and TV, and the actors play a famous moment from it. Your card says who you play, how to play them and the line to open with, with a link to watch the original. The audience gives stars; the lowest score pays.</p>
     </>
   );

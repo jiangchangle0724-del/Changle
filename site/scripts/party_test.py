@@ -1748,10 +1748,48 @@ def t_drama_classic(browser):
     tv_ctx.close()
 
 
+def t_drama_groups(browser):
+    """Whose stories: the host picks groups; their scenes come first, and a guest sees the pick."""
+    pg = phone(browser, "groups", players=PLAYERS)
+    pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+    pg.wait_for_selector(".dm-groups")
+    ok(pg.locator(".dm-groups .ui-pill-toggle").count() == 8 and pg.locator(".dm-groups .ui-pill-toggle[aria-pressed=true]").count() == 0, "eight groups, none picked")
+    pg.locator(".dm-groups .ui-pill-toggle", has_text="菲律宾").click()
+    ok(until(lambda: pg.locator(".dm-groups .ui-pill-toggle[aria-pressed=true]").count() == 1, 2000), "the host picks the Filipino stories")
+    pg.get_by_role("button", name="名场面", exact=True).click()
+    ok(pg.locator(".dm-groups").count() == 0, "famous scenes have no groups")
+    pg.get_by_role("button", name="演戏猜坏人", exact=True).click()
+    pg.get_by_role("button", name="开演").click()
+    pg.wait_for_selector(".dm-roster")
+    ok(pg.locator(".dm-tags .dm-tag", has_text="菲律宾").count() == 1, "a Filipino scene first, and the playbill says so")
+    errors([pg])
+    pg.context.close()
+
+    host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay"])
+    everyone = [host] + guests
+    tv_ctx = browser.new_context(viewport={"width": 1366, "height": 768})
+    tv = tv_ctx.new_page()
+    tv._errs = []
+    tv._name = "tv"
+    tv.on("pageerror", lambda e: tv._errs.append(str(e)))
+    tv.goto(BASE + f"#/tv/{code}", wait_until="networkidle")
+    start_game(host, everyone, "drama")
+    host.locator(".dm-groups .ui-pill-toggle", has_text="韩国").click()
+    ok(until(lambda: view(guests[0])["groups"] == ["kr"], 3000), "online: the table gets the host's pick")
+    ok(until(lambda: guests[0].locator(".dm-groups-read", has_text="韩国").count() == 1, 3000) and guests[0].locator(".dm-groups").count() == 0, "a guest sees it, and can't change it")
+    ok(until(lambda: any(w in " ".join(tv.locator(".tvd-chips").all_inner_texts()) for w in ("韩国", "Korean")), 4000), "the TV says whose stories tonight")
+    host.get_by_role("button", name="开演").click()
+    ok(until(lambda: (view(host) or {}).get("phase") == "brief", 5000) and view(host)["scene"].get("group") == "kr", "a Korean scene first")
+    errors(everyone + [tv])
+    for g in everyone:
+        g.context.close()
+    tv_ctx.close()
+
+
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
     "superlatives": [t_superlatives_single, t_superlatives_online],
-    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic],
+    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],

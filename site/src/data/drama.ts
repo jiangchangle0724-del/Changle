@@ -1,5 +1,6 @@
 import type { T } from "../i18n";
 import { CAST_SCENES } from "./dramaCasts";
+import { GROUP_SCENES } from "./dramaGroups";
 
 /**
  * 戏精大赏 · Drama Queens: the scene library.
@@ -28,11 +29,17 @@ import { CAST_SCENES } from "./dramaCasts";
  *
  * Chinese and English are both first-class: write the English as a native would say it, not a
  * translation (names, food and jokes may differ between the two).
+ *
+ * `group`: a scene set in one community's everyday life (a festival, a family do, an office), for
+ * tables that pick it; scenes without one are anyone's. The host picks any of the groups, their
+ * scenes come first and everyone's fill in (`dramaGroups.ts`).
  */
 
 export type DramaKind = "family" | "love" | "office" | "crime" | "palace" | "show";
 export type DramaLevel = "all" | "spicy";
 export type DramaDiff = "easy" | "hard";
+/** whose everyday a scene is set in: Chinese, Canadian, South Asian, Filipino, Korean, Japanese, Iranian, European */
+export type DramaGroup = "cn" | "ca" | "sa" | "ph" | "kr" | "jp" | "ir" | "eu";
 
 export type DramaRole = {
   /** on the cast list: 婆婆, 新郎, 管家 */
@@ -66,6 +73,8 @@ export type DramaScene = {
   ask: T;
   /** pushed to every phone halfway through the scene */
   twist: T;
+  /** set in one community's everyday life, for tables that pick it (none: anyone's) */
+  group?: DramaGroup;
 };
 
 const t = (zh: string, en: string): T => ({ zh, en });
@@ -78,6 +87,18 @@ export const KINDS: { key: DramaKind; name: T }[] = [
   { key: "crime", name: t("悬疑凶案", "Whodunit") },
   { key: "palace", name: t("古装宫斗", "Palace intrigue") },
   { key: "show", name: t("直播综艺", "Live show") },
+];
+
+/** The groups a host can pick, in the order the setup lists them. */
+export const GROUPS: { key: DramaGroup; name: T }[] = [
+  { key: "cn", name: t("中国", "Chinese") },
+  { key: "ca", name: t("加拿大本地", "Canadian") },
+  { key: "sa", name: t("南亚（印度、旁遮普）", "South Asian") },
+  { key: "ph", name: t("菲律宾", "Filipino") },
+  { key: "kr", name: t("韩国", "Korean") },
+  { key: "jp", name: t("日本", "Japanese") },
+  { key: "ir", name: t("伊朗", "Iranian") },
+  { key: "eu", name: t("欧洲", "European") },
 ];
 
 export const SCENES: DramaScene[] = [
@@ -1580,6 +1601,8 @@ export const SCENES: DramaScene[] = [
   },
   // a monologue, and casts of four to eight
   ...CAST_SCENES,
+  // set in one community's everyday life, for the tables that pick it
+  ...GROUP_SCENES,
 ];
 
 /** A private rule for each actor on top of their card. */

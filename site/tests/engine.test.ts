@@ -10,7 +10,7 @@ import { headToHeadPoints, presentMs } from "../src/shared/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
-import { PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
+import { GROUPS as DRAMA_GROUPS, PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
 import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dramaSizes } from "../src/shared/engine/games/drama";
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { CLASSICS as DRAMA_CLASSICS, CLASSIC_TIPS as DRAMA_CLASSIC_TIPS, CSET_NAME as DRAMA_CSET_NAME } from "../src/data/dramaClassics";
@@ -1621,6 +1621,59 @@ test("drama: a scene written for every number of actors, at every table", () => 
   for (let k = 4; k <= 6; k++) {
     const n = DRAMA_SCENES.filter((s) => s.level === "all" && s.diff === "easy" && dramaSizes(s)[0] <= k && dramaSizes(s)[1] >= k).length;
     ok(n >= 4, `all ages, easy, ${k} actors: ${n} scenes`);
+  }
+});
+
+test("drama: whose stories: the host's groups come first, everyone's fill in, other groups' stay out", () => {
+  type V = V<"drama">;
+  const sceneOf = (v: V) => DRAMA_SCENES.find((x) => x.id === v.scene?.id)!;
+  // nobody picked: everyone's scenes only
+  const t = setup(6);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { total: 20 });
+  ok(t.view<V>("p1").groups?.length === 0, "no groups to begin with");
+  t.g("p0", "start");
+  const seen: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    seen.push(sceneOf(t.view<V>("p1")).group ?? "-");
+    t.g("p0", "skip");
+  }
+  ok(seen.every((x) => x === "-"), "a table that picks none never gets a group's scene");
+
+  // the host picks the Filipino stories (a guest can't, and a group nobody wrote is ignored)
+  const u = setup(6);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p1", "config", { groups: ["jp"] });
+  u.g("p0", "config", { groups: ["ph", "xx", "ph"], total: 20 });
+  ok(u.view<V>("p1").groups?.join() === "ph", "the host's pick, once, and only real groups");
+  u.g("p0", "start");
+  const ph = DRAMA_SCENES.filter((x) => x.group === "ph" && x.level === "all" && dramaSizes(x)[0] <= 4).length;
+  const got: (string | undefined)[] = [];
+  for (let i = 0; i < ph + 2; i++) {
+    const v = u.view<V>("p1");
+    got.push(v.scene?.group);
+    if (i === 0) ok(v.scene?.group === "ph" && sceneOf(v).group === "ph", "the view says whose story it is");
+    u.g("p0", "skip");
+  }
+  ok(got.slice(0, ph).every((x) => x === "ph"), `the ${ph} Filipino scenes for two to four come first`);
+  ok(got.slice(ph).every((x) => x === undefined), "then everyone's fill in, never another group's");
+  // two groups: theirs before everyone's
+  const w = setup(6);
+  w.act("p0", { a: "start", game: "drama" });
+  w.g("p0", "config", { groups: ["kr", "ca"], total: 20 });
+  ok(w.view<V>("p1").groups?.join() === "ca,kr", "in the setup's order");
+  w.g("p0", "start");
+  const first = sceneOf(w.view<V>("p1")).group;
+  ok(first === "ca" || first === "kr", "one of the picked groups' scenes first");
+});
+
+test("drama: every group has scenes for two to five actors, all ages, with guides", () => {
+  for (const gr of DRAMA_GROUPS) {
+    const list = DRAMA_SCENES.filter((x) => x.group === gr.key);
+    ok(list.length >= 3 && list.every((x) => x.level === "all" && !x.secrets), `${gr.key}: ${list.length} scenes, all ages`);
+    for (let k = 2; k <= 5; k++) ok(list.some((x) => dramaSizes(x)[0] <= k && dramaSizes(x)[1] >= k), `${gr.key}: a scene for ${k}`);
+    ok(list.every((x) => DRAMA_GUIDES[x.id]?.roles.length === x.roles.length), `${gr.key}: every scene has its guide`);
+    ok(!!gr.name.zh && !!gr.name.en, `${gr.key}: named in both languages`);
   }
 });
 
