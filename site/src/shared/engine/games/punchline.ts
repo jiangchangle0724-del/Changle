@@ -2,6 +2,7 @@ import { PUNCH_FINAL, PUNCH_PROMPTS, PUNCH_SAFETY } from "../../../data/punchlin
 import type { T } from "../../../i18n";
 import type { PunchMatch, PunchView } from "../../protocol";
 import {
+  countWriters,
   FINAL_RESULT_MS,
   FINAL_VOTE_MS,
   FINAL_VOTES,
@@ -9,6 +10,7 @@ import {
   finalPoints,
   headToHeadPoints,
   MAX_WRITERS,
+  nextWriters,
   presentMs,
   RESULT_MS,
   ROUNDS,
@@ -23,8 +25,9 @@ import { byPenalty, clean, range, t, type Api, type GameDef } from "../api";
  * writers, every writer gets two prompts. Each matchup is presented (prompt, then the two
  * answers), everyone else votes (the audience too), then the votes, the names and the points
  * are revealed. The last round: one prompt, everyone answers, everyone picks up to three.
- * Up to eight people write; anyone else at the table is the audience. Losing a head-to-head
- * costs a sip (two if it was a clean sweep); last place drinks a full glass at the end.
+ * Up to eight people write; anyone else at the table is the audience, and writes first when the
+ * table plays again. Losing a head-to-head costs a sip (two if it was a clean sweep); last place
+ * drinks a full glass at the end.
  */
 
 type Match = {
@@ -50,6 +53,8 @@ type S = {
   rounds: number;
   /** who writes this game, in seat order */
   players: string[];
+  /** games each player has written at this table, this one included (missing in a game saved before it was counted) */
+  written?: Record<string, number>;
   matches: Match[];
   cur: number;
   phaseAt: number;
@@ -263,12 +268,15 @@ function checkVotes(s: S, api: Api) {
 
 /** A new game; 再来一局 passes the one that just ended, and the new game deals on from its piles. */
 function newGame(api: Api, prev?: S): S {
-  const players = api.ids().slice(0, MAX_WRITERS);
+  // past eight at the table, whoever only watched the last game writes this one
+  const written = prev ? (prev.written ?? countWriters({}, prev.players)) : {};
+  const players = nextWriters(api.ids(), prev?.players ?? null, written);
   const s: S = {
     phase: "write",
     round: 1,
     rounds: ROUNDS,
     players,
+    written: countWriters(written, players),
     matches: [],
     cur: 0,
     phaseAt: api.now,

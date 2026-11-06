@@ -6,7 +6,7 @@ import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
-import { headToHeadPoints, presentMs } from "../src/shared/punchline";
+import { headToHeadPoints, nextWriters, presentMs } from "../src/shared/punchline";
 import { PUNCH_FINAL, PUNCH_PROMPTS } from "../src/data/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
@@ -853,6 +853,35 @@ test("punchline: 再来一局 deals on from the same piles, so a table doesn't g
     const finals = played.slice(0, PUNCH_FINAL.length).map((game) => game.final);
     ok(new Set(finals).size === finals.length, `${players} at the table: ${finals.length} games, ${finals.length} different finals`);
   }
+});
+
+test("punchline: past eight at the table, whoever watched a game writes the next one", () => {
+  type PV = V<"punchline">;
+  const ids = Array.from({ length: 11 }, (_, i) => `p${i}`);
+  ok(nextWriters(ids.slice(0, 8), ids.slice(0, 3), {}).join() === ids.slice(0, 8).join(), "eight or fewer: everyone writes");
+  ok(nextWriters(ids, null, {}).join() === ids.slice(0, 8).join(), "the first game: the first eight seats");
+  const t = setup(11);
+  t.act("p0", { a: "start", game: "punchline" });
+  const writersOf: string[][] = [];
+  for (let g = 0; g < 5; g++) {
+    const v = t.view<PV>("p0");
+    writersOf.push(v.players);
+    ok(v.players.length === 8 && v.audience.length === 3 && v.audience.every((pid) => !v.players.includes(pid)), `game ${g + 1}: eight write, three watch`);
+    ok(t.view<PV>(v.audience[0]).mine.length === 0 && t.view<PV>(v.players[0]).mine.length === 2, `game ${g + 1}: the writers get the prompts`);
+    // nobody writes: the host moves the show on to the end
+    for (let i = 0; i < 20 && t.view<PV>("p0").phase !== "end"; i++) t.g("p0", "next", { step: t.view<PV>("p0").step });
+    ok(t.view<PV>("p0").phase === "end", `game ${g + 1} ends`);
+    // (a game saved before games written were counted plays on the same way)
+    if (g === 3) delete (t.eng.d.game!.s as { written?: unknown }).written;
+    t.g("p0", "again", { step: t.view<PV>("p0").step });
+  }
+  ok(writersOf[0].join() === ids.slice(0, 8).join(), "the first game: the first eight seats write");
+  writersOf.slice(1).forEach((ws, k) => {
+    const watched = ids.filter((pid) => !writersOf[k].includes(pid));
+    ok(watched.every((pid) => ws.includes(pid)), `game ${k + 2}: all three who watched game ${k + 1} write (${watched.join(" ")})`);
+  });
+  const out = ids.map((pid) => writersOf.slice(0, 4).filter((ws) => !ws.includes(pid)).length);
+  ok(Math.max(...out) - Math.min(...out) <= 1, `over four games, everyone watches about as often (${out.join(" ")})`);
 });
 
 test("postit: chain of notes, hidden forehead, guesses", () => {
