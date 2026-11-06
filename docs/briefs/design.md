@@ -59,7 +59,7 @@
 - 改了画面的 PR：先问 Steve，再打 `update-screenshots` 标签，机器人提交新截图后，再推一个提交（空提交也行）让检查重跑，绿了再合并。林波舞的首屏截图每次可能差几个像素：两个 PR 都改了它时，后合的那个取 main 的版本。画面里随机的东西在截图对比里不画（还占着位置）：`site/tests/visual/screens.spec.ts` 的 `HIDE`。不用 Playwright 的遮罩：遮罩按元素的大小画，随机的字长短不一，遮罩也跟着变。
 - Codex 标成草稿的 PR，REST 改不了草稿状态，用 `POST /repos/{owner}/{repo}/pulls/{n}/ccr/ready_for_review`（GraphQL 在这里不能用）。
 - 惩罚盖章：16 个游戏和联机桌都用同一个盖章（`components/PenaltyStamp.tsx`，带声音），玩家看到的已经一致。C1 的 `ui/PenaltyCard.tsx` 是另一份没用上的写法；并成一份只是代码上的事，玩家看不出来，又是最响的那一刻，先放着。
-- 等合并：#248、#250、#251、#259、#260、#261。#261 改了画面（tools-zh、tools-en、component-Tile），先问 Steve 再打 `update-screenshots` 标签；#261 包含 #260 的提交，先合 #260。
+- 等合并：#248、#250、#251、#259、#260、#261。#261 改了画面（tools-zh、tools-en 两张截图），先问 Steve 再打 `update-screenshots` 标签；#261 包含 #260 的提交，先合 #260。
 - 等 Steve 定：
   - 仓库公开还是私有。代码公开是 AI 复刻最大的口子：谁都能把整个仓库下载下来给 AI。改回私有，CI 按现在的用量每月约 140 到 200 美元；公开加 LICENSE，法律上不许抄，但挡不住。
   - 6 个独立应用（/trip、/party、/hang-on、/hide、/eat、/go）要不要也不能复制。要的话各自的对话加同一段 CSS（#250 那段）。
