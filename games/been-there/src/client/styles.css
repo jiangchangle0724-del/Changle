@@ -2608,6 +2608,11 @@ button.trivia-opt:active {
   box-shadow: none;
   animation: report-in 0.5s var(--ease-out) both;
 }
+/* (The card sits in the standings' list, as one of its rows, so the standings' own big-screen sizes
+   further down match it too: the card's rules start `.over.big .results` to outrank them.) */
+.over.big .results li.report-slot {
+  padding: 0;
+}
 .over.big .results.with-won li.report-slot {
   grid-column: 2;
   grid-row: 1 / span 6;
@@ -2632,14 +2637,14 @@ button.trivia-opt:active {
 .report.big .award-row {
   font-size: min(1.3rem, 2.8vh);
 }
-.report.big .award-row small {
+.over.big .results .report .award-row small {
   font-size: min(1.05rem, 2.2vh);
 }
-.over.big .report .chip .face {
+.over.big .results .report .chip .face {
   width: min(34px, 4.4vh);
   height: min(34px, 4.4vh);
 }
-.over.big .report .chip b {
+.over.big .results .report .chip b {
   width: min(28px, 3.6vh);
   height: min(28px, 3.6vh);
   font-size: min(0.95rem, 2vh);
@@ -2649,6 +2654,10 @@ button.trivia-opt:active {
   width: auto;
   max-width: 100%;
   height: min(130px, 14vh);
+}
+/* (Five awards take a third row: the chart gives up a little height for it.) */
+.report.big.many .dice-chart svg {
+  height: min(118px, 11vh);
 }
 .report.big .hint {
   font-size: min(1rem, 2.2vh);
@@ -2698,6 +2707,7 @@ button.trivia-opt:active {
 /* The big screen: the winners on the left, everyone else down the right, all large enough to read
    from across the room. */
 .over.big {
+  position: relative;
   max-width: 1440px;
   min-height: 100dvh;
   align-content: center;
@@ -2771,9 +2781,14 @@ button.trivia-opt:active {
   right: 24px;
   font-size: 2.2rem;
 }
+/* (A game started at a table has the way back to it: in the top corner, beside the exit stamp, where
+   it takes no height from the results.) */
 .over.big .over-again {
-  justify-self: center;
-  width: min(420px, 100%);
+  position: absolute;
+  top: calc(24px + env(safe-area-inset-top, 0px));
+  right: 56px;
+  display: grid;
+  gap: 10px;
 }
 /* With the phone's or computer's own "reduce motion" setting, the finale is simply there, as with the
    game's switch (which stops every animation, at the top): no stamps landing, no rays turning. */
@@ -4290,7 +4305,7 @@ h2.departures {
 }
 .ride-board .row.on {
   display: grid;
-  animation: row-in 0.18s var(--ease-out) both;
+  animation: board-row-in 0.18s var(--ease-out) both;
 }
 .ride-board .row.old,
 .ride-board:not(.shown) {
@@ -4317,7 +4332,8 @@ h2.departures {
 .ride-board.gone {
   opacity: 0;
 }
-@keyframes row-in {
+/* (Its own name: an animation named like one above replaces it everywhere, the finale's rows too.) */
+@keyframes board-row-in {
   from {
     opacity: 0;
     transform: translateY(-3px);

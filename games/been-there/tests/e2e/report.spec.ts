@@ -13,7 +13,29 @@ const fitsWindow = (page: Page) =>
     return el.scrollHeight <= innerHeight + 1 && el.scrollWidth <= innerWidth + 1;
   });
 
-test("战报：结局里手机看到奖项和骰子图，能存成图片；大屏和名次轮流放，1366x768 和 1280x720 都不出屏幕", async ({ browser, request }) => {
+/** Once what's coming in has come in: the page as laid out, not a moment of its entrance. */
+const settled = (page: Page) =>
+  page
+    .waitForFunction(
+      () =>
+        document.getAnimations().every((a) => a.playState !== "running" || !Number.isFinite(Number(a.effect?.getComputedTiming().endTime))),
+      null,
+      { timeout: 5000 },
+    )
+    .catch(() => {});
+
+/** Whether two things on the page don't overlap. */
+const apart = (page: Page, a: string, b: string) =>
+  page.evaluate(
+    ([a, b]) => {
+      const p = document.querySelector(a)!.getBoundingClientRect();
+      const q = document.querySelector(b)!.getBoundingClientRect();
+      return p.right <= q.left || q.right <= p.left || p.bottom <= q.top || q.bottom <= p.top;
+    },
+    [a, b],
+  );
+
+test("战报：结局里手机看到奖项和骰子图，能存成图片；大屏和名次轮流放，回桌子的按钮在角上，1366x768 和 1280x720 都不出屏幕", async ({ browser, request }) => {
   test.setTimeout(240_000);
   const { defaultBrowserType: _ignored, ...iphone } = devices["iPhone 13"];
   // (four rounds: every team throws three times or more, so the best average throw is always an award)
@@ -24,7 +46,8 @@ test("战报：结局里手机看到奖项和骰子图，能存成图片；大�
   await joinWithTeam(b, code);
   await quizOff(a);
   const tv = await newPhone(browser, "大屏", { viewport: { width: 1366, height: 768 }, locale: "zh-CN" });
-  await tv.page.goto(`/trip/tv/${code}`);
+  // (as from a table at changle.ca: the finale has the way back to it)
+  await tv.page.goto(`/trip/tv/${code}?table=ABCD`);
   await a.page.getByRole("button", { name: "开始", exact: true }).click();
   await playUntil([a, b], async () => (await a.page.locator(".over").count()) > 0 && (await b.page.locator(".over").count()) > 0, 180_000);
 
@@ -43,14 +66,21 @@ test("战报：结局里手机看到奖项和骰子图，能存成图片；大�
   expect(await pic.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
   await expect(a.page.locator(".sheet").getByText("长按图片存到相册")).toBeVisible();
 
-  // The big screen: the standings first, then the report card in their place, beside the winners.
+  // The big screen: the standings first, then the report card in their place, beside the winners; the
+  // way back to the table in the corner, clear of the exit stamp.
   await expect(tv.page.locator(".over.big")).toBeVisible({ timeout: 10_000 });
+  await expect(tv.page.locator(".over.big .over-again .btn")).toBeVisible({ timeout: 10_000 });
+  await settled(tv.page);
+  expect(await apart(tv.page, ".over.big .over-again", ".over.big .exit-stamp")).toBe(true);
+  expect(await fitsWindow(tv.page)).toBe(true);
   await expect(tv.page.locator(".over.big .report")).toBeVisible({ timeout: 30_000 });
   await expect(tv.page.locator(".over.big .report-slot")).toHaveCount(1);
   await expect(tv.page.locator(".over.big .report .award-row").first()).toBeVisible();
+  await settled(tv.page);
   expect(await fitsWindow(tv.page)).toBe(true);
   await tv.page.setViewportSize({ width: 1280, height: 720 });
   await tv.page.waitForTimeout(400);
   expect(await fitsWindow(tv.page)).toBe(true);
+  expect(await apart(tv.page, ".over.big .over-again", ".over.big .exit-stamp")).toBe(true);
   expect([...a.errors, ...b.errors, ...tv.errors]).toEqual([]);
 });
