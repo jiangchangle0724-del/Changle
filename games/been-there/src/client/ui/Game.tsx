@@ -147,7 +147,6 @@ export function Game({ v }: { v: RoomView }) {
               <JailFx v={v} ride={ride} />
               <ReactBubbles v={v} />
               <ReactButton v={v} hidden={!!ride} />
-              <WorldCard v={v} />
             </>
           }
         />
@@ -228,6 +227,8 @@ export function Game({ v }: { v: RoomView }) {
       <Touchdown v={v} after={rideEnd(ride)} />
       <LocalSong v={v} />
       <QuizPop v={v} />
+      {/* (over the play window too: on its own turn a team would miss it) */}
+      <WorldCard v={v} />
       <ForfeitHold v={v} />
     </div>
   );
