@@ -130,8 +130,8 @@ All merged into `main`:
 * Delivery apps as a source of places: Uber Eats and DoorDash open their APIs only to approved
   merchants managing their own menus and orders (no search of other restaurants); none found for
   SkipTheDishes or 饭团 Fantuan; copying their pages breaks their terms. Google already lists more
-  restaurants than any of them. What they can be: a button on each card that opens the place in
-  that app. Not built; the owner decides.
+  restaurants than any of them. What they are instead: the "order delivery" fold on each card
+  (README, "Cards"), which the owner asked for on 2026-11-05.
 * `src/data/picks.json` (Steve's picks) is empty: it waits for the owner's 探店 links. The list
   badges in `src/data/lists.json` came from Codex in #54 (issue #42): the 2026 MICHELIN Guide,
   Vancouver Magazine Restaurant Awards and Canada's 100 Best, and the 2025 Chinese Restaurant

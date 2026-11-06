@@ -1,8 +1,10 @@
 // One restaurant as a card: photo (with who took it), name, lists it is on, why it was picked,
-// Google's one-line description, the numbers, a pick with food-blogger links, wait, call and map.
+// Google's one-line description, the numbers, a pick with food-blogger links, wait, call and map,
+// and ordering it in from a delivery app.
 import { CUISINES, type SoloReason } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { t, tx, type Key } from "../i18n";
+import { Delivery } from "./Delivery";
 
 export function waitKey(level: number): Key {
   return level === 2 ? "wait2" : level === 1 ? "wait1" : "wait0";
@@ -125,6 +127,7 @@ export function PlaceCard({ c, reasons, children }: { c: CardView; reasons?: Sol
             </a>
           )}
         </p>
+        <Delivery name={p.name} />
         {children}
       </div>
     </article>

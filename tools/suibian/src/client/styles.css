@@ -562,6 +562,30 @@ select {
   font-weight: 600;
   text-decoration: none;
 }
+/* Order delivery: a fold under call and map, the four apps wrapping on a narrow phone. */
+.delivery summary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.delivery summary::-webkit-details-marker {
+  display: none;
+}
+.delivery summary::after {
+  content: "▸";
+}
+.delivery[open] summary::after {
+  content: "▾";
+}
+.delivery .links {
+  flex-wrap: wrap;
+  column-gap: 16px;
+  row-gap: 0;
+}
 .vote {
   display: grid;
   grid-template-columns: 2fr 1fr;
