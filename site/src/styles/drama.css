@@ -314,6 +314,8 @@
 .tvd-theatre.is-act .dm-cast.n7,
 .tvd-theatre.is-act .dm-cast.n8 {
   --fig-h: 150px;
+  /* the rows' sums count on the phone's narrow gap: wider, and a row of four becomes three, and three rows */
+  column-gap: 4px;
 }
 .tvd .dm-cast.n5 .dm-plaque small,
 .tvd .dm-cast.n6 .dm-plaque small,

@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { Figure } from "../../components/Figure";
 import { GROUPS, KINDS } from "../../data/drama";
 import { CSET_NAME } from "../../data/dramaClassics";
+import { GENERIC_BEATS, sceneGuide } from "../../data/dramaGuide";
 import { gsap, reduced } from "../../lib/anim";
 import { sfx } from "../../lib/sfx";
 import { SeatFace } from "../../online/People";
@@ -82,7 +83,7 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
       {v.phase === "setup" && <Setup v={v} />}
       {staged && <Theatre v={v} actors={actors} sound={sound} />}
       {v.phase === "brief" && <Brief v={v} sound={sound} />}
-      {v.phase === "act" && <Caption v={v} />}
+      {v.phase === "act" && (v.pk ? <Caption v={v} /> : <Script v={v} />)}
       {v.phase === "vote" && <Vote v={v} sound={sound} />}
       {v.phase === "reveal" && v.result && <Truths v={v} actors={actors} />}
       {v.phase === "end" && <Finale v={v} sound={sound} />}
@@ -248,6 +249,19 @@ function Brief({ v, sound }: { v: DramaView; sound: boolean }) {
   const { seat } = useSeats();
   const credit = useCredit(v);
   useArrivals(v.ready, sound);
+  // a company of five or more: who's read their card, as faces (the stage names who plays whom)
+  if (v.cast.length > 4) {
+    return (
+      <aside className="tvd-side tvd-bill">
+        <Bill v={v} credit={credit} />
+        <p className="tvd-count tabular">
+          <b>{v.ready.length}</b>/{v.cast.length}
+          <small>{zh ? " 看好了牌" : " have read their cards"}</small>
+        </p>
+        <FacesIn seats={v.ready.map((pid) => seat(pid))} size={58} />
+      </aside>
+    );
+  }
   return (
     <aside className="tvd-side tvd-bill">
       <Bill v={v} credit={credit} />
@@ -347,7 +361,62 @@ function SecretList({ v, counts, answer }: { v: DramaView; counts?: Record<strin
 
 /* ------------------------------------------------------------------ the scene */
 
-/** While the scene plays, its name rides at the top. */
+/**
+ * While a scene plays: its name, and the step of the story it should be at by now (the guide's steps
+ * spread over the scene, the third from the twist), so actors who've never acted know what comes
+ * next and the room follows along.
+ */
+function Script({ v }: { v: DramaView }) {
+  const { tr, zh } = useLang();
+  const { now } = useRoom();
+  const credit = useCredit(v);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => tick((n) => n + 1), 500);
+    return () => window.clearInterval(id);
+  }, []);
+  const title = v.scene?.title ?? v.classic?.title;
+  const beats = v.classic ? v.classic.beats : v.scene ? (sceneGuide(v.scene.id)?.beats ?? GENERIC_BEATS) : [];
+  if (!title || !beats.length) return null;
+  const step = stepAt((now() - (v.endsAt - v.actMs)) / Math.max(1, v.actMs), beats.length, !!v.scene);
+  const hunt = v.scene && !v.options ? (zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is ${v.scene.culprit.en.replace(/^The /, "the ")}`) : null;
+  return (
+    <div className="tvd-script">
+      <p className="tvd-script-head">
+        <span>{tr(title)}</span>
+        {hunt && (
+          <small>
+            <MiniMask />
+            {hunt}
+          </small>
+        )}
+        {credit && <small>{zh ? `编剧：${credit}` : `by ${credit}`}</small>}
+      </p>
+      <ol className="tvd-script-steps" aria-hidden="true">
+        {beats.map((_, i) => (
+          <li key={i} className={i === step ? "is-on" : i < step ? "is-done" : ""}>
+            {i + 1}
+          </li>
+        ))}
+      </ol>
+      <p className="tvd-script-beat" key={step}>
+        {tr(beats[step])}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Which step the story should be at, `f` of the way through the scene: a scene's four steps put the
+ * third at the twist (half time); otherwise the steps share the time equally.
+ */
+function stepAt(f: number, n: number, twist: boolean): number {
+  const x = Math.min(1, Math.max(0, f));
+  if (twist && n === 4) return x < 0.2 ? 0 : x < 0.5 ? 1 : x < 0.85 ? 2 : 3;
+  return Math.min(n - 1, Math.floor(x * n));
+}
+
+/** While a duel plays, its line rides at the top. */
 function Caption({ v }: { v: DramaView }) {
   const { tr, zh } = useLang();
   const credit = useCredit(v);
