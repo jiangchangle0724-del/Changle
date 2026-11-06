@@ -222,6 +222,37 @@ export function AnswerPicker({ quiz, onPick, disabled }: { quiz: boolean; onPick
   );
 }
 
+/**
+ * How hard the four titles are (real songs): each with its singer, or titles only, the wrong ones by
+ * the same singer as far as there are any.
+ */
+export function LevelPicker({ hard, onPick, disabled }: { hard: boolean; onPick: (hard: boolean) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="tn-level">
+      <div className="seg seg-sm" role="group" aria-label={zh ? "选项的难度" : "How hard the titles are"}>
+        <button type="button" aria-pressed={!hard} disabled={disabled} onClick={() => onPick(false)}>
+          {zh ? "简单" : "Easy"}
+        </button>
+        <button type="button" aria-pressed={hard} disabled={disabled} onClick={() => onPick(true)}>
+          {zh ? "难" : "Hard"}
+        </button>
+      </div>
+      <p className="tn-pool-hint">
+        {hard
+          ? zh
+            ? "选项只写歌名，错的尽量是同一个歌手的歌"
+            : "Titles only. The wrong ones are by the same singer where possible."
+          : zh
+            ? "选项写着歌手名"
+            : "Each title shows its singer"}
+      </p>
+    </div>
+  );
+}
+
+/** One of the four titles; `a` and `ae` empty on the hard level (no singer shown). */
 export type QuizChoice = { id: number; t: string; a: string; ae: string };
 
 /** A classic tune as a choice: its title in this phone's language, the other one underneath. A tune
@@ -234,20 +265,25 @@ export function tuneChoice(o: number, zh: boolean): QuizChoice {
 /**
  * Four titles for everyone. Before the reveal a tap is the player's pick (one only); at the reveal
  * the right one lights up and a wrong pick is marked.
+ *
+ * One phone for the whole table (`tried`): the table guesses until it gets it, so a wrong title is
+ * marked and locked, and the others can still be tapped.
  */
-export function QuizChoices({ choices, mine, answer, onPick, disabled }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean }) {
+export function QuizChoices({ choices, mine, answer, onPick, disabled, tried = [] }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean; tried?: number[] }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const done = answer !== null;
   return (
     <div className="tn-quiz" role="group" aria-label={zh ? "四个歌名" : "Four titles"}>
       {choices.map((c) => {
-        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", done && mine === c.id && c.id !== answer ? "is-wrong" : ""].join(" ");
+        const missed = tried.includes(c.id) && c.id !== answer;
+        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", missed || (done && mine === c.id && c.id !== answer) ? "is-wrong" : ""].join(" ");
         return (
-          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
+          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null || missed} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
             <strong>{c.t}</strong>
-            <small>{zh ? c.a : c.ae}</small>
+            {(zh ? c.a : c.ae) && <small>{zh ? c.a : c.ae}</small>}
             {mine === c.id && !done && <span className="tn-pick">{zh ? "你的答案" : "Your pick"}</span>}
+            {missed && !done && <span className="tn-pick tn-pick-miss">{zh ? "不是这首" : "Not this one"}</span>}
           </button>
         );
       })}

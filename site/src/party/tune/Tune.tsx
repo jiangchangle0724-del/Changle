@@ -10,10 +10,10 @@ import { holdBackground, type TuneHandle } from "../../lib/music";
 import { forgetPreviews, heardSongs, loadPreview, rememberSong, type PreviewHandle } from "../../lib/preview";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
-import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, type Song, type SongPool } from "../../shared/songs";
+import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, previewUrl, shownChoices, type Song, type SongPool } from "../../shared/songs";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
-import { AnswerPicker, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { AnswerPicker, clipSeconds, CoverLabel, LevelPicker, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
 import { loadSongbook } from "./songbook";
@@ -23,7 +23,7 @@ type Mode = "songs" | "melody" | "pads";
 type SongKept = { kind: "songs"; round: number; song: Song | null; next: Song | null; played: number[]; avoid: number[]; revealed: boolean; revealedAt: number; stage: number; choices: Song[]; tried: number[] };
 type MelodyKept = { kind: "melody"; round: number; tune: number; cards: number[]; stage: number; revealed: boolean; revealedAt: number; tried: number[]; options: number[] };
 type PadsKept = { kind: "pads"; first: string | null; locked: string[] };
-type KeepBase = { mode: Mode; pool: SongPool; quiz: boolean; total: number; scores: Record<string, number> };
+type KeepBase = { mode: Mode; pool: SongPool; quiz: boolean; hard?: boolean; total: number; scores: Record<string, number> };
 type Kept = KeepBase & { round: SongKept | MelodyKept | PadsKept };
 
 function ClearTune() {
@@ -53,13 +53,14 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   const [mode, setMode] = useState<Mode>(saved?.mode ?? "songs");
   const [pool, setPool] = useState<SongPool>(saved?.pool ?? DEFAULT_POOL);
   const [quiz, setQuiz] = useState(saved?.quiz ?? false);
+  const [hard, setHard] = useState(saved?.hard ?? false);
   const [total, setTotal] = useState(saved?.total ?? 8);
   const [phase, setPhase] = useState<"setup" | "play" | "end">(saved ? "play" : "setup");
   const [actionHost, setActionHost] = useState<HTMLDivElement | null>(null);
   const [shellRound, setShellRound] = useState(saved && saved.round.kind !== "pads" ? saved.round.round : 1);
   const [answerTurn, setAnswerTurn] = useState<string | null>(saved?.round.kind === "pads" ? saved.round.first : null);
   const [scores, setScores] = useState<Record<string, number>>(saved?.scores ?? {});
-  const keeping: KeepBase = { mode, pool, quiz, total, scores };
+  const keeping: KeepBase = { mode, pool, quiz, hard, total, scores };
   const penalty = usePenalty();
   // the game has its own sound (the songs, the melodies, the DJ's music app): the lounge music waits
   useEffect(() => holdBackground(), []);
@@ -105,8 +106,8 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   const rules = (
     <p>
       {zh
-        ? `真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，${custom ? "错了受罚。最后得分最低的受罚。" : "错了喝一口。最后得分最低的喝两口。"}`
-        : `Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: ${custom ? "right is a point, wrong takes the penalty. Lowest score takes the penalty." : "right is a point, wrong is a sip. Lowest score drinks two."}`}
+        ? `真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的；可以选难，只写歌名，错的尽量是同一个歌手的歌。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，${custom ? "错了受罚。最后得分最低的受罚。" : "错了喝一口。最后得分最低的喝两口。"}`
+        : `Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV); everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it; on hard, titles only, the wrong ones by the same singer where possible. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: ${custom ? "right is a point, wrong takes the penalty. Lowest score takes the penalty." : "right is a point, wrong is a sip. Lowest score drinks two."}`}
     </p>
   );
 
@@ -140,6 +141,7 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
               </div>
               {mode === "songs" && <PoolPicker pool={pool} onPick={setPool} />}
               {mode !== "pads" && <AnswerPicker quiz={quiz} onPick={setQuiz} />}
+              {mode === "songs" && quiz && <LevelPicker hard={hard} onPick={setHard} />}
               {mode !== "pads" ? (
                 <div className="seg seg-sm" role="group" style={{ alignSelf: "center" }}>
                   {[5, 8, 12, 20].map((n) => (
@@ -158,7 +160,7 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
           )}
 
           {phase === "play" && mode === "songs" && (
-            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} total={total} pool={pool} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
+            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} total={total} pool={pool} quiz={quiz} hard={hard} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
           )}
           {phase === "play" && mode === "melody" && <MelodyRounds keeping={keeping} saved={firstSaved.current?.round.kind === "melody" ? firstSaved.current.round : null} onRound={setShellRound} total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
           {phase === "play" && mode === "pads" && (
@@ -190,6 +192,7 @@ function SongRounds({
   total,
   pool,
   quiz,
+  hard,
   people,
   scores,
   setScores,
@@ -203,6 +206,7 @@ function SongRounds({
   total: number;
   pool: SongPool;
   quiz: boolean;
+  hard: boolean;
   people: { id: string; name: string }[];
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
@@ -265,7 +269,7 @@ function SongRounds({
   useEffect(() => {
     if (!song || !book || choicesFor.current === song.id) return;
     choicesFor.current = song.id;
-    setChoices(shuffle([song, ...decoysFor(song, book, Math.random)]));
+    setChoices(shuffle([song, ...decoysFor(song, book, Math.random, hard)]));
     setTried([]);
   }, [song, book]);
 
@@ -377,8 +381,9 @@ function SongRounds({
       <SongStatus audio={audio} playing />
       {quiz && choices.length === 4 && (
         <QuizChoices
-          choices={choices.map((c) => ({ id: c.id, t: c.t, a: c.a, ae: c.ae }))}
-          mine={revealed ? song.id : (tried[tried.length - 1] ?? null)}
+          choices={shownChoices(choices, hard)}
+          mine={revealed ? song.id : null}
+          tried={tried}
           answer={revealed ? song.id : null}
           disabled={startedAt === null}
           onPick={(id) => {
@@ -541,7 +546,8 @@ function MelodyRounds({
       {quiz && (
         <QuizChoices
           choices={options.map((o) => tuneChoice(o, zh))}
-          mine={revealed ? tune : (tried[tried.length - 1] ?? null)}
+          mine={revealed ? tune : null}
+          tried={tried}
           answer={revealed ? tune : null}
           onPick={(id) => {
             if (id === tune) {

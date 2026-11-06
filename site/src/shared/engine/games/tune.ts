@@ -1,7 +1,7 @@
 import { LISTEN_MS, STAGE_GAPS, TUNES } from "../../../data/tunes";
 import { SONG_ROWS } from "../../../data/songs";
 import type { TuneView } from "../../protocol";
-import { cardOf, checkRow, decoysFor, DEFAULT_POOL, fromRow, moodOf, pickSong, previewUrl, samePool, type Song, type SongPool } from "../../songs";
+import { cardOf, checkRow, decoysFor, DEFAULT_POOL, fromRow, moodOf, pickSong, previewUrl, samePool, shownChoices, type Song, type SongPool } from "../../songs";
 import { range, t, type Api, type GameDef } from "../api";
 
 /**
@@ -12,6 +12,7 @@ import { range, t, type Api, type GameDef } from "../api";
  * songs from their own music app, everyone else buzzes, the host says right or wrong.
  * Quiz: no buzzer; the four titles show from the start and everyone picks one on their own phone,
  * the sooner the more points; at the reveal whoever missed it drinks.
+ * Hard: the four titles come without their singers, and the wrong ones are the same singer's.
  */
 
 type Mode = TuneView["mode"];
@@ -21,6 +22,8 @@ type S = {
   pool: SongPool;
   /** everyone answers at once from four titles (no buzzer) */
   quiz: boolean;
+  /** the four titles without their singers, the wrong ones by the same singer */
+  hard: boolean;
   /** quiz: each phone's pick and when it came in */
   answers: Record<string, { c: number; at: number }>;
   /** quiz: everyone who got the last one */
@@ -111,7 +114,7 @@ function go(s: S, api: Api) {
     s.played.push(song.id);
     if (s.played.length > PLAYED_MAX) s.played = s.played.slice(-PLAYED_MAX);
     s.next = pick(s, api);
-    s.choices = api.shuffle([song, ...decoysFor(song, songsOf(s), () => api.rand())]);
+    s.choices = api.shuffle([song, ...decoysFor(song, songsOf(s), () => api.rand(), !!s.hard)]);
     s.options = null;
     s.tune = -1;
     const t0 = api.now + SONG_LEAD_MS;
@@ -230,6 +233,7 @@ export const tune: GameDef<S> = {
       mode: "songs",
       pool: DEFAULT_POOL,
       quiz: false,
+      hard: false,
       answers: {},
       right: [],
       phase: "ready",
@@ -278,6 +282,11 @@ export const tune: GameDef<S> = {
       case "quiz": {
         if (!host || (s.phase !== "ready" && s.phase !== "reveal")) return;
         s.quiz = !!g.on;
+        return;
+      }
+      case "hard": {
+        if (!host || (s.phase !== "ready" && s.phase !== "reveal")) return;
+        s.hard = !!g.on;
         return;
       }
       case "heard": {
@@ -398,6 +407,7 @@ export const tune: GameDef<S> = {
       mode: s.mode,
       pool: s.pool,
       quiz,
+      hard: !!s.hard,
       phase: s.phase,
       round: s.round,
       total: s.total,
@@ -419,7 +429,7 @@ export const tune: GameDef<S> = {
       startAt: s.startAt,
       revealPos: s.revealPos,
       pre: songs && s.next && s.phase !== "end" ? previewUrl(s.next.p) : null,
-      choices: songs && s.choices && showAnswers ? s.choices.map((c) => ({ id: c.id, t: c.t, a: c.a, ae: c.ae })) : null,
+      choices: songs && s.choices && showAnswers ? shownChoices(s.choices, !!s.hard) : null,
       song: songs && done && s.song ? cardOf(s.song) : null,
       singer: songs && live && s.song ? s.song.g : 0,
       // how the song feels, from its title and categories: the stage plays it (tears for a sad one)

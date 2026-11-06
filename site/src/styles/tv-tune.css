@@ -33,8 +33,11 @@
 .tvt .tn-stage-floor {
   height: 54px;
   box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--gel) calc(35% + 45% * var(--beat)), transparent),
+    0 0 0 3px color-mix(in oklab, var(--gel) 35%, transparent),
     0 24px 50px -16px var(--tvx-ink);
+}
+.tvt .tn-stage-floor::after {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--gel) 70%, transparent);
 }
 .tvt .tn-stage.has-crew .tn-stage-floor {
   height: calc(54px + var(--mate-h) * 0.55);
@@ -46,8 +49,11 @@
   width: 290px;
   box-shadow:
     0 0 0 3px var(--line-soft),
-    0 0 calc(20px + 60px * var(--voice)) color-mix(in oklab, var(--gel) 50%, transparent),
+    0 0 20px color-mix(in oklab, var(--gel) 50%, transparent),
     inset 0 0 60px color-mix(in oklab, var(--tvx-ink) 60%, transparent);
+}
+.tvt .tn-stage .vinyl-disc::after {
+  box-shadow: 0 0 80px color-mix(in oklab, var(--gel) 50%, transparent);
 }
 .tvt .tn-stage .vinyl-label {
   font-size: 44px;

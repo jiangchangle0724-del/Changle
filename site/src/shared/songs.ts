@@ -289,27 +289,59 @@ export function pickSong(all: Song[], pool: SongPool, avoid: Set<number>, played
 }
 
 /**
+ * Who sings a song, one name each: "周杰伦 & 五月天 阿信" is 周杰伦 and 五月天 阿信, "JENNIE (from
+ * BLACKPINK)" is JENNIE. Names are folded (case, spaces, the invisible characters some rows carry) so
+ * the same singer written two ways is one.
+ */
+export function singersOf(artist: string): string[] {
+  return artist
+    .replace(/[\u2028\u2029\u200b\ufeff]/g, "")
+    .replace(/\s*[(（](?:from|of)\s[^)）]*[)）]/gi, "")
+    .split(/\s*(?:,|，|、|&|＆|\bfeat\.?|\bft\.|\s[x×]\s|\swith\s)\s*/i)
+    .map((x) => x.toLowerCase().replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+const sharesSinger = (a: string, b: string) => {
+  const mine = singersOf(a);
+  return singersOf(b).some((x) => mine.includes(x));
+};
+
+/**
  * Three wrong answers that look like they could be right: same language, other artists, close in
  * time, and sung by the same kind of voice when that is known (the singer on stage gives that away).
+ *
+ * `hard`: the titles show without their singers, and the wrong ones are the same singer's other
+ * songs as far as there are any (knowing the voice is no longer enough: you have to know the song).
  */
-export function decoysFor(song: Song, all: Song[], rand: () => number): Song[] {
+export function decoysFor(song: Song, all: Song[], rand: () => number, hard = false): Song[] {
   const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const out: Song[] = [];
+  const titles = new Set<string>([norm(song.t)]);
+  const take = (list: Song[], distinctArtists: Set<string> | null) => {
+    const order = list.map((s) => ({ s, k: rand() })).sort((x, y) => x.k - y.k);
+    for (const { s } of order) {
+      if (out.length >= 3) break;
+      if (titles.has(norm(s.t)) || distinctArtists?.has(s.a)) continue;
+      distinctArtists?.add(s.a);
+      titles.add(norm(s.t));
+      out.push(s);
+    }
+  };
+  if (hard) {
+    take(all.filter((s) => s.l === song.l && s.id !== song.id && sharesSinger(s.a, song.a)), null);
+    if (out.length >= 3) return out;
+  }
   const same = all.filter((s) => s.l === song.l && s.id !== song.id && s.a !== song.a && norm(s.t) !== norm(song.t));
   const voice = song.g === 1 || song.g === 2 ? same.filter((s) => s.g === song.g) : [];
   const close = same.filter((s) => Math.abs(s.y - song.y) <= 8);
   const voiceClose = voice.filter((s) => Math.abs(s.y - song.y) <= 8);
-  const out: Song[] = [];
-  const taken = new Set<string>([song.a]);
-  const titles = new Set<string>([norm(song.t)]);
-  for (const list of [voiceClose, voice, close, same]) {
-    const order = list.map((s) => ({ s, k: rand() })).sort((x, y) => x.k - y.k);
-    for (const { s } of order) {
-      if (out.length >= 3) break;
-      if (taken.has(s.a) || titles.has(norm(s.t))) continue;
-      taken.add(s.a);
-      titles.add(norm(s.t));
-      out.push(s);
-    }
-  }
+  const taken = new Set<string>([song.a, ...out.map((s) => s.a)]);
+  for (const list of [voiceClose, voice, close, same]) take(list, taken);
   return out;
+}
+
+/** The four titles as a phone shows them: on the hard level, without who sings them. */
+export function shownChoices(choices: Song[], hard: boolean): { id: number; t: string; a: string; ae: string }[] {
+  return choices.map((c) => (hard ? { id: c.id, t: c.t, a: "", ae: "" } : { id: c.id, t: c.t, a: c.a, ae: c.ae }));
 }
