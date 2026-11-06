@@ -619,6 +619,9 @@ export class Room {
         if (typeof msg.party === "boolean") this.st.settings.party = msg.party;
         if (typeof msg.news === "boolean") this.st.settings.news = msg.news;
         if (typeof msg.trivia === "boolean") this.st.settings.trivia = msg.trivia;
+        if (msg.cash === "low" || msg.cash === "normal" || msg.cash === "high") this.st.settings.cash = msg.cash;
+        if (typeof msg.auctions === "boolean") this.st.settings.auctions = msg.auctions;
+        if (typeof msg.hideCash === "boolean") this.st.settings.hideCash = msg.hideCash;
         this.dirty = true;
         return;
       case "seen": {
@@ -822,7 +825,9 @@ export class Room {
         [order[i], order[j]] = [order[j], order[i]];
       }
     const { mode, testRounds } = this.st.settings;
-    const cfg = E.defaultConfig(order.length);
+    // (the host's starting cash moves a game's target with it)
+    const cfg = E.withStartCash(E.defaultConfig(order.length), E.START_CASH_CHOICES[this.st.settings.cash ?? "normal"] ?? E.START_CASH);
+    if (this.st.settings.auctions === false) cfg.auctions = false;
     if (mode !== "target") {
       // Timed games end on the clock (see tick); 15-minute games deal two cities each.
       cfg.end = { kind: "rounds", rounds: 9999 };
@@ -1726,7 +1731,16 @@ export class Room {
       },
       hostId: st.hostId,
       table: st.table ?? null,
-      settings: { mode: st.settings.mode, party: st.settings.party, news: !!st.settings.news, trivia: st.settings.trivia !== false, hotseat: st.settings.hotseat },
+      settings: {
+        mode: st.settings.mode,
+        party: st.settings.party,
+        news: !!st.settings.news,
+        trivia: st.settings.trivia !== false,
+        hotseat: st.settings.hotseat,
+        cash: st.settings.cash ?? "normal",
+        auctions: st.settings.auctions !== false,
+        hideCash: !!st.settings.hideCash,
+      },
       members: members.map((x) => ({ id: x.id, name: x.name, team: x.team, role: x.role, online: x.online > 0, score: x.score })),
       teams,
       game: g ? this.gameView(g, m) : null,
@@ -1753,6 +1767,8 @@ export class Room {
         pending = { ...pd, cards: [] };
       }
     }
+    // With the money hidden (更多规则), another team's cash and worth go to this page as -1 until the end.
+    const hidden = (seat: number) => !!this.st.settings.hideCash && !s.over && !mine.includes(seat);
     const pub: E.GameState = {
       ...s,
       seed: 0,
@@ -1762,6 +1778,7 @@ export class Room {
       events: null,
       log: null,
       pending,
+      ps: this.st.settings.hideCash && !s.over ? s.ps.map((p, i) => (hidden(i) ? { ...p, cash: -1 } : p)) : s.ps,
     };
     const q = g.quiz;
     const tv = g.trivia;
@@ -1821,7 +1838,7 @@ export class Room {
         no: Object.values(g.bets.bets).filter((x) => !x).length,
         mine: m && m.id in g.bets.bets ? g.bets.bets[m.id] : null,
       },
-      worth: s.ps.map((_, i) => E.netWorth(s, i)),
+      worth: s.ps.map((_, i) => (hidden(i) ? -1 : E.netWorth(s, i))),
     };
   }
 }

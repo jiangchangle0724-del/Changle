@@ -38,6 +38,8 @@ export function gameEventText(v: RoomView, e: GameEvent): string | null {
       return t("log_passport", { team, amount: money(e.amount) });
     case "buy":
       return t("log_buy", { team, space: spaceName(e.at), price: money(e.price) });
+    case "pass":
+      return t("log_pass", { team, space: spaceName(e.at) });
     case "auction":
       return e.winner === null
         ? t("log_auctionNone", { space: spaceName(e.at) })

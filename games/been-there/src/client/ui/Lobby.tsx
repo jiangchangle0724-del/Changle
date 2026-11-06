@@ -1,7 +1,7 @@
 import qrcode from "qrcode-generator";
 import { useState } from "preact/hooks";
 import { MAX_TEAMS, MAX_TEAM_SIZE, TIMING, TRIVIA_PRIZE, TRIVIA_WRONG, type RoomView } from "../../room/protocol";
-import type { Mode, StyleId } from "../../engine";
+import { START_CASH, START_CASH_CHOICES, TARGETS, type CashChoice, type Mode, type StyleId } from "../../engine";
 import { backToTable, joinUrl, onChangle, tableFrom } from "../base";
 import { colon, money, t, type Key } from "../i18n";
 import { prefs } from "../prefs";
@@ -151,7 +151,7 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
                 <input type="radio" name="mode" checked={v.settings.mode === m} onChange={() => send({ t: "settings", mode: m })} />
                 <span>
                   <b>{t(`mode_${m}` as Key)}</b>
-                  <small>{t(`modeHint_${m}` as Key)}</small>
+                  <small>{t(`modeHint_${m}` as Key, targets(v))}</small>
                 </span>
               </label>
             ))}
@@ -177,15 +177,78 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
               <small>{t("triviaSwitchHint", { mins: TIMING.triviaEvery / 60_000, amount: money(TRIVIA_PRIZE), fine: money(TRIVIA_WRONG) })}</small>
             </span>
           </label>
+          <MoreRules v={v} />
           <Btn kind="primary" wide disabled={!ready} onClick={() => send({ t: "start" })}>
             {t("start")}
           </Btn>
           {!ready && <p class="hint">{t("needTwo")}</p>}
         </section>
       ) : (
-        <p class="muted center">{t("waitHost")}</p>
+        <>
+          <p class="muted center">{t("waitHost")}</p>
+          {rulesNow(v).length > 0 && <p class="muted center">{t("moreRulesNow", { list: rulesNow(v).join(" · ") })}</p>}
+        </>
       )}
     </main>
+  );
+}
+
+/** A game to the target: the targets with the host's starting cash (it moves them). */
+function targets(v: RoomView) {
+  const diff = START_CASH_CHOICES[v.settings.cash ?? "normal"] - START_CASH;
+  return { amount: money(TARGETS.more + diff), two: money(TARGETS.two + diff) };
+}
+
+/** The more rules the host has changed from the step-3 game's, in a few words. */
+function rulesNow(v: RoomView): string[] {
+  const st = v.settings;
+  const cash = st.cash ?? "normal";
+  return [
+    ...(cash !== "normal" ? [`${t("startCash")} ${money(START_CASH_CHOICES[cash])}`] : []),
+    ...(st.auctions === false ? [t("rule_noAuctions")] : []),
+    ...(st.hideCash ? [t("rule_hideCash")] : []),
+  ];
+}
+
+/** 更多规则: the starting cash, auctions, hidden money. Folded away; what's changed shows on its fold. */
+function MoreRules({ v }: { v: RoomView }) {
+  const st = v.settings;
+  const cash = st.cash ?? "normal";
+  const now = rulesNow(v);
+  return (
+    <details class="more-rules">
+      <summary>
+        {t("moreRules")}
+        {now.length > 0 && <small>{t("moreRulesNow", { list: now.join(" · ") })}</small>}
+      </summary>
+      <fieldset class="modes">
+        <legend>{t("startCash")}</legend>
+        {(["low", "normal", "high"] as CashChoice[]).map((c) => (
+          <label key={c} class="radio">
+            <input type="radio" name="cash" checked={cash === c} onChange={() => send({ t: "settings", cash: c })} />
+            <span>
+              <b>{money(START_CASH_CHOICES[c])}</b>
+              <small>{t(`cash_${c}` as Key)}</small>
+            </span>
+          </label>
+        ))}
+        {st.mode === "target" && <p class="hint">{t("cashTargetMoves")}</p>}
+      </fieldset>
+      <label class="radio">
+        <input type="checkbox" checked={st.auctions !== false} onChange={(e) => send({ t: "settings", auctions: (e.target as HTMLInputElement).checked })} />
+        <span>
+          <b>{t("auctionsSwitch")}</b>
+          <small>{t("auctionsSwitchHint")}</small>
+        </span>
+      </label>
+      <label class="radio">
+        <input type="checkbox" checked={!!st.hideCash} onChange={(e) => send({ t: "settings", hideCash: (e.target as HTMLInputElement).checked })} />
+        <span>
+          <b>{t("hideCashSwitch")}</b>
+          <small>{t("hideCashSwitchHint")}</small>
+        </span>
+      </label>
+    </details>
   );
 }
 
