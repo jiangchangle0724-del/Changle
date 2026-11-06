@@ -148,6 +148,8 @@ run has under half of yesterday's events, yesterday's stay up and the log says s
   English). Not linked from anywhere, `noindex`: for checking the run until the page (C7) exists.
 - `POST /go/api/handoff?source=vpl&date=YYYY-MM-DD&part=N`, `Authorization: Bearer <GitHub's OIDC token>`
   (or `<EVENTS_HANDOFF_KEY>`, when the Worker has one), the page as the body: the GitHub job only.
+  The job uses the Worker's own address (`https://changle-events.jiangchangle0724.workers.dev`):
+  changle.ca's bot protection challenges GitHub's machines. On that address every other path is 404.
   401 without a token that passes every check above, or the key, saying which check failed
   (`GitHub token: wrong ref`, `wrong key`, ...; never anything of the credential); 503 while GitHub's
   keys can't be fetched; 400 for another source, a date that isn't today in Vancouver, a part out of
