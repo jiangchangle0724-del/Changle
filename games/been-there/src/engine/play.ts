@@ -40,7 +40,8 @@ import {
   transfer,
   unmortgage,
 } from "./rules";
-import type { GameState, Pending, StackItem } from "./state";
+import type { GameEvent, GameState, Pending, StackItem } from "./state";
+import { AI_GIFT, CRASH_SHARE, WORLD_IDS, WORLD_ROUNDS, worldClosed, worldSalary, type WorldId } from "./world";
 
 const M = BOARD_SIZE;
 
@@ -70,6 +71,8 @@ export function newGame(cfg: GameConfig, names: string[], seed: number, opts: { 
     fx: { ban: null, typhoon: null, sales: null, salesUsed: 0, permits: 2, policies: 2 },
     news: null,
     newsSeen: [],
+    world: null,
+    worldSeen: [],
     turns: 0,
     pending: null,
     stack: [],
@@ -116,7 +119,69 @@ function startTurn(s: GameState) {
   s.pending = { k: "roll", who: p, jail: pl.jail };
   ev(s, { t: "turn", p });
   if (s.cfg.news) tickNews(s);
+  tickWorld(s);
 }
+
+/** A world event's two rounds are over (it came at the start of a turn: they end at the start of that seat's turn two rounds on). */
+function tickWorld(s: GameState) {
+  if (s.world && s.turns >= s.world.until) endWorld(s);
+}
+
+function endWorld(s: GameState) {
+  const w = s.world;
+  if (!w) return;
+  ev(s, w.at === null ? { t: "world", id: w.id, on: false } : { t: "world", id: w.id, on: false, at: w.at });
+  s.world = null;
+}
+
+/**
+ * Something happens to the whole world (world.ts): the room calls this at the start of a turn, every
+ * 20 minutes. `id` picks which (tests); otherwise the next from the bag, each once before any comes
+ * round again. Does what it does at once, and leaves what lasts in force for two rounds. Returns which.
+ */
+export function worldEvent(s: GameState, id?: WorldId): WorldId | null {
+  if (s.over) return null;
+  endWorld(s);
+  let pick = id && WORLD_IDS.includes(id) ? id : undefined;
+  if (!pick) {
+    let fresh = WORLD_IDS.filter((w) => !(s.worldSeen ?? []).includes(w));
+    if (!fresh.length) {
+      s.worldSeen = [];
+      fresh = WORLD_IDS;
+    }
+    pick = fresh[Math.floor(random(s) * fresh.length)];
+  }
+  s.worldSeen = [...(s.worldSeen ?? []).filter((w) => w !== pick), pick];
+  const e: Extract<GameEvent, { t: "world" }> = { t: "world", id: pick, on: true };
+  let at: number | null = null;
+  if (pick === "meteor" || pick === "terror") at = e.at = CITY_SPACE[CITIES[Math.floor(random(s) * CITIES.length)].id];
+  if (pick === "crash") {
+    // (in tens of dollars, from cash only: nobody goes into debt for it)
+    e.lost = s.ps.map((pl) => (pl.out ? 0 : Math.floor((pl.cash * CRASH_SHARE) / 10) * 10));
+    e.lost.forEach((x, p) => transfer(s, p, -1, x));
+  } else if (pick === "ai") {
+    for (const p of activePlayers(s)) credit(s, p, AI_GIFT);
+    e.gift = AI_GIFT;
+  } else if (pick === "meteor") {
+    const d = s.deeds[at!]!;
+    if (d.houses > 0) {
+      e.houses = d.houses;
+      if (d.owner >= 0) {
+        e.owner = d.owner;
+        e.refund = Math.round((d.houses * houseCostAt(s, at!)) / 2);
+        credit(s, d.owner, e.refund);
+      }
+      d.houses = 0;
+      s.struck = [...(s.struck ?? []), at!];
+    }
+  }
+  s.world = { id: pick, at, until: s.turns + WORLD_ROUNDS * activePlayers(s).length };
+  ev(s, e);
+  return pick;
+}
+
+/** The salary for passing Departure: double while the supersonic airliner is new (world.ts). */
+const salaryOf = (s: GameState) => s.cfg.salary * worldSalary(s);
 
 /** Travel news: the last piece ends after NEWS_ROUNDS rounds; a new one comes every NEWS_EVERY. (Exported for the tests.) */
 export function tickNews(s: GameState) {
@@ -175,9 +240,9 @@ function moveBy(s: GameState, p: number, steps: number) {
   const from = pl.pos;
   const to = (((pl.pos + steps) % M) + M) % M;
   const paid = steps > 0 && to < pl.pos;
-  if (paid) credit(s, p, s.cfg.salary);
+  if (paid) credit(s, p, salaryOf(s));
   pl.pos = to;
-  ev(s, paid ? { t: "move", p, from, to, salary: s.cfg.salary } : { t: "move", p, from, to });
+  ev(s, paid ? { t: "move", p, from, to, salary: salaryOf(s) } : { t: "move", p, from, to });
 }
 
 /** Jump forward to a space; reaching or passing Departure pays the salary. */
@@ -185,9 +250,9 @@ function moveTo(s: GameState, p: number, to: number) {
   const pl = s.ps[p];
   const from = pl.pos;
   const paid = to <= pl.pos;
-  if (paid) credit(s, p, s.cfg.salary);
+  if (paid) credit(s, p, salaryOf(s));
   pl.pos = to;
-  ev(s, paid ? { t: "move", p, from, to, salary: s.cfg.salary } : { t: "move", p, from, to });
+  ev(s, paid ? { t: "move", p, from, to, salary: salaryOf(s) } : { t: "move", p, from, to });
 }
 
 function sendToImmigration(s: GameState, p: number) {
@@ -271,6 +336,8 @@ function land(s: GameState, p: number, noTango: boolean) {
   }
   switch (sp.k) {
     case "city": {
+      // A meteor's crater, a city locked down (world.ts): nothing happens there for now.
+      if (worldClosed(s, at)) return;
       s.stack.push(s.cfg.cityRules ? { t: "rule", p, at, noTango } : { t: "prop", p, at });
       // Travel news: a fee for visitors (Venice), paid before anything else there.
       const fee = newsFor(s, sp.id)?.fee;
@@ -300,6 +367,7 @@ function land(s: GameState, p: number, noTango: boolean) {
 function visitProperty(s: GameState, item: Extract<StackItem, { t: "prop" }>) {
   const { p, at } = item;
   const deed = s.deeds[at]!;
+  if (worldClosed(s, at)) return;
   if (deed.owner < 0) {
     let price = priceOf(s, at);
     if (BOARD[at].k === "city" && s.ps[p].keep.includes("points")) price = Math.round(price * 0.8);
@@ -504,9 +572,9 @@ function drawCard(s: GameState, p: number, deck: "journey" | "postcard") {
     case "home": {
       const from = pl.pos;
       pl.pos = 0;
-      credit(s, p, s.cfg.salary);
+      credit(s, p, salaryOf(s));
       s.stats.landings[0] += 1;
-      ev(s, { t: "move", p, from, to: 0, salary: s.cfg.salary });
+      ev(s, { t: "move", p, from, to: 0, salary: salaryOf(s) });
       return;
     }
     case "expired":

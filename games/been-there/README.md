@@ -194,6 +194,14 @@ minute). Nothing is downloaded: previews stream from Apple. `npm test` checks th
   target moves with it, `withStartCash`), auctions on or off (`auctions` in the game's config: off, a
   city its visitor doesn't buy stays with the bank), and hidden money (each phone gets the other teams'
   cash and worth as -1 until the end, `gameView` in `src/room/room.ts`; the big screen gets none).
+* 世界大动荡 (world upheaval, in 更多规则, on unless the host turns it off): what each of the six does
+  and the shares and amounts (`WORLD`, `CRASH_SHARE`, `AI_GIFT`, `WORLD_ROUNDS` in
+  `src/engine/world.ts`; what it does at once is `worldEvent` in `src/engine/play.ts`), how often
+  (`worldEvery`, 20 minutes; `worldShort`, 8, a 15-minute game's only one) and how long its moment holds
+  the table (`worldCard`): `TIMING` in `src/room/protocol.ts`. One comes at the start of a turn, once the
+  last throw has played on the screens and no question is up (`dueWorld` in `src/room/room.ts`); the
+  computer waits for it. Tests set `worldEvery` and `worldOrder` (rooms, with `ALLOW_TEST_SETTINGS`;
+  the one-phone demo, `window.__demoTest`).
 * Prices, rents, target lines: `src/engine/config.ts`. After changing them, run `npm run sim`
   to see the effect; `npm test` will then (deliberately) fail until `tests/fixtures/report.json`
   is updated to the new numbers.

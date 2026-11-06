@@ -425,6 +425,25 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   (or on the dancer's phone when there's no big screen). A computer team, or one the computer is
   covering, has nobody to get ready or to teach: it dances a short one at once (10 s: two figures
   and the pose). The room's song is hushed from the ready card to the lesson's end.
+* **世界大动荡** (world upheaval, `engine/world.ts`, `ui/World.tsx`, the board's part `WorldMoment` in
+  `art/RoundBoard.tsx`). Every 20 minutes (once, at 8, in a 15-minute game) something happens to the whole
+  world, three bad and three good, each once before any comes round again: a financial crisis, a meteor,
+  a terror attack, the AI revolution, a new invention (the supersonic airliner), a travel boom. It comes at
+  the start of a turn, once the last throw has played and with no question up, and the table waits for
+  its moment (7 s). The board plays it first, for about three seconds, on every screen: the crisis's chart
+  falls in vermilion across a darkened map with −15%; a meteor comes in over the rim onto its city, one
+  flash, a shock wave, debris; slow blue rings round the city locked down (no explosions, no red, no
+  people); the AI's cyan circuits spread from the middle, +$50; the airliner crosses with its contrail and
+  a sonic boom; the boom's fireworks, ×1.5. Then the 号外 card comes in, printed like a newspaper's extra
+  (paper and navy ink, its masthead vermilion for bad news, green for good, the event's own picture): the
+  headline, what happened (the city it struck, the hotel it took and the insurance; on a phone, what the
+  crisis took from your team) and what it does for two rounds. On a phone over the top of the board (tap
+  to put it away); on the big screen across the foot of its board, bigger, the map above it in sight. With
+  its sound: the big screen's, or each phone's when there's none. While it lasts, a banner like the travel
+  news says what it does and how many rounds are left (the play window; the big screen's side), and the
+  city struck wears a tag, 陨石坑 or 戒严, a meteor's crater where its buildings stood. Nothing in it
+  flashes more than once, and the rings come under twice a second. With reduced motion the board plays
+  nothing and the card is simply there.
 * **Reactions** (表情, `ui/Reactions.tsx`). A team's player taps the round button in the board's top left
   corner (the map's size is in the top right) and picks one of five: its own character in a mood, with
   its word (好耶！ 不会吧！ 呜呜… 嗯？ 嘿嘿). No typing, so there's nothing to watch over. Every screen in

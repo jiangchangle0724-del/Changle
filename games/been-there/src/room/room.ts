@@ -202,6 +202,15 @@ interface Game {
   bets: Bets | null;
   /** What each seat has done (the finale's report card). Missing in games saved before it: counted from then on. */
   tally?: Tally[];
+  /**
+   * When the next world event is due (engine/world.ts; null: no more this game), how many have come,
+   * and until when the last one's 号外 card holds the table. Missing in rooms from before them.
+   */
+  worldAt?: number | null;
+  worldCount?: number;
+  worldHold?: number;
+  /** When every screen has played the last throw (its ride and stamp, or a first visit's landing scene). */
+  playedAt?: number;
   /** When each human seat's last phone went away. */
   awaySince: Record<number, number>;
   /** Seats the computer was covering at the last check (to announce changes). */
@@ -233,7 +242,7 @@ export interface SaveFile {
   savedAt: number;
   settings: Settings;
   teams: Team[];
-  game: (Omit<Game, "awaySince" | "covered" | "trades"> & { remaining: number | null }) | null;
+  game: (Omit<Game, "awaySince" | "covered" | "trades"> & { remaining: number | null; worldIn?: number | null }) | null;
 }
 
 export interface Flush {
@@ -357,10 +366,14 @@ export class Room {
     room.st.teams = save.teams.map((t) => ({ ...t, autoplay: false }));
     room.st.nextId = 1000;
     if (save.game) {
-      const { remaining, ...g } = save.game;
+      const { remaining, worldIn, ...g } = save.game;
       room.st.game = {
         ...g,
         endsAt: remaining === null ? null : now + remaining,
+        // (the next world event as long after the restart as it was due after the save; saves from before them start counting now)
+        worldAt: room.st.settings.world === false ? null : worldIn === null ? null : now + (worldIn ?? TIMING.worldEvery * (room.st.settings.speed ?? 1)),
+        worldHold: undefined,
+        playedAt: undefined,
         paused: true,
         pausedAt: now,
         forfeit: null,
@@ -647,6 +660,7 @@ export class Room {
         if (msg.cash === "low" || msg.cash === "normal" || msg.cash === "high") this.st.settings.cash = msg.cash;
         if (typeof msg.auctions === "boolean") this.st.settings.auctions = msg.auctions;
         if (typeof msg.hideCash === "boolean") this.st.settings.hideCash = msg.hideCash;
+        if (typeof msg.world === "boolean") this.st.settings.world = msg.world;
         this.dirty = true;
         return;
       case "seen": {
@@ -899,9 +913,66 @@ export class Room {
       bets: null,
       awaySince: {},
       covered: {},
+      worldAt: this.worldFirst(now),
+      worldCount: 0,
     };
     this.refreshAway();
     this.afterMove();
+  }
+
+  /** When a game's first world event comes: 20 minutes in (8 in a 15-minute game); never with the switch off. */
+  private worldFirst(now: number): number | null {
+    const st = this.st.settings;
+    if (st.world === false) return null;
+    if (st.worldEvery) return now + st.worldEvery;
+    return now + this.ms(st.mode === 15 ? "worldShort" : "worldEvery");
+  }
+
+  /** …and the next, after one: 20 minutes on (a 15-minute game has had its one). */
+  private worldNext(now: number): number | null {
+    const st = this.st.settings;
+    if (st.worldEvery) return now + st.worldEvery;
+    return st.mode === 15 ? null : now + this.ms("worldEvery");
+  }
+
+  /**
+   * A world event, once its time has come and the table is free for it: at the start of a turn (a
+   * team about to throw, not again after doubles), once the last move has played on every screen and
+   * with no question up, the game running. Every screen shows its 号外 card, and the table waits
+   * for it a moment (the computer's moves, the turn clock).
+   */
+  private dueWorld(): boolean {
+    const g = this.st.game;
+    if (!g || !this.worldWaits(g) || this.now < (g.playedAt ?? 0)) return false;
+    const s = g.s;
+    const order = this.st.settings.worldOrder;
+    const count = g.worldCount ?? 0;
+    E.worldEvent(s, order?.length ? order[count % order.length] : undefined);
+    g.worldCount = count + 1;
+    g.worldAt = this.worldNext(this.now);
+    g.worldHold = this.now + this.ms("worldCard");
+    g.idleFrom = Math.max(g.idleFrom ?? 0, g.worldHold);
+    this.afterMove();
+    return true;
+  }
+
+  /**
+   * A world event's time has come and this is the start of a turn with no question up: it comes as
+   * soon as the last throw has played on every screen, and the computer waits for it (a person
+   * throwing sooner puts it off to the next turn).
+   */
+  private worldWaits(g: Game): boolean {
+    const s = g.s;
+    return (
+      g.worldAt != null &&
+      this.now >= g.worldAt &&
+      !s.over &&
+      !g.timeUp &&
+      !this.stopped(g) &&
+      s.pending?.k === "roll" &&
+      s.ps[s.turn].dbl === 0 &&
+      !g.trivia
+    );
   }
 
   private pause(on: boolean) {
@@ -958,6 +1029,9 @@ export class Room {
     // (time stood still doesn't count toward the next question)
     if (g.triviaAt !== undefined) g.triviaAt += shift;
     if (g.triviaDue) g.triviaDue.at += shift;
+    if (g.worldAt != null) g.worldAt += shift;
+    if (g.worldHold !== undefined) g.worldHold += shift;
+    if (g.playedAt !== undefined) g.playedAt += shift;
     for (const t of g.trades) t.createdAt += shift;
     for (const k of Object.keys(g.awaySince)) g.awaySince[Number(k)] += shift;
   }
@@ -968,7 +1042,11 @@ export class Room {
     if (g) {
       const { awaySince: _a, covered: _c, trades: _t, forfeit: _f, forfeits: _q, ...rest } = g;
       const now = this.stopped(g) && g.pausedAt ? g.pausedAt : this.now;
-      game = { ...clone(rest), remaining: g.endsAt === null ? null : Math.max(0, g.endsAt - now) };
+      game = {
+        ...clone(rest),
+        remaining: g.endsAt === null ? null : Math.max(0, g.endsAt - now),
+        worldIn: g.worldAt == null ? null : Math.max(0, g.worldAt - now),
+      };
     }
     return { v: 1, savedAt: this.now, settings: { ...this.st.settings }, teams: clone(this.st.teams), game };
   }
@@ -989,14 +1067,20 @@ export class Room {
       this.push({ t: "game", e });
       countEvent((g.tally ??= s.ps.map(() => emptyTally())), e);
       // Side events don't make anyone's pending decision stale.
-      if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus" && e.t !== "fine") g.progress += 1;
+      if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus" && e.t !== "fine" && e.t !== "world") g.progress += 1;
       // (every screen plays a throw's ride and landing from now: the turn clock waits for them)
-      if (e.t === "roll" || e.t === "move") g.moveAt = now;
+      if (e.t === "roll" || e.t === "move") {
+        g.moveAt = now;
+        g.playedAt = Math.max(g.playedAt ?? 0, now + this.ms("triviaLand"));
+      }
       if (e.t === "land" && e.p === s.turn) {
         const sp = E.BOARD[e.at];
         landed = sp.k === "city" && s.ps[e.p].pos === e.at ? sp.id : null;
         firstVisit = false;
-      } else if (e.t === "stamp" && e.p === s.turn && e.city === landed) firstVisit = true;
+      } else if (e.t === "stamp" && e.p === s.turn && e.city === landed) {
+        firstVisit = true;
+        g.playedAt = Math.max(g.playedAt ?? 0, now + this.ms("landing"));
+      }
       else if (e.t === "jail" && e.p === s.turn) landed = null; // (sent to Immigration from wherever it stood)
       this.watch(e);
     }
@@ -1083,6 +1167,8 @@ export class Room {
       return ok;
     });
     this.dirty = true;
+    // A world event that was waiting for the start of a turn (when its move hasn't to play first).
+    if (!s.over) this.dueWorld();
   }
 
   /** Room-level reactions to game events: spectator bets and party forfeits. */
@@ -1552,6 +1638,12 @@ export class Room {
         }
       }
       for (const t of g.trades) times.push(t.createdAt + this.ms("offer"));
+      // A world event comes at the start of a turn once the last move has played (dueWorld); its card holds the table.
+      if (g.worldAt != null && !g.timeUp) {
+        const at = Math.max(g.worldAt, g.playedAt ?? 0);
+        if (at > this.now) times.push(at);
+      }
+      if (g.worldHold !== undefined && g.worldHold > this.now) times.push(g.worldHold);
       const clock = this.turnClock(g);
       if (clock) times.push(clock.at);
       // Announce when the computer starts covering for a team that dropped off.
@@ -1627,6 +1719,7 @@ export class Room {
       this.dirty = true;
       return true;
     }
+    if (this.dueWorld()) return true;
     const pd = s.pending;
     if (!pd) return false;
     if (pd.k === "auction" && g.auction) {
@@ -1687,6 +1780,9 @@ export class Room {
       return true;
     }
     if (now < g.pendingSince + this.ms("bot")) return false;
+    // (every screen is showing a world event's card, or one is about to come)
+    if (g.worldHold !== undefined && now < g.worldHold) return false;
+    if (this.worldWaits(g)) return false;
     if (pd.k === "silence" && g.silenceUntil !== null && now < g.silenceUntil) return false;
     if (pd.k === "scores" && this.dancing()) return false;
     for (const seat of waiting) {
@@ -1766,6 +1862,7 @@ export class Room {
         cash: st.settings.cash ?? "normal",
         auctions: st.settings.auctions !== false,
         hideCash: !!st.settings.hideCash,
+        world: st.settings.world !== false,
       },
       members: members.map((x) => ({ id: x.id, name: x.name, team: x.team, role: x.role, online: x.online > 0, score: x.score })),
       teams,

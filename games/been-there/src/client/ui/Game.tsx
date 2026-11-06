@@ -27,10 +27,11 @@ import { useWakeLock } from "../wake";
 import { SpeedMeter } from "./SpeedMeter";
 import { SambaLesson, useDanceClock } from "./Samba";
 import { ReactBubbles, ReactButton } from "./Reactions";
+import { WorldBanner, WorldCard } from "./World";
 
 type Panel = "mine" | "trade" | "log";
 /** The parts of the play window, in the order they stack (see `asks` in Game). */
-type Part = "arrival" | "card" | "decision" | "news" | "trivia";
+type Part = "arrival" | "card" | "decision" | "news" | "world" | "trivia";
 
 /**
  * A player's screen. The board is always there; what the team has to do comes up over it in a
@@ -97,9 +98,10 @@ export function Game({ v }: { v: RoomView }) {
     card: <TurnCard key="card" v={v} />,
     decision: <Decision key="decision" v={v} />,
     news: <NewsBanner key="news" v={v} />,
+    world: <WorldBanner key="world" v={v} />,
     trivia: <TriviaCard key="trivia" v={v} />,
   };
-  const asks: Part[] = myMove ? ["decision", "arrival", "card", "news", "trivia"] : ["arrival", "card", "decision", "news", "trivia"];
+  const asks: Part[] = myMove ? ["decision", "arrival", "card", "world", "news", "trivia"] : ["arrival", "card", "decision", "world", "news", "trivia"];
   // A new question goes back to the top of the window, where it is (the player may have scrolled
   // down to read the arrival card during the last one).
   const playBody = useRef<HTMLDivElement>(null);
@@ -145,6 +147,7 @@ export function Game({ v }: { v: RoomView }) {
               <JailFx v={v} ride={ride} />
               <ReactBubbles v={v} />
               <ReactButton v={v} hidden={!!ride} />
+              <WorldCard v={v} />
             </>
           }
         />

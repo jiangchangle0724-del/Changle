@@ -4,7 +4,7 @@ import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEv
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type BoardFx, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
+import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type BoardFx, type Rig, type SpaceMark, type TokenMark, type WorldMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
 import { colon, groupName, money, spaceName, t, tx, type Key } from "../i18n";
 import { MAP_SIZES, prefs, type MapSize } from "../prefs";
@@ -20,6 +20,7 @@ import { LandStamp, Ride } from "./Ride";
 import { moveInPlay, ridesOn, walkOf, type RidePlan } from "./ridePlan";
 import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
+import { useWorldMoment } from "./World";
 
 export { reducedMotion };
 
@@ -65,6 +66,8 @@ export function moodOf(v: RoomView, seat: number): Mood {
 
 /** How long a stamp stays on the board (ms; its animation in art.css runs as long). */
 const FX_MS = 1_800;
+/** …and a world event's effect (art.css .wf). */
+const WORLD_FX_MS = 3_600;
 
 /**
  * A city sold at auction, a team gone broke: a stamp on its space for a moment, in the team's colour.
@@ -227,6 +230,11 @@ export function Board({
   });
   const tokenScale = big ? TOKEN_SCALE.tv : TOKEN_SCALE.phone;
   const fx = useBoardFx(v);
+  // A world event as it comes, and the city one in force has struck (a meteor's crater, a city locked down).
+  const [moment] = useWorldMoment(v, WORLD_FX_MS);
+  const w = v.game?.s.world;
+  const worldMark: WorldMark | null =
+    w && w.at !== null && (w.id === "meteor" || w.id === "terror") ? { id: w.id, at: w.at, tag: t(`worldTag_${w.id}`) } : null;
   // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
   // show the globe) the board draws it flat, under the ring.
   const sat = !(globe && globeWanted());
@@ -247,6 +255,8 @@ export function Board({
       walks={walks}
       sat={sat}
       fx={fx}
+      worldFx={moment && { id: moment.id, kind: moment.e.id, at: moment.e.at }}
+      worldMark={worldMark}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same

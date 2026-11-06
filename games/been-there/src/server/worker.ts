@@ -20,6 +20,7 @@
 // every change, so a phone that drops (or a server restart) never loses the game.
 import { DurableObject } from "cloudflare:workers";
 import { COORDS } from "../client/art/coords";
+import { WORLD_IDS, type WorldId } from "../engine/world";
 import type { ClientMsg, Settings } from "../room/protocol";
 import { Room, type Opening, type RoomEnv, type RoomState, type SaveFile } from "../room/room";
 import { triviaSources } from "../room/trivia";
@@ -128,7 +129,9 @@ export default {
 
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
       const body = (await req.json().catch(() => ({}))) as Partial<Settings> &
-        Opening & { test?: { speed?: number; testRounds?: number; dice?: unknown; inOrder?: unknown; triviaEvery?: unknown } };
+        Opening & {
+          test?: { speed?: number; testRounds?: number; dice?: unknown; inOrder?: unknown; triviaEvery?: unknown; worldEvery?: unknown; worldOrder?: unknown };
+        };
       const settings: Partial<Settings> = {};
       if (body.mode === "target" || body.mode === 15 || body.mode === 60) settings.mode = body.mode;
       if (env.ALLOW_TEST_SETTINGS === "1" && body.test) {
@@ -137,6 +140,8 @@ export default {
         if (Array.isArray(body.test.dice)) settings.dice = body.test.dice.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 6).slice(0, 40);
         if (body.test.inOrder === true) settings.inOrder = true;
         if (typeof body.test.triviaEvery === "number" && body.test.triviaEvery >= 0) settings.triviaEvery = body.test.triviaEvery;
+        if (typeof body.test.worldEvery === "number" && body.test.worldEvery > 0) settings.worldEvery = body.test.worldEvery;
+        if (Array.isArray(body.test.worldOrder)) settings.worldOrder = body.test.worldOrder.filter((id): id is WorldId => WORLD_IDS.includes(id));
       }
       for (let i = 0; i < 40; i++) {
         const code = roomCode();

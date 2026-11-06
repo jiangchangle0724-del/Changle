@@ -1,6 +1,7 @@
 // Single-device demo: the whole room runs inside this page (no server). One device plays every
 // human team in turn; the rest are computer teams. Progress is kept in this browser.
 import { render } from "preact";
+import { WORLD_IDS, type WorldId } from "../engine/world";
 import type { ClientMsg } from "../room/protocol";
 import { Room, type RoomState } from "../room/room";
 import { triviaSources } from "../room/trivia";
@@ -22,16 +23,24 @@ let room!: Room;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 /**
- * Tests only: a browser test can script the dice (thrown in the order the teams were made) and the
- * pace before the page loads, `window.__demoTest = { dice: [4, 5], speed: 0.3 }`, as it fixes the
- * map's sun with `__sunAt`. Anything else there is ignored.
+ * Tests only: a browser test can script the dice (thrown in the order the teams were made), the pace
+ * and the world events (how often, in ms, and which) before the page loads,
+ * `window.__demoTest = { dice: [4, 5], speed: 0.3, worldEvery: 4000, worldOrder: ["meteor"] }`, as it
+ * fixes the map's sun with `__sunAt`. Anything else there is ignored.
  */
-function testSettings(): { dice?: number[]; inOrder?: boolean; speed?: number } {
-  const t = (globalThis as { __demoTest?: { dice?: unknown; speed?: unknown } }).__demoTest;
+function testSettings(): { dice?: number[]; inOrder?: boolean; speed?: number; worldEvery?: number; worldOrder?: WorldId[] } {
+  const t = (globalThis as { __demoTest?: { dice?: unknown; speed?: unknown; worldEvery?: unknown; worldOrder?: unknown } }).__demoTest;
   if (!t || typeof t !== "object") return {};
   const dice = Array.isArray(t.dice) && t.dice.length && t.dice.every((d) => Number.isInteger(d) && d >= 1 && d <= 6) ? (t.dice as number[]) : null;
   const speed = typeof t.speed === "number" && t.speed > 0 && t.speed <= 1 ? t.speed : null;
-  return { ...(dice ? { dice, inOrder: true } : {}), ...(speed ? { speed } : {}) };
+  const every = typeof t.worldEvery === "number" && t.worldEvery > 0 ? t.worldEvery : null;
+  const order = Array.isArray(t.worldOrder) ? t.worldOrder.filter((id): id is WorldId => WORLD_IDS.includes(id)) : [];
+  return {
+    ...(dice ? { dice, inOrder: true } : {}),
+    ...(speed ? { speed } : {}),
+    ...(every ? { worldEvery: every } : {}),
+    ...(order.length ? { worldOrder: order } : {}),
+  };
 }
 
 function fresh() {
