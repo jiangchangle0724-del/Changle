@@ -253,6 +253,74 @@
 .dm-cast.n4 {
   --fig-h: clamp(70px, 19.5vw, 122px);
 }
+/* one on stage: a monologue, front and centre */
+.dm-cast.n1 .dm-actor {
+  flex-basis: 40%;
+}
+.dm-cast.n1 .dm-plaque {
+  width: max-content;
+  max-width: 220%;
+}
+/* five to eight: a company in two rows, the back one a step smaller (three a row for five or six, four for seven or eight) */
+.dm-cast.n5,
+.dm-cast.n6,
+.dm-cast.n7,
+.dm-cast.n8 {
+  --fig-h: clamp(46px, 13vw, 92px);
+  --per-row: 3;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  row-gap: var(--space-1);
+}
+.dm-cast.n7,
+.dm-cast.n8 {
+  --fig-h: clamp(42px, 11vw, 84px);
+  --per-row: 4;
+}
+.dm-cast.n5 .dm-actor,
+.dm-cast.n6 .dm-actor,
+.dm-cast.n7 .dm-actor,
+.dm-cast.n8 .dm-actor {
+  flex-basis: calc((100% - (var(--per-row) - 1) * 4px) / var(--per-row));
+}
+.dm-cast.n5 .dm-actor:nth-child(-n + 3),
+.dm-cast.n6 .dm-actor:nth-child(-n + 3),
+.dm-cast.n7 .dm-actor:nth-child(-n + 4),
+.dm-cast.n8 .dm-actor:nth-child(-n + 4) {
+  scale: 0.9;
+  transform-origin: 50% 100%;
+}
+/* a company's plaques name the role; who plays it is the face on the figure and the list below */
+.dm-cast.n5 .dm-plaque small,
+.dm-cast.n6 .dm-plaque small,
+.dm-cast.n7 .dm-plaque small,
+.dm-cast.n8 .dm-plaque small {
+  display: none;
+}
+.dm-cast.n5 .dm-plaque strong,
+.dm-cast.n6 .dm-plaque strong,
+.dm-cast.n7 .dm-plaque strong,
+.dm-cast.n8 .dm-plaque strong {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+/* the big screen has room for two rows of tall figures, and the names */
+.tvd .dm-cast.n5,
+.tvd .dm-cast.n6,
+.tvd .dm-cast.n7,
+.tvd .dm-cast.n8,
+.tvd-theatre.is-act .dm-cast.n5,
+.tvd-theatre.is-act .dm-cast.n6,
+.tvd-theatre.is-act .dm-cast.n7,
+.tvd-theatre.is-act .dm-cast.n8 {
+  --fig-h: 150px;
+}
+.tvd .dm-cast.n5 .dm-plaque small,
+.tvd .dm-cast.n6 .dm-plaque small,
+.tvd .dm-cast.n7 .dm-plaque small,
+.tvd .dm-cast.n8 .dm-plaque small {
+  display: revert;
+}
 .dm-actor-face {
   display: grid;
   place-items: center;
@@ -1522,4 +1590,185 @@ li.is-ready .dm-roster-state {
 }
 .dm-tips ol {
   padding: 0 var(--space-4) var(--space-4) calc(var(--space-4) + 1.4em);
+}
+
+/* ---------- who's on stage next; a monologue's three secrets; the actors' own vote ---------- */
+
+.dm-stagecall {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+}
+.dm-stagecall-title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.dm-stagecall-hint,
+.dm-stagecall-next {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-stagecall-next {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.dm-stagecall-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.dm-stagecall-names .ui-pill-toggle {
+  min-height: var(--tap-crowded);
+  padding-inline: var(--space-2) var(--space-4);
+  gap: var(--space-2);
+}
+.dm-stagecall-who {
+  display: grid;
+  gap: var(--space-1);
+}
+.dm-stagecall-who p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-stagecall-who strong {
+  color: var(--color-text);
+}
+.dm-stagecall-who svg {
+  color: var(--gel);
+}
+
+.dm-hunt-secrets {
+  width: 100%;
+  max-width: 34em;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gel) 45%, transparent);
+  text-align: left;
+}
+.dm-hunt-secrets > p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.dm-hunt-secrets ol,
+.dm-secret-results {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dm-hunt-secrets li,
+.dm-secret-results li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-secret-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--color-on-accent);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+.dm-secrets {
+  display: grid;
+  gap: var(--space-2);
+}
+.dm-secret {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-crowded);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-flat);
+  transition:
+    transform var(--dur-enter) var(--ease-out),
+    box-shadow var(--dur-enter);
+}
+.dm-secret.is-on {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 2px var(--gel),
+    0 14px 30px -14px color-mix(in oklab, var(--gel) 80%, transparent);
+}
+.dm-secret-results {
+  width: 100%;
+  max-width: 34em;
+  margin-inline: auto;
+}
+.dm-secret-results li {
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  text-align: left;
+}
+.dm-secret-results li > span:not(.dm-secret-mark) {
+  flex: 1;
+}
+.dm-secret-results li small {
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.dm-secret-results li.is-true {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.dm-secret-results li.is-true strong {
+  color: var(--gel);
+}
+.dm-peer-note {
+  max-width: 34em;
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-secret,
+  .dm-secret.is-on {
+    transform: none;
+    transition: none;
+  }
+}
+/* the big screen reads a monologue's secrets from across the room */
+.tvd .tvd-secrets li {
+  font-size: var(--text-lg);
+}
+.tvd .tvd-secrets li small {
+  font-size: var(--text-sm);
 }
