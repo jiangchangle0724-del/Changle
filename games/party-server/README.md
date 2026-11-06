@@ -45,7 +45,13 @@ instead, `site/src/party/dj/`.)
   tries). While a dance plays: the beat (`src/client/synth.ts`: made with Web Audio, a
   four-on-the-floor groove until the dances have songs, task A5), the 3D coach dancing each move on
   the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
-  the 8-count, the next move 2 beats ahead, the floor, each dancer's meter. Then the results.
+  the 8-count, the next move 2 beats ahead, the floor. Along the bottom, everyone's little dancer
+  (`src/client/coach/crowd.ts`): a neon stick figure in their colour doing the coach's move as hard
+  as they are moving, from their phone's `pulse` (8 a second at most: the sensor's energy, or their
+  taps, and each beat's verdict; the room passes it to the speaker and keeps nothing), sparking on
+  each beat they hit. Sounds for the room (`synth.ts`): a pop for a hit (a note higher for each in
+  a row), bells every 8 beats of the floor's streak, a boom with the fireworks, a fanfare for the
+  results. Then the results.
 - **The 3D coach** (`src/client/coach/`): a cartoon dance teacher built in three.js from rounded
   shapes (no model file, nothing to license), on a skeleton named like Mixamo's. Each move of the
   library is a loop of key frames on the beat (`moves.ts`: hands and feet as positions, the way a
@@ -62,8 +68,8 @@ instead, `site/src/party/dj/`.)
   checks' Chromium); `window.coachShow(id, beat)` and `coachTick(id, beat, count, ms)` are for
   photographing it.
 - **`/party/join`**, a phone (`src/client/join.ts`): code and name, clock sync, a flash on every
-  beat the room hears, 我在; while a dance plays, the move, the count, what's next and the big
-  button; the player's own results. For the host: calibrate, pick a dance, steer it, the 120 BPM
+  beat the room hears, 我在, the motion sensor's switch (开体感); while a dance plays, the move, the
+  count, what's next, the big button and how hard you're moving; the player's own results. For the host: calibrate, pick a dance, steer it, the 120 BPM
   metronome (the timing test in `docs/field-notes/2026-11-01.md`), end the room.
 - **测量 / Timing** on both pages: the speaker's clock in big digits, for the field test (a photo
   of the two screens side by side shows the error).
@@ -94,6 +100,12 @@ results, the same dance again with 这一段再来 in the middle while Bob's con
 (his bar from then must still get there), the end. The test dance starts only
 when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so run the Worker as
 `npm run build && npx wrangler dev --var ALLOW_TEST_SETTINGS:1`. About two and a half minutes.
+
+`scripts/motion-check.cjs` (the same Worker) dances the short test dance with the motion sensor:
+Ann's phone gets a pretend hand (a bump of acceleration on every beat she hears), Bob taps late,
+Cat stands still; the speaker page draws the 3D coach in software (`?gl=any`). Checked: the pulses
+reach the TV, Ann's moves count on the beat, Cat is in no results. It saves screenshots of the TV
+in the folder given. About a minute and a half.
 
 ## Live
 

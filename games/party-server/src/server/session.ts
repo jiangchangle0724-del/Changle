@@ -18,6 +18,8 @@ export const PLAYER_GRACE_MS = 45_000;
 export const IDLE_MS = 12 * 3_600_000;
 /** A routine's first warm-up beat comes this long after the host starts it: time for every page to hear of it. */
 export const LEAD_IN_MS = 3_000;
+/** The speaker gets a phone's movement at most this often (a little dancer on the TV needs no more). */
+export const PULSE_GAP_MS = 80;
 /**
  * 开始跳 and 这一段再来: the count-in's first beat comes this long after the tap, so the speaker
  * hears of it in time to play it (else the TV counts "3, 2, 1").
@@ -173,7 +175,29 @@ export class Session {
       case "beats":
         this.beats(from, msg.from, msg.offs);
         return;
+      case "pulse":
+        this.pulse(from, msg.e, msg.v);
+        return;
     }
+  }
+
+  /** When each phone's last pulse went on to the speaker (not kept: a pulse is only for now). */
+  private readonly pulsedAt = new Map<string, number>();
+
+  /**
+   * A phone's pulse, while a dance plays: on to the speaker, at most one movement-only pulse every
+   * PULSE_GAP_MS from a phone (one with a verdict always goes: there's one a beat).
+   */
+  private pulse(from: From, e: unknown, v: unknown): void {
+    const st = this.d.state;
+    if (from.role !== "player" || !from.playerId || (st.phase !== "learning" && st.phase !== "dancing")) return;
+    if (!st.players.some((p) => p.id === from.playerId) || typeof e !== "number" || !Number.isFinite(e)) return;
+    const verdict = v === "hit" || v === "close" || v === "miss" ? v : null;
+    const now = this.now();
+    const before = this.pulsedAt.get(from.playerId);
+    if (!verdict && before !== undefined && now - before < PULSE_GAP_MS) return;
+    this.pulsedAt.set(from.playerId, now);
+    this.out.push({ to: "speaker", msg: { t: "pulse", playerId: from.playerId, e: Math.round(Math.min(1, Math.max(0, e)) * 100) / 100, v: verdict } });
   }
 
   /** A phone's beats of the dance being danced: kept, and the floor so far goes to the speaker. */
