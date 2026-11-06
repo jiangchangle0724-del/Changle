@@ -10,12 +10,17 @@
 // does it ask the library itself, and the run log says so (src/run.ts).
 //
 //   POST /go/api/handoff?source=vpl&date=2026-11-03&part=0
-//   Authorization: Bearer <EVENTS_HANDOFF_KEY>
+//   Authorization: Bearer <GitHub's sign-in token for the job (src/oidc.ts)>
 //   body: the page, as the library sent it
+//
+// The job signs in with GitHub's own token, which the Worker checks against GitHub's public keys: no
+// secret to set anywhere. A key (EVENTS_HANDOFF_KEY) also works, when the Worker has one: for runs
+// outside GitHub (`npm run dev`, or by hand).
 //
 // One page a request, as one page is one step of the run: a page is 120 to 420 KB, and reading it
 // takes about 1 ms of the free plan's 10 (a whole library in one request would be several MB).
 import { readCapped, TooLarge } from "./body";
+import { canAskGithub, githubToken, looksLikeToken, verifyGithubToken, type SignInVars } from "./oidc";
 import { isBcPage } from "./parsers/bibliocommons";
 import { MAX_BYTES, nextPart, requestOf, SOURCE_BY_ID, SOURCES, type SourceDef, type Window } from "./sources";
 import { endMs, startMs } from "./store";
@@ -53,7 +58,7 @@ export async function takeHandoff(kv: KVNamespace, date: string, source: string,
 const reply = (body: Record<string, unknown>, status: number, headers: Record<string, string> = {}) =>
   Response.json(body, { status, headers: { "cache-control": "no-store", ...headers } });
 
-/** A refusal: the answer says why (never anything about the key itself), and so does the Worker's log. */
+/** A refusal: the answer says why (never anything of the key or token itself), and so does the Worker's log. */
 function refuse(status: number, error: string, headers: Record<string, string> = {}): Response {
   console.warn(JSON.stringify({ message: "handoff refused", status, error }));
   return reply({ error }, status, headers);
@@ -64,6 +69,25 @@ async function keyMatches(given: string, expected: string): Promise<boolean> {
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(given)), crypto.subtle.digest("SHA-256", enc.encode(expected))]);
   return crypto.subtle.timingSafeEqual(a, b);
+}
+
+/** Who signed in: the GitHub job (and its run, for the log), or someone with the Worker's key; or why no one did. */
+type SignedIn = { by: "github"; run: string | null } | { by: "key" } | { status: 401 | 503; error: string };
+
+/**
+ * Who hands a page over: GitHub's events-libraries job, by GitHub's sign-in token (src/oidc.ts), or
+ * anyone with the Worker's key, when it has one. A credential with a token's shape that isn't the key
+ * is checked as a token; any other is a key.
+ */
+async function signIn(given: string | undefined, env: Env, now: number): Promise<SignedIn> {
+  if (!given) return { status: 401, error: "no key or GitHub token" };
+  if (env.EVENTS_HANDOFF_KEY && (await keyMatches(given, env.EVENTS_HANDOFF_KEY))) return { by: "key" };
+  if (looksLikeToken(given)) {
+    const verdict = await verifyGithubToken(given, env.CACHE, now);
+    if (!verdict.ok) return { status: verdict.status, error: `GitHub token: ${verdict.error}` };
+    return { by: "github", run: typeof verdict.claims.run_id === "string" ? verdict.claims.run_id : null };
+  }
+  return { status: 401, error: env.EVENTS_HANDOFF_KEY ? "wrong key" : "EVENTS_HANDOFF_KEY is not set on the Worker" };
 }
 
 /** Why a body can't be a page the run reads, or null when it can. */
@@ -78,16 +102,17 @@ function notAPage(raw: string): string | null {
 }
 
 /**
- * A page from the GitHub job. 401 without the right key (503 while the Worker has none); 400 for a
- * source that isn't handed over, a date that isn't today in Vancouver, a part out of range, or a
- * body that isn't a library's events page; 413 above HANDOFF_MAX_BYTES. Otherwise it's kept for the
- * day's run (200).
+ * A page from the GitHub job. 401 without GitHub's sign-in token for the job, or the Worker's key
+ * (when it has one), saying which check failed; 503 while GitHub's keys can't be had to check a token;
+ * 400 for a source that isn't handed over, a date that isn't today in Vancouver, a part out of range,
+ * or a body that isn't a library's events page; 413 above HANDOFF_MAX_BYTES. Otherwise it's kept for
+ * the day's run (200).
  */
 export async function receiveHandoff(req: Request, env: Env, now = Date.now()): Promise<Response> {
   if (req.method !== "POST") return reply({ error: "method not allowed" }, 405, { allow: "POST" });
-  if (!env.EVENTS_HANDOFF_KEY) return refuse(503, "EVENTS_HANDOFF_KEY is not set on the Worker");
   const given = /^Bearer\s+(\S+)\s*$/i.exec(req.headers.get("authorization") ?? "")?.[1];
-  if (!given || !(await keyMatches(given, env.EVENTS_HANDOFF_KEY))) return refuse(401, given ? "wrong key" : "no key", { "www-authenticate": "Bearer" });
+  const who = await signIn(given, env, now);
+  if ("error" in who) return refuse(who.status, who.error, who.status === 401 ? { "www-authenticate": "Bearer" } : {});
 
   const q = new URL(req.url).searchParams;
   const src = SOURCE_BY_ID[q.get("source") ?? ""];
@@ -111,7 +136,7 @@ export async function receiveHandoff(req: Request, env: Env, now = Date.now()): 
   } catch (e) {
     return refuse(503, `couldn't keep it: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`);
   }
-  console.log(JSON.stringify({ message: "handoff kept", source: src.id, date, part, bytes: raw.length }));
+  console.log(JSON.stringify({ message: "handoff kept", source: src.id, date, part, bytes: raw.length, by: who.by, ...("run" in who ? { run: who.run } : {}) }));
   return reply({ ok: true, source: src.id, date, part, bytes: raw.length }, 200);
 }
 
@@ -194,11 +219,27 @@ export function handoffUrl(endpoint: string, source: string, date: string, part:
   return u.toString();
 }
 
-/** Hand a page to the Worker. Throws, with the Worker's answer, when it's refused. */
-export async function handOver(post: Get, endpoint: string, key: string, source: string, date: string, page: Page): Promise<void> {
+/**
+ * How the job signs in to the Worker: with the key, when one is set (a run outside GitHub); else with
+ * GitHub's sign-in token, on GitHub; null when it can't.
+ */
+export function signInWith(vars: SignInVars): "key" | "github" | null {
+  return vars.EVENTS_HANDOFF_KEY ? "key" : canAskGithub(vars) ? "github" : null;
+}
+
+/**
+ * What the job hands pages over with: the key when one is set, else a token GitHub gives it now (a
+ * token lasts minutes: the job asks for one for each library, just before handing its pages over).
+ */
+export async function handoffCredential(vars: SignInVars, get: Get): Promise<string> {
+  return vars.EVENTS_HANDOFF_KEY || githubToken(vars, get);
+}
+
+/** Hand a page to the Worker, signed in with `credential`. Throws, with the Worker's answer, when it's refused. */
+export async function handOver(post: Get, endpoint: string, credential: string, source: string, date: string, page: Page): Promise<void> {
   const res = await post(handoffUrl(endpoint, source, date, page.part), {
     method: "POST",
-    headers: { authorization: `Bearer ${key}`, "content-type": "application/json; charset=utf-8" },
+    headers: { authorization: `Bearer ${credential}`, "content-type": "application/json; charset=utf-8" },
     body: page.raw,
   });
   const answer = await res.text();

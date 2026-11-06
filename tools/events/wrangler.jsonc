@@ -4,8 +4,9 @@
 // It runs on Cloudflare's free plan: the day's run is split into small steps (see CONTRACTS.md).
 // Secrets (dashboard: this Worker > Settings > Variables and Secrets, type "Secret"):
 //   TICKETMASTER_KEY   the Ticketmaster Discovery API key; without it that source is skipped
-//   EVENTS_HANDOFF_KEY the key the GitHub job hands the libraries' pages over with (the same value as
-//                      the repository secret of that name; src/handoff.ts); without it they're refused
+//   EVENTS_HANDOFF_KEY optional, never needed live: a key for handing the libraries' pages over from a
+//                      run outside GitHub (src/handoff.ts). The GitHub job signs in with GitHub's own
+//                      token instead (src/oidc.ts), which needs no secret anywhere.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "changle-events",

@@ -5,7 +5,7 @@
 //   GET /go/api/events.ics  the same, as a calendar to subscribe to (task C6)
 //   GET /go/api/status   the last run, step by step (the fetch log), and what's published
 //   GET /go/preview      what's published, day by day: unlisted and not indexed, to check the run
-//   POST /go/api/handoff the libraries' pages, from the GitHub job at 05:50 (with its key; src/handoff.ts)
+//   POST /go/api/handoff the libraries' pages, from the GitHub job at 05:50 (signed in by GitHub; src/handoff.ts)
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { receiveHandoff } from "./handoff";
 import { toIcs } from "./ics";
