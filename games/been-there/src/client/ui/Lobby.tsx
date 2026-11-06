@@ -207,10 +207,11 @@ function rulesNow(v: RoomView): string[] {
     ...(cash !== "normal" ? [`${t("startCash")} ${money(START_CASH_CHOICES[cash])}`] : []),
     ...(st.auctions === false ? [t("rule_noAuctions")] : []),
     ...(st.hideCash ? [t("rule_hideCash")] : []),
+    ...(st.world === false ? [t("rule_noWorld")] : []),
   ];
 }
 
-/** 更多规则: the starting cash, auctions, hidden money. Folded away; what's changed shows on its fold. */
+/** 更多规则: the starting cash, auctions, hidden money, world upheaval. Folded away; what's changed shows on its fold. */
 function MoreRules({ v }: { v: RoomView }) {
   const st = v.settings;
   const cash = st.cash ?? "normal";
@@ -246,6 +247,13 @@ function MoreRules({ v }: { v: RoomView }) {
         <span>
           <b>{t("hideCashSwitch")}</b>
           <small>{t("hideCashSwitchHint")}</small>
+        </span>
+      </label>
+      <label class="radio">
+        <input type="checkbox" checked={st.world !== false} onChange={(e) => send({ t: "settings", world: (e.target as HTMLInputElement).checked })} />
+        <span>
+          <b>{t("worldSwitch")}</b>
+          <small>{t("worldSwitchHint")}</small>
         </span>
       </label>
     </details>

@@ -1,9 +1,10 @@
 // Turn feed items (game and room events) into one line of plain language.
-import { BOARD, CITIES, TRASH_QUIZ, newsById, type GameEvent, type Offer } from "../../engine";
+import { BOARD, CITIES, TRASH_QUIZ, newsById, worldById, type GameEvent, type Offer } from "../../engine";
 import { FORFEITS } from "../../room/party";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import { cardById, cardTitle, money, spaceName, t, tx, type Key } from "../i18n";
 import { seatName } from "./common";
+import { worldLine } from "./worldText";
 
 const QUIZ = TRASH_QUIZ.flatMap((b, bin) => b.items.map((item) => ({ bin, item })));
 
@@ -76,6 +77,11 @@ export function gameEventText(v: RoomView, e: GameEvent): string | null {
       const n = newsById(e.id);
       if (!n) return null;
       return e.on ? t("log_news", { title: tx(n.title), text: tx(n.text) }) : t("log_newsEnd", { title: tx(n.title) });
+    }
+    case "world": {
+      const w = worldById(e.id);
+      if (!w) return null;
+      return e.on ? t("log_world", { title: tx(w.title), text: worldLine(v, e) }) : t("log_worldEnd", { title: tx(w.title) });
     }
   }
 }

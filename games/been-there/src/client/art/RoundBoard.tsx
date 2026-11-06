@@ -6,7 +6,7 @@
 // table through `rig`: it turns it, moves a camera over it and leans it back.
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
-import { BOARD, CITY_AT, GROUPS } from "../../engine";
+import { BOARD, CITY_AT, GROUPS, type WorldId } from "../../engine";
 import { CharacterArt, type Mood } from "./characters";
 import { CityGlyph, SpaceGlyph } from "./icons";
 import { RouteMap, type Flight } from "./RouteMap";
@@ -32,6 +32,20 @@ export interface BoardFx {
   /** The stamp's word, and its ink (the team's colour). */
   label: string;
   color: string;
+}
+
+/** A world event as it comes (ui/Board.tsx): its effect plays over the map, or on the city it strikes. */
+export interface WorldFx {
+  id: number;
+  kind: WorldId;
+  at?: number;
+}
+
+/** A world event in force that struck a city (a meteor's crater, a city locked down): its tag on the space. */
+export interface WorldMark {
+  id: WorldId;
+  at: number;
+  tag: string;
 }
 
 export interface TokenMark {
@@ -242,6 +256,110 @@ function Burst({ color }: { color: string }) {
   );
 }
 
+/** Where the travel boom's fireworks go off over the map, and when (s). */
+const BOOMS: [number, number, number][] = [
+  [-150, -110, 0],
+  [150, -70, 0.35],
+  [-30, 150, 0.7],
+  [170, 160, 1.05],
+  [-190, 120, 1.35],
+];
+
+/**
+ * What a world event does on the board as it comes (engine/world.ts), for about three seconds: the
+ * crisis's chart falls across a darkened map; the boom's fireworks; the AI's circuits spread from the
+ * middle; the supersonic airliner crosses with its contrail and a sonic boom; a meteor streaks in from
+ * outside the ring and hits its city; a city locked down sends out slow blue rings. Numbers stay upright.
+ */
+function WorldMoment({ kind, at, rot }: { kind: WorldId; at?: number; rot: number }) {
+  if (kind === "crash")
+    return (
+      <g class="wf wf-crash" aria-hidden="true">
+        <circle class="wf-veil" r={RMAP} />
+        <polyline class="wf-line" pathLength="1" points="-262,-126 -204,-86 -152,-132 -96,-40 -44,-70 16,26 70,-4 128,104 182,78 236,170" />
+        <path class="wf-line wf-head" pathLength="1" d="M206 172l32 4-6-32" />
+        <Up x={0} y={0} rot={rot}>
+          <text class="wf-big" y="34">−15%</text>
+        </Up>
+      </g>
+    );
+  if (kind === "boom")
+    return (
+      <g class="wf wf-boom" aria-hidden="true">
+        {BOOMS.map(([x, y, d], i) => (
+          <g key={i} transform={`translate(${x} ${y})`}>
+            <g class="wf-burst" style={{ "--d": `${d}s` }}>
+              {Array.from({ length: 12 }, (_, k) => (
+                <line key={k} x1="0" y1="-22" x2="0" y2="-88" transform={`rotate(${k * 30})`} />
+              ))}
+            </g>
+          </g>
+        ))}
+        <Up x={0} y={0} rot={rot}>
+          <text class="wf-big" y="34">×1.5</text>
+        </Up>
+      </g>
+    );
+  if (kind === "ai")
+    return (
+      <g class="wf wf-ai" aria-hidden="true">
+        {Array.from({ length: 8 }, (_, k) => (
+          <g key={k} transform={`rotate(${k * 45 + 12})`}>
+            <path class="wf-trace" pathLength="1" d="M0-44V-112H46V-190H20V-262" style={{ "--d": `${(k % 4) * 0.12}s` }} />
+            <circle class="wf-node" cx="20" cy="-262" r="8" style={{ "--d": `${0.95 + (k % 4) * 0.12}s` }} />
+          </g>
+        ))}
+        <circle class="wf-core" r="44" />
+        <Up x={0} y={0} rot={rot}>
+          <text class="wf-big" y="34">+$50</text>
+        </Up>
+      </g>
+    );
+  if (kind === "invention")
+    return (
+      <g class="wf wf-jet" aria-hidden="true" transform="rotate(-19)">
+        <line class="wf-contrail" pathLength="1" x1="-470" y1="0" x2="470" y2="0" />
+        <circle class="wf-sonic" r="60" />
+        <g class="wf-plane">
+          <path d="M34 0L-6-6-22-30h-10l6 26-18 2-8-10h-8l4 18-4 18h8l8-10 18 2-6 26h10l16-24z" />
+        </g>
+      </g>
+    );
+  if (at === undefined) return null;
+  const deg = angleOf(at);
+  const [tx, ty] = xy(deg, RM - 6);
+  if (kind === "terror")
+    return (
+      <g class="wf wf-terror" aria-hidden="true" transform={`translate(${tx.toFixed(1)} ${ty.toFixed(1)})`}>
+        {[0, 0.55, 1.1].map((d) => (
+          <circle key={d} class="wf-ring" r="38" style={{ "--d": `${d}s` }} />
+        ))}
+      </g>
+    );
+  // The meteor: in over the ring's rim, a few spaces back, down onto the city (in sight all the way).
+  const [sx, sy] = xy(deg - 34, 486);
+  const len = Math.hypot(sx - tx, sy - ty);
+  const ang = (Math.atan2(sy - ty, sx - tx) * 180) / Math.PI;
+  return (
+    <g class="wf wf-meteor" aria-hidden="true" transform={`translate(${tx.toFixed(1)} ${ty.toFixed(1)})`}>
+      <g transform={`rotate(${ang.toFixed(1)})`}>
+        <g class="wf-fly" style={{ "--l": `${len.toFixed(0)}px` }}>
+          <line class="wf-tail" x1="14" y1="0" x2="260" y2="0" />
+          <line class="wf-tail wf-tail-in" x1="14" y1="0" x2="150" y2="0" />
+          <circle class="wf-rock" r="22" />
+        </g>
+      </g>
+      <circle class="wf-flash" r="96" />
+      <circle class="wf-shock" r="52" />
+      {Array.from({ length: 7 }, (_, k) => (
+        <g key={k} transform={`rotate(${k * 51 + 20})`}>
+          <circle class="wf-debris" cy="-12" r="5" />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 /** The table turns 60 degrees a second at most (easing in and out); past this a fade is kinder. */
 const TURN_MAX = 60;
 const TURN_ACCEL = 300;
@@ -275,6 +393,8 @@ export function RoundBoard({
   tokenScale = TOKEN_SCALE.phone,
   sat,
   fx,
+  worldFx,
+  worldMark,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -307,6 +427,9 @@ export function RoundBoard({
   sat?: boolean;
   /** Stamps for a moment on a space (`BoardFx`). */
   fx?: BoardFx[];
+  /** A world event as it comes (`WorldFx`; not with reduced motion), and the city one in force has struck (`WorldMark`). */
+  worldFx?: WorldFx | null;
+  worldMark?: WorldMark | null;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const satRef = useRef<HTMLCanvasElement>(null);
@@ -559,7 +682,25 @@ export function RoundBoard({
                 </Up>
               )}
               {mark?.houses ? <Buildings at={at} n={mark.houses} from={built.get(at)?.from ?? 0} rot={r} /> : null}
-              {mark?.news && (
+              {worldMark?.at === at && (
+                <>
+                  {worldMark.id === "meteor" && (
+                    <Up x={xy(deg, RBLD)[0]} y={xy(deg, RBLD)[1]} rot={r}>
+                      <g class="crater" aria-hidden="true">
+                        <ellipse rx="22" ry="10" />
+                        <ellipse class="crater-in" rx="13" ry="5.5" cy="1.5" />
+                      </g>
+                    </Up>
+                  )}
+                  <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
+                    <g class={`world-tag wt-${worldMark.id}`}>
+                      <rect x={-34} y={-14} width="68" height="28" rx="6" />
+                      <text y="7">{worldMark.tag}</text>
+                    </g>
+                  </Up>
+                </>
+              )}
+              {mark?.news && worldMark?.at !== at && (
                 <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
                   <g class="pop board-news">
                     <rect x={-24} y={-13} width="48" height="26" rx="13" />
@@ -639,6 +780,8 @@ export function RoundBoard({
             </Up>
           );
         })}
+        {/* (a world event as it comes: over the map, or on its city) */}
+        {worldFx && !reduced && <WorldMoment key={worldFx.id} kind={worldFx.kind} at={worldFx.at} rot={r} />}
       </g>
       </g>
       {center}

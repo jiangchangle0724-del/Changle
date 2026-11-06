@@ -1925,3 +1925,106 @@ test("the report card's tallies: every throw, rent, buy, auction, quiz win and t
   }
   assert.ok(tally.some((x) => x.throws > 0));
 });
+
+// ---------- 世界大动荡 (engine/world.ts; when, in room.ts) ----------
+
+type WorldItem = { at: number; e: Extract<E.GameEvent, { t: "world" }>; pending: string; dbl: number; played: number };
+
+/** Play on until `n` more world events have come, noting for each what the game was doing when it came. */
+function untilWorld(t: Table, n = 1, maxSteps = 200_000): WorldItem[] {
+  const before = new Set(t.seen.filter((f) => f.t === "game" && f.e.t === "world").map((f) => f.id));
+  const got: WorldItem[] = [];
+  const look = () => {
+    for (const f of t.seen)
+      if (f.t === "game" && f.e.t === "world" && f.e.on && !before.has(f.id) && !got.some((x) => x.e === f.e)) {
+        const g = t.game;
+        got.push({ at: f.at, e: f.e, pending: g.s.pending?.k ?? "none", dbl: g.s.ps[g.s.turn].dbl, played: g.playedAt ?? 0 });
+      }
+    return got.length >= n || t.game.s.over;
+  };
+  for (let i = 0; i < maxSteps && !look(); i++) if (!t.phonesAct(look)) t.wait();
+  return got;
+}
+
+/** The computer plays every team (so nobody's quick phone throws before a world event can come): the phones put down. */
+function allComputer(t: Table) {
+  for (const id of t.game.seats) {
+    const team = t.room.st.teams.find((x) => x.id === id)!;
+    if (!team.bot) team.autoplay = true;
+  }
+  t.phones = [];
+}
+
+test("世界大动荡: 20 minutes in and every 20 after, 8 minutes in a 15-minute game and only then, never with the switch off; at the start of a turn once the last throw has played", () => {
+  for (const [mode, first, again] of [
+    [60, TIMING.worldEvery, true],
+    [15, TIMING.worldShort, false],
+  ] as const) {
+    const t = new Table({ mode }, 3);
+    const ps = lobby(t, 1, 2);
+    t.send(ps[0], { t: "start" });
+    allComputer(t);
+    const g = t.game;
+    assert.equal(g.worldAt, g.startedAt + first * 0.05, `${mode}: the first's time`);
+    const seen: string[] = [];
+    for (let k = 0; k < (again ? 2 : 1); k++) {
+      // (straight to its time: the computer's games are over long before 20 minutes of the test's clock)
+      t.clock.t = Math.max(t.clock.t, g.worldAt!);
+      const [w] = untilWorld(t);
+      assert.ok(w, `${mode}: it came`);
+      assert.equal(w.pending, "roll", "at the start of a turn");
+      assert.equal(w.dbl, 0, "not a throw again after doubles");
+      assert.ok(w.at >= w.played, "once the last throw has played on the screens");
+      assert.equal(g.worldAt, again ? w.at + TIMING.worldEvery * 0.05 : null, `${mode}: the next one's time`);
+      seen.push(w.e.id);
+    }
+    assert.equal(new Set(seen).size, seen.length, "not the same one twice");
+  }
+  const off = new Table({ mode: 60, world: false }, 4);
+  const qs = lobby(off, 1, 2);
+  off.send(qs[0], { t: "start" });
+  assert.equal(off.view(qs[0]).settings.world, false);
+  assert.equal(off.game.worldAt, null);
+  off.playUntil(() => off.game.s.over);
+  assert.ok(!off.seen.some((f) => f.t === "game" && f.e.t === "world"));
+});
+
+test("世界大动荡: its card holds the table (the computer waits), its two rounds end, a pause doesn't count toward the next, a save keeps its time", () => {
+  const t = new Table({ mode: "target", worldEvery: 8_000, worldOrder: ["boom", "crash"] }, 6);
+  const ps = lobby(t, 1, 2);
+  t.send(ps[0], { t: "start" });
+  allComputer(t);
+  const g = t.game;
+  const [w] = untilWorld(t);
+  assert.equal(w.e.id, "boom", "the order the test asked for");
+  assert.equal(g.worldHold, w.at + TIMING.worldCard * 0.05);
+  const until = g.s.world!.until;
+  assert.equal(until, g.s.turns + 2 * 3, "two rounds of three teams");
+  // Nothing moves while its card is up.
+  const firstRoll = () => t.seen.find((f) => f.at >= w.at && f.t === "game" && f.e.t === "roll");
+  t.playUntil(() => !!firstRoll());
+  assert.ok(firstRoll()!.at >= g.worldHold!, "the computer waited for the card");
+  // Two rounds on, at the start of the same seat's turn, it's over.
+  t.playUntil(() => g.s.turns >= until || g.s.over);
+  assert.ok(!g.s.over, "(this seed's game goes on)");
+  assert.equal(g.s.world ?? null, null);
+  assert.ok(t.seen.some((f) => f.t === "game" && f.e.t === "world" && f.e.id === "boom" && !f.e.on));
+  // A pause: the next one comes that much later.
+  {
+    assert.ok(g.worldAt != null);
+    const due = g.worldAt!;
+    t.send(ps[0], { t: "pause", on: true });
+    t.clock.t += 50_000;
+    t.send(ps[0], { t: "pause", on: false });
+    assert.equal(g.worldAt, due + 50_000);
+    // A save: the next one as long after the restart as it was due after the save.
+    t.room.handle(ps[0].id, { t: "save" });
+    const out = t.settle();
+    const file = JSON.parse(JSON.stringify(out.save!.file));
+    const t2 = new Table({ worldEvery: 8_000 });
+    t2.clock.t = t.clock.t + 3_600_000;
+    t2.room = Room.fromSave("5678", file, makeEnv(t2.clock, 3));
+    assert.equal(t2.game.worldAt, t2.clock.t + (g.worldAt! - t.clock.t));
+    assert.equal(t2.game.worldHold, undefined);
+  }
+});

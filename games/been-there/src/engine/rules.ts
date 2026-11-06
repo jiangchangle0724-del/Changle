@@ -14,6 +14,7 @@ import {
 import { BOARD } from "./data";
 import { newsFor } from "./news";
 import type { GameEvent, GameState, Offer } from "./state";
+import { worldBuild, worldClosed, worldRent } from "./world";
 
 export function log(s: GameState, line: string) {
   s.log?.push(line);
@@ -63,8 +64,14 @@ export function ownsSet(s: GameState, p: number, group: number): boolean {
   return s.cfg.cityRules && group === EUROPE && owned >= spaces.length - 1 && s.deeds[ISTANBUL]!.owner === p;
 }
 
-/** Rent due on a space (before city rules), given the dice total for services. */
+/** Rent due on a space (before city rules), given the dice total for services. A world event in force changes it (world.ts). */
 export function rentAt(s: GameState, at: number, diceTotal: number): number {
+  const rent = baseRent(s, at, diceTotal);
+  const k = rent > 0 ? worldRent(s, at) : 1;
+  return k === 1 ? rent : Math.round(rent * k);
+}
+
+function baseRent(s: GameState, at: number, diceTotal: number): number {
   const d = s.deeds[at];
   if (!d || d.owner < 0 || d.mort) return 0;
   const sp = BOARD[at];
@@ -160,11 +167,18 @@ export function evenAfter(s: GameState, at: number, delta: number): boolean {
   const owner = s.deeds[at]!.owner;
   const mine = GROUP_SPACES[group].filter((g) => s.deeds[g]!.owner === owner);
   const next = s.deeds[at]!.houses + delta;
-  return mine.every((g) => g === at || Math.abs(s.deeds[g]!.houses - next) <= 1);
+  if (mine.every((g) => g === at || Math.abs(s.deeds[g]!.houses - next) <= 1)) return true;
+  // A set a meteor has left uneven (world.ts) builds back up on its fewest and sells off its most:
+  // within one of even it couldn't do either, and a team in debt would have nothing to sell.
+  if (!mine.some((g) => s.struck?.includes(g))) return false;
+  const here = s.deeds[at]!.houses;
+  const others = mine.filter((g) => g !== at).map((g) => s.deeds[g]!.houses);
+  return delta > 0 ? others.every((h) => here <= h) : others.every((h) => here >= h);
 }
 
+/** A house's cost now: half in Paris's sales and while the AI revolution lasts. */
 export function buildCost(s: GameState, at: number): number {
-  return s.fx.sales !== null ? Math.round(houseCostAt(s, at) / 2) : houseCostAt(s, at);
+  return s.fx.sales !== null || worldBuild(s) < 1 ? Math.round(houseCostAt(s, at) / 2) : houseCostAt(s, at);
 }
 
 export function canBuild(s: GameState, p: number, at: number): boolean {
@@ -177,6 +191,7 @@ export function canBuild(s: GameState, p: number, at: number): boolean {
     d.mort ||
     d.houses >= 5 ||
     s.ps[p].out ||
+    worldClosed(s, at) ||
     !ownsSet(s, p, group) ||
     GROUP_SPACES[group].some((g) => s.deeds[g]!.owner === p && s.deeds[g]!.mort)
   )

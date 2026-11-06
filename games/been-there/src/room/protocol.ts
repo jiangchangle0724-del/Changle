@@ -1,5 +1,5 @@
 // What phones, the big screen and the server say to each other.
-import type { Action, CashChoice, GameEvent, GameState, ManageKind, Mode, Offer, StyleId, Text } from "../engine";
+import type { Action, CashChoice, GameEvent, GameState, ManageKind, Mode, Offer, StyleId, Text, WorldId } from "../engine";
 
 export type Lang = "zh" | "en";
 export type Role = "player" | "screen";
@@ -59,6 +59,15 @@ export const TIMING = {
    * is left to read and answer it.
    */
   triviaJoin: 4_000,
+  /** 世界大动荡 (engine/world.ts): one this often, the first this long after the start… */
+  worldEvery: 20 * 60_000,
+  /** …except in a 15-minute game, which has one, this long after its start. */
+  worldShort: 8 * 60_000,
+  /**
+   * Its moment on every screen: the board plays it, then its 号外 card is up (ui/World.tsx), this long
+   * in all; the table waits for it (the computer's moves, the turn clock).
+   */
+  worldCard: 7_000,
   /**
    * The turn clock: when the team the game is waiting for does nothing on a decision for this long,
    * everyone sees a countdown…
@@ -116,6 +125,11 @@ export interface Settings {
   auctions?: boolean;
   /** and whether each team sees only its own cash and worth until the end (off). */
   hideCash?: boolean;
+  /** 世界大动荡 (engine/world.ts): on unless the host turns it off. Missing (on) in rooms and saves from before it. */
+  world?: boolean;
+  /** Tests only: ms between world events (the first too) instead of TIMING's, and which come, in turn. */
+  worldEvery?: number;
+  worldOrder?: WorldId[];
   /** Tests only: ms between two of the quiz's questions instead of TIMING.triviaEvery (0: every landing on a city brings one). */
   triviaEvery?: number;
   /** One device controls every human team (the single-device demo). */
@@ -140,7 +154,7 @@ export type ClientMsg =
   | { t: "bot"; op: "add"; style?: StyleId }
   | { t: "bot"; op: "remove"; team: string }
   | { t: "bot"; op: "style"; team: string; style: StyleId }
-  | { t: "settings"; mode?: Mode; party?: boolean; news?: boolean; trivia?: boolean; cash?: CashChoice; auctions?: boolean; hideCash?: boolean }
+  | { t: "settings"; mode?: Mode; party?: boolean; news?: boolean; trivia?: boolean; cash?: CashChoice; auctions?: boolean; hideCash?: boolean; world?: boolean }
   | { t: "start" }
   | { t: "act"; d: number; a: Action; seat?: number }
   | { t: "manage"; k: ManageKind; at: number; seat?: number }
