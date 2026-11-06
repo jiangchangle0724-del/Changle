@@ -62,7 +62,9 @@ for preview branches are off: `wrangler preview` (beta) would need a `previews` 
 - The Vancouver and Richmond libraries come by a hand-over (`src/handoff.ts`): their site,
   BiblioCommons, answers the Worker 403 since 2 November, and 200 to the same request from anywhere
   else. At 05:50 the GitHub job `.github/workflows/events-libraries.yml` runs `npm run libraries`,
-  which reads their pages exactly as the run would and posts each to `POST /go/api/handoff`, signed
+  which reads their pages exactly as the run would and posts each to `POST /go/api/handoff` on the
+  Worker's own address, `changle-events.jiangchangle0724.workers.dev` (changle.ca's bot protection
+  answers GitHub's machines with a challenge page; that address serves nothing else), signed
   in with GitHub's own sign-in token (OIDC, `src/oidc.ts`): the Worker checks it against GitHub's
   public keys and takes only this repository's `events-libraries` job on `main`. No secret to set on
   either side (below). The 06:00 run reads those pages, and fetches a page itself only when none came.
