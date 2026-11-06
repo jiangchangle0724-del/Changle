@@ -3003,10 +3003,12 @@ button.ecard.is-legal:active {
 
 /* ---------- Name That Tune: the stage (two performers either side of the record) ---------- */
 
+/* --beat and --voice are set by stage.tsx on the spots, the floor, the record and the crowd only, in
+   steps of 1/20. What they change is an opacity on a layer of its own (or the crowd's transform), so
+   the lights pulse without anything being painted again. */
 .tn-stage {
   --beat: 0;
   --voice: 0;
-  --drum: 0;
   position: relative;
   isolation: isolate;
   display: grid;
@@ -3033,7 +3035,7 @@ button.ecard.is-legal:active {
   border-radius: 50%;
   filter: blur(18px);
   opacity: calc(0.28 + 0.5 * var(--beat));
-  transition: opacity 0.08s linear;
+  will-change: opacity;
 }
 .tn-stage-lights::before {
   left: -12%;
@@ -3053,8 +3055,18 @@ button.ecard.is-legal:active {
   border-radius: 50%;
   background: linear-gradient(var(--dusk-3), var(--dusk));
   box-shadow:
-    0 0 0 1.5px color-mix(in oklab, var(--gel) calc(35% + 45% * var(--beat)), transparent),
+    0 0 0 1.5px color-mix(in oklab, var(--gel) 35%, transparent),
     0 14px 30px -10px #000;
+}
+/* the floor's rim brightens on the beat */
+.tn-stage-floor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--gel) 70%, transparent);
+  opacity: var(--beat);
+  will-change: opacity;
 }
 .tn-avatar {
   /* sized by height: the figure is tall and narrow, its arms and hair reach outside the box */
@@ -3074,11 +3086,23 @@ button.ecard.is-legal:active {
   margin: 0;
 }
 .tn-stage .vinyl-disc {
+  position: relative;
   width: min(34vw, 150px);
   box-shadow:
     0 0 0 2px var(--line-soft),
-    0 0 calc(10px + 30px * var(--voice)) color-mix(in oklab, var(--gel) 45%, transparent),
+    0 0 10px color-mix(in oklab, var(--gel) 45%, transparent),
     inset 0 0 40px rgba(0, 0, 0, 0.6);
+}
+/* the record glows with the singing */
+.tn-stage .vinyl-disc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 40px color-mix(in oklab, var(--gel) 45%, transparent);
+  opacity: var(--voice);
+  will-change: opacity;
+  pointer-events: none;
 }
 .tn-stage .eq {
   height: 16px;
@@ -3165,6 +3189,10 @@ button.ecard.is-legal:active {
   font-size: 12px;
   font-weight: 700;
   color: var(--gel);
+}
+/* one phone: a title the table already tried */
+.tn-quiz .tn-option .tn-pick-miss {
+  color: color-mix(in oklab, var(--color-danger) 80%, var(--color-text));
 }
 .tn-answered {
   display: flex;

@@ -378,7 +378,8 @@ function SongRounds({
       {quiz && choices.length === 4 && (
         <QuizChoices
           choices={choices.map((c) => ({ id: c.id, t: c.t, a: c.a, ae: c.ae }))}
-          mine={revealed ? song.id : (tried[tried.length - 1] ?? null)}
+          mine={revealed ? song.id : null}
+          tried={tried}
           answer={revealed ? song.id : null}
           disabled={startedAt === null}
           onPick={(id) => {
@@ -541,7 +542,8 @@ function MelodyRounds({
       {quiz && (
         <QuizChoices
           choices={options.map((o) => tuneChoice(o, zh))}
-          mine={revealed ? tune : (tried[tried.length - 1] ?? null)}
+          mine={revealed ? tune : null}
+          tried={tried}
           answer={revealed ? tune : null}
           onPick={(id) => {
             if (id === tune) {
