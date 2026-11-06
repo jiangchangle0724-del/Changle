@@ -3,9 +3,20 @@
 //   node scripts/build.mjs           build once
 //   node scripts/build.mjs --watch   rebuild on change
 import * as esbuild from "esbuild";
+import { execSync } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile, copyFile, rm } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
+// The commit the pages are built from, for their error reports (src/client/report.ts): Cloudflare's
+// builds say which, a computer asks git, and without either it's "dev".
+const commit = () => {
+  try {
+    return execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+};
+const BUILD = (process.env.WORKERS_CI_COMMIT_SHA || commit() || "dev").slice(0, 7);
 // Everything the worker serves sits under /trip, so the files do too (dist/client is the root).
 const out = "dist/client/trip";
 await rm("dist/client", { recursive: true, force: true });
@@ -20,6 +31,7 @@ const common = {
   jsxImportSource: "preact",
   legalComments: "none",
   logLevel: "info",
+  define: { __BUILD__: JSON.stringify(BUILD) },
 };
 
 // globe.js (three.js) is its own file: only the big screen loads it.

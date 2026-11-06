@@ -136,6 +136,8 @@ export function Credits() {
       <SongList />
       <h3>{t("creditsRates")}</h3>
       <p class="muted">{t("creditsRatesText", { date: dateText(RATES_DATE) })}</p>
+      <h3>{t("creditsReports")}</h3>
+      <p class="muted">{t("creditsReportsText")}</p>
       <Licences />
     </div>
   );

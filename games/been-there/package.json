@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "sim": "tsx scripts/sim.ts",
     "perf": "node scripts/perf.mjs",
+    "reports": "node scripts/reports.mjs",
     "deploy": "node scripts/build.mjs && wrangler deploy",
     "fonts": "node scripts/fonts.mjs",
     "songs": "node scripts/songs.mjs",

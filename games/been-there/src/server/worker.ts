@@ -8,6 +8,8 @@
 //   POST /api/saves/:save/load    → { code }        continue a saved game in a new room
 //   GET  /api/weather             → { at, cities }  the weather right now in each city (15-minute cache)
 //   GET  /api/trivia-sources      → { cities }      the quiz questions' sources by city (the credits page)
+//   POST /api/report              → 204             a page's error, freeze or long outage (reports.ts)
+//   GET  /api/reports             → { problems }    what the pages have reported, summed up
 //   /r/:code, /tv/:code           → the game's page (phone, big screen)
 //   /demo                         → one phone playing every human team (no server)
 //   anything else                 → the game's files (static assets in dist/client/trip)
@@ -22,10 +24,13 @@ import type { ClientMsg, Settings } from "../room/protocol";
 import { Room, type Opening, type RoomEnv, type RoomState, type SaveFile } from "../room/room";
 import { triviaSources } from "../room/trivia";
 import { WEATHER_TTL, parseWeather, weatherUrl, type WeatherReport } from "../room/weather";
+import { browserOf, keepReport, makeLimiter, readReport, reportSummary, topFrame, type ReportIn, type ReportStore } from "./reports";
 
 export interface Env {
   ROOMS: DurableObjectNamespace<RoomDO>;
   SAVES: DurableObjectNamespace<SaveVault>;
+  /** One box ("all") keeps every page's error reports. */
+  REPORTS: DurableObjectNamespace<ReportBox>;
   ASSETS: Fetcher;
   /** "1" only for local tests: lets a new room use faster timings. */
   ALLOW_TEST_SETTINGS?: string;
@@ -73,6 +78,29 @@ async function weather(ctx: ExecutionContext): Promise<Response> {
   const res = reply(report, ttl);
   ctx.waitUntil(edgeCache().put(WEATHER_CACHE_KEY, res.clone()).catch(() => {}));
   return res;
+}
+
+const reportsFrom = makeLimiter();
+const reportBox = (env: Env) => env.REPORTS.get(env.REPORTS.idFromName("all"));
+
+/** A page's report: checked, cut short, written to the logs and kept in the box. */
+async function report(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const text = await req.text().catch(() => "");
+  if (text.length > 8192) return new Response(null, { status: 413 });
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return new Response(null, { status: 400 });
+  }
+  const r = readReport(body);
+  if (!r) return new Response(null, { status: 400 });
+  if (!reportsFrom(req.headers.get("cf-connecting-ip") ?? "?", Date.now())) return new Response(null, { status: 429 });
+  const browser = browserOf(req.headers.get("user-agent") ?? "");
+  // (Cloudflare's logs for the worker keep this line too: the dashboard's Workers Logs)
+  console.error(JSON.stringify({ report: r.kind, msg: r.msg, where: topFrame(r.stack), ms: r.ms, screen: r.screen, phase: r.phase, build: r.build, browser }));
+  ctx.waitUntil(reportBox(env).keep(r, browser).catch(() => {}));
+  return new Response(null, { status: 204 });
 }
 
 export default {
@@ -130,6 +158,8 @@ export default {
 
     if (parts[1] === "weather" && parts.length === 2 && req.method === "GET") return weather(ctx);
     if (parts[1] === "trivia-sources" && parts.length === 2 && req.method === "GET") return json({ cities: triviaSources() });
+    if (parts[1] === "report" && parts.length === 2 && req.method === "POST") return report(req, env, ctx);
+    if (parts[1] === "reports" && parts.length === 2 && req.method === "GET") return json(await reportBox(env).summary());
 
     if (parts[1] === "saves" && parts[3] === "load" && req.method === "POST") {
       const save = (parts[2] ?? "").toUpperCase();
@@ -316,5 +346,26 @@ export class SaveVault extends DurableObject<Env> {
 
   async alarm() {
     await this.ctx.storage.deleteAll();
+  }
+}
+
+/** Keeps what the pages have reported (`reports.ts`): one entry for each kind of problem, at most 200. */
+export class ReportBox extends DurableObject<Env> {
+  private store(): ReportStore {
+    const s = this.ctx.storage;
+    return {
+      get: (key) => s.get(key),
+      put: (key, value) => s.put(key, value),
+      delete: (key) => s.delete(key),
+      list: (opts) => s.list(opts),
+    };
+  }
+
+  async keep(r: ReportIn, browser: string): Promise<void> {
+    await keepReport(this.store(), r, browser, Date.now());
+  }
+
+  async summary() {
+    return reportSummary(this.store(), Date.now());
   }
 }
