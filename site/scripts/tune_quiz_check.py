@@ -4,7 +4,8 @@ melodies) and an online table of three phones (real songs, then melodies), 20 so
 phone's console errors and page errors are collected, and one phone's memory is sampled after
 every song (390x844): the JS heap after a forced GC, DOM nodes, notes and effects on the stage,
 decoded song previews and Web Audio nodes still alive, GSAP tweens, and the tabs' process memory
-(also five times a second, for the peaks). `stress` plays a table where a phone locks mid-song and
+(also five times a second, for the peaks). The tabs' memory must hold steady too, not just the JS
+heap: the stage's lights once grew it by about 150 MB a song, with the heap flat all along. `stress` plays a table where a phone locks mid-song and
 wakes up, a player walks off and another sits down, and answers and "next" get double taps.
 
 Apple's previews are AAC, which the open-source Chromium can't decode, so each one is fetched
@@ -263,6 +264,9 @@ class Memory:
             ok(last["decoded"] <= len(self.rows) + 4, f"[{self.label}] each song decoded once ({last['decoded']} decodes for {len(self.rows)} songs)")
         ok(last["nodes"] - first["nodes"] < 150, f"[{self.label}] the page doesn't pile up elements ({first['nodes']} -> {last['nodes']})")
         ok(last["tweens"] < 200, f"[{self.label}] tweens don't pile up ({first['tweens']} -> {last['tweens']})")
+        # the page's own memory, outside the JS heap (styles, paint): from song 3 on it may wobble, not climb
+        per = (last["rss"] - first["rss"]) / max(1, len(self.rows) - 3)
+        ok(per < 20, f"[{self.label}] the tabs' memory holds steady from song 3 on ({first['rss']} -> {last['rss']} MB, {per:+.0f} MB a song)")
 
 
 # ------------------------------------------------------------------ one phone
