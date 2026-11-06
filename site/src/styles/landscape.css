@@ -14,7 +14,7 @@
     display: none;
   }
   .bi-title > :first-child {
-    font-size: 17px;
+    font-size: var(--text-lg);
   }
   .room-light {
     height: 30vh;
@@ -375,7 +375,7 @@
     margin-top: 0;
   }
   .screen .pass-name {
-    font-size: 26px;
+    font-size: var(--text-2xl);
   }
   .screen .pass-note {
     margin-bottom: 0;

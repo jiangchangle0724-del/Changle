@@ -49,7 +49,8 @@ for (const [k, v] of tokens) {
 // 2. src/ui/ uses tokens only
 function walk(dir: string): string[] {
   return readdirSync(join(here, dir)).flatMap((n) => {
-    const p = join(dir, n);
+    // forward slashes on every system, so tests/raw-values.json reads the same on Windows
+    const p = join(dir, n).replace(/\\/g, "/");
     return statSync(join(here, p)).isDirectory() ? walk(p) : [p];
   });
 }

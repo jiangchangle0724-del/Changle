@@ -1,7 +1,9 @@
-import { Clapperboard, Eye, Feather, Sparkles, Star } from "lucide-react";
+import { Clapperboard, Eye, Feather, Film, Sparkles, Star } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
-import { KINDS } from "../../data/drama";
+import { GROUPS, KINDS } from "../../data/drama";
+import { CSET_NAME } from "../../data/dramaClassics";
+import { GENERIC_BEATS, sceneGuide } from "../../data/dramaGuide";
 import { gsap, reduced } from "../../lib/anim";
 import { sfx } from "../../lib/sfx";
 import { SeatFace } from "../../online/People";
@@ -45,11 +47,11 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
     dramaSfx.chimes();
     dramaSfx.deal();
   });
-  const scape: Scape | null = !sound ? null : v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = !sound ? null : v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : v.mode === "classic" ? "classic" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
+    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
     return () => a?.stop(0.8);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scape, v.round]);
@@ -81,7 +83,7 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
       {v.phase === "setup" && <Setup v={v} />}
       {staged && <Theatre v={v} actors={actors} sound={sound} />}
       {v.phase === "brief" && <Brief v={v} sound={sound} />}
-      {v.phase === "act" && <Caption v={v} />}
+      {v.phase === "act" && (v.pk ? <Caption v={v} /> : <Script v={v} />)}
       {v.phase === "vote" && <Vote v={v} sound={sound} />}
       {v.phase === "reveal" && v.result && <Truths v={v} actors={actors} />}
       {v.phase === "end" && <Finale v={v} sound={sound} />}
@@ -104,7 +106,7 @@ function useCredit(v: DramaView) {
 function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: boolean }) {
   const r = v.result;
   const reveal = v.phase === "reveal" && !!r;
-  const step = useSteps(reveal ? [1.6, 2.9, 3.9] : [], reveal ? `${v.round}-${v.scene?.id ?? v.pk?.line.zh}` : "");
+  const step = useSteps(reveal ? [1.6, 2.9, 3.9] : [], reveal ? `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.pk?.line.zh}` : "");
   const burst = useConfetti();
   const show = v.mode === "show";
   // the reveal's beats, sounded here when this screen plays the show
@@ -128,7 +130,7 @@ function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: b
   const open = v.phase === "act" || reveal;
   return (
     <div className={`tvd-theatre is-${v.phase}`}>
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={v.phase === "act" || reveal}>
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live={v.phase === "act" || reveal}>
         {reveal && <div className={`dm-spot-culprit ${step >= 1 && show ? "is-on" : ""}`} aria-hidden="true" />}
         <Cast actors={actors} culprit={reveal && step >= 1 && show ? r!.culprit : null} best={reveal && step >= 3 ? r!.best : []} />
         <Curtain open={open} sound={sound} />
@@ -213,9 +215,11 @@ function Setup({ v }: { v: DramaView }) {
       <aside className="tvd-side tvd-bill">
         <p className="tvd-act">{zh ? "今晚上演" : "Tonight"}</p>
         <ul className="tvd-chips">
-          <li className="is-main">{v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : zh ? "演戏猜坏人" : "Find the culprit"}</li>
+          <li className="is-main">{v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : v.mode === "classic" ? (zh ? "名场面" : "Famous scenes") : zh ? "演戏猜坏人" : "Find the culprit"}</li>
+          {v.mode === "classic" && <li>{zh ? CSET_NAME[v.cset ?? "zh"].zh : CSET_NAME[v.cset ?? "zh"].en}</li>}
           <li>{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</li>
-          <li>{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</li>
+          {v.mode !== "classic" && <li>{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</li>}
+          {v.mode === "show" && (v.groups ?? []).length > 0 && <li>{GROUPS.filter((x) => v.groups!.includes(x.key)).map((x) => (zh ? x.name.zh : x.name.en)).join(zh ? "、" : ", ")}</li>}
           <li>{zh ? `${v.total} 幕` : `${v.total} acts`}</li>
           <li>{v.pen === "drink" ? (pen.isCustom ? pen.text : zh ? "输了喝" : "Losers drink") : v.pen === "move" ? (zh ? "输了运动" : "Losers exercise") : zh ? "输了整蛊" : "Losers do a forfeit"}</li>
         </ul>
@@ -224,6 +228,10 @@ function Setup({ v }: { v: DramaView }) {
             ? zh
               ? "两个人用不同的状态说同一句台词，观众打星，分低的受罚。"
               : "Two players say the same line in two states. The audience gives stars; the lower score pays."
+            : v.mode === "classic"
+              ? zh
+                ? "照着有名的电影、电视剧片段演，观众打星，分低的受罚。"
+                : "Act out famous moments from film and TV. The audience gives stars; the lowest score pays."
             : zh
               ? "几个人上台演一段狗血剧，其中一个偷偷是坏人。观众猜是谁，再给演技打星。"
               : "A few players act a soap opera; one of them is secretly the culprit. The audience guesses who, then stars the acting."}
@@ -241,6 +249,19 @@ function Brief({ v, sound }: { v: DramaView; sound: boolean }) {
   const { seat } = useSeats();
   const credit = useCredit(v);
   useArrivals(v.ready, sound);
+  // a company of five or more: who's read their card, as faces (the stage names who plays whom)
+  if (v.cast.length > 4) {
+    return (
+      <aside className="tvd-side tvd-bill">
+        <Bill v={v} credit={credit} />
+        <p className="tvd-count tabular">
+          <b>{v.ready.length}</b>/{v.cast.length}
+          <small>{zh ? " 看好了牌" : " have read their cards"}</small>
+        </p>
+        <FacesIn seats={v.ready.map((pid) => seat(pid))} size={58} />
+      </aside>
+    );
+  }
   return (
     <aside className="tvd-side tvd-bill">
       <Bill v={v} credit={credit} />
@@ -267,10 +288,12 @@ function Brief({ v, sound }: { v: DramaView; sound: boolean }) {
 function Bill({ v, credit }: { v: DramaView; credit: string | null }) {
   const { zh, tr } = useLang();
   const kind = KINDS.find((k) => k.key === v.scene?.kind);
+  const group = GROUPS.find((x) => x.key === v.scene?.group);
   return (
     <>
       <p className="tvd-act">
-        {v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : kind ? tr(kind.name) : zh ? "本幕" : "This act"}
+        {v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : v.mode === "classic" ? (zh ? "名场面" : "Famous scene") : kind ? tr(kind.name) : zh ? "本幕" : "This act"}
+        {group && ` · ${tr(group.name)}`}
       </p>
       {v.scene && (
         <>
@@ -286,8 +309,9 @@ function Bill({ v, credit }: { v: DramaView; credit: string | null }) {
           <p className="tvd-setup">{tr(v.scene.setup)}</p>
           <p className="tvd-hunt">
             <MiniMask />
-            {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
+            {v.options ? (zh ? "台上的人藏着一个秘密，是下面哪一个？" : "The actor is hiding one of these. Which?") : zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
           </p>
+          {v.options && <SecretList v={v} />}
         </>
       )}
       {v.pk && (
@@ -298,19 +322,107 @@ function Bill({ v, credit }: { v: DramaView; credit: string | null }) {
           <p className="tvd-setup">{zh ? "同一句台词，两种演法。观众打星，分低的受罚。" : "Same line, two ways. The audience gives stars; the lower score pays."}</p>
         </>
       )}
+      {v.classic && (
+        <>
+          <h1 className="tvd-title">
+            <Bi t={v.classic.title} />
+          </h1>
+          <p className="tvd-credit">
+            <Film size={24} strokeWidth={2.4} />
+            <span>{`${tr(v.classic.show)} · ${v.classic.year}`}</span>
+          </p>
+          <p className="tvd-setup">{tr(v.classic.setup)}</p>
+        </>
+      )}
     </>
+  );
+}
+
+/** A monologue's three secrets; at the reveal, the votes for each and the real one marked. */
+function SecretList({ v, counts, answer }: { v: DramaView; counts?: Record<string, number>; answer?: number | null }) {
+  const { zh, tr } = useLang();
+  return (
+    <ol className="dm-secret-results tvd-secrets">
+      {(v.options ?? []).map((o, i) => (
+        <li key={i} className={answer === i ? "is-true" : ""}>
+          <span className="dm-secret-mark" aria-hidden="true">
+            {String.fromCharCode(65 + i)}
+          </span>
+          <span>
+            {tr(o)}
+            {answer === i && <strong>{zh ? "（真的）" : " (the real one)"}</strong>}
+          </span>
+          {counts && <small className="tabular">{zh ? `${counts[String(i)] ?? 0} 票` : `${counts[String(i)] ?? 0} ${counts[String(i)] === 1 ? "vote" : "votes"}`}</small>}
+        </li>
+      ))}
+    </ol>
   );
 }
 
 /* ------------------------------------------------------------------ the scene */
 
-/** While the scene plays, its name rides at the top. */
+/**
+ * While a scene plays: its name, and the step of the story it should be at by now (the guide's steps
+ * spread over the scene, the third from the twist), so actors who've never acted know what comes
+ * next and the room follows along.
+ */
+function Script({ v }: { v: DramaView }) {
+  const { tr, zh } = useLang();
+  const { now } = useRoom();
+  const credit = useCredit(v);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => tick((n) => n + 1), 500);
+    return () => window.clearInterval(id);
+  }, []);
+  const title = v.scene?.title ?? v.classic?.title;
+  const beats = v.classic ? v.classic.beats : v.scene ? (sceneGuide(v.scene.id)?.beats ?? GENERIC_BEATS) : [];
+  if (!title || !beats.length) return null;
+  const step = stepAt((now() - (v.endsAt - v.actMs)) / Math.max(1, v.actMs), beats.length, !!v.scene);
+  const hunt = v.scene && !v.options ? (zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is ${v.scene.culprit.en.replace(/^The /, "the ")}`) : null;
+  return (
+    <div className="tvd-script">
+      <p className="tvd-script-head">
+        <span>{tr(title)}</span>
+        {hunt && (
+          <small>
+            <MiniMask />
+            {hunt}
+          </small>
+        )}
+        {credit && <small>{zh ? `编剧：${credit}` : `by ${credit}`}</small>}
+      </p>
+      <ol className="tvd-script-steps" aria-hidden="true">
+        {beats.map((_, i) => (
+          <li key={i} className={i === step ? "is-on" : i < step ? "is-done" : ""}>
+            {i + 1}
+          </li>
+        ))}
+      </ol>
+      <p className="tvd-script-beat" key={step}>
+        {tr(beats[step])}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Which step the story should be at, `f` of the way through the scene: a scene's four steps put the
+ * third at the twist (half time); otherwise the steps share the time equally.
+ */
+function stepAt(f: number, n: number, twist: boolean): number {
+  const x = Math.min(1, Math.max(0, f));
+  if (twist && n === 4) return x < 0.2 ? 0 : x < 0.5 ? 1 : x < 0.85 ? 2 : 3;
+  return Math.min(n - 1, Math.floor(x * n));
+}
+
+/** While a duel plays, its line rides at the top. */
 function Caption({ v }: { v: DramaView }) {
   const { tr, zh } = useLang();
   const credit = useCredit(v);
   return (
     <p className="tvd-caption">
-      <span>{v.scene ? tr(v.scene.title) : v.pk ? (zh ? `「${v.pk.line.zh}」` : `"${v.pk.line.en}"`) : ""}</span>
+      <span>{v.scene ? tr(v.scene.title) : v.classic ? tr(v.classic.title) : v.pk ? (zh ? `「${v.pk.line.zh}」` : `"${v.pk.line.en}"`) : ""}</span>
       {credit && <small>{zh ? `编剧：${credit}` : `by ${credit}`}</small>}
     </p>
   );
@@ -322,12 +434,13 @@ function Vote({ v, sound }: { v: DramaView; sound: boolean }) {
   const { zh, tr } = useLang();
   const { seat, players } = useSeats();
   useArrivals(v.voted, sound);
-  const audience = players.filter((s) => !v.cast.some((c) => c.pid === s.id));
+  // the audience votes; with nobody watching, the actors vote on each other
+  const audience = v.peer ? players.filter((s) => v.cast.some((c) => c.pid === s.id)) : players.filter((s) => !v.cast.some((c) => c.pid === s.id));
   const voted = audience.filter((s) => v.voted.includes(s.id));
   return (
     <aside className="tvd-side tvd-ballot">
       <h1 className="tvd-ask">
-        <Bi t={{ zh: "观众投票", en: "The audience votes" }} />
+        <Bi t={v.peer ? { zh: "演员互投", en: "The actors vote" } : { zh: "观众投票", en: "The audience votes" }} />
       </h1>
       {v.mode === "show" && v.scene && (
         <p className="tvd-q">
@@ -335,9 +448,10 @@ function Vote({ v, sound }: { v: DramaView; sound: boolean }) {
           {tr(v.scene.ask)}
         </p>
       )}
+      {v.mode === "show" && v.options && <SecretList v={v} />}
       <p className="tvd-q">
         <Star size={30} strokeWidth={2.4} />
-        {zh ? "再给每个演员的演技打星" : "Then stars for every actor"}
+        {v.mode === "show" ? (zh ? "再给每个演员的演技打星" : "Then stars for every actor") : v.mode === "classic" ? (zh ? "给每个演员打星：谁最像原片？" : "Stars for every actor: who got closest to the original?") : zh ? "给两个人打星" : "Stars for both of them"}
       </p>
       <p className="tvd-count tabular">
         <b>{voted.length}</b>/{audience.length}
@@ -365,13 +479,25 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
       ? zh
         ? "谁演得更像？"
         : "Who sold it?"
-      : r.caught
+      : v.mode === "classic"
         ? zh
-          ? `「${v.scene?.culprit.zh}」就是 ${culprit?.name ?? "TA"}！`
-          : `${culprit?.name ?? "They"} did it!`
-        : zh
-          ? `${culprit?.name ?? "TA"} 骗过了所有人！`
-          : `${culprit?.name ?? "They"} fooled everyone!`;
+          ? "谁最像原版？"
+          : "Who nailed it?"
+        : r.caught
+        ? v.options
+          ? zh
+            ? "秘密被猜中了！"
+            : "Busted! The secret's out."
+          : zh
+            ? `「${v.scene?.culprit.zh}」就是 ${culprit?.name ?? "TA"}！`
+            : `${culprit?.name ?? "They"} did it!`
+        : r.right.length
+          ? zh
+            ? `${culprit?.name ?? "TA"} 骗过了大多数人！`
+            : `${culprit?.name ?? "They"} fooled most of the room!`
+          : zh
+            ? `${culprit?.name ?? "TA"} 骗过了所有人！`
+            : `${culprit?.name ?? "They"} fooled everyone!`;
   return (
     <div className="tvd-verdict" data-step={step}>
       {step === 0 ? <p className="tvd-drum">{zh ? "真相是……" : "And the truth is…"}</p> : <h2 className={`tvd-headline ${r.caught ? "is-caught" : ""}`}>{headline}</h2>}
@@ -382,10 +508,11 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
 function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
   const { zh, tr } = useLang();
   const r = v.result!;
-  const step = useSteps([1.6, 2.9, 3.9], `${v.round}-${v.scene?.id ?? v.pk?.line.zh}`);
+  const step = useSteps([1.6, 2.9, 3.9], `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.pk?.line.zh}`);
   return (
     <aside className="tvd-side tvd-truths">
-      {step >= 1 && v.mode === "show" && (
+      {step >= 1 && v.mode === "show" && v.options && <SecretList v={v} counts={r.counts} answer={r.answer ?? null} />}
+      {step >= 1 && v.mode === "show" && !v.options && (
         <p className="tvd-counts">
           {actors.map((a) => (
             <span key={a.pid}>
@@ -431,7 +558,7 @@ function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
           })}
         </ul>
       ) : (
-        <p className="tvd-wait">{zh ? "每个人的牌马上翻开" : "Every card turns over in a moment"}</p>
+        <p className="tvd-wait">{v.mode === "show" ? (zh ? "每个人的牌马上翻开" : "Every card turns over in a moment") : zh ? "星星马上揭晓" : "The stars are coming up"}</p>
       )}
       {step >= 3 && <Outcome v={v} actors={actors} />}
     </aside>

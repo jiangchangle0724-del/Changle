@@ -599,20 +599,24 @@ export type HideView = {
  * rate the acting. An actor's own card (`me`) reaches only that actor until the reveal.
  */
 export type DramaCard = { secret: T; culprit: boolean; task: T };
+/** Whose everyday a scene is set in: Chinese, Canadian, South Asian, Filipino, Korean, Japanese, Iranian, European. */
+export type DramaGroupKey = "cn" | "ca" | "sa" | "ph" | "kr" | "jp" | "ir" | "eu";
+
 export type DramaView = {
   id: "drama";
   phase: "setup" | "brief" | "act" | "vote" | "reveal" | "end";
-  /** a scene with a hidden culprit, or a quick acting duel */
-  mode: "show" | "pk";
+  /** a scene with a hidden culprit, a quick acting duel, or a famous film or TV moment */
+  mode: "show" | "pk" | "classic";
   level: "all" | "spicy";
   diff: "easy" | "hard";
   /** what the losers do: drink, exercise, or a forfeit */
   pen: "drink" | "move" | "prank";
   round: number;
   total: number;
-  scene: { id: string; kind: string; title: T; setup: T; ask: T; culprit: T } | null;
-  /** who plays whom, in order */
-  cast: { pid: string; role: T; brief: T }[];
+  /** `group`: whose everyday it's set in (none: anyone's) */
+  scene: { id: string; kind: string; title: T; setup: T; ask: T; culprit: T; group?: DramaGroupKey } | null;
+  /** who plays whom, in order (a famous scene: `brief` is how to play the part, `first` its opening line) */
+  cast: { pid: string; role: T; brief: T; first?: T }[];
   pk: { line: T; styles: Record<string, T> } | null;
   /** this phone's own card while acting */
   me: DramaCard | null;
@@ -639,6 +643,8 @@ export type DramaView = {
     penalty: T | null;
     /** points each player got this round */
     gained: Record<string, number>;
+    /** a monologue: which of `options` was the actor's real secret */
+    answer?: number | null;
   } | null;
   scores: Record<string, number>;
   /** best-actor awards so far */
@@ -649,6 +655,20 @@ export type DramaView = {
   mine: { id: string; title: T; by: string | null; played: boolean }[];
   /** how many public-library scenes this table has drawn */
   lib: number;
+  /** who wants to act in the next scene, and who only wants to watch (no entry: either) */
+  want?: Record<string, "act" | "watch">;
+  /** the next scene's cast: `lo` to `hi` actors (one number once anyone volunteers); `ok` false when nobody can go on */
+  next?: { lo: number; hi: number; ok: boolean; auto: boolean };
+  /** nobody is watching: the actors vote on each other */
+  peer?: boolean;
+  /** a monologue: three secrets, one of them the actor's, for the audience to choose from */
+  options?: T[] | null;
+  /** 名场面: the set the host picked (Chinese film and TV, or English) */
+  cset?: "zh" | "en";
+  /** whose stories come first: the groups the host picked (none: everyone's only) */
+  groups?: DramaGroupKey[];
+  /** the famous scene on now; `see` is what to search for to watch the original */
+  classic?: { id: string; set: "zh" | "en"; show: T; year: number; title: T; setup: T; beats: T[]; see: string } | null;
 };
 
 /** 打碟 · DJ Booth (the shapes behind it: src/shared/dj/types.ts). */

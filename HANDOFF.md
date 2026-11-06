@@ -203,9 +203,10 @@ libraries' pages to the Worker; `tools/events/README.md`). Locally, secrets go i
   `docs/codex-tasks/dj/` (C1 presets is done).
 
 * 一本正经 · In All Seriousness (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
-  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 111
-  cards in eight packs (four of them Chinese: rare characters, dialects, idioms, dish names) and the
-  one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online
+  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 251
+  cards in 17 packs (nine for Chinese tables, five for English tables, three for any table; a table
+  starts with its own language's packs), pictures drawn with ChatGPT (pack icons, the three parts, the
+  room) and synthesised sound cues, and the one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online
   table until A3 (a `GameDef` wrapping the same engine) adds it to `ONLINE_GAMES`. Next: A3, the card
   bank to 300 (Codex C1, `docs/codex-tasks/straightface/`).
 

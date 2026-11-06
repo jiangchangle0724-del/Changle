@@ -1,7 +1,10 @@
 import { DramaAction } from "./ShellActions";
-import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Sparkles, Star, VenetianMask } from "lucide-react";
+import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Film, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { KINDS, PK_DEMO, pkSeeUrl, pkStyle, type DramaKind, type PkStyle } from "../../data/drama";
+import { GROUPS, KINDS, PK_DEMO, pkSeeUrl, pkStyle, SCENES, type DramaKind, type PkStyle } from "../../data/drama";
+import { DRAWN_ART } from "../../data/dramaArt";
+import { CLASSIC_TIPS, CSET_NAME } from "../../data/dramaClassics";
+import { FIRST_TIME_TIPS, GENERIC_BEATS, roleGuide, sceneGuide } from "../../data/dramaGuide";
 import type { T } from "../../i18n";
 import { confetti } from "../../lib/confetti";
 import { gsap, reduced } from "../../lib/anim";
@@ -9,6 +12,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import type { DramaCard, DramaView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { Both, Leaderboard } from "../common";
+import { Pill } from "../../ui/Pill";
 import { dramaSfx } from "./sound";
 import "../../styles/party.css";
 import "../../styles/drama.css";
@@ -25,14 +29,22 @@ export const isKind = (k: string | undefined): k is DramaKind => !!k && KINDS.so
 /**
  * The set: the scene's backdrop (a family dining room, a palace hall...), slowly drifting while a
  * scene plays, with the cast standing along the front and the curtain in front of it all.
+ *
+ * A scene set in one community's everyday life has a picture of its own (`group-cn`...), and a
+ * famous scene the film set (`classic`), once drawn (`DRAWN_ART`); until then, or if one won't
+ * load, the scene's kind, then the empty stage.
  */
-export function Backdrop({ kind, pk, live, children, tall }: { kind?: string; pk?: boolean; live?: boolean; children?: ReactNode; tall?: boolean }) {
-  const [ok, setOk] = useState(true);
-  const src = art(pk ? "pk" : isKind(kind) ? `kind-${kind}` : "stage");
-  useEffect(() => setOk(true), [src]);
+export function Backdrop({ kind, pk, classic, group, live, children, tall }: { kind?: string; pk?: boolean; classic?: boolean; group?: string; live?: boolean; children?: ReactNode; tall?: boolean }) {
+  const names = (pk ? ["pk"] : classic ? ["classic", "stage"] : [`group-${group}`, ...(isKind(kind) ? [`kind-${kind}`] : []), "stage"]).filter(
+    (n) => !(n === "classic" || n.startsWith("group-")) || DRAWN_ART.has(n),
+  );
+  const key = names.join("|");
+  const [tries, setTries] = useState(0);
+  useEffect(() => setTries(0), [key]);
+  const src = tries < names.length ? art(names[tries]) : null;
   return (
-    <div className={`dm-backdrop ${live ? "is-live" : ""} ${tall ? "is-tall" : ""}`} data-kind={pk ? "pk" : kind ?? "stage"}>
-      {ok && <img className="dm-backdrop-img" src={src} alt="" draggable={false} onError={() => setOk(false)} />}
+    <div className={`dm-backdrop ${live ? "is-live" : ""} ${tall ? "is-tall" : ""}`} data-kind={pk ? "pk" : classic ? "classic" : kind ?? "stage"}>
+      {src && <img className="dm-backdrop-img" src={src} alt="" draggable={false} onError={() => setTries((n) => n + 1)} />}
       <div className="dm-backdrop-light" aria-hidden="true" />
       <div className="dm-backdrop-shade" aria-hidden="true" />
       {children}
@@ -153,15 +165,20 @@ export function TrophyArt() {
 
 /* ------------------------------------------------------------------ the playbill */
 
-export function Tags({ v }: { v: Pick<DramaView, "mode" | "level" | "diff" | "scene"> }) {
+export function Tags({ v }: { v: Pick<DramaView, "mode" | "level" | "diff" | "scene" | "cset"> }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const kind = KINDS.find((k) => k.key === v.scene?.kind);
+  const group = GROUPS.find((x) => x.key === v.scene?.group);
+  const classic = v.mode === "classic";
   return (
     <div className="dm-tags">
-      {v.mode === "pk" ? <span className="dm-tag">{zh ? "演技 PK" : "Acting duel"}</span> : kind && <span className="dm-tag">{zh ? kind.name.zh : kind.name.en}</span>}
+      {v.mode === "pk" ? <span className="dm-tag">{zh ? "演技 PK" : "Acting duel"}</span> : classic ? <span className="dm-tag">{zh ? "名场面" : "Famous scenes"}</span> : kind && <span className="dm-tag">{zh ? kind.name.zh : kind.name.en}</span>}
+      {classic && <span className="dm-tag">{zh ? CSET_NAME[v.cset ?? "zh"].zh : CSET_NAME[v.cset ?? "zh"].en}</span>}
+      {group && <span className="dm-tag">{zh ? group.name.zh : group.name.en}</span>}
       <span className="dm-tag">{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</span>
-      <span className="dm-tag">{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</span>
+      {/* a famous scene is as hard as the original makes it */}
+      {!classic && <span className="dm-tag">{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</span>}
     </div>
   );
 }
@@ -171,7 +188,7 @@ export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }
   const { lang } = useStore();
   const zh = lang === "zh";
   const ref = useRef<HTMLDivElement>(null);
-  const key = v.scene?.id ?? v.pk?.line.zh ?? "";
+  const key = v.scene?.id ?? v.classic?.id ?? v.pk?.line.zh ?? "";
   useEffect(() => {
     if (reduced() || !ref.current) return;
     gsap.fromTo(ref.current.children, { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, stagger: 0.08, clearProps: "transform,opacity" });
@@ -191,10 +208,18 @@ export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }
             </p>
           )}
           <p className="dm-setup">{zh ? v.scene.setup.zh : v.scene.setup.en}</p>
-          <p className="dm-hunt">
-            <MiniMask />
-            {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
-          </p>
+          {v.options ? (
+            <Secrets v={v} />
+          ) : (
+            <p className="dm-hunt">
+              <MiniMask />
+              {zh ? `台上有一个人是「${v.scene.culprit.zh}」` : `One of them is secretly ${v.scene.culprit.en.replace(/^The /, "the ")}`}
+            </p>
+          )}
+          <Beats beats={sceneGuide(v.scene.id)?.beats ?? GENERIC_BEATS} />
+          {v.peer && v.phase !== "reveal" && (
+            <p className="dm-peer-note">{zh ? "这一幕没人当观众：演完以后，演员互相猜、互相打星，不能投自己。" : "Nobody's watching this one: when it's over, the actors guess and rate each other (never themselves)."}</p>
+          )}
         </>
       )}
       {v.pk && (
@@ -205,8 +230,102 @@ export function Playbill({ v, credit }: { v: DramaView; credit?: string | null }
           <p className="dm-setup">{zh ? "同一句台词，两种演法。观众打分，分低的受罚。" : "Same line, two ways. The audience scores; the lower score pays."}</p>
         </>
       )}
+      {v.classic && (
+        <>
+          <p className="dm-classic-show">
+            <Film size={14} strokeWidth={2.4} aria-hidden="true" />
+            <span>{`${zh ? v.classic.show.zh : v.classic.show.en} · ${v.classic.year}`}</span>
+          </p>
+          <h2 className="dm-title">
+            <Both t={v.classic.title} />
+          </h2>
+          <p className="dm-setup">{zh ? v.classic.setup.zh : v.classic.setup.en}</p>
+          <SeeOriginal c={v.classic} />
+          <Beats beats={v.classic.beats} />
+          {v.peer && v.phase !== "reveal" && (
+            <p className="dm-peer-note">{zh ? "这一幕没人当观众：演完以后，演员互相打星，不能投自己。" : "Nobody's watching this one: when it's over, the actors rate each other (never themselves)."}</p>
+          )}
+        </>
+      )}
       <Tags v={v} />
     </div>
+  );
+}
+
+/** Where to watch the original: a video search, on Bilibili for the Chinese set and YouTube for the English. */
+export function SeeOriginal({ c }: { c: { set: "zh" | "en"; see: string } }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <a
+      className="dm-card-see dm-see-original"
+      href={pkSeeUrl(c.set, c.see)}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={zh ? "看原片（在新页面打开视频搜索）" : "Watch the original (opens a video search in a new page)"}
+    >
+      {zh ? "看原片" : "Watch the original"}
+      <ExternalLink size={16} strokeWidth={2.4} aria-hidden="true" />
+    </a>
+  );
+}
+
+/** A monologue: the actor is hiding one of these three; the audience watches for which. */
+function Secrets({ v }: { v: DramaView }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="dm-hunt-secrets">
+      <p>
+        <MiniMask />
+        {zh ? "台上的人藏着一个秘密，是下面哪一个？" : "The actor is hiding one of these. Which?"}
+      </p>
+      <ol>
+        {(v.options ?? []).map((o, i) => (
+          <li key={i}>
+            <span className="dm-secret-mark" aria-hidden="true">
+              {String.fromCharCode(65 + i)}
+            </span>
+            {zh ? o.zh : o.en}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * What happens, step by step. People who have never acted need a path to follow; the playbill
+ * keeps it on screen through the scene.
+ */
+function Beats({ beats }: { beats: T[] }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="dm-beats">
+      <p className="dm-beats-title">{zh ? "剧情怎么走" : "How the scene goes"}</p>
+      <ol>
+        {beats.map((b, i) => (
+          <li key={i}>{zh ? b.zh : b.en}</li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** For someone who has never acted: five things that make any scene (or famous scene) work, folded until asked for. */
+export function FirstTimeTips({ classic }: { classic?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <details className="dm-tips">
+      <summary>{classic ? (zh ? "第一次演名场面？看这五句" : "First famous scene? Read these five") : zh ? "第一次演戏？看这五句" : "Never acted before? Read these five"}</summary>
+      <ol>
+        {(classic ? CLASSIC_TIPS : FIRST_TIME_TIPS).map((x, i) => (
+          <li key={i}>{zh ? x.zh : x.en}</li>
+        ))}
+      </ol>
+    </details>
   );
 }
 
@@ -218,8 +337,11 @@ export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string
     <ul className="dm-roster">
       {v.cast.map((c) => {
         // a role's public line; in a duel, what the actor's style looks like, so the audience knows what to watch for
-        const about = v.mode === "pk" ? pkStyle(c.role)?.how : c.brief;
+        const about = v.mode === "pk" ? pkStyle(c.role)?.how : v.mode === "classic" ? undefined : c.brief;
         const line = about ? (zh ? about.zh : about.en) : "";
+        // and in a scene, how the role comes across, for actors and audience alike (a famous scene: its line too)
+        const play = v.mode === "show" ? roleGuide(v.scene?.id, c.role)?.play : v.mode === "classic" ? c.brief : undefined;
+        const first = v.mode === "classic" ? c.first : undefined;
         return (
           <li key={c.pid} className={v.ready.includes(c.pid) ? "is-ready" : ""}>
             <span className="dm-roster-face">{face(c.pid, 40)}</span>
@@ -229,6 +351,8 @@ export function Roster({ v, nameOf, face }: { v: DramaView; nameOf: (pid: string
                 <small>{nameOf(c.pid)}</small>
               </strong>
               {line && <span>{line}</span>}
+              {play && <span className="dm-roster-play">{zh ? `怎么演：${play.zh}` : `How to play it: ${play.en}`}</span>}
+              {first && <span className="dm-roster-play">{zh ? `第一句：${first.zh}` : `Opens with: ${first.en}`}</span>}
             </span>
             {v.phase === "brief" && <span className="dm-roster-state">{v.ready.includes(c.pid) ? (zh ? "看好了" : "Ready") : zh ? "在看牌" : "Reading"}</span>}
           </li>
@@ -272,12 +396,15 @@ function StyleHelp({ st, line }: { st: PkStyle | undefined; line?: T | null }) {
  * An actor's private card: dealt face down, flipped with a tap. The culprit's side is marked
  * with the mask; everyone also has a secret task. In a duel it explains the style instead
  * (`line` is the line both actors say), and once it's turned over, a link under it goes to
- * videos of people doing that style.
+ * videos of people doing that style. In a famous scene (`first`, its opening line, and `see`, the
+ * original) there's nothing secret: the part, how to play it, the line, and a link to the original.
  */
-export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell, line }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean; line?: T | null }) {
+export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell, line, sceneId, first, see }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean; line?: T | null; sceneId?: string | null; first?: T | null; see?: { set: "zh" | "en"; see: string } | null }) {
   const { lang } = useStore();
   const zh = lang === "zh";
+  const classic = !!first;
   const st = pk ? pkStyle(card.secret) : undefined;
+  const rg = pk || classic ? undefined : roleGuide(sceneId, role);
   const title = pk ? card.secret : role;
   const [flipped, setFlipped] = useState(false);
   const [backOk, setBackOk] = useState(true);
@@ -300,21 +427,33 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
             <span className="dm-card-tap">{zh ? "点一下，偷偷看" : "Tap to peek"}</span>
           </button>
           <div className="dm-card-front">
-            {!pk && (
+            {!pk && !classic && (
               <span className="dm-card-watermark" aria-hidden="true">
                 <MaskArt culprit={card.culprit} />
               </span>
             )}
             <p className="dm-card-label">{pk ? (zh ? "你的演法" : "Your style") : zh ? "你的角色" : "Your role"}</p>
             <h3 className={`dm-card-role ${(zh ? title.zh.length > 8 : title.en.length > 22) ? "is-long" : ""}`}>{tx(title)}</h3>
-            {!pk && tx(brief) && <p className="dm-card-brief">{tx(brief)}</p>}
-            {!pk && (
+            {!pk && !classic && tx(brief) && <p className="dm-card-brief">{tx(brief)}</p>}
+            {(rg || classic) && (
+              <p className="dm-card-play">
+                <strong>{zh ? "怎么演" : "How to play it"}</strong>
+                {tx(rg ? rg.play : brief)}
+              </p>
+            )}
+            {!pk && !classic && (
               <div className={`dm-card-secret ${card.culprit ? "is-culprit" : ""}`}>
                 <p className="dm-card-label">
                   <MiniMask culprit={card.culprit} />
                   {card.culprit ? (zh ? `你就是「${culprit ? culprit.zh : ""}」` : `You are ${culprit ? culprit.en.replace(/^The /, "the ") : ""}`) : zh ? "你的小秘密" : "Your little secret"}
                 </p>
                 <p>{tx(card.secret)}</p>
+              </div>
+            )}
+            {(rg || first) && (
+              <div className="dm-card-task dm-card-first">
+                <p className="dm-card-label">{zh ? "开口第一句" : "Open with"}</p>
+                <p>{tx(rg ? rg.first : first!)}</p>
               </div>
             )}
             {pk && <StyleHelp st={st} line={line} />}
@@ -339,6 +478,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
           <ExternalLink size={16} strokeWidth={2.4} aria-hidden="true" />
         </a>
       )}
+      {see && flipped && <SeeOriginal c={see} />}
       {onDone && (
         <DramaAction inShell={inShell}>
           <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!flipped} onClick={onDone}>
@@ -446,17 +586,51 @@ export function Slate({ onDone }: { onDone?: () => void }) {
 
 export type Ballot = { guess: string | null; stars: Record<string, number> };
 
-/** Pick the culprit (in a scene), then 1 to 5 stars for each actor. */
-export function BallotForm({ v, actors, onSubmit, submitted, inShell }: { v: DramaView; actors: Actor[]; onSubmit: (b: Ballot) => void; submitted?: Ballot | null; inShell?: boolean }) {
+/**
+ * Pick the culprit (in a scene), then 1 to 5 stars for each actor. In a monologue the pick is one of
+ * the three secrets; with nobody watching, an actor votes too, on everyone but themselves (`me`).
+ */
+export function BallotForm({ v, actors: all, onSubmit, submitted, inShell, me }: { v: DramaView; actors: Actor[]; onSubmit: (b: Ballot) => void; submitted?: Ballot | null; inShell?: boolean; me?: string }) {
   const { lang } = useStore();
   const zh = lang === "zh";
+  const actors = me ? all.filter((a) => a.pid !== me) : all;
   const [guess, setGuess] = useState<string | null>(submitted?.guess ?? null);
   const [stars, setStars] = useState<Record<string, number>>(submitted?.stars ?? {});
   const show = v.mode === "show";
+  const options = show ? v.options ?? null : null;
   const complete = (!show || !!guess) && actors.every((a) => stars[a.pid]);
   return (
     <div className="dm-ballot">
-      {show && v.scene && (
+      {options && v.scene && (
+        <section>
+          <p className="dm-ask">
+            <MiniMask />
+            {zh ? v.scene.ask.zh : v.scene.ask.en}
+          </p>
+          <div className="dm-secrets" role="radiogroup" aria-label={zh ? v.scene.ask.zh : v.scene.ask.en}>
+            {options.map((o, i) => (
+              <button
+                key={i}
+                type="button"
+                role="radio"
+                aria-checked={guess === String(i)}
+                className={`dm-secret ${guess === String(i) ? "is-on" : ""}`}
+                onClick={() => {
+                  setGuess(String(i));
+                  sfx.tap();
+                  haptic(8);
+                }}
+              >
+                <span className="dm-secret-mark" aria-hidden="true">
+                  {String.fromCharCode(65 + i)}
+                </span>
+                {zh ? o.zh : o.en}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      {show && !options && v.scene && (
         <section>
           <p className="dm-ask">
             <MiniMask />
@@ -493,7 +667,7 @@ export function BallotForm({ v, actors, onSubmit, submitted, inShell }: { v: Dra
       <section>
         <p className="dm-ask">
           <Star size={18} strokeWidth={2.4} />
-          {zh ? "演得像不像？给每个人打星" : "How convincing? Stars for each"}
+          {v.mode === "classic" ? (zh ? "像不像原片？给每个人打星" : "How close to the original? Stars for each") : zh ? "演得像不像？给每个人打星" : "How convincing? Stars for each"}
         </p>
         <ul className="dm-rates">
           {actors.map((a) => (
@@ -549,7 +723,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
   const r = v.result!;
   const [step, setStep] = useState(reduced() ? 3 : 0);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const key = `${v.round}-${v.scene?.id ?? v.pk?.line.zh}`;
+  const key = `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.pk?.line.zh}`;
   useEffect(() => {
     if (reduced()) {
       setStep(3);
@@ -583,24 +757,38 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
   }, [key]);
   const tx = (x: T) => (zh ? x.zh : x.en);
   const culpritActor = actors.find((a) => a.pid === r.culprit);
+  // a monologue: the answer is one of the three secrets, not a person
+  const options = v.mode === "show" ? v.options ?? null : null;
   const headline =
     v.mode === "pk"
       ? zh
         ? "谁演得更像？"
         : "Who sold it?"
-      : r.caught
+      : v.mode === "classic"
         ? zh
-          ? `「${v.scene?.culprit.zh}」就是 ${culpritActor?.name ?? "TA"}！`
-          : `${culpritActor?.name ?? "They"} did it!`
-        : zh
-          ? `${culpritActor?.name ?? "TA"} 骗过了所有人！`
-          : `${culpritActor?.name ?? "They"} fooled everyone!`;
+          ? "谁最像原版？"
+          : "Who nailed it?"
+        : r.caught
+        ? options
+          ? zh
+            ? "秘密被猜中了！"
+            : "Busted! The secret's out."
+          : zh
+            ? `「${v.scene?.culprit.zh}」就是 ${culpritActor?.name ?? "TA"}！`
+            : `${culpritActor?.name ?? "They"} did it!`
+        : r.right.length
+          ? zh
+            ? `${culpritActor?.name ?? "TA"} 骗过了大多数人！`
+            : `${culpritActor?.name ?? "They"} fooled most of you!`
+          : zh
+            ? `${culpritActor?.name ?? "TA"} 骗过了所有人！`
+            : `${culpritActor?.name ?? "They"} fooled everyone!`;
   return (
     <div className="dm-reveal">
       <canvas className="dm-confetti" ref={canvas} aria-hidden="true" />
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live>
-        <div className={`dm-spot-culprit ${step >= 1 && v.mode === "show" ? "is-on" : ""}`} aria-hidden="true" />
-        <Cast actors={actors} culprit={step >= 1 && v.mode === "show" ? r.culprit : null} best={step >= 3 ? r.best : []} />
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live>
+        <div className={`dm-spot-culprit ${step >= 1 && v.mode === "show" && !options ? "is-on" : ""}`} aria-hidden="true" />
+        <Cast actors={actors} culprit={step >= 1 && v.mode === "show" && !options ? r.culprit : null} best={step >= 3 ? r.best : []} />
       </Backdrop>
       <div className="dm-verdict" data-step={step}>
         {step === 0 ? (
@@ -608,7 +796,23 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
         ) : (
           <h2 className={`dm-headline ${r.caught ? "is-caught" : ""}`}>{headline}</h2>
         )}
-        {step >= 1 && v.mode === "show" && (
+        {step >= 1 && options && (
+          <ol className="dm-secret-results">
+            {options.map((o, i) => (
+              <li key={i} className={r.answer === i ? "is-true" : ""}>
+                <span className="dm-secret-mark" aria-hidden="true">
+                  {String.fromCharCode(65 + i)}
+                </span>
+                <span>
+                  {tx(o)}
+                  {r.answer === i && <strong>{zh ? "（真的）" : " (the real one)"}</strong>}
+                </span>
+                <small className="tabular">{zh ? `${r.counts[String(i)] ?? 0} 票` : `${r.counts[String(i)] ?? 0} ${r.counts[String(i)] === 1 ? "vote" : "votes"}`}</small>
+              </li>
+            ))}
+          </ol>
+        )}
+        {step >= 1 && v.mode === "show" && !options && (
           <p className="hint dm-count">
             {actors.map((a) => `${a.name} ${r.counts[a.pid] ?? 0}${zh ? " 票" : ""}`).join(zh ? "，" : " · ")}
             {!zh && " votes"}
@@ -668,7 +872,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
                 : zh
                   ? "没有人猜对"
                   : "Nobody guessed right"}
-              {!r.caught && (zh ? "；坏人逍遥法外 +3" : "; the culprit walks free: +3")}
+              {!r.caught && (options ? (zh ? "；秘密没被猜中，演员 +3" : "; the secret stayed hidden: +3 to the actor") : zh ? "；坏人逍遥法外 +3" : "; the culprit walks free: +3")}
             </p>
           )}
           {r.losers.length > 0 && r.penalty && (
@@ -685,7 +889,10 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
 
 /* ------------------------------------------------------------------ setup */
 
-export type Config = Pick<DramaView, "mode" | "level" | "diff" | "pen" | "total">;
+export type Config = Pick<DramaView, "mode" | "level" | "diff" | "pen" | "total" | "cset" | "groups">;
+
+/** The groups with scenes of their own, in the order the setup lists them. */
+const GROUPS_ON = GROUPS.filter((x) => SCENES.some((sc) => sc.group === x.key));
 
 export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange: (c: Partial<Config>) => void; disabled?: boolean }) {
   const { lang } = useStore();
@@ -707,17 +914,31 @@ export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange:
       {seg("mode", [
         { value: "show", label: zh ? "演戏猜坏人" : "Find the culprit" },
         { value: "pk", label: zh ? "演技 PK" : "Acting duel" },
+        { value: "classic", label: zh ? "名场面" : "Famous scenes" },
       ])}
+      {cfg.mode === "classic" && (
+        <>
+          <span className="field-label">{zh ? "演哪边的片子" : "Which films"}</span>
+          {seg("cset", [
+            { value: "zh", label: zh ? CSET_NAME.zh.zh : CSET_NAME.zh.en },
+            { value: "en", label: zh ? CSET_NAME.en.zh : CSET_NAME.en.en },
+          ])}
+        </>
+      )}
       <span className="field-label">{zh ? "尺度" : "Spice"}</span>
       {seg("level", [
         { value: "all", label: zh ? "全年龄" : "All ages" },
         { value: "spicy", label: zh ? "微辣" : "Spicy" },
       ])}
-      <span className="field-label">{zh ? "难度" : "Difficulty"}</span>
-      {seg("diff", [
-        { value: "easy", label: zh ? "简单" : "Easy" },
-        { value: "hard", label: zh ? "困难" : "Hard" },
-      ])}
+      {cfg.mode !== "classic" && (
+        <>
+          <span className="field-label">{zh ? "难度" : "Difficulty"}</span>
+          {seg("diff", [
+            { value: "easy", label: zh ? "简单" : "Easy" },
+            { value: "hard", label: zh ? "困难" : "Hard" },
+          ])}
+        </>
+      )}
       <span className="field-label">{zh ? "输了怎么罚" : "Losers"}</span>
       {seg("pen", [
         { value: "drink", label: pen.isCustom ? pen.text : zh ? "喝酒" : "Drink" },
@@ -730,7 +951,46 @@ export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange:
         { value: 5, label: "5" },
         { value: 8, label: "8" },
       ])}
+      {cfg.mode === "show" && GROUPS_ON.length > 0 && <GroupPicker picked={cfg.groups ?? []} onChange={(groups) => onChange({ groups })} disabled={disabled} />}
     </div>
+  );
+}
+
+/**
+ * Whose stories come first: any of the groups with scenes of their own. None picked, everyone's
+ * scenes only; some picked, theirs first and everyone's fill in. A guest sees what the host picked.
+ */
+function GroupPicker({ picked, onChange, disabled }: { picked: string[]; onChange: (groups: NonNullable<Config["groups"]>) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const name = (x: (typeof GROUPS)[number]) => (zh ? x.name.zh : x.name.en);
+  const on = GROUPS_ON.filter((x) => picked.includes(x.key));
+  return (
+    <>
+      <span className="field-label" id="dm-groups-label">
+        {zh ? "剧本背景" : "Whose stories"}
+      </span>
+      {disabled ? (
+        <p className="dm-groups-read">{on.length ? on.map(name).join(zh ? "、" : ", ") : zh ? "通用" : "Anyone's"}</p>
+      ) : (
+        <div className="dm-groups" role="group" aria-labelledby="dm-groups-label">
+          {GROUPS_ON.map((x) => (
+            <Pill
+              key={x.key}
+              kind="toggle"
+              tone="accent"
+              selected={picked.includes(x.key)}
+              onToggle={(sel) => onChange(GROUPS_ON.map((y) => y.key).filter((k) => (k === x.key ? sel : picked.includes(k))))}
+            >
+              {name(x)}
+            </Pill>
+          ))}
+        </div>
+      )}
+      <p className="dm-groups-hint">
+        {zh ? "不选就是通用的剧本。选了的先演，不够的时候用通用的补。" : "Pick none for everyone's stories. Pick some and theirs come first, with everyone's filling in."}
+      </p>
+    </>
   );
 }
 
@@ -782,17 +1042,23 @@ export function Rules() {
   const { lang } = useStore();
   return lang === "zh" ? (
     <>
-      <p>每一幕抽一个狗血剧本，几个人上台演，其余的人当观众。每个演员会拿到一张只有自己能看的身份牌：自己的角色、一个小秘密和一个秘密任务。其中一个人偷偷是「坏人」（小三、凶手、内鬼……），他的牌上写着他干了什么。</p>
-      <p>演到一半会弹出一个剧情反转。演完以后，观众先猜谁是坏人，再给每个演员的演技打 1 到 5 星。</p>
+      <p>每一幕开始前，每个人选「我要上台」「都行」或「我只看」。剧本按上台的人数来分，一个人到八个人都有；没人报名时，从选「都行」的人里随机抽几个上台。</p>
+      <p>每个演员会拿到一张只有自己能看的身份牌：自己的角色、一个小秘密和一个秘密任务。其中一个人偷偷是「坏人」（小三、凶手、内鬼……），他的牌上写着他干了什么。一个人上台时是独角戏：台上的人藏着三个秘密里的一个，观众猜是哪一个。</p>
+      <p>演到一半会弹出一个剧情反转。演完以后，观众先猜谁是坏人，再给每个演员的演技打 1 到 5 星。没人当观众时，演员互相猜、互相打星，不能投自己。</p>
       <p>计分：猜对 +1；没被多数人认出来的坏人 +3；每个演员加平均星数。受罚：星最少的演员；坏人被认出来就一起罚，没被认出来，被他骗了的观众受罚。星最多的拿下本幕最佳演员。</p>
       <p>演技 PK：两个人用不同的状态说同一句台词，观众打分，分低的受罚。</p>
+      <p>剧本背景：主人可以选几个人群（中国、加拿大、南亚、菲律宾……），选了的人群的剧本先演，不够时用通用的补。</p>
+      <p>名场面：主人选中文影视还是英文影视，上台的人照着有名的电影、电视剧片段演。牌上写着你演谁、怎么演、开口第一句，还能点开原片看看。观众打星，分低的受罚。</p>
     </>
   ) : (
     <>
-      <p>Each act draws a melodramatic scene. A few players go on stage; the rest are the audience. Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the homewrecker, the killer, the mole...), and their card says what they did.</p>
-      <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars.</p>
+      <p>Before each act, everyone picks “I'll act”, “Either way” or “Just watching”. The scene fits however many go up, from one to eight; with no volunteers, a few of the “Either way” crowd go up at random.</p>
+      <p>Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the homewrecker, the killer, the mole...), and their card says what they did. With one on stage, it's a monologue: the actor is hiding one of three secrets, and the audience guesses which.</p>
+      <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars. With nobody watching, the actors guess and rate each other, never themselves.</p>
       <p>Points: a right guess +1; a culprit most people miss +3; every actor gets their average stars. Penalty: the actor with the fewest stars, plus the culprit if caught, or everyone the culprit fooled if not. Most stars wins best actor.</p>
       <p>Acting duel: two players say the same line in two different states; the audience scores, and the lower score pays.</p>
+      <p>Whose stories: the host can pick some of the communities (Chinese, Canadian, South Asian, Filipino...). Their scenes come first, and everyone's fill in when they run out.</p>
+      <p>Famous scenes: the host picks Chinese or English film and TV, and the actors play a famous moment from it. Your card says who you play, how to play them and the line to open with, with a link to watch the original. The audience gives stars; the lowest score pays.</p>
     </>
   );
 }

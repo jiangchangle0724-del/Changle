@@ -226,7 +226,7 @@
 | C5 | 空状态、骨架屏、错误文案全站补齐（文案由你定稿） | Codex | 每个状态有截图。2026-11-05 做完：文案 Steve 定稿，样板 #214，7 个地方 #218 到 #224 |
 | C6 | Playwright 视觉回归套件加 axe 自动化 | Codex | CI 上跑通 |
 | C7 | robots.txt、_headers 缓存、manifest、service worker、分享图 Worker | Codex | Lighthouse SEO 和最佳实践达标 |
-| C8 | 一致性盘点：拿 DESIGN.md 逐页找裸写值 | Codex | 清单归零。2026-11-05 定了先管网站框架（586 处，`tests/tokens.test.ts` 第 4 条只减不增），游戏画面、电视、间距以后再说 |
+| C8 | 一致性盘点：拿 DESIGN.md 逐页找裸写值 | Codex | 清单归零。2026-11-05 网站框架做完：586 处降到 83 处例外（#227 到 #231，`tests/tokens.test.ts` 第 4 条只减不增），游戏画面、电视、间距以后再说 |
 | C9 | DESIGN.md 维护、CLAUDE.md 里加设计规则 | Codex | 新会话不用重新摸索 |
 
 顺序：A1 → A2 → C1 并行 A3 → A4、C4、C7 → A5 → C2（分 14 个 PR 慢慢来）、C3、C5 → A6、C6 → C8 → 验收门 C。
