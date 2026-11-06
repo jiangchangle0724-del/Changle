@@ -58,6 +58,12 @@ export type RoomEvent =
   | { type: 'START_DANCING'; at: number; byPlayerId: string; routineStartAt: number }
   /** From the room itself, like FINISH: the warm-up and teaching ran out, so the dance follows on. */
   | { type: 'LEARNING_DONE'; at: number; routineStartAt: number }
+  /**
+   * The room's own step: the dance's beat 0 is somewhere else than planned, as the speaker measured
+   * it (a song's video started a little early or late, or stalled). Beats already danced keep their
+   * numbers; only when they fall moves.
+   */
+  | { type: 'BEAT_MOVED'; at: number; routineStartAt: number }
   | { type: 'RESTART_SECTION'; at: number; byPlayerId: string; routineStartAt: number }
   | { type: 'FINISH'; at: number }
   | { type: 'BACK_TO_LOBBY'; at: number; byPlayerId: string }

@@ -140,7 +140,7 @@ describe("the host's actions", () => {
     s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: METRONOME_ID } });
     assert.equal(s.d.state.phase, "learning");
     assert.equal(s.d.state.bpm, 120, "the routine's tempo");
-    assert.deepEqual(last(s.flush().out, "state")?.routine, { routineId: METRONOME_ID, bpm: 120, beatsPerBar: 4, totalBeats: 240, mode: null, leadStartAt: null, fromBeat: 0 });
+    assert.deepEqual(last(s.flush().out, "state")?.routine, { routineId: METRONOME_ID, bpm: 120, beatsPerBar: 4, totalBeats: 240, mode: null, leadStartAt: null, fromBeat: 0, introMs: 8 * 500 });
     // (no warm-up: it waits for the host)
     assert.equal(s.d.danceAt, null);
     clock.advance(60_000);
@@ -248,7 +248,7 @@ describe("a dance", () => {
     assert.equal(s.d.state.phase, "learning");
     assert.equal(s.d.state.difficulty, "easy", "the dance's own difficulty");
     assert.equal(s.d.state.bpm, 96);
-    assert.deepEqual(s.d.routine, { routineId: "square-easy", bpm: 96, beatsPerBar: 4, totalBeats: 192, mode: "learn", leadStartAt: at + LEAD_IN_MS, fromBeat: 0 });
+    assert.deepEqual(s.d.routine, { routineId: "square-easy", bpm: 96, beatsPerBar: 4, totalBeats: 192, mode: "learn", leadStartAt: at + LEAD_IN_MS, fromBeat: 0, introMs: 4 * 625 });
     const lead = { leadStartAt: at + LEAD_IN_MS, danceStartAt: null, fromBeat: 0 };
     assert.equal(s.d.danceAt, at + LEAD_IN_MS + show.leadMs, "the lead runs out where the count-in begins");
     assert.equal(s.nextWake(), s.d.danceAt! + 995_000);

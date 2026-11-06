@@ -62,6 +62,24 @@ instead, `site/src/party/dj/`.)
   graphics chip (`index.ts`); in software, or when its first 90 frames run slower than 20 a second,
   the page keeps the coach in words. Reduced motion: it still dances (that's the lesson), the
   flashes and swinging lights stop.
+- **Songs** (`src/shared/songs.ts`): famous songs played on the TV from YouTube's own player
+  (`src/client/tube.ts`: in sight in the top left corner, never covered, never downloaded; the
+  same rules as 打碟's player), each danced with a few of the library's easiest moves, two
+  8-counts each, round and round (fast songs at half their tempo). The host picks one like a
+  dance. The room waits for the speaker to have the video held at its start (`songReady`; on
+  Safari not before someone has tapped the video once, so it can play with sound), then the video
+  plays from its start: its intro, a count-in on its last 4 beats, the dance. While it plays, the
+  speaker reads the video's clock every 4 ms and tells the room where the song's first beat really
+  is (`songAt`); more than 20 ms off, the room moves the dance's beat there (party-base's
+  `BEAT_MOVED`) and every page follows. YouTube refusing the video (`songFailed`): back to the
+  lobby, and the phones say why. No 这一段再来 in a song.
+- **歌曲对拍 / the songbook**: where a song's beat starts in its video can't be guessed well enough,
+  so each song is tapped along to once on the speaker page (the lobby's 歌曲对拍): play it, and from
+  its first strong beat tap 16 times (a tap a beat, or a tap every half beat for the fast ones).
+  `src/shared/tapalong.ts` works out the first beat (the TV's calibrated delay taken out);
+  `POST /party/api/songs/ID` keeps it in the songbook (`src/server/songbook.ts`, one Durable Object
+  for the whole site; `src/server/tapped.ts` checks it), for every room from then on. A song
+  nobody has tapped along to can't be started (`song_untapped`); the host's list says so.
 - **`/party/moves`** (`src/client/moves.ts`): the 20 moves, each danced by the coach at its own
   tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
   `?still=<beat>` stops it there, `?gl=any` draws it in a browser without a graphics chip (the
@@ -101,6 +119,13 @@ results, the same dance again with 这一段再来 in the middle while Bob's con
 when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so run the Worker as
 `npm run build && npx wrangler dev --var ALLOW_TEST_SETTINGS:1`. About two and a half minutes.
 
+`scripts/song-yt-check.cjs` (the same Worker) dances a song from YouTube with a pretend YouTube
+player (real YouTube won't play in a data centre's browser: error 150). It starts 300 ms late and
+its clock answers four times a second, like the real one's. Checked: the songbook API, the room
+waiting for the video, the beat moved to the video's (within 25 ms), Ann tapping on the video's
+real beats on the beat, the video gone in the lobby, and 歌曲对拍 finding another song's first beat
+(within 20 ms). About a minute.
+
 `scripts/motion-check.cjs` (the same Worker) dances the short test dance with the motion sensor:
 Ann's phone gets a pretend hand (a bump of acceleration on every beat she hears), Bob taps late,
 Cat stands still; the speaker page draws the 3D coach in software (`?gl=any`). Checked: the pulses
@@ -111,7 +136,8 @@ in the folder given. About a minute and a half.
 
 Connected to Cloudflare on 1 November 2026: like 随便, merging into `main` deploys it. The Worker
 `party` (Workers Builds; the name must match `name` in `wrangler.jsonc`): root directory
-`/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy`, build
+`/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy` (it
+also makes the songbook's Durable Object, migration `v2`, the first time), build
 watch paths `games/party-server/*` and `games/party-base/*` (and, since the pages and the room read
 the move library, `games/dance/*`: to add in the Cloudflare settings), API token "suibian build
 token". Builds for preview branches are off (`wrangler preview` needs a `previews` block, and the
