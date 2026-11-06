@@ -767,3 +767,29 @@ p {
     text-autospace: normal;
   }
 }
+
+/*
+ * Nothing on the page can be selected or copied, and a double tap never zooms (Steve 2026-11-05).
+ * Two fingers still zoom the page (docs/DESIGN.md), and what someone types in a field can still be
+ * selected, copied and pasted. Every element says it itself: iPhone's Safari starts afresh inside
+ * each scrolling box, so the body's touch-action alone lets a double tap zoom in a sheet or a list.
+ * A layer of its own, so any rule elsewhere that says otherwise (a drawing board's touch-action:
+ * none, a list that only scrolls up and down) still wins.
+ */
+@layer page-defaults {
+  *,
+  *::before,
+  *::after {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable="false"]) {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
