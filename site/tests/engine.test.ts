@@ -25,7 +25,8 @@ import { DARES, promptText } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
-import { CAT_BIT, decoysFor, fromRow, inPool, moodOf, pickSong, singersOf } from "../src/shared/songs";
+import { CAT_BIT, decoysFor, DEFAULT_POOL, fromRow, inPool, moodOf, pickSong, poolSize, samePool, singersOf } from "../src/shared/songs";
+import { SPECIALS } from "../src/data/songPools";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
@@ -1311,7 +1312,23 @@ test("limbo party: a random variant each bar, never the same twice running, neve
   ok(u.view<V<"limbo">>("p0").mode === "classic", "a mode the game doesn't know is classic");
 });
 
-test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
+/**
+ * Name That Tune's tests put the shared dice and clock back as they found them: how many draws one
+ * takes depends on the song list (which songs come up, how many wrong titles there are to shuffle),
+ * and the tests after them are tuned to the draws they get.
+ */
+const tuneTest = (name: string, fn: () => void) =>
+  test(name, () => {
+    const seedWas = seed, clockWas = clock;
+    try {
+      fn();
+    } finally {
+      seed = seedWas;
+      clock = clockWas;
+    }
+  });
+
+tuneTest("tune: synced clips, buzz, wrong locks out, points by speed", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
   t.g("p0", "mode", { mode: "melody" });
@@ -1352,7 +1369,7 @@ test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
   ok(t.view<V<"tune">>("p0").scores.p2 === 4, "DJ said yes: a point");
 });
 
-test("tune: real songs play in sync, never twice, and the reveal names the song", () => {
+tuneTest("tune: real songs play in sync, never twice, and the reveal names the song", () => {
   type SongS = { song: { id: number; l: number; a: string }; next: { id: number } | null; choices: { id: number; l: number }[]; played: number[]; extra: { id: number }[] };
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
@@ -1422,7 +1439,7 @@ test("tune: real songs play in sync, never twice, and the reveal names the song"
   ok(t.view<V<"tune">>("p0").phase === "end", "after five songs: the end");
 });
 
-test("tune: the host's phone brings today's charts, and only good rows get in", () => {
+tuneTest("tune: the host's phone brings today's charts, and only good rows get in", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "tune" });
   t.g("p0", "pool", { pool: "en:any" });
@@ -1438,7 +1455,7 @@ test("tune: the host's phone brings today's charts, and only good rows get in", 
   ok(s.extra.length === 2 && s.extra.some((x) => x.id === 9_000_000_001) && s.extra.some((x) => x.id === 9_000_000_004), "the good rows are in (old and new shapes), the rest are dropped");
 });
 
-test("tune: pools by language and category, and the quiz where everyone answers", () => {
+tuneTest("tune: pools by language and category, and the quiz where everyone answers", () => {
   type SongS = { song: { id: number; l: number; y: number; k: number }; choices: { id: number }[]; answers: Record<string, { c: number }> };
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
@@ -1475,10 +1492,7 @@ test("tune: pools by language and category, and the quiz where everyone answers"
   ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").right.length === 0, "nobody answered in time: the reveal, nobody scores");
 });
 
-test("tune: hard titles: no singers on them, and the wrong ones by the same singer", () => {
-  // (these two tune tests put the shared dice and clock back as they found them: the tests after them
-  // see the same rolls as before they were written)
-  const seedWas = seed, clockWas = clock;
+tuneTest("tune: hard titles: no singers on them, and the wrong ones by the same singer", () => {
   type Row = { id: number; t: string; a: string; l: number };
   const all = SONG_ROWS.map(fromRow);
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -1516,12 +1530,9 @@ test("tune: hard titles: no singers on them, and the wrong ones by the same sing
   ok(own === Math.min(3, avail), `the wrong ones by the same singer as far as there are any (${own} of ${Math.min(3, avail)})`);
   t.advance(2600 + 20_000);
   ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").song?.a === s.song.a, "the reveal still says who sings it");
-  seed = seedWas;
-  clock = clockWas;
 });
 
-test("tune: one second: snippets from the spot the host's phone found, 3 2 1 points, a buzz pauses a snippet", () => {
-  const seedWas = seed, clockWas = clock;
+tuneTest("tune: one second: snippets from the spot the host's phone found, 3 2 1 points, a buzz pauses a snippet", () => {
   type S = { song: { id: number }; stageAt: number[]; choices: { id: number }[] };
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
@@ -1572,11 +1583,9 @@ test("tune: one second: snippets from the spot the host's phone found, 3 2 1 poi
   t.advance(10_000);
   v = t.view<V<"tune">>("p0");
   ok(!v.snap && v.hook === 0 && v.stageAt[1] - v.stageAt[0] === 8000, "turned off between songs: the next one plays whole");
-  seed = seedWas;
-  clock = clockWas;
 });
 
-test("tune: a pool of several languages and categories", () => {
+tuneTest("tune: a pool of several languages and categories", () => {
   const all = SONG_ROWS.map(fromRow);
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const pick = (pool: string, n: number) => Array.from({ length: n }, () => pickSong(all, pool, new Set(), new Set(), rand)!);
@@ -1587,6 +1596,52 @@ test("tune: a pool of several languages and categories", () => {
   const wg = pick("world+global:any", 40);
   ok(wg.every((x) => x.l === 6 || x.c === 1) && wg.some((x) => x.l === 6), "world classics and today's charts");
   ok(moodOf({ t: "后来的我们哭了" }) === "sad" && moodOf({ t: "Dance Monkey" }) === "hype" && moodOf({ t: "月亮代表我的心" }) === "love" && moodOf({ t: "稻香" }) === "", "a song's mood from its title");
+});
+
+tuneTest("tune: decades, and a singer special that plays only their songs, then ends", () => {
+  const all = SONG_ROWS.map(fromRow);
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  ok(samePool("mix:any") === "zh+en:any" && samePool("en+zh:pop:90s+80s") === "zh+en:pop:80s+90s" && samePool("zh:any:any") === "zh:any", "decades come last and in order, only when there are some (the pools from before read as they did)");
+  ok(samePool("world+global:any:90s") === "world+global:any" && samePool("zh:any:70s") === null, "the world classics and the charts have no decades; a decade that isn't one is turned away");
+  ok(samePool("@周杰伦") === "@周杰伦" && samePool("@taylor swift") === "@taylor swift" && [samePool("@Taylor Swift"), samePool("@周杰伦 & 五月天"), samePool("@"), samePool("@" + "x".repeat(61))].every((x) => x === null), "a singer special is one singer's folded name, nothing else");
+  const nineties = Array.from({ length: 40 }, () => pickSong(all, "zh+yue:any:90s", new Set(), new Set(), rand)!);
+  ok(nineties.every((x) => (x.l === 0 || x.l === 2) && x.y >= 1990 && x.y <= 1999) && new Set(nineties.map((x) => x.l)).size === 2, "90s Mandarin and Cantonese: every one from the 90s, both languages");
+  const old = Array.from({ length: 30 }, () => pickSong(all, "en:rock:pre80+80s", new Set(), new Set(), rand)!);
+  ok(old.every((x) => x.l === 1 && x.y < 1990 && (x.k & CAT_BIT.rock) !== 0), "English rock from before 1990");
+  // one singer's songs: all of them, and the wrong titles theirs too
+  const jay = all.filter((x) => singersOf(x.a).includes("周杰伦"));
+  ok(poolSize(all, "@周杰伦") === jay.length && jay.length >= 20 && all.every((x) => inPool(x, "@周杰伦") === jay.includes(x)), `周杰伦's special: his ${jay.length} songs, nobody else's`);
+  const sunny = jay.find((x) => x.t === "晴天")!;
+  const dec = decoysFor(sunny, all, rand, false, "@周杰伦");
+  ok(dec.length === 3 && dec.every((x) => singersOf(x.a).includes("周杰伦")) && new Set([sunny, ...dec].map((x) => norm(x.t))).size === 4, "the wrong titles: three more of his, all different");
+  ok(SPECIALS.every((x) => x[4] >= 15 && poolSize(all, `@${x[0]}`) === x[4] && samePool(`@${x[0]}`) === `@${x[0]}`), `every special on the list (${SPECIALS.length}) has the songs it says`);
+
+  // a singer with fewer songs than the game: it plays every one of them once, then the final scores
+  const few = SPECIALS.find((x) => x[4] < 20)!;
+  const pool = `@${few[0]}`;
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "pool", { pool });
+  ok(t.view<V<"tune">>("p0").pool === DEFAULT_POOL, "only the host picks a singer");
+  t.g("p0", "pool", { pool });
+  t.g("p0", "total", { n: 20 });
+  t.g("p0", "quiz", { on: true });
+  ok(t.view<V<"tune">>("p1").pool === pool && t.view<V<"tune">>("p1").total === 20, "the setup shows the host's picks");
+  t.g("p0", "go");
+  let v = t.view<V<"tune">>("p1");
+  ok(v.total === few[4], `the game is as long as their songs (${few[4]})`);
+  ok(v.choices?.length === 4 && v.choices.every((c) => c.a === "" && c.ae === ""), "no singer on the four titles: they're all the same one");
+  const heard: number[] = [];
+  for (let n = 1; n <= 25 && t.view<V<"tune">>("p0").phase !== "end"; n++) {
+    const s = t.eng.d.game!.s as { song: { id: number; a: string }; choices: { a: string }[] };
+    heard.push(s.song.id);
+    ok(singersOf(s.song.a).includes(few[0]) && s.choices.every((c) => singersOf(c.a).includes(few[0])), `song ${n}: theirs, and so are the four titles`);
+    t.advance(2600 + 20_000);
+    t.advance(10_000);
+  }
+  v = t.view<V<"tune">>("p0");
+  ok(v.phase === "end" && heard.length === few[4] && new Set(heard).size === few[4], `all ${few[4]} of their songs, each once, then the final scores (${heard.length})`);
 });
 
 test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a penalty", () => {

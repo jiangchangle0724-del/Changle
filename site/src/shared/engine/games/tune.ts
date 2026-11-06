@@ -1,7 +1,7 @@
 import { LISTEN_MS, STAGE_GAPS, TUNES } from "../../../data/tunes";
 import { SONG_ROWS } from "../../../data/songs";
 import type { TuneView } from "../../protocol";
-import { cardOf, checkRow, decoysFor, DEFAULT_HOOK_MS, DEFAULT_POOL, fromRow, HOOK_MAX_MS, moodOf, pickSong, previewUrl, samePool, shownChoices, SNAP_GAPS, SNAP_MS, SNAP_QUIZ_MS, type Song, type SongPool } from "../../songs";
+import { cardOf, checkRow, decoysFor, DEFAULT_HOOK_MS, DEFAULT_POOL, fromRow, HOOK_MAX_MS, moodOf, pickSong, poolSize, previewUrl, samePool, shownChoices, SNAP_GAPS, SNAP_MS, SNAP_QUIZ_MS, specialOf, type Song, type SongPool } from "../../songs";
 import { range, t, type Api, type GameDef } from "../api";
 
 /**
@@ -15,6 +15,8 @@ import { range, t, type Api, type GameDef } from "../api";
  * Hard: the four titles come without their singers, and the wrong ones are the same singer's.
  * One second (snap): every phone plays one second of the song, then three, then the rest, each from
  * the same spot (the hook the host's phone found in the preview); the points go 3, 2, 1 with them.
+ * A singer special (pool "@<singer>"): only that singer's songs, the four titles all theirs (so no
+ * singer on them), and a game no longer than the songs they have.
  */
 
 type Mode = TuneView["mode"];
@@ -22,6 +24,8 @@ type Mode = TuneView["mode"];
 type S = {
   mode: Mode;
   pool: SongPool;
+  /** a singer special: how many songs that singer has here (the game is no longer); 0 otherwise */
+  size?: number;
   /** everyone answers at once from four titles (no buzzer) */
   quiz: boolean;
   /** the four titles without their singers, the wrong ones by the same singer */
@@ -95,6 +99,10 @@ function pick(s: S, api: Api, exclude: number[] = []) {
   return pickSong(songsOf(s), s.pool, new Set(s.heard), played, () => api.rand());
 }
 
+/** the songs a game plays: as many as the host picked, or all a singer special's singer has */
+const roundsOf = (s: S) => (s.size ? Math.min(s.total, s.size) : s.total);
+const sizeOf = (s: S) => (specialOf(s.pool) ? poolSize(songsOf(s), s.pool) : 0);
+
 /**
  * One second, before the first song: pick it already, so every phone loads it while the table sets
  * up and the host's phone can find its spot. (A phone still loading when it starts would miss the
@@ -106,7 +114,7 @@ function pickFirst(s: S, api: Api) {
 
 function go(s: S, api: Api) {
   api.clear("next");
-  if (s.round >= s.total) return finish(s, api);
+  if (s.round >= roundsOf(s)) return finish(s, api);
   s.round += 1;
   s.locked = [];
   s.buzzer = null;
@@ -118,6 +126,11 @@ function go(s: S, api: Api) {
   s.phase = "listen";
   if (s.mode === "songs") {
     const song = s.next && !s.played.includes(s.next.id) ? s.next : pick(s, api);
+    // a singer special that has played all their songs: that's the game
+    if (!song && s.size && s.round > 1) {
+      s.round -= 1;
+      return finish(s, api);
+    }
     if (!song) {
       // nothing in this pool: back to the setup screen, with a word about it
       s.round -= 1;
@@ -130,7 +143,7 @@ function go(s: S, api: Api) {
     s.played.push(song.id);
     if (s.played.length > PLAYED_MAX) s.played = s.played.slice(-PLAYED_MAX);
     s.next = pick(s, api);
-    s.choices = api.shuffle([song, ...decoysFor(song, songsOf(s), () => api.rand(), !!s.hard)]);
+    s.choices = api.shuffle([song, ...decoysFor(song, songsOf(s), () => api.rand(), !!s.hard, s.pool)]);
     s.options = null;
     s.tune = -1;
     const t0 = api.now + SONG_LEAD_MS;
@@ -302,6 +315,7 @@ export const tune: GameDef<S> = {
         if (!host || (s.phase !== "ready" && s.phase !== "reveal") || !pool) return;
         if (s.pool !== pool) s.next = null;
         s.pool = pool;
+        s.size = sizeOf(s);
         s.noSongs = false;
         pickFirst(s, api);
         return;
@@ -362,6 +376,7 @@ export const tune: GameDef<S> = {
             .filter((x): x is Song => !!x && !CATALOG_IDS.has(x.id) && !avoid.has(x.id));
           const langs = [...new Set(fresh.map((x) => x.l))];
           s.extra = langs.flatMap((l) => api.shuffle(fresh.filter((x) => x.l === l)).slice(0, EXTRA_EACH));
+          s.size = sizeOf(s);
         }
         go(s, api);
         return;
@@ -455,7 +470,8 @@ export const tune: GameDef<S> = {
       snap: !!s.snap,
       phase: s.phase,
       round: s.round,
-      total: s.total,
+      // (the setup shows the host's pick; a game of one singer's songs says how many it really is)
+      total: s.phase === "ready" ? s.total : roundsOf(s),
       // phones get the notes to play; which tune it is stays on the server until the reveal
       tune: done && s.mode === "melody" ? s.tune : -1,
       clip: s.mode === "melody" && s.tune >= 0 ? { bpm: TUNES[s.tune].bpm, notes: TUNES[s.tune].notes, up: TUNES[s.tune].up ?? 0 } : null,
@@ -475,7 +491,8 @@ export const tune: GameDef<S> = {
       hook: songs && s.snap ? (s.hook ?? DEFAULT_HOOK_MS) : 0,
       revealPos: s.revealPos,
       pre: songs && s.next && s.phase !== "end" ? previewUrl(s.next.p) : null,
-      choices: songs && s.choices && showAnswers ? shownChoices(s.choices, !!s.hard) : null,
+      // (a singer special's four titles are all theirs: no singer on them)
+      choices: songs && s.choices && showAnswers ? shownChoices(s.choices, !!s.hard || !!specialOf(s.pool)) : null,
       song: songs && done && s.song ? cardOf(s.song) : null,
       singer: songs && live && s.song ? s.song.g : 0,
       // how the song feels, from its title and categories: the stage plays it (tears for a sad one)

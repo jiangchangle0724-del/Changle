@@ -3165,6 +3165,40 @@ button.ecard.is-legal:active {
   font-size: 12.5px;
   text-align: center;
 }
+/* a singer special: who, how many songs, and a way to change */
+.tn-pool-singer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.tn-pool-singer strong {
+  font-size: var(--text-lg);
+}
+.tn-pool-singer small {
+  color: var(--haze);
+  font-size: var(--text-sm);
+}
+/* the singers to pick from, by language or found by name */
+.tn-singer-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tn-singer-langs,
+.tn-singers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.tn-singer-sheet .ui-pill-toggle[aria-pressed="true"] {
+  --ui-tone: var(--gel);
+  color: var(--on-gel);
+}
+.tn-singers .ui-pill small {
+  font-weight: 500;
+}
 /* one second, one phone: play the snippet again, or play more */
 .tn-snip-row {
   gap: var(--space-3);
