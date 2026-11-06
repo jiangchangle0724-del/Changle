@@ -12,7 +12,8 @@
  * every link ever shared, and 到此一游's own links, still land in the right place.
  *
  * No router library: the History API, plus one click handler so an ordinary <a href="/me"> stays
- * inside the page. /eat, /go, /trip and /hide are other Workers: links there load a real page.
+ * inside the page. /eat, /go, /trip, /hide, /party and /hang-on are other Workers: links there load
+ * a real page.
  */
 import { useEffect, useRef, useState } from "react";
 import { GAMES, GAME_BY_ID, isGameId, type GameId } from "./games/registry";
@@ -65,6 +66,8 @@ export function parse(pathname: string, search = ""): Route {
       const g = GAME_BY_ID[id];
       // a game that plays from a big screen (the DJ booth) is played at that screen's address
       if (m[2] && g.speaker) return { kind: "tv", game: id };
+      // one on its own Worker (一起跳): the page opens on its card here, and current() leaves for its stage
+      if (m[2] && g.stage) return { kind: "home", tab: "party", game: id };
       if (m[2] && g.ready) return { kind: "game", id };
       // (a hidden game has no card: only its own /play address opens it, nothing else is a page)
       if (!g.hidden) return { kind: "home", tab: "party", game: id };
@@ -323,13 +326,23 @@ export function back() {
 }
 
 /** The other Workers on changle.ca: a link there is a real page load. */
-const elsewhere = (path: string) => /^\/(eat|go|trip|hide)(\/|$)/.test(path);
+const elsewhere = (path: string) => /^\/(eat|go|trip|hide|party|hang-on)(\/|$)/.test(path);
+
+/** /g/<slug>/play of a game on its own Worker (一起跳): the address of its stage, or null. */
+export function stageOf(pathname: string): string | null {
+  const m = /^\/g\/([A-Za-z0-9-]+)\/play\/?$/.exec(pathname);
+  const id = m ? gameFrom(m[1]) : undefined;
+  return (id && GAME_BY_ID[id].stage?.screen) || null;
+}
 
 function current(first = false): Route {
   // a sheet's entry left over from before a reload: no sheet is open now
   if (first && mark()?.sheet) window.history.replaceState({ inSite: mark()?.inSite } satisfies HistoryMark, "");
   const legacy = fromLegacyHash(window.location.hash);
   if (legacy) window.history.replaceState(mark(), "", legacy);
+  // its stage is another Worker's page: a real page load, in place of this entry
+  const stage = first ? stageOf(window.location.pathname) : null;
+  if (stage) window.location.replace(stage);
   const r = parse(window.location.pathname, window.location.search);
   // the address as the site writes it: a game's old id, a trailing slash, a page that isn't one
   const canonical = pathOf(r);

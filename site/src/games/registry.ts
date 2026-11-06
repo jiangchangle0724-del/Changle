@@ -26,7 +26,8 @@ export type GameId =
   | "trip"
   | "dj"
   | "hide"
-  | "lastcard";
+  | "lastcard"
+  | "dance";
 
 export type GameMeta = {
   id: GameId;
@@ -56,6 +57,13 @@ export type GameMeta = {
    * table's spin never lands on it (it needs that screen first)
    */
   speaker?: string;
+  /**
+   * it runs on its own Worker, not in this site (一起跳 at changle.ca/party): `screen` is the big
+   * screen's page and `join` the phones' page. Both are whole-page loads. Its card sends a computer
+   * to `screen` and tells a phone where to go; /g/<slug>/play goes to `screen` too. There is no
+   * one-phone mode and no table game: a table's spin never lands on it (it isn't in ONLINE_GAMES).
+   */
+  stage?: { screen: string; join: string };
   /**
    * its kind, which colors its card (decided 2026-11-01: cards by kind, not one color per game; the
    * stage gel above stays the game's own light): drink 喝酒局, brain 动脑, body 动身体, online 线上
@@ -449,6 +457,27 @@ export const GAMES: GameMeta[] = [
     newUntil: "2026-12-20",
     solo: { min: 0, hint: t("只能联机", "Online only") },
   },
+  // its own Worker at changle.ca/party (games/party-server): a TV or computer is the stage, phones
+  // scan in. It went live 11-05 from "coming soon"; its card sits last so the board stays put
+  {
+    id: "dance",
+    slug: "dance-along",
+    name: t("一起跳", "Dance Along"),
+    blurb: t("跟着电视一起跳，手机听拍子", "Dance with the TV. Your phone keeps the beat."),
+    how: t(
+      "电视或电脑打开 changle.ca/party/screen 当舞台，大家扫码进来。电视上的 3D 老师先一段一段教，再跟着音乐一起跳，手里的手机知道你有没有踩在拍子上。6 支练习舞，还有一串热歌（江南Style、APT.、爱你……），零基础也能跳完一首。",
+      "Open changle.ca/party/screen on a TV or computer: that's the stage. Everyone scans in. A 3D coach on the TV teaches a few easy moves, then everyone dances to the music, and the phone in your hand knows if you're on the beat. Six practice dances and a set of hit songs (Gangnam Style, APT. and more). Anyone can finish a song.",
+    ),
+    minPlayers: 1,
+    maxPlayers: 15,
+    gel: "#8f7bff",
+    icon: Footprints,
+    category: "body",
+    minutes: 8,
+    ready: true,
+    stage: { screen: "/party/screen", join: "/party/join" },
+    newUntil: "2026-12-05",
+  },
 ];
 
 export const GAME_BY_ID = Object.fromEntries(GAMES.map((g) => [g.id, g])) as Record<GameId, GameMeta>;
@@ -459,23 +488,7 @@ export const GAME_BY_ID = Object.fromEntries(GAMES.map((g) => [g.id, g])) as Rec
  */
 export type SoonMeta = Pick<GameMeta, "name" | "blurb" | "how" | "gel" | "icon" | "category" | "minutes" | "minPlayers" | "maxPlayers"> & { key: string };
 
-export const SOON: SoonMeta[] = [
-  {
-    key: "dance",
-    name: t("一起跳", "Dance Along"),
-    blurb: t("跟着电视一起跳，手机听拍子", "Dance with the TV. Your phone keeps the beat."),
-    how: t(
-      "电视上的舞者先一段一段教，然后大家手里握着手机跟着音乐跳，手机的传感器知道你有没有踩在拍子上。零基础也能跳完一首。",
-      "A dancer on the TV teaches a few easy moves, then everyone dances to the song holding their phone. The phone's sensors know if you're on the beat. Anyone can finish a song.",
-    ),
-    minPlayers: 1,
-    maxPlayers: 15,
-    gel: "#8f7bff",
-    icon: Footprints,
-    category: "body",
-    minutes: 5,
-  },
-];
+export const SOON: SoonMeta[] = [];
 
 export const isGameId = (s: string): s is GameId => s in GAME_BY_ID;
 

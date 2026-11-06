@@ -53,7 +53,7 @@ function rememberPlayed(id: GameId) {
 }
 /** Games to suggest for this many people (0: nobody added yet), freshest first. */
 function suggestions(n: number, played: GameId[]): GameMeta[] {
-  const pool = STARTERS.map((id) => GAME_BY_ID[id]).filter((g) => g && g.ready && !g.hidden && !g.speaker && (n < 2 || fits(g, n)));
+  const pool = STARTERS.map((id) => GAME_BY_ID[id]).filter((g) => g && g.ready && !g.hidden && !g.speaker && !g.stage && (n < 2 || fits(g, n)));
   const recent = played.slice(0, 2);
   return [...pool.filter((g) => !recent.includes(g.id)), ...pool.filter((g) => recent.includes(g.id))];
 }
