@@ -100,3 +100,32 @@ export const clockOf = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+
+/** How to do each move, in one line (the coach shows it; this says it). Mirrored like the coach: "right" is your right. */
+const HOW: Record<string, [string, string]> = {
+  "clap-2x": ["拍手两下，再把双手打开", "Clap twice, then open your hands out"],
+  "raise-arms": ["双手往上举，再收回肩膀", "Throw both arms up, then back to your shoulders"],
+  "side-wave": ["双手举过头，左右摇摆", "Arms up over your head, wave them side to side"],
+  "handkerchief-flower": ["双手在两边转圈，一高一低再换", "Twirl your hands at your sides, one high, one low, then swap"],
+  "shoulder-roll": ["双肩往后绕圈，手臂放松", "Roll your shoulders back in circles, arms loose"],
+  "forward-push": ["双手往前推，再收回胸前", "Push both hands forward, then pull them back to your chest"],
+  "open-arms": ["双臂张开挺胸，再收回胸前", "Open your arms wide, chest up, then bring them in"],
+  "alternating-reach": ["右手往上伸，再换左手", "Reach up with your right hand, then your left"],
+  "side-step-touch": ["往左跨一步，右脚并过去拍手，再往右", "Step left, bring the right foot in and clap, then go right"],
+  "march-clap": ["原地踏步，每两拍拍一下手", "March on the spot, clap every second beat"],
+  "cross-step": ["右脚往左前交叉，左脚后退，右脚往右，左脚回来", "Right foot crosses in front, left steps back, right steps out, left comes back"],
+  "yangge-twist": ["一前一后踏步扭腰，双手甩起来", "Step forward and back, twist your hips, swing your arms"],
+  "heel-tap": ["双手叉腰，脚跟轮流往前点地", "Hands on hips, tap one heel forward, then the other"],
+  "v-step": ["右脚左脚往前分开，再一只一只收回，手跟着举", "Right then left foot step out wide, then back in, arms up with them"],
+  "step-knee-lift": ["踏一步，另一只膝盖抬起来，手往下碰膝盖", "Step, lift the other knee, bring your hands down to it"],
+  "eight-step-sway": ["左右摇摆，前四拍手在头上，后面放低，最后拍手", "Sway side to side: arms up for four, then low, then a clap"],
+  "kemusan-hand-twirl": ["双手在身前绕圈，左右换边，脚轻轻踢出去", "Roll your hands round each other, side to side, flick your feet out"],
+  "grapevine-turn": ["往右跨，后交叉，再跨一步转一圈拍手，再往左", "Step right, cross behind, step and spin, clap; then back to the left"],
+  "squat-reach": ["蹲下双手前伸，站起来双手举高", "Squat with your arms forward, stand up and reach high"],
+  "side-lunge-punch": ["往右弓步出拳，回来，再往左", "Lunge right and punch, come back, then the left"],
+};
+
+export function moveHow(m: Move): string {
+  const h = HOW[m.id];
+  return h ? tr(h[0], h[1]) : "";
+}
