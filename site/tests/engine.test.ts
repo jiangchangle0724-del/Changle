@@ -27,6 +27,10 @@ import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
+import { DRAW_WORDS } from "../src/data/drawGuess";
+import { drawMatches } from "../src/shared/engine/games/draw";
+import { DRAW_GUESS_MAX } from "../src/shared/protocol";
+import { hintBlanks, hintSay } from "../src/online/games/drawHint";
 
 let clock = 1_000_000;
 let seed = 7;
@@ -397,6 +401,154 @@ test("draw: word only for drawer, guess scoring, timeout penalty", () => {
   t.advance(81_000);
   t.advance(1000);
   ok(t.pens().some((p) => p.who.includes("p1")), "nobody guessed: drawer drinks");
+});
+
+test("draw: guesses as people type them: Traditional characters, a or the, a plural; every answer fits the box", () => {
+  const word = (zh: string) => DRAW_WORDS.find((w) => w.zh === zh)!;
+  const right: [string, string][] = [
+    ["汽车", "汽车"],
+    ["汽车", "汽車"],
+    ["雨伞", "雨傘"],
+    ["暧昧", "曖昧"],
+    ["钟表", "Clock!"],
+    ["钟表", "a clock"],
+    ["钟表", "the clocks"],
+    ["汽车", "cars"],
+    ["筷子", "chopstick"],
+    ["眼镜", "glass"],
+    ["蝴蝶", "butterflies"],
+    ["钥匙", "keys"],
+    ["感冒", "A cold"],
+    ["感冒", "the cold"],
+    ["感冒", "cold"],
+    ["深夜emo", "深夜 EMO"],
+    ["深夜emo", "late night blues"],
+    ["熬夜", "all nighter"],
+    ["月光族", "Living paycheck to paycheck"],
+    ["猫", "ＣＡＴ"],
+  ];
+  for (const [zh, guess] of right) ok(drawMatches(guess, word(zh)), `${zh} / ${word(zh).en}: "${guess}" is right`);
+  const wrong: [string, string][] = [
+    ["汽车", "车"],
+    ["钟表", "clo"],
+    ["钟表", "the"],
+    ["汽车", "a"],
+    ["猫", "cats and dogs"],
+    ["帽子", "hates"],
+    ["电视", "tvs"],
+    ["感冒", "a"],
+    ["汽车", ""],
+  ];
+  for (const [zh, guess] of wrong) ok(!drawMatches(guess, word(zh)), `${zh} / ${word(zh).en}: "${guess}" is not`);
+  const long = DRAW_WORDS.filter((w) => w.en.length > DRAW_GUESS_MAX || [...w.zh].length > DRAW_GUESS_MAX);
+  ok(!long.length, `every answer fits in a guess (${long.map((w) => w.en).join(", ") || "all do"})`);
+
+  // the longest answer, typed in full, through the room
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 3 });
+  (t.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "月光族");
+  t.g("p1", "guess", { text: "Living paycheck to paycheck" });
+  t.g("p2", "guess", { text: "月光族" });
+  const v = t.view<Extract<GameView, { id: "draw" }>>("p0");
+  ok(v.solved.join() === "p1,p2" && v.phase === "result", "the longest English answer counts in full, and the round is over");
+});
+
+test("draw: the English hint shows each word's blanks, and hyphens", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 3 });
+  const s = t.eng.d.game!.s as { word: number };
+  const hintOf = (zh: string) => {
+    s.word = DRAW_WORDS.findIndex((w) => w.zh === zh);
+    return t.view<Extract<GameView, { id: "draw" }>>("p1").hint!;
+  };
+  const pay = hintOf("月光族");
+  ok(pay.en === "______ ________ __ ________" && pay.zh === 3, `four words of blanks (${pay.en})`);
+  ok(hintOf("熬夜").en === "___-_______", "a hyphen shows as it is");
+  // on the phone: a wide break between words, never one inside a word
+  const shown = hintBlanks(pay.en);
+  ok(shown.split(" ").length === 4 && !/ /.test(shown), `the phone's hint keeps the four words apart (${JSON.stringify(shown)})`);
+  ok(shown.split(" ").every((w) => /^_(?: _)*$/.test(w)), "and each word's blanks together");
+  ok(hintSay(pay.en) === "4 words: 6, 8, 2 and 8 letters" && hintSay("___") === "3 letters", `what a screen reader says (${hintSay(pay.en)})`);
+  ok(hintSay(hintOf("熬夜").en) === "10 letters", "a hyphenated word is one word");
+});
+
+test("draw: a drawer who leaves: no penalty for anyone else, the word goes up, the turn goes on round the table", () => {
+  type V = Extract<GameView, { id: "draw" }>;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "draw" });
+  // p0 and p1 draw a round each (nobody gets it), so p2 is drawing when they leave
+  for (const d of ["p0", "p1"]) {
+    t.g(d, "pick", { d: 1 });
+    t.g(d, "giveup");
+    t.advance(1000);
+    t.g(d, "next");
+  }
+  ok(t.view<V>("p0").drawer === "p2", "p2 draws the third round");
+  t.g("p2", "pick", { d: 1 });
+  t.eng.stroke("p2", { o: "b", id: "s1", c: "#1f3f8e", w: 0.01, p: [0.1, 0.1] });
+  t.eng.flush();
+  const pens = t.pens().length;
+  t.act("p2", { a: "leave" });
+  let v = t.view<V>("p1");
+  ok(v.phase === "result" && v.left === "p2" && !!v.word && !v.solved.length, "the round is over: the word goes up and says who left");
+  ok(v.drawer === "p3", `the next one round the table is up (${v.drawer})`);
+  t.advance(82_000);
+  ok(t.pens().length === pens, "nobody drinks for it, and the round's clock is gone");
+  ok(t.eng.d.strokes.length === 1, "the drawing stays up with the word");
+  t.g("p1", "next");
+  ok(t.view<V>("p1").phase === "result", "only p3 or the host moves on");
+  t.g("p3", "next");
+  v = t.view<V>("p1");
+  ok(v.phase === "pick" && v.drawer === "p3" && v.left === null && v.round === 4, "p3 picks next, not p0 again");
+  ok(t.eng.d.strokes.length === 0, "a clean board");
+
+  // the drawer leaves while choosing a word: the turn passes on round the table (back to p0)
+  t.act("p3", { a: "leave" });
+  v = t.view<V>("p0");
+  ok(v.phase === "pick" && v.drawer === "p0" && v.round === 4, `the turn passes on while choosing (${v.drawer})`);
+
+  // a round ends as usual, then its drawer leaves before moving on: straight to the next one's pick
+  t.g("p0", "pick", { d: 1 });
+  t.g("p1", "guess", { text: DRAW_WORDS[(t.eng.d.game!.s as { word: number }).word].zh });
+  v = t.view<V>("p1");
+  ok(v.phase === "result" && v.solved.join() === "p1", "p1 got it: the round is over");
+  t.act("p0", { a: "leave" });
+  v = t.view<V>("p1");
+  ok(v.phase === "pick" && v.drawer === "p1" && v.round === 5 && v.left === null, `on to the next drawer's pick (${v.phase}, ${v.drawer})`);
+  ok(t.pens().length === pens, "still nobody drinks for anyone who left");
+
+  // a guesser leaves and everyone still guessing has it: the round is done
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "draw" });
+  u.g("p0", "pick", { d: 1 });
+  const zh = DRAW_WORDS[(u.eng.d.game!.s as { word: number }).word].zh;
+  u.g("p1", "guess", { text: zh });
+  u.g("p2", "guess", { text: zh });
+  ok(u.view<V>("p0").phase === "draw", "p3 is still guessing");
+  u.act("p3", { a: "leave" });
+  ok(u.view<V>("p0").phase === "result", "p3 left: the two still here both got it, the round is over");
+  ok(!u.pens().length, "no penalty: they got it");
+
+  // the drawer sits out to watch mid-round: the same as leaving
+  const w = setup(3);
+  w.act("p0", { a: "start", game: "draw" });
+  w.g("p0", "pick", { d: 1 });
+  w.act("p0", { a: "watch", on: true });
+  const wv = w.view<V>("p1");
+  ok(wv.phase === "result" && wv.left === "p0" && wv.drawer === "p1", "the drawer who sits out to watch ends the round, and p1 is next");
+
+  // a table saved before this change (no seat order kept) still moves on
+  const o = setup(3);
+  o.act("p0", { a: "start", game: "draw" });
+  const os = o.eng.d.game!.s as { order?: string[]; left?: string | null };
+  delete os.order;
+  delete os.left;
+  o.g("p0", "pick", { d: 1 });
+  o.act("p0", { a: "leave" });
+  const ov = o.view<V>("p1");
+  ok(ov.phase === "result" && ov.left === "p0" && o.eng.d.game !== null && ["p1", "p2"].includes(ov.drawer), "an older saved table: no crash, someone still here is next");
 });
 
 test("king: private tokens, crown, called numbers", () => {

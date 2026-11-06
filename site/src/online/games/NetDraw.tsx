@@ -3,18 +3,19 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { UI } from "../../i18n";
-import type { DrawView } from "../../shared/protocol";
+import { DRAW_GUESS_MAX, type DrawView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { NetPlate } from "../NetPlate";
 import { useRoom } from "../RoomContext";
 import { usePlayers, useWatching } from "../players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "./common";
+import { hintBlanks, hintSay } from "./drawHint";
 
 const ROUND_S = 80;
 
 export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
-  const { me, isHost, g, nameOf, offset } = useRoom();
+  const { me, isHost, g, nameOf, offset, room } = useRoom();
   const { ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const drawer = v.drawer === me;
@@ -22,6 +23,12 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   const players = usePlayers();
   const watching = useWatching();
   useYourTurn(drawer && v.phase === "pick");
+  // names stay known after a seat is gone, so a drawer who walks off mid-round is still named
+  const names = useRef(new Map<string, string>());
+  useEffect(() => {
+    for (const s of room?.seats ?? []) names.current.set(s.id, s.name);
+  }, [room]);
+  const gone = v.left ? (names.current.get(v.left) ?? (lang === "zh" ? "画的人" : "The drawer")) : "";
 
   const ranked = useMemo(
     () => players.map((s) => ({ id: s.id, name: s.name, pts: v.scores[s.id] ?? 0 })).sort((a, b) => b.pts - a.pts),
@@ -36,7 +43,7 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   }, [v.guesses.length]);
   useEffect(() => setGuess(""), [v.round]);
 
-  const hint = v.hint ? (lang === "zh" ? `${v.hint.zh} 个字` : v.hint.en.split("").join(" ")) : "";
+  const hint = v.hint ? (lang === "zh" ? `${v.hint.zh} 个字` : hintBlanks(v.hint.en)) : "";
 
   const rules = (
     <p>
@@ -85,7 +92,13 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                 </div>
               ) : (
                 <div className="draw-word">
-                  <span className="draw-hint tabular">{hint}</span>
+                  {lang === "zh" || !v.hint ? (
+                    <span className="draw-hint tabular">{hint}</span>
+                  ) : (
+                    <span className="draw-hint tabular" role="img" aria-label={hintSay(v.hint.en)}>
+                      {hint}
+                    </span>
+                  )}
                   <span className="hint">
                     {nameOf(v.drawer)} · {diffLabel(v.d)} · {v.d} {ui("score")}
                   </span>
@@ -126,7 +139,7 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                   setGuess("");
                 }}
               >
-                <input value={guess} onChange={(e) => setGuess(e.target.value)} placeholder={lang === "zh" ? "猜是什么" : "Your guess"} maxLength={24} enterKeyHint="send" autoComplete="off" aria-label={lang === "zh" ? "猜是什么" : "Your guess"} />
+                <input value={guess} onChange={(e) => setGuess(e.target.value)} placeholder={lang === "zh" ? "猜是什么" : "Your guess"} maxLength={DRAW_GUESS_MAX} enterKeyHint="send" autoComplete="off" aria-label={lang === "zh" ? "猜是什么" : "Your guess"} />
                 <button type="submit" className="btn btn-gold btn-sm" disabled={!guess.trim()}>
                   <Send size={15} />
                   {lang === "zh" ? "猜" : "Guess"}
@@ -158,9 +171,13 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                   ? lang === "zh"
                     ? `猜中：${v.solved.map(nameOf).join("、")}`
                     : `Got it: ${v.solved.map(nameOf).join(", ")}`
-                  : lang === "zh"
-                    ? `没人猜中，${nameOf(v.drawer)} ${custom ? "受罚" : "喝"}`
-                    : `Nobody got it. ${nameOf(v.drawer)} ${custom ? "takes the penalty" : "drinks"}.`}
+                  : v.left
+                    ? lang === "zh"
+                      ? `${gone} 不画了，这轮不罚`
+                      : `${gone} stopped drawing. No penalty this round.`
+                    : lang === "zh"
+                      ? `没人猜中，${nameOf(v.drawer)} ${custom ? "受罚" : "喝"}`
+                      : `Nobody got it. ${nameOf(v.drawer)} ${custom ? "takes the penalty" : "drinks"}.`}
               </p>
             </div>
             <NetPlate canDraw={false} />

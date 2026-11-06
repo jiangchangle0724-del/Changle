@@ -195,7 +195,12 @@ export type DrawView = {
   solved: string[];
   scores: Record<string, number>;
   round: number;
+  /** The drawer who left before their round was over: no penalty, and `drawer` already holds who draws next. */
+  left: string | null;
 };
+
+/** 你画我猜: the longest guess a phone sends and the rooms server keeps (every answer fits, with room to spare). */
+export const DRAW_GUESS_MAX = 40;
 
 export type KingView = {
   id: "king";
