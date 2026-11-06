@@ -3,7 +3,7 @@
  * prompts and where each file came from are in art/README.md. They load with the game, never with the
  * home page.
  */
-import type { Pack } from "../../data/straightface";
+import type { Pack } from "../../data/straightfacePacks";
 import zi from "./art/packs/zi.webp";
 import fangyan from "./art/packs/fangyan.webp";
 import chengyu from "./art/packs/chengyu.webp";

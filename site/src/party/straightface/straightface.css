@@ -633,3 +633,62 @@
     min-height: 340px;
   }
 }
+
+/* ---------- online: every phone its own ---------- */
+.sf-net-round {
+  margin: 0;
+  text-align: center;
+}
+.sf-net-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sf-net-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.sf-net-row .btn {
+  min-height: var(--tap-crowded);
+}
+/* my part, a press away all round: small until held */
+.sf-hold.is-compact {
+  min-height: var(--tap-crowded);
+  padding: var(--space-3) var(--space-4);
+}
+.sf-hold.is-compact .sf-hold-label {
+  flex-direction: row;
+  font-size: var(--text-md);
+}
+.sf-hold.is-compact.is-open {
+  padding: var(--pad-card);
+}
+/* the packs the host picked, for everyone else */
+.sf-pack-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sf-pack-strip li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--color-sheet);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.sf-pack-strip img {
+  width: calc(var(--space-6) + var(--space-1));
+  height: calc(var(--space-6) + var(--space-1));
+  border-radius: var(--r-pill);
+}
+.sf-judge-line .timer-arc {
+  flex: none;
+}

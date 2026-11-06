@@ -5,9 +5,9 @@
  * must find the honest one.
  *
  * All names, cards and art are original. Nothing here reuses 瞎掰王 / 9UPPER material.
- * The engine is pure: the one-phone screen runs it in React state; the rooms server will run the
- * same code behind a GameDef (A3). Phones render only what `privateView` returns, big screens only
- * what `publicView` returns.
+ * The engine is pure: the one-phone screen runs it in React state; the rooms server runs the same
+ * code behind a GameDef (site/src/shared/engine/games/straightface.ts). Phones render only what
+ * `privateView` returns, big screens only what `publicView` returns.
  */
 import type { T } from "../../i18n";
 
@@ -180,4 +180,57 @@ export interface PublicView {
   scores: Record<string, number>;
   reveal: { honestId: string; definition: T; funFact: T; result: RoundResult } | null;
   timers: { peek: number; explain: number; accuse: number };
+}
+
+/** What a round's reveal needs to know to be worded: who judged, who was honest, whom the judge named, the tag, the bets. */
+export interface RoundFacts {
+  judgeId: string;
+  honestId: string;
+  accusedId: string;
+  suspectId: string | null;
+  bets: Record<string, string>;
+  level: Level;
+}
+
+/** Online: the host's choices before the first round. `packs` is null until the host's phone sets them. */
+export interface NetSetup {
+  packs: string[] | null;
+  /** the difficulty the next round is dealt at (the host may change it between rounds) */
+  level: Level;
+  seeds: boolean;
+  bets: boolean;
+}
+
+/**
+ * 一本正经 online, as one phone or a big screen sees it: the table's view, plus this phone's own part.
+ * A big screen, a seat that only watches and someone who sat down after the deal are not in the game:
+ * `me` is null for them, so they see what the table sees and nobody's part.
+ */
+export interface StraightFaceView {
+  id: "straightface";
+  /** "setup" until the host deals */
+  phase: "setup" | Phase;
+  setup: NetSetup;
+  /** who is in this game, in seat order (empty before the deal) */
+  players: string[];
+  /**
+   * The table's view. The server knows ids, not names, so its reveal carries no lines (each screen
+   * words them from `facts` with the names it shows) and no penalty wording (the room says that).
+   */
+  table: PublicView | null;
+  me: PrivateView | null;
+  /** when the current step began, on the server's clock: the soft timers count from it */
+  stepAt: number;
+  /** between rounds: who judges the next one */
+  nextJudge: string | null;
+  /** from the reveal on: who did what */
+  facts: RoundFacts | null;
+  /** the bluffer who fooled the judge, while they still have someone to pick for the penalty */
+  master: string | null;
+  /** whom this round's master bluffer picked */
+  picked: string | null;
+  /** how often each player fooled a judge (the tie-break) */
+  fooled: Record<string, number>;
+  /** at the end: every word played tonight, with its meaning */
+  learned: { term: T; definition: T }[] | null;
 }

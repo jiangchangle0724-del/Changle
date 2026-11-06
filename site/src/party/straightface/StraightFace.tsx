@@ -11,7 +11,7 @@ import { GAME_BY_ID } from "../../games/registry";
 import { sfx } from "../../lib/sfx";
 import { BACKDROP } from "./art";
 import { cue } from "./sounds";
-import { createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX_PLAYERS, MIN_PLAYERS, privateView, publicView, reduce, type Deps } from "../../shared/straightface/engine";
+import { createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX_PLAYERS, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, type Deps } from "../../shared/straightface/engine";
 import type { GameEvent, GameState, Level, PenaltyWhy } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace, PassCurtain } from "../common";
@@ -444,8 +444,8 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
             <div className="panel sf-panel">
               <span className="field-label">{say(S.nextJudge)}</span>
               <div className="row sf-next-judge">
-                <NameFace name={nameOf(game.judgeOrder[game.rounds.length])} size={44} />
-                <strong>{nameOf(game.judgeOrder[game.rounds.length])}</strong>
+                <NameFace name={nameOf(nextJudge(game))} size={44} />
+                <strong>{nameOf(nextJudge(game))}</strong>
               </div>
               <span className="field-label">{say(S.level)}</span>
               <div className="seg" role="group" aria-label={say(S.level)}>

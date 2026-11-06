@@ -40,7 +40,7 @@
 ## 屏幕
 
 - 一台手机传着玩（已做，`site/src/party/straightface/`）：亮词（裁判）→ 传手机偷看（按住显示、松手即黑、15 秒到才显示「传给 ××」）→ 解释（手机在裁判手里：发言人、倒计时、下一位、贴疑点、提问模板）→ 押注按座位顺序再传一圈 → 指认 → 揭晓页朝向大家 → 比分和下一轮裁判。该谁拿手机看 `publicView.phoneHolderId`。
-- 联机（A3）：裁判手机有词条、顺序、计时、疑点、指认；老实人手机整轮按住显示真释义；瞎编的人显示词条加掰料；电视只显示 `publicView`。
+- 联机（A3，已做，2026-11-05）：裁判手机有词条、顺序、计时、疑点、指认；老实人手机整轮按住显示真释义；瞎编的人显示词条加掰料；电视只显示 `publicView`。规则在房间服务器上跑同一个引擎（`site/src/shared/engine/games/straightface.ts`，online 模式：大家同时看身份、同时押注），手机画面 `NetStraightFace.tsx`，电视画面 `TvStraightFace.tsx`。服务器只知道 id，揭晓的句子由每块屏幕用自己看到的名字拼（`roundLines`）。
 - 两条铁律：UI 只能渲染 `privateView(state, playerId)` 和 `publicView(state)` 返回的字段；改计分先改测试。
 
 ## 老手会多做的事
