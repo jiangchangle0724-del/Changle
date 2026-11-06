@@ -1,6 +1,7 @@
-import { ArrowRight, UtensilsCrossed } from "lucide-react";
+import { UtensilsCrossed } from "lucide-react";
 import { savedName } from "../online/config";
 import { useStore } from "../store";
+import { Tile } from "../ui/Tile";
 
 /**
  * 随便 · Whatever's Fine lives at changle.ca/eat, from its own code (tools/suibian in the changle-ca
@@ -8,6 +9,8 @@ import { useStore } from "../store";
  * Same site, so it shares this phone's storage: the language, and the name if 随便 has none yet, go along.
  */
 export const EAT = "/eat";
+/** its card says 新 / New until this day, like the games that came with it */
+const NEW_UNTIL = "2026-12-01";
 
 function handOff(lang: "zh" | "en") {
   try {
@@ -19,27 +22,22 @@ function handOff(lang: "zh" | "en") {
   }
 }
 
-/** The card in the Tools tab: what it is, and one button that opens it. */
+/** The card in the Tools tab: a tool's tile, amber like every tool; the whole card opens 随便. */
 export function Suibian() {
   const { lang } = useStore();
   const zh = lang === "zh";
   return (
-    <section className="tool tool-eat" id="tool-eat" aria-labelledby="eat-title">
-      <header className="tool-head">
-        <h2 id="eat-title" className="tool-title">
-          <span>{zh ? "随便" : "Whatever's Fine"}</span>
-          <small>{zh ? "Whatever's Fine" : "随便"}</small>
-        </h2>
-        <span className="tool-tag">{zh ? "新" : "New"}</span>
-      </header>
-      <p className="tool-blurb">{zh ? "吃什么？随便。让大家的手机来定" : "Where should we eat? Whatever's fine. Let everyone's phones decide."}</p>
-      <div className="tool-actions">
-        <a className="btn btn-primary btn-block" href={EAT} onClick={() => handOff(lang)}>
-          <UtensilsCrossed size={20} strokeWidth={2} aria-hidden="true" />
-          {zh ? "去选餐厅" : "Pick a restaurant"}
-          <ArrowRight size={18} strokeWidth={2.2} aria-hidden="true" />
-        </a>
-      </div>
+    <section className="tool-eat" id="tool-eat" aria-label={zh ? "随便" : "Whatever's Fine"}>
+      <Tile
+        name={{ zh: "随便", en: "Whatever's Fine" }}
+        lang={lang}
+        icon={UtensilsCrossed}
+        category="tool"
+        isNew={new Date().toISOString().slice(0, 10) < NEW_UNTIL}
+        line={zh ? "吃什么？随便。让大家的手机来定" : "Where should we eat? Whatever's fine. Let everyone's phones decide."}
+        href={EAT}
+        onOpen={() => handOff(lang)}
+      />
     </section>
   );
 }

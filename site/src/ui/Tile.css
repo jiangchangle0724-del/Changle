@@ -18,6 +18,13 @@
   cursor: pointer;
   transition: transform var(--dur-enter) var(--ease-out);
 }
+.ui-tile:disabled {
+  cursor: default;
+}
+/* a card that opens another page at its own address (随便 at /eat) is a link: no underline */
+a.ui-tile {
+  text-decoration: none;
+}
 .ui-tile-watermark {
   position: absolute;
   z-index: -1;
@@ -52,6 +59,11 @@
   font-size: var(--text-xs);
   font-weight: 500;
   line-height: var(--leading);
+}
+/* one line under the names, for a card with no players or minutes to show (a tool) */
+.ui-tile-line {
+  font: 600 var(--text-sm) / var(--leading) var(--font-text);
+  text-wrap: pretty;
 }
 .ui-tile-meta,
 .ui-tile-meta > span {
