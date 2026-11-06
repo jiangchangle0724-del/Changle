@@ -395,6 +395,418 @@ export const GUIDES: Record<string, SceneGuide> = {
       r(t("嘴上说最爱虫子，一听见虫叫就往后跳。", "Say you adore insects; leap back every time something chirps."), t("「我最喜欢虫子了，我来帮忙找！（往后退）」", "“I love insects! Let me help look! (backs away)”")),
     ],
   },
+  /* ---------------------------------------------------------------- second batch: hard all-ages, easy spicy */
+  "love-anniversary-gift": {
+    beats: [
+      t("女朋友举着香水从车里出来，当着两个人的面问这是给谁的。", "The girlfriend marches out of the car holding the perfume and asks, in front of both of them, who it's for."),
+      t("男朋友解释香水的来历，闺蜜在旁边打圆场。", "The boyfriend explains where it came from while the best friend tries to smooth things over."),
+      t("反转以后，大家开始猜「老地方」到底是哪里。", "After the twist, everyone starts guessing where “the usual place” is."),
+      t("最后每人说一句话，证明自己没有劈腿。", "To finish, one line each to prove you're not the cheat."),
+    ],
+    roles: [
+      r(t("举着香水不放，越问越大声，眼眶有点红。", "Won't let go of the perfume, gets louder with every question, eyes a little red."), t("「这瓶香水，你给我解释清楚。」", "“Explain this perfume. Right now.”")),
+      r(t("笑得很尴尬，一直挠头，回答前先看闺蜜一眼。", "Awkward grin, keeps scratching your head, glances at the best friend before every answer."), t("「这、这是给我妈的生日礼物啊！」", "“It's, uh, it's for my mom's birthday!”")),
+      r(t("抱着蛋糕当挡箭牌，一直说「大家冷静」，眼睛老往后备箱瞟。", "Holding the cake like a shield, telling everyone to calm down, eyes drifting to the trunk."), t("「好啦好啦，今天是纪念日，先吃蛋糕好不好？」", "“Okay, okay, it's your anniversary! Cake first, maybe?”")),
+    ],
+  },
+  "office-missing-bonus": {
+    beats: [
+      t("财务发现箱子里少了最厚的红包，老板把大家叫到会议室。", "Finance discovers the fattest envelope is gone, and the boss calls everyone into the meeting room."),
+      t("每个人说说今天什么时候靠近过那个柜子。", "Everyone says when they went near the cabinet today."),
+      t("反转以后，大家开始猜是谁在箱子前蹲了三分钟。", "After the twist, everyone wonders who was crouching by the box."),
+      t("最后每人说一句话，证明红包不在自己身上。", "To finish, one line each to prove the envelope isn't on you."),
+    ],
+    roles: [
+      r(t("背着手来回踱步，一提奖金多少就打哈哈。", "Pacing with your hands behind your back; laugh it off whenever the bonus amounts come up."), t("「今年的红包可是我自掏腰包！谁拿了，自己交出来。」", "“Those bonuses came out of my own pocket! Whoever took it, hand it over.”")),
+      r(t("抱着账本，说话一字一顿，一提钥匙就紧张。", "Clutching the ledger, slow and precise; tense whenever keys come up."), t("「箱子一直锁着，钥匙一直在我身上……基本上。」", "“The box was locked, and the key never left me… mostly.”")),
+      r(t("缩着脖子，什么都想说又不敢说，怀里抱着一摞纸。", "Shoulders hunched, dying to say something but not daring to, hugging a stack of paper."), t("「我是最后一个走的，但我真的什么都没拿！」", "“I was the last to leave, but I swear I didn't take anything!”")),
+      r(t("嗓门大，自信爆棚，三句话不离业绩。", "Loud and supremely confident; every third sentence is about your sales numbers."), t("「最厚的那个本来就该是我的，我还用得着偷？」", "“The fattest one was mine anyway. Why would I need to steal it?”")),
+    ],
+  },
+  "crime-mansion-wine": {
+    beats: [
+      t("灯亮了，有人发现古董红酒被倒进了花盆，大家都围过来。", "The lights come back, someone spots the vintage wine in the plant pot, and everyone gathers round."),
+      t("每个人说说灭灯那十秒自己在哪里、在干什么。", "Everyone says where they were and what they were doing in those ten seconds."),
+      t("反转以后，大家开始检查每个人的袖口。", "After the twist, everyone starts checking each other's cuffs."),
+      t("最后每人说一句话，给自己一个完美的不在场证明。", "To finish, everyone gives themselves one perfect alibi."),
+    ],
+    roles: [
+      r(t("站得笔直，说话慢条斯理，一提酒窖就清嗓子。", "Standing ramrod straight, speaking slowly and properly; clear your throat whenever the cellar comes up."), t("「先生的酒，我保管了三十年，从没出过差错。」", "“I have looked after this house's wine for thirty years without a single mistake.”")),
+      r(t("吊儿郎当，手机不离手，一有人提钱就变脸。", "Slouching, phone always in hand; your face changes whenever money comes up."), t("「我爸的酒？我才不稀罕喝那玩意儿。」", "“Dad's wine? I wouldn't even want to drink that stuff.”")),
+      r(t("很专业，不停地提醒大家别刺激老爷，自己却最紧张。", "Very professional, constantly warning everyone not to upset the old man, while being the most nervous person there."), t("「大家小声点，他的心脏可经不起这么折腾。」", "“Everyone keep it down. His heart can't take this kind of excitement.”")),
+    ],
+  },
+  "family-heirloom-receipt": {
+    beats: [
+      t("有人把花瓶翻过来，发现底下粘着一张昨天的退货小票。", "Someone turns the vase over and finds yesterday's return receipt stuck to the bottom."),
+      t("每个人说说这周自己碰过花瓶没有、拿它干过什么。", "Everyone says whether they touched the vase this week, and what for."),
+      t("反转以后，大家争着描述真花瓶的裂纹，越说越对不上。", "After the twist, everyone competes to describe the real crack, and none of the stories match."),
+      t("最后每人说一句话，在长辈来之前统一口径，或者甩锅。", "To finish, one line each to get your story straight before the elder arrives, or to pass the blame."),
+    ],
+    roles: [
+      r(t("一直拿袖子擦花瓶，谁靠近就护住。", "Keep polishing the vase with your sleeve, and shield it from anyone who comes near."), t("「这花瓶我锁了二十年，谁都没碰过！」", "“I've kept this vase locked up for twenty years. Nobody's touched it!”")),
+      r(t("举着相机拿照片跟花瓶比来比去，越比越皱眉。", "Holding up your camera to compare the photos with the vase, frowning more each time."), t("「我昨天刚拍的特写，你们看……怎么不太一样？」", "“I took close-ups yesterday. Look… hang on, that's not quite right.”")),
+      r(t("说话像鉴宝节目，什么都报个价，被问细节就打岔。", "Talk like an antiques-show expert, put a price on everything, change the subject if pressed for details."), t("「这釉色，这包浆，起码值这个数。」", "“This glaze, this patina… we're looking at five figures, easy.”")),
+      r(t("很勤快，一直在收拾东西，一提包装盒就心虚。", "Very busy, always tidying something; go shifty whenever the box comes up."), t("「搬家的时候我可小心了，每个箱子都是我亲手搬的。」", "“I was super careful during the move. I carried every box myself.”")),
+    ],
+  },
+  "family-ex-seating": {
+    beats: [
+      t("有人举着座位表进来：前任俩被排在了点着心形蜡烛的双人桌。", "Someone storms in waving the seating chart: the two exes are at a tiny table with heart-shaped candles."),
+      t("三个人互相质问，每个人都说座位表不是自己改的。", "The three organizers grill each other; each swears they didn't change the chart."),
+      t("反转以后，大家赶紧想办法再加两个座位。", "After the twist, everyone scrambles to find two more seats."),
+      t("最后每人说一句话，提出自己的座位方案。", "To finish, everyone pitches their own seating plan in one line."),
+    ],
+    roles: [
+      r(t("乐呵呵的，什么问题都说「吃顿饭就好了」，一数座位就慌。", "Cheerful, convinced dinner fixes everything; panic whenever anyone counts the seats."), t("「哎呀，大家坐下来吃一顿，什么都好说嘛！」", "“Oh, come on, once everyone's eating, it'll all work out!”")),
+      r(t("抱着座位表不放，嘴上说早放下了，手机却捂得紧紧的。", "Clutching the seating chart, saying it's all in the past, while hiding your phone screen."), t("「那都是多少年前的事了，我早就不记得了。」", "“That was years ago. I barely even remember it.”")),
+      r(t("一直摆弄蜡烛，说什么都是餐厅送的，眼睛不敢看人。", "Fiddling with the candles, insisting the restaurant threw them in, avoiding eye contact."), t("「蜡烛是餐厅送的！我就是顺手摆一下。」", "“The candles came free with the booking! I just put them out.”")),
+    ],
+  },
+  "love-rainy-umbrella": {
+    beats: [
+      t("雨伞一抖，四张票掉在地上，两个朋友正好出现在门口。", "The umbrella shakes open, four tickets fall out, and two friends appear at the door."),
+      t("每个人解释自己为什么会在这里，票又是怎么回事。", "Everyone explains why they're here and what's going on with the tickets."),
+      t("反转以后，大家发现空位多出一堆，开始抢着邀请别人。", "After the twist, everyone realizes there are seats to spare and starts inviting people."),
+      t("最后每人说一句话，说说今晚原本的打算。", "To finish, one line each about what you really had planned tonight."),
+    ],
+    roles: [
+      r(t("很想保持浪漫，可一直把票藏在手心里。", "Desperate to keep it romantic, hiding the tickets in your palm."), t("「今晚就我们两个人，我保证！」", "“Tonight is just the two of us, I promise!”")),
+      r(t("很深情，可总忍不住低头看自己的手心。", "Deeply sincere, but you keep glancing down at your palm."), t("「我有一些话，想在今晚……呃……对你说。」", "“There's something I've been wanting to tell you tonight… um…”")),
+      r(t("甩着雨伞装路过，手老是缩在袖子里。", "Shaking off an umbrella like you just happened by, hands tucked up your sleeves."), t("「好巧啊！我就是进来躲个雨。」", "“What a coincidence! I'm just ducking in out of the rain.”")),
+      r(t("嘴上说最讨厌凑热闹，背包却鼓鼓的，逮着人就想聊。", "Claim to hate crowds, but your backpack is stuffed and you keep trying to start a conversation."), t("「我本来没打算来的，真的。」", "“I wasn't even going to come, honestly.”")),
+    ],
+  },
+  "love-key-under-pot": {
+    beats: [
+      t("有人挪花盆时发现底下有一把写着「老地方」的钥匙，三个人都愣住了。", "Someone moves the plant pot and finds a key tagged “our usual place”. All three freeze."),
+      t("每个人猜这把钥匙是谁的，旧账一笔一笔翻出来。", "Everyone guesses whose key it is, and old history starts coming out."),
+      t("反转以后，大家开始吵这笔仓储费该谁出。", "After the twist, everyone argues over who should pay the storage bill."),
+      t("最后每人说一句话：自己是不是真的放下了。", "To finish, one line each: are you really over it?"),
+    ],
+    roles: [
+      r(t("很努力地装作不在乎，一直说「我早就翻篇了」。", "Trying very hard to look like you don't care; keep saying “I've moved on.”"), t("「我们早就结束了，这把钥匙跟我没关系。」", "“We're done. That key has nothing to do with me.”")),
+      r(t("抱着箱子说马上就走，脚却一步都没动。", "Holding a box, saying you're leaving any second, not moving an inch."), t("「东西还完我就走，真的，就五分钟。」", "“I'll just drop this off and go. Five minutes, tops.”")),
+      r(t("对每个抽屉都熟门熟路，谁问话都先笑一笑。", "Know every drawer by heart; smile before answering anything."), t("「这个柜子？我知道，这里面以前放的是……没什么。」", "“This cabinet? Oh, that used to hold… never mind.”")),
+    ],
+  },
+  "office-remote-beach": {
+    beats: [
+      t("视频会议一开始，海浪声一阵一阵传出来，背景全变成了海边度假屋。", "The video call starts, waves keep crashing through someone's mic, and every background is a beach house."),
+      t("每个人都说自己的网络和设备没问题，互相要求打开摄像头。", "Everyone insists their setup is fine and demands that the others turn their cameras on."),
+      t("反转以后，客户突然进来了，大家赶紧装专业。", "After the twist, the client is suddenly there and everyone scrambles to look professional."),
+      t("最后每人说一句话，向客户汇报今天的进度。", "To finish, everyone gives the client a one-line project update."),
+    ],
+    roles: [
+      r(t("坐得笔直，从来不站起来，一直催大家开摄像头。", "Sitting bolt upright, never standing, constantly telling everyone to turn their cameras on."), t("「所有人把摄像头打开，客户马上就到！」", "“Cameras on, everyone! The client joins in one minute!”")),
+      r(t("一直在换背景，嘴上说马上就好，手忙脚乱。", "Constantly switching backgrounds, saying it's almost fixed, all thumbs."), t("「模板我来改，大家别动背景！」", "“I'll fix the template. Nobody touch your background!”")),
+      r(t("说话断断续续，假装网卡，一听到「嘀」声就紧张。", "Talk in choppy bursts, pretend your connection is bad, flinch at every beep."), t("「喂？喂？我这边信号不太好……」", "“Hello? Hello? You're breaking up on my end…”")),
+      r(t("满嘴专业名词，什么都说「十秒就好」，十秒过了还在说。", "Full of tech jargon, everything takes “ten seconds”, and you're still talking long after."), t("「小问题，我重启一下路由器，十秒就好。」", "“Easy fix. I'll just reboot the router. Ten seconds.”")),
+    ],
+  },
+  "office-secret-reference": {
+    beats: [
+      t("两个人在打印机旁看到那封推荐信已经发进了全员群。", "The two of them watch the reference letter land in the company chat, right there by the printer."),
+      t("互相质问：是不是你想把我送走？", "Each accuses the other of trying to push them out."),
+      t("反转以后，两个人一起商量怎么回老板的消息。", "After the twist, the two have to work out together how to answer the boss."),
+      t("最后每人说一句话：自己到底想不想走。", "To finish, one line each: do you actually want to leave?"),
+    ],
+    roles: [
+      r(t("又委屈又生气，把手机举到对方面前，一提简历就转移话题。", "Hurt and angry, shoving your phone at the other person; change the subject whenever résumés come up."), t("「『适合更广阔的平台』？你什么意思？」", "“‘Ready for opportunities elsewhere’? What's that supposed to mean?”")),
+      r(t("很镇定，笑里藏刀，一直挡在打印机前面。", "Calm, smiling through gritted teeth, always standing in front of the printer."), t("「换工作是个人选择，我可从来不管别人的事。」", "“Career moves are personal. I never get involved in other people's business.”")),
+    ],
+  },
+  "crime-library-last-page": {
+    beats: [
+      t("主持人翻到最后，发现最后一页被撕掉了。", "The host turns to the end and finds the last page torn out."),
+      t("每个人说说自己读到了哪里，怎么证明没看过结局。", "Everyone says how far they got and proves they never read the ending."),
+      t("反转以后，大家开始给这本书编自己的结局。", "After the twist, everyone starts inventing their own ending for the book."),
+      t("最后每人说一句话，宣布谁是真正的凶手：书里的，或者这屋里的。", "To finish, everyone names the real culprit: the one in the book, or the one in this room."),
+    ],
+    roles: [
+      r(t("一本正经地主持，问题都很笼统，被追问细节就偷看封底。", "Very formal, asking vague questions; when pressed for details, sneak a look at the back cover."), t("「我们按章节来，第一章大家有什么感想？」", "“Let's go chapter by chapter. Thoughts on chapter one?”")),
+      r(t("抱着书不让人碰，一直提醒大家别折书脊。", "Hugging the book, warning everyone not to bend the spine."), t("「小心！这是绝版，书脊不能折！」", "“Careful! It's out of print. Don't you dare crack that spine!”")),
+      r(t("很得意，什么都说「我早猜到了」，手里攥着一块橡皮。", "Smug, say “I called it” about everything, clutching an eraser."), t("「凶手是谁，我第三章就猜到了。」", "“I figured out the killer by chapter three.”")),
+      r(t("热情地发纸杯和书签，一直用东西挡着书的封面。", "Eagerly handing out cups and bookmarks, always covering the book with something."), t("「大家先喝点东西吧！我带了书签，一人一个。」", "“Drinks, everyone! And I brought bookmarks, one each!”")),
+    ],
+  },
+  "crime-chalet-ransom": {
+    beats: [
+      t("有人发现装旅行基金的铁盒不见了，桌上只剩一张纸条。", "Someone notices the trip-fund tin is gone; only a note is left on the table."),
+      t("三个人开始翻旧账：谁欠谁多少钱。", "The three start digging up old debts: who owes whom, and how much."),
+      t("反转以后，大家发现吵的根本不是那个铁盒，开始道歉，或者吵得更凶。", "After the twist, everyone realizes it was never about the tin: apologies follow, or a bigger fight."),
+      t("最后每人说一句话，提出这趟旅行的钱怎么算。", "To finish, everyone proposes how the trip money should be settled."),
+    ],
+    roles: [
+      r(t("拿着小本子，每一笔都要念出来，念到去年就打住。", "Notebook in hand, reading out every entry, stopping suddenly whenever you reach last year."), t("「每一分钱我都记着，我们一笔一笔对。」", "“I've recorded every cent. Let's go through it line by line.”")),
+      r(t("举着手机给大家看转账记录，手指一直挡着金额。", "Waving your phone to show the transfer, thumb covering the amount."), t("「我早就转账了，你们看，有记录的！」", "“I paid already! Look, it's right here!”")),
+      r(t("很大方地说别计较，一提订房价格就看窗外。", "Generous, telling everyone not to sweat the small stuff; stare out the window whenever the booking price comes up."), t("「这房子是我好不容易抢到的，大家就别计较了。」", "“I fought hard to get this place, so let's not nickel-and-dime it.”")),
+    ],
+  },
+  "palace-exam-blank-scroll": {
+    beats: [
+      t("三份答卷在朝堂上展开，全是白纸，满殿哗然。", "The three papers are unrolled before the court. All blank. Gasps."),
+      t("每个人说说自己什么时候经手过答卷，当时封条是好的吗。", "Each says when they handled the papers and whether the seals were intact."),
+      t("反转以后，三个人只好对着白纸讲治国之道。", "After the twist, all three must explain the blank pages' grand vision for the empire."),
+      t("最后每人说一句话，向皇上表明自己的清白。", "To finish, everyone declares their innocence to the emperor."),
+    ],
+    roles: [
+      r(t("捋着胡子，说话很有学问，一被问评语就打太极。", "Stroking an imaginary beard, very learned, dodging every question about the feedback."), t("「臣阅卷三十年，好文章一眼便知。」", "“In thirty years of marking, I've always known genius at a glance.”")),
+      r(t("说话小心翼翼，一直强调墨色，眼睛老往卷堆里瞟。", "Very cautious, going on about shades of ink, eyes drifting to the pile of scrolls."), t("「每一卷的墨色，臣都记得清清楚楚。」", "“I remember the ink on every paper, Your Majesty. Every shade.”")),
+      r(t("站得笔直，说话简短，一提封条就紧张地咽口水。", "At attention, short answers, gulping nervously whenever the seals come up."), t("「卑职一路寸步不离，封条完好无损！」", "“I never left the scrolls, Your Majesty! Every seal was perfect!”")),
+    ],
+  },
+  "palace-cold-palace-menu": {
+    beats: [
+      t("有人举着告示进来：冷宫成了养生别院，预约簿已经满了。", "Someone comes in waving the notice: the cold palace is a wellness retreat, and the booking list is full."),
+      t("三个人互相盘问：告示是谁贴的，名单在谁手里。", "The three grill each other: who posted it, and who has the list?"),
+      t("反转以后，大家得赶紧准备今晚的养生讲座。", "After the twist, everyone has to throw together tonight's wellness lecture."),
+      t("最后每人说一句话，给太后推荐一个养生项目。", "To finish, everyone pitches the dowager one wellness activity."),
+    ],
+    roles: [
+      r(t("抱着名册，说话利落，谁要看账簿就挡住。", "Clutching the register, brisk and efficient, blocking anyone who wants to see the ledger."), t("「各院名册都在我这儿，冷宫从来没人住过。」", "“Every residence is in my register. Nobody has ever stayed in the cold palace.”")),
+      r(t("很忙的样子，说每间房都有用处，身上有股糕点味。", "Act very busy, insist every room has a purpose; you smell faintly of cake."), t("「冷宫的房间？都有用处，都有用处！」", "“The cold palace rooms? They're all in use! All of them!”")),
+      r(t("拿着清单挨个数房间，数到某一间就支支吾吾。", "Counting rooms off a list, faltering every time you reach one particular room."), t("「奉旨清点，一间一间来，谁也别想糊弄我。」", "“By royal order, we count every room. Nobody fools me.”")),
+    ],
+  },
+  "show-cooking-score": {
+    beats: [
+      t("主持人宣布最高分：一杯白开水，全场愣住。", "The host announces the top score: a glass of tap water. Stunned silence."),
+      t("每个人说说评分表在自己手里时做了什么。", "Everyone explains what they did with the scoring sheet."),
+      t("反转以后，大家得现场重做这杯白开水，还要讲出门道。", "After the twist, the team has to remake the water live and explain the technique."),
+      t("最后每人说一句话，替这杯水，或者替自己辩护。", "To finish, everyone defends the water, or themselves, in one line."),
+    ],
+    roles: [
+      r(t("吸着鼻子，说话很权威，下判断前先偷看别人的表情。", "Sniffling, very authoritative; sneak a look at everyone's face before you decide anything."), t("「我的舌头从来不会错。这杯水，有层次。」", "“My palate is never wrong. This water has layers.”")),
+      r(t("护着盖碗不让人掀，一直找机会往碗里加东西。", "Guarding your covered dish, looking for any chance to slip something into it."), t("「我的菜要最后揭晓，谁也不准掀盖子！」", "“My dish is revealed last. Nobody lifts that lid!”")),
+      r(t("手里换着三支笔，一边说话一边偷偷算数。", "Switching between three pens, doing sums under your breath while you talk."), t("「分数我算了三遍，绝对没错……再算一遍。」", "“I've checked the scores three times. Definitely right… let me check again.”")),
+      r(t("每个盘子放在哪如数家珍，一提奖杯就打岔。", "Know where every plate goes; change the subject whenever the trophy comes up."), t("「每个盘子放哪儿我都清楚，绝对没放错。」", "“I know where every single plate goes. Nothing's out of place.”")),
+    ],
+  },
+  "show-secret-sponsor": {
+    beats: [
+      t("直播一结束，大家看到回放结尾那句赞助广告，全愣了。", "The stream ends, and everyone sees the sponsorship line at the end of the replay."),
+      t("三个人互相追问：广告是谁加的，钱进了谁的账户。", "The three demand answers: who added the ad, and whose account is the money going to?"),
+      t("反转以后，大家开始担心这对会不会复合。", "After the twist, everyone starts worrying the couple might get back together."),
+      t("最后每人说一句话，对着镜头发一条新声明。", "To finish, everyone gives the camera a new one-line statement."),
+    ],
+    roles: [
+      r(t("努力保持体面，说话又慢又伤感，一翻小抄就露馅。", "Trying to stay dignified, slow and mournful; every time you check your notes, it slips."), t("「我只想安安静静地告别，为什么要加广告？」", "“I just wanted a dignified goodbye. Why is there an ad?”")),
+      r(t("一直强调真实，说话像在开会，一提倒计时就清嗓子。", "Always stressing authenticity, talking like it's a meeting; clear your throat whenever the countdown comes up."), t("「我们的内容一向百分之百真实。」", "“Our content has always been one hundred percent authentic.”")),
+      r(t("很护着主角，手机一直扣着，偶尔偷看一眼。", "Fiercely protective of your friend, phone face-down, sneaking the odd glance."), t("「我是来陪你的，不是来蹭热度的！」", "“I'm here for you, not for the views!”")),
+    ],
+  },
+  "family-lipstick-collar": {
+    beats: [
+      t("董事长切蛋糕时，大家看到领口上的口红印，全场安静。", "As the chairman cuts the cake, everyone spots the lipstick on his collar. Silence."),
+      t("三个人各说各的：今晚谁离董事长最近。", "The three each explain who was closest to the chairman tonight."),
+      t("反转以后，大家盯着那支口红，开始比色号。", "After the twist, everyone stares at the lipstick and starts comparing shades."),
+      t("最后每人说一句话，向夫人证明自己的清白。", "To finish, everyone convinces the wife of their innocence in one line."),
+    ],
+    roles: [
+      r(t("很干练，什么行程都记得，一提口红就抿嘴。", "Polished and efficient, remember every appointment; press your lips together whenever lipstick comes up."), t("「董事长今天的每一分钟，我都安排得清清楚楚。」", "“I scheduled every minute of the chairman's day. Every minute.”")),
+      r(t("精神十足，动不动就秀肌肉，眼睛却一直在观察每个人。", "Full of energy, flexing at every opportunity, but quietly watching everyone."), t("「董事长最近瘦了十斤，全是我的功劳！」", "“The chairman's down ten pounds, and that's all me!”")),
+      r(t("很热情，一直拍董事长的肩膀，说话有点太激动。", "Very warm, clapping the chairman on the shoulder, a bit too excited."), t("「老同学！我们多少年没见了，今天真高兴！」", "“My old friend! How many years has it been? What a night!”")),
+    ],
+  },
+  "office-boardroom-earring": {
+    beats: [
+      t("老板举着耳环和便利贴走进来，要大家说清楚昨晚谁在会议室。", "The boss walks in holding the earring and the sticky note, demanding to know who was in the boardroom last night."),
+      t("每个人说说昨晚几点走的，进没进过会议室。", "Everyone says what time they left last night and whether they went into the boardroom."),
+      t("反转以后，大家开始比谁唱歌跑调。", "After the twist, everyone starts testing who sings off key."),
+      t("最后每人说一句话，建议老板怎么处理，或者为什么该放过。", "To finish, everyone tells the boss how to handle it, or why to let it go."),
+    ],
+    roles: [
+      r(t("什么八卦都知道，说话前先左右看看，一提会议室就打哈欠。", "Know every rumour, glance around before speaking, yawn whenever the boardroom comes up."), t("「我跟你们说，昨晚我好像看到……算了，不说了。」", "“Okay, so last night I think I saw… no, forget it.”")),
+      r(t("戴着耳机，回答很短，一看到便利贴上的字就紧张。", "Headphones on, short answers; tense the moment you see the handwriting on the note."), t("「我昨晚一直在写代码，到十二点，有提交记录的。」", "“I was coding till midnight. It's all in the commit history.”")),
+      r(t("很会说话，一直摸自己的耳朵，一提视频就转移话题。", "Smooth talker, keep touching your ears, change the subject whenever video calls come up."), t("「耳洞是我周末打的，跟这只耳环一点关系都没有。」", "“I got my ears pierced at the weekend. That earring has nothing to do with me.”")),
+    ],
+  },
+  "show-final-night-texts": {
+    beats: [
+      t("编导把两条一模一样的短信摆出来，问是谁发的。", "The director lays out the two identical texts and asks who sent them."),
+      t("每个人说说今晚手机在谁手上，自己心里喜欢的是谁。", "Everyone says who had their phone tonight, and who they really like."),
+      t("反转以后，两位收到短信的嘉宾进来当面对质。", "After the twist, the two contestants who got the texts walk in to confront everyone."),
+      t("最后每人说一句话，宣布明天的选择。", "To finish, everyone announces tomorrow's choice in one line."),
+    ],
+    roles: [
+      r(t("很会撩人，说话甜甜的，一被问短信就看向别处。", "Flirty and charming, sweet voice; look away whenever the texts come up."), t("「我这个人很专一的，大家都知道。」", "“Everyone knows I'm a one-person kind of person.”")),
+      r(t("很紧张，一直喝水，说话前先清嗓子，三句话不离奶茶。", "Nervous, gulping water, clearing your throat before every line, somehow always mentioning bubble tea."), t("「我、我是来找真爱的……顺便也欢迎来我店里喝奶茶。」", "“I'm, um, here to find true love… and also, come try my bubble tea.”")),
+      r(t("抱着一筐手机，说话像在指挥现场，一提投票就咳嗽。", "Holding a basket of everyone's phones, talking like you're running the set; cough whenever voting comes up."), t("「所有人的手机都在我这儿，谁也别想抵赖。」", "“I've got everyone's phones right here. Nobody's getting out of this.”")),
+    ],
+  },
+  "office-recalled-message": {
+    beats: [
+      t("有人把那条撤回消息的通知截图投到大屏幕上，大家都看见了。", "Someone puts a screenshot of the notification up on the big screen. Everyone's seen it."),
+      t("每个人说说那两分钟自己在干什么，手机在哪里。", "Everyone says what they were doing during those two minutes and where their phone was."),
+      t("反转以后，大家开始想办法躲开周五上台剪头发。", "After the twist, everyone tries to get out of cutting the boss's hair on Friday."),
+      t("最后每人说一句话，夸一夸老板的发型。", "To finish, everyone compliments the boss's hair in one line."),
+    ],
+    roles: [
+      r(t("说话很有权威，一直说能查到记录，手机屏幕总是扣着。", "Speak with authority, keep saying you can pull the records, phone always face-down."), t("「群里的每一条消息，我都能查到。」", "“I can see every message in that chat. Every single one.”")),
+      r(t("很随和，一只手一直按着桌上的文件夹，一提画画就笑。", "Easygoing, one hand pressed flat on a folder; laugh whenever drawing comes up."), t("「我就是爱画点小漫画，跟那条消息可没关系。」", "“I just like doodling. That's got nothing to do with the message.”")),
+      r(t("打字飞快，说话也快，一提开会就开始翻手机。", "Typing fast, talking fast; start scrolling your phone whenever the meeting comes up."), t("「我一上午都在跟客户聊，哪有空发这种东西？」", "“I've been messaging clients all morning. Who has time for that?”")),
+    ],
+  },
+  "crime-halloween-ballot-box": {
+    beats: [
+      t("主人把票箱倒出来：票比人还多，一半写着那只南瓜狗。", "The host empties the ballot box: more votes than guests, half of them for the pumpkin dog."),
+      t("每个人说说今晚有没有碰过票箱，顺便显摆自己的装扮。", "Everyone says whether they touched the box tonight, while showing off their costume."),
+      t("反转以后，大家突然都不想赢了，开始抢着给别人拉票。", "After the twist, suddenly nobody wants to win, and everyone campaigns for someone else."),
+      t("最后每人说一句话，提名今晚的最佳装扮。", "To finish, everyone nominates the night's best costume."),
+    ],
+    roles: [
+      r(t("甩着披风，说话阴森森的，一有人提衣柜就把披风裹紧。", "Swishing your cape, speaking in a spooky voice; wrap the cape tighter whenever closets come up."), t("「我的装扮这么完美，还用得着作弊？」", "“With a costume this perfect, why would I need to cheat?”")),
+      r(t("说话含含糊糊，一直整理绷带，看到别人的装扮就躲。", "Mumbling through the bandages, constantly adjusting them, ducking whenever another costume walks by."), t("「（含糊地）我一直站在角落里，什么都没干。」", "“(muffled) I've been standing in the corner all night. Didn't do anything.”")),
+      r(t("一直守着糖果碗，说话尖声尖气，谁伸手拿糖就拦住。", "Guarding the candy bowl, cackling, blocking anyone who reaches for the candy."), t("「嘿嘿嘿，谁要吃糖？……等等，先别吃。」", "“Heh heh heh, who wants candy? …Actually, wait. Not yet.”")),
+    ],
+  },
+  "family-mahjong-red-dragon": {
+    beats: [
+      t("姨妈去洗手间了，三个人围着牌桌找那张红中。", "Auntie's gone to the bathroom; the three search the mahjong table for the red dragon."),
+      t("每个人说说刚才摸过哪些牌，互相检查袖子。", "Everyone says which tiles they just handled, and they check each other's sleeves."),
+      t("反转以后，大家明白真的那张还没找到，开始互相盯着。", "After the twist, everyone realizes the real tile is still missing and starts watching each other."),
+      t("最后每人说一句话，向姨妈保证自己是清白的。", "To finish, everyone swears their innocence to Auntie."),
+    ],
+    roles: [
+      r(t("一直唉声叹气，抱怨今晚手气差，眼睛老往别人的牌上瞟。", "Sighing nonstop about your bad luck, eyes always drifting to other people's tiles."), t("「我今晚输得最多，我藏它干什么？」", "“I've lost the most tonight. Why would I hide it?”")),
+      r(t("装作什么都不懂，说话很乖，一提钱就打岔。", "Playing clueless and sweet; change the subject whenever money comes up."), t("「我连红中是哪张都不太认识……」", "“I don't even know which one the red dragon is…”")),
+      r(t("很客气，一直说自己是来凑数的，一提饺子就两眼放光。", "Very polite, say you're only here to make up the numbers; your eyes light up at the word dumplings."), t("「我就是来凑一桌的，输赢都无所谓。」", "“I'm just here to make up the table. Win or lose, who cares?”")),
+    ],
+  },
+  "show-ktv-perfect-score": {
+    beats: [
+      t("打分机给最跑调的那首打了一百分，大家面面相觑。", "The scoring machine gives the most off-key song a hundred. Everyone stares at each other."),
+      t("每个人说说今晚碰没碰过打分机，再唱两句证明实力。", "Everyone says whether they touched the machine tonight, and sings a couple of lines to prove themselves."),
+      t("反转以后，谁都不想拿一百分了，开始互相推。", "After the twist, nobody wants the perfect score anymore, and everyone pushes it onto someone else."),
+      t("最后每人唱一句，跑调也行，再说一句结束。", "To finish, everyone sings one line, off key is fine, and says one last word."),
+    ],
+    roles: [
+      r(t("抱着话筒不放，说话也像在唱，一被要求清唱就找借口。", "Never let go of the mic, even your talking sounds like singing; find an excuse whenever asked to sing unaccompanied."), t("「这一百分是我的实力，不服来比！」", "“That hundred is pure talent. Want to go head to head?”")),
+      r(t("跟谁都很熟，一直招呼大家吃果盘，一提生日就打哈哈。", "Friends with everyone, pushing the fruit platters, laughing it off whenever birthdays come up."), t("「来来来，吃水果！这都是店里送的。」", "“Come on, have some fruit! It was on the house.”")),
+      r(t("一直说自己不会唱，偷偷跟着哼，哼得还挺准。", "Insist you can't sing, then hum along quietly, and it's actually pretty good."), t("「我五音不全，我就坐着听。」", "“I'm tone-deaf. I'll just sit here and listen.”")),
+    ],
+  },
+  "love-secret-santa-letter": {
+    beats: [
+      t("有人拆礼物时掉出一封情书，主人捡起来要当众念。", "A love letter falls out of a gift, and the host picks it up to read aloud."),
+      t("每个人说说自己送了什么礼物，又是怎么抽到对象的。", "Everyone says what gift they gave and how they drew their person."),
+      t("反转以后，全场尴尬，大家开始互相怀疑。", "After the twist, the room goes awkward and everyone suspects everyone."),
+      t("最后每人说一句话，对这屋里最喜欢的人说点什么。", "To finish, everyone says one thing to their favourite person in the room."),
+    ],
+    roles: [
+      r(t("很热情地张罗，一提抽签就紧张地笑。", "Busy and enthusiastic, laughing nervously whenever the draw comes up."), t("「抽签绝对公平，我闭着眼睛抽的！」", "“The draw was totally fair. I picked with my eyes closed!”")),
+      r(t("一进门就道歉，一直解释礼物是精心准备的。", "Apologizing from the moment you walk in, insisting your gift was carefully chosen."), t("「对不起来晚了！礼物我挑了好久的。」", "“Sorry I'm late! I spent ages picking this out.”")),
+      r(t("很温柔，说话轻轻的，一看到围巾就脸红。", "Gentle and soft-spoken; blush whenever anyone holds up a scarf."), t("「礼物嘛，心意最重要。」", "“It's the thought that counts, really.”")),
+    ],
+  },
+  "office-hot-pot-both-spicy": {
+    beats: [
+      t("有人尝了一口清汤，辣得跳起来：鸳鸯锅两边全红了。", "Someone tastes the mild side and leaps up coughing: both halves of the pot are red."),
+      t("每个人说说刚才谁动过锅，自己在干什么。", "Everyone says who touched the pot and what they were doing."),
+      t("反转以后，大家发现客户特别能吃辣，开始抢着表现。", "After the twist, the client turns out to love spice, and everyone scrambles to impress."),
+      t("最后每人说一句话，给客户敬一杯。", "To finish, everyone raises a glass to the client in one line."),
+    ],
+    roles: [
+      r(t("急得团团转，一会儿看表一会儿看锅，一提生日就慌。", "Running in circles, checking your watch, then the pot; panic whenever birthdays come up."), t("「客户十分钟就到！谁把清汤弄辣的？」", "“The client's here in ten minutes! Who ruined the mild side?”")),
+      r(t("很乖，一直帮大家倒水，肚子吃得圆滚滚的。", "Very helpful, pouring everyone water, stomach noticeably full."), t("「菜是我点的，可是锅底我真的没碰！」", "“I ordered the food, but I swear I didn't touch the broth!”")),
+      r(t("一直举着手机拍锅底，手里攥着一双筷子不放。", "Filming the pot nonstop, a pair of chopsticks clutched in your hand."), t("「我就拍了几张照片，这红油颜色多好看啊。」", "“I just took a few photos. Look at the color on that chili oil.”")),
+      r(t("嘴特别甜，什么都说「正宗」，被问店里的事就答不上来。", "Silver-tongued, everything is “authentic”; you can't answer a single question about the restaurant."), t("「这家店我常来，绝对正宗！……洗手间在哪？」", "“I come here all the time, it's the real deal! …Where's the restroom again?”")),
+    ],
+  },
+  "crime-night-market-recipe": {
+    beats: [
+      t("摊主一回来就发现秘方卡不见了，把四个人都拦下。", "The owner comes back, finds the recipe card gone, and stops all four from leaving."),
+      t("每个人说说最忙那一小时自己在摊位干了什么。", "Everyone says what they were doing at the stall during the rush."),
+      t("反转以后，大家开始抢着做鱼蛋，争取奶奶的认可。", "After the twist, everyone rushes to make fishballs and win Grandma's approval."),
+      t("最后每人说一句话，夸一夸，或者贬一贬这家的鱼蛋。", "To finish, everyone praises, or knocks, the fishballs in one line."),
+    ],
+    roles: [
+      r(t("一直说这家鱼蛋被吹过头了，嘴角却沾着咖喱。", "Keep saying these fishballs are overrated, with curry sauce on your lip."), t("「他家的鱼蛋？一般般啦，我家的才好吃。」", "“Their fishballs? Meh. Mine are better.”")),
+      r(t("举着手机对着每个人拍，说话像在录视频。", "Phone pointed at everyone, talking like you're recording."), t("「家人们！秘方失踪了！今天的视频有料了！」", "“Hey guys! The secret recipe is gone! Today's video is going to be wild!”")),
+      r(t("一边招呼客人一边偷吃，被看见就假装在试味道。", "Serving customers while sneaking bites; when caught, pretend you're taste-testing."), t("「我一直在忙着出餐，根本没空碰抽屉！」", "“I was slammed with orders the whole time! I didn't go near the drawers!”")),
+      r(t("跟摊主一家很亲，一直在夸，手里拎着一袋礼物。", "Close to the family, gushing nonstop, holding a bag of gifts."), t("「我天天来，这家就跟我自己家一样。」", "“I'm here every night. This place is like family to me.”")),
+    ],
+  },
+  "palace-silent-firecrackers": {
+    beats: [
+      t("一串又一串鞭炮点不响，有人拆开一看，全是纸卷。", "String after string fizzles. Someone unrolls one: just paper."),
+      t("每个人说说这批鞭炮在自己手里时发生了什么。", "Everyone explains what happened while the firecrackers were in their hands."),
+      t("反转以后，大家开始抢着认功劳，或者推给别人。", "After the twist, everyone rushes to take the credit, or pin it on someone else."),
+      t("最后每人说一句话，给皇上拜一个安静的年。", "To finish, everyone wishes the emperor a very quiet New Year."),
+    ],
+    roles: [
+      r(t("很讲究礼数，说话文绉绉，一提采买单就擦汗。", "Obsessed with protocol, flowery speech, mopping your brow whenever the order form comes up."), t("「今夜的仪式，臣准备了整整三个月。」", "“I spent three whole months preparing tonight's ceremony.”")),
+      r(t("手上还沾着面粉，一直说饺子，一提火药就转移话题。", "Flour still on your hands, always talking about dumplings; change the subject whenever gunpowder comes up."), t("「奴才一晚上都在包饺子，你们看这手！」", "“I've been folding dumplings all night! Look at my hands!”")),
+      r(t("站得笔直，说话简短，一提站岗就打哈欠。", "At attention, short answers; yawn whenever guard duty comes up."), t("「库房钥匙一直在末将身上，谁也进不去！」", "“The storeroom key never left me. Nobody got in!”")),
+      r(t("神神叨叨，掐指一算，一副早就知道的样子。", "Mystical and cryptic, counting on your fingers, acting like you saw it all coming."), t("「臣早就算到，今年是个安静的年。」", "“I foresaw this. The stars said it would be a quiet year.”")),
+    ],
+  },
+  "love-ktv-dedication": {
+    beats: [
+      t("点歌屏上滚出那条留言，三个人愣在原地。", "The dedication scrolls across the screen and the three of them freeze."),
+      t("每个人说说今晚点了什么歌，把手机给大家看。", "Everyone says what songs they requested tonight and shows their phone."),
+      t("反转以后，大家开始担心这首歌真被唱出来。", "After the twist, everyone panics about the song actually being sung."),
+      t("最后每人说一句话，把一首歌献给一个人。", "To finish, everyone dedicates a song to someone in one line."),
+    ],
+    roles: [
+      r(t("很会张罗，一直催大家唱歌，一提前任就清嗓子。", "The organizer, pushing everyone to sing; clear your throat whenever exes come up."), t("「谁点的？今晚可是寿星的生日局！」", "“Who sent that? It's the birthday night!”")),
+      r(t("一直对着手机傻笑，被叫到名字才抬头。", "Grinning at your phone, only looking up when someone says your name."), t("「啊？什么留言？我刚才在回消息。」", "“Huh? What dedication? I was just replying to a message.”")),
+      r(t("很客气，跟谁都不熟，一看到服务员就低头。", "Very polite, barely know anyone; duck your head whenever staff walk by."), t("「我第一次来，谁都不认识，跟我没关系吧？」", "“It's my first time with you guys. That can't be about me, right?”")),
+    ],
+  },
+  "family-envelope-old-flame": {
+    beats: [
+      t("收礼金的人打开那个特别厚的红包，念出上面那行字。", "The gift-box keeper opens the extra-thick envelope and reads the note aloud."),
+      t("每个人说说今晚有没有看到谁往礼金箱里放红包。", "Everyone says whether they saw anyone drop an envelope in the box."),
+      t("反转以后，新娘读到了那行字，大家赶紧打圆场。", "After the twist, the bride reads the note, and everyone scrambles to cover."),
+      t("最后每人说一句话，给新人送上祝福。", "To finish, everyone gives the couple a one-line toast."),
+    ],
+    roles: [
+      r(t("抱着礼金箱不放，说话很严肃，一提零钱就看表。", "Hugging the gift box, very serious; check your watch whenever loose change comes up."), t("「这个红包……厚得有点不正常。」", "“This envelope is… suspiciously thick.”")),
+      r(t("一直举着相机，说话时镜头总往某一位客人那边飘。", "Camera always up; while you talk, the lens keeps drifting to one guest."), t("「今晚每一个瞬间我都拍下来了，谁放的红包，照片里都有。」", "“I caught every moment tonight. Whoever left that envelope, it's in my photos.”")),
+      r(t("手里攥着一张餐巾纸，嘴里念念有词，一被叫到就慌。", "Clutching a napkin, muttering to yourself; panic whenever someone calls your name."), t("「我、我等会儿还要上台致辞呢……稿子……没问题。」", "“I'm, um, giving a speech later… the speech is… totally fine.”")),
+    ],
+  },
+  "office-secret-santa-mugs": {
+    beats: [
+      t("老板拿着情侣杯笑着走开了，三个人看着桌上的包装纸。", "The boss walks off laughing with the mugs; the three stare at the wrapping paper."),
+      t("每个人说说这份礼物经过了谁的手。", "Everyone works out whose hands the gift passed through."),
+      t("反转以后，老板的爱人拿着杯子来问，大家赶紧打圆场。", "After the twist, the boss's spouse comes asking about the mugs, and everyone scrambles to explain."),
+      t("最后每人说一句话，解释这份礼物的「真正意思」。", "To finish, everyone explains what the gift “really” meant."),
+    ],
+    roles: [
+      r(t("很能干，礼物全是自己买的，包一直抱在怀里。", "Very capable, bought everything yourself, bag clutched to your chest."), t("「所有礼物都是我包的，但卡片可不是我写的！」", "“I wrapped every gift, but I didn't write the tags!”")),
+      r(t("很拘谨，一直看手机上的时间，一提面试就紧张。", "Stiff and nervous, checking the time on your phone; tense whenever interviews come up."), t("「我才来两周，谁都不熟，真的不是我。」", "“I've only been here two weeks. I don't know anyone. It wasn't me.”")),
+      r(t("什么都见过，说话慢悠悠的，一看到卡片就皱着眉回忆。", "Seen it all, speak slowly; frown trying to remember whenever you look at the tag."), t("「在公司十年，这种事我见多了……这字怎么有点眼熟？」", "“Ten years here, I've seen it all… why does this handwriting look familiar?”")),
+    ],
+  },
+  "show-couple-account-single": {
+    beats: [
+      t("后台三个人看到那条动态，赶紧冲到电脑前。", "The three backstage see the post and rush to the computer."),
+      t("每个人说说今天谁登录过账号，密码在哪。", "Everyone says who logged into the account today and where the password is."),
+      t("反转以后，大家看到第一条私信，全愣住了。", "After the twist, everyone sees the first DM and freezes."),
+      t("最后每人说一句话，给粉丝写一条澄清声明。", "To finish, everyone drafts a one-line statement for the fans."),
+    ],
+    roles: [
+      r(t("很强势，一直说只有自己有密码，一提合同就打岔。", "Domineering, insist only you have the password; change the subject whenever contracts come up."), t("「账号密码只有我知道，一定是被盗了！」", "“I'm the only one with the password. We've been hacked!”")),
+      r(t("抱着手机不放，说什么都是「备份」，眼神飘忽。", "Clutching your phone, everything is “just a backup”, eyes darting."), t("「素材都在我手机里，可是账号我从来不碰。」", "“All the footage is on my phone, but I never touch the account.”")),
+      r(t("大大咧咧，一直把手背到身后，说自己什么密码都记不住。", "Breezy and scatterbrained, keep your hands behind your back, swear you can't remember any password."), t("「密码？我连自己的密码都记不住！」", "“The password? I can't even remember my own!”")),
+    ],
+  },
+  "palace-portrait-mole": {
+    beats: [
+      t("掌事姑姑打开画像，发现最美的那位脸上多了一颗大黑痣。", "The head maid unrolls the portraits and finds a big black mole on the favourite's face."),
+      t("每个人说说昨晚有没有进过放画像的屋子。", "Everyone says whether they went into the portrait room last night."),
+      t("反转以后，大家得连夜给每张画像都点上痣。", "After the twist, everyone has to paint a mole on every portrait overnight."),
+      t("最后每人说一句话，夸夸自己画像上那颗痣。", "To finish, everyone praises the mole on their own portrait."),
+    ],
+    roles: [
+      r(t("很优雅，笑得很甜，一提画像好不好看就摸自己的脸。", "Graceful, sweet smile; touch your own face whenever anyone mentions how the portraits look."), t("「姐姐的画像怎么会这样？真是太可惜了。」", "“Oh, her portrait? What a terrible shame.”")),
+      r(t("举着画笔比划，很爱面子，一提眼睛就紧张。", "Gesturing with your brush, very proud; tense whenever eyes come up."), t("「每一张画像都是我的心血，谁敢动我的画？」", "“Every portrait is my life's work. Who dares touch my paintings?”")),
+      r(t("板着脸，说话很有威严，一直摸着腰间的钥匙。", "Stern face, commanding voice, always fingering the keys at your waist."), t("「画像一直锁在我这儿，钥匙只有我有。」", "“The portraits were locked away with me. I hold the only key.”")),
+    ],
+  },
   /* ---------------------------------------------------------------- monologues */
   "solo-best-man-speech": {
     beats: [
