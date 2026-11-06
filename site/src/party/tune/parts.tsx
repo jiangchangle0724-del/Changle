@@ -5,9 +5,11 @@ import { clipOf, TUNES, type Tune } from "../../data/tunes";
 import { gsap, reduced } from "../../lib/anim";
 import { playMelody, type TuneHandle } from "../../lib/music";
 import { loadPreview, playElement, playPreview, type PreviewHandle } from "../../lib/preview";
+import { curveAt, type BeatMap } from "../../lib/beats";
 import { isSfxEnabled } from "../../lib/sfx";
-import { CATS, DEFAULT_POOL, parsePool, poolOf, SOURCES, type CatKey, type SongPool, type SourceKey } from "../../shared/songs";
+import { CATS, DEFAULT_HOOK_MS, DEFAULT_POOL, HOOK_MAX_MS, parsePool, poolOf, SNAP_SECONDS, SOURCES, type CatKey, type SongPool, type SourceKey } from "../../shared/songs";
 import { useStore } from "../../store";
+import { perfAt } from "../sensors";
 
 /** A tune by its place in the list, or the notes themselves (online, the server sends only the notes). */
 type Playable = number | Tune;
@@ -142,7 +144,7 @@ export function useSongAudio(url: string | null): SongAudio {
 }
 
 /** Start a loaded preview at `offset` seconds, now or at a moment on the performance clock. */
-export function startSong(a: SongAudio, opts: { startPerf?: number; offset?: number; seconds?: number; fadeIn?: number }): PreviewHandle | null {
+export function startSong(a: SongAudio, opts: { startPerf?: number; offset?: number; seconds?: number; fadeIn?: number; fadeOut?: number }): PreviewHandle | null {
   if (!isSfxEnabled()) return null;
   if (a.buf) return playPreview(a.buf, opts);
   if (a.status === "failed" && a.url) {
@@ -150,6 +152,106 @@ export function startSong(a: SongAudio, opts: { startPerf?: number; offset?: num
     return playElement(a.url, { offset: opts.offset, delayMs, seconds: opts.seconds });
   }
   return null;
+}
+
+/* ---------- one second (一秒猜歌) ---------- */
+
+/**
+ * Where the one-second snippets start in a preview, in ms: the first beat after the opening second
+ * where the singing is strong (a voice is what people know a song by), within the first 15 seconds.
+ * No beat map (the song couldn't be analysed): just past Apple's fade-in.
+ */
+export function hookOf(map: BeatMap | null, duration: number): number {
+  const latest = Math.min(15, duration - 5);
+  if (!map || !map.voice.length || !map.beats.length || latest <= 1) return DEFAULT_HOOK_MS;
+  const singing = (t: number) => {
+    let sum = 0;
+    let n = 0;
+    for (let x = t; x < t + 1; x += map.frame) {
+      sum += curveAt(map.voice, map.frame, x);
+      n++;
+    }
+    return n ? sum / n : 0;
+  };
+  // (from a second in: Apple's previews fade in)
+  const beats = Array.from(map.beats).filter((b) => b >= 1 && b <= latest);
+  if (!beats.length) return DEFAULT_HOOK_MS;
+  const scores = beats.map(singing);
+  const best = Math.max(...scores);
+  // hardly any voice (an instrumental): the first beat; otherwise the first one sung out
+  const i = best < 0.2 ? 0 : scores.findIndex((x) => x >= best * 0.75);
+  return Math.min(HOOK_MAX_MS, Math.round(beats[Math.max(0, i)] * 100) * 10);
+}
+
+/** When each snippet of a one-second round plays, on the server's clock: the first two are short,
+ *  the last plays on to the end of the round. */
+export function snippetSpans(stageAt: number[], endsAt: number): [number, number][] {
+  return stageAt.map((at, i) => [at, i < SNAP_SECONDS.length ? at + SNAP_SECONDS[i] * 1000 : Math.max(at, endsAt)]);
+}
+
+/**
+ * Play a one-second round's snippets at their moments on the server's clock, every one from the
+ * song's hook. A phone that loads late, or a round picking up after a buzz, joins a snippet mid-way.
+ */
+export function playSnippets(a: SongAudio, stageAt: number[], endsAt: number, hookMs: number, serverNow: number): (PreviewHandle | null)[] {
+  const hook = hookMs / 1000;
+  return snippetSpans(stageAt, endsAt).map(([from, to]) => {
+    const len = (to - from) / 1000;
+    const lead = from - serverNow;
+    if (lead > 0) return startSong(a, { startPerf: perfAt(from, serverNow), offset: hook, seconds: len, fadeIn: 0.03, fadeOut: 0.12 });
+    const done = -lead / 1000;
+    if (done < len - 0.15) return startSong(a, { offset: hook + done, seconds: len - done, fadeIn: 0.05, fadeOut: 0.12 });
+    return null;
+  });
+}
+
+/** Whether a one-second round's snippet is playing now (the stage dances, the record spins). */
+export function useSnippetOn(on: boolean, stageAt: number[], endsAt: number, now: () => number): boolean {
+  const [inside, setInside] = useState(false);
+  const key = stageAt.join(",");
+  useEffect(() => {
+    if (!on) {
+      setInside(false);
+      return;
+    }
+    const spans = snippetSpans(stageAt, endsAt);
+    const tick = () => {
+      const t = now();
+      setInside(spans.some(([a, b]) => t >= a && t < b));
+    };
+    tick();
+    const id = window.setInterval(tick, 100);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on, key, endsAt]);
+  return inside;
+}
+
+/** How a real song plays: the whole preview, or one second first (一秒猜歌) and more if nobody gets it. */
+export function SnapPicker({ snap, onPick, disabled }: { snap: boolean; onPick: (snap: boolean) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="tn-level">
+      <div className="seg seg-sm" role="group" aria-label={zh ? "怎么放" : "How it plays"}>
+        <button type="button" aria-pressed={!snap} disabled={disabled} onClick={() => onPick(false)}>
+          {zh ? "整段放" : "Whole clip"}
+        </button>
+        <button type="button" aria-pressed={snap} disabled={disabled} onClick={() => onPick(true)}>
+          {zh ? "一秒猜歌" : "One second"}
+        </button>
+      </div>
+      <p className="tn-pool-hint">
+        {snap
+          ? zh
+            ? "先放一秒，猜不出再放三秒，再不行一直放：3 分、2 分、1 分"
+            : "One second first, then three, then the rest: 3, 2, 1 points"
+          : zh
+            ? "30 秒试听一直放，越早喊出来分越高"
+            : "The 30-second preview plays on. The sooner, the more points."}
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -222,6 +324,37 @@ export function AnswerPicker({ quiz, onPick, disabled }: { quiz: boolean; onPick
   );
 }
 
+/**
+ * How hard the four titles are (real songs): each with its singer, or titles only, the wrong ones by
+ * the same singer as far as there are any.
+ */
+export function LevelPicker({ hard, onPick, disabled }: { hard: boolean; onPick: (hard: boolean) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="tn-level">
+      <div className="seg seg-sm" role="group" aria-label={zh ? "选项的难度" : "How hard the titles are"}>
+        <button type="button" aria-pressed={!hard} disabled={disabled} onClick={() => onPick(false)}>
+          {zh ? "简单" : "Easy"}
+        </button>
+        <button type="button" aria-pressed={hard} disabled={disabled} onClick={() => onPick(true)}>
+          {zh ? "难" : "Hard"}
+        </button>
+      </div>
+      <p className="tn-pool-hint">
+        {hard
+          ? zh
+            ? "选项只写歌名，错的尽量是同一个歌手的歌"
+            : "Titles only. The wrong ones are by the same singer where possible."
+          : zh
+            ? "选项写着歌手名"
+            : "Each title shows its singer"}
+      </p>
+    </div>
+  );
+}
+
+/** One of the four titles; `a` and `ae` empty on the hard level (no singer shown). */
 export type QuizChoice = { id: number; t: string; a: string; ae: string };
 
 /** A classic tune as a choice: its title in this phone's language, the other one underneath. A tune
@@ -234,20 +367,25 @@ export function tuneChoice(o: number, zh: boolean): QuizChoice {
 /**
  * Four titles for everyone. Before the reveal a tap is the player's pick (one only); at the reveal
  * the right one lights up and a wrong pick is marked.
+ *
+ * One phone for the whole table (`tried`): the table guesses until it gets it, so a wrong title is
+ * marked and locked, and the others can still be tapped.
  */
-export function QuizChoices({ choices, mine, answer, onPick, disabled }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean }) {
+export function QuizChoices({ choices, mine, answer, onPick, disabled, tried = [] }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean; tried?: number[] }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const done = answer !== null;
   return (
     <div className="tn-quiz" role="group" aria-label={zh ? "四个歌名" : "Four titles"}>
       {choices.map((c) => {
-        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", done && mine === c.id && c.id !== answer ? "is-wrong" : ""].join(" ");
+        const missed = tried.includes(c.id) && c.id !== answer;
+        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", missed || (done && mine === c.id && c.id !== answer) ? "is-wrong" : ""].join(" ");
         return (
-          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
+          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null || missed} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
             <strong>{c.t}</strong>
-            <small>{zh ? c.a : c.ae}</small>
+            {(zh ? c.a : c.ae) && <small>{zh ? c.a : c.ae}</small>}
             {mine === c.id && !done && <span className="tn-pick">{zh ? "你的答案" : "Your pick"}</span>}
+            {missed && !done && <span className="tn-pick tn-pick-miss">{zh ? "不是这首" : "Not this one"}</span>}
           </button>
         );
       })}

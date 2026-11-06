@@ -25,7 +25,7 @@ import { DARES, promptText } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
-import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
+import { CAT_BIT, decoysFor, fromRow, inPool, moodOf, pickSong, singersOf } from "../src/shared/songs";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
@@ -1561,6 +1561,107 @@ test("tune: pools by language and category, and the quiz where everyone answers"
   ok(t.view<V<"tune">>("p0").round === 2 && Object.keys(s.answers).length === 0, "next song: fresh answers");
   t.advance(2600 + 20_000);
   ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").right.length === 0, "nobody answered in time: the reveal, nobody scores");
+});
+
+test("tune: hard titles: no singers on them, and the wrong ones by the same singer", () => {
+  // (these two tune tests put the shared dice and clock back as they found them: the tests after them
+  // see the same rolls as before they were written)
+  const seedWas = seed, clockWas = clock;
+  type Row = { id: number; t: string; a: string; l: number };
+  const all = SONG_ROWS.map(fromRow);
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const sameSinger = (a: string, b: string) => singersOf(a).some((n) => singersOf(b).includes(n));
+  ok(singersOf("周杰伦 & 五月天 阿信").join("|") === "周杰伦|五月天 阿信" && singersOf("JENNIE (from BLACKPINK)").join() === "jennie" && singersOf("Ed Sheeran feat. Travis Scott").join("|") === "ed sheeran|travis scott", "who sings a song: one name each");
+  ok(singersOf("Coldplay X BTS").join("|") === "coldplay|bts" && singersOf(`梅艳芳${String.fromCharCode(0x2028)}`).join() === "梅艳芳", "collaborations split, invisible characters dropped");
+  const sunny = all.find((x) => x.t === "晴天" && x.a === "周杰伦")!;
+  const easy = decoysFor(sunny, all, rand);
+  const hard = decoysFor(sunny, all, rand, true);
+  ok(easy.length === 3 && easy.every((x) => !sameSinger(x.a, sunny.a)) && new Set(easy.map((x) => x.a)).size === 3, "easy: three other singers");
+  ok(hard.length === 3 && hard.every((x) => sameSinger(x.a, sunny.a) && x.l === sunny.l) && new Set(hard.map((x) => norm(x.t))).size === 3, "hard: three more of 周杰伦's own songs, all different titles");
+  // a singer with just one or two other songs: those, and the rest from other singers
+  const few = all.find((x) => {
+    const own = new Set(all.filter((y) => y.l === x.l && y.id !== x.id && sameSinger(y.a, x.a) && norm(y.t) !== norm(x.t)).map((y) => norm(y.t)));
+    return own.size === 1;
+  })!;
+  const mixed = decoysFor(few, all, rand, true);
+  ok(mixed.length === 3 && mixed.filter((x) => sameSinger(x.a, few.a)).length === 1, "a singer with one other song: that one, then two by others");
+
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "hard", { on: true });
+  ok(!t.view<V<"tune">>("p0").hard, "only the host makes it hard");
+  t.g("p0", "pool", { pool: "zh:any" });
+  t.g("p0", "quiz", { on: true });
+  t.g("p0", "hard", { on: true });
+  ok(t.view<V<"tune">>("p1").hard, "the host makes it hard: every phone knows");
+  t.g("p0", "go");
+  const s = t.eng.d.game!.s as { song: Row; choices: Row[] };
+  const v = t.view<V<"tune">>("p1");
+  ok(v.choices?.length === 4 && v.choices.every((c) => c.a === "" && c.ae === ""), "titles only: no singer on any of the four");
+  const avail = new Set(all.filter((x) => x.l === s.song.l && x.id !== s.song.id && sameSinger(x.a, s.song.a) && norm(x.t) !== norm(s.song.t)).map((x) => norm(x.t))).size;
+  const own = s.choices.filter((c) => c.id !== s.song.id && sameSinger(c.a, s.song.a)).length;
+  ok(own === Math.min(3, avail), `the wrong ones by the same singer as far as there are any (${own} of ${Math.min(3, avail)})`);
+  t.advance(2600 + 20_000);
+  ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").song?.a === s.song.a, "the reveal still says who sings it");
+  seed = seedWas;
+  clock = clockWas;
+});
+
+test("tune: one second: snippets from the spot the host's phone found, 3 2 1 points, a buzz pauses a snippet", () => {
+  const seedWas = seed, clockWas = clock;
+  type S = { song: { id: number }; stageAt: number[]; choices: { id: number }[] };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "snap", { on: true });
+  ok(!t.view<V<"tune">>("p0").snap, "only the host turns it on");
+  t.g("p0", "snap", { on: true });
+  t.g("p0", "total", { n: 5 });
+  let v = t.view<V<"tune">>("p1");
+  ok(v.phase === "ready" && !!v.pre && v.audio === null, "one second: the first song is picked already, so every phone loads it during the setup");
+  t.g("p0", "hook", { p: v.pre, at: 3300 });
+  t.g("p0", "go");
+  let s = t.eng.d.game!.s as S;
+  v = t.view<V<"tune">>("p1");
+  ok(v.snap && v.hook === 3300, "the first song starts from the spot the host's phone found during the setup");
+  t.g("p0", "hook", { p: v.audio, at: 1000 });
+  ok(v.stageAt[1] - v.stageAt[0] === 6000 && v.stageAt[2] - v.stageAt[0] === 13_000 && v.endsAt - v.stageAt[0] === 25_000, "one second, three seconds at 6 s, the rest from 13 s; 25 s in all");
+  t.g("p1", "hook", { p: v.audio, at: 4200 });
+  ok(t.view<V<"tune">>("p0").hook === 1000, "only the host's phone says where the snippets start (and it can still change its mind before the song starts)");
+  t.g("p0", "hook", { p: v.audio, at: 4200 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "the host's phone says where, before the song starts: every phone plays from there");
+  t.g("p0", "hook", { p: v.audio, at: 99_999 });
+  t.g("p0", "hook", { p: "https://audio-ssl.itunes.apple.com/itunes-assets/x.m4a", at: 3000 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "a spot past the preview, or for a song that isn't up, is turned away");
+  t.g("p0", "hook", { p: v.pre, at: 2500 });
+  t.advance(2600);
+  t.g("p0", "hook", { p: v.audio, at: 8000 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "once the song has started, its spot stays put");
+  t.g("p1", "buzz");
+  ok(t.view<V<"tune">>("p0").phase === "answer", "a buzz after the first second");
+  t.g("p1", "answer", { choice: s.song.id });
+  v = t.view<V<"tune">>("p0");
+  ok(v.phase === "reveal" && v.scores.p1 === 3 && v.revealPos === 4200, "3 points in the first stage, and the reveal plays from the spot");
+  t.advance(10_000);
+  s = t.eng.d.game!.s as S;
+  v = t.view<V<"tune">>("p0");
+  ok(v.round === 2 && v.hook === 2500, "the next song: the spot the host's phone found while the last one played");
+  t.advance(2600 + 6500);
+  const before = s.stageAt.slice();
+  t.g("p2", "buzz");
+  t.advance(4000);
+  t.g("p2", "answer", { choice: s.choices.find((c) => c.id !== s.song.id)!.id });
+  const after = (t.eng.d.game!.s as S).stageAt;
+  ok(after[0] === before[0] && after[1] - before[1] === 4000 && after[2] - before[2] === 4000, "a wrong answer: the snippet that was playing carries on, the next one moves on by the pause");
+  t.g("p1", "buzz");
+  t.g("p1", "answer", { choice: s.song.id });
+  ok(t.view<V<"tune">>("p0").scores.p1 === 5, "right in the three-second stage: 2 more points");
+  t.g("p0", "snap", { on: false });
+  t.advance(10_000);
+  v = t.view<V<"tune">>("p0");
+  ok(!v.snap && v.hook === 0 && v.stageAt[1] - v.stageAt[0] === 8000, "turned off between songs: the next one plays whole");
+  seed = seedWas;
+  clock = clockWas;
 });
 
 test("tune: a pool of several languages and categories", () => {
