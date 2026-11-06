@@ -17,8 +17,12 @@
   - `engine.ts` `createGame`、`reduce`、`privateView`、`publicView`、`phoneHolder`、`leaderboard`、裁判提问模板
   - `scoring.ts` 计分和罚则，揭晓页两组文案（揭晓老实人之前 `preLines`，之后 `lines`）
   - `cards.ts` 卡片校验器 `validateDeck`、提示器 `lintDeck`、选卡 `pickCard`
-- 词库：`site/src/data/straightface.ts`（111 张，八个包：生僻字 14、方言 16、成语典故 16、菜名来历 18、trivia 12、vancouver 14、food 10、slang 11）
-- 单机画面：`site/src/party/straightface/`（`StraightFace.tsx` 流程、`parts.tsx` 组件、`text.ts` 文案、`straightface.css`）
+- 词库：`site/src/data/straightface.ts`（251 张，17 个包，`PACK_AUDIENCE` 标明给哪桌）
+  - 中文局 9 个：生僻字 14、方言 16、成语典故 16、菜名来历 18、歇后语 14、中药名 14、地名由来 14、老物件 14、网络热词 20
+  - 英文局 5 个：Odd words 14、Idiom origins 14、Phobias 14、Canadian place names 14、Online slang 19
+  - 都能玩 3 个：冷知识 12、温村 14、吃喝 10
+- 单机画面：`site/src/party/straightface/`（`StraightFace.tsx` 流程、`parts.tsx` 组件、`text.ts` 文案、`straightface.css`、`sounds.ts` 音效、`art.ts` 图片）
+- 图片：`site/src/party/straightface/art/`（17 个词包图标、三个角色、背景；来历和提示词在 `art/README.md`）
 - 首页卡片：`site/src/games/registry.ts` 里 id 是 `straightface` 的那一项（共用文件，只改这一项）
 - 游戏卡片的联机按钮：`site/src/home/GameSheet.tsx`（2026-11-05 加了一个条件：不在 `ONLINE_GAMES` 里的游戏不显示「每人用自己的手机」，现在只影响一本正经）
 - 路由：`site/src/router.ts`（2026-11-04 改了一行：藏着的游戏 `/play` 地址能打开，别的地址不是页面）
@@ -56,17 +60,22 @@
 - 名字查过（2026-11-05）：加拿大商标库 CIPO 里没有 IN ALL SERIOUSNESS（按商标名和相似查询都是 0 条）；BGG、Steam、App Store 也没有同名游戏，只有一期桌游播客用过这个标题。
 - 不能联机的游戏，卡片上不显示联机按钮（以前每个上首页的游戏都能联机，一本正经是第一个只能单机的）。
 - 释义只取来源页的事实、自己造句，不抄维基原句，所以词库不被 CC BY-SA 传染（`LICENSES.md`）。
+- 词包按桌分（2026-11-05，Steve 选的）：中文局加了歇后语、中药名、地名由来、老物件、网络热词；英文局加了 Odd words、Idiom origins、Phobias、Canadian place names、Online slang。原来的「网络词」拆成两个：中文的叫网络热词，英文的叫 Online slang。开局默认选本桌语言的包加「都能玩」，主持人可以改，分组的标题能一键全选或全不选。
+- 英文包的卡：两边都写英文原词，释义照样中英文都有。歇后语的卡面只写前半句，释义给后半句和谐音。中药只写传统用法，不写剂量、不说能治病；地名只讲语言和历史，不碰政治；原住民地名照来源写意思。
+- 图片用 ChatGPT 生（Steve 的账号，对话「Generate game icons image」），提示词只写要画的东西。三个角色（裁判、老实人、瞎编的人）只放在大家都能看的画面：开局介绍、裁判的画面、揭晓，偷看身份的时候不放，图比字显眼，会漏身份。以后加新词包要先补一张图标，在同一个对话里接着生，风格才一样。
+- 声音全用网站自己合成的音效（`lib/sfx`），不用录音、不用授权：发牌、亮词、传手机、轮到谁讲、贴疑点、押注、指认前的鼓点、揭晓时裁判对了是掌声、被骗了是长号、加分、骗子挑人、终局欢呼。
+- 卡面上很长的英文词自动缩小字号、按音节断行，不在词中间乱断。
 
 ## 现在
 
-2026-11-05 上线（PR #213）：四个中文词包、上首页、英文名改成 In All Seriousness、首页截图重拍。线上中英文各跑完一整局，名字查过商标库。A1、A2 在 2026-11-04 合并（PR #171）。引擎 22 组测试全过，一台手机中英文各跑完一局 4 人局。
+2026-11-05 上线（PR #213）：四个中文词包、上首页、英文名改成 In All Seriousness、首页截图重拍。线上中英文各跑完一整局，名字查过商标库。同一天下午：十个新词包（中英各五）、图片、音效，在分支 `game/straight-face-more-packs`。A1、A2 在 2026-11-04 合并（PR #171）。引擎 22 组测试全过，一台手机中英文各跑完一局 4 人局。
 
 ## 还剩什么
 
 - 验收门 A 的真机局：Steve 用 iPhone 跑一局 4 人局（已经上线，跑完有问题再修）。
 - A3 联机：`site/src/shared/engine/games/straightface.ts` 包一层 `GameDef` 调用同一个引擎（`view(s, pid)` 就是 `privateView`），`protocol.ts` 加 id 和 view 类型，`site/src/online/games/` 加 `NetStraightFace.tsx`，电视页只收 `publicView`。加进 `ONLINE_GAMES` 以后，游戏卡片上的联机按钮自己就会出现。
 - A4：词库入 D1、见过的卡（联机取全桌并集）、每张卡的裁判命中率、「这卡有问题」。
-- C1 扩库到 300（Codex）、C2 组件替换 A2 的占位（Codex）、C4 测试补全（Codex），卡在 `docs/codex-tasks/straightface/`。
+- C1 扩库到 300（Codex，现在 251）、C2 组件替换 A2 的占位（Codex）、C4 测试补全（Codex），卡在 `docs/codex-tasks/straightface/`。吃喝包只有 10 张，最该补。
 
 ## 交给别的对话
 
@@ -75,6 +84,7 @@
 
 ## 最近的改动
 
+- 2026-11-05 一本正经：十个新词包（140 张，中英各五），词包按桌分组，ChatGPT 生的图标、角色和背景，合成音效
 - 2026-11-05 一本正经：四个中文词包（64 张），上首页，卡片不显示联机按钮
 - 2026-11-04 一本正经：引擎、47 张卡、单机全流程（A1、A2），藏着先
 
