@@ -2,7 +2,8 @@
  * 戏精大赏's soundscapes, playing quietly under the actors' voices. Before the curtain: the
  * house filling up, the orchestra tuning. During a scene, the set sounds like itself: rain and
  * thunder at the old mansion, a guzheng in the palace, a dinner table, a love song's piano, an
- * office humming, a studio audience; a duel gets a held breath and a heartbeat.
+ * office humming, a studio audience; a duel gets a held breath and a heartbeat; a famous scene,
+ * the cinema: the projector and a film score.
  *
  * Every event comes from a seed and the moment the scene started, so all the phones at a table
  * (and the big screen) play the same thunder at the same second.
@@ -10,7 +11,7 @@
 import type { DramaKind } from "../../data/drama";
 import { burst, bus, ctxTimeAt, kick, midiHz, note, strike, tone, type Bus } from "../../lib/audio/engine";
 
-export type Scape = DramaKind | "pk" | "foyer";
+export type Scape = DramaKind | "pk" | "foyer" | "classic";
 export type Ambience = { stop: (fade?: number) => void };
 
 type Rand = () => number;
@@ -75,6 +76,13 @@ const drone = (gap: number, notes: number[], peak: number): Layer => ({
 
 const PENTA_D = [62, 64, 66, 69, 71, 74, 76, 78, 81];
 const PENTA_C = [60, 62, 64, 67, 69, 72, 74, 76];
+/** Am, F, C, G: the strings of a film score. */
+const SCORE = [
+  [45, 57, 60, 64],
+  [41, 57, 60, 65],
+  [48, 55, 64, 67],
+  [43, 55, 62, 67],
+];
 /** Cmaj7, Am7, Fmaj7, G7, as a slow ballad would. */
 const BALLAD = [
   [48, 64, 67, 71, 72],
@@ -252,6 +260,30 @@ const SCAPES: Record<Scape, Layer[]> = {
       gap: [5, 10],
       first: 2.5,
       play: (b, at) => [84, 88, 91].forEach((m, i) => note(b, "bell", { ...at, at: at.at + i * 0.08, f: midiHz(m), peak: 0.022 })),
+    },
+  ],
+
+  /** The cinema, for a famous scene: the projector rattling in the booth, and the score swelling now and then. */
+  classic: [
+    bed(2, { type: "bandpass", f: 1500, spread: 300, q: 0.7, peak: 0.016, wet: 0.08 }),
+    {
+      // the film running through the gate
+      gap: [0.085, 0.11],
+      play: (b, at, r) => burst(b, { ...at, dur: 0.002, decay: 0.008, type: "highpass", f: 2600 + r() * 900, q: 1.2, peak: 0.004 + r() * 0.003, wet: 0.05 }),
+    },
+    {
+      gap: [8, 8],
+      first: 1.5,
+      play: (b, at, r, k) => {
+        const [bass, ...chord] = SCORE[k % SCORE.length];
+        note(b, "pad", { ...at, f: midiHz(bass), dur: 8.4, peak: 0.018, wet: 0.6 });
+        chord.forEach((m, i) => note(b, "pad", { ...at, at: at.at + 0.2 * i, f: midiHz(m), dur: 8, peak: 0.011, wet: 0.6 }));
+        // a solo violin above, rising into the chord
+        const top = midiHz(chord[chord.length - 1] + 12);
+        tone(b, { ...at, at: at.at + 1.2, f: top * 0.94, f2: top, glide: 1.4, type: "sawtooth", peak: 0.004 + r() * 0.002, attack: 1.4, decay: 4, wet: 0.7 });
+        // and a timpani on the downbeat, every other chord
+        if (k % 2 === 0) burst(b, { ...at, dur: 1.4, attack: 0.01, type: "lowpass", f: 130, f2: 55, q: 0.9, peak: 0.05, wet: 0.5 });
+      },
     },
   ],
 

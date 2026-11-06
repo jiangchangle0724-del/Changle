@@ -47,7 +47,7 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
     dramaSfx.chimes();
     dramaSfx.deal();
   });
-  const scape: Scape | null = !sound ? null : v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" || v.mode === "classic" ? "pk" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = !sound ? null : v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : v.mode === "classic" ? "classic" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
@@ -130,7 +130,7 @@ function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: b
   const open = v.phase === "act" || reveal;
   return (
     <div className={`tvd-theatre is-${v.phase}`}>
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live={v.phase === "act" || reveal}>
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live={v.phase === "act" || reveal}>
         {reveal && <div className={`dm-spot-culprit ${step >= 1 && show ? "is-on" : ""}`} aria-hidden="true" />}
         <Cast actors={actors} culprit={reveal && step >= 1 && show ? r!.culprit : null} best={reveal && step >= 3 ? r!.best : []} />
         <Curtain open={open} sound={sound} />

@@ -2,6 +2,7 @@ import { DramaAction } from "./ShellActions";
 import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Film, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { GROUPS, KINDS, PK_DEMO, pkSeeUrl, pkStyle, SCENES, type DramaKind, type PkStyle } from "../../data/drama";
+import { DRAWN_ART } from "../../data/dramaArt";
 import { CLASSIC_TIPS, CSET_NAME } from "../../data/dramaClassics";
 import { FIRST_TIME_TIPS, GENERIC_BEATS, roleGuide, sceneGuide } from "../../data/dramaGuide";
 import type { T } from "../../i18n";
@@ -28,14 +29,22 @@ export const isKind = (k: string | undefined): k is DramaKind => !!k && KINDS.so
 /**
  * The set: the scene's backdrop (a family dining room, a palace hall...), slowly drifting while a
  * scene plays, with the cast standing along the front and the curtain in front of it all.
+ *
+ * A scene set in one community's everyday life has a picture of its own (`group-cn`...), and a
+ * famous scene the film set (`classic`), once drawn (`DRAWN_ART`); until then, or if one won't
+ * load, the scene's kind, then the empty stage.
  */
-export function Backdrop({ kind, pk, live, children, tall }: { kind?: string; pk?: boolean; live?: boolean; children?: ReactNode; tall?: boolean }) {
-  const [ok, setOk] = useState(true);
-  const src = art(pk ? "pk" : isKind(kind) ? `kind-${kind}` : "stage");
-  useEffect(() => setOk(true), [src]);
+export function Backdrop({ kind, pk, classic, group, live, children, tall }: { kind?: string; pk?: boolean; classic?: boolean; group?: string; live?: boolean; children?: ReactNode; tall?: boolean }) {
+  const names = (pk ? ["pk"] : classic ? ["classic", "stage"] : [`group-${group}`, ...(isKind(kind) ? [`kind-${kind}`] : []), "stage"]).filter(
+    (n) => !(n === "classic" || n.startsWith("group-")) || DRAWN_ART.has(n),
+  );
+  const key = names.join("|");
+  const [tries, setTries] = useState(0);
+  useEffect(() => setTries(0), [key]);
+  const src = tries < names.length ? art(names[tries]) : null;
   return (
-    <div className={`dm-backdrop ${live ? "is-live" : ""} ${tall ? "is-tall" : ""}`} data-kind={pk ? "pk" : kind ?? "stage"}>
-      {ok && <img className="dm-backdrop-img" src={src} alt="" draggable={false} onError={() => setOk(false)} />}
+    <div className={`dm-backdrop ${live ? "is-live" : ""} ${tall ? "is-tall" : ""}`} data-kind={pk ? "pk" : classic ? "classic" : kind ?? "stage"}>
+      {src && <img className="dm-backdrop-img" src={src} alt="" draggable={false} onError={() => setTries((n) => n + 1)} />}
       <div className="dm-backdrop-light" aria-hidden="true" />
       <div className="dm-backdrop-shade" aria-hidden="true" />
       {children}
@@ -777,7 +786,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
   return (
     <div className="dm-reveal">
       <canvas className="dm-confetti" ref={canvas} aria-hidden="true" />
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} live>
+      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live>
         <div className={`dm-spot-culprit ${step >= 1 && v.mode === "show" && !options ? "is-on" : ""}`} aria-hidden="true" />
         <Cast actors={actors} culprit={step >= 1 && v.mode === "show" && !options ? r.culprit : null} best={step >= 3 ? r.best : []} />
       </Backdrop>
