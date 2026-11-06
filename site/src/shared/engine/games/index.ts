@@ -13,6 +13,7 @@ import { postit } from "./postit";
 import { prompts } from "./prompts";
 import { punchline } from "./punchline";
 import { rogue } from "./rogue";
+import { straightface } from "./straightface";
 import { superlatives } from "./superlatives";
 import { truth } from "./truth";
 import { trip } from "./trip";
@@ -22,4 +23,4 @@ import { undercover } from "./undercover";
 import { wheel } from "./wheel";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const GAMES: Record<GameId, GameDef<any>> = { truth, drama, rogue, trip, superlatives, king, postit, limbo, prompts, euchre, dice, freeze, wheel, undercover, tune, punchline, draw, dj, hide, lastcard };
+export const GAMES: Record<GameId, GameDef<any>> = { truth, drama, rogue, trip, superlatives, king, postit, limbo, prompts, euchre, dice, freeze, wheel, undercover, tune, punchline, draw, dj, hide, lastcard, straightface };

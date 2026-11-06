@@ -310,8 +310,8 @@ export const GAMES: GameMeta[] = [
     ready: true,
   },
   {
-    // 一本正经: new (2026-11-04), on the board since 2026-11-05. One phone only until the rooms server runs it (A3),
-    // so its card offers no online table (GameSheet shows that button only for ONLINE_GAMES)
+    // 一本正经: new (2026-11-04), on the board since 2026-11-05. One phone passed round, or online with every
+    // phone its own (rules on the rooms server: src/shared/engine/games/straightface.ts)
     id: "straightface",
     slug: "in-all-seriousness",
     name: t("一本正经", "In All Seriousness"),

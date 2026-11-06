@@ -7,6 +7,7 @@ import type { Rank, Suit } from "../data/rogue13";
 import type { Dancer } from "./dj/dance";
 import type { CrateSong, DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
 import type { LcColor, LcPending } from "./lastcard/cards";
+import type { StraightFaceView } from "./straightface/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -32,12 +33,13 @@ export type GameId =
   | "trip"
   | "dj"
   | "hide"
-  | "lastcard";
+  | "lastcard"
+  | "straightface";
 /**
  * Every game, in the same spectrum order as the front door's board. New games that aren't on the
  * board yet go on the end (a table's `front` is an index into this list).
  */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard"];
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
   drama: 3,
@@ -59,6 +61,7 @@ export const ONLINE_MIN: Record<GameId, number> = {
   dj: 1,
   hide: 2,
   lastcard: 2,
+  straightface: 3,
 };
 
 export type PenaltyKind = "sip" | "two" | "full" | "everyone" | "safe";
@@ -764,7 +767,8 @@ export type GameView =
   | LimboView
   | TuneView
   | EuchreView
-  | LastCardView;
+  | LastCardView
+  | StraightFaceView;
 
 export type RoomView = {
   code: string;

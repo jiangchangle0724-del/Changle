@@ -1,0 +1,611 @@
+/*
+ * 一本正经 on the big screen (TvStraightFace.tsx): a late-night word show in the violet gel. A wall
+ * of old dictionaries behind the stage, the round's word on a big index card, a spotlight for
+ * whoever is explaining, the stamp on the honest one. Stage pixels, as in tv-show.css; the card's
+ * paper and ink are named once here.
+ */
+
+.tvsf {
+  --card-hi: #fbf6ea;
+  --card-lo: #efe5cf;
+  --card-ink: #1f1a2e;
+  --card-ink-2: #5a5070;
+  --card-rule: #c9d6ee;
+  --card-margin: #e7a3a3;
+  --spine-a: #2b2546;
+  --spine-b: #3a2f5c;
+  --spine-c: #241f3d;
+}
+
+/* ---------- the set: shelves of dictionaries in the dark ---------- */
+.tvx-room > .tvsf-shelves {
+  inset: 0 0 18% 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 168px, color-mix(in oklab, var(--night) 70%, transparent) 168px 180px),
+    repeating-linear-gradient(90deg, var(--spine-a) 0 34px, var(--spine-b) 34px 58px, var(--spine-c) 58px 70px, var(--spine-b) 70px 112px, var(--spine-a) 112px 130px);
+  -webkit-mask-image: radial-gradient(60% 70% at 50% 30%, black 0%, transparent 85%);
+  mask-image: radial-gradient(60% 70% at 50% 30%, black 0%, transparent 85%);
+  opacity: 0.32;
+}
+
+/* ---------- the word on its index card ---------- */
+.tvsf-card {
+  position: relative;
+  width: 1120px;
+  max-width: 100%;
+  padding: 26px 56px 34px 92px;
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, transparent 66px, var(--card-margin) 66px 69px, transparent 69px),
+    repeating-linear-gradient(180deg, transparent 0 46px, var(--card-rule) 46px 48px),
+    linear-gradient(180deg, var(--card-hi) 0%, var(--card-lo) 100%);
+  color: var(--card-ink);
+  box-shadow:
+    0 30px 70px -26px var(--tvx-ink),
+    0 0 0 3px color-mix(in oklab, var(--gel) 55%, transparent);
+  text-align: center;
+  rotate: -0.8deg;
+  transform-style: preserve-3d;
+}
+.tvsf-card.is-small {
+  width: 940px;
+  padding: 16px 44px 22px 84px;
+}
+.tvsf-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 52px;
+}
+.tvsf-pack {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 20px 4px 4px;
+  border-radius: 999px;
+  background: var(--card-ink);
+  color: var(--card-hi);
+  font-size: 24px;
+  font-weight: 800;
+}
+.tvsf-pack img {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+}
+.tvsf-lead {
+  color: var(--card-ink-2);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+}
+.tvsf-dots {
+  display: inline-flex;
+  gap: 8px;
+}
+.tvsf-dots i {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 3px var(--card-ink-2);
+}
+.tvsf-dots i.is-on {
+  background: var(--gel);
+  box-shadow: inset 0 0 0 3px var(--card-ink);
+}
+.tvsf-word {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: 128px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.tvsf-card.is-long .tvsf-word {
+  font-size: 96px;
+}
+.tvsf-card.is-xlong .tvsf-word {
+  font-size: 70px;
+}
+.tvsf-card.is-small .tvsf-word {
+  font-size: 84px;
+}
+.tvsf-card.is-small.is-long .tvsf-word {
+  font-size: 66px;
+}
+.tvsf-card.is-small.is-xlong .tvsf-word {
+  font-size: 50px;
+}
+.tvsf-reading {
+  margin: 4px 0 0;
+  color: var(--card-ink-2);
+  font-size: 34px;
+  font-weight: 700;
+}
+.tvsf-card.is-small .tvsf-reading {
+  font-size: 28px;
+}
+.tvsf-def {
+  margin: 18px 0 0;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: left;
+}
+/* a long English meaning or fact (up to 160 letters) still fits above the floor */
+.tvsf-def.is-wordy {
+  font-size: 31px;
+}
+
+/* ---------- shared ---------- */
+.tvsf-setup,
+.tvsf-peek,
+.tvsf-order-up,
+.tvsf-accuse {
+  position: absolute;
+  inset: 140px 40px 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.tvsf-sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  max-width: 1400px;
+  margin: 0;
+  color: var(--haze);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
+.tvsf-sub > svg {
+  flex: none;
+  color: var(--gel);
+}
+.tvsf-count {
+  flex: none;
+  padding: 6px 22px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 50%, transparent);
+  color: var(--moon);
+  font-family: var(--font-display);
+  font-size: 32px;
+}
+.tvsf-count b {
+  color: var(--gel);
+  font-size: 42px;
+}
+.tvsf-count small {
+  color: var(--haze);
+  font-family: var(--font-text);
+  font-size: 24px;
+}
+.tvsf-judge-tag,
+.tvsf-nth {
+  display: inline-block;
+  padding: 4px 18px 6px;
+  border-radius: 999px;
+  background: var(--gel);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+}
+
+/* ---------- before the deal: who is who ---------- */
+.tvsf-cast {
+  display: flex;
+  justify-content: center;
+  gap: 70px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvsf-cast li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 340px;
+  text-align: center;
+}
+.tvsf-cast img {
+  width: 210px;
+  height: 210px;
+  border-radius: 40px;
+  filter: drop-shadow(0 18px 30px color-mix(in oklab, var(--gel) 35%, transparent));
+}
+.tvsf-cast .tvx-bi {
+  font-size: 40px;
+}
+.tvsf-cast li > span:last-child {
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* ---------- explaining: the spotlight and the order ---------- */
+.tvsf-talk {
+  position: absolute;
+  inset: 0;
+}
+.tvsf-talk > .tvsf-card {
+  position: absolute;
+  top: 136px;
+  left: 70px;
+  width: 920px;
+}
+.tvsf-spot {
+  --fig-h: 300px;
+  position: absolute;
+  top: 380px;
+  left: 60px;
+  width: 940px;
+  bottom: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.tvsf-spot-fig {
+  display: block;
+  height: var(--fig-h);
+  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gel) 45%, transparent));
+}
+.tvsf-spot-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 54px;
+  font-weight: 800;
+}
+.tvsf-spot-name svg {
+  color: var(--gel);
+}
+.tvsf-spot-what {
+  margin: 0;
+  color: var(--haze);
+  font-size: 28px;
+  font-weight: 700;
+}
+.tvsf-queue {
+  position: absolute;
+  top: 150px;
+  right: 60px;
+  max-height: 610px;
+  width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px 30px;
+  border-radius: 26px;
+  background: color-mix(in oklab, var(--dusk-2) 82%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 30%, transparent);
+}
+.tvsf-queue h2 {
+  margin: 0;
+  color: var(--haze);
+  font-size: 26px;
+  font-weight: 800;
+}
+.tvsf-queue ol {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+.tvsf-queue li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 30px;
+  font-weight: 700;
+  opacity: 0.55;
+}
+.tvsf-queue li.is-now {
+  opacity: 1;
+  color: var(--gel);
+}
+.tvsf-queue li.is-done {
+  opacity: 0.8;
+}
+.tvsf-queue-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tvsf-queue-state {
+  color: var(--haze);
+  font-size: 22px;
+}
+.tvsf-queue-judge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 0 0;
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.tvsf-queue-judge img {
+  flex: none;
+}
+
+/* ---------- the judge decides ---------- */
+.tvsf-judge {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+.tvsf-judge-art {
+  filter: drop-shadow(0 0 26px color-mix(in oklab, var(--gel) 50%, transparent));
+}
+.tvsf-judge-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 800;
+}
+.tvsf-judge-line svg {
+  color: var(--gel);
+}
+
+/* ---------- the reveal ---------- */
+.tvsf-reveal {
+  position: absolute;
+  inset: 136px 60px 130px 40px;
+  display: grid;
+  grid-template-columns: 1fr 520px;
+  gap: 36px;
+}
+.tvsf-reveal-main {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+.tvsf-reveal-main .tvsf-card {
+  width: 100%;
+}
+.tvsf-reveal-main .tvsf-word {
+  font-size: 80px;
+}
+.tvsf-reveal-main .is-long .tvsf-word {
+  font-size: 64px;
+}
+.tvsf-reveal-main .is-xlong .tvsf-word {
+  font-size: 48px;
+}
+.tvsf-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 18px 26px;
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--dusk-2) 85%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 35%, transparent);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.tvsf-fact b {
+  color: var(--gel);
+  font-size: 24px;
+}
+.tvsf-fact.is-wordy {
+  font-size: 25px;
+}
+.tvsf-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.tvsf-honest {
+  --fig-h: 190px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tvsf-honest-fig {
+  display: block;
+  height: var(--fig-h);
+  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gel) 45%, transparent));
+}
+.tvsf-honest-stamp {
+  margin-top: -18px;
+}
+.tvsf-honest .tvx-stamp {
+  font-size: 32px;
+}
+.tvsf-said {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tvsf-pre,
+.tvsf-points {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.tvsf-pre {
+  color: var(--haze);
+}
+.tvsf-points {
+  color: var(--moon);
+}
+.tvsf-deltas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+.tvsf-deltas > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px 4px 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dusk-2) 90%, transparent);
+  font-size: 22px;
+  font-weight: 700;
+}
+.tvsf-deltas .is-up b {
+  color: var(--color-success);
+}
+.tvsf-deltas .is-down b {
+  color: var(--color-danger);
+}
+.tvsf-master {
+  margin: 0;
+  color: var(--gel);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+/* ---------- between rounds ---------- */
+.tvsf-between {
+  position: absolute;
+  inset: 140px 60px 130px 50px;
+  display: grid;
+  grid-template-columns: 1fr 500px;
+  gap: 50px;
+  align-items: center;
+}
+.tvsf-end {
+  position: absolute;
+  inset: 0;
+}
+.tvsf-next {
+  --fig-h: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.tvsf-next-fig {
+  display: block;
+  height: var(--fig-h);
+  filter: drop-shadow(0 0 30px color-mix(in oklab, var(--gel) 45%, transparent));
+}
+.tvsf-next-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* ---------- the end: the podium and the words of the night ---------- */
+.tvsf-podium {
+  position: absolute;
+  left: 40px;
+  width: 960px;
+  bottom: 108px;
+}
+.tvsf-podium .tvx-place {
+  --fig-h: 172px;
+  width: 250px;
+}
+.tvsf-podium .tvx-place[data-rank="1"] {
+  --fig-h: 204px;
+}
+.tvsf-podium .tvx-place[data-rank="1"] .tvx-step {
+  height: 120px;
+}
+.tvsf-podium .tvx-place[data-rank="2"] .tvx-step {
+  height: 88px;
+}
+.tvsf-podium .tvx-place[data-rank="3"] .tvx-step {
+  height: 64px;
+}
+.tvsf-podium .tvx-step b {
+  font-size: 44px;
+}
+.tvsf-learned {
+  position: absolute;
+  top: 150px;
+  right: 60px;
+  width: 500px;
+  max-height: 610px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px 30px;
+  border-radius: 26px;
+  background: color-mix(in oklab, var(--dusk-2) 85%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--gel) 30%, transparent);
+  overflow: hidden;
+}
+.tvsf-learned h2 {
+  margin: 0;
+  color: var(--gel);
+  font-size: 28px;
+  font-weight: 800;
+}
+.tvsf-learned ul {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tvsf-learned li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tvsf-learned b {
+  font-family: var(--font-display);
+  font-size: 28px;
+}
+.tvsf-learned span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--haze);
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvsf-card {
+    rotate: 0deg;
+  }
+}

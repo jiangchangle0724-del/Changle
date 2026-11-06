@@ -6,7 +6,10 @@ import { CARDS, defaultPacks, PACK_AUDIENCE, PACKS } from "../src/data/straightf
 import { lintDeck, pickCard, validateCard, validateDeck } from "../src/shared/straightface/cards";
 import { createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
 import { mulberry32 } from "../src/shared/straightface/rng";
-import type { Card, GameState, Player, RoundState } from "../src/shared/straightface/types";
+import type { Card, GameState, Player, RoundState, StraightFaceView } from "../src/shared/straightface/types";
+import { roundLines } from "../src/shared/straightface/scoring";
+import { freshRoom, RoomEngine } from "../src/shared/engine/room";
+import { ONLINE_GAMES, ONLINE_MIN, type Action, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 
 let failures = 0;
 function ok(cond: unknown, msg: string) {
@@ -197,7 +200,8 @@ test("straightface: honest is dealt with a soft catch-up (the one who never was 
     const judge = g.judgeOrder[3];
     const others = g.players.map((p) => p.id).filter((id) => id !== judge);
     const fresh = others[0];
-    const s: GameState = { ...g, phase: "between", rounds: [fakeRound(0, judge, others[1], null), fakeRound(1, judge, others[2], null), fakeRound(2, judge, others[3], null)] };
+    // three rounds judged in turn, so the fourth judge is judgeOrder[3]; the fresh one was never honest
+    const s: GameState = { ...g, phase: "between", rounds: [fakeRound(0, g.judgeOrder[0], others[1], null), fakeRound(1, g.judgeOrder[1], others[2], null), fakeRound(2, g.judgeOrder[2], others[3], null)] };
     if (reduce(s, { type: "START_ROUND" }, deps).current!.honestId === fresh) hits++;
   }
   const expected = HONEST_CATCHUP_WEIGHT / (HONEST_CATCHUP_WEIGHT + 3);
@@ -476,6 +480,284 @@ test("straightface: the leaderboard breaks ties by who fooled the judge more, th
   ok(board.map((x) => x.id).join() === [a, b, c, d].join(), `order: ${board.map((x) => x.id).join()}`);
   ok(board.map((x) => x.place).join() === "1,2,3,3", `places: ${board.map((x) => x.place).join()}`);
   ok(board[0].fooled === 1, "the tie-break counted");
+});
+
+/* ---------- online: the same engine behind the rooms server (src/shared/engine/games/straightface.ts) ---------- */
+
+let clock = 1_000_000;
+let roomSeed = 11;
+const roomHost = { now: () => clock, rand: () => ((roomSeed = (roomSeed * 16807) % 2147483647) / 2147483647) };
+const NAMES = ["Amy", "Ben", "Cat", "Dan", "Eve", "Fay", "Gus", "Hal", "Ivy", "Jo"];
+
+/** A table of n phones at one room, the first one hosting. */
+function table(n: number) {
+  const eng = new RoomEngine(freshRoom("SFON", clock), roomHost);
+  const ids = Array.from({ length: n }, (_, i) => `p${i}`);
+  ok(eng.hello(ids[0], NAMES[0], true) === null, "the host opens the table");
+  ids.slice(1).forEach((id, i) => ok(eng.hello(id, NAMES[i + 1], false) === null, `${id} sits down`));
+  eng.flush();
+  const events: RoomEvent[] = [];
+  const act = (pid: string, a: Action) => {
+    eng.act(pid, a);
+    const o = eng.flush();
+    events.push(...o.events);
+    return o;
+  };
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => act(pid, { a: "g", g: { x, ...rest } });
+  const view = (pid: string) => eng.view(pid).game as StraightFaceView;
+  const advance = (ms: number) => {
+    clock += ms;
+    eng.due();
+    events.push(...eng.flush().events);
+  };
+  const pens = () => events.filter((e): e is PenaltyEvent => e.k === "penalty");
+  /** who has which part this round, as their own phones say */
+  const parts = () => {
+    const v = view(ids[0]);
+    const judge = v.table?.judgeId ?? "";
+    const inGame = v.players;
+    const honest = inGame.find((id) => view(id).me?.role === "honest") ?? "";
+    return { judge, honest, bluffers: inGame.filter((id) => id !== judge && id !== honest) };
+  };
+  return { eng, ids, act, g, view, advance, events, pens, parts };
+}
+type Table = ReturnType<typeof table>;
+
+function dealOnline(t: Table, packs = ["trivia", "food", "vancouver"]) {
+  t.act(t.ids[0], { a: "start", game: "straightface" });
+  t.g(t.ids[0], "config", { packs });
+  t.g(t.ids[0], "deal");
+}
+function peekAll(t: Table) {
+  for (const id of t.view(t.ids[0]).players) t.g(id, "peeked");
+}
+function speakOnline(t: Table) {
+  const { judge } = t.parts();
+  for (let i = 0; i < 12 && t.view(judge).phase === "explain"; i++) t.g(judge, "next", { at: t.eng.view(judge).game && (t.eng.d.game!.s as { g: GameState }).g.current!.speakerIdx });
+}
+
+const DRINKS = (x: { zh: string; en: string } | undefined) => !!x && (/喝(?!醉)|酒|干杯/.test(x.zh) || /\b(drinks?|drank|drinking|sips?|glass|downs?)\b/i.test(x.en));
+
+test("straightface online: on the board, the host deals, everyone reads their own part at once", () => {
+  ok(ONLINE_GAMES.includes("straightface") && ONLINE_MIN.straightface === 3, "an online game for three or more");
+  const t = table(5);
+  dealOnline(t);
+  const v = t.view("p1");
+  ok(v.phase === "peek" && v.players.length === 5 && !!v.table?.term, `dealt: ${v.phase}`);
+  const { judge, honest, bluffers } = t.parts();
+  ok(!!judge && !!honest && bluffers.length === 3, "one judge, one honest, three bluffers");
+  const card = CARDS.find((c) => c.term.zh === v.table!.term!.zh)!;
+  ok(!!card && ["trivia", "food", "vancouver"].includes(card.pack), `dealt from the packs the host picked (${card?.pack})`);
+  ok(t.view(honest).me?.definition?.en === card.definition.en, "the honest phone has the real meaning straight away (no queue online)");
+  for (const id of [judge, ...bluffers]) ok(!JSON.stringify(t.view(id)).includes(card.definition.en), `${id}'s phone never carries the real meaning`);
+  for (const id of bluffers) ok(t.view(id).me?.role === "bluffer" && (t.view(id).me?.bluffSeeds?.length ?? 0) === 2, `${id} bluffs, with two seeds`);
+  ok(t.view(judge).me?.role === "judge" && t.view(judge).me?.definition === null, "the judge knows only the word");
+  const tv = t.view("tv-somewhere");
+  ok(tv.me === null && tv.table?.reveal === null && tv.facts === null && !JSON.stringify(tv).includes(card.definition.en), "a big screen: the word, nobody's part, nothing of who is honest");
+  ok(!JSON.stringify(t.eng.view("p1")).includes(`"seed"`), "the deal's seed stays on the server");
+  // got it: once all four have, the explanations start; a second tap is nothing
+  const before = t.view(judge).stepAt;
+  clock += 1000;
+  t.g(bluffers[0], "peeked");
+  ok(t.view(judge).table?.peekedCount === 1, "one ready");
+  t.g(bluffers[0], "peeked");
+  ok(t.view(judge).table?.peekedCount === 1, "a second tap counts once");
+  t.g(judge, "peeked");
+  ok(t.view(judge).table?.peekedCount === 1, "the judge has nothing to read");
+  for (const id of [honest, ...bluffers.slice(1)]) t.g(id, "peeked");
+  ok(t.view(judge).phase === "explain" && t.view(judge).stepAt > before, "everyone has read theirs: explaining, a new clock");
+  ok(t.view(honest).me?.definition?.en === card.definition.en, "the honest one can still look at it while explaining");
+});
+
+test("straightface online: the host can start without the slow ones; who may press what", () => {
+  const t = table(4);
+  dealOnline(t);
+  const { judge, honest, bluffers } = t.parts();
+  t.g([judge, honest, ...bluffers].find((id) => id !== "p0")!, "force");
+  ok(t.view(judge).phase === "peek", "only the host forces the start");
+  t.g("p0", "force");
+  ok(t.view(judge).phase === "explain", "the host starts the explanations");
+  ok(t.view(honest).me?.definition !== null, "whoever hadn't pressed got it still has their part");
+  // before the first speaker, the judge (or the host) starts; a speaker can't
+  const sp = () => (t.eng.d.game!.s as { g: GameState }).g.current!.speakerIdx;
+  const order = t.view(judge).table!.speakOrder;
+  const notHostOrJudge = order.find((id) => id !== "p0") ?? order[0];
+  if (notHostOrJudge !== judge && notHostOrJudge !== "p0") {
+    t.g(notHostOrJudge, "next", { at: -1 });
+    ok(sp() === -1, "a speaker can't start the explanations");
+  }
+  t.g(judge, "next", { at: 7 });
+  ok(sp() === -1, "a press for another speaker moves nothing");
+  t.g(judge, "next", { at: -1 });
+  ok(sp() === 0 && t.view(judge).table?.speakerId === order[0], "the judge starts: the first speaker is up");
+  // the one speaking says done, the judge presses next at the same moment: one step
+  t.g(order[0], "next", { at: 0 });
+  t.g(judge, "next", { at: 0 });
+  ok(sp() === 1, `two presses for the same speaker move on once (${sp()})`);
+  // the tag: the judge's, once, on a speaker; nobody else sees it
+  t.g(order[1], "tag", { target: order[0] });
+  ok(t.view(judge).me?.suspectId === null, "only the judge tags");
+  t.g(judge, "tag", { target: order[0] });
+  ok(t.view(judge).me?.suspectId === order[0], "the judge tagged");
+  ok(!JSON.stringify(t.view(order[1])).includes(`"suspectId":"${order[0]}"`) && t.view("tv").me === null, "the tag stays on the judge's phone");
+  t.g(judge, "tag", { target: order[1] });
+  ok(t.view(judge).me?.suspectId === order[0], "one tag a round");
+  ok(bluffers.length === 2, "four players: two bluffers");
+});
+
+test("straightface online: bets at once, the judge's verdict, penalties after the reveal, the master bluffer's pick", () => {
+  const t = table(5);
+  dealOnline(t);
+  peekAll(t);
+  const { judge, honest, bluffers } = t.parts();
+  speakOnline(t);
+  ok(t.view(judge).phase === "bets", `five players: side bets (${t.view(judge).phase})`);
+  t.g(judge, "bet", { target: honest });
+  ok(t.view(judge).table?.betsPlaced === 0, "the judge doesn't bet");
+  t.g(bluffers[0], "bet", { target: bluffers[0] });
+  ok(t.view(judge).table?.betsPlaced === 0, "nobody bets on themselves");
+  t.g(bluffers[0], "bet", { target: honest });
+  t.g(bluffers[0], "bet", { target: bluffers[1] });
+  ok(t.view(judge).table?.betsPlaced === 1, "one bet each");
+  ok(t.view(judge).facts === null && !JSON.stringify(t.view(judge)).includes(`"bets":{"${bluffers[0]}"`), "bets stay secret until the reveal");
+  t.g(bluffers[1], "close");
+  ok(t.view(judge).phase === "bets", "only the judge (or the host) stops the bets");
+  // the judge names a bluffer: fooled
+  t.g(bluffers[0], "accuse", { target: bluffers[1] });
+  ok(t.view(judge).phase === "bets", "only the judge accuses");
+  t.g(judge, "accuse", { target: bluffers[1] });
+  const v = t.view(judge);
+  ok(v.phase === "reveal" && v.facts?.accusedId === bluffers[1] && v.facts?.honestId === honest, "the reveal: who was named, who was honest");
+  ok(v.table?.reveal?.result.lines.length === 0 && v.table?.reveal?.result.penalties.length === 0, "no server wording in the view (each phone words it with names)");
+  const lines = roundLines(v.facts!, (id) => NAMES[Number(id.slice(1))]);
+  ok(lines.preLines[0].en.includes(NAMES[Number(judge.slice(1))]) && lines.lines[0].en.includes("fooled"), `worded with the names: ${lines.lines[0].en}`);
+  ok(v.table!.scores[bluffers[1]] === v.facts!.level, "the named bluffer scored");
+  ok(t.pens().length === 0, "no penalty before every phone has shown the honest one");
+  t.advance(4500);
+  const fooled = t.pens().find((p) => p.who.includes(judge));
+  ok(!!fooled && !DRINKS(fooled.note) && fooled.kind === "sip", "then the fooled judge's penalty");
+  ok(v.master === bluffers[1] && t.view(honest).master === bluffers[1], "the bluffer who fooled the judge picks someone");
+  // the round can't move on under the pick, except by the host
+  if (judge !== "p0") {
+    t.g(judge, "round");
+    ok(t.view(judge).phase === "reveal", "the judge waits for the pick");
+  }
+  t.g(bluffers[0], "pick", { target: honest });
+  ok(t.view(judge).master === bluffers[1], "only the master bluffer picks");
+  t.g(bluffers[1], "pick", { target: bluffers[1] });
+  ok(t.view(judge).master === bluffers[1], "not themselves");
+  const n = t.pens().length;
+  t.g(bluffers[1], "pick", { target: honest });
+  ok(t.pens().length === n + 1 && t.pens()[n].who.join() === honest && !DRINKS(t.pens()[n].note), "the pick lands on the one picked");
+  ok(t.view(judge).master === null && t.view(judge).picked === honest, "picked, once");
+  t.g(bluffers[1], "pick", { target: judge });
+  ok(t.pens().length === n + 1, "a second pick is nothing");
+  // the judge moves on; the next judge (or the host) starts the next round
+  if (judge !== "p0") t.g(judge, "round");
+  else t.g("p0", "round");
+  const b = t.view(judge);
+  ok(b.phase === "between" && !!b.nextJudge && b.nextJudge !== judge, `between rounds, the next judge: ${b.nextJudge}`);
+  const someoneElse = t.ids.find((id) => id !== b.nextJudge && id !== "p0")!;
+  t.g(someoneElse, "start");
+  ok(t.view(judge).phase === "between", "not anyone's to start");
+  t.g("p0", "config", { level: 3 });
+  t.g(b.nextJudge!, "start");
+  const r2 = t.view(judge);
+  ok(r2.phase === "peek" && r2.table?.judgeId === b.nextJudge && r2.table?.roundNumber === 2, "round two, its judge up");
+  ok(r2.table?.level === 3 || CARDS.filter((c) => c.level === 3 && ["trivia", "food", "vancouver"].includes(c.pack)).length < 2, "dealt at the difficulty the host set");
+});
+
+test("straightface online: with the table's own penalty, nothing says drink; a right judge, a tag on a bluffer", () => {
+  const t = table(4);
+  t.act("p0", { a: "penalty", text: "做十个深蹲" });
+  dealOnline(t);
+  peekAll(t);
+  const { judge, honest, bluffers } = t.parts();
+  const sp = () => (t.eng.d.game!.s as { g: GameState }).g.current!.speakerIdx;
+  t.g(judge, "next", { at: -1 });
+  t.g(judge, "tag", { target: bluffers[0] });
+  while (t.view(judge).phase === "explain") t.g(judge, "next", { at: sp() });
+  t.g(judge, "close");
+  t.g(judge, "accuse", { target: bluffers[0] });
+  ok(t.view(judge).phase !== "reveal", "the tagged one can't be named");
+  t.g(judge, "accuse", { target: honest });
+  ok(t.view(judge).phase === "reveal" && t.view(judge).master === null, "a right judge: nobody to pick");
+  t.advance(4500);
+  const caught = t.pens().find((p) => p.who.includes(bluffers[0]));
+  ok(!!caught && !DRINKS(caught.note), `the tagged bluffer's penalty, no drinking in it (${caught?.note?.en})`);
+  ok(t.pens().every((p) => !DRINKS(p.note)), "no note says drink");
+  ok(!JSON.stringify(t.view(judge)).match(/喝一口|Drink\./), "no drinking line anywhere in the view");
+});
+
+test("straightface online: someone leaves: a bluffer drops out, a round that needs them is dealt again, too few ends it", () => {
+  // a bluffer who is speaking leaves: the next one is up, and the bets don't wait for them
+  let t = table(5);
+  dealOnline(t);
+  peekAll(t);
+  let p = t.parts();
+  const sp = () => (t.eng.d.game!.s as { g: GameState }).g.current!.speakerIdx;
+  t.g(p.judge, "next", { at: -1 });
+  const order = t.view(p.judge).table!.speakOrder;
+  const leaver = order.find((id) => id !== "p0" && id !== p.honest)!;
+  while (t.view(p.judge).table!.speakerId !== leaver) t.g(p.judge, "next", { at: sp() });
+  const after = order[order.indexOf(leaver) + 1] ?? null;
+  t.act(leaver, { a: "leave" });
+  const v = t.view(p.judge);
+  ok(!v.players.includes(leaver) && !v.table!.speakOrder.includes(leaver), "out of the game");
+  ok(after ? v.table!.speakerId === after : v.phase !== "explain", "whoever was after them is up");
+  ok(v.table!.roundsPlanned === 4, `four judges left: four rounds (${v.table!.roundsPlanned})`);
+  // the judge leaves mid-round (the host can too: the table gets a new host): called off, dealt again
+  t = table(5);
+  dealOnline(t);
+  p = t.parts();
+  const firstCard = t.view("p1").table!.term!.zh;
+  t.act(p.judge, { a: "leave" });
+  const still = t.ids.find((id) => id !== p.judge)!;
+  const w = t.view(still);
+  ok(w.phase === "lobby" && w.nextJudge !== null && w.nextJudge !== p.judge && !w.players.includes(p.judge), `the judge left: the round is off, someone else judges next (${w.phase})`);
+  t.g(t.eng.view(still).host, "start");
+  ok(t.view(still).phase === "peek" && t.view(still).table!.term!.zh !== firstCard && t.view(still).table!.judgeId === w.nextJudge, "a new card, the next judge");
+  // the honest one leaves: called off too, and the same judge deals again
+  t = table(4);
+  dealOnline(t);
+  p = t.parts();
+  t.act(p.honest, { a: "leave" });
+  ok(t.view(p.judge).phase === "lobby", "the honest one left: the round is off");
+  ok(t.view(p.judge).nextJudge === p.judge, "the same judge again");
+  // down to two: the game is over
+  t = table(3);
+  dealOnline(t);
+  const gone = t.ids.find((id) => id !== "p0")!;
+  t.act(gone, { a: "leave" });
+  ok(t.view("p0").phase === "finished", "two left: game over");
+  t.g("p0", "again");
+  ok(t.view("p0").phase === "setup", "the host goes again from the setup");
+});
+
+test("straightface online: a seat that only watches is no part of it; a whole game, everyone judges once", () => {
+  const t = table(5);
+  t.act("p3", { a: "watch", on: true });
+  dealOnline(t);
+  const v = t.view("p3");
+  ok(!v.players.includes("p3") && v.me === null && v.players.length === 4, "the watcher isn't dealt in");
+  t.g("p3", "peeked");
+  ok(t.view("p0").table!.peekedCount === 0, "and makes no moves");
+  const judges: string[] = [];
+  for (let round = 0; round < 6 && t.view("p0").phase !== "finished"; round++) {
+    const p = t.parts();
+    judges.push(p.judge);
+    peekAll(t);
+    speakOnline(t);
+    if (t.view(p.judge).phase === "bets") for (const id of t.view(p.judge).table!.speakOrder) t.g(id, "bet", { target: p.honest === id ? p.bluffers[0] : p.honest });
+    t.g(p.judge, "accuse", { target: p.bluffers[0] });
+    if (t.view(p.judge).master) t.g("p0", "round");
+    else t.g(p.judge, "round");
+    if (t.view("p0").phase === "between") t.g("p0", "start");
+  }
+  const end = t.view("p0");
+  ok(end.phase === "finished" && new Set(judges).size === 4 && judges.length === 4, `four rounds, four judges (${judges.join()})`);
+  ok(end.learned?.length === 4 && end.learned.every((l) => !!l.term.zh && !!l.definition.en), "the end: every word played, with its meaning");
+  ok(Object.keys(end.table!.scores).length === 4, "a score for each of the four");
 });
 
 if (failures) {

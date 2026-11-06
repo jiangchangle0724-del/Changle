@@ -207,9 +207,11 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
   engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 251
   cards in 17 packs (nine for Chinese tables, five for English tables, three for any table; a table
   starts with its own language's packs), pictures drawn with ChatGPT (pack icons, the three parts, the
-  room) and synthesised sound cues, and the one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online
-  table until A3 (a `GameDef` wrapping the same engine) adds it to `ONLINE_GAMES`. Next: A3, the card
-  bank to 300 (Codex C1, `docs/codex-tasks/straightface/`).
+  room) and synthesised sound cues, on the board since 2026-11-05. One phone passed round, or online
+  with every phone its own and a big-screen view (A3: the rules on the rooms server in
+  `site/src/shared/engine/games/straightface.ts`, the screens `NetStraightFace.tsx` and
+  `TvStraightFace.tsx` in `site/src/party/straightface/`). Next: the card bank to 300, more
+  animation, then stats and card reports.
 
 * 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
   and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the

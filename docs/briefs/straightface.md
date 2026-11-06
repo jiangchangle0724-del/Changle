@@ -8,24 +8,27 @@
 
 同类游戏是 1965 年 BBC 的 Call My Bluff、桌游 Balderdash 和《瞎掰王 9UPPER》。玩法不受版权保护；名字、词库、美术全是我们自己的，一张卡都不许从别家抄。完整方案（为什么这样设计、老手会多做的事、验收门）在 `docs/straight-face.md`，更长的版本在 Claude 文档「一本正经 · Straight Face 游戏方案」。
 
-3 到 9 人（4 到 9 人最好玩）。单机传一部手机；联机（每人一部、电视观察者）是 A3，还没做。
+3 到 9 人（4 到 9 人最好玩）。一部手机传着玩；或者联机，每人用自己的手机，电视可以当大屏（A3，2026-11-05 做完）。
 
 ## 文件
 
-- 规则引擎（纯函数，单机和联机共用；房间服务器以后从这里打包）：`site/src/shared/straightface/`
-  - `types.ts` 卡、玩家、选项、回合、事件、`PrivateView`（一台手机能看的）、`PublicView`（电视能看的）
-  - `engine.ts` `createGame`、`reduce`、`privateView`、`publicView`、`phoneHolder`、`leaderboard`、裁判提问模板
-  - `scoring.ts` 计分和罚则，揭晓页两组文案（揭晓老实人之前 `preLines`，之后 `lines`）
+- 规则引擎（纯函数，单机和联机共用，房间服务器也打包它）：`site/src/shared/straightface/`
+  - `types.ts` 卡、玩家、选项、回合、事件、`PrivateView`（一台手机能看的）、`PublicView`（电视能看的）、联机的 `StraightFaceView`
+  - `engine.ts` `createGame`、`reduce`、`privateView`、`publicView`、`phoneHolder`、`leaderboard`、`nextJudge`（下一轮谁当裁判）、`removePlayer`（联机有人离开）、裁判提问模板
+  - `scoring.ts` 计分和罚则，揭晓页两组文案（揭晓老实人之前 `preLines`，之后 `lines`；`roundLines` 用屏幕自己的名字拼）
   - `cards.ts` 卡片校验器 `validateDeck`、提示器 `lintDeck`、选卡 `pickCard`
-- 词库：`site/src/data/straightface.ts`（251 张，17 个包，`PACK_AUDIENCE` 标明给哪桌）
+- 联机规则：`site/src/shared/engine/games/straightface.ts`（房间服务器跑的 `GameDef`：谁能按什么、发牌前的设置、罚则交给房间、每台手机的视图）
+- 联机画面：`site/src/party/straightface/NetStraightFace.tsx`（手机）、`TvStraightFace.tsx` 和 `tv-straightface.css`（电视，也是只看的手机横过来看的画面）
+- 词库：`site/src/data/straightface.ts`（251 张，17 个包，`PACK_AUDIENCE` 标明给哪桌）；词包清单单独在 `site/src/data/straightfacePacks.ts`，联机的手机和电视只加载这个，释义不进它们的下载
   - 中文局 9 个：生僻字 14、方言 16、成语典故 16、菜名来历 18、歇后语 14、中药名 14、地名由来 14、老物件 14、网络热词 20
   - 英文局 5 个：Odd words 14、Idiom origins 14、Phobias 14、Canadian place names 14、Online slang 19
   - 都能玩 3 个：冷知识 12、温村 14、吃喝 10
 - 单机画面：`site/src/party/straightface/`（`StraightFace.tsx` 流程、`parts.tsx` 组件、`text.ts` 文案、`straightface.css`、`sounds.ts` 音效、`art.ts` 图片）
 - 图片：`site/src/party/straightface/art/`（17 个词包图标、三个角色、背景；来历和提示词在 `art/README.md`）
 - 首页卡片：`site/src/games/registry.ts` 里 id 是 `straightface` 的那一项（共用文件，只改这一项）
-- 游戏卡片的联机按钮：`site/src/home/GameSheet.tsx`（2026-11-05 加了一个条件：不在 `ONLINE_GAMES` 里的游戏不显示「每人用自己的手机」，现在只影响一本正经）
+- 游戏卡片的联机按钮：`site/src/home/GameSheet.tsx`（2026-11-05 加了一个条件：不在 `ONLINE_GAMES` 里的游戏不显示「每人用自己的手机」；一本正经联机以后，首页上的游戏又都能联机了）
 - 路由：`site/src/router.ts`（2026-11-04 改了一行：藏着的游戏 `/play` 地址能打开，别的地址不是页面）
+- 联机接进去的共用文件（各只加了一本正经那一行）：`site/src/shared/protocol.ts`（`GameId`、`ONLINE_GAMES` 排在最后、`ONLINE_MIN` 3 人、view 类型）、`site/src/shared/engine/games/index.ts`、`site/src/online/games/NetGame.tsx`（用到才加载）、`site/src/tv/views.tsx`（电视画面，和去掉 `me` 的那一行）、`site/scripts/net_test.py` 和 `party_test.py` 的 `ORDER`
 - Codex 任务卡：`docs/codex-tasks/straightface/`
 
 ## 先读
@@ -34,7 +37,8 @@
 
 ## 测试
 
-- `cd site && npx tsx tests/straightface.test.ts`：引擎、词库（含中文包的写法）、两个视图不漏身份（22 组，CI 的 `site.yml` 里跑）
+- `cd site && npx tsx tests/straightface.test.ts`：引擎、词库（含中文包的写法）、两个视图不漏身份，加 7 组联机（经房间引擎跑：同时看身份、谁能按什么、押注保密、罚则不说喝、大忽悠挑人、有人离开、只看的座位、整局每人当一次裁判）；共 29 组，CI 的 `site.yml` 里跑
+- `python3 scripts/straightface_net_check.py`（本地房间服务器和网站要先跑起来，见 HANDOFF「Run the site locally」；`TV_LANG=en` 换英文电视）：电视开桌，4 部手机（3 中 1 英）加一个只看的座位，整整 4 轮，截图到 `site/local-shots/straightface-net/`，检查：真释义只在老实人手机上、按住才显示、松手就黑，电视和别的手机揭晓前都没有；瞎编的人按住看到掰料；疑点只在裁判手机；揭晓每台手机和电视都有；大忽悠能挑人；只看的座位不发身份、显示电视画面；没有横向滚动、没有报错。2026-11-05 中文电视和英文电视各跑一遍，全过
 - `python3 scripts/straightface_check.py`（网站要先跑起来）：一台手机 4 人跑完整整 4 轮，中英文各一遍，每一步截图到 `site/local-shots/straightface/`，并检查：说「我是 ××」之前什么私密内容都不显示；「传给 ××」只在 15 秒到了才出现；揭晓页老实人排在冷知识之后；连按不多算一轮；没有横向滚动
 - 线上：2026-11-05 对着 changle.ca 跑 `scripts/straightface_check.py`（手机尺寸，Chromium），中英文各一整局 4 轮，全过
 - 真机：Steve 用 iPhone Safari 跑一局 4 人局（验收门 A，还没跑；Steve 2026-11-05 决定先上线）
@@ -58,32 +62,47 @@
 - 事实对过 Wiktionary 和中英文维基（2026-11-05）；查不到的写成「相传」「一说」或者删掉；嘎哈、嬢嬢两张没有词条，来源写 `editorial`。
 - 英文名：2026-11-05 从 Straight Face 改成 In All Seriousness，网址跟着改成 changle.ca/g/in-all-seriousness。原因：Straight Face 已有同名 iPhone 憋笑小游戏（StraightFace，BLINK SOFTWARE，2024）和几款 Straight Face / Keep a Straight Face 憋笑桌游；候选里 Deadpan、Dead Serious 已有桌游，Sounds Legit、No Joke 没选。代码里的 id 和文件夹还叫 `straightface`（玩家看不到，不改）。中文名一本正经没搜到同名游戏。
 - 名字查过（2026-11-05）：加拿大商标库 CIPO 里没有 IN ALL SERIOUSNESS（按商标名和相似查询都是 0 条）；BGG、Steam、App Store 也没有同名游戏，只有一期桌游播客用过这个标题。
-- 不能联机的游戏，卡片上不显示联机按钮（以前每个上首页的游戏都能联机，一本正经是第一个只能单机的）。
+- 不能联机的游戏，卡片上不显示联机按钮（一本正经单机上线的那几个小时用过；加进 `ONLINE_GAMES` 以后按钮自己出现）。
 - 释义只取来源页的事实、自己造句，不抄维基原句，所以词库不被 CC BY-SA 传染（`LICENSES.md`）。
 - 词包按桌分（2026-11-05，Steve 选的）：中文局加了歇后语、中药名、地名由来、老物件、网络热词；英文局加了 Odd words、Idiom origins、Phobias、Canadian place names、Online slang。原来的「网络词」拆成两个：中文的叫网络热词，英文的叫 Online slang。开局默认选本桌语言的包加「都能玩」，主持人可以改，分组的标题能一键全选或全不选。
 - 英文包的卡：两边都写英文原词，释义照样中英文都有。歇后语的卡面只写前半句，释义给后半句和谐音。中药只写传统用法，不写剂量、不说能治病；地名只讲语言和历史，不碰政治；原住民地名照来源写意思。
 - 图片用 ChatGPT 生（Steve 的账号，对话「Generate game icons image」），提示词只写要画的东西。三个角色（裁判、老实人、瞎编的人）只放在大家都能看的画面：开局介绍、裁判的画面、揭晓，偷看身份的时候不放，图比字显眼，会漏身份。以后加新词包要先补一张图标，在同一个对话里接着生，风格才一样。
 - 声音全用网站自己合成的音效（`lib/sfx`），不用录音、不用授权：发牌、亮词、传手机、轮到谁讲、贴疑点、押注、指认前的鼓点、揭晓时裁判对了是掌声、被骗了是长号、加分、骗子挑人、终局欢呼。
 - 卡面上很长的英文词自动缩小字号、按音节断行，不在词中间乱断。
+- 联机（A3，2026-11-05）：引擎用 online 模式，大家同时看身份、同时押注；身份整轮按住随时看，不计时，老实人和瞎编的人的按钮看起来一样，按过一次才出现「看好了」。
+- 联机谁能按什么：主人发牌、改设置和下一轮难度，帮忙「不等了，开始」「下一位」「停押注」，大忽悠不挑人时可以「不等了」；裁判开始发言、下一位、贴疑点、停押注、指认、下一轮；正在讲的人点「说完了」；下一轮的裁判（或主人）开下一轮。两个人同时按下一位只算一次（按钮带着是第几个人）。
+- 联机的疑点只在裁判手机上，押了谁也到揭晓才公开，和一台手机时一样。
+- 联机的罚则交给房间盖章：裁判看走眼、被疑点抓包的，在揭晓后 4.2 秒（每台手机都放完老实人那一步）再盖；大忽悠在自己手机上点一个人。罚则那行字只说发生了什么（「一本正经：裁判看走眼」），不说喝，桌上用自己的惩罚时也对。
+- 服务器只知道 id 不知道名字：揭晓那几句由每台手机和电视用自己看到的名字拼（`roundLines`），服务器发的视图里不带句子。
+- 联机有人离开：瞎编的人直接出这局，只在等他的那一步自动往下走，押在他身上的人重押；裁判或老实人走了，这一轮作废、换新词重发；剩不到 3 人游戏结束。裁判轮换改成「当得最少、按顺序排第一的人」，没人离开时和原来完全一样。
+- 联机最多 9 人（多的人在「这一桌」里选「只看」）；只看的座位不发身份，手机显示电视画面；发牌后才坐下的人看这局，下局带上。
+- 联机的手机和电视不加载词库：只有房间服务器和一台手机的画面有释义，别的手机的下载里查不到老实人的那段话。
 
 ## 现在
 
-2026-11-05 上线（PR #213）：四个中文词包、上首页、英文名改成 In All Seriousness、首页截图重拍。线上中英文各跑完一整局，名字查过商标库。同一天下午：十个新词包（中英各五）、图片、音效，在分支 `game/straight-face-more-packs`。A1、A2 在 2026-11-04 合并（PR #171）。引擎 22 组测试全过，一台手机中英文各跑完一局 4 人局。
+2026-11-05 晚上：联机（A3）做完，在分支 `game/straight-face-online`，等 CI 和 Steve 点头合并。29 组测试全过，本地 4 部手机加电视加一个只看的座位跑完整局（中文电视、英文电视各一遍）。
+
+之前：2026-11-05 上线（PR #213）四个中文词包、上首页、英文名改成 In All Seriousness；同天十个新词包、图片、音效（PR #234）。A1、A2 在 2026-11-04 合并（PR #171）。
+
+Steve 2026-11-05 选的升级，按顺序各一个 PR：1 每人用自己的手机（就是 A3）；2 词库扩到 300 张（三个帮手已经写好 49 张，在草稿里等合并和抽查）；3 更多动画和画面；4 战绩和卡片反馈。
 
 ## 还剩什么
 
 - 验收门 A 的真机局：Steve 用 iPhone 跑一局 4 人局（已经上线，跑完有问题再修）。
-- A3 联机：`site/src/shared/engine/games/straightface.ts` 包一层 `GameDef` 调用同一个引擎（`view(s, pid)` 就是 `privateView`），`protocol.ts` 加 id 和 view 类型，`site/src/online/games/` 加 `NetStraightFace.tsx`，电视页只收 `publicView`。加进 `ONLINE_GAMES` 以后，游戏卡片上的联机按钮自己就会出现。
-- A4：词库入 D1、见过的卡（联机取全桌并集）、每张卡的裁判命中率、「这卡有问题」。
+- 联机的真机局：几部真手机加一台电视跑一局（本地 Chromium 全过，真机还没跑）。
+- 升级 2：词库扩到 300（吃喝 +9、冷知识 +5、温村 +3、中文八个包 +20、英文四个包 +12 已写好），每包至少 15 张，测试里的下限一起改成 15。
+- 升级 3：更多动画和画面（翻卡、盖章、揭晓），减少动态时不动。
+- 升级 4（就是 A4）：见过的卡（联机取全桌并集）、每张卡的出场和骗到裁判的次数、「这卡有问题」。要存数据，先看现有的 D1 和接口怎么用，要新建数据库或花钱先问 Steve。
 - C1 扩库到 300（Codex，现在 251）、C2 组件替换 A2 的占位（Codex）、C4 测试补全（Codex），卡在 `docs/codex-tasks/straightface/`。吃喝包只有 10 张，最该补。
 
 ## 交给别的对话
 
 - 平台 · 首页与上线：一本正经上首页那个 PR 带 `update-screenshots` 标签重拍了首页截图（游戏数 19 到 20）；`GameSheet.tsx` 加了一个条件（不在 `ONLINE_GAMES` 的游戏不显示联机按钮），知会一声。对比截图里还没有一本正经的游戏页，要加的话在 `tests/visual/screens.spec.ts` 加一行（现在为了凑 40 张没加）。
-- 平台 · 房间与联机：A3 要在 `protocol.ts` 和 `games/index.ts` 各加一行。
+- 平台 · 房间与联机：A3 在共用文件里各加了一行，知会一声：`protocol.ts`（一本正经排在 `ONLINE_GAMES` 最后，不动别的游戏的序号）、`games/index.ts`、`NetGame.tsx`、`tv/views.tsx`，以及 `net_test.py`、`party_test.py` 的 `ORDER`。`watch_test.py` 没有一本正经的用例，要加的话可以照 `scripts/straightface_net_check.py`。
 
 ## 最近的改动
 
+- 2026-11-05 一本正经：联机，每人用自己的手机，电视画面（A3）
 - 2026-11-05 一本正经：十个新词包（140 张，中英各五），词包按桌分组，ChatGPT 生的图标、角色和背景，合成音效
 - 2026-11-05 一本正经：四个中文词包（64 张），上首页，卡片不显示联机按钮
 - 2026-11-04 一本正经：引擎、47 张卡、单机全流程（A1、A2），藏着先

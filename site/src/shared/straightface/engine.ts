@@ -97,10 +97,24 @@ function dealHonest(state: GameState, candidates: string[], rng: Rng): string {
   return candidates[candidates.length - 1];
 }
 
+/**
+ * Who judges the next round: the first in `judgeOrder` who has judged the fewest rounds so far. With
+ * nobody leaving that is simply judgeOrder[rounds.length]; when someone leaves halfway (online), the
+ * ones who have not judged yet still all get their turn.
+ */
+export function nextJudge(state: GameState): string | null {
+  if (!state.judgeOrder.length) return null;
+  const count: Record<string, number> = Object.fromEntries(state.judgeOrder.map((id) => [id, 0]));
+  for (const r of state.rounds) if (r.judgeId in count) count[r.judgeId] += 1;
+  const min = Math.min(...state.judgeOrder.map((id) => count[id]));
+  return state.judgeOrder.find((id) => count[id] === min) ?? null;
+}
+
 function startRound(state: GameState, deps: Deps, level: Level | undefined): GameState {
   const index = state.rounds.length;
   if (index >= state.roundsPlanned) throw new GameError("no_rounds_left", "game is over");
-  const judgeId = state.judgeOrder[index % state.judgeOrder.length];
+  const judgeId = nextJudge(state);
+  if (!judgeId) throw new GameError("no_rounds_left", "nobody left to judge");
   const rng = rngFor(state, index);
   const others = nonJudges(state, judgeId);
   const honestId = dealHonest(state, others, rng);
@@ -137,6 +151,13 @@ function betsPhaseApplies(state: GameState): boolean {
   return state.options.sideBets && state.players.length >= 4;
 }
 
+/** Everyone has explained: on to the bets (4+ players, when on) or straight to the judge. */
+function afterLastSpeaker(state: GameState, r: RoundState): GameState {
+  const toBets = betsPhaseApplies(state);
+  const betQueue = toBets ? (state.options.mode === "pass" ? passOrder(state, r.judgeId).filter((id) => r.speakOrder.includes(id)) : [...r.speakOrder]) : [];
+  return { ...state, phase: toBets ? "bets" : "accuse", current: { ...r, speakerIdx: r.speakOrder.length, betQueue } };
+}
+
 export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
   switch (ev.type) {
     case "START_ROUND": {
@@ -163,10 +184,7 @@ export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
       const r = need(state, ["explain"], ev.type);
       const next = r.speakerIdx + 1;
       if (next < r.speakOrder.length) return { ...state, current: { ...r, speakerIdx: next } };
-      // past the last speaker
-      const toBets = betsPhaseApplies(state);
-      const betQueue = toBets ? (state.options.mode === "pass" ? passOrder(state, r.judgeId) : [...r.speakOrder]) : [];
-      return { ...state, phase: toBets ? "bets" : "accuse", current: { ...r, speakerIdx: r.speakOrder.length, betQueue } };
+      return afterLastSpeaker(state, r);
     }
 
     case "TAG_SUSPECT": {
@@ -218,6 +236,78 @@ export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
       return { ...state, phase: finished ? "finished" : "between", rounds, current: r };
     }
   }
+}
+
+/** A round being played (dealt, not yet scored): what a leaver can still call off. */
+const LIVE: GameState["phase"][] = ["peek", "explain", "bets", "accuse"];
+
+/** A bluffer who left drops out of the round; bets placed on them are void, so those players bet again. */
+function dropFromRound(r: RoundState, id: string): RoundState {
+  const at = r.speakOrder.indexOf(id);
+  const bets: Record<string, string> = {};
+  const again: string[] = [];
+  for (const [bettor, target] of Object.entries(r.bets)) {
+    if (bettor === id) continue;
+    if (target === id) again.push(bettor);
+    else bets[bettor] = target;
+  }
+  const betQueue = r.betQueue.filter((x) => x !== id);
+  return {
+    ...r,
+    peekQueue: r.peekQueue.filter((x) => x !== id),
+    peeked: r.peeked.filter((x) => x !== id),
+    speakOrder: r.speakOrder.filter((x) => x !== id),
+    // whoever spoke after them keeps their place in line (the one after a current speaker who left is up now)
+    speakerIdx: at >= 0 && at < r.speakerIdx ? r.speakerIdx - 1 : r.speakerIdx,
+    suspectId: r.suspectId === id ? null : r.suspectId,
+    betQueue: [...betQueue, ...again.filter((b) => !betQueue.includes(b))],
+    bets,
+  };
+}
+
+/** Rounds left to play so that everyone still here judges `roundsPerPlayer` times, plus those already played. */
+function plannedRounds(state: GameState): number {
+  const per = state.options.roundsPerPlayer;
+  const playing = !!state.current && [...LIVE, "reveal"].includes(state.phase);
+  const judged: Record<string, number> = Object.fromEntries(state.players.map((p) => [p.id, 0]));
+  for (const r of state.rounds) if (r.judgeId in judged) judged[r.judgeId] += 1;
+  if (playing && state.current!.judgeId in judged) judged[state.current!.judgeId] += 1;
+  return state.rounds.length + (playing ? 1 : 0) + state.players.reduce((n, p) => n + Math.max(0, per - judged[p.id]), 0);
+}
+
+/**
+ * Someone left the table halfway through (online): they leave the game too, out of every list and the
+ * scores. A round that can't go on without them (theirs to judge, or theirs to tell straight) is called
+ * off and dealt again with a new card; a bluffer just drops out of it, and a step that was only waiting
+ * for them moves on. With fewer than MIN_PLAYERS left, the game is over.
+ */
+export function removePlayer(state: GameState, id: string): GameState {
+  if (!state.players.some((p) => p.id === id)) return state;
+  const scores = { ...state.scores };
+  delete scores[id];
+  let next: GameState = { ...state, players: state.players.filter((p) => p.id !== id), judgeOrder: state.judgeOrder.filter((x) => x !== id), scores };
+  const r = state.current;
+  const last = state.rounds.length ? state.rounds[state.rounds.length - 1] : null;
+  if (r && LIVE.includes(state.phase)) {
+    if (r.judgeId === id || r.honestId === id) {
+      next = { ...next, phase: last ? "between" : "lobby", current: last };
+    } else {
+      const left = dropFromRound(r, id);
+      next = { ...next, current: left };
+      if (state.phase === "peek" && left.peekQueue.length === 0) next = { ...next, phase: "explain" };
+      else if (state.phase === "explain" && left.speakerIdx >= left.speakOrder.length) next = afterLastSpeaker(next, left);
+      else if (state.phase === "bets" && left.betQueue.length === 0) next = { ...next, phase: "accuse" };
+    }
+  }
+  next = { ...next, roundsPlanned: plannedRounds(next) };
+  const waiting = next.phase === "lobby" || next.phase === "between";
+  if (next.players.length < MIN_PLAYERS || (waiting && next.rounds.length >= next.roundsPlanned)) {
+    // a round still being played is called off (the last one played stays on screen); one already
+    // scored counts
+    if (next.phase === "reveal" && next.current) return { ...next, phase: "finished", rounds: [...next.rounds, next.current] };
+    return { ...next, phase: "finished", current: LIVE.includes(next.phase) ? last : next.current };
+  }
+  return next;
 }
 
 export function roleOf(state: GameState, playerId: string): Role | null {
