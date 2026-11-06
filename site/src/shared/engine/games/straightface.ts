@@ -21,6 +21,8 @@ type S = {
   stepAt: number;
   /** this round's master bluffer has picked: whom (once per round) */
   picked: { round: number; target: string } | null;
+  /** cards the table has played before (every phone hands in its own): the deal takes others first */
+  seen: string[];
 };
 
 const deps: Deps = { cards: CARDS };
@@ -35,6 +37,16 @@ const NOTE = {
 const VERDICT_DELAY = 4200;
 
 const LEVELS: Level[] = [1, 2, 3];
+const CARD_IDS = new Set(CARDS.map((c) => c.id));
+/** How many played cards a table remembers (the phones each send their most recent 300). */
+const SEEN_MAX = 900;
+
+/** Cards added to what the table has seen, the newest kept. */
+function remember(seen: string[], ids: unknown[]): string[] {
+  const add = ids.filter((x): x is string => typeof x === "string" && CARD_IDS.has(x));
+  const keep = seen.filter((x) => !add.includes(x));
+  return [...keep, ...new Set(add)].slice(-SEEN_MAX);
+}
 
 /** One event through the rules; false when they refuse it (a late tap, a double tap, out of turn). */
 function step(s: S, ev: GameEvent, api: Api): boolean {
@@ -71,7 +83,7 @@ export const straightface: GameDef<S> = {
   min: MIN_PLAYERS,
 
   init(api) {
-    return { setup: { packs: null, level: 2, seeds: true, bets: true }, g: null, stepAt: api.now, picked: null };
+    return { setup: { packs: null, level: 2, seeds: true, bets: true }, g: null, stepAt: api.now, picked: null, seen: [] };
   },
 
   act(s, pid, a, api) {
@@ -96,6 +108,12 @@ export const straightface: GameDef<S> = {
         if (typeof a.bets === "boolean") s.setup.bets = a.bets;
         return;
       }
+      case "seen": {
+        // a phone hands in the cards it has played; nobody else hears of it until the deal
+        if (g || !Array.isArray(a.ids)) return refuse();
+        s.seen = remember(s.seen ?? [], a.ids.slice(0, 400));
+        return refuse();
+      }
       case "deal": {
         const ids = api.ids();
         if (!host || g || ids.length < MIN_PLAYERS || ids.length > MAX_PLAYERS) return refuse();
@@ -107,7 +125,8 @@ export const straightface: GameDef<S> = {
           api.int(0x7fffffff) + 1,
         );
         try {
-          s.g = reduce(game, { type: "START_ROUND", level: s.setup.level }, deps);
+          // cards this table has played before come last (the engine falls back to them when a pack runs dry)
+          s.g = reduce({ ...game, usedCardIds: [...(s.seen ?? [])] }, { type: "START_ROUND", level: s.setup.level }, deps);
         } catch (e) {
           if (e instanceof GameError) return refuse();
           throw e;
@@ -180,6 +199,7 @@ export const straightface: GameDef<S> = {
       }
       case "again": {
         if (!host || !g || g.phase !== "finished") return refuse();
+        s.seen = remember(s.seen ?? [], g.rounds.map((r) => r.cardId));
         s.g = null;
         s.picked = null;
         s.stepAt = api.now;
@@ -210,6 +230,7 @@ export const straightface: GameDef<S> = {
       me: g && g.players.some((p) => p.id === pid) ? privateView(g, pid, deps) : null,
       stepAt: s.stepAt,
       nextJudge: g && (g.phase === "between" || g.phase === "lobby") ? nextJudge(g) : null,
+      cardId: revealed && r ? r.cardId : null,
       facts: revealed && r && r.accusedId ? { judgeId: r.judgeId, honestId: r.honestId, accusedId: r.accusedId, suspectId: r.suspectId, bets: r.bets, level: r.level } : null,
       master: masterOf(s),
       picked: g && r && s.picked?.round === r.index && revealed ? s.picked.target : null,

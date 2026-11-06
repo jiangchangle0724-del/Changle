@@ -225,6 +225,8 @@ export interface StraightFaceView {
   nextJudge: string | null;
   /** from the reveal on: who did what */
   facts: RoundFacts | null;
+  /** from the reveal on: the card's id (each phone records it as played, and can flag it) */
+  cardId: string | null;
   /** the bluffer who fooled the judge, while they still have someone to pick for the penalty */
   master: string | null;
   /** whom this round's master bluffer picked */
