@@ -82,8 +82,9 @@ function Shell() {
   const route = useRoute();
   const { sound, music, players, lang } = useStore();
   // a game opened by a link with fewer players than it needs on this phone: its card on the home
-  // page first, to add people (or play online), instead of a game that can't work
-  const short = route.kind === "game" && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
+  // page first, to add people (or play online), instead of a game that can't work (a link of the
+  // game's own, a 猜歌名 challenge, opens the game: one person can take it on)
+  const short = route.kind === "game" && !route.c && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
   const { signInOpen, openSignIn } = useAccount();
   // 再来一局 in a game's tally: the same game again from nothing (a new key mounts it afresh)
   const [restarts, setRestarts] = useState(0);
@@ -214,7 +215,7 @@ function Shell() {
         screen = <Limbo onBack={back} />;
         break;
       case "tune":
-        screen = <Tune onBack={back} />;
+        screen = <Tune onBack={back} challenge={route.c} />;
         break;
       case "euchre":
         screen = <Euchre onBack={back} />;

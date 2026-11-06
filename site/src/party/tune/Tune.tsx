@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TUNES } from "../../data/tunes";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
+import { clearSaved, readSaved, tableOf } from "../../games/saved";
 import { GAME_BY_ID } from "../../games/registry";
 import { AV_COLORS, colorFor } from "../../account/Avatar";
 import { holdBackground, type TuneHandle } from "../../lib/music";
@@ -12,18 +13,24 @@ import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
 import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, poolSize, previewUrl, shownChoices, SNAP_SECONDS, specialOf, type Song, type SongPool } from "../../shared/songs";
 import { usePenaltyText, useStore } from "../../store";
+import { go } from "../../router";
+import { ToastProvider } from "../../ui/Toast";
+import { CHALLENGE_MAX, newSeed, readChallenge, seeded, type Challenge } from "./challenge";
+import { ChallengeIntro, ChallengeLink, ChallengeResult, ShareChallenge } from "./ChallengeParts";
 import { Leaderboard, NameFace } from "../common";
 import { AnswerPicker, clipSeconds, CoverLabel, hookOf, LevelPicker, playClip, PoolPicker, QuizChoices, SnapPicker, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
-import { loadSongbook } from "./songbook";
+import { builtIn, loadSongbook } from "./songbook";
 import "../../styles/party.css";
 
 type Mode = "songs" | "melody" | "pads";
-type SongKept = { kind: "songs"; round: number; song: Song | null; next: Song | null; played: number[]; avoid: number[]; revealed: boolean; revealedAt: number; stage: number; choices: Song[]; tried: number[] };
+/** one song of a game on one phone: who got it and for how much, and whether every phone has it (a challenge can send it on) */
+type RoundLog = { id: number; pid: string | null; pts: number; b: boolean };
+type SongKept = { kind: "songs"; round: number; song: Song | null; next: Song | null; played: number[]; avoid: number[]; revealed: boolean; revealedAt: number; stage: number; choices: Song[]; tried: number[]; log?: RoundLog[] };
 type MelodyKept = { kind: "melody"; round: number; tune: number; cards: number[]; stage: number; revealed: boolean; revealedAt: number; tried: number[]; options: number[] };
 type PadsKept = { kind: "pads"; first: string | null; locked: string[] };
-type KeepBase = { mode: Mode; pool: SongPool; quiz: boolean; hard?: boolean; snap?: boolean; total: number; scores: Record<string, number> };
+type KeepBase = { mode: Mode; pool: SongPool; quiz: boolean; hard?: boolean; snap?: boolean; total: number; scores: Record<string, number>; seed?: number; challenge?: Challenge | null };
 type Kept = KeepBase & { round: SongKept | MelodyKept | PadsKept };
 
 function ClearTune() {
@@ -36,15 +43,24 @@ function ClearTune() {
  * who got it. Buzzer mode: lay the phone flat in the middle; everyone gets a pad, first touch wins,
  * and the DJ plays songs from their own music app.
  */
-export function Tune({ onBack }: { onBack: () => void }) {
+export function Tune({ onBack, challenge }: { onBack: () => void; challenge?: string }) {
+  const { players } = useStore();
+  // a challenge link: straight to it, unless it's the game this phone left half played
+  useState(() => {
+    if (!challenge) return;
+    const kept = readSaved<Kept>("tune", 1, tableOf(players));
+    if (kept && JSON.stringify(kept.data.challenge ?? null) !== JSON.stringify(readChallenge(challenge))) clearSaved("tune");
+  });
   return (
-    <Resume<Kept> game="tune" version={1}>
-      {(saved) => <TuneGame onBack={onBack} saved={saved} />}
-    </Resume>
+    <ToastProvider>
+      <Resume<Kept> game="tune" version={1}>
+        {(saved) => <TuneGame onBack={onBack} saved={saved} code={challenge} />}
+      </Resume>
+    </ToastProvider>
   );
 }
 
-function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
+function TuneGame({ onBack, saved, code }: { onBack: () => void; saved: Kept | null; code?: string }) {
   const firstSaved = useRef(saved);
   const { players, lang } = useStore();
   const custom = usePenaltyText().isCustom;
@@ -63,14 +79,23 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   const [rounds, setRounds] = useState<number | null>(null);
   const [answerTurn, setAnswerTurn] = useState<string | null>(saved?.round.kind === "pads" ? saved.round.first : null);
   const [scores, setScores] = useState<Record<string, number>>(saved?.scores ?? {});
-  const keeping: KeepBase = { mode, pool, quiz, hard, snap, total, scores };
+  /** a friend's challenge (from the link, or kept from before a reload): the same songs, the same four titles */
+  const [challenge, setChallenge] = useState<Challenge | null>(() => (saved ? (saved.challenge ?? null) : code ? readChallenge(code) : null));
+  /** the four titles' shuffle: a challenge's own, or a fresh one for every game */
+  const [seed, setSeed] = useState(() => saved?.seed ?? challenge?.seed ?? newSeed());
+  /** the last game's songs, for the final scores: who got what, and what a challenge can send on */
+  const [log, setLog] = useState<RoundLog[]>([]);
+  const [link, setLink] = useState("");
+  const keeping: KeepBase = { mode, pool, quiz, hard, snap, total, scores, seed, challenge };
   const penalty = usePenalty();
   // the game has its own sound (the songs, the melodies, the DJ's music app): the lounge music waits
   useEffect(() => holdBackground(), []);
 
   // the buzzer board has room for eight
   const ranked = mode === "pads" ? people.slice(0, 8) : people;
-  const finish = (final: Record<string, number>) => {
+  const finish = (final: Record<string, number>, songs: RoundLog[] = []) => {
+    setLog(songs);
+    setLink("");
     setPhase("end");
     sfx.win();
     if (ranked.length < 2) return;
@@ -82,27 +107,60 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
     }
   };
 
+  const start = (c: Challenge | null) => {
+    firstSaved.current = null;
+    if (c) {
+      setMode("songs");
+      setPool(c.pool);
+      setQuiz(c.quiz);
+      setHard(c.hard);
+      setSnap(c.snap);
+      setTotal(c.ids.length);
+    }
+    setSeed(c ? c.seed : newSeed());
+    setScores({});
+    setShellRound(1);
+    setRounds(null);
+    setAnswerTurn(null);
+    setPhase("play");
+  };
+  /** back to choosing songs ourselves: the challenge's link leaves the address */
+  const ownGame = () => {
+    if (challenge) go({ kind: "game", id: "tune" }, true);
+    setChallenge(null);
+    if (![5, 8, 12, 20].includes(total)) setTotal(8);
+    setPhase("setup");
+  };
+  /** the table's best, to send on or to set against a challenge's */
+  const top = ranked.reduce<{ id: string; name: string; score: number } | null>((b, p) => ((scores[p.id] ?? 0) > (b?.score ?? -1) ? { id: p.id, name: p.name, score: scores[p.id] ?? 0 } : b), null);
+  const mine = log.filter((r) => r.b).slice(0, CHALLENGE_MAX);
+  const sendOn: Challenge | null =
+    mode === "songs" && top && mine.length
+      ? { pool, quiz, hard, snap, seed, name: top.id === "me" ? "" : top.name, pts: mine.map((r) => (r.pid === top.id ? r.pts : 0)), ids: mine.map((r) => r.id) }
+      : null;
   const actions =
-    phase === "setup" ? (
-      <button
-        type="button"
-        className="btn btn-primary btn-lg"
-        onClick={() => {
-          firstSaved.current = null;
-          setScores({});
-          setShellRound(1);
-          setRounds(null);
-          setAnswerTurn(null);
-          setPhase("play");
-        }}
-      >
+    phase === "setup" && challenge ? (
+      <>
+        <button type="button" className="btn btn-ghost btn-lg" onClick={ownGame}>
+          {zh ? "自己选歌" : "Pick my own"}
+        </button>
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => start(challenge)}>
+          <Play size={18} />
+          {zh ? "接受挑战" : "Take it on"}
+        </button>
+      </>
+    ) : phase === "setup" ? (
+      <button type="button" className="btn btn-primary btn-lg" onClick={() => start(null)}>
         <Play size={18} />
         {zh ? "开始" : "Start"}
       </button>
     ) : phase === "end" ? (
-      <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase("setup")}>
-        {zh ? "再来一局" : "Play again"}
-      </button>
+      <>
+        {sendOn && <ShareChallenge c={sendOn} onLink={setLink} />}
+        <button type="button" className="btn btn-primary btn-lg" onClick={ownGame}>
+          {zh ? "再来一局" : "Play again"}
+        </button>
+      </>
     ) : (
       <div className="row" style={{ gap: "var(--space-3)", alignItems: "stretch" }} ref={setActionHost} />
     );
@@ -110,8 +168,8 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   const rules = (
     <p>
       {zh
-        ? `真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）、类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲）和年代（80 年代以前到 20 年代），也可以选歌手专场，整局只放一位歌手的歌，四个选项也全是这位歌手的；大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的；可以选难，只写歌名，错的尽量是同一个歌手的歌。一秒猜歌：先放一秒，猜不出点「多放一点」放三秒，再不行一直放，猜到的时候放到第几段就是几分（3、2、1 分）。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，${custom ? "错了受罚。最后得分最低的受罚。" : "错了喝一口。最后得分最低的喝两口。"}`
-        : `Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV) and a decade (before 1980 to the 2020s), or one singer for a whole game of their songs, the four titles all theirs too. Everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it; on hard, titles only, the wrong ones by the same singer where possible. One second: one second of the song first, Play more for three seconds, then the rest; 3, 2 or 1 points by how much had played. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: ${custom ? "right is a point, wrong takes the penalty. Lowest score takes the penalty." : "right is a point, wrong is a sip. Lowest score drinks two."}`}
+        ? `真歌：手机放一首真歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）、类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲）和年代（80 年代以前到 20 年代），也可以选歌手专场，整局只放一位歌手的歌，四个选项也全是这位歌手的；大家抢着喊歌名，越早喊对分越高：前 8 秒 3 分，18 秒前 2 分，之后 1 分。选择题：屏幕上四个歌名，大家喊选哪个，点对了再点是谁答的；可以选难，只写歌名，错的尽量是同一个歌手的歌。一秒猜歌：先放一秒，猜不出点「多放一点」放三秒，再不行一直放，猜到的时候放到第几段就是几分（3、2、1 分）。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓以后还能去 Apple Music 听完整版。玩完可以发起挑战：把这局的歌发给朋友，同样的歌、同样的四个选项，看谁分高。旋律：手机放经典旋律，先放几个音，没人猜到就多放，不用联网也能玩。抢答器：手机平放在桌子中间，每人一个按钮，有人用自己的音乐 App 当 DJ 放歌，谁先按谁回答，对了加一分，${custom ? "错了受罚。最后得分最低的受罚。" : "错了喝一口。最后得分最低的喝两口。"}`
+        : `Real songs: the phone plays a 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV) and a decade (before 1980 to the 2020s), or one singer for a whole game of their songs, the four titles all theirs too. Everyone shouts the title. The sooner, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Multiple choice: four titles on the screen, the table calls one, tap it, then tap who said it; on hard, titles only, the wrong ones by the same singer where possible. One second: one second of the song first, Play more for three seconds, then the rest; 3, 2 or 1 points by how much had played. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. After the reveal, open the full song on Apple Music. Afterwards, challenge a friend: they get the same songs and the same four titles, and try to beat your score. Melody: the phone plays a classic tune a few notes at a time, no internet needed. Buzzers: lay the phone flat in the middle, everyone gets a pad, someone plays DJ from their own music app. First touch answers: ${custom ? "right is a point, wrong takes the penalty. Lowest score takes the penalty." : "right is a point, wrong is a sip. Lowest score drinks two."}`}
     </p>
   );
 
@@ -129,7 +187,13 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
         actions={actions}
       >
         <div className="tn">
-          {phase === "setup" && (
+          {phase === "setup" && challenge && (
+            <>
+              <Vinyl spinning={false} label={<Music size={30} strokeWidth={2.4} />} />
+              <ChallengeIntro c={challenge} songs={challenge.ids.length} />
+            </>
+          )}
+          {phase === "setup" && !challenge && (
             <>
               <Vinyl spinning={false} label={<Music size={30} strokeWidth={2.4} />} />
               <div className="seg" role="group">
@@ -166,13 +230,15 @@ function TuneGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
           )}
 
           {phase === "play" && mode === "songs" && (
-            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} onTotal={setRounds} total={total} pool={pool} quiz={quiz} hard={hard} snap={snap} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={() => setPhase("setup")} />
+            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} onTotal={setRounds} total={total} pool={pool} quiz={quiz} hard={hard} snap={snap} seed={seed} fixed={challenge?.ids} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={ownGame} />
           )}
           {phase === "play" && mode === "melody" && <MelodyRounds keeping={keeping} saved={firstSaved.current?.round.kind === "melody" ? firstSaved.current.round : null} onRound={setShellRound} total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
           {phase === "play" && mode === "pads" && (
             <Pads keeping={keeping} saved={firstSaved.current?.round.kind === "pads" ? firstSaved.current.round : null} onTurn={setAnswerTurn} people={people} scores={scores} setScores={setScores} onEnd={() => finish(scores)} onWrong={(name) => penalty.show({ who: [name], kind: "sip", note: zh ? "抢答错了" : "Wrong answer" })} />
           )}
 
+          {phase === "end" && challenge && top && <ChallengeResult c={challenge} ids={log.map((r) => r.id)} best={{ name: top.name, score: top.score }} />}
+          {phase === "end" && link && <ChallengeLink url={link} />}
           {phase === "end" && (
             <>
               <h2 className="pl-board-title">{zh ? "最终得分" : "Final scores"}</h2>
@@ -200,6 +266,8 @@ function SongRounds({
   quiz,
   hard,
   snap,
+  seed,
+  fixed,
   people,
   scores,
   setScores,
@@ -217,10 +285,14 @@ function SongRounds({
   hard: boolean;
   /** one second: a snippet first, more on a tap (manual stages, like the melodies) */
   snap: boolean;
+  /** the four titles' shuffle, the same for the same song on every phone with this seed */
+  seed: number;
+  /** a challenge: these songs, in this order (the ones this phone has) */
+  fixed?: number[];
   people: { id: string; name: string }[];
   scores: Record<string, number>;
   setScores: (s: Record<string, number>) => void;
-  onEnd: (final: Record<string, number>) => void;
+  onEnd: (final: Record<string, number>, log: RoundLog[]) => void;
   onRound: (round: number) => void;
   onTotal: (rounds: number) => void;
   onOffline: () => void;
@@ -251,7 +323,9 @@ function SongRounds({
   const choicesFor = useRef(saved?.song?.id ?? null);
   /** the performers react: a cheer for the right title, a shrug for a wrong one */
   const [cue, setCue] = useState<StageCue | null>(null);
-  useKeepProgress<Kept>({ ...keeping, round: { kind: "songs", round, song, next, played: [...played.current], avoid: [...avoid.current], revealed, revealedAt, stage: revealed ? stage : 0, choices, tried } }, true);
+  /** who got each song so far (the final scores show it; a challenge sends it on) */
+  const log = useRef<RoundLog[]>(saved?.log ?? []);
+  useKeepProgress<Kept>({ ...keeping, round: { kind: "songs", round, song, next, played: [...played.current], avoid: [...avoid.current], revealed, revealedAt, stage: revealed ? stage : 0, choices, tried, log: log.current } }, true);
 
   useEffect(() => {
     loadSongbook().then(setBook, () => setFailed(true));
@@ -259,7 +333,11 @@ function SongRounds({
   /** as many songs as the game is set to, or all the pool has if fewer (one singer, a small decade) */
   const special = specialOf(pool);
   const size = useMemo(() => (book ? poolSize(book, pool) : 0), [book, pool]);
-  const rounds = size ? Math.min(total, size) : total;
+  /** the built-in songs (every phone has them): the four titles come from these, and a challenge's songs */
+  const catalog = useMemo(() => (book ? builtIn(book) : null), [book]);
+  const ids = useMemo(() => new Set(catalog?.map((x) => x.id)), [catalog]);
+  const order = useMemo(() => (fixed && catalog ? fixed.map((id) => catalog.find((x) => x.id === id)).filter((x): x is Song => !!x) : null), [fixed, catalog]);
+  const rounds = order ? order.length : size ? Math.min(total, size) : total;
   useLayoutEffect(() => onTotal(rounds), [rounds, onTotal]);
 
   const pick = (list: Song[], also: number[] = []) => pickSong(list, pool, avoid.current, new Set([...played.current, ...also]), Math.random);
@@ -267,11 +345,11 @@ function SongRounds({
   // the first song (and the one after it, so it can load early) once the list is in
   useEffect(() => {
     if (!book || song) return;
-    const first = pick(book);
+    const first = order ? (order[0] ?? null) : pick(book);
     if (!first) return setEmpty(true);
     played.current.add(first.id);
     setSong(first);
-    setNext(pick(book, [first.id]));
+    setNext(order ? (order[1] ?? null) : pick(book, [first.id]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book]);
   // the song playing first, then the next one loads early (in that order: the phone keeps two)
@@ -287,11 +365,18 @@ function SongRounds({
   const [snipOn, setSnipOn] = useState(false);
   const snipTimer = useRef(0);
   useEffect(() => {
-    if (!song || !book || choicesFor.current === song.id) return;
+    if (!song || !catalog || choicesFor.current === song.id) return;
     choicesFor.current = song.id;
-    setChoices(shuffle([song, ...decoysFor(song, book, Math.random, hard, pool)]));
+    // (from this game's seed: a challenge sent on shows the same four, in the same order)
+    const dice = seeded(seed, song.id);
+    const four = [song, ...decoysFor(song, catalog, dice, hard, pool)];
+    for (let i = four.length - 1; i > 0; i--) {
+      const j = Math.floor(dice() * (i + 1));
+      [four[i], four[j]] = [four[j], four[i]];
+    }
+    setChoices(four);
     setTried([]);
-  }, [song, book]);
+  }, [song, catalog]);
 
   const play = (from: number) => {
     if (waiting.current) {
@@ -354,7 +439,13 @@ function SongRounds({
     return (
       <>
         <p className="hint" style={{ textAlign: "center" }}>
-          {zh ? "这个歌单还没有歌，换一个语言或类别试试。" : "No songs in this pool yet. Try another language or category."}
+          {fixed
+            ? zh
+              ? "这个挑战的歌已经不在歌单里了，自己选一组歌玩吧。"
+              : "This challenge's songs aren't in the list any more. Pick some songs of your own."
+            : zh
+              ? "这个歌单还没有歌，换一个语言或类别试试。"
+              : "No songs in this pool yet. Try another language or category."}
         </p>
         <TuneAction>
           <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onEmpty}>
@@ -397,12 +488,13 @@ function SongRounds({
     }
     setScores(nextScores);
     rememberSong(song.id);
+    log.current = [...log.current, { id: song.id, pid, pts: pid ? [3, 2, 1][revealedAt] : 0, b: ids.has(song.id) }];
     if (round >= rounds) {
       handle.current?.stop(0.6);
-      return onEnd(nextScores);
+      return onEnd(nextScores, log.current);
     }
-    const now = next ?? (book ? pick(book) : null);
-    if (!now) return onEnd(nextScores);
+    const now = order ? (order[round] ?? null) : (next ?? (book ? pick(book) : null));
+    if (!now) return onEnd(nextScores, log.current);
     handle.current?.stop(0.25);
     window.clearTimeout(snipTimer.current);
     setSnipOn(false);
@@ -412,7 +504,7 @@ function SongRounds({
     setStage(0);
     setStartedAt(null);
     setSong(now);
-    setNext(book ? pick(book, [now.id]) : null);
+    setNext(order ? (order[round + 1] ?? null) : book ? pick(book, [now.id]) : null);
   };
 
   const card = cardOf(song);

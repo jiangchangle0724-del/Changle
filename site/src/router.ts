@@ -2,7 +2,8 @@
  * The site's addresses: one page, one address.
  *
  *   /                 home (party)          /g/<slug>          a game's card, over home
- *   /tools, /wish     the other home tabs   /g/<slug>/play     the game, on one phone
+ *   /tools, /wish     the other home tabs   /g/<slug>/play     the game, on one phone (?c=: a link
+ *                                                               of the game's own, 猜歌名's challenges)
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
  *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
@@ -21,7 +22,7 @@ import type { Lang } from "./i18n";
 
 export type Route =
   | { kind: "home"; tab: HomeTab; game?: GameId; open?: "settings" | "login" }
-  | { kind: "game"; id: GameId }
+  | { kind: "game"; id: GameId; c?: string }
   | { kind: "room"; code: string }
   | { kind: "me"; tab?: "friends" }
   | { kind: "admin" }
@@ -65,7 +66,10 @@ export function parse(pathname: string, search = ""): Route {
       const g = GAME_BY_ID[id];
       // a game that plays from a big screen (the DJ booth) is played at that screen's address
       if (m[2] && g.speaker) return { kind: "tv", game: id };
-      if (m[2] && g.ready) return { kind: "game", id };
+      if (m[2] && g.ready) {
+        const c = new URLSearchParams(search).get("c");
+        return c && /^[A-Za-z0-9_-]{1,1600}$/.test(c) ? { kind: "game", id, c } : { kind: "game", id };
+      }
       // (a hidden game has no card: only its own /play address opens it, nothing else is a page)
       if (!g.hidden) return { kind: "home", tab: "party", game: id };
     }
@@ -93,7 +97,7 @@ export function pathOf(r: Route): string {
     case "home":
       return r.game ? `/g/${GAME_BY_ID[r.game].slug}` : r.tab === "party" ? "/" : `/${r.tab}`;
     case "game":
-      return `/g/${GAME_BY_ID[r.id].slug}/play`;
+      return `/g/${GAME_BY_ID[r.id].slug}/play${r.c ? `?c=${r.c}` : ""}`;
     case "room":
       return `/t/${r.code}`;
     case "me":
