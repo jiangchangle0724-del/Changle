@@ -71,7 +71,7 @@
 - 11-05 晚上做好、开着等 Steve 点头（按顺序合并，一个接一个）：
   - #266：3D 老师和动作页。
   - #272：手机体感、电视上每人一个小人、音效（接在 #266 后面）。
-  - 热歌的 PR（接在 #272 后面）：16 首歌、YouTube 播放器、对拍、歌本，和这份档案。
+  - #283（接在 #272 后面）：16 首歌、YouTube 播放器、对拍、歌本，和这份档案。
   - 检查都过了：测试、typecheck、build；本地 song-check、timing-check、motion-check（假手跳，每拍都算踩准，平均差 11 毫秒）、song-yt-check（假 YouTube 晚 300 毫秒开始，房间把拍子挪到视频的拍子上，差 4 毫秒；对拍算出的第一拍差 1 毫秒）。老师的样子在云端用软件画法截图、拍了视频给 Steve 看过。
 
 ## 还剩什么
@@ -79,7 +79,7 @@
 - Project 的说明里仓库名还是旧的 `jiangchangle0724-del/changle-ca`，要改成 `jiangchangle0724-del/Changle`：GitHub 上改了名，推代码旧名字还能用，开 PR 要按新名字接仓库。在 claude.ai 打开 Project「Changle.ca」改说明。
 - Cloudflare：Worker `party` 的 build watch paths 加 `games/dance/*`。房间和页面读动作库，不加的话，只改了 `games/dance` 的合并不会重新部署。在 Cloudflare 打开 Worker `party`，Settings → Build 里的 Build watch paths 加一行 `games/dance/*`，保存。不急：以后只改 `games/dance` 的合并才需要它。
 - 上面两处都要登录。11-05 这个对话在 Steve 电脑上的浏览器里打开过，Cloudflare 和 claude.ai 都没登录，Steve 不在家，没改。Steve 自己改，或者登录以后让这个对话来点。
-- 合并上面三个 PR（Steve 点头才合，合并就上线）。#266 合并后，#272 的目标改成 main；#272 合并后，热歌的 PR 也一样。
+- 合并上面三个 PR（Steve 点头才合，合并就上线）。#266 合并后，#272 的目标改成 main；#272 合并后，#283 也一样。
 - 真机测试（要 Steve）：Mac 或 iPad 投到 Apple TV，iPhone 扫码。
   - 老师在电视上流不流畅（没显卡或者太慢会自动换回文字）。
   - 体感：手机拿在手里跳，看手机说「踩准了」准不准。阈值 2.2 m/s² 是按经验定的，不准就调 `src/shared/peaks.ts`。iPhone 第一次要点「开体感」允许。
@@ -97,7 +97,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-05 一起跳: famous songs from YouTube on the TV, each tapped along to once on the speaker page（热歌的 PR）
+- 2026-11-05 一起跳: famous songs from YouTube on the TV, each tapped along to once on the speaker page（#283）
 - 2026-11-05 一起跳: the phone's motion sensor counts the moves; everyone dances on the TV, with sounds（#272）
 - 2026-11-05 一起跳: a 3D coach dances every move on the beat, and /party/moves shows them（#266）
 - 2026-11-05 docs: 一起跳's brief after its first dance; Codex cards C2 (rewritten), C3 and C4（#203）
