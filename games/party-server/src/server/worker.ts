@@ -4,11 +4,21 @@
 //   POST /party/api/rooms                 open a room: { speakerAt } -> { code }
 //   GET  /party/api/rooms/CODE/ws         the room's WebSocket: ?role=speaker, or ?id=…&name=… for a phone
 //   GET  /party/r/CODE                    the QR code's link: the phone page with the code filled in
+//   GET  /party/api/songs                 the songbook: each song's first beat as tapped along to
+//   POST /party/api/songs/ID              a speaker page's taps for a song: { firstBeatMs, taps, spreadMs }
 //   /party/screen, /party/join            the pages (dist/client/party, built by scripts/build.mjs)
 import { DurableObject } from "cloudflare:workers";
 import { CODE_ALPHABET, CODE_RE, type ClientMsg, type ServerMsg } from "../shared/protocol";
+import { isSongId } from "../shared/songs";
 import { makeCode, Session, validPlayerId, type From, type Out, type SessionData } from "./session";
+import { SongBook } from "./songbook";
+import { checkTapped } from "./tapped";
 import { emptyScores, type Scores } from "./tally";
+
+export { SongBook };
+
+/** The songbook's one Durable Object. */
+const songbook = (env: Env) => env.SONGBOOK.get(env.SONGBOOK.idFromName("songs"));
 
 /** The beats of the dance being danced are stored at most this often (they change with every bar). */
 const SCORES_EVERY_MS = 3_000;
@@ -91,6 +101,15 @@ export class PartyRoom extends DurableObject<Env> {
       msg = JSON.parse(message) as ClientMsg;
     } catch {
       return;
+    }
+    // a song is about to start: the session takes its first beat from the songbook as it is now
+    if (msg && msg.t === "act" && msg.action?.type === "START_LEARNING" && isSongId(String(msg.action.routineId))) {
+      try {
+        const all = await songbook(this.env).all();
+        this.s.songbook = Object.fromEntries(Object.entries(all).map(([id, t]) => [id, t.firstBeatMs]));
+      } catch {
+        // (the songbook didn't answer: the catalogue's guess)
+      }
     }
     this.s.handle(from, msg);
     await this.commit();
@@ -228,6 +247,18 @@ export default {
       const code = ws[1]!.toUpperCase();
       if (!CODE_RE.test(code)) return json({ error: "no such room" }, 404);
       return env.ROOMS.get(env.ROOMS.idFromName(code)).fetch(req);
+    }
+    if (path === "/party/api/songs") {
+      if (req.method !== "GET") return json({ error: "method not allowed" }, 405);
+      return json(await songbook(env).all());
+    }
+    const song = /^\/party\/api\/songs\/([a-z0-9-]{1,64})$/.exec(path);
+    if (song) {
+      if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
+      const t = checkTapped(song[1]!, await req.json().catch(() => null), Date.now());
+      if (typeof t === "string") return json({ error: t }, 400);
+      await songbook(env).set(song[1]!, t);
+      return json({ ok: true, ...t });
     }
     const r = /^\/party\/r\/([A-Za-z0-9]{4})\/?$/.exec(path);
     if (r) return Response.redirect(new URL(`/party/join?code=${r[1]!.toUpperCase()}`, url).toString(), 302);

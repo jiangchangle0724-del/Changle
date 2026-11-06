@@ -2,7 +2,8 @@
 // English, in the page's language (common.ts's tr), with the other language beside it where a
 // mixed room reads it off the TV.
 import type { Difficulty } from "../../../party-base/src/index";
-import type { Move, Routine } from "../shared/catalog";
+import { routineById, type Move, type Routine } from "../shared/catalog";
+import { songById, type Song } from "../shared/songs";
 import type { Results } from "../shared/protocol";
 import type { Show, Stage } from "../shared/show";
 import type { Verdict } from "../shared/taps";
@@ -16,6 +17,8 @@ export function stageName(s: Stage): string {
       return tr("看一遍", "Watch");
     case "follow":
       return tr("跟一遍", "Your turn");
+    case "intro":
+      return tr("前奏", "Intro");
     case "countdown":
       return tr("准备", "Get ready");
     case "dance":
@@ -35,6 +38,8 @@ export function stageHint(s: Stage, metronome: boolean): string {
       return tr("先看，放慢了", "Watch first, slowed down");
     case "follow":
       return tr("跟着做：手机拿在手里跳，或者每一拍点一下", "Do it with me: dance with your phone in hand, or tap it on every beat");
+    case "intro":
+      return tr("听前奏，准备好", "The intro: get ready");
     case "countdown":
       return tr("要开始了", "Here it comes");
     case "dance":
@@ -52,6 +57,15 @@ export const moveName = (m: Move) => (zh() ? m.name_zh : m.name_en);
 /** The move's name in the other language. */
 export const moveOther = (m: Move) => (zh() ? m.name_en : m.name_zh);
 export const routineName = (r: Routine) => (zh() ? r.name_zh : r.name_en);
+export const songTitle = (s: Song) => (zh() ? s.title_zh : s.title_en);
+export const songArtist = (s: Song) => (zh() ? s.artist_zh : s.artist_en);
+/** A dance's name by its id: one of the library's, or a song's title. */
+export function danceName(id: string): string {
+  const r = routineById(id);
+  if (r) return routineName(r);
+  const s = songById(id);
+  return s ? songTitle(s) : "";
+}
 
 export function bodyHint(m: Move): string {
   if (m.body === "arms") return m.seated_ok ? tr("只动手臂，坐着也行", "Arms only, sitting is fine") : tr("只动手臂", "Arms only");
