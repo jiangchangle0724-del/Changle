@@ -1,0 +1,22 @@
+/*
+ * 我从来没有 on one phone (PromptDecks.tsx). The deck itself, shared with the online screen, is in
+ * styles/components.css ("prompt decks"); this is only what the one-phone screen does.
+ */
+
+/* picking who drinks (谁做过, 指完了): the card steps back to a strip under its lead line, so every
+   name sits above the bottom buttons. A phone held sideways keeps its card on the left. */
+@media not all and (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  .deck-stage .deck-card {
+    transition:
+      min-height var(--dur-enter) var(--ease-out),
+      padding var(--dur-enter) var(--ease-out);
+  }
+  .deck-stage.is-picking .deck-stack,
+  .deck-stage.is-picking .deck-card {
+    min-height: 0;
+  }
+  .deck-stage.is-picking .deck-card {
+    padding: var(--space-4);
+    gap: var(--space-1);
+  }
+}
