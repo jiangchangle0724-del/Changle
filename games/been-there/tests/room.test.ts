@@ -1900,3 +1900,28 @@ test("reactions: a team's player reacts, every page in the room hears it at once
   const strip = (s: string) => s.replace(/"lastSeen":\d+/g, "");
   assert.equal(strip(JSON.stringify(t.room.st)), strip(before));
 });
+
+test("the report card's tallies: every throw, rent, buy, auction, quiz win and trip to Immigration, counted per seat, sent at the end", () => {
+  const t = new Table({ mode: 60, testRounds: 6 });
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  assert.equal(t.view(ps[0]).game!.tally, null, "not before the end");
+  t.playUntil(() => t.game.s.over);
+  const tally = t.view(ps[1]).game!.tally!;
+  assert.equal(tally.length, 3);
+  const events = t.seen.flatMap((f) => (f.t === "game" ? [f.e] : []));
+  const count = (pred: (e: E.GameEvent) => boolean) => events.filter(pred).length;
+  for (let seat = 0; seat < 3; seat++) {
+    const mine = tally[seat];
+    assert.equal(mine.throws, count((e) => e.t === "roll" && e.p === seat));
+    assert.equal(mine.totals.reduce((a, b) => a + b, 0), mine.throws, "every throw of two dice has its total");
+    const rents = events.filter((e): e is Extract<E.GameEvent, { t: "rent" }> => e.t === "rent");
+    assert.equal(mine.rentPaid, rents.filter((e) => e.p === seat).reduce((a, e) => a + e.amount, 0));
+    assert.equal(mine.rentGot, rents.filter((e) => e.to === seat).reduce((a, e) => a + e.amount, 0));
+    assert.equal(mine.bought, count((e) => e.t === "buy" && e.p === seat));
+    assert.equal(mine.jail, count((e) => e.t === "jail" && e.p === seat));
+    assert.equal(mine.auctionsWon, count((e) => e.t === "auction" && e.winner === seat));
+    if (mine.topRent) assert.equal(mine.topRent.amount, Math.max(...rents.filter((e) => e.p === seat).map((e) => e.amount)));
+  }
+  assert.ok(tally.some((x) => x.throws > 0));
+});

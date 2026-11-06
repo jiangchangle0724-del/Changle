@@ -22,6 +22,9 @@ import {
   type ReactionId,
   type TeamView,
   type TriviaView,
+  type Tally,
+  countEvent,
+  emptyTally,
 } from "./protocol";
 import { FORFEITS } from "./party";
 import { LEGACY_ORDER, SEEN_KEEP, TRIVIA_BY_ID, cleanSeen, pickTrivia } from "./trivia";
@@ -197,6 +200,8 @@ interface Game {
   triviaDue?: { city: string; seat: number; at: number; busy?: boolean; nobody?: boolean } | null;
   trades: Trade[];
   bets: Bets | null;
+  /** What each seat has done (the finale's report card). Missing in games saved before it: counted from then on. */
+  tally?: Tally[];
   /** When each human seat's last phone went away. */
   awaySince: Record<number, number>;
   /** Seats the computer was covering at the last check (to announce changes). */
@@ -982,6 +987,7 @@ export class Room {
     let firstVisit = false;
     for (const e of s.events ?? []) {
       this.push({ t: "game", e });
+      countEvent((g.tally ??= s.ps.map(() => emptyTally())), e);
       // Side events don't make anyone's pending decision stale.
       if (e.t !== "manage" && e.t !== "trade" && e.t !== "bonus" && e.t !== "fine") g.progress += 1;
       // (every screen plays a throw's ride and landing from now: the turn clock waits for them)
@@ -1859,6 +1865,7 @@ export class Room {
         mine: m && m.id in g.bets.bets ? g.bets.bets[m.id] : null,
       },
       worth: s.ps.map((_, i) => (hidden(i) ? -1 : E.netWorth(s, i))),
+      tally: s.over ? (g.tally ?? null) : null,
     };
   }
 }

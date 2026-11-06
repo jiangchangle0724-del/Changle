@@ -42,6 +42,17 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   touchdown in each new city (out of the plane window, through the clouds, the real local time and
   the live weather), and the finale (an exit stamp, teams read out last to first, the winners'
   medal, stamps and falling paper).
+* **The report card (战报)** follows the finale (`ui/ReportCard.tsx`, `ui/tripReport.ts`), from what the
+  room counted for each team over the game (`Tally` in `room/protocol.ts`, sent only once it's over):
+  up to five awards in a fixed order (top landlord, priciest night, quiz champ, auction ace, hottest
+  dice with three throws or more, doubles king, Immigration regular; nothing for nothing, a tie
+  shared), and the dice, a bar for each total of two against a dot for the long run, with the numbers
+  in words, so nobody has to wonder whether they were loaded. On a phone it comes in under the
+  standings, with 存成图片: a 1080 × 1350 picture drawn on a canvas in the game's fonts and colours
+  (`ui/reportPicture.ts`), shown in a sheet to press and hold (a data address, which WeChat saves too),
+  share where the phone can, or download. The big screen has no room for both, so once the teams are
+  in, the standings' column turns between them and the card every 12 s, beside the winners' card,
+  sized in `vh` to fit 1280×720.
 * **The printed things are drawn in code** (SVG, CSS, a canvas for the paper grain) and the sounds are
   synthesised in the browser. What's real comes as files, each credited: the cities' photos and
   recordings (below), the songs (streamed from Apple) and the satellite pictures of the world.
