@@ -8,7 +8,8 @@
 
 ## 文件
 
-- 全部在 `games/hang-on/`：`src/physics/` 物理，`src/server/` 房间（Worker + Durable Object），`src/net/` 链路，`src/render/` Pixi 画面，`src/audio/` 合成音效，`src/look.ts` 换装选项，`src/levels.ts` 关卡表，`index.html` + `src/host/` 主机页，`pad/` + `src/pad/` 手柄页，`play.html` + `src/dev/` 物理开发页，`scripts/` 联机检查和法律线，`proto/` 最早的软体原型
+- 全部在 `games/hang-on/`：`src/physics/` 物理，`src/server/` 房间（Worker + Durable Object），`src/net/` 链路，`src/render/` Pixi 画面，`src/audio/` 合成音效，`src/look.ts` 换装选项，`src/levels.ts` 关卡表，`index.html` + `src/host/` 主机页，`pad/` + `src/pad/` 手柄页，`play.html` + `src/dev/` 物理开发页，`scripts/` 联机检查、法律线和关卡回放，`levels/` 12 关（`levels/replays/` 四人回放），`proto/` 最早的软体原型
+- 关卡说明、验收表和 12 张全关截图：`docs/levels/`
 - 契约：`games/hang-on/CONTRACTS.md`
 - Codex 的任务卡：`docs/codex-tasks/hang-on/`
 - CI：`.github/workflows/hang-on.yml`（checks 和 link 两个 job）
@@ -24,6 +25,7 @@
 ## 测试
 
 - `games/hang-on`：`npm test`（物理 20 条 + 5 条附加 + A3 玩法 10 条、房间逻辑 12 条、往返统计 3 条）、`npm run typecheck`、`npm run build`、`npm run ip-check`
+- 关卡：`npm run levels`（12 关的格式检查加四人回放，都得过关；CI 的 checks 每次都跑，手感被改坏会被拦住）；`npm run levels -- --screenshots` 重拍 `docs/levels/` 的截图（要 Playwright 和 Chromium）
 - 联机：`npm run dev` 起着，另一个终端 `npm run link-check`（主机页 + 两个手柄页，直连、绕路、掐线 5 秒内回来）；CI 的 link job 每次都跑
 - 键盘玩物理：`npm run play`（`?level=table-03` 选关，`?players=4` 量帧时间）；录回放：`npm run record`
 - 画面只能用眼睛验：开发页或主机页截图，对着 `docs/hang-on.md` 的动效清单一条条看
@@ -42,19 +44,21 @@
 - 换装六项：帽子、眼镜、眼睛、脸、袖子、嗓子（Steve 发了原版换装页做参考，分类可以像，造型全是自己画的）；手套左蓝右橙不能换（辨左右），袖子不许用蓝橙，馅儿色跟座位走。
 - 主机页和手柄页的字全部中英两套（`src/i18n.ts`，A2 留下的中文也补了英文），各自有语言键。
 - 过关先在电视上庆祝 2.6 秒（纸屑、一起跳、「到顶了！」横幅）再出结算页。
+- 主机页的顶栏压在所有遮罩（大厅、倒数、结算）上面，声音、语言、回大厅哪一步都点得到；大厅里顶栏只有声音和语言两个键，房间码在大厅卡片里，用时和摔死只在倒数和玩的时候出现，延迟表有人连进来才显示。
 - 联机检查的主机页加 `?render=0`：CI 的机器没显卡，Pixi 软件渲染会把主机页拖到几百毫秒一帧，掐线重连那条就过不了。
 
 ## 现在
 
 - A1 已合并（#137）：Rapier 物理、20 条检查全过、键盘可玩、physics-notes。不装东西就能玩的试玩页：https://claude.ai/artifact/U9shPyHZwd4Duft79KK194
 - A2 已合并（#165），Worker `hang-on` 11-04 连上 Cloudflare 并部署：changle.ca/hang-on/ 是主机页，手机扫码进 changle.ca/hang-on/pad/。对着线上跑联机检查全过（直连往返约 20 ms，绕路约 120 ms）。
-- C1（12 关关卡）PR #172（codex/ho-c1-levels）11-05 审完：在含 A3 的 main 上 12 关回放全过（用时、摔死和 Codex 的表一样），第 6 关真成链、第 10 关真丢人、单人都过不去。审查时补了：审查页和 12 张截图改用 A3 画面（原来的开发渲染器 A3 删了）、`src/render/plates.ts`（远景画地址单独放，Stage 不再依赖 Vite 才认的写法）、验收器允许饼干和蜡烛、CI 的 checks 跑 `npm run levels`。等 Steve 点头合并；合并后大厅里就是 1 到 12 关加彩蛋关。
 - A3 已合并（#179，11-05）并上线，changle.ca/hang-on 对着线上跑联机检查全过：Pixi 8 画面（两个世界的视差背景、五种材质贴图、糯米团带脸帽子眼镜、动效清单 8 条全做、慢动作、横幅）、WebAudio 合成音效、饼干平台和弹簧蜡烛的物理、背叛榜、召唤、结算页排行、大厅选关和座位卡、手柄页换装（六项）和召唤键、中英两套字、彩蛋关「桌上杂技」、两张 ChatGPT 远景画、手机双击不放大（#176，和上线记录 #173 一起随 #179 合并）。A5 的大厅、关卡流程、结算页、背叛榜这次一并做了一版。
+- C1 已合并（#172，11-05）并上线，大厅里是 1 到 12 关加彩蛋关「桌上杂技」。Codex 做的关卡 JSON、四人回放和验收；Claude 审查：在含 A3 的 main 上 12 关回放全过（用时、摔死和 Codex 的表一样），第 6 关真要成链、第 10 关真要丢人，单人都过不去，关名和「这关教」都有中英文。审查时补了：审查页和 12 张截图改用 A3 画面（原来的开发渲染器 A3 删了）、`src/render/plates.ts`（远景画地址单独放，Stage 不再依赖 Vite 才认的写法，审查页才能用）、验收器允许饼干和蜡烛、CI 的 checks 跑 `npm run levels`。
+- 11-05 C1 上线后对着线上一查，发现 A3 的毛病：大厅和结算的遮罩盖住了顶栏，鼠标点不到声音、语言和回大厅（大厅里没法切中文）。分支 `claude/ho-lobby-hud` 修了：顶栏压在遮罩上面，大厅里顶栏只留声音和语言；本地点过，联机检查全过；等 Steve 点头合并。
 
 ## 还剩什么
 
 - 联机门（A2 + A4）：Steve 真机实测，按 `docs/field-notes/hang-on-link-test.md` 填：HDMI 下按键到画面 ≤ 80 ms，关 Wi-Fi 再开 5 秒内回来，微信里是不是直连。浏览器级的「离线」模拟不会断 WebRTC，所以掐线那条只在真机上算数。
-- #172 合并后发一张小卡给 Codex：把饼干（`fading`）和蜡烛（`springs`）放进几关，长一点的关多放检查点（现在只有 table-04、van-08 各一个，van-12 两个）；关都只有一屏宽，第二版可以做长一些。`ho-C4-tests.md` 的物理回归部分也可以发了。
+- 下一张给 Codex 的小卡（还没写、没发，等 Steve 点头）：把饼干（`fading`）和蜡烛（`springs`）放进几关，长一点的关多放检查点（现在只有 table-04、van-08 各一个，van-12 两个）；关都只有一屏宽，第二版可以做长一些；改了关要重录回放，`npm run levels` 过了才算。`ho-C4-tests.md` 也可以发了：第 4 项 ip-check 早做了，第 2 项 perf 现在有 12 关回放可以跑，第 1、3 项还没人做。
 - A3 的真机验收：Mac 接电视开主机页，`play.html?players=4` 看 ⏲ 的 p95 ≤ 20 ms；减弱动效模式看一眼。声音要点过一次页面才响（浏览器规矩）。
 - 音乐（Lyria 循环曲，C3）没做。以后要换远景画：照 `games/hang-on/art/README.md` 的规矩放图、登记来源。
 - A4 手柄页剩下的：两摇杆设置、首包 ≤ 50 KB 的验证（现在 JS 约 15 KB，gzip 6 KB）。
@@ -68,6 +72,8 @@
 
 ## 最近的改动
 
+- 2026-11-05 主机页顶栏压到遮罩上面，大厅里能切语言、关声音，结算页能回大厅（`claude/ho-lobby-hud`）
+- 2026-11-05 合并 #172（C1）并上线：12 关、四人回放、关卡验收；审查补了 A3 画面的审查页和截图、`plates.ts`、CI 跑 12 关回放
 - 2026-11-05 合并 #179（A3，含 #173、#176）并上线：Pixi 画面、音效、饼干和蜡烛、背叛榜、召唤、换装六项、中英两套字、选关、结算页、彩蛋关、两张远景画
 - 2026-11-04 合并 #165（A2），Worker hang-on 连 Cloudflare 上线；C1 发给 Codex
 - 2026-11-04 A2：房间 Worker + Durable Object、WebRTC 链路、主机页、手柄页、联机检查、CI link job
@@ -80,3 +86,4 @@
 - 2026-11-02 建档案；A1 做完。
 - 2026-11-04 Steve 过手感门，合并 A1，做 A2；A2 合并上线，Cloudflare 和 Codex 都由 Claude 控制电脑操作。
 - 2026-11-05 Steve 要人物、动画、玩法、场景、特效、音效一起深度升级，并修手机双击放大；A3 一次做完。
+- 2026-11-05 审 Codex 的 C1（#172），Steve 同意后合并上线。
