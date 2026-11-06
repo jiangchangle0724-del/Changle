@@ -1,7 +1,7 @@
 {
   "src/styles/home.css": {
     "color": 5,
-    "shadow": 6
+    "shadow": 4
   },
   "src/styles/account.css": {
     "color": 4,
