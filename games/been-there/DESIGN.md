@@ -30,6 +30,17 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   middle, under the board where the flat map is, so the tokens stand on it, wearing the same pictures.
   A team crossing to another region flies there along the great circle, its own token flying it. On a
   phone the player picks how big the board is drawn (below, "The map's size").
+* **The buildings** (`Buildings` in `art/RoundBoard.tsx`) stand up on a city's space like the tokens,
+  upright while the table turns: little models drawn in code, with a front, a side in shade and a roof.
+  One to four green houses side by side, or a hotel of three floors with lit windows and a sign on its
+  roof carrying the city's own picture (the pyramid, the gondola, the die…): the city's landmark at a
+  size a phone can still read. A new one rises from its foot in a puff of dust, houses one after
+  another, a hotel floor by floor (0.5 s each, 0.16 s apart); what was there when the board first drew
+  stays still.
+* **Life between moves.** Every 2.4 s one thing on the board moves for a second: a token that isn't on
+  turn looks round or bobs, or a hotel's sign swings and its windows blink (a city's owner mark gives a
+  bounce while there's no hotel yet). One at a time, so a phone draws only that small part again; never
+  during a move, with the page hidden, or with reduced motion.
 * **Six characters**, one per team colour, each with six moods (idle, happy, shock, sad, curious,
   smug): 咔嚓 Click, 呼呼 Snooze, 小旗 Flaggy, 背背 Packy, 箱箱 Trunky, 球球 Globey. On the board they
   stand at 0.8 of their drawing on a phone or a laptop and 0.62 on the big screen (`TOKEN_SCALE` in
@@ -386,7 +397,13 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   big screen the chime is the next team's boarding call, its flight number on the departures board.
 * **The dice** are in the air the moment the button is pressed (under 0.1 s), clack twice as they
   land, and their number comes up with a tick.
-* **A city bought:** the owner's mark stamps down and its ink spreads out round it.
+* **A city bought:** the owner's mark stamps down, its ink spreads out round it and sparks fly out of
+  it, in the team's colour and gold.
+* **Sold, broke** (`useBoardFx` in `ui/Board.tsx`): a city won at auction is stamped 成交 SOLD on its
+  space in the winner's colour for 1.8 s, a team gone broke 破产 BROKE where its token stood, on every
+  screen. Only what happens while the board is up: what was in the log when it first drew is old news.
+  With reduced motion the stamp simply stands there for its 1.8 s, and new buildings are simply there,
+  with no dust and no sparks.
 * **Money:** coins fly from whoever pays to whoever is paid, once the token is down. On the big
   screen, every payment; on a phone, its own team's.
 * **Sent to Immigration:** the gate comes down over the board.

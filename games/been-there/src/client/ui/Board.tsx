@@ -4,7 +4,7 @@ import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEv
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
+import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type BoardFx, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
 import { colon, groupName, money, spaceName, t, tx, type Key } from "../i18n";
 import { MAP_SIZES, prefs, type MapSize } from "../prefs";
@@ -61,6 +61,42 @@ export function moodOf(v: RoomView, seat: number): Mood {
     }
   }
   return "idle";
+}
+
+/** How long a stamp stays on the board (ms; its animation in art.css runs as long). */
+const FX_MS = 1_800;
+
+/**
+ * A city sold at auction, a team gone broke: a stamp on its space for a moment, in the team's colour.
+ * Only what happens while the board is up: what was in the feed when it first drew is old news.
+ */
+function useBoardFx(v: RoomView): BoardFx[] {
+  const [fx, setFx] = useState<BoardFx[]>([]);
+  const seen = useRef<number | null>(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const lastId = v.feed.length ? v.feed[v.feed.length - 1].id : 0;
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    const from = seen.current;
+    seen.current = Math.max(from ?? 0, lastId);
+    if (from === null) return;
+    const fresh: BoardFx[] = [];
+    for (const f of v.feed) {
+      if (f.id <= from || f.t !== "game") continue;
+      const e = f.e;
+      if (e.t === "auction" && e.winner !== null) {
+        const team = teamOf(v, e.winner);
+        fresh.push({ id: f.id, kind: "sold", at: e.at, label: t("fx_sold"), color: team ? TEAM_COLORS[team.color] : "var(--active)" });
+      } else if (e.t === "bankrupt" && v.game) {
+        fresh.push({ id: f.id, kind: "broke", at: v.game.s.ps[e.p]?.pos ?? 0, label: t("fx_broke"), color: "var(--active)" });
+      }
+    }
+    if (!fresh.length) return;
+    const ids = new Set(fresh.map((f) => f.id));
+    setFx((now) => [...now, ...fresh]);
+    timers.current.push(setTimeout(() => setFx((now) => now.filter((f) => !ids.has(f.id))), FX_MS));
+  }, [lastId]);
+  return fx;
 }
 
 /** Feed items from this game: after a rematch the room's feed still holds the last game's end. */
@@ -190,6 +226,7 @@ export function Board({
     return [{ seat, at: p.pos, kind, mood: moodOf(v, seat), badge: { color: TEAM_COLORS[kind], letter: TEAM_LETTERS[kind] } }];
   });
   const tokenScale = big ? TOKEN_SCALE.tv : TOKEN_SCALE.phone;
+  const fx = useBoardFx(v);
   // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
   // show the globe) the board draws it flat, under the ring.
   const sat = !(globe && globeWanted());
@@ -209,6 +246,7 @@ export function Board({
       focusAt={focusAt}
       walks={walks}
       sat={sat}
+      fx={fx}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same

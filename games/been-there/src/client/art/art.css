@@ -18,7 +18,13 @@
   --corner-disc: #f1e6cf;
   --corner-ink: #1c2238;
   --house: #5fc48a;
+  --house-side: #3f9a68;
+  --house-roof: #2c6e4c;
+  --house-roof-side: #22583c;
   --hotel: #ff8a6b;
+  --hotel-side: #cf6249;
+  --hotel-top: #9e4636;
+  --window: #ffe08a;
   --active: #ff8a6b;
   --passport: #f3e8cf;
   --passport-cover: #13263d;
@@ -267,6 +273,231 @@
     transform: scale(1);
   }
 }
+/* ---------- the buildings (art/RoundBoard.tsx Buildings): little models standing up on the board ----------
+   A front, a side in shade and a roof; a hotel's sign carries the city's own picture. A new one rises
+   from its foot (houses one after another, a hotel floor by floor) in a puff of dust. */
+.roundboard .bldg .b-front {
+  fill: var(--house);
+  stroke: var(--board-rim);
+  stroke-width: 0.7;
+}
+.roundboard .bldg .b-side {
+  fill: var(--house-side);
+}
+.roundboard .bldg .b-roof {
+  fill: var(--house-roof);
+  stroke: var(--board-rim);
+  stroke-width: 0.7;
+}
+.roundboard .bldg .b-roof-side {
+  fill: var(--house-roof-side);
+}
+.roundboard .bldg .b-door {
+  fill: var(--board-paper);
+}
+.roundboard .bldg.hotel .b-front {
+  fill: var(--hotel);
+}
+.roundboard .bldg.hotel .b-side {
+  fill: var(--hotel-side);
+}
+.roundboard .bldg .b-top {
+  fill: var(--hotel-top);
+}
+.roundboard .bldg .b-win {
+  fill: var(--window);
+}
+.roundboard .bldg .b-sign rect {
+  fill: var(--print-paper);
+  stroke: var(--board-rim);
+  stroke-width: 1.2;
+}
+.roundboard .bldg .b-sign {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.roundboard .b-new {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: b-rise 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--i, 0) * 0.16s) both;
+}
+@keyframes b-rise {
+  0% {
+    transform: scale(1, 0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1, 1.14);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+.roundboard .b-dust ellipse {
+  fill: var(--board-ink-2);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: b-dust 0.7s ease-out 0.12s both;
+}
+.roundboard .b-dust .l {
+  --dx: -8px;
+}
+.roundboard .b-dust .r {
+  --dx: 8px;
+}
+@keyframes b-dust {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--dx)) scale(1.6);
+  }
+}
+/* Life between moves (RoundBoard's beat, one thing at a time): a hotel's sign swings and its windows
+   blink; a city's owner mark gives a little bounce; a token looks round or bobs. */
+.roundboard .bldg.hotel[data-glint] .b-sign {
+  animation: b-swing 1.4s ease-in-out;
+}
+@keyframes b-swing {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: translateY(-2px) rotate(-7deg);
+  }
+  62% {
+    transform: translateY(-1px) rotate(5deg);
+  }
+}
+.roundboard .bldg.hotel[data-glint] .b-win {
+  animation: b-blink 1.4s steps(1);
+}
+@keyframes b-blink {
+  25%,
+  60% {
+    opacity: 0.35;
+  }
+  40%,
+  80% {
+    opacity: 1;
+  }
+}
+.roundboard .owned .om {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.roundboard .owned[data-glint] .om {
+  animation: om-bounce 0.9s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes om-bounce {
+  0%,
+  100% {
+    transform: none;
+  }
+  35% {
+    transform: scale(1.16);
+  }
+  60% {
+    transform: scale(0.96);
+  }
+}
+.roundboard .token:not(.now) > .hop {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.roundboard .token:not(.now) > .hop[data-idle="bob"] {
+  animation: idle-bob 1.3s ease-in-out;
+}
+.roundboard .token:not(.now) > .hop[data-idle="look"] {
+  animation: idle-look 1.3s ease-in-out;
+}
+@keyframes idle-bob {
+  0%,
+  100% {
+    transform: none;
+  }
+  28% {
+    transform: scale(1.05, 0.93);
+  }
+  55% {
+    transform: translateY(-8px) scale(0.97, 1.04);
+  }
+  78% {
+    transform: none;
+  }
+}
+@keyframes idle-look {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: rotate(-8deg);
+  }
+  66% {
+    transform: rotate(6deg);
+  }
+}
+/* A city bought: sparks fly out of its owner mark as it stamps down (after the stamp's ring). */
+.roundboard .burst .spark {
+  fill: var(--c);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spark 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both;
+}
+@keyframes spark {
+  0% {
+    opacity: 1;
+    transform: translateY(-14px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-46px) scale(0.2);
+  }
+}
+/* A city sold at auction (成交), a team gone broke (破产): a stamp on the space for a moment. */
+.roundboard .fx-stamp {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-stamp 1.8s cubic-bezier(0.5, 0, 0.6, 1.5) both;
+}
+.roundboard .fx-stamp rect {
+  fill: var(--board-paper);
+  stroke: var(--c);
+  stroke-width: 3.5;
+}
+.roundboard .fx-stamp text {
+  fill: var(--c);
+  font: 800 24px var(--display-zh);
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+}
+@keyframes fx-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(-8deg) scale(2.2);
+  }
+  16% {
+    opacity: 1;
+    transform: rotate(-8deg) scale(0.92);
+  }
+  24%,
+  82% {
+    opacity: 1;
+    transform: rotate(-8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(-8deg);
+  }
+}
+
 /* A city just bought: its owner's mark stamps down and the ink spreads out round it. */
 .roundboard .stamp-in {
   transform-box: fill-box;
@@ -411,15 +642,27 @@
   .roundboard .pop,
   .roundboard .stamp-in,
   .roundboard .react,
+  .roundboard .b-new,
+  .roundboard .fx-stamp,
   .stamp.fresh {
     animation: none;
   }
-  .roundboard .stamp-ring {
+  .roundboard .stamp-ring,
+  .roundboard .b-dust,
+  .roundboard .burst {
     display: none;
   }
+  .roundboard .fx-stamp {
+    transform: rotate(-8deg);
+  }
 }
-:root[data-reduced="1"] .roundboard .stamp-ring {
+:root[data-reduced="1"] .roundboard .stamp-ring,
+:root[data-reduced="1"] .roundboard .b-dust,
+:root[data-reduced="1"] .roundboard .burst {
   display: none;
+}
+:root[data-reduced="1"] .roundboard .fx-stamp {
+  transform: rotate(-8deg);
 }
 :root.reduced .roundboard .token.now > .hop,
 :root.reduced .stamp.fresh {
