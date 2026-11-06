@@ -1,13 +1,18 @@
 # Runs every time 到此一游 changes: rules (report numbers), room logic, and real phones in
 # browsers (Chrome's engine, and WebKit — the engine in iPhone Safari and WeChat on iOS).
+#
+# The phones take about 12 minutes in each engine, one test after another, so they run in four
+# parts at once, each engine in two halves (`--shard`): about 9 minutes from push to result instead
+# of 26. A part that fails can be run again on its own ("Re-run failed jobs").
 name: been-there
 
+# Markdown alone (the README, DESIGN.md) changes nothing the tests look at.
 on:
   push:
     branches: [main]
-    paths: ["games/been-there/**", ".github/workflows/been-there.yml"]
+    paths: ["games/been-there/**", "!games/been-there/**/*.md", ".github/workflows/been-there.yml"]
   pull_request:
-    paths: ["games/been-there/**", ".github/workflows/been-there.yml"]
+    paths: ["games/been-there/**", "!games/been-there/**/*.md", ".github/workflows/been-there.yml"]
 
 # One run per change: a branch's pushes are checked through its pull request, and main after each
 # merge (each push used to run twice, once for the push and once for the PR). A newer push to the
@@ -16,12 +21,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
-  test:
+  # Typecheck, the rules and the room, the build: about a minute.
+  checks:
+    name: typecheck, rules, room, build
     runs-on: ubuntu-latest
-    # (the browser tests alone took 22 to 25 minutes in Chromium and WebKit before the phone checks of
-    # issue #37 were added)
-    timeout-minutes: 45
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: games/been-there
@@ -33,16 +42,78 @@ jobs:
           cache: npm
           cache-dependency-path: games/been-there/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npx playwright test
+
+  # Whether the phones need testing again: not when a push to a pull request only changes docs
+  # (Markdown, docs/) since a commit whose run passed, so the brief written after the tests went
+  # green doesn't start them over. Anything else, or anything unclear, tests them.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    outputs:
+      phones: ${{ steps.check.outputs.phones }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.pull_request.head.sha }}
+        run: |
+          phones=true
+          if [ "$EVENT" = pull_request ] && [ "$ACTION" = synchronize ] && [ -n "$BEFORE" ] && [ -n "$AFTER" ]; then
+            files=$(gh api "repos/$REPO/compare/$BEFORE...$AFTER" \
+              --jq 'if .status == "ahead" and (.files | length) < 300 then .files[].filename else "(not a plain step forward)" end') \
+              || files="(the comparison failed)"
+            echo "Changed since ${BEFORE:0:7}:"
+            echo "$files"
+            if [ -n "$files" ] && ! grep -qvE '\.md$|^docs/' <<<"$files"; then
+              passed=$(gh api "repos/$REPO/actions/workflows/been-there.yml/runs?head_sha=$BEFORE&status=success&per_page=1" --jq '.total_count') || passed=0
+              if [ "${passed:-0}" -gt 0 ] 2>/dev/null; then
+                phones=false
+                echo "Only docs changed since ${BEFORE:0:7}, whose run passed: the phones aren't tested again." | tee -a "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          fi
+          echo "phones=$phones" >> "$GITHUB_OUTPUT"
+
+  # Real phones in browsers, four parts at once. If the check above went wrong, they run.
+  phones:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.phones != 'false' }}
+    name: phones (${{ matrix.browser }} ${{ matrix.part }}/2)
+    runs-on: ubuntu-latest
+    # (a part takes about 8 minutes; all of them in one job took 25)
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+        part: [1, 2]
+    defaults:
+      run:
+        working-directory: games/been-there
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/been-there/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - run: npm run build
+      - run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.part }}/2
         env:
           CI: "1"
       - uses: actions/upload-artifact@v6
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}-${{ matrix.part }}
           path: games/been-there/playwright-report
           retention-days: 7

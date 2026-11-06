@@ -110,7 +110,11 @@ npm run fonts        # after adding Chinese text: rebuild the font subsets (a te
 npm run build        # then open dist/demo.html: the whole game on one page
 ```
 
-GitHub runs the first three on every push, in Chromium and WebKit (`.github/workflows/been-there.yml`).
+GitHub runs the first three on each pull request and on main after each merge
+(`.github/workflows/been-there.yml`): the browser tests in Chromium and WebKit, in four parts at
+once, each engine in two halves, about 9 minutes. A part that fails can be run again on its own. A
+push that only changes Markdown or `docs/` after a passing run doesn't test the phones again, and
+Markdown alone in this folder runs nothing.
 
 ## Put it online
 
