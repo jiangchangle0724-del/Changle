@@ -1,9 +1,18 @@
 // A phone's page, /party/join: join with the code, set its clock by the speaker's (8 pings, then a
 // few every 15 s), flash on every beat the room hears, and the 我在 button the big screen shows.
-// The first one in is the host: they calibrate (a big button to tap along with the TV) and start.
-import { countInPhrase, type RoomState } from "../../../party-base/src/index";
-import { COUNT_IN_BEATS, METRONOME, type HostAction, type RoutineInfo, type ServerMsg } from "../shared/protocol";
-import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tr, wsUrl } from "./common";
+// The first one in is the host: they calibrate (a big button to tap along with the TV), pick a dance
+// and steer it. While a dance plays, the phone shows the move and the count and has one big button
+// to tap on every beat: it stands in for the motion sensor (the plan's 假体感) until task A2. The
+// phone judges each tap against the beat the room hears (shared/taps.ts) and sends the room the
+// dance's beats a bar at a time. The real phone screen is task C4
+// (docs/codex-tasks/dance-C4-phone-screen.md): this page keeps the timing and leaves the look to it.
+import type { RoomState } from "../../../party-base/src/index";
+import { METRONOME_ID, ROUTINES, routineById } from "../shared/catalog";
+import type { HostAction, Results, RoutineInfo, ServerMsg } from "../shared/protocol";
+import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
+import { BeatJudge, type Batch, type Judged, type Verdict } from "../shared/taps";
+import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tapTime, tr, wsUrl } from "./common";
+import { awardName, bodyHint, difficultyName, moveName, restHint, routineName, showMinutes, stageName, styleName, verdictText } from "./words";
 
 const app = document.getElementById("app")!;
 const flash = document.getElementById("flash")!;
@@ -14,12 +23,16 @@ let name = loadName();
 let sock: RoomSocket | null = null;
 let state: RoomState | null = null;
 let routine: RoutineInfo | null = null;
+let results: Results | null = null;
 let fatal: Extract<ServerMsg, { t: "fatal" }> | null = null;
 let notice = "";
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 let taps = 0;
 let measure = false;
 let endArmed = false;
+/** The host's choice in the lobby: which dance, learn it first or just dance. */
+let pick = ROUTINES[0]?.id ?? "";
+let mode: Mode = "learn";
 const awake = new ScreenAwake();
 const sync = new ClockSync((id) => sock?.send({ t: "ping", id }), 16);
 let est = sync.estimate();
@@ -33,7 +46,10 @@ let waitingForSpeaker = false;
  */
 const MIN_PROBES = 6;
 const clockSet = () => sync.count >= MIN_PROBES;
-const speakerNow = (): number | null => (clockSet() ? performance.now() + est.offsetMs : null);
+/** The speaker's clock at a moment of this page's performance.now() (now, by default). */
+const speakerNow = (local = performance.now()): number | null => (clockSet() ? local + est.offsetMs : null);
+/** Back on the room after a drop: once its state is in, the dance's bars sent so far go again. */
+let resend = false;
 
 function loadId(): string {
   try {
@@ -84,7 +100,10 @@ function join() {
   }
   fatal = null;
   sock = new RoomSocket(() => wsUrl(code, { id: myId, name: name || tr("玩家", "Player") }), onMsg, (open) => {
-    if (open) burst(8);
+    if (open) {
+      burst(8);
+      resend = true;
+    }
     render();
   });
   render();
@@ -101,8 +120,17 @@ function onMsg(m: ServerMsg) {
       const before = state?.phase;
       state = m.state;
       routine = m.routine;
+      results = m.results;
       if (state.phase === "calibrating" && before !== "calibrating") taps = 0;
       endArmed = false;
+      track();
+      // (bars sent while the connection was down never got there; the room keeps the newest of
+      // each beat, so sending one twice does no harm. After the state: a bar of a dance the room
+      // has moved on from is dropped by track() first.)
+      if (resend) {
+        resend = false;
+        for (const b of tracking.batches) sock?.send({ t: "beats", from: b.from, offs: b.offs });
+      }
       render();
       return;
     }
@@ -146,6 +174,10 @@ function errorText(code: string, message: string): string {
       return tr("现在不能这样做", "Not right now");
     case "room_full":
       return tr("房间满了", "The room is full");
+    case "too_early":
+      return tr("等这支舞跳完", "Wait until the dance is over");
+    case "no_routine":
+      return tr("先选一支舞", "Pick a dance first");
     default:
       return message;
   }
@@ -161,13 +193,82 @@ function say(text: string) {
   render();
 }
 
+// ---------- the dance: the beats as the room hears them, and this player's taps against them
+
+interface Tracking {
+  key: string;
+  show: Show | null;
+  /** every beat still to come, in speaker time as the room hears it (the TV's delay added) */
+  heard: RunBeat[];
+  /** speaker time of the dance's beat 0, as heard */
+  zero: number | null;
+  judge: BeatJudge | null;
+  /** the last beat judged, and the dance beats judged so far (for this player's own meter) */
+  last: Judged | null;
+  recent: Verdict[];
+  /** the dance's bars sent so far (sent again after a drop), and how many beats, for the checks */
+  batches: Batch[];
+  sent: number;
+}
+let tracking: Tracking = { key: "", show: null, heard: [], zero: null, judge: null, last: null, recent: [], batches: [], sent: 0 };
+
+/** The beats to follow, planned again when the run changes; the judge starts once the clock is set. */
+function track() {
+  const s = state;
+  const a = s ? anchorsOf(s.phase, s.routineStartAt, routine) : null;
+  const show = a && routine ? buildShow(routine.routineId, routine.mode) : null;
+  const key = show && a && s ? `${runKey(show, a)}|${s.audioOffsetMs}` : "";
+  if (key !== tracking.key) {
+    const heard = show && a && s ? planRun(show, a, s.audioOffsetMs) : [];
+    const start = show && a ? danceStart(show, a) : null;
+    tracking = { key, show, heard, zero: show && a && s && start !== null ? start - a.fromBeat * show.beatMs + s.audioOffsetMs : null, judge: null, last: null, recent: [], batches: [], sent: 0 };
+  }
+  const now = speakerNow();
+  if (!tracking.judge && tracking.heard.length && now !== null && s?.difficulty) tracking.judge = new BeatJudge(tracking.heard, s.difficulty, now);
+}
+
+/** A tap on the big button (at `local`, this page's clock): a move, as the motion sensor's peak will be. */
+function tapMove(local: number) {
+  const at = speakerNow(local);
+  if (at === null || !tracking.judge) return;
+  tracking.judge.move(at);
+}
+
+/** Judge the beats whose window has closed; send the dance's whole bars to the room. */
+function judgeBeats(now: number) {
+  const j = tracking.judge;
+  if (!j) return;
+  const judged = j.settle(now);
+  for (const x of judged) {
+    tracking.last = x;
+    if (x.beat.danceBeat !== null) {
+      tracking.recent.push(x.verdict);
+      if (tracking.recent.length > 8) tracking.recent.shift();
+    }
+  }
+  const batches = j.take(j.done);
+  for (const b of batches) {
+    tracking.batches.push(b);
+    sock?.send({ t: "beats", from: b.from, offs: b.offs });
+    tracking.sent += b.offs.length;
+  }
+  if (judged.length) renderBeat();
+}
+
 // ---------- the page
 
-const parts: { count?: HTMLElement; sync?: HTMLElement; clock?: HTMLElement } = {};
+const parts: { count?: HTMLElement; sync?: HTMLElement; clock?: HTMLElement; stage?: HTMLElement; move?: HTMLElement; body?: HTMLElement; next?: HTMLElement; pad?: HTMLElement; verdict?: HTMLElement; meter?: HTMLElement; finish?: HTMLButtonElement } = {};
+/** What the run's lines show, so a frame only touches the page when it changes. */
+let shown = "";
+/** The beat the room hears now: whether it's scored (the big button counts), and its stage. */
+let heardBeat: { scored: boolean; stage: RunBeat["stage"] | null } = { scored: false, stage: null };
+
+const running = () => !!state && (state.phase === "learning" || state.phase === "dancing") && tracking.heard.length > 0;
 
 function render() {
   app.replaceChildren();
-  parts.count = parts.sync = parts.clock = undefined;
+  for (const k of Object.keys(parts) as (keyof typeof parts)[]) parts[k] = undefined;
+  shown = "";
   app.append(topBar());
   if (fatal) {
     const box = el("section", "start");
@@ -190,29 +291,36 @@ function render() {
     app.append(joinForm());
     return;
   }
+  const run = running();
+  document.body.classList.toggle("is-run", run);
   const main = el("main", "phone");
   main.append(el("p", "room-line", `${tr("房间", "Room")} ${code} · ${name || tr("玩家", "Player")}${isHost() ? ` · ${tr("主人", "host")}` : ""}`));
   parts.sync = el("p", "sync");
   main.append(parts.sync);
-  main.append(el("h2", "phase", phaseTitle()));
-  parts.count = el("div", "count");
-  main.append(parts.count);
-  if (state?.phase === "calibrating" && isHost()) main.append(tapPad());
-  const here = el("button", "btn here", tr("我在", "I'm here"));
-  here.onclick = () => {
-    sock?.send({ t: "here" });
-    say(tr("大屏上你的名字亮了", "Your name lit up on the big screen"));
-  };
-  main.append(here);
+  if (run) main.append(dancePanel());
+  else {
+    main.append(el("h2", "phase", phaseTitle()));
+    parts.count = el("div", "count");
+    main.append(parts.count);
+    if (state?.phase === "calibrating" && isHost()) main.append(tapPad());
+    if (state?.phase === "results" && results) main.append(myResults(results));
+    const here = el("button", "btn here", tr("我在", "I'm here"));
+    here.onclick = () => {
+      sock?.send({ t: "here" });
+      say(tr("大屏上你的名字亮了", "Your name lit up on the big screen"));
+    };
+    main.append(here);
+  }
   if (isHost()) main.append(hostPanel());
   if (notice) main.append(el("p", "notice", notice));
-  if (state) main.append(playerList());
+  if (state && !run) main.append(playerList());
   if (measure) {
     parts.clock = el("div", "measure-clock");
     main.append(parts.clock);
   }
   app.append(main);
   renderSync();
+  renderBeat();
 }
 
 function topBar(): HTMLElement {
@@ -282,7 +390,7 @@ function phaseTitle(): string {
   switch (state.phase) {
     case "lobby":
       if (!state.speakerConnected) return tr("等大屏（音箱端）点开始", "Waiting for the speaker page to start");
-      return host ? tr("人齐了就开始", "Start when everyone's in") : tr("等主人开始", "Waiting for the host");
+      return host ? tr("选一支舞，人齐了就开始", "Pick a dance and start when everyone's in") : tr("等主人选舞", "Waiting for the host to pick a dance");
     case "calibrating":
       return host ? tr("听到电视的声音就点下面的大按钮", "Tap the big button each time you hear the TV") : tr("主人在校准，稍等", "The host is calibrating");
     case "learning":
@@ -296,13 +404,14 @@ function phaseTitle(): string {
   }
 }
 
+/** Calibration: the host taps each time the TV clicks. */
 function tapPad(): HTMLElement {
   const pad = el("button", "btn tap-pad", `${tr("点", "Tap")}\n${taps} / 8`);
   // pointerdown, not click: a click comes after the finger lifts, later than the tap
   pad.addEventListener(
     "pointerdown",
-    () => {
-      const at = speakerNow();
+    (e) => {
+      const at = speakerNow(tapTime(e));
       if (at === null) return;
       sock?.send({ t: "tap", at });
       taps++;
@@ -316,31 +425,90 @@ function tapPad(): HTMLElement {
   return pad;
 }
 
+/** While a dance plays: the move and the count (filled every frame), the big button, this player's meter. */
+function dancePanel(): HTMLElement {
+  const box = el("section", "dance");
+  parts.stage = el("p", "dance-stage");
+  parts.move = el("p", "dance-move");
+  parts.body = el("p", "dance-body");
+  parts.count = el("div", "count");
+  parts.next = el("p", "dance-next");
+  const pad = el("button", "btn dance-pad");
+  pad.setAttribute("aria-label", tr("跟着拍子点", "Tap on the beat"));
+  parts.verdict = el("span", "dance-verdict", verdictText(null));
+  pad.append(parts.verdict);
+  // pointerdown, not click: a click comes after the finger lifts, later than the tap
+  pad.addEventListener("pointerdown", (e) => {
+    tapMove(tapTime(e));
+    pad.classList.remove("hit");
+    void pad.offsetWidth;
+    pad.classList.add("hit");
+  });
+  // (a keyboard works too: space or enter, held keys not repeated)
+  pad.addEventListener("keydown", (e) => {
+    if ((e.key === " " || e.key === "Enter") && !e.repeat) {
+      e.preventDefault();
+      tapMove(tapTime(e));
+    }
+  });
+  parts.pad = pad;
+  parts.meter = el("p", "dance-meter");
+  box.append(parts.stage, parts.move, parts.body, parts.count, parts.next, pad, parts.meter);
+  return box;
+}
+
+function myResults(r: Results): HTMLElement {
+  const box = el("section", "my-results");
+  const danced = routineById(r.routineId);
+  if (danced) box.append(el("p", "dance-stage", `${routineName(danced)} · ${difficultyName(r.difficulty)}`));
+  const me = r.players.find((p) => p.id === myId);
+  if (!me) {
+    box.append(el("p", "lead", tr("这一首你没有点手机。下一首每一拍点一下，就能上榜。", "You didn't tap along this time. Tap on every beat next time to get on the board.")));
+  } else {
+    box.append(el("p", "my-score", r.difficulty === "easy" ? tr(`你跟上了 ${me.participation}% 的拍子`, `You moved on ${me.participation}% of the beats`) : tr(`得分 ${me.participation}`, `Score ${me.participation}`)));
+    const mine = (["steady", "hype", "effort"] as const).filter((k) => r.awards[k] === myId);
+    if (mine.length) box.append(el("p", "my-award", `${tr("你拿到：", "You won: ")}${mine.map(awardName).join(" · ")}`));
+    box.append(el("p", "lead", tr(`连着踩准最多 ${me.bestStreak} 拍`, `Your best run: ${me.bestStreak} beats on the beat`)));
+  }
+  return box;
+}
+
 function hostPanel(): HTMLElement {
   const box = el("section", "host-panel");
   const button = (label: string, action: HostAction, cls = "btn") => {
     const b = el("button", cls, label);
     b.onclick = () => act(action);
     box.append(b);
+    return b;
   };
-  switch (state?.phase) {
-    case "lobby":
+  const phase = state?.phase;
+  switch (phase) {
+    case "lobby": {
+      box.append(routinePicker());
+      const r = routineById(pick);
+      if (r) button(`${tr("开始：", "Start: ")}${routineName(r)}`, { type: "START_LEARNING", routineId: r.id, mode }, "btn primary");
       button(tr("校准电视延迟", "Calibrate the TV delay"), { type: "START_CALIBRATION" });
-      button(tr("开始：120 拍节拍器", "Start: 120 BPM metronome"), { type: "START_LEARNING", routineId: METRONOME.routineId, difficulty: "easy", bpm: METRONOME.bpm }, "btn primary");
+      // (the timing test of docs/field-notes/2026-11-01.md)
+      button(tr("开始：120 拍节拍器", "Start: 120 BPM metronome"), { type: "START_LEARNING", routineId: METRONOME_ID }, "btn quiet");
       break;
+    }
     case "calibrating":
       button(tr("跳过校准", "Skip calibration"), { type: "SKIP_CALIBRATION" });
       break;
     case "learning":
       button(tr("开始跳", "Dance"), { type: "START_DANCING" }, "btn primary");
-      button(tr("回大厅", "Back to the lobby"), { type: "BACK_TO_LOBBY" });
+      button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
       break;
     case "dancing":
-      button(tr("从头再来", "Restart"), { type: "RESTART_SECTION" });
+      button(tr("这一段再来", "This part again"), { type: "RESTART_SECTION" });
+      // 看结果 once the whole dance has been heard (the cool-down can be skipped)
+      parts.finish = button(tr("看结果", "See the results"), { type: "FINISH_NOW" }, "btn primary");
+      parts.finish.hidden = true;
+      button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
       break;
     case "results":
-      button(tr("再跳一遍", "Dance again"), { type: "START_DANCING" }, "btn primary");
-      button(tr("回大厅", "Back to the lobby"), { type: "BACK_TO_LOBBY" });
+      button(tr("再跳一遍", "Dance it again"), { type: "START_DANCING" }, "btn primary");
+      button(tr("换一支舞", "Pick another dance"), { type: "BACK_TO_LOBBY" });
       break;
     default:
       break;
@@ -360,6 +528,41 @@ function hostPanel(): HTMLElement {
     };
     box.append(end);
   }
+  return box;
+}
+
+/** The host's list of dances, easy first, and whether to learn it first. */
+function routinePicker(): HTMLElement {
+  const box = el("div", "picker");
+  box.append(el("p", "picker-title", tr("选一支舞", "Pick a dance")));
+  const list = el("div", "picker-list");
+  for (const r of ROUTINES) {
+    const b = el("button", r.id === pick ? "pick is-on" : "pick");
+    b.setAttribute("aria-pressed", String(r.id === pick));
+    b.append(el("span", "pick-name", routineName(r)));
+    const show = buildShow(r.id, mode);
+    b.append(el("span", "pick-meta", `${difficultyName(r.difficulty)} · ${styleName(r.style)} · ${r.bpm} BPM${show ? ` · ${showMinutes(show)}` : ""}`));
+    b.onclick = () => {
+      pick = r.id;
+      render();
+    };
+    list.append(b);
+  }
+  box.append(list);
+  const modes = el("div", "picker-modes");
+  for (const [m, label] of [
+    ["learn", tr("先学再跳", "Learn it first")],
+    ["dance", tr("直接跳", "Just dance")],
+  ] as const) {
+    const b = el("button", m === mode ? "chip is-on" : "chip", label);
+    b.setAttribute("aria-pressed", String(m === mode));
+    b.onclick = () => {
+      mode = m;
+      render();
+    };
+    modes.append(b);
+  }
+  box.append(modes);
   return box;
 }
 
@@ -390,40 +593,91 @@ function renderSync() {
         : tr("对时中……", "Setting the clock…");
 }
 
+/** The verdict on the last beat (or, while nothing is scored, what to do) and this player's meter. */
+function renderBeat() {
+  if (parts.verdict) {
+    const v = heardBeat.scored ? (tracking.last?.verdict ?? null) : null;
+    parts.verdict.textContent = heardBeat.scored || !heardBeat.stage ? verdictText(v) : restHint(heardBeat.stage);
+    parts.pad?.classList.toggle("is-hit", v === "hit");
+    parts.pad?.classList.toggle("is-miss", v === "miss");
+  }
+  if (parts.meter) {
+    const r = tracking.recent;
+    parts.meter.textContent = r.length ? tr(`最近 ${r.length} 拍踩准 ${r.filter((v) => v === "hit").length} 拍`, `On the beat: ${r.filter((v) => v === "hit").length} of the last ${r.length}`) : "";
+  }
+}
+
 // ---------- the beat
 
 let lastBeat: number | null = null;
 
-/** Every frame: on each beat the room hears (the speaker's grid plus the TV's delay), a flash. */
+/** Every frame: on each beat the room hears, a flash; the move and the count; the judge. */
 function frame() {
-  const now = speakerNow();
-  const s = state;
-  if (s?.phase === "dancing" && s.routineStartAt !== null && routine && now !== null) {
-    const ms = 60000 / routine.bpm;
-    const heard = s.routineStartAt + s.audioOffsetMs;
+  const t = speakerNow();
+  if (t !== null && !tracking.judge && tracking.heard.length) track();
+  const run = tracking.heard;
+  if (t !== null && running()) {
     // (half a frame early, so the flash lands on the beat on average rather than after it)
-    const k = Math.floor((now + 8 - heard) / ms);
+    const spot = spotAt(run, t + 8);
+    const k = spot ? spot.i : -1;
     if (k !== lastBeat) {
       // (a phone that comes in mid-beat waits for the next one rather than flashing off the beat)
       const first = lastBeat === null;
       lastBeat = k;
-      if (first) {
-        // nothing
-      } else if (k >= -COUNT_IN_BEATS && k < routine.totalBeats) {
-        flash.className = k < 0 ? "flash count" : k % routine.beatsPerBar === 0 ? "flash accent" : "flash beat";
+      const b = spot ? run[spot.i]! : null;
+      if (b && !first && spot!.frac < 0.5) {
+        flash.className = b.stage === "countdown" ? "flash count" : (b.count - 1) % 4 === 0 ? "flash accent" : "flash beat";
         void flash.offsetWidth;
         flash.classList.add("on");
-        if (parts.count) parts.count.textContent = k < 0 ? String(-k) : String(countInPhrase({ bpm: routine.bpm, beatsPerBar: routine.beatsPerBar, startAt: heard, totalBeats: routine.totalBeats }, k));
-      } else if (parts.count) parts.count.textContent = "";
+      }
     }
+    judgeBeats(t);
+    showBeat(t);
   } else if (lastBeat !== null) {
     lastBeat = null;
     if (parts.count) parts.count.textContent = "";
   }
   if (parts.clock) {
-    parts.clock.textContent = now === null ? tr("还没对时", "Clock not set yet") : `${clockText(now)}\n${tr("往返", "round trip")} ${Math.round(est.rttMs)} ms · ${est.samples} ${tr("次", "probes")}${state ? `\n${tr("电视延迟", "TV delay")} ${state.audioOffsetMs} ms` : ""}`;
+    parts.clock.textContent = t === null ? tr("还没对时", "Clock not set yet") : `${clockText(t)}\n${tr("往返", "round trip")} ${Math.round(est.rttMs)} ms · ${est.samples} ${tr("次", "probes")}${state ? `\n${tr("电视延迟", "TV delay")} ${state.audioOffsetMs} ms` : ""}`;
   }
   requestAnimationFrame(frame);
+}
+
+/** The move, the count and what's next, as the room hears them (when they change). */
+function showBeat(t: number) {
+  if (!parts.count) return;
+  const run = tracking.heard;
+  const spot = spotAt(run, t);
+  const b = spot ? run[spot.i]! : null;
+  const nx = spot ? nextChange(run, spot.i, spot.frac) : null;
+  const preview = nx && nx.beats <= PREVIEW_BEATS ? nx.beat : null;
+  // (the room takes 看结果 a second after the dance's last beat is heard; the button comes half a
+  // second after that, so a quick tap never lands before the room's clock gets there)
+  const danceHeard = tracking.zero !== null && tracking.show ? t >= tracking.zero + tracking.show.danceMs + 1500 : false;
+  const key = `${spot?.i ?? -1}|${preview ? `${preview.stage}${preview.move?.id}` : ""}|${getLang()}|${danceHeard}`;
+  if (key === shown) return;
+  shown = key;
+  if (parts.finish) parts.finish.hidden = !danceHeard;
+  // a new stretch of scored beats starts with no verdict from the one before
+  const scored = !!b?.score;
+  if (scored && !heardBeat.scored) tracking.last = null;
+  heardBeat = { scored, stage: b?.stage ?? null };
+  if (!b) {
+    const before = run.length > 0 && t < run[0]!.t;
+    if (parts.stage) parts.stage.textContent = before ? tr("马上开始，看大屏", "Starting in a moment: watch the TV") : t >= runEnd(run) ? tr("跳完了", "That's the song") : "";
+    for (const x of [parts.move, parts.body, parts.count, parts.next]) if (x) x.textContent = "";
+    parts.pad?.classList.add("is-rest");
+    renderBeat();
+    return;
+  }
+  if (parts.stage) parts.stage.textContent = stageName(b.stage);
+  if (parts.move) parts.move.textContent = b.move ? moveName(b.move) : "";
+  if (parts.body) parts.body.textContent = b.move && (b.stage === "watch" || b.stage === "warmup") ? bodyHint(b.move) : "";
+  parts.count.textContent = String(b.count);
+  if (parts.next) parts.next.textContent = preview ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}` : "";
+  // the big button counts on the beats that are scored (your turn, the dance); it rests otherwise
+  parts.pad?.classList.toggle("is-rest", !b.score);
+  renderBeat();
 }
 
 // the clock drifts and Wi-Fi changes: a few more pings every 15 s
@@ -431,8 +685,21 @@ setInterval(() => {
   if (sock?.isOpen) burst(3);
 }, 15000);
 
-// for scripts/timing-check.cjs: what this phone thinks the speaker's clock is
-Object.assign(window, { partyDebug: { clock: () => ({ ...est }), state: () => state, myId } });
+// for scripts/timing-check.cjs and scripts/song-check.cjs: what this phone thinks and has done, and
+// a host's action (song-check starts the short test dance, which no page lists, with it)
+Object.assign(window, {
+  partyDebug: {
+    clock: () => ({ ...est }),
+    state: () => state,
+    myId,
+    judged: () => tracking.last,
+    sent: () => tracking.sent,
+    dancing: () => tracking.judge?.dancing ?? false,
+    act,
+    /** the connection drops for `ms` (song-check: the bars sent meanwhile must still get there) */
+    drop: (ms: number) => sock?.pause(ms),
+  },
+});
 
 setLang(getLang());
 render();

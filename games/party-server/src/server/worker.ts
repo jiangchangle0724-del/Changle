@@ -1,4 +1,4 @@
-// 一起跳 · Dance Along's room server at changle.ca/party (and later 打碟's). One Durable Object per
+// 一起跳 · Dance Along's room server at changle.ca/party. One Durable Object per
 // room keeps the session (src/server/session.ts) around party-base's state machine; the pages talk
 // to it over one WebSocket each.
 //   POST /party/api/rooms                 open a room: { speakerAt } -> { code }
@@ -7,9 +7,17 @@
 //   /party/screen, /party/join            the pages (dist/client/party, built by scripts/build.mjs)
 import { DurableObject } from "cloudflare:workers";
 import { CODE_ALPHABET, CODE_RE, type ClientMsg, type ServerMsg } from "../shared/protocol";
-import { makeCode, Session, type From, type Out, type SessionData } from "./session";
+import { makeCode, Session, validPlayerId, type From, type Out, type SessionData } from "./session";
+import { emptyScores, type Scores } from "./tally";
 
-const PLAYER_ID = /^[A-Za-z0-9_-]{8,64}$/;
+/** The beats of the dance being danced are stored at most this often (they change with every bar). */
+const SCORES_EVERY_MS = 3_000;
+
+/**
+ * "1" only for the local checks (`--var ALLOW_TEST_SETTINGS:1`, scripts/song-check.cjs): a room may
+ * start the short test dance. Never set on Cloudflare.
+ */
+const testing = (env: Env) => (env as Env & { ALLOW_TEST_SETTINGS?: string }).ALLOW_TEST_SETTINGS === "1";
 
 export class PartyRoom extends DurableObject<Env> {
   private s: Session | null = null;
@@ -17,13 +25,17 @@ export class PartyRoom extends DurableObject<Env> {
   private alarmAt: number | null = null;
   /** The speaker's clock offset as last stored: it moves a little every second, stored when it moves more. */
   private storedOffset: number | null = null;
+  /** When the dance's beats were last stored, and whether some came in since. */
+  private scoresAt = 0;
+  private scoresDirty = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       const d = await ctx.storage.get<SessionData>("s");
       if (d) {
-        this.s = new Session(d, () => Date.now());
+        const scores = (await ctx.storage.get<Scores>("scores")) ?? emptyScores();
+        this.s = new Session(d, () => Date.now(), scores, { testRoutines: testing(env) });
         this.storedOffset = d.speakerOffset;
       }
       this.alarmAt = await ctx.storage.getAlarm();
@@ -34,8 +46,9 @@ export class PartyRoom extends DurableObject<Env> {
   async open(code: string, speakerAt?: number): Promise<boolean> {
     if (this.s && !this.s.expired()) return false;
     for (const ws of this.ctx.getWebSockets()) ws.close(4000, "ended");
-    this.s = new Session(Session.create(code, Date.now(), speakerAt), () => Date.now());
+    this.s = new Session(Session.create(code, Date.now(), speakerAt), () => Date.now(), emptyScores(), { testRoutines: testing(this.env) });
     await this.ctx.storage.put("s", this.s.d);
+    await this.ctx.storage.delete("scores");
     this.storedOffset = this.s.d.speakerOffset;
     await this.wake();
     return true;
@@ -56,7 +69,7 @@ export class PartyRoom extends DurableObject<Env> {
     if (!s || s.expired()) return refuse(s?.d.state.phase === "ended" ? "ended" : "noRoom");
     const role = q.get("role") === "speaker" ? "speaker" : "player";
     const playerId = role === "player" ? (q.get("id") ?? "") : null;
-    if (role === "player" && !PLAYER_ID.test(playerId ?? "")) return refuse("badRequest");
+    if (role === "player" && !validPlayerId(playerId ?? "")) return refuse("badRequest");
     const from: From = { role, playerId };
     s.connect(from, q.get("name") ?? undefined);
     if (role === "player" && !s.d.state.players.some((p) => p.id === playerId)) {
@@ -129,7 +142,7 @@ export class PartyRoom extends DurableObject<Env> {
   private async commit() {
     const s = this.s;
     if (!s) return;
-    const { out, changed } = s.flush();
+    const { out, changed, scored } = s.flush();
     const sockets = this.ctx.getWebSockets();
     for (const o of out) deliver(sockets, o);
     // (the speaker's offset is refreshed every second: kept in memory, stored when it moves 5 ms)
@@ -137,6 +150,14 @@ export class PartyRoom extends DurableObject<Env> {
     if (changed || offsetMoved) {
       await this.ctx.storage.put("s", s.d);
       this.storedOffset = s.d.speakerOffset;
+    }
+    // (the dance's beats come in with every bar from every phone: stored every few seconds, and
+    // whenever the room itself changes, so a room woken from storage loses a bar or two at most)
+    if (scored) this.scoresDirty = true;
+    if (this.scoresDirty && (changed || Date.now() - this.scoresAt >= SCORES_EVERY_MS)) {
+      await this.ctx.storage.put("scores", s.scores);
+      this.scoresAt = Date.now();
+      this.scoresDirty = false;
     }
     await this.wake();
   }

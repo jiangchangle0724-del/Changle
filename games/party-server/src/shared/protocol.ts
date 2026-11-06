@@ -1,15 +1,22 @@
 // What the pages and the room say to each other over the room's WebSocket. Every time in here is
-// speaker time (the speaker page's performance.now(), the room's one clock; see
-// games/party-base/CONTRACTS.md), except `sentAt` and `serverAt`, which say whose clock they are.
+// speaker time (the speaker page's timeOrigin + performance.now(), the room's one clock: client's
+// common.ts pageClock, games/party-base/CONTRACTS.md), except `serverAt`, the room's own clock.
 import type { Difficulty, RoomState } from "../../../party-base/src/index";
+import type { Mode } from "./show";
 
 /** Host actions a phone may ask for. The room stamps `at` and fills in what's its to decide. */
 export type HostAction =
   | { type: "START_CALIBRATION" }
   | { type: "SKIP_CALIBRATION" }
-  | { type: "START_LEARNING"; routineId: string; difficulty: Difficulty; bpm: number }
+  /** Pick a routine and start it: the warm-up (and the teaching, unless mode is "dance"), then the dance by itself. */
+  | { type: "START_LEARNING"; routineId: string; mode?: Mode }
+  /** Skip what is left before the dance; from the results: the same dance again. */
   | { type: "START_DANCING" }
+  /** 这一段再来: back to the start of the 8-count the room is in, after a count-in. */
   | { type: "RESTART_SECTION" }
+  /** 看结果: skip the cool-down. Only once the whole dance has been heard. */
+  | { type: "FINISH_NOW" }
+  /** Stop: from the results, or in the middle of anything. */
   | { type: "BACK_TO_LOBBY" }
   | { type: "END_ROOM" }
   | { type: "KICK"; playerId: string };
@@ -29,32 +36,96 @@ export type ClientMsg =
   /** The speaker after calibrateFromTaps(): how late the room hears its sound. */
   | { t: "calibrated"; audioOffsetMs: number }
   /** A phone's 我在 button: the big screen lights its name up. */
-  | { t: "here" };
+  | { t: "here" }
+  /**
+   * A phone, while the dance plays: how its player did on dance beats `from`, `from + 1`, … (at most
+   * MAX_BEATS_PER_MSG, each once it has been heard). A number: how far the move was from the beat as
+   * the room heard it, in ms (negative: early); null: no move near it. The phone scores (party-base's
+   * scoreBeats); the room keeps the beats and works out the floor and the results.
+   */
+  | { t: "beats"; from: number; offs: (number | null)[] };
 
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
-  | { t: "state"; state: RoomState; routine: RoutineInfo | null }
+  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null }
   /** serverAt: the room's clock when the ping came in; speakerAt: the speaker's then (null: no speaker yet). */
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }
   | { t: "here"; playerId: string }
+  /** To the speaker, each time a phone's beats come in: the floor so far. */
+  | ({ t: "floor" } & Floor)
   | { t: "error"; code: string; message: string }
   /** The connection is refused or the room is over; the page says so and stops. */
   | { t: "fatal"; key: "noRoom" | "full" | "ended" | "badRequest" };
 
-/** The routine being danced: everything a page needs for the beat grid besides RoomState. */
+/**
+ * The routine a room is on: with RoomState, everything a page needs to know which beat is when
+ * (src/shared/show.ts builds the beats from the id and the mode).
+ */
 export interface RoutineInfo {
   routineId: string;
+  /** the dance's tempo and length */
   bpm: number;
   beatsPerBar: number;
   totalBeats: number;
+  /** null: the metronome, which has no warm-up, teaching or cool-down */
+  mode: Mode | null;
+  /** When the warm-up's first beat is, while the part before the dance plays (phase learning); else null. */
+  leadStartAt: number | null;
+  /** The dance beat RoomState.routineStartAt is: 0, or the 8-count a restart went back to. */
+  fromBeat: number;
 }
 
-/** A1 has one routine: a 120 BPM click track, two minutes, to test timing end to end. */
-export const METRONOME: RoutineInfo = { routineId: "metronome-120", bpm: 120, beatsPerBar: 4, totalBeats: 240 };
+/** The floor together, from the beats the phones have sent. */
+export interface Floor {
+  /** beats in a row, up to now, that most of those dancing hit */
+  streak: number;
+  /** the longest such run this dance */
+  best: number;
+  /** times a run filled the bar (COMBO_FULL beats): the screen sets off fireworks */
+  bursts: number;
+  /** phones sending beats now */
+  dancers: number;
+  /** each dancer's last 8 beats: the share hit, 0 to 1 */
+  levels: Record<string, number>;
+}
 
-/** Beats of count-in between START_DANCING and beat 0 (the phones' countdown). */
-export const COUNT_IN_BEATS = 8;
+export interface PlayerResult {
+  id: string;
+  name: string;
+  /** 0 to 100, party-base's summarize(): what the screens show */
+  participation: number;
+  hitRate: number;
+  movedRate: number;
+  /** over the beats hit; null when none */
+  meanAbsOffsetMs: number | null;
+  /** the dancer's own longest run of beats hit */
+  bestStreak: number;
+}
+
+/** A dance's results: sent with the state while the room shows them. */
+export interface Results {
+  routineId: string;
+  difficulty: Difficulty;
+  /** beats in the dance */
+  beats: number;
+  /** everyone who sent a beat, in the order they joined */
+  players: PlayerResult[];
+  /** player ids. 最稳: closest to the beat; 最嗨: the longest run; 最努力: the most beats moved. */
+  awards: { steady: string | null; hype: string | null; effort: string | null };
+  /** the floor's longest run and how many times it filled the bar */
+  bestStreak: number;
+  bursts: number;
+  /** the share of beats moved, over everyone who danced, 0 to 100 */
+  together: number;
+}
+
+/** A floor's run this long fills the bar: fireworks, and the bar starts again. */
+export const COMBO_FULL = 32;
+/** A beat counts for the floor when this share of those dancing hit it (party-base's groupStreak). */
+export const COMBO_QUORUM = 0.6;
+/** A phone sends a bar at a time; at most this many beats in one message. */
+export const MAX_BEATS_PER_MSG = 16;
 
 /** Room codes: 4 characters that can't be mistaken for each other read off a TV. */
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

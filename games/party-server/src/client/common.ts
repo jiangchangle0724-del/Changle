@@ -81,6 +81,18 @@ export class RoomSocket {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m));
   }
 
+  /** For the checks: the connection drops and comes back after `ms`, as on bad Wi-Fi. */
+  pause(ms: number) {
+    const ws = this.ws;
+    if (!ws) return;
+    this.ws = null;
+    this.onStatus(false);
+    ws.close();
+    setTimeout(() => {
+      if (!this.stopped && !this.ws) this.open();
+    }, ms);
+  }
+
   get isOpen(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
@@ -165,5 +177,25 @@ export class ScreenAwake {
   }
 }
 
-/** Speaker time shown as seconds with milliseconds, for the side-by-side photo that measures sync. */
-export const clockText = (ms: number) => (ms / 1000).toFixed(3);
+/**
+ * The room's one clock is the speaker page's, and this is it: milliseconds since 1970 by the
+ * speaker's device (performance.timeOrigin plus performance.now()). Not performance.now() alone:
+ * that starts again at 0 when the page reloads, and every time the room holds (the dance's beat 0,
+ * when it ends) would jump with it. Within the page it never goes back; across a reload it carries
+ * on. (Safari before 15 has no timeOrigin: the same thing from Date.now(), read once.)
+ */
+export const PAGE_ORIGIN = typeof performance.timeOrigin === "number" && performance.timeOrigin > 0 ? performance.timeOrigin : Date.now() - performance.now();
+export const pageClock = () => PAGE_ORIGIN + performance.now();
+
+/**
+ * When a tap happened, on this page's performance.now() clock: the event's own time (the finger,
+ * not the moment a busy page got round to it), unless the browser gives something else.
+ */
+export function tapTime(e: Event): number {
+  const now = performance.now();
+  const ts = e.timeStamp;
+  return ts > 0 && now - ts >= 0 && now - ts < 1000 ? ts : now;
+}
+
+/** Speaker time shown as seconds with milliseconds (the last 5 digits of the seconds), for the side-by-side photo that measures sync. */
+export const clockText = (ms: number) => ((ms / 1000) % 100000).toFixed(3);

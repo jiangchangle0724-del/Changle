@@ -1,10 +1,12 @@
 /**
- * Shared contracts for changle.ca party games (一起跳 · Dance Along, 打碟 · DJ Booth).
+ * Shared contracts for changle.ca's 一起跳 · Dance Along (打碟 · DJ Booth was planned on them too,
+ * then built in the site instead).
  * Pure types. See CONTRACTS.md for the rules behind each one.
  *
- * Time: every timestamp is "speaker time" — milliseconds on the speaker device's clock
- * (performance.now()-based, monotonic). Phones convert their local clock with the offset
- * estimated by beat-clock.ts. Never use Date.now() for beat math.
+ * Time: every timestamp is "speaker time" — milliseconds on the speaker device's clock (the
+ * speaker page's performance.timeOrigin + performance.now(): monotonic within the page, and it
+ * carries on across a reload of it). Phones convert their local clock with the offset estimated
+ * by beat-clock.ts. Never use a phone's Date.now() for beat math.
  */
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -12,8 +14,8 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 export type RoomPhase =
   | 'lobby'        // waiting for players; speaker may or may not be connected yet
   | 'calibrating'  // speaker plays 8 clicks, host taps; AirPlay offset is measured
-  | 'learning'     // coach demonstrates at 70% speed, 8 counts watch / 8 counts follow
-  | 'dancing'      // full-speed routine, phones score every beat
+  | 'learning'     // everything before the dance: warm-up, then the coach at 70% speed, 8 counts watch / 8 counts follow
+  | 'dancing'      // count-in, the full-speed routine (phones score every beat), then the cool-down
   | 'results'      // awards / scores shown on the speaker screen
   | 'ended';       // room closed; no further transitions
 
@@ -54,6 +56,8 @@ export type RoomEvent =
   | { type: 'SKIP_CALIBRATION'; at: number; byPlayerId: string }
   | { type: 'START_LEARNING'; at: number; byPlayerId: string; routineId: string; difficulty: Difficulty; bpm: number }
   | { type: 'START_DANCING'; at: number; byPlayerId: string; routineStartAt: number }
+  /** From the room itself, like FINISH: the warm-up and teaching ran out, so the dance follows on. */
+  | { type: 'LEARNING_DONE'; at: number; routineStartAt: number }
   | { type: 'RESTART_SECTION'; at: number; byPlayerId: string; routineStartAt: number }
   | { type: 'FINISH'; at: number }
   | { type: 'BACK_TO_LOBBY'; at: number; byPlayerId: string }

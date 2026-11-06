@@ -1,5 +1,5 @@
-// Cloudflare settings for changle.ca/party: the rooms and pages of 一起跳 · Dance Along (and later
-// 打碟 · DJ Booth), on the shared base in games/party-base. Its own Worker, like 随便
+// Cloudflare settings for changle.ca/party: the rooms and pages of 一起跳 · Dance Along, on the
+// shared base in games/party-base and the move library in games/dance. Its own Worker, like 随便
 // (tools/suibian): once Cloudflare is connected to the repository, merging into main builds the
 // pages into dist/client/party and deploys. No secrets.
 {

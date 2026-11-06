@@ -73,6 +73,28 @@ describe('happy path: calibrate → learn → dance → results', () => {
     expect(() => reduce(s, join('late', 130_300))).toThrow('ended');
   });
 
+  it('the room moves on to the dance by itself when the teaching runs out', () => {
+    let s = lobbyWithHost();
+    s = reduce(s, { type: 'START_LEARNING', at: 30, byPlayerId: 'steve', routineId: 'r', difficulty: 'easy', bpm: 96 });
+    // no host needed, and beat 0 stays where the timeline put it even if the room is a moment late
+    s = reduce(s, { type: 'LEARNING_DONE', at: 121_000, routineStartAt: 120_500 });
+    expect(s.phase).toBe('dancing');
+    expect(s.routineStartAt).toBe(120_500);
+    expect(() => reduce(s, { type: 'LEARNING_DONE', at: 121_001, routineStartAt: 125_000 })).toThrow('not allowed');
+    expect(() => reduce(lobbyWithHost(), { type: 'LEARNING_DONE', at: 5, routineStartAt: 9 })).toThrow('not allowed');
+  });
+
+  it('the host can stop a song at any moment: learning or dancing, back to the lobby', () => {
+    let s = lobbyWithHost();
+    s = reduce(s, { type: 'START_LEARNING', at: 30, byPlayerId: 'steve', routineId: 'r', difficulty: 'easy', bpm: 96 });
+    expect(reduce(s, { type: 'BACK_TO_LOBBY', at: 40, byPlayerId: 'steve' }).phase).toBe('lobby');
+    s = reduce(s, { type: 'START_DANCING', at: 40, byPlayerId: 'steve', routineStartAt: 4_000 });
+    expect(() => reduce(s, { type: 'BACK_TO_LOBBY', at: 50, byPlayerId: 'jackie' })).toThrow('not the host');
+    s = reduce(s, { type: 'BACK_TO_LOBBY', at: 50, byPlayerId: 'steve' });
+    expect(s.phase).toBe('lobby');
+    expect(s.routineStartAt).toBeNull();
+  });
+
   it('allows a one-tap restart of the section while dancing', () => {
     let s = lobbyWithHost();
     s = reduce(s, { type: 'START_LEARNING', at: 30, byPlayerId: 'steve', routineId: 'r', difficulty: 'medium', bpm: 110 });
