@@ -585,6 +585,11 @@ const S = {
   ],
   publicDomain: ["公有领域", "public domain"],
   creditsLicences: ["许可证全文", "Full licence texts"],
+  creditsReports: ["出错报告", "Error reports"],
+  creditsReportsText: [
+    "游戏出错、卡住好几秒，或者很久连不上服务器时，会自动告诉服务器：出在哪一行、是哪个画面、什么浏览器和系统。不带名字、队名和房间号，只用来找问题、修问题。",
+    "When the game hits an error, freezes for several seconds or can't reach its server for long, it tells the server by itself: which line, which screen, which browser and system. No names, team names or room codes; it's only for finding and fixing problems.",
+  ],
   back: ["返回", "Back"],
   source: ["来源", "Source"],
   greeting: ["问候", "Greeting"],
