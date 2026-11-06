@@ -678,6 +678,14 @@ def snap(browser):
         g.add_init_script(WATCH_PLAYS)
         g.reload(wait_until="networkidle")
     ok(until(lambda: all(room(g) for g in everyone), 10000) is not None, "[snap] the table is back after the reloads")
+    # and a big screen, which plays along
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
+    tv = phone(browser, "TV")
+    tv.set_viewport_size({"width": 1280, "height": 720})
+    tv.add_init_script(WATCH_PLAYS)
+    tv.goto(BASE + f"tv/{code}", wait_until="networkidle")
+    ok(until(lambda: room(tv), 10000) is not None, "[snap] the big screen is at the table")
+    tv.keyboard.press("Shift")  # a big screen's sound waits for one click or key
     start_tune(host, everyone)
     host.get_by_role("button", name="一秒猜歌", exact=True).click()
     host.get_by_role("button", name="5 首", exact=True).click()
@@ -685,17 +693,20 @@ def snap(browser):
     # (a phone schedules a round's snippets all at once: count what each has played before each round)
     ok(until(lambda: bool(view(host)["pre"]), 5000) is not None, "[snap] the first song is picked during the setup, for every phone to load")
     host.wait_for_timeout(2500)
-    base = [len(plays(g)) for g in everyone]
+    hearing = everyone + [tv]
+    base = [len(plays(g)) for g in hearing]
     host.get_by_role("button", name="放第一首").click()
     hooks = []
     for n in (1, 2, 3):
         ok(until(lambda: view(host)["phase"] == "listen" and view(host)["round"] == n, 20000) is not None, f"[snap] song {n} starts")
-        until(lambda: all(len(plays(g)) >= b + 2 for g, b in zip(everyone, base)), 14000)
+        until(lambda: all(len(plays(g)) >= b + 2 for g, b in zip(hearing, base)), 14000)
         v = view(host)
         hooks.append(v["hook"])
-        for g, b in zip(everyone, base):
+        if n == 1:
+            shot(tv, "snap-tv-listen")
+        for g, b in zip(hearing, base):
             mine = plays(g)[b:]
-            ok(len(mine) >= 2, f"[snap] song {n}: {g._name}'s phone played the first two snippets ({len(mine)})")
+            ok(len(mine) >= 2, f"[snap] song {n}: {g._name} played the first two snippets ({len(mine)})")
             if len(mine) >= 2:
                 ok(all(abs(x["offset"] - v["hook"] / 1000) < 0.06 for x in mine[:2]), f"[snap] song {n}: {g._name} plays from the table's spot ({[round(x['offset'], 2) for x in mine[:2]]} vs {v['hook'] / 1000})")
                 ok(0.9 <= (mine[0]["len"] or 0) <= 1.3 and 2.8 <= (mine[1]["len"] or 0) <= 3.3, f"[snap] song {n}: {g._name}: one second, then three ({mine[0]['len']}, {mine[1]['len']})")
@@ -713,15 +724,17 @@ def snap(browser):
         ok(until(lambda: view(host)["phase"] == "reveal", 30000) is not None, f"[snap] song {n}: the reveal")
         clear_stamps(everyone)
         host.wait_for_timeout(1500)
-        base = [len(plays(g)) for g in everyone]
+        if n == 1:
+            shot(tv, "snap-tv-reveal")
+        base = [len(plays(g)) for g in hearing]
         try:
             host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=4000)
         except Exception:
             pass
     ok(any(h != 1000 for h in hooks[1:]), f"[snap] after the first song, the spot is the one the host's phone found ({hooks})")
-    errs = errors_of(everyone)
+    errs = errors_of(hearing)
     ok(not errs, f"[snap] the table: no console or page errors {errs[:4]}")
-    for g in everyone:
+    for g in hearing:
         g.context.close()
 
 
