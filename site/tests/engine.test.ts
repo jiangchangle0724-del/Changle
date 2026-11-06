@@ -11,6 +11,7 @@ import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, t
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
 import { PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
+import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
@@ -1472,6 +1473,32 @@ test("drama: every built-in scene in both languages, and an evening of hard scen
     t.g("p0", "skip");
   }
   ok(seen.size === 10, "ten different scenes before one comes round again");
+});
+
+test("drama: how to act a scene: every guide fits its scene, in Chinese and in English", () => {
+  const cjk = /[㐀-鿿]/;
+  const both = (x: { zh: string; en: string }) => cjk.test(x.zh) && !!x.en && !cjk.test(x.en);
+  const bad: string[] = [];
+  for (const [id, gd] of Object.entries(DRAMA_GUIDES)) {
+    const sc = DRAMA_SCENES.find((s) => s.id === id);
+    if (!sc) {
+      bad.push(`${id}: no such scene`);
+      continue;
+    }
+    if (gd.roles.length !== sc.roles.length) bad.push(`${id}: ${gd.roles.length} role guides for ${sc.roles.length} roles`);
+    if (gd.beats.length < 3 || gd.beats.length > 5) bad.push(`${id}: ${gd.beats.length} steps`);
+    if (![...gd.beats, ...gd.roles.flatMap((r) => [r.play, r.first])].every(both)) bad.push(`${id}: a line missing or in the wrong language`);
+  }
+  ok(!bad.length, `every guide matches its scene (${bad.join("; ")})`);
+  // the scenes drawn most: easy all-ages, and hard all-ages for two (tables of three or four)
+  const most = DRAMA_SCENES.filter((s) => s.level === "all" && (s.diff === "easy" || s.roles.length === 2));
+  const missing = most.filter((s) => !DRAMA_GUIDES[s.id]).map((s) => s.id);
+  ok(!missing.length, `the most-drawn scenes all have a guide (${missing.join(", ")})`);
+  ok(DRAMA_GENERIC_BEATS.length >= 3 && DRAMA_TIPS.length === 5 && [...DRAMA_GENERIC_BEATS, ...DRAMA_TIPS].every(both), "any other scene still has steps to follow, and a first-timer has five tips");
+  // the card and the cast list ask for a role's guide by the role's name
+  const sc = DRAMA_SCENES.find((s) => s.id === "family-new-year-dumplings")!;
+  ok(dramaRoleGuide(sc.id, sc.roles[1].name) === DRAMA_GUIDES[sc.id].roles[1], "a role's guide is found by its name");
+  ok(dramaRoleGuide(sc.id, { zh: "没有这个角色", en: "Nobody" }) === undefined && dramaRoleGuide("w1", sc.roles[0].name) === undefined, "a role that isn't there, or a scene a player wrote, has none");
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {

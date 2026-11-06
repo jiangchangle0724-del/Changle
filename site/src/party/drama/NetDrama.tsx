@@ -14,7 +14,7 @@ import { perfAt, useWakeLock } from "../sensors";
 import { seedOf, startAmbience, type Scape } from "./ambience";
 import { loadLibrary, SceneWriter, TableScenes } from "./writer";
 import { useStore } from "../../store";
-import { Backdrop, BallotForm, Cast, Curtain, Finale, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
 import { useSettle } from "./ShellActions";
 import { dramaSfx } from "./sound";
 
@@ -141,6 +141,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   culprit={v.scene?.culprit ?? null}
                   pk={v.mode === "pk"}
                   line={v.pk?.line}
+                  sceneId={v.scene?.id}
                   onDone={() => g("ready")}
                   doneLabel={zh ? "记住了，准备开演" : "Got it. Ready"}
                 />
@@ -151,6 +152,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                 <Waiting>{zh ? `演员在偷偷看身份牌（${v.ready.length}/${v.cast.length}）` : `The actors are reading their cards (${v.ready.length}/${v.cast.length})`}</Waiting>
               </>
             )}
+            {v.mode === "show" && <FirstTimeTips />}
             <HostRow>
               <HostButton onClick={settle(() => g("go"))}>
                 <Clapperboard size={14} />
@@ -180,7 +182,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   <Eye size={16} />
                   {peek ? (zh ? "收起我的牌" : "Hide my card") : zh ? "再看一眼我的牌" : "Peek at my card"}
                 </button>
-                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} line={v.pk?.line} />}
+                {peek && <RoleCard key={`peek-${v.round}`} role={v.cast.find((c) => c.pid === me)!.role} brief={v.cast.find((c) => c.pid === me)!.brief} card={v.me} culprit={v.scene?.culprit ?? null} pk={v.mode === "pk"} line={v.pk?.line} sceneId={v.scene?.id} />}
               </>
             )}
             {(acting || isHost) && (

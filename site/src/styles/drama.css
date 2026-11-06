@@ -1454,3 +1454,72 @@ li.is-ready .dm-roster-state {
   max-width: 640px;
   align-self: center;
 }
+
+/* ---------- how to act it: the scene's steps, how a role comes across, a first line, first-timer tips ---------- */
+
+.dm-beats {
+  width: 100%;
+  max-width: 34em;
+  margin-top: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  text-align: left;
+}
+.dm-beats-title {
+  margin: 0 0 var(--space-1);
+  color: var(--gel);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+.dm-beats ol,
+.dm-tips ol {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: 1.4em;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-roster-main > .dm-roster-play {
+  color: var(--color-text);
+}
+.dm-card-play {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-card-play strong {
+  color: var(--gel);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dm-card-first p:not(.dm-card-label) {
+  font-weight: 700;
+}
+.dm-tips {
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.dm-tips summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-4);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+.dm-tips ol {
+  padding: 0 var(--space-4) var(--space-4) calc(var(--space-4) + 1.4em);
+}
