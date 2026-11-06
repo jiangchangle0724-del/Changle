@@ -8,7 +8,7 @@ import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
 import { useStore } from "../../../store";
 import { NowPlaying, STYLE_NAMES } from "../parts";
-import { CLIP_CREDIT, hintText, KNOBS, MIX_EFFECTS, mixSaid, nowLine, PADS, reqLine } from "./words";
+import { CLIP_CREDIT, hintText, jukeText, KNOBS, MIX_EFFECTS, mixSaid, nowLine, PADS, reqLine } from "./words";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -83,11 +83,19 @@ export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
           <span className="dk-fader-end">B</span>
         </div>
         <span className="dk-fader-who">{held ? (zh ? `${nameOf(d.faderBy!)} 在推推子` : `${nameOf(d.faderBy!)} on the crossfader`) : " "}</span>
-        <div className={`dk-meter ${d.drop ? "is-full" : ""}`} style={{ ["--level" as string]: level } as CSSProperties}>
-          <span className="dk-meter-fill" />
-          <span className="dk-meter-word">{zh ? "蓄力" : "Build-up"}</span>
-          <span className="dk-meter-pct tabular">{Math.round(level * 100)}%</span>
-        </div>
+        {v.juke ? (
+          // 点歌模式: no build-up to fill
+          <div className="dk-meter is-juke">
+            <ListMusic size={22} aria-hidden="true" />
+            <span className="dk-meter-word">{zh ? "点歌模式 · 一首接一首" : "Jukebox · one after another"}</span>
+          </div>
+        ) : (
+          <div className={`dk-meter ${d.drop ? "is-full" : ""}`} style={{ ["--level" as string]: level } as CSSProperties}>
+            <span className="dk-meter-fill" />
+            <span className="dk-meter-word">{zh ? "蓄力" : "Build-up"}</span>
+            <span className="dk-meter-pct tabular">{Math.round(level * 100)}%</span>
+          </div>
+        )}
         {d.mixer && <MixStrip m={d.mixer} zh={zh} />}
       </div>
       {deck("b")}
@@ -103,7 +111,8 @@ export function Countdown({ v }: { v: DjView }) {
   const d = v.deck;
   useTicker(!!d.drop, 40);
   const c = countdown(d.drop, d.grid, now());
-  if (!d.drop || !c) return null;
+  // (点歌模式's switch into the next song: nothing to count down to, nothing to press)
+  if (!d.drop || d.drop.quiet || !c) return null;
   return (
     <div className={`dk-count is-${c}`} role="status" aria-live="assertive">
       <span key={c} className="dk-count-n">
@@ -129,6 +138,8 @@ export function DropParty({ v }: { v: DjView }) {
   useEffect(() => {
     if (!last || at === seen.current) return;
     seen.current = at;
+    // (点歌模式's switch into the next song: no party)
+    if (last.quiet) return;
     setShow(last);
     const id = window.setTimeout(() => setShow(null), 3200);
     return () => window.clearTimeout(id);
@@ -247,6 +258,13 @@ export function HintLine({ v }: { v: DjView }) {
   const live = v.phase !== "wait" && v.phase !== "end";
   useTicker(live, 3000);
   const d = v.deck;
+  if (v.juke && live)
+    return (
+      <p className="dk-hint">
+        <ListMusic size={24} aria-hidden="true" />
+        {jukeText(!!d.song, !!d.up, zh)}
+      </p>
+    );
   const h = hintFor(d, now(), live, v.source === "lyria", heatLean(v.fires, v.colds, now()) <= COLD_LEAN);
   if (!h || h === "countdown") return null;
   return (
