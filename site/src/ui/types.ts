@@ -74,6 +74,10 @@ export type TileProps = {
   soon?: boolean;
   /** under the room light during a random pick */
   lit?: boolean;
+  /** the one chosen on a board where one is up (the online table's games): read out as pressed */
+  pressed?: boolean;
+  /** can't be pressed now (at an online table only the host picks); it still looks the same */
+  disabled?: boolean;
   /** grid (default), or hero: the full-width card at the top of home */
   size?: "grid" | "hero";
   onOpen: () => void;

@@ -14,6 +14,8 @@ export function Tile({
   isNew,
   soon,
   lit,
+  pressed,
+  disabled,
   size = "grid",
   onOpen,
 }: TileProps) {
@@ -23,6 +25,8 @@ export function Tile({
       type="button"
       className={`ui-tile ui-category-${category} ui-tile-${size}${lit ? " ui-tile-lit" : ""}${soon ? " ui-tile-soon" : ""}`}
       onClick={onOpen}
+      disabled={disabled}
+      aria-pressed={pressed}
     >
       <Icon
         className="ui-tile-watermark"

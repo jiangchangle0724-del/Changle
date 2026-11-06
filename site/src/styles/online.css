@@ -559,11 +559,9 @@
     width: 50px;
   }
 }
-.lobby .tile {
-  min-height: 118px;
-}
-.lobby .tile:disabled {
-  cursor: default;
+/* shorter than the home page's: the whole board fits above the dock with fewer screens of scrolling */
+.lobby .ui-tile {
+  min-height: calc(var(--tap) * 3);
 }
 .lobby-dock {
   position: sticky;
