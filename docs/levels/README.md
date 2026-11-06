@@ -2,6 +2,8 @@
 
 以已合并的 A1 为唯一物理实现；不依赖 A2 / PR #165。没有修改物理、渲染器、依赖或锁文件。`package.json` 只增加 `levels` 脚本。
 
+11-05 审查（Claude Code）：在含 A3 的 main 上重跑，12 关结果和下面完全一样；审查页和截图改用 A3 的画面（原来的开发渲染器 A3 删了）；验收器允许 A3 新加的饼干平台（`fading`）和弹簧蜡烛（`springs`），只检查格式；CI 的 checks 加了 `npm run levels`。
+
 ## 运行与复核
 
 在 `games/hang-on`，使用 Node 22：
@@ -47,7 +49,7 @@ Windows 使用 Git Bash 执行这些命令；或设置 `npm_config_script_shell`
 
 ## 截图与浏览器回放
 
-12 张同名 PNG 均由 Playwright + Chromium 截取，1280×720、deviceScaleFactor=1。模拟停在初始出生状态；相机缩放到全关，四人、所有机关和终点同时可见。显示 A1 原有开发渲染器，不依赖 A3 美术。`grab:false` 的起台另外绘出虚线和中英文「只能站 / Stand only」。
+12 张同名 PNG 均由 Playwright + Chromium 截取，1280×720、deviceScaleFactor=1。模拟停在初始出生状态；相机缩放到全关，四人、所有机关和终点同时可见。11-05 审查时改用 A3 的 Pixi 画面（和主机页同一套，远景画也在）重截；`grab:false` 的起台另外绘出虚线和中英文「只能站 / Stand only」。
 
 ```sh
 # 本机审查页：选择关卡，回放 / 暂停 / 重置；Ctrl+C 停止

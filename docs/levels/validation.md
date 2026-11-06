@@ -49,3 +49,9 @@ PASS rejects overlap
 PASS rejects missing controller
 PASS rejects par must be
 ```
+
+## 11-05 审查时在含 A3 的 main 上重跑
+
+Linux、Node 22。`npm test` 45 条全过（A3 加了新玩法和换装的检查），`npm run typecheck`、`npm run ip-check`（0 处）通过；
+`npm run levels` 12 关的用时、摔死、到达和 par 比和上表逐项一样，table-06 的成链 0.35 秒、van-10 的丢人 4 次、单人投影 0/4 也一样。
+截图用 `HANG_ON_PLAYWRIGHT=<playwright 模块> node scripts/run-levels.mjs --screenshots` 重截（A3 画面）。

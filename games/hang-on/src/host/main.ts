@@ -15,6 +15,7 @@ import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
 import { MAX_SEATS, STATUS_MS, type FatalKey, type Phase, type RoomView } from '../net/protocol';
 import { drawLook } from '../pad/look-preview';
+import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -25,7 +26,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 
 applyStatic();
 const canvas = $<HTMLCanvasElement>('stage');
-const stage = await Stage.create(canvas);
+const stage = await Stage.create(canvas, { plates: PLATES });
 const params = new URLSearchParams(location.search);
 let levelIndex = Math.max(0, LEVELS.findIndex((l) => l.id === params.get('level')));
 let level: Level = LEVELS[levelIndex] as Level;
