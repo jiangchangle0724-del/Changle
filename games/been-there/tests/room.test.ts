@@ -1777,3 +1777,254 @@ test("a test room can keep the teams in the order they were made: the first team
   // (otherwise the order is drawn)
   assert.ok(seeds.some((n) => seatOf({}, n) !== 0));
 });
+
+// 更多规则: the host's starting cash, auctions off, and the money hidden until the end.
+
+test("more rules: the starting cash the host picks; a game to the target moves its target with it", () => {
+  for (const [cash, start] of [
+    ["low", 1000],
+    ["high", 2000],
+  ] as const) {
+    const t = new Table();
+    const ps = lobby(t, 3);
+    t.send(ps[1], { t: "settings", cash });
+    assert.equal(t.view(ps[0]).settings.cash, "normal", "only the host changes it");
+    t.send(ps[0], { t: "settings", cash });
+    assert.equal(t.view(ps[2]).settings.cash, cash);
+    t.send(ps[0], { t: "start" });
+    const s = t.game.s;
+    s.ps.forEach((p, i) => assert.equal(p.cash, start + s.cfg.seatBonus[i]));
+    assert.deepEqual(s.cfg.end, { kind: "target", amount: E.TARGETS.more + start - E.START_CASH });
+  }
+  // A timed game keeps its clock; and a room from before the choice starts with $1,500.
+  const t = new Table({ mode: 60 });
+  const ps = lobby(t, 2);
+  t.send(ps[0], { t: "settings", cash: "high" });
+  t.send(ps[0], { t: "start" });
+  assert.equal(t.game.s.cfg.end.kind, "rounds");
+  assert.equal(t.game.s.ps[0].cash, 2000 + t.game.s.cfg.seatBonus[0]);
+  const old = new Table();
+  const ops = lobby(old, 2);
+  old.send(ops[0], { t: "start" });
+  assert.equal(old.game.s.cfg.startCash, E.START_CASH);
+  assert.equal(old.view(ops[0]).settings.cash, "normal");
+  assert.equal(old.view(ops[0]).settings.auctions, true);
+  assert.equal(old.view(ops[0]).settings.hideCash, false);
+});
+
+test("more rules: with auctions off, a city its visitor doesn't buy stays with the bank, and the log says so", () => {
+  const t = new Table({}, 3);
+  const ps = lobby(t, 3);
+  for (const p of ps) p.declineBuys = true;
+  t.send(ps[0], { t: "settings", auctions: false });
+  t.send(ps[0], { t: "start" });
+  assert.equal(t.game.s.cfg.auctions, false);
+  const passes = () => t.seen.filter((f) => f.t === "game" && f.e.t === "pass");
+  t.playUntil(() => passes().length >= 3);
+  assert.ok(!t.seen.some((f) => f.t === "game" && f.e.t === "auction"), "no auction");
+  for (const f of passes()) {
+    const e = (f as { e: E.GameEvent }).e as { at: number };
+    assert.equal(t.game.s.deeds[e.at]!.owner, -1, "still the bank's");
+  }
+  assert.deepEqual(t.refusals, []);
+});
+
+test("more rules: hidden money: a phone sees only its own team's cash and worth, the big screen none, all at the end", () => {
+  const t = new Table();
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "settings", hideCash: true });
+  assert.ok(t.room.join("member-9-xxxxxxxx", "key-9-secret-xxxx", { role: "screen" }));
+  t.send(ps[0], { t: "start" });
+  const check = () => {
+    const s = t.game.s;
+    for (const p of ps) {
+      const v = t.view(p);
+      for (let seat = 0; seat < s.ps.length; seat++) {
+        const own = v.you.seats.includes(seat);
+        assert.equal(v.game!.s.ps[seat].cash, own ? s.ps[seat].cash : -1);
+        assert.equal(v.game!.worth[seat], own ? E.netWorth(s, seat) : -1);
+      }
+    }
+    const tv = t.room.view("member-9-xxxxxxxx");
+    assert.ok(tv.game!.s.ps.every((p) => p.cash === -1) && tv.game!.worth.every((w) => w === -1), "the big screen shows none");
+    assert.ok(s.ps.every((p) => p.cash >= 0), "the room itself keeps the real money");
+  };
+  check();
+  t.playUntil(() => t.game.s.turns >= 12);
+  check();
+  t.playUntil(() => t.game.s.over);
+  const s = t.game.s;
+  const end = t.view(ps[1]).game!;
+  assert.deepEqual(
+    end.s.ps.map((p) => p.cash),
+    s.ps.map((p) => p.cash),
+    "at the end everyone sees everything",
+  );
+  assert.deepEqual(end.worth, s.ps.map((_, i) => E.netWorth(s, i)));
+  assert.deepEqual(t.refusals, []);
+});
+
+test("reactions: a team's player reacts, every page in the room hears it at once, nothing is kept, one per 1.5 s", () => {
+  const t = new Table();
+  const ps = lobby(t, 2);
+  assert.ok(t.room.join("member-9-xxxxxxxx", "key-9-secret-xxxx", { role: "screen" }));
+  const watcher = phone(7);
+  t.join(watcher, "W");
+  t.send(ps[0], { t: "start" });
+  t.settle();
+  const before = JSON.stringify(t.room.st);
+  const heard = () => {
+    const out = t.room.flush();
+    return { changed: out.changed, to: out.direct.filter(([, m]) => m.t === "react").map(([id, m]) => [id, m]) as [string, ServerMsg][] };
+  };
+  t.room.handle(ps[0].id, { t: "react", r: "shock" });
+  const first = heard();
+  assert.equal(first.changed, false, "nothing in the room changes");
+  assert.deepEqual(first.to.map(([id]) => id).sort(), [ps[0].id, ps[1].id, watcher.id, "member-9-xxxxxxxx"].sort(), "every page, the big screen too");
+  const msg = first.to[0][1] as Extract<ServerMsg, { t: "react" }>;
+  assert.equal(msg.r, "shock");
+  assert.equal(msg.team, t.room.st.members[ps[0].id].team);
+  // Too soon: dropped. A screen, a player with no team, or a reaction that isn't one: dropped.
+  t.room.handle(ps[0].id, { t: "react", r: "happy" });
+  t.room.handle("member-9-xxxxxxxx", { t: "react", r: "happy" });
+  t.room.handle(watcher.id, { t: "react", r: "happy" });
+  t.room.handle(ps[1].id, { t: "react", r: "dance" as never });
+  assert.equal(heard().to.length, 0);
+  t.clock.t += TIMING.reactEvery;
+  t.room.handle(ps[0].id, { t: "react", r: "happy" });
+  t.room.handle(ps[1].id, { t: "react", r: "smug" });
+  const second = heard();
+  assert.equal(second.to.length, 8, "two reactions, four pages each");
+  assert.ok(second.to.every(([, m]) => m.t === "react" && m.id > msg.id));
+  // (the room's lastSeen moves with any message; nothing else)
+  const strip = (s: string) => s.replace(/"lastSeen":\d+/g, "");
+  assert.equal(strip(JSON.stringify(t.room.st)), strip(before));
+});
+
+test("the report card's tallies: every throw, rent, buy, auction, quiz win and trip to Immigration, counted per seat, sent at the end", () => {
+  const t = new Table({ mode: 60, testRounds: 6 });
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "start" });
+  assert.equal(t.view(ps[0]).game!.tally, null, "not before the end");
+  t.playUntil(() => t.game.s.over);
+  const tally = t.view(ps[1]).game!.tally!;
+  assert.equal(tally.length, 3);
+  const events = t.seen.flatMap((f) => (f.t === "game" ? [f.e] : []));
+  const count = (pred: (e: E.GameEvent) => boolean) => events.filter(pred).length;
+  for (let seat = 0; seat < 3; seat++) {
+    const mine = tally[seat];
+    assert.equal(mine.throws, count((e) => e.t === "roll" && e.p === seat));
+    assert.equal(mine.totals.reduce((a, b) => a + b, 0), mine.throws, "every throw of two dice has its total");
+    const rents = events.filter((e): e is Extract<E.GameEvent, { t: "rent" }> => e.t === "rent");
+    assert.equal(mine.rentPaid, rents.filter((e) => e.p === seat).reduce((a, e) => a + e.amount, 0));
+    assert.equal(mine.rentGot, rents.filter((e) => e.to === seat).reduce((a, e) => a + e.amount, 0));
+    assert.equal(mine.bought, count((e) => e.t === "buy" && e.p === seat));
+    assert.equal(mine.jail, count((e) => e.t === "jail" && e.p === seat));
+    assert.equal(mine.auctionsWon, count((e) => e.t === "auction" && e.winner === seat));
+    if (mine.topRent) assert.equal(mine.topRent.amount, Math.max(...rents.filter((e) => e.p === seat).map((e) => e.amount)));
+  }
+  assert.ok(tally.some((x) => x.throws > 0));
+});
+
+// ---------- 世界大动荡 (engine/world.ts; when, in room.ts) ----------
+
+type WorldItem = { at: number; e: Extract<E.GameEvent, { t: "world" }>; pending: string; dbl: number; played: number };
+
+/** Play on until `n` more world events have come, noting for each what the game was doing when it came. */
+function untilWorld(t: Table, n = 1, maxSteps = 200_000): WorldItem[] {
+  const before = new Set(t.seen.filter((f) => f.t === "game" && f.e.t === "world").map((f) => f.id));
+  const got: WorldItem[] = [];
+  const look = () => {
+    for (const f of t.seen)
+      if (f.t === "game" && f.e.t === "world" && f.e.on && !before.has(f.id) && !got.some((x) => x.e === f.e)) {
+        const g = t.game;
+        got.push({ at: f.at, e: f.e, pending: g.s.pending?.k ?? "none", dbl: g.s.ps[g.s.turn].dbl, played: g.playedAt ?? 0 });
+      }
+    return got.length >= n || t.game.s.over;
+  };
+  for (let i = 0; i < maxSteps && !look(); i++) if (!t.phonesAct(look)) t.wait();
+  return got;
+}
+
+/** The computer plays every team (so nobody's quick phone throws before a world event can come): the phones put down. */
+function allComputer(t: Table) {
+  for (const id of t.game.seats) {
+    const team = t.room.st.teams.find((x) => x.id === id)!;
+    if (!team.bot) team.autoplay = true;
+  }
+  t.phones = [];
+}
+
+test("世界大动荡: 20 minutes in and every 20 after, 8 minutes in a 15-minute game and only then, never with the switch off; at the start of a turn once the last throw has played", () => {
+  for (const [mode, first, again] of [
+    [60, TIMING.worldEvery, true],
+    [15, TIMING.worldShort, false],
+  ] as const) {
+    const t = new Table({ mode }, 3);
+    const ps = lobby(t, 1, 2);
+    t.send(ps[0], { t: "start" });
+    allComputer(t);
+    const g = t.game;
+    assert.equal(g.worldAt, g.startedAt + first * 0.05, `${mode}: the first's time`);
+    const seen: string[] = [];
+    for (let k = 0; k < (again ? 2 : 1); k++) {
+      // (straight to its time: the computer's games are over long before 20 minutes of the test's clock)
+      t.clock.t = Math.max(t.clock.t, g.worldAt!);
+      const [w] = untilWorld(t);
+      assert.ok(w, `${mode}: it came`);
+      assert.equal(w.pending, "roll", "at the start of a turn");
+      assert.equal(w.dbl, 0, "not a throw again after doubles");
+      assert.ok(w.at >= w.played, "once the last throw has played on the screens");
+      assert.equal(g.worldAt, again ? w.at + TIMING.worldEvery * 0.05 : null, `${mode}: the next one's time`);
+      seen.push(w.e.id);
+    }
+    assert.equal(new Set(seen).size, seen.length, "not the same one twice");
+  }
+  const off = new Table({ mode: 60, world: false }, 4);
+  const qs = lobby(off, 1, 2);
+  off.send(qs[0], { t: "start" });
+  assert.equal(off.view(qs[0]).settings.world, false);
+  assert.equal(off.game.worldAt, null);
+  off.playUntil(() => off.game.s.over);
+  assert.ok(!off.seen.some((f) => f.t === "game" && f.e.t === "world"));
+});
+
+test("世界大动荡: its card holds the table (the computer waits), its two rounds end, a pause doesn't count toward the next, a save keeps its time", () => {
+  const t = new Table({ mode: "target", worldEvery: 8_000, worldOrder: ["boom", "crash"] }, 6);
+  const ps = lobby(t, 1, 2);
+  t.send(ps[0], { t: "start" });
+  allComputer(t);
+  const g = t.game;
+  const [w] = untilWorld(t);
+  assert.equal(w.e.id, "boom", "the order the test asked for");
+  assert.equal(g.worldHold, w.at + TIMING.worldCard * 0.05);
+  const until = g.s.world!.until;
+  assert.equal(until, g.s.turns + 2 * 3, "two rounds of three teams");
+  // Nothing moves while its card is up.
+  const firstRoll = () => t.seen.find((f) => f.at >= w.at && f.t === "game" && f.e.t === "roll");
+  t.playUntil(() => !!firstRoll());
+  assert.ok(firstRoll()!.at >= g.worldHold!, "the computer waited for the card");
+  // Two rounds on, at the start of the same seat's turn, it's over.
+  t.playUntil(() => g.s.turns >= until || g.s.over);
+  assert.ok(!g.s.over, "(this seed's game goes on)");
+  assert.equal(g.s.world ?? null, null);
+  assert.ok(t.seen.some((f) => f.t === "game" && f.e.t === "world" && f.e.id === "boom" && !f.e.on));
+  // A pause: the next one comes that much later.
+  {
+    assert.ok(g.worldAt != null);
+    const due = g.worldAt!;
+    t.send(ps[0], { t: "pause", on: true });
+    t.clock.t += 50_000;
+    t.send(ps[0], { t: "pause", on: false });
+    assert.equal(g.worldAt, due + 50_000);
+    // A save: the next one as long after the restart as it was due after the save.
+    t.room.handle(ps[0].id, { t: "save" });
+    const out = t.settle();
+    const file = JSON.parse(JSON.stringify(out.save!.file));
+    const t2 = new Table({ worldEvery: 8_000 });
+    t2.clock.t = t.clock.t + 3_600_000;
+    t2.room = Room.fromSave("5678", file, makeEnv(t2.clock, 3));
+    assert.equal(t2.game.worldAt, t2.clock.t + (g.worldAt! - t.clock.t));
+    assert.equal(t2.game.worldHold, undefined);
+  }
+});

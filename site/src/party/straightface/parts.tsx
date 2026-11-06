@@ -11,7 +11,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import type { Level, PrivateView, RoundResult } from "../../shared/straightface/types";
 import { NameFace } from "../common";
-import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightface";
+import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightfacePacks";
 import { PACK_ART, ROLE_ART } from "./art";
 import { S } from "./text";
 
@@ -84,7 +84,6 @@ export function TermCard({ term, level, lead, big = false, pack, children }: { t
  */
 export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view: PrivateView; seconds: number; onDone: () => void }) {
   const say = useSay();
-  const { lang } = useStore();
   const [holding, setHolding] = useState(false);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [left, setLeft] = useState(seconds);
@@ -120,7 +119,6 @@ export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view
   };
   const up = () => setHolding(false);
 
-  const honest = view.role === "honest";
   return (
     <div className="sf-peek">
       <p className="sf-peek-name">{name}</p>
@@ -144,22 +142,7 @@ export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view
         aria-label={say(S.holdToSee)}
       >
         {holding ? (
-          <div className="sf-part" lang={lang === "zh" ? "zh-CN" : "en"}>
-            <p className={`sf-part-role ${honest ? "is-honest" : "is-bluffer"}`}>{say(honest ? S.youAreHonest : S.youAreBluffer)}</p>
-            {view.term && <p className="sf-part-term">{lang === "zh" ? view.term.zh : view.term.en}</p>}
-            {honest && view.definition && <p className="sf-part-def">{lang === "zh" ? view.definition.zh : view.definition.en}</p>}
-            <p className="sf-part-hint">{say(honest ? S.honestHint : S.blufferHint)}</p>
-            {!honest && view.bluffSeeds && view.bluffSeeds.length > 0 && (
-              <div className="sf-seeds">
-                <span>{say(S.seedsLead)}</span>
-                <ul>
-                  {view.bluffSeeds.map((s, i) => (
-                    <li key={i}>{lang === "zh" ? s.zh : s.en}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+          <PartCard view={view} />
         ) : (
           <span className="sf-hold-label">
             <span>{say(S.holdToSee)}</span>
@@ -176,14 +159,106 @@ export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view
   );
 }
 
+/** One's own part: the honest one reads the real meaning, a bluffer the word and the seeds. */
+export function PartCard({ view }: { view: PrivateView }) {
+  const say = useSay();
+  const { lang } = useStore();
+  const honest = view.role === "honest";
+  return (
+    <div className="sf-part" lang={lang === "zh" ? "zh-CN" : "en"}>
+      <p className={`sf-part-role ${honest ? "is-honest" : "is-bluffer"}`}>{say(honest ? S.youAreHonest : S.youAreBluffer)}</p>
+      {view.term && <p className="sf-part-term">{lang === "zh" ? view.term.zh : view.term.en}</p>}
+      {honest && view.definition && <p className="sf-part-def">{lang === "zh" ? view.definition.zh : view.definition.en}</p>}
+      <p className="sf-part-hint">{say(honest ? S.honestHint : S.blufferHint)}</p>
+      {!honest && view.bluffSeeds && view.bluffSeeds.length > 0 && (
+        <div className="sf-seeds">
+          <span>{say(S.seedsLead)}</span>
+          <ul>
+            {view.bluffSeeds.map((s, i) => (
+              <li key={i}>{lang === "zh" ? s.zh : s.en}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Online: hold to see your part, as often as you like this round. It shows only while the finger is
+ * down; the honest one's and a bluffer's look the same from across the table. `compact` is the small
+ * one that stays at the top of the screen once the round is under way.
+ */
+export function HoldPart({ view, compact = false, onFirst }: { view: PrivateView; compact?: boolean; onFirst?: () => void }) {
+  const say = useSay();
+  const [holding, setHolding] = useState(false);
+  const first = useRef(true);
+  const down = () => {
+    if (first.current) {
+      first.current = false;
+      sfx.flip();
+      onFirst?.();
+    }
+    haptic(6);
+    setHolding(true);
+  };
+  const up = () => setHolding(false);
+  return (
+    <button
+      type="button"
+      className={`sf-hold ${compact ? "is-compact" : ""} ${holding ? "is-open" : ""}`}
+      onPointerDown={down}
+      onPointerUp={up}
+      onPointerCancel={up}
+      onPointerLeave={up}
+      onKeyDown={(e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          down();
+        }
+      }}
+      onKeyUp={up}
+      onContextMenu={(e) => e.preventDefault()}
+      aria-pressed={holding}
+      aria-label={say(compact ? S.holdMine : S.holdToSee)}
+    >
+      {holding ? (
+        <PartCard view={view} />
+      ) : (
+        <span className="sf-hold-label">
+          <span>{say(compact ? S.holdMine : S.holdToSee)}</span>
+          {!compact && <small>{say(S.holdOnline)}</small>}
+        </span>
+      )}
+    </button>
+  );
+}
+
 /** Who is explaining, with their soft clock: when it runs out the ring flashes and nothing moves on. */
-export function SpeakerRing({ name, seconds, resetKey, index, total }: { name: string; seconds: number; resetKey: string | number; index: number; total: number }) {
+export function SpeakerRing({
+  name,
+  seconds,
+  resetKey,
+  index,
+  total,
+  endsAt,
+  offset,
+}: {
+  name: string;
+  seconds: number;
+  resetKey: string | number;
+  index: number;
+  total: number;
+  /** online: the server's clock (the step's start plus the seconds) and this phone's offset to it */
+  endsAt?: number;
+  offset?: number;
+}) {
   const say = useSay();
   const [over, setOver] = useState(false);
   useEffect(() => setOver(false), [resetKey]);
   return (
     <div className={`sf-speaker ${over ? "is-over" : ""}`}>
-      <TimerArc seconds={seconds} running={!over} resetKey={resetKey} size={132} onEnd={() => setOver(true)} />
+      <TimerArc seconds={seconds} running={!over} resetKey={resetKey} size={132} endsAt={endsAt} offset={offset} onEnd={() => setOver(true)} />
       <div className="sf-speaker-who">
         <span className="hint">
           {say(S.nowSpeaking)} · <span className="tabular">{index + 1}</span>/<span className="tabular">{total}</span>
@@ -201,6 +276,8 @@ export function PickOne({
   disabled = [],
   marks = {},
   size = 58,
+  face,
+  picked,
 }: {
   people: { id: string; name: string }[];
   onPick: (id: string) => void;
@@ -208,6 +285,10 @@ export function PickOne({
   /** a small word under a name ("tagged") */
   marks?: Record<string, string>;
   size?: number;
+  /** online: the seat's own face (an avatar) instead of the initial */
+  face?: (id: string, size: number) => ReactNode;
+  /** the one already picked (shown ticked) */
+  picked?: string | null;
 }) {
   return (
     <div className="ballot">
@@ -215,7 +296,8 @@ export function PickOne({
         <button
           key={p.id}
           type="button"
-          className="nominee"
+          className={`nominee ${picked === p.id ? "is-on" : ""}`}
+          aria-pressed={picked === p.id}
           disabled={disabled.includes(p.id)}
           onClick={() => {
             sfx.tap();
@@ -224,7 +306,12 @@ export function PickOne({
           }}
         >
           <span className="nominee-face">
-            <NameFace name={p.name} size={size} />
+            {face ? face(p.id, size) : <NameFace name={p.name} size={size} />}
+            {picked === p.id && (
+              <span className="nominee-check" aria-hidden="true">
+                <Check size={14} strokeWidth={3} />
+              </span>
+            )}
             {marks[p.id] && (
               <span className="sf-mark" aria-hidden="true">
                 <Tag size={12} strokeWidth={2.6} />
@@ -240,13 +327,13 @@ export function PickOne({
 }
 
 /** The faces in speaking order; the one up now is lit, the ones done are ticked. */
-export function OrderStrip({ order, names, current }: { order: string[]; names: Record<string, string>; current: number }) {
+export function OrderStrip({ order, names, current, face }: { order: string[]; names: Record<string, string>; current: number; face?: (id: string, size: number) => ReactNode }) {
   return (
     <ol className="sf-order">
       {order.map((id, i) => (
         <li key={id} className={i === current ? "is-now" : i < current ? "is-done" : ""}>
           <span className="sf-order-face">
-            <NameFace name={names[id] ?? "?"} size={36} />
+            {face ? face(id, 36) : <NameFace name={names[id] ?? "?"} size={36} />}
             {i < current && (
               <span className="sf-order-check" aria-hidden="true">
                 <Check size={11} strokeWidth={3} />
@@ -416,5 +503,21 @@ export function PackPicker({ picked, onChange }: { picked: Pack[]; onChange: (ne
         );
       })}
     </div>
+  );
+}
+
+/** The packs the host picked, as everyone else sees them before the deal. */
+export function PackStrip({ packs }: { packs: string[] }) {
+  const { lang } = useStore();
+  const shown = PACKS.filter((p) => packs.includes(p));
+  return (
+    <ul className="sf-pack-strip">
+      {shown.map((p) => (
+        <li key={p}>
+          <img src={PACK_ART[p]} alt="" width={28} height={28} loading="lazy" />
+          <span>{lang === "zh" ? PACK_NAMES[p].zh : PACK_NAMES[p].en}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

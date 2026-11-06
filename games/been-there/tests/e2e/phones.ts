@@ -148,7 +148,7 @@ export async function fits(p: Phone, label: string, main?: string) {
         document.getAnimations().every((a) => {
           const timing = a.effect?.getComputedTiming();
           const target = (a.effect as KeyframeEffect | null)?.target as Element | null;
-          return a.playState !== "running" || !Number.isFinite(Number(timing?.endTime)) || !target?.matches?.(".playwin, .sheet-bg, .sheet, .quizpop");
+          return a.playState !== "running" || !Number.isFinite(Number(timing?.endTime)) || !target?.matches?.(".playwin, .sheet-bg, .sheet, .quizpop, .world-card");
         }),
       null,
       { timeout: 3000 },

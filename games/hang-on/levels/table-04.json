@@ -1,0 +1,86 @@
+{
+  "id": "table-04",
+  "world": "table",
+  "name": {
+    "zh": "蒸笼叠叠高",
+    "en": "Steamer Stack"
+  },
+  "teaches": "climb",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 950,
+    "y": 80,
+    "w": 290,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 730,
+      "y": 296
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 350,
+      "h": 160,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 350,
+      "y": 480,
+      "w": 160,
+      "h": 240,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 510,
+      "y": 400,
+      "w": 160,
+      "h": 320,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 670,
+      "y": 320,
+      "w": 160,
+      "h": 400,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 830,
+      "y": 240,
+      "w": 410,
+      "h": 480,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 80,
+      "w": 40,
+      "h": 640,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-04.json"
+}

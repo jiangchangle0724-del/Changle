@@ -478,6 +478,25 @@ export const sfx = {
   },
   /** Travel news: a newsroom ticker. */
   news: () => [880, 1108.7, 1318.5, 1760].forEach((f, i) => tone(f, 0.11, { type: "square", vol: 0.035, at: i * 0.085 })),
+  /** 世界大动荡: a newsroom's breaking-news call, then the event's own sound. */
+  world: (id: string) => {
+    [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(f, 0.16, { type: "square", vol: 0.04, at: i * 0.11 }));
+    tone(1046.5, 0.5, { type: "triangle", vol: 0.05, at: 0.44 });
+    const at = 0.8;
+    if (id === "crash") tone(523.3, 1.3, { type: "sawtooth", vol: 0.035, at, slide: 98 });
+    else if (id === "meteor") {
+      swell(0.9, { type: "bandpass", freq: 2400, sweep: 500, q: 0.8, vol: 0.07, at });
+      burst(1.1, { type: "lowpass", freq: 130, q: 0.4, vol: 0.32, at: at + 0.85 });
+    } else if (id === "terror") chord([196, 233.1, 293.7], 1.8, { vol: 0.05, at, detune: 6 });
+    else if (id === "ai") [784, 988, 1174.7, 1568, 1318.5, 1975.5].forEach((f, i) => tone(f, 0.09, { type: "square", vol: 0.03, at: at + i * 0.07 }));
+    else if (id === "invention") {
+      swell(1.2, { type: "bandpass", freq: 400, sweep: 2600, q: 0.7, vol: 0.06, at });
+      chord([523.3, 659.3, 784], 1, { type: "triangle", vol: 0.05, at: at + 0.9 });
+    } else if (id === "boom") {
+      [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(f, 0.3, { type: "triangle", vol: 0.06, at: at + i * 0.09 }));
+      burst(0.4, { type: "highpass", freq: 5000, vol: 0.05, at: at + 0.4 });
+    }
+  },
   /** The weather we land in: rain on the window, a roll of thunder, wind with the snow or fog. */
   weather: (kind: string) => {
     if (kind === "rain" || kind === "storm" || kind === "drizzle") {

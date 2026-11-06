@@ -11,7 +11,7 @@ await rm("dist/client", { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
 const ctx = await esbuild.context({
-  entryPoints: { screen: "src/client/screen.ts", join: "src/client/join.ts" },
+  entryPoints: { screen: "src/client/screen.ts", join: "src/client/join.ts", moves: "src/client/moves.ts" },
   outdir: out,
   format: "iife",
   bundle: true,
@@ -21,10 +21,12 @@ const ctx = await esbuild.context({
   legalComments: "none",
   logLevel: "info",
 });
-// /party/ (which page is which), /party/screen (the speaker), /party/join (a phone)
+// /party/ (which page is which), /party/screen (the speaker), /party/join (a phone), /party/moves
+// (the moves, danced by the coach)
 await copyFile("src/client/index.html", `${out}/index.html`);
 await copyFile("src/client/screen.html", `${out}/screen.html`);
 await copyFile("src/client/join.html", `${out}/join.html`);
+await copyFile("src/client/moves.html", `${out}/moves.html`);
 await copyFile("src/client/party.css", `${out}/party.css`);
 
 if (watch) {

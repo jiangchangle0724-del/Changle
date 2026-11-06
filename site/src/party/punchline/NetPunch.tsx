@@ -50,11 +50,11 @@ export function NetPunch({ v, onLeave }: { v: PunchView; onLeave: () => void }) 
     <p>
       {custom
         ? zh
-          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人受罚。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的受罚。超过 8 个人时，多出来的人当观众，一起投票。有电视或电脑当大屏幕时，手机就是遥控器。"
-          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser takes the penalty. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total takes the penalty. Past eight players, the rest are the audience and vote too. With a TV or computer as the big screen, the phones are the controllers."
+          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人受罚。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的受罚。超过 8 个人时，多出来的人当观众，一起投票，下一局先写。有电视或电脑当大屏幕时，手机就是遥控器。"
+          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser takes the penalty. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total takes the penalty. Past eight players, the rest are the audience and vote too, and write first next game. With a TV or computer as the big screen, the phones are the controllers."
         : zh
-          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的喝一杯。超过 8 个人时，多出来的人当观众，一起投票。有电视或电脑当大屏幕时，手机就是遥控器。"
-          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if they got swept. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total drinks a full glass. Past eight players, the rest are the audience and vote too. With a TV or computer as the big screen, the phones are the controllers."}
+          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的喝一杯。超过 8 个人时，多出来的人当观众，一起投票，下一局先写。有电视或电脑当大屏幕时，手机就是遥控器。"
+          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if they got swept. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total drinks a full glass. Past eight players, the rest are the audience and vote too, and write first next game. With a TV or computer as the big screen, the phones are the controllers."}
     </p>
   );
 
@@ -298,7 +298,7 @@ function WritePanel({ v }: { v: PunchView }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   if (!v.mine.length)
-    return <Waiting>{v.audience.includes(me) ? (zh ? "人多，这局你是观众：不用写，等着投票" : "Full house: you're in the audience. No writing, just voting.") : zh ? "这一轮你负责投票，等大家写完" : "You're voting this round. Waiting for the writers."}</Waiting>;
+    return <Waiting>{v.audience.includes(me) ? (zh ? "人多，这局你是观众：不用写，等着投票。下一局你先写" : "Full house: you're in the audience. No writing, just voting. You write first next game.") : zh ? "这一轮你负责投票，等大家写完" : "You're voting this round. Waiting for the writers."}</Waiting>;
   return (
     <div className="pl-writes">
       {v.mine.map((p, i) => (

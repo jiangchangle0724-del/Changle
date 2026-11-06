@@ -1,0 +1,67 @@
+{
+  "id": "van-09",
+  "world": "van",
+  "name": {
+    "zh": "摇摇浮筒",
+    "en": "Wobbling Pontoons"
+  },
+  "teaches": "balance",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 890,
+    "y": 400,
+    "w": 350,
+    "h": 160
+  },
+  "checkpoints": [],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 400,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 890,
+      "y": 560,
+      "w": 350,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 400,
+      "w": 40,
+      "h": 320,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [
+    {
+      "pivot": {
+        "x": 640,
+        "y": 500
+      },
+      "w": 600,
+      "h": 18,
+      "material": "metal"
+    }
+  ],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-09.json"
+}

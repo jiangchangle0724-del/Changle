@@ -1,0 +1,101 @@
+{
+  "id": "van-12",
+  "world": "van",
+  "name": {
+    "zh": "从夜市到海湾",
+    "en": "Night Market to Harbour"
+  },
+  "teaches": "combine",
+  "w": 1840,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 1500,
+    "y": 340,
+    "w": 300,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 530,
+      "y": 456
+    },
+    {
+      "x": 1320,
+      "y": 476
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 560,
+      "w": 350,
+      "h": 160,
+      "material": "cloth",
+      "kind": "ground"
+    },
+    {
+      "x": 350,
+      "y": 480,
+      "w": 280,
+      "h": 240,
+      "material": "wood",
+      "kind": "ground"
+    },
+    {
+      "x": 910,
+      "y": 500,
+      "w": 80,
+      "h": 220,
+      "material": "metal",
+      "kind": "ground"
+    },
+    {
+      "x": 1250,
+      "y": 500,
+      "w": 550,
+      "h": 220,
+      "material": "ice",
+      "kind": "ground"
+    },
+    {
+      "x": 1800,
+      "y": 320,
+      "w": 40,
+      "h": 400,
+      "material": "metal",
+      "kind": "wall"
+    }
+  ],
+  "ropes": [
+    {
+      "anchor": {
+        "x": 690,
+        "y": 150
+      },
+      "segments": 8,
+      "segLen": 38
+    }
+  ],
+  "seesaws": [
+    {
+      "pivot": {
+        "x": 1120,
+        "y": 470
+      },
+      "w": 320,
+      "h": 18,
+      "material": "metal"
+    }
+  ],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-12.json"
+}

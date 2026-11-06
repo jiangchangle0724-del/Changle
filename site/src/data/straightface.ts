@@ -9,46 +9,7 @@
  */
 import type { Card } from "../shared/straightface/types";
 
-export const PACKS = [
-  "zi", "fangyan", "chengyu", "caiming", "xiehouyu", "zhongyao", "diming", "laowujian", "wangluo",
-  "trivia", "vancouver", "food",
-  "oddwords", "idioms", "phobias", "placenames", "slang",
-] as const;
-export type Pack = (typeof PACKS)[number];
-export const PACK_NAMES: Record<Pack, { zh: string; en: string }> = {
-  zi: { zh: "生僻字", en: "Rare characters" },
-  fangyan: { zh: "方言", en: "Dialects" },
-  chengyu: { zh: "成语典故", en: "Chinese idioms" },
-  caiming: { zh: "菜名来历", en: "Dish names" },
-  xiehouyu: { zh: "歇后语", en: "Two-part sayings" },
-  zhongyao: { zh: "中药名", en: "Herb names" },
-  diming: { zh: "地名由来", en: "Chinese place names" },
-  laowujian: { zh: "老物件", en: "Old things" },
-  wangluo: { zh: "网络热词", en: "Chinese net slang" },
-  trivia: { zh: "冷知识", en: "Trivia" },
-  vancouver: { zh: "温村", en: "Vancouver" },
-  food: { zh: "吃喝", en: "Food & drink" },
-  oddwords: { zh: "冷僻英文词", en: "Odd words" },
-  idioms: { zh: "英文俗语", en: "Idiom origins" },
-  phobias: { zh: "恐惧症", en: "Phobias" },
-  placenames: { zh: "加拿大怪地名", en: "Canadian place names" },
-  slang: { zh: "英文网络词", en: "Online slang" },
-};
-/**
- * Who a pack is made for. A Chinese pack's words are Chinese originals (term.en is the same characters
- * plus the reading); an English pack's are English words (term.zh is the English word itself); "both"
- * packs work at any table. The setup picks the table's language's packs plus "both" to start with.
- */
-export type Audience = "zh" | "en" | "both";
-export const PACK_AUDIENCE: Record<Pack, Audience> = {
-  zi: "zh", fangyan: "zh", chengyu: "zh", caiming: "zh", xiehouyu: "zh", zhongyao: "zh", diming: "zh", laowujian: "zh", wangluo: "zh",
-  trivia: "both", vancouver: "both", food: "both",
-  oddwords: "en", idioms: "en", phobias: "en", placenames: "en", slang: "en",
-};
-/** The packs a table in this language starts with. */
-export function defaultPacks(lang: "zh" | "en"): Pack[] {
-  return PACKS.filter((p) => PACK_AUDIENCE[p] === lang || PACK_AUDIENCE[p] === "both");
-}
+export * from "./straightfacePacks";
 
 export const CARDS: Card[] = [
   // ---------- trivia ----------
@@ -3348,5 +3309,672 @@ export const CARDS: Card[] = [
     bluffSeeds: { zh: ["粮店记欠账用的账本", "教人做面食的家常菜谱"], en: ["the grain shop's book of IOUs", "a home cookbook for noodles and buns"] },
     funFact: { zh: "平时用的粮票，主要就是拿粮本去指定粮店换来的。", en: "Grain coupons themselves were mostly obtained by taking this booklet to a designated grain shop." },
     source: "https://zh.wikipedia.org/wiki/粮票",
+  },
+
+  // ---------- zi ----------
+  {
+    id: "zi-qianwa",
+    pack: "zi",
+    level: 3,
+    term: { zh: "瓩", en: "瓩 qiān wǎ" },
+    definition: {
+      zh: "一个字念两个音节 qiān wǎ，意思就是功率单位「千瓦」。这类一字多音节的单位字，官方曾想把它取缔。",
+      en: "One character read as two syllables, qiānwǎ: it simply means 'kilowatt' (千瓦). Authorities have tried to stamp out such two-syllable characters.",
+    },
+    bluffSeeds: { zh: ["砖窑行话：一千片瓦叫一瓩", "压在屋檐上防风的大块瓦"], en: ["kiln slang for a thousand roof tiles", "a heavy eave tile that stops the wind"] },
+    funFact: { zh: "日本明治年间也造过这个字，但日文的「瓦」指克，所以它在日本是「千克」。", en: "Japan coined the same character in the Meiji era, but there 瓦 meant 'gram', so in Japanese 瓩 is a kilogram." },
+    source: "https://languagelog.ldc.upenn.edu/nll/?p=3330",
+  },
+  {
+    id: "zi-chichu",
+    pack: "zi",
+    level: 2,
+    term: { zh: "彳亍", en: "彳亍 chì chù" },
+    definition: {
+      zh: "读 chì chù，指小步慢走、走走停停。明代《正字通》说：左脚迈步叫彳，右脚迈步叫亍。",
+      en: "Read chì chù: to walk in small, halting steps. The Ming dictionary Zhengzitong says 彳 is a step of the left foot and 亍 a step of the right.",
+    },
+    bluffSeeds: { zh: ["古代两人对弈的一种棋", "书法里竖钩和横折两种笔画"], en: ["an ancient board game for two", "two calligraphy strokes: hook and turn"] },
+    funFact: { zh: "两字拼起来正好是「行」，《正字通》原话就是「合彳亍为行」；潘岳《射雉赋》里也有「彳亍中辍」。", en: "Put the two together and you get 行, 'to walk'; the Zhengzitong says so outright. Pan Yue's Rhapsody on Shooting Pheasants already uses it." },
+    source: "https://www.zdic.net/hans/彳",
+  },
+  {
+    id: "zi-mei",
+    pack: "zi",
+    level: 2,
+    term: { zh: "槑", en: "槑 méi" },
+    definition: {
+      zh: "读 méi，是「梅」的古字，《玉篇》称它为古文梅字。网上常把它当成「呆」的加强版，形容人特别呆。",
+      en: "Read méi: an ancient form of 梅, 'plum', as the Yupian dictionary records. Online it doubles as a super-sized 呆, 'dopey'.",
+    },
+    bluffSeeds: { zh: ["古代一种两人抬的木轿", "木匠用的双口墨斗"], en: ["an old sedan chair carried by two", "a carpenter's twin-spouted ink line"] },
+    funFact: { zh: "《说文》里「某」的本义是酸果，槑就是「某」的古文；注家说写两个口，是为了显出它的酸。", en: "In the Shuowen, 某 (today 'a certain') first meant a sour fruit and 槑 is its ancient form; a commentator says the doubled 口 shows the sourness." },
+    source: "https://www.zdic.net/hans/槑",
+  },
+
+  // ---------- fangyan ----------
+  {
+    id: "fy-maaidaan",
+    pack: "fangyan",
+    level: 1,
+    term: { zh: "埋单", en: "埋单 maai4 daan1" },
+    definition: {
+      zh: "粤语的「结账」。这里的「埋」读 maai4，意思是收尾、结清账目，跟埋葬、买东西都无关；普通话常写成「买单」。",
+      en: "Cantonese for paying the bill. Here 埋 (maai4) means to wrap up or settle an account, nothing to do with burying or buying; Mandarin often writes it 买单.",
+    },
+    bluffSeeds: { zh: ["把账单埋起来，一笔勾销", "老茶楼规矩：账单压在碗底"], en: ["bury the bill, debt forgiven", "old teahouse rule: bill under the bowl"] },
+    funFact: { zh: "语言学家指出，粤语的 maai4 本来没有对应的汉字，可能来自更古老的底层语言，「埋」只是借来记音。", en: "Linguists note Cantonese maai4 never had a character of its own, perhaps a relic of an older substrate language; 埋 was borrowed only for its sound." },
+    source: "https://languagelog.ldc.upenn.edu/nll/?p=21081",
+  },
+  {
+    id: "fy-longmenzhen",
+    pack: "fangyan",
+    level: 2,
+    term: { zh: "摆龙门阵", en: "摆龙门阵 bǎi lóng mén zhèn" },
+    definition: {
+      zh: "四川话的「聊天、讲故事」。相传「龙门阵」是唐代薛仁贵东征时摆的阵势，曲折多变，后来借指绕来绕去的长谈。",
+      en: "Sichuanese for chatting or swapping stories. Legend says the Dragon Gate formation was a twisting battle array laid out by the Tang general Xue Rengui.",
+    },
+    bluffSeeds: { zh: ["四川麻将的一种开局摆法", "茶馆里摆成龙形的长桌宴"], en: ["an opening layout in Sichuan mahjong", "teahouse tables set out in a dragon line"] },
+    funFact: { zh: "易中天在《读城记》里说，龙门阵不同于一般吹牛，得像写赋一样铺陈、夸张、联想。", en: "Yi Zhongtian writes in Du Cheng Ji that a real longmenzhen, unlike plain bragging, needs the lavish detail, exaggeration and leaps of a classical rhapsody." },
+    source: "https://m.thepaper.cn/newsDetail_forward_5357314",
+  },
+
+  // ---------- chengyu ----------
+  {
+    id: "cy-daimuji",
+    pack: "chengyu",
+    level: 1,
+    term: { zh: "呆若木鸡", en: "呆若木鸡 dāi ruò mù jī" },
+    definition: {
+      zh: "原是夸奖：《庄子》里纪渻子替君王驯斗鸡，第四十天鸡沉稳得像木雕，别的鸡一见就掉头逃跑。",
+      en: "Originally praise. In the Zhuangzi, Ji Xingzi trains a king's fighting cock; by day 40 it stands still as a carved wooden bird, and rival cocks turn and flee.",
+    },
+    bluffSeeds: { zh: ["一只斗鸡被雷声吓傻的故事", "木匠雕的假鸡骗过了黄鼠狼"], en: ["a gamecock struck dumb by thunder", "a wooden hen that fooled a weasel"] },
+    funFact: { zh: "君王每十天问一次，前三次都说还不行：太骄傲、太容易被惊动、太爱瞪眼逞强。如今它却是贬义词。", en: "The king checked every ten days; three times the trainer said not yet: too proud, too jumpy, too fierce-eyed. Today the idiom is derogatory." },
+    source: "https://ctext.org/zhuangzi/full-understanding-of-life",
+  },
+  {
+    id: "cy-jiujia",
+    pack: "chengyu",
+    level: 3,
+    term: { zh: "久假不归", en: "久假不归 jiǔ jiǎ bù guī" },
+    definition: {
+      zh: "「假」是借，不是放假：借了很久不归还。出自《孟子·尽心上》，原指春秋五霸假借仁义之名，并不真心施行。",
+      en: "假 means 'borrow', not 'holiday': to borrow something for ages and never give it back. From the Mencius, first said of the Five Hegemons' borrowed virtue.",
+    },
+    bluffSeeds: { zh: ["请了长假出门，一去不回", "离乡太久，忘了回家的路"], en: ["took long leave and never came back", "away so long he forgot the way home"] },
+    funFact: { zh: "孟子原话是「久假而不归，恶知其非有也」：借得够久一直不还，谁还分得清那不是他自己的？", en: "Mencius's full line: borrow it long enough and never give it back, and who can tell it was not yours all along?" },
+    source: "https://www.zdic.net/hans/久假不归",
+  },
+
+  // ---------- caiming ----------
+  {
+    id: "cm-roujiamo",
+    pack: "caiming",
+    level: 2,
+    term: { zh: "肉夹馍", en: "肉夹馍 ròu jiā mó" },
+    definition: {
+      zh: "陕西小吃，明明是馍夹着肉，名字却倒过来说。一说源自古汉语句式「肉夹于馍」，日子久了省成肉夹馍。",
+      en: "A Shaanxi snack: bread wrapped round meat, yet the name says 'meat clamps bun'. One theory: it's short for the classical phrasing 肉夹于馍, 'meat clamped in bun'.",
+    },
+    bluffSeeds: { zh: ["卖馍伙计一时口误，将错就错", "古时先吃肉、后啃馍的吃法"], en: ["a vendor's slip of the tongue that stuck", "an old habit: eat the meat, then the bun"] },
+    funFact: { zh: "据说它的肉可追溯到周朝、馍可追溯到秦朝，又长得像汉堡，所以被认为可能是世界上最早的汉堡。", en: "Its meat is said to date back to the Zhou dynasty and its bun to the Qin; add the shape, and some call it possibly the world's oldest hamburger." },
+    source: "https://zh.wikipedia.org/wiki/肉夹馍",
+  },
+
+  // ---------- xiehouyu ----------
+  {
+    id: "xh-lvdongbin",
+    pack: "xiehouyu",
+    level: 1,
+    term: { zh: "狗咬吕洞宾", en: "狗咬吕洞宾 gǒu yǎo lǚ dòng bīn" },
+    definition: {
+      zh: "下半句「不识好人心」。吕洞宾是八仙之一，相传他拿包子喂狗反被咬，比喻不知好歹、错怪好意。",
+      en: "Tag line: 'blind to a kind heart'. Lü Dongbin, one of the Eight Immortals, reportedly fed a dog a bun and got bitten. It means misjudging someone's kindness.",
+    },
+    bluffSeeds: { zh: ["下半句「有眼不识泰山」", "下半句「仙丹喂了狗」，好东西白糟蹋"], en: ["tag line 'blind to greatness'", "'an elixir fed to a dog': pure waste"] },
+    funFact: { zh: "《红楼梦》第25回就有这句：「没良心的，狗咬吕洞宾，不识好人心。」", en: "Dream of the Red Chamber already has it in chapter 25: 'You ingrate, a dog biting Lü Dongbin, blind to a kind heart!'" },
+    source: "https://www.zdic.net/hans/狗咬吕洞宾",
+  },
+  {
+    id: "xh-huli",
+    pack: "xiehouyu",
+    level: 2,
+    term: { zh: "狐狸吵架", en: "狐狸吵架 hú li chǎo jià" },
+    definition: {
+      zh: "下半句「一派胡言」：一群狐狸吵成一团，满嘴都是「狐言」，谐音「胡言」，指说的全是胡话。",
+      en: "Tag line: 'a pack of fox talk' (一派狐言), a pun on 一派胡言, 'utter nonsense': squabbling foxes make nothing but noise.",
+    },
+    bluffSeeds: { zh: ["下半句「各说各理」，谁也不服谁", "下半句「两败俱伤」，吵完都吃亏"], en: ["tag line 'each sure he's right'", "tag line 'both sides lose'"] },
+    funFact: { zh: "台湾闽南语把歇后语叫作「孽仔话」，读 gia̍t-á-uē；修辞学上，这种说法叫「藏词」。", en: "In Taiwanese Hokkien a xiehouyu is called 孽仔话, gia̍t-á-uē; in Chinese rhetoric the device is known as 藏词, 'hidden words'." },
+    source: "https://zh.wikipedia.org/wiki/歇後語",
+  },
+  {
+    id: "xh-mianhua",
+    pack: "xiehouyu",
+    level: 3,
+    term: { zh: "棉花店失火", en: "棉花店失火 mián huā diàn shī huǒ" },
+    definition: {
+      zh: "下半句「免谈」：棉花店烧光了，棉花不用再弹，「免弹」谐音「免谈」，意思是没得商量、别提了。",
+      en: "Tag line: 'no fluffing needed' (免弹), a pun on 免谈, 'out of the question': once the cotton shop burns down, there's no cotton left to fluff.",
+    },
+    bluffSeeds: { zh: ["下半句「血本无归」，赔得精光", "下半句「一点就着」，脾气火爆"], en: ["tag line 'lost every penny'", "tag line 'one spark and it blows'"] },
+    funFact: { zh: "它还有个版本叫「四两棉花」，下半句同样是「免谈」。", en: "There's another version, 'four liang of cotton', with the very same tag line: out of the question." },
+    source: "https://zh.wikipedia.org/wiki/歇後語",
+  },
+
+  // ---------- zhongyao ----------
+  {
+    id: "zy-dingxiang",
+    pack: "zhongyao",
+    level: 2,
+    term: { zh: "丁香", en: "丁香 dīng xiāng" },
+    definition: {
+      zh: "中药丁香不是紫丁香花，而是丁子香树的干燥花蕾，原产印尼马鲁古群岛，中医传统上用于胃部不适。",
+      en: "In Chinese medicine 丁香 isn't lilac but clove: the dried flower bud of a tree from Indonesia's Maluku Islands, traditionally used for stomach complaints.",
+    },
+    bluffSeeds: { zh: ["紫丁香花蕾晒干泡的花茶", "一种叫丁香鱼的小鱼干"], en: ["dried lilac buds brewed as tea", "tiny dried fish called clove fish"] },
+    funFact: { zh: "它古称「鸡舌香」。据沈括《梦溪笔谈》，郎官向君王奏事前要口含鸡舌香，让口气芬芳。", en: "Old name: 'chicken-tongue incense'. Shen Kuo's Dream Pool Essays says officials held it in their mouths before reporting to the ruler, to sweeten their breath." },
+    source: "https://zh.wikipedia.org/wiki/丁子香",
+  },
+  {
+    id: "zy-moyao",
+    pack: "zhongyao",
+    level: 2,
+    term: { zh: "没药", en: "没药 mò yào" },
+    definition: {
+      zh: "读 mò yào，不是没有药：它是没药树等树木渗出的树脂，主产索马里和也门。中医传统上用来活血、止痛。",
+      en: "Read mò yào, not 'no medicine': myrrh, resin of trees such as Commiphora myrrha, mainly from Somalia and Yemen. Traditionally used to move blood and ease pain.",
+    },
+    bluffSeeds: { zh: ["古代郎中对绝症的委婉说法", "治不了病时开的安慰剂"], en: ["a doctor's euphemism for incurable", "a placebo given when nothing works"] },
+    funFact: { zh: "它就是《圣经》里东方三博士献给婴儿耶稣的三样礼物之一，另外两样是黄金和乳香。", en: "It's the biblical myrrh: one of the three gifts the Magi brought the infant Jesus, along with gold and frankincense." },
+    source: "https://zh.wikipedia.org/wiki/沒藥",
+  },
+  {
+    id: "zy-awei",
+    pack: "zhongyao",
+    level: 3,
+    term: { zh: "阿魏", en: "阿魏 ā wèi" },
+    definition: {
+      zh: "不是人名，是阿魏属植物根茎渗出的油胶树脂，有冲鼻的葱蒜臭味，可作香料。中医传统上用来消肉食积滞。",
+      en: "Not a man named Ah Wei: asafoetida, gum resin from Ferula roots and stems, reeking of onion and garlic. A spice, and traditionally used for food stagnation.",
+    },
+    bluffSeeds: { zh: ["一位魏姓郎中留下的秘方", "北魏宫廷里用的一种熏香"], en: ["a secret remedy left by a Dr Wei", "an incense of the Northern Wei court"] },
+    funFact: { zh: "古书《广志》说它产自「昆仑国」，是树木流出的汁液，样子像桃胶。", en: "The old book Guangzhi claimed it came from the 'Kunlun country' and was a tree sap that looked like peach gum." },
+    source: "https://zh.wikipedia.org/wiki/阿魏",
+  },
+
+  // ---------- diming ----------
+  {
+    id: "dm-qinhuangdao",
+    pack: "diming",
+    level: 1,
+    term: { zh: "秦皇岛", en: "秦皇岛 qín huáng dǎo" },
+    definition: {
+      zh: "一说秦始皇第四次出巡到碣石，派方士从这里入海求仙药，因而得名；另一说唐太宗当过秦王，东征时驻扎于此。",
+      en: "One story: on his fourth tour Qin Shi Huang sent alchemists to sea from here for the elixir of life. Another: Tang Taizong, once Prince of Qin, camped here.",
+    },
+    bluffSeeds: { zh: ["岛上挖出过秦代皇帝的玉玺", "岛的形状像一顶皇冠"], en: ["a Qin emperor's seal was dug up there", "the island is shaped like a crown"] },
+    funFact: { zh: "它如今已不是岛：1898年开港后，人们清挖泥沙，慢慢把小岛和陆地连在了一起。", en: "It isn't an island any more: after the port opened in 1898, dredging slowly joined it to the mainland." },
+    source: "https://zh.wikipedia.org/wiki/秦皇岛市",
+  },
+  {
+    id: "dm-bengbu",
+    pack: "diming",
+    level: 2,
+    term: { zh: "蚌埠", en: "蚌埠 bèng bù" },
+    definition: {
+      zh: "读 bèng bù。古时这段淮河水清草茂，河蚌多产珍珠，采珠船在此停泊设渡，渐成集镇，所以别称「珠城」。",
+      en: "Read bèng bù. This stretch of the Huai River once teemed with pearl mussels; pearl boats moored at a ferry here that grew into a town, hence 'Pearl City'.",
+    },
+    bluffSeeds: { zh: ["码头是用蚌壳一层层垒起来的", "一位姓蚌的商人开的商埠"], en: ["a pier built of piled mussel shells", "a trading post opened by a Mr Beng"] },
+    funFact: { zh: "津浦铁路让它迅速兴起，人称「火车拉来的城市」；1947年它成为安徽第一个设市的城市。", en: "The Tianjin–Pukou railway made it boom, earning it the name 'the city the train brought'; in 1947 it became Anhui's first city." },
+    source: "https://zh.wikipedia.org/wiki/蚌埠市",
+  },
+  {
+    id: "dm-baotou",
+    pack: "diming",
+    level: 2,
+    term: { zh: "包头", en: "包头 bāo tóu" },
+    definition: {
+      zh: "官方说法来自蒙古语「包克图」，意为「在鹿那边」，城市别称鹿城；另有河名「博托」和码头「泊头」两种说法。",
+      en: "Officially from Mongolian Baoketu, 'over where the deer are'; its nickname is Deer City. Other theories: a river called Botuo, or 泊头, 'mooring dock'.",
+    },
+    bluffSeeds: { zh: ["城墙像包子皮一样把城包住", "驼队卸下货包的第一站"], en: ["walls wrap the town like a bun", "the first stop where caravans unpacked"] },
+    funFact: { zh: "2012年8月8日，包头在一场国际稀土论坛上被正式命名为「稀土之都」。", en: "On 8 August 2012, at an international rare-earth forum, Baotou was officially named the 'Rare Earth Capital'." },
+    source: "https://zh.wikipedia.org/wiki/包头市",
+  },
+
+  // ---------- laowujian ----------
+  {
+    id: "lw-xiaobawang",
+    pack: "laowujian",
+    level: 1,
+    term: { zh: "小霸王学习机", en: "小霸王学习机 xiǎo bà wáng xué xí jī" },
+    definition: {
+      zh: "1993年起广东中山的小霸王推出带键盘的「中英文电脑学习机」，号称学电脑，里面其实是红白机芯片，插卡就能打游戏。",
+      en: "From 1993, Subor of Zhongshan, Guangdong, sold keyboard 'Chinese-English learning computers', but inside was a Famicom chip: plug in a cartridge and play.",
+    },
+    bluffSeeds: { zh: ["学校统一发的早教点读机", "九十年代背单词的电子词典"], en: ["a talking flashcard reader from school", "a 90s electronic dictionary for vocab"] },
+    funFact: { zh: "早年主管小霸王游戏机的段永平1995年离开，后来创办了步步高。", en: "Duan Yongping, who ran Subor's early console business, left in 1995 and went on to found BBK Electronics." },
+    source: "https://en.wikipedia.org/wiki/Subor",
+  },
+  {
+    id: "lw-huaxiazi",
+    pack: "laowujian",
+    level: 2,
+    term: { zh: "话匣子", en: "话匣子 huà xiá zi" },
+    definition: {
+      zh: "老式留声机的俗称，后来也指收音机；如今多比喻话特别多的人，杨沫的小说《青春之歌》里就这么用过。",
+      en: "An old nickname for the gramophone, later for the radio. Today it mostly means a chatterbox, as in Yang Mo's novel The Song of Youth.",
+    },
+    bluffSeeds: { zh: ["说书先生装惊堂木的木盒", "旧时邮局里存放来信的格子"], en: ["a storyteller's box for his gavel", "pigeonholes at the old post office"] },
+    funFact: { zh: "小说《镜花缘》第73回就写过「话匣子要开了」，那里指的是人一开口就要说上半天。", en: "The novel Flowers in the Mirror already says someone's 'talk-box is about to open' in chapter 73, meaning she is about to talk for ages." },
+    source: "https://www.zdic.net/hans/话匣子",
+  },
+  {
+    id: "lw-yizi",
+    pack: "laowujian",
+    level: 3,
+    term: { zh: "胰子", en: "胰子 yí zi" },
+    definition: {
+      zh: "方言里的肥皂。早年真是用猪胰脏配上草木灰等制成块，胰脏里的脂肪酶能把油污分解掉。",
+      en: "Dialect for soap. Early bars really were made from pig pancreas mixed with wood ash and the like; the pancreas's lipase breaks down grease.",
+    },
+    bluffSeeds: { zh: ["冬天抹手防裂的猪油膏", "熬猪油剩下的白色油渣"], en: ["lard balm for chapped winter hands", "cracklings left from rendering lard"] },
+    funFact: { zh: "它比古人洗手用的「澡豆」更去污，不过澡豆能吃，胰子可吃不得。", en: "It cleaned better than the old bean-flour 'bath beans', though bath beans were edible and this was not." },
+    source: "https://www.foodnext.net/life/culture/paper/5111425018",
+  },
+
+  // ---------- trivia ----------
+  {
+    id: "tv-ikea-effect",
+    pack: "trivia",
+    level: 1,
+    term: { zh: "IKEA effect", en: "IKEA effect" },
+    definition: {
+      zh: "人对自己动手参与做出来的东西，估价远高于一模一样的成品。2011年由哈佛、耶鲁和杜克的研究者命名。",
+      en: "We value things we helped build far more than identical ready-made ones. Named in 2011 by researchers from Harvard, Yale and Duke.",
+    },
+    bluffSeeds: { zh: ["迷宫式卖场让人越逛越买", "情侣拼家具时必吵架"], en: ["a store maze that makes you buy more", "couples fighting over flat-pack"] },
+    funFact: { zh: "实验里，自己折的折纸作品，作者的估价约是旁人的五倍；可要是没做完，这份偏爱就没了。", en: "In the study, people who folded origami valued their own work about five times more than onlookers did. Fail to finish, and the effect vanishes." },
+    source: "https://en.wikipedia.org/wiki/IKEA_effect",
+  },
+  {
+    id: "tv-sonder",
+    pack: "trivia",
+    level: 2,
+    term: { zh: "Sonder", en: "Sonder" },
+    definition: {
+      zh: "忽然意识到每个路人都有和你一样鲜活复杂的人生。作家 John Koenig 为他2009年开的造词网站造的词。",
+      en: "Realising that every passer-by has a life as vivid and complex as your own. Coined by John Koenig for The Dictionary of Obscure Sorrows, begun online in 2009.",
+    },
+    bluffSeeds: { zh: ["北欧的一种极简设计风格", "空房间里的回声"], en: ["a Nordic minimalist design style", "the echo in an empty room"] },
+    funFact: { zh: "一个生造的词火到进了韦氏词典；词典说它部分来自法语 sonder，意思是「测深」。", en: "A made-up word that stuck: Merriam-Webster now lists it, tracing it partly to the French sonder, to measure the depth of." },
+    source: "https://www.merriam-webster.com/dictionary/sonder",
+  },
+  {
+    id: "tv-esprit-escalier",
+    pack: "trivia",
+    level: 2,
+    term: { zh: "L'esprit de l'escalier", en: "L'esprit de l'escalier" },
+    definition: {
+      zh: "法语「楼梯上的机智」：人都走了才想到最妙的回嘴。出自狄德罗，他在政治家内克尔家吃饭时被一句话噎住。",
+      en: "French 'staircase wit': thinking of the perfect comeback only after you've left. From Diderot, floored by a remark at statesman Jacques Necker's house.",
+    },
+    bluffSeeds: { zh: ["旧宅楼梯间闹鬼的传说", "法式旋转楼梯的设计"], en: ["a ghost said to haunt old staircases", "a French spiral-staircase design"] },
+    funFact: { zh: "德语借成 Treppenwitz，如今还指「历史的讽刺」；意第绪语叫 trepverter，「楼梯话」。", en: "German borrowed it as Treppenwitz, which today can also mean an irony of history; Yiddish has trepverter, 'staircase words'." },
+    source: "https://en.wikipedia.org/wiki/L%27esprit_de_l%27escalier",
+  },
+  {
+    id: "tv-kummerspeck",
+    pack: "trivia",
+    level: 3,
+    term: { zh: "Kummerspeck", en: "Kummerspeck" },
+    definition: {
+      zh: "德语词，指伤心难过时狂吃长出来的那几斤肉。据 Dictionary.com，英语里最早记录于2015至2020年间。",
+      en: "German for the weight you put on from overeating when sad or grieving. Dictionary.com dates its first English record to 2015–20.",
+    },
+    bluffSeeds: { zh: ["黑森林的一种烟熏火腿", "德国一首伤感的酒歌"], en: ["a smoked Black Forest ham", "a sad German drinking song"] },
+    funFact: { zh: "字面意思是「悲伤培根」：Kummer 是忧愁，Speck 是培根，口语里也指身上的肥肉。", en: "Literally 'grief bacon': Kummer means grief or sorrow, and Speck is bacon, which is also slang for body fat." },
+    source: "https://www.dictionary.com/browse/kummerspeck",
+  },
+  {
+    id: "tv-semantic-satiation",
+    pack: "trivia",
+    level: 3,
+    term: { zh: "Semantic satiation", en: "Semantic satiation" },
+    definition: {
+      zh: "一个词反复念或盯得太久，会暂时失去意思，只剩声音或笔画。1962年加拿大麦吉尔大学一篇博士论文给它命名。",
+      en: "A word repeated or stared at too long briefly loses its meaning and becomes mere sound or marks. Named in a 1962 PhD thesis at Canada's McGill University.",
+    },
+    bluffSeeds: { zh: ["流行语被用滥后过气", "词义几百年间慢慢变化"], en: ["slang dying from overuse", "a word's meaning drifting over centuries"] },
+    funFact: { zh: "中文里也叫「完形崩坏」：一个字盯久了，会突然觉得不认识它。", en: "Chinese also calls it 完形崩坏, 'Gestalt collapse': stare at one character long enough and it suddenly looks like a stranger." },
+    source: "https://zh.wikipedia.org/wiki/%E8%AF%AD%E4%B9%89%E9%A5%B1%E5%92%8C",
+  },
+
+  // ---------- vancouver ----------
+  {
+    id: "vc-nine-oclock-gun",
+    pack: "vancouver",
+    level: 2,
+    term: { zh: "9 O'Clock Gun", en: "9 O'Clock Gun" },
+    definition: {
+      zh: "史丹利公园里一门1816年在英国铸造的舰炮，每晚九点开一响。这一炮原本是报时，让港内船只校准航海钟。",
+      en: "A naval cannon cast in England in 1816 that fires every night at 9 p.m. in Stanley Park. The shot was a time signal so ships could set their chronometers.",
+    },
+    bluffSeeds: { zh: ["全市酒吧最后点单的信号", "海堤夜跑比赛的发令枪"], en: ["last call for the city's bars", "a nightly seawall race start"] },
+    funFact: { zh: "1969 年 UBC 工程系学生把炮偷走「绑票」，换来一笔给 BC 儿童医院的捐款才归还。", en: "In 1969 UBC engineering students stole it and held it to 'ransom'; it came back after a donation to BC Children's Hospital." },
+    source: "https://en.wikipedia.org/wiki/9_O%27Clock_Gun",
+  },
+  {
+    id: "vc-lulu-island",
+    pack: "vancouver",
+    level: 3,
+    term: { zh: "Lulu Island", en: "Lulu Island" },
+    definition: {
+      zh: "菲沙河三角洲上的岛，大部分属列治文。官方说法：1862年穆迪上校以巡演剧团的年轻女演员 Lulu Sweet 命名。",
+      en: "The Fraser delta island that Richmond mostly covers. Official story: Colonel Moody named it in 1862 after Lulu Sweet, a young touring actress.",
+    },
+    bluffSeeds: { zh: ["以一艘明轮船的名字命名", "以测量员的女儿命名"], en: ["named after a paddle steamer", "named after a surveyor's daughter"] },
+    funFact: { zh: "另有一说：早期定居者认为名字来自原住民一个意为「陆路搬运」的词；奇努克混合语 lolo 就是「搬」。", en: "Not the only story: early settlers said it came from an Indigenous word meaning 'portage', and in Chinook Jargon 'lolo' means to carry." },
+    source: "https://apps.gov.bc.ca/pub/bcgnws/names/37944.html",
+  },
+  {
+    id: "vc-vancouver-special",
+    pack: "vancouver",
+    level: 3,
+    term: { zh: "Vancouver Special", en: "Vancouver Special" },
+    definition: {
+      zh: "1965到1985年在大温哥华成批建造的方盒子两层房：屋顶低平，楼下砖石、楼上灰泥，正面一道浅阳台。",
+      en: "A boxy two-storey house mass-built across Metro Vancouver from 1965 to 1985: low-pitched roof, brick or stone below, stucco above, a shallow front balcony.",
+    },
+    bluffSeeds: { zh: ["加三文鱼的热狗", "BC渡轮的特价一日票"], en: ["a hot dog topped with salmon", "a cheap BC Ferries day pass"] },
+    funFact: { zh: "市民反感太多，温哥华 1985 年改了建筑规定，从此基本不再新盖；如今倒有人觉得它有复古味。", en: "After a public backlash, Vancouver rewrote its building rules in 1985, which all but ended new ones. Some now see a vintage glamour in them." },
+    source: "https://en.wikipedia.org/wiki/Vancouver_special",
+  },
+
+  // ---------- food ----------
+  {
+    id: "fd-kopi-luwak",
+    pack: "food",
+    level: 1,
+    term: { zh: "Kopi luwak", en: "Kopi luwak" },
+    definition: {
+      zh: "用亚洲椰子狸吃下又排出的咖啡豆做的咖啡：从它的粪便里拣出豆子洗净。19世纪起源于印尼爪哇。",
+      en: "Coffee from beans an Asian palm civet has eaten and passed: farmers pick them out of its droppings and clean them. It began on Java in the 19th century.",
+    },
+    bluffSeeds: { zh: ["家猫吃过再拉出来的咖啡豆", "在火山石上慢烘的印尼咖啡"], en: ["beans passed by house cats", "coffee slow-roasted on volcanic rock"] },
+    funFact: { zh: "有的精品店一杯卖 35 到 80 美元，可美国精品咖啡协会说，业内普遍认为它就是不好喝。", en: "Some specialty shops charge US$35–80 a cup, yet the Specialty Coffee Association of America says the trade broadly agrees it just tastes bad." },
+    source: "https://en.wikipedia.org/wiki/Kopi_luwak",
+  },
+  {
+    id: "fd-tamagoyaki",
+    pack: "food",
+    level: 1,
+    term: { zh: "Tamagoyaki", en: "Tamagoyaki" },
+    definition: {
+      zh: "日式煎蛋卷：在长方形锅里把一层层薄蛋皮煎好卷起。以它出名的老店「扇屋」1648年开张，至今还在。",
+      en: "A Japanese omelette made by rolling up thin layers of fried egg in a rectangular pan. Ōgiya, a shop famous for it, opened in 1648 and still trades.",
+    },
+    bluffSeeds: { zh: ["整颗带壳炭烤的鸡蛋", "用茶杯蒸的鸡蛋羹"], en: ["a whole egg roasted in its shell", "steamed egg custard in a teacup"] },
+    funFact: { zh: "老派寿司行家会先点一份玉子寿司，用它来试师傅的手艺。", en: "Old-school sushi connoisseurs ordered the tamago first, to size up the chef's skill before the meal proper began." },
+    source: "https://en.wikipedia.org/wiki/Tamagoyaki",
+  },
+  {
+    id: "fd-garum",
+    pack: "food",
+    level: 2,
+    term: { zh: "Garum", en: "Garum" },
+    definition: {
+      zh: "古罗马的发酵鱼酱汁，用鳀鱼等鱼的内脏加盐做成。庞贝商人 Umbricius Scaurus 的鱼酱生意是当地经济支柱。",
+      en: "Ancient Rome's fermented fish sauce, made from salted fish guts, often anchovy. Umbricius Scaurus's garum business was key to Pompeii's economy.",
+    },
+    bluffSeeds: { zh: ["古罗马的一种蒜泥酱", "古罗马人喝的蜂蜜甜酒"], en: ["a Roman garlic paste", "a Roman honey wine"] },
+    funFact: { zh: "做鱼酱太臭，作坊大多被赶到城边；学者推测它尝起来很像今天亚洲的鱼露。", en: "The stench of production kept most garum works out on the edge of town. It likely tasted much like the fish sauce in an Asian kitchen today." },
+    source: "https://en.wikipedia.org/wiki/Garum",
+  },
+  {
+    id: "fd-hakarl",
+    pack: "food",
+    level: 2,
+    term: { zh: "Hákarl", en: "Hákarl" },
+    definition: {
+      zh: "冰岛的发酵鲨鱼肉。格陵兰鲨鲜肉有毒，要先埋进沙砾里发酵6到12周，再挂起来风干几个月。",
+      en: "Iceland's fermented shark. Greenland shark is toxic when fresh, so it is buried in gravel for 6 to 12 weeks, then hung up to dry for months.",
+    },
+    bluffSeeds: { zh: ["冰岛语里的「老渔夫」", "维京长船船头的雕像"], en: ["Icelandic for 'old fisherman'", "a Viking longship figurehead"] },
+    funFact: { zh: "冰岛人在隆冬的传统宴席 Þorrablót 上吃它，常切成小方块插在牙签上；头一回吃的人常被劝捏着鼻子咬第一口。", en: "A staple of Þorrablót, Iceland's midwinter feast, served in tiny cubes on toothpicks; first-timers are told to pinch their nose for the first bite." },
+    source: "https://en.wikipedia.org/wiki/H%C3%A1karl",
+  },
+  {
+    id: "fd-egg-cream",
+    pack: "food",
+    level: 2,
+    term: { zh: "Egg cream", en: "Egg cream" },
+    definition: {
+      zh: "纽约老式冷饮：牛奶、苏打水加巧克力糖浆。名字里有蛋有奶油，杯里却一样都没有。",
+      en: "An old New York soda-fountain drink of milk, fizzy water and chocolate syrup. Despite the name, there is no egg and no cream in it.",
+    },
+    bluffSeeds: { zh: ["夏天喝的冰镇蛋酒", "甜甜圈里的蛋奶馅"], en: ["eggnog served ice-cold in summer", "a custard filling for doughnuts"] },
+    funFact: { zh: "名字怎么来的说法不一，一说 egg 是意第绪语 echt「正宗」的讹音。", en: "Where the name came from is disputed; one theory says 'egg' is a garbling of the Yiddish echt, meaning genuine." },
+    source: "https://en.wikipedia.org/wiki/Egg_cream",
+  },
+  {
+    id: "fd-bunny-chow",
+    pack: "food",
+    level: 2,
+    term: { zh: "Bunny chow", en: "Bunny chow" },
+    definition: {
+      zh: "南非德班的街头小吃：把一条白面包挖空，填进咖喱。出自当地的印度裔南非人，一般认为始于1940年代。",
+      en: "Durban street food: a hollowed-out loaf of white bread filled with curry. It arose among Indian South Africans and is usually dated to the 1940s.",
+    },
+    bluffSeeds: { zh: ["开普敦的炖兔肉", "胡萝卜生菜沙拉"], en: ["rabbit stew from Cape Town", "a carrot-and-lettuce salad"] },
+    funFact: { zh: "在德班点餐只说「四分之一羊肉」就行；本地人用手抓着吃，挖出来的面包传统上盖回去当盖子。", en: "In Durban you just ask for a 'quarter mutton'. Locals eat it with their fingers, and the carved-out bread traditionally caps the curry." },
+    source: "https://en.wikipedia.org/wiki/Bunny_chow",
+  },
+  {
+    id: "fd-huitlacoche",
+    pack: "food",
+    level: 3,
+    term: { zh: "Huitlacoche", en: "Huitlacoche" },
+    definition: {
+      zh: "长在玉米上的真菌，把玉米粒撑成发蓝的鼓包，一加热就变黑。墨西哥人从阿兹特克时代就把它当美食。",
+      en: "A fungus that swells corn kernels into bluish lumps, which turn black when cooked. Mexico has eaten it as a delicacy since Aztec times.",
+    },
+    bluffSeeds: { zh: ["阿兹特克人的巧克力饮料", "用蜂鸟羽毛做的头饰"], en: ["an Aztec chocolate drink", "a hummingbird-feather headdress"] },
+    funFact: { zh: "长了它的玉米比好玉米贵得多，墨西哥有农民故意撒孢子；美国农民却大多把它当病害。", en: "Infected corn sells for much more than healthy ears, so some Mexican farmers spread the spores on purpose. Most US farmers treat it as a blight." },
+    source: "https://en.wikipedia.org/wiki/Corn_smut",
+  },
+  {
+    id: "fd-mastic",
+    pack: "food",
+    level: 3,
+    term: { zh: "Mastic", en: "Mastic" },
+    definition: {
+      zh: "希腊希俄斯岛乳香黄连木的树脂，凝成一滴滴「希俄斯之泪」。最早的口香糖之一，土耳其软糖也用它调味。",
+      en: "Resin from the mastic tree, gathered as drops called the 'tears of Chios' on that Greek island. One of the first chewing gums; it flavours Turkish delight.",
+    },
+    bluffSeeds: { zh: ["希腊的一种山羊奶酪", "拜占庭的一种银币"], en: ["a Greek goat's-milk cheese", "a Byzantine silver coin"] },
+    funFact: { zh: "奥斯曼时期它和黄金等价；产它的村子筑着高墙，临街不开门，只能爬梯子进出。", en: "Under Ottoman rule it was worth its weight in gold. Chios's mastic villages were walled, with no doors onto the street; you got in by ladder." },
+    source: "https://en.wikipedia.org/wiki/Mastic_(plant_resin)",
+  },
+  {
+    id: "fd-smalahove",
+    pack: "food",
+    level: 3,
+    term: { zh: "Smalahove", en: "Smalahove" },
+    definition: {
+      zh: "挪威西部的传统菜：把羊头烧去毛、抹盐风干，再煮约三个小时。传统上在圣诞节前吃。",
+      en: "A Western Norwegian dish made from a sheep's head: singed, salted, dried, then boiled about three hours. Traditionally eaten before Christmas.",
+    },
+    bluffSeeds: { zh: ["维京人的牛角酒杯", "峡湾边的船屋"], en: ["a Viking drinking horn", "a fjord-side boathouse"] },
+    funFact: { zh: "一般先吃耳朵和眼睛，那是最肥的部位，要趁热吃；名字直译就是「羊头」。", en: "You usually tackle the ear and eye first: they are the fattiest bits and best while hot. The name simply means 'sheep head'." },
+    source: "https://en.wikipedia.org/wiki/Smalahove",
+  },
+
+  // ---------- oddwords ----------
+  {
+    id: "ow-zugzwang",
+    pack: "oddwords",
+    level: 2,
+    term: { zh: "Zugzwang", en: "Zugzwang" },
+    definition: {
+      zh: "国际象棋术语：轮到你走，可走哪步都让局面更糟。德语意为「被迫走棋」，1858年已见于德国棋刊。",
+      en: "A chess squeeze: it's your turn, and every possible move makes your position worse. German for 'compulsion to move'; in German chess writing by 1858.",
+    },
+    bluffSeeds: { zh: ["国际象棋里马走的之字形步法", "德国俚语：回家的末班火车"], en: ["a knight's zigzag move in chess", "German slang for the last train home"] },
+    funFact: { zh: "1923年哥本哈根，萨米什对尼姆佐维奇一局常被称为「不朽的 Zugzwang 名局」：白方再动子就要丢子，只好认输。", en: "Sämisch v Nimzowitsch, Copenhagen 1923, is often called the 'Immortal Zugzwang Game': White resigned, since any piece move would soon lose material." },
+    source: "https://en.wikipedia.org/wiki/Zugzwang",
+  },
+  {
+    id: "ow-brobdingnagian",
+    pack: "oddwords",
+    level: 2,
+    term: { zh: "Brobdingnagian", en: "Brobdingnagian" },
+    definition: {
+      zh: "英文形容词，意为巨大无比。来自斯威夫特1726年《格列佛游记》里的巨人国 Brobdingnag。",
+      en: "Enormous, gigantic. From Brobdingnag, the land of giants in Jonathan Swift's Gulliver's Travels, published in 1726.",
+    },
+    bluffSeeds: { zh: ["没完没了地唠叨抱怨", "像船上的铜钟一样叮当响"], en: ["forever nagging and grumbling", "clanging like a ship's bell"] },
+    funFact: { zh: "书里的巨人高如教堂尖塔。小说大受欢迎，不到两年这个词就被用来形容一切庞然大物。", en: "Swift's giants are as tall as a church steeple. The book was such a hit that within two years the word was used for anything huge." },
+    source: "https://www.merriam-webster.com/word-of-the-day/Brobdingnagian-2015-01-15",
+  },
+  {
+    id: "ow-callithumpian",
+    pack: "oddwords",
+    level: 3,
+    term: { zh: "Callithumpian", en: "Callithumpian" },
+    definition: {
+      zh: "美国俚语，形容吵吵嚷嚷，像一群人敲锅打盆、吹喇叭的街头「乐队」，旧时常见于跨年。1836年已有记录。",
+      en: "Like a raucous street 'band' of clanging pots, pans and horns, the kind that used to see in the New Year. US slang, on record from 1836.",
+    },
+    bluffSeeds: { zh: ["写得一手漂亮好字的", "史诗女神卡利俄佩的铁杆粉丝"], en: ["having beautiful handwriting", "a superfan of the muse Calliope"] },
+    funFact: { zh: "来历是个谜。一说是表示「美」的词头 calli- 加上英语 thump（砰的一声），合起来就是「美妙的噪音」。", en: "Its origin is a mystery. One guess: calli-, 'beauty', glued to a plain English 'thump'. A beautiful racket, then." },
+    source: "https://www.etymonline.com/word/callithumpian",
+  },
+
+  // ---------- idioms ----------
+  {
+    id: "io-raining-cats-and-dogs",
+    pack: "idioms",
+    level: 1,
+    term: { zh: "Raining cats and dogs", en: "Raining cats and dogs" },
+    definition: {
+      zh: "意为大雨倾盆，来历无人知晓。布罗姆1653年的剧本写作「下狗和林鼬」，斯威夫特1738年用了现在的说法。",
+      en: "Raining very hard. Nobody knows why. Richard Brome's 1653 play has 'rain dogs and polecats'; Jonathan Swift used today's wording in 1738.",
+    },
+    bluffSeeds: { zh: ["暴雨时猫狗从茅草屋顶滑落", "北欧神奥丁的风暴猎犬和女巫的猫"], en: ["pets slid off thatched roofs in storms", "Odin's storm dogs and witches' cats"] },
+    funFact: { zh: "猫狗从茅草屋顶滑落的说法，出自1999年网上流传的邮件《1500年代的生活》。狗根本不住屋顶。", en: "The thatched-roof story comes from 'Life in the 1500s', an email that was going round in 1999. Dogs never lived in thatch." },
+    source: "https://phrases.org.uk/meanings/raining-cats-and-dogs.html",
+  },
+  {
+    id: "io-cut-the-mustard",
+    pack: "idioms",
+    level: 2,
+    term: { zh: "Cut the mustard", en: "Cut the mustard" },
+    definition: {
+      zh: "意为够格。来历有争议，一说芥末喻劲头和上品，cut 指「展现」，如 cut a fine figure。1889年见报。",
+      en: "To be good enough. Origin disputed; one theory: mustard meant zest and quality, and 'cut' meant 'show', as in 'cut a fine figure'. In print by 1889.",
+    },
+    bluffSeeds: { zh: ["军队用语「通过检阅」的误传", "芥菜秆太硬，很难割断"], en: ["a slip for the army's 'pass muster'", "mustard stalks are too tough to cut"] },
+    funFact: { zh: "「像芥末一样带劲」更古老，1672年就有记录；up to mustard 过去也指「达标」，同 up to snuff。", en: "'As keen as mustard' is older still, first recorded in 1672, and 'up to mustard' used to mean up to standard, like 'up to snuff'." },
+    source: "https://phrases.org.uk/meanings/cut-the-mustard.html",
+  },
+  {
+    id: "io-run-the-gauntlet",
+    pack: "idioms",
+    level: 3,
+    term: { zh: "Run the gauntlet", en: "Run the gauntlet" },
+    definition: {
+      zh: "意为遭受四面八方的攻击或批评。源自瑞典语 gatlopp，一种军中刑罚：受罚者从两排士兵中间跑过，一路挨打。",
+      en: "To face attacks or criticism from all sides. It began as a military punishment, running between two rows of soldiers who beat you; Swedish gatlopp.",
+    },
+    bluffSeeds: { zh: ["骑士戴着铁手套挥拳", "扔下手套，挑战决斗"], en: ["knights hitting out in armoured gloves", "a duel challenge, a glove thrown down"] },
+    funFact: { zh: "铁手套顶多影响了它的拼法：1646年写作 gantelope，1749年菲尔丁的《汤姆·琼斯》里还写 gantlope。", en: "The armoured glove may only have lent it a spelling: in 1646 it was 'run the gantelope', and Henry Fielding still wrote 'gantlope' in Tom Jones in 1749." },
+    source: "https://phrases.org.uk/meanings/run-the-gauntlet.html",
+  },
+
+  // ---------- phobias ----------
+  {
+    id: "ph-trypophobia",
+    pack: "phobias",
+    level: 1,
+    term: { zh: "Trypophobia", en: "Trypophobia" },
+    definition: {
+      zh: "看到密密麻麻的小孔或小疙瘩就害怕、恶心，比如莲蓬。词根是希腊语 trypa（孔）。并非正式的医学诊断。",
+      en: "Fear or disgust at the sight of tightly packed little holes or bumps, like those in a lotus seed head. From Greek trypa, 'hole'. Not an official diagnosis.",
+    },
+    bluffSeeds: { zh: ["害怕长途旅行", "害怕当众绊倒"], en: ["fear of long road trips", "fear of tripping in public"] },
+    funFact: { zh: "这名字是2005年一位匿名网友在论坛上起的。2019年有人说 iPhone 11 Pro 挤在一起的三颗镜头让人发毛。", en: "An anonymous user on an online forum coined the name in 2005. In 2019 some said the iPhone 11 Pro's three clustered cameras set theirs off." },
+    source: "https://en.wikipedia.org/wiki/Trypophobia",
+  },
+  {
+    id: "ph-ergophobia",
+    pack: "phobias",
+    level: 2,
+    term: { zh: "Ergophobia", en: "Ergophobia" },
+    definition: {
+      zh: "对工作的恐惧，词根是希腊语 ergon（工作）。1905年英国医生斯潘顿造了这个词，而且是当真的。",
+      en: "Fear of work, from Greek ergon, 'work'. British doctor William Dunnett Spanton coined it in 1905, and he meant it seriously.",
+    },
+    bluffSeeds: { zh: ["害怕健身房的划船机", "害怕逻辑推理和「因此」二字"], en: ["fear of rowing machines", "fear of logic and the word 'ergo'"] },
+    funFact: { zh: "在1905年英国医学会年会上，斯潘顿说怕工作加上贪图享乐，让各个阶层的体质都在退化。", en: "At a 1905 British Medical Association meeting, Spanton blamed fear of work, plus love of pleasure, for physical decline in every class." },
+    source: "https://www.etymonline.com/word/ergophobia",
+  },
+  {
+    id: "ph-chorophobia",
+    pack: "phobias",
+    level: 3,
+    term: { zh: "Chorophobia", en: "Chorophobia" },
+    definition: {
+      zh: "对跳舞的恐惧，词根是希腊语 khoros（舞蹈）。不是不爱跳，而是一想到舞池就真的发怵。",
+      en: "Fear of dancing, from Greek khoros, 'dance'. It isn't just disliking dance: it's real dread at the thought of the dance floor.",
+    },
+    bluffSeeds: { zh: ["害怕参加合唱团", "害怕做家务"], en: ["fear of singing in a choir", "fear of household chores"] },
+    funFact: { zh: "2020年上线 CBC Gem 的纪录片《怕跳舞》里，加拿大导演奥尔科克直面自己的跳舞恐惧；片中有人试着摸黑跳。", en: "In Fear of Dancing, a 2020 documentary on CBC Gem, Canadian director Michael Allcock takes on his own chorophobia. Some in it try dancing in total darkness." },
+    source: "https://www.thegate.ca/?p=46414",
+  },
+
+  // ---------- placenames ----------
+  {
+    id: "pn-kamloops",
+    pack: "placenames",
+    level: 1,
+    term: { zh: "Kamloops", en: "Kamloops" },
+    definition: {
+      zh: "BC省内陆城市，坐落在南北汤普森河交汇处。Secwepemc 人叫它 Tk'emlups，意思正是「河流交汇处」。",
+      en: "A BC Interior city at the meeting of the North and South Thompson rivers. Its Secwepemc name, Tk'emlups, means just that: 'where the rivers meet'.",
+    },
+    bluffSeeds: { zh: ["淘金潮时形容河道绕圈的俚语", "得名于太平洋铁路的环形弯道"], en: ["gold-rush slang for the river's loops", "named after a CPR railway loop"] },
+    funFact: { zh: "1812年太平洋皮货公司在此建起贸易站，是BC省南部第一个非原住民定居点。", en: "A Pacific Fur Company post built there in 1812 was the first non-Indigenous settlement in southern BC." },
+    source: "https://thecanadianencyclopedia.ca/en/article/kamloops",
+  },
+  {
+    id: "pn-pugwash",
+    pack: "placenames",
+    level: 2,
+    term: { zh: "Pugwash", en: "Pugwash" },
+    definition: {
+      zh: "新斯科舍省诺森伯兰海峡边的村子。名字来自米克马克语 Pakwesk，意为「浅滩」：港口附近有一道暗礁。",
+      en: "A village on Nova Scotia's Northumberland Strait. The name comes from Mi'kmaq Pakwesk, 'a shoal': there is a reef near the harbour mouth.",
+    },
+    bluffSeeds: { zh: ["水手擦洗甲板的行话", "一头冲上岸的扁鼻鲸"], en: ["sailors' slang for swabbing the deck", "a pug-nosed whale that washed ashore"] },
+    funFact: { zh: "村里的路牌全用英语和盖尔语两种文字。村子底下还有一层厚457米的盐床，1959年起开采。", en: "Its street signs are all in two languages, English and Gaelic. Below the village lies a salt bed 457 m thick, mined since 1959." },
+    source: "https://en.wikipedia.org/wiki/Pugwash,_Nova_Scotia",
+  },
+  {
+    id: "pn-ecum-secum",
+    pack: "placenames",
+    level: 3,
+    term: { zh: "Ecum Secum", en: "Ecum Secum" },
+    definition: {
+      zh: "新斯科舍省东岸小社区。来历不明，一说由米克马克语讹变而来。米克马克语称此地 Mekwe'saqnuk，意为「在红岸边」。",
+      en: "A community on Nova Scotia's Eastern Shore. Origin unclear, perhaps a garbled Mi'kmaq word. Its Mi'kmaq name, Mekwe'saqnuk, means 'at the red bank'.",
+    },
+    bluffSeeds: { zh: ["来自拉丁语 secum，意为「与己同在」", "渔民拉网时唱的号子"], en: ["from Latin secum, 'with himself'", "a fishermen's sea-shanty chorus"] },
+    funFact: { zh: "早年的资料把米克马克语名译作「一座红房子」。1868年这里发现金矿，但到1880年代才大规模开采。", en: "Older sources translated the Mi'kmaq name as 'a red house'. Gold was found there in 1868, but big mining only began in the 1880s." },
+    source: "https://en.wikipedia.org/wiki/Ecum_Secum",
   },
 ];

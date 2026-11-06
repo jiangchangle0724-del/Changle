@@ -16,7 +16,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca/hide: 藏在人群里 · Hide in the Crowd | `games/hide-crowd/` | Worker `hide-crowd` (Durable Objects) | by itself on merge when `games/hide-crowd/*` changes, once Steve has connected it (`games/hide-crowd/README.md`) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
-| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects) | by itself on merge when `games/party-server` or `games/party-base` changes (connected 2026-11-01, `games/party-server/README.md`; `games/dance` is still to be added to its watch paths) |
+| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page (a 3D coach; songs from YouTube, with a songbook of their beats), phones, /party/moves | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects: the rooms, and the songbook) | by itself on merge when `games/party-server` or `games/party-base` changes (connected 2026-11-01, `games/party-server/README.md`; `games/dance` is still to be added to its watch paths) |
 | changle.ca/hang-on: 抓紧了 · Hang On (the host screen; phones at /hang-on/pad, the QR code's link /hang-on/r/CODE) | `games/hang-on/` (physics, the room server, the pages) | Worker `hang-on` (Durable Objects) | by itself on merge when `games/hang-on/*` changes (connected 2026-11-04, `games/hang-on/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
@@ -204,12 +204,14 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
   `docs/codex-tasks/dj/` (C1 presets is done).
 
 * 一本正经 · In All Seriousness (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
-  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 251
+  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 300
   cards in 17 packs (nine for Chinese tables, five for English tables, three for any table; a table
   starts with its own language's packs), pictures drawn with ChatGPT (pack icons, the three parts, the
-  room) and synthesised sound cues, and the one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online
-  table until A3 (a `GameDef` wrapping the same engine) adds it to `ONLINE_GAMES`. Next: A3, the card
-  bank to 300 (Codex C1, `docs/codex-tasks/straightface/`).
+  room) and synthesised sound cues, on the board since 2026-11-05. One phone passed round, or online
+  with every phone its own and a big-screen view (A3: the rules on the rooms server in
+  `site/src/shared/engine/games/straightface.ts`, the screens `NetStraightFace.tsx` and
+  `TvStraightFace.tsx` in `site/src/party/straightface/`). Next: more animation, then stats and
+  card reports.
 
 * 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
   and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the

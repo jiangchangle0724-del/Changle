@@ -600,6 +600,26 @@ legend {
   cursor: default;
   opacity: 0.62;
 }
+/* 更多规则: folded under the other settings; its fold says what the host has changed. */
+.more-rules summary small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+}
+.more-rules[open] {
+  display: grid;
+  gap: 12px;
+}
+.more-rules[open] > :not(summary) {
+  margin-top: 0;
+}
+.more-rules .hint {
+  margin: 0;
+}
+/* Under the standings when the money is hidden. */
+.cash-note {
+  margin: 6px 0 0;
+}
 .check {
   display: flex;
   gap: 8px;
@@ -1656,6 +1676,191 @@ button.trivia-opt:active {
     animation: none;
   }
 }
+/* Reactions (ui/Reactions.tsx): a phone's round button in the board's top left corner (the map's size
+   is in the top right) and the row of five faces it opens. The reactions come in under the button on a
+   phone (the board's lower part is under the play window on your turn) and rise off the bottom left
+   corner of the big screen's board, newest lowest. Decoration only: nothing in them takes a tap. */
+.react-pick {
+  position: absolute;
+  z-index: 4;
+  top: 4px;
+  left: 4px;
+}
+.react-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--night) 74%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 0.16s var(--ease-out),
+    opacity 0.2s;
+}
+.react-btn:active {
+  transform: scale(0.94);
+}
+.react-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.react-pick.open .react-btn {
+  box-shadow: inset 0 0 0 2px var(--team);
+}
+.react-row {
+  position: absolute;
+  top: 50px;
+  left: 0;
+  display: flex;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 18px;
+  background: var(--dusk);
+  box-shadow: var(--shadow), var(--lift);
+  animation: react-row-in 0.18s var(--ease-out);
+}
+.react-opt {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 52px;
+  min-height: 56px;
+  padding: 6px 4px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--moon);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.react-opt small {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.react-opt:active {
+  background: var(--dusk-3);
+}
+@media (hover: hover) {
+  .react-opt:hover {
+    background: var(--dusk-2);
+  }
+}
+@keyframes react-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+.reactions {
+  position: absolute;
+  z-index: 4;
+  left: 6px;
+  top: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.reaction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px 3px 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dusk) 94%, transparent);
+  box-shadow:
+    inset 0 0 0 2px var(--team),
+    var(--lift);
+  color: var(--moon);
+  animation: react-show 2.8s var(--ease-out) both;
+}
+.reaction-word {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.reaction-who {
+  font: 700 0.75rem var(--ui);
+  color: var(--team);
+}
+.reactions.big {
+  top: auto;
+  left: 2%;
+  bottom: 3%;
+  gap: 10px;
+}
+.reactions.big .reaction {
+  gap: 10px;
+  padding: 5px 22px 5px 5px;
+  animation-name: react-rise;
+}
+.reactions.big .reaction-word {
+  font-size: 1.6rem;
+}
+.reactions.big .reaction-who {
+  font-size: 1.1rem;
+}
+@keyframes react-show {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.85);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+@keyframes react-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.8);
+  }
+  10% {
+    opacity: 1;
+    transform: none;
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-22px);
+  }
+}
+/* With reduced motion a reaction only fades in and out, in place. */
+@keyframes react-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  8%,
+  80% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction,
+  .reactions.big .reaction {
+    animation-name: react-fade;
+  }
+  .react-row {
+    animation: none;
+  }
+}
+:root[data-reduced="1"] .reaction {
+  animation: react-fade 2.8s linear both !important;
+}
 /* The big screen's 3D globe sits exactly over the map circle (radius 320 of the board's 1000). */
 .boardwrap .globe {
   position: absolute;
@@ -2322,6 +2527,138 @@ button.trivia-opt:active {
 .over-again {
   animation: row-in 0.4s ease-out var(--at, 0s) both;
 }
+/* The report card (战报, ui/ReportCard.tsx): the awards the game earned, and how the dice fell against
+   the long run. On a phone under the standings; on the big screen it takes the standings' column in
+   turn with them, beside the winners' card. */
+.report {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: start;
+}
+.report h2 {
+  font: 700 1.1rem var(--ui);
+}
+.report .awards {
+  display: grid;
+  gap: 10px;
+}
+.report .award-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "award who"
+    "text text";
+  align-items: center;
+  gap: 2px 10px;
+}
+.report .award {
+  grid-area: award;
+  color: var(--gel);
+}
+.report .who {
+  grid-area: who;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.report .award-row small {
+  grid-area: text;
+}
+.dice-chart {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+}
+.dice-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.dice-chart .bar {
+  fill: var(--haze);
+  opacity: 0.75;
+}
+.dice-chart .dot {
+  fill: var(--gel);
+}
+.dice-chart .lbl {
+  fill: var(--dim);
+  font: 700 14.5px var(--ui);
+  text-anchor: middle;
+}
+.report-pic {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  box-shadow: var(--lift);
+}
+.report-in {
+  animation: row-in 0.4s ease-out var(--at, 0s) both;
+}
+.over .results li.report-slot {
+  display: block;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  animation: report-in 0.5s var(--ease-out) both;
+}
+.over.big .results.with-won li.report-slot {
+  grid-column: 2;
+  grid-row: 1 / span 6;
+}
+.over.big .results.reporting > li:not(.won):not(.report-slot) {
+  display: none;
+}
+/* (Heights follow the screen's, like the rest of the big screen's finale: a 720-pixel-tall one must fit.) */
+.report.big {
+  height: 100%;
+  align-content: center;
+  gap: min(14px, 1.6vh);
+  padding: min(24px, 2.8vh) min(28px, 3vh);
+}
+.report.big h2 {
+  font-size: min(1.6rem, 3.6vh);
+}
+.report.big .awards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: min(14px, 1.8vh) 24px;
+}
+.report.big .award-row {
+  font-size: min(1.3rem, 2.8vh);
+}
+.report.big .award-row small {
+  font-size: min(1.05rem, 2.2vh);
+}
+.over.big .report .chip .face {
+  width: min(34px, 4.4vh);
+  height: min(34px, 4.4vh);
+}
+.over.big .report .chip b {
+  width: min(28px, 3.6vh);
+  height: min(28px, 3.6vh);
+  font-size: min(0.95rem, 2vh);
+}
+.report.big .dice-chart svg {
+  justify-self: center;
+  width: auto;
+  max-width: 100%;
+  height: min(130px, 14vh);
+}
+.report.big .hint {
+  font-size: min(1rem, 2.2vh);
+}
+@keyframes report-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
 /* Paper falling: once, over everything, never in the way of a tap. */
 .confetti {
   position: fixed;
@@ -2447,7 +2784,9 @@ button.trivia-opt:active {
   .medal::before,
   .champion,
   .trip > span,
-  .over-again {
+  .over-again,
+  .report-in,
+  .over .results li.report-slot {
     animation: none;
   }
 }
@@ -4564,6 +4903,207 @@ h2.departures {
 }
 .news.big .news-fact {
   font-size: 0.9em;
+}
+
+/* ---------- 世界大动荡 (ui/World.tsx): a newspaper's extra on every screen, then a banner while it lasts ----------
+   Printed: paper and navy ink, a masthead in the event's ink (vermilion for bad news, green for good).
+   The board plays the event first (art.css .wf: the meteor is down by then), and the card comes after
+   it, WORLD_CARD_AT in: on a phone at the top of the screen, over the play window too (on its own turn a
+   team would miss it) and under the quiz's pop-up; on the big screen across the foot of its board,
+   bigger, the map above it in sight. Until it's in, it isn't there to tap. */
+.world-card {
+  position: fixed;
+  z-index: 8;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: max(10px, env(safe-area-inset-left, 0px));
+  right: max(10px, env(safe-area-inset-right, 0px));
+  max-width: 440px;
+  margin-inline: auto;
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 14px;
+  border-radius: 14px;
+  background: var(--print-paper);
+  color: var(--print-ink);
+  box-shadow: var(--lift);
+  animation: world-in 520ms cubic-bezier(0.2, 1.3, 0.4, 1) 1.2s both;
+  cursor: pointer;
+}
+.world-card.bad {
+  --world-ink: var(--world-bad);
+}
+.world-card.good {
+  --world-ink: var(--world-good);
+}
+@keyframes world-in {
+  from {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-24px) rotate(-2deg) scale(0.94);
+  }
+}
+.world-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -16px;
+  padding: 8px 16px;
+  border-radius: 14px 14px 0 0;
+  background: var(--world-ink);
+  color: var(--print-paper);
+  font: 700 12px/1.4 var(--mono);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.world-body {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.world-words {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.world-card h2 {
+  font: 400 1.75rem/1.15 var(--display-zh);
+  letter-spacing: 0.02em;
+  color: var(--world-ink);
+  text-wrap: balance;
+}
+.world-line {
+  font-weight: 700;
+  line-height: var(--leading);
+}
+.world-rule {
+  font-size: 0.92rem;
+  line-height: var(--leading);
+}
+.world-ok {
+  justify-self: end;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 2px solid var(--print-ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--print-ink);
+  font: 700 0.95rem var(--ui);
+}
+.world-card.big {
+  position: absolute;
+  z-index: 5;
+  top: auto;
+  right: auto;
+  bottom: 4%;
+  left: 50%;
+  width: min(66%, 680px);
+  max-width: none;
+  margin: 0;
+  transform: translateX(-50%);
+  gap: 16px;
+  padding: 0 28px 24px;
+  border-radius: 22px;
+  animation-name: world-in-big;
+  cursor: default;
+}
+@keyframes world-in-big {
+  from {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateX(-50%) translateY(40px) rotate(-2deg) scale(0.9);
+  }
+}
+.world-card.big .world-strip {
+  margin: 0 -28px;
+  padding: 10px 28px;
+  border-radius: 22px 22px 0 0;
+  font-size: clamp(13px, 1.1vw, 18px);
+}
+.world-card.big .world-body {
+  grid-template-columns: clamp(64px, 7vh, 96px) minmax(0, 1fr);
+  gap: 20px;
+}
+.world-card.big h2 {
+  font-size: clamp(2rem, 5.4vh, 3.6rem);
+}
+.world-card.big .world-line,
+.world-card.big .world-rule {
+  font-size: clamp(15px, 2.2vh, 22px);
+}
+.world-icon {
+  width: 100%;
+  height: auto;
+  fill: none;
+  stroke: var(--print-ink);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.world-icon .wi-line,
+.world-icon .wi-tape,
+.world-icon .wi-trail,
+.world-icon .wi-rays {
+  stroke: var(--world-ink, var(--print-ink));
+}
+.world-icon .wi-rock,
+.world-icon .wi-chip,
+.world-icon .wi-jet,
+.world-icon .wi-sun,
+.world-icon .wi-lamp {
+  fill: var(--world-ink, var(--print-ink));
+}
+.world-icon .wi-text {
+  fill: var(--print-paper);
+  stroke: none;
+  font: 800 13px var(--mono);
+  text-anchor: middle;
+}
+/* While it lasts: a pass like the travel news, its strip in the event's ink. */
+.world-banner {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: arrive 420ms cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+.world-banner.bad {
+  --world-ink: var(--world-bad);
+}
+.world-banner.good {
+  --world-ink: var(--world-good);
+}
+.world-banner .pass-strip {
+  background: var(--world-ink);
+  color: var(--print-paper);
+}
+.world-banner-body {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.world-banner .world-icon {
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--print-paper);
+}
+.world-banner h3 {
+  font-size: 1.2rem;
+}
+.world-banner .world-rule {
+  font-weight: 600;
+}
+.world-banner.big {
+  font-size: clamp(13px, 1.05vw, 17px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-card,
+  .world-card.big {
+    animation: none;
+  }
 }
 
 /* ---------- the big screen's departures board (ui/Departures.tsx) ----------

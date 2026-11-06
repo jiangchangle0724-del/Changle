@@ -76,6 +76,10 @@ export default {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (path === "/go/api/handoff") return receiveHandoff(req, env);
+    // The Worker's own address (changle-events.<account>.workers.dev) is only the GitHub job's way in:
+    // changle.ca's bot protection answers GitHub's machines with a challenge page (5 November 2026), so
+    // the job hands its pages over here (wrangler.jsonc: workers_dev). Nothing else is served on it.
+    if (url.hostname.endsWith(".workers.dev")) return json({ error: "not found" }, 404);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405);
     if (path === "/go/api/events") return listEvents(url, env);
     if (path === "/go/api/events.ics") return listEvents(url, env, true);

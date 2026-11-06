@@ -6,7 +6,8 @@ import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
-import { headToHeadPoints, presentMs } from "../src/shared/punchline";
+import { headToHeadPoints, nextWriters, presentMs } from "../src/shared/punchline";
+import { PUNCH_FINAL, PUNCH_PROMPTS } from "../src/data/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
@@ -27,6 +28,10 @@ import { SONG_ROWS } from "../src/data/songs";
 import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
+import { DRAW_WORDS } from "../src/data/drawGuess";
+import { drawMatches } from "../src/shared/engine/games/draw";
+import { DRAW_GUESS_MAX } from "../src/shared/protocol";
+import { hintBlanks, hintSay } from "../src/online/games/drawHint";
 
 let clock = 1_000_000;
 let seed = 7;
@@ -399,6 +404,213 @@ test("draw: word only for drawer, guess scoring, timeout penalty", () => {
   ok(t.pens().some((p) => p.who.includes("p1")), "nobody guessed: drawer drinks");
 });
 
+test("draw: guesses as people type them: Traditional characters, a or the, a plural; every answer fits the box", () => {
+  const word = (zh: string) => DRAW_WORDS.find((w) => w.zh === zh)!;
+  const right: [string, string][] = [
+    ["汽车", "汽车"],
+    ["汽车", "汽車"],
+    ["雨伞", "雨傘"],
+    ["暧昧", "曖昧"],
+    ["钟表", "Clock!"],
+    ["钟表", "a clock"],
+    ["钟表", "the clocks"],
+    ["汽车", "cars"],
+    ["筷子", "chopstick"],
+    ["眼镜", "glass"],
+    ["蝴蝶", "butterflies"],
+    ["钥匙", "keys"],
+    ["感冒", "A cold"],
+    ["感冒", "the cold"],
+    ["感冒", "cold"],
+    ["深夜emo", "深夜 EMO"],
+    ["深夜emo", "late night blues"],
+    ["熬夜", "all nighter"],
+    ["月光族", "Living paycheck to paycheck"],
+    ["猫", "ＣＡＴ"],
+  ];
+  for (const [zh, guess] of right) ok(drawMatches(guess, word(zh)), `${zh} / ${word(zh).en}: "${guess}" is right`);
+  const wrong: [string, string][] = [
+    ["汽车", "车"],
+    ["钟表", "clo"],
+    ["钟表", "the"],
+    ["汽车", "a"],
+    ["猫", "cats and dogs"],
+    ["帽子", "hates"],
+    ["电视", "tvs"],
+    ["感冒", "a"],
+    ["汽车", ""],
+  ];
+  for (const [zh, guess] of wrong) ok(!drawMatches(guess, word(zh)), `${zh} / ${word(zh).en}: "${guess}" is not`);
+  const long = DRAW_WORDS.filter((w) => w.en.length > DRAW_GUESS_MAX || [...w.zh].length > DRAW_GUESS_MAX);
+  ok(!long.length, `every answer fits in a guess (${long.map((w) => w.en).join(", ") || "all do"})`);
+
+  // the longest answer, typed in full, through the room
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 3 });
+  (t.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "月光族");
+  t.g("p1", "guess", { text: "Living paycheck to paycheck" });
+  t.g("p2", "guess", { text: "月光族" });
+  const v = t.view<Extract<GameView, { id: "draw" }>>("p0");
+  ok(v.solved.join() === "p1,p2" && v.phase === "result", "the longest English answer counts in full, and the round is over");
+});
+
+test("draw: the English hint shows each word's blanks, and hyphens", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 3 });
+  const s = t.eng.d.game!.s as { word: number };
+  const hintOf = (zh: string) => {
+    s.word = DRAW_WORDS.findIndex((w) => w.zh === zh);
+    return t.view<Extract<GameView, { id: "draw" }>>("p1").hint!;
+  };
+  const pay = hintOf("月光族");
+  ok(pay.en === "______ ________ __ ________" && pay.zh === 3, `four words of blanks (${pay.en})`);
+  ok(hintOf("熬夜").en === "___-_______", "a hyphen shows as it is");
+  // on the phone: a wide break between words, never one inside a word
+  const shown = hintBlanks(pay.en);
+  ok(shown.split(" ").length === 4 && !/ /.test(shown), `the phone's hint keeps the four words apart (${JSON.stringify(shown)})`);
+  ok(shown.split(" ").every((w) => /^_(?: _)*$/.test(w)), "and each word's blanks together");
+  ok(hintSay(pay.en) === "4 words: 6, 8, 2 and 8 letters" && hintSay("___") === "3 letters", `what a screen reader says (${hintSay(pay.en)})`);
+  ok(hintSay(hintOf("熬夜").en) === "10 letters", "a hyphenated word is one word");
+});
+
+test("draw: a drawer who leaves: no penalty for anyone else, the word goes up, the turn goes on round the table", () => {
+  type V = Extract<GameView, { id: "draw" }>;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "draw" });
+  // p0 and p1 draw a round each (nobody gets it), so p2 is drawing when they leave
+  for (const d of ["p0", "p1"]) {
+    t.g(d, "pick", { d: 1 });
+    t.g(d, "giveup");
+    t.advance(1000);
+    t.g(d, "next");
+  }
+  ok(t.view<V>("p0").drawer === "p2", "p2 draws the third round");
+  t.g("p2", "pick", { d: 1 });
+  t.eng.stroke("p2", { o: "b", id: "s1", c: "#1f3f8e", w: 0.01, p: [0.1, 0.1] });
+  t.eng.flush();
+  const pens = t.pens().length;
+  t.act("p2", { a: "leave" });
+  let v = t.view<V>("p1");
+  ok(v.phase === "result" && v.left === "p2" && !!v.word && !v.solved.length, "the round is over: the word goes up and says who left");
+  ok(v.drawer === "p3", `the next one round the table is up (${v.drawer})`);
+  t.advance(82_000);
+  ok(t.pens().length === pens, "nobody drinks for it, and the round's clock is gone");
+  ok(t.eng.d.strokes.length === 1, "the drawing stays up with the word");
+  t.g("p1", "next");
+  ok(t.view<V>("p1").phase === "result", "only p3 or the host moves on");
+  t.g("p3", "next");
+  v = t.view<V>("p1");
+  ok(v.phase === "pick" && v.drawer === "p3" && v.left === null && v.round === 4, "p3 picks next, not p0 again");
+  ok(t.eng.d.strokes.length === 0, "a clean board");
+
+  // the drawer leaves while choosing a word: the turn passes on round the table (back to p0)
+  t.act("p3", { a: "leave" });
+  v = t.view<V>("p0");
+  ok(v.phase === "pick" && v.drawer === "p0" && v.round === 4, `the turn passes on while choosing (${v.drawer})`);
+
+  // a round ends as usual, then its drawer leaves before moving on: straight to the next one's pick
+  t.g("p0", "pick", { d: 1 });
+  t.g("p1", "guess", { text: DRAW_WORDS[(t.eng.d.game!.s as { word: number }).word].zh });
+  v = t.view<V>("p1");
+  ok(v.phase === "result" && v.solved.join() === "p1", "p1 got it: the round is over");
+  t.act("p0", { a: "leave" });
+  v = t.view<V>("p1");
+  ok(v.phase === "pick" && v.drawer === "p1" && v.round === 5 && v.left === null, `on to the next drawer's pick (${v.phase}, ${v.drawer})`);
+  ok(t.pens().length === pens, "still nobody drinks for anyone who left");
+
+  // a guesser leaves and everyone still guessing has it: the round is done
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "draw" });
+  u.g("p0", "pick", { d: 1 });
+  const zh = DRAW_WORDS[(u.eng.d.game!.s as { word: number }).word].zh;
+  u.g("p1", "guess", { text: zh });
+  u.g("p2", "guess", { text: zh });
+  ok(u.view<V>("p0").phase === "draw", "p3 is still guessing");
+  u.act("p3", { a: "leave" });
+  ok(u.view<V>("p0").phase === "result", "p3 left: the two still here both got it, the round is over");
+  ok(!u.pens().length, "no penalty: they got it");
+
+  // the drawer sits out to watch mid-round: the same as leaving
+  const w = setup(3);
+  w.act("p0", { a: "start", game: "draw" });
+  w.g("p0", "pick", { d: 1 });
+  w.act("p0", { a: "watch", on: true });
+  const wv = w.view<V>("p1");
+  ok(wv.phase === "result" && wv.left === "p0" && wv.drawer === "p1", "the drawer who sits out to watch ends the round, and p1 is next");
+
+  // a table saved before this change (no seat order kept) still moves on
+  const o = setup(3);
+  o.act("p0", { a: "start", game: "draw" });
+  const os = o.eng.d.game!.s as { order?: string[]; left?: string | null };
+  delete os.order;
+  delete os.left;
+  o.g("p0", "pick", { d: 1 });
+  o.act("p0", { a: "leave" });
+  const ov = o.view<V>("p1");
+  ok(ov.phase === "result" && ov.left === "p0" && o.eng.d.game !== null && ["p1", "p2"].includes(ov.drawer), "an older saved table: no crash, someone still here is next");
+});
+
+test("draw: the drawer taps a guess that's close enough, and it counts; a round is a minute", () => {
+  // (the random numbers this test uses are handed back afterwards: the games tested after it, drama's
+  // casting for one, deal exactly what they dealt before it was added)
+  const keep = seed;
+  try {
+    closeEnough();
+  } finally {
+    seed = keep;
+  }
+});
+
+function closeEnough() {
+  type V = Extract<GameView, { id: "draw" }>;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 2 });
+  const s = t.eng.d.game!.s as { word: number };
+  s.word = DRAW_WORDS.findIndex((w) => w.zh === "钟表");
+  ok(Math.round((t.view<V>("p0").endsAt - clock) / 1000) === 60, `a round is a minute (${Math.round((t.view<V>("p0").endsAt - clock) / 1000)} s)`);
+  t.g("p1", "guess", { text: "时钟" });
+  t.g("p2", "guess", { text: "闹钟" });
+  t.g("p3", "guess", { text: "时钟！" });
+  t.g("p2", "guess", { text: "时钟" });
+  let v = t.view<V>("p1");
+  ok(!v.solved.length && v.guesses.filter((x) => x.text.startsWith("时钟")).length === 3, "时钟 is not 钟表 by itself");
+  // nobody but the drawer can count a guess: not a guesser, not the host who isn't drawing
+  t.g("p1", "accept", { text: "时钟" });
+  ok(!t.view<V>("p1").solved.length, "a guesser can't count their own guess");
+  t.g("p0", "accept", { text: "猫" });
+  ok(!t.view<V>("p1").solved.length, "only a guess someone typed can be counted");
+  const before = t.events.filter((e) => e.k === "fx" && e.fx === "correct").length;
+  t.g("p0", "accept", { text: "时钟" });
+  v = t.view<V>("p1");
+  ok(v.solved.join() === "p1,p3,p2", `everyone who typed it got it, in the order they typed it (${v.solved.join()})`);
+  ok(v.scores.p1 === 4 && v.scores.p3 === 2 && v.scores.p2 === 2 && v.scores.p0 === 4, `scored as right guesses (${JSON.stringify(v.scores)})`);
+  ok(!v.guesses.some((x) => x.text.includes("时钟")), "the counted guess no longer shows to anyone");
+  ok(v.guesses.filter((x) => x.ok).length === 3 && v.guesses.some((x) => x.pid === "p2" && x.text === "闹钟"), `one 'got it' each, and the other guesses stay (${JSON.stringify(v.guesses)})`);
+  ok(t.events.filter((e) => e.k === "fx" && e.fx === "correct").length - before === 3, "the room hears each one");
+  ok(v.phase === "result" && !t.pens().length, "all three have it: the round is over, nobody drinks");
+
+  // counted once, typed again by someone else: right straight away
+  const u = setup(3);
+  u.act("p0", { a: "start", game: "draw" });
+  u.g("p0", "pick", { d: 1 });
+  (u.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "飞机");
+  u.g("p1", "guess", { text: "plane" });
+  u.g("p0", "accept", { text: "plane" });
+  ok(u.view<V>("p0").solved.join() === "p1" && u.view<V>("p0").phase === "draw", "plane counts for 飞机 / Airplane");
+  u.g("p2", "guess", { text: "Planes" });
+  ok(u.view<V>("p0").solved.join() === "p1,p2" && u.view<V>("p0").phase === "result", "and Planes, typed after, is right without a tap");
+  u.g("p0", "accept", { text: "plane" });
+  ok(u.view<V>("p0").solved.length === 2, "nothing to count once the round is over");
+  u.g("p0", "next");
+  u.g("p1", "pick", { d: 1 });
+  (u.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "飞机");
+  u.g("p2", "guess", { text: "plane" });
+  ok(!u.view<V>("p0").solved.length, "a new round starts with nothing counted");
+}
+
 test("king: private tokens, crown, called numbers", () => {
   const t = setup(5);
   t.act("p0", { a: "start", game: "king" });
@@ -592,6 +804,84 @@ test("punchline: final picks toggle, up to three, never your own", () => {
   ok(t.view<V<"punchline">>("p0").match!.myVotes.length === 3, "a fourth pick is refused");
   t.g("p0", "vote", { slot: others[0] });
   ok(t.view<V<"punchline">>("p0").match!.myVotes.length === 2, "tap again to take a pick back");
+});
+
+test("punchline: 再来一局 deals on from the same piles, so a table doesn't get its prompts again", () => {
+  type PV = V<"punchline">;
+  for (const [players, games] of [
+    [8, 6],
+    [5, 9],
+  ] as const) {
+    const t = setup(players);
+    t.act("p0", { a: "start", game: "punchline" });
+    const played: { h2h: string[]; final: string }[] = [];
+    for (let g = 0; g < games; g++) {
+      const game = { h2h: [] as string[], final: "" };
+      for (let i = 0; i < 200 && t.view<PV>("p0").phase !== "end"; i++) {
+        const cur = t.view<PV>("p0");
+        if (cur.phase === "write") {
+          const prompts = new Map<number, string>();
+          for (const pid of t.ids) for (const m of t.view<PV>(pid).mine) prompts.set(m.k, m.prompt.zh);
+          if (cur.round < cur.rounds) game.h2h.push(...prompts.values());
+          else game.final = [...prompts.values()][0];
+          for (const pid of t.ids) for (const m of t.view<PV>(pid).mine) if (!m.done) t.g(pid, "answer", { k: m.k, text: `${pid} ${g}.${i}` });
+        } else if (cur.phase === "vote") {
+          for (const pid of t.ids) {
+            const mv = t.view<PV>(pid).match!;
+            if (!mv.canVote) continue;
+            const picks = mv.answers.map((_, j) => j).filter((j) => j !== mv.mine && mv.answers[j].text).slice(0, mv.maxVotes);
+            for (const j of picks) t.g(pid, "vote", { slot: j });
+          }
+        } else t.advance(15_000);
+      }
+      ok(t.view<PV>("p0").phase === "end", `${players} at the table: game ${g + 1} ends`);
+      played.push(game);
+      t.g("p0", "again", { step: t.view<PV>("p0").step });
+    }
+    const perGame = 2 * players;
+    played.forEach((game, k) => {
+      ok(game.h2h.length === perGame && new Set(game.h2h).size === perGame, `${players} at the table: game ${k + 1} has ${perGame} different prompts (${new Set(game.h2h).size})`);
+      if (k === 0) return;
+      const again = game.h2h.filter((p) => played[k - 1].h2h.includes(p));
+      ok(!again.length, `${players} at the table: game ${k + 1} has none of game ${k}'s prompts (${again.join(" / ")})`);
+      ok(game.final !== played[k - 1].final, `${players} at the table: game ${k + 1}'s final isn't game ${k}'s (${game.final})`);
+    });
+    const onePass = Math.floor(PUNCH_PROMPTS.length / perGame);
+    ok(played.length > onePass, `${players} at the table: the test plays past the end of the pile`);
+    const first = played.slice(0, onePass).flatMap((game) => game.h2h);
+    ok(new Set(first).size === first.length, `${players} at the table: the first ${onePass} games never repeat a prompt`);
+    const finals = played.slice(0, PUNCH_FINAL.length).map((game) => game.final);
+    ok(new Set(finals).size === finals.length, `${players} at the table: ${finals.length} games, ${finals.length} different finals`);
+  }
+});
+
+test("punchline: past eight at the table, whoever watched a game writes the next one", () => {
+  type PV = V<"punchline">;
+  const ids = Array.from({ length: 11 }, (_, i) => `p${i}`);
+  ok(nextWriters(ids.slice(0, 8), ids.slice(0, 3), {}).join() === ids.slice(0, 8).join(), "eight or fewer: everyone writes");
+  ok(nextWriters(ids, null, {}).join() === ids.slice(0, 8).join(), "the first game: the first eight seats");
+  const t = setup(11);
+  t.act("p0", { a: "start", game: "punchline" });
+  const writersOf: string[][] = [];
+  for (let g = 0; g < 5; g++) {
+    const v = t.view<PV>("p0");
+    writersOf.push(v.players);
+    ok(v.players.length === 8 && v.audience.length === 3 && v.audience.every((pid) => !v.players.includes(pid)), `game ${g + 1}: eight write, three watch`);
+    ok(t.view<PV>(v.audience[0]).mine.length === 0 && t.view<PV>(v.players[0]).mine.length === 2, `game ${g + 1}: the writers get the prompts`);
+    // nobody writes: the host moves the show on to the end
+    for (let i = 0; i < 20 && t.view<PV>("p0").phase !== "end"; i++) t.g("p0", "next", { step: t.view<PV>("p0").step });
+    ok(t.view<PV>("p0").phase === "end", `game ${g + 1} ends`);
+    // (a game saved before games written were counted plays on the same way)
+    if (g === 3) delete (t.eng.d.game!.s as { written?: unknown }).written;
+    t.g("p0", "again", { step: t.view<PV>("p0").step });
+  }
+  ok(writersOf[0].join() === ids.slice(0, 8).join(), "the first game: the first eight seats write");
+  writersOf.slice(1).forEach((ws, k) => {
+    const watched = ids.filter((pid) => !writersOf[k].includes(pid));
+    ok(watched.every((pid) => ws.includes(pid)), `game ${k + 2}: all three who watched game ${k + 1} write (${watched.join(" ")})`);
+  });
+  const out = ids.map((pid) => writersOf.slice(0, 4).filter((ws) => !ws.includes(pid)).length);
+  ok(Math.max(...out) - Math.min(...out) <= 1, `over four games, everyone watches about as often (${out.join(" ")})`);
 });
 
 test("postit: chain of notes, hidden forehead, guesses", () => {

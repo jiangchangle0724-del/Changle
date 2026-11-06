@@ -21,7 +21,9 @@
   body { margin: 0; background: var(--sky-top); color: var(--ink); font-family: var(--font-body); overflow: hidden; -webkit-user-select: none; user-select: none; }
   #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   .hud { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
-    padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none; }
+    padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none;
+    /* 压在大厅、倒数、结算这些遮罩上面：声音、语言、回大厅在哪一步都点得到 */
+    z-index: 1; }
   .hud > * { pointer-events: auto; }
   .lat { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .lat .row { display: flex; align-items: center; gap: 8px; background: var(--panel); backdrop-filter: blur(6px); border-radius: 999px; padding: 5px 12px 5px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -94,11 +96,11 @@
 <canvas id="stage" aria-label="游戏画面" data-en-label="Game screen"></canvas>
 
 <div class="hud">
-  <div class="lat" id="lat" aria-label="延迟表" data-en-label="Latency"><span class="title" data-en="Latency · round trip ms">延迟 · 往返毫秒</span></div>
+  <div class="lat" id="lat" aria-label="延迟表" data-en-label="Latency"><span class="title" hidden data-en="Latency · round trip ms">延迟 · 往返毫秒</span></div>
   <div class="stats">
-    <span class="chip code" title="房间码" data-en-title="Room code"><span data-en="Room">房间</span> <b id="code">····</b></span>
-    <span class="chip">⏱ <b id="clock">0.0</b></span>
-    <span class="chip">💀 <b id="deaths">0</b></span>
+    <span class="chip code" id="codeChip" hidden title="房间码" data-en-title="Room code"><span data-en="Room">房间</span> <b id="code">····</b></span>
+    <span class="chip" id="clockChip" hidden>⏱ <b id="clock">0.0</b></span>
+    <span class="chip" id="deathChip" hidden>💀 <b id="deaths">0</b></span>
     <button class="btn quiet" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
     <button class="btn quiet" id="langBtn" type="button">EN</button>
     <button class="btn quiet" id="lobbyBtn" type="button" hidden data-en="Lobby">回大厅</button>

@@ -72,7 +72,11 @@ export class Stage {
   private W = 1;
   private H = 1;
 
-  private constructor(app: Application, reduced: boolean) {
+  private constructor(
+    app: Application,
+    reduced: boolean,
+    private readonly plates: Partial<Record<WorldId, string>>,
+  ) {
     this.app = app;
     this.reduced = reduced;
     this.tex = textures();
@@ -87,9 +91,9 @@ export class Stage {
     app.stage.addChild(this.root);
   }
 
-  /** 建画面：Pixi 要异步初始化。 */
-  static async create(canvas: HTMLCanvasElement): Promise<Stage> {
-    const opts = {
+  /** 建画面：Pixi 要异步初始化。plates：每个世界的远景画地址（主机页和开发页给 `src/render/plates.ts` 的）。 */
+  static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>> } = {}): Promise<Stage> {
+    const init = {
       canvas,
       width: innerWidth,
       height: innerHeight,
@@ -102,16 +106,16 @@ export class Stage {
     };
     let app = new Application();
     try {
-      await app.init({ ...opts, preference: 'webgl' });
+      await app.init({ ...init, preference: 'webgl' });
     } catch (e) {
       // 没有 WebGL（很老的机器、某些无头浏览器）：退到 canvas 画，慢一点但能看
       console.warn('[hang-on] WebGL 不可用，改用 canvas 渲染', e);
       app = new Application();
-      await app.init({ ...opts, preference: 'canvas' });
+      await app.init({ ...init, preference: 'canvas' });
     }
     app.ticker.stop();
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const stage = new Stage(app, reduced);
+    const stage = new Stage(app, reduced, opts.plates ?? {});
     stage.resize();
     return stage;
   }
@@ -151,7 +155,7 @@ export class Stage {
     this.pal = PALETTES[this.world_];
     this.backdrop?.destroy();
     this.terrain?.view.destroy({ children: true });
-    this.backdrop = new Backdrop(this.world_, this.pal, this.screenFx);
+    this.backdrop = new Backdrop(this.world_, this.pal, this.screenFx, this.plates[this.world_]);
     this.backdrop.rain = this.world_ === 'van' && (level.teaches === 'ice' || level.rects.some((r) => r.material === 'ice'));
     this.backdrop.resize(this.W, this.H);
     this.root.addChildAt(this.backdrop.view, 0);
