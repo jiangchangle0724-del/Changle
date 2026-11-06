@@ -543,9 +543,6 @@
   flex-direction: column;
   gap: 10px;
 }
-.pl-write.is-done .pl-prompt {
-  opacity: 0.75;
-}
 .pl-form {
   display: flex;
   flex-direction: column;
@@ -575,6 +572,14 @@
   align-items: center;
   gap: 4px;
   flex: none;
+}
+/* a sent answer's prompt, small, over the answer */
+.pl-sent .pl-sent-prompt {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 .pl-writing {
   display: flex;
