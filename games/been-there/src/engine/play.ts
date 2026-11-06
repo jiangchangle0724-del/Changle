@@ -656,7 +656,8 @@ export function act(s: GameState, p: number, a: Action): boolean {
         s.stats.boughtAt[pd.at] += 1;
         if (pd.price !== priceOf(s, pd.at)) s.ps[p].keep.splice(s.ps[p].keep.indexOf("points"), 1);
         ev(s, { t: "buy", p, at: pd.at, price: pd.price });
-      } else s.pending = { k: "auction", at: pd.at, bids: {} };
+      } else if (s.cfg.auctions === false) ev(s, { t: "pass", p, at: pd.at });
+      else s.pending = { k: "auction", at: pd.at, bids: {} };
       break;
     }
     case "auction": {

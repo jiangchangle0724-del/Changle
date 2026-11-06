@@ -126,6 +126,8 @@ export type GameEvent =
   | { t: "stamp"; p: number; city: string }
   | { t: "passport"; p: number; amount: number }
   | { t: "buy"; p: number; at: number; price: number }
+  /** Not bought, with auctions off: the city stays unsold. */
+  | { t: "pass"; p: number; at: number }
   | { t: "auction"; at: number; winner: number | null; price: number }
   | { t: "rent"; p: number; to: number; at: number; amount: number }
   | { t: "pay"; p: number; to: number; amount: number }

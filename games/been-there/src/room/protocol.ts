@@ -1,5 +1,5 @@
 // What phones, the big screen and the server say to each other.
-import type { Action, GameState, ManageKind, Mode, Offer, StyleId, Text } from "../engine";
+import type { Action, CashChoice, GameState, ManageKind, Mode, Offer, StyleId, Text } from "../engine";
 
 export type Lang = "zh" | "en";
 export type Role = "player" | "screen";
@@ -104,6 +104,12 @@ export interface Settings {
   news?: boolean;
   /** The waiting teams' quiz (城市抢答), on unless the host turns it off. Missing (on) in rooms and saves from before the switch. */
   trivia?: boolean;
+  /** More rules (更多规则), each missing in rooms and saves from before them: the starting cash ("normal", the step-3 game's $1,500), */
+  cash?: CashChoice;
+  /** whether a city its visitor doesn't buy goes to auction (on), */
+  auctions?: boolean;
+  /** and whether each team sees only its own cash and worth until the end (off). */
+  hideCash?: boolean;
   /** Tests only: ms between two of the quiz's questions instead of TIMING.triviaEvery (0: every landing on a city brings one). */
   triviaEvery?: number;
   /** One device controls every human team (the single-device demo). */
@@ -128,7 +134,7 @@ export type ClientMsg =
   | { t: "bot"; op: "add"; style?: StyleId }
   | { t: "bot"; op: "remove"; team: string }
   | { t: "bot"; op: "style"; team: string; style: StyleId }
-  | { t: "settings"; mode?: Mode; party?: boolean; news?: boolean; trivia?: boolean }
+  | { t: "settings"; mode?: Mode; party?: boolean; news?: boolean; trivia?: boolean; cash?: CashChoice; auctions?: boolean; hideCash?: boolean }
   | { t: "start" }
   | { t: "act"; d: number; a: Action; seat?: number }
   | { t: "manage"; k: ManageKind; at: number; seat?: number }

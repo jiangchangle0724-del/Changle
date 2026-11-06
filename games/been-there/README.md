@@ -189,6 +189,11 @@ minute). Nothing is downloaded: previews stream from Apple. `npm test` checks th
 * Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, how long
   the quiz rests between two questions (`triviaEvery`, eight minutes: the lobby's switch says the
   number; `triviaFirst`, four, before a game's first) and its time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.
+* The lobby's 更多规则 (more rules, folded under the host's other settings): the starting cash
+  (`START_CASH_CHOICES` in `src/engine/config.ts`: $1,000, $1,500, $2,000; in a game to the target the
+  target moves with it, `withStartCash`), auctions on or off (`auctions` in the game's config: off, a
+  city its visitor doesn't buy stays with the bank), and hidden money (each phone gets the other teams'
+  cash and worth as -1 until the end, `gameView` in `src/room/room.ts`; the big screen gets none).
 * Prices, rents, target lines: `src/engine/config.ts`. After changing them, run `npm run sim`
   to see the effect; `npm test` will then (deliberately) fail until `tests/fixtures/report.json`
   is updated to the new numbers.

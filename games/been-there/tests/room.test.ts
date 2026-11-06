@@ -1777,3 +1777,89 @@ test("a test room can keep the teams in the order they were made: the first team
   // (otherwise the order is drawn)
   assert.ok(seeds.some((n) => seatOf({}, n) !== 0));
 });
+
+// 更多规则: the host's starting cash, auctions off, and the money hidden until the end.
+
+test("more rules: the starting cash the host picks; a game to the target moves its target with it", () => {
+  for (const [cash, start] of [
+    ["low", 1000],
+    ["high", 2000],
+  ] as const) {
+    const t = new Table();
+    const ps = lobby(t, 3);
+    t.send(ps[1], { t: "settings", cash });
+    assert.equal(t.view(ps[0]).settings.cash, "normal", "only the host changes it");
+    t.send(ps[0], { t: "settings", cash });
+    assert.equal(t.view(ps[2]).settings.cash, cash);
+    t.send(ps[0], { t: "start" });
+    const s = t.game.s;
+    s.ps.forEach((p, i) => assert.equal(p.cash, start + s.cfg.seatBonus[i]));
+    assert.deepEqual(s.cfg.end, { kind: "target", amount: E.TARGETS.more + start - E.START_CASH });
+  }
+  // A timed game keeps its clock; and a room from before the choice starts with $1,500.
+  const t = new Table({ mode: 60 });
+  const ps = lobby(t, 2);
+  t.send(ps[0], { t: "settings", cash: "high" });
+  t.send(ps[0], { t: "start" });
+  assert.equal(t.game.s.cfg.end.kind, "rounds");
+  assert.equal(t.game.s.ps[0].cash, 2000 + t.game.s.cfg.seatBonus[0]);
+  const old = new Table();
+  const ops = lobby(old, 2);
+  old.send(ops[0], { t: "start" });
+  assert.equal(old.game.s.cfg.startCash, E.START_CASH);
+  assert.equal(old.view(ops[0]).settings.cash, "normal");
+  assert.equal(old.view(ops[0]).settings.auctions, true);
+  assert.equal(old.view(ops[0]).settings.hideCash, false);
+});
+
+test("more rules: with auctions off, a city its visitor doesn't buy stays with the bank, and the log says so", () => {
+  const t = new Table({}, 3);
+  const ps = lobby(t, 3);
+  for (const p of ps) p.declineBuys = true;
+  t.send(ps[0], { t: "settings", auctions: false });
+  t.send(ps[0], { t: "start" });
+  assert.equal(t.game.s.cfg.auctions, false);
+  const passes = () => t.seen.filter((f) => f.t === "game" && f.e.t === "pass");
+  t.playUntil(() => passes().length >= 3);
+  assert.ok(!t.seen.some((f) => f.t === "game" && f.e.t === "auction"), "no auction");
+  for (const f of passes()) {
+    const e = (f as { e: E.GameEvent }).e as { at: number };
+    assert.equal(t.game.s.deeds[e.at]!.owner, -1, "still the bank's");
+  }
+  assert.deepEqual(t.refusals, []);
+});
+
+test("more rules: hidden money: a phone sees only its own team's cash and worth, the big screen none, all at the end", () => {
+  const t = new Table();
+  const ps = lobby(t, 3);
+  t.send(ps[0], { t: "settings", hideCash: true });
+  assert.ok(t.room.join("member-9-xxxxxxxx", "key-9-secret-xxxx", { role: "screen" }));
+  t.send(ps[0], { t: "start" });
+  const check = () => {
+    const s = t.game.s;
+    for (const p of ps) {
+      const v = t.view(p);
+      for (let seat = 0; seat < s.ps.length; seat++) {
+        const own = v.you.seats.includes(seat);
+        assert.equal(v.game!.s.ps[seat].cash, own ? s.ps[seat].cash : -1);
+        assert.equal(v.game!.worth[seat], own ? E.netWorth(s, seat) : -1);
+      }
+    }
+    const tv = t.room.view("member-9-xxxxxxxx");
+    assert.ok(tv.game!.s.ps.every((p) => p.cash === -1) && tv.game!.worth.every((w) => w === -1), "the big screen shows none");
+    assert.ok(s.ps.every((p) => p.cash >= 0), "the room itself keeps the real money");
+  };
+  check();
+  t.playUntil(() => t.game.s.turns >= 12);
+  check();
+  t.playUntil(() => t.game.s.over);
+  const s = t.game.s;
+  const end = t.view(ps[1]).game!;
+  assert.deepEqual(
+    end.s.ps.map((p) => p.cash),
+    s.ps.map((p) => p.cash),
+    "at the end everyone sees everything",
+  );
+  assert.deepEqual(end.worth, s.ps.map((_, i) => E.netWorth(s, i)));
+  assert.deepEqual(t.refusals, []);
+});

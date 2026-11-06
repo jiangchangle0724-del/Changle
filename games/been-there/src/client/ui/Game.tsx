@@ -8,7 +8,7 @@ import { sfx } from "../sound";
 import { getState, send, serverNow } from "../store";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion, thisGame } from "./Board";
-import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
+import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, moneyOrHidden, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { feedText } from "./feedText";
 import { ForfeitHold } from "./Forfeit";
@@ -405,7 +405,7 @@ export function Standings({ v, big, until }: { v: RoomView; big?: boolean; until
   const hold = until ?? moveInPlay(v)?.ready ?? 0;
   const ps = useHeld(s.ps, hold);
   const worth = useHeld(g.worth, hold);
-  return (
+  const list = (
     <ul class={`standings${big ? " big" : ""}`}>
       {ps.map((p, seat) => {
         const team = teamOf(v, seat);
@@ -413,10 +413,10 @@ export function Standings({ v, big, until }: { v: RoomView; big?: boolean; until
           <li key={seat} class={`${seat === s.turn ? "turn" : ""}${p.out ? " out" : ""}`}>
             <TeamChip team={team} small={!big} mood={moodOf(v, seat)} />
             {!big && <span class="name">{seatName(v, seat)}</span>}
-            <span class="num">{money(worth[seat])}</span>
+            <span class="num">{moneyOrHidden(worth[seat])}</span>
             {big && (
               <small class="muted num cash">
-                {t("cash")} {money(p.cash)}
+                {t("cash")} {moneyOrHidden(p.cash)}
               </small>
             )}
             {p.jail && <small class="tag">{t("inJail")}</small>}
@@ -435,6 +435,13 @@ export function Standings({ v, big, until }: { v: RoomView; big?: boolean; until
         );
       })}
     </ul>
+  );
+  if (!v.settings.hideCash || s.over) return list;
+  return (
+    <>
+      {list}
+      <p class="hint cash-note">{t("cashHiddenNote")}</p>
+    </>
   );
 }
 

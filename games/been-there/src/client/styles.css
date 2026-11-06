@@ -600,6 +600,26 @@ legend {
   cursor: default;
   opacity: 0.62;
 }
+/* 更多规则: folded under the other settings; its fold says what the host has changed. */
+.more-rules summary small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+}
+.more-rules[open] {
+  display: grid;
+  gap: 12px;
+}
+.more-rules[open] > :not(summary) {
+  margin-top: 0;
+}
+.more-rules .hint {
+  margin: 0;
+}
+/* Under the standings when the money is hidden. */
+.cash-note {
+  margin: 6px 0 0;
+}
 .check {
   display: flex;
   gap: 8px;
