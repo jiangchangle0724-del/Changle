@@ -252,3 +252,26 @@ test("the privacy and terms pages are public and linked from the home page", asy
   await page.getByRole("link", { name: /随便 · Whatever's Fine/ }).click();
   await expect(page).toHaveURL(/\/eat\/$/);
 });
+
+test("picking alone again: places shown last time step back, so new ones come first", async ({ browser }) => {
+  const me = await phone(browser, "again");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `again-${Date.now()}`, name: "小林" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  // Western side, Richmond, 25 minutes' drive: six demo places, three of them shown each time.
+  const search = () =>
+    page.evaluate(() =>
+      fetch("/eat/api/solo", {
+        method: "POST",
+        body: JSON.stringify({ center: { lat: 49.1724, lng: -123.1366 }, range: "drive25", answers: { mood: "any", side: "west" }, limits: {}, lang: "zh" }),
+      })
+        .then((r) => r.json())
+        .then((r: { cards: { place: { id: string } }[] }) => r.cards.map((c) => c.place.id)),
+    );
+  const first = await search();
+  const second = await search();
+  expect(first).toHaveLength(3);
+  expect(second).toHaveLength(3);
+  expect(first).not.toContain(second[0]);
+  expect(me.errors).toEqual([]);
+});

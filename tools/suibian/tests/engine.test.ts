@@ -377,3 +377,40 @@ test("solo: a place nobody has rated gives way to rated ones, unless it is a pic
   const picked = { ...unknown, recommend: { note: { zh: "好吃", en: "Good" }, links: [] } };
   assert.equal(soloPick({ places: [picked, rated], answers: { mood: "warm", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW, count: 2 }).ids[0], picked.id);
 });
+
+// ---- not the same few every time ----
+
+test("solo: places shown in the last two weeks give way to ones not seen yet", () => {
+  const here = { lat: center.lat, lng: center.lng };
+  const a = place({ ...here, cuisine: "hotpot", rating: 4.6, ratings: 900 });
+  const b = place({ ...here, cuisine: "ramen", rating: 4.5, ratings: 900 });
+  const c = place({ ...here, cuisine: "korean", rating: 4.4, ratings: 900 });
+  const d = place({ ...here, cuisine: "thai", rating: 4.3, ratings: 900 });
+  const base = { places: [a, b, c, d], answers: { mood: "any", side: "any" } as const, limits: noLimits, center, range: "walk20" as const, now: NOW, count: 2 };
+  const first = soloPick(base).ids;
+  assert.deepEqual([...first].sort(), [a.id, b.id].sort());
+  assert.deepEqual([...soloPick({ ...base, seen: first }).ids].sort(), [c.id, d.id].sort(), "the two shown last time step back");
+  // A seen place still comes back when nothing unseen comes close.
+  const weak = place({ ...here, cuisine: "thai", rating: 3.6, ratings: 900 });
+  assert.equal(soloPick({ ...base, places: [a, weak], count: 1, seen: [a.id] }).ids[0], a.id);
+});
+
+test("solo and cards: a small random nudge lets near-equal places take turns, never a clearly weaker one", () => {
+  const here = { lat: center.lat, lng: center.lng };
+  const twins = [place({ ...here, cuisine: "korean" }), place({ ...here, cuisine: "italian" })];
+  const weaker = place({ ...here, cuisine: "thai", rating: 3.7 });
+  const places = [...twins, weaker];
+  const firsts = new Set<string>();
+  for (let seed = 1; seed <= 40; seed++) {
+    const random = rng(seed);
+    const solo = soloPick({ places, answers: { mood: "any", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW, count: 1, random }).ids[0];
+    const card = pick({ places, likes: {}, bans: {}, members: 2, center, range: "walk20", now: NOW, count: 1, random }).ids[0];
+    assert.notEqual(solo, weaker.id);
+    assert.notEqual(card, weaker.id);
+    firsts.add(solo).add(card);
+  }
+  assert.deepEqual([...firsts].sort(), twins.map((p) => p.id).sort(), "each twin comes first sometimes");
+  // Without a random source the order is fixed, as every other test here relies on.
+  const fixed = () => soloPick({ places, answers: { mood: "any", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW }).ids;
+  assert.deepEqual(fixed(), fixed());
+});

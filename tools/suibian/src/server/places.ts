@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, guessCuisine, mentionsQueue, type Center, type Lang, type Place, type RangeId } from "../engine";
+import { RANGES, guessCuisine, mentionsQueue, searchPlan, type Center, type Lang, type Place, type RangeId, type SoloSide } from "../engine";
 import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
@@ -102,25 +102,49 @@ async function google(key: string, url: string, init: RequestInit & { fields: st
   return res.json();
 }
 
-/** Up to 40 restaurants: the 20 most popular and the 20 nearest (Google returns 20 per call). */
-export async function searchGoogle(key: string, center: Center, range: RangeId, lang: Lang): Promise<Place[]> {
-  const body = (rank: "POPULARITY" | "DISTANCE") =>
-    JSON.stringify({
-      includedTypes: ["restaurant"],
-      maxResultCount: 20,
-      rankPreference: rank,
-      languageCode: languageCode(lang),
-      regionCode: "CA",
-      locationRestriction: { circle: { center: { latitude: center.lat, longitude: center.lng }, radius: RANGES[range].meters } },
-    });
+export interface SearchOptions {
+  /** One person's side of the menu: adds a search for that side's restaurants alone. */
+  side?: SoloSide;
+  /** Turns the parts of the area each time (see searchPlan); fixed without it, as in tests. */
+  random?: () => number;
+}
+
+/**
+ * Restaurants for one pick: the searches searchPlan() lays out (at most four, Google returns 20 per
+ * search), merged. A search that fails (a daily cap running out, a hiccup) doesn't lose the others;
+ * all of them failing is thrown, for the room or the page to report.
+ */
+export async function searchGoogle(key: string, center: Center, range: RangeId, lang: Lang, opts: SearchOptions = {}): Promise<Place[]> {
   const url = "https://places.googleapis.com/v1/places:searchNearby";
-  const lists = await Promise.all(
-    (["POPULARITY", "DISTANCE"] as const).map((r) => google(key, url, { method: "POST", body: body(r), fields: SEARCH_FIELDS }) as Promise<{ places?: GPlace[] }>),
+  const plan = searchPlan(center, range, opts.side, opts.random ?? (() => 0));
+  const got = await Promise.allSettled(
+    plan.map(
+      (c) =>
+        google(key, url, {
+          method: "POST",
+          body: JSON.stringify({
+            includedTypes: c.types,
+            maxResultCount: 20,
+            rankPreference: c.rank,
+            languageCode: languageCode(lang),
+            regionCode: "CA",
+            locationRestriction: { circle: { center: { latitude: c.center.lat, longitude: c.center.lng }, radius: Math.round(c.radius) } },
+          }),
+          fields: SEARCH_FIELDS,
+        }) as Promise<{ places?: GPlace[] }>,
+    ),
   );
+  const failed = got.flatMap((g) => (g.status === "rejected" ? [g.reason] : []));
+  if (failed.length === got.length) throw failed[0];
+  if (failed.length) console.error("places", `${failed.length} of ${got.length} searches failed`, String(failed[0]));
   const seen = new Map<string, Place>();
-  for (const l of lists) for (const g of l.places ?? []) if (!seen.has(g.id)) {
-    const p = fromGoogle(g);
-    if (p) seen.set(p.id, p);
+  for (const g of got) {
+    if (g.status !== "fulfilled") continue;
+    for (const x of g.value.places ?? []) {
+      if (seen.has(x.id)) continue;
+      const p = fromGoogle(x);
+      if (p) seen.set(p.id, p);
+    }
   }
   return [...seen.values()];
 }

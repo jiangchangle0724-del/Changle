@@ -121,6 +121,17 @@ All merged into `main`:
 
 * The severe-allergy table `SEVERE_RULES_OUT` in `src/engine/limits.ts` is a **draft** and needs
   review by friends who have those allergies.
+* More places per pick (branch `claude/suibian-more-places`): up to four Nearby searches per table
+  or solo pick instead of two (README, "Where the places come from"). Google's free allowance for
+  this search is 1,000 a month, then US$40 per 1,000 (pricing page, 2026-11-03), so it now covers
+  about 250 picks a month instead of 500, and the daily cap `SearchNearbyRequestPerDayPerProject`
+  200 about 50 picks a day instead of 100. If people start seeing 搜索出错了 in the evening, raise
+  that cap.
+* Delivery apps as a source of places: Uber Eats and DoorDash open their APIs only to approved
+  merchants managing their own menus and orders (no search of other restaurants); none found for
+  SkipTheDishes or 饭团 Fantuan; copying their pages breaks their terms. Google already lists more
+  restaurants than any of them. What they can be: a button on each card that opens the place in
+  that app. Not built; the owner decides.
 * `src/data/picks.json` (Steve's picks) is empty: it waits for the owner's 探店 links. The list
   badges in `src/data/lists.json` came from Codex in #54 (issue #42): the 2026 MICHELIN Guide,
   Vancouver Magazine Restaurant Awards and Canada's 100 Best, and the 2025 Chinese Restaurant

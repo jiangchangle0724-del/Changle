@@ -1,7 +1,7 @@
 // One person who doesn't know what to eat: a few taps (mood, which side of the menu, budget, how
 // far, diet card) become a short list of places, each with the reasons it was picked.
 import { RANGES, distanceMeters, travelMinutes } from "./clock";
-import { eligible, score } from "./pick";
+import { eligible, nudge, score } from "./pick";
 import type { Center, CuisineId, Limits, Place, RangeId } from "./types";
 
 export type SoloMood = "warm" | "bold" | "light" | "sweet" | "any";
@@ -46,6 +46,11 @@ const MOOD_BOOST = 1.5;
  */
 const FEW_RATINGS = 20;
 const UNKNOWN_PENALTY = 0.4;
+/**
+ * A place this person was shown in the last two weeks gives way to ones they haven't seen: it drops
+ * by about two-thirds of a Google star, so it still comes back when nothing unseen comes close.
+ */
+export const SEEN_PENALTY = 0.45;
 
 export function cleanAnswers(x: unknown): SoloAnswers {
   const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
@@ -81,13 +86,18 @@ export interface SoloInput {
   range: RangeId;
   now: number;
   count?: number;
+  /** Google ids of places this person was shown lately (see SEEN_PENALTY). */
+  seen?: readonly string[];
+  /** For the nudge (see JITTER in pick.ts); without it the order is fixed, as in tests. */
+  random?: () => number;
 }
 
 /**
  * The places for one person: open now, inside their diet card and budget, on the side of the menu
  * they asked for when there are enough of those, scored like the table's cards with the mood
- * standing in for round 1's thumbs-up. Each batch of three tries to show three different cuisines.
- * `relaxed` is true when the chosen side had too few places and others were let in.
+ * standing in for round 1's thumbs-up, places they were shown lately further down, and a small
+ * random nudge so near-equal places take turns. Each batch of three tries to show three different
+ * cuisines. `relaxed` is true when the chosen side had too few places and others were let in.
  */
 export function soloPick(input: SoloInput): { ids: string[]; relaxed: boolean } {
   const count = input.count ?? SOLO_COUNT;
@@ -102,8 +112,18 @@ export function soloPick(input: SoloInput): { ids: string[]; relaxed: boolean } 
   const likes: Partial<Record<CuisineId, number>> = {};
   if (a.mood !== "any") for (const c of MOOD_CUISINES[a.mood]) likes[c] = MOOD_BOOST;
   const ctx = { likes, members: 1, center: input.center, range: input.range, now: input.now };
+  const seen = new Set(input.seen ?? []);
   const ranked = pool
-    .map((p) => ({ p, s: score(p, ctx) + (p.recommend ? 0.25 : 0) + (p.badges?.length ? 0.15 : 0) - ((p.ratings ?? 0) < FEW_RATINGS && !p.recommend ? UNKNOWN_PENALTY : 0) }))
+    .map((p) => ({
+      p,
+      s:
+        score(p, ctx) +
+        (p.recommend ? 0.25 : 0) +
+        (p.badges?.length ? 0.15 : 0) -
+        ((p.ratings ?? 0) < FEW_RATINGS && !p.recommend ? UNKNOWN_PENALTY : 0) -
+        (seen.has(p.id) ? SEEN_PENALTY : 0) +
+        nudge(input.random),
+    }))
     .sort((x, y) => y.s - x.s || x.p.id.localeCompare(y.p.id))
     .map((x) => x.p);
   const ids: string[] = [];
