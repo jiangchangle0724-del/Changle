@@ -25,14 +25,16 @@
 ## 定过的事
 
 - 真歌用 Apple Music 的 30 秒试听，揭晓时附上 Apple Music 的链接。
+- 2026-11-05 Steve 定：继续用 Apple 试听。LICENSES.md 记着 Apple 的条款是用试听推广卖歌，他知道，照用。
 - 歌单分 7 种语言、8 个分类，可以选几种混着来；还有选择题模式。
 - 台上有两个会跳舞的小人，`site/tests/performer.test.ts` 逐帧检查手臂和腿。
 - 每首歌只加载一次，省内存。
+- 单机选择题是一桌人共用一部手机：猜错一个只锁这一个，其余还能接着猜。
 
 ## 还剩什么
 
-- 等全站设计对话做好统一的游戏壳（UI 计划 A5），把这个游戏迁进去（UI 计划 C2）。
-- 选择题偶尔闪退（Steve 10-31 报的）：一直没复现，#63 按手机内存的可能改了，没在真 iPhone 上测过。等 Steve 在 iPhone 上连玩几十首选择题确认。
+- 选择题偶尔闪退（Steve 10-31 报的）：没在真 iPhone 上复现过。11-04 在电脑的 Chrome 内核上量到，放真歌时页面内存一首一首往上涨（单机 12 首从 330 MB 到 875 MB），把台上的动画停掉就不涨。正在查是动画里哪一块。iPhone 是不是同一个原因还没证实。
+- 参考 Soundle 的四条（Steve 11-05 说都做）：选择题分难度、一秒猜歌、歌手专场和年代歌单、挑战链接。
 
 ## 交给别的对话
 
@@ -42,6 +44,9 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-05 Name That Tune: one phone, multiple choice: a wrong title locks only itself, the table guesses on
+- 2026-11-05 ui(C10): resume songs melodies and buzzers (#206，Codex)
+- 2026-11-04 ui-C2：猜歌名三种模式接入游戏壳动作区、玩家条与轮次 (#168，Codex)
 - 2026-11-01 Custom penalty: no game line or button tells anyone to drink
 - 2026-10-31 Name That Tune: each song loaded once, less memory, no blank screen from the music
 - 2026-10-31 Name That Tune: the performers' arms bend like arms
@@ -53,3 +58,4 @@
 
 - 2026-11-02 建档案。
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
+- 2026-11-05 仓库改名 Changle。Steve 定了 Apple 试听照用，参考 Soundle 的四条都做。修了单机选择题猜错一次就全锁。

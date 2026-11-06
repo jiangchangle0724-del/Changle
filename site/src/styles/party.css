@@ -3166,6 +3166,10 @@ button.ecard.is-legal:active {
   font-weight: 700;
   color: var(--gel);
 }
+/* one phone: a title the table already tried */
+.tn-quiz .tn-option .tn-pick-miss {
+  color: color-mix(in oklab, var(--color-danger) 80%, var(--color-text));
+}
 .tn-answered {
   display: flex;
   align-items: center;
