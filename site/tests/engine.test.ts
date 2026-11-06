@@ -7,6 +7,7 @@ import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, presentMs } from "../src/shared/punchline";
+import { PUNCH_FINAL, PUNCH_PROMPTS } from "../src/data/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
@@ -592,6 +593,55 @@ test("punchline: final picks toggle, up to three, never your own", () => {
   ok(t.view<V<"punchline">>("p0").match!.myVotes.length === 3, "a fourth pick is refused");
   t.g("p0", "vote", { slot: others[0] });
   ok(t.view<V<"punchline">>("p0").match!.myVotes.length === 2, "tap again to take a pick back");
+});
+
+test("punchline: 再来一局 deals on from the same piles, so a table doesn't get its prompts again", () => {
+  type PV = V<"punchline">;
+  for (const [players, games] of [
+    [8, 6],
+    [5, 9],
+  ] as const) {
+    const t = setup(players);
+    t.act("p0", { a: "start", game: "punchline" });
+    const played: { h2h: string[]; final: string }[] = [];
+    for (let g = 0; g < games; g++) {
+      const game = { h2h: [] as string[], final: "" };
+      for (let i = 0; i < 200 && t.view<PV>("p0").phase !== "end"; i++) {
+        const cur = t.view<PV>("p0");
+        if (cur.phase === "write") {
+          const prompts = new Map<number, string>();
+          for (const pid of t.ids) for (const m of t.view<PV>(pid).mine) prompts.set(m.k, m.prompt.zh);
+          if (cur.round < cur.rounds) game.h2h.push(...prompts.values());
+          else game.final = [...prompts.values()][0];
+          for (const pid of t.ids) for (const m of t.view<PV>(pid).mine) if (!m.done) t.g(pid, "answer", { k: m.k, text: `${pid} ${g}.${i}` });
+        } else if (cur.phase === "vote") {
+          for (const pid of t.ids) {
+            const mv = t.view<PV>(pid).match!;
+            if (!mv.canVote) continue;
+            const picks = mv.answers.map((_, j) => j).filter((j) => j !== mv.mine && mv.answers[j].text).slice(0, mv.maxVotes);
+            for (const j of picks) t.g(pid, "vote", { slot: j });
+          }
+        } else t.advance(15_000);
+      }
+      ok(t.view<PV>("p0").phase === "end", `${players} at the table: game ${g + 1} ends`);
+      played.push(game);
+      t.g("p0", "again", { step: t.view<PV>("p0").step });
+    }
+    const perGame = 2 * players;
+    played.forEach((game, k) => {
+      ok(game.h2h.length === perGame && new Set(game.h2h).size === perGame, `${players} at the table: game ${k + 1} has ${perGame} different prompts (${new Set(game.h2h).size})`);
+      if (k === 0) return;
+      const again = game.h2h.filter((p) => played[k - 1].h2h.includes(p));
+      ok(!again.length, `${players} at the table: game ${k + 1} has none of game ${k}'s prompts (${again.join(" / ")})`);
+      ok(game.final !== played[k - 1].final, `${players} at the table: game ${k + 1}'s final isn't game ${k}'s (${game.final})`);
+    });
+    const onePass = Math.floor(PUNCH_PROMPTS.length / perGame);
+    ok(played.length > onePass, `${players} at the table: the test plays past the end of the pile`);
+    const first = played.slice(0, onePass).flatMap((game) => game.h2h);
+    ok(new Set(first).size === first.length, `${players} at the table: the first ${onePass} games never repeat a prompt`);
+    const finals = played.slice(0, PUNCH_FINAL.length).map((game) => game.final);
+    ok(new Set(finals).size === finals.length, `${players} at the table: ${finals.length} games, ${finals.length} different finals`);
+  }
 });
 
 test("postit: chain of notes, hidden forehead, guesses", () => {
