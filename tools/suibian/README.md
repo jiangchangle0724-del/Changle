@@ -69,6 +69,11 @@ Each card can carry more than Google's numbers, all from free sources:
 * **Steve's pick**: a line of why, in Chinese and English, and links to food-blogger posts (小红书,
   抖音, TikTok, Instagram, YouTube, blogs), from `src/data/picks.json`.
 * **Our users' rating**: thumbs-up share from the post-meal ratings, once three people have rated.
+* **Order delivery** (`src/client/delivery.ts`): a fold under call and map with Uber Eats, DoorDash,
+  饭团 Fantuan and Skip. Uber Eats (`ubereats.com/search?q=`) and DoorDash
+  (`doordash.com/en-CA/search/store/…`) open a search for the place, by the English part of its
+  name when Google gives both. Skip and Fantuan have no search link (both ask for an address
+  first), so the tap copies the name and opens their site. The links send no referrer.
 
 There is deliberately no combined score: Google's terms don't let us turn its ratings into a rating
 of our own, and TikTok and Instagram have no API that can search posts by restaurant (scraping them
