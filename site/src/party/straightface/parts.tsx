@@ -4,15 +4,17 @@
  * same parts from what the engine's two view functions allow them to see.
  */
 import { Check, Tag } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import type { T } from "../../i18n";
+import { gsap, reduced } from "../../lib/anim";
+import { confetti, type ConfettiOpts } from "../../lib/confetti";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import type { Level, PrivateView, RoundResult } from "../../shared/straightface/types";
 import { NameFace } from "../common";
 import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightfacePacks";
-import { PACK_ART, ROLE_ART } from "./art";
+import { PACK_ART, ROLE_ART, VERDICT_ART } from "./art";
 import { S } from "./text";
 
 const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
@@ -54,14 +56,46 @@ export function LevelDots({ level }: { level: Level }) {
 const isPack = (p: string | null | undefined): p is Pack => !!p && (PACKS as readonly string[]).includes(p);
 
 /** The word of the round, as big as the screen allows: the whole table reads it, under its pack's picture. */
-export function TermCard({ term, level, lead, big = false, pack, children }: { term: T; level: Level | null; lead?: string; big?: boolean; pack?: string | null; children?: ReactNode }) {
+export function TermCard({
+  term,
+  level,
+  lead,
+  big = false,
+  deal = false,
+  pack,
+  children,
+}: {
+  term: T;
+  level: Level | null;
+  lead?: string;
+  big?: boolean;
+  /** the moment the word goes up: it flips down off the deck and the level dots pop in */
+  deal?: boolean;
+  pack?: string | null;
+  children?: ReactNode;
+}) {
   const { lang } = useStore();
+  const ref = useRef<HTMLDivElement>(null);
+  const word = `${term.zh}|${term.en}`;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!deal || !el || reduced()) return;
+    const q = gsap.utils.selector(el);
+    const tl = gsap.timeline();
+    tl.fromTo(el, { rotateX: -70, y: 40, opacity: 0, transformPerspective: 800, transformOrigin: "50% 0%" }, { rotateX: 0, y: 0, opacity: 1, duration: 0.65, ease: "back.out(1.5)" }, 0);
+    tl.fromTo(q(".sf-term-word"), { scale: 0.86 }, { scale: 1, duration: 0.5, ease: "back.out(2)" }, 0.25);
+    tl.fromTo(q(".sf-dots i"), { scale: 0 }, { scale: 1, duration: 0.25, stagger: 0.09, ease: "back.out(3)" }, 0.45);
+    return () => {
+      tl.progress(1);
+      tl.kill();
+    };
+  }, [deal, word]);
   // a long word (Hippopotomonstrosesquipedaliophobia) gets smaller type instead of breaking mid-word
   const shown = term.zh.trim() !== "" && term.en.startsWith(term.zh) ? term.zh : lang === "zh" ? term.zh : term.en;
   const longest = Math.max(...shown.split(/\s+/).map((w) => [...w].length));
   const fit = longest >= 14 ? "is-xlong" : longest >= 10 ? "is-long" : "";
   return (
-    <div className={`sf-term panel ${big ? "is-big" : ""} ${fit}`}>
+    <div ref={ref} className={`sf-term panel ${big ? "is-big" : ""} ${fit}`}>
       {isPack(pack) && (
         <span className="sf-term-pack">
           <img src={PACK_ART[pack]} alt="" width={28} height={28} />
@@ -259,7 +293,7 @@ export function SpeakerRing({
   return (
     <div className={`sf-speaker ${over ? "is-over" : ""}`}>
       <TimerArc seconds={seconds} running={!over} resetKey={resetKey} size={132} endsAt={endsAt} offset={offset} onEnd={() => setOver(true)} />
-      <div className="sf-speaker-who">
+      <div className="sf-speaker-who" key={resetKey}>
         <span className="hint">
           {say(S.nowSpeaking)} · <span className="tabular">{index + 1}</span>/<span className="tabular">{total}</span>
         </span>
@@ -413,13 +447,68 @@ export function Deltas({ deltas, names }: { deltas: RoundResult["deltas"]; names
   if (!rows.length) return null;
   return (
     <div className="sf-deltas">
-      {rows.map(([id, d]) => (
-        <span key={id} className={`sf-delta ${d > 0 ? "is-up" : "is-down"}`}>
+      {rows.map(([id, d], i) => (
+        <span key={id} className={`sf-delta ${d > 0 ? "is-up" : "is-down"}`} style={{ ["--i" as string]: i } as React.CSSProperties}>
           {names[id]} <b className="tabular">{d > 0 ? `+${d}` : d}</b>
         </span>
       ))}
     </div>
   );
+}
+
+/**
+ * Who was honest, and the judge's fate stamped on beside them: saw through it, or fooled. The honest
+ * one pops in, the judge's picture follows, the stamp slams; a fooled judge's picture shakes, a
+ * right one gets confetti (`onRight`). With reduced motion it is simply there.
+ */
+export function Verdict({ face, name, right, onRight }: { face: ReactNode; name: string; right: boolean; onRight?: () => void }) {
+  const say = useSay();
+  const ref = useRef<HTMLDivElement>(null);
+  const cheer = useRef(onRight);
+  cheer.current = onRight;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || reduced()) return;
+    const q = gsap.utils.selector(el);
+    const tl = gsap.timeline();
+    tl.fromTo(q(".sf-verdict-who"), { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(1.8)" }, 0);
+    tl.fromTo(q(".sf-verdict-art"), { scale: 0.4, opacity: 0, rotate: right ? -12 : 12 }, { scale: 1, opacity: 1, rotate: 0, duration: 0.5, ease: "back.out(1.6)" }, 0.3);
+    tl.fromTo(q(".sf-verdict-stamp"), { scale: 2.6, rotate: -20, opacity: 0 }, { scale: 1, rotate: -7, opacity: 1, duration: 0.4, ease: "back.out(2.2)" }, 0.6);
+    if (right) tl.call(() => cheer.current?.(), [], 0.75);
+    else tl.fromTo(q(".sf-verdict-art"), { x: -12 }, { x: 0, duration: 0.7, ease: "elastic.out(1.4, 0.2)" }, 0.95);
+    return () => {
+      tl.progress(1);
+      tl.kill();
+    };
+  }, [right]);
+  return (
+    <div className={`sf-verdict ${right ? "is-right" : "is-fooled"}`} ref={ref}>
+      <div className="sf-verdict-who">
+        <RoleArt role="honest" size={64} />
+        <span className="hint">{say(S.honestWas)}</span>
+        {face}
+        <strong>{name}</strong>
+      </div>
+      <div className="sf-verdict-judge">
+        <img className="sf-verdict-art" src={VERDICT_ART[right ? "right" : "fooled"]} alt="" width={132} height={132} />
+        <span className="sf-verdict-stamp">{say(right ? S.sawThrough : S.wasFooled)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** The bluffer who fooled the judge, celebrating: the master's panel. */
+export function MasterArt({ size = 96 }: { size?: number }) {
+  return <img className="sf-master-art" src={VERDICT_ART.master} alt="" width={size} height={size} />;
+}
+
+/** A layer over the whole screen for a burst of confetti; nothing with reduced motion. */
+export function useConfetti() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const burst = (opts: ConfettiOpts = {}) => {
+    if (!reduced()) confetti(ref.current, { x: 0.5, y: 0.5, count: 170, spread: 110, power: 19, ...opts });
+  };
+  return { burst, layer: <canvas ref={ref} className="sf-confetti" aria-hidden="true" /> };
 }
 
 /** One of the three parts, drawn: only on screens the whole table may see. */
