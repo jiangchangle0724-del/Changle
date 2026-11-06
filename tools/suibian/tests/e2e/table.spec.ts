@@ -265,8 +265,8 @@ test("picking alone again: places shown last time step back, so new ones come fi
         method: "POST",
         body: JSON.stringify({ center: { lat: 49.1724, lng: -123.1366 }, range: "drive25", answers: { mood: "any", side: "west" }, limits: {}, lang: "zh" }),
       })
-        .then((r) => r.json())
-        .then((r: { cards: { place: { id: string } }[] }) => r.cards.map((c) => c.place.id)),
+        .then((r) => r.json() as Promise<{ cards: { place: { id: string } }[] }>)
+        .then((r) => r.cards.map((c) => c.place.id)),
     );
   const first = await search();
   const second = await search();
