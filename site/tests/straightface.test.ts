@@ -134,6 +134,10 @@ test("straightface: every pack has its table, its picture and enough cards; Chin
   }
   for (const r of ["judge", "honest", "bluffer"]) ok(existsSync(join(here, "src/party/straightface/art/roles", `${r}.webp`)), `the ${r} is drawn`);
   ok(existsSync(join(here, "src/party/straightface/art/backdrop.webp")), "the room behind the game is drawn");
+  for (const v of ["right", "fooled", "master"]) {
+    const f = join(here, "src/party/straightface/art/verdict", `${v}.webp`);
+    ok(existsSync(f) && statSync(f).size < 40_000, `the verdict picture ${v} is drawn, under 40 KB`);
+  }
   const base = cards[0];
   const idiom: Card = { ...base, id: "idiom", term: { zh: "七月流火", en: "七月流火 qī yuè liú huǒ" }, definition: { zh: "七月流火说的是天要转凉。", en: "The heat is ending." } };
   ok(lintDeck([idiom]).length === 0, "a Chinese original may quote itself in its definition");
