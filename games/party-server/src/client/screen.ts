@@ -11,8 +11,10 @@ import { routineById } from "../shared/catalog";
 import { COMBO_FULL, type Floor, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
 import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tr, wsUrl } from "./common";
+import { anyGl, canCoach, doingAt, glowOf } from "./coach/index";
+import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
-import { awardName, awardWhy, bodyHint, clockOf, difficultyName, moveName, moveOther, routineName, stageHint, stageName } from "./words";
+import { awardName, awardWhy, bodyHint, clockOf, difficultyName, moveHow, moveName, moveOther, routineName, stageHint, stageName } from "./words";
 
 /** Calibration: 8 clicks, 1.2 s apart (so a tap up to 400 ms late still pairs with the right click). */
 const CAL_CLICKS = 8;
@@ -59,6 +61,20 @@ let playing: Playing = { key: "", show: null, run: [], zero: null, next: 0, phra
 /** How many times the beats were planned (the checks: the lead running into the dance plans nothing new). */
 let plans = 0;
 let fireworksUntil = 0;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** The 3D coach: undefined until first needed, null when this device can't draw it (the coach in words). */
+let coach3d: CoachStage | null | undefined;
+
+function coachStage(): CoachStage | null {
+  if (coach3d === undefined) {
+    try {
+      coach3d = canCoach() ? new CoachStage(reducedMotion) : null;
+    } catch {
+      coach3d = null;
+    }
+  }
+  return coach3d;
+}
 
 const app = document.getElementById("app")!;
 
@@ -115,7 +131,10 @@ function onMsg(m: ServerMsg) {
     }
     case "floor": {
       const { t: _t, ...f } = m;
-      if (floor && f.bursts > floor.bursts) fireworksUntil = pageClock() + FIREWORKS_MS;
+      if (floor && f.bursts > floor.bursts) {
+        fireworksUntil = pageClock() + FIREWORKS_MS;
+        coach3d?.burst(pageClock());
+      }
       floor = f;
       renderStatus();
       return;
@@ -238,6 +257,7 @@ const parts: {
   hint?: HTMLElement;
   move?: HTMLElement;
   other?: HTMLElement;
+  how?: HTMLElement;
   body?: HTMLElement;
   next?: HTMLElement;
   progress?: HTMLElement;
@@ -378,32 +398,49 @@ function phaseText(): string {
   return "";
 }
 
-/** The coach while a dance plays (for now in words: the 3D coach is task A4). Filled in every frame. */
+/**
+ * The coach while a dance plays: the 3D coach dancing each move on the beat (coach/), with the words
+ * beside it: the stage, the move in both languages and how to do it, the count, what's next. Without
+ * a graphics chip for it, the words alone. Filled in every frame.
+ */
 function coach(): HTMLElement {
-  const box = el("div", "coach");
+  const stage3d = coachStage();
+  const box = el("div", stage3d ? "coach has-3d" : "coach");
   const r = playing.show?.routine;
   const top = el("div", "coach-top");
   top.append(el("p", "coach-dance", r ? `${routineName(r)} · ${difficultyName(r.difficulty)}` : tr("120 拍节拍器", "120 BPM metronome")));
   parts.progress = el("p", "coach-progress");
   top.append(parts.progress);
-  // the words on the left, the count big beside them: the whole coach fits a TV without scrolling
+  // the words beside the count (or beside the 3D coach): the whole coach fits a TV without scrolling
   const main = el("div", "coach-main");
   const words = el("div", "coach-words");
   parts.stage = el("h2", "phase");
   parts.hint = el("p", "lead");
   parts.move = el("p", "coach-move");
   parts.other = el("p", "coach-other");
+  parts.how = el("p", "coach-how");
   parts.body = el("p", "coach-body");
-  words.append(parts.stage, parts.hint, parts.move, parts.other, parts.body);
   parts.count = el("div", "count");
-  main.append(words, parts.count);
   parts.next = el("p", "coach-next");
+  if (stage3d) {
+    const host = el("div", "coach-3d");
+    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.body);
+    const side = el("div", "coach-side");
+    side.append(words, parts.count, parts.next);
+    main.append(host, side);
+    // (after the box is on the page: the canvas takes the host's size)
+    requestAnimationFrame(() => stage3d.attach(host));
+  } else {
+    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.body);
+    main.append(words, parts.count);
+  }
   const fl = el("div", "floor");
   parts.floorBar = el("div", "floor-bar");
   parts.floorBar.append(el("i"));
   parts.floorText = el("span", "floor-text");
   fl.append(parts.floorBar, parts.floorText);
-  box.append(top, main, parts.next, fl);
+  if (stage3d) box.append(top, main, fl);
+  else box.append(top, main, parts.next, fl);
   return box;
 }
 
@@ -497,23 +534,63 @@ function frameCoach(now: number) {
     // before the first beat, or after the last
     parts.stage.textContent = p.run.length && now < p.run[0]!.t ? tr("马上开始", "Starting in a moment") : tr("跳完了", "That's the song");
     parts.hint!.textContent = "";
-    parts.move!.textContent = parts.other!.textContent = parts.body!.textContent = parts.count!.textContent = parts.next!.textContent = parts.progress!.textContent = "";
+    parts.move!.textContent = parts.other!.textContent = parts.how!.textContent = parts.body!.textContent = parts.count!.textContent = parts.next!.textContent = parts.progress!.textContent = "";
     return;
   }
   parts.stage.textContent = stageName(b.stage);
   parts.hint!.textContent = stageHint(b.stage, metronome);
   parts.move!.textContent = b.move ? moveName(b.move) : metronome && b.stage !== "countdown" ? tr("跟着拍子", "With the beat") : "";
   parts.other!.textContent = b.move ? moveOther(b.move) : "";
+  parts.how!.textContent = b.move ? moveHow(b.move) : "";
   parts.body!.textContent = b.move ? bodyHint(b.move) : "";
   parts.count!.textContent = String(b.count);
   parts.next!.textContent = preview ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}${preview.stage !== b.stage && preview.move ? ` · ${stageName(preview.stage)}` : ""}` : "";
   parts.progress!.textContent = into === null ? "" : `${clockOf(into)} / ${clockOf(show.danceMs)}`;
 }
 
+/** The 3D coach's first frames, timed: too slow on this device, and it gives way to the words. */
+const watch3d = { gaps: [] as number[], last: 0 };
+const WATCH_FRAMES = 90;
+const SLOW_FRAME_MS = 50;
+
+/** The 3D coach this frame: the move on the beat the speaker plays now, or standing by. */
+function frame3d(now: number) {
+  const c = coach3d;
+  if (!c) return;
+  if (watch3d.gaps.length < WATCH_FRAMES && !anyGl()) {
+    const t = performance.now();
+    if (watch3d.last && t - watch3d.last < 1000) watch3d.gaps.push(t - watch3d.last);
+    watch3d.last = t;
+    if (watch3d.gaps.length === WATCH_FRAMES) {
+      const mid = [...watch3d.gaps].sort((a, b) => a - b)[WATCH_FRAMES >> 1]!;
+      if (mid > SLOW_FRAME_MS) {
+        c.dispose();
+        coach3d = null;
+        render();
+        return;
+      }
+    }
+  }
+  const p = playing;
+  const spot = spotAt(p.run, now);
+  const f = floor;
+  const hype = f && f.streak ? (f.streak % COMBO_FULL) / COMBO_FULL : 0;
+  if (!spot) {
+    c.frame({ doing: { kind: "idle" }, p: 0, beat: 0, now, glow: { hands: 0, feet: 0 }, hype: 0 });
+    return;
+  }
+  const b = p.run[spot.i]!;
+  const { doing, p: pos } = doingAt(b, spot.frac);
+  c.frame({ doing, p: pos, beat: spot.i + spot.frac, now, glow: glowOf(b.move), hype });
+}
+
 /** Every frame: the coach, the big count, the "I'm here" lights, the timing readout. */
 function frame() {
   const now = pageClock();
-  if (running()) frameCoach(now);
+  if (running()) {
+    frameCoach(now);
+    frame3d(now);
+  }
   else if (parts.count) {
     // (the metronome before its start: nothing to count)
     if (parts.count.textContent) parts.count.textContent = "";

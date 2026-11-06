@@ -43,9 +43,24 @@ instead, `site/src/party/dj/`.)
   screen on), the room code and QR code, the players (a phone's 我在 lights its name),
   calibration (8 clicks 1.2 s apart, the host's taps in speaker time, `calibrateFromTaps()`; three
   tries). While a dance plays: the beat (`src/client/synth.ts`: made with Web Audio, a
-  four-on-the-floor groove until the dances have songs, task A5), and the coach in words: the stage,
-  the move in both languages, the 8-count, the next move 2 beats ahead, the floor, each dancer's
-  meter. Then the results.
+  four-on-the-floor groove until the dances have songs, task A5), the 3D coach dancing each move on
+  the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
+  the 8-count, the next move 2 beats ahead, the floor, each dancer's meter. Then the results.
+- **The 3D coach** (`src/client/coach/`): a cartoon dance teacher built in three.js from rounded
+  shapes (no model file, nothing to license), on a skeleton named like Mixamo's. Each move of the
+  library is a loop of key frames on the beat (`moves.ts`: hands and feet as positions, the way a
+  teacher says it; `pose.ts`: the pose, blending, the bounce on every beat); the arms and legs reach
+  them by two-bone IK (`rig.ts`). It's everyone's mirror: what it does on the screen's left, the
+  players do on their left. The stage (`stage.ts`): lights, a floor ring on the beat, trails behind
+  the hands, footprints where the feet land, fireworks with the floor's. It draws only with a
+  graphics chip (`index.ts`); in software, or when its first 90 frames run slower than 20 a second,
+  the page keeps the coach in words. Reduced motion: it still dances (that's the lesson), the
+  flashes and swinging lights stop.
+- **`/party/moves`** (`src/client/moves.ts`): the 20 moves, each danced by the coach at its own
+  tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
+  `?still=<beat>` stops it there, `?gl=any` draws it in a browser without a graphics chip (the
+  checks' Chromium); `window.coachShow(id, beat)` and `coachTick(id, beat, count, ms)` are for
+  photographing it.
 - **`/party/join`**, a phone (`src/client/join.ts`): code and name, clock sync, a flash on every
   beat the room hears, 我在; while a dance plays, the move, the count, what's next and the big
   button; the player's own results. For the host: calibrate, pick a dance, steer it, the 120 BPM
@@ -53,9 +68,9 @@ instead, `site/src/party/dj/`.)
 - **测量 / Timing** on both pages: the speaker's clock in big digits, for the field test (a photo
   of the two screens side by side shows the error).
 
-These pages are plain on purpose: the real speaker screen and phone screen are Codex's cards C3
-and C4 (`docs/codex-tasks/dance-C3-speaker-screen.md`, `dance-C4-phone-screen.md`). The words
-both pages show are in `src/client/words.ts`.
+The pages are still plain around the coach: the real speaker screen and phone screen are cards C3
+and C4 (`docs/codex-tasks/dance-C3-speaker-screen.md`, `dance-C4-phone-screen.md`), to be rewritten
+around the coach. The words the pages show are in `src/client/words.ts`.
 
 ## Run it
 

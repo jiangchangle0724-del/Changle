@@ -694,3 +694,101 @@ body.fireworks {
     transition: none;
   }
 }
+
+/* ---------- the 3D coach (coach/stage.ts) and the moves page */
+.coach-3d {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  background: radial-gradient(120% 90% at 50% 100%, #2a2161 0%, #151033 55%, #0b091d 100%);
+}
+.coach-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.is-moves .moves-page {
+  display: grid;
+  gap: 16px;
+}
+.moves-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 20px;
+  height: min(72vh, 640px);
+}
+.moves-stage .coach-3d {
+  height: 100%;
+}
+.moves-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+.coach-how {
+  margin: 4px 0 0;
+  font-size: clamp(1.1rem, 2vw, 1.8rem);
+  line-height: 1.5;
+  color: var(--ink);
+}
+.coach-how:empty {
+  display: none;
+}
+/* the TV with the 3D coach: the coach big on the left, the words and the count beside it */
+.coach.has-3d .coach-main {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 24px;
+}
+.coach.has-3d .coach-3d {
+  height: min(63vh, 760px);
+}
+.coach-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+.coach.has-3d .coach-move {
+  font-size: clamp(2rem, 4.4vw, 4.6rem);
+}
+.coach.has-3d .count {
+  font-size: clamp(4.5rem, 19vh, 12rem);
+  text-align: left;
+}
+.coach.has-3d .coach-next {
+  font-size: clamp(1.2rem, 2.4vw, 2.2rem);
+}
+@media (max-width: 760px) {
+  .coach.has-3d .coach-main {
+    grid-template-columns: 1fr;
+  }
+  .coach.has-3d .coach-3d {
+    height: 52vh;
+  }
+}
+.moves-ctl {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.moves-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+@media (max-width: 760px) {
+  .moves-stage {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .moves-stage .coach-3d {
+    height: 62vh;
+  }
+}
