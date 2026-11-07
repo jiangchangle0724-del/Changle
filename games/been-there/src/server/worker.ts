@@ -84,6 +84,12 @@ async function weather(ctx: ExecutionContext): Promise<Response> {
 const reportsFrom = makeLimiter();
 const reportBox = (env: Env) => env.REPORTS.get(env.REPORTS.idFromName("all"));
 
+/** A report refused: why and how big, in the logs (never what it said). */
+function refused(why: string, req: Request, bytes: number): Response {
+  console.warn(JSON.stringify({ refused: why, bytes, type: req.headers.get("content-type") ?? "" }));
+  return new Response(null, { status: 400 });
+}
+
 /** A page's report: checked, cut short, written to the logs and kept in the box. */
 async function report(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const text = await req.text().catch(() => "");
@@ -92,10 +98,10 @@ async function report(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
   try {
     body = JSON.parse(text);
   } catch {
-    return new Response(null, { status: 400 });
+    return refused("not JSON", req, text.length);
   }
   const r = readReport(body);
-  if (!r) return new Response(null, { status: 400 });
+  if (!r) return refused("not a report", req, text.length);
   if (!reportsFrom(req.headers.get("cf-connecting-ip") ?? "?", Date.now())) return new Response(null, { status: 429 });
   const browser = browserOf(req.headers.get("user-agent") ?? "");
   // (Cloudflare's logs for the worker keep this line too: the dashboard's Workers Logs)

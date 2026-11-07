@@ -81,8 +81,9 @@ function send(kind: ReportKind, msg: string, stack: string, ms?: number) {
   const text = JSON.stringify(body);
   const url = `${BASE}/api/report`;
   try {
-    // (text/plain: a simple request, which a page about to close still sends)
-    if (navigator.sendBeacon?.(url, new Blob([text], { type: "text/plain" }))) return;
+    // (As text: a simple request, text/plain, which a page about to close still sends. Not a Blob: in
+    // the WebKit tests a Blob's beacon sent just after the page froze reached the server unreadable.)
+    if (navigator.sendBeacon?.(url, text)) return;
   } catch {
     // fall through to fetch
   }

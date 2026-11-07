@@ -76,7 +76,8 @@ export function ReportCard({ v, big }: { v: RoomView; big?: boolean }) {
   const file = pic?.file ?? null;
   const canShare = !!file && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
   return (
-    <section class={`report${big ? " big" : ""}`} aria-label={t("reportTitle")}>
+    // (on the big screen, two awards a row: a fifth takes a third, `many`)
+    <section class={`report${big ? " big" : ""}${big && list.length > 4 ? " many" : ""}`} aria-label={t("reportTitle")}>
       <h2>{t("reportTitle")}</h2>
       {list.length > 0 && (
         // (not a <ul>: on the big screen the card sits in the standings' list, whose rows are its <li>s)

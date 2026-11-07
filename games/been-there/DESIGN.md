@@ -63,7 +63,9 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   (`ui/reportPicture.ts`), shown in a sheet to press and hold (a data address, which WeChat saves too),
   share where the phone can, or download. The big screen has no room for both, so once the teams are
   in, the standings' column turns between them and the card every 12 s, beside the winners' card,
-  sized in `vh` to fit 1280×720.
+  sized in `vh` to fit 1280×720 (five awards take a third row, and the chart gives up a little height
+  for it). A game started at a table has the way back to it in the big screen's top corner, beside
+  the exit stamp, where it takes no height from the results.
 * **The printed things are drawn in code** (SVG, CSS, a canvas for the paper grain) and the sounds are
   synthesised in the browser. What's real comes as files, each credited: the cities' photos and
   recordings (below), the songs (streamed from Apple), the satellite pictures of the world, and the
