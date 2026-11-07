@@ -138,8 +138,8 @@ Connected to Cloudflare on 1 November 2026: like 随便, merging into `main` dep
 `party` (Workers Builds; the name must match `name` in `wrangler.jsonc`): root directory
 `/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy` (it
 also makes the songbook's Durable Object, migration `v2`, the first time), build
-watch paths `games/party-server/*` and `games/party-base/*` (and, since the pages and the room read
-the move library, `games/dance/*`: to add in the Cloudflare settings), API token "suibian build
+watch paths `games/party-server/*`, `games/party-base/*` and `games/dance/*` (the pages and the room
+read the move library; `games/dance/*` added on 6 November), API token "suibian build
 token". Builds for preview branches are off (`wrangler preview` needs a `previews` block, and the
 Durable Object isn't in previews), so PRs get no failed Cloudflare check. No secrets, no database
 (the Durable Object comes with the deploy). `changle.ca/party/screen` and `changle.ca/party/join`
