@@ -78,8 +78,6 @@
 
 ## 还剩什么
 
-- Cloudflare：Worker `party` 的 build watch paths 加 `games/dance/*`。房间和页面读动作库，不加的话，只改了 `games/dance` 的合并不会重新部署。在 Cloudflare 打开 Worker `party`，Settings → Build 里的 Build watch paths 加一行 `games/dance/*`，保存。不急：以后只改 `games/dance` 的合并才需要它。
-- 这一处要登录。11-05 这个对话在 Steve 电脑上的浏览器里打开过，Cloudflare 没登录，没改。Steve 自己改，或者登录以后让这个对话来点。
 - 真机测试（要 Steve）：Mac 或 iPad 投到 Apple TV，iPhone 扫码。
   - 老师在电视上流不流畅（没显卡或者太慢会自动换回文字）。
   - 体感：手机拿在手里跳，看手机说「踩准了」准不准。阈值 2.2 m/s² 是按经验定的，不准就调 `src/shared/peaks.ts`。iPhone 第一次要点「开体感」允许。
@@ -126,3 +124,4 @@
 - 2026-11-05 晚上 Steve 说「合并」：按顺序合并 #266、#272、#283（后两个合并前把目标改成 main，CI 都绿，和 main 没冲突）。Cloudflare 部署好以后在正式站上查过，都对（见「现在」）。Project 说明里的仓库名 Steve 自己改好了，从「还剩什么」拿掉。
 - 2026-11-05 晚上 Steve 说「上线」：首页的一起跳从「即将上线」挪进游戏里。要改的是主站的游戏卡、路由和规则引擎的表（`GameId` 一加，引擎的 `GAMES`、`ONLINE_MIN` 都要有它），不是一行，按规矩写进「交给别的对话」给「平台 · 首页与上线」，连卡片的中英文字一起。
 - 2026-11-06 「平台 · 首页与上线」做完（#293）：首页游戏里有一起跳，不在「即将上线」了。正式站上查过：卡片在游戏里，点开是「电视或电脑当舞台」和「用手机加入」，`/g/dance-along/play` 直接到 `/party/screen`。按 Steve 说的，拿掉「还剩什么」和「交给别的对话」里那两条。
+- 2026-11-06 Steve 让这个对话去点 Cloudflare：他电脑上的浏览器已经登录，Worker `party` 的 Build watch paths 加了 `games/dance/*`，保存后刷新看过还在（现在是 `games/party-server/*`、`games/party-base/*`、`games/dance/*`）。从「还剩什么」拿掉，README 和 HANDOFF 那一行跟着改。
