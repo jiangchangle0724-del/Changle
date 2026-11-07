@@ -46,11 +46,13 @@ export const audioNow = () => ctx?.currentTime ?? 0;
 export const audioCtx = (): AudioContext | null => (ctx && ctx.state !== "closed" ? ctx : null);
 
 /**
- * Where a local hit plays (music.ts): under the game's own sounds, which duck it while they play. Every
- * sound below calls `duck` with when it ends; nothing is done while no song is on.
+ * Where a local hit (music.ts) and the game's own music (bgm.ts) play: under the game's own sounds,
+ * which duck them while they play. Every sound below calls `duck` with when it ends; nothing is done
+ * while neither is on.
  */
 let bus: GainNode | null = null;
 let songOn = false;
+let themeOn = false;
 let duckEnd = 0;
 /** How far a song dips under a game sound, and how quickly it comes back. */
 const DUCK = 0.3;
@@ -68,11 +70,17 @@ export function musicBus(): GainNode | null {
 /** A song is on (or isn't): game sounds duck it from now on. */
 export function setSongOn(on: boolean) {
   songOn = on;
-  if (!on) duckEnd = 0;
+  if (!songOn && !themeOn) duckEnd = 0;
+}
+
+/** The game's music is on (or isn't): game sounds duck it too. */
+export function setThemeOn(on: boolean) {
+  themeOn = on;
+  if (!songOn && !themeOn) duckEnd = 0;
 }
 
 function duck(until: number) {
-  if (!songOn || !bus || !ctx) return;
+  if ((!songOn && !themeOn) || !bus || !ctx) return;
   const now = ctx.currentTime;
   duckEnd = Math.max(duckEnd, until);
   const g = bus.gain;

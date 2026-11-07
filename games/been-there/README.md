@@ -47,6 +47,14 @@ the foot to move lit up. Full screen on the dancing team's phone, small over the
 (which light up when it's over), big on the big screen. A computer team dances a short one straight
 away.
 
+The game's music: "Boarding Call", a 1930s swing written for the game (clarinet, muted trumpet,
+piano, rhythm guitar, upright bass, brushes), going round from the game's start to its end, and its
+ending with the results. One device plays it for the room (the big screen, otherwise the host's
+phone), under the game's sounds; it comes down for a local hit, a city's recording, Seoul's silence,
+Rio's samba, a forfeit and a pause. The menu's 背景音乐 turns it off on a device. The score is code
+(`scripts/music/score.mjs`); `npm run music` plays and mixes it (FluidSynth with the GeneralUser GS
+SoundFont, and ffmpeg) into the files in `src/client/media/music`.
+
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
 ## How it sits inside changle.ca
@@ -81,7 +89,7 @@ How the game looks and moves, and what a design change has to keep: [DESIGN.md](
 | `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |
 | `src/client/fonts` | Font subsets made by `npm run fonts` (SIL Open Font License; licences alongside). |
 | `src/local` | The single-device demo (`dist/demo.html`): the same client with the room running in the page. |
-| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the drawn map; `satellite.mjs` remakes the satellite pictures from NASA's (needs ImageMagick with WebP). |
+| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the drawn map; `satellite.mjs` remakes the satellite pictures from NASA's (needs ImageMagick with WebP); `music.mjs` makes the music from the score in `music/` (needs FluidSynth 2.3+ and ffmpeg with LAME; it fetches the GeneralUser GS SoundFont from GitHub once). |
 | `src/samples` | The step-5 style sheet (three art directions side by side), built to `dist/styles.html`. |
 | `tests` | Engine and room tests (Node), and phone-in-a-browser tests (`tests/e2e`, Playwright). |
 
@@ -107,6 +115,7 @@ npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its 
                      # the map's size, shared cities and every key screen on 390x844, 375x667 and 320x568
 npm run sim          # print the step-3 report numbers again
 npm run fonts        # after adding Chinese text: rebuild the font subsets (a test reminds you)
+npm run music        # after changing the score (scripts/music/score.mjs): make the music again
 npm run build        # then open dist/demo.html: the whole game on one page
 ```
 
