@@ -163,13 +163,17 @@ def run(lang):
 
         # the reveal, line by line; the honest one must not be on screen before the fun fact
         check(pg.locator(".sf-reveal-item").count() == 1, "the reveal starts with one line")
-        check(pg.locator(".sf-honest").count() == 0, "the honest one is not the first line")
+        check(pg.locator(".sf-verdict").count() == 0, "the honest one is not the first line")
         snap(pg, "reveal-1")
         pg.wait_for_timeout(1000)
-        check(pg.locator(".sf-fact").count() == 1 and pg.locator(".sf-honest").count() == 0, "the fun fact comes before the honest one")
+        check(pg.locator(".sf-fact").count() == 1 and pg.locator(".sf-verdict").count() == 0, "the fun fact comes before the honest one")
         pg.wait_for_timeout(2900)
-        check(pg.locator(".sf-honest").count() == 1, "then the honest one")
+        check(pg.locator(".sf-verdict").count() == 1, "then the honest one")
         snap(pg, "reveal-all")
+        # the verdict itself: the honest one, and the judge's fate stamped on
+        pg.locator(".sf-verdict").scroll_into_view_if_needed()
+        pg.wait_for_timeout(1300)
+        pg.locator(".sf-verdict").screenshot(path=os.path.join(OUT, f"{shot_n:02d}-verdict.png"))
         # penalties: a stamp when the judge was fooled or a tag caught a bluffer
         t0 = time.time()
         while time.time() - t0 < 20:
@@ -179,6 +183,7 @@ def run(lang):
                 pg.wait_for_timeout(900)
                 continue
             if pg.locator(".sf-master").count():
+                pg.locator(".sf-master").scroll_into_view_if_needed()
                 snap(pg, "master-picks")
                 pg.locator(".sf-master .nominee").first.click()
                 pg.wait_for_timeout(600)

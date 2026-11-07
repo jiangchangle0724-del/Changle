@@ -13,7 +13,7 @@ Always:
 
 | Card | What | Files |
 | --- | --- | --- |
-| [drama-C1](C1-art.md) | Nine backdrops: the film set for famous scenes, and one for each community's stories | `site/public/drama/`, `site/src/data/dramaArt.ts` |
+| [drama-C1](C1-art.md) | Nine backdrops: the film set for famous scenes, and one for each community's stories (done, #271) | `site/public/drama/`, `site/src/data/dramaArt.ts` |
 
 What to send Codex:
 

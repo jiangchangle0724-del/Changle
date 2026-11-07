@@ -175,6 +175,18 @@ const S = {
   language: ["语言", "Language"],
   sound: ["声音", "Sound"],
   muteHint: ["电脑上按 M 也能静音", "Press M on a computer to mute"],
+  // the game's music (bgm.ts, ui/Bgm.tsx)
+  musicSetting: ["背景音乐", "Music"],
+  musicHint: [
+    "一屋子只在一台设备上放：有大屏就大屏放，没有就房主的手机",
+    "One device plays it for the room: the big screen if there is one, otherwise the host's phone",
+  ],
+  creditsMusic: ["配乐", "Music"],
+  creditsMusicText: [
+    "「登机广播」和它的结尾是为到此一游写的 1930 年代摇摆爵士：单簧管、弱音小号、钢琴、节奏吉他、低音提琴和鼓刷。乐器的声音来自 S. Christian Collins 的 GeneralUser GS 音色库，可以自由用来做音乐，商用也可以。",
+    "\"Boarding Call\" and its ending are 1930s swing written for the game: clarinet, muted trumpet, piano, rhythm guitar, upright bass and brushes. The instruments' sounds are the GeneralUser GS SoundFont by S. Christian Collins, free to use for making music, commercially too.",
+  ],
+  creditsMusicLicence: ["GeneralUser GS 许可证 2.0", "GeneralUser GS License v2.0"],
   on: ["开", "On"],
   off: ["关", "Off"],
   reduceMotion: ["减少动画", "Reduce motion"],
