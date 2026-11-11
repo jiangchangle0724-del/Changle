@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { T } from "../../i18n";
 import { gsap, reduced } from "../../lib/anim";
 import { upOf } from "../sensors";
+import "./postit.css";
 import "./heads.css";
 
 /** How far the stage turns (degrees clockwise) so the word reads upright to the room. */
@@ -120,7 +121,12 @@ function Word({ word, zh }: { word: T; zh: boolean }) {
     const b = box.current;
     const m = main.current;
     if (!b || !m) return;
-    const fit = () => fitWord(b, m);
+    const fit = () => {
+      fitWord(b, m);
+      // (the note that will leave with this word shows it at the same size)
+      const size = b.style.getPropertyValue("--word");
+      if (size) b.closest<HTMLElement>(".heads-turn")?.style.setProperty("--word", size);
+    };
     fit();
     // the display font may still be on its way: once it is in, the word is measured again
     let live = true;
@@ -158,12 +164,18 @@ function Word({ word, zh }: { word: T; zh: boolean }) {
   );
 }
 
+/** What just happened to the note on the forehead: got it (peeled off), a pass (flicked away), time's up. */
+export type Flash = "ok" | "pass" | "time";
+
+const STAMP: Record<Flash, [string, string]> = { ok: ["对！", "Got it!"], pass: ["跳过", "Pass"], time: ["时间到", "Time's up"] };
+
 /**
- * One phone, the forehead game while it plays: the whole screen is the card the room reads. The
- * countdown, then the clock, the score and the word, turned to read upright however the phone is
- * held. Tapping it stands in for the nod: the lower half is got it (like nodding down), the upper
- * half a pass (like tipping back), which reads the same for the one holding it, screen out, as for
- * the room.
+ * One phone, the forehead game while it plays: the screen is a pad of sticky notes the room reads,
+ * turned to stand upright however the phone is held. The countdown, then the clock, the score and
+ * the word on the top note. Got it: the note is stamped and peeled off; a pass: stamped and flicked
+ * away; under it the next sheet of the pad, where the next word appears. Tapping it stands in for
+ * the nod: the lower half is got it (like nodding down), the upper half a pass (like tipping back),
+ * which reads the same for the one holding it, screen out, as for the room.
  */
 export function HeadsStage({
   count,
@@ -181,38 +193,66 @@ export function HeadsStage({
   zh: boolean;
   left: number;
   score: number;
-  flash: "ok" | "pass" | null;
+  /** while it is set, `word` is the one just scored: it leaves on the top note */
+  flash: Flash | null;
   tilt: { beta: number; gamma: number } | null;
   onAnswer: (ok: boolean) => void;
 }) {
   const { turn, w, h, stage } = useTurn(tilt);
+  const hurry = count === null && left <= 10;
   return (
     <div className={`heads-stage ${flash ? `is-${flash}` : ""}`} ref={stage}>
       <div className={`heads-turn is-turn-${turn < 0 ? "left" : turn}`} style={{ width: w || undefined, height: h || undefined, rotate: `${turn}deg` }} data-turn={turn}>
-        {count !== null ? (
-          <span className="heads-count tabular" key={count}>
-            {count}
+        {/* the sheets of the pad under the top one */}
+        <span className="heads-pad" aria-hidden="true" />
+        <div className="heads-note note">
+          {count !== null ? (
+            <span className="heads-count tabular" key={count}>
+              {count}
+            </span>
+          ) : (
+            <>
+              <div className="heads-top">
+                <span className={`heads-time tabular ${hurry ? "is-hurry" : ""}`} key={hurry ? left : "calm"} aria-label={zh ? `还剩 ${left} 秒` : `${left} seconds left`}>
+                  {left}
+                </span>
+                <span className="heads-score tabular" aria-label={zh ? `猜对 ${score} 个` : `${score} right`}>
+                  <Check size={18} strokeWidth={3} aria-hidden="true" />
+                  <span className="heads-score-n" key={score}>
+                    {score}
+                  </span>
+                </span>
+              </div>
+              <span className="heads-hint is-pass" aria-hidden="true">
+                <ArrowUp size={16} strokeWidth={2.6} />
+                {zh ? "跳过" : "Pass"}
+              </span>
+              {/* (while a note leaves, the sheet under it is still blank) */}
+              {flash && flash !== "time" ? <span className="heads-middle" /> : word && <Word word={word} zh={zh} />}
+              <span className="heads-hint is-ok" aria-hidden="true">
+                <ArrowDown size={16} strokeWidth={2.6} />
+                {zh ? "猜对" : "Got it"}
+              </span>
+            </>
+          )}
+        </div>
+        {/* got it, or a pass: the top note, stamped, leaves the pad; time's up: the stamp lands on it */}
+        {flash && flash !== "time" && word && (
+          <div className={`heads-leaving note is-${flash}`} aria-hidden="true">
+            <span className="heads-leaving-word">{zh ? word.zh : word.en}</span>
+            <span className={`heads-stamp is-${flash}`}>{STAMP[flash][zh ? 0 : 1]}</span>
+          </div>
+        )}
+        {flash === "time" && (
+          <span className="heads-stamp is-time" aria-hidden="true">
+            {STAMP.time[zh ? 0 : 1]}
           </span>
-        ) : (
+        )}
+        <span className="heads-said" role="status">
+          {flash ? STAMP[flash][zh ? 0 : 1] : ""}
+        </span>
+        {count === null && (
           <>
-            <div className="heads-top">
-              <span className="heads-time tabular" aria-label={zh ? `还剩 ${left} 秒` : `${left} seconds left`}>
-                {left}
-              </span>
-              <span className="heads-score tabular" aria-label={zh ? `猜对 ${score} 个` : `${score} right`}>
-                <Check size={18} strokeWidth={3} aria-hidden="true" />
-                {score}
-              </span>
-            </div>
-            <span className="heads-hint is-pass" aria-hidden="true">
-              <ArrowUp size={16} strokeWidth={2.6} />
-              {zh ? "跳过" : "Pass"}
-            </span>
-            {flash ? <span className="heads-flash">{flash === "ok" ? (zh ? "对！" : "Got it!") : zh ? "跳过" : "Pass"}</span> : word && <Word word={word} zh={zh} />}
-            <span className="heads-hint is-ok" aria-hidden="true">
-              <ArrowDown size={16} strokeWidth={2.6} />
-              {zh ? "猜对" : "Got it"}
-            </span>
             <button type="button" className="heads-zone heads-pass" aria-label={zh ? "跳过" : "Pass"} disabled={!!flash} onClick={() => onAnswer(false)} />
             <button type="button" className="heads-zone heads-ok" aria-label={zh ? "猜对" : "Got it"} disabled={!!flash} onClick={() => onAnswer(true)} />
           </>

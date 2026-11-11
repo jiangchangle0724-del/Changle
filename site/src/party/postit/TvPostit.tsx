@@ -1,9 +1,12 @@
 import { Check, X } from "lucide-react";
+import type { CSSProperties } from "react";
 import { deckName } from "../../data/postit";
 import type { PostitReply, PostitView } from "../../shared/protocol";
 import { Bi, DoneBadge, FacesIn, RoundTag, TvClock, TvLineup, TvShow, useArrivals, useLang, useSeats, type Person } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
 import { SeatFace } from "../../online/People";
+import { ART } from "./art";
+import { paper } from "./feel";
 import "../../styles/tv-postit.css";
 
 const WRITE_MS = 75_000;
@@ -25,6 +28,10 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
   const { seat, name } = useSeats();
   const table = v.order.map((pid) => seat(pid)).filter((s): s is NonNullable<typeof s> => !!s);
   useArrivals(Object.keys(v.replies), sound);
+  // the paper's own sounds, in the room: a note pressed on as each is written, one turned over as
+  // each is guessed (the chime, the buzzer and the win are the table's: useScreenFx)
+  useArrivals(v.phase === "write" ? v.written : [], sound, paper.stick);
+  useArrivals(v.solved, sound, paper.turn);
 
   if (v.phase === "write") {
     const people: Person[] = table.map((s) => ({ seat: s, state: v.written.includes(s.id) ? "ready" : "idle", badge: v.written.includes(s.id) ? <DoneBadge /> : undefined }));
@@ -54,13 +61,17 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
     const n = v.notes[pid];
     return n && (done || v.solved.includes(pid)) ? tr(n) : null;
   };
-  const people: Person[] = table.map((s) => {
+  const people: Person[] = table.map((s, i) => {
     const word = note(s.id);
     return {
       seat: s,
       // (at the end, only whoever drinks the glass has lost: not someone still guessing when the others went home)
       state: !done && s.id === v.turn ? "spot" : v.solved.includes(s.id) ? "win" : done && (v.last === undefined || v.last === s.id) ? "lose" : "idle",
-      tag: <span className={`tvp-note ${word ? "is-open" : ""}`}>{word ?? "?"}</span>,
+      tag: (
+        <span className={`tvp-note ${word ? "is-open" : ""}`} style={{ "--i": done ? i : 0 } as CSSProperties}>
+          {word ?? "?"}
+        </span>
+      ),
     };
   });
   const g = v.guess;
@@ -70,9 +81,12 @@ export default function TvPostit({ v, sound }: TvViewProps<PostitView>) {
     <TvShow game="postit" className={`tvp is-${v.phase}`} phase={v.phase} round={tag}>
       <div className="tvp-board">
         {done ? (
-          <h1 className="tvp-head">
-            <Bi t={{ zh: "都揭晓了", en: "Every note, revealed" }} />
-          </h1>
+          <div className="tvp-end">
+            <img className="tvp-cheer" src={ART.cheer} alt="" width={640} height={640} decoding="async" />
+            <h1 className="tvp-head">
+              <Bi t={{ zh: "都揭晓了", en: "Every note, revealed" }} />
+            </h1>
+          </div>
         ) : (
           <>
             <p className="tvp-turn">

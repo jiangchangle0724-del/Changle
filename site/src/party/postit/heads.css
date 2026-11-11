@@ -1,8 +1,10 @@
 /*
  * 额头便利贴 on one phone (HeadsStage.tsx, Postit.tsx): the phone on a forehead, screen out.
- * The yellow stage is the card the room reads, turned to stand upright however the phone is held;
- * around it, the how-to chips on the "up next" curtain and the list after each turn.
- * (The online game's styles are in styles/party.css.)
+ * The screen is a pad of sticky notes on the night table, lit from above by the game's lamp; the
+ * room reads the top note, turned to stand upright however the phone is held. Got it: the note is
+ * stamped and peeled off up and away; a pass: stamped and flicked off sideways; time's up: the
+ * stamp lands on it. Around it, the how-to chips on the curtain before each turn.
+ * (The paper itself, .note, and the rest of the game: postit.css.)
  */
 
 /* "nod down: got it / tip back: pass", on the curtain before each turn */
@@ -20,6 +22,7 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--r-pill);
   background: var(--color-sheet);
+  box-shadow: var(--shadow-flat);
   font-size: var(--text-sm);
   font-weight: 700;
 }
@@ -34,25 +37,43 @@
   inset: 0;
   z-index: 40;
   overflow: hidden;
-  background: var(--gel-lemon);
-  color: var(--color-on-accent);
+  /* the table at night, under the game's own lamp */
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in oklab, var(--paper) 22%, transparent), transparent 70%),
+    var(--color-bg);
+  color: var(--paper-ink);
   text-align: center;
-  transition: background-color var(--dur-enter) var(--ease-out);
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
 }
-.heads-stage.is-ok {
-  background: var(--color-success);
+/* a moment's light in the color of what just happened */
+.heads-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
 }
-.heads-stage.is-pass {
-  background: var(--gel-tangerine);
+.heads-stage.is-ok::after,
+.heads-stage.is-pass::after,
+.heads-stage.is-time::after {
+  animation: heads-glow calc(var(--dur-emphasis) + var(--dur-exit)) var(--ease-out);
+}
+.heads-stage.is-ok::after {
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--color-success) 55%, transparent), transparent);
+}
+.heads-stage.is-pass::after {
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--gel-tangerine) 50%, transparent), transparent);
+}
+.heads-stage.is-time::after {
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--color-danger) 50%, transparent), transparent);
 }
 
 /*
- * The card itself, turned with the phone (HeadsStage sets its size and turn). The clock and score
- * along its top, "pass" under them, the word in the middle, "got it" at the bottom; the two tap
- * halves lie over it all. Its padding keeps clear of the notch and the home bar, wherever they are.
+ * The pad, turned with the phone (HeadsStage sets its size and turn). Its padding keeps the notes
+ * clear of the notch and the home bar, wherever they are; the two tap halves lie over it all. The
+ * top note, the one leaving and the sheets under them share the one cell.
  */
 .heads-turn {
   position: absolute;
@@ -62,23 +83,51 @@
   height: 100%;
   translate: -50% -50%;
   display: grid;
-  /* one column the card's own width: a big word must not widen it (it gets smaller instead) */
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  justify-items: center;
-  gap: var(--space-2);
-  padding: calc(var(--safe-top) + var(--space-3)) max(var(--space-4), env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + var(--space-3)) max(var(--space-4), env(safe-area-inset-left, 0px));
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  /* (depth for the note peeling off; and the stamp is sized by the pad it lands on) */
+  perspective: 1400px;
+  container-type: size;
+  padding: calc(var(--safe-top) + var(--space-2)) max(var(--space-2), env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + var(--space-3)) max(var(--space-2), env(safe-area-inset-left, 0px));
   transition: rotate var(--dur-emphasis) var(--ease-out);
 }
 /* turned a quarter on a page that stayed upright: the notch is now at one side, the home bar at the other */
 .heads-turn.is-turn-90 {
-  padding: var(--space-3) calc(var(--safe-bottom) + var(--space-4)) var(--space-3) calc(var(--safe-top) + var(--space-4));
+  padding: var(--space-2) calc(var(--safe-bottom) + var(--space-3)) var(--space-3) calc(var(--safe-top) + var(--space-2));
 }
 .heads-turn.is-turn-left {
-  padding: var(--space-3) calc(var(--safe-top) + var(--space-4)) var(--space-3) calc(var(--safe-bottom) + var(--space-4));
+  padding: var(--space-2) calc(var(--safe-top) + var(--space-2)) var(--space-3) calc(var(--safe-bottom) + var(--space-3));
 }
 .heads-turn.is-turn-180 {
-  padding: calc(var(--safe-bottom) + var(--space-3)) var(--space-4) calc(var(--safe-top) + var(--space-3));
+  padding: calc(var(--safe-bottom) + var(--space-3)) var(--space-2) calc(var(--safe-top) + var(--space-2));
+}
+.heads-note,
+.heads-leaving,
+.heads-pad {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+  /* room at the foot for the edges of the sheets underneath */
+  margin-bottom: var(--space-2);
+}
+/* the sheets underneath: their edges, a shade darker each, below the top one */
+.heads-pad {
+  border-radius: var(--paper-corner) var(--paper-corner) var(--space-3) var(--paper-corner);
+  background: color-mix(in oklab, var(--paper) 80%, var(--night));
+  translate: 0 var(--space-1);
+  box-shadow:
+    0 var(--space-1) 0 -1px color-mix(in oklab, var(--paper) 62%, var(--night)),
+    var(--paper-shadow);
+}
+.heads-note {
+  --glue: clamp(14px, 3.2vmin, 22px);
+  display: grid;
+  /* one column the note's own width: a big word must not widen it (it gets smaller instead) */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: calc(var(--glue) + var(--space-2)) var(--space-4) var(--space-3);
+  border-radius: var(--paper-corner) var(--paper-corner) var(--space-3) var(--paper-corner);
 }
 
 /* 3, 2, 1 */
@@ -96,16 +145,34 @@
 .heads-top {
   justify-self: stretch;
   display: flex;
+  align-items: center;
   justify-content: space-between;
   font-family: var(--font-display);
   font-size: var(--text-2xl);
   font-weight: 800;
   line-height: var(--leading-tight);
 }
+/* the clock: plain ink, then in the last ten seconds a red tag that beats with each one */
+.heads-time {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.2em;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--r-pill);
+}
+.heads-time.is-hurry {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+  animation: heads-beat var(--dur-emphasis) var(--ease-pop);
+}
 .heads-score {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+}
+.heads-score-n {
+  display: inline-block;
+  animation: heads-bump var(--dur-emphasis) var(--ease-pop);
 }
 
 /* what a tap on each half means (a nod and a tip back do the same) */
@@ -113,10 +180,9 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  color: var(--paper-ink-2);
   font-size: var(--text-sm);
   font-weight: 700;
-  /* night at three quarters on the bright stage: still 7:1 */
-  opacity: 0.76;
 }
 
 /* the word fills what is left; HeadsStage sets --word to the biggest size that fits (fitWord) */
@@ -152,32 +218,103 @@
 }
 .heads-word > small {
   max-width: 100%;
+  color: var(--paper-ink-2);
   font-size: max(var(--text-lg), calc(var(--word, var(--text-3xl)) * 0.34));
   font-weight: 700;
   line-height: var(--leading-tight);
-  opacity: 0.76;
   text-wrap: balance;
 }
-.heads-flash {
-  place-self: center;
+
+/* the note on its way off the pad, with the word it had */
+.heads-leaving {
+  --glue: clamp(14px, 3.2vmin, 22px);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  border-radius: var(--paper-corner) var(--paper-corner) var(--space-3) var(--paper-corner);
+  box-shadow: var(--paper-shadow-up);
+  transform-origin: 0% 0%;
+  will-change: transform, opacity;
+}
+.heads-leaving-word {
   font-family: var(--font-display);
-  font-size: var(--text-4xl);
+  font-size: var(--word, var(--text-3xl));
   font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: var(--leading-tight);
+  /* (as on the note: whole words, the spaces between them wrap) */
+  overflow-wrap: normal;
+  text-wrap: balance;
+  opacity: 0.55;
+}
+/* got it: lifted at the corner, peeled up and away */
+.heads-leaving.is-ok {
+  animation: heads-peel calc(var(--dur-emphasis) + var(--dur-exit)) var(--ease-out) both;
+}
+/* a pass: flicked off to the side */
+.heads-leaving.is-pass {
+  transform-origin: 100% 100%;
+  animation: heads-flick calc(var(--dur-emphasis) + var(--dur-exit)) var(--ease-out) both;
 }
 
-/* the two tap halves, over the whole card: the upper one passes, the lower one is got it */
+/* the stamp: pressed on the note as it goes */
+.heads-stamp {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--r-field);
+  max-width: 88cqi;
+  font-family: var(--font-display);
+  /* (64px, or less on a narrow note: "Time's up" stays whole and inside it) */
+  font-size: min(var(--text-4xl), 13cqi);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  rotate: -8deg;
+  box-shadow: 0 0 0 4px var(--paper), 0 0 0 6px currentColor;
+  animation: heads-stamp var(--dur-enter) var(--ease-pop) both;
+}
+.heads-leaving .heads-stamp {
+  position: absolute;
+}
+.heads-stamp.is-ok {
+  background: var(--color-success);
+  color: var(--color-on-accent);
+}
+.heads-stamp.is-pass {
+  background: var(--gel-tangerine);
+  color: var(--color-on-accent);
+}
+.heads-stamp.is-time {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+/* said to someone listening, never seen */
+.heads-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* the two tap halves, over the whole pad: the upper one passes, the lower one is got it */
 .heads-zone {
   position: absolute;
   left: 0;
   right: 0;
-  z-index: 1;
+  z-index: 3;
   height: 50%;
   border: 0;
   background: transparent;
 }
 .heads-zone:focus-visible {
-  outline: 3px solid var(--color-on-accent);
+  outline: 3px solid var(--paper-ink);
   outline-offset: -6px;
 }
 .heads-pass {
@@ -187,33 +324,75 @@
   bottom: 0;
 }
 
-/* after each turn: the words, right ones ticked */
-.heads-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+/* ---------- motion ---------- */
+/* (the stamp lands first, then the note goes: the room sees which it was) */
+@keyframes heads-peel {
+  0%,
+  30% {
+    transform: none;
+  }
+  45% {
+    transform: rotateX(-10deg) rotateZ(-1.5deg);
+  }
+  100% {
+    transform: translate(18%, -115%) rotateX(-28deg) rotateZ(14deg);
+    opacity: 0;
+  }
 }
-.heads-list li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--r-field);
-  background: var(--color-surface);
-  color: var(--color-text-2);
-  font-weight: 700;
+@keyframes heads-flick {
+  0%,
+  30% {
+    transform: none;
+  }
+  100% {
+    transform: translate(-120%, 12%) rotateZ(-22deg);
+    opacity: 0;
+  }
 }
-.heads-list li small {
-  margin-left: auto;
-  color: var(--color-text-2);
-  font-weight: 600;
+@keyframes heads-stamp {
+  from {
+    scale: 1.7;
+    opacity: 0.4;
+  }
+  70% {
+    scale: 0.94;
+    opacity: 1;
+  }
 }
-.heads-list li.is-ok {
-  color: var(--color-text);
+@keyframes heads-beat {
+  from {
+    scale: 1.22;
+  }
 }
-.heads-list li.is-ok svg {
-  color: var(--color-success);
+@keyframes heads-bump {
+  from {
+    scale: 1.5;
+  }
+}
+@keyframes heads-glow {
+  from {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* nothing flies, beats or bumps: the note fades, the stamp just appears */
+  .heads-leaving.is-ok,
+  .heads-leaving.is-pass {
+    animation: heads-fade var(--dur-enter) linear both;
+  }
+  .heads-stamp {
+    animation: none;
+  }
+  .heads-time.is-hurry,
+  .heads-score-n {
+    animation: none;
+  }
+  .heads-turn {
+    transition: none;
+  }
+}
+@keyframes heads-fade {
+  to {
+    opacity: 0;
+  }
 }
