@@ -1,13 +1,28 @@
 // What the coach's moves are written with (moves.ts: the library's 20; songmoves.ts: the songs'
 // own dances): both hands at once (the screen-left one mirrored), the hand shapes the moves share,
 // and a move's loop of key frames (pose.ts).
-import type { Part, Pose, V3 } from "./pose";
+import type { Foot, Part, Pose, V3 } from "./pose";
 
 /** Both hands, the screen-left one mirrored. */
 export const both = (x: number, y: number, z: number): Part => ({ hR: [x, y, z], hL: [-x, y, z] });
 export const palms = (x: number, y: number, z: number): Part => ({ pR: [x, y, z], pL: [-x, y, z] });
 export const elbows = (x: number, y: number, z: number): Part => ({ eR: [x, y, z], eL: [-x, y, z] });
 export const P = (...parts: Part[]): Part => Object.assign({}, ...parts) as Part;
+/** one hand's part: the screen-right one, or the screen-left one mirrored */
+export const hand = (side: 1 | -1, h: V3, pa: V3, el: V3): Part => (side > 0 ? { hR: h, pR: pa, eR: el } : { hL: [-h[0], h[1], h[2]], pL: [-pa[0], pa[1], pa[2]], eL: [-el[0], el[1], el[2]] });
+/** the feet so far apart (each that far from the middle) */
+export const feet = (w: number): Part => ({ fR: { x: w }, fL: { x: -w } });
+export const footOf = (o: Pose, side: 1 | -1): Foot => (side > 0 ? o.fR : o.fL);
+
+export const TAU = 2 * Math.PI;
+/** where p is in its 8-count: the count (0 to 7), how far through it, and the position (0 to 8) */
+export const countAt = (p: number) => {
+  const q = ((p % 8) + 8) % 8;
+  const i = Math.floor(q);
+  return { i, f: q - i, q };
+};
+/** eased in and out, t clamped to 0 to 1 */
+export const ease = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
 
 // hands
 export const CLAP = P(both(0.034, -0.1, 0.3), palms(-1, 0, 0), elbows(0.7, -0.7, -0.3));

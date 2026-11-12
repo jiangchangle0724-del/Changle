@@ -177,7 +177,11 @@ const BY_NAME: [RegExp, string][] = [
   [/dessert|甜品|糖水/i, "dessert"],
 ];
 
-/** Google's place types that say what a place serves (not just its cuisine). */
+/**
+ * Google's place types that say what a place serves (not just its cuisine). Not the ones for a kind of
+ * meal (brunch, buffet, dessert, vegan): Google gives those to an Italian place that does brunch on
+ * Sundays, and "mainly brunch" would be wrong there.
+ */
 const BY_TYPE: Record<string, string> = {
   dim_sum_restaurant: "dim_sum",
   hot_pot_restaurant: "hot_pot",
@@ -201,13 +205,6 @@ const BY_TYPE: Record<string, string> = {
   seafood_restaurant: "seafood",
   fish_and_chips_restaurant: "fish_chips",
   barbecue_restaurant: "bbq",
-  brunch_restaurant: "brunch",
-  breakfast_restaurant: "breakfast",
-  buffet_restaurant: "buffet",
-  vegan_restaurant: "vegan",
-  dessert_restaurant: "dessert",
-  sandwich_shop: "sandwiches",
-  bagel_shop: "bagels",
   shawarma_restaurant: "shawarma",
 };
 
@@ -229,10 +226,11 @@ export const MAX_DISHES = 3;
 
 /** The same words mean different dishes in different kitchens: "BBQ" at a Korean place, 拉面 at a Japanese one. */
 function inKitchen(d: string, cuisine?: CuisineId): string {
-  if (d === "bbq" && cuisine === "korean") return "kbbq";
-  if (d === "bbq" && cuisine === "japanese") return "yakiniku";
+  if (d === "bbq" && (cuisine === "korean" || cuisine === "kbbq")) return "kbbq";
+  if (d === "bbq" && (cuisine === "japanese" || cuisine === "izakaya")) return "yakiniku";
+  if (d === "bbq" && cuisine === "chinese_bbq") return "skewers";
   if (d === "bbq" && (cuisine === "cantonese" || cuisine === "hk_cafe" || cuisine === "chinese")) return "siu_mei";
-  if (d === "lamian" && (cuisine === "ramen" || cuisine === "japanese")) return "ramen";
+  if (d === "lamian" && (cuisine === "ramen" || cuisine === "japanese" || cuisine === "izakaya")) return "ramen";
   return d;
 }
 

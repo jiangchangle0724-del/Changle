@@ -195,6 +195,9 @@ export class Session {
       case "songAt":
         this.songAt(from, msg.startAt);
         return;
+      case "songStall":
+        this.songStall(from);
+        return;
       case "songReady":
         this.songReady(from);
         return;
@@ -277,16 +280,44 @@ export class Session {
 
   /**
    * The speaker, while a song plays: where the dance's first beat really is, from its video's
-   * clock. The room moves the beat there (BEAT_MOVED) when it's more than SONG_SYNC_MS off.
+   * clock. The room moves the beat there (BEAT_MOVED) when it's more than SONG_SYNC_MS off, however
+   * far that is; a dance held for its video (songStall) starts again from there.
    */
   private songAt(from: From, startAt: unknown): void {
     const st = this.d.state;
+    const r = this.d.routine;
     const show = this.show();
     if (from.role !== "speaker" || typeof startAt !== "number" || !fin(startAt)) return;
-    if (st.phase !== "dancing" || !show || show.kind !== "song" || st.routineStartAt === null || (this.d.routine?.fromBeat ?? 0) !== 0) return;
+    if (st.phase !== "dancing" || !show || show.kind !== "song" || st.routineStartAt === null || !r || r.fromBeat !== 0 || r.pausedAt !== undefined) return;
     const to = Math.round(startAt);
-    if (Math.abs(to - st.routineStartAt) < SONG_SYNC_MS) return;
-    if (this.apply({ type: "BEAT_MOVED", at: this.speakerNow(), routineStartAt: to }, from)) this.d.finishAt = this.endOf(show);
+    const held = r.heldAt !== undefined;
+    if (!held && Math.abs(to - st.routineStartAt) < SONG_SYNC_MS) return;
+    if (held) {
+      const { heldAt: _was, ...rest } = r;
+      this.d.routine = rest;
+      this.changed = true;
+    }
+    if (to !== st.routineStartAt && this.apply({ type: "BEAT_MOVED", at: this.speakerNow(), routineStartAt: to }, from)) this.d.finishAt = this.endOf(show);
+    else if (held) {
+      this.d.finishAt = this.endOf(show);
+      this.out.push({ to: "all", msg: this.stateMsg() });
+    }
+  }
+
+  /**
+   * The speaker: the song's video should be playing and isn't (stalled, an ad, stopped till someone
+   * taps it). The dance waits for it (heldAt): the coach and the phones stop with the song, and the
+   * next songAt starts them again from where the video is, however long that took.
+   */
+  private songStall(from: From): void {
+    const st = this.d.state;
+    const r = this.d.routine;
+    const show = this.show();
+    if (from.role !== "speaker" || !r || !show || show.kind !== "song" || st.phase !== "dancing" || st.routineStartAt === null) return;
+    if (r.pausedAt !== undefined || r.heldAt !== undefined || r.fromBeat !== 0) return;
+    this.d.routine = { ...r, heldAt: Math.round(this.speakerNow()) };
+    this.changed = true;
+    this.out.push({ to: "all", msg: this.stateMsg() });
   }
 
   /** When each phone's last pulse went on to the speaker (not kept: a pulse is only for now). */
@@ -445,7 +476,8 @@ export class Session {
         // everything moves later by the time paused: it picks up a moment from now, the last
         // moments before the pause first again (a run-up)
         const shift = Math.max(0, Math.round(at + RESUME_LEAD_MS - r.pausedAt));
-        const { pausedAt: _was, ...rest } = r;
+        // (held for the video too: 继续 tells the video to play again; if it doesn't, it's held again)
+        const { pausedAt: _was, heldAt: _held, ...rest } = r;
         if (st.phase === "dancing" && st.routineStartAt !== null) {
           this.d.routine = rest;
           if (!this.apply({ type: "RESUMED", at, byPlayerId: by, routineStartAt: st.routineStartAt + shift }, from)) {
@@ -511,7 +543,8 @@ export class Session {
       this.changed = true;
       this.apply({ type: "PLAYER_LEFT", at: this.speakerNow(), playerId: id });
     }
-    const paused = this.d.routine?.pausedAt !== undefined;
+    // (paused, or held for the song's video: the lead's end and the dance's end wait)
+    const paused = this.d.routine?.pausedAt !== undefined || this.d.routine?.heldAt !== undefined;
     if (!paused && this.d.danceAt !== null && this.speakerNow() >= this.d.danceAt) {
       const leadEnd = this.d.danceAt;
       this.d.danceAt = null;
@@ -530,8 +563,8 @@ export class Session {
   nextWake(): number | null {
     const times: number[] = [...Object.values(this.d.leaving)];
     if (this.d.speakerGoneAt !== null) times.push(this.d.speakerGoneAt + SPEAKER_GRACE_MS);
-    // (paused: the lead's end and the dance's end wait for 继续)
-    if (this.d.routine?.pausedAt === undefined) {
+    // (paused: the lead's end and the dance's end wait for 继续; held: for the song's video)
+    if (this.d.routine?.pausedAt === undefined && this.d.routine?.heldAt === undefined) {
       if (this.d.danceAt !== null) times.push(this.d.danceAt - this.d.speakerOffset);
       if (this.d.finishAt !== null) times.push(this.d.finishAt - this.d.speakerOffset);
     }

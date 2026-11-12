@@ -630,7 +630,7 @@ export type DramaCard = { secret: T; culprit: boolean; task: T };
 /** Whose everyday a scene is set in: Chinese, Canadian, South Asian, Filipino, Korean, Japanese, Iranian, European. */
 export type DramaGroupKey = "cn" | "ca" | "sa" | "ph" | "kr" | "jp" | "ir" | "eu";
 /** 朗读: the way a piece is read (through tears, with a straight face, a breakup, a royal memorial...). */
-export type DramaReadKind = "cry" | "deadpan" | "breakup" | "court" | "anchor" | "rant" | "melodrama" | "sell" | "sorry" | "voice";
+export type DramaReadKind = "cry" | "deadpan" | "breakup" | "court" | "anchor" | "rant" | "melodrama" | "sell" | "sorry" | "voice" | "deep";
 /** 朗读: where the pieces come from: the Chinese internet, the English internet, or things everyone knows. */
 export type DramaReadSet = "zh" | "en" | "both";
 

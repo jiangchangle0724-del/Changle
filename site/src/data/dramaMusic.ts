@@ -211,6 +211,7 @@ export const READ_MOOD: Record<ReadKind, Mood> = {
   rant: "tension",
   voice: "cinema",
   deadpan: "elevator",
+  deep: "romance",
 };
 
 /** A scene's mood: its own, else its kind's (a written scene of an unknown kind: home). */

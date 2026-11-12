@@ -4,7 +4,7 @@
 // and ordering it in. Further down the list a card starts short (`compact`) and opens with "More".
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { CUISINES, DISHES, avoidTip, type Place } from "../../engine";
+import { CUISINES, DISHES, avoidTip, badgesFor, type OccasionId, type Off, type Place, type Reason } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
 import { serverNow } from "../store";
@@ -46,7 +46,7 @@ function intro(p: Place): string {
 }
 
 /** Why it is further down for this table, and what can still be ordered there. */
-function notes(c: CardView): { text: string; severe: boolean }[] {
+function notes(c: CardView, occasion?: OccasionId): { text: string; severe: boolean }[] {
   const out: { text: string; severe: boolean }[] = [];
   for (const x of c.concerns) {
     if (x.k === "allergy") {
@@ -57,10 +57,33 @@ function notes(c: CardView): { text: string; severe: boolean }[] {
     else out.push({ text: t(x.known ? "note_vegNone" : "note_vegUnsure"), severe: false });
   }
   if (c.bans > 0) out.push({ text: c.bans === 1 ? t("note_ban1") : t("note_banN", { n: c.bans }), severe: false });
+  const off = c.fit?.off;
+  if (off) out.push({ text: offText(off, occasion), severe: false });
   return out;
 }
 
-export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranked?: boolean; compact?: boolean; children?: ComponentChildren }) {
+/** Why a place plainly isn't for the occasion or the meal. */
+function offText(off: Off, occasion?: OccasionId): string {
+  if (off.k === "early") return t("off_early");
+  if (off.k === "meal") {
+    if (off.meal === "lunch") return t("off_noLunch");
+    return off.kind ? t("off_breakfastAtDinner", { kind: t(`kind_${off.kind}` as Key) }) : t("off_noDinner");
+  }
+  return t("off_kind", { occasion: t(`occFor_${occasion ?? "casual"}` as Key), kind: t(`kind_${off.kind}` as Key) });
+}
+
+/** A reason as words: how many liked it, or what occasion it suits and why ("适合商务宴请：可订位、有酒"). */
+function reasonText(r: Reason, c: CardView, occasion?: OccasionId): string {
+  if (r === "liked") return c.likes === 1 ? t("why_liked1") : t("why_likedN", { n: c.likes });
+  if (r === "fits") {
+    const why = (c.fit?.why ?? []).map((w) => t(`fitWhy_${w}` as Key));
+    const fits = t(`fits_${occasion ?? "casual"}` as Key);
+    return why.length ? `${fits}${getLang() === "zh" ? "：" : ": "}${why.join(getLang() === "zh" ? "、" : ", ")}` : fits;
+  }
+  return t(`why_${r}` as Key);
+}
+
+export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren }) {
   const [open, setOpen] = useState(!compact);
   const p = c.place;
   const o = p.ours;
@@ -70,7 +93,7 @@ export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranke
   // Now: minutes until last orders. Planned: when it closes then.
   const last = c.at === undefined && c.lastOrderAt !== undefined ? Math.round((c.lastOrderAt - serverNow()) / 60_000) : undefined;
   const until = c.at !== undefined ? c.closesAt : undefined;
-  const lines = notes(c);
+  const lines = notes(c, occasion);
   return (
     <article class={`place${compact ? " compact" : ""}`} data-id={p.id} data-rank={c.rank}>
       {open && p.photo && (
@@ -101,7 +124,7 @@ export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranke
         </div>
         {!!p.badges?.length && (
           <p class="badges">
-            {p.badges.map((b, i) => {
+            {badgesFor(p.badges, occasion).map((b, i) => {
               const label = `🏅 ${tx(b.label)}${b.year ? ` ${b.year}` : ""}`;
               return b.url ? (
                 <a key={i} class="badge" href={b.url} target="_blank" rel="noopener">
@@ -130,7 +153,7 @@ export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranke
           <p class="reasons">
             {c.reasons.map((r) => (
               <span key={r} class="reason">
-                {r === "liked" ? (c.likes === 1 ? t("why_liked1") : t("why_likedN", { n: c.likes })) : t(`why_${r}` as Key)}
+                {reasonText(r, c, occasion)}
               </span>
             ))}
           </p>

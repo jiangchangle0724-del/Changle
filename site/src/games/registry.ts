@@ -64,7 +64,14 @@ export type GameMeta = {
    * to `screen` and tells a phone where to go; /g/<slug>/play goes to `screen` too. There is no
    * one-phone mode and no table game: a table's spin never lands on it (it isn't in ONLINE_GAMES).
    */
-  stage?: { screen: string; join: string; /** the stage button's second line, when the default (一起跳's) doesn't fit */ note?: T };
+  stage?: {
+    screen: string;
+    join: string;
+    /** the stage button's second line */
+    note?: T;
+    /** the stage is this phone or computer, mirrored to the TV (一起跳, Steve 11-11): the button and its help say so */
+    mirror?: boolean;
+  };
   /**
    * its kind, which colors its card (decided 2026-11-01: cards by kind, not one color per game; the
    * stage gel above stays the game's own light): drink 喝酒局, brain 动脑, body 动身体, online 线上
@@ -476,7 +483,12 @@ export const GAMES: GameMeta[] = [
     category: "body",
     minutes: 8,
     ready: true,
-    stage: { screen: "/party/screen", join: "/party/join" },
+    stage: {
+      screen: "/party/screen",
+      join: "/party/join",
+      note: t("投到电视上当舞台，这台不参与游玩；大家用自己的手机跳", "It's the stage on the TV, not a player; everyone dances with their own phone"),
+      mirror: true,
+    },
     newUntil: "2026-12-05",
   },
   // its own Worker at changle.ca/hang-on (games/hang-on): a TV or computer is the big screen, phones

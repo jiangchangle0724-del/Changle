@@ -16,7 +16,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca/hide: 藏在人群里 · Hide in the Crowd | `games/hide-crowd/` | Worker `hide-crowd` (Durable Objects) | by itself on merge when `games/hide-crowd/*` changes, once Steve has connected it (`games/hide-crowd/README.md`) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
-| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page (a 3D coach; each practice dance's own tune; songs from YouTube, six danced to their own famous dance on a measured beat, the others' beat found the first time by everyone tapping along and kept in a songbook; the TV's delay measured before a room's first dance; 暂停; a phone mirrored to the TV as the stage, sideways), phones, /party/moves | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects: the rooms, and the songbook) | by itself on merge when `games/party-server`, `games/party-base` or `games/dance` changes (connected 2026-11-01, `games/party-server/README.md`) |
+| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page (a 3D coach; each practice dance's own tune; songs from YouTube, fourteen danced to their own famous dance on a measured beat and taught step by step (the Cha-Cha Slide call by call), the others' beat found the first time by everyone tapping along and kept in a songbook; the dance waits when the video stops; the TV's delay measured before a room's first dance; 暂停; a phone mirrored to the TV as the stage, sideways), phones, /party/moves | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects: the rooms, and the songbook) | by itself on merge when `games/party-server`, `games/party-base` or `games/dance` changes (connected 2026-11-01, `games/party-server/README.md`) |
 | changle.ca/hang-on: 抓紧了 · Hang On (the host screen; phones at /hang-on/pad, the QR code's link /hang-on/r/CODE) | `games/hang-on/` (physics, the room server, the pages) | Worker `hang-on` (Durable Objects) | by itself on merge when `games/hang-on/*` changes (connected 2026-11-04, `games/hang-on/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
@@ -188,7 +188,9 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
 ## Working rules
 
 * Every change on its own branch with a PR. Never push to `main`. CI green before merging.
-* Ask the owner before merging, deploying, or anything that costs money or goes public.
+* Once CI is green, merge the PR yourself and tell the owner (Steve) what went live.
+* Ask the owner first only for: anything that costs money, deletes data, changes Cloudflare or GitHub
+  settings or keys, or makes the repository public or private.
 * No keys, secrets or tokens in code, commits, chat or screenshots: Cloudflare Secrets only.
 * Stuck? Stop and say what is needed instead of working around it.
 

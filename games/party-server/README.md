@@ -53,7 +53,9 @@ instead, `site/src/party/dj/`.)
   coach beside); held upright it asks to be turned (an iPhone's page can't turn itself; Android's
   Chrome goes full screen and sideways after 开始). It's never a player. While a dance plays: its tune (below), the 3D coach dancing each move on
   the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
-  the 8-count, the next move 2 beats ahead, the floor. Along the bottom, everyone's little dancer
+  the 8-count, the next move 2 beats ahead, the floor. A song's own move is taught step by step
+  there for someone who has never danced (`src/shared/steps.ts`: how to stand, what to
+  do on each count, a tip), the count being danced lit up; on a phone as the stage, only that line. Along the bottom, everyone's little dancer
   (`src/client/coach/crowd.ts`): a neon stick figure in their colour doing the coach's move as hard
   as they are moving, from their phone's `pulse` (8 a second at most: the sensor's energy, or their
   taps, and each beat's verdict; the room passes it to the speaker and keeps nothing), sparking on
@@ -85,19 +87,32 @@ instead, `site/src/party/dj/`.)
 - **Songs** (`src/shared/songs.ts`): famous songs played on the TV from YouTube's own player
   (`src/client/tube.ts`: in sight in the top left corner, never covered, never downloaded; the
   same rules as 打碟's player). Six are danced to their own famous dance, laid along the song
-  (`Song.dance`, `aligned`): 江南Style's horse dance, Macarena, 科目三, 最炫民族风, 爱你, APT.;
-  their moves are `src/shared/songmoves.ts` (the coach's key frames: `src/client/coach/songmoves.ts`).
+  (`Song.dance`, `aligned`): 江南Style's horse dance, Macarena, 科目三, 最炫民族风, 爱你, APT., the
+  Cupid Shuffle, the Cha-Cha Slide, Y.M.C.A., Watch Me, the Ketchup Song, Gee, 海草舞; their moves are
+  `src/shared/songmoves.ts` (the coach's key frames: `src/client/coach/songmoves.ts` and, for the
+  eight added 11-12, `partymoves.ts`), each taught count by count (`src/shared/steps.ts`). A caller's
+  song (`Song.calls`: the Cha-Cha Slide, and the Ketchup Song's 12-beat lines) keeps each part as long
+  as it needs, counted from where it starts, and teaches only its basic steps (`Song.teach`).
+  江南Style's was worked out from its official video frame by frame (sheets of frames on the beat,
+  drawn from the video in a browser): the horse ride and the lasso, "Eh~ Sexy Lady"'s hands-on-hips
+  hip shake, the tour bus's disco point, little PSY's groove, the strut across the disco.
   Their beat was measured in each video (the video played silently in a browser, its onsets fitted
   to a grid: the tempo, and beat 0 to within ~10 ms) and their parts placed from the songs' timed
   lyrics, so they need no 找拍子. The others are danced with a few of the library's easiest moves,
   two 8-counts each, round and round (`pattern`). Fast songs at half their tempo. The host picks one
-  like a dance (the six with their own dance first). The room waits for the speaker to have the video held at its start (`songReady`; on
+  like a dance (the ones with their own dance first). The room waits for the speaker to have the video held at its start (`songReady`; on
   Safari not before someone has tapped the video once, so it can play with sound), then the video
   plays from its start: its intro, a count-in on its last 4 beats, the dance. While it plays, the
   speaker reads the video's clock every 4 ms and tells the room where the song's first beat really
   is (`songAt`); more than 20 ms off, the room moves the dance's beat there (party-base's
-  `BEAT_MOVED`) and every page follows. YouTube refusing the video (`songFailed`): back to the
-  lobby, and the phones say why. No 这一段再来 in a song.
+  `BEAT_MOVED`, however far: a video a minute late is followed too) and every page follows. When
+  the video should be playing and hasn't for 1.2 s (stalled, an ad, stopped till someone taps it:
+  `Tube.stuckMs`), the speaker says so (`songStall`) and the room holds the dance
+  (`RoutineInfo.heldAt`: the coach and the phones stop, the TV says why, nothing ends); once the
+  video plays, the speaker measures it for 0.6 s and the dance picks up from where it is. When the
+  dance is over the video fades out over 2.5 s and stops (`Tube.fadeOut`), so the song never plays
+  on without the coach. YouTube refusing the video (`songFailed`): back to the lobby, and the phones
+  say why. No 这一段再来 in a song.
 - **找拍子 / the songbook**: where a song's beat starts in its video can't be guessed well enough
   (unless it was measured: the six above). The first time a room dances such a song
   (`RoutineInfo.tapIn`), its video plays from the start and
@@ -163,8 +178,9 @@ its clock answers four times a second, like the real one's; the pretend TV plays
 150 ms late. Checked: the songbook API (taps from an uncalibrated room refused), the room's first
 dance measuring the TV first, the room waiting for the video, the beat moved to the video's
 (within 25 ms), Ann tapping on the video's real beats on the beat, 暂停 holding the video and 继续
-picking it up 1.5 s before where it stopped (the beat with the video again), the video gone in the
-lobby; 找拍子 on a song nobody has danced (Ann and Bob tapping along on their phones as the TV plays
+picking it up 1.5 s before where it stopped (the beat with the video again), the video stalling for
+4 s (the dance held, the TV and the phones saying so, then picking up on the video's beat), the song
+fading out at the dance's end, the video gone in the lobby; 找拍子 on a song nobody has danced (Ann and Bob tapping along on their phones as the TV plays
 it, the first beat found within 25 ms and kept, then the song from its start on the video's
 beat); a song with its own dance starting with no 找拍子 on its measured beat (within 25 ms); and
 歌曲对拍 finding another song's first beat (within 20 ms).

@@ -31,34 +31,63 @@ export const ALLERGENS: Record<AllergenId, Text> = {
  */
 export const COMMON_IN: Partial<Record<AllergenId, CuisineId[]>> = {
   // + hot pot (crushed peanuts at the sauce bar), HK café (peanut-butter toast, satay), Taiwanese (peanut powder)
-  peanut: ["thai", "sea", "vietnamese", "sichuan", "hotpot", "hk_cafe", "taiwanese"],
+  // 2026-11-11, the finer menu: Filipino with Southeast Asian (kare-kare, peanut sauces).
+  peanut: ["thai", "sea", "filipino", "vietnamese", "sichuan", "hotpot", "hk_cafe", "taiwanese"],
   // + vegetarian (cashew cream and cheese), brunch and cafés (almond flour in baking)
-  treenut: ["indian", "middle_eastern", "vegetarian", "brunch"],
+  // 2026-11-11: Greek and Mediterranean with Middle Eastern (pistachios, pine nuts, baklava).
+  treenut: ["indian", "middle_eastern", "mediterranean", "vegetarian", "brunch", "cafe"],
   // + Korean (kimchi salted with shrimp), hot pot (seafood broths, shacha sauce with dried shrimp)
-  shellfish: ["seafood", "cantonese", "japanese", "thai", "vietnamese", "sea", "korean", "hotpot"],
+  // 2026-11-11: izakaya with Japanese, Korean BBQ with Korean, Filipino with Southeast Asian (bagoong).
+  shellfish: ["seafood", "cantonese", "japanese", "izakaya", "thai", "vietnamese", "sea", "filipino", "korean", "kbbq", "hotpot"],
   // + ramen (bonito and dried-sardine broths), hot pot (fish balls, shacha sauce with dried fish)
-  fish: ["seafood", "japanese", "thai", "vietnamese", "sea", "korean", "ramen", "hotpot"],
+  fish: ["seafood", "japanese", "izakaya", "thai", "vietnamese", "sea", "filipino", "korean", "kbbq", "ramen", "hotpot"],
   // + ramen (sesame seeds and oil, tantanmen), western (sesame burger buns)
-  sesame: ["korean", "middle_eastern", "japanese", "sichuan", "cantonese", "chinese", "taiwanese", "hotpot", "hk_cafe", "ramen", "western"],
+  // 2026-11-11: the finer Chinese, Japanese and Korean kinds with their parents; Greek with Middle Eastern (tahini).
+  sesame: [
+    "korean",
+    "kbbq",
+    "middle_eastern",
+    "mediterranean",
+    "japanese",
+    "izakaya",
+    "sichuan",
+    "cantonese",
+    "chinese",
+    "shanghai",
+    "northern",
+    "noodles",
+    "chinese_bbq",
+    "taiwanese",
+    "hotpot",
+    "hk_cafe",
+    "ramen",
+    "western",
+  ],
   // + vegetarian (tofu, soy milk, mock meat), Southeast Asian (sweet soy sauce)
-  soy: ["cantonese", "hk_cafe", "sichuan", "hotpot", "taiwanese", "chinese", "japanese", "ramen", "korean", "vegetarian", "sea"],
-  chili: ["sichuan", "hotpot", "thai", "korean", "indian", "mexican", "sea"],
-  // Brunch menus are mostly eggs.
-  egg: ["brunch"],
+  soy: ["cantonese", "hk_cafe", "sichuan", "hotpot", "taiwanese", "chinese", "shanghai", "northern", "noodles", "chinese_bbq", "japanese", "izakaya", "ramen", "korean", "kbbq", "vegetarian", "sea", "filipino"],
+  // 2026-11-11, not reviewed yet: Korean BBQ (gochujang, kimchi), Chinese BBQ skewers (chili powder).
+  chili: ["sichuan", "hotpot", "chinese_bbq", "thai", "korean", "kbbq", "indian", "mexican", "sea"],
+  // Brunch menus are mostly eggs; cafés' cakes and pastries too.
+  egg: ["brunch", "cafe"],
   // Butter, cheese and cream throughout; ghee and paneer in Indian cooking.
-  dairy: ["brunch", "italian", "indian"],
-  // The whole menu is wheat noodles, pasta or pizza.
-  gluten: ["ramen", "italian"],
+  // 2026-11-11, not reviewed yet: French (butter and cream sauces), cafés (milk drinks, cakes).
+  dairy: ["brunch", "cafe", "italian", "french", "indian"],
+  // The whole menu is wheat noodles, pasta or pizza. 2026-11-11: noodle and dumpling shops, and
+  // northern Chinese (hand-pulled noodles, flatbreads), the same.
+  gluten: ["ramen", "noodles", "northern", "italian"],
 };
 
 /** Typed items: at most this many per person, each this long. */
 export const MAX_CUSTOM = 6;
 export const MAX_CUSTOM_LENGTH = 16;
 
-/** Cuisines that often have halal options: near the top for a halal table, with "please check". */
-export const HALAL_LIKELY: CuisineId[] = ["middle_eastern", "indian", "sea"];
+/**
+ * Cuisines that often have halal options: near the top for a halal table, with "please check".
+ * Northern Chinese: Lanzhou noodle and Xinjiang places are often Hui- or Uyghur-run and halal.
+ */
+export const HALAL_LIKELY: CuisineId[] = ["middle_eastern", "indian", "sea", "northern"];
 /** Cuisines where vegetarians usually find plenty even when Google doesn't say. */
-export const VEG_FRIENDLY: CuisineId[] = ["vegetarian", "indian", "middle_eastern", "italian"];
+export const VEG_FRIENDLY: CuisineId[] = ["vegetarian", "indian", "middle_eastern", "mediterranean", "italian"];
 
 export const BUDGETS: Budget[] = [0, 20, 35, 60];
 

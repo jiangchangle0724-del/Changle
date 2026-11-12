@@ -140,7 +140,7 @@ function makeSong(song: Song, mode: Mode): Show {
   if (mode === "learn") {
     const teachMs = 60000 / (song.bpm * SONG_TEACH);
     let at = 0;
-    for (const id of songMoves(song)) {
+    for (const id of song.teach ?? songMoves(song)) {
       const move = moveById(id);
       for (const stage of ["watch", "follow"] as const)
         for (let k = 0; k < 8; k++) {
@@ -195,8 +195,8 @@ export interface RunBeat extends ShowBeat {
  * plays (the lobby, calibrating, the results).
  */
 export function anchorsOf(phase: RoomPhase, routineStartAt: number | null, routine: RoutineInfo | null): Anchors | null {
-  // (paused: nothing plays until 继续 moves the run on)
-  if (!routine || (phase !== "learning" && phase !== "dancing") || routine.pausedAt !== undefined) return null;
+  // (paused: nothing plays until 继续 moves the run on; held: until the song's video plays again)
+  if (!routine || (phase !== "learning" && phase !== "dancing") || routine.pausedAt !== undefined || routine.heldAt !== undefined) return null;
   return { leadStartAt: routine.leadStartAt, danceStartAt: phase === "dancing" ? routineStartAt : null, fromBeat: routine.fromBeat, introMs: routine.introMs ?? null };
 }
 

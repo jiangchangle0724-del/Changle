@@ -22,7 +22,7 @@ import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
 import { Tube } from "./tube";
 import { tuneFor } from "./tunes";
-import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, moveHow, moveName, moveOther, routineName, songArtist, songTitle, stageHint, stageName } from "./words";
+import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, litCount, moveHow, moveName, moveOther, routineName, songArtist, songTitle, stageHint, stageName, stepsList } from "./words";
 
 /** Calibration: 8 clicks, 1.2 s apart (so a tap up to 400 ms late still pairs with the right click). */
 const CAL_CLICKS = 8;
@@ -114,6 +114,10 @@ let songbook: Record<string, { firstBeatMs: number }> = {};
 let songReadySent = "";
 let songFailedSent = "";
 let songAtSent = 0;
+/** When this page last told the room the song's video stopped (songStall), performance.now. */
+let stallSent = 0;
+/** The song's video hasn't played for this long though its moment has come: the dance waits for it. */
+const STALL_MS = 1200;
 /** 歌曲对拍: the panel open, the song being tapped along to, its taps (speaker time), how it came out. */
 let tapPanel = false;
 let tapSong: Song | null = null;
@@ -170,6 +174,22 @@ function songTick() {
     tube.pause();
     return;
   }
+  // the dance is over: the song fades out with it (it doesn't play on without the coach)
+  if (st.phase === "results") {
+    tube.fadeOut();
+    return;
+  }
+  // held for the video (it stopped): it keeps trying to play; once it does, where it is goes to the
+  // room, and the dance starts again from there
+  if (r.heldAt !== undefined) {
+    const z = st.phase === "dancing" && tube.playing ? tube.zero(600) : null;
+    const local = performance.now();
+    if (z !== null && local - songAtSent > 600) {
+      sock?.send({ t: "songAt", startAt: z + (r.introMs ?? cur.show.introMs) });
+      songAtSent = local;
+    }
+    return;
+  }
   if (st.phase === "learning" && r.leadStartAt === null && r.tapIn) {
     findTick(cur.song, `${r.routineId}|${r.mode}|${st.updatedAt ?? ""}`);
     return;
@@ -188,12 +208,17 @@ function songTick() {
     }
     return;
   }
-  if (st.phase === "results") return;
   const a = anchorsOf(st.phase, st.routineStartAt, r);
   if (!a) return;
   const start = danceStart(cur.show, a);
   if (start === null) return;
   tube.playAt(start - introOf(cur.show, a));
+  // its moment has come and it isn't playing (stalled, an ad, stopped till someone taps it): the
+  // dance waits for it, rather than going on without the song
+  if (st.phase === "dancing" && pageClock() < start + cur.show.danceMs && tube.stuckMs() > STALL_MS && performance.now() - stallSent > 3000) {
+    sock?.send({ t: "songStall" });
+    stallSent = performance.now();
+  }
   if (st.phase === "dancing" && st.routineStartAt !== null && tube.playing) {
     const z = tube.zero();
     const local = performance.now();
@@ -516,6 +541,8 @@ const parts: {
   move?: HTMLElement;
   other?: HTMLElement;
   how?: HTMLElement;
+  /** the move step by step (the songs' own moves), the count being danced lit up */
+  steps?: HTMLElement;
   body?: HTMLElement;
   next?: HTMLElement;
   progress?: HTMLElement;
@@ -526,6 +553,8 @@ const parts: {
 } = {};
 /** What the coach shows, so a frame only touches the page when it changes. */
 let shown = "";
+/** The move (and language) whose steps the coach's words show. */
+let stepsOf = "";
 
 const running = () => !!state && (state.phase === "learning" || state.phase === "dancing") && playing.run.length > 0;
 
@@ -533,6 +562,7 @@ function render() {
   app.replaceChildren();
   for (const k of Object.keys(parts) as (keyof typeof parts)[]) parts[k] = undefined;
   shown = "";
+  stepsOf = "";
   app.append(topBar());
   if (!sock && !fatal) {
     const box = el("section", "start");
@@ -662,6 +692,7 @@ function joinCard(small: boolean): HTMLElement {
 function phaseTitle(): string {
   if (!state) return tr("连接中……", "Connecting…");
   if (routine?.pausedAt !== undefined && (state.phase === "learning" || state.phase === "dancing")) return tr("暂停", "Paused");
+  if (routine?.heldAt !== undefined && state.phase === "dancing") return tr("等视频", "Waiting for the video");
   switch (state.phase) {
     case "lobby":
       return state.players.length ? tr("人到齐了，主人在手机上选舞", "When everyone's in, the host picks a dance") : tr("等大家扫码加入", "Waiting for people to join");
@@ -681,6 +712,11 @@ function phaseTitle(): string {
 function phaseText(): string {
   if (!state) return "";
   if (routine?.pausedAt !== undefined && (state.phase === "learning" || state.phase === "dancing")) return tr("主人点「继续」就接着跳，会先倒回去放一小段。", "When the host taps Carry on, it picks up from here, after a short run-up.");
+  if (routine?.heldAt !== undefined && state.phase === "dancing") {
+    return tube.status === "tap" || tube.status === "ready"
+      ? tr("视频停了：在这台设备上点一下视频，舞跟着接上。", "The video stopped: tap it on this device and the dance picks up with it.")
+      : tr("视频卡住了，大家先停一下；视频一动，舞就从那里接上。", "The video is stuck: everyone hold on. The dance picks up as soon as it plays again.");
+  }
   if (state.phase === "calibrating") {
     if (cal?.result && (!cal.result.ok || cal.suspect)) {
       const why = cal.suspect ? tr("点的和声音对不上", "the taps didn't line up with the sound") : cal.result.reason === "too_few_taps" ? tr("点得太少", "too few taps") : tr("点得太散", "the taps were too spread out");
@@ -721,19 +757,20 @@ function coach(): HTMLElement {
   parts.move = el("p", "coach-move");
   parts.other = el("p", "coach-other");
   parts.how = el("p", "coach-how");
+  parts.steps = el("div", "coach-steps-slot");
   parts.body = el("p", "coach-body");
   parts.count = el("div", "count");
   parts.next = el("p", "coach-next");
   if (stage3d) {
     const host = el("div", "coach-3d");
-    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.body);
+    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.steps, parts.body);
     const side = el("div", "coach-side");
     side.append(words, parts.count, parts.next);
     main.append(host, side);
     // (after the box is on the page: the canvas takes the host's size)
     requestAnimationFrame(() => stage3d.attach(host));
   } else {
-    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.body);
+    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.steps, parts.body);
     main.append(words, parts.count);
   }
   const fl = el("div", "floor");
@@ -995,12 +1032,22 @@ function frameCoach(now: number) {
     parts.stage.textContent = p.run.length && now < p.run[0]!.t ? tr("马上开始", "Starting in a moment") : tr("跳完了", "That's the song");
     parts.hint!.textContent = "";
     parts.move!.textContent = parts.other!.textContent = parts.how!.textContent = parts.body!.textContent = parts.count!.textContent = parts.next!.textContent = parts.progress!.textContent = "";
+    parts.steps?.replaceChildren();
+    stepsOf = "";
     return;
   }
   parts.stage.textContent = stageName(b.stage);
   parts.hint!.textContent = stageHint(b.stage, metronome);
   parts.move!.textContent = b.move ? moveName(b.move) : metronome && b.stage !== "countdown" ? tr("跟着拍子", "With the beat") : "";
   parts.other!.textContent = b.move ? moveOther(b.move) : "";
+  // a song's own move: step by step, the count being danced lit up (the one line above it is the gist)
+  const steps = b.move ? `${b.move.id}|${getLang()}` : "";
+  if (steps !== stepsOf && parts.steps) {
+    stepsOf = steps;
+    const list = b.move ? stepsList(b.move) : null;
+    parts.steps.replaceChildren(...(list ? [list] : []));
+  }
+  litCount(parts.steps, b.count);
   parts.how!.textContent = b.move ? moveHow(b.move) : "";
   parts.body!.textContent = b.move ? bodyHint(b.move) : "";
   parts.count!.textContent = String(b.count);
@@ -1115,6 +1162,9 @@ Object.assign(window, {
     state: () => state,
     pulses: () => Object.fromEntries(pulses),
     tube: () => ({ status: tube.status, zero: tube.zero() }),
+    /** the dance's end, for the checks: the song fades out */
+    fade: () => tube.fadeOut(),
+    routine: () => routine,
     songbook: () => songbook,
     finding: () => finding && { taps: finding.taps.length, sent: finding.sent, note: finding.note, zero: finding.zero },
   },

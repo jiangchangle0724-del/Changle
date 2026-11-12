@@ -1,9 +1,9 @@
 // One table on a phone: lobby → round 1 (mood) → round 2 (cards) → spinner → result.
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { CUISINES, TOP_COUNT, type Limits, type MoodPick, type RangeId } from "../../engine";
+import { CUISINES, CUISINE_GROUPS, OCCASIONS, TOP_COUNT, type CuisineGroup, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
 import type { RoomView } from "../../room/protocol";
-import { t, tx } from "../i18n";
+import { t, tx, type Key } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
 import { send, toast, useApp } from "../store";
@@ -12,8 +12,21 @@ import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
 import { RangePicker } from "./RangePicker";
 import { RankedList } from "./RankedList";
+import { OccasionPicker } from "./OccasionPicker";
 import { WhenPicker } from "./WhenPicker";
 import { whenLabel } from "../when";
+
+/**
+ * What places for each occasion usually cost a person at least: a diet card budget below it would
+ * leave most of them off the list, so the lobby says so (to that person only; budgets are private).
+ */
+const OCCASION_BUDGET: Partial<Record<OccasionId, number>> = { business: 60, date: 35, birthday: 35 };
+
+function lowBudget(v: RoomView): boolean {
+  const floor = OCCASION_BUDGET[v.occasion];
+  const b = v.you.limits?.budget ?? 0;
+  return !!floor && b > 0 && b < floor;
+}
 
 export function Table({ home }: { home: () => void }) {
   const { view: v, status, fatal, me } = useApp();
@@ -92,7 +105,9 @@ function Lobby({ v }: { v: RoomView }) {
   const [editing, setEditing] = useState(false);
   const [range, setRange] = useState<RangeId>(v.range);
   const [when, setWhen] = useState<number | null>(null);
-  const [editingWhen, setEditingWhen] = useState(false);
+  const [occasion, setOccasion] = useState<OccasionId>(v.occasion);
+  // Which of the table's settings the host is changing.
+  const [changing, setChanging] = useState<"when" | "occasion" | null>(null);
   const host = v.you.host || !v.members.find((m) => m.host)?.online;
   const ready = v.members.filter((m) => m.ready).length;
   if (editing) return <DietCard initial={v.you.limits} onDone={(l: Limits) => (send({ t: "limits", limits: l }), setEditing(false))} />;
@@ -115,35 +130,49 @@ function Lobby({ v }: { v: RoomView }) {
         </div>
       </section>
 
-      <section class="card">
-        <p class="whenrow">🕒 {t("lobbyWhen", { when: whenLabel(v.at) })}</p>
-        {host &&
-          (editingWhen ? (
-            <>
-              <WhenPicker value={when} onChange={setWhen} />
-              <Btn
-                kind="primary"
-                wide
-                onClick={() => {
-                  send({ t: "when", at: when });
-                  setEditingWhen(false);
-                }}
-              >
-                {t("done")}
-              </Btn>
-            </>
-          ) : (
-            <Btn
-              kind="quiet"
-              class="change-when"
-              onClick={() => {
-                setWhen(v.at);
-                setEditingWhen(true);
-              }}
-            >
+      <section class="card settings">
+        <p class="whenrow">
+          <span>
+            {OCCASIONS[v.occasion].emoji} {t("lobbyOccasion", { what: tx(OCCASIONS[v.occasion]) })}
+          </span>
+          {host && changing === null && (
+            <Btn kind="quiet" class="change-occasion" onClick={() => (setOccasion(v.occasion), setChanging("occasion"))}>
+              {t("changeOccasion")}
+            </Btn>
+          )}
+        </p>
+        {changing === "occasion" && (
+          <>
+            <OccasionPicker value={occasion} onChange={setOccasion} />
+            <Btn kind="primary" wide onClick={() => (send({ t: "occasion", occasion }), setChanging(null))}>
+              {t("done")}
+            </Btn>
+          </>
+        )}
+        <p class="whenrow">
+          <span>🕒 {t("lobbyWhen", { when: whenLabel(v.at) })}</span>
+          {host && changing === null && (
+            <Btn kind="quiet" class="change-when" onClick={() => (setWhen(v.at), setChanging("when"))}>
               {t("changeWhen")}
             </Btn>
-          ))}
+          )}
+        </p>
+        {changing === "when" && (
+          <>
+            <WhenPicker value={when} onChange={setWhen} />
+            <Btn kind="primary" wide onClick={() => (send({ t: "when", at: when }), setChanging(null))}>
+              {t("done")}
+            </Btn>
+          </>
+        )}
+        {lowBudget(v) && (
+          <p class="budget-low">
+            <span>{t("budgetLow", { n: v.you.limits!.budget, occasion: t(`occFor_${v.occasion}` as Key) })}</span>
+            <Btn kind="quiet" class="change-budget" onClick={() => setEditing(true)}>
+              {t("budgetChange")}
+            </Btn>
+          </p>
+        )}
       </section>
 
       <label class="field">
@@ -229,43 +258,50 @@ function Mood({ v }: { v: RoomView }) {
   const [picks, setPicks] = useState(v.you.mood);
   const done = v.members.find((m) => m.id === v.you.id)?.done ?? false;
   const push = (p: typeof picks, finished: boolean) => send({ t: "mood", picks: p, done: finished });
+  const groups = Object.keys(CUISINE_GROUPS) as CuisineGroup[];
   return (
     <>
       <h2>{t("round1")}</h2>
       <p class="muted small">{t("round1Hint")}</p>
-      <div class="moods">
-        {v.chips.map((c) => {
-          const now: MoodPick | "none" = picks[c.cuisine] ?? "none";
-          const cu = CUISINES[c.cuisine];
-          return (
-            <button
-              key={c.cuisine}
-              type="button"
-              class={`mood ${now}`}
-              data-cuisine={c.cuisine}
-              aria-pressed={now !== "none"}
-              disabled={done}
-              onClick={() => {
-                const to = cycleMood[now];
-                const p = { ...picks };
-                if (to === "none") delete p[c.cuisine];
-                else p[c.cuisine] = to;
-                setPicks(p);
-                push(p, false);
-              }}
-            >
-              <span class="emoji" aria-hidden="true">
-                {cu.emoji}
-              </span>
-              <span class="label">{tx(cu)}</span>
-              <small class="muted">{t(c.count === 1 ? "place1" : "places", { n: c.count })}</small>
-              <span class="mark" aria-hidden="true">
-                {now === "like" ? "👍" : now === "ban" ? "🚫" : ""}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {groups.map((g) => (
+        <section key={g} class="menu">
+          <h3>{tx(CUISINE_GROUPS[g])}</h3>
+          <div class="moods">
+            {v.chips
+              .filter((c) => CUISINES[c.cuisine].group === g)
+              .map((c) => {
+                const now: MoodPick | "none" = picks[c.cuisine] ?? "none";
+                const cu = CUISINES[c.cuisine];
+                return (
+                  <button
+                    key={c.cuisine}
+                    type="button"
+                    class={`mood ${now}`}
+                    data-cuisine={c.cuisine}
+                    aria-pressed={now !== "none"}
+                    disabled={done}
+                    onClick={() => {
+                      const to = cycleMood[now];
+                      const p = { ...picks };
+                      if (to === "none") delete p[c.cuisine];
+                      else p[c.cuisine] = to;
+                      setPicks(p);
+                      push(p, false);
+                    }}
+                  >
+                    <span class="emoji" aria-hidden="true">
+                      {cu.emoji}
+                    </span>
+                    <span class="label">{tx(cu)}</span>
+                    <span class="mark" aria-hidden="true">
+                      {now === "like" ? "👍" : now === "ban" ? "🚫" : ""}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </section>
+      ))}
       <Btn kind="primary" wide disabled={done} onClick={() => push(picks, true)}>
         {t("done")}
       </Btn>
@@ -287,6 +323,8 @@ function Cards({ v }: { v: RoomView }) {
       <RankedList
         cards={v.cards}
         top={TOP_COUNT}
+        occasion={v.occasion}
+        overBudget={v.overBudget}
         action={(c) => {
           const id = c.place.id;
           const yes = approve.includes(id);
@@ -384,7 +422,7 @@ function Result({ v }: { v: RoomView }) {
   return (
     <>
       <h2 class="center">{v.at ? t("winnerAt", { when: whenLabel(v.at) }) : t("winner")}</h2>
-      <PlaceCard c={win}>
+      <PlaceCard c={win} occasion={v.occasion}>
         <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
       </PlaceCard>
       {v.winner?.unsafe && <p class="error">{t(v.winner.unsafe === "budget" ? "winnerOverBudget" : "winnerUnsafe")}</p>}

@@ -4,22 +4,10 @@
 // frames on the beat, `p` the beat position in the move's 8-count (0 is count 1).
 //
 // Sides are the players': R is their right, the screen's right (+x); the coach is their mirror.
-import { AKIMBO, APART, CLAP, P, UP, both, elbows, palms, type MoveAnim } from "./kit";
+import { AKIMBO, APART, CLAP, P, TAU, UP, both, countAt as at, ease, elbows, feet, footOf, hand, palms, type MoveAnim } from "./kit";
 import { BASE, keys, type Foot, type Part, type Pose, type V3 } from "./pose";
 
 const S: Record<string, MoveAnim> = {};
-const TAU = 2 * Math.PI;
-/** count (0 to 7) and how far through it */
-const at = (p: number) => {
-  const q = ((p % 8) + 8) % 8;
-  const i = Math.floor(q);
-  return { i, f: q - i, q };
-};
-const feet = (w: number): Part => ({ fR: { x: w }, fL: { x: -w } });
-const ease = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
-/** one hand's part: the screen-right one, or the screen-left one mirrored */
-const hand = (side: 1 | -1, h: V3, pa: V3, el: V3): Part => (side > 0 ? { hR: h, pR: pa, eR: el } : { hL: [-h[0], h[1], h[2]], pL: [-pa[0], pa[1], pa[2]], eL: [-el[0], el[1], el[2]] });
-const footOf = (o: Pose, side: 1 | -1): Foot => (side > 0 ? o.fR : o.fL);
 
 // ---------- 江南Style: the horse dance
 
@@ -66,88 +54,78 @@ S["horse-lasso"] = {
   },
 };
 
+/**
+ * "Eh~ Sexy Lady": hands on the hips, the hips popped out to one side on the beat, the other knee
+ * bending in, the chin up and the head tipping away (the riding hall and the subway in the video).
+ */
+const shake = (side: 1 | -1): Part =>
+  P(AKIMBO, feet(0.22), { py: -0.06, px: 0.13 * side, roll: 0.16 * side, cRoll: -0.1 * side, hRoll: 0.09 * side, hPitch: -0.15 }, side > 0 ? { fL: { x: -0.17, yaw: 0.4, pitch: -0.45, lift: 0.025 } } : { fR: { x: 0.17, yaw: -0.4, pitch: -0.45, lift: 0.025 } });
 S["sexy-lady"] = {
   len: 8,
-  groove: 0.5,
-  pose: keys(BASE, 1, [[0, P(AKIMBO, feet(0.16), { cPitch: -0.03 })]]),
-  extra: (p, o) => {
-    // the right leg flicks out on 1 to 4, the left on 5 to 8; the hips swing away from it
-    const { i, f } = at(p);
-    const side = i < 4 ? 1 : -1;
-    const out = Math.cos(Math.PI * f) ** 2;
-    const foot = footOf(o, side);
-    foot.x += side * 0.22 * out;
-    foot.lift += 0.11 * out;
-    foot.pitch -= 0.4 * out;
-    o.px -= side * 0.06 * out;
-    o.roll += side * 0.07 * out;
-    o.cRoll -= side * 0.06 * out;
-    o.hRoll += side * 0.05 * out;
-  },
-};
-
-/** a lunge on the diagonal to the front right, the hands on the front thigh */
-const LUNGE: Part = { fR: { x: 0.32, z: 0.26, yaw: 0.55 }, fL: { x: -0.2, z: -0.12, yaw: -0.5 }, py: -0.16, px: 0.05, pz: 0.03, pitch: 0.12, cYaw: 0.12, hR: [0.24, -0.38, 0.22], hL: [0.06, -0.36, 0.26], pR: [0, -1, 0], pL: [0, -1, 0], eR: [1, -0.3, -0.3], eL: [-1, -0.3, -0.3] };
-const LUNGE_UP: Part = P(LUNGE, { py: -0.1 });
-const POP: Part = P(LUNGE, { fR: { x: 0.32, z: 0.26, yaw: 0.55, pitch: 0.5 }, py: -0.13 });
-S["gangnam-lunge"] = {
-  len: 8,
-  groove: 0.3,
-  pose: keys(BASE, 8, [
-    // 1-4: bounce in the lunge
-    [0, LUNGE, "hit"],
-    [0.5, LUNGE_UP],
-    [1, LUNGE, "hit"],
-    [1.5, LUNGE_UP],
-    [2, LUNGE, "hit"],
-    [2.5, LUNGE_UP],
-    [3, LUNGE, "hit"],
-    // 5-6: two rolls of the hips
-    [4, P(LUNGE, { px: 0.06, yaw: 0.16 })],
-    [4.5, P(LUNGE, { px: -0.06, yaw: -0.16, pz: 0.09 })],
-    [5, P(LUNGE, { px: 0.06, yaw: 0.16 })],
-    [5.5, P(LUNGE, { px: -0.06, yaw: -0.16, pz: 0.09 })],
-    // 7, and, 8: the front leg pops three times
-    [6, POP, "hit"],
-    [6.25, LUNGE],
-    [6.5, POP, "hit"],
-    [6.75, LUNGE],
-    [7, POP, "hit"],
-    [7.6, LUNGE],
+  groove: 0.4,
+  pose: keys(BASE, 2, [
+    [0, shake(1), "hit"],
+    [1, shake(-1), "hit"],
   ]),
 };
 
-const CHEST: Part = { pz: 0.04, cPitch: -0.14, hPitch: -0.06 };
-const ARM_POP: Part = P(both(0.3, -0.12, 0.3), palms(0, -1, 0.3), elbows(1, -0.3, -0.3));
-const ARM_IN: Part = P(both(0.16, -0.2, 0.2), palms(0, -1, 0.3), elbows(0.8, -0.6, -0.3));
-S["chest-pop"] = {
+/** wide and low, as if half sitting on the bus's seat */
+const DISCO: Part = { fR: { x: 0.28, yaw: 0.4 }, fL: { x: -0.28, yaw: -0.4 }, py: -0.12, cPitch: 0.04 };
+/** the left arm up and out on the diagonal, pointing; the right hand down by the right knee, pointing at the floor */
+const pointUp = (jab: number): Part =>
+  P(DISCO, hand(-1, [0.5 + 0.04 * jab, 0.36 + 0.06 * jab, 0.16], [0, 0.3, 1], [1, 0.2, -0.3]), hand(1, [0.34, -0.5, 0.3], [-0.4, -0.6, 0.7], [0.8, -0.1, -0.5]), { cRoll: -0.08, cYaw: 0.07, hYaw: -0.1, hPitch: -0.08 });
+/** both arms up in a V, swaying to one side */
+const discoV = (side: 1 | -1): Part => P(DISCO, both(0.36, 0.5, 0.12), palms(0, 0.2, 1), elbows(1, 0.3, -0.3), { py: -0.07, px: 0.05 * side, roll: -0.05 * side, cRoll: -0.04 * side });
+S["disco-point"] = {
   len: 8,
-  groove: 0.3,
+  groove: 0.9,
   pose: keys(BASE, 8, [
-    [0, P(feet(0.17), CHEST), "hit"],
-    [0.5, feet(0.17)],
-    [1, P(feet(0.17), CHEST), "hit"],
-    [1.5, feet(0.17)],
-    [2, P(feet(0.17), CHEST), "hit"],
-    [3, feet(0.17)],
-    [3.75, P(feet(0.17), ARM_IN)],
-    [4, P(feet(0.17), CHEST, ARM_POP), "hit"],
-    [4.5, P(feet(0.17), ARM_IN)],
-    [5, P(feet(0.17), CHEST, ARM_POP), "hit"],
-    [5.5, P(feet(0.17), ARM_IN)],
-    [6, P(feet(0.17), CHEST, ARM_POP), "hit"],
-    [7, P(feet(0.17), ARM_IN)],
+    // 1-4: point up and down, the up hand jabbing on every beat
+    [0, pointUp(1), "hit"],
+    [0.5, pointUp(0)],
+    [1, pointUp(1), "hit"],
+    [1.5, pointUp(0)],
+    [2, pointUp(1), "hit"],
+    [2.5, pointUp(0)],
+    [3, pointUp(1), "hit"],
+    [3.6, pointUp(0)],
+    // 5-8: both arms up, swaying
+    [4, discoV(1)],
+    [5, discoV(-1)],
+    [6, discoV(1)],
+    [7, discoV(-1)],
   ]),
 };
 
-/** a finger gun forward from the chest */
-const gun = (side: 1 | -1): Part => P(hand(side, [0.24, -0.14, 0.38], [0, -0.4, 1], [0.8, -0.6, -0.2]), hand(-side as 1 | -1, [0.2, -0.36, 0.15], [-1, 0, 0.2], [0.6, -0.4, -0.8]));
+/** the right palm flat on the chest */
+const HAND_ON_CHEST: Part = hand(1, [-0.03, -0.09, 0.17], [0, 0.2, -1], [1, -0.5, 0.1]);
+/** a step to one side (count 1 or 3), then the other foot tapping in by it (2 or 4), the shoulders swinging that way */
+const strut = (side: 1 | -1, tap: boolean): Part => {
+  // (on the step both feet are wide; on the tap the other foot is in by the first)
+  const out: Foot = { x: 0.26 * side, z: 0, lift: 0, yaw: 0.2 * side, pitch: 0 };
+  const other: Partial<Foot> = tap ? { x: 0.08 * side, lift: 0.02, pitch: -0.4 } : { x: -0.26 * side };
+  const swing = hand(-1, [0.2, -0.45, side > 0 ? 0.17 : -0.05], [1, 0, 0.2], [0.5, -0.3, -1]);
+  return P(HAND_ON_CHEST, swing, side > 0 ? { fR: out, fL: other } : { fL: out, fR: other }, { px: (tap ? 0.15 : 0.09) * side, roll: 0.03 * side, cRoll: (tap ? -0.07 : -0.03) * side, sR: tap && side > 0 ? [0.04, 0] : [0, 0], sL: tap && side < 0 ? [0.04, 0] : [0, 0], hPitch: tap ? -0.06 : -0.12 });
+};
+S["gangnam-strut"] = {
+  len: 8,
+  groove: 0.6,
+  pose: keys(BASE, 4, [
+    [0, strut(1, false), "snap"],
+    [1, strut(1, true), "hit"],
+    [2, strut(-1, false), "snap"],
+    [3, strut(-1, true), "hit"],
+  ]),
+};
+
+/** little PSY's groove: fists at the chest, the knees bouncing, the hips pushed forward on 2 and 4 */
+const PSY_FISTS: Part = P(both(0.11, -0.15, 0.23), palms(-0.3, -1, 0.3), elbows(1, -0.4, -0.2));
 S["gangnam-bounce"] = {
   len: 8,
-  groove: 1,
+  groove: 0.9,
   pose: keys(BASE, 2, [
-    [0, P(feet(0.2), gun(1), { px: 0.05, roll: -0.04, cRoll: -0.06, sR: [0.05, 0] }), "snap"],
-    [1, P(feet(0.2), gun(-1), { px: -0.05, roll: 0.04, cRoll: 0.06, sL: [0.05, 0] }), "snap"],
+    [0, P(feet(0.17), PSY_FISTS), "hit"],
+    [1, P(feet(0.17), PSY_FISTS, both(0.12, -0.26, 0.25), { py: -0.03, pz: 0.08, pitch: -0.14, cPitch: 0.08, hPitch: 0.06, sR: [0.03, 0], sL: [0.03, 0] }), "hit"],
   ]),
 };
 

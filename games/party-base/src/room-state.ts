@@ -14,8 +14,12 @@ export class RoomError extends Error {
 
 export const MAX_PLAYERS = 15;
 export const DEFAULT_SESSION_MINUTES = 30;
-/** BEAT_MOVED moves the dance's beat 0 by at most this much (a video late to start, or stalled; not a new start). */
-export const MAX_BEAT_MOVE_MS = 60_000;
+/**
+ * BEAT_MOVED moves the dance's beat 0 by at most this much: a video late to start, held up by an ad,
+ * stalled or stopped till someone taps it; the dance follows it however long that was (a song is
+ * shorter than this), never a made-up time.
+ */
+export const MAX_BEAT_MOVE_MS = 15 * 60_000;
 
 export function createRoom(code: string, at: number): RoomState {
   return {
@@ -139,7 +143,7 @@ export function reduce(state: RoomState, ev: RoomEvent): RoomState {
     case 'BEAT_MOVED':
       requirePhase(state, ['dancing'], ev.type);
       if (!Number.isFinite(ev.routineStartAt) || state.routineStartAt === null || Math.abs(ev.routineStartAt - state.routineStartAt) > MAX_BEAT_MOVE_MS) {
-        throw new RoomError('bad_start', 'the beat can only move by a minute at most');
+        throw new RoomError('bad_start', 'the beat can only move by 15 minutes at most');
       }
       return touch({ ...state, routineStartAt: ev.routineStartAt }, ev.at);
 

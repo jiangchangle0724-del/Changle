@@ -108,8 +108,8 @@ const PER_ACTOR_MS = 15_000;
 const PK_MS = 45_000;
 /** a famous scene: a minute, and fifteen seconds more for each actor past two */
 const CLASSIC_MS = 60_000;
-/** a reading: a minute and a half (the reader says when they're done) */
-const READ_MS = 90_000;
+/** a reading: two minutes for a minute and a half of words (the reader says when they're done) */
+const READ_MS = 120_000;
 const VOTE_MS = 50_000;
 /** the most on stage at once */
 export const MAX_CAST = 8;

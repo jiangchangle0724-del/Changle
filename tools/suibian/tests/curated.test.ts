@@ -1,6 +1,7 @@
 // Things we add by hand: the lists a place is on, Steve's picks, and the checks on those files.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { badgesFor } from "../src/engine";
 import { LISTS_FILE, PICKS_FILE, checkLists, checkPicks, curatedFor, normName, type ListsFile, type PicksFile } from "../src/server/curated";
 
 test("data files: lists.json and picks.json pass their own checks (CI fails a bad edit)", () => {
@@ -62,6 +63,44 @@ test("matching: Google's two-language names and unit numbers still find the list
   assert.equal(curatedFor("Nookie Burger", "781 Denman St", { lists, picks }).badges, undefined);
 });
 
+test("badges: one from each list before a second from the same list, four at most", () => {
+  const many: ListsFile = {
+    updated: "2026-11-11",
+    sources: Object.fromEntries(["a", "b", "c", "d", "e"].map((x) => [x, { zh: x, en: x, url: "https://example.com/" }])),
+    places: [
+      {
+        name: "Busy Place",
+        awards: [
+          { source: "a", label: { zh: "a1", en: "a1" }, year: 2026, url: "https://example.com/a1" },
+          { source: "a", label: { zh: "a2", en: "a2" }, year: 2026, url: "https://example.com/a2" },
+          { source: "b", label: { zh: "b", en: "b" }, year: 2026, url: "https://example.com/b" },
+          { source: "c", label: { zh: "c", en: "c" }, year: 2024, url: "https://example.com/c" },
+          { source: "d", label: { zh: "d", en: "d" }, year: 2025, url: "https://example.com/d" },
+          { source: "e", label: { zh: "e", en: "e" }, year: 2023, url: "https://example.com/e" },
+        ],
+      },
+    ],
+  };
+  const all = curatedFor("Busy Place", undefined, { lists: many }).badges;
+  assert.deepEqual(all?.map((b) => b.label.en), ["a1", "b", "d", "c", "e", "a2"]);
+  // A card shows four.
+  assert.deepEqual(badgesFor(all, undefined).map((b) => b.label.en), ["a1", "b", "d", "c"]);
+});
+
+test("lists added 2026-11-11: OpenTable, enRoute, Yelp and the Chinese Restaurant Awards' Elite 30 Canada", () => {
+  const en = (name: string, address?: string) => curatedFor(name, address).badges?.map((b) => b.label.en) ?? [];
+  assert.ok(en("Dovetail", "1079 Mainland St, Vancouver").includes("OpenTable Top 100 Canada"));
+  assert.ok(en("Sumibiyaki Arashi", "363 E Broadway, Vancouver").includes("OpenTable Top 100 Canada"), "on four lists: all four show");
+  assert.ok(en("Nero Tondo", "1879 Powell St, Vancouver").includes("enRoute Best New Restaurants #6"));
+  assert.ok(en("Manoush'eh", "620 Davie St, Vancouver").includes("Yelp Top 100 in Canada"));
+  assert.ok(en("Golden Paramount Seafood Restaurant 金百樂海鮮酒家", "110-8111 Anderson Rd, Richmond").includes("Chinese Restaurant Awards Elite 30 Canada #16"));
+  assert.ok(en("Long's Noodle House", "4731 Garden City Rd #140, Richmond").includes("Chinese Restaurant Awards Elite 30 Canada #21"));
+  assert.ok(en("Bamboo Grove Restaurant", "6920 No. 3 Rd, Richmond").includes("Chinese Restaurant Awards Elite 30 Canada #6"));
+  // Another place of the same name elsewhere isn't the listed one.
+  assert.deepEqual(en("Bamboo Grove", "1234 Kingsway, Burnaby"), []);
+  assert.deepEqual(en("Happy Noodle House", "8888 Main St, Vancouver"), []);
+});
+
 test("matching: every place in lists.json finds its own badges by its own name and address", () => {
   const missed = LISTS_FILE.places.filter((p) => !curatedFor(p.name, p.address).badges?.length).map((p) => p.name);
   assert.deepEqual(missed, []);
@@ -82,4 +121,15 @@ test("checks: missing sources, years, links and notes are caught", () => {
   }
   const badPicks = checkPicks({ updated: "2026-11-01", places: [{ name: "B", note: { zh: "很长".repeat(40), en: "ok" }, links: [{ platform: "", url: "http://x" }] }] });
   for (const want of ["one line", "platform", "https url"]) assert.ok(badPicks.some((p) => p.includes(want)), `catches: ${want}\n${badPicks.join("\n")}`);
+});
+
+test("lists for an occasion (2026-11-12): most romantic, private rooms, family-friendly, late night", () => {
+  const of = (name: string, address?: string) => curatedFor(name, address).badges ?? [];
+  const hys = of("Hy's Steakhouse & Cocktail Bar", "637 Hornby St, Vancouver");
+  assert.deepEqual(hys.find((b) => b.occasions)?.occasions, ["date"]);
+  assert.ok(of("Folietta", "1480 Nanaimo St, Vancouver").some((b) => b.occasions?.includes("business")));
+  assert.ok(of("Tap & Barrel - Convention Centre", "1055 Canada Pl, Vancouver").some((b) => b.occasions?.includes("family")));
+  assert.ok(of("Siegel's Bagels", "1883 Cornwall Ave, Vancouver").some((b) => b.occasions?.includes("latenight")), "24 hours: a late-night pick, not a business one");
+  // Every occasion named in lists.json is a real one.
+  assert.deepEqual(checkLists({ ...LISTS_FILE, places: [{ name: "X", awards: [{ source: "michelin", label: { zh: "x", en: "x" }, url: "https://x.example/", occasions: ["picnic"] }] }] }), ["places[0] X: occasions must be ids from occasion.ts"]);
 });

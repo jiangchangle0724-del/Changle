@@ -240,8 +240,8 @@ function Setup({ v }: { v: DramaView }) {
                 : "Act out famous moments from film and TV. The audience gives stars; the lowest score pays."
             : v.mode === "read"
               ? zh
-                ? "一个人上台朗读一段，照指定的读法读：哭着读、憋着笑读、用大臣腔读……观众打星，不到 3 星的受罚。"
-                : "One person reads a piece aloud, the way it asks: in tears, with a straight face, as a royal courtier... The audience gives stars; under three pays."
+                ? "一个人上台朗读一段，照指定的读法读：哭着读、憋着笑读、用大臣腔读、深情告白……观众打星，不到 3 星的受罚。"
+                : "One person reads a piece aloud, the way it asks: in tears, with a straight face, as a royal courtier, from the heart... The audience gives stars; under three pays."
             : zh
               ? "几个人上台演一段狗血剧，其中一个偷偷是坏人。观众猜是谁，再给演技打星。"
               : "A few players act a soap opera; one of them is secretly the culprit. The audience guesses who, then stars the acting."}

@@ -63,6 +63,12 @@ export type ClientMsg =
    * its video is really playing. The room moves the beat there if it's off.
    */
   | { t: "songAt"; startAt: number }
+  /**
+   * The speaker, while a song plays: its video should be playing and isn't (stalled, an ad, or
+   * stopped till someone taps it). The room holds the dance (RoutineInfo.heldAt) till the video
+   * plays again; the next songAt starts it from where the video is.
+   */
+  | { t: "songStall" }
   /** The speaker: the song picked is loaded and held at its start; the room starts it (after the lead-in). */
   | { t: "songReady" }
   /**
@@ -122,6 +128,11 @@ export interface RoutineInfo {
   tapIn?: boolean;
   /** Paused by the host at this speaker time: nothing plays until 继续 (RESUME) moves the run later. */
   pausedAt?: number;
+  /**
+   * A song's video stopped playing at this speaker time (songStall): the dance waits, the coach and
+   * the phones too, and starts again from where the video is when it plays again (songAt).
+   */
+  heldAt?: number;
 }
 
 /** The floor together, from the beats the phones have sent. */

@@ -274,147 +274,15 @@
   opacity: 0.7;
 }
 
-/* the lighting board: every game is a gel */
+/* the lighting board: the home page's games and the online table's (both are ui/Tile) */
 .board {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-.tile {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-height: 148px;
-  padding: 14px 14px 12px;
-  border-radius: var(--r-tile);
-  background: var(--gel);
-  color: var(--night);
-  text-align: left;
-  transition:
-    scale var(--dur-enter) var(--ease-out),
-    translate var(--dur-enter) var(--ease-out),
-    box-shadow var(--dur-enter),
-    filter var(--dur-enter);
-}
-.tile::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(130% 90% at 0% 0%, color-mix(in srgb, var(--color-paper) 34%, transparent), transparent 55%),
-    linear-gradient(165deg, transparent 45%, color-mix(in srgb, var(--color-bg) 20%, transparent));
-}
-.tile-icon {
-  position: absolute;
-  right: -12px;
-  bottom: -14px;
-  width: 92px;
-  height: 92px;
-  z-index: -1;
-  color: color-mix(in oklab, var(--gel) 42%, var(--night));
-  opacity: 0.5;
-  transform: rotate(-12deg);
-}
-.tile-main {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-lg);
-  line-height: 1.14;
-  letter-spacing: -0.025em;
-  max-width: 94%;
-  text-wrap: balance;
-}
-.tile-main.is-zh {
-  font-weight: 800;
-  font-size: var(--text-lg);
-  letter-spacing: 0.01em;
-}
-.tile-sub {
-  margin-top: 4px;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  opacity: 0.68;
-  line-height: 1.25;
-}
-.tile-foot {
-  margin-top: auto;
-  padding-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  align-items: center;
-}
-.tile-players {
-  font-size: var(--text-xs);
-  font-weight: 800;
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--color-bg) 13%, transparent);
-}
-.tile-tag {
-  font-size: var(--text-xs);
-  font-weight: 800;
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-  background: var(--night);
-  color: var(--gel);
-}
-.tile:active:not(:disabled) {
-  scale: 0.965;
-}
-.tile.is-lit {
-  z-index: 2;
-  translate: 0 -2px;
-  box-shadow:
-    0 0 0 3px var(--moon),
-    0 18px 50px -12px var(--gel);
-}
-.board.is-spinning .tile:not(.is-lit) {
-  filter: saturate(0.3) brightness(0.5);
-  transition-duration: var(--dur-enter), var(--dur-enter), var(--dur-enter), var(--dur-emphasis);
-}
-.board.is-spinning .tile.is-lit {
-  transition-duration: 0s;
-}
 
-/* coming soon: the gel is in the rig but not lit yet */
 .board-head-soon {
   margin-top: 28px;
-}
-.tile.is-soon {
-  min-height: 112px;
-  background: var(--dusk);
-  color: var(--gel);
-  box-shadow: var(--shadow-flat);
-}
-.tile.is-soon::before {
-  background: radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--gel) 14%, transparent), transparent 60%);
-}
-.tile.is-soon .tile-icon {
-  width: 74px;
-  height: 74px;
-  color: var(--gel);
-  opacity: 0.22;
-}
-.tile.is-soon .tile-sub {
-  color: var(--haze);
-  opacity: 1;
-}
-.tile.is-soon .tile-players {
-  background: color-mix(in oklab, var(--gel) 16%, transparent);
-}
-.tile.is-soon .tile-tag {
-  background: color-mix(in oklab, var(--gel) 22%, transparent);
-  color: var(--gel);
-}
-.tile.is-soon.is-lit {
-  box-shadow:
-    inset 0 0 0 2px var(--gel),
-    0 18px 50px -16px var(--gel);
 }
 
 .board-foot {
@@ -423,6 +291,37 @@
   gap: 6px;
   margin-top: 18px;
   font-size: var(--text-sm);
+}
+
+/* the tools or wishlist tab while its file is on the way (UI plan C5): blocks where its cards go */
+.tab-loading {
+  display: grid;
+  gap: var(--space-3);
+}
+/* a pill where the tab's first row goes and a card under it, pulsing until the tab arrives */
+.tab-loading::before,
+.tab-loading::after {
+  content: "";
+  height: calc(var(--tap) * 3);
+  border-radius: var(--r-tile);
+  background: var(--color-surface);
+  animation: tab-loading calc(var(--dur-emphasis) * 3) var(--ease-out) infinite alternate;
+}
+.tab-loading::before {
+  width: 70%;
+  height: var(--tap);
+  border-radius: var(--r-pill);
+}
+@keyframes tab-loading {
+  to {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-loading::before,
+  .tab-loading::after {
+    animation: none;
+  }
 }
 
 /* ---------- game card (sheet) ---------- */
