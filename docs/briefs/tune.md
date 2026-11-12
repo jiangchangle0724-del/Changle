@@ -33,7 +33,7 @@
 
 ## 还剩什么
 
-- 选择题偶尔闪退（Steve 10-31 报的）：没在真 iPhone 上复现过。11-04 在电脑的 Chrome 内核上量到，放真歌时页面内存一首一首往上涨（单机 12 首从 330 MB 到 875 MB），把台上的动画停掉就不涨。正在查是动画里哪一块。iPhone 是不是同一个原因还没证实。
+- 选择题偶尔闪退（Steve 10-31 报的）：11-05 找到并修了一个很像的原因。台上跟着拍子变的灯光每一帧都改两个小人所在整块的样式，Chrome 内核里页面内存一首涨 150 MB 左右（6 首从 100 MB 到 1.2 GB），关掉这一项就不涨，小人跳舞本身不涨。改成只改发光的那几块、粗一点的台阶、变了才改以后，8 首都稳在 180 MB 上下。iPhone 是另一种内核，还要 Steve 在 iPhone 上连玩几十首确认。`scripts/tune_quiz_check.py` 现在也会在页面内存往上爬时报错。
 - 参考 Soundle 的四条（Steve 11-05 说都做）：选择题分难度、一秒猜歌、歌手专场和年代歌单、挑战链接。
 
 ## 交给别的对话
@@ -44,6 +44,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-05 Name That Tune: the stage's lights stop growing the page's memory song after song
 - 2026-11-05 Name That Tune: one phone, multiple choice: a wrong title locks only itself, the table guesses on
 - 2026-11-05 ui(C10): resume songs melodies and buzzers (#206，Codex)
 - 2026-11-04 ui-C2：猜歌名三种模式接入游戏壳动作区、玩家条与轮次 (#168，Codex)
