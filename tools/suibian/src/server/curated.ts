@@ -103,6 +103,9 @@ const PICKS = picksData as unknown as PicksFile;
 const listIndex = index(LISTS.places);
 const pickIndex = index(PICKS.places);
 
+/** Badges on one card at most. */
+const MAX_BADGES = 4;
+
 /** The lists and pick for one place, or nothing. Works on the data files bundled with the Worker. */
 export function curatedFor(name: string, address?: string, files: { lists?: ListsFile; picks?: PicksFile } = {}): { badges?: Badge[]; recommend?: Recommend } {
   const lists = files.lists ? index(files.lists.places) : listIndex;
@@ -110,9 +113,12 @@ export function curatedFor(name: string, address?: string, files: { lists?: List
   const out: { badges?: Badge[]; recommend?: Recommend } = {};
   const l = find(lists, name, address);
   if (l?.awards.length) {
-    out.badges = [...l.awards]
-      .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
-      .slice(0, 3)
+    // Newest first, and one from each list before a second from the same list, so a place on four
+    // lists shows all four (MICHELIN, Vancouver Magazine, OpenTable…) instead of two of one.
+    const newest = [...l.awards].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    const firsts = newest.filter((a, i) => newest.findIndex((x) => x.source === a.source) === i);
+    out.badges = [...firsts, ...newest.filter((a) => !firsts.includes(a))]
+      .slice(0, MAX_BADGES)
       .map((a) => ({ source: a.source, label: a.label, year: a.year, url: a.url }));
   }
   const p = find(picks, name, address);
