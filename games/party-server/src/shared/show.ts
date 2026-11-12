@@ -11,7 +11,7 @@ import { buildTimeline, restartSection, type TimelineEntry } from "../../../danc
 import type { Difficulty, RoomPhase } from "../../../party-base/src/index";
 import { METRONOME_ID, MOVES, moveById, routineById, type Move, type Routine } from "./catalog";
 import type { RoutineInfo } from "./protocol";
-import { songById, songMoveAt, songMoves, type Song } from "./songs";
+import { songBeat, songById, songMoves, type Song } from "./songs";
 
 /** learn: warm-up, teaching, dance, cool-down. dance: the same without the teaching. */
 export type Mode = "learn" | "dance";
@@ -150,7 +150,10 @@ function makeSong(song: Song, mode: Mode): Show {
     }
   }
   const leadMs = lead.length ? lead[lead.length - 1]!.at + lead[lead.length - 1]!.ms : 0;
-  const dance: ShowBeat[] = Array.from({ length: song.beats }, (_, b) => ({ stage: "dance", move: moveById(songMoveAt(song, Math.floor(b / 8))), count: (b % 8) + 1, at: b * beatMs, ms: beatMs, score: true, danceBeat: b }));
+  const dance: ShowBeat[] = Array.from({ length: song.beats }, (_, b) => {
+    const { move, count } = songBeat(song, b);
+    return { stage: "dance", move: moveById(move), count, at: b * beatMs, ms: beatMs, score: true, danceBeat: b };
+  });
   return {
     id: song.id,
     kind: "song",

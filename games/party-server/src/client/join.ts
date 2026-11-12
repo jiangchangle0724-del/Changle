@@ -665,12 +665,14 @@ function routinePicker(): HTMLElement {
   const box = el("div", "picker");
   box.append(el("p", "picker-title", tr("热歌（电视上放 YouTube 原版）", "Songs (the real ones, from YouTube on the TV)")));
   const songs = el("div", "picker-list");
-  for (const song of SONGS) {
+  // (the songs with their own famous dance first)
+  for (const song of [...SONGS].sort((a, b) => Number(!!b.aligned) - Number(!!a.aligned))) {
     const b = el("button", song.id === pick ? "pick is-on" : "pick");
     b.setAttribute("aria-pressed", String(song.id === pick));
     b.append(el("span", "pick-name", `${songTitle(song)} · ${songArtist(song)}`));
-    const ready = tappedSongs ? song.id in tappedSongs : true;
-    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${song.bpm} BPM${ready ? "" : ` · ${tr("第一次跳先一起找拍子", "first time: find the beat together")}`}`));
+    const ready = song.aligned || (tappedSongs ? song.id in tappedSongs : true);
+    const own = song.aligned ? ` · ${tr("原版舞", "its own dance")}` : "";
+    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${Math.round(song.bpm)} BPM${own}${ready ? "" : ` · ${tr("第一次跳先一起找拍子", "first time: find the beat together")}`}`));
     b.onclick = () => {
       pick = song.id;
       render();

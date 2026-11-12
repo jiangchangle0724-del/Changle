@@ -367,8 +367,9 @@ export class Session {
         // a song's beat is where people tapped along to it once (the songbook): untapped, everyone
         // taps along to its video first (找拍子) and the song waits for that
         const tapped = show.kind === "song" ? this.songbook[show.id] : undefined;
-        const known = typeof tapped === "number" && Number.isFinite(tapped);
-        const introMs = Math.round(typeof tapped === "number" && known ? songStart(show, tapped) : show.introMs);
+        // (a song danced along its own parts has its beat measured: no 找拍子 for it)
+        const known = (typeof tapped === "number" && Number.isFinite(tapped)) || !!show.song?.aligned;
+        const introMs = Math.round(typeof tapped === "number" && Number.isFinite(tapped) ? songStart(show, tapped) : show.introMs);
         // (set first: the state message that goes out with the change carries them)
         const results = this.d.results;
         this.d.routine = { routineId: show.id, bpm: show.bpm, beatsPerBar: 4, totalBeats: show.dance.length, mode: show.mode, leadStartAt, fromBeat: 0, introMs, ...(show.kind === "song" && !known ? { tapIn: true } : {}) };
