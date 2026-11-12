@@ -4,22 +4,10 @@
 // frames on the beat, `p` the beat position in the move's 8-count (0 is count 1).
 //
 // Sides are the players': R is their right, the screen's right (+x); the coach is their mirror.
-import { AKIMBO, APART, CLAP, P, UP, both, elbows, palms, type MoveAnim } from "./kit";
+import { AKIMBO, APART, CLAP, P, TAU, UP, both, countAt as at, ease, elbows, feet, footOf, hand, palms, type MoveAnim } from "./kit";
 import { BASE, keys, type Foot, type Part, type Pose, type V3 } from "./pose";
 
 const S: Record<string, MoveAnim> = {};
-const TAU = 2 * Math.PI;
-/** count (0 to 7) and how far through it */
-const at = (p: number) => {
-  const q = ((p % 8) + 8) % 8;
-  const i = Math.floor(q);
-  return { i, f: q - i, q };
-};
-const feet = (w: number): Part => ({ fR: { x: w }, fL: { x: -w } });
-const ease = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
-/** one hand's part: the screen-right one, or the screen-left one mirrored */
-const hand = (side: 1 | -1, h: V3, pa: V3, el: V3): Part => (side > 0 ? { hR: h, pR: pa, eR: el } : { hL: [-h[0], h[1], h[2]], pL: [-pa[0], pa[1], pa[2]], eL: [-el[0], el[1], el[2]] });
-const footOf = (o: Pose, side: 1 | -1): Foot => (side > 0 ? o.fR : o.fL);
 
 // ---------- 江南Style: the horse dance
 

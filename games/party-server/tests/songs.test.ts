@@ -1,5 +1,5 @@
 // The songs: a song as a show (its teaching, the video's intro, the count-in, the dance on its
-// beats), the six with their own dance laid along their parts, a room playing one (the songbook's
+// beats), the fourteen with their own dance laid along their parts, a room playing one (the songbook's
 // first beat, 找拍子 for a song nobody has danced yet, none for a measured one, the speaker moving
 // the beat to where the video really is), and the songbook's checks of a speaker's taps. Run: npm test
 import assert from "node:assert/strict";
@@ -28,6 +28,15 @@ const VIDEO_MS: Record<string, number> = {
   "song-zui-xuan-min-zu-feng": 284_001,
   "song-yi-xiao-jiang-hu": 230_861,
   "song-macarena": 222_101,
+  // (2026-11-12)
+  "song-cupid-shuffle": 232_000,
+  "song-cha-cha-slide": 253_981,
+  "song-ymca": 241_200,
+  "song-watch-me": 202_400,
+  "song-ketchup": 210_900,
+  "song-gee": 240_100,
+  "song-hai-cao-wu": 300_200,
+  "song-gokuraku-jodo": 216_000,
 };
 
 function ready() {
@@ -45,11 +54,11 @@ function ready() {
 }
 
 describe("a song as a show", () => {
-  it("every song is in order: its moves are known and the coach dances them, its dance whole 8-counts", () => {
+  it("every song is in order: its moves are known and the coach dances them, its dance whole 8-counts and halves (a caller's as long as its calls)", () => {
     for (const song of SONGS) {
       const show = buildShow(song.id, "dance")!;
       assert.equal(show.kind, "song", song.id);
-      assert.equal(song.beats % 8, 0, song.id);
+      if (!song.calls) assert.equal(song.beats % 4, 0, song.id);
       assert.equal(show.dance.length, song.beats);
       assert.ok(show.dance.every((b) => b.move !== null && b.score && b.count >= 1 && b.count <= 8), song.id);
       assert.ok(show.dance.every((b) => moveAnim(b.move!.id) !== null), `${song.id}: every move animated`);
@@ -59,7 +68,7 @@ describe("a song as a show", () => {
     }
   });
 
-  it("the six with their own dance: measured, laid along the song, over before the video is", () => {
+  it("the songs with their own dance: measured, laid along the song, over before the video is", () => {
     const own = SONGS.filter((s) => s.aligned);
     assert.deepEqual(own.map((s) => s.id).sort(), Object.keys(VIDEO_MS).sort());
     for (const song of own) {
@@ -67,9 +76,11 @@ describe("a song as a show", () => {
       assert.equal(steps.reduce((n, [, k]) => n + k, 0), song.beats, song.id);
       for (const [move, n, from = 1] of steps) {
         assert.ok(moveById(move), `${song.id}: ${move}`);
-        // whole 8-counts, or half of one counted 5 to 8
-        assert.ok((n % 8 === 0 && from === 1) || (n === 4 && from === 5), `${song.id}: ${move} ${n} from ${from}`);
+        // whole 8-counts, or half of one counted 5 to 8; a caller's song (or one with 12-beat lines) as long as each part needs
+        if (song.calls) assert.ok(n >= 1 && (from === 1 || (n === 4 && from === 5)), `${song.id}: ${move} ${n} from ${from}`);
+        else assert.ok((n % 8 === 0 && from === 1) || (n === 4 && from === 5), `${song.id}: ${move} ${n} from ${from}`);
       }
+      for (const id of song.teach ?? []) assert.ok(songMoves(song).includes(id), `${song.id} teaches ${id}`);
       assert.ok(song.firstBeatMs + song.beats * (60000 / song.bpm) < VIDEO_MS[song.id]!, `${song.id} ends in time`);
     }
   });
@@ -80,7 +91,9 @@ describe("a song as a show", () => {
         const st = STEPS[id];
         assert.ok(st, `${song.id}: ${id} has its steps`);
         assert.ok(st.ready[0] && st.ready[1], `${id}: how to stand`);
-        let next = 1;
+        // (a move only ever danced as a half phrase, 5 to 8, starts at 5)
+        const halves = song.dance!.filter(([m]) => m === id);
+        let next = halves.every(([, n, from]) => n === 4 && from === 5) ? 5 : 1;
         for (const [from, to, zh, en] of st.counts) {
           assert.equal(from, next, `${id}: count ${next} next`);
           assert.ok(to >= from && zh.length > 0 && en.length > 0, `${id}: ${from}-${to}`);
@@ -90,6 +103,41 @@ describe("a song as a show", () => {
         if (st.tip) assert.ok(st.tip[0] && st.tip[1]);
       }
     }
+  });
+
+  it("the new songs' parts start where their songs do (in each video's beats, from the timed lyrics)", () => {
+    /** the move and count on a beat of the video's grid */
+    const onVideo = (id: string, videoBeat: number, firstVideoBeat: number) => songBeat(songById(id)!, videoBeat - firstVideoBeat);
+    // Cupid Shuffle: "to the right…" on a round's first count
+    for (const b of [128, 224, 256, 384, 416]) assert.deepEqual(onVideo("song-cupid-shuffle", b, 32), { move: "cupid-right", count: 1 });
+    assert.deepEqual(onVideo("song-cupid-shuffle", 152, 32), { move: "cupid-walk", count: 1 });
+    // the Cha-Cha Slide: its calls, each counted from its own first beat
+    assert.deepEqual(onVideo("song-cha-cha-slide", 114, 64), { move: "cha-left", count: 1 });
+    assert.deepEqual(onVideo("song-cha-cha-slide", 117, 64), { move: "cha-back", count: 2 });
+    assert.deepEqual(onVideo("song-cha-cha-slide", 326, 64), { move: "cha-freeze", count: 3 });
+    assert.deepEqual(onVideo("song-cha-cha-slide", 346, 64), { move: "cha-low", count: 1 });
+    // Y.M.C.A.: the letters on an 8-count's first four beats
+    for (const b of [96, 104, 128, 232, 400, 464]) assert.deepEqual(onVideo("song-ymca", b, 8), { move: "ymca-letters", count: 1 });
+    // Watch Me: "now watch me whip" on 64, 224, 384; the stanky leg on 128
+    for (const b of [64, 224, 384]) assert.deepEqual(onVideo("song-watch-me", b, 32), { move: "wm-whip", count: 1 });
+    assert.deepEqual(onVideo("song-watch-me", 128, 32), { move: "wm-stanky", count: 1 });
+    // the Ketchup Song: each 12-beat line, the hands 1-8, the forehead 5-8
+    for (const b of [54, 66, 78, 145, 157, 169, 215, 299]) assert.deepEqual(onVideo("song-ketchup", b, 14), { move: "ketchup-hands", count: 1 });
+    assert.deepEqual(onVideo("song-ketchup", 62, 14), { move: "ketchup-head", count: 5 });
+    // Gee: the crab on "Gee gee gee", the chorus' sparkle; the second half half a phrase on
+    for (const b of [72, 88, 172, 188]) assert.deepEqual(onVideo("song-gee", b, 40), { move: "gee-crab", count: 1 });
+    for (const b of [128, 228, 292, 324]) assert.deepEqual(onVideo("song-gee", b, 40), { move: "gee-sparkle", count: 1 });
+    // 極楽浄土: "歌えや歌え" on 136, 264, 396 (its subtitles)
+    for (const b of [136, 264, 396]) assert.deepEqual(onVideo("song-gokuraku-jodo", b, 40), { move: "gj-sing", count: 1 });
+    // 海草舞: "人海啊 茫茫啊" on 48, 240, 464
+    for (const b of [48, 240, 464]) assert.deepEqual(onVideo("song-hai-cao-wu", b, 16), { move: "hc-look", count: 1 });
+  });
+
+  it("the Cha-Cha Slide teaches its basic steps (the song calls the rest as it goes)", () => {
+    const song = songById("song-cha-cha-slide")!;
+    const show = buildShow(song.id, "learn")!;
+    assert.deepEqual([...new Set(show.lead.map((b) => b.move!.id))], song.teach);
+    assert.equal(show.lead.length, song.teach!.length * 16);
   });
 
   it("江南Style: the build's half phrase counted 5 to 8, then the chorus from 1 on the song's beat 156", () => {

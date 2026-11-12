@@ -411,4 +411,537 @@ export const STEPS: Readonly<Record<string, Steps>> = {
       [6, 8, "双手放到耳朵边，像戴着耳机，左右晃", "Hands over your ears like headphones, swaying side to side"],
     ],
   },
+
+  // Cupid Shuffle (the line dance everyone does to it: 32 counts, then again facing the next wall)
+  "cupid-right": {
+    ready: ["双脚并拢站直，膝盖放松，双手松松地放在腰前，跟着音乐轻轻晃", "Feet together, knees soft, hands loose in front of your waist, swaying a little to the music"],
+    counts: [
+      [1, 2, "右脚往右跨一小步，左脚跟过去，并在右脚旁边", "Step your right foot out to the right, then bring the left foot in beside it"],
+      [3, 4, "再来一次：右脚往右，左脚并过去", "Again: right foot out, left foot in"],
+      [5, 6, "第三次：右、并", "A third time: right, together"],
+      [7, 8, "第四次：右脚往右；左脚这次只点一下地，别踩实（下一拍它要往左走）", "A fourth time: right foot out; the left only touches the floor this time, no weight on it (it leads off to the left next)"],
+    ],
+    tip: ["歌里喊「To the right, to the right…」就是这里：一共往右走四步，肩膀跟着一耸一耸", "It's the 'to the right, to the right…' part: four steps to the right in all, your shoulders bouncing with them"],
+  },
+  "cupid-left": {
+    ready: ["接着上一个动作，左脚是空的", "Straight on from the last move, your left foot free"],
+    counts: [
+      [1, 2, "左脚往左跨一小步，右脚跟过去并拢", "Step your left foot out to the left, then bring the right in beside it"],
+      [3, 4, "再来：左脚往左，右脚并过去", "Again: left foot out, right foot in"],
+      [5, 6, "第三次：左、并", "A third time: left, together"],
+      [7, 8, "第四次：左脚往左，右脚并过来踩实；这时你正好回到原来的位置", "A fourth time: left foot out, right foot in with your weight on it; you're back where you started"],
+    ],
+    tip: ["「To the left, to the left…」：往左走四步，回到原位", "'To the left, to the left…': four steps to the left, back to your spot"],
+  },
+  "cupid-kick": {
+    ready: ["双脚并拢，重心放在左脚上", "Feet together, your weight on the left foot"],
+    counts: [
+      [1, 1, "右脚往前踢出去，离地一小段就好，脚尖微微翘起", "Kick your right foot forward, just a little off the floor, toes up a bit"],
+      [2, 2, "右脚收回来，踩在左脚旁边", "Bring the right foot back and put it down by the left"],
+      [3, 3, "左脚往前踢", "Kick the left foot forward"],
+      [4, 4, "左脚收回来，踩下", "Bring it back down"],
+      [5, 8, "再来一遍：右踢、收，左踢、收", "Once more: right kick, back, left kick, back"],
+    ],
+    tip: ["歌里喊「Now kick」就是这里；踢的时候上身稍微往后靠，站得更稳", "It's 'now kick'; lean back a little as you kick and you'll keep your balance"],
+  },
+  "cupid-walk": {
+    ready: ["双脚分开一点，手臂放松，准备原地走", "Feet a little apart, arms relaxed, ready to walk on the spot"],
+    counts: [
+      [1, 2, "原地走：右脚、左脚，同时身体开始往左转", "Walk on the spot: right, left, and start turning to your left"],
+      [3, 4, "右、左，接着往左转", "Right, left, still turning left"],
+      [5, 6, "右、左，快转够四分之一圈了", "Right, left, nearly a quarter of the way round"],
+      [7, 8, "右、左：现在你面对原来左手边的那面墙，站好", "Right, left: now you face the wall that was on your left; stand ready"],
+    ],
+    tip: ["歌里喊「Now walk it by yourself」就是这里：边走边转，胯扭起来，手随意摆。转完以后对着新的方向接着「向右走」；教练会转回来面对你", "It's 'now walk it by yourself': walk and turn, swing your hips, let your arms go. Then start 'to the right' again facing the new wall; the coach turns back to face you"],
+  },
+
+  // Cha-Cha Slide: each move is what its call says, counted from the call (1 is the call's first beat)
+  "cha-left": {
+    ready: ["双脚并拢，膝盖放松", "Feet together, knees soft"],
+    counts: [
+      [1, 1, "听到「To the left」：左脚往左跨一大步", "On 'to the left': a big step to the left with your left foot"],
+      [2, 2, "右脚贴着地面拖过去，并到左脚旁边，身体移到左边", "Drag your right foot in along the floor to meet the left; your body is over on the left now"],
+      [3, 8, "站住，等下一句口令", "Hold there for the next call"],
+    ],
+    tip: ["像在冰上滑一下：脚贴着地，不用抬高", "Like sliding on ice: keep the foot on the floor, no need to lift it"],
+  },
+  "cha-right": {
+    ready: ["双脚并拢，膝盖放松", "Feet together, knees soft"],
+    counts: [
+      [1, 1, "听到「To the right」：右脚往右跨一大步", "On 'to the right': a big step to the right with your right foot"],
+      [2, 2, "左脚贴着地拖过去并拢", "Drag your left foot in along the floor"],
+      [3, 8, "站住，等下一句", "Hold for the next call"],
+    ],
+  },
+  "cha-back": {
+    ready: ["站直，看着前面", "Stand tall, looking ahead"],
+    counts: [
+      [1, 1, "听到「Take it back now y'all」：右脚往后退一步", "On 'take it back now y'all': step back with your right foot"],
+      [2, 2, "左脚往后退", "Left foot back"],
+      [3, 3, "右脚往后退", "Right foot back"],
+      [4, 4, "左脚往后，踩在右脚旁边，站稳", "Left foot back beside the right, and steady"],
+      [5, 8, "站住，准备往前跳", "Hold, ready to hop forward"],
+    ],
+    tip: ["步子小一点，别撞到后面的人；手臂跟着前后摆", "Small steps, mind the people behind you; your arms swing along"],
+  },
+  "cha-hop": {
+    ready: ["双脚并拢，膝盖微弯", "Feet together, knees a little bent"],
+    counts: [
+      [1, 1, "听到「One hop this time」：双脚一起往前跳一下", "On 'one hop this time': jump forward once, both feet together"],
+      [2, 2, "落地时膝盖弯一下，轻轻落", "Land softly, bending your knees"],
+      [3, 8, "站住，等下一句", "Hold for the next call"],
+    ],
+  },
+  "cha-hop2": {
+    ready: ["双脚并拢，膝盖微弯", "Feet together, knees a little bent"],
+    counts: [
+      [1, 1, "听到「Two hops this time」：往前跳一下", "On 'two hops this time': a hop forward"],
+      [2, 2, "再跳一下", "And another"],
+      [3, 8, "落稳，站住", "Land soft and hold"],
+    ],
+  },
+  "cha-hops": {
+    ready: ["双脚并拢，膝盖微弯", "Feet together, knees a little bent"],
+    counts: [[1, 8, "「Five hops」「Hop it out」：双脚一起，一拍跳一下，一直跳到下一句口令", "'Five hops', 'hop it out': both feet together, a hop on every beat until the next call"]],
+    tip: ["跳得低一点、轻一点，更省力", "Keep the hops low and light: it saves your legs"],
+  },
+  "cha-stomp-r": {
+    ready: ["双手握拳放在身前，双脚分开一点", "Fists in front of you, feet a little apart"],
+    counts: [
+      [1, 1, "听到「Right foot let's stomp」：右膝抬起来，右脚用力跺下去，拳头跟着往下一压", "On 'right foot let's stomp': lift your right knee and stamp the foot down hard, fists pumping down with it"],
+      [2, 8, "站住，等下一句", "Hold for the next call"],
+    ],
+  },
+  "cha-stomp-l": {
+    ready: ["双手握拳放在身前，双脚分开一点", "Fists in front of you, feet a little apart"],
+    counts: [
+      [1, 1, "听到「Left foot let's stomp」：左膝抬起来，左脚用力跺下去", "On 'left foot let's stomp': lift your left knee and stamp the foot down hard"],
+      [2, 8, "站住，等下一句", "Hold for the next call"],
+    ],
+  },
+  "cha-stomp2-r": {
+    ready: ["双手握拳放在身前", "Fists in front of you"],
+    counts: [
+      [1, 1, "听到「Right foot two stomps」：右脚跺一下", "On 'right foot two stomps': stamp your right foot"],
+      [2, 2, "再跺一下", "And again"],
+      [3, 8, "站住", "Hold"],
+    ],
+  },
+  "cha-stomp2-l": {
+    ready: ["双手握拳放在身前", "Fists in front of you"],
+    counts: [
+      [1, 1, "听到「Left foot two stomps」：左脚跺一下", "On 'left foot two stomps': stamp your left foot"],
+      [2, 2, "再跺一下", "And again"],
+      [3, 8, "站住", "Hold"],
+    ],
+  },
+  "cha-cha": {
+    ready: ["膝盖放松，双臂弯起来放在身体两边，手肘朝外", "Knees soft, arms bent at your sides, elbows out"],
+    counts: [
+      [1, 1, "听到「Cha cha real smooth」：右脚往前踩一小步，重心跟过去", "On 'cha cha real smooth': a small step forward on your right foot, weight onto it"],
+      [2, 2, "重心退回左脚", "Weight back onto the left"],
+      [3, 4, "原地小碎步「恰、恰、恰」：右、左、右，胯跟着扭", "Little steps on the spot, 'cha-cha-cha': right, left, right, the hips swinging"],
+      [5, 5, "左脚往前踩一小步", "A small step forward on your left"],
+      [6, 6, "重心退回右脚", "Weight back onto the right"],
+      [7, 8, "「恰、恰、恰」：左、右、左", "'Cha-cha-cha': left, right, left"],
+    ],
+    tip: ["记住节奏「一、二、恰恰恰」；跳不准也没关系，扭起来就对了", "The rhythm is 'one, two, cha-cha-cha'; never mind being exact, just get those hips going"],
+  },
+  "cha-turn": {
+    ready: ["双脚分开一点", "Feet a little apart"],
+    counts: [
+      [1, 2, "听到「Turn it out」：原地踩小步，往左转四分之一圈", "On 'turn it out': little steps on the spot, turning a quarter to your left"],
+      [3, 8, "现在面对原来左手边的那面墙，接着跳；教练会转回来面对你", "Now you face the wall that was on your left: carry on that way; the coach turns back to face you"],
+    ],
+  },
+  "cha-criss": {
+    ready: ["双脚分开和肩一样宽", "Feet as wide as your shoulders"],
+    counts: [
+      [1, 1, "听到「Criss cross」：跳起来，落地时双脚交叉，右脚在前", "On 'criss cross': jump and land with your feet crossed, the right in front"],
+      [2, 2, "再跳起来，落地时双脚分开", "Jump again and land with them apart"],
+      [3, 8, "站住，等下一句", "Hold for the next call"],
+    ],
+    tip: ["双手跟着脚：交叉时手也在胸前交叉，分开时手也张开", "Your arms copy your feet: crossed in front when they cross, open when they open"],
+  },
+  "cha-knees": {
+    ready: ["双脚分开站，弯腰，双手放在膝盖上", "Feet apart, bend over, hands on your knees"],
+    counts: [
+      [1, 1, "听到「Hands on your knees」：膝盖往里收", "On 'hands on your knees': knees in"],
+      [2, 2, "膝盖往外打开", "Knees out"],
+      [3, 8, "一拍一下，里、外、里、外，手一直扶着膝盖", "In, out, in, out, a beat each, your hands staying on your knees"],
+    ],
+  },
+  "cha-funky": {
+    ready: ["双脚分开，手握拳放松", "Feet apart, loose fists"],
+    counts: [[1, 8, "随便扭！胸口往前送、往后收，肩膀一高一低地抖，跟着音乐来", "Anything goes! Push your chest forward and back, shake your shoulders up and down, ride the music"]],
+    tip: ["这里没有对错：听到「Get funky」「Come on」「Oh yeah」就放开跳", "No wrong moves here: on 'get funky', 'come on', 'oh yeah', just let loose"],
+  },
+  "cha-clap": {
+    ready: ["双脚并拢，双手放在胸前", "Feet together, hands in front of your chest"],
+    counts: [
+      [1, 1, "右脚往右一步，拍手", "Step right and clap"],
+      [2, 2, "左脚往左一步，拍手", "Step left and clap"],
+      [3, 8, "左右左右，一拍拍一下", "Right, left, right, left, a clap on every beat"],
+    ],
+    tip: ["「Everybody clap your hands」：跟着大家一起拍", "'Everybody clap your hands': clap along with everyone"],
+  },
+  "cha-freeze": {
+    ready: ["随时准备", "Be ready"],
+    counts: [[1, 8, "听到「Freeze」：马上定住，双手举起来，一动不动，等音乐回来", "On 'freeze': stop dead, hands up, don't move a muscle until the music's back"]],
+    tip: ["谁先动谁就输了", "The first to move loses"],
+  },
+  "cha-low": {
+    ready: ["双脚分开比肩宽，脚尖朝外", "Feet wider than your shoulders, toes turned out"],
+    counts: [[1, 8, "「How low can you go」：膝盖往外打开，一拍比一拍蹲得低，手在身前左右摆；能蹲多低蹲多低", "'How low can you go': knees out, a little lower on every beat, hands swinging in front of you; as low as you can"]],
+    tip: ["膝盖跟脚尖一个方向；蹲不下去就停在舒服的高度", "Keep your knees over your toes; if you can't go lower, stay where it's comfortable"],
+  },
+  "cha-top": {
+    ready: ["从蹲着的地方开始", "From down low"],
+    counts: [[1, 8, "「Bring it to the top」：慢慢站起来，双手一点点往上举，最后踮起脚，手举到最高挥一挥", "'Bring it to the top': come up slowly, your hands rising with you, until you're on your toes waving them up high"]],
+  },
+  "cha-reverse": {
+    ready: ["双脚并拢，膝盖微弯", "Feet together, knees a little bent"],
+    counts: [
+      [1, 1, "听到「Reverse」：跳起来，在空中往左转半圈", "On 'reverse': jump, turning halfway round to the left in the air"],
+      [2, 8, "落地面向后面；再听到「Reverse」就再转回来", "Land facing the back; on the next 'reverse', turn back again"],
+    ],
+  },
+  "cha-charlie": {
+    ready: ["双脚并拢，手臂放松", "Feet together, arms loose"],
+    counts: [
+      [1, 1, "听到「Charlie Brown」：右脚往前踩一步", "On 'Charlie Brown': step forward on your right foot"],
+      [2, 2, "左脚往前踢起来", "Kick your left foot forward"],
+      [3, 3, "左脚往后踩回来", "Step back onto the left"],
+      [4, 4, "右脚往后点一下地", "Touch your right foot behind"],
+      [5, 8, "再来：往前踩、踢，往后踩、点，手臂跟着前后摆", "Again: forward, kick, back, touch, your arms swinging forward and back"],
+    ],
+    tip: ["像摇摇椅一样前后摇", "Rock forward and back like a rocking chair"],
+  },
+
+  // Y.M.C.A. (the letters the crowds have made with their arms since 1979)
+  "ymca-groove": {
+    ready: ["双脚并拢，双手放在胸前，准备拍手", "Feet together, hands in front of your chest, ready to clap"],
+    counts: [
+      [1, 1, "右脚往右跨一步", "Step out to the right"],
+      [2, 2, "左脚并过去点地，同时拍手", "Bring the left foot in with a tap, and clap"],
+      [3, 3, "左脚往左跨一步", "Step out to the left"],
+      [4, 4, "右脚并过去点地，拍手", "Right foot in with a tap, clap"],
+      [5, 8, "再来一遍：右、拍，左、拍", "Again: right, clap, left, clap"],
+    ],
+    tip: ["跟着鼓点左右摇，笑起来", "Sway with the drums, and smile"],
+  },
+  "ymca-pump": {
+    ready: ["双手握拳放在肩膀前", "Fists up by your shoulders"],
+    counts: [
+      [1, 1, "右脚往右一步，右拳往天上打", "Step right and punch your right fist up to the sky"],
+      [2, 2, "左脚并过去，右拳收回肩膀", "Left foot in, right fist back to your shoulder"],
+      [3, 3, "左脚往左一步，左拳往天上打", "Step left and punch your left fist up"],
+      [4, 4, "右脚并过去，左拳收回", "Right foot in, left fist back"],
+      [5, 8, "再来一遍：右拳、收，左拳、收", "Again: right up, back, left up, back"],
+    ],
+  },
+  "ymca-letters": {
+    ready: ["站稳，双脚分开和肩一样宽", "Stand steady, feet as wide as your shoulders"],
+    counts: [
+      [1, 1, "Y：双臂伸直往上斜着举，张成 V 字", "Y: both arms straight up and out in a V"],
+      [2, 2, "M：双手指尖放到头顶，手肘往两边张开", "M: fingertips on top of your head, elbows out to the sides"],
+      [3, 3, "C：双臂一起弯到左边，上面一只、下面一只，像个半圆；身体往左歪", "C: both arms curved over to your left, one above, one below, like half a circle; lean left"],
+      [4, 4, "A：双手在头顶合起来，手肘张开，像个尖屋顶", "A: hands together over your head, elbows out, like a pointed roof"],
+      [5, 8, "左右踏步拍手，等下一次「Y-M-C-A」", "Step side to side and clap, till the next 'Y-M-C-A'"],
+    ],
+    tip: ["歌里唱「Y、M、C、A」的时候，一个字母一拍；全场一起比，最好看", "One letter a beat as the song sings them; best with the whole room doing it together"],
+  },
+
+  // Watch Me (Whip/Nae Nae): each dance the song calls, as its video's dancers do it
+  "wm-watch": {
+    ready: ["双脚分开和肩一样宽，膝盖放松", "Feet as wide as your shoulders, knees soft"],
+    counts: [
+      [1, 2, "双手食指指着自己的眼睛（「Watch me」：看我）", "Point both index fingers at your eyes ('watch me')"],
+      [3, 4, "双手往前指向大家", "Point both hands out at everyone"],
+      [5, 8, "双手握拳放胸前，肩膀一拍一边地往上弹", "Fists at your chest, bounce your shoulders up, one side a beat"],
+    ],
+  },
+  "wm-whip": {
+    ready: ["双手握拳放在胸前，双脚分开", "Fists at your chest, feet apart"],
+    counts: [
+      [1, 2, "膝盖跟着拍子弹两下（「Now watch me」）", "Bounce your knees twice ('now watch me')"],
+      [3, 3, "Whip：右脚往前一点、膝盖弯，身体往后靠，右手往前一甩伸直，手心朝下，像甩方向盘", "Whip: right foot a little forward with the knee bent, lean back, and throw your right arm straight out in front, palm down, like whipping a steering wheel"],
+      [4, 4, "保持住，摆个酷的表情", "Hold it, with your coolest face"],
+      [5, 8, "Nae Nae：右手举过头顶，一拍往右一拍往左地挥，身体跟着摇，左手放在肚子前", "Nae nae: right hand up over your head, waving right then left a beat each, body swaying with it, left hand by your stomach"],
+    ],
+    tip: ["屏幕上出现「WHIP」「NAE NAE」的字时就是这两个动作", "When the video shows 'WHIP' and 'NAE NAE', these are the moves"],
+  },
+  "wm-whip2": {
+    ready: ["双手握拳放在胸前，双脚分开", "Fists at your chest, feet apart"],
+    counts: [
+      [1, 1, "Whip：右手往前一甩，身体往后靠", "Whip: throw the right arm out, leaning back"],
+      [2, 2, "收回来", "Back in"],
+      [3, 3, "再 Whip 一次", "Whip again"],
+      [4, 4, "保持住", "Hold it"],
+      [5, 8, "Nae Nae：右手举高左右挥，身体跟着摇", "Nae nae: right hand up high, waving side to side, body swaying"],
+    ],
+    tip: ["歌里唱「Now watch me whip, whip」就是这两下", "It's the 'now watch me whip, whip' line"],
+  },
+  "wm-stanky": {
+    ready: ["双脚分开，膝盖弯一点，双臂往两边张开放低", "Feet apart, knees a little bent, arms out low at your sides"],
+    counts: [
+      [1, 1, "右膝往里扣，脚跟往外转", "Right knee in, heel turning out"],
+      [2, 2, "右膝往外转回来", "Right knee rolls back out"],
+      [3, 4, "再来一次：扣进去、转出来，膝盖像在画圈", "Again: in and out, the knee drawing circles"],
+      [5, 8, "换左腿：左膝扣进去、转出来，两次", "Now the left: knee in, then out, twice"],
+    ],
+    tip: ["「Do the stanky leg」：只动一条腿，另一条腿站稳", "'Do the stanky leg': only one leg moves; the other stands firm"],
+  },
+  "wm-break": {
+    ready: ["双脚分开和肩一样宽，膝盖弯一点", "Feet as wide as your shoulders, knees a little bent"],
+    counts: [
+      [1, 1, "双膝往里扣，脚跟往外踢，身体往右一点", "Knees knock in, heels kick out, body a little to the right"],
+      [2, 2, "双脚放平", "Feet flat again"],
+      [3, 3, "再扣一次，身体往左", "Knock them in again, body to the left"],
+      [4, 4, "放平", "Flat"],
+      [5, 8, "一样再来：扣、平、扣、平", "The same again: in, flat, in, flat"],
+    ],
+    tip: ["「Break your legs」：动作快，脚踩稳，别真的扭到", "'Break your legs': quick, but keep your feet planted; don't really twist anything"],
+  },
+  "wm-bop": {
+    ready: ["踮起脚尖，膝盖放松", "Up on your toes, knees soft"],
+    counts: [
+      [1, 4, "一拍弹一下，双手在身前一前一后地划，像划船；同时往左边挪几小步", "Bounce on every beat, your hands rowing in front, one forward, one back; take a few small steps over to the left"],
+      [5, 8, "接着弹、接着划，挪回原来的位置", "Keep bouncing and rowing, back to where you were"],
+    ],
+    tip: ["「Bop, bop… to the left」：轻快地弹，像在跳绳", "'Bop, bop… to the left': light and quick, like skipping rope"],
+  },
+  "wm-yule": {
+    ready: ["双脚分开，身体稍微往后靠", "Feet apart, leaning back a little"],
+    counts: [
+      [1, 4, "Yule：拳头在胯边一前一后地转，像摇手柄，一拍换一边", "Yule: crank your fists by your hips, one forward, one back, swapping on every beat"],
+      [5, 5, "超人：轻轻跳起来", "Superman: a little jump"],
+      [6, 8, "落地时双手往前伸直，身体往前倾，左腿往后踢起来，像在飞，保持住", "Land with both arms straight out in front, leaning forward, left leg kicked up behind you, flying; hold it"],
+    ],
+    tip: ["「Now watch me yule」「Now watch me Superman」两句各四拍", "'Now watch me yule' and 'now watch me Superman': four beats each"],
+  },
+  "wm-duff": {
+    ready: ["双手张开，掌心朝前，放在脸的两边", "Hands open, palms forward, either side of your face"],
+    counts: [
+      [1, 1, "胯往右顶，身体弹一下", "Pop your hips to the right with a bounce"],
+      [2, 2, "胯往左顶", "Hips to the left"],
+      [3, 8, "右、左、右、左……一拍一下，手一直放在脸边", "Right, left, right, left… a beat each, hands staying by your face"],
+    ],
+  },
+  // The Ketchup Song (Aserejé): Las Ketchup's chorus hands
+  "ketchup-sway": {
+    ready: ["双脚并拢，双手放在胸前", "Feet together, hands in front of your chest"],
+    counts: [
+      [1, 1, "右脚往右一步，胯跟着往右摆", "Step right, hips swinging right"],
+      [2, 2, "左脚并过去，轻轻拍一下手", "Left foot in, a soft clap"],
+      [3, 3, "左脚往左一步，胯往左摆", "Step left, hips swinging left"],
+      [4, 4, "右脚并过去，拍手", "Right foot in, clap"],
+      [5, 8, "一样再来", "The same again"],
+    ],
+    tip: ["像在海边酒吧里跟着吉他慢慢扭", "Like swaying to the guitars at a beach bar"],
+  },
+  "ketchup-hands": {
+    ready: ["站好，双手手心朝下放在腰前", "Stand easy, hands in front of your waist, palms down"],
+    counts: [
+      [1, 1, "「Aserejé」：双手在身前交叉，右手在上", "'Aserejé': cross your hands in front of you, the right on top"],
+      [2, 2, "双手往两边分开", "Sweep them apart"],
+      [3, 3, "再交叉，这次左手在上", "Cross again, the left on top this time"],
+      [4, 4, "再分开", "Apart again"],
+      [5, 5, "「De jebe tu」：右手竖起大拇指，往右肩后面指，像在路边搭车", "'De jebe tu': right thumb up, pointing back over your right shoulder, like hitchhiking"],
+      [6, 6, "左手大拇指也往左肩后面指", "Left thumb back over your left shoulder too"],
+      [7, 8, "「Seibiunouva」：双手握拳，在胸前一个绕一个地往前转", "'Seibiunouva': fists in front of your chest, rolling round each other"],
+    ],
+    tip: ["副歌每句 12 拍：这 8 拍，加上下一个动作的 4 拍", "Each chorus line is 12 beats: these 8, then the next move's 4"],
+  },
+  "ketchup-head": {
+    ready: ["接着上一个动作", "Straight on from the last move"],
+    counts: [
+      [5, 5, "「An de bugui」：右手搭在额头上像遮太阳往远处看，左手叉腰，胯往右扭", "'An de bugui': right hand to your forehead as if shading your eyes, looking far off, left hand on your hip, hips to the right"],
+      [6, 6, "胯往左扭", "Hips to the left"],
+      [7, 8, "「An de buididipí」：再右、左扭两下，头跟着转", "'An de buididipí': right, left again, your head turning with it"],
+    ],
+  },
+
+  // Gee (少女时代 Girls' Generation)
+  "gee-groove": {
+    ready: ["双手轻轻握拳放在下巴前，双脚并拢", "Loose fists by your chin, feet together"],
+    counts: [
+      [1, 2, "右脚往右一步，左脚并过来点地，头往右歪，肩膀一耸", "Step right, left foot taps in, head tilting right, a little shoulder shrug"],
+      [3, 4, "左脚往左一步，右脚并过来点地，头往左歪", "Step left, right foot taps in, head tilting left"],
+      [5, 8, "再来一遍", "Once more"],
+    ],
+    tip: ["表情要可爱：笑着歪头", "Keep it cute: smile and tilt your head"],
+  },
+  "gee-crab": {
+    ready: ["双脚分开比肩宽，脚尖朝外，膝盖往外弯下去；双手手心朝下，放在胯两边", "Feet wider than your shoulders, toes out, knees bent outwards; hands palms down at your hips"],
+    counts: [
+      [1, 4, "「Gee Gee Gee Gee」：一拍挪一小步往右，像螃蟹横着走，手掌跟着一拍一拍往下拍", "'Gee gee gee gee': a little step to the right on every beat, like a crab going sideways, your palms patting down with each beat"],
+      [5, 8, "「Baby baby baby」：一样的样子往左挪回来", "'Baby baby baby': the same, back to the left"],
+    ],
+    tip: ["这是《Gee》最有名的动作：膝盖一直弯着，头跟着轻轻晃", "Gee's most famous move: keep your knees bent the whole time, your head bobbing along"],
+  },
+  "gee-shy": {
+    ready: ["双手捂住脸颊", "Hands on your cheeks"],
+    counts: [
+      [1, 4, "身体往右摇，头往右歪，像不好意思", "Sway to the right, head tilting right, bashful"],
+      [5, 8, "往左摇", "Sway to the left"],
+    ],
+  },
+  "gee-sparkle": {
+    ready: ["双手张开放在眼睛两边，手心朝前", "Hands open by your eyes, palms forward"],
+    counts: [
+      [1, 4, "「너무 반짝반짝」（闪闪发光）：手指一张一合地闪，头往右转，像被晃到眼睛", "'반짝반짝' (sparkle, sparkle): flash your fingers open and shut, head turning right as if dazzled"],
+      [5, 8, "继续闪，头往左转", "Keep flashing, head turning left"],
+    ],
+  },
+  "gee-surprise": {
+    ready: ["双手握拳放在下巴前", "Fists by your chin"],
+    counts: [
+      [1, 2, "「깜짝」：小跳一下往后缩，双手捂住嘴，像吓了一跳", "'깜짝' (startled): a little jump back, hands to your mouth"],
+      [3, 4, "再吓一跳", "Startled again"],
+      [5, 8, "一样再来两次", "Twice more"],
+    ],
+  },
+  "gee-shiver": {
+    ready: ["双手交叉抱住自己的胳膊", "Arms crossed, hugging yourself"],
+    counts: [[1, 8, "「짜릿짜릿」（浑身发麻）：肩膀和身体快速地抖，像过电", "'짜릿짜릿' (tingling): shiver your shoulders and body quickly, like a jolt of electricity"]],
+  },
+  // 海草舞
+  "hc-seaweed": {
+    ready: ["双脚分开，双手举到头的两边，手肘往外张", "Feet apart, hands up either side of your head, elbows out"],
+    counts: [
+      [1, 4, "「像一棵海草海草海草海草」：手腕一拧一拧地转，像水里的海草；身体往右、往左、往右、往左摇", "'像一棵海草…': twist your wrists round and round like seaweed in the water, swaying right, left, right, left"],
+      [5, 8, "「随波飘摇」：双手放到身前，手心朝下，像水波一样左右摆", "'随波飘摇': bring your hands down in front, palms down, waving side to side like water"],
+    ],
+    tip: ["手要软，像在水里漂", "Keep your arms soft, as if floating in water"],
+  },
+  "hc-look": {
+    ready: ["双脚分开站好", "Feet apart"],
+    counts: [
+      [1, 4, "「人海啊」：右手放在额头上遮着眼睛，往右边远处看，左手叉腰", "'人海啊': right hand to your forehead shading your eyes, look far off to the right, left hand on your hip"],
+      [5, 8, "「茫茫啊」：换左手遮眼睛，往左边看", "'茫茫啊': swap hands and look off to the left"],
+    ],
+  },
+  "hc-float": {
+    ready: ["双脚分开，膝盖放松", "Feet apart, knees soft"],
+    counts: [
+      [1, 2, "「随波逐流」：双手在身前低低地往右摆，膝盖蹲一下", "'随波逐流': hands low in front, waving to the right as your knees dip"],
+      [3, 4, "往左摆，站起来", "Wave to the left as you come up"],
+      [5, 8, "「浮浮沉沉」：一样，一沉一浮", "'浮浮沉沉': the same, sinking and floating"],
+    ],
+  },
+  "hc-dream": {
+    ready: ["双手合十", "Palms together"],
+    counts: [
+      [1, 4, "「人生啊」：双手合起来贴在右脸边，头靠上去像睡觉，身体往右摇", "'人生啊': hands together against your right cheek, head resting on them as if asleep, sway right"],
+      [5, 8, "「如梦啊」：换到左脸边，往左摇", "'如梦啊': over to your left cheek, sway left"],
+    ],
+  },
+  "hc-where": {
+    ready: ["双手放在胸前", "Hands at your chest"],
+    counts: [
+      [1, 4, "「亲爱的你」：双手在胸前比一个心", "'亲爱的你': make a heart with your hands at your chest"],
+      [5, 8, "「在哪里」：右手往前伸出去，左手叉腰，左右找一找", "'在哪里': reach your right hand out, left hand on your hip, looking around for them"],
+    ],
+  },
+  "hc-bounce": {
+    ready: ["双手握拳放在肩膀前", "Fists up by your shoulders"],
+    counts: [
+      [1, 2, "右脚往右一步，右拳往上打；左脚并过去，拳头收回", "Step right, punching your right fist up; left foot in, fist back"],
+      [3, 4, "左脚往左一步，左拳往上打；右脚并过去，收回", "Step left, left fist up; right foot in, back"],
+      [5, 8, "一样再来", "The same again"],
+    ],
+    tip: ["说唱的部分：跟着节奏点头，轻松一点", "The rap: nod along to the beat, keep it easy"],
+  },
+  "hc-hero": {
+    ready: ["双脚并拢", "Feet together"],
+    counts: [
+      [1, 4, "「你我都是这茫茫人海中…那一棵草」：膝盖弯下去，双手在身前捧着，像一棵小草", "'…渺小不起眼的那一棵草': bend your knees, hands cupped in front of you, like a little blade of grass"],
+      [5, 8, "「谁说小人物不可以做英雄」：站起来，双脚分开，右拳往天上举，像英雄", "'谁说小人物不可以做英雄': stand up tall, feet apart, right fist up to the sky, a hero"],
+    ],
+  },
+
+  // 極楽浄土 (the official dance video: みうめ's choreography, simplified to its main moves)
+  "gj-sway": {
+    ready: ["双脚并拢，想象自己穿着和服，袖子很长", "Feet together; imagine you're in a kimono with long sleeves"],
+    counts: [
+      [1, 2, "右脚往右一步，右手臂往右边平平地展开（像甩开袖子），左手放胸前，身体往右摇", "Step right, spreading your right arm out flat to the side (like flicking out a sleeve), left hand at your chest, swaying right"],
+      [3, 4, "左脚往左一步，换左手臂展开，右手放胸前", "Step left, the left arm spreads out, right hand at your chest"],
+      [5, 8, "再来一遍：右、左", "Again: right, left"],
+    ],
+    tip: ["动作要柔，手腕放松，像和服袖子在飘", "Soft and flowing, wrists loose, like kimono sleeves in the air"],
+  },
+  "gj-step": {
+    ready: ["双脚分开一点，站直", "Feet a little apart, stand tall"],
+    counts: [
+      [1, 1, "双臂往两边平平张开", "Arms out flat to the sides"],
+      [2, 2, "双手收到身前交叉", "Cross your hands in front of you"],
+      [3, 3, "右膝抬高，双手举到头的两边", "Right knee up high, hands up by your head"],
+      [4, 4, "放下，双臂再张开", "Down, arms wide again"],
+      [5, 6, "一样：张开、交叉", "The same: wide, cross"],
+      [7, 7, "这次抬左膝，双手到头边", "This time the left knee, hands by your head"],
+      [8, 8, "放下，张开", "Down, wide"],
+    ],
+    tip: ["歌里唱「月明かり昇る刻 灯る赤提灯」的地方", "It's the '月明かり昇る刻 灯る赤提灯' part"],
+  },
+  "gj-butterfly": {
+    ready: ["双手放在身体两边，手肘弯一点", "Hands at your sides, elbows a little bent"],
+    counts: [
+      [1, 4, "身体转向右边，一拍一步往前走，双手在两边轻轻上下扇，像蝴蝶的翅膀", "Turn to your right and walk, a step a beat, your hands fanning gently up and down at your sides like a butterfly's wings"],
+      [5, 8, "转向左边，接着走、接着扇", "Turn to your left and keep walking and fluttering"],
+    ],
+    tip: ["「ふわり 蝶が誘い出す」：轻飘飘的", "'ふわり 蝶が誘い出す': light as a butterfly"],
+  },
+  "gj-peek": {
+    ready: ["双脚分开站好", "Feet apart"],
+    counts: [
+      [1, 4, "「ちょいと覗いて」：右手搭在额头上往右边偷看，身体往右歪，左手叉腰", "'ちょいと覗いて': right hand at your forehead, peeking off to the right, leaning right, left hand on your hip"],
+      [5, 8, "换左手，往左边看", "Swap to the left hand and peek left"],
+    ],
+  },
+  "gj-beckon": {
+    ready: ["左手放在胸前，右手举到脸旁边，手心朝前", "Left hand at your chest, right hand up by your face, palm forward"],
+    counts: [[1, 8, "「おいでませ」（欢迎光临）：右手像招财猫一样，一拍往下弯一次招手，胯左右轻轻扭", "'おいでませ' (welcome!): beckon with your right hand like a lucky cat, curling it down on every beat, hips swaying a little"]],
+  },
+  "gj-sing": {
+    ready: ["双脚并拢，双手放在身边", "Feet together, hands at your sides"],
+    counts: [
+      [1, 1, "「歌えや歌え」：原地往左转一圈", "'歌えや歌え': spin round once to your left, on the spot"],
+      [2, 2, "转回来，双臂往两边张开", "Facing front again, arms wide"],
+      [3, 3, "右膝抬高，双手举到头边", "Right knee up, hands by your head"],
+      [4, 4, "放下，双臂张开", "Down, arms wide"],
+      [5, 6, "双手收到脸前，手心朝前", "Hands in front of your face, palms forward"],
+      [7, 7, "左膝抬高，双手到头边", "Left knee up, hands by your head"],
+      [8, 8, "放下，张开", "Down, wide"],
+    ],
+    tip: ["转圈别太快，转不过来就原地踏一下", "Don't rush the spin; if it's too much, just step round on the spot"],
+  },
+  "gj-voice": {
+    ready: ["双脚分开站好", "Feet apart"],
+    counts: [
+      [1, 4, "「アナタの声を」：右手放在右耳后面，像在仔细听，身体往右歪，左手放胸前", "'アナタの声を': right hand cupped behind your right ear as if listening hard, leaning right, left hand at your chest"],
+      [5, 6, "「さぁ聞かせて」：右手往前伸出去，像在说「唱给我听」", "'さぁ聞かせて': hold your right hand out in front, as if to say 'sing it to me'"],
+      [7, 8, "手回到耳朵后面听", "Back behind your ear, listening"],
+    ],
+  },
+  "gj-dance": {
+    ready: ["双脚分开一点", "Feet a little apart"],
+    counts: [
+      [1, 1, "「踊れや踊れ」：双手往上举成 V", "'踊れや踊れ': arms up in a V"],
+      [2, 2, "双臂张开放平，右膝抬高", "Arms out flat, right knee up"],
+      [3, 3, "放下，双手再举成 V", "Down, arms up in a V again"],
+      [4, 4, "双臂张开，左膝抬高", "Arms wide, left knee up"],
+      [5, 8, "再来一遍", "Once more"],
+    ],
+    tip: ["像日本夏天祭典的盆踊，开心地跳", "Like a summer festival bon dance: just enjoy it"],
+  },
+  "gj-bloom": {
+    ready: ["双手合在胸前，像一个花苞，膝盖微弯", "Hands together at your chest like a bud, knees a little bent"],
+    counts: [
+      [1, 2, "「今宵 共に」：花苞合着，不动", "'今宵 共に': hold the bud"],
+      [3, 4, "「あゝ 狂い咲き」：双手慢慢往上打开，举过头顶成 V，像花开了", "'あゝ 狂い咲き': open your hands slowly up over your head into a V, the flower blooming"],
+      [5, 6, "双臂张开放平，身体往右、往左摇", "Arms out wide, sway right, then left"],
+      [7, 8, "再举起来成 V", "Up into the V again"],
+    ],
+  },
 };

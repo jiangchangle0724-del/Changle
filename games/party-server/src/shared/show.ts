@@ -140,7 +140,7 @@ function makeSong(song: Song, mode: Mode): Show {
   if (mode === "learn") {
     const teachMs = 60000 / (song.bpm * SONG_TEACH);
     let at = 0;
-    for (const id of songMoves(song)) {
+    for (const id of song.teach ?? songMoves(song)) {
       const move = moveById(id);
       for (const stage of ["watch", "follow"] as const)
         for (let k = 0; k < 8; k++) {

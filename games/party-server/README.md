@@ -87,8 +87,12 @@ instead, `site/src/party/dj/`.)
 - **Songs** (`src/shared/songs.ts`): famous songs played on the TV from YouTube's own player
   (`src/client/tube.ts`: in sight in the top left corner, never covered, never downloaded; the
   same rules as 打碟's player). Six are danced to their own famous dance, laid along the song
-  (`Song.dance`, `aligned`): 江南Style's horse dance, Macarena, 科目三, 最炫民族风, 爱你, APT.;
-  their moves are `src/shared/songmoves.ts` (the coach's key frames: `src/client/coach/songmoves.ts`).
+  (`Song.dance`, `aligned`): 江南Style's horse dance, Macarena, 科目三, 最炫民族风, 爱你, APT., the
+  Cupid Shuffle, the Cha-Cha Slide, Y.M.C.A., Watch Me, the Ketchup Song, Gee, 海草舞; their moves are
+  `src/shared/songmoves.ts` (the coach's key frames: `src/client/coach/songmoves.ts` and, for the
+  eight added 11-12, `partymoves.ts`), each taught count by count (`src/shared/steps.ts`). A caller's
+  song (`Song.calls`: the Cha-Cha Slide, and the Ketchup Song's 12-beat lines) keeps each part as long
+  as it needs, counted from where it starts, and teaches only its basic steps (`Song.teach`).
   江南Style's was worked out from its official video frame by frame (sheets of frames on the beat,
   drawn from the video in a browser): the horse ride and the lasso, "Eh~ Sexy Lady"'s hands-on-hips
   hip shake, the tour bus's disco point, little PSY's groove, the strut across the disco.
@@ -96,7 +100,7 @@ instead, `site/src/party/dj/`.)
   to a grid: the tempo, and beat 0 to within ~10 ms) and their parts placed from the songs' timed
   lyrics, so they need no 找拍子. The others are danced with a few of the library's easiest moves,
   two 8-counts each, round and round (`pattern`). Fast songs at half their tempo. The host picks one
-  like a dance (the six with their own dance first). The room waits for the speaker to have the video held at its start (`songReady`; on
+  like a dance (the ones with their own dance first). The room waits for the speaker to have the video held at its start (`songReady`; on
   Safari not before someone has tapped the video once, so it can play with sound), then the video
   plays from its start: its intro, a count-in on its last 4 beats, the dance. While it plays, the
   speaker reads the video's clock every 4 ms and tells the room where the song's first beat really
