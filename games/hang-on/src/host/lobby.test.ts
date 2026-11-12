@@ -95,8 +95,8 @@ it('真实开始按钮经过房间阶段机进入倒数，顶栏回大厅返回 
   expect(host.phase).toBe('lobby');
 });
 
-// BUG: nextBtn selects level 2, then sends only LOBBY. No START follows, so the countdown never begins.
-it.fails('结算页点下一关直接开始第 2 关倒数', async () => {
+// C4 found nextBtn went back to the lobby; it now starts the next level's countdown straight from results.
+it('结算页点下一关直接开始第 2 关倒数', async () => {
   harness.elements.get('startBtn')!.click();
   harness.send({ type: 'PLAY' });
   harness.send({ type: 'FINISH' });
@@ -104,5 +104,16 @@ it.fails('结算页点下一关直接开始第 2 关倒数', async () => {
   harness.elements.get('nextBtn')!.click();
   await Promise.resolve();
   expect(host.level.id).toBe('table-02');
+  expect(host.phase).toBe('countdown');
+});
+
+it('结算页点再来一次直接重开同一关的倒数', async () => {
+  harness.elements.get('startBtn')!.click();
+  harness.send({ type: 'PLAY' });
+  harness.send({ type: 'FINISH' });
+  expect(host.phase).toBe('results');
+  harness.elements.get('againBtn')!.click();
+  await Promise.resolve();
+  expect(host.level.id).toBe('table-01');
   expect(host.phase).toBe('countdown');
 });

@@ -71,9 +71,9 @@ it('重连的 answer 先到时，后来的 ICE 候选正常交给 PeerConnection
   expect(peers[0]!.accepted).toEqual([candidate]);
 });
 
-// BUG: HostLink drops ICE arriving while setRemoteDescription is pending, instead of queuing it as PadLink does.
-// This isolates a signaling-order hazard; it does not establish the cause of any browser timeout.
-it.fails('重连的 answer 还在异步安装时收到 ICE，安装好后仍保留候选', async () => {
+// C4 found HostLink dropped ICE arriving while setRemoteDescription was pending; it now queues it as PadLink does.
+// Real browsers also chain addIceCandidate behind setRemoteDescription, so this is hardening, not the cause of a timeout.
+it('重连的 answer 还在异步安装时收到 ICE，安装好后仍保留候选', async () => {
   relay({ k: 'sdp', sdp: { type: 'answer', sdp: 'test answer' } });
   relay({ k: 'ice', ice: candidate });
   await vi.advanceTimersByTimeAsync(10);

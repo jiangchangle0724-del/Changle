@@ -620,11 +620,12 @@ export class Sim {
 
   /** 推进 dt 秒：内部按固定 120 Hz 走整数步，多出来的零头攒到下一次。 */
   step(dt: number): void {
+    // 先清事件：赢了以后照样每步清，不然 win 会被主机一步步重复读到（横幅不消失、过关音乐叠几百遍）
+    this.events.length = 0;
     if (this.won) {
       this.winT += dt;
       return;
     }
-    this.events.length = 0;
     this.acc += dt;
     while (this.acc >= CFG.step - 1e-6) {
       this.substep();
