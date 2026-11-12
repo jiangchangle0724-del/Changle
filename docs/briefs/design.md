@@ -39,7 +39,7 @@
 ## 现在
 
 - UI 计划已完成：A1 盘点、A2 token 和 DESIGN.md、A3 每页一个网址（#87）、A4 首页（#120，余项 #260、#261）、A5 游戏壳（#131）、A6 性能两步（#117、#144）、C1 12 个组件（#90、#92）、C2 16 个单机游戏都进了游戏壳、C4 中文排版和触控（#93、#94）、C6 截图对比和 axe 进 CI（#128）、C7 SEO、离线和分享图（#104）、C9 设计规则写进 AGENTS.md（#126）、C10 16 个单机游戏刷新后接着玩（#180 和 ui-C10）、C5 空的、在加载、出错了（#214 和 ui-C5，页签 #260）。
-- 首页第一次下载（2026-11-11）：JS gzip 120.7 KB、CSS 20.6 KB，预算 JS 121、CSS 22（`site/scripts/budget.ts`）。别的对话这几天把预算从 119 调到 121，main 只剩 29 字节；#260 把游戏里控件的字（GameHeader、RosterChip、PenaltyCard）搬到 `ui/gameLabels.ts`，跟游戏一起下载，首页省了 350 字节。`ui/labels.ts` 只放首页控件要的字。下一个往首页加东西的，要按需下载，或者在 PR 里说明为什么调预算。GSAP 只跟游戏下载。
+- 首页第一次下载（2026-11-11 合并后）：JS gzip 120.9 KB、CSS 20.6 KB，预算 JS 122、CSS 22（`site/scripts/budget.ts`）。别的对话这几天把预算从 119 调到 122（一起跳的卡投屏那次调到 122）。#260 把游戏里控件的字（GameHeader、RosterChip、PenaltyCard）搬到 `ui/gameLabels.ts`，跟游戏一起下载，首页省了 350 字节。`ui/labels.ts` 只放首页控件要的字。下一个往首页加东西的，要按需下载，或者在 PR 里说明为什么调预算。GSAP 只跟游戏下载。
 - 2026-11-05 晚 Steve 要了五件事，2026-11-11 都合并上线了：
   - 字不能复制、双击不放大（#250）：global.css 最后加了一个最低优先级的层（`@layer page-defaults`），给所有元素 `user-select: none`、`-webkit-touch-callout: none`、`touch-action: manipulation`，输入框、文本框和可编辑的地方照常能选能粘贴。只写在 body 上不够：iPhone 的 Safari 到了能滚动的框里会重新算，所以每个元素都写；放在层里，哪里自己写了别的都比它优先。规则写进 docs/DESIGN.md 和 AGENTS.md。副作用：聊天消息、工具算出来的数也不能长按复制，要复制的地方得有复制按钮。
   - 安全（#251）：`site/public/_headers` 加了响应头：别的网站不能把 changle.ca 套进框里（`X-Frame-Options`、`frame-ancestors`），一年内只走 https（HSTS），不许插件对象，`base` 只能是自己，别的网站不能直接引用这里的文件（CORP same-site）。原来就有的两条（不乱猜文件类型、来源只报域名）照旧。`robots.txt` 加了 `Content-signal: search=yes, ai-input=no, ai-train=no` 和 27 个 AI 爬虫的 `Disallow: /`（只是请求，真挡要靠 Cloudflare 的设置）。仓库根目录加了 LICENSE（版权所有，中英文）。
@@ -65,7 +65,7 @@
   - 6 个独立应用（/trip、/party、/hang-on、/hide、/eat、/go）要不要也不能复制。要的话各自的对话加同一段 CSS（#250 那段）。
   - 弹层里可展开的「怎么玩」：建议不做（见现在）。
   - Cloudflare 后台（Steve 自己点）：Security > Settings，筛 Bot traffic，AI Crawler and Agent access policies 里 Training 选 Disallow（不挡谷歌搜索）、Agent 选 Block、Search 选 Allow；Bot fight mode 看起来已经开着（#246 发现 changle.ca 会拦 GitHub 的请求），保持开着。
-- 首页第一次下载 JS 120.7 KB，预算 121：再往首页加东西要按需下载，或者先从首页挪走别的。
+- 首页第一次下载 JS 120.9 KB，预算 122：预算一个月里调了三次，再往首页加东西要按需下载，或者先从首页挪走别的。首页里最大的是音效引擎和音效（`lib/audio/engine.ts`、`lib/sfx.ts`，没压缩约 26 KB），能等第一次点击再下载的话省得最多，归首页与上线。
 - 写 Codex 的卡时，要按需下载的新东西要写明放哪：App.tsx 顶上加一行 lazy，或者放进 GameLoading.tsx 那个小文件。只许改一行会逼它把组件挂在别的对象上。
 - C8 一致性盘点（2026-11-05 做完网站框架）：全站约 4,450 处裸写的值，一半以上在游戏画面和电视里。Steve 定了只管网站框架（首页、账号和后台、联机桌、工具、共用部分、游戏壳）的字号、颜色、阴影、圆角和 600ms 以内的时长；游戏画面、电视、间距先不动。`tests/tokens.test.ts` 第 4 条按 `tests/raw-values.json` 只减不增。Codex 5 个 PR（首页 #227、账号 #228、联机桌 #229、工具 #230、共用 #231）从 586 降到 83，剩下的都是 PR 里列明的例外：焦点和选中的描边环、头像的分隔环、跟着房间灯光的光晕、奖励的金色 #ffcf5a、按屏幕缩放的超大字（惩罚盖章、抢答）、聊天气泡的尾角、遮罩底色、@property 的初始色、减弱动效里的 0.001ms。字号对齐到档后有的地方折行变了（猜歌名设置页的标签多一行）。
 - C8 的 83 处例外要归零，得加几个 token：描边环（`--ring`）、灯光晕（`--glow-light`）、奖励金（`--gold`）、按屏幕缩放的展示字（`--text-display`）。Steve 2026-11-05 定了先放着（都有理由，玩家看不出，检查会拦住新增的）。游戏画面、电视和间距的裸写值还在（约 3,900 处）。
