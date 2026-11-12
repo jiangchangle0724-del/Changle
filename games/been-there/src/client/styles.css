@@ -4017,12 +4017,38 @@ h2.departures {
   gap: calc(var(--s) * 0.35);
   line-height: 0;
 }
+/* A die at rest is seen from a chair: turned so the roll's face is its top (--vx), a little round (--vy). */
 .die3d {
+  --vx: 32deg;
+  --vy: -20deg;
+  position: relative;
   display: inline-block;
   width: var(--s);
   height: var(--s);
   perspective: calc(var(--s) * 8);
+}
+.die3d .die-air {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
   animation: die-throw 0.95s cubic-bezier(0.3, 0.6, 0.4, 1) var(--delay, 0ms) both;
+}
+/* Its shadow on the table: small and faint while the die is up, dark under it once it's down. */
+.die3d .die-shadow {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -16%;
+  height: 34%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--night-shade) 55%, transparent),
+    color-mix(in oklab, var(--night-shade) 22%, transparent) 60%,
+    transparent
+  );
+  animation: die-shadow 0.95s cubic-bezier(0.3, 0.6, 0.4, 1) var(--delay, 0ms) both;
 }
 .die3d .cube {
   position: relative;
@@ -4030,7 +4056,7 @@ h2.departures {
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  transform: rotateZ(var(--ez)) rotateX(var(--ex)) rotateY(var(--ey));
+  transform: rotateX(var(--vx)) rotateY(var(--vy)) rotateZ(var(--ez)) rotateX(var(--ex)) rotateY(var(--ey));
   animation: die-spin 0.95s cubic-bezier(0.15, 0.6, 0.25, 1) var(--delay, 0ms) both;
 }
 .die3d .face {
@@ -4062,10 +4088,36 @@ h2.departures {
 }
 @keyframes die-spin {
   from {
-    transform: rotateZ(calc(var(--ez) + var(--sz))) rotateX(calc(var(--ex) + var(--sx))) rotateY(calc(var(--ey) + var(--sy)));
+    transform: rotateX(var(--vx)) rotateY(var(--vy)) rotateZ(calc(var(--ez) + var(--sz))) rotateX(calc(var(--ex) + var(--sx))) rotateY(calc(var(--ey) + var(--sy)));
   }
   to {
-    transform: rotateZ(var(--ez)) rotateX(var(--ex)) rotateY(var(--ey));
+    transform: rotateX(var(--vx)) rotateY(var(--vy)) rotateZ(var(--ez)) rotateX(var(--ex)) rotateY(var(--ey));
+  }
+}
+/* (in step with die-throw: up, it's small and faint; down, under the die; a little smaller on the bounce) */
+@keyframes die-shadow {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  12% {
+    opacity: 0.3;
+  }
+  55% {
+    opacity: 0.32;
+    transform: scale(0.55);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  88% {
+    opacity: 0.8;
+    transform: scale(0.88);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 /* Thrown from the player's side of the table: up, over, and a little bounce. */
@@ -4199,9 +4251,37 @@ h2.departures {
   /* (over the ride's sky, which comes before it) */
   position: relative;
 }
-/* The board's frame: what a move's camera zooms, pans, turns and leans (ui/Ride.tsx viewBoard). */
+/* The board's frame: what a move's camera zooms, pans, turns and leans (ui/Ride.tsx viewBoard), and
+   how it rests between moves: on the big screen and a laptop's whole board, leaning back as a board on
+   a table does (ui/Board.tsx boardLean). Between moves it eases to a new rest (a map made bigger lies
+   flat); on a move the camera writes it frame by frame. */
 .board-view {
   position: relative;
+}
+.boardwrap:not(.on-ride) .board-view {
+  transition: transform 0.6s var(--ease-out);
+}
+/* The lamp's pool of light on the table under the board, round it as it lies (it leans with it). */
+.board-view::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--lamp) 9%, transparent) 72%,
+    color-mix(in oklab, var(--lamp) 4%, transparent) 86%,
+    transparent
+  );
+}
+:root[data-reduced="1"] .boardwrap .board-view {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .boardwrap .board-view {
+    transition: none;
+  }
 }
 .boardwrap.on-ride .board-view {
   will-change: transform;
@@ -4502,12 +4582,14 @@ h2.departures {
   gap: 8px;
   will-change: transform;
 }
-.ride-dice .die3d,
+.ride-dice .die-air,
+.ride-dice .die-shadow,
 .ride-dice .die3d .cube {
   animation-duration: 0.53s;
   animation-delay: calc(var(--delay, 0ms) - var(--late, 0ms));
 }
-.ride-dice.still .die3d,
+.ride-dice.still .die-air,
+.ride-dice.still .die-shadow,
 .ride-dice.still .die3d .cube,
 .ride-dice .dice-sum {
   animation: none;
@@ -4578,7 +4660,8 @@ h2.departures {
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-.throw-dice .die3d {
+.throw-dice .die-air,
+.throw-dice .die-shadow {
   animation-duration: 0.53s;
 }
 .throw-dice .die3d .cube {
@@ -4632,7 +4715,8 @@ h2.departures {
 @media (prefers-reduced-motion: reduce) {
   .ride-board .row.on,
   .ride-skip,
-  .throw-dice .die3d,
+  .throw-dice .die-air,
+  .throw-dice .die-shadow,
   .throw-dice .die3d .cube,
   .other-stamp.on {
     animation: none;
@@ -4656,7 +4740,8 @@ h2.departures {
 .mini-dice .dice3d {
   gap: 3px;
 }
-.mini-dice .die3d {
+.mini-dice .die-air,
+.mini-dice .die-shadow {
   animation: none;
 }
 .mini-dice b {
@@ -4866,7 +4951,8 @@ h2.departures {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .die3d,
+  .die3d .die-air,
+  .die3d .die-shadow,
   .die3d .cube,
   .card-turn,
   .dice-sum {
@@ -5258,6 +5344,30 @@ h2.departures {
 }
 .haptic-btn:not(.off):active {
   transform: scale(0.965);
+}
+/* Held down, the throw button rattles its die, as a hand shakes the dice before it lets them go. */
+.roll-die {
+  display: inline-block;
+}
+.haptic-btn:not(.off):active .roll-die {
+  animation: die-rattle 0.12s linear infinite;
+}
+@keyframes die-rattle {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translate(-1px, 1px) rotate(-16deg);
+  }
+  75% {
+    transform: translate(1px, -1px) rotate(14deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .haptic-btn:not(.off):active .roll-die {
+    animation: none;
+  }
 }
 .haptic-btn.off {
   opacity: 0.38;

@@ -16,7 +16,7 @@ import { reducedMotion } from "../motion";
 import { serverNow, update } from "../store";
 import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
-import { LandStamp, Ride } from "./Ride";
+import { LandStamp, Ride, placeCamLayers, rest, viewBoard } from "./Ride";
 import { moveInPlay, ridesOn, walkOf, type RidePlan } from "./ridePlan";
 import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
@@ -142,6 +142,17 @@ export function flightToFly(v: RoomView): Flight | null {
 }
 
 /**
+ * How far the board leans back at rest (degrees), as a board on a table seen from a chair: on the big
+ * screen, and where a laptop (or a tablet) shows all of it, big enough to read leaning. A phone's
+ * board, and a bigger map dragged round, lie flat: a map is read from above (ui/mapView.ts).
+ */
+export const LEAN = { tv: 30, table: 26, minBoard: 480 };
+export function boardLean(big: boolean, size: MapSize, width: number): number {
+  if (big) return LEAN.tv;
+  return size === "s" && width >= LEAN.minBoard ? LEAN.table : 0;
+}
+
+/**
  * Which space the table turns where. A phone with first-person moves keeps its own token at
  * 9 o'clock, where its camera pushes in (so its turn starts without the table turning, and a ride
  * ends where the table rests). With reduced motion, or the setting off, a phone's table never
@@ -235,6 +246,24 @@ export function Board({
   const w = v.game?.s.world;
   const worldMark: WorldMark | null =
     w && w.at !== null && (w.id === "meteor" || w.id === "terror") ? { id: w.id, at: w.at, tag: t(`worldTag_${w.id}`) } : null;
+  // The map's size on a phone or a laptop (ui/mapView.ts); the big screen always fits the whole board.
+  const wrap = useRef<HTMLDivElement>(null);
+  const pan = useRef<HTMLDivElement>(null);
+  const view = useRef<HTMLDivElement>(null);
+  const zoomable = !big;
+  const size: MapSize = zoomable ? prefs.mapSize : "s";
+  // (the board's width, read when it changes: whether it's big enough to lean back)
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const read = () => setWidth(Math.round(el.clientWidth));
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const lean = boardLean(!!big, size, width);
   // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
   // show the globe) the board draws it flat, under the ring.
   const sat = !(globe && globeWanted());
@@ -257,6 +286,7 @@ export function Board({
       fx={fx}
       worldFx={moment && { id: moment.id, kind: moment.e.id, at: moment.e.at }}
       worldMark={worldMark}
+      lean={lean}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -265,11 +295,6 @@ export function Board({
     if (still.current?.key !== ride.key) still.current = { key: ride.key, board: table };
     table = still.current.board;
   } else still.current = null;
-  // The map's size on a phone or a laptop (ui/mapView.ts); the big screen always fits the whole board.
-  const wrap = useRef<HTMLDivElement>(null);
-  const pan = useRef<HTMLDivElement>(null);
-  const zoomable = !big;
-  const size: MapSize = zoomable ? prefs.mapSize : "s";
   // (this phone's own move: its camera has the view, ui/Ride.tsx; the map's button steps aside)
   const moving = !!ride || throwing;
   const onTurn = s.ps[s.turn] && !s.ps[s.turn].out ? s.turn : null;
@@ -281,6 +306,17 @@ export function Board({
     reduced: reducedMotion(),
   });
   const hint = useMapHint(zoomable && size !== "s" && !moving);
+  // Between moves the board rests as it lies (a move's camera has it meanwhile: ui/Ride.tsx), and on
+  // the big screen its globe and centre card stand over its middle.
+  useLayoutEffect(() => {
+    const el = view.current;
+    const r = rig.current;
+    if (ride || !el || !r) return;
+    const c = rest(r.rotation(), lean);
+    const w = el.clientWidth || 1;
+    viewBoard(el, c, r.rotation(), w);
+    if (big) placeCamLayers(Array.from(wrap.current?.querySelectorAll<HTMLElement>(".board-cam") ?? []), c, w);
+  }, [ride, lean, width, globeOn]);
   const pick = (next: MapSize) => {
     setMapSize(next);
     map.recentre();
@@ -299,11 +335,14 @@ export function Board({
       )}
       {/* (the map's size and where it's dragged to: ui/mapView.ts) */}
       <div class="board-pan" ref={pan}>
-        {/* (the frame a move's camera moves: ui/Ride.tsx) */}
-        <div class="board-view">{table}</div>
-        {landings.map((l) => (
-          <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
-        ))}
+        {/* (the frame a move's camera moves, and the board leans back in at rest: ui/Ride.tsx; another
+            team's landing stamps the board itself, so it lies on the board as it leans) */}
+        <div class={`board-view${lean ? " leaning" : ""}`} ref={view}>
+          {table}
+          {landings.map((l) => (
+            <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
+          ))}
+        </div>
       </div>
       {/* (what's drawn over the middle of the board moves with the big screen's camera on a move) */}
       {center && (

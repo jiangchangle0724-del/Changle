@@ -281,7 +281,10 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
             </>
           ) : (
             <HapticBtn kind="primary" wide onClick={() => throwDice({})}>
-              🎲 {t("roll")}
+              {/* (one item in the button's grid: held down, the die rattles in the hand, styles.css) */}
+              <span>
+                <span class="roll-die">🎲</span> {t("roll")}
+              </span>
             </HapticBtn>
           )}
           <ShakeToRoll roll={() => throwDice(pd.jail ? { how: "roll" } : {})} />
