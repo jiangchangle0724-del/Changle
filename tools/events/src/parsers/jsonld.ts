@@ -489,17 +489,20 @@ function eventUrl(value: unknown, pageUrl: string): string {
 
 // A small deterministic title discriminator for events whose only URL is the listing page.
 function titleHash(title: string): string {
+  title = title.replace(/\s+/g, " ").trim();
   let hash = 0x811c9dc5;
   for (let i = 0; i < title.length; i++) hash = Math.imul(hash ^ title.charCodeAt(i), 0x01000193);
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 function assignIds(events: NormalizedEvent[], pageUrl: string): NormalizedEvent[] {
-  const pageId = pageUrl.replace(/\?[^#]*/, "");
+  const pageId = pageUrl.replace(/^([^?#]*)\?[^#]*/, "$1");
   const starts = new Map<string, Map<string, Set<string>>>();
   for (const event of events) {
-    let dates = starts.get(event.sourceEventId);
-    if (!dates) starts.set(event.sourceEventId, dates = new Map());
+    const baseId = event.sourceEventId;
+    const key = baseId === pageId ? `${baseId}~${titleHash(event.title)}` : baseId;
+    let dates = starts.get(key);
+    if (!dates) starts.set(key, dates = new Map());
     const day = event.start.slice(0, 10);
     let times = dates.get(day);
     if (!times) dates.set(day, times = new Set());
@@ -507,11 +510,12 @@ function assignIds(events: NormalizedEvent[], pageUrl: string): NormalizedEvent[
   }
   for (const event of events) {
     const baseId = event.sourceEventId;
-    const dates = starts.get(event.sourceEventId)!;
+    const titleSuffix = baseId === pageId ? `~${titleHash(event.title)}` : "";
+    const dates = starts.get(`${baseId}${titleSuffix}`)!;
     const day = event.start.slice(0, 10);
     const sameDayTimes = dates.get(day)!;
     const occurrence = sameDayTimes.size > 1 && !event.allDay ? event.start.slice(0, 19) : day;
-    event.sourceEventId = `${baseId}@${occurrence}${baseId === pageId ? `~${titleHash(event.title)}` : ""}`;
+    event.sourceEventId = `${baseId}@${occurrence}${titleSuffix}`;
   }
   return events;
 }
@@ -554,7 +558,7 @@ export async function parseJsonLd(html: string, opts: { source: string; pageUrl:
     const description = string(node.description);
     events.push({
       source: opts.source,
-      sourceEventId: url.replace(/\?[^#]*/, ""),
+      sourceEventId: url.replace(/^([^?#]*)\?[^#]*/, "$1"),
       url,
       title: decodeEntities(name),
       description: description ? plainText(decodeEntities(description.slice(0, 4800)).replace(/&/g, "&amp;")) : null,

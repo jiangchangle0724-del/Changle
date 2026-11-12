@@ -475,6 +475,52 @@ describe("PR #303 second review regressions", () => {
   });
 });
 
+describe("PR #303 third review regressions", () => {
+  it("keeps URL-less Jazz's date ID unchanged when unrelated Yoga is added that day", async () => {
+    const jazz = event({ name: "Jazz", startDate: "2026-11-05T19:00:00" });
+    const yoga = event({ name: "Yoga", startDate: "2026-11-05T10:00:00" });
+    const [single] = await parseJsonLd(script(jazz), opts);
+    const [withYoga] = await parseJsonLd(script([jazz, yoga]), opts);
+    expect(single.sourceEventId).toMatch(/^https:\/\/example\.test\/page@2026-11-05~[0-9a-f]{8}$/);
+    expect(withYoga.sourceEventId).toBe(single.sourceEventId);
+    expect((await parseJsonLd(script([yoga, jazz]), opts))[1].sourceEventId).toBe(single.sourceEventId);
+  });
+
+  it("uses Vancouver times for multiple URL-less Storytime sessions with the same title", async () => {
+    const sessions = ["10:00:00", "14:00:00"].map((time) => event({
+      name: "Storytime", startDate: `2026-11-05T${time}`,
+    }));
+    const events = await parseJsonLd(script(sessions), opts);
+    expect(events[0].sourceEventId).toMatch(/^https:\/\/example\.test\/page@2026-11-05T10:00:00~[0-9a-f]{8}$/);
+    expect(events[1].sourceEventId).toBe(events[0].sourceEventId.replace("T10:00:00", "T14:00:00"));
+  });
+
+  it("preserves queries inside URL fragments so different routed events have different IDs", async () => {
+    const urls = ["https://v.test/#/event?id=1", "https://v.test/#/event?id=2"];
+    const events = await parseJsonLd(script(urls.map((url) => event({ url }))), opts);
+    expect(events.map((e) => e.sourceEventId)).toEqual(urls.map((url) => `${url}@2026-11-01`));
+    expect(events[0].sourceEventId).not.toBe(events[1].sourceEventId);
+    expect((await parse({ url: "https://v.test/e?utm_source=x#t" }))[0].sourceEventId)
+      .toBe("https://v.test/e#t@2026-11-01");
+  });
+
+  it("preserves a fragment query when comparing the event's URL with the page URL", async () => {
+    const pageOpts = { ...opts, pageUrl: "https://v.test/#/event?id=1" };
+    const [fallback] = await parseJsonLd(script(event()), pageOpts);
+    expect(fallback.sourceEventId).toMatch(/^https:\/\/v\.test\/#\/event\?id=1@2026-11-01~[0-9a-f]{8}$/);
+    const [ownUrl] = await parseJsonLd(script(event({ url: "https://v.test/#/event?id=2" })), pageOpts);
+    expect(ownUrl.sourceEventId).toBe("https://v.test/#/event?id=2@2026-11-01");
+  });
+
+  it("normalizes whitespace only for the title hash and retains each source title", async () => {
+    const names = ["Rock & Roll", "Rock & Roll ", "  Rock  &\tRoll\n"];
+    const events = await parseJsonLd(script(names.map((name) => event({ name }))), opts);
+    expect(events.map((e) => e.title)).toEqual(names);
+    expect(new Set(events.map((e) => e.sourceEventId)).size).toBe(1);
+    expect(events[0].sourceEventId).toMatch(/@2026-11-01~[0-9a-f]{8}$/);
+  });
+});
+
 describe("warm parsing budget", () => {
   for (const [name, html, count, budget] of [
     ["commodore-home.html", commodore, 25, 5],
