@@ -63,8 +63,8 @@ const dress = (body: Look["body"], hair: Hair, bag: Bag | null, idle: Look["idle
  * art colours, as the design rules allow for a game's props (DESIGN.md).
  */
 export const LOOKS: readonly Look[] = [
-  dress("m", "hair_short", "backpack", "idle", "walk", skin.tan, { top: "#d9962a", pants: "#2b3550", shoes: "#ece7dc", hair: "#2a1c14", bag: "#2e6f73", strap: "#1f4d50" }),
-  dress("f", "hair_bun", "backpack", "idle_phone", "walk_brisk", skin.deep, { top: "#5cc79b", pants: "#6b3a5e", shoes: "#f2c14e", hair: "#1f1612", bag: "#a98bd8" }),
+  dress("m", "hair_short", "backpack", "idle", "walk", skin.deep, { top: "#d9962a", pants: "#2b3550", shoes: "#ece7dc", hair: "#2a1c14", bag: "#2e6f73", strap: "#1f4d50" }),
+  dress("f", "hair_bun", "backpack", "idle_phone", "walk_brisk", skin.warm, { top: "#5cc79b", pants: "#6b3a5e", shoes: "#f2c14e", hair: "#1f1612", bag: "#a98bd8" }),
   dress("m", "hair_short", null, "idle_arms", "walk", skin.warm, { top: "#2e6f73", forearm: "#c4473a", pants: "#6d6f78", shoes: "#4a3426", hair: "#bdb9b0" }),
   dress("f", "hair_tail", "satchel", "idle", "walk", skin.light, { top: "#c8402f", pants: "#1d1f2a", shoes: "#2a2321", hair: "#3b2416", bag: "#7a4a2a", strap: "#5a361e" }),
   dress("m", "cap", null, "idle_phone", "walk_brisk", skin.brown, { top: "#2f3e66", pants: "#c2a878", shin: skin.brown, shoes: "#ece7dc", hair: "#d36b2a", accent: "#b4541c" }),
