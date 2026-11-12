@@ -30,11 +30,12 @@
 - 台上有两个会跳舞的小人，`site/tests/performer.test.ts` 逐帧检查手臂和腿。
 - 每首歌只加载一次，省内存。
 - 单机选择题是一桌人共用一部手机：猜错一个只锁这一个，其余还能接着猜。
+- 四选一分简单和难（参考 Soundle）。简单：每个歌名下写着歌手。难：只写歌名，错的三个尽量是同一个歌手的别的歌，不够再用别的歌手补。单机在选择题里选，联机选择题和抢答后的四选一都算，大屏幕也只写歌名。揭晓时照样写歌手。
 
 ## 还剩什么
 
 - 选择题偶尔闪退（Steve 10-31 报的）：11-05 找到并修了一个很像的原因。台上跟着拍子变的灯光每一帧都改两个小人所在整块的样式，Chrome 内核里页面内存一首涨 150 MB 左右（6 首从 100 MB 到 1.2 GB），关掉这一项就不涨，小人跳舞本身不涨。改成只改发光的那几块、粗一点的台阶、变了才改以后，8 首都稳在 180 MB 上下。iPhone 是另一种内核，还要 Steve 在 iPhone 上连玩几十首确认。`scripts/tune_quiz_check.py` 现在也会在页面内存往上爬时报错。
-- 参考 Soundle 的四条（Steve 11-05 说都做）：选择题分难度、一秒猜歌、歌手专场和年代歌单、挑战链接。
+- 参考 Soundle 的四条（Steve 11-05 说都做）：选择题分难度（做了）、一秒猜歌、歌手专场和年代歌单、挑战链接。
 
 ## 交给别的对话
 
@@ -44,6 +45,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-05 Name That Tune: hard titles: no singers on them, the wrong ones by the same singer
 - 2026-11-05 Name That Tune: the stage's lights stop growing the page's memory song after song
 - 2026-11-05 Name That Tune: one phone, multiple choice: a wrong title locks only itself, the table guesses on
 - 2026-11-05 ui(C10): resume songs melodies and buzzers (#206，Codex)

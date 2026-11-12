@@ -17,7 +17,7 @@ import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard } from "../common";
 import { perfAt } from "../sensors";
 import { chartsForRoom, loadCharts } from "./charts";
-import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, stageNow, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
+import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, LevelPicker, playClip, PoolPicker, QuizChoices, SongReveal, SongStatus, StageDots, stageNow, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { tuneCrew } from "./crew";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import { beatsFor } from "../../lib/beats";
@@ -170,8 +170,8 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   const rules = (
     <p>
       {zh
-        ? `真歌模式：所有手机同时放同一首歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。抢答：知道就抢，从四个歌名里选，答错${custom ? "受罚" : "喝一口"}，这首就不能再抢。选择题：四个歌名从一开始就在每个人手机上，各选各的，越早选对分越高，没选对的${custom ? "受罚" : "喝一口"}。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓时可以去 Apple Music 听完整版。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的${custom ? "受罚" : "喝两口"}。`
-        : `Real songs: every phone plays the same 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV). The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Buzz in: know it? Buzz and pick the title from four; a wrong answer ${custom ? "takes the penalty" : "is a sip"} and locks you out of that song. Multiple choice: the four titles are on every phone from the start, everyone picks their own, the sooner the right one the more points, and whoever misses ${custom ? "takes the penalty" : "drinks"}. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. The reveal links to the full song on Apple Music. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score ${custom ? "takes the penalty" : "drinks two"}.`}
+        ? `真歌模式：所有手机同时放同一首歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）和类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲），越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。抢答：知道就抢，从四个歌名里选，答错${custom ? "受罚" : "喝一口"}，这首就不能再抢。选择题：四个歌名从一开始就在每个人手机上，各选各的，越早选对分越高，没选对的${custom ? "受罚" : "喝一口"}。选项可以选难：只写歌名，错的尽量是同一个歌手的歌。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓时可以去 Apple Music 听完整版。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的${custom ? "受罚" : "喝两口"}。`
+        : `Real songs: every phone plays the same 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) and a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV). The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Buzz in: know it? Buzz and pick the title from four; a wrong answer ${custom ? "takes the penalty" : "is a sip"} and locks you out of that song. Multiple choice: the four titles are on every phone from the start, everyone picks their own, the sooner the right one the more points, and whoever misses ${custom ? "takes the penalty" : "drinks"}. The titles can be hard: no singers, and the wrong ones by the same singer where possible. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. The reveal links to the full song on Apple Music. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score ${custom ? "takes the penalty" : "drinks two"}.`}
     </p>
   );
 
@@ -222,6 +222,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             {songs && <PoolPicker pool={v.pool} disabled={!isHost} onPick={(pool) => g("pool", { pool })} />}
             {songs && v.noSongs && <p className="tn-miss">{zh ? "这个歌单还没有歌，换一个语言或类别" : "No songs in this pool yet. Pick another language or category."}</p>}
             {!djMode && <AnswerPicker quiz={quiz} disabled={!isHost} onPick={(on) => g("quiz", { on })} />}
+            {songs && <LevelPicker hard={v.hard} disabled={!isHost} onPick={(on) => g("hard", { on })} />}
             <p className="hint" style={{ textAlign: "center" }}>
               {modeHint}
             </p>
@@ -330,7 +331,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
                     {v.choices.map((c) => (
                       <button key={c.id} type="button" className="tn-option" disabled={!buzzerIsMe} onClick={() => g("answer", { choice: c.id })}>
                         <strong>{c.t}</strong>
-                        <small>{zh ? c.a : c.ae}</small>
+                        {(zh ? c.a : c.ae) && <small>{zh ? c.a : c.ae}</small>}
                       </button>
                     ))}
                   </div>

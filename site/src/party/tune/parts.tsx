@@ -222,6 +222,37 @@ export function AnswerPicker({ quiz, onPick, disabled }: { quiz: boolean; onPick
   );
 }
 
+/**
+ * How hard the four titles are (real songs): each with its singer, or titles only, the wrong ones by
+ * the same singer as far as there are any.
+ */
+export function LevelPicker({ hard, onPick, disabled }: { hard: boolean; onPick: (hard: boolean) => void; disabled?: boolean }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="tn-level">
+      <div className="seg seg-sm" role="group" aria-label={zh ? "选项的难度" : "How hard the titles are"}>
+        <button type="button" aria-pressed={!hard} disabled={disabled} onClick={() => onPick(false)}>
+          {zh ? "简单" : "Easy"}
+        </button>
+        <button type="button" aria-pressed={hard} disabled={disabled} onClick={() => onPick(true)}>
+          {zh ? "难" : "Hard"}
+        </button>
+      </div>
+      <p className="tn-pool-hint">
+        {hard
+          ? zh
+            ? "选项只写歌名，错的尽量是同一个歌手的歌"
+            : "Titles only. The wrong ones are by the same singer where possible."
+          : zh
+            ? "选项写着歌手名"
+            : "Each title shows its singer"}
+      </p>
+    </div>
+  );
+}
+
+/** One of the four titles; `a` and `ae` empty on the hard level (no singer shown). */
 export type QuizChoice = { id: number; t: string; a: string; ae: string };
 
 /** A classic tune as a choice: its title in this phone's language, the other one underneath. A tune
@@ -250,7 +281,7 @@ export function QuizChoices({ choices, mine, answer, onPick, disabled, tried = [
         return (
           <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null || missed} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
             <strong>{c.t}</strong>
-            <small>{zh ? c.a : c.ae}</small>
+            {(zh ? c.a : c.ae) && <small>{zh ? c.a : c.ae}</small>}
             {mine === c.id && !done && <span className="tn-pick">{zh ? "你的答案" : "Your pick"}</span>}
             {missed && !done && <span className="tn-pick tn-pick-miss">{zh ? "不是这首" : "Not this one"}</span>}
           </button>

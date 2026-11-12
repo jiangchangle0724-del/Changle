@@ -7,6 +7,8 @@ decoded song previews and Web Audio nodes still alive, GSAP tweens, and the tabs
 (also five times a second, for the peaks). The tabs' memory must hold steady too, not just the JS
 heap: the stage's lights once grew it by about 150 MB a song, with the heap flat all along. `stress` plays a table where a phone locks mid-song and
 wakes up, a player walks off and another sits down, and answers and "next" get double taps.
+`levels` checks the hard titles: no singer under any of the four, on one phone and on every phone
+at a table (multiple choice, and the four a buzzer picks from), and the reveal still names the singer.
 
 Apple's previews are AAC, which the open-source Chromium can't decode, so each one is fetched
 and turned into MP3 on the fly (ffmpeg): the phone loads, decodes, analyses and plays it like a
@@ -14,7 +16,7 @@ real one. Today's charts are left out, so every song is in src/data/songs.ts and
 knows the right title. Works against the dev server (reads window.__room) or a production build
 (`vite preview`, read off the screens; `stress` needs the dev server).
 
-  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress ...]
+  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress|levels ...]
   (both local servers running; needs ffmpeg and pip's playwright, psutil and requests; ROUNDS=8
   for a shorter run; SHOTS=dir for screenshots and the audio cache; HTTPS_PROXY is passed to the
   browser when set)
@@ -611,6 +613,110 @@ def stress(browser):
             g.context.close()
 
 
+def start_tune(host, everyone):
+    tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']")
+    if tiles.count():
+        tiles.first.click()
+    host.wait_for_timeout(500)
+    host.locator(".lobby-actions .btn-primary").click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("id") == "tune") for g in everyone), "[levels] every phone is in Name That Tune")
+    host.wait_for_timeout(500)
+
+
+def levels(browser):
+    """Hard titles (dev server): one phone, then a table, multiple choice and buzz-in."""
+    pg = phone(browser, "Steve", players=[{"id": "p0", "name": "Steve"}, {"id": "p1", "name": "Mia"}])
+    pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+    pg.get_by_role("button", name="选择题", exact=True).click()
+    ok(pg.get_by_role("button", name="难", exact=True).count() == 1, "[levels] one phone: easy or hard, once it's multiple choice")
+    for hard in (False, True):
+        if hard:
+            pg.get_by_role("button", name="难", exact=True).click()
+        pg.get_by_role("button", name="5 首", exact=True).click()
+        pg.get_by_role("button", name="开始", exact=True).click()
+        ok(until(lambda: pg.locator(".tn-option:not([disabled])").count() == 4, 20000) is not None, f"[levels] one phone {'hard' if hard else 'easy'}: four titles")
+        smalls = pg.locator(".tn-option small").count()
+        ok(smalls == (0 if hard else 4), f"[levels] one phone {'hard' if hard else 'easy'}: {'no singer' if hard else 'a singer'} under each title ({smalls})")
+        shot(pg, f"levels-solo-{'hard' if hard else 'easy'}")
+        pg.get_by_role("button", name="揭晓歌名", exact=True).click()
+        ok(until(lambda: pg.locator(".song-reveal, .tune-title, .sup-ask").count() > 0, 6000) is not None, "[levels] one phone: the reveal")
+        # back to the setup for the other level: the tally's 再来一局 starts the game afresh
+        pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+        if pg.get_by_role("button", name="重新开始").count():
+            pg.get_by_role("button", name="重新开始").click()
+        pg.get_by_role("button", name="选择题", exact=True).click()
+    errs = errors_of([pg])
+    ok(not errs, f"[levels] one phone: no console or page errors {errs[:4]}")
+    pg.context.close()
+
+    host, guests = seat_table(browser, ["Steve", "Mia", "Jay"])
+    everyone = [host] + guests
+    start_tune(host, everyone)
+    for quiz in (True, False):
+        host.get_by_role("button", name="选择题" if quiz else "抢答", exact=True).click()
+        host.get_by_role("button", name="难", exact=True).click()
+        host.get_by_role("button", name="5 首", exact=True).click()
+        ok(until(lambda: view(guests[0])["hard"] and view(guests[0])["quiz"] == quiz), f"[levels] the table: hard {'multiple choice' if quiz else 'buzz-in'} is on for everyone")
+        host.get_by_role("button", name="放第一首").click()
+        for n in (1, 2):
+            ok(until(lambda: view(host)["phase"] == "listen" and view(host)["round"] == n, 15000) is not None, f"[levels] song {n} starts")
+            if quiz:
+                ok(until(lambda: all(g.locator(".tn-option:not([disabled])").count() == 4 for g in everyone), 15000) is not None, f"[levels] song {n}: four titles on every phone")
+            else:
+                # the buzzer counts once the song is playing (the record spins)
+                ok(until(lambda: guests[0].locator(".buzz:not([disabled])").count() == 1 and guests[0].locator(".vinyl.is-spinning").count() > 0, 15000) is not None, f"[levels] song {n}: the song plays, the buzzer is live")
+                for _ in range(3):
+                    guests[0].locator(".buzz").dispatch_event("pointerdown")
+                    if until(lambda: view(host)["phase"] == "answer", 2500):
+                        break
+                ok(until(lambda: view(host)["phase"] == "answer" and guests[0].locator(".tn-options .tn-option:not([disabled])").count() == 4, 8000) is not None, f"[levels] song {n}: Mia buzzed and has four titles")
+            v = view(guests[0])
+            ok(v["choices"] and all(c["a"] == "" and c["ae"] == "" for c in v["choices"]), f"[levels] song {n}: the table is sent titles only")
+            ok(all(g.locator(".tn-option small").count() == 0 for g in everyone), f"[levels] song {n}: no singer under any title, on any phone")
+            if n == 1:
+                shot(guests[0], f"levels-online-{'quiz' if quiz else 'buzz'}")
+            right = right_choice(v)
+            ids = [c["id"] for c in v["choices"]]
+            pickers = everyone if quiz else [guests[0]]
+            for g in pickers:
+                try:
+                    g.locator(".tn-option:not([disabled])" if quiz else ".tn-options .tn-option").nth(ids.index(right) if right in ids else 0).click(timeout=3000)
+                except Exception as e:  # noqa: BLE001
+                    print("  (pick)", g._name, str(e)[:120], flush=True)
+            ok(until(lambda: view(host)["phase"] == "reveal", 25000) is not None, f"[levels] song {n}: the reveal")
+            ok(bool((view(host).get("song") or {}).get("a")), f"[levels] song {n}: the reveal names the singer")
+            clear_stamps(everyone)
+            host.wait_for_timeout(600)
+            try:
+                host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=4000)
+            except Exception:
+                pass
+        # the rest of the five: the host reveals each one at once, then on to the final scores
+        for _ in range(40):
+            ph = view(host)["phase"]
+            if ph == "end":
+                break
+            clear_stamps(everyone)
+            try:
+                if ph == "listen":
+                    host.locator(".tn button", has_text=re.compile("^揭晓答案$")).first.click(timeout=3000)
+                elif ph == "reveal":
+                    host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=3000)
+            except Exception:
+                pass
+            host.wait_for_timeout(700)
+        ok(until(lambda: view(host)["phase"] == "end", 15000) is not None, "[levels] the final scores")
+        clear_stamps(everyone)
+        host.wait_for_timeout(1500)
+        clear_stamps(everyone)
+        host.get_by_role("button", name="再来一局").click()
+        ok(until(lambda: view(host)["phase"] == "ready"), "[levels] back to the setup")
+    errs = errors_of(everyone)
+    ok(not errs, f"[levels] the table: no console or page errors {errs[:4]}")
+    for p in everyone:
+        p.context.close()
+
+
 def main():
     print(f"{BASE}  rounds {ROUNDS}  out {OUT}", flush=True)
     with sync_playwright() as p:
@@ -631,6 +737,10 @@ def main():
         if "stress" in ONLY:
             b = browser_of(p)
             stress(b)
+            b.close()
+        if "levels" in ONLY:
+            b = browser_of(p)
+            levels(b)
             b.close()
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed", flush=True)
     sys.exit(1 if fails else 0)
