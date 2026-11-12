@@ -4,7 +4,7 @@
 // and ordering it in. Further down the list a card starts short (`compact`) and opens with "More".
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { CUISINES, DISHES, avoidTip, type OccasionId, type Off, type Place, type Reason } from "../../engine";
+import { CUISINES, DISHES, avoidTip, badgesFor, type OccasionId, type Off, type Place, type Reason } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
 import { serverNow } from "../store";
@@ -124,7 +124,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardV
         </div>
         {!!p.badges?.length && (
           <p class="badges">
-            {p.badges.map((b, i) => {
+            {badgesFor(p.badges, occasion).map((b, i) => {
               const label = `🏅 ${tx(b.label)}${b.year ? ` ${b.year}` : ""}`;
               return b.url ? (
                 <a key={i} class="badge" href={b.url} target="_blank" rel="noopener">

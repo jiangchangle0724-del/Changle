@@ -192,6 +192,8 @@ export interface Badge {
   label: Text;
   year?: number;
   url?: string;
+  /** A list for an occasion (most romantic, best private rooms, family-friendly, late night…): which ones. */
+  occasions?: string[];
 }
 
 /** A post about a place on a food-blogger platform (小红书, 抖音, TikTok, Instagram, YouTube, a blog). */

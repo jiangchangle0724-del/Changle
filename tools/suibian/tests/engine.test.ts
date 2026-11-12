@@ -40,6 +40,7 @@ import {
   isRange,
   occasionFit,
   mealOf,
+  badgesFor,
   reasonsFor,
   tally,
   travelMinutes,
@@ -606,3 +607,22 @@ test("planned: open by its hours that day, now by Google's 'open now'", () => {
   assert.deepEqual(ranked([noHours, lunchOnly], { at: lunch }), [lunchOnly.id, noHours.id]);
 });
 
+
+test("a list for the occasion: it moves a place up and comes first among its badges", () => {
+  const romantic = { source: "opentable", label: { zh: "最浪漫", en: "Most romantic" }, year: 2026, occasions: ["date"] };
+  const michelin = { source: "michelin", label: { zh: "米其林", en: "MICHELIN" }, year: 2026 };
+  const vanmag = { source: "vanmag", label: { zh: "金奖", en: "Gold" }, year: 2026 };
+  const canada = { source: "canada100", label: { zh: "百佳", en: "100 Best" }, year: 2026 };
+  const lateList = { source: "dailyhive", label: { zh: "深夜", en: "Late" }, year: 2024, occasions: ["latenight"] };
+  const p = place({ cuisine: "steak", reservable: true, badges: [michelin, vanmag, canada, lateList, romantic] });
+  assert.deepEqual(badgesFor(p.badges, "date").map((b) => b.source), ["opentable", "michelin", "vanmag", "canada100"]);
+  assert.deepEqual(badgesFor(p.badges, "latenight")[0].source, "dailyhive");
+  assert.equal(badgesFor(p.badges, "casual").length, 4);
+  const listed = occasionFit(p, "date", { at: NOW });
+  assert.equal(listed.why[0], "listed");
+  const plain = place({ cuisine: "steak", reservable: true, badges: [michelin] });
+  assert.ok(Math.abs(listed.points - occasionFit(plain, "date", { at: NOW }).points - 0.6) < 1e-9);
+  // A late-night list says nothing about a business dinner: not even "acclaimed".
+  const lateOnly = place({ cuisine: "western", badges: [lateList] });
+  assert.equal(occasionFit(lateOnly, "business", { at: NOW }).points, occasionFit(place({ cuisine: "western" }), "business", { at: NOW }).points);
+});

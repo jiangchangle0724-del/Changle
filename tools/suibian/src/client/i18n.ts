@@ -240,6 +240,7 @@ const S = {
   why_fans: ["随便用户好评", "Loved by our users"],
   why_topRated: ["Google 高分", "Top rated on Google"],
   // what makes a place suit the occasion (after "适合商务宴请：")
+  fitWhy_listed: ["榜单推荐", "on a list for it"],
   fitWhy_upscale: ["高档", "upscale"],
   fitWhy_romantic: ["气氛好", "romantic"],
   fitWhy_private: ["有包间", "private rooms"],
