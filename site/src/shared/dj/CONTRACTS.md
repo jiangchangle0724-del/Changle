@@ -35,7 +35,7 @@ It is built inside the site, not as its own project: the rules run on the site's
 | The 12 styles' Lyria presets | `site/src/shared/dj/presets.ts` (C1) |
 | The speaker's screen | `site/src/party/dj/TvDj.tsx` (in the big screen, `site/src/tv/TvApp.tsx`) |
 | The phone | `site/src/party/dj/NetDj.tsx`, `site/src/styles/dj-phone.css` |
-| Lights and dancers | `site/src/party/dj/Floor.tsx`, `site/src/styles/dj.css` |
+| Lights and dancers | `site/src/party/dj/Floor.tsx` (the lights, the drawn floor), `Floor3D.tsx` (the robots), `robot3d.ts` (what they share with the coach), `site/src/styles/dj.css` |
 | The speaker on its own (no table) | `site/src/party/dj/TestPage.tsx`, at changle.ca/dj/test |
 | Lyria: the relay on the rooms server | `site/worker/lyria.ts` (in the table's Durable Object, `index.ts`) |
 | Lyria: the speaker's side | `site/src/party/dj/lyria/` (`LyriaDj.ts`, `prompts.ts`, `beat.ts`), switched in `useBooth.ts` |
@@ -101,11 +101,11 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`): a 3D robot (`Coach3D.tsx`,
   three.js loaded only there, a CC0 model in `public/models/robot.glb` with its own dances, each
   animation stretched to whole beats and set to the speaker's beat every frame), or Name That
-  Tune's drawn performer while it loads, on a phone playing the speaker (under 1000 px wide: the
-  robot would be small, and a phone's page has the least memory), and on a screen with no graphics
-  chip for it (no WebGL, WebGL drawn in software, where three.js isn't even downloaded, or its
-  frames under 20 a second in its first seconds: the robot would take the TV's processor from the
-  music and the page),
+  Tune's drawn performer while it loads and on a screen with no graphics chip for it (no WebGL,
+  WebGL drawn in software, where three.js isn't even downloaded, or its frames under 20 a second
+  in its first seconds: the robot would take the TV's processor from the music and the page; a
+  phone playing the speaker gets the robot when its chip keeps up, Steve's TV being an iPhone shown
+  on a computer over AirPlay),
   dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
   16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
   the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand
@@ -664,6 +664,24 @@ flash fires on a strong kick, **never more than three a second** (the usual line
 light), only in the build and the peak, and not at all with reduced motion. Anything that changes
 every frame changes only opacity or a transform.
 
+**The dancers in 3D** (`Floor3D.tsx`; Steve on Nov 5: the players "跟着音乐的节奏跳舞和有感情的唱歌",
+as smooth as the coach, and he chose little robots). Where the coach's robot can be drawn (the same
+checks: a graphics chip, 20 frames a second or more in the first seconds, the model loaded; one
+load of three.js and the model for both, `robot3d.ts`), everyone at the table is the coach's robot,
+its body in their own colour (their avatar's), their face and name over its head, the host's
+ringed. On the speaker's beat each one's animation is stretched to whole beats and set to where the
+beat is every frame, as the coach's: easy moves in the warm-up and the wind-down, the full set in
+the build, the big ones at the peak and for anyone keeping up with the coach (跟着跳), the move
+changing every two bars, each robot starting at a different place in the list. A 🔥 makes its owner
+jump (its tag going up with it); someone away sits down, greyed. Over a whole song from YouTube,
+which the page can't hear (no beat to dance on, no words to sing), they sing: a microphone on a
+stand rises in front of each, they sway at it, brows up as a line opens out and knitted on its long
+notes, notes in their colour going up from them; the song over, they dance again. More than 8: two
+rows, the back one on a step behind and between (its edge lit in the booth's pink), its tags over
+the heads, the front row's under the feet. With reduced motion they stand easy (no dancing,
+jumping or swaying; the notes stand still). The drawn floor stays until the robots are dancing,
+and is back if they can't be.
+
 ## Limits
 
 - One stream per table, from the speaker. A second big screen on the same table would play it too:
@@ -729,6 +747,15 @@ every frame changes only opacity or a transform.
   meters, then both on the beat filling the combo to fireworks; the recap's best on the beat.
   `tests/dj.test.ts` has the routine, the beat times and a danced beat; `tests/engine.test.ts`
   the room's counts, the combo and its fireworks.
+- `python3 scripts/dj_floor3d_check.py`: the floor in 3D in browsers, TVs and up to nine phones
+  (the TV told to take any WebGL, as one with a graphics chip would): the drawn floor giving way to
+  the robots, one a player in their own colour under their face and name, every animation where
+  the speaker's beat is frame after frame, the moves changing every two bars, a 🔥's jump, someone
+  away sitting down greyed; a whole song from YouTube (the stand-in): the robots at their
+  microphones, singing (brows moving, notes going up), dancing again after it; nine at the table
+  in two rows on the beat; a TV drawing WebGL in software keeping the drawn floor (three.js never
+  downloaded), one slowed down on purpose going back to it, and with reduced motion the robots
+  standing easy.
 - `python3 scripts/dj_turntable_check.py [chromium|webkit]`: the phone as a DJ controller, in
   browsers, a TV and two phones: the four club sounds rendered offline in the TV's browser and
   measured (the record's pops over its hiss for two bars, the boom's low pitch, the reverse cymbal
