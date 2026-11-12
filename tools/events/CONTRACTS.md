@@ -114,6 +114,13 @@ source reads today's page from KV and parses it like a fetched one; only for a p
 does it fetch, and its `note` says so. One page a request, as one page is one step: the free plan's
 10 ms. The code for both ends is `src/handoff.ts`.
 
+GitHub starts the job hours late most days, so a page that comes after the run went past its library
+(table `runs`: published, or its cursor beyond that source) is read when it comes (`src/arrival.ts`):
+the same step, through the same loopback binding, a request of its own; its `note` ends `read when it
+came`. After the library's last page the list is published again, unless the run is still going (it
+publishes itself); after 07:00 it's published either way. A page that comes before the run started,
+or before it got to that library, is left for the run. The answer to the job says which (`read`).
+
 The job signs in with GitHub Actions' own OIDC token (`src/oidc.ts`), so no secret is set anywhere.
 It asks the runner for a token with the audience `changle-events-handoff` (the workflow has
 `permissions: id-token: write`), one for each library, just before handing its pages over. The Worker
