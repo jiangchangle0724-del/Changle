@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { RULES, RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
 import { PlayingCard } from "../../games/Rogue13";
+import { playPower } from "../../games/rogueSounds";
 import { UI, type T } from "../../i18n";
 import { haptic } from "../../lib/sfx";
 import type { RogueHolders, RogueView } from "../../shared/protocol";
@@ -53,6 +54,20 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   // while the table plays a round of the card, the card steps back so the round fits on screen
   const live = v.phase === "garden" || v.phase === "grab" || v.phase === "sevens";
   useYourTurn(myTurn && v.phase === "draw");
+
+  // a power's card comes up: its own sound on every phone, once the card has turned over (using the
+  // power later is an effect of its own; a phone that opens on a card already up stays quiet)
+  const cardKey = v.card ? `${v.card.rank}${v.card.suit}-${v.left}` : "";
+  const openedOn = useRef(cardKey);
+  useEffect(() => {
+    if (!cardKey || cardKey === openedOn.current) return;
+    const power = v.card ? RULE_BY_RANK[v.card.rank].power : undefined;
+    if (!power) return;
+    const id = window.setTimeout(() => playPower(power), 480);
+    return () => window.clearTimeout(id);
+    // the card is what changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardKey]);
 
   const rules = (
     <ul className="rule-list">

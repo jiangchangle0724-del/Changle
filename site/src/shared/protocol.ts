@@ -81,6 +81,8 @@ export type Fx =
   | "camera"
   | "nose"
   | "wc"
+  | "trouble"
+  | "buddy"
   | "dice"
   | "reveal"
   | "correct"

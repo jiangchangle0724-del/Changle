@@ -19,16 +19,38 @@ export type RuleKind =
   | "group" // a table game starts, loser drinks
   | "hold"; // the holder keeps a standing power
 
+/** The five standing powers (the `hold` cards), by name: who holds each, and each one's sound. */
+export type Power = "buddy" | "camera" | "nose" | "wc" | "trouble";
+
 export type Rule = {
   rank: Rank;
   title: T;
   rule: T;
   kind: RuleKind;
+  /** For standing powers: which one this card gives. */
+  power?: Power;
   /** For standing powers: the short badge shown next to the holder's name. */
   badge?: T;
   /** The card when the table plays for its own penalty instead of drinks (what it leaves out stays). */
   custom?: { title?: T; rule: T; badge?: T };
 };
+
+/** The line under a penalty a power or a round handed out (the same words on one phone and online). */
+export const ROGUE_NOTES = {
+  garden: { zh: "逛三园：说不出或重复", en: "Three Gardens: stalled or repeated" },
+  gardenSlow: { zh: "逛三园：没接上", en: "Three Gardens: too slow" },
+  grabLast: { zh: "抢数字：最后一个", en: "Grab the Number: last one left" },
+  grabCollide: { zh: "抢数字：撞数了", en: "Grab the Number: same number" },
+  grabNone: { zh: "抢数字：没抢到", en: "Grab the Number: never grabbed" },
+  sevensWrong: { zh: "逢七过：说错了", en: "Sevens: wrong call" },
+  sevensSlow: { zh: "逢七过：没接上", en: "Sevens: too slow" },
+  camera: { zh: "照相机：动了", en: "Camera: you moved" },
+  noseSlow: { zh: "摸鼻子：最慢", en: "Nose: last one" },
+  noseMiss: { zh: "摸鼻子：没摸", en: "Nose: never touched it" },
+  trouble: { zh: "神经病：接了话", en: "Troublemaker: you answered" },
+  wc: { zh: "没有 WC 票：先喝再去", en: "No bathroom pass: drink first" },
+  wcCustom: { zh: "没有 WC 票：先受罚再去", en: "No bathroom pass: penalty first" },
+} satisfies Record<string, T>;
 
 /** A card's words for the table's penalty: drinking, or the host's own (`custom`). */
 export function ruleWords(r: Rule, custom: boolean): { title: T; rule: T; badge?: T } {
@@ -47,6 +69,7 @@ export const RULES: Rule[] = [
   {
     rank: "2",
     kind: "hold",
+    power: "buddy",
     title: { zh: "陪酒", en: "Drinking Buddy" },
     badge: { zh: "陪酒", en: "Buddy" },
     rule: {
@@ -95,6 +118,7 @@ export const RULES: Rule[] = [
   {
     rank: "5",
     kind: "hold",
+    power: "camera",
     title: { zh: "照相机", en: "Camera" },
     badge: { zh: "照相机", en: "Camera" },
     rule: {
@@ -111,6 +135,7 @@ export const RULES: Rule[] = [
   {
     rank: "6",
     kind: "hold",
+    power: "nose",
     title: { zh: "摸鼻子", en: "Nose" },
     badge: { zh: "摸鼻子", en: "Nose" },
     rule: {
@@ -142,6 +167,7 @@ export const RULES: Rule[] = [
   {
     rank: "8",
     kind: "hold",
+    power: "wc",
     title: { zh: "WC 票", en: "Bathroom Pass" },
     badge: { zh: "WC票", en: "WC pass" },
     rule: {
@@ -165,6 +191,7 @@ export const RULES: Rule[] = [
   {
     rank: "10",
     kind: "hold",
+    power: "trouble",
     title: { zh: "神经病", en: "Troublemaker" },
     badge: { zh: "神经病", en: "Trouble" },
     rule: {
