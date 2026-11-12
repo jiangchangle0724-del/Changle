@@ -13,6 +13,9 @@ export interface IcalOptions {
 
 /** At most this many dates from one recurring event. */
 const MAX_RECURRENCES = 60;
+/** Shared by every rule in one feed, including COUNT rules that cannot be fast-forwarded. */
+const MAX_ITERATIONS = 1000;
+const DAY = 86_400_000;
 
 const ENTITIES: Record<string, string> = { "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&rsquo;": "'", "&lsquo;": "'", "&ndash;": "-", "&mdash;": "-" };
 
@@ -60,6 +63,11 @@ class RuntimeZone extends ICAL.Timezone {
     super({ tzid });
   }
 
+  wallAt(ms: number): number {
+    const p = Object.fromEntries(this.fmt.formatToParts(ms).map((x) => [x.type, x.value]));
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  }
+
   utcOffset(t: ICAL.Time): number {
     const wall = wallMs(t);
     if (this.tzid === "America/Vancouver") return (wall - fromVan(t.toString().slice(0, 19))) / 1000;
@@ -76,9 +84,8 @@ class RuntimeZone extends ICAL.Timezone {
   }
 }
 
-function applyRuntimeZones(components: ICAL.Component[]): void {
+function applyRuntimeZones(components: ICAL.Component[], zones = new Map<string, RuntimeZone | null>()): void {
   // Per-calendar objects: a custom VTIMEZONE must never leak into another feed.
-  const zones = new Map<string, RuntimeZone | null>();
   for (const component of components) {
     for (const prop of component.getAllProperties()) {
       if (prop.type !== "date-time") continue;
@@ -125,71 +132,222 @@ function endMs(ev: ICAL.Event, start: ICAL.Time, startMs: number): number {
   return timeOf(dayEnd).ms + sign * (duration.hours * 3600 + duration.minutes * 60 + duration.seconds) * 1000;
 }
 
+/** Express a boundary/RECURRENCE-ID in the master's wall clock, once rather than per old date. */
+function inZone(t: ICAL.Time, model: ICAL.Time): ICAL.Time {
+  if (t.isDate || t.zone.tzid === model.zone.tzid) return t;
+  const ms = timeOf(t).ms;
+  if (!(model.zone instanceof RuntimeZone)) return t.convertToZone(model.zone);
+  const local = ICAL.Time.fromJSDate(new Date(model.zone.wallAt(ms)), true);
+  local.zone = model.zone;
+  return local;
+}
+
+function boundary(ms: number, model: ICAL.Time): number {
+  const utc = ICAL.Time.fromJSDate(new Date(ms), true);
+  return wallMs(inZone(utc, model));
+}
+
+/** Keep DTSTART defaults explicit before moving the anchor by whole INTERVAL periods. */
+function fastForward(rule: ICAL.Recur, start: ICAL.Time, lower: number, back = 1): ICAL.Time {
+  if (rule.count || lower <= wallMs(start)) return start;
+  const p = rule.parts;
+  if (rule.freq === "WEEKLY" && !p.BYDAY) p.BYDAY = [ICAL.Recur.numericDayToIcalDay(start.dayOfWeek())];
+  if ((rule.freq === "MONTHLY" || rule.freq === "YEARLY") && !p.BYDAY && !p.BYMONTHDAY && !p.BYYEARDAY && !p.BYWEEKNO) {
+    p.BYMONTHDAY = [start.day];
+  }
+  if (rule.freq === "YEARLY" && !p.BYMONTH && !p.BYDAY && !p.BYYEARDAY && !p.BYWEEKNO) p.BYMONTH = [start.month];
+  const seed = start.clone();
+  const interval = rule.interval;
+  const units: Partial<Record<ICAL.Recur["freq"], number>> = {
+    SECONDLY: 1000, MINUTELY: 60_000, HOURLY: 3600_000, DAILY: DAY, WEEKLY: 7 * DAY,
+  };
+  const unit = units[rule.freq];
+  if (unit) {
+    const cycles = Math.max(0, Math.floor((lower - wallMs(start)) / (unit * interval)) - back);
+    seed.fromUnixTime((wallMs(start) + cycles * interval * unit) / 1000);
+    seed.zone = start.zone;
+  } else {
+    const target = new Date(lower);
+    const periods = rule.freq === "MONTHLY" ? (target.getUTCFullYear() - start.year) * 12 + target.getUTCMonth() + 1 - start.month
+      : target.getUTCFullYear() - start.year;
+    const cycles = Math.max(0, Math.floor(periods / interval) - 1);
+    if (cycles) {
+      // Day 1 avoids normalizing Jan 31 into March or Feb 29 into a different year.
+      seed.day = 1;
+      if (rule.freq === "MONTHLY") seed.month += cycles * interval;
+      else { seed.month = 1; seed.year += cycles * interval; }
+    }
+  }
+  return seed;
+}
+
+function calendarOf(text: string): { root: ICAL.Component; invalid: Set<string> } {
+  const invalid = new Set<string>();
+  try {
+    return { root: new ICAL.Component(ICAL.parse(text)), invalid };
+  } catch {
+    // ICAL.parse validates RRULE eagerly. Retry individual VEVENTs so FREQ=FOO cannot lose a feed.
+    const unfolded = text.replace(/\r?\n[ \t]/g, "");
+    const pattern = /^BEGIN:VEVENT\r?\n[\s\S]*?^END:VEVENT[^\S\r\n]*(?:\r?\n|$)/gm;
+    const blocks = [...unfolded.matchAll(pattern)].map((m) => m[0]);
+    const root = new ICAL.Component(ICAL.parse(unfolded.replace(pattern, "")));
+    for (const block of blocks) {
+      try { root.addSubcomponent(new ICAL.Component(ICAL.parse(block))); }
+      catch {
+        if (!/^RECURRENCE-ID[;:]/m.test(block)) {
+          const uid = /^UID:(.*)$/m.exec(block)?.[1].trim();
+          if (uid) invalid.add(uid);
+        }
+      }
+    }
+    return { root, invalid };
+  }
+}
+
 export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
-  const root = new ICAL.Component(ICAL.parse(text));
+  const { root, invalid } = calendarOf(text);
   const components = root.getAllSubcomponents("vevent");
-  applyRuntimeZones(components);
+  const masters = new Set(components.filter((c) => !c.hasProperty("recurrence-id")).map((c) => String(c.getFirstPropertyValue("uid"))));
+  const zones = new Map<string, RuntimeZone | null>();
   const exceptions = new Map<string, ICAL.Component[]>();
   for (const component of components) {
-    if (!component.hasProperty("recurrence-id")) continue;
     const uid = String(component.getFirstPropertyValue("uid"));
-    const group = exceptions.get(uid) ?? [];
-    group.push(component);
-    exceptions.set(uid, group);
+    try {
+      applyRuntimeZones([component], zones);
+      if (!component.hasProperty("recurrence-id") || !component.hasProperty("dtstart")) continue;
+      const exception = new ICAL.Event(component, { exceptions: [] });
+      if (!exception.startDate || !exception.recurrenceId) continue;
+      const group = exceptions.get(uid) ?? [];
+      group.push(component);
+      exceptions.set(uid, group);
+    } catch {
+      if (!component.hasProperty("recurrence-id")) invalid.add(uid);
+    }
   }
   const out: NormalizedEvent[] = [];
-  const one = (ev: ICAL.Event, start: ICAL.Time, endDate: ICAL.Time, sourceEventId: string) => {
-    if (!start || !ev.summary) return;
+  let iterations = 0;
+  const one = (ev: ICAL.Event, start: ICAL.Time, sourceEventId: string, master?: ICAL.Event): boolean => {
+    if (!start) return false;
     const vevent = ev.component;
-    const geo = vevent.getFirstPropertyValue("geo") as number[] | null;
-    const place = placeFromText(ev.location);
+    const value = (name: string) => (vevent.hasProperty(name) ? vevent : master?.component)?.getFirstPropertyValue(name);
+    const title = String(value("summary") ?? "").trim();
+    if (!title) return false;
+    const geo = value("geo") as number[] | null;
+    const location = String(value("location") ?? "");
+    const place = placeFromText(location);
     if (place && Array.isArray(geo) && geo.length === 2) [place.lat, place.lon] = [Number(geo[0]), Number(geo[1])];
-    const status = STATUS[String(vevent.getFirstPropertyValue("status") ?? "").toUpperCase()] ?? "scheduled";
-    const url = String(vevent.getFirstPropertyValue("url") ?? "") || (/^https?:\/\//.test(ev.location ?? "") ? ev.location : "");
+    const status = STATUS[String(value("status") ?? "").toUpperCase()] ?? "scheduled";
+    const url = String(value("url") ?? "") || (/^https?:\/\//.test(location) ? location : "");
     const base = {
       source: opts.source,
-      title: ev.summary.trim(),
-      description: plainText(ev.description),
+      title,
+      description: plainText(value("description") as string | null),
       url,
       status,
       place,
       organizer: null,
     };
     const s = timeOf(start);
-    const endTime = s.allDay ? 0 : endMs(ev, start, s.ms);
-    const end = s.allDay ? (dateOf(endDate) > addDays(s.iso, 1) ? addDays(dateOf(endDate), -1) : null)
+    const timing = vevent.hasProperty("dtend") || vevent.hasProperty("duration") ? ev : master ?? ev;
+    const days = s.allDay ? Math.max(1, Math.round((wallMs(timing.endDate) - wallMs(timing.startDate)) / DAY)) : 0;
+    const endTime = s.allDay ? fromVan(addDays(s.iso, days)) : endMs(timing, start, s.ms);
+    if (master && !(s.ms < opts.toMs && (endTime > opts.fromMs || endTime === s.ms && s.ms >= opts.fromMs))) return false;
+    const end = s.allDay ? (days > 1 ? addDays(s.iso, days - 1) : null)
       : endTime > s.ms ? vanIso(endTime) : null;
     out.push({ ...base, sourceEventId, start: s.iso, end, allDay: s.allDay });
+    return true;
   };
   for (const vevent of components) {
     if (vevent.hasProperty("recurrence-id")) continue;
-    const ev = new ICAL.Event(vevent, { exceptions: exceptions.get(String(vevent.getFirstPropertyValue("uid"))) ?? [] });
-    if (!ev.startDate || !ev.summary) continue;
-    if (ev.isRecurring()) {
-      // ical.js expands RDATE alone without the implicit DTSTART occurrence.
-      if (!vevent.hasProperty("rrule")) vevent.addPropertyWithValue("rdate", ev.startDate.clone());
-      const it = ev.iterator();
-      const excluded = vevent.getAllProperties("exdate").flatMap((p) => p.getValues()) as ICAL.Time[];
-      const seen = new Set<string>();
-      const emit = (occurrence: ICAL.Time) => {
-        if (seen.size >= MAX_RECURRENCES) return;
-        if (excluded.some((t) => t.isDate ? dateOf(t) === dateOf(occurrence) : t.compare(occurrence) === 0)) return;
-        const id = `${ev.uid}@${dateOf(occurrence)}`;
-        if (seen.has(id)) return;
-        const detail = ev.getOccurrenceDetails(occurrence);
-        const ms = timeOf(detail.startDate).ms;
-        if (ms >= opts.fromMs && ms < opts.toMs) {
-          one(detail.item, detail.startDate, detail.endDate, id);
-          seen.add(id);
+    const uid = String(vevent.getFirstPropertyValue("uid"));
+    if (invalid.has(uid)) continue;
+    const before = out.length;
+    try {
+      const ev = new ICAL.Event(vevent, { exceptions: exceptions.get(uid) ?? [] });
+      if (!ev.startDate || !ev.summary) continue;
+      if (ev.isRecurring()) {
+        const from = boundary(opts.fromMs, ev.startDate);
+        const to = boundary(opts.toMs, ev.startDate);
+        const duration = Math.max(0, wallMs(ev.endDate) - wallMs(ev.startDate), ev.duration.toSeconds() * 1000);
+        const lower = from - duration - (duration >= DAY ? DAY : 0);
+        const excluded = (vevent.getAllProperties("exdate").flatMap((p) => p.getValues()) as ICAL.Time[]).map((t) => inZone(t, ev.startDate));
+        const overrides = Object.values(ev.exceptions);
+        const byInstant = new Map(overrides.map((e) => [timeOf(e.recurrenceId).ms, e]));
+        const seen = new Set<string>();
+        const isExcluded = (occurrence: ICAL.Time) => excluded.some((t) => t.isDate ? dateOf(t) === dateOf(occurrence) : wallMs(t) === wallMs(occurrence));
+        const emit = (occurrence: ICAL.Time) => {
+          if (seen.size >= MAX_RECURRENCES) return;
+          if (isExcluded(occurrence)) return;
+          const id = `${ev.uid}@${dateOf(occurrence)}`;
+          if (seen.has(id)) return;
+          const detail = ev.getOccurrenceDetails(occurrence);
+          // ical.js checks local/UTC string keys, but not a TZID key against a UTC master.
+          const matched = detail.item === ev ? byInstant.get(timeOf(occurrence).ms) : undefined;
+          if (one(matched ?? detail.item, matched?.startDate ?? detail.startDate, id, ev)) seen.add(id);
+        };
+        const dates = [ev.startDate, ...(vevent.getAllProperties("rdate").flatMap((p) => p.getValues()) as ICAL.Time[]).map((t) => inZone(t, ev.startDate))];
+        for (const prop of vevent.getAllProperties("rrule")) {
+          const rule = (prop.getFirstValue() as ICAL.Recur).clone();
+          if (rule.until) {
+            const until = rule.until.clone();
+            if (until.zone.tzid === "floating") until.zone = ev.startDate.zone;
+            const localUntil = inZone(until, ev.startDate).clone();
+            if (wallMs(localUntil) < lower) continue;
+            localUntil.zone = ICAL.Timezone.localTimezone;
+            rule.until = localUntil;
+          }
+          if (iterations >= MAX_ITERATIONS) break;
+          const wallStart = ev.startDate.clone();
+          wallStart.zone = ICAL.Timezone.localTimezone;
+          // ical.js itself compares dates inside next(); floating iteration keeps those calls off Intl.
+          const iterator = (floor: number, back = 1) => {
+            const it = rule.iterator(fastForward(rule, wallStart, floor, back));
+            const advance = it.next.bind(it);
+            // The package's declaration omits next()'s normal null-at-end result.
+            const bounded: { next(again?: boolean): ICAL.Time | null } = it;
+            bounded.next = (again = false) => {
+              if (iterations >= MAX_ITERATIONS) return null;
+              iterations++;
+              return advance(again);
+            };
+            return bounded;
+          };
+          let floor = lower;
+          let bounded = iterator(floor);
+          while (iterations < MAX_ITERATIONS) {
+            const next = bounded.next();
+            if (!next || wallMs(next) >= to) break;
+            // No emit, Intl or Unix conversion for historical occurrences outside the overlap range.
+            if (wallMs(next) < floor) continue;
+            const actual = next.clone();
+            actual.zone = ev.startDate.zone;
+            if (isExcluded(actual)) continue;
+            dates.push(actual);
+            if (!rule.count && (rule.freq === "MINUTELY" || rule.freq === "SECONDLY" || rule.freq === "HOURLY")) {
+              // IDs retain one occurrence per source date. Seek the next date by whole periods.
+              floor = Date.UTC(next.year, next.month - 1, next.day + 1);
+              if (floor >= to) break;
+              bounded = iterator(floor, 0);
+            }
+          }
         }
-      };
-      for (let next = it.next(); next && seen.size < MAX_RECURRENCES; next = it.next()) {
-        if (timeOf(next).ms >= opts.toMs) break;
-        emit(next);
-      }
-      // A moved instance may enter the window from a later original date.
-      for (const exception of Object.values(ev.exceptions)) emit(exception.recurrenceId.convertToZone(ev.startDate.zone));
-    } else one(ev, ev.startDate, ev.endDate, ev.uid);
+        dates.sort((a, b) => wallMs(a) - wallMs(b));
+        for (const date of dates) if (wallMs(date) >= lower && wallMs(date) < to) emit(date);
+        // Overrides survive expired rules, a spent iteration budget, and moves across window edges.
+        for (const exception of overrides) emit(inZone(exception.recurrenceId, ev.startDate));
+      } else one(ev, ev.startDate, ev.uid);
+    } catch {
+      out.length = before; // A malformed series loses only its own results.
+    }
+  }
+  for (const [uid, group] of exceptions) {
+    if (masters.has(uid) || invalid.has(uid)) continue;
+    for (const component of group) {
+      try {
+        const ev = new ICAL.Event(component, { exceptions: [] });
+        one(ev, ev.startDate, `${uid}@${dateOf(ev.recurrenceId)}`, ev);
+      } catch { /* A malformed orphan must not discard the remaining feed. */ }
+    }
   }
   return out;
 }

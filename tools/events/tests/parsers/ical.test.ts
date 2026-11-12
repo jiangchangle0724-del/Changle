@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import ICAL from "ical.js";
 import edge from "../fixtures/ical/edge-cases.ics?raw";
 import expected from "../fixtures/ical/edge-cases.expected.json";
 import ubc from "../fixtures/ical/ubc-2026-10-31.ics?raw";
@@ -189,5 +190,181 @@ describe("iCal time zones and field normalization", () => {
     expect(events[0]).toMatchObject({ url: "https://example.org/online", place: null });
     expect(events[0].description).toBe("a".repeat(600));
     expect(events[0].end).toBeNull();
+  });
+});
+
+describe("bounded recurrence expansion and isolated overrides", () => {
+  const recurring = (uid: string, start: string, rule: string, ...fields: string[]) => event(
+    `UID:${uid}`, `SUMMARY:${uid}`, `DTSTART:${start}`, `RRULE:${rule}`, ...fields,
+  );
+
+  it("fast-forwards a daily series from 2015 and keeps every window date and original ID", () => {
+    const next = vi.spyOn(ICAL.RecurIterator.prototype, "next");
+    try {
+      const events = parseIcal(calendar(recurring("daily", "20150101T100000", "FREQ=DAILY", "DURATION:PT1H")), opts());
+      const dates = ["2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06",
+        "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"];
+      expect(events.map((e) => e.sourceEventId)).toEqual(dates.map((d) => `daily@${d}`));
+      expect(events.map((e) => e.start)).toEqual(dates.map((d) => `${d}T10:00:00-07:00`));
+      expect(next.mock.calls.length).toBeLessThan(20);
+    } finally { next.mockRestore(); }
+  });
+
+  it.each([
+    ["FREQ=WEEKLY", ["2026-11-02", "2026-11-09"]],
+    ["FREQ=WEEKLY;INTERVAL=2", ["2026-11-02"]],
+    ["FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH", ["2026-11-03", "2026-11-05"]],
+  ])("preserves weekly weekday/INTERVAL phase from 2010: %s", (rule, dates) => {
+    const next = vi.spyOn(ICAL.RecurIterator.prototype, "next");
+    try {
+      const events = parseIcal(calendar(recurring("weekly", "20100104T190000", rule as string)), opts());
+      expect(events.map((e) => e.sourceEventId)).toEqual((dates as string[]).map((d) => `weekly@${d}`));
+      expect(next.mock.calls.length).toBeLessThan(15);
+    } finally { next.mockRestore(); }
+  });
+
+  it("retains daily INTERVAL phase, implicit month days and yearly months through fast-forwarding", () => {
+    const events = parseIcal(calendar(
+      recurring("three", "20150101T100000", "FREQ=DAILY;INTERVAL=3"),
+      recurring("month-end", "20150131T100000", "FREQ=MONTHLY"),
+      recurring("yearly", "20101102T100000", "FREQ=YEARLY;INTERVAL=2"),
+    ), opts());
+    expect(events.filter((e) => e.title === "three").map((e) => e.start.slice(0, 10))).toEqual(["2026-11-02", "2026-11-05", "2026-11-08", "2026-11-11"]);
+    expect(events.find((e) => e.title === "month-end")?.start).toBe("2026-10-31T10:00:00-07:00");
+    expect(events.find((e) => e.title === "yearly")?.start).toBe("2026-11-02T10:00:00-07:00");
+  });
+
+  it("preserves leap-day defaults when moving a yearly anchor", () => {
+    const events = parseIcal(calendar(recurring("leap", "20120229T100000", "FREQ=YEARLY")), opts("2028-02-20", 20));
+    expect(events.map((e) => e.sourceEventId)).toEqual(["leap@2028-02-29"]);
+  });
+
+  it("skips expired UNTIL rules without calling next, but still processes their overrides", () => {
+    const next = vi.spyOn(ICAL.RecurIterator.prototype, "next");
+    try {
+      const events = parseIcal(calendar(
+        recurring("expired", "20100104T190000", "FREQ=MINUTELY;UNTIL=20110104T190000"),
+        event("UID:expired", "RECURRENCE-ID:20100105T190000", "DTSTART:20261102T180000", "SUMMARY:Moved from expired series"),
+      ), opts());
+      expect(events.map((e) => e.sourceEventId)).toEqual(["expired@2010-01-05"]);
+      expect(next).not.toHaveBeenCalled();
+    } finally { next.mockRestore(); }
+  });
+
+  it("retains an RDATE after an expired rule and an UNTIL occurrence that still overlaps the window", () => {
+    const events = parseIcal(calendar(
+      recurring("extra", "20150101T100000", "FREQ=DAILY;UNTIL=20150102T100000", "RDATE:20261102T100000"),
+      recurring("last-overnight", "20261030T230000", "FREQ=DAILY;UNTIL=20261030T230000", "DURATION:PT2H"),
+    ), opts("2026-10-31", 3));
+    expect(events.map((e) => e.sourceEventId)).toEqual(["extra@2026-11-02", "last-overnight@2026-10-30"]);
+  });
+
+  it("fast-forwards MINUTELY across source dates and returns quickly", () => {
+    const next = vi.spyOn(ICAL.RecurIterator.prototype, "next");
+    try {
+      const events = parseIcal(calendar(
+        recurring("minute-a", "20150101T000000", "FREQ=MINUTELY"),
+        recurring("minute-b", "20100101T000000", "FREQ=MINUTELY"),
+        event("UID:single", "SUMMARY:Still parsed", "DTSTART:20261102T100000"),
+      ), opts());
+      const minuteA = events.filter((e) => e.title === "minute-a");
+      expect(minuteA).toHaveLength(14);
+      expect(minuteA[0].start).toBe("2026-10-31T00:00:00-07:00");
+      expect(minuteA[13].start).toBe("2026-11-13T00:00:00-07:00");
+      expect(events.find((e) => e.sourceEventId === "single")?.title).toBe("Still parsed");
+      expect(next.mock.calls.length).toBeLessThan(100);
+    } finally { next.mockRestore(); }
+  }, 1000);
+
+  it("does not fast-forward COUNT, calls no emit for old dates and stops at the shared budget", () => {
+    const next = vi.spyOn(ICAL.RecurIterator.prototype, "next");
+    const details = vi.spyOn(ICAL.Event.prototype, "getOccurrenceDetails");
+    const intl = vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts");
+    try {
+      const events = parseIcal(calendar(
+        recurring("counted", "20150101T100000", "FREQ=DAILY;COUNT=100000"),
+        recurring("counted-too", "20100104T100000", "FREQ=WEEKLY;COUNT=100000"),
+      ), opts());
+      expect(events).toEqual([]);
+      expect(next.mock.calls).toHaveLength(1000);
+      expect(details).not.toHaveBeenCalled();
+      expect(intl.mock.calls.length).toBeLessThan(30);
+    } finally { next.mockRestore(); details.mockRestore(); intl.mockRestore(); }
+  });
+
+  it("keeps the next eligible minute when the first minute of a date is excluded", () => {
+    const events = parseIcal(calendar(recurring("minute", "20200101T000000", "FREQ=MINUTELY", "EXDATE:20261031T000000")), opts());
+    expect(events).toHaveLength(14);
+    expect(events[0]).toMatchObject({ sourceEventId: "minute@2026-10-31", start: "2026-10-31T00:01:00-07:00" });
+  });
+
+  it("processes overrides after exhausting the iteration budget", () => {
+    const events = parseIcal(calendar(
+      recurring("counted", "20150101T100000", "FREQ=DAILY;COUNT=100000"),
+      event("UID:counted", "RECURRENCE-ID:20150102T100000", "DTSTART:20261102T180000", "SUMMARY:Moved after cap"),
+    ), opts());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ sourceEventId: "counted@2015-01-02", title: "Moved after cap", start: "2026-11-02T18:00:00-07:00" });
+  });
+
+  it("ignores an override without DTSTART and leaves its original occurrence intact", () => {
+    const events = parseIcal(calendar(series("a"), event("UID:a", "RECURRENCE-ID:20261102T190000", "SUMMARY:Broken override")), opts());
+    expect(events).toHaveLength(3);
+    expect(events.find((e) => e.sourceEventId === "a@2026-11-02")).toMatchObject({ title: "a", start: "2026-11-02T19:00:00-07:00" });
+  });
+
+  it.each(["FREQ=FOO", "FREQ=MONTHLY;BYYEARDAY=1"])("isolates a malformed series (%s) from healthy events", (rule) => {
+    const events = parseIcal(calendar(
+      event("UID:first", "SUMMARY:First", "DTSTART:20261101T100000"),
+      recurring("bad", "20261101T100000", rule),
+      series("good"),
+    ), opts());
+    expect(events.map((e) => e.sourceEventId)).toEqual(["first", "good@2026-11-01", "good@2026-11-02", "good@2026-11-03"]);
+  });
+
+  it("keeps orphan overrides by RECURRENCE-ID date and filters their actual overlap with the window", () => {
+    const orphan = (uid: string, start: string, duration = "PT1H") => event(`UID:${uid}`, "RECURRENCE-ID:20260101T190000",
+      `DTSTART:${start}`, `DURATION:${duration}`, "SUMMARY:Orphan");
+    const events = parseIcal(calendar(
+      orphan("inside", "20261102T190000"), orphan("overlap", "20261030T233000"),
+      orphan("outside", "20261115T190000"), orphan("ended", "20261030T230000"),
+      event("UID:no-start", "RECURRENCE-ID:20261102T190000", "SUMMARY:Missing start"),
+    ), opts());
+    expect(events.map((e) => e.sourceEventId)).toEqual(["inside@2026-01-01", "overlap@2026-01-01"]);
+  });
+
+  it("inherits missing override fields and duration from the master while keeping explicit replacements", () => {
+    const events = parseIcal(calendar(
+      series("a", "DESCRIPTION:Master description", "LOCATION:Master Hall, Vancouver, BC V6A 3V6", "GEO:49.25;-123.1", "STATUS:CANCELLED", "URL:https://example.org/master"),
+      event("UID:a", "RECURRENCE-ID:20261102T190000", "DTSTART:20261102T210000"),
+      event("UID:a", "RECURRENCE-ID:20261103T190000", "DTSTART:20261103T220000", "SUMMARY:Own title", "STATUS:CONFIRMED"),
+    ), opts());
+    expect(events).toHaveLength(3);
+    expect(events[1]).toMatchObject({ sourceEventId: "a@2026-11-02", title: "a", description: "Master description",
+      start: "2026-11-02T21:00:00-07:00", end: "2026-11-02T22:00:00-07:00", status: "cancelled",
+      url: "https://example.org/master", place: { name: "Master Hall", lat: 49.25, lon: -123.1 } });
+    expect(events[2]).toMatchObject({ title: "Own title", status: "scheduled", end: "2026-11-03T23:00:00-07:00" });
+  });
+
+  it("includes ongoing timed and all-day recurrences, excludes an end equal to fromMs", () => {
+    const events = parseIcal(calendar(
+      recurring("overnight", "20261030T230000", "FREQ=DAILY;COUNT=3", "DURATION:PT2H"),
+      recurring("ends-at-boundary", "20261030T220000", "FREQ=DAILY;COUNT=3", "DURATION:PT2H"),
+      event("UID:days", "SUMMARY:Days", "DTSTART;VALUE=DATE:20261025", "DURATION:P8D", "RRULE:FREQ=WEEKLY;COUNT=2"),
+    ), opts("2026-10-31", 1));
+    expect(events.map((e) => e.sourceEventId)).toEqual([
+      "overnight@2026-10-30", "overnight@2026-10-31", "ends-at-boundary@2026-10-31", "days@2026-10-25",
+    ]);
+    expect(events[0].end).toBe("2026-10-31T01:00:00-07:00");
+    expect(events[3]).toMatchObject({ start: "2026-10-25", end: "2026-11-01", allDay: true });
+  });
+
+  it("matches a UTC master's occurrence to a TZID recurrence ID by instant", () => {
+    const events = parseIcal(calendar(
+      recurring("utc-master", "20261102T020000Z", "FREQ=DAILY;COUNT=2", "DURATION:PT1H"),
+      event("UID:utc-master", "RECURRENCE-ID;TZID=America/Vancouver:20261101T190000", "DTSTART:20261102T040000Z", "SUMMARY:TZID override"),
+    ), opts());
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({ sourceEventId: "utc-master@2026-11-02", title: "TZID override", start: "2026-11-01T21:00:00-07:00" });
   });
 });
