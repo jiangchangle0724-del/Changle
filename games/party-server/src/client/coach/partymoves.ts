@@ -817,4 +817,137 @@ S["hc-hero"] = {
   ]),
 };
 
+// ---------- 極楽浄土: the official dance video's moves (みうめ's choreography), the kimono sleeves wide
+
+/** one arm out at the shoulder like a sleeve spread wide, the other hand at the chest, swaying that way */
+const sleeve = (side: 1 | -1): Part => P(hand(side, [0.52, 0.02, 0.12], [0, -1, 0.3], [1, -0.1, -0.3]), hand(other(side), [0.04, -0.08, 0.22], [0, 0, -1], [1, -0.6, -0.1]), stepTouch(side, false), { roll: -0.05 * side, hRoll: 0.08 * side });
+const WIDE: Part = P(both(0.52, 0.04, 0.12), palms(0, -1, 0.3), elbows(1, -0.1, -0.3));
+const CROSSED_FRONT: Part = { hR: [-0.08, -0.08, 0.3], hL: [0.08, -0.06, 0.28], pR: [0, 0, 1], pL: [0, 0, 1], eR: [0.8, -0.6, -0.2], eL: [-0.8, -0.6, -0.2] };
+const HEAD_HANDS: Part = P(both(0.18, 0.3, 0.12), palms(0, 0, 1), elbows(1, -0.1, -0.3));
+/** a knee lifted high in front, the other leg standing */
+const knee = (side: 1 | -1): Part => (side > 0 ? { fR: { x: 0.06, z: 0.14, lift: 0.3, pitch: -0.4 }, fL: { x: -0.1 }, py: 0.01 } : { fL: { x: -0.06, z: 0.14, lift: 0.3, pitch: -0.4 }, fR: { x: 0.1 }, py: 0.01 });
+S["gj-sway"] = {
+  len: 8,
+  groove: 0.6,
+  pose: keys(BASE, 4, [
+    [0, sleeve(1)],
+    [2, sleeve(-1)],
+  ]),
+};
+S["gj-step"] = {
+  len: 8,
+  groove: 0.6,
+  pose: keys(BASE, 8, [
+    [0, P(WIDE, feet(0.15)), "hit"],
+    [1, P(CROSSED_FRONT, feet(0.12)), "hit"],
+    [2, P(HEAD_HANDS, knee(1)), "hit"],
+    [3, P(WIDE, feet(0.15)), "hit"],
+    [4, P(WIDE, feet(0.15)), "hit"],
+    [5, P(CROSSED_FRONT, feet(0.12)), "hit"],
+    [6, P(HEAD_HANDS, knee(-1)), "hit"],
+    [7, P(WIDE, feet(0.15)), "hit"],
+  ]),
+};
+/** turned to one side, walking, the hands fluttering at the sides like a butterfly's wings */
+S["gj-butterfly"] = {
+  len: 8,
+  groove: 0.5,
+  pose: keys(BASE, 8, [
+    [0, P(both(0.34, -0.06, 0.02), palms(0, -1, 0.2), elbows(1, -0.3, -0.3), feet(0.1), { turn: 0.7 })],
+    [3.5, P(both(0.34, -0.06, 0.02), palms(0, -1, 0.2), elbows(1, -0.3, -0.3), feet(0.1), { turn: 0.7 })],
+    [4, P(both(0.34, -0.06, 0.02), palms(0, -1, 0.2), elbows(1, -0.3, -0.3), feet(0.1), { turn: -0.7 })],
+    [7.5, P(both(0.34, -0.06, 0.02), palms(0, -1, 0.2), elbows(1, -0.3, -0.3), feet(0.1), { turn: -0.7 })],
+  ]),
+  extra: (p, o) => {
+    // the wings flutter twice a beat; a step a beat
+    const w = 0.07 * Math.sin(2 * TAU * p);
+    o.hR = [o.hR[0], o.hR[1] + w, o.hR[2]];
+    o.hL = [o.hL[0], o.hL[1] + w, o.hL[2]];
+    const { i, f } = at(p);
+    const foot = footOf(o, i % 2 === 0 ? 1 : -1);
+    foot.lift += 0.05 * Math.sin(Math.PI * f);
+  },
+};
+/** "ちょいと覗いて": a hand at the forehead, peeking out to one side, the other on the hip */
+S["gj-peek"] = {
+  len: 8,
+  groove: 0.6,
+  pose: keys(BASE, 8, [
+    [0, P(lookOut(1), { roll: -0.06 }), "snap"],
+    [3.5, P(lookOut(1), { roll: -0.06 })],
+    [4, P(lookOut(-1), { roll: 0.06 }), "snap"],
+    [7.5, P(lookOut(-1), { roll: 0.06 })],
+  ]),
+};
+/** "おいでませ": beckoning like a lucky cat, the right hand curling down by the face on every beat */
+const beckon = (down: boolean): Part => P(hand(1, [0.2, down ? 0.12 : 0.2, 0.16], [0, down ? -1 : 0, down ? 0.4 : 1], [1, -0.4, -0.2]), hand(-1, [0.05, -0.1, 0.2], [0, 0, -1], [1, -0.6, -0.1]), feet(0.13), { hRoll: -0.08 });
+S["gj-beckon"] = {
+  len: 8,
+  groove: 0.6,
+  pose: keys(BASE, 1, [
+    [0, P(beckon(true), { px: 0.02 }), "hit"],
+    [0.5, P(beckon(false), { px: -0.02 })],
+  ]),
+};
+/** "歌えや歌え": a spin with the sleeves opening, a knee up, the hands by the head; again with the other knee */
+S["gj-sing"] = {
+  len: 8,
+  groove: 0.5,
+  pose: keys(BASE, 8, [
+    [0.8, P(WIDE, feet(0.15)), "snap"],
+    [2, P(HEAD_HANDS, knee(1)), "hit"],
+    [3, P(WIDE, feet(0.15)), "hit"],
+    [4, P(both(0.1, 0.12, 0.18), palms(0, 0, 1), elbows(1, -0.6, -0.1), feet(0.13)), "hit"],
+    [6, P(HEAD_HANDS, knee(-1)), "hit"],
+    [7, P(WIDE, feet(0.15)), "hit"],
+  ]),
+  extra: (p, o) => {
+    // count 1: a whole turn to the left
+    const { q } = at(p);
+    if (q < 1) o.turn = -TAU * ease(q);
+  },
+};
+/** "アナタの声を さぁ聞かせて": a hand cupped behind the ear, listening, then held out to you */
+const LISTEN: Part = P(hand(1, [0.15, 0.12, -0.02], [-1, 0, 0.6], [1, -0.2, 0.1]), hand(-1, [0.05, -0.1, 0.2], [0, 0, -1], [1, -0.6, -0.1]), feet(0.14), { roll: -0.08, hRoll: -0.15, px: 0.04 });
+const HOLD_OUT: Part = P(hand(1, [0.22, 0, 0.5], [0, 0.3, 1], [1, -0.3, -0.3]), hand(-1, [0.05, -0.1, 0.2], [0, 0, -1], [1, -0.6, -0.1]), feet(0.14), { pz: 0.04 });
+S["gj-voice"] = {
+  len: 8,
+  groove: 0.5,
+  pose: keys(BASE, 8, [
+    [0, LISTEN, "snap"],
+    [3.5, LISTEN],
+    [4, HOLD_OUT, "snap"],
+    [5.5, HOLD_OUT],
+    [6, LISTEN, "snap"],
+    [7.5, LISTEN],
+  ]),
+};
+/** "踊れや踊れ": the arms up, then a knee up with the arms out wide, one side then the other */
+const V_UP: Part = P(both(0.4, 0.5, 0.1), palms(0, 0.2, 1), elbows(1, 0.2, -0.3));
+S["gj-dance"] = {
+  len: 8,
+  groove: 0.6,
+  pose: keys(BASE, 4, [
+    [0, P(V_UP, feet(0.15)), "hit"],
+    [1, P(WIDE, knee(1)), "hit"],
+    [2, P(V_UP, feet(0.15)), "hit"],
+    [3, P(WIDE, knee(-1)), "hit"],
+  ]),
+};
+/** "今宵共に あゝ狂い咲き": the hands together at the chest like a bud, opening up into a flower over the head */
+const BUD: Part = P({ hR: [0.03, -0.04, 0.24], hL: [-0.03, -0.04, 0.24], pR: [-0.6, 0.5, 0.6], pL: [0.6, 0.5, 0.6], eR: [0.9, -0.5, -0.2], eL: [-0.9, -0.5, -0.2] }, feet(0.13), { py: -0.05 });
+S["gj-bloom"] = {
+  len: 8,
+  groove: 0.4,
+  pose: keys(BASE, 8, [
+    [0, BUD, "snap"],
+    [1.5, BUD],
+    [3.5, P(V_UP, feet(0.17), { hPitch: -0.15 })],
+    [4, P(WIDE, feet(0.17), { px: 0.05, roll: -0.05 })],
+    [5, P(WIDE, feet(0.17), { px: -0.05, roll: 0.05 })],
+    [6, P(V_UP, feet(0.17))],
+    [7.6, P(V_UP, feet(0.17))],
+  ]),
+};
+
 export const PARTY_ANIMS: Record<string, MoveAnim> = S;

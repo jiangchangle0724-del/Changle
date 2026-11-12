@@ -228,6 +228,15 @@ const HOW: Record<string, [string, string]> = {
   "hc-where": ["双手在胸前比心，再伸出右手找人", "A heart at your chest, then reach out your right hand, searching"],
   "hc-bounce": ["左右踏步，拳头一拍一边往上打", "Step side to side, punching a fist up, one side then the other"],
   "hc-hero": ["先蹲低、双手捧着像小草；再站起来右拳举高，当英雄", "Crouch low, hands cupped like a little blade of grass; then stand tall, right fist up: the hero"],
+  "gj-sway": ["一只手臂像和服袖子一样往旁边展开，另一只手放胸前，左右换着摇", "One arm spread out to the side like a kimono sleeve, the other hand at your chest, swaying from side to side"],
+  "gj-step": ["双臂张开、在身前交叉、抬右膝双手到头边、再张开；换左膝", "Arms wide, crossed in front, right knee up with your hands by your head, wide again; then the left knee"],
+  "gj-butterfly": ["身体转向一边，边走边在身体两边扇手，像蝴蝶；四拍后转向另一边", "Turn to one side and walk, fluttering your hands at your sides like a butterfly; the other way after four beats"],
+  "gj-peek": ["一只手搭在额头往一边偷看，另一只手叉腰；四拍后换边", "A hand at your forehead peeking off to one side, the other on your hip; swap after four beats"],
+  "gj-beckon": ["右手在脸边像招财猫一样一拍一拍地招手", "Beckon with your right hand by your face, like a lucky cat, on every beat"],
+  "gj-sing": ["原地转一圈、袖子张开，抬右膝双手到头边；再抬左膝", "Spin round once, sleeves opening, right knee up with your hands by your head; then the left knee"],
+  "gj-voice": ["右手放在耳朵后面像在听，再往前伸出去，再回来听", "Right hand cupped behind your ear, listening; hold it out to everyone; back to listening"],
+  "gj-dance": ["双手往上举成 V，再张开双臂抬一边膝盖，左右换", "Arms up in a V, then arms out wide with a knee up, one side then the other"],
+  "gj-bloom": ["双手合在胸前像花苞，慢慢往上打开像花开，再张开摇", "Hands together at your chest like a bud, opening slowly up over your head like a flower, then arms wide, swaying"],
 };
 
 export function moveHow(m: Move): string {

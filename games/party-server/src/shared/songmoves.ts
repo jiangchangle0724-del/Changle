@@ -120,4 +120,14 @@ export const SONG_MOVES: readonly Move[] = [
   m("hc-where", "你在哪里", "Where are you", "arms+steps", 128),
   m("hc-bounce", "说唱律动", "Rap bounce", "arms+steps", 128),
   m("hc-hero", "小人物英雄", "Little hero", "full", 128),
+  // 極楽浄土
+  m("gj-sway", "和服袖摇", "Sleeve sway", "arms+steps", 131),
+  m("gj-step", "张手抬膝", "Open and knee up", "full", 131),
+  m("gj-butterfly", "蝴蝶步", "Butterfly walk", "full", 131),
+  m("gj-peek", "偷看", "Peek", "arms+steps", 131),
+  m("gj-beckon", "招财猫招手", "Beckon", "arms", 131),
+  m("gj-sing", "转圈抬膝", "Spin and knee up", "full", 131),
+  m("gj-voice", "侧耳听", "Let me hear", "arms+steps", 131),
+  m("gj-dance", "举手抬膝", "Arms up, knees up", "full", 131),
+  m("gj-bloom", "花开", "Bloom", "arms+steps", 131),
 ];

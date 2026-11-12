@@ -2,10 +2,11 @@
 // downloaded or copied: the video plays in YouTube's player, in sight, the way YouTube lets other
 // sites show it).
 //
-// Thirteen have their own famous dance, laid along the song (`dance`, `aligned`): 江南Style's horse
+// Fourteen have their own famous dance, laid along the song (`dance`, `aligned`): 江南Style's horse
 // dance, Macarena, 科目三, 最炫民族风's square dance, 爱你's sweet steps, APT.'s hand stack, the Cupid
 // Shuffle's line dance, the Cha-Cha Slide's calls, Y.M.C.A.'s letters, Watch Me's whip and nae nae,
-// the Ketchup Song's hands, Gee's crab step and 海草舞's seaweed arms (the moves: shared/songmoves.ts).
+// the Ketchup Song's hands, Gee's crab step, 海草舞's seaweed arms and 極楽浄土's kimono sleeves (the
+// moves: shared/songmoves.ts).
 // Their beat was measured in each video (2026-11-11 and 12, in a browser, the video played silently
 // and its onsets fitted to a grid: the tempo, beat 0 to within ~10 ms) and their parts placed from
 // the songs' timed lyrics, so they need no 找拍子. The others dance a few of the library's easiest
@@ -22,7 +23,7 @@
 // upload does. A data centre's address is refused most of them, so the cloud checks can't tell.
 // Left out: 小苹果 (its official video stops the song for sketches), 学猫叫 (no official upload).
 // Happy, Dance Monkey, Despacito and 24K Magic made way for songs with a dance of their own
-// (2026-11-12); 極楽浄土 is to come (its video is a still picture: the dance is to learn elsewhere).
+// (2026-11-12). 極楽浄土's album video is a still picture: its band's dance video is used instead.
 import type { Difficulty } from "../../../party-base/src/index";
 
 export interface Song {
@@ -96,6 +97,11 @@ const GEE_CHORUS: Step[] = [["gee-sparkle", 8], ["gee-surprise", 8], ["gee-shive
 
 /** 海草舞's chorus, a line each 16 beats: 人海啊 茫茫啊, 随波逐流 浮浮沉沉, 人生啊 如梦啊, 亲爱的你 在哪里 */
 const HC_CHORUS: Step[] = [["hc-look", 16], ["hc-float", 16], ["hc-dream", 16], ["hc-where", 16]];
+
+/** 極楽浄土's verse: "月明かり昇る刻…", "祭囃子の合図…"; then "（ちょいと覗いて…）", "迷い込めば…", "（楽しいことが…）", "おいでませ" */
+const GJ_VERSE: Step[] = [["gj-step", 16], ["gj-butterfly", 16], ["gj-peek", 8], ["gj-sway", 8], ["gj-peek", 8], ["gj-beckon", 8]];
+/** its chorus, a move a line: 歌えや歌え, アナタの声を, 踊れや踊れ, 今宵共に あゝ狂い咲き */
+const GJ_CHORUS: Step[] = [["gj-sing", 8], ["gj-voice", 8], ["gj-dance", 8], ["gj-bloom", 8]];
 
 const AINI_CHORUS: Step[] = [["aini-jianzi", 8], ["heel-tap", 8], ["aini-jianzi", 8], ["aini-skip-turn", 8]];
 
@@ -416,6 +422,42 @@ export const SONGS: readonly Song[] = [
       // "亲爱的你 就在这里", the seaweed to the end
       ["hc-where", 16],
       ["hc-seaweed", 40],
+    ],
+    difficulty: "easy",
+  },
+  {
+    id: "song-gokuraku-jodo",
+    title_zh: "極楽浄土（极乐净土）",
+    title_en: "Gokuraku Jodo",
+    artist_zh: "GARNiDELiA",
+    artist_en: "GARNiDELiA",
+    // (the band's own dance video, みうめ's choreography that everyone dances: its subtitles time the
+    // lines; the dance from the video's beat 40, the verses on 72 and 200, the choruses on 136, 264
+    // and, after the bridge's extra half phrase, 396)
+    videoId: "BEULybZnLO8",
+    bpm: 131,
+    firstBeatMs: 18556,
+    aligned: true,
+    beats: 428,
+    dance: [
+      ["gj-sway", 32],
+      ...GJ_VERSE,
+      ...GJ_CHORUS,
+      ["gj-sway", 32],
+      ...GJ_VERSE,
+      ...GJ_CHORUS,
+      // the bridge: the dance break, then half a phrase
+      ["gj-sway", 32],
+      ["gj-dance", 32],
+      ["gj-sway", 4, 5],
+      // "（ちょいと「いいこと」…）", "ゆきましょう 極楽浄土", the last chorus with its extra line, the end
+      ["gj-peek", 8],
+      ["gj-sway", 8],
+      ["gj-peek", 8],
+      ["gj-beckon", 8],
+      ...GJ_CHORUS,
+      ["gj-bloom", 8],
+      ["gj-sway", 32],
     ],
     difficulty: "easy",
   },

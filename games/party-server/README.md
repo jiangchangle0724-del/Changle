@@ -90,7 +90,7 @@ instead, `site/src/party/dj/`.)
   (`Song.dance`, `aligned`): 江南Style's horse dance, Macarena, 科目三, 最炫民族风, 爱你, APT., the
   Cupid Shuffle, the Cha-Cha Slide, Y.M.C.A., Watch Me, the Ketchup Song, Gee, 海草舞; their moves are
   `src/shared/songmoves.ts` (the coach's key frames: `src/client/coach/songmoves.ts` and, for the
-  seven added 11-12, `partymoves.ts`), each taught count by count (`src/shared/steps.ts`). A caller's
+  eight added 11-12, `partymoves.ts`), each taught count by count (`src/shared/steps.ts`). A caller's
   song (`Song.calls`: the Cha-Cha Slide, and the Ketchup Song's 12-beat lines) keeps each part as long
   as it needs, counted from where it starts, and teaches only its basic steps (`Song.teach`).
   江南Style's was worked out from its official video frame by frame (sheets of frames on the beat,

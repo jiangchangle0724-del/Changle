@@ -1,5 +1,5 @@
 // The songs: a song as a show (its teaching, the video's intro, the count-in, the dance on its
-// beats), the thirteen with their own dance laid along their parts, a room playing one (the songbook's
+// beats), the fourteen with their own dance laid along their parts, a room playing one (the songbook's
 // first beat, 找拍子 for a song nobody has danced yet, none for a measured one, the speaker moving
 // the beat to where the video really is), and the songbook's checks of a speaker's taps. Run: npm test
 import assert from "node:assert/strict";
@@ -36,6 +36,7 @@ const VIDEO_MS: Record<string, number> = {
   "song-ketchup": 210_900,
   "song-gee": 240_100,
   "song-hai-cao-wu": 300_200,
+  "song-gokuraku-jodo": 216_000,
 };
 
 function ready() {
@@ -126,6 +127,8 @@ describe("a song as a show", () => {
     // Gee: the crab on "Gee gee gee", the chorus' sparkle; the second half half a phrase on
     for (const b of [72, 88, 172, 188]) assert.deepEqual(onVideo("song-gee", b, 40), { move: "gee-crab", count: 1 });
     for (const b of [128, 228, 292, 324]) assert.deepEqual(onVideo("song-gee", b, 40), { move: "gee-sparkle", count: 1 });
+    // 極楽浄土: "歌えや歌え" on 136, 264, 396 (its subtitles)
+    for (const b of [136, 264, 396]) assert.deepEqual(onVideo("song-gokuraku-jodo", b, 40), { move: "gj-sing", count: 1 });
     // 海草舞: "人海啊 茫茫啊" on 48, 240, 464
     for (const b of [48, 240, 464]) assert.deepEqual(onVideo("song-hai-cao-wu", b, 16), { move: "hc-look", count: 1 });
   });

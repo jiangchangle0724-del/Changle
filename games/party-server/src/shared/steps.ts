@@ -860,4 +860,88 @@ export const STEPS: Readonly<Record<string, Steps>> = {
       [5, 8, "「谁说小人物不可以做英雄」：站起来，双脚分开，右拳往天上举，像英雄", "'谁说小人物不可以做英雄': stand up tall, feet apart, right fist up to the sky, a hero"],
     ],
   },
+
+  // 極楽浄土 (the official dance video: みうめ's choreography, simplified to its main moves)
+  "gj-sway": {
+    ready: ["双脚并拢，想象自己穿着和服，袖子很长", "Feet together; imagine you're in a kimono with long sleeves"],
+    counts: [
+      [1, 2, "右脚往右一步，右手臂往右边平平地展开（像甩开袖子），左手放胸前，身体往右摇", "Step right, spreading your right arm out flat to the side (like flicking out a sleeve), left hand at your chest, swaying right"],
+      [3, 4, "左脚往左一步，换左手臂展开，右手放胸前", "Step left, the left arm spreads out, right hand at your chest"],
+      [5, 8, "再来一遍：右、左", "Again: right, left"],
+    ],
+    tip: ["动作要柔，手腕放松，像和服袖子在飘", "Soft and flowing, wrists loose, like kimono sleeves in the air"],
+  },
+  "gj-step": {
+    ready: ["双脚分开一点，站直", "Feet a little apart, stand tall"],
+    counts: [
+      [1, 1, "双臂往两边平平张开", "Arms out flat to the sides"],
+      [2, 2, "双手收到身前交叉", "Cross your hands in front of you"],
+      [3, 3, "右膝抬高，双手举到头的两边", "Right knee up high, hands up by your head"],
+      [4, 4, "放下，双臂再张开", "Down, arms wide again"],
+      [5, 6, "一样：张开、交叉", "The same: wide, cross"],
+      [7, 7, "这次抬左膝，双手到头边", "This time the left knee, hands by your head"],
+      [8, 8, "放下，张开", "Down, wide"],
+    ],
+    tip: ["歌里唱「月明かり昇る刻 灯る赤提灯」的地方", "It's the '月明かり昇る刻 灯る赤提灯' part"],
+  },
+  "gj-butterfly": {
+    ready: ["双手放在身体两边，手肘弯一点", "Hands at your sides, elbows a little bent"],
+    counts: [
+      [1, 4, "身体转向右边，一拍一步往前走，双手在两边轻轻上下扇，像蝴蝶的翅膀", "Turn to your right and walk, a step a beat, your hands fanning gently up and down at your sides like a butterfly's wings"],
+      [5, 8, "转向左边，接着走、接着扇", "Turn to your left and keep walking and fluttering"],
+    ],
+    tip: ["「ふわり 蝶が誘い出す」：轻飘飘的", "'ふわり 蝶が誘い出す': light as a butterfly"],
+  },
+  "gj-peek": {
+    ready: ["双脚分开站好", "Feet apart"],
+    counts: [
+      [1, 4, "「ちょいと覗いて」：右手搭在额头上往右边偷看，身体往右歪，左手叉腰", "'ちょいと覗いて': right hand at your forehead, peeking off to the right, leaning right, left hand on your hip"],
+      [5, 8, "换左手，往左边看", "Swap to the left hand and peek left"],
+    ],
+  },
+  "gj-beckon": {
+    ready: ["左手放在胸前，右手举到脸旁边，手心朝前", "Left hand at your chest, right hand up by your face, palm forward"],
+    counts: [[1, 8, "「おいでませ」（欢迎光临）：右手像招财猫一样，一拍往下弯一次招手，胯左右轻轻扭", "'おいでませ' (welcome!): beckon with your right hand like a lucky cat, curling it down on every beat, hips swaying a little"]],
+  },
+  "gj-sing": {
+    ready: ["双脚并拢，双手放在身边", "Feet together, hands at your sides"],
+    counts: [
+      [1, 1, "「歌えや歌え」：原地往左转一圈", "'歌えや歌え': spin round once to your left, on the spot"],
+      [2, 2, "转回来，双臂往两边张开", "Facing front again, arms wide"],
+      [3, 3, "右膝抬高，双手举到头边", "Right knee up, hands by your head"],
+      [4, 4, "放下，双臂张开", "Down, arms wide"],
+      [5, 6, "双手收到脸前，手心朝前", "Hands in front of your face, palms forward"],
+      [7, 7, "左膝抬高，双手到头边", "Left knee up, hands by your head"],
+      [8, 8, "放下，张开", "Down, wide"],
+    ],
+    tip: ["转圈别太快，转不过来就原地踏一下", "Don't rush the spin; if it's too much, just step round on the spot"],
+  },
+  "gj-voice": {
+    ready: ["双脚分开站好", "Feet apart"],
+    counts: [
+      [1, 4, "「アナタの声を」：右手放在右耳后面，像在仔细听，身体往右歪，左手放胸前", "'アナタの声を': right hand cupped behind your right ear as if listening hard, leaning right, left hand at your chest"],
+      [5, 6, "「さぁ聞かせて」：右手往前伸出去，像在说「唱给我听」", "'さぁ聞かせて': hold your right hand out in front, as if to say 'sing it to me'"],
+      [7, 8, "手回到耳朵后面听", "Back behind your ear, listening"],
+    ],
+  },
+  "gj-dance": {
+    ready: ["双脚分开一点", "Feet a little apart"],
+    counts: [
+      [1, 1, "「踊れや踊れ」：双手往上举成 V", "'踊れや踊れ': arms up in a V"],
+      [2, 2, "双臂张开放平，右膝抬高", "Arms out flat, right knee up"],
+      [3, 3, "放下，双手再举成 V", "Down, arms up in a V again"],
+      [4, 4, "双臂张开，左膝抬高", "Arms wide, left knee up"],
+      [5, 8, "再来一遍", "Once more"],
+    ],
+    tip: ["像日本夏天祭典的盆踊，开心地跳", "Like a summer festival bon dance: just enjoy it"],
+  },
+  "gj-bloom": {
+    ready: ["双手合在胸前，像一个花苞，膝盖微弯", "Hands together at your chest like a bud, knees a little bent"],
+    counts: [
+      [1, 2, "「今宵 共に」：花苞合着，不动", "'今宵 共に': hold the bud"],
+      [3, 4, "「あゝ 狂い咲き」：双手慢慢往上打开，举过头顶成 V，像花开了", "'あゝ 狂い咲き': open your hands slowly up over your head into a V, the flower blooming"],
+      [5, 6, "双臂张开放平，身体往右、往左摇", "Arms out wide, sway right, then left"],
+      [7, 8, "再举起来成 V", "Up into the V again"],
+    ],
+  },
 };
