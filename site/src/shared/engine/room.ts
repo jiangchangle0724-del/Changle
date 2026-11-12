@@ -429,6 +429,7 @@ export class RoomEngine {
         if (!pen || !pen.who.includes(pid) || !pen.buddy || pen.buddyUsed) return;
         if (!d.seats.some((s) => s.id === pen.buddy)) return;
         pen.buddyUsed = true;
+        this.fx("buddy", pen.buddy);
         this.penalty([pen.buddy], "sip", (d.penalty ?? "").trim() ? BUDDY_NOTE_CUSTOM : BUDDY_NOTE);
         this.out.persist = true;
         return;

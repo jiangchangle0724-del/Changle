@@ -1,6 +1,6 @@
-import { fullDeck, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
+import { fullDeck, ROGUE_NOTES as N, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
 import type { RogueHolders, RoguePhase, RogueView } from "../../protocol";
-import { byPenalty, intIn, range, t, type Api, type GameDef } from "../api";
+import { byPenalty, intIn, range, type Api, type GameDef } from "../api";
 
 const DECK = fullDeck();
 
@@ -24,22 +24,6 @@ type S = {
 };
 
 const HOLD_KEY: Partial<Record<Rank, keyof RogueHolders>> = { "2": "buddy", "5": "camera", "6": "nose", "8": "wc", "10": "trouble" };
-
-const N = {
-  garden: t("逛三园：说不出或重复", "Three Gardens: stalled or repeated"),
-  gardenSlow: t("逛三园：没接上", "Three Gardens: too slow"),
-  grabLast: t("抢数字：最后一个", "Grab the Number: last one left"),
-  grabCollide: t("抢数字：撞数了", "Grab the Number: same number"),
-  grabNone: t("抢数字：没抢到", "Grab the Number: never grabbed"),
-  sevensWrong: t("逢七过：说错了", "Sevens: wrong call"),
-  sevensSlow: t("逢七过：没接上", "Sevens: too slow"),
-  camera: t("照相机：动了", "Camera: you moved"),
-  noseSlow: t("摸鼻子：最慢", "Nose: last one"),
-  noseMiss: t("摸鼻子：没摸", "Nose: never touched it"),
-  trouble: t("神经病：接了话", "Troublemaker: you answered"),
-  wc: t("没有 WC 票：先喝再去", "No bathroom pass: drink first"),
-  wcCustom: t("没有 WC 票：先受罚再去", "No bathroom pass: penalty first"),
-};
 
 const GARDEN_MS = 7000;
 const GRAB_MS = 15000;
@@ -320,6 +304,7 @@ export const rogue: GameDef<S> = {
       case "trouble": {
         const target = String(g.target ?? "");
         if (pid !== s.holders.trouble || !api.has(target) || target === pid) return;
+        api.fx("trouble", pid);
         pen(s, api, [target], "sip", N.trouble);
         return;
       }

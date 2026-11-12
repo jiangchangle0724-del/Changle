@@ -5014,5 +5014,29 @@ test("lastcard: random rounds at every size: every card kept, every hand private
   seed = s0;
 });
 
+// (last: the tests share one seeded random, and the ones before draw their numbers as before)
+test("rogue: each power's use is an effect of its own, for its sound", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; wcUsed: boolean };
+  s.holders = { buddy: "p2", camera: "p0", nose: "p1", wc: "p0", trouble: "p1" };
+  const fxs = () => t.events.filter((e) => e.k === "fx").map((e) => (e as { fx: string; pid?: string }).fx + ":" + (e as { pid?: string }).pid);
+  t.g("p0", "camera");
+  ok(fxs().includes("camera:p0"), "the camera");
+  t.advance(4000);
+  t.g("p0", "moved", {});
+  t.g("p1", "nose");
+  ok(fxs().includes("nose:p1"), "the nose");
+  t.advance(7000);
+  t.g("p0", "wc");
+  ok(fxs().includes("wc:p0") && t.view<Extract<GameView, { id: "rogue" }>>("p0").wcUsed, "the pass, used by its holder");
+  const before = t.pens().length;
+  t.g("p1", "trouble", { target: "p0" });
+  ok(fxs().includes("trouble:p1") && t.pens().length === before + 1, "the troublemaker's call, and the penalty with it");
+  t.act("p0", { a: "buddy", pen: t.pens().slice(-1)[0].id });
+  ok(fxs().includes("buddy:p2") && t.pens().slice(-1)[0].who[0] === "p2", "the buddy's call, and the buddy's penalty");
+  ok(ROGUE_RULES.filter((r) => r.kind === "hold").every((r) => r.power) && ROGUE_RULES.filter((r) => r.kind !== "hold").every((r) => !r.power), "every hold card names its power, no other card does");
+});
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { playPower } from "../games/rogueSounds";
 import { t } from "../i18n";
 import { gsap, reduced } from "../lib/anim";
 import { sfx } from "../lib/sfx";
@@ -146,14 +147,19 @@ export function useScreenFx(on: boolean) {
         sfx.shuffle();
         return;
       case "camera":
-        sfx.shutter();
+        playPower("camera");
         return;
       case "nose":
-        sfx.honk();
+        playPower("nose");
         return;
       case "wc":
-        sfx.woodblock(0.8, 0.8);
-        window.setTimeout(() => sfx.safe(), 120);
+        playPower("wc");
+        return;
+      case "trouble":
+        playPower("trouble");
+        return;
+      case "buddy":
+        window.setTimeout(() => playPower("buddy"), 1400);
         return;
       case "collide":
         sfx.clash();
