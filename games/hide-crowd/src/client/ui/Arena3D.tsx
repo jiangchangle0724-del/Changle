@@ -980,7 +980,9 @@ export function Arena3D(props: Props) {
         worldY = Math.max(ARENA.marginY, Math.min(ARENA.height - ARENA.marginY, worldY));
         const targetX = sceneX(worldX);
         const targetZ = sceneZ(worldY);
-        const targetSpeed = Math.hypot(velocityX, velocityY);
+        // how fast the legs go: over the floor under the feet (the transit hall's walkway carries everyone on
+        // it, so someone standing on it glides; the rules count the walkway in the body's speed)
+        const targetSpeed = avatar.p === "stunned" ? 0 : Math.hypot(velocityX - drift.current.x, velocityY - drift.current.y);
         const visual = visuals[index] ?? (visuals[index] = {
           x: targetX,
           z: targetZ,
