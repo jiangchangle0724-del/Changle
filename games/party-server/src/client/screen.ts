@@ -789,7 +789,7 @@ function tapAlongPanel(): HTMLElement {
   for (const song of SONGS) {
     const li = el("li");
     const b = el("button", song === tapSong ? "pick is-on" : "pick");
-    b.append(el("span", "pick-name", `${songTitle(song)} · ${songArtist(song)}`), el("span", "pick-meta", songbook[song.id] ? tr("已对拍", "Tapped") : tr("没对拍", "Not tapped yet")));
+    b.append(el("span", "pick-name", `${songTitle(song)} · ${songArtist(song)}`), el("span", "pick-meta", song.aligned ? tr("拍子已量好", "Beat measured") : songbook[song.id] ? tr("已对拍", "Tapped") : tr("没对拍", "Not tapped yet")));
     b.onclick = () => {
       tapSong = song;
       tapTaps = [];

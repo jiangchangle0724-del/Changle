@@ -1,12 +1,13 @@
 // /party/moves: the 20 moves, each danced by the 3D coach on a beat, to look at before a party (and
-// what the checks photograph). ?move=<id> picks one; ?still=<beat> stops the coach at that point of
+// what the checks photograph); under them, the songs' own dances' moves, song by song. ?move=<id> picks one; ?still=<beat> stops the coach at that point of
 // its 8-count (0 = count 1); ?gl=any draws it even in software.
 import { MOVES, moveById, type Move } from "../shared/catalog";
 import { el, getLang, pageClock, setLang, tr } from "./common";
 import { canCoach, glowOf } from "./coach/index";
 import { CoachStage } from "./coach/stage";
 import { Synth } from "./synth";
-import { bodyHint, difficultyName, moveHow, moveName, moveOther } from "./words";
+import { SONGS, songMoves } from "../shared/songs";
+import { bodyHint, difficultyName, moveHow, moveName, moveOther, songTitle } from "./words";
 
 const q = new URLSearchParams(location.search);
 let still = q.has("still") ? Number(q.get("still")) : null;
@@ -77,22 +78,30 @@ function render() {
   stage.append(side);
   main.append(stage);
 
-  const list = el("ul", "moves-list");
-  for (const m of MOVES) {
-    const li = el("li");
-    const b = el("button", m.id === move.id ? "pick is-on" : "pick");
-    b.setAttribute("aria-pressed", String(m.id === move.id));
-    b.append(el("span", "pick-name", moveName(m)), el("span", "pick-meta", `${difficultyName(m.difficulty)} · ${bodyHint(m)}`));
-    b.onclick = () => {
-      move = m;
-      history.replaceState(null, "", `?move=${m.id}`);
-      restart();
-      render();
-    };
-    li.append(b);
-    list.append(li);
+  const pickList = (moves: readonly Move[], meta: (m: Move) => string) => {
+    const list = el("ul", "moves-list");
+    for (const m of moves) {
+      const li = el("li");
+      const b = el("button", m.id === move.id ? "pick is-on" : "pick");
+      b.setAttribute("aria-pressed", String(m.id === move.id));
+      b.append(el("span", "pick-name", moveName(m)), el("span", "pick-meta", meta(m)));
+      b.onclick = () => {
+        move = m;
+        history.replaceState(null, "", `?move=${m.id}`);
+        restart();
+        render();
+      };
+      li.append(b);
+      list.append(li);
+    }
+    return list;
+  };
+  main.append(pickList(MOVES, (m) => `${difficultyName(m.difficulty)} · ${bodyHint(m)}`));
+  // the songs' own dances, song by song
+  for (const song of SONGS.filter((s) => s.dance)) {
+    main.append(el("h2", "moves-song", `${songTitle(song)} · ${tr("原版舞", "its own dance")}`));
+    main.append(pickList(songMoves(song).flatMap((id) => moveById(id) ?? []), (m) => bodyHint(m)));
   }
-  main.append(list);
   app.append(main);
 
   parts.name.textContent = moveName(move);

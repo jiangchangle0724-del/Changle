@@ -17,13 +17,18 @@
 //   - 找拍子: a song nobody has danced yet plays first while Ann and Bob tap along on their phones;
 //     the speaker finds its first beat from their taps, heard TV_DELAY late (within 25 ms), the
 //     songbook keeps it, and the song then starts from its start with its beat where the video's is;
+//   - a song with its own dance (Macarena) starts with no 找拍子, its beat 0 where the data has it in
+//     the video (within 25 ms);
 //   - 歌曲对拍 on the speaker page: 16 taps on the beats of another song, heard from the TV, give its
 //     first beat.
 const { chromium, devices } = require("playwright");
 
 const BASE = process.env.BASE || "http://127.0.0.1:8787";
-const SONG = "song-gangnam-style";
-const SONG_BPM = 132;
+const SONG = "song-levitating";
+const SONG_BPM = 103;
+/** a song with its own dance, its beat measured: no 找拍子, beat 0 where the data has it */
+const OWN_SONG = "song-macarena";
+const OWN_FIRST = 5154;
 const FIRST = 3000;
 const TAP_SONG = "song-gentleman";
 const FIND_SONG = "song-dynamite";
@@ -199,6 +204,20 @@ const FAKE_YT = `(() => {
   await ann.evaluate(() => window.partyDebug.act({ type: "BACK_TO_LOBBY" }));
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "lobby");
 
+  // ---- a song with its own dance: no 找拍子, straight to the video
+  await ann.evaluate((id) => window.partyDebug.act({ type: "START_LEARNING", routineId: id, mode: "dance" }), OWN_SONG);
+  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "learning");
+  const ownNoTap = await speaker.evaluate(() => !window.partyDebug.state() || !document.querySelector(".find"));
+  await ann.waitForFunction(() => window.partyDebug.state()?.phase === "dancing", null, { timeout: 30000 });
+  await speaker.waitForFunction(() => window.partyDebug.tube().status === "playing", null, { timeout: 10000 });
+  await speaker.waitForTimeout(4500);
+  const ownZero = await speaker.evaluate(() => window.__fakeZero);
+  const ownStart = await speaker.evaluate(() => window.partyDebug.state().routineStartAt);
+  const ownMoved = ownStart - (ownZero + OWN_FIRST);
+  const ownMove = await speaker.evaluate(() => window.partyDebug.run().find((b) => b.stage === "dance")?.move);
+  await ann.evaluate(() => window.partyDebug.act({ type: "BACK_TO_LOBBY" }));
+  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "lobby");
+
   // ---- 歌曲对拍 on the speaker page
   await speaker.getByRole("button", { name: /歌曲对拍/ }).click();
   await speaker.getByRole("button", { name: /Gentleman/ }).click();
@@ -219,7 +238,7 @@ const FAKE_YT = `(() => {
   const book = (await api("/party/api/songs")).json;
   const expectFirst = TAP_FIRST + j0 * tapBeat;
 
-  console.log(JSON.stringify({ tapText, kept, refused, uncalibrated, calFirst, audioOffsetMs, heldAt, stillHeld, pickedUp, resumedMoved: Math.round(resumedMoved), waited, moved: Math.round(moved), judged: judged && { verdict: judged.verdict, off: judged.off }, floor: floor && { best: floor.best, dancers: floor.dancers }, tubeAfter, findShown, found, bookF, findMoved: Math.round(findMoved), tapped: book[TAP_SONG], expectFirst: Math.round(expectFirst), errors }, null, 1));
+  console.log(JSON.stringify({ tapText, kept, refused, uncalibrated, calFirst, audioOffsetMs, heldAt, stillHeld, pickedUp, resumedMoved: Math.round(resumedMoved), ownNoTap, ownMoved: Math.round(ownMoved), ownMove, waited, moved: Math.round(moved), judged: judged && { verdict: judged.verdict, off: judged.off }, floor: floor && { best: floor.best, dancers: floor.dancers }, tubeAfter, findShown, found, bookF, findMoved: Math.round(findMoved), tapped: book[TAP_SONG], expectFirst: Math.round(expectFirst), errors }, null, 1));
   const checks = {
     "the songbook keeps a tap-along": kept.ok && kept.json.firstBeatMs === FIRST,
     "and turns away too few taps": !refused.ok,
@@ -235,6 +254,7 @@ const FAKE_YT = `(() => {
     "找拍子 shows on the phones and the TV": findShown,
     "找拍子 finds the first beat from Ann's and Bob's taps (within 25 ms), and the songbook keeps it": !!bookF && Math.abs(bookF.firstBeatMs - FIND_FIRST) <= 25 && bookF.taps >= 16,
     "then the song starts from its start, its beat where the video's is (within 25 ms)": Math.abs(findMoved) <= 25,
+    "a song with its own dance starts with no 找拍子, on its measured beat (within 25 ms), its own moves": ownNoTap && Math.abs(ownMoved) <= 25 && ownMove === "macarena-arms",
     "对拍 finds the song's first beat (within 20 ms)": !!book[TAP_SONG] && Math.abs(book[TAP_SONG].firstBeatMs - expectFirst) <= 20 && /对好了/.test(tapText ?? ""),
     "no page errors": errors.length === 0,
   };

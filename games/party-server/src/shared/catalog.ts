@@ -5,6 +5,7 @@
 import movesData from "../../../dance/data/moves.json";
 import routinesData from "../../../dance/data/routines.json";
 import type { Move, Routine } from "../../../dance/data/types";
+import { SONG_MOVES } from "./songmoves";
 
 export type { Move, Routine } from "../../../dance/data/types";
 
@@ -34,7 +35,8 @@ export const TEST_ROUTINE: Routine = {
   cooldown: "open-arms",
 };
 
-const byId = new Map(MOVES.map((m) => [m.id, m]));
+// (the songs' own dances' moves too: src/shared/songmoves.ts)
+const byId = new Map([...MOVES, ...SONG_MOVES].map((m) => [m.id, m]));
 export const moveById = (id: string): Move | null => byId.get(id) ?? null;
 
 export function routineById(id: string): Routine | null {
