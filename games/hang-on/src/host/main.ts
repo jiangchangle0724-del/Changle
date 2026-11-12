@@ -131,6 +131,7 @@ $('reopenBtn').addEventListener('click', () => void start());
 
 // ---------- 阶段 ----------
 function onPhase(next: Phase): void {
+  const prev = phase;
   phase = next;
   $('lobby').hidden = next !== 'lobby';
   $('countdown').hidden = next !== 'countdown';
@@ -142,6 +143,8 @@ function onPhase(next: Phase): void {
   // 底下那条说明只在大厅里有用，玩的时候别挡着画面
   $('note').hidden = next !== 'lobby';
   if (next === 'lobby') void resetSim();
+  // 从结算页直接开下一关（或再来一次）：大厅那步的重置没走，在这里换上新的一局
+  if (next === 'countdown' && prev === 'results') void resetSim();
   if (next === 'countdown') countdown();
   if (next === 'results') showResults();
 }
@@ -216,10 +219,11 @@ function showResults(): void {
 }
 
 $('startBtn').addEventListener('click', () => link?.act({ type: 'START' }));
-$('againBtn').addEventListener('click', () => link?.act({ type: 'LOBBY' }));
+// 结算页：再来一次、下一关都直接倒数开局；要换人、换关走顶栏的「回大厅」
+$('againBtn').addEventListener('click', () => link?.act({ type: 'START' }));
 $('nextBtn').addEventListener('click', () => {
   pickLevel(levelIndex + 1);
-  link?.act({ type: 'LOBBY' });
+  link?.act({ type: 'START' });
 });
 $('lobbyBtn').addEventListener('click', () => link?.act({ type: 'LOBBY' }));
 $('kbBtn').addEventListener('click', () => {
