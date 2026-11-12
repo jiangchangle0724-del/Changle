@@ -61,7 +61,12 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   in words, so nobody has to wonder whether they were loaded. On a phone it comes in under the
   standings, with 存成图片: a 1080 × 1350 picture drawn on a canvas in the game's fonts and colours
   (`ui/reportPicture.ts`), shown in a sheet to press and hold (a data address, which WeChat saves too),
-  share where the phone can, or download. The big screen has no room for both, so once the teams are
+  share where the phone can, or download (a blob address of plain bytes: a data one downloaded nothing
+  on an iPhone). An iPhone that can share gets one button instead, 存到相册或分享: a web page can't put
+  a picture in Photos and a download goes to the Files app (from the Home Screen, nowhere), but the
+  share sheet's 存储图像 puts it in Photos. The sheet sits beside the card, not in it: the card's
+  entrance moves it, and a moving card holds a fixed sheet inside itself. The big screen has no room
+  for both, so once the teams are
   in, the standings' column turns between them and the card every 12 s, beside the winners' card,
   sized in `vh` to fit 1280×720 (five awards take a third row, and the chart gives up a little height
   for it). A game started at a table has the way back to it in the big screen's top corner, beside

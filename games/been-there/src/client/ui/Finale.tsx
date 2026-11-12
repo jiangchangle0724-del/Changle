@@ -95,11 +95,7 @@ export function Over({ v, big }: { v: RoomView; big?: boolean }) {
           </li>
         )}
       </ol>
-      {!big && (
-        <div class="report-in" style={{ "--at": `${at(0) + 1.2}s` }}>
-          <ReportCard v={v} />
-        </div>
-      )}
+      {!big && <ReportCard v={v} at={at(0) + 1.2} />}
       {s.winner !== null && !still && at(0) > -3 && <Confetti at={at(0)} many={big} />}
       {(v.you.host || table) && (
         <div class="over-again" style={{ "--at": `${at(0) + 0.8}s` }}>
