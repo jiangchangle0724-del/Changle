@@ -192,7 +192,8 @@ export type DrawView = {
   drawer: string;
   d: 1 | 2 | 3;
   endsAt: number;
-  hint: { zh: number; en: string } | null;
+  /** How long the word is: its Chinese characters and any letters in it (深夜emo is 2 and 3), the English as blanks. */
+  hint: { zh: number; latin: number; en: string } | null;
   word: T | null;
   guesses: { pid: string; text: string; ok: boolean }[];
   solved: string[];
@@ -200,6 +201,8 @@ export type DrawView = {
   round: number;
   /** The drawer who left before their round was over: no penalty, and `drawer` already holds who draws next. */
   left: string | null;
+  /** Nobody got it because nobody was left to guess (everyone else left): no penalty. */
+  alone: boolean;
 };
 
 /** 你画我猜: the longest guess a phone sends and the rooms server keeps (every answer fits, with room to spare). */

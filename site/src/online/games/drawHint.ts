@@ -1,7 +1,13 @@
 /*
  * 你画我猜's hint for an English word, as the rooms server sends it: a blank for each letter, with the
  * word's spaces and hyphens as they are ("______ ________ __ ________" for Living paycheck to paycheck).
+ * For a Chinese word it sends how many characters, and how many letters if it has any.
  */
+
+/** The hint in Chinese: "3 个字", or for 深夜emo "2 个字加 3 个字母" (a rooms server from before letters were counted sends none). */
+export function hintZh(hint: { zh: number; latin?: number }) {
+  return hint.latin ? `${hint.zh} 个字加 ${hint.latin} 个字母` : `${hint.zh} 个字`;
+}
 
 /**
  * The hint as a phone shows it: the blanks spaced out, a wide gap between words, and each word's
