@@ -38,7 +38,8 @@ import {
   OCCASIONS,
   OCCASION_IDS,
   isRange,
-  occasionPoints,
+  occasionFit,
+  mealOf,
   reasonsFor,
   tally,
   travelMinutes,
@@ -469,30 +470,86 @@ test("ranges: only real range names count (not 'toString' or anything else on an
 
 // ---- what the meal is for ----
 
-test("the occasion: what Google says about a place moves it a little, never off the list", () => {
+test("the occasion: what Google says about a place moves it, never off the list", () => {
   const plain = place({ cuisine: "italian", rating: 4.4, ratings: 800, price: 30 });
   const dateNight = place({ cuisine: "italian", rating: 4.4, ratings: 800, price: 30, reservable: true, traits: { wine: true, cocktails: true } });
-  const fast = place({ cuisine: "western", rating: 4.4, ratings: 800, price: 12, traits: { fastFood: true } });
+  const fast = place({ cuisine: "western", rating: 4.4, ratings: 800, price: 12, traits: { fastFood: true, kind: "fastFood" } });
   const when = { at: NOW };
-  assert.equal(occasionPoints(dateNight, "casual", when), 0);
-  assert.ok(occasionPoints(dateNight, "date", when) > occasionPoints(plain, "date", when));
-  assert.ok(occasionPoints(fast, "date", when) < 0);
+  assert.equal(occasionFit(dateNight, "casual", when).points, 0);
+  assert.ok(occasionFit(dateNight, "date", when).points > occasionFit(plain, "date", when).points);
+  assert.ok(occasionFit(fast, "date", when).points < 0);
   assert.deepEqual(ranked([fast, plain, dateNight], { occasion: "date" }), [dateNight.id, plain.id, fast.id]);
   assert.equal(ranked([fast, plain, dateNight], { occasion: "date" }).length, 3);
   // Groups and kids for a family; open late at night.
   const family = place({ traits: { kids: true, kidsMenu: true, groups: true }, reservable: true });
-  assert.ok(occasionPoints(family, "family", when) >= 0.5);
+  assert.ok(occasionFit(family, "family", when).points >= 0.5);
   const late = place({ cuisine: "chinese_bbq", closesAt: NOW + 6 * 3600_000 });
   const early = place({ cuisine: "chinese_bbq", closesAt: NOW + 1 * 3600_000 });
-  assert.ok(occasionPoints(late, "latenight", { at: NOW, close: late.closesAt }) > occasionPoints(early, "latenight", { at: NOW, close: early.closesAt }));
+  assert.ok(occasionFit(late, "latenight", { at: NOW, close: late.closesAt }).points > occasionFit(early, "latenight", { at: NOW, close: early.closesAt }).points);
+  assert.deepEqual(occasionFit(early, "latenight", { at: NOW, close: early.closesAt }).off, { k: "early" });
   // One person: noodles before a barbecue meant for a group.
-  assert.ok(occasionPoints(place({ cuisine: "noodles", price: 15 }), "solo", when) > occasionPoints(place({ cuisine: "kbbq", price: 15 }), "solo", when));
+  assert.ok(occasionFit(place({ cuisine: "noodles", price: 15 }), "solo", when).points > occasionFit(place({ cuisine: "kbbq", price: 15 }), "solo", when).points);
   // A card says when a place suits the occasion.
   const r = reasonsFor(dateNight, { limits: none, center, range: "walk20", occasion: "date", now: NOW });
   assert.ok(r.includes("fits"));
   assert.ok(!reasonsFor(plain, { limits: none, center, range: "walk20", occasion: "casual", now: NOW }).includes("fits"));
   // Every occasion has both languages and an emoji.
   for (const o of OCCASION_IDS) assert.ok(OCCASIONS[o].zh && OCCASIONS[o].en && OCCASIONS[o].emoji, o);
+});
+
+test("a business dinner: the 4.5★ bagel shop goes last and says why; booked rooms with wine come first (Steve, 2026-11-11)", () => {
+  const bagels = place({
+    name: "Siegel's Bagels",
+    cuisine: "brunch",
+    rating: 4.5,
+    ratings: 2521,
+    price: 10,
+    priceTo: 20,
+    traits: { kind: "breakfast", dinner: true },
+    about: "Down-to-earth shop with housemade bagels & breakfast sandwiches in unfussy surrounds.",
+  });
+  const banquet = place({ cuisine: "cantonese", rating: 4.2, ratings: 1500, price: 30, reservable: true, traits: { groups: true, wine: true }, about: "Elegant Cantonese seafood restaurant with private rooms for banquets" });
+  const steak = place({ cuisine: "steak", rating: 4.3, ratings: 900, price: 60, reservable: true, traits: { wine: true, cocktails: true, fineDining: true } });
+  const noodles = place({ cuisine: "noodles", rating: 4.6, ratings: 3000, price: 12 });
+  const cafe = place({ cuisine: "cafe", rating: 4.7, ratings: 1200, price: 8, traits: { kind: "cafe" } });
+  const ids = ranked([bagels, cafe, noodles, banquet, steak], { occasion: "business" });
+  assert.deepEqual(ids.slice(0, 2).sort(), [banquet.id, steak.id].sort(), "the places for it first, whatever the stars");
+  assert.deepEqual(ids.slice(-2).sort(), [bagels.id, cafe.id].sort(), "the ones plainly not for it last");
+  const off = occasionFit(bagels, "business", { at: NOW });
+  assert.deepEqual(off.off, { k: "kind", kind: "breakfast" });
+  assert.equal(off.suits, false);
+  const fit = occasionFit(banquet, "business", { at: NOW });
+  assert.ok(fit.suits);
+  assert.deepEqual(fit.why, ["upscale", "private", "reservable"]);
+  // Never off the list: everything is still there, and with nobody liking anything the top six skip
+  // the places plainly not for it.
+  assert.equal(ids.length, 5);
+});
+
+test("the meal: at dinner a place that doesn't do dinner, or mostly does breakfast and coffee, goes after the rest", () => {
+  const brunch = place({ cuisine: "brunch", rating: 4.8, ratings: 2000, traits: { kind: "breakfast", dinner: false } });
+  const coffee = place({ cuisine: "cafe", rating: 4.8, ratings: 2000, traits: { kind: "cafe" } });
+  const diner = place({ cuisine: "western", rating: 4.0, ratings: 200 });
+  const hk = place({ cuisine: "hk_cafe", rating: 4.0, ratings: 200, traits: { kind: "cafe" } });
+  assert.deepEqual(occasionFit(brunch, "casual", { at: NOW }).off, { k: "meal", meal: "dinner" });
+  assert.deepEqual(occasionFit(coffee, "casual", { at: NOW }).off, { k: "meal", meal: "dinner", kind: "cafe" });
+  assert.equal(occasionFit(hk, "casual", { at: NOW }).off, undefined, "a 茶餐厅 is a restaurant");
+  assert.deepEqual(ranked([brunch, coffee, diner, hk]).slice(-2).sort(), [brunch.id, coffee.id].sort());
+  // At lunch the brunch place is fine; one that doesn't do lunch isn't.
+  const noon = vancouverMs({ y: 2026, m: 10, d: 23 }, 12 * 60);
+  assert.equal(occasionFit(brunch, "casual", { at: noon }).off, undefined);
+  assert.deepEqual(occasionFit(place({ traits: { lunch: false } }), "casual", { at: noon }).off, { k: "meal", meal: "lunch" });
+  assert.equal(mealOf(NOW), "dinner");
+  assert.equal(mealOf(noon), "lunch");
+});
+
+test("the family: a bar goes last; kids' menus and family restaurants first", () => {
+  const bar = place({ rating: 4.7, ratings: 900, traits: { kind: "bar", beer: true } });
+  const kids = place({ cuisine: "chinese", rating: 4.0, ratings: 400, traits: { kids: true, kidsMenu: true, family: true } });
+  const plain = place({ cuisine: "thai", rating: 4.3, ratings: 400 });
+  assert.deepEqual(ranked([bar, plain, kids], { occasion: "family" }), [kids.id, plain.id, bar.id]);
+  assert.deepEqual(occasionFit(bar, "family", { at: NOW }).off, { k: "kind", kind: "bar" });
+  assert.deepEqual(occasionFit(kids, "family", { at: NOW }).why, ["kids", "kidsMenu"]);
 });
 
 // ---- planning ahead ----

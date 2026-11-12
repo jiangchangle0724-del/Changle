@@ -17,6 +17,8 @@ export function RankedList(p: {
   top: number;
   /** What the meal is for (a card says when a place suits it). */
   occasion?: OccasionId;
+  /** Places open then but over someone's budget (the count says so). */
+  overBudget?: number;
   /** The buttons under each card (votes, "this one"); `full` for the top ones. */
   action: (c: CardView, full: boolean) => ComponentChildren;
   /** Shown once the whole list is on screen. */
@@ -26,7 +28,10 @@ export function RankedList(p: {
   const more = Math.min(STEP, p.cards.length - shown);
   return (
     <>
-      <p class="muted small">{t("listCount", { n: p.cards.length })}</p>
+      <p class="muted small">
+        {t("listCount", { n: p.cards.length })}
+        {p.overBudget ? t("listOver", { n: p.overBudget }) : ""}
+      </p>
       <div class="places">
         {p.cards.slice(0, shown).map((c, i) => (
           <PlaceCard key={c.place.id} c={c} ranked compact={i >= p.top} occasion={p.occasion}>

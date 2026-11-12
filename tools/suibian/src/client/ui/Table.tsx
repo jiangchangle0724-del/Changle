@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import { CUISINES, CUISINE_GROUPS, OCCASIONS, TOP_COUNT, type CuisineGroup, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
 import type { RoomView } from "../../room/protocol";
-import { t, tx } from "../i18n";
+import { t, tx, type Key } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
 import { send, toast, useApp } from "../store";
@@ -15,6 +15,18 @@ import { RankedList } from "./RankedList";
 import { OccasionPicker } from "./OccasionPicker";
 import { WhenPicker } from "./WhenPicker";
 import { whenLabel } from "../when";
+
+/**
+ * What places for each occasion usually cost a person at least: a diet card budget below it would
+ * leave most of them off the list, so the lobby says so (to that person only; budgets are private).
+ */
+const OCCASION_BUDGET: Partial<Record<OccasionId, number>> = { business: 60, date: 35, birthday: 35 };
+
+function lowBudget(v: RoomView): boolean {
+  const floor = OCCASION_BUDGET[v.occasion];
+  const b = v.you.limits?.budget ?? 0;
+  return !!floor && b > 0 && b < floor;
+}
 
 export function Table({ home }: { home: () => void }) {
   const { view: v, status, fatal, me } = useApp();
@@ -152,6 +164,14 @@ function Lobby({ v }: { v: RoomView }) {
               {t("done")}
             </Btn>
           </>
+        )}
+        {lowBudget(v) && (
+          <p class="budget-low">
+            <span>{t("budgetLow", { n: v.you.limits!.budget, occasion: t(`occFor_${v.occasion}` as Key) })}</span>
+            <Btn kind="quiet" class="change-budget" onClick={() => setEditing(true)}>
+              {t("budgetChange")}
+            </Btn>
+          </p>
         )}
       </section>
 
@@ -304,6 +324,7 @@ function Cards({ v }: { v: RoomView }) {
         cards={v.cards}
         top={TOP_COUNT}
         occasion={v.occasion}
+        overBudget={v.overBudget}
         action={(c) => {
           const id = c.place.id;
           const yes = approve.includes(id);

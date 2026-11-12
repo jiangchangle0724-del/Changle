@@ -72,7 +72,9 @@ export interface RoomState {
 }
 
 /** Work the room needs from outside: a Google search (for the cuisines round 1 liked, most liked first), or details for the cards. */
-export type Want = { k: "search"; center: E.Center; range: E.RangeId; lang: Lang; liked: E.CuisineId[] } | { k: "details"; ids: string[] };
+export type Want =
+  | { k: "search"; center: E.Center; range: E.RangeId; lang: Lang; liked: E.CuisineId[]; occasion: E.OccasionId; at: number }
+  | { k: "details"; ids: string[] };
 
 export interface Flush {
   changed: boolean;
@@ -342,7 +344,7 @@ export class Room {
 
   /** The search to run now: also what a restarted server runs again. */
   searchWant(): Want {
-    return { k: "search", center: this.st.center, range: this.st.range, lang: this.st.lang ?? "zh", liked: this.liked() };
+    return { k: "search", center: this.st.center, range: this.st.range, lang: this.st.lang ?? "zh", liked: this.liked(), occasion: this.st.occasion ?? "casual", at: this.when() };
   }
 
   /** Cuisines more people liked than refused, most liked first (the menu's order between equals). */
@@ -566,6 +568,7 @@ export class Room {
       // Planned and still ahead; a time that has come (or passed) is "now".
       at: this.when(now) === now ? null : this.when(now),
       occasion: st.occasion ?? "casual",
+      overBudget: st.phase === "lobby" || st.phase === "mood" || st.phase === "finding" ? 0 : E.overBudget(st.places, table, now, this.when(now)),
       table: st.phase === "result" || st.phase === "spin" ? table : E.NO_LIMITS,
       chips: st.phase === "lobby" ? [] : this.menu(showCounts),
       cards: list.cards,

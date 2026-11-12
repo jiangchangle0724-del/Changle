@@ -911,6 +911,22 @@ select {
   min-height: 44px;
   flex: none;
 }
+/* A diet card budget too low for the occasion: said to that person, with a way to change it. */
+.budget-low {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+.budget-low .btn {
+  min-height: 44px;
+  flex: none;
+}
 .planned {
   padding: 8px 12px;
   border-radius: 10px;

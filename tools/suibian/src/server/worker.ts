@@ -301,7 +301,7 @@ export class RoomDO extends DurableObject<Env> {
     const key = room.st.demo ? undefined : this.env.GOOGLE_PLACES_KEY;
     try {
       if (want.k === "search") {
-        const places = key ? await searchGoogle(key, want.center, want.range, want.lang, { liked: want.liked, random: randomUnit }) : demoPlaces(want.center, want.range, Date.now());
+        const places = key ? await searchGoogle(key, want.center, want.range, want.lang, { liked: want.liked, occasion: want.occasion, at: want.at, random: randomUnit }) : demoPlaces(want.center, want.range, Date.now());
         // Our own numbers, for real places only (demo ones are made up).
         if (key) await Promise.all(places.map(async (p: Place) => (p.ours = (await this.env.PLACES.get(this.env.PLACES.idFromName(p.id)).get()) ?? undefined)));
         if (this.room === room) room.found(places);

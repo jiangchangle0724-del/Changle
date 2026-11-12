@@ -130,6 +130,10 @@ All merged into `main`:
   only comes from the place's name and Google type (`src/engine/dishes.ts`). Google's AI summary is
   English only in Canada: a Chinese-language table mostly sees it on the top cards (from the English
   details request).
+* What it's for weighs a lot since 2026-11-12 (README, "What it's for"): the searches ask Google
+  for the meals each place serves and whether you can sit down (servesDinner, dineIn…; same price
+  tier, no extra cost), an occasion has a search of its own (still four a table at most), and the
+  other searches leave out kinds of place it rules out (Google's `excludedPrimaryTypes`).
 * Round 1 comes before the search (2026-11-11): the whole menu, 31 cuisines, and the table's other
   searches go to what people liked. Five cuisines Google has no place type for (Sichuan,
   Shanghainese, Northern Chinese, Chinese BBQ skewers, HK cafés) are found by a Text Search, at most

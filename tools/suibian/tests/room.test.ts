@@ -26,7 +26,8 @@ function toCards(s: ReturnType<typeof setup>, places = s.places()) {
 }
 
 test("a whole table: diet cards, start, mood, cards, result, rating", () => {
-  const { room, ids, places } = setup();
+  const s = setup();
+  const { room, ids, places } = s;
   room.handle(ids[1], { t: "limits", limits: { allergies: { peanut: "severe" }, custom: [], halal: false, vegetarian: false, budget: 0 } });
   room.handle(ids[1], { t: "start" }); // not the host: ignored
   assert.equal(room.st.phase, "lobby");
@@ -48,7 +49,7 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   room.handle(ids[2], { t: "mood", picks: {}, done: true });
   // Everyone's done: the search, for what they liked.
   assert.equal(room.st.phase, "finding");
-  assert.deepEqual(room.flush().want, { k: "search", center, range: "walk20", lang: "zh", liked: ["ramen"] });
+  assert.deepEqual(room.flush().want, { k: "search", center, range: "walk20", lang: "zh", liked: ["ramen"], occasion: "casual", at: s.env.now() });
   room.found(places());
   assert.equal(room.st.phase, "cards");
   const shown = room.view(ids[0]).chips;
@@ -364,14 +365,14 @@ test("a planned time that has come is now", () => {
 
 
 test("the search is for what more people liked than refused, most liked first", () => {
-  const { room, ids, places } = setup();
+  const { room, ids, places, env } = setup();
   room.handle(ids[0], { t: "start" });
   room.handle(ids[0], { t: "mood", picks: { hotpot: "like", sichuan: "like", italian: "ban" }, done: true });
   room.handle(ids[1], { t: "mood", picks: { hotpot: "like", sichuan: "ban", bogus: "like", other: "like" } as Record<string, MoodPick>, done: true });
   room.handle(ids[2], { t: "mood", picks: { kbbq: "like", ramen: "like" }, done: true });
   const want = room.flush().want;
   // Sichuan: one yes, one no. Ramen and Korean BBQ tie: the menu's order. "Other" isn't on the menu.
-  assert.deepEqual(want, { k: "search", center, range: "walk20", lang: "zh", liked: ["hotpot", "ramen", "kbbq"] });
+  assert.deepEqual(want, { k: "search", center, range: "walk20", lang: "zh", liked: ["hotpot", "ramen", "kbbq"], occasion: "casual", at: env.now() });
   // A server that restarts mid-search runs the same one again.
   assert.deepEqual(room.searchWant(), want);
   room.found(places());
@@ -432,4 +433,30 @@ test("a search that finds nothing goes back to the lobby keeping round 1's picks
   assert.equal(room.st.phase, "result");
   room.handle(ids[0], { t: "again" });
   assert.deepEqual(room.view(ids[1]).you.mood, {}, "a new meal starts fresh");
+});
+
+test("a business dinner: the search says so, places plainly not for it go last saying why, and the list counts what the budget left out", () => {
+  const s = setup({ occasion: "business" });
+  const { room, ids } = s;
+  room.handle(ids[2], { t: "limits", limits: { allergies: {}, custom: [], halal: false, vegetarian: false, budget: 35 } });
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "next", phase: "mood" });
+  const want = room.flush().want as { occasion: string; at: number };
+  assert.equal(want.occasion, "business");
+  assert.equal(want.at, s.env.now(), "now: Thursday 7 pm, a dinner");
+  room.found(s.places());
+  const cards = room.view(ids[0]).cards;
+  // The dessert café, the brunch place and the burger place: last, each with its reason.
+  const last = cards.slice(-3);
+  assert.deepEqual(last.map((c) => c.place.id).sort(), ["demo-17", "demo-28", "demo-29"]);
+  assert.deepEqual(cards.find((c) => c.place.id === "demo-29")!.fit?.off, { k: "kind", kind: "sweets" });
+  assert.deepEqual(cards.find((c) => c.place.id === "demo-17")!.fit?.off, { k: "kind", kind: "fastFood" });
+  // The places for it say why: the dim sum place takes bookings, and comes near the top.
+  const dimsum = cards.find((c) => c.place.id === "demo-0")!;
+  assert.ok(dimsum.reasons.includes("fits") && dimsum.fit?.why.includes("reservable"));
+  assert.ok(cards.indexOf(dimsum) < 6);
+  // Over the $35 budget: the steakhouse and the other expensive ones aren't on the list, and the list says how many.
+  assert.ok(!cards.some((c) => c.place.id === "demo-25"));
+  assert.equal(room.view(ids[0]).overBudget, s.places().filter((p) => (p.price ?? 0) > 35).length);
+  assert.ok(room.view(ids[0]).overBudget > 0);
 });

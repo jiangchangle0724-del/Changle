@@ -69,7 +69,7 @@ test("search: a short walk is two Nearby Search calls, the right headers and bod
     assert.equal(h.get("X-Goog-Api-Key"), "KEY");
     assert.match(h.get("X-Goog-FieldMask")!, /places\.currentOpeningHours/);
     // On every place of the list, at no extra cost: the mask already bills at Enterprise + Atmosphere.
-    for (const f of ["places.generativeSummary", "places.nationalPhoneNumber", "places.googleMapsUri", "places.reservable"]) assert.ok(h.get("X-Goog-FieldMask")!.split(",").includes(f), f);
+    for (const f of ["places.generativeSummary", "places.nationalPhoneNumber", "places.googleMapsUri", "places.reservable", "places.servesDinner", "places.servesLunch", "places.dineIn"]) assert.ok(h.get("X-Goog-FieldMask")!.split(",").includes(f), f);
     const body = JSON.parse(String(c.init?.body));
     assert.deepEqual(body.includedTypes, ["restaurant"]);
     assert.equal(body.maxResultCount, 20);
@@ -198,6 +198,27 @@ test("place from Google: what it says about groups, kids, drinks and the kind of
   assert.deepEqual(fromGoogle({ ...base, id: "b", types: ["fast_food_restaurant", "restaurant"] })!.traits, { fastFood: true });
   assert.deepEqual(fromGoogle({ ...base, id: "c", types: ["fine_dining_restaurant", "restaurant"] })!.traits, { fineDining: true });
   assert.equal(fromGoogle({ ...base, id: "d" })!.traits, undefined, "nothing said, nothing guessed");
+  // The kind of place, from its main type; the meals it serves; takeout only.
+  const bagels = fromGoogle({ ...base, id: "e", primaryType: "bagel_shop", types: ["bagel_shop", "bakery", "restaurant"], servesBreakfast: true, servesDinner: true })!;
+  assert.deepEqual(bagels.traits, { breakfast: true, dinner: true, kind: "breakfast" });
+  assert.equal(fromGoogle({ ...base, id: "f", primaryType: "coffee_shop", types: ["coffee_shop", "cafe"] })!.traits?.kind, "cafe");
+  assert.equal(fromGoogle({ ...base, id: "g", primaryType: "hamburger_restaurant", types: ["hamburger_restaurant", "fast_food_restaurant"] })!.traits?.kind, "fastFood");
+  assert.equal(fromGoogle({ ...base, id: "h", primaryType: "chinese_restaurant", types: ["chinese_restaurant"], dineIn: false })!.traits?.kind, "counter");
+  assert.equal(fromGoogle({ ...base, id: "i", primaryType: "wine_bar", types: ["wine_bar", "bar"] })!.traits?.kind, "bar");
+  assert.equal(fromGoogle({ ...base, id: "j", primaryType: "steak_house", types: ["steak_house", "restaurant"] })!.traits, undefined, "a plain restaurant has no kind");
+});
+
+test("search: an occasion's searches leave out what it rules out; a liked cuisine's search doesn't", async () => {
+  mockFetch([[/places:searchNearby$/, () => json({ places: [golden] })]]);
+  const dinner = Date.parse("2026-11-13T02:30:00Z"); // Thursday 6:30 pm in Vancouver
+  await searchGoogle("KEY", center, "walk10", "zh", { occasion: "business", at: dinner, liked: ["cafe"] });
+  const bodies = calls.map((c) => JSON.parse(String(c.init?.body)));
+  assert.equal(bodies.length, 4);
+  assert.deepEqual(bodies[1].includedTypes.slice(0, 2), ["fine_dining_restaurant", "steak_house"], "the occasion's own search");
+  for (const b of bodies) {
+    if (b.includedTypes.includes("coffee_shop")) assert.equal(b.excludedPrimaryTypes, undefined, "someone liked cafés");
+    else assert.ok(b.excludedPrimaryTypes.includes("bagel_shop") && b.excludedPrimaryTypes.includes("cafe"));
+  }
 });
 
 test("place from Google: hotels that Google also calls restaurants are left out", () => {

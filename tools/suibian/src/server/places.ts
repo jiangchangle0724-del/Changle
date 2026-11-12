@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, distanceMeters, dishesFor, guessCuisine, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type CuisineId, type Lang, type Place, type RangeId, type SearchCall, type Traits } from "../engine";
+import { RANGES, distanceMeters, dishesFor, guessCuisine, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type CuisineId, type Lang, type OccasionId, type Place, type PlaceKind, type RangeId, type SearchCall, type Traits } from "../engine";
 import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
@@ -37,6 +37,12 @@ const SEARCH_FIELDS = [
   "places.servesDessert",
   "places.liveMusic",
   "places.outdoorSeating",
+  // Which meals it serves, and whether you can sit down (a business dinner at a takeout counter…).
+  "places.servesBreakfast",
+  "places.servesBrunch",
+  "places.servesLunch",
+  "places.servesDinner",
+  "places.dineIn",
   // Tells branches of one name apart.
   "places.shortFormattedAddress",
 ].join(",");
@@ -87,6 +93,30 @@ interface GPlace {
   servesDessert?: boolean;
   liveMusic?: boolean;
   outdoorSeating?: boolean;
+  servesBreakfast?: boolean;
+  servesBrunch?: boolean;
+  servesLunch?: boolean;
+  servesDinner?: boolean;
+  dineIn?: boolean;
+}
+
+/** The kind of place from Google's main type, when it isn't a plain restaurant (see PlaceKind). */
+const KIND_OF: [PlaceKind, RegExp][] = [
+  ["fastFood", /^fast_food_restaurant$/],
+  ["counter", /^(sandwich_shop|deli|food_court|meal_takeaway|meal_delivery|pizza_delivery|cafeteria|snack_bar|hot_dog_stand|hot_dog_restaurant|salad_shop|kebab_shop|acai_shop)$/],
+  ["sweets", /^(bakery|cake_shop|pastry_shop|dessert_shop|dessert_restaurant|ice_cream_shop|donut_shop|juice_shop|candy_store|chocolate_shop|chocolate_factory|confectionery)$/],
+  ["breakfast", /^(bagel_shop|breakfast_restaurant|brunch_restaurant)$/],
+  ["cafe", /^(cafe|coffee_shop|coffee_stand|coffee_roastery|tea_house|cat_cafe|dog_cafe)$/],
+  ["bar", /^(bar|pub|irish_pub|sports_bar|night_club|cocktail_bar|lounge_bar|wine_bar|hookah_bar|beer_garden|brewery|winery)$/],
+];
+
+function kindFrom(g: GPlace): PlaceKind | undefined {
+  const main = g.primaryType ?? "";
+  for (const [k, re] of KIND_OF) if (re.test(main)) return k;
+  // A burger or chicken place Google also calls fast food; a place you can't sit down in.
+  if (g.types?.includes("fast_food_restaurant") && /^(hamburger_restaurant|chicken_restaurant|chicken_wings_restaurant|pizza_restaurant|taco_restaurant|burrito_restaurant|restaurant)$/.test(main)) return "fastFood";
+  if (g.dineIn === false) return "counter";
+  return undefined;
 }
 
 const BAR = /^(bar|pub|irish_pub|gastropub|sports_bar|cocktail_bar|lounge_bar|wine_bar|brewpub|beer_garden|hookah_bar)$/;
@@ -107,6 +137,14 @@ function traitsFrom(g: GPlace): Traits | undefined {
     fastFood: types.includes("fast_food_restaurant") || undefined,
     bar: types.some((x) => BAR.test(x)) || undefined,
     fineDining: types.includes("fine_dining_restaurant") || undefined,
+    family: types.includes("family_restaurant") || undefined,
+    buffet: types.includes("buffet_restaurant") || undefined,
+    breakfast: g.servesBreakfast,
+    brunch: g.servesBrunch,
+    lunch: g.servesLunch,
+    dinner: g.servesDinner,
+    dineIn: g.dineIn,
+    kind: kindFrom(g),
   };
   const known = Object.fromEntries(Object.entries(t).filter(([, v]) => v !== undefined)) as Traits;
   return Object.keys(known).length ? known : undefined;
@@ -221,6 +259,9 @@ async function google(key: string, url: string, init: RequestInit & { fields: st
 export interface SearchOptions {
   /** The cuisines round 1 liked, most liked first: searches are spent on them (see searchPlan). */
   liked?: CuisineId[];
+  /** What the meal is for, and when: a search of its own, and what the others leave out (see searchPlan). */
+  occasion?: OccasionId;
+  at?: number;
   /** Turns the parts of the area each time (see searchPlan); fixed without it, as in tests. */
   random?: () => number;
 }
@@ -247,6 +288,7 @@ function call(key: string, c: SearchCall, lang: Lang): Promise<{ places?: GPlace
     body: JSON.stringify({
       includedTypes: c.types,
       maxResultCount: 20,
+      ...(c.exclude?.length ? { excludedPrimaryTypes: c.exclude } : {}),
       rankPreference: c.rank,
       locationRestriction: { circle: { center: { latitude: c.center.lat, longitude: c.center.lng }, radius: Math.round(c.radius) } },
       ...common,
@@ -267,7 +309,7 @@ const general = (c: CuisineId | undefined): CuisineId[] => (c === "hk_cafe" ? ["
  * all of them failing is thrown, for the room or the page to report.
  */
 export async function searchGoogle(key: string, center: Center, range: RangeId, lang: Lang, opts: SearchOptions = {}): Promise<Place[]> {
-  const plan = searchPlan(center, range, opts.liked ?? [], opts.random ?? (() => 0));
+  const plan = searchPlan(center, range, { liked: opts.liked, occasion: opts.occasion, at: opts.at }, opts.random ?? (() => 0));
   const got = await Promise.allSettled(plan.map((c) => call(key, c, lang)));
   const failed = got.flatMap((g) => (g.status === "rejected" ? [g.reason] : []));
   if (failed.length === got.length) throw failed[0];
@@ -377,11 +419,13 @@ const DEMO_TRAITS: Record<number, Partial<GPlace>> = {
   3: { goodForGroups: true, servesBeer: true },
   6: { servesWine: true, servesCocktails: true },
   12: { servesWine: true, goodForChildren: true, menuForChildren: true, servesDessert: true },
-  14: { servesWine: true, servesCocktails: true, goodForGroups: true },
+  14: { servesWine: true, servesCocktails: true, goodForGroups: true, servesDinner: true },
+  17: { types: ["hamburger_restaurant", "fast_food_restaurant", "restaurant"] },
   22: { goodForGroups: true, servesBeer: true, servesCocktails: true },
   23: { goodForGroups: true, servesBeer: true },
-  25: { servesWine: true, servesCocktails: true, goodForGroups: true, servesDessert: true },
-  26: { servesWine: true, servesCocktails: true },
+  25: { servesWine: true, servesCocktails: true, goodForGroups: true, servesDessert: true, servesDinner: true },
+  26: { types: ["french_restaurant", "fine_dining_restaurant", "restaurant"], servesWine: true, servesCocktails: true, servesDinner: true },
+  28: { servesBreakfast: true, servesBrunch: true, servesLunch: true, servesDinner: false },
   29: { servesDessert: true },
 };
 
@@ -440,6 +484,9 @@ const DEMO_EXTRA: Record<number, Partial<Place>> = {
     about: "Demo: rich tonkotsu ramen at a quick counter",
     badges: [{ source: "demo", label: { zh: "示例榜单 · 必吃拉面", en: "Demo list · must-try ramen" }, year: 2026 }],
   },
+  14: { about: "Demo: an upscale seafood room with a private dining room" },
+  26: { about: "Demo: an intimate French bistro with a long wine list" },
+  28: { about: "Demo: a casual spot for eggs benedict and pancakes" },
   8: {
     about: "Demo: pho and banh mi, open late",
     // Where Google's AI summary would be; made up like everything here, and labelled so.

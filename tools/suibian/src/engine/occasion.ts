@@ -1,7 +1,12 @@
-// What the meal is for (a date, colleagues, a birthday, just me…), asked when a table starts. It
-// moves places up or down a little, from what Google says about them (good for groups, for kids,
-// serves wine, open late…), their kind of food and price. It never takes a place off the list.
-import type { CuisineId, Place, Text } from "./types";
+// What the meal is for (a business dinner, a date, the kids, just me…), asked when a table starts,
+// and which meal it is. Steve, 2026-11-11: a business dinner put a bagel shop first. So each occasion
+// weighs everything we know about a place: what kind of place Google says it is (a café, a fine-dining
+// room, a pub), its price, whether it takes bookings, drinks, groups, kids, how late it's open, the
+// words of Google's descriptions ("upscale", "unfussy", "romantic"), and the lists it's on. A place
+// that plainly isn't for the occasion (a bagel shop for a business dinner, a bar for the kids, a
+// place that doesn't do dinner at dinner time) goes after the ones that are, with a line on its card
+// saying why. Nothing is taken off the list. The searches use the same idea (search.ts).
+import type { CuisineId, Place, PlaceKind, Text } from "./types";
 
 export type OccasionId = "casual" | "friends" | "date" | "colleagues" | "family" | "birthday" | "business" | "solo" | "latenight";
 
@@ -21,84 +26,223 @@ export const OCCASION_IDS = Object.keys(OCCASIONS) as OccasionId[];
 
 export const isOccasion = (x: unknown): x is OccasionId => typeof x === "string" && Object.prototype.hasOwnProperty.call(OCCASIONS, x);
 
+/** Breakfast, lunch, dinner or late, from the time of day in Vancouver (afternoon: none of them). */
+export type Meal = "breakfast" | "lunch" | "afternoon" | "dinner" | "late";
+
+export function mealOf(at: number): Meal {
+  const m = minutesOfDay(at);
+  if (m >= 5 * 60 && m < 10 * 60 + 30) return "breakfast";
+  if (m >= 10 * 60 + 30 && m < 15 * 60) return "lunch";
+  if (m >= 15 * 60 && m < 16 * 60 + 30) return "afternoon";
+  if (m >= 16 * 60 + 30 && m < 22 * 60) return "dinner";
+  return "late";
+}
+
+/** What speaks for a place on this occasion, for its card (at most three). */
+export type FitWhy = "upscale" | "romantic" | "private" | "reservable" | "drinks" | "groups" | "kids" | "kidsMenu" | "late" | "cheap";
+
+/**
+ * Why a place plainly isn't for it: the kind of place it is; the meal (it doesn't do dinner, or it
+ * mostly does breakfast and coffee); or, late at night, that it closes soon after.
+ */
+export type Off = { k: "kind"; kind: PlaceKind } | { k: "meal"; meal: "dinner" | "lunch"; kind?: PlaceKind } | { k: "early" };
+
+export interface Fit {
+  /** Added to the place's score (a Google star is about 0.67). */
+  points: number;
+  /** It suits the occasion: its card says so, with `why`. */
+  suits: boolean;
+  why: FitWhy[];
+  /** It plainly doesn't: after the ones that do, with a line on its card. */
+  off?: Off;
+}
+
+/** At or above this many points (and not off), a card says the place suits the occasion. */
+export const SUITS_FROM = 0.3;
+
+/** Points off for a place that plainly isn't for the occasion, or the meal. */
+export const OFF_POINTS = 1.5;
+
 /** Kinds of food that suit each occasion (a little extra; nothing is left out). */
-const SUITS: Partial<Record<OccasionId, CuisineId[]>> = {
-  friends: ["hotpot", "kbbq", "izakaya", "chinese_bbq", "korean", "steak", "mexican"],
-  date: ["italian", "french", "japanese", "izakaya", "mediterranean", "steak", "seafood"],
-  family: ["cantonese", "chinese", "shanghai", "hotpot", "italian", "western"],
-  birthday: ["hotpot", "kbbq", "steak", "seafood", "italian", "cantonese", "izakaya"],
-  business: ["cantonese", "japanese", "steak", "seafood", "french", "italian"],
-  solo: ["ramen", "noodles", "northern", "vietnamese", "japanese", "hk_cafe", "taiwanese", "cafe"],
+const CUISINES_FOR: Partial<Record<OccasionId, CuisineId[]>> = {
+  business: ["cantonese", "seafood", "steak", "french", "japanese", "italian", "shanghai", "chinese", "mediterranean"],
+  date: ["italian", "french", "japanese", "izakaya", "mediterranean", "steak", "seafood", "middle_eastern"],
+  birthday: ["hotpot", "kbbq", "steak", "seafood", "cantonese", "izakaya", "italian", "korean", "chinese_bbq"],
+  family: ["cantonese", "chinese", "shanghai", "taiwanese", "italian", "western", "japanese", "korean", "vietnamese", "noodles"],
+  friends: ["hotpot", "kbbq", "izakaya", "chinese_bbq", "korean", "mexican", "steak", "sichuan"],
+  colleagues: ["hotpot", "kbbq", "chinese", "cantonese", "izakaya", "korean", "chinese_bbq", "sichuan"],
+  solo: ["ramen", "noodles", "northern", "vietnamese", "japanese", "hk_cafe", "taiwanese", "sea", "cafe"],
   latenight: ["chinese_bbq", "hk_cafe", "hotpot", "korean", "kbbq", "ramen", "noodles", "vietnamese", "izakaya"],
 };
 
-/** Mostly eaten in a group: a little lower for one person. */
-const GROUP_FOOD: CuisineId[] = ["hotpot", "kbbq"];
+/** Mostly eaten in a group: lower for one person, a little less formal for business. */
+const GROUP_FOOD: CuisineId[] = ["hotpot", "kbbq", "chinese_bbq"];
 
-/** At or above this many points, a card says the place suits the occasion. */
-export const SUITS_FROM = 0.2;
+/** Words in Google's descriptions of a place (its editorial and AI summaries), English and Chinese. */
+const WORDS = {
+  upscale: /\b(upscale|elegant|refined|fine[- ]dining|sophisticated|luxur\w*|chic|stylish|tasting menus?|omakase|white[- ]tablecloth|high[- ]end|polished|swanky|posh|plush|dressy|swank)\b|高档|精致|奢华|高级/i,
+  casual: /\b(casual|no[- ]frills|unfussy|down[- ]to[- ]earth|counter[- ]serve|counter[- ]service|quick|fast[- ]food|grab[- ]and[- ]go|food court|hole[- ]in[- ]the[- ]wall|cafeteria|kiosk|stall|walk[- ]up|simple|basic|no[- ]nonsense|bare[- ]bones)\b|快餐|小吃|档口|简餐/i,
+  romantic: /\b(romantic|intimate|candle\w*|date[- ]night|moody|dim(ly)?[- ]lit|cozy|cosy|views?|waterfront|sunset)\b|浪漫|约会/i,
+  private: /\b(private (dining )?rooms?|banquets?|banquet halls?|event space)\b|包间|包厢|宴会/i,
+  family: /\b(famil(y|ies)|kids?|children|child[- ]friendly|kid[- ]friendly)\b|亲子|小孩|儿童/i,
+  groups: /\b(groups?|large parties|share plates|sharing plates|family[- ]style|lively|communal|parties|round tables?)\b|聚会|聚餐/i,
+  late: /\b(late[- ]night|open late|24[- /]?7|24 hours|after[- ]hours|night owls?)\b|宵夜|通宵/i,
+};
+
+const says = (p: Place, re: RegExp) => re.test(`${p.about ?? ""} ${p.summary?.text ?? ""}`);
+
+/** Price per person: under about $15 is low, $40 and up is high; undefined when unknown. */
+function priceClass(p: Place): "low" | "mid" | "high" | undefined {
+  const price = p.price;
+  if (price === undefined) return p.priceLabel ? (p.priceLabel.length >= 3 ? "high" : p.priceLabel.length === 1 ? "low" : "mid") : undefined;
+  return price <= 15 ? "low" : price >= 40 ? "high" : "mid";
+}
+
+/** What kind of place it is: Google's, or for a café or a brunch place, what we guessed it serves. */
+function kindOf(p: Place): PlaceKind | undefined {
+  const k = p.traits?.kind;
+  // A Hong Kong-style café (茶餐厅) is a restaurant, whatever Google calls it.
+  if (p.cuisine === "hk_cafe" && (k === "cafe" || k === "breakfast")) return undefined;
+  return k ?? (p.cuisine === "cafe" ? "cafe" : p.cuisine === "brunch" ? "breakfast" : undefined);
+}
 
 /**
- * Points for a place on this occasion (a Google star is about 0.67). `close`: when it closes after
- * the meal's time, if we know; `at`: the meal's time.
+ * How well a place suits the occasion and the meal at `at`, and why. `close`: when it closes after
+ * the meal's time, if we know.
  */
-export function occasionPoints(p: Place, o: OccasionId | undefined, when: { at: number; close?: number }): number {
-  if (!o || o === "casual") return 0;
+export function occasionFit(p: Place, o: OccasionId | undefined, when: { at: number; close?: number }): Fit {
   const t = p.traits ?? {};
-  const price = p.price ?? 0;
-  let s = SUITS[o]?.includes(p.cuisine) ? 0.15 : 0;
+  const kind = kindOf(p);
+  const price = priceClass(p);
+  let points = 0;
+  const why: FitWhy[] = [];
+  let off: Off | undefined;
+  const add = (yes: unknown, pts: number, w?: FitWhy) => {
+    if (!yes) return;
+    points += pts;
+    if (w && pts > 0 && !why.includes(w)) why.push(w);
+  };
+  /** Kinds of place that plainly aren't for this occasion. */
+  const notFor = (kinds: PlaceKind[]) => {
+    if (kind && kinds.includes(kind)) off ??= { k: "kind", kind };
+  };
+
+  const cuisine = CUISINES_FOR[o ?? "casual"]?.includes(p.cuisine);
+  const upscale = t.fineDining || says(p, WORDS.upscale);
+  const casualWords = says(p, WORDS.casual);
   switch (o) {
-    case "friends":
-      if (t.groups) s += 0.2;
-      if (t.beer || t.cocktails) s += 0.1;
-      if (t.fineDining) s -= 0.1;
+    case "business":
+      notFor(["cafe", "sweets", "breakfast", "counter", "fastFood"]);
+      add(kind === "bar", -0.4);
+      add(upscale, 0.5, "upscale");
+      add(casualWords && !upscale, -0.4);
+      add(says(p, WORDS.private), 0.3, "private");
+      add(p.reservable === true, 0.35, "reservable");
+      add(p.reservable === false, -0.3);
+      add(t.wine || t.cocktails, 0.2, "drinks");
+      add(price === "high", 0.45, "upscale");
+      add(price === "mid", 0.1);
+      add(price === "low", -0.5);
+      add(cuisine, 0.2);
+      add(GROUP_FOOD.includes(p.cuisine), -0.15);
+      add(p.badges?.length, 0.35);
+      add(t.groups, 0.1);
       break;
     case "date":
-      if (p.reservable) s += 0.15;
-      if (t.wine || t.cocktails) s += 0.15;
-      if (price >= 25) s += 0.1;
-      if (t.fastFood) s -= 0.4;
-      break;
-    case "colleagues":
-      if (t.groups) s += 0.25;
-      if (p.reservable) s += 0.15;
-      if (t.fastFood) s -= 0.2;
-      if (price >= 60) s -= 0.1;
-      break;
-    case "family":
-      if (t.kids) s += 0.2;
-      if (t.kidsMenu) s += 0.1;
-      if (t.groups) s += 0.15;
-      if (p.reservable) s += 0.1;
-      if (t.bar) s -= 0.2;
+      notFor(["sweets", "counter", "fastFood"]);
+      add(kind === "cafe", -0.5);
+      add(upscale, 0.35, "upscale");
+      add(says(p, WORDS.romantic), 0.4, "romantic");
+      add(casualWords && !upscale, -0.3);
+      add(p.reservable === true, 0.25, "reservable");
+      add(t.wine || t.cocktails, 0.3, "drinks");
+      add(price === "high", 0.2);
+      add(price === "mid", 0.1);
+      add(price === "low", -0.3);
+      add(cuisine, 0.2);
+      add(t.music, 0.1);
+      add(p.badges?.length, 0.3);
+      add(t.buffet, -0.3);
       break;
     case "birthday":
-      if (t.groups) s += 0.2;
-      if (p.reservable) s += 0.2;
-      if (t.dessert) s += 0.1;
-      if (t.wine || t.cocktails) s += 0.05;
+      notFor(["cafe", "sweets", "breakfast", "counter", "fastFood"]);
+      add(t.groups, 0.35, "groups");
+      add(says(p, WORDS.groups), 0.2, "groups");
+      add(says(p, WORDS.private), 0.2, "private");
+      add(p.reservable === true, 0.35, "reservable");
+      add(t.dessert, 0.1);
+      add(t.wine || t.cocktails, 0.1, "drinks");
+      add(cuisine, 0.2);
+      add(upscale, 0.15, "upscale");
+      add(p.badges?.length, 0.2);
+      add(price === "low", -0.2);
       break;
-    case "business":
-      if (p.reservable) s += 0.25;
-      if (price >= 45) s += 0.15;
-      if (t.wine) s += 0.1;
-      if (t.fastFood) s -= 0.4;
-      if (t.bar) s -= 0.2;
+    case "family":
+      notFor(["bar"]);
+      add(kind === "sweets" || kind === "cafe", -0.4);
+      add(kind === "counter", -0.3);
+      add(t.kids === true, 0.4, "kids");
+      add(t.kids === false, -0.4);
+      add(t.kidsMenu, 0.3, "kidsMenu");
+      add(t.family, 0.3, "kids");
+      add(says(p, WORDS.family), 0.25, "kids");
+      add(t.groups, 0.25, "groups");
+      add(p.reservable === true, 0.15, "reservable");
+      add(t.buffet, 0.15);
+      add(cuisine, 0.15);
+      add(t.fineDining, -0.3);
+      break;
+    case "friends":
+      add(kind === "cafe" || kind === "sweets", -0.4);
+      add(kind === "counter", -0.3);
+      add(t.groups, 0.4, "groups");
+      add(says(p, WORDS.groups), 0.2, "groups");
+      add(t.beer || t.cocktails || t.wine, 0.2, "drinks");
+      add(cuisine, 0.25);
+      add(kind === "bar", 0.1);
+      add(t.music, 0.1);
+      add(t.fineDining, -0.25);
+      break;
+    case "colleagues":
+      notFor(["sweets", "counter", "fastFood"]);
+      add(kind === "cafe", -0.5);
+      add(t.groups, 0.45, "groups");
+      add(says(p, WORDS.groups), 0.2, "groups");
+      add(says(p, WORDS.private), 0.15, "private");
+      add(p.reservable === true, 0.3, "reservable");
+      add(price === "mid", 0.15);
+      add((p.price ?? 0) >= 80, -0.25);
+      add(cuisine, 0.2);
+      add(t.fineDining, -0.2);
+      add(kind === "bar", -0.2);
       break;
     case "solo":
-      if (price > 0 && price <= 20) s += 0.1;
-      if (GROUP_FOOD.includes(p.cuisine)) s -= 0.15;
-      if (t.fineDining) s -= 0.1;
+      add(price === "low" || (p.price !== undefined && p.price <= 25), 0.3, "cheap");
+      add(cuisine, 0.25);
+      add(GROUP_FOOD.includes(p.cuisine), -0.35);
+      add(t.fineDining, -0.3);
+      add(t.buffet, -0.3);
       break;
     case "latenight": {
-      // Open till 11 pm or later that night, or around the clock.
+      // Open till 11 pm or later that night, three hours or more past the meal, or around the clock.
       const late = when.close === undefined ? undefined : when.close - when.at >= 3 * 3600_000 || minutesOfDay(when.close) >= 23 * 60 || minutesOfDay(when.close) < 5 * 60;
-      if (late === true) s += 0.3;
-      if (late === false) s -= 0.2;
+      if (late === true) add(true, 0.8, "late");
+      if (late === false) off ??= { k: "early" };
+      add(says(p, WORDS.late), 0.2, "late");
+      add(cuisine, 0.2);
+      add(t.fineDining, -0.4);
       break;
     }
   }
-  return s;
+  // The meal, whatever the occasion: at dinner, a place that doesn't do dinner, or mostly does
+  // breakfast and coffee; at lunch, one that doesn't do lunch.
+  const meal = mealOf(when.at);
+  if (!off && meal === "dinner") {
+    if (t.dinner === false) off = { k: "meal", meal: "dinner" };
+    else if ((kind === "breakfast" || kind === "cafe" || kind === "sweets") && t.dinner !== true) off = { k: "meal", meal: "dinner", kind };
+  } else if (!off && meal === "lunch" && t.lunch === false) off = { k: "meal", meal: "lunch" };
+  if (off) points -= OFF_POINTS;
+  return { points, suits: !!o && o !== "casual" && !off && points >= SUITS_FROM, why: why.slice(0, 3), off };
 }
 
 /** Minutes after midnight in Vancouver. */

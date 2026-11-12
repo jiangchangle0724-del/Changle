@@ -136,11 +136,30 @@ export interface Traits {
   dessert?: boolean;
   music?: boolean;
   outdoor?: boolean;
-  /** Google calls it fast food, a bar or pub, or fine dining. */
+  /** Google calls it fast food, a bar or pub, or fine dining (any of its types). */
   fastFood?: boolean;
   bar?: boolean;
   fineDining?: boolean;
+  /** Google calls it a family restaurant, or a buffet. */
+  family?: boolean;
+  buffet?: boolean;
+  /** Which meals Google says it serves. */
+  breakfast?: boolean;
+  brunch?: boolean;
+  lunch?: boolean;
+  dinner?: boolean;
+  /** You can eat there (false: takeout only). */
+  dineIn?: boolean;
+  /** The kind of place, from Google's main type, when it isn't a plain restaurant. */
+  kind?: PlaceKind;
 }
+
+/**
+ * A place that isn't a sit-down restaurant, from Google's main type: a café or tea house, a bakery or
+ * dessert shop, a breakfast or bagel place, a counter (sandwiches, food court, takeout only), fast
+ * food, or a bar.
+ */
+export type PlaceKind = "cafe" | "sweets" | "breakfast" | "counter" | "fastFood" | "bar";
 
 export interface PlaceStats {
   up: number;
