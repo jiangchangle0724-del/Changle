@@ -3,14 +3,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
-import { holdBackground, startGroove, type GrooveHandle } from "../../lib/music";
+import { holdBackground } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { BLIND_TARGETS, barFor, barWindowMs, blindError, classicBar, kindFor, limboAngle } from "../../shared/engine/games/limbo";
 import type { LimboBar, LimboKind } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace } from "../common";
 import { enableSensors, sensorStatus, useSensorStatus, useWakeLock } from "../sensors";
-import { QUIET, coaching, useCoach, type Grid } from "./coach";
+import { QUIET, coaching, useCoach } from "./coach";
+import { barDrops, crowdFor, riser, useLimboMusic } from "./music";
 import {
   BlindMeter,
   FollowMeter,
@@ -84,7 +85,6 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const custom = usePenaltyText().isCustom;
   // No sensor reading or countdown survives: the same person gets ready for the same bar.
   useKeepProgress<Kept>({ mode, level, bar, alive, passed, failed, best, phase: phase.k === "count" || phase.k === "try" ? { k: "ready", i: phase.i } : phase, target, locks, pending }, phase.k !== "setup" && phase.k !== "end");
-  const music = useRef<GrooveHandle | null>(null);
   const angle = blind ? target : limboAngle(level);
   const newTarget = () => {
     const choices = BLIND_TARGETS.filter((a) => a !== target);
@@ -95,17 +95,18 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const makeBar = (lvl: number, last: LimboKind | null) => (mode === "bar" || mode === "blind" ? classicBar() : barFor(kindFor(mode, last, pick), lvl, pick));
   useWakeLock(phase.k === "try" || phase.k === "count" || phase.k === "bar");
 
-  useEffect(() => () => music.current?.stop(0.2), []);
-  /** the music's grid, so the coach's cues land on it */
-  const grid = useRef<Grid | null>(null);
+  // the band plays from "放音乐，开始" to the end, a gear up every bar; `grid` is its beat, for the coach
+  const [musicOn, setMusicOn] = useState(false);
+  const anchor = useRef(0);
   const playMusic = () => {
-    if (!music.current) music.current = startGroove("calypso");
-    grid.current = music.current ? { originPerf: music.current.startedPerf, beatMs: music.current.beatMs } : null;
+    if (!anchor.current) anchor.current = performance.now() + 80;
+    setMusicOn(true);
   };
   const stopMusic = () => {
-    music.current?.stop(0.6);
-    music.current = null;
+    setMusicOn(false);
+    anchor.current = 0;
   };
+  const grid = useLimboMusic(musicOn, level, () => anchor.current);
 
   // phone mode: whose turn is it at this bar
   const cur = phase.k === "ready" || phase.k === "count" || phase.k === "try" || phase.k === "verdict" ? people.find((p) => p.id === alive[phase.i]) ?? null : null;
@@ -114,6 +115,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   useEffect(() => {
     if (phase.k !== "count") return;
     sfx.countdown(phase.n);
+    if (phase.n === 3) riser(2.4, level);
     const id = window.setTimeout(() => {
       if (phase.n > 1) setPhase({ k: "count", i: phase.i, n: phase.n - 1 });
       else {
@@ -201,6 +203,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       setPassed((p) => [...p, id]);
       setBest((b) => ({ ...b, [id]: deg || angle }));
       sfx.correct();
+      crowdFor(level);
       haptic([12, 30, 12]);
     } else {
       setFailed((f) => [...f, id]);
@@ -298,7 +301,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setBest({});
     setLevel(level + 1);
     setBar(makeBar(level + 1, bar.kind));
-    sfx.drum(0.8);
+    barDrops();
     setPhase(realBar ? { k: "bar" } : { k: "ready", i: 0 });
   };
 
@@ -543,15 +546,6 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           </div>
         )}
 
-        {!realBar && (phase.k === "ready" || phase.k === "count" || phase.k === "try" || phase.k === "verdict") && (
-          <div className="fz-alive">
-            {alive.map((id) => (
-              <span key={id} className={failed.includes(id) ? "fz-out" : ""} style={{ display: "inline-grid" }}>
-                <NameFace name={name[id]} size={28} />
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </GameShell>
   );

@@ -201,27 +201,36 @@
 .award-title .both-other {
   font-size: 15px;
 }
+/* the clock, "3/8 voted" and the faces of those who have: one line, and at a long table the faces
+   drop to a line of their own under the count (the count never breaks mid-word) */
 .sup-status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-2) var(--space-3);
   color: var(--haze);
   font-size: 14px;
+}
+.sup-status > span:not(.sup-voted) {
+  white-space: nowrap;
 }
 .sup-status strong {
   color: var(--moon);
   font-family: var(--font-display);
   font-size: 18px;
 }
+/* a row of faces, each tucked a little under the one before, so fifteen still fit on a phone */
 .sup-voted {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
   margin-left: auto;
+  padding-left: var(--space-2);
   justify-content: flex-end;
 }
 .sup-voted > span {
   display: inline-grid;
+  margin-left: calc(-1 * var(--space-2));
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 0 2px var(--night);
   opacity: 0.25;
   filter: grayscale(1);
   transition:
@@ -1494,6 +1503,24 @@ button.pl-answer:disabled {
 .limbo-scene {
   width: 100%;
   max-height: 210px;
+}
+/* a short screen (an iPhone SE, a phone with a browser bar): the poles and the gauge give up some
+   height, so the whole gauge, and a tilt's level under it, fit without scrolling while the table
+   watches someone lean */
+@media (max-height: 740px) {
+  .lb .limbo-scene {
+    max-height: 150px;
+  }
+  .lb .limbo-stage {
+    width: min(100%, 210px);
+  }
+  .lb .gauge svg {
+    width: min(100%, 240px);
+  }
+  .lb .gauge-read {
+    margin-top: -28px;
+    font-size: 30px;
+  }
 }
 .limbo-ground {
   stroke: var(--line);
