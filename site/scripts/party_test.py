@@ -11,7 +11,7 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "limbo-coach", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "limbo-coach", "limbo-band", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 
@@ -861,6 +861,34 @@ def t_limbo_coach_holds(browser):
     c = listen(pg, 900)
     ok(c["tick"] >= 1 and c["hum"] == 1 and c["click"] == 0, f"tilted too: ticks and the hum {c}")
     ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 3000), "and through")
+    errors([pg])
+    pg.context.close()
+
+
+def t_limbo_band(browser):
+    """The band changes gear bar by bar: one player clears bar after bar; under each count-in the kick's shortest gap (two sixteenths) gives the tempo, and the riser's sawtooth sounds."""
+    pg = phone(browser, "band", players=PLAYERS[:1], sound=True)
+    pg.add_init_script(f"({EAR})()")
+    pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
+    pg.wait_for_selector(".limbo-scene")
+    fake_sensor(pg)
+    pg.get_by_role("button", name="放音乐，开始").click()
+    pg.wait_for_selector(".pass-curtain", timeout=6000)
+    auto(pg)
+    tempos = []
+    for bar in range(4):
+        heard(pg)
+        pg.get_by_role("button", name="准备好了").click()
+        pg.wait_for_timeout(2300)
+        oscs = pg.evaluate("() => { const o = window.__osc || []; window.__osc = []; return o.sort((a, b) => a.at - b.at); }")
+        kicks = sorted({round(o["at"], 3) for o in oscs if o["f"] == 165 and o["type"] == "sine"})
+        gaps = [b - a for a, b in zip(kicks, kicks[1:]) if b - a > 0.05]
+        tempos.append(round(60 / (2 * min(gaps))) if gaps else 0)
+        ok(any(o["type"] == "sawtooth" and o["f"] == 110 for o in oscs), f"bar {bar + 1}: a riser under the count-in")
+        ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 8000), f"bar {bar + 1}: cleared")
+        pg.get_by_role("button", name="这一杆结束").click()
+        pg.wait_for_timeout(1000)
+    ok(abs(tempos[0] - 112) <= 2 and all(b - a >= 5 for a, b in zip(tempos, tempos[1:])), f"a gear up every bar ({tempos} bpm)")
     errors([pg])
     pg.context.close()
 
@@ -1931,6 +1959,7 @@ TESTS = {
     "limbo": [t_limbo_single, t_limbo_online, t_limbo_blind_single, t_limbo_blind_online],
     "limbo-variants": [t_limbo_steady_single, t_limbo_moving_single, t_limbo_moving_nosensor_single, t_limbo_tilt_single, t_limbo_party_single, t_limbo_steady_online, t_limbo_moving_online, t_limbo_tilt_online, t_limbo_party_online],
     "limbo-coach": [t_limbo_coach_moving, t_limbo_coach_holds],
+    "limbo-band": [t_limbo_band],
     "tune": [t_tune_single, t_tune_songs_online, t_tune_online],
     "euchre": [t_euchre_single, t_euchre_online],
 }
