@@ -1,26 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { capDigits, cleanAmount, convert, CURRENCIES, sizeClass, type Code, type FxState } from "./fx";
+import { PackCompare } from "./PackCompare";
 import { RateStatus } from "./RateStatus";
-
-type Unit = { id: string; zh: string; en: string; size: number };
-
-/** sizes in kilograms */
-const MASS: Unit[] = [
-  { id: "kg", zh: "公斤", en: "kg", size: 1 },
-  { id: "lb", zh: "磅", en: "lb", size: 0.45359237 },
-  { id: "jin", zh: "斤", en: "jīn 斤", size: 0.5 },
-  { id: "oz", zh: "盎司", en: "oz", size: 0.028349523125 },
-  { id: "100g", zh: "100 克", en: "100 g", size: 0.1 },
-];
-/** sizes in litres */
-const VOLUME: Unit[] = [
-  { id: "l", zh: "升", en: "L", size: 1 },
-  { id: "gal", zh: "美制加仑", en: "US gal", size: 3.785411784 },
-  { id: "impgal", zh: "英制加仑", en: "UK gal", size: 4.54609 },
-  { id: "floz", zh: "液量盎司", en: "fl oz", size: 0.0295735295625 },
-  { id: "100ml", zh: "100 毫升", en: "100 mL", size: 0.1 },
-];
+import { MASS, VOLUME } from "./units";
 
 const SYMBOL: Record<Code, string> = { CAD: "$", CNY: "¥", USD: "US$", HKD: "HK$" };
 
@@ -129,6 +112,7 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
           ))}
         </select>
       </label>
+      <PackCompare kind={state.kind} symbol={SYMBOL[state.cur]} lang={lang} />
     </section>
   );
 }
