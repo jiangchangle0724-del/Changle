@@ -1,10 +1,8 @@
 import { useEffect, useRef } from "react";
 import { moveAt, type DanceMove } from "../../shared/dj/dance";
+import { anyGl, glOf, loadRobot, ratioFor, SLOW_MS, WATCH_FRAMES, WATCH_MS, watchFrames } from "./robot3d";
 
 type Clock = { beat: () => number; energy: () => number; bpm: () => number };
-
-/** The robot (CC0, LICENSES.md), in the site's own files. */
-const MODEL = "/models/robot.glb";
 
 /**
  * Which of the robot's own animations each of the routine's moves is danced with, and how many
@@ -23,52 +21,19 @@ const CLIPS: Record<DanceMove["id"], { clip: string; beats: number }> = {
   shimmy: { clip: "Yes", beats: 2 },
 };
 
-/** In its first seconds, the robot's frames mostly slower than this (under 20 a second): a chip too
- * weak for it next to everything else the TV does, and the drawn coach instead. */
-const SLOW_MS = 50;
-/** A screen narrower than this (a phone, even on its side) keeps the drawn coach. */
-const SMALL_PX = 1000;
-/** How long its frames are watched, and at least how many (a hidden tab's pause left out). */
-const WATCH_MS = 2500;
-const WATCH_FRAMES = 10;
-
 /** How the coach turned out (`watching`: the robot's first seconds), for the checks. */
-type Is = "trying" | "watching" | "on" | "software" | "none" | "slow" | "small" | "failed";
+type Is = "trying" | "watching" | "on" | "software" | "none" | "slow" | "failed";
 const tell = (is: Is) => {
   if (import.meta.env.DEV) (window as unknown as { __coach3dIs?: Is }).__coach3dIs = is;
 };
-/** The checks' browsers draw WebGL in software only: they take the robot anyway (dj_dance_check.py). */
-const anyGl = () => import.meta.env.DEV && (window as unknown as { __djAnyGl?: boolean }).__djAnyGl === true;
-
-/**
- * The WebGL 2 three.js needs, and whether a graphics chip draws it. Drawn in software (no chip, or
- * one the browser won't use), the robot would take the TV's processor from the music and the page:
- * the drawn coach stays, and three.js isn't even downloaded.
- */
-function glOf(): "chip" | "software" | "none" {
-  try {
-    const gl = document.createElement("canvas").getContext("webgl2");
-    if (!gl) return "none";
-    let name = String(gl.getParameter(gl.RENDERER) ?? "");
-    if (/^webkit webgl$/i.test(name)) {
-      const info = gl.getExtension("WEBGL_debug_renderer_info");
-      if (info) name = String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? name);
-    }
-    gl.getExtension("WEBGL_lose_context")?.loseContext();
-    const strict = document.createElement("canvas").getContext("webgl2", { failIfMajorPerformanceCaveat: true });
-    strict?.getExtension("WEBGL_lose_context")?.loseContext();
-    return !strict || /swiftshader|llvmpipe|softpipe|lavapipe|software|basic render/i.test(name) ? "software" : "chip";
-  } catch {
-    return "none";
-  }
-}
 
 /**
  * 跟着跳's coach in 3D (Steve on Nov 2: "3D 舞者", the plan's dancers): a robot dancing the routine's
  * move, each animation stretched to whole beats and set to where the speaker's beat is every frame,
- * so it lands on the beat however the frames fall. Three.js loads only here, after the page. A
- * phone, no graphics chip for it, its frames too slow, or the model can't load: `onFail`, the
- * drawn coach.
+ * so it lands on the beat however the frames fall. Three.js loads only here, after the page. No
+ * graphics chip for it, its frames too slow, or the model can't load: `onFail`, the drawn coach.
+ * A phone playing the speaker gets it too when its chip keeps up (Steve on Nov 5: his TV is an
+ * iPhone shown on a computer over AirPlay, and the robot should dance there).
  */
 export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -80,13 +45,6 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
     const el = box.current;
     if (!el) return;
     const any = anyGl();
-    // a phone playing the speaker (Steve's iPhone, Nov 2): the robot would be small there, and a
-    // phone's page has the least memory to spare; the drawn coach
-    if (!any && window.innerWidth < SMALL_PX) {
-      tell("small");
-      fail.current();
-      return;
-    }
     const gl = glOf();
     if (gl === "none" || (gl === "software" && !any)) {
       tell(gl);
@@ -99,13 +57,12 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
     let stop = () => {};
     void (async () => {
       try {
-        const THREE = await import("three");
-        const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+        const { THREE, gltf, clone } = await loadRobot();
         if (gone) return;
         const w = el.clientWidth || 300;
         const h = el.clientHeight || 330;
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+        renderer.setPixelRatio(ratioFor(el));
         renderer.setSize(w, h);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         el.appendChild(renderer.domElement);
@@ -120,19 +77,16 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
         const rim = new THREE.DirectionalLight(0xb072ff, 2.0);
         rim.position.set(-5, 4, -4);
         scene.add(rim);
-        const gltf = await new GLTFLoader().loadAsync(MODEL);
-        if (gone) {
-          renderer.dispose();
-          return;
-        }
-        scene.add(gltf.scene);
-        const mixer = new THREE.AnimationMixer(gltf.scene);
+        // its own copy: the floor's robots are copied from the same model
+        const robot = clone(gltf.scene);
+        scene.add(robot);
+        const mixer = new THREE.AnimationMixer(robot);
         const actions = new Map(gltf.animations.map((a) => [a.name, mixer.clipAction(a)]));
         let on: string | null = null;
         const idle = actions.get("Idle");
         idle?.play();
         let last = performance.now();
-        let watch = !any;
+        let watch = watchFrames();
         let watchFrom = 0;
         const gaps: number[] = [];
         const frame = () => {
@@ -191,6 +145,8 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
           cancelAnimationFrame(raf);
           mixer.stopAllAction();
           renderer.dispose();
+          // the graphics context back at once (a phone keeps few)
+          renderer.forceContextLoss();
           renderer.domElement.remove();
         };
         ready.current();

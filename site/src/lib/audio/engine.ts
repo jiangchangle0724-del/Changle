@@ -378,6 +378,9 @@ export function burst(b: Bus, o: NoiseOpt) {
     head = hp;
   }
   const amp = c.createGain();
+  // a new gain starts at 1: begin silent rather than count on the automation at t0 to land first
+  // (the 戏精 chat heard a click there, docs/briefs/drama.md; Chrome measured here showed none, 11-11)
+  amp.gain.value = 0;
   const attack = o.attack ?? 0.002;
   if (o.decay !== undefined) perc(amp.gain, t0, o.peak ?? 0.2, attack, o.decay);
   else {

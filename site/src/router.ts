@@ -2,7 +2,8 @@
  * The site's addresses: one page, one address.
  *
  *   /                 home (party)          /g/<slug>          a game's card, over home
- *   /tools, /wish     the other home tabs   /g/<slug>/play     the game, on one phone
+ *   /tools, /wish     the other home tabs   /g/<slug>/play     the game, on one phone (?c=: a link
+ *                                                               of the game's own, 猜歌名's challenges)
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
  *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
@@ -12,7 +13,8 @@
  * every link ever shared, and 到此一游's own links, still land in the right place.
  *
  * No router library: the History API, plus one click handler so an ordinary <a href="/me"> stays
- * inside the page. /eat, /go, /trip and /hide are other Workers: links there load a real page.
+ * inside the page. /eat, /go, /trip, /hide, /party and /hang-on are other Workers: links there load
+ * a real page.
  */
 import { useEffect, useRef, useState } from "react";
 import { GAMES, GAME_BY_ID, isGameId, type GameId } from "./games/registry";
@@ -21,7 +23,7 @@ import type { Lang } from "./i18n";
 
 export type Route =
   | { kind: "home"; tab: HomeTab; game?: GameId; open?: "settings" | "login" }
-  | { kind: "game"; id: GameId }
+  | { kind: "game"; id: GameId; c?: string }
   | { kind: "room"; code: string }
   | { kind: "me"; tab?: "friends" }
   | { kind: "admin" }
@@ -65,7 +67,12 @@ export function parse(pathname: string, search = ""): Route {
       const g = GAME_BY_ID[id];
       // a game that plays from a big screen (the DJ booth) is played at that screen's address
       if (m[2] && g.speaker) return { kind: "tv", game: id };
-      if (m[2] && g.ready) return { kind: "game", id };
+      // one on its own Worker (一起跳): the page opens on its card here, and current() leaves for its stage
+      if (m[2] && g.stage) return { kind: "home", tab: "party", game: id };
+      if (m[2] && g.ready) {
+        const c = new URLSearchParams(search).get("c");
+        return c && /^[A-Za-z0-9_-]{1,1600}$/.test(c) ? { kind: "game", id, c } : { kind: "game", id };
+      }
       // (a hidden game has no card: only its own /play address opens it, nothing else is a page)
       if (!g.hidden) return { kind: "home", tab: "party", game: id };
     }
@@ -93,7 +100,7 @@ export function pathOf(r: Route): string {
     case "home":
       return r.game ? `/g/${GAME_BY_ID[r.game].slug}` : r.tab === "party" ? "/" : `/${r.tab}`;
     case "game":
-      return `/g/${GAME_BY_ID[r.id].slug}/play`;
+      return `/g/${GAME_BY_ID[r.id].slug}/play${r.c ? `?c=${r.c}` : ""}`;
     case "room":
       return `/t/${r.code}`;
     case "me":
@@ -323,13 +330,23 @@ export function back() {
 }
 
 /** The other Workers on changle.ca: a link there is a real page load. */
-const elsewhere = (path: string) => /^\/(eat|go|trip|hide)(\/|$)/.test(path);
+const elsewhere = (path: string) => /^\/(eat|go|trip|hide|party|hang-on)(\/|$)/.test(path);
+
+/** /g/<slug>/play of a game on its own Worker (一起跳): the address of its stage, or null. */
+export function stageOf(pathname: string): string | null {
+  const m = /^\/g\/([A-Za-z0-9-]+)\/play\/?$/.exec(pathname);
+  const id = m ? gameFrom(m[1]) : undefined;
+  return (id && GAME_BY_ID[id].stage?.screen) || null;
+}
 
 function current(first = false): Route {
   // a sheet's entry left over from before a reload: no sheet is open now
   if (first && mark()?.sheet) window.history.replaceState({ inSite: mark()?.inSite } satisfies HistoryMark, "");
   const legacy = fromLegacyHash(window.location.hash);
   if (legacy) window.history.replaceState(mark(), "", legacy);
+  // its stage is another Worker's page: a real page load, in place of this entry
+  const stage = first ? stageOf(window.location.pathname) : null;
+  if (stage) window.location.replace(stage);
   const r = parse(window.location.pathname, window.location.search);
   // the address as the site writes it: a game's old id, a trailing slash, a page that isn't one
   const canonical = pathOf(r);

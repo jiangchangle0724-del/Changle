@@ -5,6 +5,9 @@ import { cardTitle, money, spaceName, t } from "../i18n";
 import { send } from "../store";
 import { Btn, Countdown, SeatChip, seatName } from "./common";
 
+/** The most a trade may ask of a team whose money is hidden. */
+const HIDDEN_CAP = 99_990;
+
 const offerText = (o: Offer) => {
   const parts = [...(o.cash ? [money(o.cash)] : []), ...o.deeds.map(spaceName), ...o.cards.map(cardTitle)];
   return parts.length ? parts.join(" + ") : t("nothing");
@@ -78,7 +81,16 @@ function Composer({ v, seat }: { v: RoomView; seat: number }) {
     set({ ...o, cards: o.cards.includes(c) ? o.cards.filter((x) => x !== c) : [...o.cards, c] });
   const pd = s.pending;
   const inDebt = pd?.k === "debt" && (pd.who === seat || pd.who === to);
-  const ok = to !== null && !inDebt && canGive(s, seat, give) && canGive(s, to, get) && (give.cash || give.deeds.length || give.cards.length || get.cash || get.deeds.length || get.cards.length);
+  // With the money hidden (更多规则) the other team's cash isn't known here (-1): ask for any amount,
+  // and the server says whether they have it.
+  const cashOf = (p: number) => (s.ps[p].cash < 0 ? HIDDEN_CAP : s.ps[p].cash);
+  const known = (p: number) => (s.ps[p].cash < 0 ? { ...s, ps: s.ps.map((x, i) => (i === p ? { ...x, cash: HIDDEN_CAP } : x)) } : s);
+  const ok =
+    to !== null &&
+    !inDebt &&
+    canGive(s, seat, give) &&
+    canGive(known(to), to, get) &&
+    (give.cash || give.deeds.length || give.cards.length || get.cash || get.deeds.length || get.cards.length);
   const side = (p: number, o: Offer, set: (o: Offer) => void, title: string) => (
     <fieldset>
       <legend>{title}</legend>
@@ -88,10 +100,10 @@ function Composer({ v, seat }: { v: RoomView; seat: number }) {
           type="number"
           inputMode="numeric"
           min={0}
-          max={s.ps[p].cash}
+          max={cashOf(p)}
           step={10}
           value={o.cash}
-          onInput={(e) => set({ ...o, cash: Math.max(0, Math.min(s.ps[p].cash, Math.floor(Number((e.target as HTMLInputElement).value) || 0))) })}
+          onInput={(e) => set({ ...o, cash: Math.max(0, Math.min(cashOf(p), Math.floor(Number((e.target as HTMLInputElement).value) || 0))) })}
         />
       </label>
       {tradeable(p).map((at) => (

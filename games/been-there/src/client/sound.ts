@@ -46,11 +46,13 @@ export const audioNow = () => ctx?.currentTime ?? 0;
 export const audioCtx = (): AudioContext | null => (ctx && ctx.state !== "closed" ? ctx : null);
 
 /**
- * Where a local hit plays (music.ts): under the game's own sounds, which duck it while they play. Every
- * sound below calls `duck` with when it ends; nothing is done while no song is on.
+ * Where a local hit (music.ts) and the game's own music (bgm.ts) play: under the game's own sounds,
+ * which duck them while they play. Every sound below calls `duck` with when it ends; nothing is done
+ * while neither is on.
  */
 let bus: GainNode | null = null;
 let songOn = false;
+let themeOn = false;
 let duckEnd = 0;
 /** How far a song dips under a game sound, and how quickly it comes back. */
 const DUCK = 0.3;
@@ -68,11 +70,17 @@ export function musicBus(): GainNode | null {
 /** A song is on (or isn't): game sounds duck it from now on. */
 export function setSongOn(on: boolean) {
   songOn = on;
-  if (!on) duckEnd = 0;
+  if (!songOn && !themeOn) duckEnd = 0;
+}
+
+/** The game's music is on (or isn't): game sounds duck it too. */
+export function setThemeOn(on: boolean) {
+  themeOn = on;
+  if (!songOn && !themeOn) duckEnd = 0;
 }
 
 function duck(until: number) {
-  if (!songOn || !bus || !ctx) return;
+  if ((!songOn && !themeOn) || !bus || !ctx) return;
   const now = ctx.currentTime;
   duckEnd = Math.max(duckEnd, until);
   const g = bus.gain;
@@ -470,6 +478,25 @@ export const sfx = {
   },
   /** Travel news: a newsroom ticker. */
   news: () => [880, 1108.7, 1318.5, 1760].forEach((f, i) => tone(f, 0.11, { type: "square", vol: 0.035, at: i * 0.085 })),
+  /** 世界大动荡: a newsroom's breaking-news call, then the event's own sound. */
+  world: (id: string) => {
+    [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(f, 0.16, { type: "square", vol: 0.04, at: i * 0.11 }));
+    tone(1046.5, 0.5, { type: "triangle", vol: 0.05, at: 0.44 });
+    const at = 0.8;
+    if (id === "crash") tone(523.3, 1.3, { type: "sawtooth", vol: 0.035, at, slide: 98 });
+    else if (id === "meteor") {
+      swell(0.9, { type: "bandpass", freq: 2400, sweep: 500, q: 0.8, vol: 0.07, at });
+      burst(1.1, { type: "lowpass", freq: 130, q: 0.4, vol: 0.32, at: at + 0.85 });
+    } else if (id === "terror") chord([196, 233.1, 293.7], 1.8, { vol: 0.05, at, detune: 6 });
+    else if (id === "ai") [784, 988, 1174.7, 1568, 1318.5, 1975.5].forEach((f, i) => tone(f, 0.09, { type: "square", vol: 0.03, at: at + i * 0.07 }));
+    else if (id === "invention") {
+      swell(1.2, { type: "bandpass", freq: 400, sweep: 2600, q: 0.7, vol: 0.06, at });
+      chord([523.3, 659.3, 784], 1, { type: "triangle", vol: 0.05, at: at + 0.9 });
+    } else if (id === "boom") {
+      [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(f, 0.3, { type: "triangle", vol: 0.06, at: at + i * 0.09 }));
+      burst(0.4, { type: "highpass", freq: 5000, vol: 0.05, at: at + 0.4 });
+    }
+  },
   /** The weather we land in: rain on the window, a roll of thunder, wind with the snow or fog. */
   weather: (kind: string) => {
     if (kind === "rain" || kind === "storm" || kind === "drizzle") {

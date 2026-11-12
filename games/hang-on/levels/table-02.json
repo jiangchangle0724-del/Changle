@@ -1,0 +1,96 @@
+{
+  "id": "table-02",
+  "world": "table",
+  "name": {
+    "zh": "碗沿小缝",
+    "en": "Between the Bowls"
+  },
+  "teaches": "gap",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 2400,
+    "y": 300,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 536
+    },
+    {
+      "x": 1890,
+      "y": 476
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 420,
+      "h": 160,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 500,
+      "y": 560,
+      "w": 1000,
+      "h": 160,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1780,
+      "y": 500,
+      "w": 280,
+      "h": 220,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2150,
+      "y": 460,
+      "w": 370,
+      "h": 260,
+      "material": "ceramic"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 280,
+      "w": 40,
+      "h": 440,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-02.json",
+  "fading": [
+    {
+      "kind": "ground",
+      "x": 1570,
+      "y": 530,
+      "w": 140,
+      "h": 24,
+      "material": "wood",
+      "on": 4,
+      "off": 2,
+      "phase": 0.8
+    }
+  ],
+  "springs": []
+}

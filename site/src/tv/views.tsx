@@ -29,6 +29,7 @@ const VIEWS: { [K in GameId]?: ViewOf<K> } = {
   draw: lazy(() => import("../online/games/TvDraw")),
   limbo: lazy(() => import("../party/limbo/TvLimbo")),
   lastcard: lazy(() => import("../party/lastcard/TvLastCard")),
+  straightface: lazy(() => import("../party/straightface/TvStraightFace")),
 };
 
 export const hasTvView = (id: GameId | null | undefined): boolean => !!id && !!VIEWS[id];
@@ -92,6 +93,9 @@ export function publicView(v: GameView): GameView {
     case "lastcard":
       // nobody's hand, not even the card just drawn: only how many each holds and what's face up
       return { ...v, hand: [], legal: [], drawn: null };
+    case "straightface":
+      // nobody's part: not the judge's tag, not the honest one's meaning, not a bluffer's seeds
+      return { ...v, me: null };
     default:
       return v;
   }

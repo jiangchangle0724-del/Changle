@@ -40,7 +40,8 @@ export function connectWs(code: string, info: JoinInfo, h: Handlers): Conn {
     h.onStatus(tries ? "reconnecting" : "connecting");
     const url = new URL(`${BASE}/api/rooms/${code}/ws`, location.href);
     url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    url.search = new URLSearchParams({ cid: info.cid, key: info.key, name: info.name, lang: info.lang }).toString();
+    // v=2: this page keeps the list between views, so the server may leave it out when it hasn't changed.
+    url.search = new URLSearchParams({ cid: info.cid, key: info.key, name: info.name, lang: info.lang, v: "2" }).toString();
     const sock = new WebSocket(url.toString());
     ws = sock;
     sock.onopen = () => {

@@ -10,8 +10,13 @@ import { Deck } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
+import { useFreshTapGuard, useTopOfMoment } from "./moment";
 import { AwardCard, AwardReveal, Ceremony } from "./parts";
 import "../../styles/party.css";
+
+/** the drum roll plays out, then the winner's stamp; the trophies come out, then the table's toast */
+const STAMP_MS = 2900;
+const TOAST_MS = 3200;
 
 type Mode = "secret" | "point";
 type Phase = { k: "setup" } | { k: "pass"; i: number } | { k: "ballot"; i: number } | { k: "point" } | { k: "reveal"; winners: string[]; counts: Record<string, number> } | { k: "ceremony" };
@@ -46,12 +51,19 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const [paid, setPaid] = useState(saved?.paid ?? false);
   const [advance, setAdvance] = useState(saved?.advance ?? false);
   const penalty = usePenalty();
-  const custom = usePenaltyText().isCustom;
+  const pen = usePenaltyText();
+  const custom = pen.isCustom;
   const name = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p.name])), [players]);
   const face = (id: string) => (size: number) => <NameFace name={name[id] ?? "?"} size={size} />;
   // Hide private ballots again; a vote in the 220 ms hand-off already belongs to the next voter.
   const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i + (votes[players[phase.i].id] ? 1 : 0) } : phase;
   useKeepProgress<Kept>({ mode, total, round, title, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
+
+  // each moment of the game starts at the top of the screen, and its first 350 ms belong to the moment before
+  const moment = phase.k === "pass" || phase.k === "ballot" ? `${phase.k}:${phase.i}` : phase.k;
+  const body = useRef<HTMLDivElement>(null);
+  useTopOfMoment(moment, body);
+  const { fresh, guard } = useFreshTapGuard(moment);
 
   const startRound = () => {
     setPaid(false);
@@ -61,9 +73,31 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
   };
 
-  /** The winner's stamp, waiting for the reveal to play out (2.9 s). */
+  /** The moment's stamp, waiting for it to play out: the winner's sip after the reveal, the table's toast at the ceremony. */
   const stamp = useRef<{ timer: number; call: PenaltyCall } | null>(null);
   useEffect(() => () => window.clearTimeout(stamp.current?.timer), []);
+  const stampLater = (call: PenaltyCall, ms: number) => {
+    const timer = window.setTimeout(() => {
+      stamp.current = null;
+      setPaid(true);
+      penalty.show(call);
+    }, ms);
+    stamp.current = { timer, call };
+  };
+  /**
+   * Moving on before the stamp landed: it comes now, and `then` after it (it used to land 2.9 s
+   * later on top of the next award's ballot). True when there was one waiting.
+   */
+  const stampFirst = (then: () => void) => {
+    const waiting = stamp.current;
+    if (!waiting) return false;
+    window.clearTimeout(waiting.timer);
+    stamp.current = null;
+    setPaid(true);
+    setAdvance(true);
+    penalty.show(waiting.call, then);
+    return true;
+  };
 
   const reveal = (winners: string[], counts: Record<string, number>) => {
     setAwards((a) => {
@@ -72,14 +106,11 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       return next;
     });
     setPhase({ k: "reveal", winners, counts });
-    const call: PenaltyCall = { who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en };
-    const timer = window.setTimeout(() => {
-      stamp.current = null;
-      setPaid(true);
-      penalty.show(call);
-    }, 2900);
-    stamp.current = { timer, call };
+    stampLater({ who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en }, STAMP_MS);
   };
+
+  /** The ceremony's toast for the whole table, as at an online table. */
+  const toast = (): PenaltyCall => ({ who: [], kind: "everyone", note: pen.line({ zh: "颁奖典礼，全场干杯", en: "Awards night: everyone drinks" }, { zh: "颁奖典礼，全场一起来", en: "Awards night: everyone joins in" }) });
 
   const castVote = (voter: string, target: string) => {
     const next = { ...votes, [voter]: target };
@@ -98,23 +129,23 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   };
 
   const next = () => {
-    // moving on before the winner's stamp landed: it comes now, and the next award after it
-    // (it used to land 2.9 s later on top of the next award's ballot)
-    const waiting = stamp.current;
-    if (waiting) {
-      window.clearTimeout(waiting.timer);
-      stamp.current = null;
-      setPaid(true);
-      setAdvance(true);
-      penalty.show(waiting.call, next);
-      return;
-    }
+    if (stampFirst(next)) return;
     setAdvance(false);
     if (round >= total) {
       setPhase({ k: "ceremony" });
       sfx.win();
+      stampLater(toast(), TOAST_MS);
       return;
     }
+    setRound((r) => r + 1);
+    setTitle(deck.current.draw().card);
+    startRound();
+  };
+
+  const more = () => {
+    if (stampFirst(more)) return;
+    setAdvance(false);
+    setTotal((n) => n + 5);
     setRound((r) => r + 1);
     setTitle(deck.current.draw().card);
     startRound();
@@ -128,13 +159,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       advanced.current = true;
       next();
     } else if (saved?.phase.k === "reveal" && !saved.paid) {
-      const call: PenaltyCall = { who: saved.phase.winners.map((id) => name[id]), kind: "sip", note: zh ? title.zh : title.en };
-      const timer = window.setTimeout(() => {
-        stamp.current = null;
-        setPaid(true);
-        penalty.show(call);
-      }, 2900);
-      stamp.current = { timer, call };
+      stampLater({ who: saved.phase.winners.map((id) => name[id]), kind: "sip", note: zh ? title.zh : title.en }, STAMP_MS);
     }
     // The restored reveal is initialized once; later reveals schedule their own stamp.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -154,55 +179,48 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   const voter = phase.k === "pass" || phase.k === "ballot" ? players[phase.i] : null;
 
+  // (every button here is guarded: the slot keeps its place from one moment to the next, and a
+  // quick second tap meant for the button before must not press the one that took its place)
   const actions =
     phase.k === "setup" ? (
-      <button type="button" className="btn btn-primary btn-lg" onClick={startRound}>
+      <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(startRound)}>
         {zh ? "开始颁奖" : "Start the awards"}
       </button>
     ) : phase.k === "pass" && voter ? (
       <>
         {Object.keys(votes).length === 0 && (
-          <button type="button" className="btn btn-ghost btn-lg" onClick={() => setTitle(deck.current.draw().card)}>
+          <button type="button" className="btn btn-ghost btn-lg" aria-disabled={fresh} onClick={guard(() => setTitle(deck.current.draw().card))}>
             <Shuffle size={14} /> {zh ? "换一个称号" : "A different title"}
           </button>
         )}
-        <button type="button" className="btn btn-primary btn-lg" onClick={() => setPhase({ k: "ballot", i: phase.i })}>
+        <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(() => setPhase({ k: "ballot", i: phase.i }))}>
           {zh ? `我是 ${voter.name}` : `I'm ${voter.name}`}
         </button>
       </>
     ) : phase.k === "point" ? (
       <>
         {Object.keys(votes).length === 0 && (
-          <button type="button" className="btn btn-ghost btn-lg" onClick={() => setTitle(deck.current.draw().card)}>
+          <button type="button" className="btn btn-ghost btn-lg" aria-disabled={fresh} onClick={guard(() => setTitle(deck.current.draw().card))}>
             <Shuffle size={14} /> {zh ? "换一个称号" : "A different title"}
           </button>
         )}
-        <button type="button" className="btn btn-primary btn-lg" disabled={!picked.length} onClick={() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1])))}>
+        <button type="button" className="btn btn-primary btn-lg" disabled={!picked.length} aria-disabled={fresh} onClick={guard(() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1]))))}>
           {zh ? "颁奖" : "Give the award"}
         </button>
       </>
     ) : phase.k === "reveal" ? (
-      <button type="button" className="btn btn-primary btn-lg" onClick={next}>
+      <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(next)}>
         {round >= total ? (zh ? "开颁奖典礼" : "On to the awards") : zh ? "下一个奖" : "Next award"}
       </button>
     ) : phase.k === "ceremony" ? (
-      <button
-        type="button"
-        className="btn btn-primary btn-lg"
-        onClick={() => {
-          setTotal((n) => n + 5);
-          setRound((r) => r + 1);
-          setTitle(deck.current.draw().card);
-          startRound();
-        }}
-      >
+      <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(more)}>
         {zh ? "再来五个奖" : "Five more awards"}
       </button>
     ) : undefined;
 
   return (
     <GameShell title={GAME_BY_ID.superlatives.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: voter?.id }} status={{ kind: "round", current: phase.k === "setup" ? 1 : round, total }} actions={actions}>
-      <div className="sup">
+      <div className="sup" ref={body}>
         {phase.k === "setup" && (
           <div className="stack" style={{ gap: 16 }}>
             <AwardCard title={title} round={1} total={total} />

@@ -11,7 +11,7 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "limbo-coach", "limbo-band", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 
@@ -24,10 +24,10 @@ def ok(cond, msg):
         fails.append(msg)
 
 
-def phone(browser, name, lang="zh", players=None, w=390, h=844):
+def phone(browser, name, lang="zh", players=None, w=390, h=844, sound=False):
     ctx = browser.new_context(viewport={"width": w, "height": h}, device_scale_factor=2, has_touch=True, is_mobile=True)
     pg = ctx.new_page()
-    settings = {"lang": lang, "sound": False, "music": False, "customPenalty": "", "players": players or []}
+    settings = {"lang": lang, "sound": sound, "music": sound, "customPenalty": "", "players": players or []}
     pg.add_init_script("localStorage.setItem('lazysusan.settings.v1', %s);" % json.dumps(json.dumps(settings)))
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -144,7 +144,11 @@ def t_superlatives_single(browser):
     pg.wait_for_selector(".award-card")
     pg.wait_for_timeout(800)
     shot(pg, "sup-setup")
-    pg.get_by_role("button", name="开始颁奖").click()
+    pg.locator(".setup-panel .seg").nth(1).get_by_role("button", name="5", exact=True).click()
+    # a quick double tap on Start: the second tap lands where "I'm Steve" now is, and must not open his ballot
+    double_tap(pg, pg.get_by_role("button", name="开始颁奖"), gap=200)
+    pg.wait_for_timeout(400)
+    ok(pg.locator(".pass-curtain").count() == 1 and pg.locator(".ballot").count() == 0, "one phone: a double tap on Start stops at the hand-over")
     for i, p in enumerate(PLAYERS[:4]):
         pg.wait_for_selector(".pass-curtain")
         if i == 0:
@@ -163,12 +167,62 @@ def t_superlatives_single(browser):
     ok("Mia" in pg.locator(".winners").inner_text(), "one phone: Mia takes the award with three votes")
     pg.wait_for_timeout(800)
     clear_stamps([pg])
+    # four more awards, then the ceremony
+    for r in range(4):
+        pg.get_by_role("button", name="下一个奖").click()
+        for p in PLAYERS[:4]:
+            pg.wait_for_selector(".pass-curtain")
+            pg.get_by_role("button", name=f"我是 {p['name']}").click()
+            pg.wait_for_selector(".ballot .nominee")
+            pg.locator(".ballot .nominee", has_text="Kev" if p["name"] != "Kev" else "Jay").click()
+        pg.wait_for_selector(".award-reveal")
+        pg.wait_for_timeout(3300)
+        clear_stamps([pg])
+    pg.get_by_role("button", name="开颁奖典礼").click()
+    pg.wait_for_selector(".ceremony")
+    pg.wait_for_timeout(1500)
+    ok(pg.locator(".stamp-layer").count() == 0, "one phone: the ceremony comes up first")
+    ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 3000), "one phone: then the whole table's toast, as online")
+    ok("全场" in pg.locator(".stamp-layer").inner_text(), "one phone: the toast is for everyone")
+    clear_stamps([pg])
+    pg.get_by_role("button", name="再来五个奖").click()
+    ok(until(lambda: pg.locator(".pass-curtain").count() == 1, 3000) and "第 6 个奖" in pg.locator(".award-count").inner_text(), "one phone: five more awards")
+    errors([pg])
+    pg.context.close()
+
+
+def t_superlatives_scroll(browser):
+    """A small phone and eight people: the last voter scrolls the ballot to its end, and the reveal still opens at the top."""
+    eight = PLAYERS[:4] + [{"id": f"p{i}", "name": n} for i, n in enumerate(["Lily", "Tom", "Ann", "Bo"], start=4)]
+    pg = phone(browser, "small", players=eight, w=360, h=640)
+    pg.goto(BASE + "#/g/superlatives", wait_until="networkidle")
+    pg.wait_for_selector(".award-card")
+    pg.wait_for_timeout(500)
+    pg.get_by_role("button", name="开始颁奖").click()
+    for p in eight:
+        pg.wait_for_selector(".pass-curtain")
+        pg.get_by_role("button", name=f"我是 {p['name']}").click()
+        pg.wait_for_selector(".ballot .nominee")
+        if p is eight[-1]:
+            pg.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
+            pg.wait_for_timeout(150)
+            scrolled = pg.evaluate("() => scrollY")
+        pg.locator(".ballot .nominee", has_text="Bo" if p["name"] != "Bo" else "Ann").click()
+    pg.wait_for_selector(".award-reveal")
+    top = pg.evaluate("() => scrollY")
+    pg.wait_for_timeout(2600)
+    winner = pg.locator(".winner").bounding_box()
+    bar = pg.locator(".ui-game-header").bounding_box()
+    ok(scrolled > 0 and top == 0 and winner["y"] > bar["y"] + bar["height"], f"eight on a small phone: the last voter scrolled {scrolled}px, the reveal opens at the top and the winner sits under the top bar (y={winner['y']:.0f})")
+    shot(pg, "sup-small-reveal")
+    pg.wait_for_timeout(700)
+    clear_stamps([pg])
     errors([pg])
     pg.context.close()
 
 
 def t_superlatives_online(browser):
-    host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay"])
+    host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
     everyone = [host] + guests
     start_game(host, everyone, "superlatives")
     shot(host, "sup-net-vote")
@@ -179,11 +233,22 @@ def t_superlatives_online(browser):
         target = "Mia" if me(g) == jay else "Jay"
         g.locator(".ballot .nominee", has_text=target).click()
     ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "reveal") for g in everyone), "votes in: reveal on every phone")
+    nxt = host.get_by_role("button", name=re.compile("下一个奖|开颁奖典礼"))
+    ok(nxt.is_disabled(), "the host can't move on before the winner's stamp (2.6 s)")
     host.wait_for_timeout(2700)
     shot(host, "sup-net-reveal")
     v = view(host)
-    ok(v["winners"] == [jay] and v["counts"][jay] == 2, "Jay wins 2 to 1")
+    ok(v["winners"] == [jay] and v["counts"][jay] == 3, "Jay wins 3 to 1")
+    ok(until(lambda: nxt.is_enabled(), 2000), "the stamp landed: the host can move on")
     clear_stamps(everyone)
+    # the winner leaves the table during the reveal: still the winner, by name, on the others' phones
+    guests[1].locator(".topbar .icon-btn").first.click()
+    guests[1].wait_for_timeout(400)
+    guests[1].get_by_role("button", name="离开这桌").last.click()
+    ok(until(lambda: len(room(host)["seats"]) == 3, 6000), "Jay left the table")
+    host.wait_for_timeout(500)
+    ok(host.locator(".winner strong").all_inner_texts() == ["Jay"] and "?" not in host.locator(".award-reveal").inner_text(), "the reveal still names Jay, no question marks")
+    everyone = [host, guests[0], guests[2]]
     # jump to the ceremony
     for _ in range(9):
         if (view(host) or {}).get("phase") == "ceremony":
@@ -203,11 +268,16 @@ def t_superlatives_online(browser):
         until(lambda: view(host)["phase"] != "vote", 5000)
         clear_stamps(everyone, wait=False)
     ok(until(lambda: view(host)["phase"] == "ceremony", 5000), "eight awards, then the ceremony")
-    host.wait_for_timeout(1200)
+    more = host.get_by_role("button", name="再来五个奖")
+    ok(more.is_disabled(), "the host can't go on before the table's toast (3.2 s)")
+    shelves = host.evaluate("() => [...document.querySelectorAll('.shelf')].map((s) => s.querySelector('strong').firstChild.textContent + ':' + s.querySelectorAll('.award-chip').length)")
+    ok("Jay:1" in shelves, f"the ceremony keeps Jay's award though he left {shelves}")
+    ok(until(lambda: all(g.locator(".stamp-layer").count() for g in everyone), 4000), "the whole table's toast on every phone")
+    ok(until(lambda: more.is_enabled(), 2000), "then the host can go on")
     clear_stamps(everyone)
     shot(host, "sup-net-ceremony")
     errors(everyone)
-    for g in everyone:
+    for g in [host] + guests:
         g.context.close()
 
 
@@ -262,11 +332,15 @@ def t_punchline_online(browser):
     answers = ["我的手机先睡了", "Wi-Fi 叫 别偷了", "外星人要求退货", "冰箱在开会", "猫已读不回", "老板也想辞职"]
     n = 0
     for g in everyone:
-        for card in range(g.locator(".pl-write textarea").count()):
-            g.locator(".pl-write textarea").first.fill(answers[n % len(answers)])
+        # one prompt at a time: the next box comes up once the last one is sent
+        ok(g.locator(".pl-write form textarea").count() == 1, f"{g._name}: one box at a time")
+        while g.locator(".pl-write form textarea").count():
+            g.locator(".pl-write form textarea").first.fill(answers[n % len(answers)])
             g.locator(".pl-write form button[type=submit]").first.click()
             g.wait_for_timeout(150)
             n += 1
+        if g is not everyone[-1]:  # (the last one's answers end the writing)
+            ok(g.locator(".pl-write .pl-sent").count() == 2, f"{g._name}: both answers sent, each on its own line")
     ok(until(lambda: view(host)["phase"] == "vote"), "all answers in: voting starts")
     host.wait_for_timeout(500)
     voter = next(g for g in everyone if view(g)["match"]["canVote"])
@@ -728,6 +802,163 @@ def t_limbo_party_single(browser):
             pg.get_by_role("button", name=re.compile("下一个|这一杆结束")).click()
         pg.wait_for_timeout(400)
     ok(all(k in ("classic", "steady", "moving", "tilt") for k in kinds) and all(kinds[i] != kinds[i - 1] for i in range(1, 3)), f"a different one each bar ({kinds})")
+    errors([pg])
+    pg.context.close()
+
+
+# Limbo's coach (party/limbo/coach.ts) is heard, not seen: with sound on, every oscillator the page
+# starts is logged (its first frequency, its wave, when it plays), and the counts say what the phone
+# said. Headless Chromium runs Web Audio without a speaker, so this is the one place the sounds are
+# checked at all.
+EAR = """() => {
+  const create = AudioContext.prototype.createOscillator;
+  AudioContext.prototype.createOscillator = function () {
+    const o = create.call(this);
+    const sv = o.frequency.setValueAtTime.bind(o.frequency);
+    o.frequency.setValueAtTime = (v, t) => { if (o.__f === undefined) o.__f = v; return sv(v, t); };
+    return o;
+  };
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function (when) {
+    (window.__osc ||= []).push({ f: Math.round((this.__f ?? this.frequency.value) * 10) / 10, type: this.type, at: when ?? this.context.currentTime });
+    return start.call(this, when);
+  };
+}"""
+
+
+def heard(pg):
+    """What the coach said since the last call: down and up blips, ticks, clicks, buzzes, hums (the music's notes are left out)."""
+    oscs = pg.evaluate("() => { const o = window.__osc || []; window.__osc = []; return o.sort((a, b) => a.at - b.at); }")
+    c = {"down": 0, "up": 0, "tick": 0, "click": 0, "buzz": 0, "hum": 0}
+    blips = [o for o in oscs if o["type"] == "triangle" and o["f"] in (440, 659.3)]
+    i = 0
+    while i + 1 < len(blips):
+        # a blip is two notes 90 ms apart: falling (659 then 440) says lean back, rising says come up
+        if abs(blips[i + 1]["at"] - blips[i]["at"] - 0.09) < 0.02:
+            c["down" if blips[i]["f"] == 659.3 else "up"] += 1
+            i += 2
+        else:
+            i += 1
+    for o in oscs:
+        if o["type"] == "sine" and o["f"] == 1960:
+            c["tick"] += 1
+        elif o["type"] == "sine" and o["f"] == 3552.5:
+            c["click"] += 1
+        elif o["type"] == "square" and o["f"] == 98:
+            c["buzz"] += 1
+        elif o["type"] == "sine" and o["f"] == 330:
+            c["hum"] += 1
+    return c
+
+
+def listen(pg, ms):
+    heard(pg)
+    pg.wait_for_timeout(ms)
+    return heard(pg)
+
+
+def solo_limbo_heard(browser, tag, mode):
+    """One phone with sound on and an ear on it, this way to play, through the count-in to the gauge."""
+    pg = phone(browser, tag, players=PLAYERS[:2], sound=True)
+    pg.add_init_script(f"({EAR})()")
+    pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
+    pg.wait_for_selector(".limbo-scene")
+    fake_sensor(pg)
+    pg.get_by_role("button", name=mode, exact=True).click()
+    pg.get_by_role("button", name="放音乐，开始").click()
+    pg.wait_for_selector(".pass-curtain", timeout=6000)
+    ok("屏幕朝外" in pg.locator(".pass-curtain").inner_text() and "听声音" in pg.locator(".pass-curtain").inner_text(), f"[{mode}] the pass-the-phone screen says screen out, and what to listen for")
+    pg.get_by_role("button", name="准备好了").click()
+    pg.wait_for_selector(".lb .gauge", timeout=6000)
+    return pg
+
+
+def t_limbo_coach_moving(browser):
+    pg = solo_limbo_heard(browser, "coach-moving", "跟着动的杆")
+    lean_to(pg, 0)
+    c = listen(pg, 1200)
+    ok(c["tick"] >= 2 and c["down"] == 0 and c["up"] == 0, f"the bar waits at 8°, upright is within 10° of it: ticks on the beat {c}")
+    auto(pg)
+    until(lambda: gauge_target(pg) > 15, 6000)
+    tilt_to(pg, 0, 0)
+    c = listen(pg, 800)
+    ok(c["down"] >= 2 and c["up"] == 0 and c["tick"] == 0, f"upright with the bar near 20°: falling blips, lean back more {c}")
+    auto(pg)
+    pg.wait_for_timeout(700)
+    tilt_to(pg, 54, 0)
+    c = listen(pg, 800)
+    ok(c["up"] >= 2 and c["down"] == 0, f"at 54°: rising blips, come up {c}")
+    auto(pg)
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 16000) and "跟住了" in pg.locator(".lb-verdict").inner_text(), "back with it to the end: kept up")
+    c = listen(pg, 900)
+    ok(sum(c.values()) == 0, f"after the verdict the coach is quiet {c}")
+    errors([pg])
+    pg.context.close()
+
+
+def t_limbo_coach_holds(browser):
+    pg = solo_limbo_heard(browser, "coach-classic", "经典")
+    lean_to(pg, 5)
+    c = listen(pg, 1100)
+    ok(c["down"] >= 3 and c["tick"] == 0, f"short of a classic bar: falling blips every eighth {c}")
+    lean_to(pg, 24)
+    c = listen(pg, 1000)
+    ok(c["tick"] >= 1 and c["hum"] == 1 and c["down"] == 0, f"past it: ticks and the hold's hum {c}")
+    ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 3000), "and through")
+    errors([pg])
+    pg.context.close()
+
+    pg = solo_limbo_heard(browser, "coach-steady", "稳住")
+    lean_to(pg, 24)
+    pg.wait_for_timeout(900)
+    heard(pg)
+    lean_to(pg, 34)
+    pg.wait_for_timeout(300)
+    lean_to(pg, 24)
+    pg.wait_for_timeout(400)
+    c = heard(pg)
+    ok(c["buzz"] == 1, f"a wobble: one low buzz {c}")
+    ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 6000), "held still again: through")
+    errors([pg])
+    pg.context.close()
+
+    pg = solo_limbo_heard(browser, "coach-tilt", "歪着过")
+    want = int(pg.locator(".lb-side").get_attribute("data-want"))
+    tilt_to(pg, 25, 0)
+    c = listen(pg, 1300)
+    ok(c["click"] >= 3 and c["click"] % 3 == 0 and c["down"] == 0, f"back enough, not tilted: three quick clicks on the beat {c}")
+    tilt_to(pg, 25, want + 4 * (1 if want > 0 else -1))
+    c = listen(pg, 900)
+    ok(c["tick"] >= 1 and c["hum"] == 1 and c["click"] == 0, f"tilted too: ticks and the hum {c}")
+    ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 3000), "and through")
+    errors([pg])
+    pg.context.close()
+
+
+def t_limbo_band(browser):
+    """The band changes gear bar by bar: one player clears bar after bar; under each count-in the kick's shortest gap (two sixteenths) gives the tempo, and the riser's sawtooth sounds."""
+    pg = phone(browser, "band", players=PLAYERS[:1], sound=True)
+    pg.add_init_script(f"({EAR})()")
+    pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
+    pg.wait_for_selector(".limbo-scene")
+    fake_sensor(pg)
+    pg.get_by_role("button", name="放音乐，开始").click()
+    pg.wait_for_selector(".pass-curtain", timeout=6000)
+    auto(pg)
+    tempos = []
+    for bar in range(4):
+        heard(pg)
+        pg.get_by_role("button", name="准备好了").click()
+        pg.wait_for_timeout(2300)
+        oscs = pg.evaluate("() => { const o = window.__osc || []; window.__osc = []; return o.sort((a, b) => a.at - b.at); }")
+        kicks = sorted({round(o["at"], 3) for o in oscs if o["f"] == 165 and o["type"] == "sine"})
+        gaps = [b - a for a, b in zip(kicks, kicks[1:]) if b - a > 0.05]
+        tempos.append(round(60 / (2 * min(gaps))) if gaps else 0)
+        ok(any(o["type"] == "sawtooth" and o["f"] == 110 for o in oscs), f"bar {bar + 1}: a riser under the count-in")
+        ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 8000), f"bar {bar + 1}: cleared")
+        pg.get_by_role("button", name="这一杆结束").click()
+        pg.wait_for_timeout(1000)
+    ok(abs(tempos[0] - 112) <= 2 and all(b - a >= 5 for a, b in zip(tempos, tempos[1:])), f"a gear up every bar ({tempos} bpm)")
     errors([pg])
     pg.context.close()
 
@@ -1277,7 +1508,9 @@ def t_drama_single(browser):
         pg.locator(".game-actions .btn-primary").click()
         pg.locator(".dm-card-back").click()
         pg.wait_for_timeout(800)
-        culprits += pg.locator(".dm-card-secret.is-culprit").count()
+        # only the words say so: every card looks the same (no glow, no red mask to catch from the side)
+        culprits += pg.locator(".dm-card-secret .dm-card-label", has_text="你就是").count()
+        ok(pg.locator(".dm-card.is-culprit, .dm-card-secret.is-culprit").count() == 0, f"card {i + 1}: nothing but the words tells the culprit apart")
         ok(pg.locator(".dm-card-play").count() == 1 and pg.locator(".dm-card-first").count() == 1, f"card {i + 1}: how to play the role, and a line to open with")
         # 记住了 twice, quickly: the second tap lands where the next screen's button is
         double_tap(pg, pg.locator(".game-actions .btn-primary"))
@@ -1788,15 +2021,134 @@ def t_drama_groups(browser):
     tv_ctx.close()
 
 
+
+def t_drama_read(browser):
+    """朗读: one phone (the host's set and kinds, the words only on the reader's card until the
+    reading starts, a reading that doesn't pass), then an online table in English-internet pieces
+    with the TV: the reader's card, every phone following along, five stars from everyone."""
+    pg = phone(browser, "read", players=PLAYERS)
+    pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+    pg.wait_for_selector(".dm-marquee")
+    pg.get_by_role("button", name="朗读", exact=True).click()
+    ok(until(lambda: pg.get_by_role("button", name="中文网络").get_attribute("aria-pressed") == "true", 2000), "read aloud: the Chinese internet to start with")
+    ok(pg.get_by_role("button", name="困难", exact=True).count() == 0, "no difficulty: the words set it")
+    ok(pg.locator(".dm-kinds .ui-pill-toggle").count() == 10 and pg.locator(".dm-kinds .ui-pill-toggle[aria-pressed=true]").count() == 0, "ten kinds, none picked (all of them)")
+    pg.get_by_role("button", name="中英通用").click()
+    pg.locator(".dm-kinds .ui-pill-toggle", has_text="哭着读").click()
+    pg.locator(".dm-kinds .ui-pill-toggle", has_text="憋笑读").click()
+    ok(until(lambda: pg.locator(".dm-kinds .ui-pill-toggle[aria-pressed=true]").count() == 2, 2000), "the host keeps two kinds")
+    ok(pg.locator(".dm-stagecall-next", has_text="朗读").count() == 1, "who's up: one person reads")
+    shot(pg, "dmr-setup")
+    pg.get_by_role("button", name="开演").click()
+    pg.wait_for_selector(".dm-roster")
+    ok(pg.locator(".dm-roster li").count() == 1 and pg.locator(".dm-read-how").count() == 1 and pg.locator(".dm-hunt").count() == 0, "one reader, how to read it, nobody to find")
+    kind = (pg.locator(".dm-read-kind").all_inner_texts() or [""])[0]
+    ok(kind.strip() in ("哭着读", "憋笑读"), f"a piece of a picked kind ({kind.strip()})")
+    ok(pg.locator(".dm-reading").count() == 0, "the words aren't on the table's screen")
+    ok(pg.locator(".dm-tips summary", has_text="朗读").count() == 1, "tips for a first reading")
+    shot(pg, "dmr-brief")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="交给朗读的人").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.locator(".game-actions .btn-primary").click()
+    ok(until(lambda: pg.locator(".dm-readcard .dm-reading p").count() >= 5, 3000), "the reader's card: the words to read over")
+    shot(pg, "dmr-card")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="准备好了，开始读！").click()
+    ok(until(lambda: pg.locator(".dm-reading.is-big p").count() >= 5 and pg.locator(".dm-read-head .dm-clock").count() == 1, 3000), "reading: the words big, the clock beside the title")
+    shot(pg, "dmr-act")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="读完了，开始打星").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    ask = "哭得够不够真" if kind.strip() == "哭着读" else "绷住了吗"
+    ok(pg.locator(".dm-wait-note", has_text=ask).count() == 1, "the audience gives stars for the kind's own question")
+    pg.get_by_role("button", name="传手机投票").click()
+    for k in range(3):
+        pg.wait_for_timeout(DM_SETTLE)
+        pg.locator(".game-actions .btn-primary").click()
+        ok(pg.locator(".dm-rates li").count() == 1 and pg.locator(".dm-ask", has_text=ask).count() == 1 and pg.locator(".dm-suspect").count() == 0, f"ballot {k + 1}: stars for the reader only")
+        pg.locator(".dm-rates li").first.locator(".dm-star").nth(1).click()
+        if k == 0:
+            shot(pg, "dmr-ballot")
+        pg.get_by_role("button", name="交卷").click()
+    ok(until(lambda: pg.locator(".dm-headline", has_text="没过关").count() == 1, 5000), "two stars: not this time")
+    ok(until(lambda: pg.locator(".dm-outcome .hint", has_text="3 星过关").count() == 1, 4000) and pg.locator(".dm-truths li").count() == 1, "the reader's stars, against the bar")
+    shot(pg, "dmr-reveal")
+    ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 7000), "the reader pays")
+    clear_stamps([pg])
+    errors([pg])
+    pg.context.close()
+
+    host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
+    everyone = [host] + guests
+    tv_ctx = browser.new_context(viewport={"width": 1366, "height": 768})
+    tv = tv_ctx.new_page()
+    tv._errs = []
+    tv._name = "tv"
+    tv.on("pageerror", lambda e: tv._errs.append(str(e)))
+    tv.goto(BASE + f"#/tv/{code}", wait_until="networkidle")
+    start_game(host, everyone, "drama")
+    host.get_by_role("button", name="朗读", exact=True).click()
+    ok(until(lambda: view(guests[0])["mode"] == "read" and view(guests[0])["rset"] == "zh", 3000), "online: the table sees read aloud, the Chinese internet")
+    host.get_by_role("button", name="英文网络").click()
+    ok(until(lambda: view(guests[0])["rset"] == "en", 3000), "the host picks the English internet")
+    ok(guests[1].locator(".dm-kinds-read").count() == 1 and guests[1].locator(".dm-kinds .ui-pill-toggle").count() == 0, "a guest sees the kinds, and can't change them")
+    ok(until(lambda: any(w in " ".join(tv.locator(".tvd-chips").all_inner_texts()) for w in ("英文网络", "English internet")), 4000), "the TV says what's on tonight")
+    guests[0].get_by_role("radio", name="我要上台").click()
+    ok(until(lambda: view(host)["next"]["lo"] == 1 and not view(host)["next"]["auto"], 3000), "a volunteer: they read")
+    host.get_by_role("button", name="开演").click()
+    ok(until(lambda: view(host)["phase"] == "brief", 5000), "curtain up")
+    v = view(host)
+    reader = guests[0]
+    rv = view(reader)
+    ok(v["read"] and v["read"]["set"] == "en" and len(v["cast"]) == 1 and v["cast"][0]["pid"] == me(reader), "an English-internet piece, for the volunteer")
+    ok(len(v["read"]["lines"]) == 0 and len(rv["read"]["lines"]) >= 5, "the words: only on the reader's phone while they read it over")
+    ok(until(lambda: reader.locator(".dm-readcard .dm-reading p").count() == len(rv["read"]["lines"]), 3000), "the reader's card shows every line")
+    ok(host.locator(".dm-reading").count() == 0 and host.locator(".dm-read-how").count() == 1, "the audience sees how it's read, not the words")
+    ok(until(lambda: tv.locator(".tvd-title").count() == 1 and tv.locator(".tvd-hunt").count() == 1, 4000), "the TV shows the title and how to read it")
+    tv.wait_for_timeout(800)
+    tv.screenshot(path=os.path.join(OUT, "dmr-brief-tv.png"))
+    shot(reader, "dmr-card-online")
+    reader.get_by_role("button", name="准备好了，开始读").click()
+    ok(until(lambda: view(host)["phase"] == "act", 4000), "ready: the reading starts")
+    ok(until(lambda: reader.locator(".dm-reading.is-big p").count() == len(rv["read"]["lines"]), 3000), "the reader reads from their phone, big")
+    ok(until(lambda: all(g.locator(".dm-reading p").count() == len(rv["read"]["lines"]) and g.locator(".dm-reading.is-big").count() == 0 for g in everyone if g is not reader), 3000), "every other phone follows along")
+    ok(until(lambda: tv.locator(".tvd-script.is-read").count() == 1 and tv.locator(".tvd-script-steps").count() == 0, 4000), "the TV: the title, the kind, who's reading and how")
+    shot(host, "dmr-act-online")
+    tv.wait_for_timeout(1500)
+    tv.screenshot(path=os.path.join(OUT, "dmr-act-tv.png"))
+    reader.get_by_role("button", name="读完了，开始打星").click()
+    ok(until(lambda: view(host)["phase"] == "vote", 4000), "done: the stars")
+    for g in everyone:
+        if g is reader:
+            continue
+        g.wait_for_selector(".dm-ballot")
+        ok(g.locator(".dm-rates li").count() == 1, f"{g._name}: stars for the reader")
+        g.locator(".dm-rates li").first.locator(".dm-star").nth(4).click()
+        g.get_by_role("button", name="交卷").click()
+    ok(until(lambda: view(host)["phase"] == "reveal", 5000), "everyone voted: the reveal")
+    r = view(host)["result"]
+    ok(r["stars"][me(reader)] == 5 and r["best"] == [me(reader)] and not r["losers"], "five stars from everyone: the trophy, and nobody pays")
+    ok(until(lambda: host.locator(".dm-headline", has_text="全场五星").count() == 1, 5000), "the phones: five stars all round")
+    ok(until(lambda: any(w in (tv.locator(".tvd-headline").all_inner_texts() or [""])[0] for w in ("全场五星", "Five stars all round")), 5000), "the TV too")
+    tv.wait_for_timeout(3500)
+    tv.screenshot(path=os.path.join(OUT, "dmr-reveal-tv.png"))
+    errors(everyone + [tv])
+    for g in everyone:
+        g.context.close()
+    tv_ctx.close()
+
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
-    "superlatives": [t_superlatives_single, t_superlatives_online],
-    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups],
+    "superlatives": [t_superlatives_single, t_superlatives_scroll, t_superlatives_online],
+    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups, t_drama_read],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],
     "limbo": [t_limbo_single, t_limbo_online, t_limbo_blind_single, t_limbo_blind_online],
     "limbo-variants": [t_limbo_steady_single, t_limbo_moving_single, t_limbo_moving_nosensor_single, t_limbo_tilt_single, t_limbo_party_single, t_limbo_steady_online, t_limbo_moving_online, t_limbo_tilt_online, t_limbo_party_online],
+    "limbo-coach": [t_limbo_coach_moving, t_limbo_coach_holds],
+    "limbo-band": [t_limbo_band],
     "tune": [t_tune_single, t_tune_songs_online, t_tune_online],
     "euchre": [t_euchre_single, t_euchre_online],
 }

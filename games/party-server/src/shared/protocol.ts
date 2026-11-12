@@ -3,6 +3,7 @@
 // common.ts pageClock, games/party-base/CONTRACTS.md), except `serverAt`, the room's own clock.
 import type { Difficulty, RoomState } from "../../../party-base/src/index";
 import type { Mode } from "./show";
+import type { Verdict } from "./taps";
 
 /** Host actions a phone may ask for. The room stamps `at` and fills in what's its to decide. */
 export type HostAction =
@@ -16,6 +17,10 @@ export type HostAction =
   | { type: "RESTART_SECTION" }
   /** 看结果: skip the cool-down. Only once the whole dance has been heard. */
   | { type: "FINISH_NOW" }
+  /** 暂停: everything stops where it is (the music, the video, the coach, the phones' judging). */
+  | { type: "PAUSE" }
+  /** 继续: after a moment's run-up the dance carries on from where it stopped. */
+  | { type: "RESUME" }
   /** Stop: from the results, or in the middle of anything. */
   | { type: "BACK_TO_LOBBY" }
   | { type: "END_ROOM" }
@@ -31,7 +36,10 @@ export type ClientMsg =
   | { t: "clock"; offsetMs: number; rttMs: number }
   /** The host. */
   | { t: "act"; action: HostAction }
-  /** The host while calibrating: a tap, in speaker time. Passed on to the speaker. */
+  /**
+   * A tap, in speaker time, passed on to the speaker: the host's while calibrating, and anyone's
+   * while the room finds a song's beat (找拍子, RoutineInfo.tapIn).
+   */
   | { t: "tap"; at: number }
   /** The speaker after calibrateFromTaps(): how late the room hears its sound. */
   | { t: "calibrated"; audioOffsetMs: number }
@@ -43,15 +51,42 @@ export type ClientMsg =
    * the room heard it, in ms (negative: early); null: no move near it. The phone scores (party-base's
    * scoreBeats); the room keeps the beats and works out the floor and the results.
    */
-  | { t: "beats"; from: number; offs: (number | null)[] };
+  | { t: "beats"; from: number; offs: (number | null)[] }
+  /**
+   * A phone while a dance plays, a few times a second: how much its player is moving (0 to 1), and
+   * with the first one after a beat is judged, that beat's verdict. Passed on to the speaker (each
+   * player's little dancer on the TV) and not kept: the beats above are what counts.
+   */
+  | { t: "pulse"; e: number; v?: Verdict | null }
+  /**
+   * The speaker, while a song plays from YouTube: when the dance's first beat is (speaker time), as
+   * its video is really playing. The room moves the beat there if it's off.
+   */
+  | { t: "songAt"; startAt: number }
+  /** The speaker: the song picked is loaded and held at its start; the room starts it (after the lead-in). */
+  | { t: "songReady" }
+  /**
+   * The speaker after 找拍子: where the song's first beat is in its video (ms), from how many taps,
+   * how far they strayed (ms), and the video's length as its player gave it. The room keeps it in
+   * the songbook for every room from then on, and starts the song.
+   */
+  | { t: "songTapped"; firstBeatMs: number; taps: number; spreadMs: number; durationMs: number | null }
+  /**
+   * The speaker: YouTube won't play the song here (bad), can't be reached (offline), or 找拍子
+   * didn't find the beat in time (notap). Back to the lobby.
+   */
+  | { t: "songFailed"; why: "bad" | "offline" | "notap" };
 
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
-  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null }
+  /** calibrated: this room has measured its TV's delay (a song's beat tapped here is kept for every room). */
+  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null; calibrated?: boolean }
   /** serverAt: the room's clock when the ping came in; speakerAt: the speaker's then (null: no speaker yet). */
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }
   | { t: "here"; playerId: string }
+  /** To the speaker: a phone's pulse (its player's movement now, a beat's verdict). */
+  | { t: "pulse"; playerId: string; e: number; v: Verdict | null }
   /** To the speaker, each time a phone's beats come in: the floor so far. */
   | ({ t: "floor" } & Floor)
   | { t: "error"; code: string; message: string }
@@ -74,6 +109,19 @@ export interface RoutineInfo {
   leadStartAt: number | null;
   /** The dance beat RoomState.routineStartAt is: 0, or the 8-count a restart went back to. */
   fromBeat: number;
+  /**
+   * From the end of the part before the dance to its first beat (ms): the count-in, or for a song
+   * its intro, as the songbook has it when the room picks the song (the show's own when absent).
+   */
+  introMs?: number;
+  /**
+   * A song nobody has tapped along to yet: before anything else the video plays from its start and
+   * everyone taps along on their phones (找拍子) until the speaker has the beat (songTapped). Then
+   * the song starts from its start as any other does.
+   */
+  tapIn?: boolean;
+  /** Paused by the host at this speaker time: nothing plays until 继续 (RESUME) moves the run later. */
+  pausedAt?: number;
 }
 
 /** The floor together, from the beats the phones have sent. */
@@ -119,6 +167,9 @@ export interface Results {
   /** the share of beats moved, over everyone who danced, 0 to 100 */
   together: number;
 }
+
+/** A song's beat moves to where the speaker measured it when it's this far off (ms). */
+export const SONG_SYNC_MS = 20;
 
 /** A floor's run this long fills the bar: fireworks, and the bar starts again. */
 export const COMBO_FULL = 32;

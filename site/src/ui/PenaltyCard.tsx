@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Glass } from "../components/Glass";
 import { timesOf } from "../shared/protocol";
 import { Button } from "./Button";
-import { labels } from "./labels";
+import { gameLabels as labels } from "./gameLabels";
 import type { PenaltyCardProps } from "./types";
 import "./PenaltyCard.css";
 

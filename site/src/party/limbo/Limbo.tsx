@@ -3,13 +3,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
-import { holdBackground, startGroove, type GrooveHandle } from "../../lib/music";
+import { holdBackground } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { BLIND_TARGETS, barFor, barWindowMs, blindError, classicBar, kindFor, limboAngle } from "../../shared/engine/games/limbo";
 import type { LimboBar, LimboKind } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace } from "../common";
 import { enableSensors, sensorStatus, useSensorStatus, useWakeLock } from "../sensors";
+import { QUIET, coaching, useCoach } from "./coach";
+import { barDrops, crowdFor, riser, useLimboMusic } from "./music";
 import {
   BlindMeter,
   FollowMeter,
@@ -22,6 +24,7 @@ import {
   barHow,
   barTag,
   blindLine,
+  holdLine,
   phoneClock,
   useBlindLock,
   useFollow,
@@ -82,7 +85,6 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const custom = usePenaltyText().isCustom;
   // No sensor reading or countdown survives: the same person gets ready for the same bar.
   useKeepProgress<Kept>({ mode, level, bar, alive, passed, failed, best, phase: phase.k === "count" || phase.k === "try" ? { k: "ready", i: phase.i } : phase, target, locks, pending }, phase.k !== "setup" && phase.k !== "end");
-  const music = useRef<GrooveHandle | null>(null);
   const angle = blind ? target : limboAngle(level);
   const newTarget = () => {
     const choices = BLIND_TARGETS.filter((a) => a !== target);
@@ -93,14 +95,18 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const makeBar = (lvl: number, last: LimboKind | null) => (mode === "bar" || mode === "blind" ? classicBar() : barFor(kindFor(mode, last, pick), lvl, pick));
   useWakeLock(phase.k === "try" || phase.k === "count" || phase.k === "bar");
 
-  useEffect(() => () => music.current?.stop(0.2), []);
+  // the band plays from "放音乐，开始" to the end, a gear up every bar; `grid` is its beat, for the coach
+  const [musicOn, setMusicOn] = useState(false);
+  const anchor = useRef(0);
   const playMusic = () => {
-    if (!music.current) music.current = startGroove("calypso");
+    if (!anchor.current) anchor.current = performance.now() + 80;
+    setMusicOn(true);
   };
   const stopMusic = () => {
-    music.current?.stop(0.6);
-    music.current = null;
+    setMusicOn(false);
+    anchor.current = 0;
   };
+  const grid = useLimboMusic(musicOn, level, () => anchor.current);
 
   // phone mode: whose turn is it at this bar
   const cur = phase.k === "ready" || phase.k === "count" || phase.k === "try" || phase.k === "verdict" ? people.find((p) => p.id === alive[phase.i]) ?? null : null;
@@ -109,6 +115,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   useEffect(() => {
     if (phase.k !== "count") return;
     sfx.countdown(phase.n);
+    if (phase.n === 3) riser(2.4, level);
     const id = window.setTimeout(() => {
       if (phase.n > 1) setPhase({ k: "count", i: phase.i, n: phase.n - 1 });
       else {
@@ -156,6 +163,18 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // the attempt clock reads this when time runs out, long after it captured `verdict`
   const leanBest = useRef(0);
   leanBest.current = kind === "classic" ? lean.best : moving ? follow.best : pose.best;
+  // the phone is on their chest: it says what the gauge shows
+  useCoach(
+    trying,
+    !trying
+      ? QUIET
+      : kind === "classic"
+        ? coaching("classic", { lean: lean.lean, target: angle, hold: lean.hold })
+        : moving
+          ? coaching("moving", { lean: follow.lean, target: follow.at, lost: follow.lost })
+          : coaching(kind, { lean: pose.lean, target: angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt }),
+    grid,
+  );
 
   const leaningBlind = blind && phase.k === "try" && sensors === "on";
   const blindLock = useBlindLock(leaningBlind, (deg) => {
@@ -184,6 +203,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       setPassed((p) => [...p, id]);
       setBest((b) => ({ ...b, [id]: deg || angle }));
       sfx.correct();
+      crowdFor(level);
       haptic([12, 30, 12]);
     } else {
       setFailed((f) => [...f, id]);
@@ -281,7 +301,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setBest({});
     setLevel(level + 1);
     setBar(makeBar(level + 1, bar.kind));
-    sfx.drum(0.8);
+    barDrops();
     setPhase(realBar ? { k: "bar" } : { k: "ready", i: 0 });
   };
 
@@ -339,8 +359,13 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     <>
       <p>
         {zh
-          ? `经典：手机竖着贴在胸口，屏幕朝自己，往后仰到横杆的角度并坚持一秒多就算过，手机传给下一个人。每一杆要仰得更多，没过的出局${drink}，最后剩下的人赢。测不了角度的手机，大家看着判。`
-          : `Classic: hold the phone upright against your chest, screen facing you, lean back to the bar's angle and hold it for a second, then pass the phone on. Every bar needs a deeper lean. Miss and you're out (${drink}). Last one standing wins. If the phone can't measure, the table judges.`}
+          ? `经典：手机竖着贴在胸前，屏幕朝外，背面贴着胸口，往后仰到横杆的角度并坚持一秒多就算过，手机传给下一个人。每一杆要仰得更多，没过的出局${drink}，最后剩下的人赢。测不了角度的手机，大家看着判。`
+          : `Classic: hold the phone upright against your chest, screen facing out and its back against you, lean back to the bar's angle and hold it for a second, then pass the phone on. Every bar needs a deeper lean. Miss and you're out (${drink}). Last one standing wins. If the phone can't measure, the table judges.`}
+      </p>
+      <p>
+        {zh
+          ? "手机在胸前看不见屏幕，靠听：两个音往下掉是再往后仰，往上走是回来一点，嗒嗒声是到位了（跟着动的杆：跟住了），连着三下短响是再往旁边歪，撑住的时候嗡声往上升，升到头就过，低低一响是晃了。你离横杆远的时候音乐也会变小。盲仰什么都不提示。"
+          : "The phone is on your chest, so you play by ear: two notes falling mean lean back more, rising means come up a bit, a tick means you're there (with a moving bar: with it), three quick clicks mean tilt further, and while you hold, a hum climbs until you're through; a low buzz means you moved. The music drops while you're off the bar. Blind lean says nothing."}
       </p>
       <p>
         {zh
@@ -441,8 +466,8 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
             <p className="pass-name">{cur.name}</p>
             <p className="hint">
               {blind
-                ? zh ? `手机竖着贴在胸口，屏幕朝自己，凭感觉仰到 ${angle}°，停住不动就锁定。看不到自己的角度。` : `Phone upright on your chest, screen facing you. Lean to what feels like ${angle}° and hold still to lock it. You won't see your angle.`
-                : barHow(bar, angle, zh)}
+                ? holdLine(zh) + (zh ? `凭感觉仰到 ${angle}°，停住不动就锁定。看不到自己的角度，也没有提示音。` : `Lean to what feels like ${angle}° and hold still to lock it. You won't see your angle, and the phone says nothing.`)
+                : barHow(bar, angle, zh, sensors === "on")}
             </p>
           </div>
         )}
@@ -521,15 +546,6 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           </div>
         )}
 
-        {!realBar && (phase.k === "ready" || phase.k === "count" || phase.k === "try" || phase.k === "verdict") && (
-          <div className="fz-alive">
-            {alive.map((id) => (
-              <span key={id} className={failed.includes(id) ? "fz-out" : ""} style={{ display: "inline-grid" }}>
-                <NameFace name={name[id]} size={28} />
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </GameShell>
   );

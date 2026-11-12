@@ -4,7 +4,7 @@
  * 温哥华：傍晚的天、雪山、吊桥、楼群的灯、海边的树；冰关下雨。
  * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
  *
- * 远景画（可选）：`games/hang-on/art/<世界>-far.webp` 有就用（AI 画的整张远景，来源写在 art/README.md），
+ * 远景画（可选）：地址由外面给（`src/render/plates.ts` 找 `games/hang-on/art/<世界>-far.webp`，来源写在 art/README.md），
  * 盖住天空和远、中两层剪影，压暗一点，镜头走过整关它只横着挪一小段；最近那层剪影留着压在画前面。
  * 没有这张图就全用程序画的。
  */
@@ -20,12 +20,6 @@ interface Layer {
   g: [Graphics, Graphics];
 }
 
-/** art/ 里的远景画，按世界找；没有就是 undefined（构建时 Vite 把图带上并加指纹）。 */
-const PLATES = import.meta.glob('../../art/*-far.{webp,jpg,png}', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
-export function plateUrl(world: WorldId): string | undefined {
-  for (const [path, url] of Object.entries(PLATES)) if (path.includes(`/${world}-far.`)) return url;
-  return undefined;
-}
 /** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷），前面的平台和人才跳得出来。 */
 const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc };
 /** 远景画显出来以后藏掉的剪影层：最远和中间那层（画里已经有了），只留最近那层压在画前面。 */
@@ -56,10 +50,12 @@ export class Backdrop {
   private dead = false;
   rain = false;
 
+  /** plate：这个世界的远景画地址，没有就全用程序画的。 */
   constructor(
     private readonly world: WorldId,
     private readonly pal: Palette,
     private readonly fx: Particles,
+    plate?: string,
   ) {
     this.view.addChild(this.sky);
     for (const f of [0.1, 0.28, 0.5]) {
@@ -69,8 +65,7 @@ export class Backdrop {
       this.view.addChild(c);
       this.layers.push({ c, f, period: 1600, g });
     }
-    const url = plateUrl(world);
-    if (url) void this.loadPlate(url);
+    if (plate) void this.loadPlate(plate);
   }
 
   /** 远景画：加载好了就盖在天空上，最远那层剪影藏起来。加载失败就当没有。 */
