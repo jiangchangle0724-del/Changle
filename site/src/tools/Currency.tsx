@@ -2,7 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { play } from "../lib/motion";
 import { useStore } from "../store";
-import { cleanAmount as clean, convert, CURRENCIES, type Code, type FxState } from "./fx";
+import { capDigits, cleanAmount as clean, convert, CURRENCIES, MAX_DIGITS, sizeClass, type Code, type FxState } from "./fx";
 import { RateStatus, updatedText } from "./RateStatus";
 
 /** CAD = CNY = USD = HKD: type in any row, the others follow. */
@@ -43,6 +43,8 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
     const v = convert(fx.rates, amount, base.code, code);
     return Number.isFinite(v) ? nf.format(v) : "";
   };
+  // the four amounts share one size, set by the longest of them
+  const size = sizeClass(CURRENCIES.map((c) => value(c.code)).reduce((a, b) => (b.length > a.length ? b : a), ""));
 
   return (
     <section className="tool" id="tool-fx" aria-labelledby="fx-title">
@@ -61,16 +63,16 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
       <div className="fx-list">
         {CURRENCIES.map((c) => {
           const active = c.code === base.code;
+          const shown = value(c.code);
           return (
             <label key={c.code} className={`fx-row ${active ? "is-active" : ""}`}>
               <span className="fx-code">{c.code}</span>
-              <span className="fx-name">{lang === "zh" ? c.zh : c.en}</span>
               <input
-                className="fx-input tabular"
+                className={`fx-input tabular ${size}`}
                 disabled={!active && !fx.rates}
                 inputMode="decimal"
                 enterKeyHint="done"
-                value={value(c.code)}
+                value={shown}
                 aria-label={`${c.code} ${lang === "zh" ? c.zh : c.en}`}
                 onFocus={(e) => {
                   if (!active) {
@@ -80,13 +82,17 @@ export function Currency({ fx }: { fx: FxState & { refresh: () => void } }) {
                   const el = e.currentTarget;
                   window.setTimeout(() => el.select(), 0);
                 }}
-                onChange={(e) => setBase({ code: c.code, text: clean(e.target.value).slice(0, 14) })}
+                onChange={(e) => setBase({ code: c.code, text: capDigits(clean(e.target.value), MAX_DIGITS) })}
               />
-              {!active && fx.rates && (
-                <span className="fx-rate tabular">
-                  1 {base.code} = {rf.format(convert(fx.rates, 1, base.code, c.code))} {c.code}
-                </span>
-              )}
+              {/* the name and the rate share the second line, so the amount above gets the row's full width */}
+              <span className="fx-sub">
+                <span className="fx-name">{lang === "zh" ? c.zh : c.en}</span>
+                {!active && fx.rates && (
+                  <span className="fx-rate tabular">
+                    1 {base.code} = {rf.format(convert(fx.rates, 1, base.code, c.code))} {c.code}
+                  </span>
+                )}
+              </span>
             </label>
           );
         })}
