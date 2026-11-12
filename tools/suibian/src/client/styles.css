@@ -425,11 +425,20 @@ select {
   color: var(--ink);
 }
 
-/* round 1 */
+/* round 1: the whole menu, in groups */
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.menu h3 {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
 .moods {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
 }
 .mood {
   font: inherit;
@@ -438,8 +447,8 @@ select {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: 88px;
-  padding: 12px;
+  min-height: 72px;
+  padding: 10px;
   border-radius: 14px;
   border: 2px solid var(--line);
   background: var(--surface);
@@ -448,11 +457,17 @@ select {
   cursor: pointer;
 }
 .mood .emoji {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
 }
 .mood .label {
   font-weight: 600;
+  font-size: 0.9rem;
   line-height: 1.25;
+  /* A long English word ("Mediterranean") breaks inside the chip instead of running past it. */
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  max-width: 100%;
 }
 .mood .mark {
   position: absolute;
@@ -887,6 +902,14 @@ select {
 }
 .whenrow {
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.whenrow .btn {
+  min-height: 44px;
+  flex: none;
 }
 .planned {
   padding: 8px 12px;

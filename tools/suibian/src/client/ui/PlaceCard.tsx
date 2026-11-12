@@ -4,7 +4,7 @@
 // and ordering it in. Further down the list a card starts short (`compact`) and opens with "More".
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { CUISINES, DISHES, avoidTip, type Place } from "../../engine";
+import { CUISINES, DISHES, avoidTip, type OccasionId, type Place, type Reason } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
 import { serverNow } from "../store";
@@ -60,7 +60,14 @@ function notes(c: CardView): { text: string; severe: boolean }[] {
   return out;
 }
 
-export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranked?: boolean; compact?: boolean; children?: ComponentChildren }) {
+/** A reason as words: how many liked it, or what occasion it suits. */
+function reasonText(r: Reason, c: CardView, occasion?: OccasionId): string {
+  if (r === "liked") return c.likes === 1 ? t("why_liked1") : t("why_likedN", { n: c.likes });
+  if (r === "fits") return t(`fits_${occasion ?? "casual"}` as Key);
+  return t(`why_${r}` as Key);
+}
+
+export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren }) {
   const [open, setOpen] = useState(!compact);
   const p = c.place;
   const o = p.ours;
@@ -130,7 +137,7 @@ export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranke
           <p class="reasons">
             {c.reasons.map((r) => (
               <span key={r} class="reason">
-                {r === "liked" ? (c.likes === 1 ? t("why_liked1") : t("why_likedN", { n: c.likes })) : t(`why_${r}` as Key)}
+                {reasonText(r, c, occasion)}
               </span>
             ))}
           </p>

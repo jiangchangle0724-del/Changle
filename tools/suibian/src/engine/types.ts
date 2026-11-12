@@ -4,26 +4,42 @@ export type Lang = "zh" | "en";
 export type Text = Record<Lang, string>;
 
 export type CuisineId =
+  // Chinese
   | "cantonese"
   | "hk_cafe"
   | "sichuan"
   | "hotpot"
   | "taiwanese"
+  | "shanghai"
+  | "northern"
+  | "noodles"
+  | "chinese_bbq"
   | "chinese"
+  // the rest of Asia
   | "japanese"
   | "ramen"
+  | "izakaya"
   | "korean"
+  | "kbbq"
   | "vietnamese"
   | "thai"
+  | "filipino"
+  /** Malaysian, Singaporean, Indonesian. */
   | "sea"
   | "indian"
-  | "middle_eastern"
+  // Western and the rest
   | "italian"
   | "mexican"
+  /** American: burgers, diners, pubs, casual chains. */
   | "western"
+  | "steak"
+  | "french"
+  | "mediterranean"
+  | "middle_eastern"
   | "seafood"
   | "vegetarian"
   | "brunch"
+  | "cafe"
   | "other";
 
 export type AllergenId = "peanut" | "treenut" | "shellfish" | "fish" | "sesame" | "soy" | "chili" | "egg" | "dairy" | "gluten";
@@ -83,6 +99,8 @@ export interface Place {
   /** When it's open in the coming week, as [opens, closes] in ms since epoch (Google's dated hours). */
   hours?: [number, number][];
   reservable?: boolean;
+  /** What Google says about it beyond the food, for the occasion (occasion.ts). */
+  traits?: Traits;
   /** Google's servesVegetarianFood; undefined when Google doesn't say. */
   veg?: boolean;
   /** "yes": says halal in its name or description. */
@@ -105,6 +123,23 @@ export interface Place {
   /** Our own post-meal numbers for this place. */
   ours?: PlaceStats;
   demo?: boolean;
+}
+
+/** Google's "atmosphere" fields (good for groups, kids, serves wine…) and a few of its types. */
+export interface Traits {
+  groups?: boolean;
+  kids?: boolean;
+  kidsMenu?: boolean;
+  wine?: boolean;
+  beer?: boolean;
+  cocktails?: boolean;
+  dessert?: boolean;
+  music?: boolean;
+  outdoor?: boolean;
+  /** Google calls it fast food, a bar or pub, or fine dining. */
+  fastFood?: boolean;
+  bar?: boolean;
+  fineDining?: boolean;
 }
 
 export interface PlaceStats {
