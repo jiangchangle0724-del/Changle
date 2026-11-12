@@ -22,9 +22,17 @@ export function Tile({
   onOpen,
 }: TileProps) {
   const other = lang === "zh" ? "en" : "zh";
-  const className = `ui-tile ui-category-${category} ui-tile-${size}${lit ? " ui-tile-lit" : ""}${soon ? " ui-tile-soon" : ""}`;
-  const inside = (
-    <>
+  // a card that opens another page at its own address (随便 at /eat) is a link, every other one a button
+  const Card = href ? "a" : "button";
+  return (
+    <Card
+      type={href ? undefined : "button"}
+      href={href}
+      className={`ui-tile ui-category-${category} ui-tile-${size}${lit ? " ui-tile-lit" : ""}${soon ? " ui-tile-soon" : ""}`}
+      onClick={onOpen}
+      disabled={disabled}
+      aria-pressed={pressed}
+    >
       <Icon
         className="ui-tile-watermark"
         strokeWidth={1.6}
@@ -39,7 +47,6 @@ export function Tile({
         <small lang={other === "zh" ? "zh-CN" : "en"}>{name[other]}</small>
       </span>
       {line && <span className="ui-tile-line">{line}</span>}
-      {(players || minutes !== undefined || drinking) && (
       <span className="ui-tile-meta">
         {players && (
           <span>
@@ -56,16 +63,6 @@ export function Tile({
         )}
         {drinking && <Wine aria-label={labels.drinking[lang]} role="img" />}
       </span>
-      )}
-    </>
-  );
-  return href ? (
-    <a className={className} href={href} onClick={onOpen}>
-      {inside}
-    </a>
-  ) : (
-    <button type="button" className={className} onClick={onOpen} disabled={disabled} aria-pressed={pressed}>
-      {inside}
-    </button>
+    </Card>
   );
 }
