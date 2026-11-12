@@ -4310,7 +4310,7 @@ export const CARDS: Card[] = [
     level: 1,
     term: { zh: "更夫", en: "更夫 gēng fū" },
     definition: {
-      zh: "旧时夜里走街串巷报时的人，敲着梆子或铜锣，从晚上7点起把一夜分成五更，每两个小时报一次。",
+      zh: "旧时夜里走街串巷报时的人，敲着梆子或铜锣，从晚上7点起把一夜分成五更，每2个小时报一次。",
       en: "The old night watchman. He walked the lanes striking a bamboo clapper or a gong to call the hour: from 7 pm the night ran in five watches of two hours each.",
     },
     bluffSeeds: { zh: ["寡妇改嫁后的第二任丈夫", "驿站里专管换马的马夫"], en: ["a widow's second husband", "a post-house groom who swapped horses"] },
@@ -4336,7 +4336,7 @@ export const CARDS: Card[] = [
     level: 1,
     term: { zh: "镖师", en: "镖师 biāo shī" },
     definition: {
-      zh: "镖局里替钱庄、富商押运现银和贵重货物的人，镖车插着镖旗，一路喊本局的镖号。学徒要学满三年才能出师。",
+      zh: "镖局里替钱庄、富商押运现银和贵重货物的人，镖车插着镖旗，一路喊本局的镖号。学徒要学满3年才能出师。",
       en: "An escort from a biaoju agency who guarded shipments of silver and valuables, flying the agency's flag and shouting its call. Apprenticeship took three years.",
     },
     bluffSeeds: { zh: ["打造飞镖暗器的铁匠", "庙会上摆飞镖摊的摊主"], en: ["a smith who forged throwing darts", "a dart-game stall keeper at fairs"] },
@@ -4353,7 +4353,7 @@ export const CARDS: Card[] = [
       en: "A street craft: dab hot malt syrup on a wheat straw, blow it up like a balloon and pinch it into an animal. Said to date from the late Ming or early Qing.",
     },
     bluffSeeds: { zh: ["专说甜言蜜语哄人的人", "婚礼上一边吹唢呐一边撒糖的人"], en: ["a sweet-talker who flatters people", "a wedding piper who tosses candy"] },
-    funFact: { zh: "八十年代初，几分钱或几个用空的牙膏皮，就能换一个糖人。", en: "In the early 1980s a sugar figure cost a few fen, or a few empty toothpaste tubes." },
+    funFact: { zh: "1980年代初，几分钱或几个用空的牙膏皮，就能换一个糖人。", en: "In the early 1980s a sugar figure cost a few fen, or a few empty toothpaste tubes." },
     source: "https://zh.wikipedia.org/wiki/糖塑",
   },
   {
@@ -4375,7 +4375,7 @@ export const CARDS: Card[] = [
     level: 2,
     term: { zh: "钉马掌", en: "钉马掌 dìng mǎ zhǎng" },
     definition: {
-      zh: "给马蹄钉上铁掌的手艺。马蹄最外层只有两三厘米厚的硬角质，钉上马蹄铁能减缓磨损；五代时回鹘人已会钉掌。",
+      zh: "给马蹄钉上铁掌的手艺。马蹄最外层只有2到3厘米厚的硬角质，钉上马蹄铁能减缓磨损；五代时回鹘人已会钉掌。",
       en: "Nailing iron shoes onto horses' hooves: the hard outer horn is only 2 to 3 cm thick and a shoe slows its wear. Uyghurs shod horses by the 10th century.",
     },
     bluffSeeds: { zh: ["马戏团里教马作揖的驯马师", "给马鞍钉铜钉的皮匠"], en: ["a circus trainer teaching horses to bow", "a saddler hammering in brass studs"] },
@@ -4509,7 +4509,7 @@ export const CARDS: Card[] = [
       en: "A Yellow River rafter. Whole sheepskins were blown up like balloons, and a dozen or so lashed under a wooden frame made a raft. Common around Lanzhou.",
     },
     bluffSeeds: { zh: ["坐筏子过河的过路客人", "专做竹筏买卖的商人"], en: ["a passenger riding a raft", "a merchant dealing in bamboo rafts"] },
-    funFact: { zh: "老话说「下水人乘筏，上水筏乘人」：筏子漂不回上游，回程得把它扛在肩上。", en: "The old saying: 'downstream the man rides the raft, upstream the raft rides the man'. Rafts can't go upstream, so they went home on his shoulders." },
+    funFact: { zh: "老话说「下水人乘筏，上水筏乘人」：筏子漂不回上游，小筏子回程就扛在肩上。", en: "The old saying: 'downstream the man rides the raft, upstream the raft rides the man'. Rafts can't go upstream, so small ones went home on his shoulders." },
     source: "https://zh.wikipedia.org/wiki/皮筏",
   },
   {
@@ -4532,7 +4532,7 @@ export const CARDS: Card[] = [
     term: { zh: "窝脖儿", en: "窝脖儿 wō bōr" },
     definition: {
       zh: "老北京的搬运工。肩膀扛重物时脖子得歪向一边、窝着，这姿势就成了这一行的名字。城里的短途搬运多靠他们。",
-      en: "An old Beijing porter. Carrying loads on the shoulder meant crooking the neck to one side, and that 'nested neck' became the trade's name.",
+      en: "An old Beijing porter: shouldering a load meant crooking the neck to one side, and that 'nested neck' named the trade. Most short hauls in town were theirs.",
     },
     bluffSeeds: { zh: ["冬天缩着脖子取暖的懒汉", "专治落枕的推拿师傅"], en: ["an idler hunched against the cold", "a masseur who treats stiff necks"] },
     funFact: { zh: "北京话里它还能当动词用：「窝脖儿」也指碰了钉子、憋着一肚子气。", en: "In Beijing speech it also means getting snubbed and having to swallow your anger." },
@@ -4557,7 +4557,7 @@ export const CARDS: Card[] = [
     level: 3,
     term: { zh: "批脚", en: "批脚 pī jiǎo" },
     definition: {
-      zh: "替下南洋的华侨把钱和家书一起捎回老家的人，也叫水客。钱和信装在同一封里，叫「侨批」，抽成约一到两成。",
+      zh: "替下南洋的华侨把钱和家书一起捎回老家的人，也叫水客。钱和信装在同一封里，叫「侨批」，抽成约10%到20%。",
       en: "A courier, also called shuike, who carried migrants' money and letters from Southeast Asia home in one envelope, the qiaopi, for a 10 to 20 percent cut.",
     },
     bluffSeeds: { zh: ["衙门里送批文的跑腿", "给批发商挑货的脚夫"], en: ["a yamen runner delivering permits", "a porter for wholesale dealers"] },
@@ -4584,7 +4584,7 @@ export const CARDS: Card[] = [
     term: { zh: "插戴婆", en: "插戴婆 chā dài pó" },
     definition: {
       zh: "明清时专替富家女子往头上插戴首饰的妇女。那时贵妇头上的簪、钗、钿越戴越多，自己根本插不好，赴宴前就雇她来。",
-      en: "A woman hired in Ming and Qing times to pin jewellery into rich women's hair. Hairpins and ornaments piled up so high that ladies couldn't manage alone.",
+      en: "A woman hired in Ming and Qing times to pin jewellery into rich ladies' hair before a banquet. The pins and ornaments had grown too many to manage alone.",
     },
     bluffSeeds: { zh: ["给新人插花戴红的媒婆", "庙会上卖绢花的老婆婆"], en: ["a matron pinning flowers on newlyweds", "an old woman selling silk flowers"] },
     funFact: { zh: "明代笔记《留青日札》说，请她插戴一次，片刻工夫就得花二三钱。", en: "A Ming notebook, the Liuqing Rizha, says one session took moments and cost two or three qian, tenths of a tael." },
@@ -4596,7 +4596,7 @@ export const CARDS: Card[] = [
     level: 3,
     term: { zh: "灶户", en: "灶户 zào hù" },
     definition: {
-      zh: "古代在海边煎盐的人家，唐代起有这个称呼，也叫亭户、灶丁。一旦编入「灶籍」，就世世代代不得脱身。",
+      zh: "古代在海边煎盐的人家，唐代起有这个称呼，也叫亭户、灶丁。一旦编入「灶籍」，就再也脱不了身。",
       en: "A household that boiled sea salt, a name used from the Tang; also called tinghu or zaoding. Once entered in the salt register, a family could never leave it.",
     },
     bluffSeeds: { zh: ["给大户人家砌灶台的泥瓦匠", "饭馆后厨专管烧火的伙夫"], en: ["a mason who built kitchen stoves", "the fire tender in a restaurant kitchen"] },
@@ -4622,11 +4622,11 @@ export const CARDS: Card[] = [
     level: 3,
     term: { zh: "西席", en: "西席 xī xí" },
     definition: {
-      zh: "旧时对请到家里的私塾先生或幕僚的尊称，也叫西宾。源于汉代：人们席地而坐，坐西朝东是上座。",
+      zh: "旧时对请到家里的私塾先生或幕僚的尊称，也叫西宾。汉代席地而坐，屋里以坐西朝东为上座。",
       en: "An honorific for a hired family tutor or private secretary, also xibin. In the Han people sat on mats, and the west seat, facing east, was the place of honour.",
     },
     bluffSeeds: { zh: ["西域传来的一种羊毛地毯", "西餐宴会的老派叫法"], en: ["a wool rug from the Western Regions", "an old name for a Western banquet"] },
-    funFact: { zh: "相传汉明帝即位后去听老师桓荣讲经，仍请他坐西面东，以示敬重。", en: "Legend says Emperor Ming of Han, once on the throne, still seated his old teacher Huan Rong facing east, in the west seat, out of respect." },
+    funFact: { zh: "相传汉明帝即位后去听老师桓荣讲经，仍请他坐西面东，「西席」由此得名。", en: "Legend says Emperor Ming of Han, once on the throne, still seated his old teacher Huan Rong in the west seat, facing east, and the title grew from that." },
     source: "https://zh.wikipedia.org/wiki/教师",
   },
   // ---------- animals ----------
