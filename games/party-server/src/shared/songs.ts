@@ -5,13 +5,15 @@
 //
 // A song's beat: its tempo (what the published tempo sites agree on; a fast song is danced at half
 // its tempo, on every other beat: APT. at 74.5, Happy at 80), and when in the video the dance's
-// first beat is. That needs someone on the speaker page to tap along to the song once (对拍: the
-// first tap is the dance's first beat), kept for every room in the songbook (server/songbook.ts);
-// until then a song can't be danced. firstBeatMs here is only a rough guess for the tests.
+// first beat is: the first time a room dances a song, everyone taps along to it on their phones
+// (找拍子), and the beat they find is kept for every room in the songbook (server/songbook.ts); one
+// person can do it again on the speaker page (歌曲对拍). firstBeatMs here is only a rough guess, for
+// the tests.
 //
-// The videos are the artists' or labels' own uploads (checked 2026-11-05: Gangnam Style to Dance
-// Monkey played embedded; the label (VEVO) and audio-only (Topic) ones, 最炫民族风 onwards, were
-// refused to a data centre's address and should play on a TV at home: the tap-along shows which).
+// The videos are the artists' or labels' own uploads (YouTube's "Topic" channels are the labels'
+// audio). Checked 2026-11-11 in a browser at home: all 16 play embedded. 最炫民族风's first one
+// (6eGj6ZC5R4E) wouldn't (error 150: its owner doesn't let other sites play it); the label's Topic
+// upload does. A data centre's address is refused most of them, so the cloud checks can't tell.
 // Left out: 小苹果 (its official video stops the song for sketches), 学猫叫 (no official upload),
 // Y.M.C.A. (live drums: its tempo drifts).
 import type { Difficulty } from "../../../party-base/src/index";
@@ -161,7 +163,7 @@ export const SONGS: readonly Song[] = [
     title_en: "Zui Xuan Min Zu Feng",
     artist_zh: "凤凰传奇",
     artist_en: "Phoenix Legend",
-    videoId: "6eGj6ZC5R4E",
+    videoId: "S0wHttDxEW0",
     bpm: 127,
     firstBeatMs: 2000,
     beats: 312,
