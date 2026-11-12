@@ -307,15 +307,27 @@ export function Board({
   });
   const hint = useMapHint(zoomable && size !== "s" && !moving);
   // Between moves the board rests as it lies (a move's camera has it meanwhile: ui/Ride.tsx), and on
-  // the big screen its globe and centre card stand over its middle.
+  // the big screen its globe and centre card stand over its middle. Only a new lean eases over
+  // (`.easing`, styles.css): the board handed back by a move's camera (one cut short too) is at rest at
+  // once, so a pushed-in board never shows unclipped past its box while it eases back.
+  const leanShown = useRef<number | null>(null);
   useLayoutEffect(() => {
     const el = view.current;
     const r = rig.current;
     if (ride || !el || !r) return;
+    const easing = leanShown.current !== null && leanShown.current !== lean;
+    leanShown.current = lean;
+    el.classList.toggle("easing", easing);
     const c = rest(r.rotation(), lean);
     const w = el.clientWidth || 1;
     viewBoard(el, c, r.rotation(), w);
     if (big) placeCamLayers(Array.from(wrap.current?.querySelectorAll<HTMLElement>(".board-cam") ?? []), c, w);
+    if (!easing) return;
+    const done = window.setTimeout(() => el.classList.remove("easing"), 700);
+    return () => {
+      clearTimeout(done);
+      el.classList.remove("easing");
+    };
   }, [ride, lean, width, globeOn]);
   const pick = (next: MapSize) => {
     setMapSize(next);
