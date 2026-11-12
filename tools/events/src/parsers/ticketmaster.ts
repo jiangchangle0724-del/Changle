@@ -66,18 +66,35 @@ function coordinate(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function positivePrice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 export function parseTicketmaster(page: TmPage, source: string): { events: NormalizedEvent[]; more: boolean } {
   // An error response must fail the source, not mark it read with zero events.
   if (!page || (!page._embedded && !page.page)) throw new Error("Invalid Ticketmaster events page");
   const entries = page._embedded?.events ?? [];
   if (!Array.isArray(entries)) throw new Error("Invalid Ticketmaster events page");
   const events: NormalizedEvent[] = [];
+  let unreadable = 0;
   for (const ev of entries) {
     try {
-      if (typeof ev?.id !== "string" || !ev.id.trim() || typeof ev.name !== "string" || !ev.name.trim()) continue;
+      if (typeof ev?.id !== "string" || !ev.id.trim() || typeof ev.name !== "string" || !ev.name.trim()) {
+        unreadable++;
+        continue;
+      }
       const st = ev.dates?.start;
-      const day = localDate(st?.localDate);
-      if (!st || !day) continue;
+      // Missing dates are an intentional skip; a supplied but invalid date is unreadable.
+      if (!st || st.localDate == null || st.localDate === "") continue;
+      const day = localDate(st.localDate);
+      if (!day) {
+        unreadable++;
+        continue;
+      }
       const startAt = typeof st.dateTime === "string" ? Date.parse(st.dateTime) : NaN;
       const timeless = !Number.isFinite(startAt) || st.timeTBA || st.noSpecificTime || st.dateTBD || st.dateTBA;
       let end: string | null = null;
@@ -92,14 +109,14 @@ export function parseTicketmaster(page: TmPage, source: string): { events: Norma
       const cls = classifications.find((c) => c?.primary) ?? classifications[0];
       const venue = ev._embedded?.venues?.[0];
       const prices = Array.isArray(ev.priceRanges) ? ev.priceRanges : [];
-      const hasStandard = prices.some((p) => p?.currency === "CAD" && p.type === "standard");
+      const hasStandard = prices.some((p) => p?.currency === "CAD" && p.type === "standard" && (positivePrice(p.min) || positivePrice(p.max)));
       let priceMin: number | null = null;
       let priceMax: number | null = null;
       for (const p of prices) {
         if (!p || p.currency !== "CAD" || (hasStandard && p.type !== "standard")) continue;
         // Zero is Ticketmaster's unspecified bound, including one-sided zero ranges.
-        if (typeof p.min === "number" && Number.isFinite(p.min) && p.min > 0) priceMin = Math.min(priceMin ?? Infinity, p.min);
-        if (typeof p.max === "number" && Number.isFinite(p.max) && p.max > 0) priceMax = Math.max(priceMax ?? -Infinity, p.max);
+        if (positivePrice(p.min)) priceMin = Math.min(priceMin ?? Infinity, p.min);
+        if (positivePrice(p.max)) priceMax = Math.max(priceMax ?? -Infinity, p.max);
       }
       let image: NonNullable<TmEvent["images"]>[number] | undefined;
       for (const candidate of Array.isArray(ev.images) ? ev.images : []) {
@@ -119,10 +136,10 @@ export function parseTicketmaster(page: TmPage, source: string): { events: Norma
         status: Object.hasOwn(STATUS, status) ? STATUS[status] : "scheduled",
         place: venue
           ? {
-              name: venue.name ?? null,
-              address: venue.address?.line1 ?? null,
-              city: venue.city?.name ?? null,
-              postalCode: venue.postalCode ?? null,
+              name: stringOrNull(venue.name),
+              address: stringOrNull(venue.address?.line1),
+              city: stringOrNull(venue.city?.name),
+              postalCode: stringOrNull(venue.postalCode),
               lat: coordinate(venue.location?.latitude),
               lon: coordinate(venue.location?.longitude),
             }
@@ -138,10 +155,11 @@ export function parseTicketmaster(page: TmPage, source: string): { events: Norma
         organizer: null,
       });
     } catch {
-      // A malformed event must not discard the rest of the page.
-      continue;
+      unreadable++;
     }
   }
+  // Fail the source on widespread bad data so yesterday's events are retained.
+  if (unreadable > entries.length / 2) throw new Error("Invalid Ticketmaster events page");
   const p = page.page;
   return { events, more: !!p && p.number + 1 < p.totalPages };
 }

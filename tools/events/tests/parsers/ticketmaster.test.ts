@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import handmadeRaw from "../fixtures/ticketmaster/vancouver-handmade-p0.json?raw";
 import docsRaw from "../fixtures/ticketmaster/docs-example.json?raw";
 import { parseTicketmaster, tmCategory, type TmPage } from "../../src/parsers/ticketmaster";
-import { endMs, startMs } from "../../src/store";
+import { endMs, startMs, venueId } from "../../src/store";
+import { areaOf } from "../../src/area";
 import { fromVan, windowOf } from "../../src/time";
 import type { Category } from "../../src/types";
 
@@ -253,11 +254,23 @@ describe("Ticketmaster CAD prices", () => {
     { ranges: [
       { type: "standard", currency: "CAD", min: 0, max: 0 },
       { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
-    ], min: null, max: null },
+    ], min: 35, max: 70 },
+    { ranges: [
+      { type: "standard", currency: "CAD" },
+      { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
+    ], min: 35, max: 70 },
+    { ranges: [
+      { type: "standard", currency: "CAD", min: NaN, max: Infinity },
+      { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
+    ], min: 35, max: 70 },
     { ranges: [
       { type: "standard", currency: "CAD", min: 0, max: 60 },
       { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
     ], min: null, max: 60 },
+    { ranges: [
+      { type: "standard", currency: "CAD", min: 20, max: 0 },
+      { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
+    ], min: 20, max: null },
   ])("prefers standard CAD ranges over fee-inclusive ones: $ranges", ({ ranges, min, max }) => {
     expect(parseVariant({ priceRanges: ranges })).toMatchObject({ priceMin: min, priceMax: max, isFree: null });
   });
@@ -265,6 +278,42 @@ describe("Ticketmaster CAD prices", () => {
 
 describe("Ticketmaster malformed upstream events", () => {
   const good = handmade._embedded!.events![0];
+  const unreadable = [
+    { kind: "status objects", changes: { dates: { ...good.dates, status: { code: {} } } } },
+    { kind: "missing ids", changes: { id: undefined } },
+    { kind: "missing names", changes: { name: undefined } },
+    { kind: "malformed dates", changes: { dates: { start: { localDate: "invalid" } } } },
+    { kind: "impossible dates", changes: { dates: { start: { localDate: "2026-02-30" } } } },
+  ];
+
+  it.each(unreadable)("rejects a page of seven events with the same unreadable $kind", ({ changes }) => {
+    const page = rawPage(handmade._embedded!.events!.map((event) => ({ ...event, ...changes })));
+    page.page = { number: 0, totalPages: 2 };
+    expect(() => parseTicketmaster(page, source)).toThrow("Invalid Ticketmaster events page");
+  });
+
+  it.each(unreadable)("rejects only when more than half the raw entries have unreadable $kind", ({ changes }) => {
+    const bad = { ...good, ...changes };
+    const half = rawPage([bad, good, bad, good]);
+    half.page = { number: 0, totalPages: 2 };
+    expect(parseTicketmaster(half, source)).toEqual({ events: [events[0], events[0]], more: true });
+    expect(() => parseTicketmaster(rawPage([bad, good, bad]), source)).toThrow("Invalid Ticketmaster events page");
+  });
+
+  it("combines different unreadable reasons toward the page threshold", () => {
+    const bad = unreadable.slice(0, 3).map(({ changes }) => ({ ...good, ...changes }));
+    expect(() => parseTicketmaster(rawPage([...bad, good]), source)).toThrow("Invalid Ticketmaster events page");
+  });
+
+  it("does not count genuinely absent dates as unreadable events", () => {
+    const undated = [undefined, {}, { start: {} }, { start: { localDate: null } }, { start: { localDate: "" } }]
+      .map((dates) => ({ ...good, dates }));
+    expect(parseTicketmaster(rawPage(undated), source)).toEqual({ events: [], more: false });
+    // The denominator is every entry in the page, including intentionally skipped undated events.
+    const bad = { ...good, dates: { ...good.dates, status: { code: {} } } };
+    expect(parseTicketmaster(rawPage([bad, ...undated]), source)).toEqual({ events: [], more: false });
+  });
+
   it.each([
     null, {}, { ...good, id: undefined }, { ...good, name: undefined },
     { ...good, id: null }, { ...good, name: null }, { ...good, id: "" }, { ...good, name: "" },
@@ -304,5 +353,24 @@ describe("Ticketmaster malformed upstream events", () => {
       .toMatchObject({ lat: 0, lon: -123.108942 });
     expect(parseVariant({ _embedded: { venues: [{ location: { latitude: "49.277909", longitude: "invalid" } }] } }).place)
       .toMatchObject({ lat: 49.277909, lon: null });
+  });
+
+  it.each([42, {}, [], true, null, undefined])("turns non-string venue fields %j into null before storage", (value) => {
+    const [event] = parseTicketmaster(rawPage([{ ...good, _embedded: { venues: [{
+      name: value, address: { line1: value }, city: { name: value }, postalCode: value,
+    }] } }]), source).events;
+    expect(event.place).toEqual({ name: null, address: null, city: null, postalCode: null, lat: null, lon: null });
+    expect(() => venueId(event.place!)).not.toThrow();
+    expect(() => areaOf(event.place)).not.toThrow();
+  });
+
+  it("keeps valid venue strings while rejecting malformed address, city and postal code fields", () => {
+    const [event] = parseTicketmaster(rawPage([{ ...good, _embedded: { venues: [{
+      name: "Rogers Arena", address: { line1: {} }, city: { name: 42 }, postalCode: {},
+      location: { latitude: "49.277909", longitude: "-123.108942" },
+    }] } }]), source).events;
+    expect(event.place).toEqual({ name: "Rogers Arena", address: null, city: null, postalCode: null, lat: 49.277909, lon: -123.108942 });
+    expect(() => venueId(event.place!)).not.toThrow();
+    expect(() => areaOf(event.place)).not.toThrow();
   });
 });
