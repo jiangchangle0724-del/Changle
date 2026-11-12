@@ -1,6 +1,6 @@
 import { Camera, DoorOpen, Hand, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePenaltyText, useStore, type Player } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
@@ -36,6 +36,8 @@ type Kept = {
   holders: Partial<Record<Rank, Player>>;
   /** the bathroom pass has been used once this deck (older saves: not yet) */
   wcUsed?: boolean;
+  /** when the camera and the nose may go again (ms since the epoch; a minute after each use) */
+  cool?: { camera?: number; nose?: number };
   reshuffled: boolean;
   turn: number;
 };
@@ -61,6 +63,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const [phase, setPhase] = useState<Phase>(saved?.phase ?? "idle");
   const [holders, setHolders] = useState<Partial<Record<Rank, Player>>>(saved?.holders ?? {});
   const [wcUsed, setWcUsed] = useState(saved?.wcUsed ?? false);
+  const [cool, setCool] = useState<{ camera?: number; nose?: number }>(saved?.cool ?? {});
   const [remaining, setRemaining] = useState(deck.current.remaining);
   const [reshuffled, setReshuffled] = useState(saved?.reshuffled ?? false);
   const turn = useTurnOrder(saved?.turn ?? 0);
@@ -77,6 +80,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     phase: ending ? "idle" : phase,
     holders,
     wcUsed,
+    cool,
     reshuffled,
     turn: ending ? (turn.index + 1) % Math.max(1, players.length) : turn.index,
   }, played);
@@ -104,6 +108,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     if (r) {
       setHolders({});
       setWcUsed(false);
+      setCool({});
     }
     setRemaining(deck.current.remaining);
     setCard(c);
@@ -185,8 +190,9 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         return;
       case "hold":
         setHolders((h) => ({ ...h, [card.rank]: me }));
-        // a new pass is good for one more visit
+        // a new pass is good for one more visit; a new holder starts fresh
         if (rule.power === "wc") setWcUsed(false);
+        if (rule.power === "camera" || rule.power === "nose") setCool((c) => ({ ...c, [rule.power!]: undefined }));
         endTurn();
         return;
     }
@@ -206,15 +212,27 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // the power on screen, by its card (none if its card has gone back into the deck)
   const usingCard = using ? held.find(([, , p]) => p === using.power) : undefined;
 
+  // the camera and the nose rest a minute after each use: the button counts it down
+  const [, tick] = useState(0);
+  const resting = (cool.camera ?? 0) > Date.now() || (cool.nose ?? 0) > Date.now();
+  useEffect(() => {
+    if (!resting) return;
+    const id = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [resting]);
+  const rest = (until?: number) => (until ? Math.max(0, Math.ceil((until - Date.now()) / 1000)) : 0);
+
   const useCamera = () => {
-    if (!camera || using) return;
+    if (!camera || using || rest(cool.camera)) return;
+    setCool((c) => ({ ...c, camera: Date.now() + ROGUE_MS.cool }));
     setUsing({ power: "camera", step: "freeze" });
     setFlash(Date.now());
     if (sound) playPower("camera");
     haptic(30);
   };
   const useNose = () => {
-    if (!nose || using) return;
+    if (!nose || using || rest(cool.nose)) return;
+    setCool((c) => ({ ...c, nose: Date.now() + ROGUE_MS.cool }));
     setUsing({ power: "nose" });
     if (sound) playPower("nose");
     haptic([20, 40, 20]);
@@ -354,15 +372,17 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           {(camera || nose || wcHolder || trouble) && (
             <div className="power-dock">
               {camera && (
-                <button type="button" className="power-btn" onClick={useCamera}>
+                <button type="button" className="power-btn" disabled={rest(cool.camera) > 0} onClick={useCamera}>
                   <Camera size={18} />
                   {zh ? "照相机" : "Camera"}
+                  {rest(cool.camera) > 0 && <span className="tabular">{rest(cool.camera)}s</span>}
                 </button>
               )}
               {nose && (
-                <button type="button" className="power-btn" onClick={useNose}>
+                <button type="button" className="power-btn" disabled={rest(cool.nose) > 0} onClick={useNose}>
                   <Hand size={18} />
                   {zh ? "摸鼻子" : "Nose"}
+                  {rest(cool.nose) > 0 && <span className="tabular">{rest(cool.nose)}s</span>}
                 </button>
               )}
               {trouble && (
@@ -485,8 +505,8 @@ const howOnOnePhone = (r: { power?: Power }) => (r.power ? ONE_PHONE_HOW[r.power
 /** How each power is used when the table shares one phone (under the card, and in the rules). */
 const ONE_PHONE_HOW: Partial<Record<Power, { zh: string; en: string }>> = {
   buddy: { zh: "以后谁被罚，罚单上会提醒喊陪酒。", en: "From now on every penalty reminds the table to call the buddy." },
-  camera: { zh: "下面多了一个照相机按钮。你喊照相机，谁拿着手机谁按，定格几秒后点出动了的人。", en: "A camera button sits below. Shout it, whoever holds the phone taps it, and after the freeze tap whoever moved." },
-  nose: { zh: "下面多了一个摸鼻子按钮。你喊摸鼻子，按一下，点出最后一个摸到的。", en: "A nose button sits below. Shout it, tap it, then tap whoever touched theirs last." },
+  camera: { zh: "下面多了一个照相机按钮。你喊照相机，谁拿着手机谁按，定格几秒后点出动了的人。按一次歇一分钟。", en: "A camera button sits below. Shout it, whoever holds the phone taps it, and after the freeze tap whoever moved. It rests a minute after each shot." },
+  nose: { zh: "下面多了一个摸鼻子按钮。你喊摸鼻子，按一下，点出最后一个摸到的。按一次歇一分钟。", en: "A nose button sits below. Shout it, tap it, then tap whoever touched theirs last. It rests a minute after each call." },
   wc: { zh: "下面多了一个上厕所按钮。谁要去，按一下点自己。", en: "A bathroom button sits below. Whoever needs to go taps it and picks their name." },
   trouble: { zh: "下面多了一个谁接话了按钮。谁接了你的话，按一下点他。", en: "A “who answered?” button sits below. Tap it and pick whoever answered you." },
 };

@@ -36,7 +36,7 @@ export type Rule = {
 };
 
 /** The powers' clocks, in ms: the camera's freeze, then how long its holder has to say who moved (after that nobody did), and the nose's window. */
-export const ROGUE_MS = { freeze: 3500, judge: 20000, nose: 6000 };
+export const ROGUE_MS = { freeze: 3500, judge: 20000, nose: 6000, cool: 60000 };
 
 /** The line under a penalty a power or a round handed out (the same words on one phone and online). */
 export const ROGUE_NOTES = {
