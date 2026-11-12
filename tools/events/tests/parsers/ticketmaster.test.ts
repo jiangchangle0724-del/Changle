@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import handmadeRaw from "../fixtures/ticketmaster/vancouver-handmade-p0.json?raw";
 import docsRaw from "../fixtures/ticketmaster/docs-example.json?raw";
 import { parseTicketmaster, tmCategory, type TmPage } from "../../src/parsers/ticketmaster";
+import { endMs, startMs } from "../../src/store";
+import { fromVan, windowOf } from "../../src/time";
 import type { Category } from "../../src/types";
 
 type TmEvent = NonNullable<NonNullable<TmPage["_embedded"]>["events"]>[number];
@@ -12,6 +14,8 @@ const events = parseTicketmaster(handmade, source).events;
 // Variants are copies of saved inputs; the fixtures on disk stay unchanged.
 const variant = (changes: Partial<TmEvent>): TmPage => ({ _embedded: { events: [{ ...handmade._embedded!.events![0], ...changes }] } });
 const parseVariant = (changes: Partial<TmEvent>) => parseTicketmaster(variant(changes), source).events[0];
+// JSON decoding deliberately permits malformed upstream values without weakening the public types.
+const rawPage = (events: unknown[]): TmPage => JSON.parse(JSON.stringify({ _embedded: { events } }));
 
 describe("Ticketmaster saved pages", () => {
   it("matches all seven acceptance cases and keeps each source identity", () => {
@@ -83,10 +87,21 @@ describe("Ticketmaster saved pages", () => {
   });
 
   it.each([
-    [undefined, false], [{ number: 0, totalPages: 0 }, false], [{ number: 0, totalPages: 1 }, false],
+    [{ number: 0, totalPages: 0 }, false], [{ number: 0, totalPages: 1 }, false],
     [{ number: 0, totalPages: 2 }, true], [{ number: 1, totalPages: 2 }, false], [{ number: 1, totalPages: 3 }, true],
   ] as const)("reports pagination from %j", (page, more) => {
     expect(parseTicketmaster({ page }, source)).toEqual({ events: [], more });
+  });
+
+  it.each([{}, { errors: [{ message: "upstream error" }] }, { _embedded: null, page: null }, null])(
+    "rejects a response that is not an events page: %j", (input) => {
+      expect(() => parseTicketmaster(JSON.parse(JSON.stringify(input)), source)).toThrow("Invalid Ticketmaster events page");
+    },
+  );
+
+  it("accepts genuinely empty pages and embedded event lists without pagination", () => {
+    expect(parseTicketmaster({ page: { number: 0, totalPages: 0 } }, source)).toEqual({ events: [], more: false });
+    expect(parseTicketmaster(rawPage([]), source)).toEqual({ events: [], more: false });
   });
 });
 
@@ -112,6 +127,20 @@ describe("Ticketmaster classifications", () => {
     expect(tmCategory(segment, genre)).toBe(category);
     const classifications = [{ segment: { name: segment }, genre: { name: genre } }];
     expect(parseVariant({ classifications }).category).toBe(category);
+  });
+
+  it("uses the primary classification for both category and source labels", () => {
+    const classifications = [
+      { segment: { name: "Sports" }, genre: { name: "Hockey" } },
+      { primary: true, segment: { name: "Arts & Theatre" }, genre: { name: "Children's Theatre" }, subGenre: { name: "Family" } },
+    ];
+    expect(parseVariant({ classifications })).toMatchObject({
+      category: "family", sourceCategories: ["Arts & Theatre", "Children's Theatre", "Family"],
+    });
+    expect(parseVariant({ classifications: [classifications[0], { ...classifications[1], primary: false }] }))
+      .toMatchObject({ category: "outdoors", sourceCategories: ["Sports", "Hockey"] });
+    const [event] = parseTicketmaster(rawPage([{ ...handmade._embedded!.events![0], classifications: [null, classifications[1]] }]), source).events;
+    expect(event.category).toBe("family");
   });
 });
 
@@ -140,11 +169,51 @@ describe("Ticketmaster statuses and times", () => {
   });
 
   it.each([
-    ["2025-11-08T03:00:00Z", "2025-11-07T19:00:00-08:00"],
-    ["2026-11-08T02:00:00Z", "2026-11-07T19:00:00-07:00"],
-  ])("converts UTC start and end with the date's Vancouver offset: %s", (dateTime, start) => {
-    expect(parseVariant({ dates: { start: { localDate: start.slice(0, 10), dateTime }, end: { dateTime } } }))
-      .toMatchObject({ start, end: start, allDay: false, timeTBD: false });
+    ["2025-11-08T03:00:00Z", "2025-11-08T04:00:00Z", "2025-11-07T19:00:00-08:00", "2025-11-07T20:00:00-08:00"],
+    ["2026-11-08T02:00:00Z", "2026-11-08T03:00:00Z", "2026-11-07T19:00:00-07:00", "2026-11-07T20:00:00-07:00"],
+  ])("converts UTC start and end with the date's Vancouver offset: %s", (dateTime, endTime, start, end) => {
+    expect(parseVariant({ dates: { start: { localDate: start.slice(0, 10), dateTime }, end: { dateTime: endTime } } }))
+      .toMatchObject({ start, end, allDay: false, timeTBD: false });
+  });
+
+  it.each(["noSpecificTime", "timeTBA", "dateTBA", "dateTBD", "missing", "invalid"])(
+    "keeps a multi-day event in the window when its start time is %s", (mode) => {
+      const event = parseVariant({ dates: {
+        start: {
+          localDate: "2026-11-07", dateTime: mode === "missing" ? undefined : mode === "invalid" ? "not-a-date" : "2026-11-08T02:00:00Z",
+          ...(["missing", "invalid"].includes(mode) ? {} : { [mode]: true }),
+        },
+        end: { localDate: "2026-11-10", dateTime: "2026-11-11T02:00:00Z" },
+      } });
+      expect(event).toMatchObject({ start: "2026-11-07", end: "2026-11-10", allDay: true, timeTBD: true });
+      expect(endMs(event)).toBe(fromVan("2026-11-11"));
+      const window = windowOf("2026-11-09");
+      expect(startMs(event) < window.toMs && endMs(event) > window.fromMs).toBe(true);
+    },
+  );
+
+  it.each([undefined, "2026-11-07", "2026-11-06", "not-a-date", "2026-11-10T19:00:00", "2026-02-30"])(
+    "ignores an absent, invalid or non-later all-day end %s even if an end timestamp is given", (localDate) => {
+      expect(parseVariant({ dates: {
+        start: { localDate: "2026-11-07", noSpecificTime: true },
+        end: { localDate, dateTime: "2026-11-11T02:00:00Z" },
+      } })).toMatchObject({ start: "2026-11-07", end: null, allDay: true });
+    },
+  );
+
+  it.each([undefined, "not-a-date", "2026-11-08T02:00:00Z", "2026-11-08T01:59:59Z"])(
+    "ignores an absent, invalid or non-later timed end %s", (dateTime) => {
+      expect(parseVariant({ dates: {
+        start: { localDate: "2026-11-07", dateTime: "2026-11-08T02:00:00Z" },
+        end: { dateTime, localDate: "2026-11-10" },
+      } })).toMatchObject({ start: "2026-11-07T19:00:00-07:00", end: null, allDay: false });
+    },
+  );
+
+  it("falls back to the local day when both timestamps are invalid", () => {
+    expect(parseVariant({ dates: {
+      start: { localDate: "2026-11-07", dateTime: "not-a-date" }, end: { dateTime: "also-invalid" },
+    } })).toMatchObject({ start: "2026-11-07", end: null, allDay: true, timeTBD: true });
   });
 });
 
@@ -158,7 +227,8 @@ describe("Ticketmaster CAD prices", () => {
     { ranges: [{ currency: "CAD" }], min: null, max: null },
     { ranges: [{ currency: "CAD", min: 12 }], min: 12, max: null },
     { ranges: [{ currency: "CAD", max: 24 }], min: null, max: 24 },
-    { ranges: [{ currency: "CAD", min: 0, max: 24 }], min: 0, max: 24 },
+    { ranges: [{ currency: "CAD", min: 0, max: 24 }], min: null, max: 24 },
+    { ranges: [{ currency: "CAD", min: 12, max: 0 }], min: 12, max: null },
     { ranges: [{ currency: "CAD", min: 45.5, max: 45.5 }], min: 45.5, max: 45.5 },
     { ranges: [
       { currency: "USD", min: 1, max: 999 }, { currency: "CAD", min: 40, max: 80 },
@@ -167,5 +237,72 @@ describe("Ticketmaster CAD prices", () => {
     ], min: 20, max: 80 },
   ])("keeps only known CAD bounds: $ranges", ({ ranges, min, max }) => {
     expect(parseVariant({ priceRanges: ranges })).toMatchObject({ priceMin: min, priceMax: max, isFree: null, tags: ["tickets"] });
+  });
+
+  it.each([
+    { ranges: [
+      { type: "standard including fees", currency: "CAD", min: 1, max: 999 },
+      { type: "standard", currency: "CAD", min: 30, max: 60 },
+      { type: "standard", currency: "CAD", min: 20, max: 50 },
+    ], min: 20, max: 60 },
+    { ranges: [{ type: "standard including fees", currency: "CAD", min: 35, max: 70 }], min: 35, max: 70 },
+    { ranges: [
+      { type: "standard", currency: "USD", min: 1, max: 999 },
+      { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
+    ], min: 35, max: 70 },
+    { ranges: [
+      { type: "standard", currency: "CAD", min: 0, max: 0 },
+      { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
+    ], min: null, max: null },
+    { ranges: [
+      { type: "standard", currency: "CAD", min: 0, max: 60 },
+      { type: "standard including fees", currency: "CAD", min: 35, max: 70 },
+    ], min: null, max: 60 },
+  ])("prefers standard CAD ranges over fee-inclusive ones: $ranges", ({ ranges, min, max }) => {
+    expect(parseVariant({ priceRanges: ranges })).toMatchObject({ priceMin: min, priceMax: max, isFree: null });
+  });
+});
+
+describe("Ticketmaster malformed upstream events", () => {
+  const good = handmade._embedded!.events![0];
+  it.each([
+    null, {}, { ...good, id: undefined }, { ...good, name: undefined },
+    { ...good, id: null }, { ...good, name: null }, { ...good, id: "" }, { ...good, name: "" },
+    { ...good, id: 123 }, { ...good, name: 123 }, { ...good, id: "  " }, { ...good, name: "  " },
+    { ...good, dates: { start: { localDate: "invalid" } } },
+    { ...good, dates: { start: { localDate: "2026-02-30" } } },
+    { ...good, dates: { ...good.dates, status: { code: {} } } },
+    { ...good, classifications: [{ segment: { name: {} } }] },
+  ])("skips a bad event without losing the valid neighbors: %j", (bad) => {
+    expect(parseTicketmaster(rawPage([good, bad, { ...good, id: "after" }]), source).events.map((event) => event.sourceEventId))
+      .toEqual([good.id, "after"]);
+  });
+
+  it.each([null, {}, "not-an-array", 42])("keeps an event with malformed priceRanges %j as an unknown price", (priceRanges) => {
+    const parsed = parseTicketmaster(rawPage([{ ...good, priceRanges }, { ...good, id: "after" }]), source).events;
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]).toMatchObject({ priceMin: null, priceMax: null, isFree: null });
+  });
+
+  it("ignores null image and price entries while keeping the usable data", () => {
+    const [event] = parseTicketmaster(rawPage([{ ...good,
+      images: [null, { ratio: "16_9", width: 800, url: "wide" }, null],
+      priceRanges: [null, { type: "standard", currency: "CAD", min: 15, max: 30 }, null],
+    }]), source).events;
+    expect(event).toMatchObject({ imageUrl: "wide", priceMin: 15, priceMax: 30 });
+  });
+
+  it.each(["invalid", "NaN", "Infinity", "", "  ", undefined, null])("turns an invalid coordinate %j into null", (value) => {
+    const [event] = parseTicketmaster(rawPage([{ ...good,
+      _embedded: { venues: [{ name: "Venue", location: { latitude: value, longitude: value } }] },
+    }]), source).events;
+    expect(event.place).toMatchObject({ lat: null, lon: null });
+  });
+
+  it("keeps valid zero coordinates and parses latitude and longitude independently", () => {
+    expect(parseVariant({ _embedded: { venues: [{ location: { latitude: "0", longitude: "-123.108942" } }] } }).place)
+      .toMatchObject({ lat: 0, lon: -123.108942 });
+    expect(parseVariant({ _embedded: { venues: [{ location: { latitude: "49.277909", longitude: "invalid" } }] } }).place)
+      .toMatchObject({ lat: 49.277909, lon: null });
   });
 });

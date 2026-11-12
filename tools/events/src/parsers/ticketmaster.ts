@@ -12,11 +12,11 @@ interface TmEvent {
   pleaseNote?: string;
   dates?: {
     start?: { localDate?: string; localTime?: string; dateTime?: string; dateTBD?: boolean; dateTBA?: boolean; timeTBA?: boolean; noSpecificTime?: boolean };
-    end?: { dateTime?: string };
+    end?: { localDate?: string; dateTime?: string };
     status?: { code?: string };
   };
-  classifications?: { segment?: { name?: string }; genre?: { name?: string }; subGenre?: { name?: string } }[];
-  priceRanges?: { min?: number; max?: number; currency?: string }[];
+  classifications?: { primary?: boolean; segment?: { name?: string }; genre?: { name?: string }; subGenre?: { name?: string } }[];
+  priceRanges?: { type?: string; min?: number; max?: number; currency?: string }[];
   images?: { url: string; width?: number; ratio?: string }[];
   _embedded?: {
     venues?: { name?: string; address?: { line1?: string }; city?: { name?: string }; postalCode?: string; location?: { latitude?: string; longitude?: string } }[];
@@ -53,58 +53,94 @@ export function tmCategory(segment?: string, genre?: string): Category | null {
   }
 }
 
+/** A real calendar date, so all-day start/end values also work with store.endMs. */
+function localDate(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const ms = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === value ? value : null;
+}
+
+function coordinate(value: unknown): number | null {
+  if ((typeof value !== "string" && typeof value !== "number") || (typeof value === "string" && !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 export function parseTicketmaster(page: TmPage, source: string): { events: NormalizedEvent[]; more: boolean } {
+  // An error response must fail the source, not mark it read with zero events.
+  if (!page || (!page._embedded && !page.page)) throw new Error("Invalid Ticketmaster events page");
+  const entries = page._embedded?.events ?? [];
+  if (!Array.isArray(entries)) throw new Error("Invalid Ticketmaster events page");
   const events: NormalizedEvent[] = [];
-  for (const ev of page._embedded?.events ?? []) {
-    const st = ev.dates?.start;
-    if (!st?.localDate) continue;
-    const timeless = !st.dateTime || st.timeTBA || st.noSpecificTime || st.dateTBD || st.dateTBA;
-    const cls = ev.classifications?.[0];
-    const venue = ev._embedded?.venues?.[0];
-    let priceMin: number | null = null;
-    let priceMax: number | null = null;
-    for (const p of ev.priceRanges ?? []) {
-      // Ticketmaster uses 0–0 for an unspecified price, not a free ticket.
-      if (p.currency !== "CAD" || (p.min === 0 && p.max === 0)) continue;
-      if (typeof p.min === "number" && Number.isFinite(p.min)) priceMin = Math.min(priceMin ?? Infinity, p.min);
-      if (typeof p.max === "number" && Number.isFinite(p.max)) priceMax = Math.max(priceMax ?? -Infinity, p.max);
+  for (const ev of entries) {
+    try {
+      if (typeof ev?.id !== "string" || !ev.id.trim() || typeof ev.name !== "string" || !ev.name.trim()) continue;
+      const st = ev.dates?.start;
+      const day = localDate(st?.localDate);
+      if (!st || !day) continue;
+      const startAt = typeof st.dateTime === "string" ? Date.parse(st.dateTime) : NaN;
+      const timeless = !Number.isFinite(startAt) || st.timeTBA || st.noSpecificTime || st.dateTBD || st.dateTBA;
+      let end: string | null = null;
+      if (timeless) {
+        const endDay = localDate(ev.dates?.end?.localDate);
+        if (endDay && endDay > day) end = endDay;
+      } else {
+        const endAt = Date.parse(ev.dates?.end?.dateTime ?? "");
+        if (Number.isFinite(endAt) && endAt > startAt) end = vanIso(endAt);
+      }
+      const classifications = Array.isArray(ev.classifications) ? ev.classifications : [];
+      const cls = classifications.find((c) => c?.primary) ?? classifications[0];
+      const venue = ev._embedded?.venues?.[0];
+      const prices = Array.isArray(ev.priceRanges) ? ev.priceRanges : [];
+      const hasStandard = prices.some((p) => p?.currency === "CAD" && p.type === "standard");
+      let priceMin: number | null = null;
+      let priceMax: number | null = null;
+      for (const p of prices) {
+        if (!p || p.currency !== "CAD" || (hasStandard && p.type !== "standard")) continue;
+        // Zero is Ticketmaster's unspecified bound, including one-sided zero ranges.
+        if (typeof p.min === "number" && Number.isFinite(p.min) && p.min > 0) priceMin = Math.min(priceMin ?? Infinity, p.min);
+        if (typeof p.max === "number" && Number.isFinite(p.max) && p.max > 0) priceMax = Math.max(priceMax ?? -Infinity, p.max);
+      }
+      let image: NonNullable<TmEvent["images"]>[number] | undefined;
+      for (const candidate of Array.isArray(ev.images) ? ev.images : []) {
+        if (candidate?.ratio === "16_9" && (!image || (candidate.width ?? 0) > (image.width ?? 0))) image = candidate;
+      }
+      const status = (ev.dates?.status?.code ?? "onsale").toLowerCase();
+      events.push({
+        source,
+        sourceEventId: ev.id,
+        url: ev.url ?? `https://www.ticketmaster.ca/event/${ev.id}`,
+        title: ev.name,
+        description: plainText([ev.info, ev.pleaseNote].filter(Boolean).join("\n")),
+        start: timeless ? day : vanIso(startAt),
+        end,
+        allDay: !!timeless,
+        timeTBD: !!timeless,
+        status: Object.hasOwn(STATUS, status) ? STATUS[status] : "scheduled",
+        place: venue
+          ? {
+              name: venue.name ?? null,
+              address: venue.address?.line1 ?? null,
+              city: venue.city?.name ?? null,
+              postalCode: venue.postalCode ?? null,
+              lat: coordinate(venue.location?.latitude),
+              lon: coordinate(venue.location?.longitude),
+            }
+          : null,
+        priceMin,
+        priceMax,
+        isFree: null,
+        category: tmCategory(cls?.segment?.name, cls?.genre?.name),
+        sourceCategories: [cls?.segment?.name, cls?.genre?.name, cls?.subGenre?.name].filter((x): x is string => !!x && x !== "Undefined"),
+        tags: ["tickets"],
+        lang: "en",
+        imageUrl: image?.url ?? null,
+        organizer: null,
+      });
+    } catch {
+      // A malformed event must not discard the rest of the page.
+      continue;
     }
-    let image: NonNullable<TmEvent["images"]>[number] | undefined;
-    for (const candidate of ev.images ?? []) {
-      if (candidate.ratio === "16_9" && (!image || (candidate.width ?? 0) > (image.width ?? 0))) image = candidate;
-    }
-    const status = (ev.dates?.status?.code ?? "onsale").toLowerCase();
-    events.push({
-      source,
-      sourceEventId: ev.id,
-      url: ev.url ?? `https://www.ticketmaster.ca/event/${ev.id}`,
-      title: ev.name,
-      description: plainText([ev.info, ev.pleaseNote].filter(Boolean).join("\n")),
-      start: timeless ? st.localDate : vanIso(Date.parse(st.dateTime!)),
-      end: ev.dates?.end?.dateTime ? vanIso(Date.parse(ev.dates.end.dateTime)) : null,
-      allDay: !!timeless,
-      timeTBD: !!timeless,
-      status: Object.hasOwn(STATUS, status) ? STATUS[status] : "scheduled",
-      place: venue
-        ? {
-            name: venue.name ?? null,
-            address: venue.address?.line1 ?? null,
-            city: venue.city?.name ?? null,
-            postalCode: venue.postalCode ?? null,
-            lat: venue.location?.latitude ? Number(venue.location.latitude) : null,
-            lon: venue.location?.longitude ? Number(venue.location.longitude) : null,
-          }
-        : null,
-      priceMin,
-      priceMax,
-      isFree: null,
-      category: tmCategory(cls?.segment?.name, cls?.genre?.name),
-      sourceCategories: [cls?.segment?.name, cls?.genre?.name, cls?.subGenre?.name].filter((x): x is string => !!x && x !== "Undefined"),
-      tags: ["tickets"],
-      lang: "en",
-      imageUrl: image?.url ?? null,
-      organizer: null,
-    });
   }
   const p = page.page;
   return { events, more: !!p && p.number + 1 < p.totalPages };
