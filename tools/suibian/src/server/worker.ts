@@ -225,6 +225,8 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
 
 interface Attachment {
   id: string;
+  /** The page keeps the list between views (it says v=2): it may be sent without an unchanged one. */
+  keeps?: boolean;
   /** The cardsRev this phone was last sent with the cards (see commit()). */
   rev?: string;
 }
@@ -286,7 +288,7 @@ export class RoomDO extends DurableObject<Env> {
     const id = q.get("cid") ?? "";
     if (this.room.full(id)) return refuse("full", 4005);
     if (!this.room.join(id, q.get("key") ?? "", { name: q.get("name") ?? undefined, lang: q.get("lang") === "en" ? "en" : "zh" })) return refuse("identity", 4003);
-    server.serializeAttachment({ id } satisfies Attachment);
+    server.serializeAttachment({ id, keeps: q.get("v") === "2" } satisfies Attachment);
     await this.commit();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -375,8 +377,9 @@ export class RoomDO extends DurableObject<Env> {
         if (!att?.id) continue;
         try {
           const view = room.view(att.id);
-          // The list is the same for everyone and changes rarely: a phone that has it gets it once.
-          const same = att.rev === view.cardsRev;
+          // The list is the same for everyone and changes rarely: a phone that has it gets it once. A page
+          // from before that (open while the server was updated) still gets it every time.
+          const same = !!att.keeps && att.rev === view.cardsRev;
           ws.send(JSON.stringify({ t: "view", view: { ...view, cards: same ? null : view.cards } satisfies WireView }));
           if (!same) ws.serializeAttachment({ ...att, rev: view.cardsRev } satisfies Attachment);
         } catch {
