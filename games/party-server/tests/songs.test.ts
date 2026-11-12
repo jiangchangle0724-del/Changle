@@ -10,6 +10,7 @@ import { anchorsOf, buildShow, danceStart, planRun, songStart, type Show } from 
 import { moveAnim } from "../src/client/coach/moves";
 import { moveById } from "../src/shared/catalog";
 import { SONGS, songBeat, songById, songMoves } from "../src/shared/songs";
+import { STEPS } from "../src/shared/steps";
 
 const SPEAKER: From = { role: "speaker", playerId: null };
 const ANN: From = { role: "player", playerId: "ann-000001" };
@@ -70,6 +71,24 @@ describe("a song as a show", () => {
         assert.ok((n % 8 === 0 && from === 1) || (n === 4 && from === 5), `${song.id}: ${move} ${n} from ${from}`);
       }
       assert.ok(song.firstBeatMs + song.beats * (60000 / song.bpm) < VIDEO_MS[song.id]!, `${song.id} ends in time`);
+    }
+  });
+
+  it("each of a song's own moves is taught step by step: how to stand, counts 1 to 8 each once, in both languages", () => {
+    for (const song of SONGS.filter((s) => s.aligned)) {
+      for (const id of songMoves(song)) {
+        const st = STEPS[id];
+        assert.ok(st, `${song.id}: ${id} has its steps`);
+        assert.ok(st.ready[0] && st.ready[1], `${id}: how to stand`);
+        let next = 1;
+        for (const [from, to, zh, en] of st.counts) {
+          assert.equal(from, next, `${id}: count ${next} next`);
+          assert.ok(to >= from && zh.length > 0 && en.length > 0, `${id}: ${from}-${to}`);
+          next = to + 1;
+        }
+        assert.equal(next, 9, `${id}: up to 8`);
+        if (st.tip) assert.ok(st.tip[0] && st.tip[1]);
+      }
     }
   });
 
