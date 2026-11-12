@@ -45,7 +45,8 @@ export interface PublishResult {
   kept: boolean;
 }
 
-export async function publish(env: Env, runId: string): Promise<PublishResult> {
+/** `note`: said in the log's publish row (a publish later in the day: src/arrival.ts). */
+export async function publish(env: Env, runId: string, note: string | null = null): Promise<PublishResult> {
   const started = Date.now();
   await ensureSchema(env.DB);
   const w = windowOf(runId);
@@ -97,9 +98,9 @@ export async function publish(env: Env, runId: string): Promise<PublishResult> {
     await env.CACHE.put(LIVE_KEY, JSON.stringify(out));
   }
   await env.DB.prepare(
-    `INSERT INTO fetch_log (run_id, source, part, started_at, ms, found, in_window, error) VALUES (?1, 'publish', 0, ?2, ?3, ?4, ?4, ?5)`,
+    `INSERT INTO fetch_log (run_id, source, part, started_at, ms, found, in_window, error, note) VALUES (?1, 'publish', 0, ?2, ?3, ?4, ?4, ?5, ?6)`,
   )
-    .bind(runId, new Date(started).toISOString(), Date.now() - started, events.length, kept ? `kept yesterday's ${previous}: today had only ${events.length}` : null)
+    .bind(runId, new Date(started).toISOString(), Date.now() - started, events.length, kept ? `kept yesterday's ${previous}: today had only ${events.length}` : null, note)
     .run();
   return { runId, count: events.length, previous, kept };
 }

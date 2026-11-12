@@ -3,7 +3,8 @@
 // most 31 of them (Cloudflare allows 32 Worker invocations per request): up to 30 steps, then
 // publish. The morning has three triggers (06:00, 06:20, 06:40), each going on where the last
 // stopped, so a run has room for 90 steps. The libraries that refuse the Worker's requests are read
-// by a GitHub job just before and handed over (src/handoff.ts): their steps read those pages.
+// by a GitHub job and handed over (src/handoff.ts): their steps read those pages when they're in
+// before the run gets to them; pages that come later are read as they come (src/arrival.ts).
 import { readCapped } from "./body";
 import { takeHandoff } from "./handoff";
 import { ensureSchema } from "./schema";
@@ -21,6 +22,8 @@ export interface StepArgs {
   runId: string;
   source: string;
   part: number;
+  /** A page handed over after the run went past its library, read when it came (src/arrival.ts). */
+  arrived?: boolean;
 }
 export interface StepResult {
   /** The next part to fetch, or null. */
@@ -76,7 +79,7 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
     const handed = src.handoff ? await takeHandoff(env.CACHE, args.runId, src.id, args.part) : null;
     if (handed) {
       log.via = "handoff";
-      log.note = `handed over at ${handed.at ?? "an unknown time"}`;
+      log.note = `handed over at ${handed.at ?? "an unknown time"}${args.arrived ? ", read when it came" : ""}`;
       raw = handed.raw;
     } else {
       log.via = "fetch";
@@ -140,7 +143,8 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
 /** What a run calls for each step: the loopback binding in production, the functions in tests. */
 export interface StepRunner {
   fetchSource(args: StepArgs): Promise<StepResult>;
-  publish(args: { runId: string }): Promise<unknown>;
+  /** `note`: said in the log, for a publish that isn't the morning's own (src/arrival.ts). */
+  publish(args: { runId: string; note?: string }): Promise<unknown>;
 }
 
 export interface RunOptions {
