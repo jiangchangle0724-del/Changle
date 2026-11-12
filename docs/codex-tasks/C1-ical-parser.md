@@ -12,7 +12,7 @@ A first version is there (Luma's feed runs through it every morning). It uses ic
 
 - `ical/edge-cases.ics`: hand-made, one case per event (see its SUMMARY lines), with
   `ical/edge-cases.expected.json`: what must come out, for two windows.
-- `ical/ubc-2026-10-31.ics`: UBC's real feed (30 events, 6 all-day, TZID with a VTIMEZONE).
+- `ical/ubc-2026-10-31.ics`: UBC's real feed (30 events, 3 all-day, TZID with a VTIMEZONE).
 - `luma/vancouver-2026-10-31.ics`: Luma's real Vancouver feed (15 events, UTC times, GEO).
 
 ## What it must do
@@ -39,6 +39,6 @@ A first version is there (Luma's feed runs through it every morning). It uses ic
 - Every entry in `edge-cases.expected.json` matches, for both windows (`windowOf("2026-10-31")`
   and `windowOf("2025-10-25")` from `src/time.ts`): the listed fields equal, nothing extra for a
   recurring event, single events all returned.
-- UBC: 30 events; the 6 all-day ones have a date-only `start`; every November 2026 time ends in
+- UBC: 30 events; the 3 all-day ones have a date-only `start`; every November 2026 time ends in
   `-07:00`. Luma: still 15 events, and `tests/parsers.test.ts` still passes.
 - The UBC file parses in under 5 ms warm (say what you measured).
