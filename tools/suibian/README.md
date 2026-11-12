@@ -89,8 +89,9 @@ about 0.67 points and the occasion up to about 2: the kind of place from Google'
 bakery or dessert shop, a breakfast or bagel place, a counter or takeout-only spot, fast food, a
 bar), fine dining, price, bookings, wine and cocktails, good for groups or kids, a kids' menu, which
 meals it serves (Google's servesDinner and the like), how late it's open, the words of Google's
-descriptions ("upscale", "private rooms", "romantic", "unfussy", "family"), and the lists it's on
-(Michelin, Vancouver Magazine, OpenTable…). A place plainly not for the occasion (a bagel shop,
+descriptions ("upscale", "private rooms", "romantic", "unfussy", "family"), and the lists it's on:
+a list for this very occasion (most romantic, best private rooms, family-friendly, late night)
+counts most, a general one (Michelin, Vancouver Magazine, OpenTable's Top 100…) a little. A place plainly not for the occasion (a bagel shop,
 café or burger place for a business dinner, a bar for the family) or the meal (at dinner, one that
 doesn't do dinner or mostly does breakfast and coffee) comes after the ones that are, with a line
 on its card ("不太适合商务宴请：这是早餐早午餐店，排在后面。"); nothing leaves the list. The searches
@@ -119,7 +120,12 @@ Each card can carry more than Google's numbers, all from free sources:
   Best New Restaurants, Yelp's Top 100 Places to Eat in Canada): from `src/data/lists.json`, kept
   by hand. Facts only: which list, which award, which year, and the page that says so; nothing
   copied from the source's write-ups. A card shows up to four, newest first, one from each list
-  before a second from the same list. Not there because they publish no list: 饭团 Fantuan (its
+  before a second from the same list, and the table's occasion's own lists before the rest. Lists
+  for an occasion say which (`occasions` on an award): OpenTable's Top 100 Romantic in Canada and
+  Vancouver Magazine's Best Date Night (a date), Vancouver Magazine's Best Private Rooms (business,
+  a birthday, colleagues) and Best Rooms for Rubbing Elbows (business, a date), OpenTable's best
+  family-friendly restaurants in Vancouver (the family), Daily Hive readers' 20 best late-night eats
+  (late night). Not there because they publish no list: 饭团 Fantuan (its
   rankings are inside the app only) and Uber Eats (its yearly Cravings Report names dishes and
   cities, not restaurants); Yelp's latest Canada list is 2024's.
 * **Steve's pick**: a line of why, in Chinese and English, and links to food-blogger posts (小红书,

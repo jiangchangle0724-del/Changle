@@ -1,6 +1,7 @@
 // Things we add by hand: the lists a place is on, Steve's picks, and the checks on those files.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { badgesFor } from "../src/engine";
 import { LISTS_FILE, PICKS_FILE, checkLists, checkPicks, curatedFor, normName, type ListsFile, type PicksFile } from "../src/server/curated";
 
 test("data files: lists.json and picks.json pass their own checks (CI fails a bad edit)", () => {
@@ -80,7 +81,10 @@ test("badges: one from each list before a second from the same list, four at mos
       },
     ],
   };
-  assert.deepEqual(curatedFor("Busy Place", undefined, { lists: many }).badges?.map((b) => b.label.en), ["a1", "b", "d", "c"]);
+  const all = curatedFor("Busy Place", undefined, { lists: many }).badges;
+  assert.deepEqual(all?.map((b) => b.label.en), ["a1", "b", "d", "c", "e", "a2"]);
+  // A card shows four.
+  assert.deepEqual(badgesFor(all, undefined).map((b) => b.label.en), ["a1", "b", "d", "c"]);
 });
 
 test("lists added 2026-11-11: OpenTable, enRoute, Yelp and the Chinese Restaurant Awards' Elite 30 Canada", () => {
@@ -117,4 +121,15 @@ test("checks: missing sources, years, links and notes are caught", () => {
   }
   const badPicks = checkPicks({ updated: "2026-11-01", places: [{ name: "B", note: { zh: "很长".repeat(40), en: "ok" }, links: [{ platform: "", url: "http://x" }] }] });
   for (const want of ["one line", "platform", "https url"]) assert.ok(badPicks.some((p) => p.includes(want)), `catches: ${want}\n${badPicks.join("\n")}`);
+});
+
+test("lists for an occasion (2026-11-12): most romantic, private rooms, family-friendly, late night", () => {
+  const of = (name: string, address?: string) => curatedFor(name, address).badges ?? [];
+  const hys = of("Hy's Steakhouse & Cocktail Bar", "637 Hornby St, Vancouver");
+  assert.deepEqual(hys.find((b) => b.occasions)?.occasions, ["date"]);
+  assert.ok(of("Folietta", "1480 Nanaimo St, Vancouver").some((b) => b.occasions?.includes("business")));
+  assert.ok(of("Tap & Barrel - Convention Centre", "1055 Canada Pl, Vancouver").some((b) => b.occasions?.includes("family")));
+  assert.ok(of("Siegel's Bagels", "1883 Cornwall Ave, Vancouver").some((b) => b.occasions?.includes("latenight")), "24 hours: a late-night pick, not a business one");
+  // Every occasion named in lists.json is a real one.
+  assert.deepEqual(checkLists({ ...LISTS_FILE, places: [{ name: "X", awards: [{ source: "michelin", label: { zh: "x", en: "x" }, url: "https://x.example/", occasions: ["picnic"] }] }] }), ["places[0] X: occasions must be ids from occasion.ts"]);
 });

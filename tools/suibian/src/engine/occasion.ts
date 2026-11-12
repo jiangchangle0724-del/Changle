@@ -6,7 +6,7 @@
 // that plainly isn't for the occasion (a bagel shop for a business dinner, a bar for the kids, a
 // place that doesn't do dinner at dinner time) goes after the ones that are, with a line on its card
 // saying why. Nothing is taken off the list. The searches use the same idea (search.ts).
-import type { CuisineId, Place, PlaceKind, Text } from "./types";
+import type { Badge, CuisineId, Place, PlaceKind, Text } from "./types";
 
 export type OccasionId = "casual" | "friends" | "date" | "colleagues" | "family" | "birthday" | "business" | "solo" | "latenight";
 
@@ -26,6 +26,16 @@ export const OCCASION_IDS = Object.keys(OCCASIONS) as OccasionId[];
 
 export const isOccasion = (x: unknown): x is OccasionId => typeof x === "string" && Object.prototype.hasOwnProperty.call(OCCASIONS, x);
 
+/** Badges on one card at most. */
+export const MAX_BADGES = 4;
+
+/** The badges a card shows: the lists for this occasion first (a date: the most romantic), up to four. */
+export function badgesFor(badges: readonly Badge[] | undefined, o: OccasionId | undefined): Badge[] {
+  if (!badges?.length) return [];
+  const mine = (b: Badge) => !!o && !!b.occasions?.includes(o);
+  return [...badges.filter(mine), ...badges.filter((b) => !mine(b))].slice(0, MAX_BADGES);
+}
+
 /** Breakfast, lunch, dinner or late, from the time of day in Vancouver (afternoon: none of them). */
 export type Meal = "breakfast" | "lunch" | "afternoon" | "dinner" | "late";
 
@@ -39,7 +49,7 @@ export function mealOf(at: number): Meal {
 }
 
 /** What speaks for a place on this occasion, for its card (at most three). */
-export type FitWhy = "upscale" | "romantic" | "private" | "reservable" | "drinks" | "groups" | "kids" | "kidsMenu" | "late" | "cheap";
+export type FitWhy = "listed" | "upscale" | "romantic" | "private" | "reservable" | "drinks" | "groups" | "kids" | "kidsMenu" | "late" | "cheap";
 
 /**
  * Why a place plainly isn't for it: the kind of place it is; the meal (it doesn't do dinner, or it
@@ -128,6 +138,10 @@ export function occasionFit(p: Place, o: OccasionId | undefined, when: { at: num
   };
 
   const cuisine = CUISINES_FOR[o ?? "casual"]?.includes(p.cuisine);
+  // A list that recommends it for this very occasion (OpenTable's most romantic, Vancouver Magazine's
+  // best private rooms…) says the most; a general one (Michelin, Canada's 100 Best…) says it's good.
+  add(o && o !== "casual" && p.badges?.some((b) => b.occasions?.includes(o)), 0.6, "listed");
+  const acclaimed = p.badges?.some((b) => !b.occasions?.length);
   const upscale = t.fineDining || says(p, WORDS.upscale);
   const casualWords = says(p, WORDS.casual);
   switch (o) {
@@ -145,7 +159,7 @@ export function occasionFit(p: Place, o: OccasionId | undefined, when: { at: num
       add(price === "low", -0.5);
       add(cuisine, 0.2);
       add(GROUP_FOOD.includes(p.cuisine), -0.15);
-      add(p.badges?.length, 0.35);
+      add(acclaimed, 0.35);
       add(t.groups, 0.1);
       break;
     case "date":
@@ -161,7 +175,7 @@ export function occasionFit(p: Place, o: OccasionId | undefined, when: { at: num
       add(price === "low", -0.3);
       add(cuisine, 0.2);
       add(t.music, 0.1);
-      add(p.badges?.length, 0.3);
+      add(acclaimed, 0.3);
       add(t.buffet, -0.3);
       break;
     case "birthday":
@@ -174,7 +188,7 @@ export function occasionFit(p: Place, o: OccasionId | undefined, when: { at: num
       add(t.wine || t.cocktails, 0.1, "drinks");
       add(cuisine, 0.2);
       add(upscale, 0.15, "upscale");
-      add(p.badges?.length, 0.2);
+      add(acclaimed, 0.2);
       add(price === "low", -0.2);
       break;
     case "family":
