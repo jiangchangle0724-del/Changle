@@ -1487,7 +1487,6 @@ test("limbo coach: what the phone says to someone who can't see it", () => {
   ok(coaching("tilt", { lean: 10, target: 20, side: 20, want: 15 }).say === "down", "not back enough comes first");
 });
 
-<<<<<<< HEAD
 test("limbo band: a gear up every bar, the calypso itself untouched", () => {
   const first = GROOVES.calypso.lead!.bars[0].find((n) => n != null)!;
   const bpms = [0, 1, 2, 3, 4, 5, 6, 9].map((l) => limboStyle(l).bpm);
@@ -1501,8 +1500,6 @@ test("limbo band: a gear up every bar, the calypso itself untouched", () => {
   ok(GROOVES.calypso.bpm === 112 && GROOVES.calypso.lead!.bars[0].find((n) => n != null) === first && !GROOVES.calypso.hat, "the shared calypso is as it was");
 });
 
-test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
-=======
 /**
  * Name That Tune's tests put the shared dice and clock back as they found them: how many draws one
  * takes depends on the song list (which songs come up, how many wrong titles there are to shuffle),
@@ -1520,7 +1517,6 @@ const tuneTest = (name: string, fn: () => void) =>
   });
 
 tuneTest("tune: synced clips, buzz, wrong locks out, points by speed", () => {
->>>>>>> claude/limbo-coach
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
   t.g("p0", "mode", { mode: "melody" });
