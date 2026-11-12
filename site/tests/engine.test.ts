@@ -1563,6 +1563,9 @@ test("tune: pools by language and category, and the quiz where everyone answers"
 });
 
 test("tune: hard titles: no singers on them, and the wrong ones by the same singer", () => {
+  // (these two tune tests put the shared dice and clock back as they found them: the tests after them
+  // see the same rolls as before they were written)
+  const seedWas = seed, clockWas = clock;
   type Row = { id: number; t: string; a: string; l: number };
   const all = SONG_ROWS.map(fromRow);
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -1600,6 +1603,64 @@ test("tune: hard titles: no singers on them, and the wrong ones by the same sing
   ok(own === Math.min(3, avail), `the wrong ones by the same singer as far as there are any (${own} of ${Math.min(3, avail)})`);
   t.advance(2600 + 20_000);
   ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").song?.a === s.song.a, "the reveal still says who sings it");
+  seed = seedWas;
+  clock = clockWas;
+});
+
+test("tune: one second: snippets from the spot the host's phone found, 3 2 1 points, a buzz pauses a snippet", () => {
+  const seedWas = seed, clockWas = clock;
+  type S = { song: { id: number }; stageAt: number[]; choices: { id: number }[] };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "snap", { on: true });
+  ok(!t.view<V<"tune">>("p0").snap, "only the host turns it on");
+  t.g("p0", "snap", { on: true });
+  t.g("p0", "total", { n: 5 });
+  let v = t.view<V<"tune">>("p1");
+  ok(v.phase === "ready" && !!v.pre && v.audio === null, "one second: the first song is picked already, so every phone loads it during the setup");
+  t.g("p0", "hook", { p: v.pre, at: 3300 });
+  t.g("p0", "go");
+  let s = t.eng.d.game!.s as S;
+  v = t.view<V<"tune">>("p1");
+  ok(v.snap && v.hook === 3300, "the first song starts from the spot the host's phone found during the setup");
+  t.g("p0", "hook", { p: v.audio, at: 1000 });
+  ok(v.stageAt[1] - v.stageAt[0] === 6000 && v.stageAt[2] - v.stageAt[0] === 13_000 && v.endsAt - v.stageAt[0] === 25_000, "one second, three seconds at 6 s, the rest from 13 s; 25 s in all");
+  t.g("p1", "hook", { p: v.audio, at: 4200 });
+  ok(t.view<V<"tune">>("p0").hook === 1000, "only the host's phone says where the snippets start (and it can still change its mind before the song starts)");
+  t.g("p0", "hook", { p: v.audio, at: 4200 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "the host's phone says where, before the song starts: every phone plays from there");
+  t.g("p0", "hook", { p: v.audio, at: 99_999 });
+  t.g("p0", "hook", { p: "https://audio-ssl.itunes.apple.com/itunes-assets/x.m4a", at: 3000 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "a spot past the preview, or for a song that isn't up, is turned away");
+  t.g("p0", "hook", { p: v.pre, at: 2500 });
+  t.advance(2600);
+  t.g("p0", "hook", { p: v.audio, at: 8000 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "once the song has started, its spot stays put");
+  t.g("p1", "buzz");
+  ok(t.view<V<"tune">>("p0").phase === "answer", "a buzz after the first second");
+  t.g("p1", "answer", { choice: s.song.id });
+  v = t.view<V<"tune">>("p0");
+  ok(v.phase === "reveal" && v.scores.p1 === 3 && v.revealPos === 4200, "3 points in the first stage, and the reveal plays from the spot");
+  t.advance(10_000);
+  s = t.eng.d.game!.s as S;
+  v = t.view<V<"tune">>("p0");
+  ok(v.round === 2 && v.hook === 2500, "the next song: the spot the host's phone found while the last one played");
+  t.advance(2600 + 6500);
+  const before = s.stageAt.slice();
+  t.g("p2", "buzz");
+  t.advance(4000);
+  t.g("p2", "answer", { choice: s.choices.find((c) => c.id !== s.song.id)!.id });
+  const after = (t.eng.d.game!.s as S).stageAt;
+  ok(after[0] === before[0] && after[1] - before[1] === 4000 && after[2] - before[2] === 4000, "a wrong answer: the snippet that was playing carries on, the next one moves on by the pause");
+  t.g("p1", "buzz");
+  t.g("p1", "answer", { choice: s.song.id });
+  ok(t.view<V<"tune">>("p0").scores.p1 === 5, "right in the three-second stage: 2 more points");
+  t.g("p0", "snap", { on: false });
+  t.advance(10_000);
+  v = t.view<V<"tune">>("p0");
+  ok(!v.snap && v.hook === 0 && v.stageAt[1] - v.stageAt[0] === 8000, "turned off between songs: the next one plays whole");
+  seed = seedWas;
+  clock = clockWas;
 });
 
 test("tune: a pool of several languages and categories", () => {

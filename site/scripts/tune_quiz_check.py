@@ -9,6 +9,8 @@ heap: the stage's lights once grew it by about 150 MB a song, with the heap flat
 wakes up, a player walks off and another sits down, and answers and "next" get double taps.
 `levels` checks the hard titles: no singer under any of the four, on one phone and on every phone
 at a table (multiple choice, and the four a buzzer picks from), and the reveal still names the singer.
+`snap` checks one-second rounds: what each phone plays (from where, for how long) on one phone (tap
+for more) and at a table (every phone the same spot, the one the host's phone found).
 
 Apple's previews are AAC, which the open-source Chromium can't decode, so each one is fetched
 and turned into MP3 on the fly (ffmpeg): the phone loads, decodes, analyses and plays it like a
@@ -16,7 +18,7 @@ real one. Today's charts are left out, so every song is in src/data/songs.ts and
 knows the right title. Works against the dev server (reads window.__room) or a production build
 (`vite preview`, read off the screens; `stress` needs the dev server).
 
-  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress|levels ...]
+  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress|levels|snap ...]
   (both local servers running; needs ffmpeg and pip's playwright, psutil and requests; ROUNDS=8
   for a shorter run; SHOTS=dir for screenshots and the audio cache; HTTPS_PROXY is passed to the
   browser when set)
@@ -613,6 +615,129 @@ def stress(browser):
             g.context.close()
 
 
+# every preview a page plays: from where (offset, s) and for how long (s), by its own audio clock
+WATCH_PLAYS = """
+(() => {
+  window.__plays = [];
+  const start = AudioBufferSourceNode.prototype.start;
+  const stop = AudioBufferSourceNode.prototype.stop;
+  AudioBufferSourceNode.prototype.start = function (when = 0, offset = 0, ...rest) {
+    if (this.buffer && this.buffer.duration > 5) {
+      this.__play = { when, offset, len: null, at: performance.now() };
+      window.__plays.push(this.__play);
+    }
+    return start.call(this, when, offset, ...rest);
+  };
+  AudioBufferSourceNode.prototype.stop = function (when = 0) {
+    if (this.__play && this.__play.len === null) this.__play.len = Math.max(0, when - this.__play.when);
+    return stop.call(this, when);
+  };
+})();
+"""
+
+
+def plays(pg):
+    return pg.evaluate("() => (window.__plays || []).map((p) => ({ offset: p.offset, len: p.len, at: p.at }))")
+
+
+def snap(browser):
+    """One second (dev server): one phone taps for more; a table plays the same spot on every phone."""
+    pg = phone(browser, "Steve", players=[{"id": "p0", "name": "Steve"}, {"id": "p1", "name": "Mia"}])
+    pg.add_init_script(WATCH_PLAYS)
+    pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+    pg.get_by_role("button", name="一秒猜歌", exact=True).click()
+    pg.get_by_role("button", name="5 首", exact=True).click()
+    pg.get_by_role("button", name="开始", exact=True).click()
+    ok(until(lambda: len(plays(pg)) >= 1, 20000) is not None, "[snap] one phone: the first snippet plays")
+    first = plays(pg)[0]
+    ok(first["len"] is not None and 0.9 <= first["len"] <= 1.3, f"[snap] one phone: one second of it ({first['len']})")
+    pg.wait_for_timeout(1500)
+    ok(pg.locator(".vinyl.is-spinning").count() == 0, "[snap] one phone: the record stops with the snippet")
+    shot(pg, "snap-solo-one")
+    pg.get_by_role("button", name="多放一点", exact=True).click()
+    ok(until(lambda: len(plays(pg)) >= 2, 4000) is not None, "[snap] one phone: more")
+    second = plays(pg)[-1]
+    ok(second["len"] is not None and 2.8 <= second["len"] <= 3.3 and abs(second["offset"] - first["offset"]) < 0.05, f"[snap] one phone: three seconds, from the same spot ({second['offset']:.2f} s, {second['len']})")
+    ok(pg.locator(".stage.is-now strong").inner_text() == "2", "[snap] one phone: now worth 2 points")
+    pg.get_by_role("button", name="多放一点", exact=True).click()
+    ok(until(lambda: len(plays(pg)) >= 3, 4000) is not None, "[snap] one phone: and the rest")
+    third = plays(pg)[-1]
+    ok((third["len"] or 0) > 10 and abs(third["offset"] - first["offset"]) < 0.05, f"[snap] one phone: the rest, from the same spot ({third['len']})")
+    ok(pg.locator("button", has_text=re.compile("^多放一点$")).count() == 0, "[snap] one phone: nothing more to play after that")
+    pg.get_by_role("button", name="揭晓歌名", exact=True).click()
+    ok(until(lambda: pg.locator(".sup-ask").count() > 0, 6000) is not None, "[snap] one phone: the reveal")
+    ok("+1" in pg.locator(".picker").inner_text(), "[snap] one phone: worth 1 point after the whole thing")
+    shot(pg, "snap-solo-reveal")
+    errs = errors_of([pg])
+    ok(not errs, f"[snap] one phone: no console or page errors {errs[:4]}")
+    pg.context.close()
+
+    host, guests = seat_table(browser, ["Steve", "Mia", "Jay"])
+    everyone = [host] + guests
+    for g in everyone:
+        g.add_init_script(WATCH_PLAYS)
+        g.reload(wait_until="networkidle")
+    ok(until(lambda: all(room(g) for g in everyone), 10000) is not None, "[snap] the table is back after the reloads")
+    # and a big screen, which plays along
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
+    tv = phone(browser, "TV")
+    tv.set_viewport_size({"width": 1280, "height": 720})
+    tv.add_init_script(WATCH_PLAYS)
+    tv.goto(BASE + f"tv/{code}", wait_until="networkidle")
+    ok(until(lambda: room(tv), 10000) is not None, "[snap] the big screen is at the table")
+    tv.keyboard.press("Shift")  # a big screen's sound waits for one click or key
+    start_tune(host, everyone)
+    host.get_by_role("button", name="一秒猜歌", exact=True).click()
+    host.get_by_role("button", name="5 首", exact=True).click()
+    ok(until(lambda: view(guests[0])["snap"]), "[snap] one second is on for the table")
+    # (a phone schedules a round's snippets all at once: count what each has played before each round)
+    ok(until(lambda: bool(view(host)["pre"]), 5000) is not None, "[snap] the first song is picked during the setup, for every phone to load")
+    host.wait_for_timeout(2500)
+    hearing = everyone + [tv]
+    base = [len(plays(g)) for g in hearing]
+    host.get_by_role("button", name="放第一首").click()
+    hooks = []
+    for n in (1, 2, 3):
+        ok(until(lambda: view(host)["phase"] == "listen" and view(host)["round"] == n, 20000) is not None, f"[snap] song {n} starts")
+        until(lambda: all(len(plays(g)) >= b + 2 for g, b in zip(hearing, base)), 14000)
+        v = view(host)
+        hooks.append(v["hook"])
+        if n == 1:
+            shot(tv, "snap-tv-listen")
+        for g, b in zip(hearing, base):
+            mine = plays(g)[b:]
+            ok(len(mine) >= 2, f"[snap] song {n}: {g._name} played the first two snippets ({len(mine)})")
+            if len(mine) >= 2:
+                ok(all(abs(x["offset"] - v["hook"] / 1000) < 0.06 for x in mine[:2]), f"[snap] song {n}: {g._name} plays from the table's spot ({[round(x['offset'], 2) for x in mine[:2]]} vs {v['hook'] / 1000})")
+                ok(0.9 <= (mine[0]["len"] or 0) <= 1.3 and 2.8 <= (mine[1]["len"] or 0) <= 3.3, f"[snap] song {n}: {g._name}: one second, then three ({mine[0]['len']}, {mine[1]['len']})")
+        if n == 2:
+            shot(guests[0], "snap-online-listen")
+        # Mia buzzes and gets it: 2 points (the three-second stage)
+        guests[0].locator(".buzz").dispatch_event("pointerdown")
+        if until(lambda: view(host)["phase"] == "answer", 3000):
+            right = right_choice(view(guests[0]))
+            ids = [c["id"] for c in view(guests[0])["choices"]]
+            try:
+                guests[0].locator(".tn-options .tn-option").nth(ids.index(right) if right in ids else 0).click(timeout=3000)
+            except Exception as e:  # noqa: BLE001
+                print("  (pick)", str(e)[:100], flush=True)
+        ok(until(lambda: view(host)["phase"] == "reveal", 30000) is not None, f"[snap] song {n}: the reveal")
+        clear_stamps(everyone)
+        host.wait_for_timeout(1500)
+        if n == 1:
+            shot(tv, "snap-tv-reveal")
+        base = [len(plays(g)) for g in hearing]
+        try:
+            host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=4000)
+        except Exception:
+            pass
+    ok(any(h != 1000 for h in hooks[1:]), f"[snap] after the first song, the spot is the one the host's phone found ({hooks})")
+    errs = errors_of(hearing)
+    ok(not errs, f"[snap] the table: no console or page errors {errs[:4]}")
+    for g in hearing:
+        g.context.close()
+
+
 def start_tune(host, everyone):
     tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']")
     if tiles.count():
@@ -741,6 +866,10 @@ def main():
         if "levels" in ONLY:
             b = browser_of(p)
             levels(b)
+            b.close()
+        if "snap" in ONLY:
+            b = browser_of(p)
+            snap(b)
             b.close()
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed", flush=True)
     sys.exit(1 if fails else 0)
