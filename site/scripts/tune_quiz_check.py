@@ -12,6 +12,7 @@ at a table (multiple choice, and the four a buzzer picks from), and the reveal s
 `snap` checks one-second rounds: what each phone plays (from where, for how long) on one phone (tap
 for more) and at a table (every phone the same spot, the one the host's phone found).
 `specials` checks the decades and the singer specials (the sheet, a game of one singer's titles, a table).
+`challenge` sends a game on as a link and plays it on a friend's phone: the same songs and four titles.
 
 Apple's previews are AAC, which the open-source Chromium can't decode, so each one is fetched
 and turned into MP3 on the fly (ffmpeg): the phone loads, decodes, analyses and plays it like a
@@ -19,7 +20,7 @@ real one. Today's charts are left out, so every song is in src/data/songs.ts and
 knows the right title. Works against the dev server (reads window.__room) or a production build
 (`vite preview`, read off the screens; `stress` needs the dev server).
 
-  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress|levels|snap|specials ...]
+  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress|levels|snap|specials|challenge ...]
   (both local servers running; needs ffmpeg and pip's playwright, psutil and requests; ROUNDS=8
   for a shorter run; SHOTS=dir for screenshots and the audio cache; HTTPS_PROXY is passed to the
   browser when set)
@@ -816,6 +817,98 @@ def specials(browser):
         x.context.close()
 
 
+# the phone's share sheet, stood in for: what a page shares lands in window.__shared
+SHARE_STUB = """
+(() => {
+  window.__shared = [];
+  Object.defineProperty(navigator, "share", { configurable: true, value: async (d) => { window.__shared.push(d); } });
+})();
+"""
+
+
+def challenge(browser):
+    """Challenge links: a game on one phone sent on as a link; a friend's phone with nobody set up opens
+    it, plays the same songs in the same order with the same four titles, and sees who did better."""
+    pg = phone(browser, "Steve", players=[{"id": "p0", "name": "Steve"}, {"id": "p1", "name": "Mia"}])
+    pg.add_init_script(SHARE_STUB)
+    pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+    pg.get_by_role("button", name="选择题", exact=True).click()
+    pg.get_by_role("button", name="5 首", exact=True).click()
+    pg.get_by_role("button", name="开始", exact=True).click()
+    played = []
+    for n in range(1, 6):
+        up = until(lambda: pg.locator(".tn-option:not([disabled])").count() == 4, 20000)
+        ok(up is not None, f"[challenge] Steve's table: song {n}, four titles")
+        four = [t.strip() for t in pg.locator(".tn-option strong").all_inner_texts()]
+        idx = right_option(pg)
+        pg.locator(".tn-option").nth(idx if idx is not None else 0).click()
+        if not until(lambda: pg.locator(".song-title").count() > 0, 3000):
+            pg.get_by_role("button", name="揭晓歌名").click()
+        until(lambda: pg.locator(".song-title").count() > 0, 6000)
+        played.append((pg.locator(".song-title").inner_text().strip(), four))
+        if n <= 3:
+            pg.locator(".picker .chip", has_text="Steve").click()
+        elif n == 4:
+            pg.locator(".picker .chip", has_text="Mia").click()
+        else:
+            pg.get_by_role("button", name="没人猜到").click()
+    ok(until(lambda: pg.locator(".pl-board-title").count() > 0, 8000) is not None, "[challenge] Steve's table: the final scores")
+    pg.get_by_role("button", name="发起挑战").click()
+    url = until(lambda: pg.evaluate("() => window.__shared[0] && window.__shared[0].url"), 3000)
+    ok(bool(url) and "/g/name-that-tune/play?c=" in url, f"[challenge] the phone's share sheet gets the link ({(url or '')[:70]}...)")
+    shared = pg.evaluate("() => window.__shared[0] && window.__shared[0].text") or ""
+    ok("9 分" in shared, f"[challenge] and a line to go with it ({shared})")
+    shot(pg, "challenge-end")
+    errs = errors_of([pg])
+    ok(not errs, f"[challenge] Steve's table: no console or page errors {errs[:4]}")
+    pg.context.close()
+    if not url:
+        return
+
+    friend = phone(browser, "Lin")
+    friend.add_init_script(SHARE_STUB)
+    friend.goto(url, wait_until="networkidle")
+    ok(until(lambda: "Steve向你发起挑战" in friend.locator(".tn-challenge").inner_text(), 8000) is not None, "[challenge] a friend with nobody set up: straight to Steve's challenge")
+    ok("9" in friend.locator(".tn-challenge-bar strong").inner_text() and "满分 15" in friend.locator(".tn-challenge-bar").inner_text(), "[challenge] the score to beat: 9 of 15")
+    ok("选择题" in friend.locator(".tn-challenge-how").inner_text() and "5 首" in friend.locator(".tn-challenge-how").inner_text(), "[challenge] how it plays: 5 songs, multiple choice")
+    ok("?c=" in friend.url, "[challenge] the link stays on the address")
+    shot(friend, "challenge-intro")
+    friend.get_by_role("button", name="接受挑战").click()
+    for n in range(1, 6):
+        up = until(lambda: friend.locator(".tn-option:not([disabled])").count() == 4, 20000)
+        ok(up is not None, f"[challenge] the friend: song {n}, four titles")
+        four = [t.strip() for t in friend.locator(".tn-option strong").all_inner_texts()]
+        ok(four == played[n - 1][1], f"[challenge] the friend: song {n}, the same four titles in the same order ({four})")
+        friend.get_by_role("button", name="揭晓歌名").click()
+        until(lambda: friend.locator(".song-title").count() > 0, 6000)
+        title = friend.locator(".song-title").inner_text().strip()
+        ok(title == played[n - 1][0], f"[challenge] the friend: song {n} is Steve's song {n} ({title})")
+        if n <= 4:
+            friend.locator(".picker .chip").first.click()
+        else:
+            friend.get_by_role("button", name="没人猜到").click()
+    ok(until(lambda: friend.locator(".tn-challenge-result").count() > 0, 8000) is not None, "[challenge] the friend: how it went")
+    res = friend.locator(".tn-challenge-result").inner_text()
+    ok("挑战成功" in res and "Steve" in res, f"[challenge] the friend beat it ({' '.join(res.split())})")
+    shot(friend, "challenge-result")
+    friend.get_by_role("button", name="发起挑战").click()
+    back = until(lambda: friend.evaluate("() => window.__shared[0] && window.__shared[0].url"), 3000)
+    ok(bool(back) and back != url, "[challenge] the friend sends it back with their own score")
+    # (nobody is set up on this phone: the game's card first, to add tonight's people, as for any game)
+    friend.get_by_role("button", name="自己开一局").click()
+    ok(until(lambda: "?c=" not in friend.url and friend.url.rstrip("/").endswith("/g/name-that-tune"), 4000) is not None, f"[challenge] 自己开一局: the link off the address, and with nobody set up, the game's card ({friend.url})")
+    # a link whose songs this list doesn't have (made up here): it says so, and offers a game of their own
+    gone = friend.evaluate("""async () => {
+      const m = await import('/src/party/tune/challenge.ts');
+      return m.challengeUrl({ pool: 'zh+en:any', quiz: true, hard: false, snap: false, seed: 7, name: 'Steve', pts: [3, 3], ids: [11, 12] });
+    }""")
+    friend.goto(gone, wait_until="networkidle")
+    ok(until(lambda: "不在歌单里" in friend.locator(".tn-challenge").inner_text(), 8000) is not None and friend.get_by_role("button", name="接受挑战").count() == 0, "[challenge] a link whose songs are gone: it says so, and there's nothing to take on")
+    errs = errors_of([friend])
+    ok(not errs, f"[challenge] the friend: no console or page errors {errs[:4]}")
+    friend.context.close()
+
+
 def start_tune(host, everyone):
     tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']")
     if tiles.count():
@@ -952,6 +1045,10 @@ def main():
         if "specials" in ONLY:
             b = browser_of(p)
             specials(b)
+            b.close()
+        if "challenge" in ONLY:
+            b = browser_of(p)
+            challenge(b)
             b.close()
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed", flush=True)
     sys.exit(1 if fails else 0)
