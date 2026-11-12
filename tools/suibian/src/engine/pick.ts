@@ -2,11 +2,12 @@
 // leave a place out (the owner's call, 2026-11-11: everything in range and budget is on the list).
 // Round 1's 👍 puts a cuisine's places first, its 🚫 after the rest, a severe allergy at the very
 // bottom; someone's diet moves a place down within that, with a line on its card saying why and
-// what can still be ordered; the occasion moves places a little either way.
+// what can still be ordered. The occasion and the meal weigh a lot (occasion.ts): a place that
+// plainly isn't for them comes after the ones that are, with a line on its card too.
 import { CUISINES } from "./cuisines";
 import { LAST_ORDER_BEFORE_CLOSE, MIN_MINUTES_BEFORE_CLOSE, PLANNED_FROM, RANGES, distanceMeters, travelMinutes, vancouverClock } from "./clock";
 import { check, type Concern } from "./limits";
-import { SUITS_FROM, occasionPoints, type OccasionId } from "./occasion";
+import { occasionFit, type Fit, type OccasionId } from "./occasion";
 import { NO_LIMITS, type Center, type CuisineId, type Limits, type Place, type RangeId } from "./types";
 import { estimateWait } from "./wait";
 
@@ -28,14 +29,21 @@ export function closingTime(p: Place, now: number, at = now): number | undefined
   return openSpan(p, at)?.[1];
 }
 
+/** Open at `at` (now unless planned) and not closing soon after. */
+function openThen(p: Place, now: number, at: number): boolean {
+  if (isOpen(p, now, at) === false) return false;
+  const close = closingTime(p, now, at);
+  return close === undefined || close - Math.max(at, now) >= MIN_MINUTES_BEFORE_CLOSE * 60_000;
+}
+
 /** Places the table can go to at `at` (now unless planned): open, not closing soon, within everyone's budget. */
 export function eligible(places: Place[], limits: Limits, now: number, at = now): Place[] {
-  return places.filter((p) => {
-    if (isOpen(p, now, at) === false) return false;
-    const close = closingTime(p, now, at);
-    if (close !== undefined && close - Math.max(at, now) < MIN_MINUTES_BEFORE_CLOSE * 60_000) return false;
-    return check(p, limits).ok;
-  });
+  return places.filter((p) => openThen(p, now, at) && check(p, limits).ok);
+}
+
+/** Open then and not closing soon, but over someone's budget: how many places the budget left out. */
+export function overBudget(places: Place[], limits: Limits, now: number, at = now): number {
+  return limits.budget ? places.filter((p) => openThen(p, now, at) && !check(p, limits).ok).length : 0;
 }
 
 /** When the kitchen likely stops taking orders (ms since epoch), if we know when it closes. */
@@ -91,6 +99,12 @@ export interface ScoreContext {
   occasion?: OccasionId;
 }
 
+/** How well a place suits the table's occasion and meal (occasion.ts). */
+export function fitFor(p: Place, ctx: ScoreContext): Fit {
+  const at = ctx.at ?? ctx.now;
+  return occasionFit(p, ctx.occasion, { at, close: closingTime(p, ctx.now, at) });
+}
+
 /** How good a place looks for this table and occasion, before round 1 and anyone's diet. */
 export function score(p: Place, ctx: ScoreContext): number {
   const n = p.ratings ?? 0;
@@ -108,7 +122,7 @@ export function score(p: Place, ctx: ScoreContext): number {
   if (p.recommend) s += WEIGHTS.recommend;
   if (p.badges?.length) s += WEIGHTS.badges;
   if (n < FEW_RATINGS && !p.recommend) s -= WEIGHTS.fewRatings;
-  s += occasionPoints(p, ctx.occasion, { at, close: closingTime(p, ctx.now, at) });
+  s += fitFor(p, ctx).points;
   return s;
 }
 
@@ -168,16 +182,23 @@ interface Scored {
   net: number;
   /** Points off for the diet (demotion()). */
   down: number;
+  /** Plainly not for the occasion or the meal (occasion.ts): after the ones that are. */
+  off: boolean;
   s: number;
 }
 
-/** The higher tier first, the more-liked cuisine first, then the better score, more Google ratings, a fixed order. */
-const better = (a: Scored, b: Scored) => a.tier - b.tier || b.net - a.net || b.s - a.s || (b.p.ratings ?? 0) - (a.p.ratings ?? 0) || a.p.id.localeCompare(b.p.id);
+/**
+ * The higher tier first, the more-liked cuisine first, places for the occasion before the ones
+ * plainly not, then the better score, more Google ratings, a fixed order.
+ */
+const better = (a: Scored, b: Scored) =>
+  a.tier - b.tier || b.net - a.net || Number(a.off) - Number(b.off) || b.s - a.s || (b.p.ratings ?? 0) - (a.p.ratings ?? 0) || a.p.id.localeCompare(b.p.id);
 
 /**
  * Every place, best first: the cuisines round 1 liked first (more 👍, higher), then the rest, then
  * the ones it said no to, and places someone is severely allergic to the food of at the very bottom.
- * Within that, the score: Google's rating, ours, distance, wait, the occasion, the diet. When nobody
+ * Within that, places for the occasion and the meal before the ones plainly not, then the score:
+ * Google's rating, ours, distance, wait, the occasion, the diet. When nobody
  * liked anything, the top takes at most `perCuisine` of a cuisine so the first few are a real choice.
  * The same search gives the same list (nothing random).
  */
@@ -190,7 +211,8 @@ export function rank(input: RankInput): string[] {
       const severe = concerns.some((c) => c.k === "allergy" && c.level === "severe");
       const net = (input.likes[p.cuisine] ?? 0) - (input.bans[p.cuisine] ?? 0);
       const down = demotion(concerns);
-      return { p, tier: severe ? 3 : net > 0 ? 0 : net < 0 ? 2 : 1, net, down, s: score(p, input) - down };
+      const off = !!fitFor(p, input).off;
+      return { p, tier: severe ? 3 : net > 0 ? 0 : net < 0 ? 2 : 1, net, down, off, s: score(p, input) - down };
     })
     .sort(better);
   if (scored.some((x) => x.tier === 0)) return scored.map((x) => x.p.id);
@@ -198,7 +220,7 @@ export function rank(input: RankInput): string[] {
   const count = new Map<CuisineId, number>();
   for (const x of scored) {
     if (head.length >= top) break;
-    if (x.tier > 1 || x.down > 0 || (count.get(x.p.cuisine) ?? 0) >= per) continue;
+    if (x.tier > 1 || x.down > 0 || x.off || (count.get(x.p.cuisine) ?? 0) >= per) continue;
     head.push(x);
     count.set(x.p.cuisine, (count.get(x.p.cuisine) ?? 0) + 1);
   }
@@ -228,8 +250,7 @@ export function reasonsFor(p: Place, c: ReasonContext): Reason[] {
   if (p.recommend) out.push("pick");
   if (p.badges?.length) out.push("list");
   if (c.liked) out.push("liked");
-  const at = c.at ?? c.now;
-  if (c.occasion && occasionPoints(p, c.occasion, { at, close: closingTime(p, c.now, at) }) >= SUITS_FROM) out.push("fits");
+  if (fitFor(p, c).suits) out.push("fits");
   const o = p.ours;
   const total = o ? o.up + o.mid + o.down : 0;
   if (o && total >= 3 && o.up / total >= 0.7) out.push("fans");

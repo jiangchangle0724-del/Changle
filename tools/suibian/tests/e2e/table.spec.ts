@@ -245,3 +245,36 @@ test("planning ahead, and what it's for: chosen on the home page, changed in the
   await expect(page.getByRole("heading", { name: /^明天 18:30，就吃这家！$/ })).toBeVisible();
   expect(me.errors).toEqual([]);
 });
+
+test("a business dinner: a budget too low for it is pointed out; places plainly not for it go last saying why (Steve, 2026-11-11)", async ({ browser }) => {
+  const me = await phone(browser, "biz");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `biz-${Date.now()}`, name: "小李" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("[data-occasion=business]").click();
+  await page.getByRole("button", { name: "明天晚饭" }).click();
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  // A $35 budget on my own diet card: most places for a business dinner cost more.
+  await page.locator(".diet").getByRole("button", { name: "$35" }).click();
+  await page.locator(".diet .btn.primary").click();
+  const hint = page.locator(".budget-low");
+  await expect(hint).toContainText("你的饮食卡预算是人均 $35 以内。商务宴请合适的店大多更贵，会被去掉。");
+  await hint.getByRole("button", { name: "改预算" }).click();
+  await page.locator(".diet").getByRole("button", { name: "不限" }).click();
+  await page.locator(".diet .btn.primary").click();
+  await expect(hint).toHaveCount(0);
+
+  await page.getByRole("button", { name: "开始！" }).click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  // The top says why it suits; the dessert café, the brunch place and the burger place are last, saying why.
+  await expect(page.locator(".place").first().locator(".reason", { hasText: "适合商务宴请" })).toBeVisible();
+  const more = page.getByRole("button", { name: /^再看 \d+ 家$/ });
+  for (let i = 0; i < 5 && (await more.count()); i++) await more.click();
+  const last3 = await page.locator(".place h3").evaluateAll((hs) => hs.slice(-3).map((h) => h.textContent));
+  expect(last3.sort()).toEqual(["Demo · Burger Lab", "Demo · Moonlight Dessert Café", "Demo · Sunrise Brunch Co."]);
+  await expect(page.locator(".place", { hasText: "Moonlight Dessert Café" }).locator(".note")).toHaveText("不太适合商务宴请：这是甜品面包店，排在后面。");
+  expect(me.errors).toEqual([]);
+});

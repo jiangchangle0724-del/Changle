@@ -31,8 +31,8 @@ How a table goes:
    liked cuisine's best first), however well rated the rest (the owner's call, 2026-11-11: a 4.7★
    burger place no longer sits above the hot pot everyone asked for). Within that: Google rating
    and how many rated it, our own ratings, distance, wait, a pick or a list badge, and what the
-   meal is for (`src/engine/occasion.ts`: good for groups, for kids, wine and cocktails, booked
-   ahead, open late, from what Google says about the place; a card says "适合约会" when it fits).
+   meal is for and which meal it is (see "What it's for" below; a card says "适合商务宴请：高档、
+   可订位" when a place fits, and a place plainly not for it comes after the rest, saying why).
    Round 1's 🚫 and someone's diet move places down,
    each with a line on the card: "有人不吃辣椒：川湘菜也有不辣的…" (what can still be ordered there,
    from `src/engine/tips.ts`: Google has no menus, so it's about the kind of food), and a severe
@@ -82,6 +82,24 @@ order: the same places give the same ranking (no random nudge, no "seen lately";
 list, 2026-11-11). A place's cuisine comes from Google's primary type when that says enough, then
 from its name (JOEY, Cactus Club and Earls are American, 兰州拉面 is Northern Chinese), then from its
 other Google types; a Text Search's results Google only calls "Chinese" take that search's cuisine.
+
+**What it's for** (`src/engine/occasion.ts`). Steve, 2026-11-11: a business dinner put a 4.5★ bagel
+shop first. Each occasion now weighs everything we know about a place, a Google star being worth
+about 0.67 points and the occasion up to about 2: the kind of place from Google's main type (a café,
+bakery or dessert shop, a breakfast or bagel place, a counter or takeout-only spot, fast food, a
+bar), fine dining, price, bookings, wine and cocktails, good for groups or kids, a kids' menu, which
+meals it serves (Google's servesDinner and the like), how late it's open, the words of Google's
+descriptions ("upscale", "private rooms", "romantic", "unfussy", "family"), and the lists it's on
+(Michelin, Vancouver Magazine, OpenTable…). A place plainly not for the occasion (a bagel shop,
+café or burger place for a business dinner, a bar for the family) or the meal (at dinner, one that
+doesn't do dinner or mostly does breakfast and coffee) comes after the ones that are, with a line
+on its card ("不太适合商务宴请：这是早餐早午餐店，排在后面。"); nothing leaves the list. The searches
+use it too: each occasion but "just a meal" has a search of its own for its kinds of place (a
+business dinner: fine dining, steakhouses, seafood, Cantonese, French, sushi), and the searches that
+aren't for a liked cuisine leave out the kinds of place it rules out (`excludedFor()` in
+`search.ts`). A diet card budget too low for a business dinner ($60), a date or a birthday ($35)
+is pointed out in the lobby to that person, who can change it there; the list says how many places
+the budget left out.
 
 ## Cards: descriptions, lists and picks
 
@@ -262,7 +280,10 @@ be sure.
 * Round 1's menu, and the searches each cuisine gets: `CUISINES` and `MENU` in
   `src/engine/cuisines.ts`; how many searches a table runs (`SEARCHES_PER_PICK`, of them
   `TEXT_SEARCHES_PER_PICK`): `src/engine/search.ts`.
-* What each occasion moves up or down, and when a card says it suits: `src/engine/occasion.ts`.
+* What each occasion moves up or down, which kinds of place are plainly not for it, and when a card
+  says it suits: `occasionFit()` in `src/engine/occasion.ts`; each occasion's own search and what
+  the searches leave out: `OCCASION_TYPES` and `excludedFor()` in `src/engine/search.ts`; the
+  budget each occasion needs before the lobby says so: `OCCASION_BUDGET` in `src/client/ui/Table.tsx`.
 * Which cuisines each allergen is common in: `COMMON_IN` in `src/engine/limits.ts` (reviewed with
   the owner on 2026-11-05, the reason beside each). The line about what can still be ordered there:
   `src/engine/tips.ts`.

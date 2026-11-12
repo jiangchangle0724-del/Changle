@@ -1,6 +1,6 @@
 // What phones and the server say to each other.
-import { PLANNED_FROM, RANGES, check, closingTime, distanceMeters, estimateWait, isOpen, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
-import type { Ballot, Center, Concern, CuisineId, Lang, Limits, MoodPick, OccasionId, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
+import { PLANNED_FROM, RANGES, check, closingTime, distanceMeters, estimateWait, fitFor, isOpen, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
+import type { Ballot, Center, Concern, CuisineId, FitWhy, Lang, Limits, MoodPick, OccasionId, Off, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
 
 export type { Lang };
 
@@ -95,6 +95,8 @@ export interface CardView {
   bans: number;
   /** What speaks for it, best first, at most three. */
   reasons: Reason[];
+  /** For the occasion and the meal: what makes it suit them ("fits" in reasons), or why it plainly doesn't. */
+  fit?: { why: FitWhy[]; off?: Off };
 }
 
 const soon = (t: number | undefined, from: number) => (t !== undefined && t - from < 24 * 3600_000 ? t : undefined);
@@ -140,7 +142,15 @@ export function cardView(p: Place, rank: number, ctx: CardContext, extra: { like
     likes,
     bans: extra.bans ?? 0,
     reasons: extra.reasons ?? reasonsFor(p, { limits: ctx.limits, center: ctx.center, range: ctx.range, liked: likes > 0, occasion: ctx.occasion, now: ctx.now, at }),
+    ...fitView(p, ctx, at),
   };
+}
+
+/** The occasion's and meal's say on a card: only when there's something to say. */
+function fitView(p: Place, ctx: CardContext, at: number | undefined): Pick<CardView, "fit"> {
+  const f = fitFor(p, { center: ctx.center, range: ctx.range, now: ctx.now, at, occasion: ctx.occasion });
+  if (f.off) return { fit: { why: [], off: f.off } };
+  return f.suits && f.why.length ? { fit: { why: f.why } } : {};
 }
 
 export interface RoomView {
@@ -165,6 +175,8 @@ export interface RoomView {
   at: number | null;
   /** What the meal is for. */
   occasion: OccasionId;
+  /** Places open then but over someone's budget, left off the list (the list says how many). */
+  overBudget: number;
   /**
    * Everyone's limits merged, with no names, sent only with the result: shown live, a line appearing
    * as one person saves their card would give away whose it is.

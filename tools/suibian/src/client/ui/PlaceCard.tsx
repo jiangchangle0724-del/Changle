@@ -4,7 +4,7 @@
 // and ordering it in. Further down the list a card starts short (`compact`) and opens with "More".
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { CUISINES, DISHES, avoidTip, type OccasionId, type Place, type Reason } from "../../engine";
+import { CUISINES, DISHES, avoidTip, type OccasionId, type Off, type Place, type Reason } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
 import { serverNow } from "../store";
@@ -46,7 +46,7 @@ function intro(p: Place): string {
 }
 
 /** Why it is further down for this table, and what can still be ordered there. */
-function notes(c: CardView): { text: string; severe: boolean }[] {
+function notes(c: CardView, occasion?: OccasionId): { text: string; severe: boolean }[] {
   const out: { text: string; severe: boolean }[] = [];
   for (const x of c.concerns) {
     if (x.k === "allergy") {
@@ -57,13 +57,29 @@ function notes(c: CardView): { text: string; severe: boolean }[] {
     else out.push({ text: t(x.known ? "note_vegNone" : "note_vegUnsure"), severe: false });
   }
   if (c.bans > 0) out.push({ text: c.bans === 1 ? t("note_ban1") : t("note_banN", { n: c.bans }), severe: false });
+  const off = c.fit?.off;
+  if (off) out.push({ text: offText(off, occasion), severe: false });
   return out;
 }
 
-/** A reason as words: how many liked it, or what occasion it suits. */
+/** Why a place plainly isn't for the occasion or the meal. */
+function offText(off: Off, occasion?: OccasionId): string {
+  if (off.k === "early") return t("off_early");
+  if (off.k === "meal") {
+    if (off.meal === "lunch") return t("off_noLunch");
+    return off.kind ? t("off_breakfastAtDinner", { kind: t(`kind_${off.kind}` as Key) }) : t("off_noDinner");
+  }
+  return t("off_kind", { occasion: t(`occFor_${occasion ?? "casual"}` as Key), kind: t(`kind_${off.kind}` as Key) });
+}
+
+/** A reason as words: how many liked it, or what occasion it suits and why ("适合商务宴请：可订位、有酒"). */
 function reasonText(r: Reason, c: CardView, occasion?: OccasionId): string {
   if (r === "liked") return c.likes === 1 ? t("why_liked1") : t("why_likedN", { n: c.likes });
-  if (r === "fits") return t(`fits_${occasion ?? "casual"}` as Key);
+  if (r === "fits") {
+    const why = (c.fit?.why ?? []).map((w) => t(`fitWhy_${w}` as Key));
+    const fits = t(`fits_${occasion ?? "casual"}` as Key);
+    return why.length ? `${fits}${getLang() === "zh" ? "：" : ": "}${why.join(getLang() === "zh" ? "、" : ", ")}` : fits;
+  }
   return t(`why_${r}` as Key);
 }
 
@@ -77,7 +93,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardV
   // Now: minutes until last orders. Planned: when it closes then.
   const last = c.at === undefined && c.lastOrderAt !== undefined ? Math.round((c.lastOrderAt - serverNow()) / 60_000) : undefined;
   const until = c.at !== undefined ? c.closesAt : undefined;
-  const lines = notes(c);
+  const lines = notes(c, occasion);
   return (
     <article class={`place${compact ? " compact" : ""}`} data-id={p.id} data-rank={c.rank}>
       {open && p.photo && (
