@@ -225,6 +225,8 @@ export interface StraightFaceView {
   nextJudge: string | null;
   /** from the reveal on: who did what */
   facts: RoundFacts | null;
+  /** from the reveal on: the card's id (each phone records it as played, and can flag it) */
+  cardId: string | null;
   /** the bluffer who fooled the judge, while they still have someone to pick for the penalty */
   master: string | null;
   /** whom this round's master bluffer picked */
@@ -233,4 +235,19 @@ export interface StraightFaceView {
   fooled: Record<string, number>;
   /** at the end: every word played tonight, with its meaning */
   learned: { term: T; definition: T }[] | null;
+  /** at the end: tonight's titles (`awards` in the engine) */
+  awards: Awards | null;
+}
+
+/** The end's titles, by player id; each shared when tied, empty when nobody earned it. */
+export interface Awards {
+  /** first on the board (with at least a point) */
+  top: string[];
+  /** fooled the judge most often, at least once */
+  bluffer: string[];
+  /** bet on the honest one most often, at least once */
+  bettor: string[];
+  /** how often each fooled a judge, and bet right: the line under a title */
+  fooled: Record<string, number>;
+  rightBets: Record<string, number>;
 }

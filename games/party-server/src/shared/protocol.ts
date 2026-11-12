@@ -32,7 +32,10 @@ export type ClientMsg =
   | { t: "clock"; offsetMs: number; rttMs: number }
   /** The host. */
   | { t: "act"; action: HostAction }
-  /** The host while calibrating: a tap, in speaker time. Passed on to the speaker. */
+  /**
+   * A tap, in speaker time, passed on to the speaker: the host's while calibrating, and anyone's
+   * while the room finds a song's beat (找拍子, RoutineInfo.tapIn).
+   */
   | { t: "tap"; at: number }
   /** The speaker after calibrateFromTaps(): how late the room hears its sound. */
   | { t: "calibrated"; audioOffsetMs: number }
@@ -58,8 +61,17 @@ export type ClientMsg =
   | { t: "songAt"; startAt: number }
   /** The speaker: the song picked is loaded and held at its start; the room starts it (after the lead-in). */
   | { t: "songReady" }
-  /** The speaker: YouTube won't play the song here (bad), or can't be reached (offline). Back to the lobby. */
-  | { t: "songFailed"; why: "bad" | "offline" };
+  /**
+   * The speaker after 找拍子: where the song's first beat is in its video (ms), from how many taps,
+   * how far they strayed (ms), and the video's length as its player gave it. The room keeps it in
+   * the songbook for every room from then on, and starts the song.
+   */
+  | { t: "songTapped"; firstBeatMs: number; taps: number; spreadMs: number; durationMs: number | null }
+  /**
+   * The speaker: YouTube won't play the song here (bad), can't be reached (offline), or 找拍子
+   * didn't find the beat in time (notap). Back to the lobby.
+   */
+  | { t: "songFailed"; why: "bad" | "offline" | "notap" };
 
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
@@ -97,6 +109,12 @@ export interface RoutineInfo {
    * its intro, as the songbook has it when the room picks the song (the show's own when absent).
    */
   introMs?: number;
+  /**
+   * A song nobody has tapped along to yet: before anything else the video plays from its start and
+   * everyone taps along on their phones (找拍子) until the speaker has the beat (songTapped). Then
+   * the song starts from its start as any other does.
+   */
+  tapIn?: boolean;
 }
 
 /** The floor together, from the beats the phones have sent. */

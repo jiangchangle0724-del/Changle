@@ -192,7 +192,8 @@ export type DrawView = {
   drawer: string;
   d: 1 | 2 | 3;
   endsAt: number;
-  hint: { zh: number; en: string } | null;
+  /** How long the word is: its Chinese characters and any letters in it (深夜emo is 2 and 3), the English as blanks. */
+  hint: { zh: number; latin: number; en: string } | null;
   word: T | null;
   guesses: { pid: string; text: string; ok: boolean }[];
   solved: string[];
@@ -200,6 +201,8 @@ export type DrawView = {
   round: number;
   /** The drawer who left before their round was over: no penalty, and `drawer` already holds who draws next. */
   left: string | null;
+  /** Nobody got it because nobody was left to guess (everyone else left): no penalty. */
+  alone: boolean;
 };
 
 /** 你画我猜: the longest guess a phone sends and the rooms server keeps (every answer fits, with room to spare). */
@@ -432,6 +435,10 @@ export type TuneView = {
   pool: string;
   /** everyone answers at once from four titles, no buzzer */
   quiz: boolean;
+  /** songs mode: the four titles come without their singers, the wrong ones by the same singer */
+  hard: boolean;
+  /** songs mode: one second first, then three, then the rest (each from `hook`) */
+  snap: boolean;
   phase: "ready" | "listen" | "answer" | "reveal" | "end";
   round: number;
   total: number;
@@ -456,6 +463,8 @@ export type TuneView = {
   audio: string | null;
   /** server time the preview's first second plays (moves on after a pause) */
   startAt: number;
+  /** one second: ms into the preview where every snippet starts */
+  hook: number;
   /** ms into the preview where the reveal picks up */
   revealPos: number;
   /** the next preview, so phones can load it while this one plays */

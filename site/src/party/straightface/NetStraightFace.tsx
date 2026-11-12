@@ -5,7 +5,7 @@
  * after the deal gets no part and watches the table's view.
  */
 import { Tag } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { defaultPacks, type Pack } from "../../data/straightfacePacks";
 import { GAME_BY_ID } from "../../games/registry";
@@ -21,7 +21,9 @@ import type { Level, StraightFaceView } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard } from "../common";
 import { BACKDROP } from "./art";
-import { Deltas, HoldPart, Lines, MasterArt, OrderStrip, PackPicker, PackStrip, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
+import { CardNumbers, Deltas, HoldPart, Lines, MasterArt, OrderStrip, PackPicker, PackStrip, PickOne, RevealSequence, ReportCard, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
+import { cardStats, markSeen, seenCards, sendRound } from "./feedback";
+import { SharePicture, Titles, type Tonight } from "./share";
 import { cue } from "./sounds";
 import { S } from "./text";
 import "../../styles/party.css";
@@ -60,6 +62,34 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
     setTagOpen(false);
     // (a round dealt again after someone left keeps its number, not its word)
   }, [round, phase === "setup", t?.term?.zh]);
+
+  // how each card has played on changle, for the reveal
+  const [stats, setStats] = useState<Record<string, [number, number]>>({});
+  useEffect(() => {
+    void cardStats().then(setStats);
+  }, []);
+
+  // before the deal, this phone hands in the cards it has played (the table deals others first)
+  useEffect(() => {
+    if (phase === "setup" && seated.some((s) => s.id === me)) {
+      const ids = seenCards();
+      if (ids.length) g("seen", { ids });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase === "setup"]);
+
+  // at the reveal: the card counts as played on this phone, and the host's phone sends the round's
+  // outcome for the card's numbers (once: one phone per table)
+  const sent = useRef(new Set<string>());
+  useEffect(() => {
+    if (phase !== "reveal" || !v.cardId || !v.facts) return;
+    markSeen(v.cardId);
+    const key = `${room?.code}:${round}:${v.cardId}`;
+    if (!isHost || sent.current.has(key)) return;
+    sent.current.add(key);
+    sendRound(v.cardId, v.facts.accusedId !== v.facts.honestId, v.players.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, v.cardId]);
 
   // the host's phone puts in the packs for its own language until the host picks
   useEffect(() => {
@@ -388,6 +418,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
           <div className="panel sf-panel sf-fact">
             <span className="field-label">{say(S.funFact)}</span>
             <p>{lang === "zh" ? rv.funFact.zh : rv.funFact.en}</p>
+            <CardNumbers stats={v.cardId ? stats[v.cardId] : undefined} />
           </div>
         ),
       },
@@ -419,6 +450,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
             else if (key !== "truth") sfx.tap();
           }}
         />
+        {shown && v.cardId && <ReportCard card={v.cardId} term={t.term} />}
         {shown && v.master === me && (
           <div className="panel sf-panel sf-master">
             <MasterArt size={88} />
@@ -468,6 +500,8 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
   } else if (phase === "finished") {
     const rows = board();
     const top = rows.filter((b) => b.place === 1);
+    // tonight's words and titles, for the screen and the picture (the names are the table's, never "you")
+    const tonight: Tonight | null = v.awards ? { words: v.learned ?? [], awards: v.awards, name: (id) => nameOf(id), score: (id) => t?.scores[id] ?? 0 } : null;
     body = (
       <div className="stack sf-stage">
         <div className="sf-final">
@@ -492,6 +526,8 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
             </ul>
           </div>
         )}
+        {tonight && <Titles tonight={tonight} />}
+        {tonight && tonight.words.length > 0 && <SharePicture tonight={tonight} />}
       </div>
     );
     actions = isHost ? (

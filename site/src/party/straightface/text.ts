@@ -138,6 +138,41 @@ export const S = {
   waitAgain: t("等主人 {name} 再开一局", "Waiting for {name}, the host, to go again"),
   lateJoin: t("这局发牌时你还没入座。看他们玩，下一局带上你。", "You sat down after the deal. Watch this one; you're in the next game."),
   you: t("你", "You"),
+
+  // the card's numbers, and flagging a card
+  cardNumbers: t("这张卡在 changle 上打过 {n} 局，裁判被骗了 {m} 次", "Played {n} times on changle; the judge was fooled {m} times"),
+  reportLink: t("这张卡有问题？", "Something off with this card?"),
+  reportTitle: t("这张卡有问题", "Flag this card"),
+  reportFor: t("{term} 哪里不对？", "What is wrong with {term}?"),
+  reasonWrong: t("释义或冷知识不对", "The meaning or the fun fact is wrong"),
+  reasonEasy: t("太简单，大家都知道", "Too easy: everyone knew it"),
+  reasonUnfit: t("内容不合适", "Not appropriate"),
+  reasonOther: t("别的问题", "Something else"),
+  reportNote: t("想说的话（可不写）", "Anything to add (optional)"),
+  reportNoteHint: t("比如哪里不对，正确的是什么", "For example what is wrong, and what is right"),
+  reportSend: t("发送", "Send"),
+  reportThanks: t("收到了，谢谢！我们会去看这张卡。", "Got it, thanks. We will take a look at this card."),
+  reportFailed: t("没发出去，网好一点再试试。", "That did not go through. Try again when the connection is better."),
+  reportClose: t("好的", "OK"),
+
+  // the end: tonight's titles, and the picture to share
+  titles: t("今晚的称号", "Tonight's titles"),
+  awardTop: t("冠军", "Top score"),
+  awardBluffer: t("最会编", "Best bluffer"),
+  awardBettor: t("押得最准", "Best bets"),
+  scorePoints: t("{n} 分", "{n} points"),
+  rightBetOnce: t("押对 1 次", "1 right bet"),
+  rightBets: t("押对 {n} 次", "{n} right bets"),
+  shareButton: t("存成图片，发给朋友", "Save it as a picture to share"),
+  shareTitle: t("今晚的图", "Tonight's picture"),
+  shareAlt: t("今晚学到的词和称号", "Tonight's words and titles"),
+  shareHint: t("按住图片也能存到相册。", "You can also press and hold the picture to save it."),
+  shareSend: t("分享", "Share"),
+  shareSave: t("存图片", "Save picture"),
+  shareFailed: t("图没画出来，再试一次。", "The picture didn't come out. Try again."),
+  shareRetry: t("再试一次", "Try again"),
+  picWords: t("今晚学到的 {n} 个词", "{n} words we learned tonight"),
+  picScan: t("扫码一起玩", "Scan to play"),
 } as const;
 
 export type SKey = keyof typeof S;

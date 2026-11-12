@@ -128,10 +128,12 @@ function onMsg(m: ServerMsg) {
   switch (m.t) {
     case "state": {
       const before = state?.phase;
+      const wasFinding = finding();
       state = m.state;
       routine = m.routine;
       results = m.results;
       if (state.phase === "calibrating" && before !== "calibrating") taps = 0;
+      if (finding() && !wasFinding) findTaps = 0;
       endArmed = false;
       track();
       // (bars sent while the connection was down never got there; the room keeps the newest of
@@ -190,6 +192,10 @@ function errorText(code: string, message: string): string {
       return tr("先选一支舞", "Pick a dance first");
     case "song_untapped":
       return tr("这首歌还没对拍：先在电视上点「歌曲对拍」，跟着歌点一次", "This song hasn't been tapped along to yet: on the TV, pick Tap along to a song first");
+    case "song_notap":
+      return tr("没找到拍子：鼓点进来以后，大家一拍点一下。再选一次这首歌试试", "Couldn't find the beat: once the drums come in, everyone taps once a beat. Pick the song again to retry");
+    case "song_tapping":
+      return tr("先跟着歌找拍子", "Find the song's beat first");
     case "song_blocked":
       return tr("YouTube 不让这首歌在别的网站放，换一首吧", "YouTube won't play this song outside YouTube: pick another");
     case "song_offline":
@@ -330,6 +336,7 @@ function render() {
     parts.count = el("div", "count");
     main.append(parts.count);
     if (state?.phase === "calibrating" && isHost()) main.append(tapPad());
+    if (finding()) main.append(findPad());
     if (state?.phase === "results" && results) main.append(myResults(results));
     if (state?.phase === "lobby" || state?.phase === "results") {
       const m = motionSwitch();
@@ -425,6 +432,7 @@ function phaseTitle(): string {
     case "calibrating":
       return host ? tr("听到电视的声音就点下面的大按钮", "Tap the big button each time you hear the TV") : tr("主人在校准，稍等", "The host is calibrating");
     case "learning":
+      if (routine?.tapIn) return tr("先找拍子：听电视里的歌", "Find the beat: listen to the song on the TV");
       return host ? tr("准备好了就点「开始跳」", "Tap Dance when everyone's ready") : tr("准备", "Get ready");
     case "dancing":
       return tr("跟着闪光的节奏动起来", "Move with the flashes");
@@ -454,6 +462,34 @@ function tapPad(): HTMLElement {
     { passive: true },
   );
   return pad;
+}
+
+/** 找拍子: a song nobody has danced yet, its video playing on the TV while everyone taps along. */
+const finding = () => state?.phase === "learning" && !!routine?.tapIn;
+let findTaps = 0;
+
+/** 找拍子 on the phone: everyone taps along to the song on the TV, once a beat. */
+function findPad(): HTMLElement {
+  const box = el("section", "find");
+  box.append(el("p", "lead", tr("鼓点一进来，就跟着点下面的大按钮，一拍一下。大家点齐了就开始跳。", "Once the drums come in, tap the big button below, once a beat. When everyone's taps agree, the dance starts.")));
+  const pad = el("button", "btn tap-pad", `${tr("跟着拍子点", "Tap on the beat")}\n${findTaps}`);
+  // pointerdown, not click: a click comes after the finger lifts, later than the tap
+  pad.addEventListener(
+    "pointerdown",
+    (e) => {
+      const at = speakerNow(tapTime(e));
+      if (at === null) return;
+      sock?.send({ t: "tap", at });
+      findTaps++;
+      pad.textContent = `${tr("跟着拍子点", "Tap on the beat")}\n${findTaps}`;
+      pad.classList.remove("hit");
+      void pad.offsetWidth;
+      pad.classList.add("hit");
+    },
+    { passive: true },
+  );
+  box.append(pad);
+  return box;
 }
 
 /** While a dance plays: the move and the count (filled every frame), the big button, this player's meter. */
@@ -554,7 +590,8 @@ function hostPanel(): HTMLElement {
       button(tr("跳过校准", "Skip calibration"), { type: "SKIP_CALIBRATION" });
       break;
     case "learning":
-      button(tr("开始跳", "Dance"), { type: "START_DANCING" }, "btn primary");
+      // (找拍子 first: the dance waits for the beat)
+      if (!routine?.tapIn) button(tr("开始跳", "Dance"), { type: "START_DANCING" }, "btn primary");
       button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
       break;
     case "dancing":
@@ -619,7 +656,7 @@ function routinePicker(): HTMLElement {
     b.setAttribute("aria-pressed", String(song.id === pick));
     b.append(el("span", "pick-name", `${songTitle(song)} · ${songArtist(song)}`));
     const ready = tappedSongs ? song.id in tappedSongs : true;
-    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${song.bpm} BPM${ready ? "" : ` · ${tr("要先在电视上对拍", "tap along on the TV first")}`}`));
+    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${song.bpm} BPM${ready ? "" : ` · ${tr("第一次跳先一起找拍子", "first time: find the beat together")}`}`));
     b.onclick = () => {
       pick = song.id;
       render();

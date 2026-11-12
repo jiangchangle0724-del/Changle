@@ -1,15 +1,17 @@
 /* 一本正经 · In All Seriousness: the engine, the card bank and the two views. Run with `npx tsx tests/straightface.test.ts` */
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { CARDS, defaultPacks, PACK_AUDIENCE, PACKS } from "../src/data/straightface";
 import { lintDeck, pickCard, validateCard, validateDeck } from "../src/shared/straightface/cards";
-import { createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
+import { awards, createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
 import { mulberry32 } from "../src/shared/straightface/rng";
 import type { Card, GameState, Player, RoundState, StraightFaceView } from "../src/shared/straightface/types";
 import { roundLines } from "../src/shared/straightface/scoring";
 import { freshRoom, RoomEngine } from "../src/shared/engine/room";
 import { ONLINE_GAMES, ONLINE_MIN, type Action, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
+import { sfAdmin, sfPublic, sfSchema } from "../worker/straightface";
 
 let failures = 0;
 function ok(cond: unknown, msg: string) {
@@ -164,6 +166,14 @@ test("straightface: pickCard prefers the asked level, avoids used cards, falls b
     used.push(c.id);
   }
   ok(pickCard(cards, { level: 2, packs: [], used, allowAdult: true }, rng) !== null, "a used-up deck still deals (reuse) instead of null");
+  // every card seen before: tonight's never come back while another is left, at any level
+  const trivia = cards.filter((c) => c.pack === "trivia").map((c) => c.id);
+  const keep = trivia[trivia.length - 1];
+  for (let i = 0; i < 30; i++) {
+    const c = pickCard(cards, { level: 1, packs: ["trivia"], used: trivia, tonight: trivia.filter((id) => id !== keep), allowAdult: true }, rng)!;
+    ok(c.id === keep, `seen before beats dealt tonight (${c.id})`);
+  }
+  ok(pickCard(cards, { level: 2, packs: ["trivia"], used: trivia, tonight: trivia, allowAdult: true }, rng) !== null, "fewer cards than rounds: tonight's come back rather than nothing");
   ok(pickCard(cards, { level: 2, packs: ["nope"], used: [], allowAdult: true }, rng) === null, "an empty pack deals nothing");
   const deck: Card[] = [
     { ...cards[1], id: "spicy", adult: true, level: 1 },
@@ -490,6 +500,31 @@ test("straightface: the leaderboard breaks ties by who fooled the judge more, th
   ok(board[0].fooled === 1, "the tie-break counted");
 });
 
+test("straightface: tonight's titles: top score, best bluffer, best bets; shared when tied, empty when unearned", () => {
+  const g = createGame(mk(4), {}, 32);
+  const [a, b, c, d] = g.players.map((p) => p.id);
+  const bet = (r: RoundState, bets: Record<string, string>): RoundState => ({ ...r, bets });
+  // judge, honest one, accused: a fooled two judges and b one; c bet on the honest one twice, a, b and d once each
+  const rounds = [
+    bet(fakeRound(0, c, d, a), { [b]: d, [a]: b }),
+    bet(fakeRound(1, d, c, a), { [b]: a, [a]: c }),
+    bet(fakeRound(2, a, d, b), { [c]: d, [d]: c }),
+    bet(fakeRound(3, b, a, a), { [c]: a, [d]: a }),
+  ];
+  const s: GameState = { ...g, phase: "finished", scores: { [a]: 5, [b]: 5, [c]: 3, [d]: 1 }, rounds };
+  const w = awards(s);
+  ok(w.top.join() === a, `top: one on top after the tie-break (${w.top})`);
+  ok(w.bluffer.join() === a && w.fooled[a] === 2 && w.fooled[b] === 1, `best bluffer: a, twice (${w.bluffer} ${JSON.stringify(w.fooled)})`);
+  ok(w.bettor.join() === c && w.rightBets[c] === 2 && w.rightBets[a] === 1 && w.rightBets[b] === 1 && w.rightBets[d] === 1, `best bets: c, twice (${w.bettor} ${JSON.stringify(w.rightBets)})`);
+  const tied = awards({ ...s, scores: { [a]: 4, [b]: 4, [c]: 0, [d]: 0 }, rounds: [fakeRound(0, c, d, a), fakeRound(1, d, c, b)] });
+  ok(tied.top.join() === [a, b].join() && tied.bluffer.join() === [a, b].join(), `shared when tied (${tied.top} / ${tied.bluffer})`);
+  ok(tied.bettor.length === 0, "no bets tonight: nobody gets the bets title");
+  const none = awards({ ...s, scores: { [a]: 0, [b]: 0, [c]: 0, [d]: 0 }, rounds: [fakeRound(0, c, d, d)] });
+  ok(none.top.length === 0 && none.bluffer.length === 0, "nobody scored, nobody fooled a judge: no titles");
+  const gone = awards({ ...s, players: s.players.filter((p) => p.id !== a) });
+  ok(!gone.top.includes(a) && !gone.bluffer.includes(a) && gone.bluffer.join() === b, `someone who left takes no title (${gone.bluffer})`);
+});
+
 /* ---------- online: the same engine behind the rooms server (src/shared/engine/games/straightface.ts) ---------- */
 
 let clock = 1_000_000;
@@ -766,6 +801,132 @@ test("straightface online: a seat that only watches is no part of it; a whole ga
   ok(end.phase === "finished" && new Set(judges).size === 4 && judges.length === 4, `four rounds, four judges (${judges.join()})`);
   ok(end.learned?.length === 4 && end.learned.every((l) => !!l.term.zh && !!l.definition.en), "the end: every word played, with its meaning");
   ok(Object.keys(end.table!.scores).length === 4, "a score for each of the four");
+});
+
+/** One round to its end: everyone reads, the judge hears everyone out, bets go in, the judge names the honest one. */
+function playRound(t: Table) {
+  const p = t.parts();
+  peekAll(t);
+  speakOnline(t);
+  if (t.view(p.judge).phase === "bets") for (const id of t.view(p.judge).table!.speakOrder) t.g(id, "bet", { target: p.honest === id ? p.bluffers[0] : p.honest });
+  t.g(p.judge, "accuse", { target: p.honest });
+  return p;
+}
+
+test("straightface online: cards the table has played come last; which card it was shows from the verdict on", () => {
+  const packs = ["trivia", "food", "vancouver"];
+  const pool = CARDS.filter((c) => packs.includes(c.pack) && !c.adult);
+  const fresh = pool[7];
+  const others = pool.filter((c) => c.id !== fresh.id).map((c) => c.id);
+  const t = table(4);
+  const s = () => t.eng.d.game!.s as { seen: string[]; g: GameState | null };
+  t.act("p0", { a: "start", game: "straightface" });
+  t.g("p0", "config", { packs });
+  // two phones hand in what they have played: together, every card in those packs but one (and some junk)
+  t.g("p1", "seen", { ids: [...others.slice(0, 30), 42, "not-a-card", null] });
+  t.g("p2", "seen", { ids: others.slice(20) });
+  t.g("p3", "seen", { ids: "petrichor" });
+  ok(s().seen.length === others.length && s().seen.every((id) => others.includes(id)), `the table's played cards, together, real ones only (${s().seen.length} of ${others.length})`);
+  ok(!JSON.stringify(t.view("p3")).includes(others[0]), "nobody's phone hears what the others played");
+  t.g("p0", "deal");
+  ok(t.view("p1").table?.term?.zh === fresh.term.zh, `the one card nobody has played comes up (${t.view("p1").table?.term?.zh})`);
+  ok(t.view("p1").cardId === null && t.view("tv").cardId === null, "which card it is stays off the screens until the verdict");
+  t.g("p1", "seen", { ids: [fresh.id] });
+  ok(!s().seen.includes(fresh.id), "nothing is handed in once the game is on");
+  const p = playRound(t);
+  ok(t.view("p1").cardId === fresh.id && t.view("tv").cardId === fresh.id && t.view(p.judge).cardId === fresh.id, "the verdict: every screen knows the card (for its numbers and the flag)");
+  t.g("p0", "round");
+  ok(t.view("p1").cardId === fresh.id, "and still between rounds");
+  ok(t.view("p1").awards === null, "no titles before the end");
+  t.g("p0", "start");
+  ok(t.view("p1").phase === "peek" && !!t.view("p1").table?.term && t.view("p1").cardId === null, "every card played: the deal falls back on the played ones, and the new card is hidden again");
+  for (let i = 0; i < 6 && t.view("p0").phase !== "finished"; i++) {
+    if (t.view("p0").phase === "peek") playRound(t);
+    t.g("p0", "round");
+    if (t.view("p0").phase === "between") t.g("p0", "start");
+  }
+  ok(t.view("p0").phase === "finished", "four rounds, then the end");
+  const w = t.view("p2").awards;
+  ok(!!w && w.top.length > 0 && JSON.stringify(t.view("tv").awards) === JSON.stringify(w), `the end: tonight's titles, the same on every screen (${JSON.stringify(w?.top)})`);
+  const played = s().g!.rounds.map((r) => r.cardId);
+  ok(new Set(played).size === played.length, `every card was played before, yet none twice in one game (${played.join()})`);
+  t.g("p0", "again");
+  const tonight = new Set(played);
+  ok(s().g === null && s().seen.slice(-tonight.size).every((id) => tonight.has(id)), "again: tonight's cards are remembered for the next game, newest last");
+});
+
+/* ---------- the server's side (worker/straightface.ts) on a real SQLite ---------- */
+
+type Sql = Parameters<typeof sfAdmin>[3];
+/** The Durable Object's `ctx.storage.sql`, as much of it as the hub uses, over an in-memory SQLite. */
+function memorySql(): Sql {
+  const db = new DatabaseSync(":memory:");
+  return {
+    exec(query: string, ...params: (string | number | null)[]) {
+      const st = db.prepare(query);
+      const rows = /^\s*SELECT/i.test(query) || /RETURNING/i.test(query) ? (st.all(...params) as Record<string, unknown>[]) : (st.run(...params), []);
+      return {
+        toArray: () => rows,
+        one: () => {
+          if (rows.length !== 1) throw new Error(`expected one row, got ${rows.length}`);
+          return rows[0];
+        },
+      };
+    },
+  } as unknown as Sql;
+}
+
+test("straightface server: a round counts for its card and its table size; the numbers come back per card", () => {
+  const sql = memorySql();
+  sfSchema((q) => sql.exec(q));
+  sfSchema((q) => sql.exec(q));
+  const limited = new Set<string>();
+  const ctx = (device: string, ip = "1.2.3.4") => ({ sql, allow: (k: string) => !limited.has(k.split(":")[0]), device, ip, uid: null });
+  const [a, b] = [CARDS[0].id, CARDS[1].id];
+  const round = (body: Record<string, unknown>, device = "d1") => sfPublic("/sf/round", "POST", body, ctx(device));
+  ok(round({ card: a, fooled: true, players: 4 })?.status === 200, "a round played");
+  round({ card: a, fooled: false, players: 4 });
+  round({ card: a, fooled: false, players: 5 });
+  round({ card: b, fooled: true, players: 3 }, "d2");
+  for (const bad of [{ card: "not-a-card", fooled: true, players: 4 }, { card: a, fooled: "yes", players: 4 }, { card: a, fooled: true, players: 2 }, { card: a, fooled: true, players: 10 }, { card: a, players: 4 }])
+    ok(round(bad)?.status === 400, `refused: ${JSON.stringify(bad)}`);
+  const stats = sfPublic("/sf/stats", "GET", {}, ctx("d3"))?.json as { cards: Record<string, [number, number]> };
+  ok(JSON.stringify(stats.cards[a]) === "[3,1]" && JSON.stringify(stats.cards[b]) === "[1,1]" && Object.keys(stats.cards).length === 2, `per card: rounds and judges fooled (${JSON.stringify(stats.cards)})`);
+  const desk = sfAdmin("/admin/sf", "GET", {}, sql)?.json as { sizes: { players: number; rounds: number; fooled: number }[]; cards: { card: string; rounds: number }[] };
+  ok(desk.sizes.map((x) => `${x.players}:${x.rounds}/${x.fooled}`).join() === "3:1/1,4:2/1,5:1/0", `per table size (${desk.sizes.map((x) => `${x.players}:${x.rounds}/${x.fooled}`).join()})`);
+  ok(desk.cards[0].card === a && desk.cards[0].rounds === 3, "the desk's cards, most played first");
+  limited.add("sfr");
+  ok(round({ card: a, fooled: true, players: 4 })?.status === 429, "too many from one phone: slowed down");
+  ok(sfPublic("/sf/elsewhere", "POST", {}, ctx("d1")) === null && sfAdmin("/admin/other", "GET", {}, sql) === null, "other paths aren't these");
+});
+
+test("straightface server: a flagged card waits for the owner; one decision covers everyone who flagged it", () => {
+  const sql = memorySql();
+  sfSchema((q) => sql.exec(q));
+  const ctx = (device: string) => ({ sql, allow: () => true, device, ip: "5.6.7.8", uid: null });
+  const card = CARDS[2].id;
+  const report = (body: Record<string, unknown>, device: string) => sfPublic("/sf/report", "POST", body, ctx(device));
+  ok(report({ card, reason: "wrong", note: "  不对\u0000啊\n  真的 ", lang: "zh" }, "d1")?.status === 200, "flagged");
+  ok(report({ card, reason: "easy", note: "", lang: "en" }, "d1")?.status === 200, "the same phone again: fine, but one report");
+  ok(report({ card, reason: "easy", note: "x".repeat(500), lang: "fr" }, "d2")?.status === 200, "another phone");
+  ok(report({ card, reason: "boring", lang: "zh" }, "d3")?.status === 400 && report({ card: "nope", reason: "wrong" }, "d3")?.status === 400, "a reason or a card that isn't one: refused");
+  type R = { id: number; card: string; reason: string; note: string; lang: string; decidedAt: number | null };
+  const desk = () => sfAdmin("/admin/sf", "GET", {}, sql)?.json as { waiting: R[]; fixing: R[]; decided: R[]; counts: { waiting: number; fixing: number } };
+  let d = desk();
+  ok(d.waiting.length === 2 && d.counts.waiting === 2 && d.fixing.length === 0, `two reports waiting (${d.waiting.length})`);
+  ok(d.waiting[0].note === "不对 啊 真的" && d.waiting[1].note.length === 300 && d.waiting[1].lang === "zh", `notes cleaned and cut, the language one of ours (${JSON.stringify(d.waiting[0].note)})`);
+  const ids = d.waiting.map((r) => r.id);
+  ok(sfAdmin("/admin/sf/reports", "POST", { ids, status: "maybe" }, sql)?.status === 400 && sfAdmin("/admin/sf/reports", "POST", { ids: [], status: "fix" }, sql)?.status === 400, "a status or ids that aren't: refused");
+  ok(sfAdmin("/admin/sf/reports", "POST", { ids, status: "fix" }, sql)?.status === 200, "to fix");
+  d = desk();
+  ok(d.waiting.length === 0 && d.fixing.length === 2 && d.counts.fixing === 2 && d.fixing.every((r) => r.decidedAt !== null), "both reports to fix, at once");
+  ok(report({ card, reason: "wrong", lang: "zh" }, "d1")?.status === 200 && desk().waiting.length === 0, "the same phone flagging it while it waits for the fix: still one");
+  sfAdmin("/admin/sf/reports", "POST", { ids, status: "done" }, sql);
+  d = desk();
+  ok(d.fixing.length === 0 && d.decided.length === 2, "fixed: decided");
+  sfAdmin("/admin/sf/reports", "POST", { ids: [ids[0]], status: "new" }, sql);
+  d = desk();
+  ok(d.waiting.length === 1 && d.waiting[0].decidedAt === null && d.decided.length === 1, "put back: waiting again, undecided");
 });
 
 if (failures) {

@@ -1,28 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
-import { cleanAmount, convert, CURRENCIES, type Code, type FxState } from "./fx";
+import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, isCode, sizeClass, type Code, type FxState } from "./fx";
+import { PackCompare } from "./PackCompare";
 import { RateStatus } from "./RateStatus";
+import { MASS, VOLUME } from "./units";
 
-type Unit = { id: string; zh: string; en: string; size: number };
+const SYMBOL = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol])) as Record<Code, string>;
 
-/** sizes in kilograms */
-const MASS: Unit[] = [
-  { id: "kg", zh: "公斤", en: "kg", size: 1 },
-  { id: "lb", zh: "磅", en: "lb", size: 0.45359237 },
-  { id: "jin", zh: "斤", en: "jīn 斤", size: 0.5 },
-  { id: "oz", zh: "盎司", en: "oz", size: 0.028349523125 },
-  { id: "100g", zh: "100 克", en: "100 g", size: 0.1 },
-];
-/** sizes in litres */
-const VOLUME: Unit[] = [
-  { id: "l", zh: "升", en: "L", size: 1 },
-  { id: "gal", zh: "美制加仑", en: "US gal", size: 3.785411784 },
-  { id: "impgal", zh: "英制加仑", en: "UK gal", size: 4.54609 },
-  { id: "floz", zh: "液量盎司", en: "fl oz", size: 0.0295735295625 },
-  { id: "100ml", zh: "100 毫升", en: "100 mL", size: 0.1 },
-];
-
-const SYMBOL: Record<Code, string> = { CAD: "$", CNY: "¥", USD: "US$", HKD: "HK$" };
+/** Amounts in a currency's own number of decimals: yen and won are written without cents. */
+function moneyFormat(lang: "zh" | "en", code: Code) {
+  const d = CURRENCY_BY_CODE[code].decimals;
+  return new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
 
 /** Price per kg, lb, 斤, oz and per litre or gallon, with the same price in a second currency. */
 export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
@@ -30,7 +19,10 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   const [state, setState] = useState(() => {
     try {
       const raw = localStorage.getItem("changle.price");
-      if (raw) return JSON.parse(raw) as { kind: "mass" | "volume"; unit: string; text: string; cur: Code; alt: Code };
+      if (raw) {
+        const saved = JSON.parse(raw) as { kind: "mass" | "volume"; unit: string; text: string; cur: Code; alt: Code };
+        if (isCode(saved.cur) && isCode(saved.alt)) return saved;
+      }
     } catch {
       /* fine */
     }
@@ -48,9 +40,19 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   const from = units.find((u) => u.id === state.unit) ?? units[0];
   const price = Number(cleanAmount(state.text) || "0");
   const perBase = price / from.size;
-  const nf = useMemo(() => new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), [lang]);
+  const nf = useMemo(() => moneyFormat(lang, state.cur), [lang, state.cur]);
+  const nfAlt = useMemo(() => moneyFormat(lang, state.alt), [lang, state.alt]);
   const rate = fx.rates ? convert(fx.rates, 1, state.cur, state.alt) : NaN;
   const set = (patch: Partial<typeof state>) => setState((s) => ({ ...s, ...patch }));
+  const rows = units
+    .filter((u) => u.id !== from.id)
+    .map((u) => {
+      const v = perBase * u.size;
+      return { u, main: `${SYMBOL[state.cur]}${nf.format(v)}`, alt: state.alt !== state.cur && Number.isFinite(rate) ? `≈ ${SYMBOL[state.alt]}${nfAlt.format(v * rate)}` : "" };
+    });
+  // the longest figure sets the size of all of them; past that, one box per line
+  const longest = Math.max(...rows.map((r) => r.main.length));
+  const listClass = longest > 12 ? "is-single" : longest > 9 ? "is-long" : "";
 
   return (
     <section className="tool" id="tool-price" aria-labelledby="price-title">
@@ -79,11 +81,11 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
           ))}
         </select>
         <input
-          className="price-amount tabular"
+          className={`price-amount tabular ${sizeClass(state.text, [6, 8])}`}
           inputMode="decimal"
           enterKeyHint="done"
           value={state.text}
-          onChange={(e) => set({ text: cleanAmount(e.target.value).slice(0, 10) })}
+          onChange={(e) => set({ text: capDigits(cleanAmount(e.target.value), 9) })}
           onFocus={(e) => {
             const el = e.currentTarget;
             window.setTimeout(() => el.select(), 0);
@@ -100,28 +102,16 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
         ))}
       </div>
 
-      <ul className="price-list">
-        {units
-          .filter((u) => u.id !== from.id)
-          .map((u) => {
-            const v = perBase * u.size;
-            return (
-              <li key={u.id}>
-                <span className="price-unit">/{lang === "zh" ? u.zh : u.en}</span>
-                <span className="price-main tabular">
-                  {SYMBOL[state.cur]}
-                  {nf.format(v)}
-                </span>
-                {state.alt !== state.cur && Number.isFinite(rate) && (
-                  <span className="price-alt tabular">
-                    ≈ {SYMBOL[state.alt]}
-                    {nf.format(v * rate)}
-                  </span>
-                )}
-              </li>
-            );
-          })}
+      <ul className={`price-list ${listClass}`}>
+        {rows.map(({ u, main, alt }) => (
+          <li key={u.id}>
+            <span className="price-unit">/{lang === "zh" ? u.zh : u.en}</span>
+            <span className="price-main tabular">{main}</span>
+            {alt && <span className="price-alt tabular">{alt}</span>}
+          </li>
+        ))}
       </ul>
+      {state.kind === "mass" && <p className="price-note">{lang === "zh" ? "1 斤按中国大陆的 500 克算。" : "1 jīn 斤 is counted as mainland China's 500 g."}</p>}
       <label className="price-also">
         <span>{lang === "zh" ? "同时显示" : "Also show in"}</span>
         <select value={state.alt} onChange={(e) => set({ alt: e.target.value as Code })}>
@@ -132,6 +122,7 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
           ))}
         </select>
       </label>
+      <PackCompare kind={state.kind} symbol={SYMBOL[state.cur]} lang={lang} />
     </section>
   );
 }

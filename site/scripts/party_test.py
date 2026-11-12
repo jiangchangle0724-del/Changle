@@ -262,11 +262,15 @@ def t_punchline_online(browser):
     answers = ["我的手机先睡了", "Wi-Fi 叫 别偷了", "外星人要求退货", "冰箱在开会", "猫已读不回", "老板也想辞职"]
     n = 0
     for g in everyone:
-        for card in range(g.locator(".pl-write textarea").count()):
-            g.locator(".pl-write textarea").first.fill(answers[n % len(answers)])
+        # one prompt at a time: the next box comes up once the last one is sent
+        ok(g.locator(".pl-write form textarea").count() == 1, f"{g._name}: one box at a time")
+        while g.locator(".pl-write form textarea").count():
+            g.locator(".pl-write form textarea").first.fill(answers[n % len(answers)])
             g.locator(".pl-write form button[type=submit]").first.click()
             g.wait_for_timeout(150)
             n += 1
+        if g is not everyone[-1]:  # (the last one's answers end the writing)
+            ok(g.locator(".pl-write .pl-sent").count() == 2, f"{g._name}: both answers sent, each on its own line")
     ok(until(lambda: view(host)["phase"] == "vote"), "all answers in: voting starts")
     host.wait_for_timeout(500)
     voter = next(g for g in everyone if view(g)["match"]["canVote"])
