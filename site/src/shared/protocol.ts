@@ -81,6 +81,8 @@ export type Fx =
   | "camera"
   | "nose"
   | "wc"
+  | "trouble"
+  | "buddy"
   | "dice"
   | "reveal"
   | "correct"
@@ -142,7 +144,10 @@ export type RogueView = {
   holders: RogueHolders;
   wcUsed: boolean;
   reshuffled: boolean;
-  garden: { kind: number; speaker: string; endsAt: number; said: number } | null;
+  /** the camera and the nose rest a minute after each use: when each may go again (ms) */
+  cool?: { camera?: number; nose?: number };
+  /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
+  garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;
   sevens: { n: number; speaker: string; endsAt: number; log: { pid: string; n: number; pass: boolean }[] } | null;
   interrupt: { kind: "camera"; by: string; phase: "freeze" | "judge"; endsAt: number } | { kind: "nose"; by: string; endsAt: number; tapped: string[] } | null;

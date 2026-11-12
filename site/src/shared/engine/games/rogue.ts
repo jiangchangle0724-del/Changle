@@ -1,6 +1,6 @@
-import { fullDeck, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
+import { fullDeck, ROGUE_MS, ROGUE_NOTES as N, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
 import type { RogueHolders, RoguePhase, RogueView } from "../../protocol";
-import { byPenalty, intIn, range, t, type Api, type GameDef } from "../api";
+import { byPenalty, intIn, range, type Api, type GameDef } from "../api";
 
 const DECK = fullDeck();
 
@@ -17,35 +17,24 @@ type S = {
   holders: RogueHolders;
   wcUsed: boolean;
   reshuffled: boolean;
-  garden: { kind: number; speaker: string; endsAt: number; said: number } | null;
+  garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number; last: { n: number; pid: string; at: number } | null } | null;
   sevens: { n: number; speaker: string; endsAt: number; streak: number; log: { pid: string; n: number; pass: boolean }[] } | null;
   interrupt: Interrupt | null;
+  /** when the camera and the nose may go again (a minute after each use; tables from before this field have none) */
+  cool?: { camera?: number; nose?: number };
 };
 
 const HOLD_KEY: Partial<Record<Rank, keyof RogueHolders>> = { "2": "buddy", "5": "camera", "6": "nose", "8": "wc", "10": "trouble" };
-
-const N = {
-  garden: t("逛三园：说不出或重复", "Three Gardens: stalled or repeated"),
-  gardenSlow: t("逛三园：没接上", "Three Gardens: too slow"),
-  grabLast: t("抢数字：最后一个", "Grab the Number: last one left"),
-  grabCollide: t("抢数字：撞数了", "Grab the Number: same number"),
-  grabNone: t("抢数字：没抢到", "Grab the Number: never grabbed"),
-  sevensWrong: t("逢七过：说错了", "Sevens: wrong call"),
-  sevensSlow: t("逢七过：没接上", "Sevens: too slow"),
-  camera: t("照相机：动了", "Camera: you moved"),
-  noseSlow: t("摸鼻子：最慢", "Nose: last one"),
-  noseMiss: t("摸鼻子：没摸", "Nose: never touched it"),
-  trouble: t("神经病：接了话", "Troublemaker: you answered"),
-  wc: t("没有 WC 票：先喝再去", "No bathroom pass: drink first"),
-  wcCustom: t("没有 WC 票：先受罚再去", "No bathroom pass: penalty first"),
-};
 
 const GARDEN_MS = 7000;
 const GRAB_MS = 15000;
 const COLLIDE_MS = 400;
 
 const isSeven = (n: number) => n % 7 === 0 || String(n).includes("7");
+
+/** A timed round of a card is on: the camera and the nose wait (their screen would cover the round's buttons while its clock ran on). */
+const inRound = (s: S) => s.phase === "garden" || s.phase === "grab" || s.phase === "sevens";
 
 /** The card's title, in the words of the table's penalty. */
 function noteFor(s: S, api: Api) {
@@ -66,8 +55,15 @@ function endSub(s: S, api: Api) {
   api.clear("sevens");
 }
 
+/** The players still to grab a number: a phone that is away right now is left out of the race and its penalty. */
 function remainingGrab(s: S, api: Api) {
-  return api.ids().filter((id) => s.grab && s.grab.claimed[id] === undefined);
+  return api.ids().filter((id) => s.grab && s.grab.claimed[id] === undefined && api.online(id));
+}
+
+/** The players who must touch their nose: everyone but the caller whose phone is here right now. */
+function noseOthers(s: S, api: Api) {
+  const it = s.interrupt;
+  return it ? api.ids().filter((id) => id !== it.by && api.online(id)) : [];
 }
 
 function startGrab(s: S, api: Api, drawer: string) {
@@ -84,8 +80,7 @@ function startGrab(s: S, api: Api, drawer: string) {
 function resolveNose(s: S, api: Api, timedOut: boolean) {
   const it = s.interrupt;
   if (!it || it.kind !== "nose") return;
-  const others = api.ids().filter((id) => id !== it.by);
-  const missing = others.filter((id) => it.taps[id] === undefined);
+  const missing = noseOthers(s, api).filter((id) => it.taps[id] === undefined);
   s.interrupt = null;
   api.clear("nose");
   if (missing.length && timedOut) {
@@ -113,6 +108,7 @@ export const rogue: GameDef<S> = {
       grab: null,
       sevens: null,
       interrupt: null,
+      cool: {},
     };
   },
 
@@ -128,6 +124,7 @@ export const rogue: GameDef<S> = {
           s.deck = api.shuffle(range(DECK.length));
           s.holders = {};
           s.wcUsed = false;
+          s.cool = {};
           s.reshuffled = true;
           api.fx("shuffle");
         }
@@ -161,6 +158,8 @@ export const rogue: GameDef<S> = {
             const key = HOLD_KEY[rank];
             if (key) s.holders[key] = drawer;
             if (rank === "8") s.wcUsed = false;
+            // a new holder starts fresh
+            if (key === "camera" || key === "nose") delete (s.cool ??= {})[key];
             s.phase = "done";
             return;
           }
@@ -214,6 +213,7 @@ export const rogue: GameDef<S> = {
       }
       case "said": {
         if (s.phase !== "garden" || !s.garden || pid !== s.garden.speaker) return;
+        s.garden.last = pid;
         s.garden.speaker = api.next(s.garden.speaker);
         s.garden.said += 1;
         s.garden.endsAt = api.now + GARDEN_MS;
@@ -222,7 +222,11 @@ export const rogue: GameDef<S> = {
       }
       case "repeat": {
         if (s.phase !== "garden" || !s.garden || (pid !== s.drawer && !host)) return;
-        pen(s, api, [s.garden.speaker], "sip", N.garden);
+        // the judge names who it was: the one speaking, or the one who just finished (a word is
+        // judged after it is said, and the speaker may already have tapped 说完了)
+        const who = g.who ? String(g.who) : s.garden.speaker;
+        if (who !== s.garden.speaker && who !== s.garden.last) return;
+        pen(s, api, [who], "sip", N.garden);
         endSub(s, api);
         return;
       }
@@ -257,7 +261,8 @@ export const rogue: GameDef<S> = {
       /* 7: sevens */
       case "sevens": {
         const start = intIn(g.start, 1, 20);
-        if (s.phase !== "sevens-start" || start === null || (pid !== s.drawer && !host) || !s.drawer) return;
+        // (the drawer says the first number out loud: not one that has to be a 过)
+        if (s.phase !== "sevens-start" || start === null || isSeven(start) || (pid !== s.drawer && !host) || !s.drawer) return;
         s.sevens = { n: start + 1, speaker: api.next(s.drawer), endsAt: api.now + 6000, streak: 0, log: [{ pid: s.drawer, n: start, pass: false }] };
         s.phase = "sevens";
         api.timer("sevens", s.sevens.endsAt);
@@ -288,10 +293,11 @@ export const rogue: GameDef<S> = {
 
       /* standing powers */
       case "camera": {
-        if (pid !== s.holders.camera || s.interrupt) return;
-        s.interrupt = { kind: "camera", by: pid, phase: "freeze", endsAt: api.now + 3500 };
+        if (pid !== s.holders.camera || s.interrupt || inRound(s) || (s.cool?.camera ?? 0) > api.now) return;
+        (s.cool ??= {}).camera = api.now + ROGUE_MS.cool;
+        s.interrupt = { kind: "camera", by: pid, phase: "freeze", endsAt: api.now + ROGUE_MS.freeze };
         api.fx("camera", pid);
-        api.timer("camera", api.now + 3500);
+        api.timer("camera", s.interrupt.endsAt);
         return;
       }
       case "moved": {
@@ -299,27 +305,29 @@ export const rogue: GameDef<S> = {
         if (!it || it.kind !== "camera" || it.phase !== "judge" || pid !== it.by) return;
         const target = g.target ? String(g.target) : null;
         s.interrupt = null;
+        api.clear("camera");
         if (target && api.has(target) && target !== pid) pen(s, api, [target], "sip", N.camera);
         return;
       }
       case "nose": {
-        if (pid !== s.holders.nose || s.interrupt) return;
-        s.interrupt = { kind: "nose", by: pid, endsAt: api.now + 6000, taps: {} };
+        if (pid !== s.holders.nose || s.interrupt || inRound(s) || (s.cool?.nose ?? 0) > api.now) return;
+        (s.cool ??= {}).nose = api.now + ROGUE_MS.cool;
+        s.interrupt = { kind: "nose", by: pid, endsAt: api.now + ROGUE_MS.nose, taps: {} };
         api.fx("nose", pid);
-        api.timer("nose", api.now + 6000);
+        api.timer("nose", s.interrupt.endsAt);
         return;
       }
       case "tap": {
         const it = s.interrupt;
         if (!it || it.kind !== "nose" || pid === it.by || it.taps[pid] !== undefined || !api.has(pid)) return;
         it.taps[pid] = api.now;
-        const others = api.ids().filter((id) => id !== it.by);
-        if (others.every((id) => it.taps[id] !== undefined)) resolveNose(s, api, false);
+        if (noseOthers(s, api).every((id) => it.taps[id] !== undefined)) resolveNose(s, api, false);
         return;
       }
       case "trouble": {
         const target = String(g.target ?? "");
         if (pid !== s.holders.trouble || !api.has(target) || target === pid) return;
+        api.fx("trouble", pid);
         pen(s, api, [target], "sip", N.trouble);
         return;
       }
@@ -347,7 +355,13 @@ export const rogue: GameDef<S> = {
       pen(s, api, [s.sevens.speaker], "sip", N.sevensSlow);
       endSub(s, api);
     } else if (key === "camera" && s.interrupt?.kind === "camera") {
-      s.interrupt.phase = "judge";
+      if (s.interrupt.phase === "freeze") {
+        // the holder looks at the photo; with no answer by the deadline, nobody moved (the table
+        // was stuck behind "X is checking the photo" when the holder's phone went away)
+        s.interrupt.phase = "judge";
+        s.interrupt.endsAt = api.now + ROGUE_MS.judge;
+        api.timer("camera", s.interrupt.endsAt);
+      } else s.interrupt = null;
     } else if (key === "nose" && s.interrupt?.kind === "nose") {
       resolveNose(s, api, true);
     }
@@ -384,6 +398,7 @@ export const rogue: GameDef<S> = {
       phase: s.phase,
       holders: s.holders,
       wcUsed: s.wcUsed,
+      cool: s.cool ?? {},
       reshuffled: s.reshuffled,
       garden: s.garden,
       grab: s.grab ? { next: s.grab.next, claimed: s.grab.claimed, endsAt: s.grab.endsAt } : null,
