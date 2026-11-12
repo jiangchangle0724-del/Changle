@@ -431,14 +431,19 @@ function date(value: unknown): { iso: string; dateOnly: boolean } | null {
 }
 
 function place(value: unknown): Place | null {
-  if (typeof value === "string") return placeFromText(decodeEntities(value));
+  if (typeof value === "string") {
+    const text = decodeEntities(value);
+    return /[\d,]/.test(text) ? placeFromText(text) : null;
+  }
   const location = object(value);
   if (!Object.keys(location).length || hasType(location, "VirtualLocation")) return null;
   const address = object(location.address);
   const parsed = placeFromText(decodedString(location.address));
   const geo = object(location.geo);
+  const name = decodedString(location.name) ?? parsed?.name ?? null;
+  if (!name?.trim()) return null;
   return {
-    name: decodedString(location.name) ?? parsed?.name ?? null,
+    name,
     address: decodedString(address.streetAddress) ?? parsed?.address ?? null,
     city: decodedString(address.addressLocality) ?? parsed?.city ?? null,
     postalCode: decodedString(address.postalCode) ?? parsed?.postalCode ?? null,
@@ -482,34 +487,38 @@ function eventUrl(value: unknown, pageUrl: string): string {
   try { return new URL(ownUrl, pageUrl).href; } catch { return pageUrl; }
 }
 
-function uniqueEvents(events: NormalizedEvent[]): NormalizedEvent[] {
-  const seen = new Set<string>();
+// A small deterministic title discriminator for events whose only URL is the listing page.
+function titleHash(title: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < title.length; i++) hash = Math.imul(hash ^ title.charCodeAt(i), 0x01000193);
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function assignIds(events: NormalizedEvent[], pageUrl: string): NormalizedEvent[] {
+  const pageId = pageUrl.replace(/\?[^#]*/, "");
   const starts = new Map<string, Map<string, Set<string>>>();
-  const unique = events.filter((event) => {
-    const key = JSON.stringify(event);
-    if (seen.has(key)) return false;
-    seen.add(key);
+  for (const event of events) {
     let dates = starts.get(event.sourceEventId);
     if (!dates) starts.set(event.sourceEventId, dates = new Map());
     const day = event.start.slice(0, 10);
     let times = dates.get(day);
     if (!times) dates.set(day, times = new Set());
     times.add(event.start);
-    return true;
-  });
-  for (const event of unique) {
+  }
+  for (const event of events) {
+    const baseId = event.sourceEventId;
     const dates = starts.get(event.sourceEventId)!;
     const day = event.start.slice(0, 10);
     const sameDayTimes = dates.get(day)!;
-    if (dates.size > 1 || sameDayTimes.size > 1) {
-      event.sourceEventId += `@${sameDayTimes.size > 1 ? event.start.slice(0, 19) : day}`;
-    }
+    const occurrence = sameDayTimes.size > 1 && !event.allDay ? event.start.slice(0, 19) : day;
+    event.sourceEventId = `${baseId}@${occurrence}${baseId === pageId ? `~${titleHash(event.title)}` : ""}`;
   }
-  return unique;
+  return events;
 }
 
 /** Read schema.org/Event (and its subtypes) from all JSON-LD scripts in a saved page. */
 export async function parseJsonLd(html: string, opts: { source: string; pageUrl: string }): Promise<NormalizedEvent[]> {
+  const pageUrl = eventUrl(opts.pageUrl, opts.pageUrl);
   const roots: unknown[] = [];
   let chunks: string[] = [];
   await new HTMLRewriter().on('script[type="application/ld+json"]', {
@@ -534,11 +543,14 @@ export async function parseJsonLd(html: string, opts: { source: string; pageUrl:
       && /T00:00:00[+-]/.test(start.iso) && /T23:59:(00|59)[+-]/.test(end.iso)
       && end.iso.slice(0, 10) >= start.iso.slice(0, 10);
     const locations = array(node.location);
-    const online = term(node.eventAttendanceMode) === "OnlineEventAttendanceMode"
-      || locations.some((l) => hasType(object(l), "VirtualLocation"));
+    const attendance = term(node.eventAttendanceMode);
+    const onlineOnly = attendance === "OnlineEventAttendanceMode" || attendance === "Online";
+    const online = onlineOnly || attendance === "MixedEventAttendanceMode" || attendance === "Mixed"
+      || locations.some((l) => hasType(object(l), "VirtualLocation")
+        || (typeof l === "string" && /\b(online|virtual|zoom|webinar)\b/i.test(decodeEntities(l))));
     const offers = array(node.offers).map(object);
     const price = prices(offers);
-    const url = eventUrl(node.url, opts.pageUrl);
+    const url = eventUrl(node.url, pageUrl);
     const description = string(node.description);
     events.push({
       source: opts.source,
@@ -551,7 +563,7 @@ export async function parseJsonLd(html: string, opts: { source: string; pageUrl:
       allDay: start.dateOnly || wholeDays,
       timeTBD: start.dateOnly,
       status: status(node.eventStatus, offers),
-      place: locations.map(place).find((p) => p !== null) ?? null,
+      place: onlineOnly ? null : locations.map(place).find((p) => p !== null) ?? null,
       online,
       ...price,
       category: null,
@@ -560,5 +572,5 @@ export async function parseJsonLd(html: string, opts: { source: string; pageUrl:
       organizer: decodedString(object(array(node.organizer)[0]).name),
     });
   }
-  return uniqueEvents(events);
+  return assignIds(events, pageUrl);
 }
