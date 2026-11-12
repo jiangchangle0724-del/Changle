@@ -11,12 +11,13 @@ import { GAME_BY_ID } from "../../games/registry";
 import { sfx } from "../../lib/sfx";
 import { BACKDROP } from "./art";
 import { cue } from "./sounds";
-import { createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX_PLAYERS, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, type Deps } from "../../shared/straightface/engine";
+import { awards, createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX_PLAYERS, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, type Deps } from "../../shared/straightface/engine";
 import type { GameEvent, GameState, Level, PenaltyWhy } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace, PassCurtain } from "../common";
 import { CardNumbers, Deltas, HoldToPeek, Lines, MasterArt, OrderStrip, PackPicker, PickOne, RevealSequence, ReportCard, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
 import { cardStats, markSeen, seenCards, sendRound } from "./feedback";
+import { SharePicture, Titles, type Tonight } from "./share";
 import { S } from "./text";
 import "../../styles/party.css";
 import "./straightface.css";
@@ -437,6 +438,16 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     turn = judgeId ?? undefined;
     if (between || finished) {
       const board = leaderboard(game);
+      // the end: tonight's words and titles, for the screen and the picture
+      const tonight = (): Tonight => ({
+        words: game.rounds.flatMap((rd) => {
+          const c = CARDS.find((x) => x.id === rd.cardId);
+          return c ? [{ term: c.term, definition: c.definition }] : [];
+        }),
+        awards: awards(game),
+        name: nameOf,
+        score: (id) => game.scores[id] ?? 0,
+      });
       const top = board.filter((b) => b.place === 1);
       body = (
         <div className="stack sf-stage">
@@ -487,6 +498,8 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
               </ul>
             </div>
           )}
+          {finished && <Titles tonight={tonight()} />}
+          {finished && <SharePicture tonight={tonight()} />}
         </div>
       );
       actions = finished ? (

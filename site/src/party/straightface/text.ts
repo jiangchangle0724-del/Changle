@@ -154,6 +154,25 @@ export const S = {
   reportThanks: t("收到了，谢谢！我们会去看这张卡。", "Got it, thanks. We will take a look at this card."),
   reportFailed: t("没发出去，网好一点再试试。", "That did not go through. Try again when the connection is better."),
   reportClose: t("好的", "OK"),
+
+  // the end: tonight's titles, and the picture to share
+  titles: t("今晚的称号", "Tonight's titles"),
+  awardTop: t("冠军", "Top score"),
+  awardBluffer: t("最会编", "Best bluffer"),
+  awardBettor: t("押得最准", "Best bets"),
+  scorePoints: t("{n} 分", "{n} points"),
+  rightBetOnce: t("押对 1 次", "1 right bet"),
+  rightBets: t("押对 {n} 次", "{n} right bets"),
+  shareButton: t("存成图片，发给朋友", "Save it as a picture to share"),
+  shareTitle: t("今晚的图", "Tonight's picture"),
+  shareAlt: t("今晚学到的词和称号", "Tonight's words and titles"),
+  shareHint: t("按住图片也能存到相册。", "You can also press and hold the picture to save it."),
+  shareSend: t("分享", "Share"),
+  shareSave: t("存图片", "Save picture"),
+  shareFailed: t("图没画出来，再试一次。", "The picture didn't come out. Try again."),
+  shareRetry: t("再试一次", "Try again"),
+  picWords: t("今晚学到的 {n} 个词", "{n} words we learned tonight"),
+  picScan: t("扫码一起玩", "Scan to play"),
 } as const;
 
 export type SKey = keyof typeof S;
