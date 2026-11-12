@@ -5,8 +5,9 @@ check it and when it's done. The game's own notes are in `docs/briefs/drama.md`.
 
 Always:
 - Node 22, in `site`: `npm ci`, then the card's checks. `npx tsc --noEmit`, `npx tsx tests/engine.test.ts`
-  and `npm run build` pass before the PR. Paste the output into the PR, with the pictures and
-  screenshots the card asks for.
+  and `npm run build` pass before the PR. Paste the output into the PR. Don't open a browser or
+  attach pictures (on C2 that cost hours): the reviewing chat makes the contact sheet from the branch
+  and plays the scenes itself.
 - Everything a player reads exists in Chinese and English. No keys, secrets or tokens anywhere.
 - Don't touch the rules (`site/src/shared/`), `site/worker/`, other games or another card's files. If
   a card seems to need one of them, say so in the PR.
@@ -14,7 +15,7 @@ Always:
 | Card | What | Files |
 | --- | --- | --- |
 | [drama-C1](C1-art.md) | Nine backdrops: the film set for famous scenes, and one for each community's stories (done, #271) | `site/public/drama/`, `site/src/data/dramaArt.ts` |
-| [drama-C2](C2-scenes-crime-palace.md) | A set of its own for each of the 33 crime and palace scenes | `site/public/drama/scene-*.webp`, `site/src/data/dramaArt.ts` |
+| [drama-C2](C2-scenes-crime-palace.md) | A set of its own for each of the 33 crime and palace scenes (done, #388) | `site/public/drama/scene-*.webp`, `site/src/data/dramaArt.ts` |
 | [drama-C3](C3-scenes-family-1.md) | The same for the first 17 family scenes | the same |
 | [drama-C4](C4-scenes-family-2.md) | The same for the other 16 family scenes | the same |
 | [drama-C5](C5-scenes-love.md) | The same for the 20 love scenes | the same |
