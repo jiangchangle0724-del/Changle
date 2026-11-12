@@ -13,8 +13,9 @@ export interface IcalOptions {
 
 /** At most this many dates from one recurring event. */
 const MAX_RECURRENCES = 60;
-/** Shared by every rule in one feed, including COUNT rules that cannot be fast-forwarded. */
-const MAX_ITERATIONS = 1000;
+/** Leave room for unrelated series and the rest of the source step's CPU budget. */
+const MAX_ITERATIONS = 400;
+const MAX_SERIES_ITERATIONS = 200;
 const DAY = 86_400_000;
 
 const ENTITIES: Record<string, string> = { "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&rsquo;": "'", "&lsquo;": "'", "&ndash;": "-", "&mdash;": "-" };
@@ -88,7 +89,7 @@ function applyRuntimeZones(components: ICAL.Component[], zones = new Map<string,
   // Per-calendar objects: a custom VTIMEZONE must never leak into another feed.
   for (const component of components) {
     for (const prop of component.getAllProperties()) {
-      if (prop.type !== "date-time") continue;
+      if (prop.type !== "date-time" && prop.type !== "period") continue;
       const tzid = String(prop.getParameter("tzid") || "America/Vancouver");
       if (!zones.has(tzid)) {
         try {
@@ -102,7 +103,8 @@ function applyRuntimeZones(components: ICAL.Component[], zones = new Map<string,
         }
       }
       const zone = zones.get(tzid);
-      for (const value of prop.getValues()) {
+      const times = prop.getValues().flatMap((value) => value instanceof ICAL.Period ? [value.start, value.end] : [value]);
+      for (const value of times) {
         if (value instanceof ICAL.Time && value.zone !== ICAL.Timezone.utcTimezone && zone) value.zone = zone;
       }
     }
@@ -148,7 +150,7 @@ function boundary(ms: number, model: ICAL.Time): number {
 }
 
 /** Keep DTSTART defaults explicit before moving the anchor by whole INTERVAL periods. */
-function fastForward(rule: ICAL.Recur, start: ICAL.Time, lower: number, back = 1): ICAL.Time {
+function fastForward(rule: ICAL.Recur, start: ICAL.Time, lower: number): ICAL.Time {
   if (rule.count || lower <= wallMs(start)) return start;
   const p = rule.parts;
   if (rule.freq === "WEEKLY" && !p.BYDAY) p.BYDAY = [ICAL.Recur.numericDayToIcalDay(start.dayOfWeek())];
@@ -163,7 +165,7 @@ function fastForward(rule: ICAL.Recur, start: ICAL.Time, lower: number, back = 1
   };
   const unit = units[rule.freq];
   if (unit) {
-    const cycles = Math.max(0, Math.floor((lower - wallMs(start)) / (unit * interval)) - back);
+    const cycles = Math.max(0, Math.floor((lower - wallMs(start)) / (unit * interval)) - 1);
     seed.fromUnixTime((wallMs(start) + cycles * interval * unit) / 1000);
     seed.zone = start.zone;
   } else {
@@ -174,8 +176,12 @@ function fastForward(rule: ICAL.Recur, start: ICAL.Time, lower: number, back = 1
     if (cycles) {
       // Day 1 avoids normalizing Jan 31 into March or Feb 29 into a different year.
       seed.day = 1;
-      if (rule.freq === "MONTHLY") seed.month += cycles * interval;
-      else { seed.month = 1; seed.year += cycles * interval; }
+      if (rule.freq === "MONTHLY") {
+        // The iterator reads raw fields; normalize before construction, not on first access.
+        const months = seed.year * 12 + seed.month - 1 + cycles * interval;
+        seed.year = Math.floor(months / 12);
+        seed.month = (months % 12) + 1;
+      } else { seed.month = 1; seed.year += cycles * interval; }
     }
   }
   return seed;
@@ -232,8 +238,9 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
     const value = (name: string) => (vevent.hasProperty(name) ? vevent : master?.component)?.getFirstPropertyValue(name);
     const title = String(value("summary") ?? "").trim();
     if (!title) return false;
-    const geo = value("geo") as number[] | null;
-    const location = String(value("location") ?? "");
+    const locationOwner = vevent.hasProperty("location") || vevent.hasProperty("geo") ? vevent : master?.component ?? vevent;
+    const geo = locationOwner.getFirstPropertyValue("geo") as number[] | null;
+    const location = String(locationOwner.getFirstPropertyValue("location") ?? "");
     const place = placeFromText(location);
     if (place && Array.isArray(geo) && geo.length === 2) [place.lat, place.lon] = [Number(geo[0]), Number(geo[1])];
     const status = STATUS[String(value("status") ?? "").toUpperCase()] ?? "scheduled";
@@ -257,11 +264,14 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
     out.push({ ...base, sourceEventId, start: s.iso, end, allDay: s.allDay });
     return true;
   };
-  for (const vevent of components) {
-    if (vevent.hasProperty("recurrence-id")) continue;
+  const hasCount = (component: ICAL.Component) => component.getAllProperties("rrule").some((p) => (p.getFirstValue() as ICAL.Recur).count);
+  const ordered = components.filter((c) => !c.hasProperty("recurrence-id"))
+    .sort((a, b) => Number(hasCount(a)) - Number(hasCount(b)));
+  for (const vevent of ordered) {
     const uid = String(vevent.getFirstPropertyValue("uid"));
     if (invalid.has(uid)) continue;
     const before = out.length;
+    let seriesIterations = 0;
     try {
       const ev = new ICAL.Event(vevent, { exceptions: exceptions.get(uid) ?? [] });
       if (!ev.startDate || !ev.summary) continue;
@@ -285,8 +295,10 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
           const matched = detail.item === ev ? byInstant.get(timeOf(occurrence).ms) : undefined;
           if (one(matched ?? detail.item, matched?.startDate ?? detail.startDate, id, ev)) seen.add(id);
         };
-        const dates = [ev.startDate, ...(vevent.getAllProperties("rdate").flatMap((p) => p.getValues()) as ICAL.Time[]).map((t) => inZone(t, ev.startDate))];
-        for (const prop of vevent.getAllProperties("rrule")) {
+        const rdates = vevent.getAllProperties("rdate").flatMap((p) => p.getValues()) as (ICAL.Time | ICAL.Period)[];
+        const dates = [...(vevent.hasProperty("rrule") ? [] : [ev.startDate]), ...rdates.map((t) => inZone(t instanceof ICAL.Period ? t.start : t, ev.startDate))];
+        const rules = vevent.getAllProperties("rrule").sort((a, b) => Number(!!(a.getFirstValue() as ICAL.Recur).count) - Number(!!(b.getFirstValue() as ICAL.Recur).count));
+        for (const prop of rules) {
           const rule = (prop.getFirstValue() as ICAL.Recur).clone();
           if (rule.until) {
             const until = rule.until.clone();
@@ -296,25 +308,29 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
             localUntil.zone = ICAL.Timezone.localTimezone;
             rule.until = localUntil;
           }
-          if (iterations >= MAX_ITERATIONS) break;
+          if (iterations >= MAX_ITERATIONS || seriesIterations >= MAX_SERIES_ITERATIONS) break;
           const wallStart = ev.startDate.clone();
           wallStart.zone = ICAL.Timezone.localTimezone;
+          const subdaily = rule.freq === "MINUTELY" || rule.freq === "SECONDLY" || rule.freq === "HOURLY";
+          const hasBy = Object.keys(rule.parts).length > 0;
           // ical.js itself compares dates inside next(); floating iteration keeps those calls off Intl.
-          const iterator = (floor: number, back = 1) => {
-            const it = rule.iterator(fastForward(rule, wallStart, floor, back));
+          const iterator = (floor: number) => {
+            // BYHOUR is an ordered iterator list. Let its initial partial day settle before the window.
+            const it = rule.iterator(fastForward(rule, wallStart, floor - (subdaily && hasBy ? DAY : 0)));
             const advance = it.next.bind(it);
             // The package's declaration omits next()'s normal null-at-end result.
             const bounded: { next(again?: boolean): ICAL.Time | null } = it;
             bounded.next = (again = false) => {
-              if (iterations >= MAX_ITERATIONS) return null;
+              if (iterations >= MAX_ITERATIONS || seriesIterations >= MAX_SERIES_ITERATIONS) return null;
               iterations++;
+              seriesIterations++;
               return advance(again);
             };
             return bounded;
           };
           let floor = lower;
           let bounded = iterator(floor);
-          while (iterations < MAX_ITERATIONS) {
+          while (iterations < MAX_ITERATIONS && seriesIterations < MAX_SERIES_ITERATIONS) {
             const next = bounded.next();
             if (!next || wallMs(next) >= to) break;
             // No emit, Intl or Unix conversion for historical occurrences outside the overlap range.
@@ -323,11 +339,11 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
             actual.zone = ev.startDate.zone;
             if (isExcluded(actual)) continue;
             dates.push(actual);
-            if (!rule.count && (rule.freq === "MINUTELY" || rule.freq === "SECONDLY" || rule.freq === "HOURLY")) {
+            if (!rule.count && !hasBy && subdaily) {
               // IDs retain one occurrence per source date. Seek the next date by whole periods.
               floor = Date.UTC(next.year, next.month - 1, next.day + 1);
               if (floor >= to) break;
-              bounded = iterator(floor, 0);
+              bounded = iterator(floor);
             }
           }
         }
