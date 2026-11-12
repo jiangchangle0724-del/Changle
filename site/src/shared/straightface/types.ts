@@ -268,6 +268,27 @@ export interface StraightFaceView {
   awards: Awards | null;
   /** 自己出题, before the deal: who has written a word, and this phone's own (nobody sees anyone else's) */
   writing: { written: string[]; mine: OwnDraft | null } | null;
+  /** The audience's bets (people at the table who aren't in this game); null when bets are off. */
+  crowd: CrowdView | null;
+}
+
+/**
+ * The audience: phones at the table that aren't in this game (they sat down after the deal, or
+ * after the first nine). They bet on the honest one from the first explanation until the verdict;
+ * it scores nothing in the game, only on their own board. Nobody sees whom they backed before the
+ * verdict, so the crowd can't steer the judge.
+ */
+export interface CrowdView {
+  /** how many in the audience have bet this round */
+  count: number;
+  /** this phone's bet this round, if it is in the audience */
+  mine: string | null;
+  /** this phone may bet now: not in the game, the bets are open, it hasn't bet */
+  canBet: boolean;
+  /** from the verdict on: who in the audience backed whom */
+  bets: Record<string, string> | null;
+  /** over the game: how often each in the audience backed the honest one */
+  right: Record<string, number>;
 }
 
 /** The end's titles, by player id; each shared when tied, empty when nobody earned it. */

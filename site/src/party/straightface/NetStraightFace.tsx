@@ -151,7 +151,39 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
   const term = t?.term ? <TermCard term={t.term} pack={t.pack} level={t.level} /> : null;
   // my part stays a press away all round (and looks the same for the honest one and a bluffer)
   const myPart = mine && mine.role && mine.role !== "judge" ? <HoldPart view={mine} compact /> : null;
-  const late = !!t && !mine && seated.some((s) => s.id === me) ? <p className="hint sf-center">{say(S.lateJoin)}</p> : null;
+  // the audience: at the table, not in this game (sat down after the deal, or after the first nine)
+  const crowd = v.crowd;
+  const audience = !!t && !mine && seated.some((s) => s.id === me);
+  const late = !audience ? null : !crowd ? (
+    <p className="hint sf-center">{say(S.lateJoin)}</p>
+  ) : (
+    <div className="panel sf-panel sf-crowd">
+      <p className="hint">{say(S.crowdYou)}</p>
+      {crowd.canBet && t && t.speakOrder.length > 0 ? (
+        <>
+          <p className="sup-ask">{say(S.betPick)}</p>
+          <PickOne
+            people={t.speakOrder.map((id) => ({ id, name: nameOf(id) }))}
+            face={face}
+            size={50}
+            onPick={(id) => {
+              g("guess", { target: id });
+              cue.bet(crowd.count + 1);
+            }}
+          />
+        </>
+      ) : crowd.mine ? (
+        <p>
+          <strong>{say(S.crowdDone, { name: nameOf(crowd.mine) })}</strong>
+        </p>
+      ) : (
+        phase === "peek" && <p className="hint">{say(S.crowdWait)}</p>
+      )}
+      <p className="hint tabular">
+        {say(S.crowdCount, { n: crowd.count })} · {say(S.crowdLater)}
+      </p>
+    </div>
+  );
 
   /** the scores, highest first; a tie goes to whoever fooled a judge more often, then shares the place */
   const board = () => {
@@ -196,7 +228,12 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
           {n >= 4 && toggle(say(S.betsOn), say(S.betsHint), v.setup.bets, () => g("config", { bets: !v.setup.bets }))}
           {toggle(say(S.ownOn), say(S.ownHint), !!v.setup.own, () => g("config", { own: !v.setup.own }))}
           <p className="hint-ink">
-            {n > MAX_PLAYERS ? say(S.tooManyOnline) : n < MIN_PLAYERS ? say(S.needThree, { n: MIN_PLAYERS - n }) : say(S.seatedOnline, { n, m: n * 3 })} {n === MIN_PLAYERS && say(S.bestWith)}
+            {n > MAX_PLAYERS
+              ? `${say(S.seatedOnline, { n: MAX_PLAYERS, m: MAX_PLAYERS * 3 })} ${say(v.setup.bets ? S.crowdOverflow : S.crowdOverflowQuiet, { k: n - MAX_PLAYERS })}`
+              : n < MIN_PLAYERS
+                ? say(S.needThree, { n: MIN_PLAYERS - n })
+                : say(S.seatedOnline, { n, m: n * 3 })}{" "}
+            {n === MIN_PLAYERS && say(S.bestWith)}
           </p>
         </div>
       </div>
@@ -245,7 +282,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
       <>
         {count}
         {w && written < n && <p className="hint sf-center">{say(S.ownWaitOthers)}</p>}
-        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("deal")} disabled={n < MIN_PLAYERS || n > MAX_PLAYERS}>
+        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("deal")} disabled={n < MIN_PLAYERS}>
           {say(S.deal)}
         </button>
       </>
@@ -456,6 +493,15 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
     const f = v.facts;
     const said = roundLines(f, nameOf);
     const right = f.accusedId === f.honestId;
+    // the audience: how many backed the honest one, and (on an audience phone) whether this one did
+    const backed = crowd?.bets ? Object.values(crowd.bets) : [];
+    const crowdLine =
+      backed.length > 0 ? (
+        <p className="hint sf-crowd-line tabular">
+          {audience && crowd?.mine && <strong>{say(crowd.mine === rv.honestId ? S.crowdRight : S.crowdWrong)} </strong>}
+          {say(S.crowdResult, { n: backed.filter((x) => x === rv.honestId).length, m: backed.length })}
+        </p>
+      ) : null;
     const items: RevealItem[] = [
       {
         key: "truth",
@@ -495,6 +541,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
           <div className="panel sf-panel">
             <Lines lines={said.lines} />
             <Deltas deltas={rv.result.deltas} names={Object.fromEntries(Object.keys(rv.result.deltas).map((id) => [id, who(id)]))} />
+            {crowdLine}
           </div>
         ),
       },
@@ -563,7 +610,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
     const rows = board();
     const top = rows.filter((b) => b.place === 1);
     // tonight's words and titles, for the screen and the picture (the names are the table's, never "you")
-    const tonight: Tonight | null = v.awards ? { words: v.learned ?? [], awards: v.awards, name: (id) => nameOf(id), score: (id) => t?.scores[id] ?? 0 } : null;
+    const tonight: Tonight | null = v.awards ? { words: v.learned ?? [], awards: v.awards, name: (id) => nameOf(id), score: (id) => t?.scores[id] ?? 0, crowd: v.crowd?.right } : null;
     body = (
       <div className="stack sf-stage">
         <div className="sf-final">

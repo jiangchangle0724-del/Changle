@@ -977,3 +977,17 @@
 .sf-own-first {
   margin-bottom: var(--space-4);
 }
+
+/* ---------- the audience: at the table, not in this game ---------- */
+.sf-crowd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sf-crowd p {
+  margin: 0;
+  line-height: var(--leading);
+}
+.sf-crowd-line {
+  margin: var(--space-2) 0 0;
+}

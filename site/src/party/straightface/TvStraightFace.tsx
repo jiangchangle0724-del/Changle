@@ -310,6 +310,12 @@ function Bets({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bool
           <b key={t.betsPlaced}>{t.betsPlaced}</b>/{t.betsExpected}
           <small>{zh ? " 押了" : " in"}</small>
         </span>
+        {!!v.crowd?.count && (
+          <span className="tvsf-count tabular">
+            <b key={v.crowd.count}>{v.crowd.count}</b>
+            <small>{zh ? " 个观众押了" : " in the audience"}</small>
+          </span>
+        )}
       </p>
       <TvLineup people={people.map((s) => judgeTagged(s, t.judgeId, zh))} big={200} />
     </div>
@@ -351,6 +357,8 @@ function Reveal({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bo
   const honest = seat(rv?.honestId);
   const said = f ? roundLines(f, name) : { preLines: [], lines: [] };
   const deltas = Object.entries(rv?.result.deltas ?? {}).filter(([, d]) => d !== 0);
+  // the audience: whom they backed, out from the verdict on
+  const backed = Object.values(v.crowd?.bets ?? {});
   // the same beats as the phones: the meaning, the fun fact, who did what, then the honest one
   useBeat(
     (tl, q) => {
@@ -435,6 +443,11 @@ function Reveal({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bo
             </p>
           )}
           {picked && f && <p className="tvsf-master">{zh ? `${name(f.accusedId)} 指定了 ${picked.name}` : `${name(f.accusedId)} picked ${picked.name}`}</p>}
+          {backed.length > 0 && (
+            <p className="tvsf-crowd tabular">
+              {zh ? `观众 ${backed.filter((x) => x === rv.honestId).length}/${backed.length} 押对了` : `Audience: ${backed.filter((x) => x === rv.honestId).length} of ${backed.length} backed the honest one`}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -477,6 +490,10 @@ function Finished({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: 
   const { zh, tr } = useLang();
   const { seat } = useSeats();
   const learned = (v.learned ?? []).slice(-6);
+  // the audience's best, under the podium
+  const crowd = Object.entries(v.crowd?.right ?? {});
+  const best = Math.max(0, ...crowd.map(([, n]) => n));
+  const sharpest = best > 0 ? crowd.filter(([, n]) => n === best).map(([id]) => seat(id)?.name ?? "") : [];
   // tonight's titles ride on the podium in place of the player's line (short: the podium is narrow)
   const ranked = rows(v, t, seat, zh).map((r) => {
     const titles = [v.awards?.bettor.includes(r.seat.id) && (zh ? "押得最准" : "Best bets"), v.awards?.bluffer.includes(r.seat.id) && (zh ? "最会编" : "Best bluffer")].filter(Boolean);
@@ -485,6 +502,11 @@ function Finished({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: 
   return (
     <div className="tvsf-end">
       <TvPodium rows={ranked} unit={zh ? "分" : "pts"} sound={sound} className="tvsf-podium" burstX={0.36} />
+      {sharpest.length > 0 && (
+        <p className="tvsf-crowd tvsf-crowd-best">
+          {zh ? `最准的观众：${sharpest.join("、")}（押对 ${best} 次）` : `Sharpest in the audience: ${sharpest.join(", ")} (${best} right)`}
+        </p>
+      )}
       {learned.length > 0 && (
         <aside className="tvsf-learned">
           <h2>{zh ? `今晚学到的 ${v.learned!.length} 个词` : `${v.learned!.length} words you learned tonight`}</h2>
