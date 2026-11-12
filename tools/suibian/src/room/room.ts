@@ -4,6 +4,16 @@
 import * as E from "../engine";
 import { MAX_MEMBERS, MAX_SEARCHES, RATING_SLACK, TIMING, cardView, type CardView, type ClientMsg, type Lang, type Phase, type RoomView, type ServerMsg } from "./protocol";
 
+/** Cards are sent again at least this often, so a wait estimate follows the clock. */
+const CARDS_REFRESH = 10 * 60_000;
+
+/** A short fingerprint of a string (not for security: only to notice a change). */
+function fingerprint(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 export interface RoomEnv {
   now(): number;
   random(): number;
@@ -40,8 +50,10 @@ export interface RoomState {
   phaseEnds: number | null;
   /** Everything the last search found (Google content: kept only for this room's life). */
   places: E.Place[];
+  /** Round 2's list, best first: every place in range and budget when round 1 ended. */
   cards: string[];
-  relaxed: string[];
+  /** Goes up whenever the list or its places change (see cardsRev in protocol.ts). */
+  cardsVersion?: number;
   result: RoomView["result"];
   members: Record<string, Member>;
   /** One rating per device. */
@@ -68,6 +80,8 @@ export class Room {
   private changed = true;
   private direct: [string, ServerMsg][] = [];
   private want: Want | null = null;
+  /** The cards as everyone sees them, made once for each cardsRev. */
+  private cache: { rev: string; cards: CardView[] } | null = null;
 
   constructor(
     public st: RoomState,
@@ -91,7 +105,6 @@ export class Room {
         phaseEnds: null,
         places: [],
         cards: [],
-        relaxed: [],
         result: null,
         members: {},
         ratings: {},
@@ -208,7 +221,7 @@ export class Room {
       case "mood": {
         if (ph !== "mood") return;
         const picks: Member["mood"] = {};
-        const offered = new Set(E.chips(this.eligible()).map((c) => c.cuisine));
+        const offered = new Set(E.chips(this.eligible(), this.table()).map((c) => c.cuisine));
         for (const [c, v] of Object.entries(msg.picks ?? {})) if (offered.has(c as E.CuisineId) && (v === "like" || v === "ban")) picks[c as E.CuisineId] = v;
         m.mood = picks;
         m.moodDone = msg.done === true;
@@ -242,7 +255,7 @@ export class Room {
     if (this.st.phase !== "finding") return;
     this.st.places = places;
     if (!places.length) return this.fail("nothingNearby");
-    if (E.chips(this.eligible()).length === 0) return this.fail("nothingFits");
+    if (E.chips(this.eligible(), this.table()).length === 0) return this.fail("nothingFits");
     this.st.phase = "mood";
     this.st.phaseEnds = this.env.now() + TIMING.mood;
     this.changed = true;
@@ -253,14 +266,14 @@ export class Room {
     this.st.error = error;
   }
 
-  /** Photos, phone numbers and review quotes for the cards. */
+  /** Photos, review quotes and Google's summaries for the top of the list. */
   enrich(details: Record<string, Partial<E.Place>>) {
     for (const p of this.st.places) {
       const d = details[p.id];
       // A description from the search (in the table's language) beats the English one from details.
-      if (d) Object.assign(p, d, { id: p.id, cuisine: p.cuisine, about: p.about ?? d.about });
+      if (d) Object.assign(p, d, { id: p.id, cuisine: p.cuisine, about: p.about ?? d.about, summary: p.summary ?? d.summary });
     }
-    this.changed = true;
+    this.bump();
   }
 
   /**
@@ -305,8 +318,14 @@ export class Room {
   }
 
   private toLobby() {
-    Object.assign(this.st, { phase: "lobby", phaseEnds: null, places: [], cards: [], relaxed: [], result: null, ratings: {}, error: null });
+    Object.assign(this.st, { phase: "lobby", phaseEnds: null, places: [], cards: [], result: null, ratings: {}, error: null });
     for (const m of Object.values(this.st.members)) Object.assign(m, { mood: {}, moodDone: false, ballot: { approve: [], veto: null }, ballotDone: false });
+    this.bump();
+  }
+
+  /** The list or its places changed: everyone gets the cards again. */
+  private bump() {
+    this.st.cardsVersion = (this.st.cardsVersion ?? 0) + 1;
     this.changed = true;
   }
 
@@ -330,30 +349,31 @@ export class Room {
     return { likes, bans };
   }
 
+  /** Round 2: every place in range and budget, ranked; round 1's "no" and everyone's diet move places down. */
   private toCards() {
     const { likes, bans } = this.moodCounts();
-    const { ids, relaxed } = E.pick({
+    const table = this.table();
+    const ids = E.rank({
       places: this.eligible(),
+      limits: table,
       likes,
       bans,
       members: Object.keys(this.st.members).length,
       center: this.st.center,
       range: this.st.range,
       now: this.env.now(),
-      // Near-equal places take turns from one table to the next (see JITTER).
-      random: this.env.random,
     });
     if (!ids.length) return this.fail("nothingFits");
     this.st.cards = ids;
-    this.st.relaxed = relaxed;
     this.st.phase = "cards";
     this.st.phaseEnds = this.env.now() + TIMING.cards;
     for (const m of Object.values(this.st.members)) m.moodDone = true;
-    this.want = { k: "details", ids };
-    this.changed = true;
+    // Photos and reviews only for the top of the list (Google bills each place's details).
+    this.want = { k: "details", ids: ids.slice(0, E.TOP_COUNT) };
+    this.bump();
   }
 
-  /** Cards still allowed: someone who joins late with a severe allergy can knock one out. */
+  /** Cards still allowed: someone who joins late with a lower budget can knock one out. */
   private liveCards(): string[] {
     const limits = this.table();
     return this.st.cards.filter((id) => {
@@ -432,6 +452,31 @@ export class Room {
 
   // ---- what each phone sees ----
 
+  /** The list as everyone sees it, and its fingerprint: the same for every phone, so made once. */
+  private cardList(table: E.Limits, now: number): { rev: string; cards: CardView[] } {
+    const st = this.st;
+    const rev = `${st.cardsVersion ?? 0}.${fingerprint(JSON.stringify(table))}.${Math.floor(now / CARDS_REFRESH)}`;
+    if (this.cache?.rev === rev) return this.cache;
+    const { likes, bans } = this.moodCounts();
+    const ctx = { center: st.center, range: st.range, limits: table, now };
+    const cards = this.liveCards().map((cid, i) => {
+      const p = st.places.find((x) => x.id === cid)!;
+      return cardView(p, i + 1, ctx, { likes: likes[p.cuisine] ?? 0, bans: bans[p.cuisine] ?? 0 });
+    });
+    this.cache = { rev, cards };
+    return this.cache;
+  }
+
+  /** The winner's card, kept even if someone who joined afterwards can't eat there, flagged then. */
+  private winnerCard(won: E.Place, table: E.Limits, now: number): NonNullable<RoomView["winner"]> {
+    const st = this.st;
+    const { likes, bans } = this.moodCounts();
+    const card = cardView(won, st.cards.indexOf(won.id) + 1, { center: st.center, range: st.range, limits: table, now }, { likes: likes[won.cuisine] ?? 0, bans: bans[won.cuisine] ?? 0 });
+    const v = E.check(won, table);
+    const severe = v.concerns.some((c) => c.k === "allergy" && c.level === "severe");
+    return { ...card, unsafe: !v.ok ? "budget" : severe ? "severe" : false };
+  }
+
   view(id: string): RoomView {
     const st = this.st;
     const now = this.env.now();
@@ -439,10 +484,7 @@ export class Room {
     const table = this.table();
     const counts = this.moodCounts();
     const showCounts = st.phase !== "mood";
-    const cards: CardView[] = this.liveCards().map((cid) => {
-      const p = st.places.find((x) => x.id === cid)!;
-      return cardView(p, st.center, st.range, table, now, st.relaxed.includes(cid));
-    });
+    const list = this.cardList(table, now);
     const rs = Object.values(st.ratings);
     const phaseDone = (m: Member) => (st.phase === "mood" ? m.moodDone : st.phase === "cards" ? m.ballotDone : false);
     const won = (st.phase === "result" || st.phase === "spin") && st.result ? st.places.find((x) => x.id === st.result!.winner) : undefined;
@@ -466,10 +508,11 @@ export class Room {
         .map((m) => ({ id: m.id, name: m.name, online: this.present(m), host: m.id === st.hostId, ready: m.limits !== null, done: phaseDone(m) })),
       range: st.range,
       table: st.phase === "result" || st.phase === "spin" ? table : E.NO_LIMITS,
-      chips: st.phase === "mood" || st.phase === "cards" || st.phase === "spin" || st.phase === "result" ? E.chips(this.eligible()).map((c) => ({ ...c, likes: showCounts ? (counts.likes[c.cuisine] ?? 0) : 0, bans: showCounts ? (counts.bans[c.cuisine] ?? 0) : 0 })) : [],
-      cards,
+      chips: st.phase === "mood" || st.phase === "cards" || st.phase === "spin" || st.phase === "result" ? E.chips(this.eligible(), this.table()).map((c) => ({ ...c, likes: showCounts ? (counts.likes[c.cuisine] ?? 0) : 0, bans: showCounts ? (counts.bans[c.cuisine] ?? 0) : 0 })) : [],
+      cards: list.cards,
+      cardsRev: list.rev,
       result: st.phase === "result" || st.phase === "spin" ? st.result : null,
-      winner: won ? { ...cardView(won, st.center, st.range, table, now), unsafe: !E.check(won, table).ok } : null,
+      winner: won ? this.winnerCard(won, table, now) : null,
       ratings: {
         n: rs.length,
         up: rs.filter((r) => r.overall === "up").length,

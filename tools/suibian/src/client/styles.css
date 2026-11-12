@@ -586,6 +586,71 @@ select {
   column-gap: 16px;
   row-gap: 0;
 }
+/* the ranked list: rank, short intro, notes on what someone can still order, Google's summary */
+.place .head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.rank {
+  flex: none;
+  min-width: 2em;
+  height: 2em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.place .head h3 {
+  align-self: center;
+}
+.intro {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.note {
+  color: var(--warn);
+  background: var(--warn-bg);
+  padding: 8px 12px;
+  border-radius: 10px;
+  line-height: 1.45;
+}
+.note.severe {
+  color: var(--ban);
+  background: var(--ban-bg);
+  font-weight: 600;
+}
+.summary {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.summary p + p {
+  margin-top: 2px;
+}
+.summary .flag {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.place.compact .body {
+  padding: 12px 14px;
+  gap: 6px;
+}
+.place.compact h3 {
+  font-size: 1.05rem;
+}
+.place .more {
+  align-self: flex-start;
+  min-height: 44px;
+  padding-left: 0;
+}
 .vote {
   display: grid;
   grid-template-columns: 2fr 1fr;

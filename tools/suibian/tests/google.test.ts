@@ -41,6 +41,13 @@ const golden = {
   currentOpeningHours: { openNow: true, nextCloseTime: "2026-10-23T05:00:00Z", weekdayDescriptions: [] },
   businessStatus: "OPERATIONAL",
   reservable: true,
+  nationalPhoneNumber: "(604) 278-0873",
+  googleMapsUri: "https://maps.google.com/?cid=123",
+  generativeSummary: {
+    overview: { text: "Big Cantonese banquet hall serving dim sum by day and seafood at night.", languageCode: "en-US" },
+    overviewFlagContentUri: "https://www.google.com/local/review/rap/report?postId=x",
+    disclosureText: { text: "Summarized with Gemini", languageCode: "en-US" },
+  },
 };
 
 test("search: a short walk is two Nearby Search calls, the right headers and body, results merged", async () => {
@@ -60,6 +67,8 @@ test("search: a short walk is two Nearby Search calls, the right headers and bod
     const h = new Headers(c.init?.headers);
     assert.equal(h.get("X-Goog-Api-Key"), "KEY");
     assert.match(h.get("X-Goog-FieldMask")!, /places\.currentOpeningHours/);
+    // On every place of the list, at no extra cost: the mask already bills at Enterprise + Atmosphere.
+    for (const f of ["places.generativeSummary", "places.nationalPhoneNumber", "places.googleMapsUri", "places.reservable"]) assert.ok(h.get("X-Goog-FieldMask")!.split(",").includes(f), f);
     const body = JSON.parse(String(c.init?.body));
     assert.deepEqual(body.includedTypes, ["restaurant"]);
     assert.equal(body.maxResultCount, 20);
@@ -75,7 +84,16 @@ test("search: a short walk is two Nearby Search calls, the right headers and bod
   const p = places[0];
   assert.equal(p.cuisine, "cantonese");
   assert.equal(p.price, 20);
+  assert.equal(p.priceTo, 40);
   assert.equal(p.priceLabel, "$$");
+  assert.equal(p.phone, "(604) 278-0873");
+  assert.equal(p.mapsUrl, "https://maps.google.com/?cid=123");
+  assert.deepEqual(p.summary, {
+    text: "Big Cantonese banquet hall serving dim sum by day and seafood at night.",
+    disclosure: "Summarized with Gemini",
+    flag: "https://www.google.com/local/review/rap/report?postId=x",
+  });
+  assert.deepEqual(p.dishes, ["seafood"]);
   assert.equal(p.closesAt, Date.parse("2026-10-23T05:00:00Z"));
   assert.equal(p.openNow, true);
   assert.equal(p.reservable, true);
@@ -171,27 +189,26 @@ test("place from Google: its one-line description and short address come along",
   assert.equal(fromGoogle({ id: "e", displayName: { text: "X" }, location: { latitude: 49.2, longitude: -123.1 } })!.about, undefined);
 });
 
-test("details: phone, map, a queue review with its author, a photo with its author", async () => {
+test("details: a queue review with its author, a photo with its author, Google's summaries in English", async () => {
   mockFetch([
     [/\/media\?/, () => json({ name: "places/ChIJgolden/photos/AbC/media", photoUri: "https://lh3.googleusercontent.com/places/AbC=s480" })],
     [
       /\/v1\/places\/ChIJgolden\?/,
       () =>
         json({
-          nationalPhoneNumber: "(604) 278-0873",
-          googleMapsUri: "https://maps.google.com/?cid=123",
           photos: [{ name: "places/ChIJgolden/photos/AbC", widthPx: 4032, heightPx: 3024, authorAttributions: [{ displayName: "Ming L", uri: "https://maps.google.com/maps/contrib/1" }] }],
           reviews: [
             { text: { text: "Great har gow." }, authorAttribution: { displayName: "A" } },
             { originalText: { text: "点心很好吃。周末排了40分钟才进去！服务一般。" }, text: { text: "Dim sum was good." }, authorAttribution: { displayName: "Lily W" } },
           ],
           editorialSummary: { text: "Longtime Cantonese banquet hall known for its dim sum." },
+          // Google's own docs also spell it "disclaimerText".
+          generativeSummary: { overview: { text: "Dim sum hall." }, disclaimerText: { text: "Summarized with Gemini" } },
         }),
     ],
   ]);
   const d = await detailsGoogle("KEY", "ChIJgolden");
-  assert.equal(d.phone, "(604) 278-0873");
-  assert.equal(d.mapsUrl, "https://maps.google.com/?cid=123");
+  assert.deepEqual(d.summary, { text: "Dim sum hall.", disclosure: "Summarized with Gemini", flag: undefined });
   // The review keeps its own language even though details are asked in English.
   assert.deepEqual(d.waitQuote, { text: "周末排了40分钟才进去！", author: "Lily W" });
   assert.equal(d.about, "Longtime Cantonese banquet hall known for its dim sum.");
@@ -199,7 +216,7 @@ test("details: phone, map, a queue review with its author, a photo with its auth
   assert.deepEqual(d.photoBy, { name: "Ming L", uri: "https://maps.google.com/maps/contrib/1" });
   const details = calls.find((c) => c.url.includes("/v1/places/ChIJgolden?"))!;
   assert.match(details.url, /languageCode=en/);
-  assert.equal(new Headers(details.init?.headers).get("X-Goog-FieldMask"), "nationalPhoneNumber,googleMapsUri,photos,reviews,editorialSummary");
+  assert.equal(new Headers(details.init?.headers).get("X-Goog-FieldMask"), "photos,reviews,editorialSummary,generativeSummary");
   const media = calls.find((c) => c.url.includes("/media?"))!;
   assert.match(media.url, /skipHttpRedirect=true/);
   // The key is in our server's request, never in what phones get.
@@ -216,12 +233,25 @@ test("details: no photo when Google gives no author to credit", async () => {
   assert.equal(d.about, undefined);
 });
 
-test("details: the English description only fills in when the search had none", () => {
+test("details: the English description and summary only fill in when the search had none", () => {
   const found = fromGoogle({ id: "a", displayName: { text: "金閣" }, location: { latitude: 49.17, longitude: -123.14 }, editorialSummary: { text: "粤式点心" } })!;
   const bare = fromGoogle({ id: "b", displayName: { text: "金閣" }, location: { latitude: 49.17, longitude: -123.14 } })!;
-  const details = { phone: "(604) 000-0000", about: "Cantonese dim sum" };
-  assert.deepEqual(keepAbout(found, details), { phone: "(604) 000-0000", about: "粤式点心" });
+  const summary = { text: "Dim sum hall.", disclosure: "Summarized with Gemini" };
+  const details = { photo: "https://lh3.googleusercontent.com/x", about: "Cantonese dim sum", summary };
+  assert.deepEqual(keepAbout(found, details), { ...details, about: "粤式点心" });
   assert.deepEqual(keepAbout(bare, details), details);
+  const summed = { ...bare, summary: { text: "From the search.", disclosure: "Summarized with Gemini" } };
+  assert.equal(keepAbout(summed, details).summary?.text, "From the search.");
+});
+
+test("place from Google: a summary never without its disclosure; a price range with both ends", () => {
+  const base = { id: "s", displayName: { text: "X" }, location: { latitude: 49.2, longitude: -123.1 } };
+  assert.equal(fromGoogle({ ...base, generativeSummary: { overview: { text: "  " } } })!.summary, undefined);
+  assert.equal(fromGoogle({ ...base, generativeSummary: { overview: { text: "Cozy spot." } } })!.summary?.disclosure, "Summarized with Gemini");
+  const open = fromGoogle({ ...base, priceRange: { startPrice: { units: "100" } }, priceLevel: "PRICE_LEVEL_VERY_EXPENSIVE" })!;
+  assert.equal(open.price, 100);
+  assert.equal(open.priceTo, undefined);
+  assert.equal(fromGoogle({ ...base, priceLevel: "PRICE_LEVEL_MODERATE" })!.priceTo, undefined, "no range from a level alone");
 });
 
 // ---- sign-in ----

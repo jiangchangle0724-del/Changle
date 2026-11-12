@@ -14,28 +14,39 @@ How a table goes:
 1. The host signs in with Google, picks where they are (GPS or an area) and how far, and gets a
    QR code. Friends scan it; they don't need to sign in.
 2. Everyone fills in a **diet card**: allergies incl. chili (don't eat / severe), anything else
-   they type in (香菜, pork…; these only warn), halal, vegetarian, budget.
-   The table sees only "someone here doesn't eat peanuts", never who, and only with the result
-   (shown live, a line popping up as one person saves their card would give them away). Signed-in
-   people's cards are saved. Someone who joins after the start fills in their card first, and a
-   severe allergy still knocks out cards that can't work.
-3. **Round 1, today's mood**: 👍 or 🚫 on the cuisines actually open nearby. One 🚫 removes it.
-4. **Round 2, the cards**: six restaurants (at most two per cuisine), each with rating, travel
-   minutes, last-order time, a 🟢/🟡/🔴 wait estimate, call and map buttons. Tick every place
-   you'd go; one secret veto each.
-5. Most ticks wins; a tie spins. The result card goes to the group chat with a link to rate the
-   meal afterwards (three taps). Those ratings feed back into scores and wait estimates.
+   they type in (香菜, pork…; these only warn), halal, vegetarian, budget. Only the budget takes
+   places off the list (the owner's call, 2026-11-11): the rest move places down and say why.
+   The table's summary ("someone here doesn't eat peanuts", never who) comes only with the result
+   (shown live, a line popping up as one person saves their card would give them away); in round 2
+   a card that moved down says so the same way. Signed-in people's cards are saved. Someone who
+   joins after the start fills in their card first.
+3. **Round 1, today's mood**: 👍 or 🚫 on the cuisines actually open nearby (twelve fit; cuisines
+   someone is severely allergic to something in come last). A 🚫 moves that cuisine down.
+4. **Round 2, the list**: every place open in range and within everyone's budget, ranked
+   (`rank()` in `src/engine/pick.ts`): Google rating and how many rated it, our own ratings, round
+   1's 👍, distance, wait, a pick or a list badge. Round 1's 🚫 and someone's diet move places down,
+   each with a line on the card: "有人不吃辣椒：川湘菜也有不辣的…" (what can still be ordered there,
+   from `src/engine/tips.ts`: Google has no menus, so it's about the kind of food), and a severe
+   allergy puts its cuisines at the bottom ("去之前一定先问店里"). The top six are full cards (at most
+   two per cuisine, only places nobody has a problem with); the rest are shorter cards that open,
+   ten more at a time. Every card has its rank, a short intro (cuisine, what it mainly serves from
+   its name and Google type, price range), distance and rough walking and driving minutes, rating,
+   last-order time, a 🟢/🟡/🔴 wait estimate, call and map buttons, and Google's AI summary when it
+   has one. Tick every place you'd go; one secret veto each.
+5. Most ticks wins; a tie spins (with no ticks at all, between the top six). The result card goes
+   to the group chat with a link to rate the meal afterwards (three taps). Those ratings feed back
+   into scores and wait estimates.
 
 **On your own and can't decide?** The home page's second card asks one person five quick things
-(mood, which side of the menu, budget, where and how far, diet card) and shows three places at a
-time, each with why it was picked; "show me others" gives three more, up to twelve, and only then
-fetches their phone numbers, photos and reviews (fewer Google calls when the first three do). It is
-at `changle.ca/eat/solo`, needs the same sign-in as starting a table, and counts toward the same
-10 uses a day ("show me others" doesn't count again, for 30 minutes). The answers only steer that
-search: they wait on the account with its other candidates until the next search. Changes to the
-diet card are saved for next time as at a table, except the budget, which is only that search's
-answer. Places with almost no Google
-ratings rank lower than rated ones here (there's no table to vote them down), unless they're a pick.
+(mood, which side of the menu, budget, where and how far, diet card) and shows the same kind of
+ranked list: every place open in range and budget, the side of the menu chosen first (a boost, not
+a filter), the mood next, the diet moving places down with the same notes. The top three are full
+cards with photos (three different cuisines); only they get Google's details request. It is at
+`changle.ca/eat/solo`, needs the same sign-in as starting a table, and counts toward the same 10
+uses a day. The account keeps the ids of the places that search showed, until the next search, so
+only one of them can be rated. Changes to the diet card are saved for next time as at a table,
+except the budget, which is only that search's answer. Places with almost no Google ratings rank
+lower than rated ones (at a table too), unless they're a pick.
 Once you choose one, the home page asks how it was for the next three days (or open
 `changle.ca/eat/rate`): three taps, once per pick, counted in that place's "our users" numbers
 like a table's rating.
@@ -50,10 +61,10 @@ time, and in a big area like Burnaby most restaurants never came up. Each table 
 runs up to four searches: the whole circle's most popular; walking, also the nearest; for one person
 who chose a side of the menu, that side's restaurants alone; and with what's left, smaller circles
 inside the area (walk 15 minutes and up, every drive), turned a different way each time, or for any
-distance, other neighbourhoods picked at random. A search that fails doesn't lose the others. Then a
-small random nudge lets places that score about the same take turns, and for someone signed in,
-places their solo picks showed them in the last two weeks step back (about two-thirds of a Google
-star), so the next pick shows others first.
+distance, other neighbourhoods picked at random. A search that fails doesn't lose the others.
+Everything those searches find that is open and within budget is on the list, in a fixed order:
+the same places give the same ranking (no random nudge, no "seen lately"; both went with the list,
+2026-11-11).
 
 ## Cards: descriptions, lists and picks
 
@@ -61,8 +72,13 @@ Each card can carry more than Google's numbers, all from free sources:
 
 * **A one-line description**: Google's own editorial summary of the place, when it has one: from
   the search, in the table's language; when Google has none in that language (some places only
-  have an English one), the English one from the details request each card already makes.
+  have an English one), the English one from the details request the top cards already make.
   Neither costs anything extra.
+* **Google's AI summary** (`generativeSummary`): English only, in Canada, for food places that have
+  one; always shown with its "Summarized with Gemini" line and a link to report it, as Google
+  requires. From the search for every place (so mostly when the table uses English), and from the
+  English details for the top cards. It costs nothing more: the search and details already bill at
+  the tier it's in.
 * **List badges** (🏅 Michelin, Vancouver Magazine Restaurant Awards, Canada's 100 Best, the
   Chinese Restaurant Awards…): from `src/data/lists.json`, kept by hand. Facts only: which list,
   which award, which year, and the page that says so; nothing copied from the source's write-ups.
@@ -118,7 +134,7 @@ street number ("150-8888 River Rd") still match.
 | Folder | What it is |
 | --- | --- |
 | `src/base.ts` | `BASE = "/eat"`: where the tool lives on changle.ca. |
-| `src/engine` | The rules: cuisines, diet limits (with the severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
+| `src/engine` | The rules: cuisines, diet limits (with the table of what each allergen is common in, `limits.ts`), what can still be ordered (`tips.ts`), what a place mainly serves (`dishes.ts`), wait estimates, the ranked list, counting votes. No network. |
 | `src/room` | One table from lobby to result. No network inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker: rooms (one Durable Object each), Google Places, Google sign-in, users' diet cards, our per-restaurant ratings. |
 | `src/client` | The phone pages (Preact), Chinese and English: home, a table, rating, picking alone (`ui/Solo.tsx`), and the privacy and terms pages (`privacy.html`, `terms.html`, plain HTML at `/eat/privacy` and `/eat/terms`). |
@@ -140,7 +156,7 @@ address on port 8787, followed by `/eat/`. To run it with Google switched on, co
 
 ```sh
 npm run typecheck
-npm test             # rules (incl. "a severe allergy never gets through", 500 random tables) and room
+npm test             # rules (incl. "only the budget leaves a place out, a severe allergy goes last", 500 random tables) and room
 npm run test:e2e     # three phones: sign in, join, diet cards, both rounds, result, rating;
                      # and the privacy and terms pages are up and linked from the home page
 ```
@@ -206,8 +222,9 @@ them), opening hours and phone numbers. If the table says "搜索出错了", ope
 wrong API, or Places API (New) isn't enabled; `google 429` means today's quota is used up.
 
 Real Google data is used only when both sign-in and the Places key are set, so strangers can't
-spend your API money. Each table makes 2 searches, plus details and one photo for each of its
-6 cards. Google gives every kind of request a monthly free allowance; a group of friends eating
+spend your API money. Each table or solo pick makes up to 4 searches, plus details and one photo
+for each full card at the top of the list (6 at a table, 3 picking alone); the rest of the list
+comes from the searches alone. Google gives every kind of request a monthly free allowance; a group of friends eating
 out a few times a week should stay well inside it, but look at Billing after the first week to
 be sure.
 
@@ -216,9 +233,11 @@ be sure.
 * Round timings, and how long a phone that drops off (map app, locked screen) still counts as at
   the table: `TIMING` in `src/room/protocol.ts`. People per table, searches per table and
   ratings per table: `MAX_MEMBERS`, `MAX_SEARCHES` and `RATING_SLACK` there.
-* Score weights, cards per table, max per cuisine: `src/engine/pick.ts`.
-* Severe-allergy table: `SEVERE_RULES_OUT` in `src/engine/limits.ts` (reviewed with the owner on
-  2026-11-05; every allergen now rules out the cuisines built on it, with the reason beside it).
+* Score weights, how far each reason moves a place down (`DEMOTE`), full cards at the top, max per
+  cuisine there: `src/engine/pick.ts`; picking alone (side and mood boosts, top three): `solo.ts`.
+* Which cuisines each allergen is common in: `COMMON_IN` in `src/engine/limits.ts` (reviewed with
+  the owner on 2026-11-05, the reason beside each). The line about what can still be ordered there:
+  `src/engine/tips.ts`.
 * Wait-estimate rules (peak hours, popularity): `src/engine/wait.ts`.
 * Uses per account per day (tables and solo picks together): `ROOMS_PER_DAY` in `src/server/worker.ts`.
 * How far each range reaches: `RANGES` and the tabs' `RANGE_MODES` in `src/engine/clock.ts`.

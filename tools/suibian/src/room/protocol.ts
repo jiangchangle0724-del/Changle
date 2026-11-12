@@ -1,6 +1,6 @@
 // What phones and the server say to each other.
-import { RANGES, check, distanceMeters, estimateWait, minutesToLastOrder, travelMinutes, vancouverClock } from "../engine";
-import type { Ballot, Center, CuisineId, Lang, Limits, MoodPick, Place, RangeId, Rating, SoloReason, WaitEstimate, Warning } from "../engine";
+import { RANGES, check, distanceMeters, estimateWait, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
+import type { Ballot, Center, Concern, CuisineId, Lang, Limits, MoodPick, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
 
 export type { Lang };
 
@@ -48,7 +48,7 @@ export type ClientMsg =
   | { t: "ping" };
 
 export type ServerMsg =
-  | { t: "view"; view: RoomView }
+  | { t: "view"; view: WireView }
   | { t: "toast"; key: string; vars?: Record<string, string | number> }
   | { t: "pong"; now: number }
   | { t: "fatal"; key: string };
@@ -66,45 +66,67 @@ export interface MemberView {
 
 export interface CardView {
   place: Place;
-  /** Rough travel minutes from the room's starting point. */
-  minutes: number;
+  /** Its place on the list, from 1. */
+  rank: number;
+  /** From the starting point in a straight line, to the nearest 50 m (100 m past 1 km). */
+  meters: number;
+  /** Rough minutes there on foot and by car (see travelMinutes). */
+  walkMin: number;
+  driveMin: number;
+  /** The table chose a driving range (or any distance), so the drive comes first. */
   drive: boolean;
   wait: WaitEstimate;
-  lastOrder?: number;
+  /** When the kitchen likely stops taking orders (ms since epoch), if we know when it closes. */
+  lastOrderAt?: number;
   warnings: Warning[];
-  /** A cuisine someone banned in round 1, brought back because little else was left. */
-  relaxed: boolean;
+  /** Why it is further down the list for this table; each comes with a note (tips.ts). */
+  concerns: Concern[];
+  /** Round 1: how many people liked its cuisine, and how many said no to it. */
+  likes: number;
+  bans: number;
+  /** What speaks for it, best first, at most three. */
+  reasons: Reason[];
 }
 
-/** A place as a card, seen from the starting point, for the people whose limits are `limits`. */
-export function cardView(p: Place, center: Center, range: RangeId, limits: Limits, now: number, relaxed = false): CardView {
-  const drive = RANGES[range].drive;
+/** Distances a card shows: never so exact that the starting point could be worked out from them. */
+export const roundMeters = (m: number) => (m < 1000 ? Math.max(50, Math.round(m / 50) * 50) : Math.round(m / 100) * 100);
+
+export interface CardContext {
+  center: Center;
+  range: RangeId;
+  /** The table's merged limits (one person's own, picking alone). */
+  limits: Limits;
+  now: number;
+}
+
+/** A place as a card at `rank` on the list, seen from the starting point, for the people whose limits are `limits`. */
+export function cardView(p: Place, rank: number, ctx: CardContext, extra: { likes?: number; bans?: number; reasons?: Reason[] } = {}): CardView {
+  const meters = distanceMeters(ctx.center, p);
+  const v = check(p, ctx.limits);
+  const likes = extra.likes ?? 0;
   return {
     place: p,
-    minutes: travelMinutes(distanceMeters(center, p), drive),
-    drive,
-    wait: estimateWait(p, vancouverClock(now)),
-    lastOrder: minutesToLastOrder(p, now),
-    warnings: check(p, limits).warnings,
-    relaxed,
+    rank,
+    meters: roundMeters(meters),
+    walkMin: travelMinutes(meters, false),
+    driveMin: travelMinutes(meters, true),
+    drive: RANGES[ctx.range].drive,
+    wait: estimateWait(p, vancouverClock(ctx.now)),
+    lastOrderAt: lastOrderAt(p),
+    warnings: v.warnings,
+    concerns: v.concerns,
+    likes,
+    bans: extra.bans ?? 0,
+    reasons: extra.reasons ?? reasonsFor(p, { limits: ctx.limits, center: ctx.center, range: ctx.range, liked: likes > 0 }),
   };
 }
 
-/** One person's pick (POST /eat/api/solo): a card and why it was chosen. */
-export interface SoloCard extends CardView {
-  reasons: SoloReason[];
-}
-
+/** One person's pick (POST /eat/api/solo): every place found, ranked. */
 export interface SoloResponse {
-  cards?: SoloCard[];
-  /** The side of the menu asked for had too few places nearby, so others were let in. */
-  relaxed?: boolean;
+  /** Best first; the first SOLO_TOP come with a photo and Google's details. */
+  cards?: CardView[];
   demo?: boolean;
-  /** More places are waiting: POST /api/solo/more fetches the next batch. */
-  more?: boolean;
-  /** Without accounts (sign-in off): what finds this search's other places; send it back with "more". */
-  run?: string;
-  error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace" | "expired";
+  error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace";
 }
 
 export interface RoomView {
@@ -131,17 +153,24 @@ export interface RoomView {
    */
   table: Limits;
   chips: { cuisine: CuisineId; count: number; likes: number; bans: number }[];
+  /** Round 2's list, best first: every place in range and budget. */
   cards: CardView[];
+  /** Changes whenever `cards` would: a phone that has this one already is sent `cards: null`. */
+  cardsRev: string;
   result: { winner: string; tied: string[]; scores: { id: string; yes: number; vetoes: number }[] } | null;
   /**
-   * The winner's card, kept even if someone who joined afterwards can't eat there (then `unsafe`), so
-   * the result never disappears.
+   * The winner's card, kept even if someone who joined afterwards can't eat there, so the result
+   * never disappears. `unsafe`: someone at the table is severely allergic to something this kind
+   * of food often uses, or it is over someone's budget.
    */
-  winner: (CardView & { unsafe: boolean }) | null;
+  winner: (CardView & { unsafe: false | "severe" | "budget" }) | null;
   ratings: { n: number; up: number; mid: number; down: number; liked: number };
   /** Why the last search came back empty. */
   error: "nothingNearby" | "nothingFits" | "searchFailed" | "searchLimit" | null;
 }
+
+/** A view as sent: `cards` is null when this phone already has that list (the same `cardsRev`). */
+export type WireView = Omit<RoomView, "cards"> & { cards: CardView[] | null };
 
 export interface RatingInput extends Rating {
   /** Device id; one rating per device. */

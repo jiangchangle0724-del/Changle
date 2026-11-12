@@ -28,7 +28,11 @@ export type CuisineId =
 
 export type AllergenId = "peanut" | "treenut" | "shellfish" | "fish" | "sesame" | "soy" | "chili" | "egg" | "dairy" | "gluten";
 
-/** "avoid": I don't eat it (warn when ordering). "severe": rule out places where it is everywhere. */
+/**
+ * "avoid": I don't eat it. "severe": a real allergy. Neither rules a place out (the owner's call,
+ * 2026-11-11): places where it is common move down the list, severe ones to the very bottom, each
+ * with a note on what can still be ordered.
+ */
 export type AllergyLevel = "avoid" | "severe";
 
 /** Per-person budget ceiling in CAD; 0 means no limit. */
@@ -40,10 +44,10 @@ export interface CustomItem {
   level: AllergyLevel;
 }
 
-/** One person's hard limits. Never shown to others with their name on it. */
+/** One person's limits. Never shown to others with their name on it. Only the budget rules a place out. */
 export interface Limits {
   allergies: Partial<Record<AllergenId, AllergyLevel>>;
-  /** Can't be matched to cuisines, so these only warn, never rule a place out. */
+  /** Can't be matched to cuisines, so these only warn. */
   custom: CustomItem[];
   halal: boolean;
   vegetarian: boolean;
@@ -65,8 +69,14 @@ export interface Place {
   ratings?: number;
   /** Rough lowest price per person in CAD, from Google's price range or level. */
   price?: number;
+  /** Highest price per person in CAD, when Google gives a range. */
+  priceTo?: number;
   /** "$" to "$$$$". */
   priceLabel?: string;
+  /** Up to three dishes it's known for, guessed from its name and Google type (keys of DISHES). */
+  dishes?: string[];
+  /** Google's AI summary of the place (English only in Canada), shown with its disclosure and a flag link. */
+  summary?: { text: string; disclosure: string; flag?: string };
   openNow?: boolean;
   /** When it next closes (ms since epoch). */
   closesAt?: number;
