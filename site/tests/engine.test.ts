@@ -2487,7 +2487,7 @@ test("drama: read aloud: one reader, the host's set and kinds, the words for eve
   ok(t.view<V>("p1").phase === "brief", "only the reader says they're ready");
   t.g("p2", "ready");
   v = t.view<V>("p1");
-  ok(v.phase === "act" && v.actMs === 90_000 && !v.twistAt && v.read!.lines.length === piece.lines.length, "a minute and a half, no twist, and every phone can follow along");
+  ok(v.phase === "act" && v.actMs === 120_000 && !v.twistAt && v.read!.lines.length === piece.lines.length, "two minutes, no twist, and every phone can follow along");
   t.g("p2", "cut");
   ok(t.view<V>("p1").phase === "vote", "the reader says when they're done");
   t.g("p1", "vote", { guess: "p2", stars: { p2: 2 } });
@@ -2512,7 +2512,7 @@ test("drama: read aloud: one reader, the host's set and kinds, the words for eve
   ok(st().cast.join() === "p3", "two volunteers: whoever has read least goes first");
   ok(second.id !== piece.id && second.set === "en" && second.kind !== piece.kind && ["cry", "deadpan"].includes(second.kind), "another piece, and the kinds take turns");
   t.g("p3", "ready");
-  t.advance(90_000 + 1000);
+  t.advance(120_000 + 1000);
   ok(t.view<V>("p1").phase === "vote", "time's up: the vote");
   for (const a of ["p0", "p1", "p2", "p4"]) t.g(a, "vote", { stars: { p3: 5 } });
   v = t.view<V>("p1");
@@ -2537,14 +2537,14 @@ test("drama: read aloud: one reader, the host's set and kinds, the words for eve
   ok(r.stars[reader] === 3 && !r.losers.length && !r.best.length, "exactly three stars passes");
 });
 
-test("drama: read aloud: ten kinds in three sets, three or more of each, every piece in both languages", () => {
+test("drama: read aloud: eleven kinds in three sets, three or more of each, every piece in both languages", () => {
   const bi = (x: { zh: string; en: string }) => !!x.zh.trim() && !!x.en.trim();
   const cjk = /[一-鿿]/;
   const kinds = DRAMA_READ_KINDS.map((k) => k.key);
   // the protocol and the data name the same kinds and sets
-  const protoKinds: Record<DramaReadKind, true> = { cry: true, deadpan: true, breakup: true, court: true, anchor: true, rant: true, melodrama: true, sell: true, sorry: true, voice: true };
+  const protoKinds: Record<DramaReadKind, true> = { cry: true, deadpan: true, breakup: true, court: true, anchor: true, rant: true, melodrama: true, sell: true, sorry: true, voice: true, deep: true };
   const protoSets: Record<DramaReadSet, true> = { zh: true, en: true, both: true };
-  ok(kinds.length === 10 && new Set(kinds).size === 10 && kinds.every((k) => protoKinds[k]) && Object.keys(protoKinds).length === kinds.length, "ten kinds, the same in the protocol");
+  ok(kinds.length === 11 && new Set(kinds).size === 11 && kinds.every((k) => protoKinds[k]) && Object.keys(protoKinds).length === kinds.length, "eleven kinds, the same in the protocol");
   ok(DRAMA_READ_KINDS.every((k) => bi(k.name) && bi(k.how) && bi(k.ask)), "every kind: its name, how to read it and what the stars are for, in both languages");
   ok(Object.keys(DRAMA_RSET_NAME).every((s) => protoSets[s as DramaReadSet]) && Object.values(DRAMA_RSET_NAME).every(bi), "three sets, named in both languages");
   ok(DRAMA_READ_TIPS.length === 5 && DRAMA_READ_TIPS.every(bi), "five tips for a first-time reader");
@@ -2552,13 +2552,13 @@ test("drama: read aloud: ten kinds in three sets, three or more of each, every p
   for (const r of DRAMA_READINGS) {
     ok(!ids.has(r.id) && r.id.startsWith(`${r.set}-`), `${r.id}: one id, named for its set`);
     ids.add(r.id);
-    ok(bi(r.title) && bi(r.how) && r.lines.length >= 5 && r.lines.length <= 10 && r.lines.every(bi), `${r.id}: the title, how to read it and five to ten lines, in both languages`);
+    ok(bi(r.title) && bi(r.how) && r.lines.length >= 9 && r.lines.length <= 16 && r.lines.every(bi), `${r.id}: the title, how to read it and nine to sixteen lines, in both languages`);
     ok(cjk.test(r.title.zh) && cjk.test(r.how.zh) && r.lines.every((l) => cjk.test(l.zh)), `${r.id}: the Chinese is Chinese`);
     ok(!cjk.test(r.title.en) && !cjk.test(r.how.en) && r.lines.every((l) => !cjk.test(l.en)), `${r.id}: the English has no Chinese in it`);
-    // a minute or so out loud, and it fits on a phone
+    // a minute and a half or so out loud (the reader has two minutes), and it fits on a phone
     const zh = r.lines.map((l) => l.zh).join("").length;
     const en = r.lines.map((l) => l.en).join(" ").split(/\s+/).length;
-    ok(zh >= 60 && zh <= 260 && en >= 45 && en <= 140, `${r.id}: a minute or so to read (${zh} characters, ${en} words)`);
+    ok(zh >= 180 && zh <= 360 && en >= 110 && en <= 210, `${r.id}: a minute and a half or so to read (${zh} characters, ${en} words)`);
     ok(r.level === "all" || r.level === "spicy", `${r.id}: a spice level`);
   }
   for (const set of ["zh", "en", "both"] as const)
