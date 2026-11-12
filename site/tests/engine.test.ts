@@ -4567,5 +4567,35 @@ test("rogue: the camera and the nose wait while a timed round is on", () => {
   ok(rv().interrupt?.kind === "nose", "and the nose");
 });
 
+test("rogue: the garden's judge can name the one who just finished, not only the one speaking", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { deck: number[] };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  s.deck.push(2); // the three of spades
+  const drawer = rv().turn;
+  t.g(drawer, "draw");
+  t.g(drawer, "garden", { kind: 0 });
+  const first = rv().garden!.speaker;
+  ok(rv().garden!.last === undefined, "nobody has finished yet");
+  t.g(first, "said");
+  const second = rv().garden!.speaker;
+  ok(rv().garden!.last === first && second !== first, "the first speaker is remembered once the next one is up");
+  const before = t.pens().length;
+  t.g(drawer, "repeat", { who: "nobody" });
+  ok(t.pens().length === before && rv().phase === "garden", "someone else can't be named");
+  t.g(drawer, "repeat", { who: first });
+  ok(t.pens().length === before + 1 && t.pens().slice(-1)[0].who[0] === first && rv().phase === "done", "the one who just finished takes the penalty");
+  // without a name, as before: the one speaking
+  t.g(rv().drawer ?? rv().turn, "next");
+  s.deck.push(15); // the three of hearts
+  const d2 = rv().turn;
+  t.g(d2, "draw");
+  t.g(d2, "garden", { kind: 1 });
+  const sp = rv().garden!.speaker;
+  t.g(d2, "repeat");
+  ok(t.pens().slice(-1)[0].who[0] === sp, "no name given: the one speaking");
+});
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);
