@@ -35,6 +35,7 @@ WHICH = next((a for a in sys.argv[1:] if a in ("chromium", "webkit")), "chromium
 OUT = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "dj-youtube"))
 os.makedirs(OUT, exist_ok=True)
 BEN_ID, CAT_ID, QT_ID, LINK_ID, AD_ID, BAD_ID, ZZ_ID, SAF1, SAF2 = "kJQP7kiw5Fk", "fRh_vgS2dFE", "qingtian001", "pastedlink1", "withanad001", "notallowed1", "zzpartymix1", "safarione01", "safaritwo01"
+JK1, JK2 = "jukeboxone1", "jukeboxtwo1"
 
 # the speaker's DJ (its fade under a whole song), every 20 ms, on the audio clock
 SAMPLER = """try { new PerformanceObserver((l) => { for (const e of l.getEntries()) (window.__long ||= []).push([Math.round(e.startTime), Math.round(e.duration)]); }).observe({ type: 'longtask', buffered: true }); } catch (e) {}
@@ -164,7 +165,9 @@ with sync_playwright() as p:
     drop_into(tv, phones, pid["Ben"], press=amy)
     on_the_drop(tv, BEN_ID, "Ben's link, Amy's DROP")
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-1-drop.png"))
-    ok(until(lambda: "is-on" in tube(tv), 2000), "the player comes to the middle")
+    ok(until(lambda: "is-on" in tube(tv), 2000), "it plays")
+    box = tv.locator(".dj-tube").bounding_box()
+    ok(box and box["x"] > 1050 and box["width"] < 500, f"in its corner, the floor and the coach in sight ({box})")
     ok(until(lambda: amy.locator(".djk-song").count() == 1 and amy.locator(".djk-pad.is-echo").is_disabled(), 3000), "the phones say so, the pads that work the music waiting")
     ok(not amy.locator(".djk-pad.is-horn").is_disabled() and not cat.locator(".djk-pad.is-siren").is_disabled(), "the air horn, the siren and the other sounds of their own still play")
     over = lambda: tv.evaluate("() => window.__fakeDj.speaker.overSong.gain.value")
@@ -172,7 +175,8 @@ with sync_playwright() as p:
     n0 = tv.evaluate("() => window.__djBooth.deck().log.filter((x) => x.k === 'horn').length")
     amy.locator(".djk-pad.is-horn").click()
     ok(until(lambda: tv.evaluate("() => window.__djBooth.deck().log.filter((x) => x.k === 'horn').length") > n0, 3000), "Amy's air horn plays on the TV, over the song, at once")
-    ok(cat.locator(".djk-song button").count() == 0 and ben.locator(".djk-song button").count() == 1 and amy.locator(".djk-song button").count() == 1, "Ben (his song) and Amy (the host) can skip it, Cat can't")
+    ok(cat.locator(".djk-song button:not([aria-pressed])").count() == 0 and ben.locator(".djk-song button:not([aria-pressed])").count() == 1 and amy.locator(".djk-song button:not([aria-pressed])").count() == 1, "Ben (his song) and Amy (the host) can skip it, Cat can't")
+    ok(cat.locator(".djk-song button[aria-pressed]").count() == 1, "anyone can put its video over the whole TV")
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-1-song.png"))
     amy.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-amy-1-song.png"))
     tv.evaluate("() => window.__yt.end()")
@@ -221,8 +225,8 @@ with sync_playwright() as p:
     ok(tv.evaluate(f"() => window.__yt.heard.filter((x) => x.video === '{CAT_ID}').length") == 0, "the ad was never heard, nor the song yet")
     drop_into(tv, phones, pid["Cat"])
     on_the_drop(tv, CAT_ID, "Cat's pick, the DJ's own drop")
-    ok(until(lambda: cat.locator(".djk-song button").count() == 1, 3000), "her phone can skip it")
-    cat.locator(".djk-song button").click()
+    ok(until(lambda: cat.locator(".djk-song button:not([aria-pressed])").count() == 1, 3000), "her phone can skip it")
+    cat.locator(".djk-song button:not([aria-pressed])").click()
     ok(until(lambda: deck(tv).get("song") is None and "is-off" in tube(tv), 4000), "she skips it: the DJ comes back")
     ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 5000), "the DJ is heard again")
 
@@ -251,7 +255,7 @@ with sync_playwright() as p:
     ok(ben.locator(".djk-need").count() == 0, "the box is done")
     drop_into(tv, phones, pid["Ben"])
     on_the_drop(tv, QT_ID, "晴天, no key, a pasted link")
-    ben.locator(".djk-song button").click()
+    ben.locator(".djk-song button:not([aria-pressed])").click()
     ok(until(lambda: deck(tv).get("song") is None, 4000), "Ben skips it")
 
     # no key: Cat picks one and wants the remix alone; a typed name says links work
@@ -301,7 +305,7 @@ with sync_playwright() as p:
     ok(tv.evaluate("() => window.__yt.state") == 2, "(paused back at its start)")
     drop_into(tv, phones, pid["Ben"])
     on_the_drop(tv, SAF1, "a TV that wanted a tap, tapped once")
-    ben.locator(".djk-song button").click()
+    ben.locator(".djk-song button:not([aria-pressed])").click()
     ok(until(lambda: deck(tv).get("song") is None, 4000), "skipped")
 
     # ...and if the browser still won't start one by itself, the DJ plays on until someone taps it
@@ -319,8 +323,49 @@ with sync_playwright() as p:
     tv.evaluate("() => window.__yt.userTap()")
     ok(until(lambda: heard_at(tv, SAF2, at - 1) is not None, 4000), "someone taps it: the song plays")
     ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") < 0.05, 3000), "and the DJ gives way to it")
-    cat.locator(".djk-song button").click()
+    cat.locator(".djk-song button:not([aria-pressed])").click()
     ok(until(lambda: deck(tv).get("song") is None and tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 6000), "skipped: the DJ comes back")
+    tv.evaluate("() => { window.__yt.activated = true; }")
+
+    # 点歌模式 (Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"): the host
+    # switches it on; no build-up, DROP or picks; a song asked for starts by itself a few seconds on,
+    # in its corner; anyone puts its video over the whole TV and back; the next follows on its own
+    amy.locator(".djk-juke button").nth(1).click()
+    ok(until(lambda: (view(tv) or {}).get("juke") is True, 3000), "the host switches to 点歌模式")
+    ok(until(lambda: ben.locator(".djk-build").count() == 0 and ben.locator(".djk-picks").count() == 0, 3000), "the phones: no build-up, no DROP, no picks")
+    ok(until(lambda: "点歌模式" in text(tv, ".dk-hint") or "Jukebox" in text(tv, ".dk-hint"), 4000), f"the TV says how it plays now ({text(tv, '.dk-hint')!r})")
+    amy.wait_for_timeout(5200)
+    amy.locator(".djk-req-input").fill(f"https://youtu.be/{JK1}")
+    ok(until(lambda: amy.locator(".djk-req-hit.is-yt").count() > 0, 4000), "Amy pastes one")
+    amy.locator(".djk-req-hit.is-yt").first.click()
+    amy.locator(".djk-req-send").click()
+    ok(until(lambda: (deck(tv).get("drop") or {}).get("quiet") is True, 8000), "a moment later the switch into it is on its way, nothing to press")
+    ok(tv.locator(".dk-count").count() == 0, "no countdown on the TV")
+    ok(until(lambda: heard_at(tv, JK1) is not None, 15000), "it starts by itself")
+    ok(tv.locator(".dk-dropped").count() == 0, "no DROP party")
+    box = tv.locator(".dj-tube").bounding_box()
+    ok(box and box["x"] > 1050 and box["width"] < 500, f"in its corner ({box})")
+    cat.locator(".djk-song button[aria-pressed]").click()
+    ok(until(lambda: "is-full" in tube(tv), 3000), "Cat puts its video over the whole TV")
+    tv.wait_for_timeout(int(1000))
+    box = tv.locator(".dj-tube").bounding_box()
+    ok(box and box["x"] < 2 and box["width"] > 1590, f"the whole TV ({box})")
+    tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-5-full.png"))
+    cat.locator(".djk-song button[aria-pressed]").click()
+    ok(until(lambda: "is-full" not in tube(tv), 3000), "and back in its corner")
+    cat.wait_for_timeout(5200)
+    cat.locator(".djk-req-input").fill(f"https://youtu.be/{JK2}")
+    ok(until(lambda: cat.locator(".djk-req-hit.is-yt").count() > 0, 4000), "Cat asks for the next")
+    cat.locator(".djk-req-hit.is-yt").first.click()
+    cat.locator(".djk-req-send").click()
+    ok(until(lambda: (deck(tv).get("up") or {}).get("yt") == JK2, 4000) and deck(tv).get("drop") is None, "it waits for Amy's to end")
+    t_end = tv.evaluate("() => window.__fakeDj.speaker.heardTime()")
+    tv.evaluate("() => window.__yt.end()")
+    ok(until(lambda: heard_at(tv, JK2) is not None, 20000), "Amy's ends: Cat's follows by itself")
+    gap = heard_at(tv, JK2) - t_end if heard_at(tv, JK2) else 99
+    ok(gap < 12, f"a few seconds of DJ between them ({gap:.1f} s)")
+    tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-6-juke.png"))
+    amy.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-amy-6-juke.png"))
 
     ok(not apple, f"nothing went to Apple ({apple[:2]})")
     st = tv.evaluate("() => window.__djBooth.stats()")

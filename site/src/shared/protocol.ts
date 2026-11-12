@@ -728,6 +728,10 @@ export type DjView = {
   voice: boolean;
   /** the 歌单 plays in a random order (the host's switch), else first come, first played */
   shuffle: boolean;
+  /** 点歌模式 (the host's switch): no build-up or DROP, the songs asked for one after another */
+  juke: boolean;
+  /** the song's video over the whole TV (anyone's switch), else in its corner */
+  full: boolean;
   /** 跟着跳: each dancer's night, and the floor's combo (0 to 1; full: fireworks) */
   dance: Record<string, Dancer>;
   combo: number;
