@@ -17,6 +17,10 @@ export type HostAction =
   | { type: "RESTART_SECTION" }
   /** 看结果: skip the cool-down. Only once the whole dance has been heard. */
   | { type: "FINISH_NOW" }
+  /** 暂停: everything stops where it is (the music, the video, the coach, the phones' judging). */
+  | { type: "PAUSE" }
+  /** 继续: after a moment's run-up the dance carries on from where it stopped. */
+  | { type: "RESUME" }
   /** Stop: from the results, or in the middle of anything. */
   | { type: "BACK_TO_LOBBY" }
   | { type: "END_ROOM" }
@@ -75,7 +79,8 @@ export type ClientMsg =
 
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
-  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null }
+  /** calibrated: this room has measured its TV's delay (a song's beat tapped here is kept for every room). */
+  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null; calibrated?: boolean }
   /** serverAt: the room's clock when the ping came in; speakerAt: the speaker's then (null: no speaker yet). */
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }
@@ -115,6 +120,8 @@ export interface RoutineInfo {
    * the song starts from its start as any other does.
    */
   tapIn?: boolean;
+  /** Paused by the host at this speaker time: nothing plays until 继续 (RESUME) moves the run later. */
+  pausedAt?: number;
 }
 
 /** The floor together, from the beats the phones have sent. */

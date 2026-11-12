@@ -42,7 +42,16 @@ instead, `site/src/party/dj/`.)
 - **`/party/screen`**, the speaker (`src/client/screen.ts`): Start (starts the audio and keeps the
   screen on), the room code and QR code, the players (a phone's 我在 lights its name),
   calibration (8 clicks 1.2 s apart, the host's taps in speaker time, `calibrateFromTaps()`; three
-  tries). While a dance plays: its tune (below), the 3D coach dancing each move on
+  tries). A room's first dance (not the metronome) measures the TV's delay first and then starts
+  by itself (`SessionData.pending`); the host can skip it, and then the room doesn't ask again.
+  暂停 / 继续 (the host, while the lead or the dance plays): `RoutineInfo.pausedAt`; nothing plays
+  on the pages while it's set (`anchorsOf` gives none), the song's video holds where it is, and
+  nothing ends; 继续 moves everything later by the pause plus 1.5 s (`RESUME_LEAD_MS`), so the
+  last moments before it play again first (party-base's `RESUMED` for the dance's beat 0).
+  A phone can be the stage, mirrored to the TV: sideways it lays everything out on one short
+  screen (the song's video at 356×200, YouTube's 200 px at least, the move and count under it, the
+  coach beside); held upright it asks to be turned (an iPhone's page can't turn itself; Android's
+  Chrome goes full screen and sideways after 开始). It's never a player. While a dance plays: its tune (below), the 3D coach dancing each move on
   the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
   the 8-count, the next move 2 beats ahead, the floor. Along the bottom, everyone's little dancer
   (`src/client/coach/crowd.ts`): a neon stick figure in their colour doing the coach's move as hard
@@ -95,10 +104,13 @@ instead, `site/src/party/dj/`.)
   run past the video's end; the TV's calibrated delay taken out). The speaker sends it
   (`songTapped`); the room checks it (`src/server/tapped.ts`), keeps it in the songbook
   (`src/server/songbook.ts`, one Durable Object for the whole site) for every room from then on,
-  and the song starts from its start as any song does. No beat after 90 s of video: back to the
+  and the song starts from its start as any song does. Only a room that measured its TV's delay
+  keeps it for every room (`calibrated`; without it the beat is late by the delay): a room that
+  skipped it uses the beat itself, and the songbook gives rooms only calibrated beats. No beat after 90 s of video: back to the
   lobby (`song_notap`). The host can't skip ahead during 找拍子. 歌曲对拍 on the speaker page (the
   lobby) does it again by one person: play a song, and from its first strong beat tap 16 times
-  (`tapAlong()`; `POST /party/api/songs/ID`), for a song whose dance has come out off its beat.
+  (`tapAlong()`; `POST /party/api/songs/ID`, refused unless the room is calibrated), for a song
+  whose dance has come out off its beat.
 - **`/party/moves`** (`src/client/moves.ts`): the 20 moves, each danced by the coach at its own
   tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
   `?still=<beat>` stops it there, `?gl=any` draws it in a browser without a graphics chip (the
@@ -121,7 +133,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 99 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 107 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```
@@ -140,11 +152,14 @@ when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so ru
 
 `scripts/song-yt-check.cjs` (the same Worker) dances a song from YouTube with a pretend YouTube
 player (real YouTube won't play in a data centre's browser: error 150). It starts 300 ms late and
-its clock answers four times a second, like the real one's. Checked: the songbook API, the room
-waiting for the video, the beat moved to the video's (within 25 ms), Ann tapping on the video's
-real beats on the beat, the video gone in the lobby; 找拍子 on a song nobody has danced (Ann and
-Bob tapping along on their phones, the first beat found within 25 ms and kept, then the song from
-its start on the video's beat); and 歌曲对拍 finding another song's first beat (within 20 ms).
+its clock answers four times a second, like the real one's; the pretend TV plays everything
+150 ms late. Checked: the songbook API (taps from an uncalibrated room refused), the room's first
+dance measuring the TV first, the room waiting for the video, the beat moved to the video's
+(within 25 ms), Ann tapping on the video's real beats on the beat, 暂停 holding the video and 继续
+picking it up 1.5 s before where it stopped (the beat with the video again), the video gone in the
+lobby; 找拍子 on a song nobody has danced (Ann and Bob tapping along on their phones as the TV plays
+it, the first beat found within 25 ms and kept, then the song from its start on the video's
+beat); and 歌曲对拍 finding another song's first beat (within 20 ms).
 About two minutes. Run the Worker with fresh storage (`--persist-to` a new folder): a song
 already in the songbook skips 找拍子.
 

@@ -430,11 +430,13 @@ function phaseTitle(): string {
       if (!state.speakerConnected) return tr("等大屏（音箱端）点开始", "Waiting for the speaker page to start");
       return host ? tr("选一支舞，人齐了就开始", "Pick a dance and start when everyone's in") : tr("等主人选舞", "Waiting for the host to pick a dance");
     case "calibrating":
-      return host ? tr("听到电视的声音就点下面的大按钮", "Tap the big button each time you hear the TV") : tr("主人在校准，稍等", "The host is calibrating");
+      return host ? tr("开跳前先量电视延迟：听到电视的声音就点下面的大按钮", "First, the TV's delay: tap the big button each time you hear the TV") : tr("主人在量电视的延迟，量好就开始", "The host is measuring the TV's delay; the dance starts right after");
     case "learning":
+      if (routine?.pausedAt !== undefined) return host ? tr("暂停了，点「继续」接着跳", "Paused: tap Carry on to go on") : tr("暂停了，等主人继续", "Paused: the host will carry on");
       if (routine?.tapIn) return tr("先找拍子：听电视里的歌", "Find the beat: listen to the song on the TV");
       return host ? tr("准备好了就点「开始跳」", "Tap Dance when everyone's ready") : tr("准备", "Get ready");
     case "dancing":
+      if (routine?.pausedAt !== undefined) return host ? tr("暂停了，点「继续」接着跳", "Paused: tap Carry on to go on") : tr("暂停了，等主人继续", "Paused: the host will carry on");
       return tr("跟着闪光的节奏动起来", "Move with the flashes");
     case "results":
       return tr("跳完了", "That's the song");
@@ -590,11 +592,23 @@ function hostPanel(): HTMLElement {
       button(tr("跳过校准", "Skip calibration"), { type: "SKIP_CALIBRATION" });
       break;
     case "learning":
+      if (routine?.pausedAt !== undefined) {
+        button(tr("继续", "Carry on"), { type: "RESUME" }, "btn primary");
+        button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
+        break;
+      }
       // (找拍子 first: the dance waits for the beat)
       if (!routine?.tapIn) button(tr("开始跳", "Dance"), { type: "START_DANCING" }, "btn primary");
+      if (routine?.leadStartAt !== null && routine?.leadStartAt !== undefined) button(tr("暂停", "Pause"), { type: "PAUSE" });
       button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
       break;
     case "dancing":
+      if (routine?.pausedAt !== undefined) {
+        button(tr("继续", "Carry on"), { type: "RESUME" }, "btn primary");
+        button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
+        break;
+      }
+      button(tr("暂停", "Pause"), { type: "PAUSE" });
       // (a song plays on in its video: no going back a part)
       if (!routine?.routineId.startsWith("song-")) button(tr("这一段再来", "This part again"), { type: "RESTART_SECTION" });
       // 看结果 once the whole dance has been heard (the cool-down can be skipped)

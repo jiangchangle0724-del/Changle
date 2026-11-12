@@ -106,6 +106,8 @@ tube.onChange = () => {
   renderTube();
   renderFind();
 };
+/** This room has measured its TV's delay: a song's beat tapped here is right for every room. */
+let calibrated = false;
 /** Each song's first beat as tapped along to (the songbook, /party/api/songs). */
 let songbook: Record<string, { firstBeatMs: number }> = {};
 /** What this page has told the room about the song starting (once per start). */
@@ -163,6 +165,11 @@ function songTick() {
   tube.load(cur.song.videoId);
   const st = state!;
   const r = routine!;
+  // 暂停: the video waits where it is
+  if (r.pausedAt !== undefined) {
+    tube.pause();
+    return;
+  }
   if (st.phase === "learning" && r.leadStartAt === null && r.tapIn) {
     findTick(cur.song, `${r.routineId}|${r.mode}|${st.updatedAt ?? ""}`);
     return;
@@ -287,6 +294,7 @@ function renderTube() {
 // ---------- the room
 
 async function begin() {
+  sideways();
   synth.start();
   void awake.on();
   void loadSongbook();
@@ -296,6 +304,22 @@ async function begin() {
     connect(hash);
   } else await openRoom();
   render();
+}
+
+/**
+ * A phone as the stage (mirrored to the TV, the TV shows its screen as it is): sideways and full
+ * screen, where the browser lets a page do that after a tap (Android's Chrome). On an iPhone it
+ * can't: the page asks to be turned (.rotate, upright only).
+ */
+function sideways() {
+  if (!matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) > 600) return;
+  const turn = () => {
+    const o = screen.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined;
+    o?.lock?.("landscape").catch(() => {});
+  };
+  const root = document.documentElement;
+  if (typeof root.requestFullscreen === "function" && !document.fullscreenElement) root.requestFullscreen({ navigationUI: "hide" }).then(turn, () => {});
+  else turn();
 }
 
 async function openRoom() {
@@ -329,6 +353,7 @@ function onMsg(m: ServerMsg) {
       state = m.state;
       routine = m.routine;
       results = m.results;
+      calibrated = m.calibrated === true;
       rejoining = false;
       if (state.phase !== "dancing") floor = null;
       if (state.phase === "results" && before === "dancing") synth.fanfare();
@@ -512,7 +537,7 @@ function render() {
   if (!sock && !fatal) {
     const box = el("section", "start");
     box.append(el("h1", "title", tr("一起跳 · 音箱端", "Dance Along · Speaker")));
-    box.append(el("p", "lead", tr("这台设备出声、计时。接上电视（AirPlay 镜像到 Apple TV），音量开大，再点开始。", "This device makes the sound and keeps the time. Mirror it to the TV (AirPlay to Apple TV), turn the volume up, then start.")));
+    box.append(el("p", "lead", tr("这台设备是舞台：出声、计时、放老师，不参与游玩。投屏到电视（AirPlay 镜像到 Apple TV），手机横过来，音量开大，再点开始。大家用自己的手机扫码加入。", "This device is the stage: it plays the sound, keeps the time and shows the coach, and isn't a player. Mirror it to the TV (AirPlay to Apple TV), turn a phone sideways, turn the volume up, then start. Everyone joins with their own phone.")));
     const go = el("button", "btn big", tr("开始", "Start"));
     go.onclick = () => void begin();
     box.append(go);
@@ -534,10 +559,16 @@ function render() {
     return;
   }
   const run = running();
+  document.body.classList.toggle("is-run", run);
   const main = el("main", run ? "screen is-run" : "screen");
   main.append(joinCard(run));
   const stage = el("section", "stage");
-  if (run) stage.append(coach());
+  if (run) {
+    const c = coach();
+    stage.append(c);
+    // (a phone as the stage, sideways: the 3D coach's parts laid out around a song's video)
+    if (c.classList.contains("has-3d")) main.classList.add("has-3d");
+  }
   else if (state?.phase === "learning" && routine?.tapIn) stage.append(findPanel());
   else if (tapPanel && state?.phase === "lobby") stage.append(tapAlongPanel());
   else {
@@ -570,12 +601,23 @@ function render() {
   if (parts.players) stage.append(parts.players);
   main.append(stage);
   app.append(main);
+  app.append(rotatePrompt());
   if (measure) {
     parts.clock = el("div", "measure-clock");
     app.append(parts.clock);
   }
   renderStatus();
   renderTube();
+}
+
+/** A phone as the stage, held upright: turn it sideways (shown only then, party.css's .rotate). */
+function rotatePrompt(): HTMLElement {
+  const box = el("div", "rotate");
+  box.append(el("div", "rotate-phone"));
+  box.append(el("p", "rotate-title", tr("把手机横过来", "Turn the phone sideways")));
+  box.append(el("p", "lead", tr("这台手机是舞台：投屏到电视，横着放，电视上就是满屏的老师和大家的小人。画面没跟着转的话，在控制中心关掉竖屏方向锁定。", "This phone is the stage: mirrored to the TV and turned sideways, the coach and everyone's dancers fill the TV. If the screen doesn't turn, switch off the portrait orientation lock in Control Center.")));
+  box.append(el("p", "lead", tr("它只当舞台，不参与游玩：大家用自己的手机扫码加入。", "It's only the stage, not a player: everyone joins with their own phone.")));
+  return box;
 }
 
 function topBar(): HTMLElement {
@@ -619,6 +661,7 @@ function joinCard(small: boolean): HTMLElement {
 
 function phaseTitle(): string {
   if (!state) return tr("连接中……", "Connecting…");
+  if (routine?.pausedAt !== undefined && (state.phase === "learning" || state.phase === "dancing")) return tr("暂停", "Paused");
   switch (state.phase) {
     case "lobby":
       return state.players.length ? tr("人到齐了，主人在手机上选舞", "When everyone's in, the host picks a dance") : tr("等大家扫码加入", "Waiting for people to join");
@@ -637,16 +680,18 @@ function phaseTitle(): string {
 
 function phaseText(): string {
   if (!state) return "";
+  if (routine?.pausedAt !== undefined && (state.phase === "learning" || state.phase === "dancing")) return tr("主人点「继续」就接着跳，会先倒回去放一小段。", "When the host taps Carry on, it picks up from here, after a short run-up.");
   if (state.phase === "calibrating") {
     if (cal?.result && (!cal.result.ok || cal.suspect)) {
       const why = cal.suspect ? tr("点的和声音对不上", "the taps didn't line up with the sound") : cal.result.reason === "too_few_taps" ? tr("点得太少", "too few taps") : tr("点得太散", "the taps were too spread out");
       return cal.attempt < CAL_TRIES ? tr(`没成功（${why}），马上再来一次。`, `That didn't work (${why}). Again in a moment.`) : tr(`没成功（${why}）。主人可以跳过，回到大厅再校准一次。`, `That didn't work (${why}). The host can skip it and calibrate again from the lobby.`);
     }
-    return tr("会响 8 下。主人听到电视里的声音，就在手机的大按钮上点一下。", "8 sounds. Each time the host hears one from the TV, they tap the big button on their phone.");
+    return tr("开跳前先量电视的延迟（每场一次）：会响 8 下，主人听到电视里的声音，就在手机的大按钮上点一下。量好就开始跳。", "Before the first dance, the TV's delay (once a party): 8 sounds; each time the host hears one from the TV, they tap the big button on their phone. Then the dance starts.");
   }
   if (state.phase === "lobby") {
     const bits = [tr("开始前，每个人身边留出一臂的空间。", "Before you start, give everyone an arm's length of space.")];
-    if (state.audioOffsetMs) bits.push(tr(`已校准：电视比这台设备晚 ${state.audioOffsetMs} 毫秒。`, `Calibrated: the TV is ${state.audioOffsetMs} ms behind this device.`));
+    if (calibrated) bits.push(tr(`已校准：电视比这台设备晚 ${state.audioOffsetMs} 毫秒。`, `Calibrated: the TV is ${state.audioOffsetMs} ms behind this device.`));
+    else bits.push(tr("第一支舞开始前，先花 10 秒量一下电视的延迟，拍子才准。", "Before the first dance, 10 seconds to measure the TV's delay, so the beat is right."));
     return bits.join(" ");
   }
   return "";
@@ -664,6 +709,8 @@ function coach(): HTMLElement {
   const song = playing.show?.song;
   const top = el("div", "coach-top");
   top.append(el("p", "coach-dance", song ? `${songTitle(song)} · ${songArtist(song)}` : r ? `${routineName(r)} · ${difficultyName(r.difficulty)}` : tr("120 拍节拍器", "120 BPM metronome")));
+  // (shown on a phone as the stage, where the code and QR beside the coach don't fit)
+  if (code) top.append(el("p", "coach-room", `${tr("房间", "Room")} ${code}`));
   parts.progress = el("p", "coach-progress");
   top.append(parts.progress);
   // the words beside the count (or beside the 3D coach): the whole coach fits a TV without scrolling
@@ -737,7 +784,7 @@ function tapAlongPanel(): HTMLElement {
   const box = el("section", "tapalong");
   box.append(el("h2", "phase", tr("歌曲对拍", "Tap along to a song")));
   box.append(el("p", "lead", tr("一首歌跳起来拍子不准时，在这里重新对一次：放歌，等鼓点进来，从第一下重拍开始，跟着拍子点 16 下。（第一次跳的歌不用：大家会在手机上一起找拍子。）", "When a song's dance is off its beat, tap it again here: play it, wait for the beat to come in, and from the first strong beat tap along 16 times. (A new song needs none of this: everyone finds its beat together on their phones.)")));
-  if (!state?.audioOffsetMs) box.append(el("p", "notice", tr("先校准电视延迟（主人手机上「校准电视延迟」），对拍才准。", "Calibrate the TV delay first (the host's phone: Calibrate the TV delay), so the taps come out right.")));
+  if (!calibrated) box.append(el("p", "notice", tr("先校准电视延迟（主人手机上「校准电视延迟」），对拍才准，才会存下来给所有房间用。", "Calibrate the TV delay first (the host's phone: Calibrate the TV delay): only then are the taps right, and kept for every room.")));
   const list = el("ul", "tap-songs");
   for (const song of SONGS) {
     const li = el("li");
@@ -816,13 +863,19 @@ function tapAlongTap(at: number) {
     render();
     return;
   }
+  // (without the TV's delay measured, the beat comes out late by it: not kept)
+  if (!calibrated) {
+    tapResult = tr("没存：先校准电视延迟，再对拍。", "Not kept: calibrate the TV delay first, then tap along.");
+    render();
+    return;
+  }
   tapPosting = true;
   tapResult = tr("正在存……", "Saving…");
   render();
   void fetch(`/party/api/songs/${song.id}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ firstBeatMs: r.firstBeatMs, taps: r.taps, spreadMs: r.spreadMs, durationMs: tube.durationMs() }),
+    body: JSON.stringify({ firstBeatMs: r.firstBeatMs, taps: r.taps, spreadMs: r.spreadMs, durationMs: tube.durationMs(), calibrated }),
   })
     .then(async (res) => {
       const body = (await res.json().catch(() => ({}))) as { error?: string };

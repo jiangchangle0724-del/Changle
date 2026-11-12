@@ -38,6 +38,7 @@ learning / dancing / calibrating ──BACK_TO_LOBBY──▶ lobby（主人随�
 规则：
 - 第一个进房的人是主人；主人走了，最早进来的人接任。
 - 只有主人能推进状态、踢人（`LEARNING_DONE`、`BEAT_MOVED`、`FINISH`、`CALIBRATED` 由房间和音箱端发）。主人不能踢自己。
+- 暂停以后主人点继续：`RESUMED` 把 `routineStartAt` 往后挪暂停的那么久（多久都行，只能往后，只在 `dancing`）。已经跳过的拍子编号不变。暂停本身记在房间服务器那一层（`games/party-server` 的 `RoutineInfo.pausedAt`），状态机不管。
 - 没有音箱端不能开始任何东西。
 - `START_DANCING.routineStartAt` 必须在未来（给倒数留时间）。
 - 房间上限 15 人，单场 30 分钟上限由 DO 计时，`overSessionLimit()` 判断。

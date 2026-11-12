@@ -64,6 +64,11 @@ export type RoomEvent =
    * numbers; only when they fall moves.
    */
   | { type: 'BEAT_MOVED'; at: number; routineStartAt: number }
+  /**
+   * The host carries on after a pause: the dance's beat 0 moves later by the time it was paused
+   * (any amount; never earlier). Beats already danced keep their numbers.
+   */
+  | { type: 'RESUMED'; at: number; byPlayerId: string; routineStartAt: number }
   | { type: 'RESTART_SECTION'; at: number; byPlayerId: string; routineStartAt: number }
   | { type: 'FINISH'; at: number }
   | { type: 'BACK_TO_LOBBY'; at: number; byPlayerId: string }

@@ -27,8 +27,14 @@ export interface Song {
   /** the YouTube video */
   videoId: string;
   bpm: number;
-  /** when in the video the dance's first beat is (ms), until the songbook knows better */
+  /**
+   * when in the video the dance's first beat is (ms). For an aligned song (below) it's from the
+   * song's own timing, to within half a beat, and the room's tapped beat grid settles it exactly;
+   * for the others a rough guess until the songbook knows better.
+   */
   firstBeatMs: number;
+  /** its dance is laid along the song's sections (the original dance), from firstBeatMs */
+  aligned?: boolean;
   /** the beats the dance lasts (whole 8-counts), over before the video is */
   beats: number;
   /** the dance: a move for so many 8-counts, then the next, round and round */
