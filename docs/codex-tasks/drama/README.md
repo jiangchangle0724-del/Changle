@@ -19,7 +19,7 @@ Always:
 | [drama-C3](C3-scenes-family-1.md) | The same for the first 17 family scenes (done, #390) | the same |
 | [drama-C4](C4-scenes-family-2.md) | The same for the other 16 family scenes (done, #393) | the same |
 | [drama-C5](C5-scenes-love.md) | The same for the 20 love scenes (done, #395) | the same |
-| [drama-C6](C6-scenes-office.md) | The same for the 23 office scenes | the same |
+| [drama-C6](C6-scenes-office.md) | The same for the 23 office scenes (done, #398) | the same |
 | [drama-C7](C7-scenes-show.md) | The same for the 22 show scenes | the same |
 
 C2 to C7 need the game to ask for `scene-<id>` first; it does once the PR that brought these cards is
