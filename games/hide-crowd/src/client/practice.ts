@@ -1,15 +1,20 @@
 // One phone on its own (changle.ca/hide/practice, the game card's one-phone button): the same room
 // as online, run in the page, with three computer rivals hidden in the crowd. They walk the way the
-// passers-by walk (the same plans, crowdStep in the rules), go after anyone who gives themselves away
-// (running, punching, walking on through the ferry horn or the gong), and sometimes get it wrong.
-// No server, no penalty.
-import { crowdMoment, crowdStep, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, type Character, type MatchState, type Plan, type Vector } from "../engine";
+// passers-by walk (the same plans, crowdStep in the rules), stop for the ferry horn or the gong a beat
+// after it like everyone, go after anyone who gives themselves away (punching, walking on through the
+// horn or the gong, running on and on: passers-by run too, but only for a moment), and sometimes get
+// it wrong. No server, no penalty.
+import { crowdMoment, crowdStep, NPC_SPEED, reactionDelay, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, type Character, type MatchState, type Plan, type Vector } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
 import { Room } from "../room/room";
 import type { ConnectionState, RoomConnection } from "./net";
 
 const ME = "practice-you";
 const RIVALS = 3;
+/** a passer-by's run lasts a second or so; a body that keeps running longer looks like a player */
+const LONG_RUN_MS = 1_800;
+/** how often a rival takes a swing at whoever is in front of it, with nothing to go on */
+const WILD_SWING = 0.12;
 
 interface Brain {
   id: string;
@@ -51,16 +56,21 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
   room.handle(ME, { t: "start" }, start);
   // how long each place in the crowd has looked like a player lately (fast, or a punch)
   const suspicion = new Map<number, number>();
+  /** how long each body has been running without a break (ms) */
+  const runningFor = new Map<number, number>();
 
   const think = (now: number) => {
     const game = room.st.game;
     if (!game || game.phase !== "playing") return;
-    // walking on while the crowd stops for the horn or the gong gives a body away (after a moment to react)
+    // walking on while the crowd stops for the horn or the gong gives a body away: by 1.3 s in, every
+    // passer-by has stopped (the slowest turns 0.64 s in, then slows down)
     const moment = crowdMoment(game.arena, game.startedAt, now);
-    const stopped = !!moment && now - moment.startsAt > 900;
+    const watching = !!moment && now - moment.startsAt > 1_300;
     game.characters.forEach((body, at) => {
       const speed = Math.hypot(body.velocity.x, body.velocity.y);
-      const tell = body.pose === "windup" || body.pose === "punch" ? 4 : stopped && speed > 2 ? 2 : speed > NPC_SPEED + 1.2 ? 0.5 : 0;
+      const running = speed > NPC_SPEED + 1.2 ? (runningFor.get(at) ?? 0) + SIMULATION_STEP_MS : 0;
+      runningFor.set(at, running);
+      const tell = body.pose === "windup" || body.pose === "punch" ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
       suspicion.set(at, Math.max(0, (suspicion.get(at) ?? 0) * 0.985 + tell));
     });
     for (const brain of brains) {
@@ -78,15 +88,15 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
           bestScore = score;
         }
       });
-      if (best >= 0 && (brain.chasing === null || now > brain.chaseUntil) && !stopped) {
+      if (best >= 0 && (brain.chasing === null || now > brain.chaseUntil) && !moment) {
         brain.chasing = best;
         brain.chaseUntil = now + 4_000;
       }
       let input = stroll(brain, body, game, now);
       const target = brain.chasing !== null ? game.characters[brain.chasing] : undefined;
-      if (stopped) {
-        // it stops for the horn too, and turns to look with a light nudge, the way a player would
-        const look = moment!.look;
+      if (moment && now >= moment.startsAt + reactionDelay(brain.id)) {
+        // it stops for the horn too, a beat after the sound like everyone, and turns to look with a light nudge
+        const look = moment.look;
         const want = Math.atan2(look.y - body.y, look.x - body.x);
         input = angleDiff(body.facing, want) > 0.35 ? { x: Math.cos(want) * 0.07, y: Math.sin(want) * 0.07 } : { x: 0, y: 0 };
       } else if (target && now <= brain.chaseUntil) {
@@ -110,7 +120,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
           const dy = other.y - body.y;
           return Math.hypot(dx, dy) <= PUNCH_RANGE * 0.8 && angleDiff(Math.atan2(dy, dx), body.facing) <= PUNCH_ARC / 2;
         });
-        if (front && Math.random() < 0.18) room.handle(brain.id, { t: "punch" }, now);
+        if (front && Math.random() < WILD_SWING) room.handle(brain.id, { t: "punch" }, now);
       }
       room.setInput(brain.id, input, now);
     }
@@ -133,6 +143,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       const now = Date.now();
       if (message.t === "start" && room.st.game?.phase === "over") {
         suspicion.clear();
+        runningFor.clear();
         room.handle(ME, { t: "lobby" }, now);
         room.handle(ME, { t: "start" }, now);
       } else room.handle(ME, message, now);

@@ -124,7 +124,9 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
   stops and turns to the sea or the stage, each a beat after the sound (0.1 to 0.6 s: people don't
   all turn at once). Players aren't made to stop: that's the test. A light nudge up turns a player to
   the sea or the stage too. The transit hall keeps its walkways. The computer rivals in practice stop
-  and turn with the crowd, and grow suspicious of anyone who doesn't.
+  and turn with the crowd (a beat after the sound, like everyone), and grow suspicious of anyone who doesn't;
+  running makes them suspicious only when it goes on longer than a passer-by's run (1.8 s). An
+  idle player's practice round lasts about 50 s, as before (`tests/practice.test.ts` plays it out).
 * **A punch that lands, felt** (`ui/Arena3D.tsx`, `people.ts`): a beat of stillness (a hit-stop, 95 ms
   for a tag), the camera's kick toward the floor, sparks where the blow lands, the body turning to the
   blow and flying off its feet, dust where its back hits the floor, then up again. A passer-by who is
