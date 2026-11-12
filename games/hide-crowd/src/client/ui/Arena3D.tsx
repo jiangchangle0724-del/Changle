@@ -11,8 +11,13 @@ import type { AvatarView } from "../../room/protocol";
 import { BASE } from "../base";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
-import { spriteBatchIndex, spriteDirectionRow, spritePoseColumn, SPRITE_ARCHETYPES, SPRITE_DIRECTIONS, SPRITE_FRAMES } from "../spriteAtlas";
+import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type PeopleKit } from "../people";
 import { addEnvironmentalLandmarks } from "./landmarks";
+
+/** Start fetching the people's files (with the arena's own code, while the lobby is up). */
+export function preloadPeople(): void {
+  void peopleKit().catch(() => undefined);
+}
 
 interface Props {
   avatars: AvatarView[];
@@ -29,9 +34,19 @@ interface Props {
   fallback: ComponentChildren;
 }
 
-interface Visual { x: number; z: number; facing: number; stridePhase: number; speed: number; pose: Pose; poseStartedAt: number }
+interface Visual {
+  x: number;
+  z: number;
+  facing: number;
+  speed: number;
+  lean: number;
+  roll: number;
+  /** knocked back: which way the body faces while it flies (towards the blow), or null */
+  push: number | null;
+  pose: Pose;
+  poseStartedAt: number;
+}
 type FrameMetrics = { fps: number; avg: number; p95: number; slow: number; quality: RenderQuality; dpr: number };
-interface SpriteBatch { archetype: number; direction: number; frame: number; mesh: THREE.InstancedMesh }
 interface Palette {
   bg: string;
   sky: string;
@@ -64,8 +79,7 @@ interface Palette {
 }
 
 const MAX_CHARACTERS = 26;
-/** the rules' floor (100 x 58) in scene units: the same scale both ways, so a step looks as long across as it does deep */
-const SCENE_PER_WORLD = 17.5 / ARENA.width;
+// (the rules' floor in scene units, SCENE_PER_WORLD, is the people's too: people.ts)
 const sceneX = (x: number) => (x - ARENA.width / 2) * SCENE_PER_WORLD;
 const sceneZ = (y: number) => (y - ARENA.height / 2) * SCENE_PER_WORLD;
 /** where anyone can stand (the rules keep everyone inside the margins), and how tall a person stands */
@@ -93,13 +107,6 @@ const ARENA_DRESSING: Record<ArenaId, string> = {
   metro: `${BASE}/art/transit-dressing.glb`,
   gallery: `${BASE}/art/courtyard-dressing.glb`
 };
-const CROWD_ATLAS = `${BASE}/art/crowd-atlas.webp`;
-const SPRITE_ATLAS_COLUMNS = SPRITE_ARCHETYPES * SPRITE_FRAMES;
-const SPRITE_ATLAS_CELL = 192;
-const SPRITE_ATLAS_PITCH = 200;
-const SPRITE_ATLAS_INSET = 4;
-const SPRITE_ATLAS_WIDTH = SPRITE_ATLAS_COLUMNS * SPRITE_ATLAS_PITCH;
-const SPRITE_ATLAS_HEIGHT = SPRITE_DIRECTIONS * SPRITE_ATLAS_PITCH;
 
 function disposeTree(root: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>();
@@ -113,18 +120,6 @@ function disposeTree(root: THREE.Object3D): void {
   });
   for (const geometry of geometries) geometry.dispose();
   for (const material of materials) material.dispose();
-}
-
-function createSpriteCellGeometry(column: number, row: number): THREE.PlaneGeometry {
-  const geometry = new THREE.PlaneGeometry(1.82, 2.35);
-  const uv = geometry.getAttribute("uv") as THREE.BufferAttribute;
-  const uStart = (column * SPRITE_ATLAS_PITCH + SPRITE_ATLAS_INSET) / SPRITE_ATLAS_WIDTH;
-  const vStart = 1 - (row * SPRITE_ATLAS_PITCH + SPRITE_ATLAS_INSET + SPRITE_ATLAS_CELL) / SPRITE_ATLAS_HEIGHT;
-  const uSize = SPRITE_ATLAS_CELL / SPRITE_ATLAS_WIDTH;
-  const vSize = SPRITE_ATLAS_CELL / SPRITE_ATLAS_HEIGHT;
-  for (let index = 0; index < uv.count; index++) uv.setXY(index, uStart + uv.getX(index) * uSize, vStart + uv.getY(index) * vSize);
-  uv.needsUpdate = true;
-  return geometry;
 }
 
 /** The arena's own colors (the --arena-* art colors at the top of styles.css), and the gel for the marker. */
@@ -732,12 +727,6 @@ export function Arena3D(props: Props) {
     scene.background = new THREE.Color(palette.bg);
     scene.fog = new THREE.Fog(palette.bg, 42, 80);
     let disposed = false;
-    const crowdAtlas = new THREE.TextureLoader().load(CROWD_ATLAS);
-    crowdAtlas.colorSpace = THREE.SRGBColorSpace;
-    crowdAtlas.generateMipmaps = true;
-    crowdAtlas.minFilter = THREE.LinearMipmapLinearFilter;
-    crowdAtlas.magFilter = THREE.LinearFilter;
-    crowdAtlas.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());
     const camera = new THREE.PerspectiveCamera(24, 1, 0.5, 120);
     const eye = new THREE.Vector3(0, 19, 15);
     const look = new THREE.Vector3(0, 0, -1);
@@ -805,29 +794,32 @@ export function Arena3D(props: Props) {
       mesh.frustumCulled = false;
       scene.add(mesh);
     }
-    const spriteMaterial = new THREE.MeshBasicMaterial({
-      map: crowdAtlas,
-      transparent: true,
-      alphaTest: 0.18,
-      depthWrite: true,
-      side: THREE.DoubleSide,
-      toneMapped: false
-    });
-    const spriteBatches: SpriteBatch[] = [];
-    for (let archetype = 0; archetype < SPRITE_ARCHETYPES; archetype++) {
-      for (let direction = 0; direction < SPRITE_DIRECTIONS; direction++) {
-        for (let spriteFrame = 0; spriteFrame < SPRITE_FRAMES; spriteFrame++) {
-          const geometry = createSpriteCellGeometry(archetype * SPRITE_FRAMES + spriteFrame, direction);
-          const mesh = new THREE.InstancedMesh(geometry, spriteMaterial, MAX_CHARACTERS);
-          mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-          mesh.count = 0;
-          mesh.frustumCulled = false;
-          scene.add(mesh);
-          spriteBatches.push({ archetype, direction, frame: spriteFrame, mesh });
-        }
-      }
+    // the people: until their file is in (it's fetched while the lobby is up), simple stand-ins in each look's colours
+    const standInBodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.3, 1.05, 4, 10), new THREE.MeshStandardMaterial({ roughness: 0.85 }), MAX_CHARACTERS);
+    const standInHeads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.21, 12, 9), new THREE.MeshStandardMaterial({ roughness: 0.85 }), MAX_CHARACTERS);
+    for (let index = 0; index < MAX_CHARACTERS; index++) {
+      const look = lookOf(index);
+      standInBodies.setColorAt(index, new THREE.Color(look.colors.top));
+      standInHeads.setColorAt(index, new THREE.Color(look.colors.hair));
     }
-    const activeSpriteBatches: SpriteBatch[] = [];
+    for (const mesh of [standInBodies, standInHeads]) {
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.count = 0;
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+    }
+    let kit: PeopleKit | null = null;
+    const people: Person[] = [];
+    peopleKit()
+      .then((loaded) => {
+        if (disposed) return;
+        kit = loaded;
+        standInBodies.visible = false;
+        standInHeads.visible = false;
+      })
+      .catch(() => {
+        // (offline or broken: the stand-ins stay)
+      });
     const dummy = new THREE.Object3D();
     const markerCanvas = document.createElement("canvas");
     markerCanvas.width = 512;
@@ -954,9 +946,9 @@ export function Arena3D(props: Props) {
       const ease = reduced ? 1 : 1 - Math.exp(-delta / 46);
       if (ruleMarks.belt) ruleMarks.belt.offset.x -= (drift.current.x * SCENE_PER_WORLD * delta) / 1000 / ruleMarks.beltRepeat;
       const snapshot = targets.current;
-      for (const batch of activeSpriteBatches) batch.mesh.count = 0;
-      activeSpriteBatches.length = 0;
       shadows.count = snapshot.length;
+      standInBodies.count = kit ? 0 : snapshot.length;
+      standInHeads.count = standInBodies.count;
       let activeImpactRings = 0;
       const input = vector.current;
       const prediction = Math.min(125, Math.max(0, Date.now() - receivedAt.current));
@@ -969,7 +961,8 @@ export function Arena3D(props: Props) {
         let worldY = avatar.y;
         let velocityX = avatar.vx;
         let velocityY = avatar.vy;
-        if (avatar.me && prediction > 0) {
+        // (no guessing ahead while stunned: the rules ignore the stick then)
+        if (avatar.me && prediction > 0 && avatar.p !== "stunned") {
           const top = maxSpeed.current;
           const predicted = steerVelocity(
             { x: avatar.vx, y: avatar.vy },
@@ -992,57 +985,59 @@ export function Arena3D(props: Props) {
           x: targetX,
           z: targetZ,
           facing: Math.PI / 2 - avatar.f,
-          stridePhase: index * 1.71,
           speed: targetSpeed,
+          lean: 0,
+          roll: 0,
+          push: null,
           pose: avatar.p,
           poseStartedAt: time
         });
-        visual.x += (targetX - visual.x) * ease;
-        visual.z += (targetZ - visual.z) * ease;
+        const aheadX = targetX - visual.x;
+        const aheadZ = targetZ - visual.z;
+        visual.x += aheadX * ease;
+        visual.z += aheadZ * ease;
         if (visual.pose !== avatar.p) {
           visual.pose = avatar.p;
           visual.poseStartedAt = time;
         }
-        const poseElapsed = Math.max(0, time - visual.poseStartedAt);
-        const loading = !reduced && avatar.p === "windup" ? Math.min(1, poseElapsed / 150) : 0;
-        const strike = !reduced && avatar.p === "punch" ? Math.sin(Math.min(1, poseElapsed / 210) * Math.PI) : 0;
-        const yaw = Math.PI / 2 - avatar.f;
-        if (!reduced) {
-          const angularDelta = Math.atan2(Math.sin(yaw - visual.facing), Math.cos(yaw - visual.facing));
-          visual.facing += angularDelta * (1 - Math.exp(-delta / 82));
-          const phaseGait = avatar.p === "stunned" ? 0 : Math.min(1, targetSpeed / 7);
-          visual.stridePhase += delta / 1000 * (4 + targetSpeed * 0.72) * phaseGait;
-        } else visual.facing = yaw;
-        const gait = !reduced && avatar.p !== "stunned" ? Math.min(1, targetSpeed / 7) : 0;
-        const staggered = avatar.p === "stunned";
-        const recoil = staggered ? Math.sin(clock * 27 + index) * 0.48 : 0;
-        const tumble = staggered && !reduced ? Math.sin(clock * 19 + index) * 0.64 : 0;
-        const bounce = gait > 0.05
-          ? Math.abs(Math.sin(visual.stridePhase * 2)) * 0.055 * gait
-          : reduced ? 0 : Math.sin(clock * 2.4 + index) * 0.018;
-        const accelerationLean = !reduced && delta > 0
-          ? Math.max(-0.1, Math.min(0.12, (targetSpeed - visual.speed) / (delta / 1000) * 0.003))
-          : 0;
+        // knocked back, a body turns to face the blow and falls away from it (the rules push it, it doesn't steer)
+        if (avatar.p !== "stunned") visual.push = null;
+        else if (Math.hypot(aheadX, aheadZ) > 0.02) visual.push = Math.atan2(-aheadX, -aheadZ);
+        const yaw = visual.push ?? Math.PI / 2 - avatar.f;
+        const angularDelta = Math.atan2(Math.sin(yaw - visual.facing), Math.cos(yaw - visual.facing));
+        const turning = reduced ? 0 : angularDelta * (1 - Math.exp(-delta / (visual.push === null ? 82 : 40)));
+        if (!reduced) visual.facing += turning;
+        else visual.facing = yaw;
+        const accelerating = delta > 0 ? (targetSpeed - visual.speed) / (delta / 1000) : 0;
         visual.speed += (targetSpeed - visual.speed) * (reduced ? 1 : 1 - Math.exp(-delta / 90));
-        const yawNow = visual.facing;
-        const bodyTilt = staggered ? tumble : recoil + loading * 0.08 - strike * 0.16 + gait * 0.075 + accelerationLean;
+        // a body leans into a start and into a turn (a turn to its left, a bigger facing, leans it left: a negative roll)
+        visual.lean += ((reduced ? 0 : Math.max(-0.08, Math.min(0.1, accelerating * 0.0025))) - visual.lean) * (1 - Math.exp(-delta / 120));
+        visual.roll += ((reduced ? 0 : Math.max(-0.12, Math.min(0.12, -(turning / Math.max(1, delta)) * visual.speed * 1.4))) - visual.roll) * (1 - Math.exp(-delta / 120));
+        const staggered = avatar.p === "stunned";
         const ringPulse = staggered && !reduced ? 1 + Math.abs(Math.sin(clock * 12 + index)) * 0.55 : 0;
         if (ringPulse > 0) writeInstance(impactRings, activeImpactRings++, dummy, visual.x, 0.055, visual.z, 0, ringPulse, ringPulse, ringPulse);
-        const shadowSpread = (staggered ? 1.08 : 0.82) + bounce * 0.7;
-        writeInstance(shadows, index, dummy, visual.x + 0.2, 0.005, visual.z - 0.15, 0, shadowSpread, 1, staggered ? 0.92 : 0.72);
-        const spriteDirection = spriteDirectionRow(yawNow);
-        const spriteFrame = spritePoseColumn(avatar.p, gait, visual.stridePhase);
-        const spriteBatch = spriteBatches[spriteBatchIndex(index, spriteDirection, spriteFrame)];
-        if (spriteBatch.mesh.count === 0) activeSpriteBatches.push(spriteBatch);
-        const spriteSlot = spriteBatch.mesh.count;
-        writeInstance(spriteBatch.mesh, spriteSlot, dummy, visual.x, 1.16 + bounce, visual.z, 0, 1, 1, 1, bodyTilt * 0.28, staggered ? Math.cos(clock * 19 + index) * 0.16 : accelerationLean * 0.2);
-        spriteBatch.mesh.count = spriteSlot + 1;
+        writeInstance(shadows, index, dummy, visual.x + 0.12, 0.005, visual.z - 0.08, 0, staggered ? 1.0 : 0.78, 1, staggered ? 0.86 : 0.7);
+        if (kit) {
+          const person = people[index] ?? (people[index] = kit.spawn(index));
+          if (!person.root.parent) scene.add(person.root);
+          person.root.visible = true;
+          person.root.position.set(visual.x, 0, visual.z);
+          person.root.rotation.set(visual.lean, visual.facing, visual.roll, "YXZ");
+          person.update(delta / 1000, time, visual.speed, avatar.p, impactType.current);
+        } else {
+          writeInstance(standInBodies, index, dummy, visual.x, 0.82 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1, visual.lean, visual.roll);
+          writeInstance(standInHeads, index, dummy, visual.x, 1.62 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1);
+        }
         if (avatar.me) localVisual = visual;
       }
+      for (let index = snapshot.length; index < people.length; index++) if (people[index]) people[index].root.visible = false;
       impactRings.count = activeImpactRings;
       impactRings.instanceMatrix.needsUpdate = activeImpactRings > 0;
       shadows.instanceMatrix.needsUpdate = true;
-      for (const batch of activeSpriteBatches) batch.mesh.instanceMatrix.needsUpdate = true;
+      if (!kit) {
+        standInBodies.instanceMatrix.needsUpdate = true;
+        standInHeads.instanceMatrix.needsUpdate = true;
+      }
       if (localVisual) {
         marker.position.set(localVisual.x, MARKER_Y, localVisual.z);
         marker.visible = true;
@@ -1059,6 +1054,12 @@ export function Arena3D(props: Props) {
       disposed = true;
       cancelAnimationFrame(frame);
       resizeObserver?.disconnect();
+      // (the people's bodies and looks are kept for the next round: only their clocks go)
+      for (const person of people) {
+        if (!person) continue;
+        scene.remove(person.root);
+        person.dispose();
+      }
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {
           object.geometry.dispose();
@@ -1071,7 +1072,6 @@ export function Arena3D(props: Props) {
       groundTexture.dispose();
       ruleMarks.dispose();
       shadowTexture.dispose();
-      crowdAtlas.dispose();
       renderer.dispose();
     };
   }, [props.arena]);

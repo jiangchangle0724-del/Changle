@@ -109,7 +109,7 @@ export function ArenaFallback(props: {
       {props.avatars.map((avatar, index) => (
         <div
           key={index}
-          class={`flat-avatar look-${index % 3} pose-${avatar.p}${avatar.me ? " is-me" : ""}`}
+          class={`flat-avatar look-${index % 6} pose-${avatar.p}${avatar.me ? " is-me" : ""}`}
           ref={(node) => {
             avatarNodes.current[index] = node;
           }}
