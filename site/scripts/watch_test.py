@@ -694,7 +694,7 @@ def stand_in(pages, game, phase=None):
 
 
 def front(host, gid):
-    host.locator(f'.lobby .tile[data-tile="{P.GAME_INDEX[gid]}"]').click()
+    host.locator(f'.lobby [data-tile="{P.GAME_INDEX[gid]}"]').click()
     ok(until(lambda: room(host)["front"] == P.GAME_INDEX[gid]), f"the table turns to {gid}")
 
 
