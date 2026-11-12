@@ -1079,6 +1079,8 @@ function frame3d(now: number) {
     }
   }
   const p = playing;
+  // dressed for the song (its outfit, how big, its faces); itself for the library's dances
+  c.dress(p.show?.song?.id ?? null);
   const spot = spotAt(p.run, now);
   const f = floor;
   const hype = f && f.streak ? (f.streak % COMBO_FULL) / COMBO_FULL : 0;

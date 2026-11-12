@@ -204,3 +204,39 @@ export function groove(p: Pose, frac: number, amount: number): Pose {
   p.hPitch += 0.06 * amount * down;
   return p;
 }
+
+const ANGLES = ["px", "py", "pz", "yaw", "pitch", "roll", "cYaw", "cPitch", "cRoll", "hYaw", "hPitch", "hRoll"] as const;
+/** how far a wrist can be from its shoulder (the arm straight) */
+const REACH = 0.55;
+
+/**
+ * A pose pushed further than its key frames (`k` 1.3: a third bigger): the body's bounce, sway and
+ * tilt, the hands' reach from where they hang, the feet's steps and kicks. Hands that keep to their
+ * own side stay there (a clap still meets in the middle); an arm can't reach past straight.
+ */
+export function exaggerate(p: Pose, k: number): Pose {
+  if (k === 1) return p;
+  const o: Pose = { ...p };
+  for (const a of ANGLES) o[a] = BASE[a] + (p[a] - BASE[a]) * k;
+  const arm = (h: V3, rest: V3, side: 1 | -1): V3 => {
+    const x = rest[0] + (h[0] - rest[0]) * k;
+    const out: V3 = [side > 0 ? (h[0] >= 0 ? Math.max(0, x) : x) : h[0] <= 0 ? Math.min(0, x) : x, rest[1] + (h[1] - rest[1]) * k, rest[2] + (h[2] - rest[2]) * k];
+    // no further from the shoulder than the arm reaches
+    const dx = out[0] - side * 0.19;
+    const d = Math.hypot(dx, out[1], out[2]);
+    if (d > REACH) {
+      const f = REACH / d;
+      out[0] = side * 0.19 + dx * f;
+      out[1] *= f;
+      out[2] *= f;
+    }
+    return out;
+  };
+  o.hR = arm(p.hR, BASE.hR, 1);
+  o.hL = arm(p.hL, BASE.hL, -1);
+  const leg = (f: Foot, rest: Foot): Foot => ({ ...f, x: rest.x + (f.x - rest.x) * k, z: f.z * k, lift: f.lift * k });
+  o.fR = leg(p.fR, BASE.fR);
+  o.fL = leg(p.fL, BASE.fL);
+  return o;
+}
+

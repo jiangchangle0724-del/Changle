@@ -25,8 +25,9 @@ import {
   type Material,
 } from "three";
 import { poseOf, type Doing } from "./moves";
-import { mix, type Pose } from "./pose";
+import { exaggerate, mix, type Pose } from "./pose";
 import { Rig, radialTexture } from "./rig";
+import { PLAIN, faceOf, styleOf, type Style } from "./style";
 
 export interface CoachInput {
   doing: Doing;
@@ -272,6 +273,17 @@ export class CoachStage {
     this.sparks = null;
   }
 
+  private style: Style = PLAIN;
+  private dressedFor: string | null | undefined;
+
+  /** Dress for a song (its outfit, how big it dances, its face), or as the coach's own self (null). */
+  dress(songId: string | null) {
+    if (songId === this.dressedFor) return;
+    this.dressedFor = songId;
+    this.style = styleOf(songId);
+    this.rig.dress(this.style.outfit);
+  }
+
   frame(input: CoachInput) {
     this.resize();
     const { now } = input;
@@ -289,6 +301,10 @@ export class CoachStage {
       if (t >= 1 || t < 0) this.was = null;
       else pose = mix(poseOf(this.was.doing, input.p, secs), pose, 0.5 - 0.5 * Math.cos(Math.PI * t), false);
     }
+    // bigger for the song's performer; the face the move makes (or the song's own)
+    pose = exaggerate(pose, input.doing.kind === "idle" ? 1 : this.style.big);
+    const face = input.doing.kind === "move" ? faceOf(input.doing.id, input.p) : input.doing.kind === "idle" ? "smile" : "grin";
+    this.rig.setFace(face ?? this.style.face, secs);
     this.rig.apply(pose, dt, input.glow, secs);
 
     // the beat: the ring and the beams pulse on it (not with reduced motion)
