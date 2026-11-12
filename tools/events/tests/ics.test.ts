@@ -109,6 +109,18 @@ describe("the .ics calendar", () => {
     }
   });
 
+  it("reads an all-day start or end given as a Vancouver time by its date", () => {
+    // A Ticketmaster event with no start time can still carry an end time (dates.end.dateTime).
+    const [read] = entries(toIcs([{ ...events[6], start: "2026-11-20", end: "2026-11-22T20:00:00-07:00" }], opts));
+    expect(read.startDate.toString()).toBe("2026-11-20");
+    expect(read.endDate.toString()).toBe("2026-11-23");
+    const [tbd] = entries(toIcs([{ ...events[7], start: "2026-11-20T19:00:00-07:00", end: null }], opts));
+    expect(tbd.startDate.toString()).toBe("2026-11-20");
+    expect(tbd.endDate.toString()).toBe("2026-11-21");
+    // Text that only starts like a date is still not a date.
+    expect(entries(toIcs([{ ...events[6], end: "2026-11-22 and later" }], opts))).toEqual([]);
+  });
+
   it("escapes TEXT and folds ASCII, Chinese and emoji without changing any value", () => {
     const title = '夜🌙,;"\\'.repeat(40) + "\r\n第二行\r第三行\n第四行";
     const normalizedTitle = title.replace(/\r\n|\r/g, "\n");
@@ -295,7 +307,11 @@ describe("the calendar subscription through the Worker", () => {
     const published = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
     expect(published.count).toBeGreaterThan(0);
     const request = (path: string) => worker.fetch(new Request(`https://changle.ca${path}`) as Request<unknown, IncomingRequestCfProperties>, env);
-    for (const query of ["cat=family", "cat=family&area=vancouver&tag=kids&from=2026-11-01&to=2026-11-03"]) {
+    const names: Record<string, string> = {
+      "cat=family": "玩什么 · What's On · 亲子家庭 Family & Kids",
+      "cat=family&area=vancouver&tag=kids&from=2026-11-01&to=2026-11-03": "玩什么 · What's On · 亲子家庭 Family & Kids · 温哥华市 Vancouver · 带娃 Kids",
+    };
+    for (const query of Object.keys(names)) {
       const json = await request(`/go/api/events?${query}`);
       const expected = (await json.json() as Published).events;
       expect(expected.length).toBeGreaterThan(0);
@@ -308,7 +324,7 @@ describe("the calendar subscription through the Worker", () => {
       const read = entries(value);
       expect(read.map((e) => e.uid)).toEqual(expected.map((e) => `${e.id}@changle.ca`));
       expect(read.every((e) => e.component.getFirstPropertyValue("categories") === "family")).toBe(true);
-      expect(calendar(value).getFirstPropertyValue("x-wr-calname")).toContain("family");
+      expect(calendar(value).getFirstPropertyValue("x-wr-calname")).toBe(names[query]);
     }
     // A subscription is served from the published cache, without any more fetches.
     expect(fetched.mock.calls.length).toBe(8);
