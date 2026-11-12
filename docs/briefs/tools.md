@@ -40,7 +40,6 @@
 
 - 加货币：服务器的 `/api/fx` 已经在返回欧元、英镑、日元、澳元、新台币、韩元、新加坡元等，页面只用了 4 个。要加的话 `money.ts` 的 `CURRENCIES` 和 `UnitPrice.tsx` 的 `SYMBOL` 一起加，汇率卡片的行数会变多，得想想排版。
 - 单价换算加「两个包装比哪个划算」。
-- 世界时钟加西雅图（冬天和温哥华差一小时了，在列表里能看出来）。
 - 320 宽的英文「Unit price」标题折成两行，一直如此，没改。
 - 设计对话 A4 的小项「工具页的卡片换成同一套样式」还没做（设计对话的档案里）。
 
@@ -52,6 +51,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-11 tools: Seattle in the world clock
 - 2026-11-11 Merge pull request #304: 工具 · 生活小工具, big amounts, BC/Alberta permanent time, rate timeout, the ruler, tests
 - 2026-11-05 style(tools): migrate utility styles to design tokens (ui-C8) (#230)
 - 2026-11-05 fix(tools): expose rate failures without dropping cached values (#223)
@@ -64,3 +64,4 @@
 - 2026-11-02 建档案。
 - 2026-11-04 盘点线上版（手机尺寸、中英文、320 到 430 宽）：大金额截断、BC/Alberta 时区风险、服务器卡住不换源、时间尺的三个小毛病、没有测试。时区计算另外核对了 50 多万次，没有算错的。
 - 2026-11-11 #304 修掉 11-04 列的问题，加 `tests/tools.test.ts` 进 CI，更新 HANDOFF 里工具那一段（汇率其实走房间服务器）；CI 第一轮 tools-zh 截图差 450 像素（汇率小字对齐），改回居中后全绿，合并上线。Steve 用安卓微信看过，温哥华的时间对。
+- 2026-11-11 时钟的城市表加了西雅图（和洛杉矶同一时区，冬天比温哥华慢一小时）。

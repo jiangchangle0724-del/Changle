@@ -15,6 +15,7 @@ export const CITIES: City[] = [
   { id: "sydney", tz: "Australia/Sydney", zh: "悉尼", en: "Sydney" },
   { id: "newyork", tz: "America/New_York", zh: "纽约", en: "New York" },
   { id: "losangeles", tz: "America/Los_Angeles", zh: "洛杉矶", en: "Los Angeles" },
+  { id: "seattle", tz: "America/Los_Angeles", zh: "西雅图", en: "Seattle" },
   { id: "calgary", tz: "America/Edmonton", zh: "卡尔加里", en: "Calgary" },
   { id: "montreal", tz: "America/Toronto", zh: "蒙特利尔", en: "Montreal" },
   { id: "halifax", tz: "America/Halifax", zh: "哈利法克斯", en: "Halifax" },
