@@ -7,7 +7,9 @@
 // (fetchPages; it asks again after a 5xx) and hands each page to the Worker (receiveHandoff), which
 // keeps it in KV for the day. At 06:00 a step of such a source reads its page from there
 // (takeHandoff) and parses it as if it had fetched it; only for a page nothing was handed over for
-// does it ask the library itself, and the run log says so (src/run.ts).
+// does it ask the library itself, and the run log says so (src/run.ts). GitHub starts the job hours
+// late most days, though: a page that comes after the run went past its library is read when it
+// comes, and the list published again after the library's last page (src/arrival.ts).
 //
 //   POST /go/api/handoff?source=vpl&date=2026-11-03&part=0
 //   Authorization: Bearer <GitHub's sign-in token for the job (src/oidc.ts)>
@@ -19,6 +21,7 @@
 //
 // One page a request, as one page is one step of the run: a page is 120 to 420 KB, and reading it
 // takes about 1 ms of the free plan's 10 (a whole library in one request would be several MB).
+import type { Arrival } from "./arrival";
 import { readCapped, TooLarge } from "./body";
 import { canAskGithub, githubToken, looksLikeToken, verifyGithubToken, type SignInVars } from "./oidc";
 import { isBcPage } from "./parsers/bibliocommons";
@@ -101,14 +104,18 @@ function notAPage(raw: string): string | null {
   return isBcPage(page) ? null : "body: not a BiblioCommons events page";
 }
 
+/** What's done with a page once it's kept (src/arrival.ts): read it now, or leave it for the run. */
+export type UsePage = (page: { runId: string; source: string; part: number }) => Promise<Arrival>;
+
 /**
  * A page from the GitHub job. 401 without GitHub's sign-in token for the job, or the Worker's key
  * (when it has one), saying which check failed; 503 while GitHub's keys can't be had to check a token;
  * 400 for a source that isn't handed over, a date that isn't today in Vancouver, a part out of range,
  * or a body that isn't a library's events page; 413 above HANDOFF_MAX_BYTES. Otherwise it's kept for
- * the day's run (200).
+ * the day's run (200), and `use` says whether it was read at once: the answer has `read`, and when
+ * it's true, what the step found and whether the list was published again.
  */
-export async function receiveHandoff(req: Request, env: Env, now = Date.now()): Promise<Response> {
+export async function receiveHandoff(req: Request, env: Env, now = Date.now(), use?: UsePage): Promise<Response> {
   if (req.method !== "POST") return reply({ error: "method not allowed" }, 405, { allow: "POST" });
   const given = /^Bearer\s+(\S+)\s*$/i.exec(req.headers.get("authorization") ?? "")?.[1];
   const who = await signIn(given, env, now);
@@ -137,7 +144,16 @@ export async function receiveHandoff(req: Request, env: Env, now = Date.now()): 
     return refuse(503, `couldn't keep it: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`);
   }
   console.log(JSON.stringify({ message: "handoff kept", source: src.id, date, part, bytes: raw.length, by: who.by, ...("run" in who ? { run: who.run } : {}) }));
-  return reply({ ok: true, source: src.id, date, part, bytes: raw.length }, 200);
+  let used: Arrival | { read: false; error: string } = { read: false };
+  if (use) {
+    try {
+      used = await use({ runId: date, source: src.id, part });
+    } catch (e) {
+      // (it's kept all the same: handed over again, it's read again)
+      used = { read: false, error: `couldn't read it now: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}` };
+    }
+  }
+  return reply({ ok: true, source: src.id, date, part, bytes: raw.length, ...used }, 200);
 }
 
 // ---- The GitHub job's side (scripts/libraries.ts) ----
@@ -235,8 +251,27 @@ export async function handoffCredential(vars: SignInVars, get: Get): Promise<str
   return vars.EVENTS_HANDOFF_KEY || githubToken(vars, get);
 }
 
-/** Hand a page to the Worker, signed in with `credential`. Throws, with the Worker's answer, when it's refused. */
-export async function handOver(post: Get, endpoint: string, credential: string, source: string, date: string, page: Page): Promise<void> {
+/** What the Worker answers a page it kept: whether it read it at once (src/arrival.ts), and what came of it. */
+export type Handed = { read: false; error?: string } | Extract<Arrival, { read: true }>;
+
+/** What the Worker did with a library's pages, in a line for the job's log. */
+export function whatCameOf(answers: Handed[]): string {
+  const read = answers.filter((a): a is Extract<Handed, { read: true }> => a.read);
+  const notes = answers.flatMap((a, part) => (a.error ? [`part ${part}: ${a.error}`] : []));
+  if (read.length === 0) return ["kept for the morning's run (it hadn't got to this library yet)", ...notes].join("; ");
+  const n = (f: (a: (typeof read)[number]) => number) => read.reduce((sum, a) => sum + f(a), 0);
+  const pub = read.map((a) => a.published).filter((p) => p !== null).at(-1);
+  const out = [`read as they came (the morning's run had gone past this library): ${n((a) => a.inWindow)} in the 14 days, ${n((a) => a.added)} new`];
+  if (pub) out.push(pub.kept ? `the list published again, but under half of yesterday's (${pub.count}): yesterday's stays up` : `the list published again: ${pub.count} events`);
+  else out.push("not published again yet (the run publishes it, or the library's last page didn't come)");
+  return [...out, ...notes].join("; ");
+}
+
+/**
+ * Hand a page to the Worker, signed in with `credential`: what it did with it. Throws, with the
+ * Worker's answer, when it's refused.
+ */
+export async function handOver(post: Get, endpoint: string, credential: string, source: string, date: string, page: Page): Promise<Handed> {
   const res = await post(handoffUrl(endpoint, source, date, page.part), {
     method: "POST",
     headers: { authorization: `Bearer ${credential}`, "content-type": "application/json; charset=utf-8" },
@@ -244,4 +279,10 @@ export async function handOver(post: Get, endpoint: string, credential: string, 
   });
   const answer = await res.text();
   if (!res.ok) throw new Error(`${source} part ${page.part}: the Worker said ${res.status} ${answer.slice(0, 300)}`);
+  try {
+    const said = JSON.parse(answer) as Partial<Handed>;
+    return said.read === true ? (said as Handed) : { read: false, ...(typeof said.error === "string" ? { error: said.error } : {}) };
+  } catch {
+    return { read: false };
+  }
 }

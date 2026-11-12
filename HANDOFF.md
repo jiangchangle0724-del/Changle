@@ -16,7 +16,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca/hide: 藏在人群里 · Hide in the Crowd | `games/hide-crowd/` | Worker `hide-crowd` (Durable Objects) | by itself on merge when `games/hide-crowd/*` changes, once Steve has connected it (`games/hide-crowd/README.md`) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
-| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page (a 3D coach; songs from YouTube, with a songbook of their beats), phones, /party/moves | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects: the rooms, and the songbook) | by itself on merge when `games/party-server`, `games/party-base` or `games/dance` changes (connected 2026-11-01, `games/party-server/README.md`) |
+| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page (a 3D coach; each practice dance's own tune; songs from YouTube, each song's beat found the first time by everyone tapping along and kept in a songbook), phones, /party/moves | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects: the rooms, and the songbook) | by itself on merge when `games/party-server`, `games/party-base` or `games/dance` changes (connected 2026-11-01, `games/party-server/README.md`) |
 | changle.ca/hang-on: 抓紧了 · Hang On (the host screen; phones at /hang-on/pad, the QR code's link /hang-on/r/CODE) | `games/hang-on/` (physics, the room server, the pages) | Worker `hang-on` (Durable Objects) | by itself on merge when `games/hang-on/*` changes (connected 2026-11-04, `games/hang-on/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
@@ -164,7 +164,9 @@ site's `/hide` is proxied there), then `python3 scripts/hide_test.py` in `site`.
 
 `tools/suibian` is its own Worker at changle.ca/eat; its card in the site's Tools tab is
 `site/src/tools/Suibian.tsx`. Its state, settings and open items: `tools/suibian/HANDOFF.md`. Tools
-that need no server (exchange rates, world clock, unit price) live in `site/src/tools/`.
+without a Worker of their own (exchange rates, world clock, unit price) live in `site/src/tools/`;
+the rates come from the rooms server's `/api/fx` (`site/worker/index.ts`), with open.er-api.com as
+the browser's fallback. Their brief: `docs/briefs/tools.md`.
 
 ## Settings (names only, never the values)
 
@@ -210,8 +212,10 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
   room) and synthesised sound cues, on the board since 2026-11-05. One phone passed round, or online
   with every phone its own and a big-screen view (A3: the rules on the rooms server in
   `site/src/shared/engine/games/straightface.ts`, the screens `NetStraightFace.tsx` and
-  `TvStraightFace.tsx` in `site/src/party/straightface/`). Next: more animation, then stats and
-  card reports.
+  `TvStraightFace.tsx` in `site/src/party/straightface/`). Each card's numbers and the cards players
+  flag live in the users' hub (`site/worker/straightface.ts`, three tables, hooked into `hub.ts` with
+  one line each); the owner reads and decides them in the back office (`AdminCards.tsx`). Next: real
+  phones round a table.
 
 * 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
   and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the

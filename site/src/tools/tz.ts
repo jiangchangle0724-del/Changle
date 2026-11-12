@@ -1,4 +1,7 @@
-/** Time zone math on top of Intl: no library, daylight saving handled by the browser's own tables. */
+/**
+ * Time zone math on top of Intl: no library, daylight saving handled by the browser's own tables,
+ * except where those tables are known to be out of date (PERMANENT_TIME, below).
+ */
 
 export type City = { id: string; tz: string; zh: string; en: string };
 
@@ -12,6 +15,7 @@ export const CITIES: City[] = [
   { id: "sydney", tz: "Australia/Sydney", zh: "悉尼", en: "Sydney" },
   { id: "newyork", tz: "America/New_York", zh: "纽约", en: "New York" },
   { id: "losangeles", tz: "America/Los_Angeles", zh: "洛杉矶", en: "Los Angeles" },
+  { id: "seattle", tz: "America/Los_Angeles", zh: "西雅图", en: "Seattle" },
   { id: "calgary", tz: "America/Edmonton", zh: "卡尔加里", en: "Calgary" },
   { id: "montreal", tz: "America/Toronto", zh: "蒙特利尔", en: "Montreal" },
   { id: "halifax", tz: "America/Halifax", zh: "哈利法克斯", en: "Halifax" },
@@ -59,7 +63,8 @@ function fmt(tz: string) {
 
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function partsIn(tz: string, ms: number): Parts {
+/** What the browser's own tables say the wall clock reads in `tz`. */
+function rawParts(tz: string, ms: number): Parts {
   const out: Record<string, string> = {};
   for (const p of fmt(tz).formatToParts(new Date(ms))) out[p.type] = p.value;
   return {
@@ -73,11 +78,42 @@ export function partsIn(tz: string, ms: number): Parts {
   };
 }
 
-/** Minutes the zone is ahead of UTC at that instant. */
-export function offsetMin(tz: string, ms: number) {
-  const p = partsIn(tz, ms);
+function rawOffset(tz: string, ms: number) {
+  const p = rawParts(tz, ms);
   const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
   return Math.round((asUtc - Math.floor(ms / 1000) * 1000) / 60000);
+}
+
+/**
+ * Places that stopped changing their clocks after many phones' time zone tables were written.
+ * British Columbia (tz database 2026b) and Alberta (2026c) stayed on summer time from
+ * 2026-11-01 instead of falling back; a phone with older tables puts Vancouver and Calgary an
+ * hour behind all winter. `from` is the instant the old tables fall back, `stale` the offset they
+ * show from then on, `fixed` what the clocks there actually read. Tables will have caught up by
+ * `until`; after that the browser is believed again.
+ */
+export const PERMANENT_TIME: Record<string, { from: number; until: number; stale: number; fixed: number }> = {
+  "America/Vancouver": { from: Date.UTC(2026, 10, 1, 9), until: Date.UTC(2030, 0, 1), stale: -480, fixed: -420 },
+  "America/Edmonton": { from: Date.UTC(2026, 10, 1, 8), until: Date.UTC(2030, 0, 1), stale: -420, fixed: -360 },
+};
+
+/** The offset the clocks really read when the browser's tables say `raw` for `tz` at `ms`, or null when the browser is right. */
+export function permanentOffset(tz: string, ms: number, raw: number): number | null {
+  const rule = PERMANENT_TIME[tz];
+  if (!rule || ms < rule.from || ms >= rule.until) return null;
+  return raw === rule.stale ? rule.fixed : null;
+}
+
+export function partsIn(tz: string, ms: number): Parts {
+  const fixed = PERMANENT_TIME[tz] ? permanentOffset(tz, ms, rawOffset(tz, ms)) : null;
+  // a place on permanent time is a fixed distance from UTC, so its wall clock is plain arithmetic
+  return fixed === null ? rawParts(tz, ms) : rawParts("UTC", ms + fixed * 60000);
+}
+
+/** Minutes the zone is ahead of UTC at that instant. */
+export function offsetMin(tz: string, ms: number) {
+  const raw = rawOffset(tz, ms);
+  return (PERMANENT_TIME[tz] ? permanentOffset(tz, ms, raw) : null) ?? raw;
 }
 
 /** The instant when the wall clock in `tz` reads the given date and time. */

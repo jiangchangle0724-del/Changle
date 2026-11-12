@@ -32,8 +32,8 @@ import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "..
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
 import { drawMatches } from "../src/shared/engine/games/draw";
-import { DRAW_GUESS_MAX } from "../src/shared/protocol";
-import { hintBlanks, hintSay } from "../src/online/games/drawHint";
+import { DRAW_GUESS_MAX, DRAW_ROUND_MS } from "../src/shared/protocol";
+import { hintBlanks, hintSay, hintZh } from "../src/online/games/drawHint";
 
 let clock = 1_000_000;
 let seed = 7;
@@ -457,7 +457,7 @@ test("draw: guesses as people type them: Traditional characters, a or the, a plu
   ok(v.solved.join() === "p1,p2" && v.phase === "result", "the longest English answer counts in full, and the round is over");
 });
 
-test("draw: the English hint shows each word's blanks, and hyphens", () => {
+test("draw: the hint: in English each word's blanks, and hyphens; in Chinese the characters, and any letters", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "draw" });
   t.g("p0", "pick", { d: 3 });
@@ -475,6 +475,11 @@ test("draw: the English hint shows each word's blanks, and hyphens", () => {
   ok(shown.split(" ").every((w) => /^_(?: _)*$/.test(w)), "and each word's blanks together");
   ok(hintSay(pay.en) === "4 words: 6, 8, 2 and 8 letters" && hintSay("___") === "3 letters", `what a screen reader says (${hintSay(pay.en)})`);
   ok(hintSay(hintOf("熬夜").en) === "10 letters", "a hyphenated word is one word");
+  // in Chinese: how many characters, and the letters as letters (深夜emo is not five characters)
+  ok(pay.latin === 0 && hintZh(pay) === "3 个字", `月光族: three characters (${hintZh(pay)})`);
+  const emo = hintOf("深夜emo");
+  ok(emo.zh === 2 && emo.latin === 3 && hintZh(emo) === "2 个字加 3 个字母", `深夜emo: two characters and three letters (${hintZh(emo)})`);
+  ok(hintZh({ zh: 5 }) === "5 个字", "from a rooms server that doesn't count the letters yet: characters only");
 });
 
 test("draw: a drawer who leaves: no penalty for anyone else, the word goes up, the turn goes on round the table", () => {
@@ -611,6 +616,64 @@ function closeEnough() {
   (u.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "飞机");
   u.g("p2", "guess", { text: "plane" });
   ok(!u.view<V>("p0").solved.length, "a new round starts with nothing counted");
+}
+
+test("draw: nobody left to guess: the round ends, and the drawer doesn't drink for it", () => {
+  // (hands back the random numbers it uses, as the test above does)
+  const keep = seed;
+  try {
+    nobodyLeft();
+  } finally {
+    seed = keep;
+  }
+});
+
+function nobodyLeft() {
+  type V = Extract<GameView, { id: "draw" }>;
+  // two at the table, and the one guessing leaves mid-round
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 2 });
+  t.act("p1", { a: "leave" });
+  let v = t.view<V>("p0");
+  ok(v.phase === "result" && v.alone && !!v.word && !v.solved.length && v.left === null, "the round is over at once: the word goes up, and it says nobody was left to guess");
+  t.advance(DRAW_ROUND_MS + 1000);
+  t.advance(1000);
+  ok(!t.pens().length, "nobody drinks for it, then or when the minute would have run out");
+  t.g("p0", "next");
+  v = t.view<V>("p0");
+  ok(v.phase === "pick" && v.drawer === "p0" && !v.alone, "a new round, without the last one's 'nobody left'");
+  // drawing with nobody to guess: the minute runs out, or the drawer ends it, and nobody drinks
+  t.g("p0", "pick", { d: 1 });
+  t.advance(DRAW_ROUND_MS + 1000);
+  t.advance(1000);
+  v = t.view<V>("p0");
+  ok(v.phase === "result" && v.alone && !t.pens().length, "the minute runs out: no penalty");
+  t.g("p0", "next");
+  t.g("p0", "pick", { d: 1 });
+  t.g("p0", "giveup");
+  t.advance(1000);
+  ok(t.view<V>("p0").alone && !t.pens().length, "the drawer ends it: no penalty");
+
+  // three at the table: one guesser leaves, one is still guessing, so the round goes on; nobody
+  // gets it in the minute, and the drawer drinks as ever
+  const u = setup(3);
+  u.act("p0", { a: "start", game: "draw" });
+  u.g("p0", "pick", { d: 1 });
+  u.act("p2", { a: "leave" });
+  ok(u.view<V>("p0").phase === "draw", "p1 is still guessing");
+  u.advance(DRAW_ROUND_MS + 1000);
+  u.advance(1000);
+  const uv = u.view<V>("p0");
+  ok(uv.phase === "result" && !uv.alone && u.pens().some((p) => p.who.includes("p0")), "nobody got it: the drawer drinks");
+
+  // the one guessing sits out to watch: the same as leaving
+  const w = setup(2);
+  w.act("p0", { a: "start", game: "draw" });
+  w.g("p0", "pick", { d: 1 });
+  w.act("p1", { a: "watch", on: true });
+  w.advance(DRAW_ROUND_MS + 2000);
+  ok(w.view<V>("p0").alone && !w.pens().length, "a guesser who sits out to watch leaves nobody to guess: no penalty");
 }
 
 test("king: private tokens, crown, called numbers", () => {
@@ -810,10 +873,9 @@ test("punchline: final picks toggle, up to three, never your own", () => {
 
 test("punchline: 再来一局 deals on from the same piles, so a table doesn't get its prompts again", () => {
   type PV = V<"punchline">;
-  for (const [players, games] of [
-    [8, 6],
-    [5, 9],
-  ] as const) {
+  for (const players of [8, 5]) {
+    // two games past the end of the pile, however big the pile grows
+    const games = Math.floor(PUNCH_PROMPTS.length / (2 * players)) + 2;
     const t = setup(players);
     t.act("p0", { a: "start", game: "punchline" });
     const played: { h2h: string[]; final: string }[] = [];

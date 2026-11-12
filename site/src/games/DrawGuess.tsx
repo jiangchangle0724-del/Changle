@@ -1,9 +1,10 @@
 import { Eye } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePenaltyText, useStore } from "../store";
 import { Deck } from "../lib/random";
 import { DRAW_WORDS, type Difficulty, type DrawWord } from "../data/drawGuess";
+import { reduced } from "../lib/motion";
 import { sfx } from "../lib/sfx";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { Resume, useKeepProgress } from "./Resume";
@@ -46,6 +47,7 @@ function DrawGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   const [timerKey, setTimerKey] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>(saved?.scores ?? {});
   const plate = useRef<DrawingPlateHandle>(null);
+  const who = useRef<HTMLDivElement>(null);
   const turn = useTurnOrder(saved?.turn ?? 0);
   const penalty = usePenalty();
   const [played, setPlayed] = useState(!!saved);
@@ -60,6 +62,11 @@ function DrawGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
   }, played);
 
   const drawer = turn.current;
+
+  // the names to pick from go in above the picture: in sight, even if the page was scrolled down to it
+  useEffect(() => {
+    if (phase === "who") who.current?.scrollIntoView({ block: "nearest", behavior: reduced() ? "auto" : "smooth" });
+  }, [phase]);
 
   const chooseDifficulty = (d: Difficulty) => {
     setPlayed(true);
@@ -106,6 +113,11 @@ function DrawGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
           {lang === "zh" ? "猜中了" : "Someone got it"}
         </button>
       </>
+    ) : phase === "who" && word ? (
+      // 猜中了 tapped by mistake: back to the same picture, the clock going on from where it stopped
+      <button type="button" className="btn btn-lg btn-ghost" onClick={() => setPhase("draw")}>
+        {timeUp ? (lang === "zh" ? "点错了，回去" : "Oops, go back") : lang === "zh" ? "点错了，接着画" : "Oops, keep drawing"}
+      </button>
     ) : undefined;
 
   const rules = (
@@ -176,10 +188,12 @@ function DrawGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
           </motion.div>
         )}
 
-        {phase === "draw" && word && (
+        {(phase === "draw" || phase === "who") && word && (
+          // one screen for drawing and for saying who got it: the picture and the clock stay, so a
+          // 猜中了 tapped by mistake goes back to them (the clock waits while the drawer picks)
           <motion.div key="draw" className="stack" style={{ gap: 12 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <TimerArc seconds={SECONDS} running={!timeUp} onEnd={() => setTimeUp(true)} size={72} resetKey={timerKey} />
+              <TimerArc seconds={SECONDS} running={!timeUp && phase === "draw"} onEnd={() => setTimeUp(true)} size={72} resetKey={timerKey} />
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
@@ -193,23 +207,22 @@ function DrawGame({ onBack, saved }: { onBack: () => void; saved: Kept | null })
               </button>
               <span className="turn-name">{drawer?.name}</span>
             </div>
-            <DrawingPlate ref={plate} disabled={timeUp} />
+            {phase === "who" && (
+              <div ref={who} className="stack" style={{ gap: 14 }}>
+                <p className="hint">{lang === "zh" ? "谁猜中的？" : "Who guessed it?"}</p>
+                <PlayerPicker
+                  players={players}
+                  exclude={[drawer.id]}
+                  onPick={(p) => {
+                    sfx.correct();
+                    award([drawer.id, p.id], word.d);
+                    nextTurn();
+                  }}
+                />
+              </div>
+            )}
+            <DrawingPlate ref={plate} disabled={timeUp || phase === "who"} />
             {timeUp && <p className="hint" style={{ textAlign: "center" }}>{lang === "zh" ? "时间到" : "Time's up"}</p>}
-          </motion.div>
-        )}
-
-        {phase === "who" && word && (
-          <motion.div key="who" className="stack" style={{ gap: 14 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <p className="hint">{lang === "zh" ? "谁猜中的？" : "Who guessed it?"}</p>
-            <PlayerPicker
-              players={players}
-              exclude={[drawer.id]}
-              onPick={(p) => {
-                sfx.correct();
-                award([drawer.id, p.id], word.d);
-                nextTurn();
-              }}
-            />
           </motion.div>
         )}
       </AnimatePresence>

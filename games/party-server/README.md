@@ -42,8 +42,7 @@ instead, `site/src/party/dj/`.)
 - **`/party/screen`**, the speaker (`src/client/screen.ts`): Start (starts the audio and keeps the
   screen on), the room code and QR code, the players (a phone's 我在 lights its name),
   calibration (8 clicks 1.2 s apart, the host's taps in speaker time, `calibrateFromTaps()`; three
-  tries). While a dance plays: the beat (`src/client/synth.ts`: made with Web Audio, a
-  four-on-the-floor groove until the dances have songs, task A5), the 3D coach dancing each move on
+  tries). While a dance plays: its tune (below), the 3D coach dancing each move on
   the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
   the 8-count, the next move 2 beats ahead, the floor. Along the bottom, everyone's little dancer
   (`src/client/coach/crowd.ts`): a neon stick figure in their colour doing the coach's move as hard
@@ -62,6 +61,18 @@ instead, `site/src/party/dj/`.)
   graphics chip (`index.ts`); in software, or when its first 90 frames run slower than 20 a second,
   the page keeps the coach in words. Reduced motion: it still dances (that's the lesson), the
   flashes and swinging lights stop.
+- **The practice dances' tunes** (`src/client/tunes.ts`): each of the library's six dances has a
+  song of its own, written there as notes (简谱: a melody, two chords an 8-count, a bass line, how
+  the chords are played, drum patterns) and played on the beat by `src/client/synth.ts`'s Web Audio
+  instruments (no audio files): 广场初体验 a 笛子 over a plucked 古筝-like arpeggio, 坐着也能嗨 a
+  whistled hook with electric piano and hand claps, 秧歌扭起来 a 唢呐 over a 笙 drone with the 锣鼓
+  (大鼓, 镲, 大锣, 小锣), 流行踏步派对 disco house, 广场摇摆串烧 big 广场舞 dance-pop, 全身节拍挑战
+  EDM. Gentle in the warm-up and cool-down, lighter in the teaching, everything in the dance (a
+  fill, a crash, a riser every 4th 8-count; a harmony on the second time round); bells where a
+  move starts, in the tune's key. A dance without a tune (the checks' test dance) gets a plain
+  four-on-the-floor groove. `scripts/tunes-preview.cjs` renders each to an MP3 to listen to (and,
+  with `STEMS=1`, how loud each part is: the parts are balanced to about the same loudness in
+  every tune).
 - **Songs** (`src/shared/songs.ts`): famous songs played on the TV from YouTube's own player
   (`src/client/tube.ts`: in sight in the top left corner, never covered, never downloaded; the
   same rules as 打碟's player), each danced with a few of the library's easiest moves, two
@@ -73,13 +84,21 @@ instead, `site/src/party/dj/`.)
   is (`songAt`); more than 20 ms off, the room moves the dance's beat there (party-base's
   `BEAT_MOVED`) and every page follows. YouTube refusing the video (`songFailed`): back to the
   lobby, and the phones say why. No 这一段再来 in a song.
-- **歌曲对拍 / the songbook**: where a song's beat starts in its video can't be guessed well enough,
-  so each song is tapped along to once on the speaker page (the lobby's 歌曲对拍): play it, and from
-  its first strong beat tap 16 times (a tap a beat, or a tap every half beat for the fast ones).
-  `src/shared/tapalong.ts` works out the first beat (the TV's calibrated delay taken out);
-  `POST /party/api/songs/ID` keeps it in the songbook (`src/server/songbook.ts`, one Durable Object
-  for the whole site; `src/server/tapped.ts` checks it), for every room from then on. A song
-  nobody has tapped along to can't be started (`song_untapped`); the host's list says so.
+- **找拍子 / the songbook**: where a song's beat starts in its video can't be guessed well enough.
+  The first time a room dances a song (`RoutineInfo.tapIn`), its video plays from the start and
+  everyone taps along on their phones, a tap a beat, from when the drums come in (the TV shows
+  the count and lights each name as it taps; whoever holds the speaker can tap on it too). The
+  phones' taps go to the speaker (`tap`, at most one every 150 ms a phone); from 16 that agree,
+  `tapIn()` in `src/shared/tapalong.ts` finds the beat (where the taps cluster in the beat, strays
+  left out; taps on the song's own beat when it's danced at half tempo work too) and the song's
+  first beat in the video (the earliest tap's beat, moved back whole 8-counts if the dance would
+  run past the video's end; the TV's calibrated delay taken out). The speaker sends it
+  (`songTapped`); the room checks it (`src/server/tapped.ts`), keeps it in the songbook
+  (`src/server/songbook.ts`, one Durable Object for the whole site) for every room from then on,
+  and the song starts from its start as any song does. No beat after 90 s of video: back to the
+  lobby (`song_notap`). The host can't skip ahead during 找拍子. 歌曲对拍 on the speaker page (the
+  lobby) does it again by one person: play a song, and from its first strong beat tap 16 times
+  (`tapAlong()`; `POST /party/api/songs/ID`), for a song whose dance has come out off its beat.
 - **`/party/moves`** (`src/client/moves.ts`): the 20 moves, each danced by the coach at its own
   tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
   `?still=<beat>` stops it there, `?gl=any` draws it in a browser without a graphics chip (the
@@ -102,7 +121,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, the tally, the judge: 68 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 99 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```
@@ -123,8 +142,11 @@ when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so ru
 player (real YouTube won't play in a data centre's browser: error 150). It starts 300 ms late and
 its clock answers four times a second, like the real one's. Checked: the songbook API, the room
 waiting for the video, the beat moved to the video's (within 25 ms), Ann tapping on the video's
-real beats on the beat, the video gone in the lobby, and 歌曲对拍 finding another song's first beat
-(within 20 ms). About a minute.
+real beats on the beat, the video gone in the lobby; 找拍子 on a song nobody has danced (Ann and
+Bob tapping along on their phones, the first beat found within 25 ms and kept, then the song from
+its start on the video's beat); and 歌曲对拍 finding another song's first beat (within 20 ms).
+About two minutes. Run the Worker with fresh storage (`--persist-to` a new folder): a song
+already in the songbook skips 找拍子.
 
 `scripts/motion-check.cjs` (the same Worker) dances the short test dance with the motion sensor:
 Ann's phone gets a pretend hand (a bump of acceleration on every beat she hears), Bob taps late,

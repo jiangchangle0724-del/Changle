@@ -76,3 +76,70 @@ export function vancouverClock(ms: number): { dow: number; minutes: number } {
 export const LAST_ORDER_BEFORE_CLOSE = 30;
 /** Don't suggest a place that closes sooner than this. */
 export const MIN_MINUTES_BEFORE_CLOSE = 45;
+
+// ---- planning ahead ----
+
+/** A meal further ahead than this is planned: places are checked against their hours at that time. */
+export const PLANNED_FROM = 15 * 60_000;
+/** Lunch and dinner, in minutes after midnight, for the quick choices. */
+export const LUNCH = 12 * 60;
+export const DINNER = 18 * 60 + 30;
+
+const parts = (ms: number) => {
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Vancouver", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(ms));
+  const get = (t: string) => Number(p.find((x) => x.type === t)?.value ?? 0);
+  return { y: get("year"), m: get("month"), d: get("day"), minutes: get("hour") * 60 + get("minute") };
+};
+
+/** A day in Vancouver: year, month (1–12), day of the month. */
+export interface Day {
+  y: number;
+  m: number;
+  d: number;
+}
+
+/** The Vancouver date `days` after the one `ms` falls on. */
+export function vancouverDay(ms: number, days = 0): Day {
+  const { y, m, d } = parts(ms);
+  const x = new Date(Date.UTC(y, m - 1, d + days));
+  return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() };
+}
+
+/** A wall-clock time in Vancouver (minutes after midnight on `day`) as ms since epoch. */
+export function vancouverMs(day: Day, minutes: number): number {
+  const wall = Date.UTC(day.y, day.m - 1, day.d, 0, minutes);
+  // Vancouver is 7 or 8 hours behind UTC: try one, check what the clock says there, correct once.
+  let t = wall + 8 * 3600_000;
+  for (let i = 0; i < 2; i++) {
+    const seen = parts(t);
+    t += wall - Date.UTC(seen.y, seen.m - 1, seen.d, 0, seen.minutes);
+  }
+  return t;
+}
+
+/** Google gives opening hours for today and the next six days: a meal can be planned up to the end of that. */
+export const planUntil = (now: number) => vancouverMs(vancouverDay(now, 7), 0);
+
+/** A planned time from a phone: at least PLANNED_FROM ahead and within the week Google has hours for, or null for now. */
+export function cleanAt(x: unknown, now: number): number | null {
+  if (typeof x !== "number" || !Number.isFinite(x)) return null;
+  if (x - now < PLANNED_FROM || x > planUntil(now)) return null;
+  return Math.round(x / 60_000) * 60_000;
+}
+
+/** When the meal is: the planned time while it's still ahead, otherwise now. */
+export const mealTime = (at: number | null | undefined, now: number) => (at && at - now >= PLANNED_FROM ? at : now);
+
+/** The quick choices still ahead: today's and tomorrow's lunch and dinner. */
+export function mealSlots(now: number): { id: "lunch0" | "dinner0" | "lunch1" | "dinner1"; at: number }[] {
+  const today = vancouverDay(now);
+  const tomorrow = vancouverDay(now, 1);
+  const slots = [
+    { id: "lunch0" as const, at: vancouverMs(today, LUNCH) },
+    { id: "dinner0" as const, at: vancouverMs(today, DINNER) },
+    { id: "lunch1" as const, at: vancouverMs(tomorrow, LUNCH) },
+    { id: "dinner1" as const, at: vancouverMs(tomorrow, DINNER) },
+  ];
+  return slots.filter((s) => s.at - now >= 2 * PLANNED_FROM);
+}
+

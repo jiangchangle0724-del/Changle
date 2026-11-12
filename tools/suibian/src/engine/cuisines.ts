@@ -32,7 +32,9 @@ const BY_NAME: [RegExp, CuisineId][] = [
   [/茶餐[厅廳]|港式|冰室|hk caf|hong kong style/i, "hk_cafe"],
   [/川|蜀|湘|渝|重庆|重慶|sichuan|szechuan|szechwan|hunan|chongqing|麻辣/i, "sichuan"],
   [/点心|點心|茶楼|茶樓|酒家|粤|粵|dim ?sum|cantonese|seafood restaurant/i, "cantonese"],
-  [/台湾|台灣|taiwan/i, "taiwanese"],
+  [/台湾|台灣|台北|taiwan|taipei/i, "taiwanese"],
+  // Chinese hand-pulled noodles before Japanese ramen: 兰州拉面 isn't a ramen shop.
+  [/[兰蘭]州|刀削|手[工拉]拉?[面麵]|牛肉[面麵]|lanzhou|hand[- ]pulled/i, "chinese"],
   [/拉面|拉麵|ramen|ramen-ya/i, "ramen"],
   [/pho\b|phở|banh ?mi|bánh/i, "vietnamese"],
   [/饺子|餃子|面馆|麵館|小笼|小籠|上海|东北|東北|dumpling|noodle house|xiao ?long/i, "chinese"],

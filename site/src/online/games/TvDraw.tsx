@@ -1,12 +1,12 @@
 import { Check, Pencil, Star } from "lucide-react";
-import type { DrawView } from "../../shared/protocol";
+import { useEffect, useRef } from "react";
+import { DRAW_ROUND_MS, type DrawView, type SeatView } from "../../shared/protocol";
 import { Bi, FacesIn, RoundTag, TvBoard, TvClock, TvShow, useArrivals, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
 import { NetPlate } from "../NetPlate";
 import { SeatFace } from "../People";
+import { hintBlanks, hintSay, hintZh } from "./drawHint";
 import "../../styles/tv-draw.css";
-
-const DRAW_MS = 80_000;
 
 /**
  * 你画我猜 on the big screen: the drawing, large, stroke by stroke as it's drawn; who's drawing, the
@@ -15,7 +15,12 @@ const DRAW_MS = 80_000;
  */
 export default function TvDraw({ v, sound }: TvViewProps<DrawView>) {
   const { zh, tx, tr, other } = useLang();
-  const { players, seat, name } = useSeats();
+  const { seats, players, seat, name } = useSeats();
+  // the seats as last seen: a drawer who walks off mid-round is still shown, by face and name
+  const known = useRef(new Map<string, SeatView>());
+  useEffect(() => {
+    for (const s of seats) known.current.set(s.id, s);
+  }, [seats]);
   // a pop for each wrong guess as it comes in (a right one gets the room's "correct" chime)
   useArrivals(
     v.guesses.flatMap((g, i) => (g.ok ? [] : [`${i}`])),
@@ -37,16 +42,26 @@ export default function TvDraw({ v, sound }: TvViewProps<DrawView>) {
 
   const result = v.phase === "result";
   const rows = players.map((s) => ({ seat: s, score: v.scores[s.id] ?? 0, hot: v.solved.includes(s.id) }));
+  // the drawer left before the round was over: `drawer` is already the next one, so say who left
+  const left = result && !!v.left;
+  const gone = result && v.left ? (seat(v.left) ?? known.current.get(v.left)) : undefined;
+  const goneName = gone?.name ?? tx("画的人", "The drawer");
+  const face = left ? gone : drawer;
   return (
-    <TvShow game="draw" className={`tvdr is-${v.phase}`} phase={v.phase} round={tag} clock={!result ? <TvClock endsAt={v.endsAt} total={DRAW_MS} sound={sound} /> : undefined}>
+    <TvShow game="draw" className={`tvdr is-${v.phase}`} phase={v.phase} round={tag} clock={!result ? <TvClock endsAt={v.endsAt} total={DRAW_ROUND_MS} sound={sound} /> : undefined}>
       <div className="tvdr-board">
         <NetPlate canDraw={false} />
       </div>
       <aside className="tvdr-side">
         <p className="tvdr-who">
-          {drawer && <SeatFace seat={drawer} size={60} />}
+          {face && <SeatFace seat={face} size={60} />}
           <Pencil size={30} strokeWidth={2.4} aria-hidden="true" />
-          {tx(`${name(v.drawer)} 在画`, `${name(v.drawer)} is drawing`)}
+          {/* (one line, as ever: the phones say there's no penalty) */}
+          {left
+            ? tx(`${goneName} 不画了`, `${goneName} stopped drawing`)
+            : result && v.alone
+              ? tx("没人猜了", "Nobody left to guess")
+              : tx(`${name(v.drawer)} 在画`, `${name(v.drawer)} is drawing`)}
           <span className="tvdr-stars" aria-label={tx(`难度 ${v.d}`, `difficulty ${v.d}`)}>
             {[1, 2, 3].map((n) => (
               <Star key={n} size={26} strokeWidth={2.4} className={n <= v.d ? "is-on" : ""} aria-hidden="true" />
@@ -59,7 +74,14 @@ export default function TvDraw({ v, sound }: TvViewProps<DrawView>) {
             <p className="tvdr-word-sub">{other(v.word)}</p>
           </div>
         ) : (
-          v.hint && <p className="tvdr-hint tabular">{zh ? `${v.hint.zh} 个字` : v.hint.en.split("").join(" ")}</p>
+          v.hint &&
+          (zh ? (
+            <p className="tvdr-hint tabular">{hintZh(v.hint)}</p>
+          ) : (
+            <p className="tvdr-hint tabular" role="img" aria-label={hintSay(v.hint.en)}>
+              {hintBlanks(v.hint.en)}
+            </p>
+          ))
         )}
         {result ? (
           <TvBoard rows={rows} unit={tx("分", "pts")} max={6} className="tvdr-scores" />
