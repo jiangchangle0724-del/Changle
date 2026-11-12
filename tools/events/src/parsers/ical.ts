@@ -27,9 +27,9 @@ export function plainText(s: string | null | undefined, max = 600): string | nul
   const text = s
     .slice(0, max * 8)
     .replace(/<(br\s*\/?|\/(p|li|div|h\d))>/gi, "\n")
-    .replace(/<[^>]*>/g, " ")
+    .replace(/<[^<>]*>/g, " ")
     .replace(/&[a-z#0-9]+;/gi, (m) => ENTITIES[m.toLowerCase()] ?? " ")
-    .replace(/[ \t]+/g, " ")
+    .replace(/[^\S\n]+/g, " ")
     .replace(/\s*\n[\s\n]*/g, "\n")
     .trim();
   return text ? text.slice(0, max) : null;
@@ -238,9 +238,8 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
     const value = (name: string) => (vevent.hasProperty(name) ? vevent : master?.component)?.getFirstPropertyValue(name);
     const title = String(value("summary") ?? "").trim();
     if (!title) return false;
-    const locationOwner = vevent.hasProperty("location") || vevent.hasProperty("geo") ? vevent : master?.component ?? vevent;
-    const geo = locationOwner.getFirstPropertyValue("geo") as number[] | null;
-    const location = String(locationOwner.getFirstPropertyValue("location") ?? "");
+    const geo = (vevent.hasProperty("location") ? vevent.getFirstPropertyValue("geo") : value("geo")) as number[] | null;
+    const location = String(value("location") ?? "");
     const place = placeFromText(location);
     if (place && Array.isArray(geo) && geo.length === 2) [place.lat, place.lon] = [Number(geo[0]), Number(geo[1])];
     const status = STATUS[String(value("status") ?? "").toUpperCase()] ?? "scheduled";
@@ -264,7 +263,10 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
     out.push({ ...base, sourceEventId, start: s.iso, end, allDay: s.allDay });
     return true;
   };
-  const hasCount = (component: ICAL.Component) => component.getAllProperties("rrule").some((p) => (p.getFirstValue() as ICAL.Recur).count);
+  const hasCount = (component: ICAL.Component) => {
+    try { return component.getAllProperties("rrule").some((p) => (p.getFirstValue() as ICAL.Recur).count); }
+    catch { return false; } // Lazy RRULE errors belong to the series' own try/catch below.
+  };
   const ordered = components.filter((c) => !c.hasProperty("recurrence-id"))
     .sort((a, b) => Number(hasCount(a)) - Number(hasCount(b)));
   for (const vevent of ordered) {

@@ -4,7 +4,7 @@ import edge from "../fixtures/ical/edge-cases.ics?raw";
 import expected from "../fixtures/ical/edge-cases.expected.json";
 import ubc from "../fixtures/ical/ubc-2026-10-31.ics?raw";
 import luma from "../fixtures/luma/vancouver-2026-10-31.ics?raw";
-import { parseIcal } from "../../src/parsers/ical";
+import { parseIcal, plainText } from "../../src/parsers/ical";
 import { windowOf } from "../../src/time";
 
 const opts = (date = "2026-10-31", days = 14) => ({ source: "test", ...windowOf(date, days) });
@@ -317,7 +317,10 @@ describe("bounded recurrence expansion and isolated overrides", () => {
     expect(events.find((e) => e.sourceEventId === "a@2026-11-02")).toMatchObject({ title: "a", start: "2026-11-02T19:00:00-07:00" });
   });
 
-  it.each(["FREQ=FOO", "FREQ=MONTHLY;BYYEARDAY=1"])("isolates a malformed series (%s) from healthy events", (rule) => {
+  it.each([
+    "FREQ=FOO", "FREQ=MONTHLY;BYYEARDAY=1",
+    "FREQ=DAILY;UNTIL=garbage", "FREQ=DAILY;UNTIL=", "FREQ=DAILY;UNTIL=2026", "FREQ=DAILY;UNTIL=20261",
+  ])("isolates a malformed series (%s) from healthy events", (rule) => {
     const events = parseIcal(calendar(
       event("UID:first", "SUMMARY:First", "DTSTART:20261101T100000"),
       recurring("bad", "20261101T100000", rule),
@@ -454,6 +457,10 @@ describe("bounded recurrence expansion and isolated overrides", () => {
       event("UID:places", "RECURRENCE-ID:20261102T190000", "DTSTART:20261102T200000", "LOCATION:Richmond Olympic Oval", "GEO:49.17;-123.15"),
     ), opts());
     expect(located[1].place).toMatchObject({ name: "Richmond Olympic Oval", lat: 49.17, lon: -123.15 });
+    const coordinatesOnly = parseIcal(calendar(master,
+      event("UID:places", "RECURRENCE-ID:20261102T190000", "DTSTART:20261102T200000", "GEO:49.29;-123.13"),
+    ), opts());
+    expect(coordinatesOnly[1].place).toMatchObject({ name: "Central Library", lat: 49.29, lon: -123.13 });
   });
 
   it.each([
@@ -471,5 +478,27 @@ describe("bounded recurrence expansion and isolated overrides", () => {
       "RDATE;VALUE=PERIOD:20261103T180000Z/PT2H")), opts());
     expect(events.map((e) => e.sourceEventId)).toEqual(["period-rule@2026-11-01", "period-rule@2026-11-03", "period-rule@2026-11-08"]);
     expect(events[1].start).toBe("2026-11-03T11:00:00-07:00");
+  });
+});
+
+describe("plainText adversarial inputs", () => {
+  it.each([
+    { name: "non-breaking spaces", input: `A${"\u00a0".repeat(4800)}B`, max: 1000, expected: "A B" },
+    { name: "ideographic spaces", input: `A${"\u3000".repeat(4800)}B`, max: 1000, expected: "A B" },
+    { name: "unclosed less-than characters", input: "<".repeat(4800), max: 600, expected: "<".repeat(600) },
+  ])("normalizes $name without quadratic backtracking", async ({ input, max, expected }) => {
+    const samples: number[] = [];
+    const batch = 20;
+    for (let n = 0; n < 5; n++) {
+      const start = performance.now();
+      let result: string | null = null;
+      for (let i = 0; i < batch; i++) result = plainText(input, max);
+      // workerd freezes its clock during synchronous work. Refresh it via a local timer,
+      // amortizing timer latency over a batch so the bound measures per-call work.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      samples.push((performance.now() - start) / batch);
+      expect(result).toBe(expected);
+    }
+    expect(Math.min(...samples)).toBeLessThanOrEqual(5);
   });
 });
