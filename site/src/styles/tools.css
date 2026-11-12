@@ -453,6 +453,145 @@
   font-weight: 600;
 }
 
+/* two packs, which is the better buy: folded under the unit price until asked */
+.pack-compare {
+  margin-top: 14px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line-soft);
+}
+.pack-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  color: var(--moon);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+.pack-toggle svg {
+  flex-shrink: 0;
+  color: var(--haze);
+  transition: transform var(--dur-enter) var(--ease-out);
+}
+.pack-toggle svg.is-open {
+  transform: rotate(180deg);
+}
+.pack-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+/* tag, price, size, unit on one line; the two amounts share what the unit leaves */
+.pack-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1.25fr) minmax(0, 1fr) auto;
+  grid-template-areas: "tag price qty unit";
+  align-items: center;
+  gap: 8px;
+}
+.pack-price {
+  grid-area: price;
+}
+.pack-qty {
+  grid-area: qty;
+}
+.pack-unit {
+  grid-area: unit;
+}
+/* a narrow phone: the price gets the first line, the size and its unit the second */
+@media (max-width: 360px) {
+  .pack-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "tag price price"
+      "tag qty unit";
+    row-gap: 6px;
+  }
+}
+.pack-tag {
+  grid-area: tag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  background: var(--dusk-3);
+  color: var(--haze);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  transition:
+    background-color var(--dur-enter),
+    color var(--dur-enter);
+}
+.pack-row.is-better .pack-tag {
+  background: var(--go);
+  color: var(--night);
+}
+.pack-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 10px;
+  border-radius: var(--r-small);
+  background: var(--dusk-2);
+  cursor: text;
+}
+/* the same 2px ring the other fields get, drawn as an outline (tokens.test caps raw shadows per file) */
+.pack-field:focus-within {
+  outline: 2px solid var(--light);
+  outline-offset: -2px;
+}
+.pack-prefix {
+  flex-shrink: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.pack-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.pack-field input::placeholder {
+  color: var(--color-text-3);
+  font-family: var(--font-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.pack-unit {
+  border: 0;
+  border-radius: var(--r-small);
+  padding: 9px 8px;
+  background: var(--dusk-3);
+  color: var(--moon);
+  font-weight: 700;
+  font-size: var(--text-md);
+}
+.pack-verdict {
+  margin-top: 4px;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading);
+}
+.pack-verdict.is-set {
+  color: var(--moon);
+}
+
 /* every drop-down in a tool is big enough to tap */
 .tool select {
   min-height: var(--tap);

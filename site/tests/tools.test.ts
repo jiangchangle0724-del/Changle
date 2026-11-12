@@ -10,6 +10,7 @@
  */
 import { capDigits, cleanAmount, convert, sizeClass } from "../src/tools/money";
 import { dayDiff, offsetMin, partsIn, PERMANENT_TIME, permanentOffset, zonedToUtc } from "../src/tools/tz";
+import { comparePacks, PACK_MASS, PACK_VOLUME, perBase } from "../src/tools/units";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -46,6 +47,25 @@ eq(sizeClass("1,500,000"), "", "9 characters stay full size");
 eq(sizeClass("7,015,816,750.00"), "is-longer", "16 characters step down twice");
 eq(sizeClass("1299.99", [6, 8]), "is-long", "the narrower price field steps down at 7 characters");
 eq(sizeClass("129999.99", [6, 8]), "is-longer", "and twice at 9");
+
+// 2b. two packs, which is the better buy
+const near = (got: number | null, want: number, msg: string) => ok(got !== null && Math.abs(got - want) < 0.005, `${msg} → ${got}`);
+near(perBase({ price: "5.99", qty: "454", unit: "g" }, PACK_MASS), 13.19, "454 g for $5.99 is $13.19 per kg");
+near(perBase({ price: "11.99", qty: "1", unit: "kg" }, PACK_MASS), 11.99, "1 kg for $11.99 is $11.99 per kg");
+near(perBase({ price: "4.5", qty: "1", unit: "lb" }, PACK_MASS), 9.92, "a pound for $4.50 is $9.92 per kg");
+near(perBase({ price: "3", qty: "2", unit: "jin" }, PACK_MASS), 3, "two 斤 for $3 is $3 per kg");
+near(perBase({ price: "2.49", qty: "946", unit: "ml" }, PACK_VOLUME), 2.63, "946 mL for $2.49 is $2.63 per litre");
+near(perBase({ price: "4", qty: "1", unit: "gal" }, PACK_VOLUME), 1.06, "a US gallon for $4 is $1.06 per litre");
+eq(perBase({ price: "", qty: "454", unit: "g" }, PACK_MASS), null, "no price, no answer");
+eq(perBase({ price: "5.99", qty: "0", unit: "g" }, PACK_MASS), null, "a zero size, no answer");
+eq(perBase({ price: "5.99", qty: "454", unit: "nonsense" }, PACK_MASS), perBase({ price: "5.99", qty: "454", unit: "g" }, PACK_MASS), "an unknown unit counts as the first one");
+const v1 = comparePacks({ price: "5.99", qty: "454", unit: "g" }, { price: "11.99", qty: "1", unit: "kg" }, PACK_MASS);
+ok(v1?.better === "b" && v1.pct === 9, `454 g at $5.99 vs 1 kg at $11.99: B wins by 9% → ${JSON.stringify(v1)}`);
+const v2 = comparePacks({ price: "10", qty: "1", unit: "kg" }, { price: "10.02", qty: "1", unit: "kg" }, PACK_MASS);
+ok(v2?.better === "same" && v2.pct === 0, `$10 vs $10.02 per kg counts as the same → ${JSON.stringify(v2)}`);
+const v3 = comparePacks({ price: "2", qty: "500", unit: "ml" }, { price: "5", qty: "1", unit: "l" }, PACK_VOLUME);
+ok(v3?.better === "a" && v3.pct === 20, `500 mL at $2 vs 1 L at $5: A wins by 20% → ${JSON.stringify(v3)}`);
+eq(comparePacks({ price: "2", qty: "", unit: "ml" }, { price: "5", qty: "1", unit: "l" }, PACK_VOLUME), null, "half filled in, no verdict yet");
 
 // 3. the world clock
 const T = Date.UTC(2026, 6, 15, 12, 0); // 2026-07-15 12:00Z, summer

@@ -12,7 +12,7 @@
 - 汇率：`site/src/tools/Currency.tsx`、`fx.ts`（取汇率、缓存、超时）、`RateStatus.tsx`（连不上时的提示，Codex #223）
 - 货币表和算术：`site/src/tools/money.ts`（不碰浏览器，测试直接导入）
 - 世界时钟：`site/src/tools/WorldClock.tsx`、`tz.ts`（时区计算；BC 和 Alberta 永久夏令时的纠正表 `PERMANENT_TIME`）
-- 单价换算：`site/src/tools/UnitPrice.tsx`
+- 单价换算：`site/src/tools/UnitPrice.tsx`、`units.ts`（重量和容量的单位表、两个包装的算术）、`PackCompare.tsx`（两个包装哪个划算）
 - 样式：`site/src/styles/tools.css`（随页签下载，不进首页预算）
 - 服务器端的汇率：`site/worker/index.ts` 里的 `fx()`（房间服务器对话的地盘，只加自己那一行）
 
@@ -23,7 +23,7 @@
 
 ## 测试
 
-- `site/tests/tools.test.ts`：输入清理和位数上限、汇率换算、字号分级、时区计算（夏令时切换日、城市时间换回时刻）、BC 和 Alberta 永久时间的纠正。CI 的 `site` 任务跑它（`.github/workflows/site.yml`）。
+- `site/tests/tools.test.ts`：输入清理和位数上限、汇率换算、字号分级、两个包装的单价和胜负、时区计算（夏令时切换日、城市时间换回时刻）、BC 和 Alberta 永久时间的纠正。CI 的 `site` 任务跑它（`.github/workflows/site.yml`）。
 - 截图和 axe：`tools-zh`、`tools-en` 两张（`site/tests/visual/screens.spec.ts`），只拍第一屏（随便卡片和汇率的上半截），时间尺和单价不在图里。
 
 ## 定过的事
@@ -35,11 +35,11 @@
 - 时间尺拖动和键盘最多前后 48 小时；在城市弹层里连点「后一天」可以走得更远，尺子跟着延伸，不再空白。指针放在刻度区里，不压住「现在」。
 - 手机开了「减少动态效果」，顶上四个按钮直接跳到对应工具，不滑动。
 - 斤按中国大陆的 500 克算，单价卡片下面写明了。
+- 「两个包装，哪个划算」折在单价卡片最下面，点开才展开（状态和填过的数存在手机里）。每个包装填价格、分量、单位（克或毫升排第一），按每公斤或每升比；便宜的百分比向下取整，差不到 0.5% 算一样价；货币跟上面选的走，两个包装不换汇。320 到 360 宽的手机上价格一行、分量和单位一行。
 
 ## 还剩什么
 
 - 加货币：服务器的 `/api/fx` 已经在返回欧元、英镑、日元、澳元、新台币、韩元、新加坡元等，页面只用了 4 个。要加的话 `money.ts` 的 `CURRENCIES` 和 `UnitPrice.tsx` 的 `SYMBOL` 一起加，汇率卡片的行数会变多，得想想排版。
-- 单价换算加「两个包装比哪个划算」。
 - 320 宽的英文「Unit price」标题折成两行，一直如此，没改。
 - 设计对话 A4 的小项「工具页的卡片换成同一套样式」还没做（设计对话的档案里）。
 
@@ -51,6 +51,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-11 tools: two packs, which is the better buy
 - 2026-11-11 tools: Seattle in the world clock
 - 2026-11-11 Merge pull request #304: 工具 · 生活小工具, big amounts, BC/Alberta permanent time, rate timeout, the ruler, tests
 - 2026-11-05 style(tools): migrate utility styles to design tokens (ui-C8) (#230)
@@ -65,3 +66,4 @@
 - 2026-11-04 盘点线上版（手机尺寸、中英文、320 到 430 宽）：大金额截断、BC/Alberta 时区风险、服务器卡住不换源、时间尺的三个小毛病、没有测试。时区计算另外核对了 50 多万次，没有算错的。
 - 2026-11-11 #304 修掉 11-04 列的问题，加 `tests/tools.test.ts` 进 CI，更新 HANDOFF 里工具那一段（汇率其实走房间服务器）；CI 第一轮 tools-zh 截图差 450 像素（汇率小字对齐），改回居中后全绿，合并上线。Steve 用安卓微信看过，温哥华的时间对。
 - 2026-11-11 时钟的城市表加了西雅图（和洛杉矶同一时区，冬天比温哥华慢一小时）。
+- 2026-11-11 单价卡片加了「两个包装，哪个划算」。
