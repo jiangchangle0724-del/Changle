@@ -131,9 +131,137 @@ describe("the .ics calendar", () => {
       expect(entries(value)[0].summary).toBe(title);
     }
   });
+
+  it.each([
+    [500, false, "0ca676669a3665875d4b082f9412b0ceebb75e5d1751df6c70152bed9595e23e"],
+    [500, true, "8ab46044041f09e7d91a1e5756627a61f39bb2b907aca2530108a71baf755765"],
+    [1000, false, "9f1a18428cf0c722e7eae150b7c424fa7e7d0c7d16ff2860c51ab5d731e76cb8"],
+    [1000, true, "56690da983089924ae46875c91f99cfff68aacf5f85ca36e02675c495cbedc75"],
+  ] as const)("preserves the pre-review bytes for %i events (bilingual=%s)", async (count, bilingual, hash) => {
+    // SHA-256 of the unmodified 195f34e generator, including CRLF and physical fold positions.
+    const summaryZh = "一起探索温哥华的文化与生活，认识新朋友。活动提供适合家庭的体验，请提前查看主办方网页了解报名、交通和无障碍设施的信息。";
+    const summaryEn = "Explore Vancouver's culture and community, meet new friends, and enjoy an activity for families. Check the organiser's page for registration, transport and accessibility details.";
+    const input = Array.from({ length: count }, (_, i) => ({
+      ...events[i % 10], id: `${events[i % 10].id}:${i}`, ...(bilingual ? { summaryZh, summaryEn } : {}),
+    }));
+    const value = toIcs(input, opts);
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+    expect(Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")).toBe(hash);
+  });
+
+  it("generates without TextEncoder or toISOString on the serialization path", () => {
+    const encode = vi.spyOn(TextEncoder.prototype, "encode").mockImplementation(() => { throw new Error("Unexpected encoding allocation"); });
+    const iso = vi.spyOn(Date.prototype, "toISOString").mockImplementation(() => { throw new Error("Unexpected ISO string formatting"); });
+    expect(toIcs(events, opts)).toContain("DTSTART:20261102T153000Z\r\n");
+    expect(encode).not.toHaveBeenCalled();
+    expect(iso).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["HTTPS://EXAMPLE.ORG:443/a/../event?q=hello world", "https://example.org/event?q=hello%20world"],
+    ["http://EXAMPLE.ORG:80", "http://example.org/"],
+  ])("normalizes an HTTP(S) link in both properties: %s", (url, expected) => {
+    const [read] = entries(toIcs([{ ...events[0], url }], opts));
+    expect(read.component.getFirstPropertyValue("url")).toBe(expected);
+    expect(read.description).toBe(`${expected}\n来源 Source: Luma`);
+  });
+
+  it.each([
+    "", " ", "not a URL", "http://", "//example.org/event", "ftp://example.org/event",
+    "javascript:alert(1)", "data:text/plain,event", "mailto:events@example.org", "file:///event",
+    "https://example.org/\r\nATTENDEE:injected", "https://example.org/\nSUMMARY:injected",
+    "https://example.org/\rEND:VEVENT\rBEGIN:VEVENT\rUID:injected",
+    "https://example.org/\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:injected",
+    "https://example.org/\tbad", "https://example.org/\u0000bad",
+  ])("omits an unsafe or invalid URL everywhere: %j", (url) => {
+    const value = toIcs([{ ...events[0], url }], opts);
+    const read = entries(value);
+    expect(read).toHaveLength(1);
+    expect(read[0].component.getFirstPropertyValue("url")).toBeNull();
+    expect(read[0].description).toBe("来源 Source: Luma");
+    expect(value.replace(/\r\n /g, "")).not.toContain("URL:");
+    expect(value).not.toContain("injected");
+  });
+
+  it.each([
+    ["postponed", "已延期 · Postponed", "已延期 Postponed · ", "TENTATIVE"],
+    ["rescheduled", "已改期 · Rescheduled", "", null],
+    ["soldout", "已售罄 · Sold out", "", null],
+  ] as const)("makes %s visible before other description lines", (status, notice, prefix, icalStatus) => {
+    const [read] = entries(toIcs([{ ...events[7], status, summaryZh: "中文简介", summaryEn: "English summary" }], opts));
+    expect(read.summary).toBe(prefix + events[7].title);
+    expect(read.component.getFirstPropertyValue("status")).toBe(icalStatus);
+    expect(read.description.split("\n")).toEqual([
+      notice, "时间待定 · Time to be announced", "中文简介", "English summary",
+      events[7].url, "来源 Source: (hand-made)",
+    ]);
+  });
+
+  it.each([null, "", events[8].start, "2026-11-13T22:30:00-07:00"])("uses two hours for an absent/non-increasing timed end: %s", (end) => {
+    const [read] = entries(toIcs([{ ...events[8], end }], opts));
+    expect(read.endDate.toJSDate().getTime() - read.startDate.toJSDate().getTime()).toBe(2 * 3600_000);
+  });
+
+  it.each([null, "", "2026-11-06", "2026-11-05"])("uses the next day for an absent/non-increasing all-day end: %s", (end) => {
+    const [read] = entries(toIcs([{ ...events[6], end }], opts));
+    expect(read.startDate.toString()).toBe("2026-11-06");
+    expect(read.endDate.toString()).toBe("2026-11-07");
+  });
+
+  it.each([
+    { start: "bad start" }, { start: "" }, { start: "2026-13-01T10:00:00Z" },
+    { end: "bad end" }, { updatedAt: "bad timestamp" },
+    { allDay: true, start: "2026-02-30", end: null },
+    { allDay: true, start: "2026-11-02", end: "2026-02-30" },
+    { start: "+010000-01-01T00:00:00Z" },
+    { start: "9999-12-31T23:30:00Z", end: null },
+    { allDay: true, start: "9999-12-31", end: null },
+  ])("skips an unrepresentable event without losing its neighbours: %j", (change) => {
+    const read = entries(toIcs([events[0], { ...events[0], id: "bad", ...change }, events[8]], opts));
+    expect(read.map((e) => e.uid)).toEqual([`${events[0].id}@changle.ca`, `${events[8].id}@changle.ca`]);
+  });
+
+  it("removes C0/C1 controls from every TEXT field, keeps tab and escapes logical newlines", () => {
+    const controls = Array.from({ length: 160 }, (_, i) => i)
+      .filter((i) => (i < 32 && ![9, 10, 13].includes(i)) || i >= 127)
+      .map((i) => String.fromCharCode(i)).join("");
+    const dirty = `one${controls}\ttwo\r\nthree\rfour\nfive`;
+    const clean = "one\ttwo\nthree\nfour\nfive";
+    const input = { ...events[0], id: dirty, title: dirty, venue: dirty, address: dirty, sourceName: dirty, summaryZh: dirty, summaryEn: dirty };
+    const value = toIcs([input], { ...opts, name: dirty });
+    expectPhysicalLines(value);
+    expect(value).not.toMatch(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/);
+    const [read] = entries(value);
+    expect(read.uid).toBe(`${clean}@changle.ca`);
+    expect(read.summary).toBe(clean);
+    expect(read.location).toBe(`${clean}, ${clean}`);
+    expect(read.description).toBe(`${clean}\n${clean}\n${input.url}\n来源 Source: ${clean}`);
+    expect(calendar(value).getFirstPropertyValue("x-wr-calname")).toBe("one\ttwo\\nthree\\nfour\\nfive");
+  });
 });
 
 describe("the calendar subscription through the Worker", () => {
+  it("answers 200 for a published calendar with invalid timestamps and an injected URL", async () => {
+    const fetched = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("No network in calendar tests"));
+    const published: Published = {
+      runId: "2026-11-01", generatedAt: opts.now.toISOString(), from: "2026-11-01", to: "2026-11-14", count: 3,
+      events: [
+        { ...events[0], url: "https://example.org/\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:injected" },
+        { ...events[0], id: "invalid-stamp", updatedAt: "not a timestamp" },
+        { ...events[0], id: "invalid-end", end: "not a timestamp" },
+      ],
+    };
+    await env.CACHE.put(LIVE_KEY, JSON.stringify(published));
+    const res = await worker.fetch(new Request("https://changle.ca/go/api/events.ics") as Request<unknown, IncomingRequestCfProperties>, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/calendar; charset=utf-8");
+    const read = entries(await res.text());
+    expect(read).toHaveLength(1);
+    expect(read[0].uid).toBe(`${events[0].id}@changle.ca`);
+    expect(read[0].component.getFirstPropertyValue("url")).toBeNull();
+    expect(fetched).not.toHaveBeenCalled();
+  });
+
   it("runs the saved feeds, then returns only family events, matching the JSON API", async () => {
     await env.CACHE.delete(LIVE_KEY);
     for (const { name } of (await env.CACHE.list({ prefix: "handoff:" })).keys) await env.CACHE.delete(name);
