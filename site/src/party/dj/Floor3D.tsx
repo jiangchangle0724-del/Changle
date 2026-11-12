@@ -13,8 +13,18 @@ type Clock = {
 /**
  * What a dancer does, two bars at a time, each move's loop stretched to whole beats and set to where
  * the speaker's beat is every frame (as the coach does), so it lands on the beat however the frames
- * fall. Everyone dances on the same beat; each starts at a different place in the list.
+ * fall. Everyone dances on the same beat; each starts at a different place in the list. The night's
+ * energy picks the list: the easy ones in the warm-up and the wind-down, all of them in the build,
+ * the big ones at the peak.
  */
+const EASY: { clip: string; beats: number }[] = [
+  { clip: "Dance", beats: 4 },
+  { clip: "Yes", beats: 2 },
+  { clip: "Dance", beats: 4 },
+  { clip: "Wave", beats: 4 },
+  { clip: "Dance", beats: 4 },
+  { clip: "ThumbsUp", beats: 2 },
+];
 const MOVES: { clip: string; beats: number }[] = [
   { clip: "Dance", beats: 4 },
   { clip: "Yes", beats: 2 },
@@ -27,7 +37,7 @@ const MOVES: { clip: string; beats: number }[] = [
   { clip: "Dance", beats: 4 },
   { clip: "ThumbsUp", beats: 2 },
 ];
-/** someone keeping up with the coach (跟着跳, two in a row or more): the big moves */
+/** the peak, and anyone keeping up with the coach (跟着跳, two bars in a row or more): the big moves */
 const HOT: { clip: string; beats: number }[] = [
   { clip: "Jump", beats: 2 },
   { clip: "Dance", beats: 4 },
@@ -172,6 +182,14 @@ export function Floor3D({
           shadow: import("three").Mesh;
           /** the floor under it: the stage, or the step at the back */
           base: number;
+          /** its tag under its feet (it stays put when it jumps); the screen's pixels in one of the
+           * model's units, where it stands */
+          under: boolean;
+          ppu: number;
+          /** its tag lifted with a jump, to put back */
+          tagUp: boolean;
+          /** its microphone, 0 (gone) to 1 (up) */
+          micK: number;
           away: boolean;
           k: number;
           seed: number;
@@ -253,7 +271,7 @@ export function Floor3D({
           scene.add(root, shadow, mic);
           const idle = acts.get("Idle");
           idle?.play();
-          return { id: s.id, root, mixer, acts, on: "Idle", face, body, mic, shadow, base: 0, away: false, k, seed: (k * 0.618) % 1 };
+          return { id: s.id, root, mixer, acts, on: "Idle", face, body, mic, shadow, base: 0, under: false, ppu: 0, tagUp: false, micK: 0, away: false, k, seed: (k * 0.618) % 1 };
         };
 
         const drop = (b: Bot) => {
@@ -342,6 +360,8 @@ export function Floor3D({
             const head = sy(x, b.base + tall * 1.05, z);
             const px = sy(x, b.base, z) - sy(x, b.base + tall, z);
             const under = two && !back.includes(s);
+            b.under = under;
+            b.ppu = px / tall;
             v.set(x, under ? 0 : b.base + tall * 1.13, under ? z + tall * 0.25 : z).project(camera);
             const y = ((1 - v.y) / 2) * h;
             out.push({ id: s.id, x: ((v.x + 1) / 2) * w, y, px, under, up: under ? y - head : 0 });
@@ -373,13 +393,14 @@ export function Floor3D({
           (window as unknown as { __floor3d?: () => unknown }).__floor3d = () => ({
             n: bots.size,
             tall,
+            level: live.current.level,
             rows: seen.rows,
             singing: seen.sing,
             beat: seen.beat,
             bots: Object.fromEntries(
               [...bots.values()].map((x) => {
                 const a = x.on ? x.acts.get(x.on) : undefined;
-                const m = (x.on && [...MOVES, ...HOT].find((mv) => mv.clip === x.on)) || null;
+                const m = (x.on && [...EASY, ...MOVES, ...HOT].find((mv) => mv.clip === x.on)) || null;
                 const f = x.face[0];
                 return [
                   x.id,
@@ -433,6 +454,11 @@ export function Floor3D({
             const bot = bots.get(s.id);
             if (!bot) continue;
             // away from the table: sits down where they are
+            // the microphone rises in front of each of them as a song starts, and goes as it ends
+            const want = sing && s.on ? 1 : 0;
+            bot.micK = calm || Math.abs(want - bot.micK) < 0.01 ? want : bot.micK + (want - bot.micK) * Math.min(1, dt * 9);
+            bot.mic.visible = bot.micK > 0;
+            bot.mic.scale.setScalar(Math.max(0.001, bot.micK));
             if (!s.on) {
               if (!bot.away) {
                 bot.away = true;
@@ -444,7 +470,6 @@ export function Floor3D({
                   a.timeScale = 1;
                 }
               }
-              bot.mic.visible = false;
               bot.mixer.update(dt);
               continue;
             }
@@ -452,10 +477,10 @@ export function Floor3D({
               bot.away = false;
               paint(bot, s);
             }
-            bot.mic.visible = sing;
             let lift = 0;
             if (beat) {
-              const list2 = hot?.[s.id]?.hot ? HOT : MOVES;
+              const lv = live.current.level;
+              const list2 = hot?.[s.id]?.hot || lv >= 0.8 ? HOT : lv >= 0.5 ? MOVES : EASY;
               const m = list2[(bot.k * 3 + Math.floor(b / 8)) % list2.length];
               const a = play(bot, m.clip) ?? play(bot, "Dance");
               if (a) {
@@ -499,6 +524,11 @@ export function Floor3D({
               if (k >= 0 && k < 1) lift = tall * 0.22 * 4 * k * (1 - k);
             }
             bot.root.position.y = bot.base + lift;
+            if (!bot.under && (lift > 0 || bot.tagUp)) {
+              const t2 = el.querySelector<HTMLElement>(`[data-tag="${CSS.escape(s.id)}"]`);
+              if (t2) t2.style.transform = lift > 0 ? `translateY(${(-lift * bot.ppu).toFixed(1)}px)` : "";
+              bot.tagUp = lift > 0;
+            }
             bot.shadow.scale.setScalar(1 - Math.min(0.4, lift / tall));
             bot.mixer.update(dt);
           }
@@ -527,7 +557,9 @@ export function Floor3D({
           stepMat.dispose();
           edgeMat.dispose();
           renderer.dispose();
+          renderer.forceContextLoss();
           renderer.domElement.remove();
+          if (import.meta.env.DEV) delete (window as unknown as { __floor3d?: unknown }).__floor3d;
         };
       } catch {
         if (!gone) {
@@ -559,6 +591,7 @@ export function Floor3D({
         return (
           <div
             key={tg.id}
+            data-tag={tg.id}
             className={`dj-f3-tag ${tg.under ? "is-under" : ""} ${s.on ? "" : "is-away"} ${sings && s.on ? "is-singing" : ""}`}
             style={{
               left: tg.x,

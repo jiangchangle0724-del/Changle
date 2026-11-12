@@ -145,6 +145,8 @@ export function Coach3D({ clock, onReady, onFail }: { clock: Clock; onReady: () 
           cancelAnimationFrame(raf);
           mixer.stopAllAction();
           renderer.dispose();
+          // the graphics context back at once (a phone keeps few)
+          renderer.forceContextLoss();
           renderer.domElement.remove();
         };
         ready.current();

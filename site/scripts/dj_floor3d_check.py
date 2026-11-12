@@ -136,19 +136,23 @@ with sync_playwright() as p:
         seen.add(f3(tv)["bots"][pid["Amy"]]["clip"])
         tv.wait_for_timeout(150)
     ok(len(seen) >= 2, f"the moves change every two bars ({sorted(seen)})")
+    ok(seen <= {"Dance", "Yes", "Wave", "ThumbsUp"}, f"the warm-up's easy ones ({sorted(seen)})")
     tv.screenshot(path=os.path.join(OUT, "floor3d-tv-1-dancing.png"))
 
     # a 🔥 makes its owner jump
     base = f3(tv)["bots"][pid["Ben"]]["base"]
     tall = f3(tv).get("tall", 0)
     ben.locator(".djp-fire").click()
-    top = 0
+    top, tag_up = 0, 0
     end = time.time() + 1.6
     while time.time() < end:
         top = max(top, f3(tv)["bots"][pid["Ben"]]["y"] - base)
+        tag_up = max(tag_up, -tv.evaluate("() => { const t = [...document.querySelectorAll('.dj-f3-tag')].find((x) => x.querySelector('.dj-name')?.textContent === 'Ben'); return t ? new DOMMatrix(getComputedStyle(t).transform).m42 : 0; }"))
         tv.wait_for_timeout(25)
     ok(top > tall * 0.1, f"Ben's 🔥: his robot jumps ({top:.2f} of {tall:.2f})")
+    ok(tag_up > 8, f"his face and name going up with him ({tag_up:.0f} px)")
     ok(abs(f3(tv)["bots"][pid["Ben"]]["y"] - base) < 1e-6, "and lands")
+    ok(tv.evaluate("() => [...document.querySelectorAll('.dj-f3-tag')].every((t) => !t.style.transform)"), "the tag back in its place")
     ok(abs(f3(tv)["bots"][pid["Amy"]]["y"] - f3(tv)["bots"][pid["Amy"]]["base"]) < 1e-6, "Amy's stays put")
 
     # Cat leaves: hers sits down, greyed
@@ -177,8 +181,7 @@ with sync_playwright() as p:
     tv.screenshot(path=os.path.join(OUT, "floor3d-tv-2-singing.png"))
     tv.evaluate("() => window.__yt.end()")
     ok(until(lambda: deck(tv).get("song") is None and not f3(tv).get("singing"), 5000), "the song over: the singing stops")
-    s2 = f3(tv)["bots"]
-    ok(not s2[pid["Amy"]]["mic"] and not s2[pid["Ben"]]["mic"] and tv.locator(".dj-f3-tag.is-singing").count() == 0, "the microphones go, the notes too")
+    ok(until(lambda: not f3(tv)["bots"][pid["Amy"]]["mic"] and not f3(tv)["bots"][pid["Ben"]]["mic"] and tv.locator(".dj-f3-tag.is-singing").count() == 0, 2000), "the microphones go, the notes too")
     ok(until(lambda: all(f3(tv)["bots"][pid[n]]["clip"] in DANCES for n in ("Amy", "Ben")), 15000), "and they dance again when the DJ's back")
 
     # crowded: two rows, the back one on a step
@@ -199,6 +202,17 @@ with sync_playwright() as p:
         tv.wait_for_timeout(200)
     ok(not worst, f"the crowd on the beat too ({worst[:3]})")
     tv.screenshot(path=os.path.join(OUT, "floor3d-tv-3-crowded.png"))
+
+    # the host takes the night to the peak: when the music gets there, the big moves
+    amy.locator(".djp-seg button").nth(2).click()
+    ok(until(lambda: (view(tv) or {}).get("phase") == "peak", 4000), "the host takes the night to the peak")
+    ok(until(lambda: f3(tv).get("level", 0) >= 0.8, 90000, 500), f"the music gets there ({f3(tv).get('level')})")
+    seen = set()
+    end = time.time() + 6
+    while time.time() < end:
+        seen |= {x["clip"] for x in f3(tv)["bots"].values() if not x["away"]}
+        tv.wait_for_timeout(200)
+    ok(seen <= {"Jump", "Dance", "Punch"} and len(seen) >= 2, f"the big moves at the peak ({sorted(seen)})")
 
     errs = [e for e in tv._errs + [x for ph in [amy, ben] + more for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not errs, f"no errors {errs[:3]}")
