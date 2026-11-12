@@ -1,7 +1,7 @@
 import { Crown } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Lineup, type Pose } from "../../components/Figure";
-import { startGroove } from "../../lib/music";
+import { useLimboMusic } from "./music";
 import { sfx } from "../../lib/sfx";
 import { useCue, useReached, useRoom } from "../../online/RoomContext";
 import { SeatFace } from "../../online/People";
@@ -36,14 +36,9 @@ export default function TvLimbo({ v, sound }: TvViewProps<LimboView>) {
     if (v.phase === "go") inRound.current = v.alive;
   }, [v.phase, v.alive]);
 
-  // the calypso, level after level, on the same beat as the phones (on the screen that plays the show)
+  // the calypso, level after level and a gear up each bar, on the same grid as the phones (on the screen that plays the show)
   const playing = sound && v.musicAt > 0 && (v.phase === "go" || v.phase === "result");
-  useEffect(() => {
-    if (!playing) return;
-    const h = startGroove("calypso", { startPerf: perfAt(v.musicAt, now()) });
-    return () => h?.stop(0.4);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, v.musicAt]);
+  useLimboMusic(playing, v.level, () => perfAt(v.musicAt, now()));
   const lastCount = useRef(0);
   useEffect(() => {
     if (sound && v.phase === "go" && !open && count > 0 && count !== lastCount.current) sfx.countdown(count);

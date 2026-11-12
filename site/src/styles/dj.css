@@ -339,8 +339,10 @@
   font-weight: 900;
   letter-spacing: 0.06em;
 }
+/* (below the decks' panel at its tallest: a song on the air and 点歌模式's line, nobody at the table
+   yet, as on a shared phone) */
 .dj-join.is-big {
-  top: 252px;
+  top: 300px;
   right: 50%;
   flex-direction: column;
   gap: 18px;
@@ -348,8 +350,8 @@
   translate: 50% 0;
 }
 .dj-join.is-big .dj-join-qr {
-  width: 236px;
-  height: 236px;
+  width: 196px;
+  height: 196px;
   padding: 20px;
   border-radius: 26px;
   box-shadow: 0 0 0 8px color-mix(in oklab, var(--gel) 45%, transparent);
@@ -421,6 +423,210 @@
   opacity: 0.42;
   filter: grayscale(0.7);
 }
+/* the shared phone (SharedPhone.tsx): its 点歌 button in the page's own pixels (a phone's stage is
+   drawn at under half size), at the right edge between the code to scan and the song's corner (on a
+   phone sideways, in the band beside the stage) */
+.dj-share-btn {
+  position: fixed;
+  top: 27%;
+  right: max(var(--space-3), env(safe-area-inset-right));
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: calc(var(--tap-crowded) + var(--space-4));
+  min-height: calc(var(--tap-crowded) + var(--space-4));
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--gel);
+  color: var(--on-gel);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  box-shadow: var(--shadow-float);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.dj-share-btn:focus-visible {
+  outline: 3px solid var(--color-text);
+  outline-offset: 3px;
+}
+.dj-share-n {
+  position: absolute;
+  top: calc(var(--space-2) * -1);
+  right: calc(var(--space-2) * -1);
+  display: grid;
+  place-items: center;
+  min-width: var(--space-6);
+  height: var(--space-6);
+  padding: 0 var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--on-gel);
+  font-size: var(--text-sm);
+}
+/* the song box in the shared phone's sheet: the phones' own (dj-deck.css), the sheet titled 点歌 */
+.dj-share .djk-req-title {
+  display: none;
+}
+/* held upright: turn it sideways (the TV shows the phone as it's held) */
+.dj-turn {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-6);
+  background: var(--color-bg);
+  color: var(--color-text);
+  text-align: center;
+}
+.dj-turn-phone {
+  color: var(--gel);
+  animation: dj-turn calc(var(--dur-emphasis) * 6) var(--ease-out) infinite;
+}
+@keyframes dj-turn {
+  0%,
+  20% {
+    transform: rotate(0deg);
+  }
+  55%,
+  100% {
+    transform: rotate(-90deg);
+  }
+}
+.dj-turn-title {
+  margin: 0;
+  font: 800 var(--text-2xl) / var(--leading-tight) var(--font-display);
+}
+.dj-turn-text {
+  max-width: 30em;
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dj-turn-phone {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
+/* the floor in 3D (Floor3D.tsx): the robots drawn between the coach and the song's corner, low on
+   the stage as the drawn floor; each one's face and name over its head (a crowded floor's front
+   row: under its feet, the back row standing over their heads) */
+.dj-floor3d {
+  position: absolute;
+  left: 350px;
+  bottom: 118px;
+  z-index: 4;
+  width: 780px;
+  height: 470px;
+  pointer-events: none;
+}
+.dj-floor3d canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.dj-floor3d.is-hidden {
+  visibility: hidden;
+}
+.dj-f3-tag {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  translate: -50% -100%;
+}
+.dj-f3-tag .dj-name {
+  margin-top: 0;
+}
+.dj-f3-tag.is-away {
+  opacity: 0.5;
+}
+/* a crowded floor's front row: the tag under its feet, its flames and notes still from the head */
+.dj-f3-tag.is-under {
+  translate: -50% 0;
+}
+.dj-f3-tag.is-under .dj-flame {
+  bottom: calc(100% + var(--up) - 6px);
+}
+.dj-stage.is-end .dj-floor3d {
+  opacity: 0.4;
+}
+/* singing along to a whole song: notes going up from each of them, in their colour, as far as
+   they're tall */
+.dj-f3-tag.is-singing::before,
+.dj-f3-tag.is-singing::after {
+  content: "♪";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  color: var(--tc);
+  font-size: calc(var(--fig-h) * 0.15);
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0;
+  animation: dj-note calc(var(--dur-emphasis) * 6) var(--ease-out) infinite;
+  animation-delay: calc(var(--k, 0) * var(--dur-emphasis) * -0.9);
+  pointer-events: none;
+}
+.dj-f3-tag.is-singing::after {
+  content: "♫";
+  animation-name: dj-note-2;
+  animation-delay: calc(var(--k, 0) * var(--dur-emphasis) * -0.9 - var(--dur-emphasis) * 3);
+}
+.dj-f3-tag.is-under.is-singing::before,
+.dj-f3-tag.is-under.is-singing::after {
+  bottom: calc(100% + var(--up));
+}
+@keyframes dj-note {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) rotate(-8deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--fig-h) * 0.12), calc(var(--fig-h) * -0.32)) rotate(14deg);
+  }
+}
+@keyframes dj-note-2 {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) rotate(8deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% - var(--fig-h) * 0.12), calc(var(--fig-h) * -0.32)) rotate(-14deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* still there, standing still */
+  .dj-f3-tag.is-singing::before,
+  .dj-f3-tag.is-singing::after {
+    animation: none;
+    opacity: 0.85;
+    transform: translate(calc(-50% + var(--fig-h) * 0.07), 0);
+  }
+  .dj-f3-tag.is-singing::after {
+    transform: translate(calc(-50% - var(--fig-h) * 0.07), calc(var(--fig-h) * -0.14));
+  }
+}
 /* 跟着跳: how well each dancer follows the coach, under their name; lit while they keep it up */
 .dj-dance-meter {
   width: calc(var(--fig-h) * 0.5);
@@ -444,59 +650,73 @@
   box-shadow: 0 0 12px var(--gel-lemon);
 }
 
-/* 真歌时间: a whole song from YouTube, in YouTube's own player: ready in a corner while it's up next
-   (top right, under the code to scan), big in the middle of the stage from its drop's bar. One
-   player all night: out of sight between songs (paused, never playing), never moved out of the page
-   (an iframe moved in the page loads again) */
+/* 真歌时间: a whole song from YouTube, in YouTube's own player, in a corner (top right, under the
+   code to scan): ready there while it's up next, and playing there, the floor and the coach in
+   sight (Steve on Nov 5: "不全屏的时候...只保持现在的位置大小"); over the whole TV when someone
+   asks from their phone. One player all night: out of sight between songs (paused, never playing),
+   never moved out of the page (an iframe moved in the page loads again) */
 .dj-tube {
   position: absolute;
-  top: 250px;
-  left: 350px;
+  top: 330px;
+  left: 1120px;
   z-index: 11;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 900px;
-  padding: 16px 18px 14px;
-  border-radius: 28px;
-  background: rgba(10, 6, 18, 0.94);
-  box-shadow:
-    inset 0 0 0 1px var(--line-soft),
-    0 30px 70px rgba(0, 0, 0, 0.6);
-  transition:
-    top var(--dur-emphasis) var(--ease-out),
-    left var(--dur-emphasis) var(--ease-out),
-    width var(--dur-emphasis) var(--ease-out);
-}
-.dj-tube.is-next,
-.dj-tube.is-off {
-  top: 330px;
-  left: 1120px;
-  width: 440px;
   gap: var(--space-2);
+  width: 440px;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--r-panel);
+  background: rgba(10, 6, 18, 0.94);
   box-shadow:
     var(--shadow-flat),
     0 0 0 3px color-mix(in oklab, var(--gel) 40%, transparent),
     var(--shadow-float);
+  transition:
+    top var(--dur-emphasis) var(--ease-out),
+    left var(--dur-emphasis) var(--ease-out),
+    width var(--dur-emphasis) var(--ease-out),
+    padding var(--dur-emphasis) var(--ease-out),
+    border-radius var(--dur-emphasis) var(--ease-out);
 }
 .dj-tube.is-off {
   visibility: hidden;
   pointer-events: none;
   transition: none;
 }
+/* the song over the whole TV (the stage is 16 by 9, like the video); a tap it wants still says so */
+.dj-tube.is-full {
+  top: 0;
+  left: 0;
+  z-index: 40;
+  gap: 0;
+  width: 1600px;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.dj-tube.is-full .dj-tube-head,
+.dj-tube.is-full .dj-tube-note:not(.is-ask) {
+  display: none;
+}
+.dj-tube.is-full .dj-tube-slot {
+  border-radius: 0;
+}
+.dj-tube.is-full .dj-tube-note.is-ask {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  transform: translateX(-50%);
+}
 .dj-tube-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   color: var(--moon);
-  font-size: 24px;
-  font-weight: 800;
-}
-.dj-tube.is-next .dj-tube-head,
-.dj-tube.is-off .dj-tube-head {
   font-size: var(--text-lg);
+  font-weight: 800;
 }
 .dj-tube-slot {
   position: relative;
@@ -650,6 +870,8 @@
   display: grid;
   place-items: center;
   height: 100%;
+  /* one line, never a second one cut off under the bar */
+  white-space: nowrap;
   color: var(--moon);
   font-size: 14px;
   font-weight: 800;

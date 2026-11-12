@@ -1,5 +1,11 @@
 # C1: the card bank to 300
 
+**Done 2026-11-05:** 300 cards, every pack 17 or more (written by Claude's helpers with sources,
+PR after the online one). Kept for the rules: the next cards follow the same ones.
+**2026-11-11 (upgrade 8):** 400 cards. Four new packs of 25 (Steve chose new packs): yueyu 粤语俚语
+and hangdang 老行当 for Chinese tables, animals 动物冷知识 for any table, oldjobs for English tables;
+each with its icon. The list below is the 17 packs of 2026-11-05; `PACKS` has all 21.
+
 **Files:** `site/src/data/straightface.ts` only (the `CARDS` array; `PACKS`, `PACK_NAMES` and
 `PACK_AUDIENCE` stay). A new pack also needs a picture in `site/src/party/straightface/art/packs/`
 (ask Steve; see `art/README.md`), so new cards go into the packs that exist.

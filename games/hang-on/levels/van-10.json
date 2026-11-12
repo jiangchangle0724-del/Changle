@@ -1,0 +1,93 @@
+{
+  "id": "van-10",
+  "world": "van",
+  "name": {
+    "zh": "狮门抛接力",
+    "en": "Lions Gate Toss"
+  },
+  "teaches": "throw",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 536
+  },
+  "goal": {
+    "x": 2400,
+    "y": 80,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1275,
+      "y": 402
+    },
+    {
+      "x": 2140,
+      "y": 296
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 520,
+      "h": 160,
+      "material": "metal",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 680,
+      "y": 480,
+      "w": 1050,
+      "h": 240,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1810,
+      "y": 400,
+      "w": 180,
+      "h": 320,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2080,
+      "y": 320,
+      "w": 180,
+      "h": 400,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2320,
+      "y": 240,
+      "w": 200,
+      "h": 480,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 60,
+      "w": 40,
+      "h": 660,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-10.json",
+  "fading": [],
+  "springs": []
+}

@@ -995,6 +995,10 @@
   color: var(--color-text-2);
   font-size: var(--text-sm);
 }
+/* 点歌模式 or the build-up and DROP: the host's switch, at the top of the deck */
+.djk-juke > button {
+  white-space: nowrap;
+}
 
 /* the host's switch for 报幕 (the big screen saying who a song is from) */
 .djp-voice {
@@ -1377,6 +1381,12 @@
 }
 .dk-meter.is-full {
   box-shadow: 0 0 calc(10px + 30px * var(--pulse)) var(--dk-build);
+}
+/* 点歌模式: no build-up, the mode's name in its place */
+.dk-meter.is-juke {
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--moon);
 }
 
 .dk-chips {

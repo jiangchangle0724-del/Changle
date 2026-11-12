@@ -8,12 +8,13 @@ import { sfx } from "../../lib/sfx";
 import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
 import type { SeatView, TuneView } from "../../shared/protocol";
-import { CATS, parsePool, SOURCES } from "../../shared/songs";
+import { CATS, ERAS, parsePool, SOURCES } from "../../shared/songs";
 import { Bi, FacesIn, RoundTag, TvBoard, TvClock, TvPodium, TvShow, useArrivals, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
 import { perfAt } from "../sensors";
 import { tuneCrew, type Mate, type MateState } from "./crew";
-import { clipSeconds, CoverLabel, playClip, stageNow, startSong, tuneChoice, useSongAudio, Vinyl, type QuizChoice } from "./parts";
+import { clipSeconds, CoverLabel, playClip, playSnippets, stageNow, startSong, tuneChoice, useSnippetOn, useSongAudio, Vinyl, type QuizChoice } from "./parts";
+import { specialBy, specialName } from "./specials";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import "../../styles/party.css";
 import "../../styles/tv-tune.css";
@@ -54,12 +55,18 @@ export default function TvTune({ v, sound }: TvViewProps<TuneView>) {
   useEffect(() => () => forgetPreviews(), []);
   const canPlay = audio.status === "ready" || audio.status === "failed";
   const beats = useMemo(() => (audio.url && audio.buf ? beatsFor(audio.url, audio.buf) : null), [audio.url, audio.buf]);
+  const snapKey = v.snap ? `${v.stageAt.join(",")}|${v.endsAt}|${v.hook}` : "";
   useEffect(() => {
     if (!songs || v.phase !== "listen" || !canPlay) return;
+    if (v.snap) {
+      // one second: the same snippets as every phone, from the same spot at the same moments
+      const hs = playSnippets(audio, v.stageAt, v.endsAt, v.hook, now());
+      return () => hs.forEach((h) => h?.stop(0.08));
+    }
     const h = startSong(audio, { startPerf: perfAt(v.startAt, now()), offset: 0 });
     return () => h?.stop(0.12);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songs, v.phase, canPlay, audio.url, v.startAt]);
+  }, [songs, v.phase, canPlay, audio.url, v.startAt, snapKey]);
   // at the reveal the song plays on from where it stopped
   useEffect(() => {
     if (!songs || v.phase !== "reveal" || !canPlay) return;
@@ -162,14 +169,22 @@ export default function TvTune({ v, sound }: TvViewProps<TuneView>) {
       <TvClock key={`a${v.round}-${v.buzzer}`} endsAt={v.answerEndsAt} total={djMode ? DJ_ANSWER_MS : ANSWER_MS} sound={sound} />
     ) : null;
 
+  // one second: the stage moves while a snippet plays, from the hook on
+  const snipOn = useSnippetOn(songs && v.snap && v.phase === "listen", v.stageAt, v.endsAt, now);
+  const snapTiming = useMemo<StageTiming | null>(
+    () => (songs && v.snap && v.phase === "listen" && v.stageAt.length ? { startPerf: perfAt(v.stageAt[Math.min(stage, v.stageAt.length - 1)], now()), offset: v.hook / 1000 } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [songs, v.snap, v.phase, stageKey, stage, v.hook],
+  );
+  const hearing = v.phase === "listen" && (songs && v.snap ? snipOn : started);
   const record = (
     <Vinyl
-      spinning={(v.phase === "listen" && started) || (v.phase === "reveal" && songs)}
+      spinning={hearing || (v.phase === "reveal" && songs)}
       label={v.phase === "reveal" && songs && v.song ? <CoverLabel art={v.song.art} /> : v.phase === "ready" || v.phase === "end" ? <Music size={54} strokeWidth={2.2} /> : djMode ? "DJ" : "?"}
     />
   );
-  const timing = songs ? songTiming : melodyTiming;
-  const playing = (v.phase === "listen" && started) || (v.phase === "reveal" && songs && !!v.song);
+  const timing = songs ? (snapTiming ?? songTiming) : melodyTiming;
+  const playing = hearing || (v.phase === "reveal" && songs && !!v.song);
 
   if (v.phase === "end")
     return (
@@ -234,6 +249,9 @@ function Ready({ v }: { v: TuneView }) {
   const pool = parsePool(v.pool);
   const langs = pool ? SOURCES.filter((x) => pool.srcs.includes(x.key)).map((x) => (zh ? x.zh : x.en)) : [];
   const cats = pool ? CATS.filter((c) => pool.cats.includes(c.key)).map((c) => (zh ? c.zh : c.en)) : [];
+  const eras = pool ? ERAS.filter((e) => pool.eras.includes(e.key)).map((e) => (zh ? e.zh : e.en)) : [];
+  const special = pool?.singer ? specialBy(pool.singer) : null;
+  const singer = pool?.singer ? (special ? specialName(special, zh) : pool.singer) : "";
   const Icon = v.mode === "songs" ? Radio : v.mode === "melody" ? Music : Disc3;
   return (
     <div className="tvt-ready">
@@ -243,9 +261,13 @@ function Ready({ v }: { v: TuneView }) {
           <Icon size={28} strokeWidth={2.4} />
           {v.mode === "songs" ? (zh ? "真歌" : "Real songs") : v.mode === "melody" ? (zh ? "旋律" : "Melodies") : "DJ"}
         </li>
-        {v.mode === "songs" && langs.length > 0 && <li>{langs.join(zh ? "、" : ", ")}</li>}
-        {v.mode === "songs" && <li>{cats.length ? cats.join(zh ? "、" : ", ") : zh ? "所有类别" : "Every kind"}</li>}
+        {v.mode === "songs" && singer && <li>{zh ? `歌手专场：${singer}` : `One singer: ${singer}`}</li>}
+        {v.mode === "songs" && !singer && langs.length > 0 && <li>{langs.join(zh ? "、" : ", ")}</li>}
+        {v.mode === "songs" && !singer && <li>{cats.length ? cats.join(zh ? "、" : ", ") : zh ? "所有类别" : "Every kind"}</li>}
+        {v.mode === "songs" && !singer && eras.length > 0 && <li>{eras.join(zh ? "、" : ", ")}</li>}
         {v.mode !== "dj" && <li>{v.quiz ? (zh ? "选择题" : "Multiple choice") : zh ? "抢答" : "Buzz in"}</li>}
+        {v.mode === "songs" && v.hard && !singer && <li>{zh ? "难：只写歌名" : "Hard: titles only"}</li>}
+        {v.mode === "songs" && v.snap && <li>{zh ? "一秒猜歌" : "One second"}</li>}
         <li className="tabular">{zh ? `${v.total} 首` : `${v.total} songs`}</li>
       </ul>
       <p className="tvt-note">
@@ -345,7 +367,7 @@ function Titles({ choices, answer }: { choices: QuizChoice[]; answer: number | n
           </span>
           <span className="tvt-title-text">
             <strong>{c.t}</strong>
-            <small>{zh ? c.a : c.ae}</small>
+            {(zh ? c.a : c.ae) && <small>{zh ? c.a : c.ae}</small>}
           </span>
         </li>
       ))}

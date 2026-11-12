@@ -1,5 +1,7 @@
 # 任务卡 C2 · 动作片段流水线（一起跳）
 
+> **暂时用不上（2026-11-05 晚上）**：3D 老师现在是代码写的动画（`games/party-server/src/client/coach/`），不用动捕片段。以后要换真人动捕或者 AI 生成的角色时再看这张卡。
+
 **负责**：Codex　**审查**：Claude Code（「游戏 · 一起跳」对话）　**分支**：`codex/dance-c2-clips`
 
 （11-05 重写。旧卡写着和打碟共用、要改 `moves.json` 的 `native_bpm`、文件放哪没写清，都改了。打碟有自己的卡 `docs/codex-tasks/dj/C2-asset-pipeline.md`。）

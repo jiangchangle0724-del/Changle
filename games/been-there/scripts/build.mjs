@@ -3,9 +3,20 @@
 //   node scripts/build.mjs           build once
 //   node scripts/build.mjs --watch   rebuild on change
 import * as esbuild from "esbuild";
+import { execSync } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile, copyFile, rm } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
+// The commit the pages are built from, for their error reports (src/client/report.ts): Cloudflare's
+// builds say which, a computer asks git, and without either it's "dev".
+const commit = () => {
+  try {
+    return execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+};
+const BUILD = (process.env.WORKERS_CI_COMMIT_SHA || commit() || "dev").slice(0, 7);
 // Everything the worker serves sits under /trip, so the files do too (dist/client is the root).
 const out = "dist/client/trip";
 await rm("dist/client", { recursive: true, force: true });
@@ -20,6 +31,7 @@ const common = {
   jsxImportSource: "preact",
   legalComments: "none",
   logLevel: "info",
+  define: { __BUILD__: JSON.stringify(BUILD) },
 };
 
 // globe.js (three.js) is its own file: only the big screen loads it.
@@ -37,10 +49,11 @@ const appCss = async () =>
 await mkdir(`${out}/fonts`, { recursive: true });
 for (const f of FONT_FILES) await copyFile(`src/client/fonts/${f}`, `${out}/fonts/${f}`);
 await writeFile(`${out}/app.css`, await appCss());
-// The city photos and recordings (credited in src/client/media.ts), and the satellite map's pictures
-// (scripts/satellite.mjs, credited on the credits page). Pages fetch them when they're needed, so they
-// ship as files beside the game and stay out of the single-file pages.
-for (const kind of ["photos", "sounds", "map"]) {
+// The city photos and recordings (credited in src/client/media.ts), the satellite map's pictures
+// (scripts/satellite.mjs, credited on the credits page) and the game's music (scripts/music.mjs).
+// Pages fetch them when they're needed, so they ship as files beside the game and stay out of the
+// single-file pages.
+for (const kind of ["photos", "sounds", "map", "music"]) {
   await mkdir(`${out}/${kind}`, { recursive: true });
   for (const f of await readdir(`src/client/media/${kind}`)) if (!f.startsWith(".")) await copyFile(`src/client/media/${kind}/${f}`, `${out}/${kind}/${f}`);
 }
@@ -83,6 +96,8 @@ const THIRD_PARTY = [
   ["ZCOOL QingKe HuangYou", "https://fonts.google.com/specimen/ZCOOL+QingKe+HuangYou", "src/client/fonts/licences/ZCOOLQingKeHuangYou-OFL.txt"],
   ["Big Shoulders Display", "https://fonts.google.com/specimen/Big+Shoulders+Display", "src/client/fonts/licences/BigShouldersDisplay-OFL.txt"],
   ["Space Mono", "https://fonts.google.com/specimen/Space+Mono", "src/client/fonts/licences/SpaceMono-OFL.txt"],
+  // The instruments the game's music (music/*.mp3, scripts/music.mjs) was played with.
+  ["GeneralUser GS v2.0.3 by S. Christian Collins (the instruments of the game's music, music/*.mp3)", "https://www.schristiancollins.com/generaluser", "scripts/music/GeneralUser-GS-LICENSE.txt"],
 ];
 async function licences() {
   const parts = [];

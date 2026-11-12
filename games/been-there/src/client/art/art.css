@@ -18,7 +18,21 @@
   --corner-disc: #f1e6cf;
   --corner-ink: #1c2238;
   --house: #5fc48a;
+  --house-side: #3f9a68;
+  --house-roof: #2c6e4c;
+  --house-roof-side: #22583c;
   --hotel: #ff8a6b;
+  --hotel-side: #cf6249;
+  --hotel-top: #9e4636;
+  --window: #ffe08a;
+  /* 世界大动荡 (art/RoundBoard.tsx WorldMoment, ui/World.tsx): printed inks for bad news and good, and
+     what plays over the map: the cordon's blue, the circuits' cyan, the meteor's fire, a crater. */
+  --world-bad: #c8412c;
+  --world-good: #217a52;
+  --world-lock: #6fb2ff;
+  --world-ai: #4fe3ff;
+  --world-fire: #ffb35c;
+  --crater: #090c18;
   --active: #ff8a6b;
   --passport: #f3e8cf;
   --passport-cover: #13263d;
@@ -267,6 +281,559 @@
     transform: scale(1);
   }
 }
+/* ---------- the buildings (art/RoundBoard.tsx Buildings): little models standing up on the board ----------
+   A front, a side in shade and a roof; a hotel's sign carries the city's own picture. A new one rises
+   from its foot (houses one after another, a hotel floor by floor) in a puff of dust. */
+.roundboard .bldg .b-front {
+  fill: var(--house);
+  stroke: var(--board-rim);
+  stroke-width: 0.7;
+}
+.roundboard .bldg .b-side {
+  fill: var(--house-side);
+}
+.roundboard .bldg .b-roof {
+  fill: var(--house-roof);
+  stroke: var(--board-rim);
+  stroke-width: 0.7;
+}
+.roundboard .bldg .b-roof-side {
+  fill: var(--house-roof-side);
+}
+.roundboard .bldg .b-door {
+  fill: var(--board-paper);
+}
+.roundboard .bldg.hotel .b-front {
+  fill: var(--hotel);
+}
+.roundboard .bldg.hotel .b-side {
+  fill: var(--hotel-side);
+}
+.roundboard .bldg .b-top {
+  fill: var(--hotel-top);
+}
+.roundboard .bldg .b-win {
+  fill: var(--window);
+}
+.roundboard .bldg .b-sign rect {
+  fill: var(--print-paper);
+  stroke: var(--board-rim);
+  stroke-width: 1.2;
+}
+.roundboard .bldg .b-sign {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.roundboard .b-new {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: b-rise 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--i, 0) * 0.16s) both;
+}
+@keyframes b-rise {
+  0% {
+    transform: scale(1, 0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1, 1.14);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+.roundboard .b-dust ellipse {
+  fill: var(--board-ink-2);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: b-dust 0.7s ease-out 0.12s both;
+}
+.roundboard .b-dust .l {
+  --dx: -8px;
+}
+.roundboard .b-dust .r {
+  --dx: 8px;
+}
+@keyframes b-dust {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--dx)) scale(1.6);
+  }
+}
+/* Life between moves (RoundBoard's beat, one thing at a time): a hotel's sign swings and its windows
+   blink; a city's owner mark gives a little bounce; a token looks round or bobs. */
+.roundboard .bldg.hotel[data-glint] .b-sign {
+  animation: b-swing 1.4s ease-in-out;
+}
+@keyframes b-swing {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: translateY(-2px) rotate(-7deg);
+  }
+  62% {
+    transform: translateY(-1px) rotate(5deg);
+  }
+}
+.roundboard .bldg.hotel[data-glint] .b-win {
+  animation: b-blink 1.4s steps(1);
+}
+@keyframes b-blink {
+  25%,
+  60% {
+    opacity: 0.35;
+  }
+  40%,
+  80% {
+    opacity: 1;
+  }
+}
+.roundboard .owned .om {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.roundboard .owned[data-glint] .om {
+  animation: om-bounce 0.9s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes om-bounce {
+  0%,
+  100% {
+    transform: none;
+  }
+  35% {
+    transform: scale(1.16);
+  }
+  60% {
+    transform: scale(0.96);
+  }
+}
+.roundboard .token:not(.now) > .hop {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.roundboard .token:not(.now) > .hop[data-idle="bob"] {
+  animation: idle-bob 1.3s ease-in-out;
+}
+.roundboard .token:not(.now) > .hop[data-idle="look"] {
+  animation: idle-look 1.3s ease-in-out;
+}
+@keyframes idle-bob {
+  0%,
+  100% {
+    transform: none;
+  }
+  28% {
+    transform: scale(1.05, 0.93);
+  }
+  55% {
+    transform: translateY(-8px) scale(0.97, 1.04);
+  }
+  78% {
+    transform: none;
+  }
+}
+@keyframes idle-look {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: rotate(-8deg);
+  }
+  66% {
+    transform: rotate(6deg);
+  }
+}
+/* A city bought: sparks fly out of its owner mark as it stamps down (after the stamp's ring). */
+.roundboard .burst .spark {
+  fill: var(--c);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spark 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both;
+}
+@keyframes spark {
+  0% {
+    opacity: 1;
+    transform: translateY(-14px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-46px) scale(0.2);
+  }
+}
+/* A city sold at auction (成交), a team gone broke (破产): a stamp on the space for a moment. */
+.roundboard .fx-stamp {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-stamp 1.8s cubic-bezier(0.5, 0, 0.6, 1.5) both;
+}
+.roundboard .fx-stamp rect {
+  fill: var(--board-paper);
+  stroke: var(--c);
+  stroke-width: 3.5;
+}
+.roundboard .fx-stamp text {
+  fill: var(--c);
+  font: 800 24px var(--display-zh);
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+}
+@keyframes fx-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(-8deg) scale(2.2);
+  }
+  16% {
+    opacity: 1;
+    transform: rotate(-8deg) scale(0.92);
+  }
+  24%,
+  82% {
+    opacity: 1;
+    transform: rotate(-8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(-8deg);
+  }
+}
+
+/* ---------- 世界大动荡 on the board (RoundBoard WorldMoment): about three seconds over the map, or on its city ---------- */
+.roundboard .wf {
+  pointer-events: none;
+}
+/* (only what animates turns or grows about its own middle: a group placed with a transform attribute
+   keeps the board's origin, or a rotate would turn it about its own middle too) */
+.roundboard .wf-big,
+.roundboard .wf-veil,
+.roundboard .wf-burst,
+.roundboard .wf-node,
+.roundboard .wf-core,
+.roundboard .wf-sonic,
+.roundboard .wf-ring,
+.roundboard .wf-flash,
+.roundboard .wf-shock,
+.roundboard .wf-debris {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.roundboard .wf-big {
+  fill: var(--board-ink);
+  font: 800 92px var(--display);
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--board-rim);
+  stroke-width: 10px;
+  animation: wf-big 2.8s cubic-bezier(0.2, 1.2, 0.4, 1) 0.4s both;
+}
+@keyframes wf-big {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  18%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+/* The crisis: the map goes dark and a chart falls across it. */
+.roundboard .wf-veil {
+  fill: var(--night-shade);
+  animation: wf-veil 3.4s ease both;
+}
+@keyframes wf-veil {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  20%,
+  75% {
+    opacity: 0.5;
+  }
+}
+.roundboard .wf-line {
+  fill: none;
+  stroke: var(--world-bad);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation:
+    wf-draw 1.3s ease-in 0.2s forwards,
+    wf-out 0.6s ease 2.8s forwards;
+}
+.roundboard .wf-head {
+  animation-delay: 1.45s, 2.8s;
+  animation-duration: 0.25s, 0.6s;
+}
+.roundboard .wf-crash .wf-big {
+  fill: var(--world-bad);
+}
+@keyframes wf-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes wf-out {
+  to {
+    opacity: 0;
+  }
+}
+/* The boom: three fireworks, one after another. */
+.roundboard .wf-burst line {
+  stroke: var(--coin-hi);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+.roundboard .wf-burst line:nth-child(even) {
+  stroke: var(--active);
+}
+.roundboard .wf-burst {
+  opacity: 0;
+  animation: wf-burst 1.4s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s) both;
+}
+/* (each of these starts unseen: while it waits for its turn, its first keyframe is what shows) */
+@keyframes wf-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  4%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+.roundboard .wf-boom .wf-big {
+  fill: var(--coin-hi);
+}
+/* The AI: circuits spread out from the middle and light their ends. */
+.roundboard .wf-trace {
+  fill: none;
+  stroke: var(--world-ai);
+  stroke-width: 5;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation:
+    wf-draw 1s ease-out var(--d, 0s) forwards,
+    wf-out 0.7s ease 2.7s forwards;
+}
+.roundboard .wf-node,
+.roundboard .wf-core {
+  fill: var(--world-ai);
+  opacity: 0;
+  animation: wf-node 2.6s ease var(--d, 0.2s) both;
+}
+.roundboard .wf-core {
+  fill: none;
+  stroke: var(--world-ai);
+  stroke-width: 6;
+}
+@keyframes wf-node {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  15%,
+  70% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.roundboard .wf-ai .wf-big {
+  fill: var(--world-ai);
+}
+/* The supersonic airliner: across the map, its contrail behind it, a sonic boom on the way. */
+.roundboard .wf-contrail {
+  stroke: var(--board-ink);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.85;
+  animation:
+    wf-draw 1.6s linear forwards,
+    wf-out 0.8s ease 2.4s forwards;
+}
+.roundboard .wf-plane {
+  fill: var(--board-ink);
+  transform-box: view-box;
+  animation: wf-plane 1.6s linear both;
+}
+@keyframes wf-plane {
+  from {
+    transform: translateX(-470px);
+  }
+  to {
+    transform: translateX(470px);
+  }
+}
+.roundboard .wf-sonic {
+  fill: none;
+  stroke: var(--board-ink);
+  stroke-width: 4;
+  opacity: 0;
+  animation: wf-ring 1s ease-out 0.8s both;
+}
+@keyframes wf-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  6% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+/* A city locked down: slow blue rings round it (one a little over every half second: well under three a second). */
+.roundboard .wf-ring {
+  fill: none;
+  stroke: var(--world-lock);
+  stroke-width: 10;
+  opacity: 0;
+  animation: wf-ring 1.6s ease-out var(--d, 0s) both;
+}
+/* A meteor: in over the rim, onto its city; one flash, a shock wave, debris. */
+.roundboard .wf-fly {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  animation: wf-fly 1s cubic-bezier(0.45, 0, 0.85, 0.75) both;
+}
+@keyframes wf-fly {
+  0% {
+    transform: translateX(var(--l));
+  }
+  99% {
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 0;
+  }
+}
+.roundboard .wf-rock {
+  fill: var(--world-fire);
+  stroke: var(--coin-hi);
+  stroke-width: 4;
+}
+.roundboard .wf-tail {
+  stroke: var(--world-fire);
+  stroke-width: 22;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+.roundboard .wf-tail-in {
+  stroke: var(--coin-hi);
+  stroke-width: 9;
+  opacity: 0.8;
+}
+.roundboard .wf-flash {
+  fill: var(--coin-hi);
+  opacity: 0;
+  animation: wf-flash 0.5s ease-out 1s both;
+}
+@keyframes wf-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  8% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+.roundboard .wf-shock {
+  fill: none;
+  stroke: var(--world-fire);
+  stroke-width: 6;
+  opacity: 0;
+  animation: wf-ring 0.9s ease-out 1.02s both;
+}
+.roundboard .wf-debris {
+  fill: var(--board-ink-2);
+  opacity: 0;
+  animation: wf-debris 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.02s both;
+}
+@keyframes wf-debris {
+  0% {
+    opacity: 0;
+    transform: none;
+  }
+  5% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-64px);
+  }
+}
+/* While it lasts: the city it struck wears a tag, and a meteor's crater is where its buildings stood. */
+.roundboard .world-tag rect {
+  stroke: var(--board-paper);
+  stroke-width: 2.5;
+}
+.roundboard .world-tag text {
+  fill: var(--print-paper);
+  font: 800 17px var(--display-zh);
+  letter-spacing: 0.06em;
+  text-anchor: middle;
+}
+.roundboard .wt-meteor rect {
+  fill: var(--world-bad);
+}
+.roundboard .wt-terror rect {
+  fill: var(--world-lock);
+}
+.roundboard .wt-terror text {
+  fill: var(--print-ink);
+}
+.roundboard .world-tag,
+.roundboard .crater {
+  animation: wf-mark 0.4s ease 1.1s both;
+}
+.roundboard .crater ellipse {
+  fill: var(--crater);
+  stroke: var(--board-line);
+  stroke-width: 3;
+}
+.roundboard .crater .crater-in {
+  fill: var(--night-shade);
+  stroke: none;
+}
+@keyframes wf-mark {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
 /* A city just bought: its owner's mark stamps down and the ink spreads out round it. */
 .roundboard .stamp-in {
   transform-box: fill-box;
@@ -411,15 +978,29 @@
   .roundboard .pop,
   .roundboard .stamp-in,
   .roundboard .react,
+  .roundboard .b-new,
+  .roundboard .fx-stamp,
+  .roundboard .world-tag,
+  .roundboard .crater,
   .stamp.fresh {
     animation: none;
   }
-  .roundboard .stamp-ring {
+  .roundboard .stamp-ring,
+  .roundboard .b-dust,
+  .roundboard .burst {
     display: none;
   }
+  .roundboard .fx-stamp {
+    transform: rotate(-8deg);
+  }
 }
-:root[data-reduced="1"] .roundboard .stamp-ring {
+:root[data-reduced="1"] .roundboard .stamp-ring,
+:root[data-reduced="1"] .roundboard .b-dust,
+:root[data-reduced="1"] .roundboard .burst {
   display: none;
+}
+:root[data-reduced="1"] .roundboard .fx-stamp {
+  transform: rotate(-8deg);
 }
 :root.reduced .roundboard .token.now > .hop,
 :root.reduced .stamp.fresh {

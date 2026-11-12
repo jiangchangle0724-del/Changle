@@ -1,34 +1,67 @@
-// From the places nearby to the cuisine chips (round 1) and the candidate cards (round 2).
+// From the places nearby to the cuisine chips (round 1) and the ranked list (round 2, and one
+// person's picks). Only being closed, closing soon and the budget leave a place out (the owner's
+// call, 2026-11-11: everything in range and budget is on the list). Someone's diet and round 1's
+// "no" move a place down, with a line on its card saying why and what can still be ordered.
 import { CUISINES } from "./cuisines";
-import { LAST_ORDER_BEFORE_CLOSE, MIN_MINUTES_BEFORE_CLOSE, RANGES, distanceMeters, vancouverClock } from "./clock";
-import { check } from "./limits";
-import type { Center, CuisineId, Limits, Place, RangeId } from "./types";
+import { LAST_ORDER_BEFORE_CLOSE, MIN_MINUTES_BEFORE_CLOSE, PLANNED_FROM, RANGES, distanceMeters, travelMinutes, vancouverClock } from "./clock";
+import { check, type Concern } from "./limits";
+import { NO_LIMITS, type Center, type CuisineId, type Limits, type Place, type RangeId } from "./types";
 import { estimateWait } from "./wait";
 
-/** Places the whole table can go to now: open, not closing soon, inside everyone's limits. */
-export function eligible(places: Place[], limits: Limits, now: number): Place[] {
+/** The stretch of its opening hours that `at` falls in, if any. */
+const openSpan = (p: Place, at: number) => p.hours?.find(([a, b]) => a <= at && at < b);
+
+/**
+ * Is it open at `at` (now unless a meal is planned)? Now: Google's own "open now". Planned: its
+ * hours for that day. Undefined when we can't tell.
+ */
+export function isOpen(p: Place, now: number, at = now): boolean | undefined {
+  if (at - now < PLANNED_FROM) return p.openNow;
+  return p.hours ? !!openSpan(p, at) : undefined;
+}
+
+/** When it closes after `at`, if we know. */
+export function closingTime(p: Place, now: number, at = now): number | undefined {
+  if (at - now < PLANNED_FROM) return p.closesAt;
+  return openSpan(p, at)?.[1];
+}
+
+/** Places the table can go to at `at` (now unless planned): open, not closing soon, within everyone's budget. */
+export function eligible(places: Place[], limits: Limits, now: number, at = now): Place[] {
   return places.filter((p) => {
-    if (p.openNow === false) return false;
-    if (p.closesAt !== undefined && p.closesAt - now < MIN_MINUTES_BEFORE_CLOSE * 60_000) return false;
+    if (isOpen(p, now, at) === false) return false;
+    const close = closingTime(p, now, at);
+    if (close !== undefined && close - Math.max(at, now) < MIN_MINUTES_BEFORE_CLOSE * 60_000) return false;
     return check(p, limits).ok;
   });
 }
 
-/** Minutes until the kitchen likely stops taking orders, if we know when it closes. */
-export function minutesToLastOrder(p: Place, now: number): number | undefined {
-  if (p.closesAt === undefined) return undefined;
-  return Math.round((p.closesAt - now) / 60_000) - LAST_ORDER_BEFORE_CLOSE;
+/** When the kitchen likely stops taking orders (ms since epoch), if we know when it closes. */
+export function lastOrderAt(p: Place, now: number, at = now): number | undefined {
+  const close = closingTime(p, now, at);
+  return close === undefined ? undefined : close - LAST_ORDER_BEFORE_CLOSE * 60_000;
+}
+
+/** Minutes from `at` until the kitchen likely stops taking orders, if we know when it closes. */
+export function minutesToLastOrder(p: Place, now: number, at = now): number | undefined {
+  const last = lastOrderAt(p, now, at);
+  return last === undefined ? undefined : Math.round((last - Math.max(at, now)) / 60_000);
 }
 
 export const MAX_CHIPS = 12;
 
-/** Round 1: the cuisines actually on offer, most places first. */
-export function chips(places: Place[]): { cuisine: CuisineId; count: number }[] {
+/**
+ * Round 1: the cuisines actually on offer, most places first. Cuisines that someone at the table is
+ * severely allergic to something in come last, so the twelve that fit on screen are ones the table
+ * can eat; their places are still on round 2's list, at the bottom.
+ */
+export function chips(places: Place[], limits?: Limits): { cuisine: CuisineId; count: number }[] {
   const n = new Map<CuisineId, number>();
   for (const p of places) n.set(p.cuisine, (n.get(p.cuisine) ?? 0) + 1);
+  const severe = (c: CuisineId) => (check({ id: "", name: "", cuisine: c, lat: 0, lng: 0 }, limits ?? NO_LIMITS).concerns.some((x) => x.k === "allergy" && x.level === "severe") ? 1 : 0);
   return [...n.entries()]
     .map(([cuisine, count]) => ({ cuisine, count }))
-    .sort((a, b) => b.count - a.count || Object.keys(CUISINES).indexOf(a.cuisine) - Object.keys(CUISINES).indexOf(b.cuisine))
+    .sort((a, b) => severe(a.cuisine) - severe(b.cuisine) || b.count - a.count || Object.keys(CUISINES).indexOf(a.cuisine) - Object.keys(CUISINES).indexOf(b.cuisine))
     .slice(0, MAX_CHIPS);
 }
 
@@ -43,9 +76,15 @@ export const WEIGHTS = {
   closingSoon: 0.2,
   /** Google has no hours for it: maybe open, maybe not, so places known to be open come first. */
   unknownHours: 0.3,
+  /** Steve's own pick (picks.json), and a place on a Greater Vancouver list (lists.json). */
+  recommend: 0.25,
+  badges: 0.15,
+  /** Hardly any Google ratings (fewer than FEW_RATINGS): an unknown, not an average place. */
+  fewRatings: 0.4,
 };
 const PRIOR_RATING = 4.2;
 const PRIOR_COUNT = 80;
+export const FEW_RATINGS = 20;
 
 export interface ScoreContext {
   likes: Partial<Record<CuisineId, number>>;
@@ -53,8 +92,11 @@ export interface ScoreContext {
   center: Center;
   range: RangeId;
   now: number;
+  /** A planned meal (ms since epoch); now when absent. */
+  at?: number;
 }
 
+/** How good a place looks for this table, before anyone's diet or round 1's "no". */
 export function score(p: Place, ctx: ScoreContext): number {
   const n = p.ratings ?? 0;
   const bayes = (PRIOR_COUNT * PRIOR_RATING + n * (p.rating ?? PRIOR_RATING)) / (PRIOR_COUNT + n);
@@ -64,49 +106,138 @@ export function score(p: Place, ctx: ScoreContext): number {
   if (o && total) s += WEIGHTS.ours * Math.min(1, total / 4) * ((o.up + 0.5 * o.mid) / total - 0.5);
   s += WEIGHTS.likes * ((ctx.likes[p.cuisine] ?? 0) / Math.max(1, ctx.members));
   s -= WEIGHTS.distance * Math.min(1.5, distanceMeters(ctx.center, p) / RANGES[ctx.range].meters);
-  s -= WEIGHTS.wait * estimateWait(p, vancouverClock(ctx.now)).level;
-  const last = minutesToLastOrder(p, ctx.now);
+  const at = ctx.at ?? ctx.now;
+  s -= WEIGHTS.wait * estimateWait(p, vancouverClock(at)).level;
+  const last = minutesToLastOrder(p, ctx.now, at);
   if (last !== undefined && last < 60) s -= WEIGHTS.closingSoon;
-  if (p.openNow === undefined) s -= WEIGHTS.unknownHours;
+  if (isOpen(p, ctx.now, at) === undefined) s -= WEIGHTS.unknownHours;
+  if (p.recommend) s += WEIGHTS.recommend;
+  if (p.badges?.length) s += WEIGHTS.badges;
+  if (n < FEW_RATINGS && !p.recommend) s -= WEIGHTS.fewRatings;
   return s;
 }
 
-export const CARD_COUNT = 6;
-export const MAX_PER_CUISINE = 2;
+/**
+ * How far each reason moves a place down, in score points: from 3.5 to 5 Google stars is 1 point,
+ * so a star is about 0.67. Nothing here leaves a place out. A severe allergy isn't a number: those
+ * places go below all the others (see rank()).
+ */
+export const DEMOTE = {
+  /** Someone doesn't eat something most dishes of this cuisine use; each such thing, at most `avoidMax`. */
+  avoid: 0.5,
+  avoidMax: 1,
+  /** Someone eats halal and the place doesn't say it is: a little for cuisines that often are. */
+  halalLikely: 0.3,
+  halal: 1.5,
+  /** Someone is vegetarian: Google says there's nothing for them, or nobody says either way. */
+  vegNone: 1.5,
+  vegUnsure: 0.3,
+  /** Someone said no to the cuisine in round 1; more the bigger the share of the table. */
+  ban: 0.5,
+  banShare: 0.7,
+};
 
-export interface PickInput extends ScoreContext {
-  /** Already eligible (see eligible()). */
-  places: Place[];
-  /** How many people banned each cuisine in round 1. */
-  bans: Partial<Record<CuisineId, number>>;
-  count?: number;
+/** Points off for everything but a severe allergy (see DEMOTE). */
+export function demotion(concerns: readonly Concern[], banned: number, members: number): number {
+  let avoid = 0;
+  let d = 0;
+  for (const c of concerns) {
+    if (c.k === "allergy") {
+      if (c.level === "avoid") avoid += DEMOTE.avoid;
+    } else if (c.k === "halal") d += c.likely ? DEMOTE.halalLikely : DEMOTE.halal;
+    else d += c.known ? DEMOTE.vegNone : DEMOTE.vegUnsure;
+  }
+  d += Math.min(DEMOTE.avoidMax, avoid);
+  if (banned > 0) d += DEMOTE.ban + DEMOTE.banShare * Math.min(1, banned / Math.max(1, members));
+  return d;
 }
 
+/** The top of a table's list: full cards with photos; the rest are shorter rows. */
+export const TOP_COUNT = 6;
+export const MAX_PER_CUISINE = 2;
+
+export interface RankInput extends ScoreContext {
+  /** Already eligible (see eligible()). */
+  places: Place[];
+  /** Everyone's limits merged: what moves places down. */
+  limits: Limits;
+  /** How many people said no to each cuisine in round 1. */
+  bans: Partial<Record<CuisineId, number>>;
+  /** Extra points for a place (one person's mood and side of the menu). */
+  boost?: (p: Place) => number;
+  /** How many make the top, and at most how many of one cuisine there. */
+  top?: number;
+  perCuisine?: number;
+}
+
+interface Scored {
+  p: Place;
+  /** Severe allergies to what this cuisine often uses: any at all puts it below every place with none. */
+  severe: number;
+  /** Points off (demotion()). */
+  down: number;
+  s: number;
+}
+
+/** Fewer severe problems first, then the better score, then more Google ratings, then a fixed order. */
+const better = (a: Scored, b: Scored) => a.severe - b.severe || b.s - a.s || (b.p.ratings ?? 0) - (a.p.ratings ?? 0) || a.p.id.localeCompare(b.p.id);
+
 /**
- * Round 2's cards: the best-scoring places, at most two per cuisine so the choice is real.
- * Banned cuisines are left out unless that leaves fewer than three places; then the least-banned
- * come back, marked so the cards can say "someone wasn't keen".
+ * Every place, best first. Places with a severe allergy problem go to the bottom; the rest by score.
+ * The top takes at most `perCuisine` of a cuisine so the first few are a real choice, and only from
+ * places nobody has a problem with. The same search gives the same list (nothing random).
  */
-export function pick(input: PickInput): { ids: string[]; relaxed: string[] } {
-  const count = input.count ?? CARD_COUNT;
-  const scored = input.places.map((p) => ({ p, s: score(p, input) })).sort((a, b) => b.s - a.s || a.p.id.localeCompare(b.p.id));
-  const banned = (p: Place) => (input.bans[p.cuisine] ?? 0) > 0;
-  let pool = scored.filter((x) => !banned(x.p));
-  const relaxed: string[] = [];
-  if (pool.length < 3) {
-    const back = scored.filter((x) => banned(x.p)).sort((a, b) => (input.bans[a.p.cuisine] ?? 0) - (input.bans[b.p.cuisine] ?? 0) || b.s - a.s);
-    for (const x of back.slice(0, 3 - pool.length)) relaxed.push(x.p.id);
-    pool = scored.filter((x) => !banned(x.p) || relaxed.includes(x.p.id));
+export function rank(input: RankInput): string[] {
+  const top = input.top ?? TOP_COUNT;
+  const per = input.perCuisine ?? MAX_PER_CUISINE;
+  const scored: Scored[] = input.places
+    .map((p) => {
+      const concerns = check(p, input.limits).concerns;
+      const down = demotion(concerns, input.bans[p.cuisine] ?? 0, input.members);
+      const severe = concerns.filter((c) => c.k === "allergy" && c.level === "severe").length;
+      return { p, severe, down, s: score(p, input) + (input.boost?.(p) ?? 0) - down };
+    })
+    .sort(better);
+  const head: Scored[] = [];
+  const count = new Map<CuisineId, number>();
+  for (const x of scored) {
+    if (head.length >= top) break;
+    if (x.severe || x.down > 0 || (count.get(x.p.cuisine) ?? 0) >= per) continue;
+    head.push(x);
+    count.set(x.p.cuisine, (count.get(x.p.cuisine) ?? 0) + 1);
   }
-  const ids: string[] = [];
-  const per = new Map<CuisineId, number>();
-  for (const x of pool) {
-    if (ids.length >= count) break;
-    if ((per.get(x.p.cuisine) ?? 0) >= MAX_PER_CUISINE) continue;
-    ids.push(x.p.id);
-    per.set(x.p.cuisine, (per.get(x.p.cuisine) ?? 0) + 1);
-  }
-  // Not enough variety nearby: fill up with the next best regardless of cuisine.
-  for (const x of pool) if (ids.length < count && !ids.includes(x.p.id)) ids.push(x.p.id);
-  return { ids, relaxed };
+  // Not enough variety nearby, or too few places without a problem: the next best, whatever they are.
+  for (const x of scored) if (head.length < top && !head.includes(x)) head.push(x);
+  head.sort(better);
+  return [...head, ...scored.filter((x) => !head.includes(x))].map((x) => x.p.id);
+}
+
+export type Reason = "pick" | "list" | "liked" | "mood" | "side" | "fans" | "topRated" | "budget" | "near";
+
+export interface ReasonContext {
+  limits: Limits;
+  center: Center;
+  range: RangeId;
+  /** Someone at the table liked this cuisine in round 1. */
+  liked?: boolean;
+  /** It fits the one person's mood, or the side of the menu they chose. */
+  mood?: boolean;
+  side?: boolean;
+}
+
+/** What speaks for a place, best reasons first, at most three. */
+export function reasonsFor(p: Place, c: ReasonContext): Reason[] {
+  const out: Reason[] = [];
+  if (p.recommend) out.push("pick");
+  if (p.badges?.length) out.push("list");
+  if (c.liked) out.push("liked");
+  if (c.mood) out.push("mood");
+  if (c.side) out.push("side");
+  const o = p.ours;
+  const total = o ? o.up + o.mid + o.down : 0;
+  if (o && total >= 3 && o.up / total >= 0.7) out.push("fans");
+  if ((p.rating ?? 0) >= 4.5 && (p.ratings ?? 0) >= 200) out.push("topRated");
+  if (c.limits.budget > 0 && p.price !== undefined && p.price <= c.limits.budget) out.push("budget");
+  if (travelMinutes(distanceMeters(c.center, p), RANGES[c.range].drive) <= 10) out.push("near");
+  return out.slice(0, 3);
 }

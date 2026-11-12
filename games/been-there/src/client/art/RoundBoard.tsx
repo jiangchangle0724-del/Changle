@@ -5,10 +5,10 @@
 // instead. Labels, markers and tokens stay upright while it turns. A move (ui/Ride.tsx) drives the
 // table through `rig`: it turns it, moves a camera over it and leans it back.
 import type { ComponentChildren } from "preact";
-import { useLayoutEffect, useRef } from "preact/hooks";
-import { BOARD, CITY_AT, GROUPS } from "../../engine";
+import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
+import { BOARD, CITY_AT, GROUPS, type WorldId } from "../../engine";
 import { CharacterArt, type Mood } from "./characters";
-import { SpaceGlyph } from "./icons";
+import { CityGlyph, SpaceGlyph } from "./icons";
 import { RouteMap, type Flight } from "./RouteMap";
 import { useSatMap } from "./SatMap";
 import { shapePath } from "./shapes";
@@ -21,6 +21,31 @@ export interface SpaceMark {
   mortgaged?: boolean;
   /** Travel news changing this city for now: a short tag (×2, ½, +$20, −25%). */
   news?: string;
+}
+
+/** A moment on the board for a second or two (ui/Board.tsx): a city sold at auction, a team gone broke. */
+export interface BoardFx {
+  id: number;
+  kind: "sold" | "broke";
+  /** The space it stamps. */
+  at: number;
+  /** The stamp's word, and its ink (the team's colour). */
+  label: string;
+  color: string;
+}
+
+/** A world event as it comes (ui/Board.tsx): its effect plays over the map, or on the city it strikes. */
+export interface WorldFx {
+  id: number;
+  kind: WorldId;
+  at?: number;
+}
+
+/** A world event in force that struck a city (a meteor's crater, a city locked down): its tag on the space. */
+export interface WorldMark {
+  id: WorldId;
+  at: number;
+  tag: string;
 }
 
 export interface TokenMark {
@@ -54,6 +79,9 @@ const RL = 428;
 const RM = 389;
 const RH = 358;
 const RT = 294;
+/** Where the buildings stand on a city's space: just inside its owner's mark; and how big they're drawn. */
+const RBLD = 350;
+const BLD_K = 1.3;
 /** Travel news tags sit on the inner edge of the ring. */
 const RN = 330;
 const RMAP = 320;
@@ -140,28 +168,194 @@ function glyphName(at: number): string {
   return sp.k;
 }
 
-/** Houses sit in a row along the inner edge of the space (a hotel is one wide block). Houses beyond
- * the first `old` were just built and pop up. */
-function Houses({ at, n, old }: { at: number; n: number; old: number }) {
-  const deg = angleOf(at);
+/**
+ * The buildings on a city, standing up like the tokens (upright while the table turns), drawn as little
+ * models with a front, a side in shade and a roof: one to four green houses side by side, or a hotel
+ * of three floors with lit windows and a sign on its roof carrying the city's own picture (the
+ * pyramid, the gondola, the die…). A new one rises from its foot, floor by floor, in a puff of dust.
+ * (`from`: how many stood there before the latest one was built, so the ones from there on are new
+ * and rise, one after another; n itself when nothing is new. Each animated part is a group of its
+ * own inside the one placing it: a CSS animation's transform would replace a transform attribute.)
+ */
+function Buildings({ at, n, from, rot }: { at: number; n: number; from: number; rot: number }) {
+  const [x, y] = xy(angleOf(at), RBLD);
+  const city = CITY_AT[at]?.id;
+  // (centred on their spot rather than standing on it: upright, they reach as far out of the ring as in)
   if (n >= 5) {
-    const [x, y] = xy(deg, RH);
+    const fresh = from < 5;
     return (
-      <g class={old >= 5 ? undefined : "pop"}>
-        <rect x={x - 15} y={y - 8} width="30" height="16" rx="3" fill="var(--hotel)" stroke="var(--board-paper)" stroke-width="2" transform={`rotate(${deg} ${x} ${y})`} />
-      </g>
+      <Up x={x} y={y} rot={rot}>
+        <g class="bldg hotel" data-at={at} transform={`scale(${BLD_K}) translate(0 20)`}>
+          {[0, 1, 2].map((f) => (
+            <g key={f} transform={`translate(0 ${-f * 8.5})`}>
+              <g class={fresh ? "b-new" : undefined} style={fresh ? { "--i": f } : undefined}>
+                <path class="b-side" d="M7.5 0V-8.5l4-3V-3z" />
+                <rect class="b-front" x="-7.5" y="-8.5" width="15" height="8.5" />
+                <rect class="b-win" x="-5" y="-6.6" width="3.4" height="4.2" rx="0.5" />
+                <rect class="b-win" x="1.6" y="-6.6" width="3.4" height="4.2" rx="0.5" />
+              </g>
+            </g>
+          ))}
+          <g transform="translate(0 -25.5)">
+            <g class={fresh ? "b-new" : undefined} style={fresh ? { "--i": 3 } : undefined}>
+              <path class="b-top" d="M-7.5 0H7.5l4-3h-15z" />
+              <g class="b-sign">
+                <rect x="-8" y="-15" width="16" height="13.4" rx="2.6" />
+                {city && <CityGlyph id={city} x={-5.6} y={-14.2} size={11.2} color="var(--print-ink)" width={1.5} />}
+              </g>
+            </g>
+          </g>
+          {fresh && <Dust key={from} w={18} />}
+        </g>
+      </Up>
     );
   }
+  // (four in a row stand close, as town houses do, to stay on their space)
+  const gap = Math.min(12.4, 40 / n);
   return (
-    <g>
-      {Array.from({ length: n }, (_, i) => {
-        const [x, y] = xy(deg + (i - (n - 1) / 2) * 2.1, RH);
-        return (
-          <g key={i} class={i < old ? undefined : "pop"}>
-            <rect x={x - 5.5} y={y - 5.5} width="11" height="11" rx="2" fill="var(--house)" stroke="var(--board-paper)" stroke-width="1.6" transform={`rotate(${deg} ${x} ${y})`} />
+    <Up x={x} y={y} rot={rot}>
+      <g class="bldg" data-at={at} transform={`scale(${BLD_K}) translate(0 8)`}>
+        {Array.from({ length: n }, (_, i) => (
+          <g key={i} transform={`translate(${((i - (n - 1) / 2) * gap).toFixed(1)} 0)`}>
+            <g class={i >= from ? "b-new" : undefined} style={i >= from ? { "--i": i - from } : undefined}>
+              <path class="b-side" d="M5 0V-9l3.5-2.6V-2.6z" />
+              <rect class="b-front" x="-5" y="-9" width="10" height="9" />
+              <path class="b-roof-side" d="M0-15l3.5-2.6 8.6 6.4-3.5 2.6z" />
+              <path class="b-roof" d="M-6.6-8.6L0-15l6.6 6.4z" />
+              <rect class="b-door" x="-1.6" y="-5" width="3.2" height="5" rx="0.6" />
+            </g>
           </g>
-        );
-      })}
+        ))}
+        {/* (a puff for each building, so a new key each time) */}
+        {n > from && <Dust key={from} w={n * gap + 8} />}
+      </g>
+    </Up>
+  );
+}
+
+/** The puff of dust at a new building's foot. */
+function Dust({ w }: { w: number }) {
+  return (
+    <g class="b-dust" aria-hidden="true">
+      <ellipse class="l" cx={(-w / 2).toFixed(1)} cy="0" rx="5" ry="2.4" />
+      <ellipse class="r" cx={(w / 2).toFixed(1)} cy="0" rx="5" ry="2.4" />
+    </g>
+  );
+}
+
+/** Eight sparks flying out of a city's owner mark when it's bought, in the team's colour and gold. */
+function Burst({ color }: { color: string }) {
+  return (
+    <g class="burst" aria-hidden="true">
+      {Array.from({ length: 8 }, (_, i) => (
+        <g key={i} style={{ transform: `rotate(${i * 45 + 22.5}deg)` }}>
+          <rect class="spark" x="-2" y="-4" width="4" height="8" rx="1.2" style={{ "--c": i % 2 ? color : "var(--coin)" }} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/** Where the travel boom's fireworks go off over the map, and when (s). */
+const BOOMS: [number, number, number][] = [
+  [-150, -110, 0],
+  [150, -70, 0.35],
+  [-30, 150, 0.7],
+  [170, 160, 1.05],
+  [-190, 120, 1.35],
+];
+
+/**
+ * What a world event does on the board as it comes (engine/world.ts), for about three seconds: the
+ * crisis's chart falls across a darkened map; the boom's fireworks; the AI's circuits spread from the
+ * middle; the supersonic airliner crosses with its contrail and a sonic boom; a meteor streaks in from
+ * outside the ring and hits its city; a city locked down sends out slow blue rings. Numbers stay upright.
+ */
+function WorldMoment({ kind, at, rot }: { kind: WorldId; at?: number; rot: number }) {
+  if (kind === "crash")
+    return (
+      <g class="wf wf-crash" aria-hidden="true">
+        <circle class="wf-veil" r={RMAP} />
+        <polyline class="wf-line" pathLength="1" points="-262,-126 -204,-86 -152,-132 -96,-40 -44,-70 16,26 70,-4 128,104 182,78 236,170" />
+        <path class="wf-line wf-head" pathLength="1" d="M206 172l32 4-6-32" />
+        <Up x={0} y={0} rot={rot}>
+          <text class="wf-big" y="34">−15%</text>
+        </Up>
+      </g>
+    );
+  if (kind === "boom")
+    return (
+      <g class="wf wf-boom" aria-hidden="true">
+        {BOOMS.map(([x, y, d], i) => (
+          <g key={i} transform={`translate(${x} ${y})`}>
+            <g class="wf-burst" style={{ "--d": `${d}s` }}>
+              {Array.from({ length: 12 }, (_, k) => (
+                <line key={k} x1="0" y1="-22" x2="0" y2="-88" transform={`rotate(${k * 30})`} />
+              ))}
+            </g>
+          </g>
+        ))}
+        <Up x={0} y={0} rot={rot}>
+          <text class="wf-big" y="34">×1.5</text>
+        </Up>
+      </g>
+    );
+  if (kind === "ai")
+    return (
+      <g class="wf wf-ai" aria-hidden="true">
+        {Array.from({ length: 8 }, (_, k) => (
+          <g key={k} transform={`rotate(${k * 45 + 12})`}>
+            <path class="wf-trace" pathLength="1" d="M0-44V-112H46V-190H20V-262" style={{ "--d": `${(k % 4) * 0.12}s` }} />
+            <circle class="wf-node" cx="20" cy="-262" r="8" style={{ "--d": `${0.95 + (k % 4) * 0.12}s` }} />
+          </g>
+        ))}
+        <circle class="wf-core" r="44" />
+        <Up x={0} y={0} rot={rot}>
+          <text class="wf-big" y="34">+$50</text>
+        </Up>
+      </g>
+    );
+  if (kind === "invention")
+    return (
+      <g class="wf wf-jet" aria-hidden="true" transform="rotate(-19)">
+        <line class="wf-contrail" pathLength="1" x1="-470" y1="0" x2="470" y2="0" />
+        <circle class="wf-sonic" r="60" />
+        <g class="wf-plane">
+          <path d="M34 0L-6-6-22-30h-10l6 26-18 2-8-10h-8l4 18-4 18h8l8-10 18 2-6 26h10l16-24z" />
+        </g>
+      </g>
+    );
+  if (at === undefined) return null;
+  const deg = angleOf(at);
+  const [tx, ty] = xy(deg, RM - 6);
+  if (kind === "terror")
+    return (
+      <g class="wf wf-terror" aria-hidden="true" transform={`translate(${tx.toFixed(1)} ${ty.toFixed(1)})`}>
+        {[0, 0.55, 1.1].map((d) => (
+          <circle key={d} class="wf-ring" r="38" style={{ "--d": `${d}s` }} />
+        ))}
+      </g>
+    );
+  // The meteor: in over the ring's rim, a few spaces back, down onto the city (in sight all the way).
+  const [sx, sy] = xy(deg - 34, 486);
+  const len = Math.hypot(sx - tx, sy - ty);
+  const ang = (Math.atan2(sy - ty, sx - tx) * 180) / Math.PI;
+  return (
+    <g class="wf wf-meteor" aria-hidden="true" transform={`translate(${tx.toFixed(1)} ${ty.toFixed(1)})`}>
+      <g transform={`rotate(${ang.toFixed(1)})`}>
+        <g class="wf-fly" style={{ "--l": `${len.toFixed(0)}px` }}>
+          <line class="wf-tail" x1="14" y1="0" x2="260" y2="0" />
+          <line class="wf-tail wf-tail-in" x1="14" y1="0" x2="150" y2="0" />
+          <circle class="wf-rock" r="22" />
+        </g>
+      </g>
+      <circle class="wf-flash" r="96" />
+      <circle class="wf-shock" r="52" />
+      {Array.from({ length: 7 }, (_, k) => (
+        <g key={k} transform={`rotate(${k * 51 + 20})`}>
+          <circle class="wf-debris" cy="-12" r="5" />
+        </g>
+      ))}
     </g>
   );
 }
@@ -198,6 +392,9 @@ export function RoundBoard({
   turn,
   tokenScale = TOKEN_SCALE.phone,
   sat,
+  fx,
+  worldFx,
+  worldMark,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -228,6 +425,11 @@ export function RoundBoard({
   /** The real world in the middle (art/SatMap.ts), under the board: on a phone or a laptop, and on the big
    * screen when its globe can't be shown. */
   sat?: boolean;
+  /** Stamps for a moment on a space (`BoardFx`). */
+  fx?: BoardFx[];
+  /** A world event as it comes (`WorldFx`; not with reduced motion), and the city one in force has struck (`WorldMark`). */
+  worldFx?: WorldFx | null;
+  worldMark?: WorldMark | null;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const satRef = useRef<HTMLCanvasElement>(null);
@@ -390,16 +592,47 @@ export function RoundBoard({
     return () => cancelAnimationFrame(raf);
   }, [posKey, reduced]);
 
-  // Owner marks and houses already there when the board first draws stay still; new ones pop up.
-  const born = useRef<{ owned: Set<number>; houses: Map<number, number> } | null>(null);
+  // Life on the board between moves: now and then one token looks round or bobs, and a hotel's sign
+  // (or a city's owner mark) catches the light. One at a time, for a second, so a phone draws only
+  // that small part of the board again; never during a move, with the page hidden, or reduced motion.
+  useEffect(() => {
+    if (reduced) return;
+    let beat = 0;
+    const pick = <T,>(xs: T[]): T | undefined => xs[Math.floor(Math.random() * xs.length)];
+    const id = setInterval(() => {
+      const g = ref.current;
+      if (!g || ridingRef.current || document.hidden) return;
+      beat += 1;
+      if (beat % 2) {
+        const hop = pick(Array.from(g.querySelectorAll<SVGGElement>(".token:not(.now):not(.ridden) > .hop")));
+        if (!hop || hop.dataset.idle) return;
+        hop.dataset.idle = Math.random() < 0.5 ? "bob" : "look";
+        setTimeout(() => delete hop.dataset.idle, 1_400);
+      } else {
+        const hotels = Array.from(g.querySelectorAll<SVGGElement>(".bldg.hotel"));
+        const lit = pick(hotels.length ? hotels : Array.from(g.querySelectorAll<SVGGElement>(".owned")));
+        if (!lit || lit.dataset.glint !== undefined) return;
+        lit.dataset.glint = "";
+        setTimeout(() => delete lit.dataset.glint, 1_500);
+      }
+    }, 2_400);
+    return () => clearInterval(id);
+  }, [reduced]);
+
+  // Owner marks and buildings already there when the board first draws stay still; new ones come in.
+  // For each city, how many buildings stand on it and how many stood before the latest was built
+  // (`Buildings`' `from`): selling one makes nothing new, building again does.
+  const born = useRef<{ owned: Set<number>; built: Map<number, { n: number; from: number }> } | null>(null);
   born.current ??= {
     owned: new Set(marks.flatMap((m, at) => (m?.owner ? [at] : []))),
-    houses: new Map(marks.flatMap((m, at) => (m?.houses ? [[at, m.houses] as [number, number]] : []))),
+    built: new Map(marks.flatMap((m, at) => (m?.houses ? [[at, { n: m.houses, from: m.houses }] as const] : []))),
   };
-  const { owned, houses } = born.current;
+  const { owned, built } = born.current;
   marks.forEach((m, at) => {
     if (!m?.owner) owned.delete(at);
-    if ((m?.houses ?? 0) < (houses.get(at) ?? 0)) houses.set(at, m?.houses ?? 0);
+    const n = m?.houses ?? 0;
+    const was = built.get(at) ?? { n: 0, from: 0 };
+    if (n !== was.n) built.set(at, { n, from: n > was.n ? was.n : n });
   });
 
   const r = rot.current;
@@ -448,8 +681,26 @@ export function RoundBoard({
                   <SpaceGlyph name={glyphName(at)} x={-17} y={-17} size={34} color="var(--board-ink-2)" width={2.6} />
                 </Up>
               )}
-              {mark?.houses ? <Houses at={at} n={mark.houses} old={houses.get(at) ?? 0} /> : null}
-              {mark?.news && (
+              {mark?.houses ? <Buildings at={at} n={mark.houses} from={built.get(at)?.from ?? 0} rot={r} /> : null}
+              {worldMark?.at === at && (
+                <>
+                  {worldMark.id === "meteor" && (
+                    <Up x={xy(deg, RBLD)[0]} y={xy(deg, RBLD)[1]} rot={r}>
+                      <g class="crater" aria-hidden="true">
+                        <ellipse rx="22" ry="10" />
+                        <ellipse class="crater-in" rx="13" ry="5.5" cy="1.5" />
+                      </g>
+                    </Up>
+                  )}
+                  <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
+                    <g class={`world-tag wt-${worldMark.id}`}>
+                      <rect x={-34} y={-14} width="68" height="28" rx="6" />
+                      <text y="7">{worldMark.tag}</text>
+                    </g>
+                  </Up>
+                </>
+              )}
+              {mark?.news && worldMark?.at !== at && (
                 <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
                   <g class="pop board-news">
                     <rect x={-24} y={-13} width="48" height="26" rx="13" />
@@ -467,9 +718,12 @@ export function RoundBoard({
                 <Up x={mx} y={my} rot={r}>
                   {/* A city just bought: the owner's mark comes down like a stamp, and the ink spreads. */}
                   {!owned.has(at) && <circle class="stamp-ring" r="17" stroke={mark.owner.color} />}
-                  <g class={owned.has(at) ? undefined : "stamp-in"}>
-                    <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
-                    <path class="owner" d={OWNER_PATH[mark.owner.letter]} />
+                  {!owned.has(at) && <Burst color={mark.owner.color} />}
+                  <g class={owned.has(at) ? "owned" : "owned stamp-in"}>
+                    <g class="om">
+                      <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
+                      <path class="owner" d={OWNER_PATH[mark.owner.letter]} />
+                    </g>
                   </g>
                 </Up>
               )}
@@ -514,6 +768,20 @@ export function RoundBoard({
               })
           );
         })}
+        {/* (a city sold at auction, a team gone broke: a stamp on the space for a moment, upright) */}
+        {fx?.map((f) => {
+          const [x, y] = xy(angleOf(f.at), RM);
+          return (
+            <Up key={f.id} x={x} y={y} rot={r}>
+              <g class={`fx-stamp fx-${f.kind}`} style={{ "--c": f.color }} aria-hidden="true">
+                <rect x="-38" y="-17" width="76" height="34" rx="7" />
+                <text y="8.5">{f.label}</text>
+              </g>
+            </Up>
+          );
+        })}
+        {/* (a world event as it comes: over the map, or on its city) */}
+        {worldFx && !reduced && <WorldMoment key={worldFx.id} kind={worldFx.kind} at={worldFx.at} rot={r} />}
       </g>
       </g>
       {center}

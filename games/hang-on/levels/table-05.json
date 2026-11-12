@@ -1,0 +1,101 @@
+{
+  "id": "table-05",
+  "world": "table",
+  "name": {
+    "zh": "面条过火锅",
+    "en": "Noodle over the Hotpot"
+  },
+  "teaches": "rope",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 2400,
+    "y": 280,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 536
+    },
+    {
+      "x": 2030,
+      "y": 496
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 450,
+      "h": 160,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 730,
+      "y": 560,
+      "w": 770,
+      "h": 160,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1800,
+      "y": 520,
+      "w": 400,
+      "h": 200,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2260,
+      "y": 440,
+      "w": 260,
+      "h": 280,
+      "material": "ceramic"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 260,
+      "w": 40,
+      "h": 460,
+      "material": "wood"
+    }
+  ],
+  "ropes": [
+    {
+      "anchor": {
+        "x": 510,
+        "y": 210
+      },
+      "segments": 8,
+      "segLen": 38
+    },
+    {
+      "anchor": {
+        "x": 1570,
+        "y": 170
+      },
+      "segments": 8,
+      "segLen": 38
+    }
+  ],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 70,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-05.json",
+  "fading": [],
+  "springs": []
+}
