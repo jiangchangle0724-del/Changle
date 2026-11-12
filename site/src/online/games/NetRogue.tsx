@@ -342,7 +342,8 @@ function Powers({ v }: { v: RogueView }) {
   const [troubleOpen, setTroubleOpen] = useState(false);
   const [wcAsk, setWcAsk] = useState(false);
   const held = (Object.keys(BADGE) as (keyof RogueHolders)[]).filter((k) => v.holders[k]);
-  const busy = !!v.interrupt;
+  // while another power is on, or a timed round (三园, 抢数字, 逢七过) that the camera or the nose would cover
+  const busy = !!v.interrupt || v.phase === "garden" || v.phase === "grab" || v.phase === "sevens";
   const iHave = (k: keyof RogueHolders) => v.holders[k] === me;
   const myWc = iHave("wc") && !v.wcUsed;
 
