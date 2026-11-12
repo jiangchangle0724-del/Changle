@@ -549,8 +549,10 @@ function StyleHelp({ st, line }: { st: PkStyle | undefined; line?: T | null }) {
 }
 
 /**
- * An actor's private card: dealt face down, flipped with a tap. The culprit's side is marked
- * with the mask; everyone also has a secret task. In a duel it explains the style instead
+ * An actor's private card: dealt face down, flipped with a tap. Every card looks and sounds the
+ * same when it turns over (the phone goes round the table, and the person next to you sees the
+ * colours and hears the sound): only the words say who the culprit is. Everyone also has a secret
+ * task. In a duel it explains the style instead
  * (`line` is the line both actors say), and once it's turned over, a link under it goes to
  * videos of people doing that style. In a famous scene (`first`, its opening line, and `see`, the
  * original) there's nothing secret: the part, how to play it, the line, and a link to the original.
@@ -570,13 +572,12 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
     setFlipped(true);
     sfx.flip();
     haptic(12);
-    if (card.culprit) window.setTimeout(() => dramaSfx.sting(0.7), 380);
     if (inner.current && !reduced()) gsap.fromTo(inner.current, { rotateY: 0 }, { rotateY: 180, duration: 0.7, ease: "back.out(1.4)" });
   };
   const tx = (x: T) => (zh ? x.zh : x.en);
   return (
     <div className="dm-cardwrap">
-      <div className={`dm-card ${flipped ? "is-flipped" : ""} ${card.culprit ? "is-culprit" : ""}`}>
+      <div className={`dm-card ${flipped ? "is-flipped" : ""}`}>
         <div className="dm-card-inner" ref={inner} style={reduced() && flipped ? { transform: "rotateY(180deg)" } : undefined}>
           <button type="button" className="dm-card-back" onClick={flip} aria-label={zh ? "翻开身份牌" : "Turn your card over"}>
             {backOk ? <img src={art("card-back")} alt="" onError={() => setBackOk(false)} /> : <DramaIcon size={64} strokeWidth={1.6} />}
@@ -585,7 +586,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
           <div className="dm-card-front">
             {!pk && !classic && (
               <span className="dm-card-watermark" aria-hidden="true">
-                <MaskArt culprit={card.culprit} />
+                <MaskArt culprit={false} />
               </span>
             )}
             <p className="dm-card-label">{pk ? (zh ? "你的演法" : "Your style") : zh ? "你的角色" : "Your role"}</p>
@@ -598,9 +599,9 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
               </p>
             )}
             {!pk && !classic && (
-              <div className={`dm-card-secret ${card.culprit ? "is-culprit" : ""}`}>
+              <div className="dm-card-secret">
                 <p className="dm-card-label">
-                  <MiniMask culprit={card.culprit} />
+                  <MiniMask culprit={false} />
                   {card.culprit ? (zh ? `你就是「${culprit ? culprit.zh : ""}」` : `You are ${culprit ? culprit.en.replace(/^The /, "the ") : ""}`) : zh ? "你的小秘密" : "Your little secret"}
                 </p>
                 <p>{tx(card.secret)}</p>

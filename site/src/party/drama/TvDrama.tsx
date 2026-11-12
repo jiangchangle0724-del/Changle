@@ -14,9 +14,8 @@ import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
 import { Bi, FacesIn, RoundTag, TvClock, TvPodium, TvShow, useArrivals, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
-import { perfAt } from "../sensors";
-import { actScape, seedOf, startAmbience, type Scape } from "./ambience";
 import { Backdrop, Cast, Curtain, MaskArt, MiniMask, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
+import { useDramaMusic } from "./score";
 import { dramaSfx } from "./sound";
 import "../../styles/drama.css";
 import "../../styles/tv-drama.css";
@@ -42,20 +41,14 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
     return { pid: c.pid, role: c.role, name: name(c.pid), face: (size: number) => <SeatFace seat={s} size={size} />, body: s ? <Figure seat={s} /> : <SeatFace seat={s} size={120} /> };
   });
 
-  // the house before the curtain, then the set itself, in step with every phone
+  // the house bells, then the game's theme off stage and the scene's own music on it, on the
+  // same beat as any phone that plays it too
   useCue(v.phase === "brief", () => {
     if (!sound) return;
     dramaSfx.chimes();
     dramaSfx.deal();
   });
-  const scape: Scape | null = !sound ? null : v.phase === "brief" ? "foyer" : v.phase === "act" ? actScape(v) : null;
-  useEffect(() => {
-    if (!scape) return;
-    const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? v.read?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
-    return () => a?.stop(0.8);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scape, v.round]);
+  useDramaMusic(v, sound, now);
   useCue(v.phase === "vote", () => {
     if (sound) sfx.applause(1.8, 0.7);
   });
