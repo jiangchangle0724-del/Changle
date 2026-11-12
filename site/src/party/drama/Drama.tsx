@@ -13,10 +13,11 @@ import { NameFace, PassCurtain } from "../common";
 import { useWakeLock } from "../sensors";
 import { DramaActionHost, useSettle } from "./ShellActions";
 import { StageCall } from "./StageCall";
-import { seedOf, startAmbience, type Scape } from "./ambience";
+import { actScape, seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
-import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, isKind, Marquee, Playbill, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, TwistBanner, type Actor, type Face } from "./parts";
+import { readKind } from "../../data/dramaReadings";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
 /** Scenes written on this phone and not played yet: kept, so leaving the game doesn't lose them. */
@@ -196,11 +197,11 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // screen's (the next actor's card, the vote before the scene, the next act before the reveal)
   const settle = useSettle(`${v.round}|${v.phase}|${step.k}|${"i" in step ? step.i : ""}|${v.ready.length}|${v.voted.length}|${v.cast.map((c) => c.pid).join(",")}`);
   // the house before the curtain, then the set itself
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : v.mode === "classic" ? "classic" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
+  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? actScape(v) : null;
   useEffect(() => {
     if (!scape) return;
     const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? ""}|${scape}`) });
+    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? v.read?.id ?? ""}|${scape}`) });
     return () => a?.stop(0.8);
     // once per scene and phase
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,7 +219,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live={live}>
+      <Backdrop {...stageOf(v)} live={live}>
         <Cast actors={actors} />
         <Curtain open={open} />
         {extra}
@@ -250,15 +251,16 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     );
   } else if (v.phase === "brief") {
     const readers = v.cast.map((c) => c.pid).filter((pid) => !v.ready.includes(pid));
+    const reading = v.mode === "read";
     if (step.k === "intro") {
       actions = (
         <>
           <button type="button" className="btn btn-ghost btn-lg" onClick={settle(() => act(host, "skip"))}>
             <SkipForward size={14} />
-            {zh ? "换个剧本" : "Another scene"}
+            {reading ? (zh ? "换一段" : "Another piece") : zh ? "换个剧本" : "Another scene"}
           </button>
           <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => setStep({ k: "pass", i: 0 }))}>
-            {zh ? "发身份牌" : "Deal the cards"}
+            {reading ? (zh ? "交给朗读的人" : "Hand it to the reader") : zh ? "发身份牌" : "Deal the cards"}
           </button>
         </>
       );
@@ -267,7 +269,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           {stage(false, false)}
           <Playbill v={v} credit={credit} />
           <Roster v={v} nameOf={nameOf} face={face} />
-          {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} />}
+          {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} read={reading} />}
         </>
       );
     } else {
@@ -283,7 +285,27 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               {zh ? `我是 ${nameOf(pid)}` : `I'm ${nameOf(pid)}`}
             </button>
           );
-          body = <PassCurtain name={nameOf(pid)} note={zh ? "只有你能看，看完把手机交回桌上" : "For your eyes only. Then put the phone back on the table."} />;
+          body = (
+            <PassCurtain
+              name={nameOf(pid)}
+              note={reading ? (zh ? "先自己默读一遍，准备好就开始读" : "Read it over to yourself first. Start when you're ready.") : zh ? "只有你能看，看完把手机交回桌上" : "For your eyes only. Then put the phone back on the table."}
+            />
+          );
+        } else if (reading && v.read) {
+          // the reader keeps the phone: they read from it
+          actions = privateActions;
+          body = (
+            <ReadingCard
+              inShell
+              key={`${v.round}-${pid}`}
+              r={game.view(pid).read ?? v.read}
+              onDone={() => {
+                act(pid, "ready");
+                setStep({ k: "intro" });
+              }}
+              doneLabel={zh ? "准备好了，开始读！" : "Ready. Here goes!"}
+            />
+          );
         } else {
           actions = privateActions;
           body = (
@@ -309,6 +331,21 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         }
       }
     }
+  } else if (v.phase === "act" && v.mode === "read" && v.read) {
+    // the reader holds the phone and reads from it
+    turn = v.cast[0]?.pid;
+    actions = (
+      <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "cut"))}>
+        <Clapperboard size={18} />
+        {zh ? "读完了，开始打星" : "Done: on to the stars"}
+      </button>
+    );
+    body = (
+      <>
+        <ReadingHead r={v.read} clock={<SceneClock endsAt={v.endsAt} total={v.actMs} now={Date.now} />} />
+        <ReadingText r={v.read} big />
+      </>
+    );
   } else if (v.phase === "act") {
     actions = (
       <button type="button" className="btn btn-primary btn-lg" onClick={settle(() => act(host, "cut"))}>
@@ -368,6 +405,10 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                 : zh
                   ? `没人当观众：演员轮流给别人打星，不能投自己（${v.voted.length}/${voters.length}）`
                   : `Nobody watched, so the actors take turns rating the others, never themselves (${v.voted.length}/${voters.length})`
+              : v.mode === "read" && v.read
+                ? zh
+                  ? `轮到观众打星：${readKind(v.read.kind)?.ask.zh ?? "读得怎么样？"}（${v.voted.length}/${voters.length}）`
+                  : `The audience gives stars. ${readKind(v.read.kind)?.ask.en ?? "How was that?"} (${v.voted.length}/${voters.length})`
               : v.mode !== "show"
                 ? zh
                   ? `轮到观众打星：${v.mode === "classic" ? "谁最像原片" : "谁演得更像"}？（${v.voted.length}/${voters.length}）`

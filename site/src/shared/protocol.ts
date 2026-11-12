@@ -629,12 +629,16 @@ export type HideView = {
 export type DramaCard = { secret: T; culprit: boolean; task: T };
 /** Whose everyday a scene is set in: Chinese, Canadian, South Asian, Filipino, Korean, Japanese, Iranian, European. */
 export type DramaGroupKey = "cn" | "ca" | "sa" | "ph" | "kr" | "jp" | "ir" | "eu";
+/** 朗读: the way a piece is read (through tears, with a straight face, a breakup, a royal memorial...). */
+export type DramaReadKind = "cry" | "deadpan" | "breakup" | "court" | "anchor" | "rant" | "melodrama" | "sell" | "sorry" | "voice";
+/** 朗读: where the pieces come from: the Chinese internet, the English internet, or things everyone knows. */
+export type DramaReadSet = "zh" | "en" | "both";
 
 export type DramaView = {
   id: "drama";
   phase: "setup" | "brief" | "act" | "vote" | "reveal" | "end";
-  /** a scene with a hidden culprit, a quick acting duel, or a famous film or TV moment */
-  mode: "show" | "pk" | "classic";
+  /** a scene with a hidden culprit, a quick acting duel, a famous film or TV moment, or one person reading a piece aloud */
+  mode: "show" | "pk" | "classic" | "read";
   level: "all" | "spicy";
   diff: "easy" | "hard";
   /** what the losers do: drink, exercise, or a forfeit */
@@ -697,6 +701,14 @@ export type DramaView = {
   groups?: DramaGroupKey[];
   /** the famous scene on now; `see` is what to search for to watch the original */
   classic?: { id: string; set: "zh" | "en"; show: T; year: number; title: T; setup: T; beats: T[]; see: string } | null;
+  /** 朗读: the set the host picked, and the kinds of piece on (none: every kind) */
+  rset?: DramaReadSet;
+  rkinds?: DramaReadKind[];
+  /**
+   * The piece being read: everyone sees its kind, title and how to read it; its lines reach the
+   * reader first, and everyone once the reading starts (empty until then).
+   */
+  read?: { id: string; set: DramaReadSet; kind: DramaReadKind; title: T; how: T; lines: T[] } | null;
 };
 
 /** 打碟 · DJ Booth (the shapes behind it: src/shared/dj/types.ts). */

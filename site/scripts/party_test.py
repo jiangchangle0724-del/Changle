@@ -2019,10 +2019,127 @@ def t_drama_groups(browser):
     tv_ctx.close()
 
 
+
+def t_drama_read(browser):
+    """朗读: one phone (the host's set and kinds, the words only on the reader's card until the
+    reading starts, a reading that doesn't pass), then an online table in English-internet pieces
+    with the TV: the reader's card, every phone following along, five stars from everyone."""
+    pg = phone(browser, "read", players=PLAYERS)
+    pg.goto(BASE + "#/g/drama", wait_until="networkidle")
+    pg.wait_for_selector(".dm-marquee")
+    pg.get_by_role("button", name="朗读", exact=True).click()
+    ok(until(lambda: pg.get_by_role("button", name="中文网络").get_attribute("aria-pressed") == "true", 2000), "read aloud: the Chinese internet to start with")
+    ok(pg.get_by_role("button", name="困难", exact=True).count() == 0, "no difficulty: the words set it")
+    ok(pg.locator(".dm-kinds .ui-pill-toggle").count() == 10 and pg.locator(".dm-kinds .ui-pill-toggle[aria-pressed=true]").count() == 0, "ten kinds, none picked (all of them)")
+    pg.get_by_role("button", name="中英通用").click()
+    pg.locator(".dm-kinds .ui-pill-toggle", has_text="哭着读").click()
+    pg.locator(".dm-kinds .ui-pill-toggle", has_text="憋笑读").click()
+    ok(until(lambda: pg.locator(".dm-kinds .ui-pill-toggle[aria-pressed=true]").count() == 2, 2000), "the host keeps two kinds")
+    ok(pg.locator(".dm-stagecall-next", has_text="朗读").count() == 1, "who's up: one person reads")
+    shot(pg, "dmr-setup")
+    pg.get_by_role("button", name="开演").click()
+    pg.wait_for_selector(".dm-roster")
+    ok(pg.locator(".dm-roster li").count() == 1 and pg.locator(".dm-read-how").count() == 1 and pg.locator(".dm-hunt").count() == 0, "one reader, how to read it, nobody to find")
+    kind = (pg.locator(".dm-read-kind").all_inner_texts() or [""])[0]
+    ok(kind.strip() in ("哭着读", "憋笑读"), f"a piece of a picked kind ({kind.strip()})")
+    ok(pg.locator(".dm-reading").count() == 0, "the words aren't on the table's screen")
+    ok(pg.locator(".dm-tips summary", has_text="朗读").count() == 1, "tips for a first reading")
+    shot(pg, "dmr-brief")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="交给朗读的人").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.locator(".game-actions .btn-primary").click()
+    ok(until(lambda: pg.locator(".dm-readcard .dm-reading p").count() >= 5, 3000), "the reader's card: the words to read over")
+    shot(pg, "dmr-card")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="准备好了，开始读！").click()
+    ok(until(lambda: pg.locator(".dm-reading.is-big p").count() >= 5 and pg.locator(".dm-read-head .dm-clock").count() == 1, 3000), "reading: the words big, the clock beside the title")
+    shot(pg, "dmr-act")
+    pg.wait_for_timeout(DM_SETTLE)
+    pg.get_by_role("button", name="读完了，开始打星").click()
+    pg.wait_for_timeout(DM_SETTLE)
+    ask = "哭得够不够真" if kind.strip() == "哭着读" else "绷住了吗"
+    ok(pg.locator(".dm-wait-note", has_text=ask).count() == 1, "the audience gives stars for the kind's own question")
+    pg.get_by_role("button", name="传手机投票").click()
+    for k in range(3):
+        pg.wait_for_timeout(DM_SETTLE)
+        pg.locator(".game-actions .btn-primary").click()
+        ok(pg.locator(".dm-rates li").count() == 1 and pg.locator(".dm-ask", has_text=ask).count() == 1 and pg.locator(".dm-suspect").count() == 0, f"ballot {k + 1}: stars for the reader only")
+        pg.locator(".dm-rates li").first.locator(".dm-star").nth(1).click()
+        if k == 0:
+            shot(pg, "dmr-ballot")
+        pg.get_by_role("button", name="交卷").click()
+    ok(until(lambda: pg.locator(".dm-headline", has_text="没过关").count() == 1, 5000), "two stars: not this time")
+    ok(until(lambda: pg.locator(".dm-outcome .hint", has_text="3 星过关").count() == 1, 4000) and pg.locator(".dm-truths li").count() == 1, "the reader's stars, against the bar")
+    shot(pg, "dmr-reveal")
+    ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 7000), "the reader pays")
+    clear_stamps([pg])
+    errors([pg])
+    pg.context.close()
+
+    host, guests, code = seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
+    everyone = [host] + guests
+    tv_ctx = browser.new_context(viewport={"width": 1366, "height": 768})
+    tv = tv_ctx.new_page()
+    tv._errs = []
+    tv._name = "tv"
+    tv.on("pageerror", lambda e: tv._errs.append(str(e)))
+    tv.goto(BASE + f"#/tv/{code}", wait_until="networkidle")
+    start_game(host, everyone, "drama")
+    host.get_by_role("button", name="朗读", exact=True).click()
+    ok(until(lambda: view(guests[0])["mode"] == "read" and view(guests[0])["rset"] == "zh", 3000), "online: the table sees read aloud, the Chinese internet")
+    host.get_by_role("button", name="英文网络").click()
+    ok(until(lambda: view(guests[0])["rset"] == "en", 3000), "the host picks the English internet")
+    ok(guests[1].locator(".dm-kinds-read").count() == 1 and guests[1].locator(".dm-kinds .ui-pill-toggle").count() == 0, "a guest sees the kinds, and can't change them")
+    ok(until(lambda: any(w in " ".join(tv.locator(".tvd-chips").all_inner_texts()) for w in ("英文网络", "English internet")), 4000), "the TV says what's on tonight")
+    guests[0].get_by_role("radio", name="我要上台").click()
+    ok(until(lambda: view(host)["next"]["lo"] == 1 and not view(host)["next"]["auto"], 3000), "a volunteer: they read")
+    host.get_by_role("button", name="开演").click()
+    ok(until(lambda: view(host)["phase"] == "brief", 5000), "curtain up")
+    v = view(host)
+    reader = guests[0]
+    rv = view(reader)
+    ok(v["read"] and v["read"]["set"] == "en" and len(v["cast"]) == 1 and v["cast"][0]["pid"] == me(reader), "an English-internet piece, for the volunteer")
+    ok(len(v["read"]["lines"]) == 0 and len(rv["read"]["lines"]) >= 5, "the words: only on the reader's phone while they read it over")
+    ok(until(lambda: reader.locator(".dm-readcard .dm-reading p").count() == len(rv["read"]["lines"]), 3000), "the reader's card shows every line")
+    ok(host.locator(".dm-reading").count() == 0 and host.locator(".dm-read-how").count() == 1, "the audience sees how it's read, not the words")
+    ok(until(lambda: tv.locator(".tvd-title").count() == 1 and tv.locator(".tvd-hunt").count() == 1, 4000), "the TV shows the title and how to read it")
+    tv.wait_for_timeout(800)
+    tv.screenshot(path=os.path.join(OUT, "dmr-brief-tv.png"))
+    shot(reader, "dmr-card-online")
+    reader.get_by_role("button", name="准备好了，开始读").click()
+    ok(until(lambda: view(host)["phase"] == "act", 4000), "ready: the reading starts")
+    ok(until(lambda: reader.locator(".dm-reading.is-big p").count() == len(rv["read"]["lines"]), 3000), "the reader reads from their phone, big")
+    ok(until(lambda: all(g.locator(".dm-reading p").count() == len(rv["read"]["lines"]) and g.locator(".dm-reading.is-big").count() == 0 for g in everyone if g is not reader), 3000), "every other phone follows along")
+    ok(until(lambda: tv.locator(".tvd-script.is-read").count() == 1 and tv.locator(".tvd-script-steps").count() == 0, 4000), "the TV: the title, the kind, who's reading and how")
+    shot(host, "dmr-act-online")
+    tv.wait_for_timeout(1500)
+    tv.screenshot(path=os.path.join(OUT, "dmr-act-tv.png"))
+    reader.get_by_role("button", name="读完了，开始打星").click()
+    ok(until(lambda: view(host)["phase"] == "vote", 4000), "done: the stars")
+    for g in everyone:
+        if g is reader:
+            continue
+        g.wait_for_selector(".dm-ballot")
+        ok(g.locator(".dm-rates li").count() == 1, f"{g._name}: stars for the reader")
+        g.locator(".dm-rates li").first.locator(".dm-star").nth(4).click()
+        g.get_by_role("button", name="交卷").click()
+    ok(until(lambda: view(host)["phase"] == "reveal", 5000), "everyone voted: the reveal")
+    r = view(host)["result"]
+    ok(r["stars"][me(reader)] == 5 and r["best"] == [me(reader)] and not r["losers"], "five stars from everyone: the trophy, and nobody pays")
+    ok(until(lambda: host.locator(".dm-headline", has_text="全场五星").count() == 1, 5000), "the phones: five stars all round")
+    ok(until(lambda: any(w in (tv.locator(".tvd-headline").all_inner_texts() or [""])[0] for w in ("全场五星", "Five stars all round")), 5000), "the TV too")
+    tv.wait_for_timeout(3500)
+    tv.screenshot(path=os.path.join(OUT, "dmr-reveal-tv.png"))
+    errors(everyone + [tv])
+    for g in everyone:
+        g.context.close()
+    tv_ctx.close()
+
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
     "superlatives": [t_superlatives_single, t_superlatives_scroll, t_superlatives_online],
-    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups],
+    "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups, t_drama_read],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],
