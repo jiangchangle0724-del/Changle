@@ -1487,6 +1487,139 @@ def t_limbo(t):
     ok(until(lambda: t.tv.locator(".tvlb-crown").count() == 1 and NAMES[0] in t.tv.locator(".tvlb-big").inner_text(), 4000), "limbo: Steve is crowned")
     t.tv.wait_for_timeout(1200)
     shot(t.screens, "lb-05-end")
+
+    # the variants (the phones have no sensor yet, so they ask for honesty): the TV names the way
+    # the table plays before the game, and says what each bar asks; a tilt bar slants, a moving
+    # bar moves, and the corner names the bar's kind
+    corner = lambda: t.tv.locator(".tvx-round-name").inner_text()
+    ask = lambda: t.tv.locator(".tvlb-ask").inner_text()
+    bar_rect = lambda: t.tv.locator(".tvlb-scene .limbo-bar-front .limbo-bar").bounding_box()
+
+    def again_as(label, mode):
+        tap(t.host.get_by_role("button", name=L("再来一局", "Play again")))
+        ok(t.wait_phase("ready"), f"limbo {mode}: again")
+        t.host.get_by_role("button", name=label, exact=True).click()
+        ok(until(lambda: view(t.tv)["mode"] == mode), f"limbo {mode}: the table plays it")
+        t.tv.wait_for_timeout(700)
+        ok(label in corner(), f"limbo {mode}: the TV's corner names the way to play")
+
+    def start_bar(mode, timeout=9000):
+        t.host.get_by_role("button", name=L("开始", "Start"), exact=True).click()
+        ok(until(lambda: view(t.tv)["phase"] == "go", 6000), f"limbo {mode}: the bar")
+        shot([t.tv], f"lb-{mode}-count")
+        ok(until(lambda: view(t.tv)["phase"] == "go" and t.tv.locator(".tvlb-count").count() == 0, timeout), f"limbo {mode}: the count is over")
+
+    def say(g, made):
+        """The honesty buttons: 我过了 / 我跟住了, or 没过 / 跟丢了 (the host's own come before the
+        judge's; the pass button wakes up when a moving bar stops, a beat after the TV says so)."""
+        b = g.get_by_role("button", name=re.compile(L("我过了|我跟住了", "I made it|I kept up") if made else L("^没过$|^跟丢了$", "^Missed$|^Lost it$"))).first
+        b.wait_for(timeout=8000)
+        until(lambda: b.is_enabled(), 4000)
+        b.dispatch_event("click")
+
+    # tilt through: the bar asks for a side, and slants to it
+    again_as(L("歪着过", "Tilt through"), "tilt")
+    ok(L("往左或往右歪", "tilt left or right") in t.tv.locator(".tvlb-line").inner_text(), "limbo tilt: the TV says how, before the game")
+    shot([t.tv], "lb-10-tilt-ready")
+    start_bar("tilt")
+    side = view(t.tv)["bar"]["side"]
+    ok(side != 0 and L("歪", "tilt") in ask() and (L("右", "right") if side > 0 else L("左", "left")) in ask(), f"limbo tilt: the bar asks for the lean and the tilt, to the phones' side ({side})")
+    ok(L("歪", "Tilt") in corner(), "limbo tilt: the corner says which bar and how")
+    ok(t.tv.evaluate("() => getComputedStyle(document.querySelector('.tvlb-scene .limbo-bar-front .limbo-slant')).transform") not in ("none", "matrix(1, 0, 0, 1, 0, 0)"), "limbo tilt: the bar slants on the TV")
+    shot(t.screens, "lb-11-tilt-go")
+    clear_stamps(t.players, wait=False)
+    say(steve, True)
+    say(mia, False)
+    say(lin, False)
+    ok(t.wait_phase("end"), "limbo tilt: one left under the bar")
+    clear_stamps(t.players)
+    ok(until(lambda: t.tv.locator(".tvlb-crown").count() == 1 and NAMES[0] in t.tv.locator(".tvlb-big").inner_text(), 4000), "limbo tilt: Steve is crowned")
+
+    # moving bar: the bar moves on the TV as on the phones; nobody has kept up until it stops
+    again_as(L("跟着动的杆", "Moving bar"), "moving")
+    ok(L("上下浮动", "floats up and down") in t.tv.locator(".tvlb-line").inner_text(), "limbo moving: the TV says how, before the game")
+    t.host.get_by_role("button", name=L("开始", "Start"), exact=True).click()
+    ok(until(lambda: view(t.tv)["phase"] == "go" and t.tv.locator(".tvlb-count").count() == 1 and L("浮动", "floats") in t.tv.locator(".tvlb-line").inner_text(), 6000), "limbo moving: what this bar asks, under the count")
+    ok(until(lambda: t.tv.locator(".tvlb-count").count() == 0 and L("跟着它", "follow it") in ask(), 9000), "limbo moving: follow the bar")
+    ok(L("跟着动的杆", "Moving bar") in corner(), "limbo moving: the corner says so")
+    t.tv.wait_for_timeout(1800)  # past the lead: the bar is on its way down
+    y1 = bar_rect()["y"]
+    t.tv.wait_for_timeout(1200)
+    y2 = bar_rect()["y"]
+    ok(abs(y1 - y2) > 2, f"limbo moving: the bar moves on the TV ({y1:.0f} -> {y2:.0f})")
+    shot(t.screens, "lb-12-moving-go")
+    clear_stamps(t.players, wait=False)
+    say(lin, False)  # lost it early
+    ok(until(lambda: L("横杆停了", "has stopped") in ask(), 20000), "limbo moving: the bar stops, and the TV asks who kept up")
+    say(steve, True)
+    say(mia, True)
+    ok(t.wait_phase("result"), "limbo moving: everyone has said")
+    ok(until(lambda: NAMES[2] in t.tv.locator(".tvlb-big.is-out").inner_text() and L("跟丢了", "lost it") in t.tv.locator(".tvlb-big").inner_text(), 3000), "limbo moving: who lost it, in the moving bar's words")
+    t.tv.wait_for_timeout(800)
+    shot(t.screens, "lb-13-moving-result")
+    clear_stamps(t.players)
+    ok(until(lambda: view(t.tv)["phase"] == "go" and view(t.tv)["level"] == 1, 12000), "limbo moving: bar two by itself")
+    ok(until(lambda: t.tv.locator(".tvlb-count").count() == 0 and L("横杆停了", "has stopped") in ask(), 30000), "limbo moving: bar two stops")
+    clear_stamps(t.players, wait=False)
+    say(steve, True)
+    say(mia, False)
+    ok(t.wait_phase("end"), "limbo moving: one kept up")
+    clear_stamps(t.players)
+    ok(until(lambda: t.tv.locator(".tvlb-crown").count() == 1 and NAMES[0] in t.tv.locator(".tvlb-big").inner_text(), 4000), "limbo moving: Steve is crowned")
+
+    # hold steady: the bar asks for the hold
+    again_as(L("稳住", "Hold steady"), "steady")
+    shot([t.tv], "lb-14-steady-ready")  # (the longest of the lines before a game)
+    start_bar("steady")
+    hold = view(t.tv)["bar"]["hold"] / 1000
+    ok(L(f"撑住 {hold:g} 秒", f"hold dead still for {hold:g}s") in ask(), f"limbo steady: the bar asks for the hold ({hold:g}s)")
+    ok(L("稳住", "Hold still") in corner(), "limbo steady: the corner says so")
+    shot([t.tv], "lb-14-steady-go")
+    clear_stamps(t.players, wait=False)
+    say(steve, True)
+    say(mia, False)
+    say(lin, False)
+    ok(t.wait_phase("end"), "limbo steady: one left")
+    clear_stamps(t.players)
+
+    # party: a kind each bar, and the corner says which
+    again_as(L("派对", "Party"), "party")
+    ok(L("每杆随机", "at random") in t.tv.locator(".tvlb-line").inner_text(), "limbo party: the TV says how, before the game")
+    shot([t.tv], "lb-15-party-ready")
+    start_bar("party")
+    kind = view(t.tv)["bar"]["kind"]
+    kinds = {"classic": L("经典", "Classic"), "steady": L("稳住", "Hold still"), "moving": L("跟着动的杆", "Moving bar"), "tilt": L("歪", "Tilt")}
+    ok(kinds[kind] in corner(), f"limbo party: this bar is {kind}, and the corner says so")
+    shot(t.screens, "lb-15-party-go")
+    clear_stamps(t.players, wait=False)
+    say(mia, False)
+    say(lin, False)
+    if kind == "moving":
+        ok(until(lambda: L("横杆停了", "has stopped") in ask(), 20000), "limbo party: a moving bar stops first")
+    say(steve, True)
+    ok(t.wait_phase("end"), "limbo party: one left")
+    clear_stamps(t.players)
+
+    # #141: nobody made it and nobody leaned: everyone drinks and the same bar comes again
+    again_as(L("经典", "Classic"), "classic")
+    start_bar("classic")
+    clear_stamps(t.players, wait=False)
+    for g in t.players:
+        say(g, False)
+    ok(t.wait_phase("result"), "limbo again: all three missed")
+    ok(until(lambda: L("谁都没过，这一杆再来", "Same bar again") in t.tv.locator(".tvlb-big.is-out").inner_text(), 3000), "limbo again: the TV says the same bar comes again")
+    ok(t.tv.locator(".tvlb-line").count() == 0, "limbo again: ...and not that the bar is coming down")
+    shot(t.screens, "lb-16-again")
+    clear_stamps(t.players)
+    ok(until(lambda: view(t.tv)["phase"] == "go" and view(t.tv)["level"] == 0 and len(view(t.tv)["alive"]) == 3, 12000), "limbo again: the same bar, everyone still in")
+    ok(until(lambda: t.tv.locator(".tvlb-count").count() == 0, 9000), "limbo again: open")
+    clear_stamps(t.players, wait=False)
+    say(steve, True)
+    say(mia, False)
+    say(lin, False)
+    ok(t.wait_phase("end"), "limbo again: decided")
+    clear_stamps(t.players)
+
     # blind lean: the phones measure, and nobody's angle shows until the round is over
     tap(t.host.get_by_role("button", name=L("再来一局", "Play again")))
     ok(t.wait_phase("ready"), "limbo: again")
