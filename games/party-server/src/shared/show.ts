@@ -195,8 +195,8 @@ export interface RunBeat extends ShowBeat {
  * plays (the lobby, calibrating, the results).
  */
 export function anchorsOf(phase: RoomPhase, routineStartAt: number | null, routine: RoutineInfo | null): Anchors | null {
-  // (paused: nothing plays until 继续 moves the run on)
-  if (!routine || (phase !== "learning" && phase !== "dancing") || routine.pausedAt !== undefined) return null;
+  // (paused: nothing plays until 继续 moves the run on; held: until the song's video plays again)
+  if (!routine || (phase !== "learning" && phase !== "dancing") || routine.pausedAt !== undefined || routine.heldAt !== undefined) return null;
   return { leadStartAt: routine.leadStartAt, danceStartAt: phase === "dancing" ? routineStartAt : null, fromBeat: routine.fromBeat, introMs: routine.introMs ?? null };
 }
 

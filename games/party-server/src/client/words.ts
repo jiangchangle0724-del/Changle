@@ -7,7 +7,7 @@ import { songById, type Song } from "../shared/songs";
 import type { Results } from "../shared/protocol";
 import type { Show, Stage } from "../shared/show";
 import type { Verdict } from "../shared/taps";
-import { getLang, tr } from "./common";
+import { el, getLang, tr } from "./common";
 
 export function stageName(s: Stage): string {
   switch (s) {
@@ -140,10 +140,10 @@ const HOW: Record<string, [string, string]> = {
   // the songs' own dances (src/shared/songmoves.ts)
   "horse-ride": ["两手腕交叉像握着缰绳，膝盖弯：右、左、右右，左、右、左左地跳", "Wrists crossed like holding the reins, knees bent: hop right, left, right-right, then left, right, left-left"],
   "horse-lasso": ["左手横在胸前，右手举过头顶转圈甩绳，脚继续骑马", "Left forearm across your chest, right hand circling over your head like a lasso, feet still riding"],
-  "sexy-lady": ["双手叉腰，右腿往外甩四下，胯跟着摆，再换左腿", "Hands on hips, flick your right leg out four times, hips with it, then the left"],
-  "gangnam-lunge": ["右脚往前弓步弹四下，扭两下胯，前腿蹬三下", "Lunge forward on the right and bounce four times, roll your hips twice, pop the front leg three times"],
-  "chest-pop": ["挺胸三下，再连手臂一起往外顶三下", "Pop your chest three times, then chest and arms together three times"],
-  "gangnam-bounce": ["膝盖跟着拍子弹，左右晃，手指轮流往前点", "Bounce on the beat, sway side to side, point forward with one hand, then the other"],
+  "sexy-lady": ["双手叉腰，胯一拍往右顶、一拍往左顶，抖起来", "Hands on your hips, pop your hips right, then left, a beat each: shake it"],
+  "disco-point": ["蹲低，左手往左上方指天、右手往下指地，弹四下；再双手举高摇", "Stay low, left arm pointing up and out, right hand pointing down, bounce four times; then both arms up, swaying"],
+  "gangnam-strut": ["右手贴胸口，左右迈步点地，肩膀跟着甩", "Right hand on your chest, step and tap side to side, shoulders swinging with it"],
+  "gangnam-bounce": ["拳头放胸前，膝盖弹一下、胯往前顶一下", "Fists at your chest: bounce your knees, then push your hips forward"],
   "hey-point": ["左右晃三拍，第四拍往前一指（嘿！），再换手", "Sway for three, point forward on four (hey!), then the other hand"],
   "gangnam-pose": ["右腿往外踢出去，身体往右斜，右手往上，定住", "Kick your right leg out, lean right, right arm up, and hold"],
   "macarena-arms": ["右手往前伸手心向下，左手也是；翻成手心向上；右手搭左肩，左手搭右肩；右手放脑后，左手也是", "Right arm out palm down, then the left; turn the palms up; right hand to left shoulder, left to right; right hand behind your head, then the left"],
@@ -180,4 +180,142 @@ const HOW: Record<string, [string, string]> = {
 export function moveHow(m: Move): string {
   const h = HOW[m.id];
   return h ? tr(h[0], h[1]) : "";
+}
+
+/** Counts `from` to `to` of an 8-count, and what to do on them. */
+type Line = [from: number, to: number, zh: string, en: string];
+/**
+ * A move taught step by step, for someone who has never danced: how to stand before it starts, what
+ * to do on each count, and what to keep in mind. Mirrored like the coach: "right" is your right.
+ */
+interface Steps {
+  ready: [string, string];
+  counts: Line[];
+  tip?: [string, string];
+}
+
+/**
+ * The songs' own moves step by step (worked out from the songs' videos). The TV shows them beside
+ * the coach, the count being danced lit up; /party/moves shows them whole.
+ */
+const STEPS: Record<string, Steps> = {
+  // 江南Style (the official video: the riding hall, the subway, the tour bus, the disco)
+  "horse-ride": {
+    ready: ["双脚比肩宽一点，脚尖微微朝外，膝盖弯下去，像骑在马背上；双手握拳，右手腕搭在左手腕上，放在胸口前，像握着缰绳", "Feet a little wider than your shoulders, toes slightly out, knees bent as if you're on a horse; make fists and cross your right wrist over the left in front of your chest, like holding the reins"],
+    counts: [
+      [1, 1, "右脚原地踩一下", "Step on your right foot, on the spot"],
+      [2, 2, "左脚踩", "Step on your left"],
+      [3, 3, "右脚踩", "Right"],
+      [4, 4, "还是右脚，原地再小跳一下，左脚离地", "Right again: a little hop on it, left foot off the floor"],
+      [5, 5, "左脚踩", "Left"],
+      [6, 6, "右脚踩", "Right"],
+      [7, 7, "左脚踩", "Left"],
+      [8, 8, "还是左脚，再小跳一下，右脚离地", "Left again: a little hop, right foot off the floor"],
+    ],
+    tip: ["双手每一拍一起往下压，像拉缰绳；身体跟着上下颠，越像骑马越好", "Press both fists down on every beat, like tugging the reins, and let your body bounce: the more horse, the better"],
+  },
+  "horse-lasso": {
+    ready: ["脚和骑马一样；左小臂横在胸前，手肘朝左；右手举起来，手肘和肩膀一样高，小臂竖直朝上", "Feet as in the horse ride; left forearm flat across your chest, elbow out to the left; right arm up, elbow as high as your shoulder, forearm straight up"],
+    counts: [
+      [1, 4, "脚：右、左、右、右（右脚小跳）；右手在头顶上转圈，一拍一圈，像甩套马的绳子", "Feet: right, left, right, right (hop); circle your right hand over your head, once a beat, like swinging a lasso"],
+      [5, 8, "脚：左、右、左、左（左脚小跳）；右手继续转", "Feet: left, right, left, left (hop); keep the lasso going"],
+    ],
+    tip: ["转的是手腕和小臂，手肘别往下掉", "It's your wrist and forearm doing the circles: keep the elbow up"],
+  },
+  "sexy-lady": {
+    ready: ["双手叉腰（拳头顶在腰两侧，手肘往外），双脚比肩宽，膝盖放松微弯，下巴抬高，表情要拽", "Hands on your hips (fists at your waist, elbows out), feet wider than your shoulders, knees soft, chin up, a cocky face"],
+    counts: [
+      [1, 1, "胯往右顶出去，左膝往里扣", "Pop your hips out to the right, left knee bending in"],
+      [2, 2, "胯往左顶，右膝往里扣", "Hips to the left, right knee in"],
+      [3, 3, "右", "Right"],
+      [4, 4, "左", "Left"],
+      [5, 8, "同 1-4：右、左、右、左", "Same again: right, left, right, left"],
+    ],
+    tip: ["上身和手不动，只甩屁股，头往反方向轻轻歪：歌里唱「Eh~ Sexy Lady」的地方", "Your upper body and hands stay still: only your hips swing, your head tipping the other way. It's the 'Eh~ Sexy Lady' part"],
+  },
+  "disco-point": {
+    ready: ["双脚分得很开，膝盖弯低，像半坐着", "Feet wide apart, knees bent low, as if half sitting"],
+    counts: [
+      [1, 4, "左手往左上方斜着指天，右手往右下方指地；膝盖每拍弹一下，左手跟着往上戳", "Left arm points up and out to the upper left, right hand points down to the lower right; bounce your knees on every beat, jabbing the left hand up with it"],
+      [5, 8, "双手举高成 V 字，跟着拍子左右摇", "Both arms up in a V, swaying side to side on the beat"],
+    ],
+    tip: ["MV 里 PSY 在大巴上和阿姨们蹦迪：放开了跳", "PSY partying with the aunties on the tour bus in the video: let loose"],
+  },
+  "gangnam-strut": {
+    ready: ["右手手掌贴在胸口，左手自然垂着，下巴抬起来", "Right palm flat on your chest, left arm loose, chin up"],
+    counts: [
+      [1, 1, "右脚往右迈一步", "Step to the right"],
+      [2, 2, "左脚跟过来，在右脚边点一下地，肩膀往右一甩", "Bring your left foot in and tap it by the right, shoulders swinging right"],
+      [3, 3, "左脚往左迈一步", "Step to the left"],
+      [4, 4, "右脚跟过来点地，肩膀往左甩", "Right foot taps in by the left, shoulders swinging left"],
+      [5, 8, "同 1-4", "Same again"],
+    ],
+    tip: ["像 MV 里在舞池走向心动的人，越嘚瑟越好", "Like PSY strutting up to someone on the dance floor in the video: the cockier the better"],
+  },
+  "gangnam-bounce": {
+    ready: ["双脚与肩同宽，双手握拳放在胸前，手肘往两边张开", "Feet shoulder-width apart, fists in front of your chest, elbows out"],
+    counts: [
+      [1, 1, "膝盖往下弹一下", "Bounce your knees down"],
+      [2, 2, "胯往前顶一下，拳头跟着往下压", "Push your hips forward, fists pressing down with it"],
+      [3, 3, "弹", "Bounce"],
+      [4, 4, "顶", "Hips forward"],
+      [5, 8, "同 1-4，头跟着点", "Same again, nodding along"],
+    ],
+    tip: ["学 MV 里的小 PSY：放松、嘚瑟、带点坏笑", "Like little PSY in the video: loose, cheeky, a little grin"],
+  },
+  "hey-point": {
+    ready: ["双脚分开，膝盖放松，双手松松地放在胸前", "Feet apart, knees soft, hands loose in front of your chest"],
+    counts: [
+      [1, 3, "身体跟着拍子左右晃：右、左、右", "Sway with the beat: right, left, right"],
+      [4, 4, "右手往前上方一指，左手叉腰：「嘿！」", "Right arm points forward and up, left hand on your hip: 'Hey!'"],
+      [5, 7, "晃：左、右、左", "Sway: left, right, left"],
+      [8, 8, "换左手指，右手叉腰：「嘿！」", "Now the left arm points, right hand on your hip: 'Hey!'"],
+    ],
+    tip: ["歌里唱到「hey」的时候正好指出去", "Point just as the song sings 'hey'"],
+  },
+  "gangnam-pose": {
+    ready: ["最后一个动作，摆个帅的", "The last move: make it look good"],
+    counts: [
+      [1, 1, "右腿往右踢出去，身体往右斜，右手往上举，左手叉腰", "Kick your right leg out, lean right, right arm up, left hand on your hip"],
+      [2, 8, "定住！", "Hold it!"],
+    ],
+  },
+};
+
+/** A move step by step in this page's language: how to stand, each count's line, what to keep in mind; null for a move without them. */
+export function moveSteps(m: Move): { ready: string; lines: { from: number; to: number; counts: string; text: string }[]; tip: string } | null {
+  const s = STEPS[m.id];
+  if (!s) return null;
+  return {
+    ready: tr(s.ready[0], s.ready[1]),
+    lines: s.counts.map(([from, to, zh, en]) => ({ from, to, counts: from === to ? String(from) : `${from}-${to}`, text: tr(zh, en) })),
+    tip: s.tip ? tr(s.tip[0], s.tip[1]) : "",
+  };
+}
+
+/** The list of a move's steps, the count being danced lit up by litCount; null for a move without them. */
+export function stepsList(m: Move): HTMLElement | null {
+  const s = moveSteps(m);
+  if (!s) return null;
+  const box = el("div", "coach-steps");
+  const list = el("ol");
+  for (const l of s.lines) {
+    const li = el("li");
+    li.dataset.from = String(l.from);
+    li.dataset.to = String(l.to);
+    li.append(el("b", "", l.counts), document.createTextNode(l.text));
+    list.append(li);
+  }
+  box.append(el("p", "steps-ready", `${tr("准备：", "Ready: ")}${s.ready}`), list);
+  if (s.tip) box.append(el("p", "steps-tip", s.tip));
+  return box;
+}
+
+/** Lights up the line of a steps list (stepsList) that has this count; 0 lights none. */
+export function litCount(box: HTMLElement | null | undefined, count: number) {
+  if (!box) return;
+  for (const li of box.querySelectorAll<HTMLElement>("li")) {
+    const on = count >= Number(li.dataset.from) && count <= Number(li.dataset.to);
+    li.classList.toggle("is-now", on);
+  }
 }

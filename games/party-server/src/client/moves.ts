@@ -7,7 +7,7 @@ import { canCoach, glowOf } from "./coach/index";
 import { CoachStage } from "./coach/stage";
 import { Synth } from "./synth";
 import { SONGS, songMoves } from "../shared/songs";
-import { bodyHint, difficultyName, moveHow, moveName, moveOther, songTitle } from "./words";
+import { bodyHint, difficultyName, litCount, moveHow, moveName, moveOther, songTitle, stepsList } from "./words";
 
 const q = new URLSearchParams(location.search);
 let still = q.has("still") ? Number(q.get("still")) : null;
@@ -23,7 +23,7 @@ let zero = pageClock() + 400;
 let nextClick = 0;
 
 const app = document.getElementById("app")!;
-const parts: { box?: HTMLElement; count?: HTMLElement; name?: HTMLElement; other?: HTMLElement; how?: HTMLElement; body?: HTMLElement } = {};
+const parts: { box?: HTMLElement; count?: HTMLElement; name?: HTMLElement; other?: HTMLElement; how?: HTMLElement; steps?: HTMLElement | null; body?: HTMLElement } = {};
 
 const bpm = () => Math.round(move.native_bpm * (slow ? 0.7 : 1));
 const beatMs = () => 60000 / bpm();
@@ -74,7 +74,9 @@ function render() {
     render();
   };
   ctl.append(speed, snd);
-  side.append(parts.name, parts.other, parts.how, parts.body, parts.count, ctl);
+  // a song's own move: step by step, the count the coach is on lit up
+  parts.steps = stepsList(move);
+  side.append(parts.name, parts.other, parts.how, ...(parts.steps ? [parts.steps] : []), parts.body, parts.count, ctl);
   stage.append(side);
   main.append(stage);
 
@@ -132,7 +134,11 @@ function frame() {
 
 /** The coach at a beat position of its 8-count (`beat` counts up for the effects), and the count. */
 function drawAt(pos: number, beat: number, now: number) {
-  if (parts.count) parts.count.textContent = String(Math.floor(pos) + 1);
+  const count = Math.floor(pos) + 1;
+  if (parts.count && parts.count.textContent !== String(count)) {
+    parts.count.textContent = String(count);
+    litCount(parts.steps, count);
+  }
   coach?.frame({ doing: { kind: "move", id: move.id }, p: pos, beat, now, glow: glowOf(move), hype: 0.3 });
 }
 

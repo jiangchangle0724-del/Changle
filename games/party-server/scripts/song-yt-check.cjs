@@ -13,6 +13,9 @@
 //   - Ann tapping on the video's real beats as the room hears them is on the beat;
 //   - 暂停 and 继续: the video holds, the phones say so; on 继续 it picks up a moment and a half
 //     before where it stopped, and the room's beat is where the video's is again (within 25 ms);
+//   - the video stalls for 4 s: the dance waits for it (the TV and the phones say so), then picks up
+//     where the video is (its beat within 25 ms of the video's, 4 s later than it was);
+//   - the dance's end: the song fades out and stops, its sound back for the next time;
 //   - the TV's video goes away in the lobby;
 //   - 找拍子: a song nobody has danced yet plays first while Ann and Bob tap along on their phones;
 //     the speaker finds its first beat from their taps, heard TV_DELAY late (within 25 ms), the
@@ -65,8 +68,14 @@ const FAKE_YT = `(() => {
         this.rep = { t: this.cur(), at: performance.now() };
       }, LAG);
     }
-    pauseVideo() { this.at = this.cur(); this.state = 2; clearTimeout(this.tm); this.rep = { t: this.at, at: performance.now() }; }
+    pauseVideo() { this.at = this.cur(); this.state = 2; clearTimeout(this.tm); this.rep = { t: this.at, at: performance.now() }; window.__pauses = (window.__pauses ?? 0) + 1; }
     seekTo(s) { (window.__seeks ??= []).push(s); this.at = s; if (this.state === 1) { this.t0 = performance.now(); window.__fakeZero = window.partyDebug.now() - s * 1000; } this.rep = { t: s, at: performance.now() }; }
+    /** the network holding it up for ms: its clock stops, then it plays on */
+    stall(ms) {
+      this.at = this.cur(); this.state = 3; clearTimeout(this.tm); this.rep = { t: this.at, at: performance.now() };
+      this.tm = setTimeout(() => { this.state = 1; this.t0 = performance.now(); window.__fakeZero = window.partyDebug.now() - this.at * 1000; this.rep = { t: this.cur(), at: performance.now() }; }, ms);
+    }
+    setVolume(v) { this.vol = v; (window.__vols ??= []).push(v); }
     mute() { this.muted = true; }
     unMute() { this.muted = false; }
     isMuted() { return this.muted; }
@@ -169,6 +178,24 @@ const FAKE_YT = `(() => {
   const resumedZero = await speaker.evaluate(() => window.__fakeZero);
   const resumedStart = await speaker.evaluate(() => window.partyDebug.state().routineStartAt);
   const resumedMoved = resumedStart - (resumedZero + FIRST);
+  // the video stalls for 4 s: the dance waits (the TV and the phones say so), then picks up with it
+  await speaker.evaluate(() => window.__fakeYt.stall(4000));
+  await speaker.waitForFunction(() => window.partyDebug.routine()?.heldAt !== undefined, null, { timeout: 6000 }).catch(() => {});
+  const held = await speaker.evaluate(() => window.partyDebug.routine()?.heldAt !== undefined);
+  const stallShown = await ann.waitForFunction(() => /等电视上的视频/.test(document.body.innerText), null, { timeout: 3000 }).then(() => true, () => false);
+  const tvStallShown = await speaker.evaluate(() => /等视频/.test(document.body.innerText) && window.partyDebug.run().length === 0);
+  await speaker.waitForFunction(() => window.partyDebug.routine()?.heldAt === undefined, null, { timeout: 10000 }).catch(() => {});
+  await speaker.waitForTimeout(3500);
+  const stallZero = await speaker.evaluate(() => window.__fakeZero);
+  const stallStart = await speaker.evaluate(() => window.partyDebug.state().routineStartAt);
+  const stallMoved = stallStart - (stallZero + FIRST);
+  const stallLater = stallStart - resumedStart;
+  // the dance's end: the song fades out and stops, its sound back for the next time (here the dance
+  // is still on, so the video then picks up again: a real end has the room on its results)
+  await speaker.evaluate(() => { window.__vols = []; window.__pauses = 0; window.partyDebug.fade(); });
+  await speaker.waitForTimeout(3200);
+  const fade = await speaker.evaluate(() => ({ low: Math.min(...window.__vols), last: window.__vols.at(-1), steps: window.__vols.length, pauses: window.__pauses }));
+  const faded = fade.steps > 5 && fade.low <= 5 && fade.last === 100 && fade.pauses >= 1;
   await ann.evaluate(() => window.partyDebug.act({ type: "BACK_TO_LOBBY" }));
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "lobby");
   await speaker.waitForTimeout(300);
@@ -238,7 +265,7 @@ const FAKE_YT = `(() => {
   const book = (await api("/party/api/songs")).json;
   const expectFirst = TAP_FIRST + j0 * tapBeat;
 
-  console.log(JSON.stringify({ tapText, kept, refused, uncalibrated, calFirst, audioOffsetMs, heldAt, stillHeld, pickedUp, resumedMoved: Math.round(resumedMoved), ownNoTap, ownMoved: Math.round(ownMoved), ownMove, waited, moved: Math.round(moved), judged: judged && { verdict: judged.verdict, off: judged.off }, floor: floor && { best: floor.best, dancers: floor.dancers }, tubeAfter, findShown, found, bookF, findMoved: Math.round(findMoved), tapped: book[TAP_SONG], expectFirst: Math.round(expectFirst), errors }, null, 1));
+  console.log(JSON.stringify({ tapText, kept, refused, uncalibrated, calFirst, audioOffsetMs, heldAt, stillHeld, pickedUp, resumedMoved: Math.round(resumedMoved), held, stallShown, tvStallShown, stallMoved: Math.round(stallMoved), stallLater: Math.round(stallLater), fade, ownNoTap, ownMoved: Math.round(ownMoved), ownMove, waited, moved: Math.round(moved), judged: judged && { verdict: judged.verdict, off: judged.off }, floor: floor && { best: floor.best, dancers: floor.dancers }, tubeAfter, findShown, found, bookF, findMoved: Math.round(findMoved), tapped: book[TAP_SONG], expectFirst: Math.round(expectFirst), errors }, null, 1));
   const checks = {
     "the songbook keeps a tap-along": kept.ok && kept.json.firstBeatMs === FIRST,
     "and turns away too few taps": !refused.ok,
@@ -250,6 +277,9 @@ const FAKE_YT = `(() => {
     "暂停 holds the video, and the phones say so": Math.abs(stillHeld - heldAt) < 0.01 && pauseShown,
     "继续 picks the video up a moment and a half before where it stopped": typeof pickedUp === "number" && Math.abs(heldAt - 1.5 - pickedUp) <= 0.35,
     "after 继续 the room's beat is where the video's is (within 25 ms)": Math.abs(resumedMoved) <= 25,
+    "a stalled video holds the dance, and the TV and the phones say so": held && stallShown && tvStallShown,
+    "then the dance picks up where the video is (within 25 ms), 4 s later": Math.abs(stallMoved) <= 25 && Math.abs(stallLater - 4000) <= 600,
+    "the dance's end fades the song out and stops it, its sound back for next time": faded,
     "the video goes away in the lobby": tubeAfter === "idle",
     "找拍子 shows on the phones and the TV": findShown,
     "找拍子 finds the first beat from Ann's and Bob's taps (within 25 ms), and the songbook keeps it": !!bookF && Math.abs(bookF.firstBeatMs - FIND_FIRST) <= 25 && bookF.taps >= 16,
