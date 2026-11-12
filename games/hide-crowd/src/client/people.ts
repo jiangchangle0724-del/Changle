@@ -17,7 +17,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 export const PEOPLE_FILES = { m: `${BASE}/art/crowd-people.glb`, f: `${BASE}/art/crowd-people-f.glb` } as const;
 
 /** the palette's cells, left to right, as the build script lays out the bodies' UVs */
-export const CELLS = ["head", "neck", "top", "forearm", "hand", "pants", "shin", "shoes", "hair", "bag", "accent", "strap"] as const;
+export const CELLS = ["head", "neck", "top", "forearm", "hand", "pants", "shin", "shoes", "hair", "bag", "accent", "strap", "eyes"] as const;
 export type Cell = (typeof CELLS)[number];
 const PALETTE_WIDTH = 16;
 
@@ -35,6 +35,7 @@ export interface Look {
 }
 
 const skin = { light: "#f1c9a5", warm: "#e8b48c", tan: "#c68e64", brown: "#a8714a", deep: "#8d5a3b" };
+const EYES = "#1c1820";
 const dress = (body: Look["body"], hair: Hair, bag: Bag | null, idle: Look["idle"], walk: Look["walk"], tone: string, parts: Partial<Record<Cell, string>>): Look => ({
   body,
   hair,
@@ -53,7 +54,8 @@ const dress = (body: Look["body"], hair: Hair, bag: Bag | null, idle: Look["idle
     hair: parts.hair!,
     bag: parts.bag ?? parts.top!,
     accent: parts.accent ?? parts.hair!,
-    strap: parts.strap ?? parts.bag ?? parts.top!
+    strap: parts.strap ?? parts.bag ?? parts.top!,
+    eyes: parts.eyes ?? EYES
   }
 });
 
@@ -92,6 +94,8 @@ const JOG_FULL = 3.2;
 /** the punch's fist is furthest out this far into its clip (s): it gets there when the rules land the punch */
 const PUNCH_REACH = 0.26;
 const PUNCH_RATE = PUNCH_REACH / (PUNCH_WINDUP_MS / 1000);
+/** a knocked-down body's back hits the floor this far into the fall (s) */
+const FALL_LANDS = 0.27;
 
 const smoothstep = (edge0: number, edge1: number, value: number) => {
   const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
@@ -178,6 +182,9 @@ export class Person {
   private next: { action: THREE.AnimationAction; rate: number; at: number } | null = null;
   private pose: Pose = "idle";
   private glance = 0;
+  /** for the arena: a burst where this body was knocked off its feet, and when it hits the floor (ms) */
+  hitFx = false;
+  landAt: number | null = null;
   private yawKick = new THREE.Quaternion();
 
   constructor(sources: { m: THREE.Object3D; f: THREE.Object3D }, clips: Map<string, THREE.AnimationClip>, materials: THREE.Material[], index: number) {
@@ -264,6 +271,8 @@ export class Person {
         // knocked down, then up again by the time the rules let go (the fall at its own speed)
         const fall = this.hit.getClip().duration;
         this.play(this.hit, 1, now, Infinity);
+        this.hitFx = true;
+        this.landAt = now + FALL_LANDS * 1000;
         this.next = { action: this.getup, rate: this.getup.getClip().duration / Math.max(0.3, STUN_MS / 1000 - fall), at: now + fall * 1000 };
       }
       this.pose = pose;

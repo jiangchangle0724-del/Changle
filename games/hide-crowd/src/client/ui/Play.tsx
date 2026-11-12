@@ -9,6 +9,7 @@ import { Arena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
 import { Icon, IconButton } from "./chrome";
 import { Controls } from "./Controls";
+import { MomentBanner, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden" };
 
@@ -70,6 +71,8 @@ export function Play(props: {
   onMenu: () => void;
   /** full screen, or on an iPhone the Home Screen guide; null where neither helps (already from the Home Screen) */
   fullscreen: { on: boolean; toggle: () => void } | null;
+  /** the place's music too (practice: this phone is the only screen) */
+  music?: boolean;
   children?: ComponentChildren;
 }) {
   const { view, game, send } = props;
@@ -86,6 +89,7 @@ export function Play(props: {
   }, []);
   const remaining = useClock(game, props.receivedAt);
   const seconds = Math.ceil(remaining / 1_000);
+  useRoundSounds(game, seconds, { screen: false, music: !!props.music });
   const latest = game.events[game.events.length - 1];
   const notice = useNotice(game.events);
   const me = game.me;
@@ -127,6 +131,7 @@ export function Play(props: {
       <div class="play-scores">
         <Scoreboard view={view} target={game.scoreToWin} compact />
       </div>
+      <MomentBanner game={game} />
       {notice && (
         <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" ? " is-bad" : notice.key === "hit" ? " is-good" : ""}`} role="status" key={notice.id}>
           {t(notice.key)}

@@ -1,6 +1,6 @@
 // What the room's server and the pages say to each other. Every word a player reads is chosen by
 // the page (src/client/i18n.ts) from these keys and numbers, in its own language.
-import type { ArenaId, Pose } from "../engine";
+import type { ArenaId, AwardKey, MomentKind, Pose } from "../engine";
 
 export type Lang = "zh" | "en";
 /** a phone in someone's hand, or a big screen (a TV, a computer, a phone mirrored to a TV) */
@@ -84,6 +84,15 @@ export interface GameView {
   events: EventView[];
   /** this phone's player, when it plays this round */
   me: MeView | null;
+  /** the moment the whole crowd is reacting to (the ferry horn, the gong), while it lasts */
+  moment: { kind: MomentKind; endsInMs: number } | null;
+}
+
+/** A nickname for the round (火眼金睛 Eagle Eye...), by name; `you` on that player's own phone. */
+export interface AwardView {
+  name: string;
+  award: AwardKey;
+  you: boolean;
 }
 
 /** The round's penalty, once it's over: who takes it, by name. */
@@ -100,6 +109,7 @@ export interface ResultView {
   youWon: boolean;
   /** null when the host turned penalties off */
   penalty: PenaltyView | null;
+  awards: AwardView[];
 }
 
 export interface RoomView {

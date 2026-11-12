@@ -21,7 +21,8 @@ crowd-people-f.glb (the woman's body, her hair and bags). What it does to the pa
 * the bodies: the hands' fingers merged into the hands (the crowd is seen from across a room), the
   bodies thinned to about 3,000 points, and every face told which part of the clothes it is (the
   `PART` table): the game paints each look's colours on them;
-* hair, caps and bags are new, simple shapes made here, each on the head's or the back's bone.
+* hair, caps, bags and a pair of eyes are new, simple shapes made here, each on the head's or the
+  back's bone.
 
 No outside textures. Everything it reads is CC0; everything it makes is ours.
 """
@@ -81,7 +82,7 @@ PART = {
     "foot_l": "shoes", "ball_l": "shoes", "foot_r": "shoes", "ball_r": "shoes",
 }
 # the palette's cells, left to right (people.ts reads them in this order)
-CELLS = ["head", "neck", "top", "forearm", "hand", "pants", "shin", "shoes", "hair", "bag", "accent", "strap"]
+CELLS = ["head", "neck", "top", "forearm", "hand", "pants", "shin", "shoes", "hair", "bag", "accent", "strap", "eyes"]
 PALETTE_WIDTH = 16
 
 FINGERS = ("thumb", "index", "middle", "ring", "pinky")
@@ -281,12 +282,26 @@ def rounded_box(work, center, size, bevel=0.02):
     bmesh.ops.bevel(work, geom=[edge for edge in work.edges if edge.verts[0] in result["verts"]], offset=bevel, segments=2, affect="EDGES")
 
 
-def accessories(top: float) -> list[bpy.types.Object]:
-    """Hair, caps and bags around a head whose crown is at `top` (the rig faces -Y, Z is up)."""
+def face_front(person: bpy.types.Object, eye_z: float) -> float:
+    """How far forward the face is at the eyes (the rig faces -Y): the eyes sit on it."""
+    points = [person.matrix_world @ vertex.co for vertex in person.data.vertices]
+    near = [co.y for co in points if abs(co.z - eye_z) < 0.02 and abs(abs(co.x) - 0.034) < 0.018]
+    return min(near) if near else -0.11
+
+
+def accessories(top: float, face: float) -> list[bpy.types.Object]:
+    """Hair, caps, bags and eyes around a head whose crown is at `top` and whose face at the eyes is at
+    `face` (the rig faces -Y, Z is up)."""
     cx, cy = 0.0, -0.003
     crown = top + 0.012
     head_center = top - 0.135
     items = []
+    # two dark eyes, set into the face (the crowd reads where everyone is looking)
+    eye_z = top - 0.112
+    def eyes(work):
+        for side in (-1, 1):
+            ellipsoid(work, (side * 0.034, face + 0.004, eye_z), (0.0125, 0.007, 0.0165), segments=8, rings=6)
+    items.append(shape("eyes", eyes, "eyes"))
     # short hair: a cap over the crown and the back, open at the face
     items.append(shape("hair_short", lambda w: ellipsoid(w, (cx, cy + 0.006, head_center + 0.02), (0.097, 0.125, crown - head_center - 0.02),
                                                        keep=lambda co: co.z > head_center - 0.03 + max(0.0, -(co.y - cy) - 0.03) * 1.6), "hair"))
@@ -563,7 +578,7 @@ def main() -> None:
     # once his file is written, so the woman's set has the same names)
     def dress(skeleton: bpy.types.Object, person: bpy.types.Object) -> list[bpy.types.Object]:
         top = max((person.matrix_world @ vertex.co).z for vertex in person.data.vertices)
-        made = accessories(top)
+        made = accessories(top, face_front(person, top - 0.112))
         for item in made:
             bind(item, skeleton, BAG_BONE.get(item.name, "Head"))
         return made

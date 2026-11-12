@@ -16,6 +16,7 @@ import { PenaltyStamp } from "./Penalty";
 import { Play } from "./Play";
 import { Result } from "./Result";
 import { TurnSideways, useUpright } from "./Sideways";
+import { useLanded } from "./useLanded";
 import { TvPage } from "./Tv";
 
 export interface Session {
@@ -187,6 +188,7 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
   const [rules, setRules] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [stampSeen, setStampSeen] = useState(0);
+  const landed = useLanded(view?.phase === "over", view?.result?.round ?? 0);
   const fullscreen = useFullscreen();
   const upright = useUpright();
   // an iPhone: no full screen for a page, so the Home Screen guide (by itself once, in a lobby held sideways)
@@ -307,17 +309,18 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
     );
 
   const result = view.result;
-  const stamp = view.phase === "over" && result?.penalty && stampSeen !== result.round;
+  // (the last blow lands, in slow motion, before the penalty and the results cover the arena)
+  const stamp = view.phase === "over" && landed && result?.penalty && stampSeen !== result.round;
   return (
     <>
     <main class="room-play" inert={upright}>
-      <Play view={view} game={view.game} receivedAt={session.receivedAt} serverOffset={session.offset} send={send} onMenu={() => setMenu(true)} fullscreen={full}>
+      <Play view={view} game={view.game} receivedAt={session.receivedAt} serverOffset={session.offset} send={send} onMenu={() => setMenu(true)} fullscreen={full} music={props.practice}>
         {session.status === "offline" && (
           <p class="conn-banner is-floating" role="status">
             {t("reconnecting")}
           </p>
         )}
-        {view.phase === "over" && !stamp && <Result view={view} send={send} onTable={props.practice ? undefined : table ? leave : undefined} practice={props.practice} />}
+        {view.phase === "over" && landed && !stamp && <Result view={view} send={send} onTable={props.practice ? undefined : table ? leave : undefined} practice={props.practice} />}
       </Play>
       {stamp && result?.penalty && <PenaltyStamp penalty={result.penalty} custom={custom} onDone={() => setStampSeen(result.round)} />}
       {sheets}

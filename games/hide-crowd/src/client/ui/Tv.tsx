@@ -11,9 +11,13 @@ import { other, t } from "../i18n";
 import { Arena, preloadArena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
 import { ArenaVote, ARENA_RULE, penaltyLine, PlayerChips } from "./Lobby";
+import { Icon } from "./chrome";
 import { PenaltyStamp } from "./Penalty";
 import { Scoreboard, useClock } from "./Play";
 import { ResultTable, resultTitle } from "./Result";
+import { Awards, MomentBanner, useRoundSounds } from "./roundFx";
+import { useLanded } from "./useLanded";
+import { installAudioUnlock, soundOn, unlockAudio } from "../sound";
 
 const STAGE_W = 1920;
 const STAGE_H = 1080;
@@ -58,6 +62,26 @@ function TvBrand() {
       <span class="tv-brand-name">{t("title")}</span>
       <span class="tv-brand-sub">{other("title")}</span>
     </div>
+  );
+}
+
+/** A big screen only plays sound after a click (or a key) on it: say so, until it can. */
+function TvSoundHint() {
+  const [heard, setHeard] = useState(false);
+  useEffect(() => {
+    installAudioUnlock();
+    const done = () => setHeard(true);
+    for (const name of ["pointerdown", "keydown"]) document.addEventListener(name, done, { once: true });
+    return () => {
+      for (const name of ["pointerdown", "keydown"]) document.removeEventListener(name, done);
+    };
+  }, []);
+  if (heard || !soundOn()) return null;
+  return (
+    <button type="button" class="tv-sound" onClick={unlockAudio}>
+      <Icon name="sound" size={30} />
+      {t("tvSound")}
+    </button>
   );
 }
 
@@ -106,6 +130,7 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
         <p class="tv-wait" role="status">
           {t("waitHost")}
         </p>
+        <TvSoundHint />
       </aside>
     </Stage>
   );
@@ -115,6 +140,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   const game = view.game!;
   const remaining = useClock(game, receivedAt);
   const seconds = Math.ceil(remaining / 1_000);
+  useRoundSounds(game, seconds, { screen: true, music: true });
   const latest = game.events[game.events.length - 1];
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
@@ -135,7 +161,9 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
     impactId: latest?.id ?? 0,
     impactType: latest?.t ?? "swing"
   } as const;
-  const over = game.phase === "over" && view.result;
+  // (the last blow lands, in slow motion, before the penalty and the results take the screen)
+  const landed = useLanded(game.phase === "over", view.result?.round ?? 0);
+  const over = game.phase === "over" && view.result && landed;
   return (
     <>
       <div class="tv-arena">
@@ -156,7 +184,8 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
         <div class="tv-hud-right">
           <Scoreboard view={view} target={game.scoreToWin} />
         </div>
-        {game.phase === "playing" && <p class="tv-hint">{t("nobodyMarked")}</p>}
+        {/* (the crowd's moment takes the hint's place while it lasts) */}
+        {game.phase === "playing" && (game.moment ? <MomentBanner game={game} tv /> : <p class="tv-hint">{t("nobodyMarked")}</p>)}
         {over && (
           <div class="tv-over">
             {view.result!.penalty && !stampDone ? (
@@ -166,6 +195,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
                 <p class="result-round">{t("roundOver", { n: view.result!.round })}</p>
                 <h2 class="tv-result-title">{resultTitle(view)}</h2>
                 <ResultTable view={view} />
+                <Awards awards={view.result!.awards ?? []} />
                 <p class="tv-wait">{t("nextWhenReady")}</p>
               </section>
             )}

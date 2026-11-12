@@ -11,6 +11,9 @@ test("practice: one phone against three computer rivals hidden in the crowd", as
   await expect(me.locator(".controls .move-punch")).toBeVisible();
   await me.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
   await noSideScroll(me);
+  // the seawall's ferry horn: the whole crowd stops, and the phone says so
+  const arena = (await me.locator(".hud-what strong").textContent()) ?? "";
+  if (arena.includes("海堤")) await expect(me.locator(".moment-banner")).toContainText("渡轮鸣笛", { timeout: 15_000 });
   noErrors(me);
 });
 
