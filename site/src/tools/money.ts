@@ -3,13 +3,26 @@
 /** Units per one US dollar. */
 export type Rates = Record<string, number>;
 
+/** Every currency the rooms server's /api/fx returns; `decimals` is how the amount is written (yen and won have no cents). */
 export const CURRENCIES = [
-  { code: "CAD", zh: "加元", en: "Canadian dollar", symbol: "$" },
-  { code: "CNY", zh: "人民币", en: "Chinese yuan", symbol: "¥" },
-  { code: "USD", zh: "美元", en: "US dollar", symbol: "US$" },
-  { code: "HKD", zh: "港元", en: "Hong Kong dollar", symbol: "HK$" },
+  { code: "CAD", zh: "加元", en: "Canadian dollar", symbol: "$", decimals: 2 },
+  { code: "CNY", zh: "人民币", en: "Chinese yuan", symbol: "¥", decimals: 2 },
+  { code: "USD", zh: "美元", en: "US dollar", symbol: "US$", decimals: 2 },
+  { code: "HKD", zh: "港元", en: "Hong Kong dollar", symbol: "HK$", decimals: 2 },
+  { code: "EUR", zh: "欧元", en: "Euro", symbol: "€", decimals: 2 },
+  { code: "GBP", zh: "英镑", en: "British pound", symbol: "£", decimals: 2 },
+  { code: "JPY", zh: "日元", en: "Japanese yen", symbol: "JP¥", decimals: 0 },
+  { code: "KRW", zh: "韩元", en: "Korean won", symbol: "₩", decimals: 0 },
+  { code: "TWD", zh: "新台币", en: "New Taiwan dollar", symbol: "NT$", decimals: 2 },
+  { code: "SGD", zh: "新加坡元", en: "Singapore dollar", symbol: "S$", decimals: 2 },
+  { code: "AUD", zh: "澳元", en: "Australian dollar", symbol: "A$", decimals: 2 },
 ] as const;
 export type Code = (typeof CURRENCIES)[number]["code"];
+export type Currency = (typeof CURRENCIES)[number];
+export const CURRENCY_BY_CODE = Object.fromEntries(CURRENCIES.map((c) => [c.code, c])) as Record<string, Currency>;
+/** The rows a new phone starts with; the rest are added from the sheet. */
+export const DEFAULT_CODES: Code[] = ["CAD", "CNY", "USD", "HKD"];
+export const isCode = (s: unknown): s is Code => typeof s === "string" && s in CURRENCY_BY_CODE;
 
 /** Convert an amount between two currencies with per-USD rates. */
 export function convert(rates: Rates, amount: number, from: string, to: string) {
