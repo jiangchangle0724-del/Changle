@@ -164,7 +164,9 @@ site's `/hide` is proxied there), then `python3 scripts/hide_test.py` in `site`.
 
 `tools/suibian` is its own Worker at changle.ca/eat; its card in the site's Tools tab is
 `site/src/tools/Suibian.tsx`. Its state, settings and open items: `tools/suibian/HANDOFF.md`. Tools
-that need no server (exchange rates, world clock, unit price) live in `site/src/tools/`.
+without a Worker of their own (exchange rates, world clock, unit price) live in `site/src/tools/`;
+the rates come from the rooms server's `/api/fx` (`site/worker/index.ts`), with open.er-api.com as
+the browser's fallback. Their brief: `docs/briefs/tools.md`.
 
 ## Settings (names only, never the values)
 
