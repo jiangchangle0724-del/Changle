@@ -51,13 +51,13 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-06 Name That Tune: challenges count the songs this phone has, and never break on a repeat
-- 2026-11-06 Name That Tune: challenge links (挑战链接)
-- 2026-11-06 Name That Tune: a game never plays a title twice, and a small pool's game is as long as its songs
-- 2026-11-06 Name That Tune: songs' years from their first release (MusicBrainz)
-- 2026-11-05 Name That Tune: decades and singer specials (年代歌单、歌手专场)
-- 2026-11-05 Name That Tune: one second (一秒猜歌): a snippet, then three seconds, then the rest
-- 2026-11-05 Name That Tune: hard titles: no singers on them, the wrong ones by the same singer
+- 2026-11-06 Name That Tune: challenges count the songs this phone has, and never break on a repeat (#314)
+- 2026-11-06 Name That Tune: challenge links (挑战链接) (#314)
+- 2026-11-06 Name That Tune: a game never plays a title twice, and a small pool's game is as long as its songs (#312)
+- 2026-11-06 Name That Tune: songs' years from their first release (MusicBrainz) (#312)
+- 2026-11-05 Name That Tune: decades and singer specials (年代歌单、歌手专场) (#312)
+- 2026-11-05 Name That Tune: one second (一秒猜歌): a snippet, then three seconds, then the rest (#286)
+- 2026-11-05 Name That Tune: hard titles: no singers on them, the wrong ones by the same singer (#281)
 - 2026-11-05 Name That Tune: the stage's lights stop growing the page's memory song after song (#278)
 - 2026-11-05 Name That Tune: one phone, multiple choice: a wrong title locks only itself, the table guesses on (#273)
 - 2026-11-05 ui(C10): resume songs melodies and buzzers (#206，Codex)
@@ -75,3 +75,4 @@
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
 - 2026-11-05 仓库改名 Changle。Steve 定了 Apple 试听照用，参考 Soundle 的四条都做。修了单机选择题猜错一次就全锁。
 - 2026-11-11 Steve 同意，#273、#278 合并上线；同意歌手专场这个 PR 换设置页的参考截图（`update-screenshots`）。另一个对话复查了歌手专场和挑战链接，找出的问题都修了。
+- 2026-11-11 Steve 同意，#281、#286、#312、#314 按顺序合并上线，参考 Soundle 的四条都上线了。
