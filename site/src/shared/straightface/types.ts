@@ -33,6 +33,24 @@ export interface Card {
   adult?: boolean;
 }
 
+/**
+ * A word a player wrote for tonight (自己出题). It is played like a card, in a round its author does
+ * not judge; the honest one is dealt as usual, so knowing who wrote it tells nobody who is honest.
+ * It lives in the game state only: never stored, never counted, never in the bank.
+ */
+export interface OwnCard {
+  /** OWN_PREFIX + the author's id */
+  id: string;
+  authorId: string;
+  term: string;
+  definition: string;
+  /** where it comes from, a story; "" when the author wrote none */
+  fact: string;
+}
+
+/** What a player writes for 自己出题, before it becomes an OwnCard. */
+export type OwnDraft = { term: string; definition: string; fact: string };
+
 export interface Player {
   id: string;
   name: string;
@@ -94,6 +112,8 @@ export interface RoundState {
   bets: Record<string, string>; // bettorId -> targetId
   accusedId: string | null;
   result: RoundResult | null;
+  /** 自己出题: who wrote this round's word (they know it, so they don't bet); absent for a bank card */
+  authorId?: string | null;
 }
 
 export interface RoundResult {
@@ -125,6 +145,8 @@ export interface GameState {
   current: RoundState | null;
   /** seat order starting from a random seat */
   judgeOrder: string[];
+  /** 自己出题: the words the players wrote before the deal, played before any bank card */
+  ownCards?: OwnCard[];
 }
 
 export type GameEvent =
@@ -157,6 +179,8 @@ export interface PrivateView {
   canAccuse: boolean;
   /** judge only: whom the judge tagged (cannot be accused) */
   suspectId: string | null;
+  /** 自己出题: this round's word is this player's own (they know what it means, and sit out the bets) */
+  wrote: boolean;
 }
 
 /** What the TV / observer screen may render. Never contains roles or the definition before reveal. */
@@ -180,6 +204,9 @@ export interface PublicView {
   scores: Record<string, number>;
   reveal: { honestId: string; definition: T; funFact: T; result: RoundResult } | null;
   timers: { peek: number; explain: number; accuse: number };
+  /** 自己出题: this round's word is a player's (who wrote it shows from the reveal on) */
+  own: boolean;
+  authorId: string | null;
 }
 
 /** What a round's reveal needs to know to be worded: who judged, who was honest, whom the judge named, the tag, the bets. */
@@ -199,6 +226,8 @@ export interface NetSetup {
   level: Level;
   seeds: boolean;
   bets: boolean;
+  /** 自己出题: every player writes one word before the deal */
+  own: boolean;
 }
 
 /**
@@ -237,6 +266,8 @@ export interface StraightFaceView {
   learned: { term: T; definition: T }[] | null;
   /** at the end: tonight's titles (`awards` in the engine) */
   awards: Awards | null;
+  /** 自己出题, before the deal: who has written a word, and this phone's own (nobody sees anyone else's) */
+  writing: { written: string[]; mine: OwnDraft | null } | null;
 }
 
 /** The end's titles, by player id; each shared when tied, empty when nobody earned it. */

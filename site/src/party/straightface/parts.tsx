@@ -3,7 +3,7 @@
  * a slice of one), never the GameState: the one-phone screen and the online screens render the
  * same parts from what the engine's two view functions allow them to see.
  */
-import { Check, Tag } from "lucide-react";
+import { Check, PenLine, Tag } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Sheet } from "../../components/Sheet";
 import { TimerArc } from "../../components/TimerArc";
@@ -12,6 +12,7 @@ import { gsap, reduced } from "../../lib/anim";
 import { confetti, type ConfettiOpts } from "../../lib/confetti";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
+import { OWN_PACK } from "../../shared/straightface/engine";
 import type { Level, PrivateView, RoundResult } from "../../shared/straightface/types";
 import { NameFace } from "../common";
 import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightfacePacks";
@@ -104,11 +105,25 @@ export function TermCard({
           <span>{lang === "zh" ? PACK_NAMES[pack].zh : PACK_NAMES[pack].en}</span>
         </span>
       )}
+      {pack === OWN_PACK && <OwnPack />}
       {lead && <p className="sf-term-lead">{lead}</p>}
       <Bi t={term} className="sf-term-word" />
-      {level && <LevelDots level={level} />}
+      {level && pack !== OWN_PACK && <LevelDots level={level} />}
       {children}
     </div>
+  );
+}
+
+/** The pack line of a player's own word (自己出题): a pen where a pack's picture would be. */
+export function OwnPack({ size = 28 }: { size?: number }) {
+  const say = useSay();
+  return (
+    <span className="sf-term-pack is-own">
+      <span className="sf-own-badge" style={{ width: size, height: size }} aria-hidden="true">
+        <PenLine size={Math.round(size * 0.6)} />
+      </span>
+      <span>{say(S.ownPack)}</span>
+    </span>
   );
 }
 
@@ -206,6 +221,8 @@ export function PartCard({ view }: { view: PrivateView }) {
       {view.term && <p className="sf-part-term">{lang === "zh" ? view.term.zh : view.term.en}</p>}
       {honest && view.definition && <p className="sf-part-def">{lang === "zh" ? view.definition.zh : view.definition.en}</p>}
       <p className="sf-part-hint">{say(honest ? S.honestHint : S.blufferHint)}</p>
+      {view.wrote && <p className="sf-part-wrote">{say(S.ownYours)}</p>}
+      {!honest && view.bluffSeeds && view.bluffSeeds.length === 0 && <p className="sf-part-hint">{say(S.ownNoSeeds)}</p>}
       {!honest && view.bluffSeeds && view.bluffSeeds.length > 0 && (
         <div className="sf-seeds">
           <span>{say(S.seedsLead)}</span>

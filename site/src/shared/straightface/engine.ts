@@ -5,7 +5,7 @@
 import { pickCard } from "./cards";
 import { mulberry32, type Rng } from "./rng";
 import { scoreRound } from "./scoring";
-import type { Awards, Card, GameEvent, GameOptions, GameState, Level, Player, PrivateView, PublicView, Role, RoundState } from "./types";
+import type { Awards, Card, GameEvent, GameOptions, GameState, Level, OwnCard, Player, PrivateView, PublicView, Role, RoundState } from "./types";
 
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 9;
@@ -37,6 +37,86 @@ export class GameError extends Error {
 
 export interface Deps {
   cards: Card[];
+}
+
+/* ---------- 自己出题: the players' own words ---------- */
+
+/** An own word's card id: the prefix and its author's id. Never a bank id, so stats and reports skip it. */
+export const OWN_PREFIX = "own:";
+/** The pack an own word shows under (its own picture and name on the screens). */
+export const OWN_PACK = "own";
+/** How long an own word may be, in characters. */
+export const OWN_LIMITS = { term: 30, definition: 120, fact: 120 } as const;
+
+export const isOwn = (id: string | null | undefined): boolean => !!id && id.startsWith(OWN_PREFIX);
+
+/** Text a player typed, made safe to show: no control characters, spaces collapsed, cut to `max` characters. */
+export function cleanOwn(v: unknown, max: number): string {
+  return [...String(v ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim()].slice(0, max).join("").trim();
+}
+
+/** A player's word as the rounds play it: the same text in both languages, no bluff seeds. */
+function ownAsCard(o: OwnCard, level: Level): Card {
+  const both = (s: string) => ({ zh: s, en: s });
+  return { id: o.id, pack: OWN_PACK, level, term: both(o.term), definition: both(o.definition), bluffSeeds: { zh: [], en: [] }, funFact: both(o.fact), source: "player" };
+}
+
+/** The card behind a round's word: from the bank, or a player's own (at the level the round was dealt). */
+export function cardOf(state: GameState, deps: Deps, id: string, level: Level = 2): Card | null {
+  const bank = deps.cards.find((c) => c.id === id);
+  if (bank) return bank;
+  const own = state.ownCards?.find((o) => o.id === id);
+  return own ? ownAsCard(own, level) : null;
+}
+
+/** The judges of the rounds after this one, as nextJudge will name them. */
+function laterJudges(state: GameState, judgeId: string): string[] {
+  const count: Record<string, number> = Object.fromEntries(state.judgeOrder.map((id) => [id, 0]));
+  for (const r of state.rounds) if (r.judgeId in count) count[r.judgeId] += 1;
+  if (judgeId in count) count[judgeId] += 1;
+  const out: string[] = [];
+  for (let i = state.rounds.length + 1; i < state.roundsPlanned; i++) {
+    const min = Math.min(...state.judgeOrder.map((id) => count[id]));
+    const next = state.judgeOrder.find((id) => count[id] === min);
+    if (!next) break;
+    count[next] += 1;
+    out.push(next);
+  }
+  return out;
+}
+
+/** How many of these authors' words can still be played, each in a round its author does not judge. */
+function playable(authors: string[], judges: string[]): number {
+  const taken: number[] = judges.map(() => -1);
+  const place = (a: number, seen: boolean[]): boolean => {
+    for (let j = 0; j < judges.length; j++) {
+      if (seen[j] || judges[j] === authors[a]) continue;
+      seen[j] = true;
+      if (taken[j] === -1 || place(taken[j], seen)) {
+        taken[j] = a;
+        return true;
+      }
+    }
+    return false;
+  };
+  let n = 0;
+  for (let a = 0; a < authors.length; a++) if (place(a, judges.map(() => false))) n += 1;
+  return n;
+}
+
+/**
+ * This round's own word, if one is left that its judge did not write: chosen at random among those
+ * that leave the most words still playable later (so the last judge is not left with only their own).
+ */
+function pickOwn(state: GameState, judgeId: string, rng: Rng): OwnCard | null {
+  const played = new Set(state.rounds.map((r) => r.cardId));
+  const left = (state.ownCards ?? []).filter((o) => !played.has(o.id));
+  const fits = left.filter((o) => o.authorId !== judgeId);
+  if (!fits.length) return null;
+  const later = laterJudges(state, judgeId);
+  const scored = fits.map((o) => ({ o, n: playable(left.filter((x) => x !== o).map((x) => x.authorId), later) }));
+  const best = Math.max(...scored.map((x) => x.n));
+  return rng.pick(scored.filter((x) => x.n === best).map((x) => x.o));
 }
 
 /** The RNG is re-derived from (seed, round index) so the reducer stays a pure function of state. */
@@ -120,7 +200,9 @@ function startRound(state: GameState, deps: Deps, level: Level | undefined): Gam
   const honestId = dealHonest(state, others, rng);
   const lvl: Level = level ?? 2;
   const tonight = state.rounds.map((r) => r.cardId);
-  const card = pickCard(deps.cards, { level: lvl, packs: state.options.packs, used: state.usedCardIds, tonight, allowAdult: state.options.allowAdult }, rng);
+  // the players' own words first (自己出题), then the bank
+  const own = state.ownCards?.length ? pickOwn(state, judgeId, rng) : null;
+  const card = own ? ownAsCard(own, lvl) : pickCard(deps.cards, { level: lvl, packs: state.options.packs, used: state.usedCardIds, tonight, allowAdult: state.options.allowAdult }, rng);
   if (!card) throw new GameError("no_cards", "no cards in the selected packs");
   const peekQueue = state.options.mode === "pass" ? passOrder(state, judgeId) : [...others];
   const round: RoundState = {
@@ -138,6 +220,7 @@ function startRound(state: GameState, deps: Deps, level: Level | undefined): Gam
     bets: {},
     accusedId: null,
     result: null,
+    authorId: own ? own.authorId : null,
   };
   return { ...state, phase: "peek", current: round, usedCardIds: [...state.usedCardIds, card.id] };
 }
@@ -152,10 +235,16 @@ function betsPhaseApplies(state: GameState): boolean {
   return state.options.sideBets && state.players.length >= 4;
 }
 
+/** Who bets this round: every speaker but the one who wrote the word (they know it). */
+function bettorsOf(r: RoundState): string[] {
+  return r.speakOrder.filter((id) => id !== r.authorId);
+}
+
 /** Everyone has explained: on to the bets (4+ players, when on) or straight to the judge. */
 function afterLastSpeaker(state: GameState, r: RoundState): GameState {
   const toBets = betsPhaseApplies(state);
-  const betQueue = toBets ? (state.options.mode === "pass" ? passOrder(state, r.judgeId).filter((id) => r.speakOrder.includes(id)) : [...r.speakOrder]) : [];
+  const bettors = bettorsOf(r);
+  const betQueue = toBets ? (state.options.mode === "pass" ? passOrder(state, r.judgeId).filter((id) => bettors.includes(id)) : bettors) : [];
   return { ...state, phase: toBets ? "bets" : "accuse", current: { ...r, speakerIdx: r.speakOrder.length, betQueue } };
 }
 
@@ -200,6 +289,7 @@ export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
       const r = need(state, ["bets"], ev.type);
       if (ev.playerId === r.judgeId) throw new GameError("judge_bet", "the judge accuses, not bets");
       if (!r.speakOrder.includes(ev.playerId)) throw new GameError("not_a_player", `${ev.playerId} is not in this round`);
+      if (ev.playerId === r.authorId) throw new GameError("author_bet", "the one who wrote the word knows it");
       if (ev.targetId === ev.playerId || !r.speakOrder.includes(ev.targetId)) throw new GameError("bad_target", "bet on another speaker");
       if (r.bets[ev.playerId]) throw new GameError("already_bet", `${ev.playerId} already bet`);
       if (state.options.mode === "pass" && r.betQueue[0] !== ev.playerId) {
@@ -352,7 +442,7 @@ function isRevealed(state: GameState): boolean {
 export function privateView(state: GameState, playerId: string, deps: Deps): PrivateView {
   const r = state.current;
   const role = roleOf(state, playerId);
-  const card = r ? (deps.cards.find((c) => c.id === r.cardId) ?? null) : null;
+  const card = r ? cardOf(state, deps, r.cardId, r.level) : null;
   const revealed = isRevealed(state);
   const inRound = !!r && state.phase !== "lobby";
   const hasPeeked = !!r && r.peeked.includes(playerId);
@@ -375,13 +465,14 @@ export function privateView(state: GameState, playerId: string, deps: Deps): Pri
     canBet: state.phase === "bets" && role !== "judge" && !!r && r.betQueue.includes(playerId) && !r.bets[playerId],
     canAccuse: ["bets", "accuse"].includes(state.phase) && role === "judge",
     suspectId: role === "judge" && r ? r.suspectId : null,
+    wrote: inRound && !!r && !!r.authorId && r.authorId === playerId,
   };
 }
 
 /** Everything the TV / observer may show. No roles, no definition until reveal. */
 export function publicView(state: GameState, deps: Deps): PublicView {
   const r = state.current;
-  const card = r ? (deps.cards.find((c) => c.id === r.cardId) ?? null) : null;
+  const card = r ? cardOf(state, deps, r.cardId, r.level) : null;
   const inRound = !!r && state.phase !== "lobby";
   const speakers = r ? r.speakOrder.length : 0;
   return {
@@ -398,10 +489,12 @@ export function publicView(state: GameState, deps: Deps): PublicView {
     peekedCount: r ? r.peeked.length : 0,
     peekTotal: speakers,
     betsPlaced: r ? Object.keys(r.bets).length : 0,
-    betsExpected: betsPhaseApplies(state) ? speakers : 0,
+    betsExpected: betsPhaseApplies(state) && r ? bettorsOf(r).length : 0,
     scores: state.scores,
     reveal: isRevealed(state) && r?.result && card ? { honestId: r.honestId, definition: card.definition, funFact: card.funFact, result: r.result } : null,
     timers: { peek: state.options.peekSeconds, explain: state.options.explainSeconds, accuse: state.options.accuseSeconds },
+    own: inRound && !!r?.authorId,
+    authorId: isRevealed(state) && r?.authorId ? r.authorId : null,
   };
 }
 

@@ -5,9 +5,9 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { CARDS, defaultPacks, PACK_AUDIENCE, PACKS } from "../src/data/straightface";
 import { lintDeck, pickCard, validateCard, validateDeck } from "../src/shared/straightface/cards";
-import { awards, createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
+import { awards, cleanOwn, createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, isOwn, leaderboard, OWN_PREFIX, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
 import { mulberry32 } from "../src/shared/straightface/rng";
-import type { Card, GameState, Player, RoundState, StraightFaceView } from "../src/shared/straightface/types";
+import type { Card, GameState, OwnCard, Player, RoundState, StraightFaceView } from "../src/shared/straightface/types";
 import { roundLines } from "../src/shared/straightface/scoring";
 import { freshRoom, RoomEngine } from "../src/shared/engine/room";
 import { ONLINE_GAMES, ONLINE_MIN, type Action, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
@@ -500,6 +500,77 @@ test("straightface: the leaderboard breaks ties by who fooled the judge more, th
   ok(board[0].fooled === 1, "the tie-break counted");
 });
 
+/* ---------- 自己出题: the players' own words ---------- */
+
+const ownOf = (ids: string[]): OwnCard[] => ids.map((id) => ({ id: OWN_PREFIX + id, authorId: id, term: `${id} word`, definition: `what ${id} means`, fact: id === "p0" ? "" : `a story from ${id}` }));
+
+/** A whole pass-mode game played straight through; each round's state at its reveal. */
+function playAll(state: GameState, accuse: (r: RoundState) => string): RoundState[] {
+  let s = state;
+  const seen: RoundState[] = [];
+  while (s.phase !== "finished") {
+    s = speakAll(toExplain(s));
+    const r = s.current!;
+    if (s.phase === "bets") s = betAll(s, (id) => r.speakOrder.find((x) => x !== id)!);
+    s = reduce(s, { type: "ACCUSE", byPlayerId: r.judgeId, targetId: accuse(s.current!) }, deps);
+    seen.push(s.current!);
+    s = reduce(s, { type: "NEXT_ROUND" }, deps);
+  }
+  return seen;
+}
+
+test("straightface: own words come first, never in the round their writer judges, and every one gets played", () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const n = 3 + (seed % 7);
+    const players = mk(n);
+    const g: GameState = { ...createGame(players, { mode: "pass", sideBets: true }, seed), ownCards: ownOf(players.map((p) => p.id)) };
+    const rounds = playAll(g, (r) => r.speakOrder.find((id) => id !== r.suspectId)!);
+    const own = rounds.filter((r) => isOwn(r.cardId));
+    ok(own.length === n, `seed ${seed}, ${n} players all wrote: all ${n} words played (${own.length})`);
+    ok(rounds.every((r) => !r.authorId || (r.authorId !== r.judgeId && r.cardId === OWN_PREFIX + r.authorId)), `seed ${seed}: no judge ever had their own word`);
+    ok(new Set(rounds.map((r) => r.cardId)).size === rounds.length, `seed ${seed}: no word twice`);
+  }
+  // two of five wrote: their words open the game, the bank fills the rest
+  const g5: GameState = { ...createGame(mk(5), { mode: "pass", sideBets: true }, 9), ownCards: ownOf(["p1", "p3"]) };
+  const r5 = playAll(g5, (r) => r.honestId);
+  ok(r5.slice(0, 2).every((r) => isOwn(r.cardId)) && r5.slice(2).every((r) => !isOwn(r.cardId) && !r.authorId), `own words first, then the bank (${r5.map((r) => r.cardId).join()})`);
+  // one word, written by the first judge: it waits for a round its writer doesn't judge
+  const g3 = createGame(mk(3), { mode: "pass" }, 4);
+  const first = g3.judgeOrder[0];
+  const r3 = playAll({ ...g3, ownCards: ownOf([first]) }, (r) => r.honestId);
+  ok(!isOwn(r3[0].cardId) && isOwn(r3[1].cardId) && r3[1].authorId === first, `the first judge's word comes in round 2 (${r3.map((r) => r.cardId).join()})`);
+});
+
+test("straightface: an own word's writer knows it: sits out the bets; the honest one is still dealt at random", () => {
+  let honestWrote = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const players = mk(5);
+    let s: GameState = { ...createGame(players, { mode: "pass", sideBets: true, bluffSeeds: true }, seed), ownCards: ownOf(players.map((p) => p.id)) };
+    s = toExplain(s);
+    const r = s.current!;
+    const author = r.authorId!;
+    ok(!!author && author !== r.judgeId, `seed ${seed}: a writer, not the judge`);
+    if (r.honestId === author) honestWrote += 1;
+    const mine = privateView(s, author, deps);
+    ok(mine.wrote && !privateView(s, r.judgeId, deps).wrote, `seed ${seed}: the writer's phone knows it's theirs, the judge's doesn't`);
+    const bluffer = r.speakOrder.find((id) => id !== r.honestId)!;
+    const bv = privateView(s, bluffer, deps);
+    ok(!bv.definition && Array.isArray(bv.bluffSeeds) && bv.bluffSeeds.length === 0, `seed ${seed}: no seeds for a player's word`);
+    const hv = privateView(s, r.honestId, deps);
+    ok(hv.definition?.zh === `what ${author} means` && hv.definition?.en === hv.definition?.zh, `seed ${seed}: the honest one reads the writer's meaning, the same in both languages`);
+    const pub = publicView(s, deps);
+    ok(pub.own && pub.authorId === null && pub.pack === "own", `seed ${seed}: the table knows it's a player's word, not whose`);
+    s = speakAll(s);
+    ok(!s.current!.betQueue.includes(author) && publicView(s, deps).betsExpected === s.current!.speakOrder.length - 1, `seed ${seed}: the writer sits out the bets`);
+    throws(() => reduce({ ...s, current: { ...s.current!, betQueue: [author, ...s.current!.betQueue] } }, { type: "BET", playerId: author, targetId: r.honestId === author ? bluffer : r.honestId }, deps), "knows it", `seed ${seed}: a writer's bet is refused`);
+    s = betAll(s, (id) => s.current!.speakOrder.find((x) => x !== id)!);
+    s = reduce(s, { type: "ACCUSE", byPlayerId: r.judgeId, targetId: r.honestId }, deps);
+    ok(publicView(s, deps).authorId === author, `seed ${seed}: at the reveal, who wrote it`);
+  }
+  ok(honestWrote > 0 && honestWrote < 40, `the writer is the honest one only sometimes (${honestWrote} of 40)`);
+  ok(cleanOwn("  a\u0000b \n c  ", 4) === "a b" && cleanOwn("一二三四五六", 3) === "一二三" && cleanOwn(null, 5) === "", `typed text is cleaned and cut by characters (${JSON.stringify(cleanOwn("  a\u0000b \n c  ", 4))})`);
+});
+
 test("straightface: tonight's titles: top score, best bluffer, best bets; shared when tied, empty when unearned", () => {
   const g = createGame(mk(4), {}, 32);
   const [a, b, c, d] = g.players.map((p) => p.id);
@@ -853,6 +924,55 @@ test("straightface online: cards the table has played come last; which card it w
   t.g("p0", "again");
   const tonight = new Set(played);
   ok(s().g === null && s().seen.slice(-tonight.size).every((id) => tonight.has(id)), "again: tonight's cards are remembered for the next game, newest last");
+});
+
+test("straightface online: 自己出题: each phone writes its word before the deal, sees only its own; the deal plays them", () => {
+  const t = table(5);
+  const S = () => t.eng.d.game!.s as { own: Record<string, unknown>; g: GameState | null };
+  t.act("p0", { a: "start", game: "straightface" });
+  t.g("p1", "write", { term: "x", definition: "y" });
+  ok(!S().own?.p1 && t.view("p1").writing === null, "off: nothing to write, nothing taken");
+  t.g("p1", "config", { own: true });
+  ok(t.view("p1").writing === null, "only the host turns it on");
+  t.g("p0", "config", { own: true });
+  ok(t.view("p1").writing?.written.length === 0 && t.view("tv").writing?.mine === null, "on: every phone gets a form; the TV just counts");
+  t.g("p1", "write", { term: "  斯文 \n", definition: " 意思是 \u0000 有礼貌 ", fact: "" });
+  t.g("p2", "write", { term: "Gobbledygook", definition: "x".repeat(500), fact: "f".repeat(500) });
+  t.g("p3", "write", { term: "no meaning", definition: "   " });
+  t.g("tv", "write", { term: "screen", definition: "a screen's word" });
+  t.g("p4", "write", { term: "走了", definition: "这个人一会儿就走" });
+  const mine = (id: string) => t.view(id).writing?.mine ?? null;
+  ok(mine("p1")?.term === "斯文" && mine("p1")?.definition === "意思是 有礼貌", `typed text cleaned (${JSON.stringify(mine("p1"))})`);
+  ok(mine("p2")?.definition.length === 120 && mine("p2")?.fact.length === 120, "and cut to its length");
+  ok(mine("p3") === null && !t.view("tv").writing!.written.includes("tv"), "a word with no meaning, or from a screen, is not taken");
+  ok(!JSON.stringify(t.view("p3")).includes("斯文") && !JSON.stringify(t.view("tv")).includes("Gobbledygook") && !JSON.stringify(t.view("p1")).includes("Gobbledygook"), "nobody sees anyone else's word, not even the TV");
+  t.g("p2", "write", { term: "" });
+  ok(t.view("p1").writing!.written.sort().join() === "p1,p4", "taking a word back");
+  t.g("p2", "write", { term: "Gobbledygook", definition: "Pompous, unintelligible jargon." });
+  t.act("p4", { a: "leave" });
+  ok(t.view("p1").writing!.written.sort().join() === "p1,p2", "a word leaves with its writer");
+  t.g("p0", "deal");
+  const g = S().g!;
+  ok(g.ownCards!.map((o) => o.authorId).sort().join() === "p1,p2", "the deal takes the words of the players at the table");
+  ok(isOwn(g.current!.cardId) && !!g.current!.authorId && g.current!.authorId !== g.current!.judgeId, "round 1 plays one, never with its writer judging");
+  ok(t.view("p1").writing === null, "no writing once the game is on");
+  t.g("p3", "write", { term: "late", definition: "too late" });
+  ok(!S().own.p3, "a word after the deal is not taken");
+  const tv = t.view("tv").table!;
+  ok(tv.own && tv.authorId === null && tv.pack === "own", "the TV knows it's a player's word, not whose");
+  const author = g.current!.authorId!;
+  playRound(t);
+  ok(t.view("tv").table!.authorId === author && isOwn(t.view("p1").cardId), "the verdict: whose word it was; its id is no bank card's (no numbers, no flag)");
+  for (let i = 0; i < 8 && t.view("p0").phase !== "finished"; i++) {
+    t.g("p0", "round");
+    if (t.view("p0").phase === "between") t.g("p0", "start");
+    if (t.view("p0").phase === "peek") playRound(t);
+  }
+  const learned = (t.view("p1").learned ?? []).map((l) => l.term.zh);
+  ok(learned.includes("斯文") && learned.includes("Gobbledygook"), `the end lists the players' words too (${learned.join()})`);
+  t.g("p0", "again");
+  ok(Object.keys(S().own).length === 0 && t.view("p1").writing!.written.length === 0, "again: a new game, new words");
+  ok(!S().g && (t.eng.d.game!.s as { seen: string[] }).seen.every((id) => !isOwn(id)), "the players' words are not remembered as played cards");
 });
 
 /* ---------- the server's side (worker/straightface.ts) on a real SQLite ---------- */

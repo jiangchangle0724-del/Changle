@@ -1,6 +1,6 @@
 import { CARDS, PACKS } from "../../../data/straightface";
-import { awards, createGame, DEFAULT_OPTIONS, foolCounts, GameError, MAX_PLAYERS, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, removePlayer, type Deps } from "../../straightface/engine";
-import type { GameEvent, GameState, Level, NetSetup, PublicView, StraightFaceView } from "../../straightface/types";
+import { awards, cardOf, cleanOwn, createGame, DEFAULT_OPTIONS, foolCounts, GameError, MAX_PLAYERS, MIN_PLAYERS, nextJudge, OWN_LIMITS, OWN_PREFIX, privateView, publicView, reduce, removePlayer, type Deps } from "../../straightface/engine";
+import type { GameEvent, GameState, Level, NetSetup, OwnDraft, PublicView, StraightFaceView } from "../../straightface/types";
 import { intIn, t, type Api, type GameDef } from "../api";
 
 /**
@@ -23,6 +23,8 @@ type S = {
   picked: { round: number; target: string } | null;
   /** cards the table has played before (every phone hands in its own): the deal takes others first */
   seen: string[];
+  /** 自己出题: each player's word, written before the deal; only its writer's phone ever sees it */
+  own: Record<string, OwnDraft>;
 };
 
 const deps: Deps = { cards: CARDS };
@@ -83,7 +85,7 @@ export const straightface: GameDef<S> = {
   min: MIN_PLAYERS,
 
   init(api) {
-    return { setup: { packs: null, level: 2, seeds: true, bets: true }, g: null, stepAt: api.now, picked: null, seen: [] };
+    return { setup: { packs: null, level: 2, seeds: true, bets: true, own: false }, g: null, stepAt: api.now, picked: null, seen: [], own: {} };
   },
 
   act(s, pid, a, api) {
@@ -106,6 +108,21 @@ export const straightface: GameDef<S> = {
         }
         if (typeof a.seeds === "boolean") s.setup.seeds = a.seeds;
         if (typeof a.bets === "boolean") s.setup.bets = a.bets;
+        if (typeof a.own === "boolean") s.setup.own = a.own;
+        return;
+      }
+      case "write": {
+        // 自己出题: a player at the table writes (or rewrites, or takes back) their word before the deal
+        if (g || !s.setup.own || !api.ids().includes(pid)) return refuse();
+        const term = cleanOwn(a.term, OWN_LIMITS.term);
+        const definition = cleanOwn(a.definition, OWN_LIMITS.definition);
+        if (!term) {
+          s.own ??= {};
+          delete s.own[pid];
+          return;
+        }
+        if (!definition) return refuse();
+        s.own = { ...(s.own ?? {}), [pid]: { term, definition, fact: cleanOwn(a.fact, OWN_LIMITS.fact) } };
         return;
       }
       case "seen": {
@@ -124,9 +141,11 @@ export const straightface: GameDef<S> = {
           { ...DEFAULT_OPTIONS, mode: "online", bluffSeeds: s.setup.seeds, sideBets: s.setup.bets, penalties: true, packs: all ? [] : packs },
           api.int(0x7fffffff) + 1,
         );
+        // 自己出题: the words of the players sitting at the deal
+        const own = s.setup.own ? ids.filter((id) => s.own?.[id]).map((id) => ({ id: OWN_PREFIX + id, authorId: id, ...s.own[id] })) : [];
         try {
           // cards this table has played before come last (the engine falls back to them when a pack runs dry)
-          s.g = reduce({ ...game, usedCardIds: [...(s.seen ?? [])] }, { type: "START_ROUND", level: s.setup.level }, deps);
+          s.g = reduce({ ...game, usedCardIds: [...(s.seen ?? [])], ownCards: own }, { type: "START_ROUND", level: s.setup.level }, deps);
         } catch (e) {
           if (e instanceof GameError) return refuse();
           throw e;
@@ -200,6 +219,8 @@ export const straightface: GameDef<S> = {
       case "again": {
         if (!host || !g || g.phase !== "finished") return refuse();
         s.seen = remember(s.seen ?? [], g.rounds.map((r) => r.cardId));
+        // a new game, new words
+        s.own = {};
         s.g = null;
         s.picked = null;
         s.stepAt = api.now;
@@ -210,7 +231,11 @@ export const straightface: GameDef<S> = {
   },
 
   leave(s, pid, api) {
-    if (!s.g) return;
+    // before the deal, a word goes with the one who wrote it
+    if (!s.g) {
+      if (s.own?.[pid]) delete s.own[pid];
+      return;
+    }
     const before = s.g;
     s.g = removePlayer(before, pid);
     if (s.g !== before && (s.g.phase !== before.phase || s.g.current?.speakerIdx !== before.current?.speakerIdx)) s.stepAt = api.now;
@@ -238,11 +263,12 @@ export const straightface: GameDef<S> = {
       learned:
         g?.phase === "finished"
           ? g.rounds.flatMap((rd) => {
-              const c = CARDS.find((x) => x.id === rd.cardId);
+              const c = cardOf(g, deps, rd.cardId, rd.level);
               return c ? [{ term: c.term, definition: c.definition }] : [];
             })
           : null,
       awards: g?.phase === "finished" ? awards(g) : null,
+      writing: !g && s.setup.own ? { written: Object.keys(s.own ?? {}), mine: s.own?.[pid] ?? null } : null,
     };
   },
 };

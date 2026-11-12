@@ -644,3 +644,14 @@
     animation: none;
   }
 }
+
+/* 自己出题: a player's word wears a pen where a pack's picture would be */
+.tvsf-own-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--gel);
+  color: var(--night);
+}
