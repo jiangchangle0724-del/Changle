@@ -79,7 +79,8 @@
   - #283：16 首歌、YouTube 播放器、对拍、歌本，和这份档案。
   - 合并前的检查都过了：测试、typecheck、build；本地 song-check、timing-check、motion-check（假手跳，每拍都算踩准，平均差 11 毫秒）、song-yt-check（假 YouTube 晚 300 毫秒开始，房间把拍子挪到视频的拍子上，差 4 毫秒；对拍算出的第一拍差 1 毫秒）。老师的样子在云端用软件画法截图、拍了视频给 Steve 看过。
   - 上线后在正式站上查过（一次性的脚本，没进仓库，不往歌本里写）：歌本的接口在（空的）；动作页画出老师；大厅有「歌曲对拍」；没对拍的歌开不了，手机上说「还没对拍」；「广场初体验」教的时候电视上是 3D 老师，下面有手机的小人；房间结束；页面没有报错。
-- 歌本现在是空的。11-11 起不用先对拍：每首歌第一次跳时大家一起找拍子（等 Steve 合并找拍子的 PR）。
+- 11-11 做好、开着等 Steve 点头：#317（找拍子、六首原创曲、最炫民族风换视频）。
+- 歌本现在是空的。#317 合并后不用先对拍：每首歌第一次跳时大家一起找拍子。
 
 ## 还剩什么
 
@@ -101,6 +102,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-11 一起跳: a new song finds its beat from everyone tapping along on their phones; the practice dances get their own tunes（#317）
 - 2026-11-05 一起跳: famous songs from YouTube on the TV, each tapped along to once on the speaker page（#283）
 - 2026-11-05 一起跳: the phone's motion sensor counts the moves; everyone dances on the TV, with sounds（#272）
 - 2026-11-05 一起跳: a 3D coach dances every move on the beat, and /party/moves shows them（#266）
