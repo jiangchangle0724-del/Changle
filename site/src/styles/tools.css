@@ -19,6 +19,10 @@
   border-radius: var(--r-tile);
   background: var(--dusk);
   box-shadow: var(--shadow-flat);
+}
+/* the chips at the top jump here: clear of the header */
+.tool,
+.tool-eat {
   scroll-margin-top: 96px;
 }
 .tool-head {
@@ -71,30 +75,6 @@
   align-items: center;
   justify-content: space-between;
   margin-top: 14px;
-}
-
-/* 随便: a card that leads out to /eat (its own pages), so it is a blurb and one button */
-.tool-eat .tool-head {
-  margin-bottom: 10px;
-}
-/* The button is a link (it leaves the app), so it must not pick up the page's link underline. */
-.tool-eat .btn {
-  text-decoration: none;
-}
-.tool-tag {
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-  background: var(--night);
-  color: var(--light);
-  font-size: var(--text-xs);
-  font-weight: 800;
-}
-.tool-blurb {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  line-height: var(--leading);
-  letter-spacing: -0.005em;
-  text-wrap: balance;
 }
 
 /* currency */

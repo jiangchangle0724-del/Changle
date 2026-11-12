@@ -80,6 +80,10 @@ export type TileProps = {
   disabled?: boolean;
   /** grid (default), or hero: the full-width card at the top of home */
   size?: "grid" | "hero";
+  /** one line under the names, for a card with no players or minutes to show (a tool) */
+  line?: string;
+  /** a card that opens another page at its own address (随便 at /eat): a link, not a button */
+  href?: string;
   onOpen: () => void;
 };
 
