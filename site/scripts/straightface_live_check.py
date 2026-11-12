@@ -7,6 +7,10 @@ Checks that the rooms server knows the game, that every non-judge phone holds a 
 the rest bluffing), that the part shows only while held, that the TV never shows a part, that the
 reveal reaches every phone and the TV, and that four rounds end the game. Screenshots go to
 local-shots/straightface-live/. Helpers come from straightface_net_check.py.
+
+A test game is not a real one: what the phones would send for the cards' numbers (a round's
+outcome, a flagged card) is answered by the check itself and never reaches the server, so the live
+numbers stay real; the check still sees that the host's phone sent each round once.
 """
 import os, re, sys, time
 from playwright.sync_api import sync_playwright
@@ -67,6 +71,7 @@ def main():
         phones = []
         for name, lang in [("Amy", "zh"), ("Ben", "en"), ("小林", "zh"), ("Dan", "zh")]:
             g = page(browser, name, lang, {"width": 390, "height": 844})
+            g.route(re.compile(r".*/api/sf/(round|report)$"), lambda route: route.fulfill(status=200, content_type="application/json", body='{"ok":true}', headers={"access-control-allow-origin": "*"}))
             g.goto(BASE + f"#/r/{code}", wait_until="networkidle")
             g.wait_for_timeout(500)
             g.locator(".join-card input").fill(name)
@@ -142,6 +147,8 @@ def main():
             press(host, host.locator(".sf-net-actions .btn-primary"))
 
         ok(all(until(lambda g=g: has(g, "over"), 10000) for g in phones) and rounds == 4, f"four rounds, then the end ({rounds})")
+        sent = [(g._name, x[1]) for g in phones for x in g._sf if x[0] == "/sf/round"]
+        ok(len(sent) == 4 and all(n == host._name for n, _ in sent), f"the host's phone would have counted each round once (answered by the check): {[(n, b.get('card')) for n, b in sent]}")
         tv.wait_for_timeout(3000)
         shot(host, "05-finished")
         shot(tv, "05-finished")

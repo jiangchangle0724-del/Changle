@@ -1,5 +1,5 @@
 import { CARDS, PACKS } from "../../../data/straightface";
-import { createGame, DEFAULT_OPTIONS, foolCounts, GameError, MAX_PLAYERS, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, removePlayer, type Deps } from "../../straightface/engine";
+import { awards, createGame, DEFAULT_OPTIONS, foolCounts, GameError, MAX_PLAYERS, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, removePlayer, type Deps } from "../../straightface/engine";
 import type { GameEvent, GameState, Level, NetSetup, PublicView, StraightFaceView } from "../../straightface/types";
 import { intIn, t, type Api, type GameDef } from "../api";
 
@@ -242,6 +242,7 @@ export const straightface: GameDef<S> = {
               return c ? [{ term: c.term, definition: c.definition }] : [];
             })
           : null,
+      awards: g?.phase === "finished" ? awards(g) : null,
     };
   },
 };

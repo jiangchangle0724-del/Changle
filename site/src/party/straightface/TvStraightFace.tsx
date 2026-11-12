@@ -441,9 +441,14 @@ function Finished({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: 
   const { zh, tr } = useLang();
   const { seat } = useSeats();
   const learned = (v.learned ?? []).slice(-6);
+  // tonight's titles ride on the podium in place of the player's line (short: the podium is narrow)
+  const ranked = rows(v, t, seat, zh).map((r) => {
+    const titles = [v.awards?.bettor.includes(r.seat.id) && (zh ? "押得最准" : "Best bets"), v.awards?.bluffer.includes(r.seat.id) && (zh ? "最会编" : "Best bluffer")].filter(Boolean);
+    return titles.length ? { ...r, note: titles.join(" · ") } : r;
+  });
   return (
     <div className="tvsf-end">
-      <TvPodium rows={rows(v, t, seat, zh)} unit={zh ? "分" : "pts"} sound={sound} className="tvsf-podium" burstX={0.36} />
+      <TvPodium rows={ranked} unit={zh ? "分" : "pts"} sound={sound} className="tvsf-podium" burstX={0.36} />
       {learned.length > 0 && (
         <aside className="tvsf-learned">
           <h2>{zh ? `今晚学到的 ${v.learned!.length} 个词` : `${v.learned!.length} words you learned tonight`}</h2>

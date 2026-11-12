@@ -23,6 +23,7 @@ import { Leaderboard } from "../common";
 import { BACKDROP } from "./art";
 import { CardNumbers, Deltas, HoldPart, Lines, MasterArt, OrderStrip, PackPicker, PackStrip, PickOne, RevealSequence, ReportCard, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
 import { cardStats, markSeen, seenCards, sendRound } from "./feedback";
+import { SharePicture, Titles, type Tonight } from "./share";
 import { cue } from "./sounds";
 import { S } from "./text";
 import "../../styles/party.css";
@@ -499,6 +500,8 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
   } else if (phase === "finished") {
     const rows = board();
     const top = rows.filter((b) => b.place === 1);
+    // tonight's words and titles, for the screen and the picture (the names are the table's, never "you")
+    const tonight: Tonight | null = v.awards ? { words: v.learned ?? [], awards: v.awards, name: (id) => nameOf(id), score: (id) => t?.scores[id] ?? 0 } : null;
     body = (
       <div className="stack sf-stage">
         <div className="sf-final">
@@ -523,6 +526,8 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
             </ul>
           </div>
         )}
+        {tonight && <Titles tonight={tonight} />}
+        {tonight && tonight.words.length > 0 && <SharePicture tonight={tonight} />}
       </div>
     );
     actions = isHost ? (
