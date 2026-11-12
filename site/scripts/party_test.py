@@ -1277,7 +1277,9 @@ def t_drama_single(browser):
         pg.locator(".game-actions .btn-primary").click()
         pg.locator(".dm-card-back").click()
         pg.wait_for_timeout(800)
-        culprits += pg.locator(".dm-card-secret.is-culprit").count()
+        # only the words say so: every card looks the same (no glow, no red mask to catch from the side)
+        culprits += pg.locator(".dm-card-secret .dm-card-label", has_text="你就是").count()
+        ok(pg.locator(".dm-card.is-culprit, .dm-card-secret.is-culprit").count() == 0, f"card {i + 1}: nothing but the words tells the culprit apart")
         ok(pg.locator(".dm-card-play").count() == 1 and pg.locator(".dm-card-first").count() == 1, f"card {i + 1}: how to play the role, and a line to open with")
         # 记住了 twice, quickly: the second tap lands where the next screen's button is
         double_tap(pg, pg.locator(".game-actions .btn-primary"))
