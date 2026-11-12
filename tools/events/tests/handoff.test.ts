@@ -5,7 +5,7 @@ import { env } from "cloudflare:workers";
 import vpl from "./fixtures/bibliocommons/vpl-2026-10-31-p1.json?raw";
 import rpl from "./fixtures/bibliocommons/rpl-2026-11-01-p1.json?raw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchPages, handOver, HANDOFF_MAX_BYTES, HANDOFF_SOURCES, handoffKey, takeHandoff, type Get, type Page } from "../src/handoff";
+import { fetchPages, handOver, HANDOFF_MAX_BYTES, HANDOFF_SOURCES, handoffKey, takeHandoff, whatCameOf, type Get, type Page } from "../src/handoff";
 import { fetchStep } from "../src/run";
 import { vanParts } from "../src/time";
 import worker from "../src/worker";
@@ -50,7 +50,8 @@ describe("POST /go/api/handoff", () => {
     const d = today();
     const res = await post(`source=vpl&date=${d}&part=0`, vpl);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, source: "vpl", date: d, part: 0, bytes: vpl.length });
+    // (no run yet today: kept for the run, not read now; src/arrival.ts and tests/run.test.ts)
+    expect(await res.json()).toEqual({ ok: true, source: "vpl", date: d, part: 0, bytes: vpl.length, read: false });
     const kept = await takeHandoff(env.CACHE, d, "vpl", 0);
     expect(kept?.raw).toBe(vpl);
     expect(kept?.at).toMatch(new RegExp(`^${d}T\\d{2}:\\d{2}:\\d{2}-0[78]:00$`));
@@ -143,6 +144,19 @@ describe("POST /go/api/handoff", () => {
     expect((await call(new Request("https://changle.ca/go/api/status", { method: "POST", body: "{}" }))).status).toBe(405);
     expect((await call(new Request("https://changle.ca/go/api/handoff/vpl"))).status).toBe(404);
   });
+
+  it("on the Worker's own workers.dev address, serves the hand-over and nothing else", async () => {
+    const own = "https://changle-events.jiangchangle0724.workers.dev";
+    // The hand-over is reached there (here refused for sending no credential, as on changle.ca).
+    const handoff = await call(new Request(`${own}/go/api/handoff?source=vpl&date=2026-11-05&part=0`, { method: "POST", body: vpl }));
+    expect(handoff.status).toBe(401);
+    // Everything people use stays on changle.ca/go.
+    for (const path of ["/go", "/go/api/events", "/go/api/events.ics", "/go/api/status", "/go/preview", "/"]) {
+      const res = await call(new Request(`${own}${path}`));
+      expect(res.status, path).toBe(404);
+    }
+    expect((await call(new Request("https://changle.ca/go/api/status"))).status).toBe(200);
+  });
 });
 
 describe("the GitHub job (scripts/libraries.ts)", () => {
@@ -213,7 +227,7 @@ describe("the GitHub job (scripts/libraries.ts)", () => {
     const toWorker: Get = (url, init) => call(new Request(url, init));
     for (const src of HANDOFF_SOURCES) {
       const { pages } = await fetchPages(src, d, async (url) => library(url), async () => {});
-      for (const p of pages) await handOver(toWorker, ENDPOINT, KEY, src.id, d, p);
+      for (const p of pages) expect(await handOver(toWorker, ENDPOINT, KEY, src.id, d, p)).toEqual({ read: false });
     }
     expect((await takeHandoff(env.CACHE, d, "vpl", 0))?.raw).toBe(vpl);
     expect((await takeHandoff(env.CACHE, d, "rpl", 0))?.raw).toBe(rpl);
@@ -257,5 +271,18 @@ describe("the GitHub job (scripts/libraries.ts)", () => {
     expect(pages.map((p) => p.part)).toEqual([0]);
     expect(pages[0].raw).toBe(vpl);
     expect(error).toBe("vpl part 1: HTTP 503 from gateway.bibliocommons.com (3 tries)");
+  });
+
+  it("says in its log what the Worker did with a library's pages", () => {
+    const read = (inWindow: number, added: number, published: { count: number; kept: boolean } | null = null) => ({ read: true as const, found: inWindow, inWindow, added, updated: 0, error: null, published });
+    expect(whatCameOf([{ read: false }, { read: false }])).toBe("kept for the morning's run (it hadn't got to this library yet)");
+    expect(whatCameOf([read(25, 3), read(25, 0), read(3, 1, { count: 431, kept: false })])).toBe(
+      "read as they came (the morning's run had gone past this library): 53 in the 14 days, 4 new; the list published again: 431 events",
+    );
+    expect(whatCameOf([read(25, 25), read(25, 25)])).toBe(
+      "read as they came (the morning's run had gone past this library): 50 in the 14 days, 50 new; not published again yet (the run publishes it, or the library's last page didn't come)",
+    );
+    expect(whatCameOf([read(25, 0, { count: 12, kept: true })])).toContain("under half of yesterday's (12): yesterday's stays up");
+    expect(whatCameOf([{ read: false, error: "couldn't read it now: D1 is busy" }])).toBe("kept for the morning's run (it hadn't got to this library yet); part 0: couldn't read it now: D1 is busy");
   });
 });

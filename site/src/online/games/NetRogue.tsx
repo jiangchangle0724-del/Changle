@@ -2,8 +2,9 @@ import { Camera, DoorOpen, Hand, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
-import { RULES, RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
+import { ROGUE_MS, RULES, RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
 import { PlayingCard } from "../../games/Rogue13";
+import { playPower } from "../../games/rogueSounds";
 import { UI, type T } from "../../i18n";
 import { haptic } from "../../lib/sfx";
 import type { RogueHolders, RogueView } from "../../shared/protocol";
@@ -20,8 +21,8 @@ const ONLINE_HOW: Partial<Record<Rank, T>> = {
   "2": t("以后谁被罚，他的手机上会多一个喊陪酒的按钮，一按你就得陪他喝。", "From now on, anyone who gets a penalty can call you from their phone, and you drink with them."),
   "3": t("选一个园。从下一位开始轮流说一样，说完在自己手机上按一下。", "Pick a garden. Starting with the next player, each names one thing, then taps their phone."),
   "4": t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都喝；最后没抢到的也喝。", "Everyone races to tap the next number. Two on the same number both drink; whoever is left drinks too."),
-  "5": t("你的手机上多了一个照相机按钮，随时可以按。", "Your phone now has a camera button. Press it whenever you like."),
-  "6": t("你的手机上多了一个摸鼻子按钮。你一按，所有人都要在手机上摸鼻子，最慢的喝。", "Your phone now has a nose button. Press it and everyone must tap theirs; the slowest drinks."),
+  "5": t("你的手机上多了一个照相机按钮，随时可以按，按一次歇一分钟。", "Your phone now has a camera button. Press it whenever you like; it rests a minute after each shot."),
+  "6": t("你的手机上多了一个摸鼻子按钮。你一按，所有人都要在手机上摸鼻子，最慢的喝。按一次歇一分钟。", "Your phone now has a nose button. Press it and everyone must tap theirs; the slowest drinks. It rests a minute after each call."),
   "7": t("你选一个开始的数，大家轮流在手机上报数，遇到 7 的倍数或带 7 的要按过。", "Pick a starting number. Everyone counts in turn on their phone; on a seven, tap pass."),
   "8": t("别人要去厕所，得先在手机上按上厕所，喝一口再去。", "Anyone else who needs the bathroom taps it on their phone and drinks first."),
   "10": t("谁接了你的话，就在你的手机上点他，他喝。", "Whoever answers you: tap them on your phone and they drink."),
@@ -31,7 +32,7 @@ const ONLINE_HOW: Partial<Record<Rank, T>> = {
 const ONLINE_HOW_CUSTOM: Partial<Record<Rank, T>> = {
   "2": t("以后谁被罚，他的手机上会多一个喊陪罚的按钮，一按你就得陪他一起受罚。", "From now on, anyone who gets a penalty can call you from their phone, and you take it with them."),
   "4": t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都受罚；最后没抢到的也受罚。", "Everyone races to tap the next number. Two on the same number both take the penalty, and so does whoever is left."),
-  "6": t("你的手机上多了一个摸鼻子按钮。你一按，所有人都要在手机上摸鼻子，最慢的受罚。", "Your phone now has a nose button. Press it and everyone must tap theirs; the slowest takes the penalty."),
+  "6": t("你的手机上多了一个摸鼻子按钮。你一按，所有人都要在手机上摸鼻子，最慢的受罚。按一次歇一分钟。", "Your phone now has a nose button. Press it and everyone must tap theirs; the slowest takes the penalty. It rests a minute after each call."),
   "8": t("别人要去厕所，得先在手机上按上厕所，受完罚再去。", "Anyone else who needs the bathroom taps it on their phone and takes the penalty first."),
   "10": t("谁接了你的话，就在你的手机上点他，他受罚。", "Whoever answers you: tap them on your phone and they take the penalty."),
 };
@@ -53,6 +54,20 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   // while the table plays a round of the card, the card steps back so the round fits on screen
   const live = v.phase === "garden" || v.phase === "grab" || v.phase === "sevens";
   useYourTurn(myTurn && v.phase === "draw");
+
+  // a power's card comes up: its own sound on every phone, once the card has turned over (using the
+  // power later is an effect of its own; a phone that opens on a card already up stays quiet)
+  const cardKey = v.card ? `${v.card.rank}${v.card.suit}-${v.left}` : "";
+  const openedOn = useRef(cardKey);
+  useEffect(() => {
+    if (!cardKey || cardKey === openedOn.current) return;
+    const power = v.card ? RULE_BY_RANK[v.card.rank].power : undefined;
+    if (!power) return;
+    const id = window.setTimeout(() => playPower(power), 480);
+    return () => window.clearTimeout(id);
+    // the card is what changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardKey]);
 
   const rules = (
     <ul className="rule-list">
@@ -198,8 +213,14 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
           ) : (
             <Waiting>{lang === "zh" ? `轮到 ${nameOf(gd.speaker)} 说` : `${nameOf(gd.speaker)} is up`}</Waiting>
           )}
+          {/* the judge names who it was: the one who just finished (the word just heard), or the one speaking now */}
+          {drawerActs && gd.last && gd.last !== me && (
+            <button type="button" className="btn btn-penalty btn-block" onClick={() => g("repeat", { who: gd.last })}>
+              {lang === "zh" ? `${nameOf(gd.last)} 刚才重复了或说错了` : `${nameOf(gd.last)} repeated or fumbled`}
+            </button>
+          )}
           {drawerActs && !speaking && (
-            <button type="button" className="btn btn-penalty btn-block" onClick={() => g("repeat")}>
+            <button type="button" className={`btn btn-block ${gd.last && gd.last !== me ? "btn-ghost" : "btn-penalty"}`} onClick={() => g("repeat", { who: gd.speaker })}>
               {lang === "zh" ? `${nameOf(gd.speaker)} 重复了或说错了` : `${nameOf(gd.speaker)} repeated or fumbled`}
             </button>
           )}
@@ -218,7 +239,8 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
           </p>
           <div className="num-grid">
             {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
-              <button key={n} type="button" className="num-btn tabular" onClick={() => g("sevens", { start: n })}>
+              // (not a seven: the first number is said out loud, and those are a 过)
+              <button key={n} type="button" className="num-btn tabular" disabled={n % 7 === 0 || String(n).includes("7")} onClick={() => g("sevens", { start: n })}>
                 {n}
               </button>
             ))}
@@ -320,16 +342,20 @@ function SevensPanel({ v }: { v: RogueView }) {
 const BADGE: Record<keyof RogueHolders, Rank> = { buddy: "2", camera: "5", nose: "6", wc: "8", trouble: "10" };
 
 function Powers({ v }: { v: RogueView }) {
-  const { me, g, nameOf } = useRoom();
+  const { me, g, nameOf, offset } = useRoom();
   const { ui, tr, lang } = useStore();
   const pen = usePenaltyText();
   const watching = useWatching();
   const [troubleOpen, setTroubleOpen] = useState(false);
   const [wcAsk, setWcAsk] = useState(false);
   const held = (Object.keys(BADGE) as (keyof RogueHolders)[]).filter((k) => v.holders[k]);
-  const busy = !!v.interrupt;
+  // while another power is on, or a timed round (三园, 抢数字, 逢七过) that the camera or the nose would cover
+  const busy = !!v.interrupt || v.phase === "garden" || v.phase === "grab" || v.phase === "sevens";
   const iHave = (k: keyof RogueHolders) => v.holders[k] === me;
   const myWc = iHave("wc") && !v.wcUsed;
+  // the camera and the nose rest a minute after each use: the button counts it down
+  const cooling = useCooling([v.cool?.camera, v.cool?.nose], offset);
+  const rest = (until?: number) => (until ? cooling(until) : 0);
 
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -347,15 +373,17 @@ function Powers({ v }: { v: RogueView }) {
 
       <div className="power-dock">
         {iHave("camera") && (
-          <button type="button" className="power-btn" disabled={busy} onClick={() => g("camera")}>
+          <button type="button" className="power-btn" disabled={busy || rest(v.cool?.camera) > 0} onClick={() => g("camera")}>
             <Camera size={18} />
             {lang === "zh" ? "照相机" : "Camera"}
+            {rest(v.cool?.camera) > 0 && <span className="tabular">{rest(v.cool?.camera)}s</span>}
           </button>
         )}
         {iHave("nose") && (
-          <button type="button" className="power-btn" disabled={busy} onClick={() => g("nose")}>
+          <button type="button" className="power-btn" disabled={busy || rest(v.cool?.nose) > 0} onClick={() => g("nose")}>
             <Hand size={18} />
             {lang === "zh" ? "摸鼻子" : "Nose"}
+            {rest(v.cool?.nose) > 0 && <span className="tabular">{rest(v.cool?.nose)}s</span>}
           </button>
         )}
         {iHave("trouble") && (
@@ -389,17 +417,13 @@ function Powers({ v }: { v: RogueView }) {
         {wcAsk && !myWc && (
           <motion.div key="wc" className="wc-ask" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <span>
-              {pen.isCustom
-                ? lang === "zh"
-                  ? v.holders.wc
-                    ? `WC 票在 ${nameOf(v.holders.wc)} 手上，先受罚再去？`
-                    : "没人有 WC 票，先受罚再去？"
-                  : "No pass for you. Penalty first, then go?"
-                : lang === "zh"
-                  ? v.holders.wc
-                    ? `WC 票在 ${nameOf(v.holders.wc)} 手上，先喝一口再去？`
-                    : "没人有 WC 票，先喝一口再去？"
-                  : "No pass for you. Drink first, then go?"}
+              {(() => {
+                // the pass: nobody's, someone else's, or your own and used up
+                const first = pen.isCustom ? (lang === "zh" ? "先受罚再去？" : "Penalty first, then go?") : lang === "zh" ? "先喝一口再去？" : "Drink first, then go?";
+                if (!v.holders.wc) return lang === "zh" ? `没人有 WC 票，${first}` : `No pass at the table. ${first}`;
+                if (v.holders.wc === me) return lang === "zh" ? `你的 WC 票用过了，${first}` : `Your pass is used up. ${first}`;
+                return lang === "zh" ? `WC 票在 ${nameOf(v.holders.wc)} 手上，${first}` : `${nameOf(v.holders.wc)} holds the pass. ${first}`;
+              })()}
             </span>
             <div className="row" style={{ gap: 8 }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setWcAsk(false)}>
@@ -421,6 +445,18 @@ function Powers({ v }: { v: RogueView }) {
       </AnimatePresence>
     </div>
   );
+}
+
+/** Seconds left until a moment (server ms, with this phone's clock offset), re-read every second while any is still to come. */
+function useCooling(untils: (number | undefined)[], offset: number) {
+  const [, tick] = useState(0);
+  const pending = untils.some((u) => u && u > Date.now() + offset);
+  useEffect(() => {
+    if (!pending) return;
+    const id = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [pending]);
+  return (until: number) => Math.max(0, Math.ceil((until - (Date.now() + offset)) / 1000));
 }
 
 /* ---------------- camera and nose: they stop the whole table ---------------- */
@@ -451,14 +487,14 @@ function Interrupts({ v }: { v: RogueView }) {
       </AnimatePresence>
       <AnimatePresence>
         {it && (
-          <motion.div key={`${it.kind}-${it.endsAt}`} className="interrupt-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div key={it.kind === "camera" ? `camera-${it.by}` : `nose-${it.endsAt}`} className="interrupt-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {it.kind === "camera" ? (
               it.phase === "freeze" && !freezeOver ? (
                 <div className="interrupt-stage">
                   <Camera size={44} />
                   <p className={`interrupt-big ${lang === "zh" ? "zh-display" : "en-display"}`}>{lang === "zh" ? "定格" : "Freeze"}</p>
                   <p className="interrupt-sub">{it.by === me ? (lang === "zh" ? "看清楚谁在动" : "Watch who moves") : lang === "zh" ? `${nameOf(it.by)} 拍照了，别动` : `${nameOf(it.by)} took a photo. Don't move.`}</p>
-                  <TimerArc seconds={3.5} running endsAt={it.endsAt} offset={offset} size={72} ticking={false} />
+                  <TimerArc seconds={ROGUE_MS.freeze / 1000} running endsAt={it.endsAt} offset={offset} size={72} ticking={false} />
                 </div>
               ) : it.by === me ? (
                 <div className="interrupt-stage">
@@ -467,11 +503,19 @@ function Interrupts({ v }: { v: RogueView }) {
                   <button type="button" className="btn btn-ghost" onClick={() => g("moved", {})}>
                     {lang === "zh" ? "没人动" : "Nobody moved"}
                   </button>
+                  {/* no answer by the deadline: nobody moved, and the table goes on without the holder */}
+                  {it.phase === "judge" && <TimerArc seconds={ROGUE_MS.judge / 1000} running endsAt={it.endsAt} offset={offset} size={56} ticking={false} />}
                 </div>
               ) : (
                 <div className="interrupt-stage">
                   <Camera size={36} />
                   <p className="interrupt-sub">{lang === "zh" ? `${nameOf(it.by)} 在看照片，谁动了谁${pen.isCustom ? "受罚" : "喝"}` : `${nameOf(it.by)} is checking the photo`}</p>
+                  {it.phase === "judge" && (
+                    <>
+                      <TimerArc seconds={ROGUE_MS.judge / 1000} running endsAt={it.endsAt} offset={offset} size={56} ticking={false} />
+                      <p className="hint">{lang === "zh" ? "到点没判，算没人动" : "No call by then: nobody moved"}</p>
+                    </>
+                  )}
                 </div>
               )
             ) : it.by === me ? (
@@ -481,7 +525,7 @@ function Interrupts({ v }: { v: RogueView }) {
                 <p className="interrupt-sub tabular">
                   {pen.line(t(`已经摸到 ${it.tapped.length} 个，最慢的喝`, `${it.tapped.length} touched. The slowest drinks.`), t(`已经摸到 ${it.tapped.length} 个，最慢的受罚`, `${it.tapped.length} touched. The slowest takes the penalty.`))}
                 </p>
-                <TimerArc seconds={6} running endsAt={it.endsAt} offset={offset} size={72} />
+                <TimerArc seconds={ROGUE_MS.nose / 1000} running endsAt={it.endsAt} offset={offset} size={72} />
               </div>
             ) : (
               <div className="interrupt-stage">
@@ -506,7 +550,7 @@ function Interrupts({ v }: { v: RogueView }) {
                     <span>{lang === "zh" ? "摸鼻子" : "Touch"}</span>
                   </motion.button>
                 )}
-                <TimerArc seconds={6} running endsAt={it.endsAt} offset={offset} size={64} />
+                <TimerArc seconds={ROGUE_MS.nose / 1000} running endsAt={it.endsAt} offset={offset} size={64} />
               </div>
             )}
           </motion.div>

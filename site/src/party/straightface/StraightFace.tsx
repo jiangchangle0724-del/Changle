@@ -11,11 +11,14 @@ import { GAME_BY_ID } from "../../games/registry";
 import { sfx } from "../../lib/sfx";
 import { BACKDROP } from "./art";
 import { cue } from "./sounds";
-import { createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX_PLAYERS, MIN_PLAYERS, privateView, publicView, reduce, type Deps } from "../../shared/straightface/engine";
-import type { GameEvent, GameState, Level, PenaltyWhy } from "../../shared/straightface/types";
+import { awards, cardOf, cleanOwn, createGame, DEFAULT_OPTIONS, GameError, isOwn, JUDGE_PROMPTS, leaderboard, MAX_PLAYERS, OWN_LIMITS, OWN_PREFIX, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, type Deps } from "../../shared/straightface/engine";
+import type { GameEvent, GameState, Level, OwnCard, OwnDraft, PenaltyWhy } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace, PassCurtain } from "../common";
-import { Deltas, HoldToPeek, Lines, OrderStrip, PackPicker, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useSay, type RevealItem } from "./parts";
+import { CardNumbers, Deltas, HoldToPeek, Lines, MasterArt, OrderStrip, PackPicker, PickOne, RevealSequence, ReportCard, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
+import { cardStats, markSeen, seenCards, sendRound } from "./feedback";
+import { OwnForm } from "./own";
+import { SharePicture, Titles, type Tonight } from "./share";
 import { S } from "./text";
 import "../../styles/party.css";
 import "./straightface.css";
@@ -39,6 +42,9 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
   }, [lang]);
   const [seeds, setSeeds] = useState(true);
   const [bets, setBets] = useState(true);
+  // 自己出题: the phone goes round once before the game, each player writing their word (or not)
+  const [own, setOwn] = useState(false);
+  const [writing, setWriting] = useState<{ at: number; drafts: Record<string, OwnDraft>; open: boolean } | null>(null);
 
   // the engine's state, in a ref too so two taps in one frame both see the newest game
   const gameRef = useRef<GameState | null>(null);
@@ -73,19 +79,47 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const start = () => {
-    if (n < MIN_PLAYERS || n > MAX_PLAYERS) return;
+  // how each card has played on changle, for the reveal
+  const [stats, setStats] = useState<Record<string, [number, number]>>({});
+  useEffect(() => {
+    void cardStats().then(setStats);
+  }, []);
+
+  const begin = (ownCards: OwnCard[]) => {
     const g = createGame(
       players.map((p, i) => ({ id: p.id, name: p.name, seat: i })),
       { ...DEFAULT_OPTIONS, mode: "pass", bluffSeeds: seeds, sideBets: bets, packs: packs.length === PACKS.length ? [] : packs },
     );
-    setGame(reduce(g, { type: "START_ROUND", level }, deps));
+    // cards this phone has played before come last; the players' own words come first
+    setGame(reduce({ ...g, usedCardIds: seenCards(), ownCards }, { type: "START_ROUND", level }, deps));
     setTermSeen(false);
     setCurtainFor(null);
     setRevealShown(false);
     setMasterFor(null);
     cue.deal();
     cue.termUp();
+  };
+
+  const start = () => {
+    if (n < MIN_PLAYERS || n > MAX_PLAYERS) return;
+    if (own) setWriting({ at: 0, drafts: {}, open: false });
+    else begin([]);
+  };
+
+  /** One player has written (or skipped): the next one's turn, or the game once everyone has had theirs. */
+  const nextWriter = (drafts: Record<string, OwnDraft>) => {
+    if (!writing) return;
+    const at = writing.at + 1;
+    if (at < players.length) {
+      setWriting({ at, drafts, open: false });
+      return;
+    }
+    setWriting(null);
+    begin(
+      Object.entries(drafts)
+        .map(([id, d]) => ({ id: OWN_PREFIX + id, authorId: id, term: cleanOwn(d.term, OWN_LIMITS.term), definition: cleanOwn(d.definition, OWN_LIMITS.definition), fact: cleanOwn(d.fact, OWN_LIMITS.fact) }))
+        .filter((o) => o.term && o.definition),
+    );
   };
 
   const startRound = () => {
@@ -144,7 +178,15 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
   const accuse = (target: string) => {
     if (!judgeId) return;
     const next = act({ type: "ACCUSE", byPlayerId: judgeId, targetId: target });
-    if (next) cue.accuse();
+    if (!next) return;
+    cue.accuse();
+    // the card's numbers, and this phone won't deal it first again
+    const done = next.current;
+    // (a player's own word is no card: no numbers, nothing to remember)
+    if (done?.result && !isOwn(done.cardId)) {
+      sendRound(done.cardId, done.result.outcome === "judge_wrong", next.players.length);
+      markSeen(done.cardId);
+    }
   };
 
   // penalties land one stamp after another; the master bluffer's is a pick first
@@ -170,9 +212,13 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     penalty.show({ who: [nameOf(target)], kind: "sip", note: say(S.penMaster, { name: by }) });
   };
 
+  const { burst, layer } = useConfetti();
   const nextRound = () => {
     const next = act({ type: "NEXT_ROUND" });
-    if (next?.phase === "finished") cue.finale();
+    if (next?.phase === "finished") {
+      cue.finale();
+      window.setTimeout(() => burst({ y: 0.3, count: 220 }), 300);
+    }
   };
 
   const levelLabel = (l: Level) => say(l === 1 ? S.level1 : l === 2 ? S.level2 : S.level3);
@@ -190,7 +236,20 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
   let actions: React.ReactNode = undefined;
   let turn: string | undefined;
 
-  if (!game || !pub || !r) {
+  if (writing) {
+    // 自己出题: the phone goes round, each player writing their word where nobody else can see
+    const writer = players[writing.at];
+    turn = writer.id;
+    body = writing.open ? (
+      <div className="stack sf-stage">
+        <OwnForm key={writer.id} draft={writing.drafts[writer.id]} onSave={(d) => nextWriter({ ...writing.drafts, [writer.id]: d })} onSkip={() => nextWriter(writing.drafts)} />
+      </div>
+    ) : (
+      <div className="stack sf-stage">
+        <PassCurtain name={writer.name} note={say(S.ownCurtain)} onReady={() => setWriting({ ...writing, open: true })} />
+      </div>
+    );
+  } else if (!game || !pub || !r) {
     const bad = n < MIN_PLAYERS || n > MAX_PLAYERS;
     body = (
       <div className="stack sf-setup">
@@ -234,6 +293,15 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
               </button>
             </div>
           )}
+          <div className="settings-row ink">
+            <span>
+              {say(S.ownOn)}
+              <small className="sf-sub">{say(S.ownHint)}</small>
+            </span>
+            <button type="button" className={`btn btn-sm ${own ? "btn-jade" : "btn-ghost ink"}`} aria-pressed={own} onClick={() => setOwn((v) => !v)}>
+              {own ? (lang === "zh" ? "开" : "On") : lang === "zh" ? "关" : "Off"}
+            </button>
+          </div>
           <p className="hint-ink">
             {n > MAX_PLAYERS ? say(S.tooMany) : say(S.seated, { n, m: n * 3 })} {n < 4 && n >= MIN_PLAYERS && say(S.bestWith)}
           </p>
@@ -250,7 +318,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     turn = judgeId ?? undefined;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} lead={say(S.termUp)} big />
+        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} lead={say(S.termUp)} big deal />
         <div className="sf-judge-line">
           <RoleArt role="judge" size={64} />
           <p className="hint">
@@ -392,22 +460,25 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
         key: "fact",
         node: (
           <div className="panel sf-panel sf-fact">
-            <span className="field-label">{say(S.funFact)}</span>
-            <p>{lang === "zh" ? rv.funFact.zh : rv.funFact.en}</p>
+            {pub.own ? (
+              <>
+                <span className="field-label">{say(S.ownBy, { name: nameOf(pub.authorId) })}</span>
+                {rv.funFact.zh && <p>{rv.funFact.zh}</p>}
+              </>
+            ) : (
+              <>
+                <span className="field-label">{say(S.funFact)}</span>
+                <p>{lang === "zh" ? rv.funFact.zh : rv.funFact.en}</p>
+                <CardNumbers stats={stats[r.cardId]} />
+              </>
+            )}
           </div>
         ),
       },
       { key: "pre", node: <Lines lines={res.preLines} className="sf-pre" /> },
       {
         key: "honest",
-        node: (
-          <div className="sf-honest">
-            <RoleArt role="honest" size={96} />
-            <span className="hint">{say(S.honestWas)}</span>
-            <NameFace name={nameOf(rv.honestId)} size={64} />
-            <strong>{nameOf(rv.honestId)}</strong>
-          </div>
-        ),
+        node: <Verdict face={<NameFace name={nameOf(rv.honestId)} size={56} />} name={nameOf(rv.honestId)} right={res.outcome === "judge_right"} onRight={() => burst({ x: 0.7, y: 0.55 })} />,
       },
       {
         key: "points",
@@ -424,6 +495,16 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     turn = judgeId ?? undefined;
     if (between || finished) {
       const board = leaderboard(game);
+      // the end: tonight's words and titles, for the screen and the picture
+      const tonight = (): Tonight => ({
+        words: game.rounds.flatMap((rd) => {
+          const c = cardOf(game, deps, rd.cardId, rd.level);
+          return c ? [{ term: c.term, definition: c.definition }] : [];
+        }),
+        awards: awards(game),
+        name: nameOf,
+        score: (id) => game.scores[id] ?? 0,
+      });
       const top = board.filter((b) => b.place === 1);
       body = (
         <div className="stack sf-stage">
@@ -444,8 +525,8 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
             <div className="panel sf-panel">
               <span className="field-label">{say(S.nextJudge)}</span>
               <div className="row sf-next-judge">
-                <NameFace name={nameOf(game.judgeOrder[game.rounds.length])} size={44} />
-                <strong>{nameOf(game.judgeOrder[game.rounds.length])}</strong>
+                <NameFace name={nameOf(nextJudge(game))} size={44} />
+                <strong>{nameOf(nextJudge(game))}</strong>
               </div>
               <span className="field-label">{say(S.level)}</span>
               <div className="seg" role="group" aria-label={say(S.level)}>
@@ -462,7 +543,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
               <span className="field-label">{say(S.learned, { n: game.rounds.length })}</span>
               <ul className="sf-learned">
                 {game.rounds.map((rd) => {
-                  const c = CARDS.find((x) => x.id === rd.cardId);
+                  const c = cardOf(game, deps, rd.cardId, rd.level);
                   if (!c) return null;
                   return (
                     <li key={rd.cardId}>
@@ -474,6 +555,8 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
               </ul>
             </div>
           )}
+          {finished && <Titles tonight={tonight()} />}
+          {finished && <SharePicture tonight={tonight()} />}
         </div>
       );
       actions = finished ? (
@@ -498,9 +581,10 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
               else if (key !== "truth") sfx.tap();
             }}
           />
+          {revealShown && !pub.own && <ReportCard card={r.cardId} term={pub.term!} />}
           {revealShown && masterFor && (
             <div className="panel sf-panel sf-master">
-              <RoleArt role="bluffer" size={80} className="sf-master-art" />
+              <MasterArt size={88} />
               <p className="sup-ask">{say(S.masterPicks, { name: nameOf(masterFor), penalty: pen.isCustom ? say(S.penaltyWord) : say(S.drinkWord) })}</p>
               <PickOne people={players.filter((p) => p.id !== masterFor).map((p) => ({ id: p.id, name: p.name }))} onPick={masterPick} size={50} />
             </div>
@@ -522,7 +606,10 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     <GameShell title={GAME_BY_ID.straightface.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} status={status} roster={{ turn }} actions={actions}>
       <div className="sf">
         <div className="sf-backdrop" aria-hidden="true" style={{ backgroundImage: `url(${BACKDROP})` }} />
-        {body}
+        <div className="sf-phase" key={`${pub?.phase ?? "setup"}-${r?.index ?? 0}-${curtainFor ?? ""}-${termSeen ? 1 : 0}`}>
+          {body}
+        </div>
+        {layer}
       </div>
     </GameShell>
   );

@@ -561,6 +561,43 @@ export class Sim {
     return { x: this.level.spawn.x + i * 44, y: this.level.spawn.y };
   }
 
+  /**
+   * 摔死以后的复活点。照常是 spawnPoint；那里离活着的队友不到一个身体宽（玩家之间不碰撞，叠上了就分不开），
+   * 就沿着同一高度往两边找，找一个脚下有不会消失的平台、身体放得下、离谁都够远的地方。
+   * 照常的位置空着就不动，所以回放里没人挡道的复活和以前一模一样。
+   */
+  private respawnPoint(i: number): Pt {
+    const s = this.spawnPoint(i);
+    const minGap = CFG.bodyR * 2;
+    const others = this.players.filter((q) => q.id !== i && !q.dead).map((q) => q.body);
+    const gap = (x: number): number => others.reduce((m, b) => Math.min(m, Math.hypot(b.x - x, b.y - s.y)), Infinity);
+    if (gap(s.x) >= minGap) return s;
+    let best = s;
+    let bestGap = gap(s.x);
+    for (let k = 1; k <= 25; k++) {
+      for (const x of [s.x + k * 8, s.x - k * 8]) {
+        if (!this.standable(x, s.y)) continue;
+        const g = gap(x);
+        if (g >= minGap) return { x, y: s.y };
+        if (g > bestGap) {
+          best = { x, y: s.y };
+          bestGap = g;
+        }
+      }
+    }
+    return best;
+  }
+
+  /** (x, y) 放得下一个身体，而且脚下 80 px 内有不会消失的平台（饼干会没、蜡烛会弹，都不算）。 */
+  private standable(x: number, y: number): boolean {
+    const r = CFG.bodyR;
+    const lv = this.level;
+    const footing = lv.rects.some((b) => x - r >= b.x && x + r <= b.x + b.w && b.y - y >= r && b.y - y <= 80);
+    if (!footing) return false;
+    const solid = [...lv.rects, ...(lv.fading ?? []), ...(lv.springs ?? [])];
+    return !solid.some((b) => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h);
+  }
+
   // ---------------------------------------------------------------- 输入
 
   /** 摇杆归一（超过 1 缩回单位圆，死区 0.12），抓键按住就是抓。 */
@@ -620,11 +657,12 @@ export class Sim {
 
   /** 推进 dt 秒：内部按固定 120 Hz 走整数步，多出来的零头攒到下一次。 */
   step(dt: number): void {
+    // 先清事件：赢了以后照样每步清，不然 win 会被主机一步步重复读到（横幅不消失、过关音乐叠几百遍）
+    this.events.length = 0;
     if (this.won) {
       this.winT += dt;
       return;
     }
-    this.events.length = 0;
     this.acc += dt;
     while (this.acc >= CFG.step - 1e-6) {
       this.substep();
@@ -929,7 +967,7 @@ export class Sim {
       if (p.dead) {
         p.deadT += dt;
         if (p.deadT >= CFG.respawnDelay) {
-          const s = this.spawnPoint(p.id);
+          const s = this.respawnPoint(p.id);
           this.teleport(p.id, s.x, s.y);
           p.face = 'idle';
           this.events.push({ type: 'respawn', player: p.id, summoned: false });

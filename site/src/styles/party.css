@@ -201,27 +201,36 @@
 .award-title .both-other {
   font-size: 15px;
 }
+/* the clock, "3/8 voted" and the faces of those who have: one line, and at a long table the faces
+   drop to a line of their own under the count (the count never breaks mid-word) */
 .sup-status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-2) var(--space-3);
   color: var(--haze);
   font-size: 14px;
+}
+.sup-status > span:not(.sup-voted) {
+  white-space: nowrap;
 }
 .sup-status strong {
   color: var(--moon);
   font-family: var(--font-display);
   font-size: 18px;
 }
+/* a row of faces, each tucked a little under the one before, so fifteen still fit on a phone */
 .sup-voted {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
   margin-left: auto;
+  padding-left: var(--space-2);
   justify-content: flex-end;
 }
 .sup-voted > span {
   display: inline-grid;
+  margin-left: calc(-1 * var(--space-2));
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 0 2px var(--night);
   opacity: 0.25;
   filter: grayscale(1);
   transition:
@@ -543,9 +552,6 @@
   flex-direction: column;
   gap: 10px;
 }
-.pl-write.is-done .pl-prompt {
-  opacity: 0.75;
-}
 .pl-form {
   display: flex;
   flex-direction: column;
@@ -575,6 +581,14 @@
   align-items: center;
   gap: 4px;
   flex: none;
+}
+/* a sent answer's prompt, small, over the answer */
+.pl-sent .pl-sent-prompt {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 .pl-writing {
   display: flex;
@@ -1489,6 +1503,24 @@ button.pl-answer:disabled {
 .limbo-scene {
   width: 100%;
   max-height: 210px;
+}
+/* a short screen (an iPhone SE, a phone with a browser bar): the poles and the gauge give up some
+   height, so the whole gauge, and a tilt's level under it, fit without scrolling while the table
+   watches someone lean */
+@media (max-height: 740px) {
+  .lb .limbo-scene {
+    max-height: 150px;
+  }
+  .lb .limbo-stage {
+    width: min(100%, 210px);
+  }
+  .lb .gauge svg {
+    width: min(100%, 240px);
+  }
+  .lb .gauge-read {
+    margin-top: -28px;
+    font-size: 30px;
+  }
 }
 .limbo-ground {
   stroke: var(--line);
@@ -3003,10 +3035,12 @@ button.ecard.is-legal:active {
 
 /* ---------- Name That Tune: the stage (two performers either side of the record) ---------- */
 
+/* --beat and --voice are set by stage.tsx on the spots, the floor, the record and the crowd only, in
+   steps of 1/20. What they change is an opacity on a layer of its own (or the crowd's transform), so
+   the lights pulse without anything being painted again. */
 .tn-stage {
   --beat: 0;
   --voice: 0;
-  --drum: 0;
   position: relative;
   isolation: isolate;
   display: grid;
@@ -3033,7 +3067,7 @@ button.ecard.is-legal:active {
   border-radius: 50%;
   filter: blur(18px);
   opacity: calc(0.28 + 0.5 * var(--beat));
-  transition: opacity 0.08s linear;
+  will-change: opacity;
 }
 .tn-stage-lights::before {
   left: -12%;
@@ -3053,8 +3087,18 @@ button.ecard.is-legal:active {
   border-radius: 50%;
   background: linear-gradient(var(--dusk-3), var(--dusk));
   box-shadow:
-    0 0 0 1.5px color-mix(in oklab, var(--gel) calc(35% + 45% * var(--beat)), transparent),
+    0 0 0 1.5px color-mix(in oklab, var(--gel) 35%, transparent),
     0 14px 30px -10px #000;
+}
+/* the floor's rim brightens on the beat */
+.tn-stage-floor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--gel) 70%, transparent);
+  opacity: var(--beat);
+  will-change: opacity;
 }
 .tn-avatar {
   /* sized by height: the figure is tall and narrow, its arms and hair reach outside the box */
@@ -3074,11 +3118,23 @@ button.ecard.is-legal:active {
   margin: 0;
 }
 .tn-stage .vinyl-disc {
+  position: relative;
   width: min(34vw, 150px);
   box-shadow:
     0 0 0 2px var(--line-soft),
-    0 0 calc(10px + 30px * var(--voice)) color-mix(in oklab, var(--gel) 45%, transparent),
+    0 0 10px color-mix(in oklab, var(--gel) 45%, transparent),
     inset 0 0 40px rgba(0, 0, 0, 0.6);
+}
+/* the record glows with the singing */
+.tn-stage .vinyl-disc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 40px color-mix(in oklab, var(--gel) 45%, transparent);
+  opacity: var(--voice);
+  will-change: opacity;
+  pointer-events: none;
 }
 .tn-stage .eq {
   height: 16px;
@@ -3141,6 +3197,124 @@ button.ecard.is-legal:active {
   font-size: 12.5px;
   text-align: center;
 }
+.tn-pool > .seg {
+  align-self: center;
+}
+/* a singer special: who, how many songs, and a way to change */
+.tn-pool-singer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.tn-pool-singer strong {
+  font-size: var(--text-lg);
+}
+.tn-pool-singer small {
+  color: var(--haze);
+  font-size: var(--text-sm);
+}
+/* the singers to pick from, by language or found by name */
+.tn-singer-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tn-singer-langs,
+.tn-singers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.tn-singer-sheet .ui-pill-toggle[aria-pressed="true"] {
+  --ui-tone: var(--gel);
+  color: var(--on-gel);
+}
+.tn-singers .ui-pill small {
+  font-weight: 500;
+}
+/* a friend's challenge: who, how it plays, the score to beat; afterwards, theirs against ours */
+.tn-challenge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+.tn-challenge h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+.tn-challenge-how {
+  margin: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.tn-challenge-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+}
+.tn-challenge-bar strong {
+  color: var(--gel);
+  font-size: var(--text-4xl);
+  line-height: var(--leading-tight);
+}
+.tn-challenge-bar span,
+.tn-challenge-vs span {
+  color: var(--haze);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.tn-challenge-vs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  width: 100%;
+}
+.tn-challenge-vs p {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--r-panel);
+  background: var(--dusk);
+}
+.tn-challenge-vs strong {
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+}
+.tn-challenge-result {
+  padding-top: var(--space-2);
+}
+.tn-challenge-result.is-won .tn-challenge-vs p:first-child {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.tn-challenge-link {
+  width: 100%;
+}
+/* one second, one phone: play the snippet again, or play more */
+.tn-snip-row {
+  gap: var(--space-3);
+}
+/* easy or hard titles, with its one line under it */
+.tn-level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* (a small segmented control sits to the left on its own; here it's centered over its line) */
+.tn-level > .seg {
+  align-self: center;
+}
 
 /* ---------- quiz: four titles for everyone ---------- */
 
@@ -3165,6 +3339,10 @@ button.ecard.is-legal:active {
   font-size: 12px;
   font-weight: 700;
   color: var(--gel);
+}
+/* one phone: a title the table already tried */
+.tn-quiz .tn-option .tn-pick-miss {
+  color: color-mix(in oklab, var(--color-danger) 80%, var(--color-text));
 }
 .tn-answered {
   display: flex;

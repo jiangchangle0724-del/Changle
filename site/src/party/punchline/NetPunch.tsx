@@ -50,11 +50,11 @@ export function NetPunch({ v, onLeave }: { v: PunchView; onLeave: () => void }) 
     <p>
       {custom
         ? zh
-          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人受罚。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的受罚。超过 8 个人时，多出来的人当观众，一起投票。有电视或电脑当大屏幕时，手机就是遥控器。"
-          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser takes the penalty. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total takes the penalty. Past eight players, the rest are the audience and vote too. With a TV or computer as the big screen, the phones are the controllers."
+          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人受罚。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的受罚。超过 8 个人时，多出来的人当观众，一起投票，下一局先写。有电视或电脑当大屏幕时，手机就是遥控器。"
+          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser takes the penalty. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total takes the penalty. Past eight players, the rest are the audience and vote too, and write first next game. With a TV or computer as the big screen, the phones are the controllers."
         : zh
-          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的喝一杯。超过 8 个人时，多出来的人当观众，一起投票。有电视或电脑当大屏幕时，手机就是遥控器。"
-          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if they got swept. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total drinks a full glass. Past eight players, the rest are the audience and vote too. With a TV or computer as the big screen, the phones are the controllers."}
+          ? "前两轮：每道题两个人写，每人写两道。答案一题一题亮出来，不显示是谁写的，其他人投票。每道题按票数比例分 1000 分，赢的多拿 100；一个人拿走所有票就是神回复，再加 250。第二轮分数翻倍。输的人喝一口，被神回复的喝两口。最后一轮所有人写同一道题，每人选三个最好笑的，按票数分 4000 分，总分最低的喝一杯。超过 8 个人时，多出来的人当观众，一起投票，下一局先写。有电视或电脑当大屏幕时，手机就是遥控器。"
+          : "Rounds one and two: every prompt goes to two players, and everyone writes two. The answers go up one prompt at a time, without names, and everyone else votes. Each prompt splits 1,000 points by votes, plus 100 for the winner; take every vote and it's a Punchline, 250 more. Round two doubles everything. The loser drinks a sip, two if they got swept. The last round: everyone answers the same prompt and picks three favorites, 4,000 points split by votes, and the lowest total drinks a full glass. Past eight players, the rest are the audience and vote too, and write first next game. With a TV or computer as the big screen, the phones are the controllers."}
     </p>
   );
 
@@ -293,40 +293,59 @@ function StandingPad({ v, who, end = false }: { v: PunchView; who: Who; end?: bo
 
 /* ------------------------------------------------------------------ shared */
 
+/**
+ * Your prompts, one at a time: the box for the first one still to answer, and a line for each one
+ * sent (tap it to change the answer). On a small phone the box, its buttons and the host's button
+ * all fit above the reactions bar.
+ */
 function WritePanel({ v }: { v: PunchView }) {
   const { g, me } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
+  // what this phone sent, shown at once (the room confirms a moment later), and the one being changed
+  const [sent, setSent] = useState<Record<number, string>>({});
+  const [editing, setEditing] = useState<number | null>(null);
   if (!v.mine.length)
-    return <Waiting>{v.audience.includes(me) ? (zh ? "人多，这局你是观众：不用写，等着投票" : "Full house: you're in the audience. No writing, just voting.") : zh ? "这一轮你负责投票，等大家写完" : "You're voting this round. Waiting for the writers."}</Waiting>;
+    return <Waiting>{v.audience.includes(me) ? (zh ? "人多，这局你是观众：不用写，等着投票。下一局你先写" : "Full house: you're in the audience. No writing, just voting. You write first next game.") : zh ? "这一轮你负责投票，等大家写完" : "You're voting this round. Waiting for the writers."}</Waiting>;
+  const isSent = (p: PunchView["mine"][number]) => p.done || p.k in sent;
+  const open = v.mine.find((p) => p.k === editing) ?? v.mine.find((p) => !isSent(p));
+  const send = (k: number, text: string) => {
+    setSent((s) => ({ ...s, [k]: text }));
+    setEditing(null);
+  };
   return (
     <div className="pl-writes">
       {v.mine.map((p, i) => (
         <WriteCard
           key={`${v.round}-${p.k}`}
-          k={p.k}
           prompt={p.prompt}
-          done={p.done}
-          sentText={p.text}
+          shows={open?.k === p.k ? "box" : isSent(p) ? "sent" : "later"}
+          sentText={sent[p.k] || p.text}
           n={i + 1}
           of={v.mine.length}
-          onSend={(text) => g("answer", { k: p.k, text })}
-          onSafety={() => g("answer", { k: p.k, safety: true, lang })}
+          onSend={(text) => {
+            g("answer", { k: p.k, text });
+            send(p.k, text);
+          }}
+          onSafety={() => {
+            g("answer", { k: p.k, safety: true, lang });
+            send(p.k, "");
+          }}
+          onEdit={() => setEditing(p.k)}
         />
       ))}
     </div>
   );
 }
 
-/** One answer is in: the box for the next prompt still to answer comes up above the reactions bar. */
+/** One answer is in: the box for the next prompt comes up above the reactions bar, the host's button with it. */
 function nextPrompt(from: HTMLElement) {
   const list = from.closest(".pl-writes");
-  const card = from.closest(".pl-write");
-  if (!list || !card) return;
+  if (!list) return;
   window.setTimeout(() => {
-    const open = [...list.querySelectorAll<HTMLElement>(".pl-write")].filter((c) => c !== card && c.querySelector("form textarea"));
-    const next = open.find((c) => card.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) ?? open[0];
-    if (next) bringIntoView([...next.querySelectorAll<HTMLElement>("form textarea, form button[type='submit']")]);
+    const els = [...list.querySelectorAll<HTMLElement>("form textarea, form button")];
+    const host = list.parentElement?.querySelector<HTMLElement>(".host-row .host-btn");
+    if (els.length) bringIntoView(host ? [...els, host] : els);
   }, 120);
 }
 
@@ -375,79 +394,84 @@ function HostControls({ v }: { v: PunchView }) {
   );
 }
 
+/**
+ * One of your prompts: its box ("box"), a line once it's sent ("sent"), or nothing while it waits its
+ * turn ("later"). It stays mounted either way, so a half-written answer survives changing another.
+ */
 function WriteCard({
-  k,
   prompt,
-  done,
+  shows,
   sentText,
   n,
   of,
   onSend,
   onSafety,
+  onEdit,
 }: {
-  k: number;
   prompt: PunchView["mine"][number]["prompt"];
-  done: boolean;
+  shows: "box" | "sent" | "later";
   sentText: string;
   n: number;
   of: number;
   onSend: (text: string) => void;
   onSafety: () => void;
+  onEdit: () => void;
 }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const [text, setText] = useState("");
-  const [editing, setEditing] = useState(!done);
-  const [sent, setSent] = useState("");
-  useEffect(() => {
-    if (!done) setEditing(true);
-  }, [done, k]);
-  return (
-    <div className={`pl-write ${done && !editing ? "is-done" : ""}`}>
-      <PromptCard prompt={prompt} kicker={of > 1 ? (zh ? `第 ${n} 题，共 ${of} 题` : `Prompt ${n} of ${of}`) : zh ? "所有人写同一题" : "Everyone answers this one"} />
-      {done && !editing ? (
+  if (shows === "later") return null;
+  if (shows === "sent")
+    return (
+      <div className="pl-write is-done">
         <div className="pl-sent">
           <Check size={18} strokeWidth={3} />
-          <span>{sentText || sent || (zh ? "交了" : "Sent")}</span>
-          <button type="button" className="link-btn" onClick={() => setEditing(true)}>
+          <span>
+            <span className="pl-sent-prompt">
+              {of > 1 && (zh ? `第 ${n} 题 · ` : `Prompt ${n} · `)}
+              {zh ? prompt.zh : prompt.en}
+            </span>
+            {sentText || (zh ? "交了" : "Sent")}
+          </span>
+          <button type="button" className="link-btn" onClick={onEdit}>
             <Pencil size={13} /> {zh ? "改" : "Edit"}
           </button>
         </div>
-      ) : (
-        <form
-          className="pl-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const t = text.trim();
-            if (!t) return;
-            onSend(t);
-            setSent(t);
-            setEditing(false);
-            sfx.pop();
-            haptic(8);
+      </div>
+    );
+  return (
+    <div className="pl-write">
+      <PromptCard prompt={prompt} kicker={of > 1 ? (zh ? `第 ${n} 题，共 ${of} 题` : `Prompt ${n} of ${of}`) : zh ? "所有人写同一题" : "Everyone answers this one"} />
+      <form
+        className="pl-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const t = text.trim();
+          if (!t) return;
+          nextPrompt(e.currentTarget);
+          onSend(t);
+          sfx.pop();
+          haptic(8);
+        }}
+      >
+        <div className="field">
+          <textarea rows={2} value={text} maxLength={80} onChange={(e) => setText(e.target.value)} placeholder={zh ? "写一个让大家笑出声的答案" : "Write something that gets a laugh"} aria-label={zh ? "你的答案" : "Your answer"} />
+        </div>
+        <button type="submit" className="btn btn-primary btn-block" disabled={!text.trim()}>
+          {zh ? "交" : "Send"}
+        </button>
+        <button
+          type="button"
+          className="link-btn"
+          onClick={(e) => {
             nextPrompt(e.currentTarget);
+            onSafety();
+            sfx.pop();
           }}
         >
-          <div className="field">
-            <textarea rows={2} value={text} maxLength={80} onChange={(e) => setText(e.target.value)} placeholder={zh ? "写一个让大家笑出声的答案" : "Write something that gets a laugh"} aria-label={zh ? "你的答案" : "Your answer"} />
-          </div>
-          <button type="submit" className="btn btn-primary btn-block" disabled={!text.trim()}>
-            {zh ? "交" : "Send"}
-          </button>
-          <button
-            type="button"
-            className="link-btn"
-            onClick={(e) => {
-              onSafety();
-              setEditing(false);
-              sfx.pop();
-              nextPrompt(e.currentTarget);
-            }}
-          >
-            {zh ? "想不出来？给我一个（分数减半）" : "Stuck? Give me one (half points)"}
-          </button>
-        </form>
-      )}
+          {zh ? "想不出来？给我一个（分数减半）" : "Stuck? Give me one (half points)"}
+        </button>
+      </form>
     </div>
   );
 }

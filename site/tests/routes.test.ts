@@ -1,6 +1,7 @@
 /* The site's addresses (src/router.ts). Run with `npx tsx tests/routes.test.ts` */
 import { GAMES } from "../src/games/registry";
-import { fromLegacyHash, gameFrom, parse, pathOf, titleOf, type Route } from "../src/router";
+import { fromLegacyHash, gameFrom, parse, pathOf, stageOf, titleOf, type Route } from "../src/router";
+import { ONLINE_GAMES } from "../src/shared/protocol";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -35,6 +36,14 @@ for (const g of GAMES) {
     ok(same(play, { kind: "tv", game: g.id }) && pathOf(play) === g.speaker, `/g/${g.slug}/play is its big screen, ${g.speaker}`);
     continue;
   }
+  if (g.stage) {
+    // on its own Worker (一起跳): its card here, and the page leaves for the stage
+    ok(same(play, { kind: "home", tab: "party", game: g.id }), `/g/${g.slug}/play shows its card while it leaves`);
+    ok(stageOf(`/g/${g.slug}/play`) === g.stage.screen && stageOf(`/g/${g.slug}/play/`) === g.stage.screen, `/g/${g.slug}/play goes to ${g.stage.screen}`);
+    ok(stageOf(`/g/${g.slug}`) === null, `/g/${g.slug} stays on its card`);
+    ok(!ONLINE_GAMES.includes(g.id as never), `${g.id} has no table game`);
+    continue;
+  }
   ok(g.ready ? same(play, { kind: "game", id: g.id }) : play.kind === "home", `/g/${g.slug}/play ${g.ready ? "is the game" : "is its card (not playable yet)"}`);
 }
 
@@ -58,6 +67,9 @@ const pages: Route[] = [
   { kind: "djtest" },
 ];
 for (const r of pages) ok(same(at(pathOf(r)), r), `${pathOf(r)} round-trips`);
+// a game's own link (猜歌名's challenges) keeps its ?c=, and only one that could be one
+ok(same(at("/g/name-that-tune/play?c=MXx6aC1lbg_x"), { kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) && pathOf({ kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) === "/g/name-that-tune/play?c=MXx6aC1lbg_x", "a game's link of its own (?c=) stays on the address");
+ok(same(at("/g/name-that-tune/play?c=%3Cscript%3E"), { kind: "game", id: "tune" }) && same(at("/g/name-that-tune?c=MXx6aC1lbg"), { kind: "home", tab: "party", game: "tune" }), "a ?c= that can't be one is dropped; a card has none");
 
 // addresses written another way land on the site's own spelling
 ok(pathOf(at("/g/truth")) === "/g/truth-or-dare", "/g/truth (an old id) becomes /g/truth-or-dare");

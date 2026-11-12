@@ -20,9 +20,18 @@
     { "pattern": "changle.ca/party", "zone_name": "changle.ca" },
     { "pattern": "changle.ca/party/*", "zone_name": "changle.ca" }
   ],
-  // One Durable Object per room. SQLite-backed Durable Objects work on Cloudflare's free plan.
-  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "PartyRoom" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PartyRoom"] }],
+  // One Durable Object per room, and one for the songbook (each song's first beat, as tapped along
+  // to). SQLite-backed Durable Objects work on Cloudflare's free plan.
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "PartyRoom" },
+      { "name": "SONGBOOK", "class_name": "SongBook" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PartyRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["SongBook"] }
+  ],
   "build": { "command": "node scripts/build.mjs" },
   "observability": { "enabled": true, "traces": { "enabled": true } }
 }

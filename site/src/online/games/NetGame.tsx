@@ -31,6 +31,8 @@ import { NetDj } from "../../party/dj/NetDj";
 const Watch = lazy(() => import("../../tv/Watch"));
 // 最后一张 (its cards, its screen, its styles) loads when its game starts
 const NetLastCard = lazy(() => import("../../party/lastcard/NetLastCard"));
+// 一本正经 too (its pictures, its screen, its styles)
+const NetStraightFace = lazy(() => import("../../party/straightface/NetStraightFace"));
 
 /** The game the server says is on, rendered for this phone. */
 export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void }) {
@@ -88,6 +90,12 @@ export function NetGame({ view, onLeave }: { view: GameView; onLeave: () => void
       return (
         <Suspense fallback={<NetFrame title={GAME_BY_ID.lastcard.name} onLeave={onLeave}><Skeleton lang={lang} shape="block" height="calc(var(--tap) * 6)" slowText={lang === "zh" ? "网有点慢，马上就好" : "Slow connection, nearly there"} /></NetFrame>}>
           <NetLastCard v={view} onLeave={onLeave} />
+        </Suspense>
+      );
+    case "straightface":
+      return (
+        <Suspense fallback={<NetFrame title={GAME_BY_ID.straightface.name} onLeave={onLeave}><Skeleton lang={lang} shape="block" height="calc(var(--tap) * 6)" slowText={lang === "zh" ? "网有点慢，马上就好" : "Slow connection, nearly there"} /></NetFrame>}>
+          <NetStraightFace v={view} onLeave={onLeave} />
         </Suspense>
       );
   }

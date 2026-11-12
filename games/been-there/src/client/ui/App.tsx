@@ -2,6 +2,7 @@ import { useEffect } from "preact/hooks";
 import { installTextures } from "../art/texture";
 import { has, t } from "../i18n";
 import { useApp } from "../store";
+import { Bgm } from "./Bgm";
 import { Btn } from "./common";
 import { Over } from "./Finale";
 import { Game } from "./Game";
@@ -33,6 +34,7 @@ export function App({ home, demo }: { home: () => void; demo?: boolean }) {
   return (
     <>
       {body}
+      <Bgm v={st.fatal ? null : v} />
       <div class="toasts" aria-live="assertive">
         {st.toasts.map((x) => (
           <p key={x.id}>{x.text}</p>

@@ -82,8 +82,8 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
     <>
       <p>
         {zh
-          ? "电视或电脑打开 changle.ca/dj 就是音箱：在那上面点「开始派对」放歌。手机不出声，按 🔥 给 DJ 加油，大屏上看得到是谁。"
-          : "Open changle.ca/dj on a TV or computer and it's the speaker: press Start the party there. Phones stay quiet; press 🔥 to push the DJ, and the big screen shows who did."}
+          ? "一台公用手机投屏到电视（或者电视、电脑）打开 changle.ca/dj 就是音箱：在那上面点「开始派对」放歌，也能直接在上面点歌。别的手机不出声，按 🔥 给 DJ 加油，大屏上看得到是谁。"
+          : "Open changle.ca/dj on a phone everyone shares, mirrored to the TV (or on a TV or computer), and it's the speaker: press Start the party there, and pick songs on it too. The other phones stay quiet; press 🔥 to push the DJ, and the big screen shows who did."}
       </p>
       <p>
         {zh

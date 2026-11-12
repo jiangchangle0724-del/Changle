@@ -47,6 +47,14 @@ the foot to move lit up. Full screen on the dancing team's phone, small over the
 (which light up when it's over), big on the big screen. A computer team dances a short one straight
 away.
 
+The game's music: "Boarding Call", a 1930s swing written for the game (clarinet, muted trumpet,
+piano, rhythm guitar, upright bass, brushes), going round from the game's start to its end, and its
+ending with the results. One device plays it for the room (the big screen, otherwise the host's
+phone), under the game's sounds; it comes down for a local hit, a city's recording, Seoul's silence,
+Rio's samba, a forfeit and a pause. The menu's 背景音乐 turns it off on a device. The score is code
+(`scripts/music/score.mjs`); `npm run music` plays and mixes it (FluidSynth with the GeneralUser GS
+SoundFont, and ffmpeg) into the files in `src/client/media/music`.
+
 How the game looks and moves, and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
 ## How it sits inside changle.ca
@@ -76,12 +84,12 @@ How the game looks and moves, and what a design change has to keep: [DESIGN.md](
 | --- | --- |
 | `src/engine` | The rules, one copy shared by the simulator, the server and the browser. Recovered from the step-3 bundle; `tests/engine.test.ts` proves it still gives the step-3 report's numbers exactly. |
 | `src/room` | One game room: lobby, teams, the running game, live auctions, the Shanghai quiz, the waiting teams' quiz (`triviaBank.ts` holds the questions, `trivia.ts` picks the one a landing brings; answers kept on the server), party forfeits (`party.ts`), trades, spectator bets, the computer covering for phones that drop off and the turn clock, saves. No networking inside, so it's easy to test. |
-| `src/server` | The Cloudflare Worker. Each room is one Durable Object that keeps the game and saves it after every move. |
+| `src/server` | The Cloudflare Worker. Each room is one Durable Object that keeps the game and saves it after every move; another keeps the pages' error reports (`reports.ts`). |
 | `src/client` | The web pages: phone screens, the big screen, Chinese/English. |
 | `src/client/art` | The art, all drawn in code (SVG): 22 city posters, passport stamps, characters, the round board, the route map. |
 | `src/client/fonts` | Font subsets made by `npm run fonts` (SIL Open Font License; licences alongside). |
 | `src/local` | The single-device demo (`dist/demo.html`): the same client with the room running in the page. |
-| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the drawn map; `satellite.mjs` remakes the satellite pictures from NASA's (needs ImageMagick with WebP). |
+| `scripts` | `build.mjs` builds the pages; `sim.ts` re-runs the step-3 report; `tune.ts` is the step-3 rent tuner; `fonts.mjs` and `gen-world.mjs` remake the fonts and the drawn map; `satellite.mjs` remakes the satellite pictures from NASA's (needs ImageMagick with WebP); `music.mjs` makes the music from the score in `music/` (needs FluidSynth 2.3+ and ffmpeg with LAME; it fetches the GeneralUser GS SoundFont from GitHub once). |
 | `src/samples` | The step-5 style sheet (three art directions side by side), built to `dist/styles.html`. |
 | `tests` | Engine and room tests (Node), and phone-in-a-browser tests (`tests/e2e`, Playwright). |
 
@@ -107,6 +115,7 @@ npm run test:e2e     # 4 phones play a whole game; a phone locked 60 s gets its 
                      # the map's size, shared cities and every key screen on 390x844, 375x667 and 320x568
 npm run sim          # print the step-3 report numbers again
 npm run fonts        # after adding Chinese text: rebuild the font subsets (a test reminds you)
+npm run music        # after changing the score (scripts/music/score.mjs): make the music again
 npm run build        # then open dist/demo.html: the whole game on one page
 ```
 
@@ -115,6 +124,22 @@ GitHub runs the first three on each pull request and on main after each merge
 once, each engine in two halves, about 9 minutes. A part that fails can be run again on its own. A
 push that only changes Markdown or `docs/` after a passing run doesn't test the phones again, and
 Markdown alone in this folder runs nothing.
+
+### What real phones run into
+
+Every page of the game (phones, the big screen, the one-phone demo at changle.ca/trip/demo) tells the
+server by itself when something goes wrong there (`src/client/report.ts`): an error in the game's own
+files, a promise nobody caught, the page frozen for more than 6 s while someone was looking at it, or
+the room out of reach for more than 30 s. At most 8 a page, each problem once. The server keeps one
+entry for each kind of problem, at most 200 (`src/server/reports.ts`, the `ReportBox` Durable Object):
+how often, since when, on which screens and browsers, in which builds (the commit, `__BUILD__`).
+Nothing personal: no names, team names, room codes, addresses or the phone's id, and the browser only
+as its family and version ("iOS 18 Safari 18"). Each report is also a line in the Worker's logs
+(Cloudflare dashboard, been-there, Logs).
+
+```sh
+npm run reports      # what changle.ca's pages have reported, newest first (GET /trip/api/reports)
+```
 
 ## Put it online
 
@@ -173,6 +198,19 @@ minute). Nothing is downloaded: previews stream from Apple. `npm test` checks th
 * Room timings (auction countdown, vote time, how soon the computer covers a dropped phone, how long
   the quiz rests between two questions (`triviaEvery`, eight minutes: the lobby's switch says the
   number; `triviaFirst`, four, before a game's first) and its time to answer, the turn clock's 60 + 15 seconds): `TIMING` in `src/room/protocol.ts`.
+* The lobby's 更多规则 (more rules, folded under the host's other settings): the starting cash
+  (`START_CASH_CHOICES` in `src/engine/config.ts`: $1,000, $1,500, $2,000; in a game to the target the
+  target moves with it, `withStartCash`), auctions on or off (`auctions` in the game's config: off, a
+  city its visitor doesn't buy stays with the bank), and hidden money (each phone gets the other teams'
+  cash and worth as -1 until the end, `gameView` in `src/room/room.ts`; the big screen gets none).
+* 世界大动荡 (world upheaval, in 更多规则, on unless the host turns it off): what each of the six does
+  and the shares and amounts (`WORLD`, `CRASH_SHARE`, `AI_GIFT`, `WORLD_ROUNDS` in
+  `src/engine/world.ts`; what it does at once is `worldEvent` in `src/engine/play.ts`), how often
+  (`worldEvery`, 20 minutes; `worldShort`, 8, a 15-minute game's only one) and how long its moment holds
+  the table (`worldCard`): `TIMING` in `src/room/protocol.ts`. One comes at the start of a turn, once the
+  last throw has played on the screens and no question is up (`dueWorld` in `src/room/room.ts`); the
+  computer waits for it. Tests set `worldEvery` and `worldOrder` (rooms, with `ALLOW_TEST_SETTINGS`;
+  the one-phone demo, `window.__demoTest`).
 * Prices, rents, target lines: `src/engine/config.ts`. After changing them, run `npm run sim`
   to see the effect; `npm test` will then (deliberately) fail until `tests/fixtures/report.json`
   is updated to the new numbers.
