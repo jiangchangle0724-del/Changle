@@ -4043,9 +4043,9 @@ test("dj: a night of the host's songs: their names from the speaker, a song on e
   ok(nothing(g("p1", "vote", { style: "techno" })), "no styles to pick");
   ok(nothing(g("p2", "req", { text: "something else" })) && nothing(g("p2", "req", { local: "nope" })), "a name typed in, or a song that isn't there, isn't asked for");
 
-  // asked for by name: it goes on the deck off the air
-  const s3on = d.songs.a === "s3" || d.songs.b === "s3";
-  const want = s3on ? "s5" : "s3";
+  // asked for by name: it goes on the deck off the air (one on neither deck: which two the night
+  // starts on is random, and changes with the clock the tests before this one leave)
+  const want = ["s3", "s5", "s1", "s2", "s4"].find((id) => id !== d.songs.a && id !== d.songs.b)!;
   g("p2", "req", { local: want });
   d = deck();
   ok(d.up?.local === want && d.up?.by === "p2" && d.songs.b === want, `Ben asks for ${want}: up next, on deck B`);
