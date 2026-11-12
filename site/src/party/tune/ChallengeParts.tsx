@@ -32,19 +32,30 @@ export function challengeWords(c: Challenge, songs: number, zh: boolean) {
   ].join(" · ");
 }
 
-/** A friend's challenge, before taking it on: who, how it plays, the score to beat. */
-export function ChallengeIntro({ c, songs }: { c: Challenge; songs: number }) {
+/**
+ * A friend's challenge, before taking it on: who, how it plays, the score to beat. `found`: the songs
+ * this phone has (null while the list loads): the score to beat counts only those.
+ */
+export function ChallengeIntro({ c, found }: { c: Challenge; found: number[] | null }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const who = c.name || (zh ? "朋友" : "A friend");
-  const bar = challengeScore(c);
+  const have = found ?? c.ids;
+  const bar = c.ids.reduce((a, id, i) => a + (have.includes(id) ? c.pts[i] : 0), 0);
+  if (found && !found.length)
+    return (
+      <section className="tn-challenge" aria-labelledby="tn-challenge-title">
+        <h2 id="tn-challenge-title">{zh ? `${who}向你发起挑战` : `${who} challenges you`}</h2>
+        <p className="tn-pool-hint">{zh ? "可惜这个挑战的歌已经不在歌单里了。自己选一组歌玩吧。" : "Sadly, this challenge's songs aren't in the list any more. Pick some songs of your own."}</p>
+      </section>
+    );
   return (
     <section className="tn-challenge" aria-labelledby="tn-challenge-title">
       <h2 id="tn-challenge-title">{zh ? `${who}向你发起挑战` : `${who} challenges you`}</h2>
-      <p className="tn-challenge-how">{challengeWords(c, songs, zh)}</p>
+      <p className="tn-challenge-how">{challengeWords(c, have.length, zh)}</p>
       <p className="tn-challenge-bar">
         <strong className="tabular">{bar}</strong>
-        <span>{zh ? `${who}的分数，满分 ${c.ids.length * 3}` : `${who}'s score, out of ${c.ids.length * 3}`}</span>
+        <span>{zh ? `${who}的分数，满分 ${have.length * 3}` : `${who}'s score, out of ${have.length * 3}`}</span>
       </p>
       <p className="tn-pool-hint">
         {zh

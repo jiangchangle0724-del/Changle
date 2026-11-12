@@ -894,9 +894,16 @@ def challenge(browser):
     friend.get_by_role("button", name="发起挑战").click()
     back = until(lambda: friend.evaluate("() => window.__shared[0] && window.__shared[0].url"), 3000)
     ok(bool(back) and back != url, "[challenge] the friend sends it back with their own score")
-    friend.get_by_role("button", name="再来一局").click()
     # (nobody is set up on this phone: the game's card first, to add tonight's people, as for any game)
-    ok(until(lambda: "?c=" not in friend.url and friend.url.rstrip("/").endswith("/g/name-that-tune"), 4000) is not None, f"[challenge] 再来一局: the link off the address, and with nobody set up, the game's card ({friend.url})")
+    friend.get_by_role("button", name="自己开一局").click()
+    ok(until(lambda: "?c=" not in friend.url and friend.url.rstrip("/").endswith("/g/name-that-tune"), 4000) is not None, f"[challenge] 自己开一局: the link off the address, and with nobody set up, the game's card ({friend.url})")
+    # a link whose songs this list doesn't have (made up here): it says so, and offers a game of their own
+    gone = friend.evaluate("""async () => {
+      const m = await import('/src/party/tune/challenge.ts');
+      return m.challengeUrl({ pool: 'zh+en:any', quiz: true, hard: false, snap: false, seed: 7, name: 'Steve', pts: [3, 3], ids: [11, 12] });
+    }""")
+    friend.goto(gone, wait_until="networkidle")
+    ok(until(lambda: "不在歌单里" in friend.locator(".tn-challenge").inner_text(), 8000) is not None and friend.get_by_role("button", name="接受挑战").count() == 0, "[challenge] a link whose songs are gone: it says so, and there's nothing to take on")
     errs = errors_of([friend])
     ok(not errs, f"[challenge] the friend: no console or page errors {errs[:4]}")
     friend.context.close()

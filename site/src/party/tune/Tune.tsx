@@ -86,6 +86,22 @@ function TuneGame({ onBack, saved, code }: { onBack: () => void; saved: Kept | n
   /** the last game's songs, for the final scores: who got what, and what a challenge can send on */
   const [log, setLog] = useState<RoundLog[]>([]);
   const [link, setLink] = useState("");
+  /** the challenge's songs this phone has (a song list from before or after the link's may lack some): null while loading */
+  const [found, setFound] = useState<number[] | null>(null);
+  useEffect(() => {
+    if (!challenge) return;
+    let live = true;
+    loadSongbook().then(
+      (book) => {
+        const have = new Set(builtIn(book).map((x) => x.id));
+        if (live) setFound(challenge.ids.filter((id) => have.has(id)));
+      },
+      () => live && setFound(challenge.ids),
+    );
+    return () => {
+      live = false;
+    };
+  }, [challenge]);
   const keeping: KeepBase = { mode, pool, quiz, hard, snap, total, scores, seed, challenge };
   const penalty = usePenalty();
   // the game has its own sound (the songs, the melodies, the DJ's music app): the lounge music waits
@@ -133,7 +149,8 @@ function TuneGame({ onBack, saved, code }: { onBack: () => void; saved: Kept | n
   };
   /** the table's best, to send on or to set against a challenge's */
   const top = ranked.reduce<{ id: string; name: string; score: number } | null>((b, p) => ((scores[p.id] ?? 0) > (b?.score ?? -1) ? { id: p.id, name: p.name, score: scores[p.id] ?? 0 } : b), null);
-  const mine = log.filter((r) => r.b).slice(0, CHALLENGE_MAX);
+  // (a song this phone alone has, today's charts, can't be sent on; nor one twice)
+  const mine = log.filter((r, i) => r.b && log.findIndex((x) => x.id === r.id) === i).slice(0, CHALLENGE_MAX);
   const sendOn: Challenge | null =
     mode === "songs" && top && mine.length
       ? { pool, quiz, hard, snap, seed, name: top.id === "me" ? "" : top.name, pts: mine.map((r) => (r.pid === top.id ? r.pts : 0)), ids: mine.map((r) => r.id) }
@@ -141,13 +158,15 @@ function TuneGame({ onBack, saved, code }: { onBack: () => void; saved: Kept | n
   const actions =
     phase === "setup" && challenge ? (
       <>
-        <button type="button" className="btn btn-ghost btn-lg" onClick={ownGame}>
+        <button type="button" className={`btn btn-lg ${found?.length === 0 ? "btn-primary" : "btn-ghost"}`} onClick={ownGame}>
           {zh ? "自己选歌" : "Pick my own"}
         </button>
-        <button type="button" className="btn btn-primary btn-lg" onClick={() => start(challenge)}>
-          <Play size={18} />
-          {zh ? "接受挑战" : "Take it on"}
-        </button>
+        {found?.length !== 0 && (
+          <button type="button" className="btn btn-primary btn-lg" disabled={!found} onClick={() => start(challenge)}>
+            <Play size={18} />
+            {zh ? "接受挑战" : "Take it on"}
+          </button>
+        )}
       </>
     ) : phase === "setup" ? (
       <button type="button" className="btn btn-primary btn-lg" onClick={() => start(null)}>
@@ -158,7 +177,8 @@ function TuneGame({ onBack, saved, code }: { onBack: () => void; saved: Kept | n
       <>
         {sendOn && <ShareChallenge c={sendOn} onLink={setLink} />}
         <button type="button" className="btn btn-primary btn-lg" onClick={ownGame}>
-          {zh ? "再来一局" : "Play again"}
+          {/* (with nobody set up on this phone, the game's card comes first, to add tonight's people) */}
+          {challenge && !players.length ? (zh ? "自己开一局" : "Start my own") : zh ? "再来一局" : "Play again"}
         </button>
       </>
     ) : (
@@ -190,7 +210,7 @@ function TuneGame({ onBack, saved, code }: { onBack: () => void; saved: Kept | n
           {phase === "setup" && challenge && (
             <>
               <Vinyl spinning={false} label={<Music size={30} strokeWidth={2.4} />} />
-              <ChallengeIntro c={challenge} songs={challenge.ids.length} />
+              <ChallengeIntro c={challenge} found={found} />
             </>
           )}
           {phase === "setup" && !challenge && (
@@ -230,14 +250,21 @@ function TuneGame({ onBack, saved, code }: { onBack: () => void; saved: Kept | n
           )}
 
           {phase === "play" && mode === "songs" && (
-            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} onTotal={setRounds} total={total} pool={pool} quiz={quiz} hard={hard} snap={snap} seed={seed} fixed={challenge?.ids} people={people} scores={scores} setScores={setScores} onEnd={finish} onOffline={() => setMode("melody")} onEmpty={ownGame} />
+            <SongRounds keeping={keeping} saved={firstSaved.current?.round.kind === "songs" ? firstSaved.current.round : null} onRound={setShellRound} onTotal={setRounds} total={total} pool={pool} quiz={quiz} hard={hard} snap={snap} seed={seed} fixed={challenge?.ids} people={people} scores={scores} setScores={setScores} onEnd={finish}
+              onOffline={() => {
+                // (no songs, no challenge: the melodies are a game of the table's own)
+                if (challenge) ownGame();
+                setMode("melody");
+              }}
+              onEmpty={ownGame}
+            />
           )}
           {phase === "play" && mode === "melody" && <MelodyRounds keeping={keeping} saved={firstSaved.current?.round.kind === "melody" ? firstSaved.current.round : null} onRound={setShellRound} total={total} quiz={quiz} people={people} scores={scores} setScores={setScores} onEnd={finish} />}
           {phase === "play" && mode === "pads" && (
             <Pads keeping={keeping} saved={firstSaved.current?.round.kind === "pads" ? firstSaved.current.round : null} onTurn={setAnswerTurn} people={people} scores={scores} setScores={setScores} onEnd={() => finish(scores)} onWrong={(name) => penalty.show({ who: [name], kind: "sip", note: zh ? "抢答错了" : "Wrong answer" })} />
           )}
 
-          {phase === "end" && challenge && top && <ChallengeResult c={challenge} ids={log.map((r) => r.id)} best={{ name: top.name, score: top.score }} />}
+          {phase === "end" && mode === "songs" && challenge && top && log.length > 0 && <ChallengeResult c={challenge} ids={log.map((r) => r.id)} best={{ name: top.name, score: top.score }} />}
           {phase === "end" && link && <ChallengeLink url={link} />}
           {phase === "end" && (
             <>

@@ -10,6 +10,9 @@ import { samePool, type SongPool } from "../../shared/songs";
  * flags: q multiple choice, h hard titles, s one second. seed: the four titles' shuffle (base 36).
  * name: who set the score. points: theirs, one digit a song (0 to 3). songs: Apple ids, base 36,
  * joined with ".". check: a hash of the rest, so a link cut short or mistyped reads as none.
+ *
+ * The wrong titles come from the built-in song list as it is when the link is opened: after the list
+ * changes (a rebuild, new years), an old link keeps its songs but may show other wrong titles.
  */
 export type Challenge = {
   pool: SongPool;
