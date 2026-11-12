@@ -78,20 +78,17 @@ of this card.
   uses and has its file), `npx tsc --noEmit`, `npm run build`. If that test turns down a `scene-`
   name, stop and say so in the PR; don't change the test or the game.
 - Every file is 1600 × 900 and at most 150 KB, and `DRAWN_ART` gains exactly this card's 16 names.
-- Look at them in the game: `npm run dev`, choose 演戏猜坏人 and press 换个剧本 until this card's
-  scenes come up, at a phone's width (390) and on the big screen (`/tv/<code>`). At least six,
-  among them two communities' (pick them under 剧本背景, and their scenes come first). The figures
-  and their plaques must stay easy to read over the picture.
-- In the PR: a contact sheet of all 16, small, each with its file name under it, and phone
-  screenshots of the ones you played.
+- No browser and no uploads: don't open the game in a browser and don't attach pictures to the PR.
+  The reviewer makes the contact sheet from the branch and plays the scenes. In the PR, list the
+  files with their sizes and paste the checks' results, in words.
 
 ## Done when
 
-The 16 files are in `site/public/drama/`, `DRAWN_ART` lists all 16, the checks pass, and the contact
-sheet and screenshots are in the PR.
+The 16 files are in `site/public/drama/`, `DRAWN_ART` lists all 16, the checks pass, and the PR lists the
+files and the checks' results.
 
 ## Send to Codex
 
 ```
-按 docs/codex-tasks/drama/C4-scenes-family-2.md 做。先看 site/public/drama/ 里原来的图，照同样的画风画。只加卡上写的图片和 site/src/data/dramaArt.ts 里的名字，跑卡上的检查，通过后再开 PR，PR 里贴缩略图。
+按 docs/codex-tasks/drama/C4-scenes-family-2.md 做。先看 site/public/drama/ 里原来的图，照同样的画风画。只加卡上写的图片和 site/src/data/dramaArt.ts 里的名字，跑卡上的检查，通过后再开 PR，PR 里用文字写文件和检查结果。不用开浏览器，也不要往 PR 里传图片。
 ```
