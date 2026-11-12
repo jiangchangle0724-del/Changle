@@ -42,7 +42,9 @@ each page has and what its first one says.
      then `@` and the Vancouver date (`…@2026-12-18`), even for an event with one date, so the id
      stays the same when other dates drop off the page. When one url has several start times on one
      day, that day's ids carry the time (`…@2026-12-18T14:00:00`; an all-day one keeps the date).
-     When the url is the page's own, a short hash of the title goes into the id too.
+     When the url is the page's own, a short hash of the title (whitespace collapsed) goes into the
+     id too, and the several-times rule counts only the events with that title. The query string
+     comes off only before a `#` fragment.
    - `image`: a string, an array or an ImageObject (`url`): the first. `organizer.name`.
    - `name` and `description` with HTML entities decoded; `description` through `plainText`.
    - `category` and `tags`: leave empty (the AI's job) except `online` and `free` facts above.
