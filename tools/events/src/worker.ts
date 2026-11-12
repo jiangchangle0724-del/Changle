@@ -2,7 +2,7 @@
 // gathers the next 14 days (src/run.ts) and publishes them to KV (src/publish.ts); the API reads
 // that one file, so it answers at once. The page itself comes after gate A (docs/whats-on-v2.md).
 //   GET /go/api/events   the events, filtered: from, to (YYYY-MM-DD), cat, area, tag (comma lists)
-//   GET /go/api/events.ics  the same, as a calendar to subscribe to (task C6)
+//   GET /go/api/events.ics  the same, as a calendar to subscribe to (src/ics.ts)
 //   GET /go/api/status   the last run, step by step (the fetch log), and what's published
 //   GET /go/preview      what's published, day by day: unlisted and not indexed, to check the run
 //   POST /go/api/handoff the libraries' pages, from the GitHub job (signed in by GitHub; src/handoff.ts): kept for
@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { useArrival } from "./arrival";
 import { receiveHandoff } from "./handoff";
 import { toIcs } from "./ics";
-import { renderPreview } from "./preview";
+import { AREA_LABEL, CATEGORY_LABEL, renderPreview, TAG_LABEL } from "./preview";
 import { LIVE_KEY, publish } from "./publish";
 import { filterEvents, readQuery } from "./query";
 import { fetchStep, runDay, type StepArgs, type StepRunner } from "./run";
@@ -45,9 +45,10 @@ async function listEvents(url: URL, env: Env, ics = false): Promise<Response> {
   const { from, to } = q;
   const events = filterEvents(pub.events, q);
   if (ics) {
-    const name = ["玩什么 · What's On", ...q.cats, ...q.areas, ...q.tags].join(" · ");
+    // A filtered calendar is named by its filters, in Chinese and English: "玩什么 · What's On · 亲子家庭 Family & Kids".
+    const label = ([zh, en]: readonly [string, string]) => `${zh} ${en}`;
+    const name = ["玩什么 · What's On", ...q.cats.map((c) => label(CATEGORY_LABEL[c])), ...q.areas.map((a) => label(AREA_LABEL[a])), ...q.tags.map((t) => label(TAG_LABEL[t]))].join(" · ");
     const text = toIcs(events, { name, now: new Date() });
-    if (text === null) return json({ error: "not built yet" }, 501);
     return new Response(text, { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "public, max-age=1800", "access-control-allow-origin": "*" } });
   }
   return json({ runId: pub.runId, generatedAt: pub.generatedAt, from, to, count: events.length, events }, 200, "public, max-age=300, stale-while-revalidate=3600");

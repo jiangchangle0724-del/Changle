@@ -46,11 +46,13 @@ function instant(value: string | number, cache?: Map<string, Date | null>): Date
   return valid;
 }
 
+/** A whole day: `YYYY-MM-DD`, or a Vancouver ISO time, whose first 10 characters are its Vancouver date. */
 function day(value: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const d = instant(value);
+  if (!/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value)) return null;
+  const date = value.slice(0, 10);
+  const d = instant(date);
   // Date accepts February 30 by rolling it into March; an all-day date must actually exist.
-  return d && d.getUTCDate() === +value.slice(8, 10) ? d : null;
+  return d && d.getUTCDate() === +date.slice(8, 10) ? d : null;
 }
 
 /** URL strips raw newlines itself, so reject controls before parsing, rather than sanitising them. */

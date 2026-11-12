@@ -8,6 +8,7 @@ import { parseTicketmaster, tmCategory } from "../src/parsers/ticketmaster";
 import { SOURCE_BY_ID, type Parsed } from "../src/sources";
 import { endMs, startMs, venueId } from "../src/store";
 import { fromVan, windowOf } from "../src/time";
+import type { NormalizedEvent } from "../src/types";
 
 const w = { runId: "2026-10-31", ...windowOf("2026-10-31") };
 
@@ -67,6 +68,13 @@ describe("Richmond Public Library (BiblioCommons, as yourlibrary)", () => {
     expect(hunt).toMatchObject({ start: "2026-10-28", end: "2026-11-03", allDay: true });
     expect(startMs(hunt)).toBe(fromVan("2026-10-28"));
     expect(endMs(hunt)).toBe(fromVan("2026-11-04"));
+  });
+  it("an all-day end given as a time counts by its date; an end that can't be read counts as none", () => {
+    const base: NormalizedEvent = { source: "x", sourceEventId: "a", url: "", title: "A", status: "scheduled", place: null, start: "2026-11-20" };
+    // A Ticketmaster event with no start time can still carry an end time (dates.end.dateTime).
+    expect(endMs({ ...base, allDay: true, end: "2026-11-22T20:00:00-07:00" })).toBe(fromVan("2026-11-23"));
+    expect(endMs({ ...base, allDay: true, end: "not a date" })).toBe(fromVan("2026-11-21"));
+    expect(endMs({ ...base, start: "2026-11-20T19:00:00-07:00", end: "not a date" })).toBe(Date.parse("2026-11-20T21:00:00-07:00"));
   });
 });
 

@@ -152,7 +152,8 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
 ## The API
 
 - `GET /go/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD&cat=a,b&area=x,y&tag=free,kids`
-- `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6).
+- `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6),
+  named by its filters in Chinese and English (`玩什么 · What's On · 亲子家庭 Family & Kids`).
 - `GET /go/api/status`: the last run step by step (the fetch log) and what's published.
 - `GET /go/preview`: what's published, day by day, with the same filters as links (`?lang=en` for
   English). Not linked from anywhere, `noindex`: for checking the run until the page (C7) exists.
