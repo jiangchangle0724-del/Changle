@@ -35,6 +35,8 @@ export interface RoomData {
   watchers: number;
   openedAt: number;
   lastActive: number;
+  /** 手机局：房主自己也玩，占 0 号颜色，手柄最多 MAX_SEATS - 1 个。 */
+  hostPlays?: boolean;
 }
 
 export interface From {
@@ -65,8 +67,10 @@ export class Room {
     private readonly now: () => number,
   ) {}
 
-  static create(code: string, now: number): RoomData {
-    return { code, phase: 'lobby', seats: [], hostConnected: false, hostGoneAt: null, watchers: 0, openedAt: now, lastActive: now };
+  static create(code: string, now: number, opts: { hostPlays?: boolean } = {}): RoomData {
+    const d: RoomData = { code, phase: 'lobby', seats: [], hostConnected: false, hostGoneAt: null, watchers: 0, openedAt: now, lastActive: now };
+    if (opts.hostPlays) d.hostPlays = true;
+    return d;
   }
 
   expired(): boolean {
@@ -81,6 +85,7 @@ export class Room {
       seats: this.d.seats.map(({ id, name, color, connected }) => ({ id, name, color, connected })),
       watchers: this.d.watchers,
       age: this.now() - this.d.openedAt,
+      ...(this.d.hostPlays ? { hostPlays: true } : {}),
     };
   }
 
@@ -111,8 +116,10 @@ export class Room {
       this.touch();
       return null;
     }
-    if (this.d.seats.length >= MAX_SEATS) return 'full';
+    // 手机局里房主占一个人和 0 号颜色
+    if (this.d.seats.length >= MAX_SEATS - (this.d.hostPlays ? 1 : 0)) return 'full';
     const used = new Set(this.d.seats.map((s) => s.color));
+    if (this.d.hostPlays) used.add(0);
     let color = 0;
     while (used.has(color)) color++;
     this.d.seats.push({ id: from.seat, name: cleanName(name), color, connected: true, leftAt: null });

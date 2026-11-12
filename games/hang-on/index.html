@@ -10,7 +10,7 @@
   :root {
     --sky-top: #1d2a4a; --sky-bottom: #4a4f8c;
     --ink: #fff6e9; --ink-soft: #d9d2e8; --panel: rgba(16, 20, 40, .62); --card: #f8efe2; --card-ink: #2a1f3a;
-    --p0: #F28CA6; --p1: #9BCF83; --p2: #F8C56D; --p3: #8EC5E8;
+    --p0: #F28CA6; --p1: #9BCF83; --p2: #F8C56D; --p3: #8EC5E8; --glove-l: #63b3ed; --glove-r: #f6ad55;
     --good: #9BCF83; --warn: #F8C56D; --bad: #ef5a5a;
     --font-display: "Baloo 2", "Noto Sans SC", system-ui, sans-serif;
     --font-body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
@@ -90,10 +90,77 @@
   @media (prefers-reduced-motion: reduce) { .banner { transition: opacity .18s; transform: translate(-50%, -50%); } }
   @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .qr { width: 160px; height: 160px; } .codebig { font-size: 44px; } .count { font-size: 110px; } }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* 手机局（body.phone）：这部手机开房自己也玩；摇杆、抓键压在画面上（样子在 src/pad/touch.css） */
+  .phone-only, .turn { display: none; }
+  body.phone .phone-only { display: block; }
+  body.phone .tv-only, body.phone #kbBtn, body.phone #relayBtn, body.phone .lat, body.phone .note.quiet, body.phone #codeBig, body.phone #lobbyLine { display: none; }
+  /* 延迟表收起来了，顶栏的键靠右；遮罩从顶栏下面开始 */
+  body.phone .hud { justify-content: flex-end; }
+  #touch { position: fixed; inset: calc(64px + env(safe-area-inset-top, 0px)) 0 0 0; }
+  #touch .summon { position: absolute; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(196px + env(safe-area-inset-bottom, 0px));
+    background: var(--warn); color: var(--card-ink); font-weight: 800; border: 0; border-radius: 999px; padding: 6px 16px; min-height: 44px; font-size: 14px; }
+  #touch .summon:disabled { opacity: .35; }
+  /* 卡片比屏幕高时能滚，放得下就居中 */
+  body.phone .overlay { display: flex; overflow: auto; padding: calc(58px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); }
+  /* 大厅卡片顶到最上面，声音、语言两个键落在卡片右上角里，样子跟卡片里的键一样 */
+  body.phone #lobby { padding-top: max(4px, env(safe-area-inset-top, 0px)); }
+  body.phone #lobby > .card { margin: 0 auto auto; }
+  body.phone[data-phase="lobby"] .hud { padding-top: max(14px, env(safe-area-inset-top, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  body.phone[data-phase="lobby"] .hud .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); }
+  body.phone .overlay > * { margin: auto; }
+  body.phone .card { padding: 16px 18px; gap: 16px; border-radius: 18px; }
+  body.phone .card h2 { font-size: 22px; }
+  body.phone .card p { font-size: 13px; line-height: 1.5; }
+  body.phone .qr { width: 128px; height: 128px; padding: 7px; border-radius: 12px; }
+  .codeside { font-family: var(--font-display); font-size: 34px; font-weight: 800; letter-spacing: .14em; line-height: 1; text-align: center; margin: 10px 0 0; }
+  body.phone #joinUrl { margin-top: 4px !important; }
+  body.phone .level { margin: 4px 0 0; }
+  body.phone .level .name { font-size: 16px; }
+  body.phone .level.teach { margin: 0 0 2px; }
+  body.phone .seats { gap: 6px; margin: 4px 0 0; }
+  body.phone .seat { padding: 5px 4px 7px; font: inherit; color: inherit; border: 0; }
+  body.phone .seat canvas { width: 46px; height: 46px; }
+  body.phone .seat.empty .ph { width: 40px; height: 40px; margin: 3px 0; font-size: 20px; }
+  body.phone .results .big { font-size: 30px; margin: 4px 0 2px; }
+  body.phone .results ol { margin: 6px 0; gap: 3px; }
+  body.phone .results li { font-size: 14px; }
+  body.phone .results h3 { margin: 8px 0 0; }
+  body.phone button.seat.me { cursor: pointer; box-shadow: inset 0 0 0 2px rgba(42,31,58,.25); }
+  body.phone button.seat.me:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
+  body.phone .card .row { margin-top: 10px; }
+  body.phone .count { font-size: 96px; }
+  body.phone .count small { font-size: 18px; }
+  /* 倒数时画面和摇杆都看得见、按得到 */
+  body.phone #countdown { pointer-events: none; background: rgba(10, 12, 30, .25); backdrop-filter: none; }
+  body.phone .banner { font-size: 34px; top: 26%; }
+  body.phone .hud { padding-block: 8px; }
+  /* 手机竖着：二维码在上面；横着（再窄的手机也是）：二维码在左边，开始键不用往下滚 */
+  @media (max-width: 720px) and (orientation: portrait) { body.phone .card { grid-template-columns: 1fr; } }
+  @media (orientation: landscape) { body.phone .card { grid-template-columns: auto 1fr; } }
+  /* 竖着拿玩不了：倒数和玩的时候提示横过来 */
+  .turn { position: fixed; inset: 0; place-items: center; background: var(--sky-top); text-align: center; padding: 24px; font-size: 18px; line-height: 1.6; z-index: 5; }
+  .turn small { font-size: 14px; color: var(--ink-soft); }
+  @media (orientation: portrait) { body.phone[data-phase="countdown"] .turn, body.phone[data-phase="playing"] .turn { display: grid; } }
 </style>
 </head>
 <body>
 <canvas id="stage" aria-label="游戏画面" data-en-label="Game screen"></canvas>
+
+<!-- 手机局：房主的摇杆和抓键（倒数和玩的时候才出来） -->
+<div class="touch" id="touch" hidden>
+  <div class="zones">
+    <div class="stickzone">
+      <div class="hint"><span data-en="Hold and drag here = aim">这边按住拖动 = 方向</span></div>
+      <div class="stick" hidden><div class="knob"></div></div>
+    </div>
+    <div class="grabs">
+      <button class="grab" type="button" aria-label="左手抓" data-en-label="Left hand: grab"><span data-en="Left">左手</span></button>
+      <button class="grab r" type="button" aria-label="右手抓" data-en-label="Right hand: grab"><span data-en="Right">右手</span></button>
+    </div>
+  </div>
+  <button class="summon" id="touchSummon" type="button" disabled data-en="Summon">召唤队友</button>
+</div>
 
 <div class="hud">
   <div class="lat" id="lat" aria-label="延迟表" data-en-label="Latency"><span class="title" hidden data-en="Latency · round trip ms">延迟 · 往返毫秒</span></div>
@@ -111,11 +178,13 @@
   <div class="card">
     <div>
       <div class="qr" id="qr" aria-label="加入二维码" data-en-label="Join QR code"></div>
+      <div class="codeside phone-only" id="codeSide">····</div>
       <p style="text-align:center;margin-top:8px;font-size:12px;opacity:.75" id="joinUrl"></p>
     </div>
     <div>
       <h2>抓紧了 · Hang On</h2>
-      <p><span data-en="Scan with your phone, or open">手机扫码加入，或者打开</span> <b id="padUrl">changle.ca/hang-on/pad</b> <span data-en="and type the room code. Hold the phone sideways: drag on the left to aim, the two big buttons on the right are your hands.">输房间码。手机横着拿：左边拖是方向，右边两个大键是左右手。</span></p>
+      <p class="tv-only"><span data-en="Scan with your phone, or open">手机扫码加入，或者打开</span> <b id="padUrl">changle.ca/hang-on/pad</b> <span data-en="and type the room code. Hold the phone sideways: drag on the left to aim, the two big buttons on the right are your hands.">输房间码。手机横着拿：左边拖是方向，右边两个大键是左右手。</span></p>
+      <p class="phone-only" data-en="No TV needed. Everyone else scans this code with their phone (up to 3 more), and every phone shows the game. Hold it sideways: drag on the left to aim, the two buttons on the right are your hands.">不用电视。别的人用手机扫这个码进来（最多再来 3 个），每部手机上都有画面。手机横着拿：左边拖是方向，右边两个键是左右手。</p>
       <div class="codebig" id="codeBig">····</div>
       <div class="level">
         <button class="btn quiet" id="levelPrev" type="button" aria-label="上一关" data-en-label="Previous level">‹</button>
@@ -129,6 +198,7 @@
         <button class="btn" id="startBtn" type="button" disabled data-en="Start">开始</button>
         <button class="btn quiet" id="kbBtn" type="button">+ 键盘加入</button>
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
+        <button class="btn quiet" id="modeBtn" type="button" hidden></button>
       </div>
     </div>
   </div>
@@ -164,6 +234,8 @@
 </div>
 
 <div class="note" id="note"></div>
+
+<div class="turn" id="turn"><div><span data-en="Turn your phone sideways">把手机横过来</span><br><small data-en="Left thumb drags to aim, right thumb holds the two grab buttons">左手拖方向，右手按两个抓键</small></div></div>
 
 <script type="module" src="/src/host/main.ts"></script>
 </body>

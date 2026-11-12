@@ -16,6 +16,7 @@
     "levels": "node scripts/run-levels.mjs",
     "link-check": "node scripts/link-check.mjs",
     "lobby-check": "node scripts/lobby-check.mjs",
+    "phone-check": "node scripts/phone-check.mjs",
     "perf": "node scripts/perf.mjs",
     "test:coverage": "vitest run --coverage --coverage.provider=v8 --coverage.include=src/physics/** --coverage.reportsDirectory=node_modules/.cache/hang-on-coverage --coverage.reporter=text --coverage.reporter=html --coverage.reporter=json-summary --coverage.thresholds.lines=80",
     "deploy": "vite build && wrangler deploy"

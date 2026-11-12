@@ -67,5 +67,6 @@ jobs:
           echo "wrangler dev 没起来"; cat wrangler.log; exit 1
       - run: npm run link-check
       - run: npm run lobby-check
+      - run: npm run phone-check
       - run: cat wrangler.log
         if: failure()

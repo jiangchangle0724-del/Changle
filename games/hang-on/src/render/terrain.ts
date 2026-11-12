@@ -5,7 +5,7 @@
  */
 import { Container, Graphics } from 'pixi.js';
 import type { Level, Rect } from '../physics/level';
-import type { Sim } from '../physics/world';
+import type { SimView } from './view';
 import { glow, materialOf, OUTLINE, textures, hex, type MaterialStyle, type Palette, type Textures, type WorldId } from './art';
 
 const rr = (g: Graphics, r: Rect, rad: number): Graphics => g.roundRect(r.x, r.y, r.w, r.h, Math.min(rad, r.h / 2, r.w / 2));
@@ -52,7 +52,7 @@ export class Terrain {
     }
   }
 
-  update(sim: Sim, dt: number): void {
+  update(sim: SimView, dt: number): void {
     this.t += dt;
     // 饼干：快没了就抖、变淡；没了就不画；回来时弹一下
     sim.fadings.forEach((f, i) => {

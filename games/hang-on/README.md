@@ -17,11 +17,13 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
 | `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关）加彩蛋关「桌上杂技」 |
 | `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入 |
-| `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计 |
-| `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜）、声音开关，键盘也能加入 |
-| `pad/index.html` + `src/pad/` | 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓；「样子」换装；队友摔死时亮「召唤队友」 |
+| `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计，`snap.ts` 手机局的画面快照（主机压、手机拼成 `RemoteSim`） |
+| `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜，画法在 `src/results.ts`）、声音开关，键盘也能加入。在手机上打开就是手机局（见下） |
+| `pad/index.html` + `src/pad/` | 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓（`controls.ts`，手机局的房主也用）；「样子」换装；队友摔死时亮「召唤队友」。手机局里 `view.ts` 在手柄后面画画面 |
 | `play.html` + `src/dev/` | 物理开发页：不联网，键盘 / 鼠标 / 触屏直接玩，画面和主机页同一套，能录回放 |
 | `scripts/link-check.mjs` | 联机检查：一台主机页加两个手柄页对着本地房间服务跑一遍（直连、绕路、掐线 5 秒内回来） |
+| `scripts/lobby-check.mjs` | 大厅检查：真点开始、切语言、到顶出结算、下一关、回大厅 |
+| `scripts/phone-check.mjs` | 手机局检查：一部手机开房自己也玩，两部手机进来都有画面，倒数、到顶、结算、再来一次跟着走，直连 20 张一秒、绕路 10 张一秒，电视局的手柄不下载画面 |
 | `scripts/ip-check.mjs` | 法律线：docs/ 之外不出现原版的名字 |
 | `proto/` | 最早的 Verlet 软体手感原型，零依赖，留作参照（`node proto/sim.test.mjs`） |
 
@@ -34,6 +36,8 @@ npm run typecheck   # 页面和 Worker 各一套类型
 npm run build       # 三个页面 → dist/hang-on
 npm run dev         # 整套本地跑：http://<这台电脑的 IP>:8787/hang-on/，手机同一个 Wi-Fi 扫码进来
 npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwright 的 Chromium：npx playwright install chromium）
+npm run lobby-check # 同上：大厅、结算、下一关
+npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
 npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=4 放 4 个人量帧时间）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON
 npm run ip-check    # 法律线，CI 里为零才合并
@@ -42,6 +46,13 @@ npm run ip-check    # 法律线，CI 里为零才合并
 主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓、R 召唤，自己一个人也能试。
 「绕路模式」是测试用的开关：不直连，全部经 Cloudflare 中转，看看备用路好不好用。`?render=0` 只跑物理不画画面（联机检查用）。
 控制台里 `hangOn.sim`、`hangOn.peers()`、`hangOn.pickLevel(i)` 看状态和换关；手柄页 `hangOnPad.link.simulateDrop()` 模拟关 Wi-Fi。
+
+## 手机局（没有电视、没有电脑）
+
+在手机上打开 `changle.ca/hang-on`（或者 `?phone=1`）就是手机局：这部手机开房，房主自己也玩（摇杆和抓键压在画面上），
+别的手机扫码进来，每部手机上都有画面。房主那部手机跑物理，每 50 ms（绕路 100 ms）给每部手机发一张快照，
+别的手机不跑物理，只在两张快照之间匀着画；声音各放各的人。细节在 `CONTRACTS.md`「手机局契约」。
+大厅里触屏设备有一个键在手机局和电视局之间换（比如平板想当电视用）。
 
 ## 画面是怎么画的（A3）
 
@@ -56,6 +67,8 @@ Pixi 8，WebGL（没有就退到 canvas）。除了两张远景画，全部程�
 - 远景画：`art/<世界>-far.webp` 有就用（现在两张都是 ChatGPT 生的，来源记在 `art/README.md`），铺满、压暗、跟镜头挪一小段，远、中两层剪影藏掉；删掉图就回到全程序画。
 
 ## 链路是怎么走的
+
+手机局里同一条路反过来也走：主机把画面快照从同一条数据通道发回每部手机（没直连就经房间，100 ms 一张）。
 
 ```
 手机手柄页 ──WebRTC 数据通道（unordered, maxRetransmits 0），同一 Wi-Fi 直连──▶ 主机页（唯一跑物理的地方）──HDMI──▶ 电视

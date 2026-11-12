@@ -4,7 +4,8 @@
  * 浏览器要用户点过一次才让出声：attach() 挂在第一次按键 / 点击上。静音记在 localStorage。
  */
 import type { Voice } from '../look';
-import type { Sim, SimEvent } from '../physics/world';
+import type { SimEvent } from '../physics/world';
+import type { SimView } from '../render/view';
 
 type Wave = OscillatorType;
 
@@ -126,7 +127,7 @@ class Sfx {
 
   // ---------------------------------------------------------------- 事件 → 声音
 
-  handleEvents(sim: Sim, events: readonly SimEvent[]): void {
+  handleEvents(sim: SimView, events: readonly SimEvent[]): void {
     if (!this.ready || this.muted_) return;
     for (const ev of events) {
       switch (ev.type) {
@@ -377,3 +378,18 @@ class Sfx {
 }
 
 export const sfx = new Sfx();
+
+/**
+ * 手机局里每部手机只放跟自己那个人有关的声音，加上大家共有的（检查点、饼干、过关）：
+ * 几部手机放在一张桌上，同一下抓不该从四部手机里各响一遍。
+ */
+export function heardBy(ev: SimEvent, me: number): boolean {
+  switch (ev.type) {
+    case 'betrayal':
+      return ev.by === me || ev.victim === me;
+    case 'summon':
+      return ev.player === me || ev.who.includes(me);
+    default:
+      return !('player' in ev) || ev.player === me;
+  }
+}
