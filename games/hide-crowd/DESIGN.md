@@ -86,7 +86,10 @@ bodies on a skeleton (`src/client/people.ts`), moved the way big animated games 
   face knows which part of the clothes it is, and each look paints the parts from a 16-colour strip:
   skin, top, sleeves, trousers or shorts, shoes, hair, a bag. Hair (short, a bun, a ponytail, a cap),
   backpacks and satchels are simple shapes made in the same script, on the head's and the back's
-  bones. The flat arena's `--look-*` colours are the looks' tops (`tests/people.test.ts` checks).
+  bones. A person is drawn 2.15 units tall with a head a fifth bigger than life, so the crowd reads
+  from above on a phone; tops are bright enough to tell apart on the darkest floor (the transit
+  hall's walkways). The flat arena's `--look-*` colours are the looks' tops (`tests/people.test.ts`
+  checks).
 * **Clips blended by what the body does.** Standing (three ways: arms down, arms folded, on the
   phone), walking (two ways), a slow jog at a player's top speed, all on one stride clock that
   follows the body's real speed, so planted feet keep still at the crowd's pace (the test walks a

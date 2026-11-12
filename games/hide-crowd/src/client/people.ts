@@ -65,18 +65,20 @@ const dress = (body: Look["body"], hair: Hair, bag: Bag | null, idle: Look["idle
 export const LOOKS: readonly Look[] = [
   dress("m", "hair_short", "backpack", "idle", "walk", skin.deep, { top: "#d9962a", pants: "#2b3550", shoes: "#ece7dc", hair: "#2a1c14", bag: "#2e6f73", strap: "#1f4d50" }),
   dress("f", "hair_bun", "backpack", "idle_phone", "walk_brisk", skin.warm, { top: "#5cc79b", pants: "#6b3a5e", shoes: "#f2c14e", hair: "#1f1612", bag: "#a98bd8" }),
-  dress("m", "hair_short", null, "idle_arms", "walk", skin.warm, { top: "#2e6f73", forearm: "#c4473a", pants: "#6d6f78", shoes: "#4a3426", hair: "#bdb9b0" }),
+  dress("m", "hair_short", null, "idle_arms", "walk", skin.warm, { top: "#3f8f94", forearm: "#c4473a", pants: "#6d6f78", shoes: "#4a3426", hair: "#bdb9b0" }),
   dress("f", "hair_tail", "satchel", "idle", "walk", skin.light, { top: "#c8402f", pants: "#1d1f2a", shoes: "#2a2321", hair: "#3b2416", bag: "#7a4a2a", strap: "#5a361e" }),
-  dress("m", "cap", null, "idle_phone", "walk_brisk", skin.brown, { top: "#2f3e66", pants: "#c2a878", shin: skin.brown, shoes: "#ece7dc", hair: "#d36b2a", accent: "#b4541c" }),
+  dress("m", "cap", null, "idle_phone", "walk_brisk", skin.brown, { top: "#44599a", pants: "#c2a878", shin: skin.brown, shoes: "#ece7dc", hair: "#d36b2a", accent: "#b4541c" }),
   dress("f", "hair_bun", "backpack", "idle_arms", "walk", skin.tan, { top: "#f0c419", pants: "#3d5a80", shoes: "#ece7dc", hair: "#1a1210", bag: "#1f4e5f" })
 ];
 
 /** A body's look, by its place in the crowd's (shuffled) order: players get whatever their body has. */
 export const lookOf = (index: number): Look => LOOKS[((index % LOOKS.length) + LOOKS.length) % LOOKS.length];
 
-// how the clips were made (the mannequins are 1.83 m; the scene draws a person 2 units tall)
-const PERSON_HEIGHT = 2;
+// how the clips were made (the mannequins are 1.83 m; the scene draws a person 2.15 units tall, seen
+// from above, with a head a little bigger than life so it reads from across the room)
+const PERSON_HEIGHT = 2.15;
 export const PERSON_SCALE = PERSON_HEIGHT / 1.83;
+const HEAD_SCALE = 1.2;
 /** metres a second the walk covers at its own speed (its planted toes, measured: tests/people.test.ts) */
 export const WALK_SPEED = 0.92;
 /**
@@ -195,6 +197,8 @@ export class Person {
     this.root = new THREE.Group();
     this.root.add(model);
     this.head = model.getObjectByName("Head") ?? null;
+    // (the clips only turn bones, so the head keeps this size; its hair and cap grow with it)
+    this.head?.scale.setScalar(HEAD_SCALE);
     this.neck = model.getObjectByName("neck_01") ?? null;
     this.mixer = new THREE.AnimationMixer(model);
     const action = (name: string) => {
