@@ -1,18 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { API } from "../config";
+import type { Rates } from "./money";
 
-/** Units per one US dollar. */
-export type Rates = Record<string, number>;
+export { capDigits, cleanAmount, convert, CURRENCIES, MAX_DIGITS, sizeClass, type Code, type Rates } from "./money";
 export type FxState = { rates: Rates | null; at: number; source: string; loading: boolean; error: boolean };
 
 const KEY = "changle.fx.v1";
-export const CURRENCIES = [
-  { code: "CAD", zh: "加元", en: "Canadian dollar", symbol: "$" },
-  { code: "CNY", zh: "人民币", en: "Chinese yuan", symbol: "¥" },
-  { code: "USD", zh: "美元", en: "US dollar", symbol: "US$" },
-  { code: "HKD", zh: "港元", en: "Hong Kong dollar", symbol: "HK$" },
-] as const;
-export type Code = (typeof CURRENCIES)[number]["code"];
+/** How long each source may take before the next one is asked: a hung server used to leave the page on "fetching" forever. */
+const SERVER_TIMEOUT = 7000;
+const PUBLIC_TIMEOUT = 8000;
 
 function cached(): { rates: Rates; at: number; source: string } | null {
   try {
@@ -26,8 +22,23 @@ function cached(): { rates: Rates; at: number; source: string } | null {
   return null;
 }
 
+/** A signal that aborts with `outer`, or on its own after `ms`. */
+function within(ms: number, outer: AbortSignal) {
+  const ctl = new AbortController();
+  const timer = window.setTimeout(() => ctl.abort(), ms);
+  outer.addEventListener(
+    "abort",
+    () => {
+      window.clearTimeout(timer);
+      ctl.abort();
+    },
+    { once: true },
+  );
+  return ctl.signal;
+}
+
 async function fromServer(signal: AbortSignal) {
-  const res = await fetch(`${API}/fx`, { signal, cache: "no-store" });
+  const res = await fetch(`${API}/fx`, { signal: within(SERVER_TIMEOUT, signal), cache: "no-store" });
   if (!res.ok) throw new Error(String(res.status));
   const d = (await res.json()) as { rates: Rates; at: number; source: string };
   if (!d.rates?.CAD) throw new Error("bad");
@@ -36,7 +47,7 @@ async function fromServer(signal: AbortSignal) {
 
 /** If the server is unreachable, ask a public daily source straight from the browser. */
 async function fromPublic(signal: AbortSignal) {
-  const res = await fetch("https://open.er-api.com/v6/latest/USD", { signal });
+  const res = await fetch("https://open.er-api.com/v6/latest/USD", { signal: within(PUBLIC_TIMEOUT, signal) });
   if (!res.ok) throw new Error(String(res.status));
   const d = await res.json();
   if (!d?.rates?.CAD) throw new Error("bad");
@@ -87,18 +98,3 @@ export function useRates(): FxState & { refresh: () => void } {
   const refresh = useCallback(() => setN((x) => x + 1), []);
   return { ...state, refresh };
 }
-
-/** Convert an amount between two currencies with per-USD rates. */
-export function convert(rates: Rates, amount: number, from: string, to: string) {
-  const f = rates[from];
-  const t = rates[to];
-  if (!f || !t) return NaN;
-  return (amount / f) * t;
-}
-
-/** What a typed amount means: digits and one decimal point ("1.2.3" is 1.23; Chinese 。 and ，work). */
-export const cleanAmount = (s: string) => {
-  const t = s.replace(/[，,\s]/g, "").replace(/[。]/g, ".").replace(/[^0-9.]/g, "");
-  const i = t.indexOf(".");
-  return i < 0 ? t : t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, "");
-};
