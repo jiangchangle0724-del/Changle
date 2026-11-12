@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { API } from "../config";
 import type { Rates } from "./money";
 
-export { capDigits, cleanAmount, convert, CURRENCIES, MAX_DIGITS, sizeClass, type Code, type Rates } from "./money";
+export { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, DEFAULT_CODES, isCode, MAX_DIGITS, sizeClass, type Code, type Currency, type Rates } from "./money";
 export type FxState = { rates: Rates | null; at: number; source: string; loading: boolean; error: boolean };
 
 const KEY = "changle.fx.v1";

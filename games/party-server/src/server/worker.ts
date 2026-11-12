@@ -6,6 +6,7 @@
 //   GET  /party/r/CODE                    the QR code's link: the phone page with the code filled in
 //   GET  /party/api/songs                 the songbook: each song's first beat as tapped along to
 //   POST /party/api/songs/ID              a speaker page's taps for a song: { firstBeatMs, taps, spreadMs }
+//                                         (a room's 找拍子 writes there too, through the room)
 //   /party/screen, /party/join            the pages (dist/client/party, built by scripts/build.mjs)
 import { DurableObject } from "cloudflare:workers";
 import { CODE_ALPHABET, CODE_RE, type ClientMsg, type ServerMsg } from "../shared/protocol";
@@ -163,7 +164,18 @@ export class PartyRoom extends DurableObject<Env> {
     if (!s) return;
     const { out, changed, scored } = s.flush();
     const sockets = this.ctx.getWebSockets();
-    for (const o of out) deliver(sockets, o);
+    for (const o of out) {
+      // a song's beat found by 找拍子: into the songbook, for every room
+      if ("songbook" in o) {
+        try {
+          await songbook(this.env).set(o.songbook.songId, o.songbook.tapped);
+        } catch {
+          // (the songbook didn't answer: this room has the beat anyway, the next one finds it again)
+        }
+        continue;
+      }
+      deliver(sockets, o);
+    }
     // (the speaker's offset is refreshed every second: kept in memory, stored when it moves 5 ms)
     const offsetMoved = this.storedOffset === null || Math.abs(s.d.speakerOffset - this.storedOffset) >= 5;
     if (changed || offsetMoved) {
@@ -190,7 +202,7 @@ export class PartyRoom extends DurableObject<Env> {
   }
 }
 
-function deliver(sockets: WebSocket[], o: Out) {
+function deliver(sockets: WebSocket[], o: Exclude<Out, { songbook: unknown }>) {
   const of = (ws: WebSocket) => ws.deserializeAttachment() as From | null;
   if ("close" in o) {
     for (const ws of sockets) {

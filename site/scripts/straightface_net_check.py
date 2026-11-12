@@ -13,7 +13,7 @@ it was at the reveal, the host's phone counts each round once, every phone can f
 flags one) and remembers the cards played. No phone scrolls sideways, no page logs an error.
 Screenshots go to local-shots/straightface-net/.
 """
-import json, os, re, sys, time
+import base64, json, os, re, sys, time
 from playwright.sync_api import sync_playwright
 
 BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1:5173/")
@@ -360,6 +360,26 @@ def main():
         for g in phones:
             seen = g.evaluate("JSON.parse(localStorage.getItem('changle.sf.seen') || '[]')")
             ok(all(c in seen for c in played), f"{g._name}'s phone remembers the four cards played ({len(seen)} in all)")
+        # tonight's titles on every phone (the same everywhere), and Ben's phone draws the picture to share
+        ok(all(g.locator(".sf-titles li").count() >= 1 for g in phones), "every phone shows tonight's titles")
+        ok(len({g.locator(".sf-titles strong").first.inner_text() for g in phones}) == 1, "the same names on every phone (the table's names, not 'you')")
+        bg = phones[1]
+        clear_stamps(phones + [tv])
+        bg.locator(".sf-titles").scroll_into_view_if_needed()
+        shot(bg, "11-titles")
+        played_all = [l["term"]["zh"] for l in v.get("learned") or []]
+        ok(len(set(played_all)) == len(played_all), f"no word twice in one game, though Dan's phone had played every card ({played_all})")
+        bg.locator(".sf-share-btn").scroll_into_view_if_needed()
+        press(bg, bg.locator(".sf-share-btn"))
+        ok(until(lambda: bg.locator(".sf-share-img").count() == 1 and bg.evaluate("document.querySelector('.sf-share-img').naturalWidth") == 1080, 15000), "Ben's phone draws tonight's picture")
+        size = bg.evaluate("[document.querySelector('.sf-share-img').naturalWidth, document.querySelector('.sf-share-img').naturalHeight]")
+        ok(size[0] == 1080 and size[1] >= 1440, f"the picture: 1080 wide, at least 3:4 ({size})")
+        data = bg.evaluate("document.querySelector('.sf-share-img').src")
+        with open(os.path.join(OUT, "picture-net-en.png"), "wb") as f:
+            f.write(base64.b64decode(data.split(",", 1)[1]))
+        bg.wait_for_timeout(500)
+        shot(bg, "12-share")
+        bg.keyboard.press("Escape")
         for g in phones:
             ok(no_sideways(g), f"{g._name}: no sideways scroll")
         for g in phones + [tv, eve]:

@@ -172,14 +172,20 @@ def fresh_tv(t, sel, prop, want, label):
 
 
 def page_text(pg):
-    return pg.content() + "\n" + pg.evaluate("() => document.body.innerText")
+    # what the screen shows or reads out: the tab's title and the whole body, its markup and labels
+    # too; not the <head>, where the site's description says 手机 on every page (a word to draw)
+    return pg.evaluate("() => document.title + '\\n' + document.body.outerHTML + '\\n' + document.body.innerText")
 
 
-def no_secrets(t, secrets, label):
+def no_secrets(t, secrets, label, before=None):
+    """`before`: each screen's text from before there was a secret. A secret that a screen showed then
+    is one of its own words (手机, a word to draw, is on the watching phone's sound button), so it
+    can't be told from a leak there, and isn't looked for there."""
     secrets = [s for s in secrets if s and len(s.strip()) >= 2]
     for pg in t.screens:
         txt = page_text(pg)
-        leaked = [s for s in secrets if s in txt]
+        own = (before or {}).get(pg._name, "")
+        leaked = [s for s in secrets if s in txt and s not in own]
         ok(not leaked, f"{label}: nothing secret on the {pg._name} {leaked[:3]}")
 
 
@@ -1366,6 +1372,7 @@ def t_draw(t):
     t.tv.wait_for_timeout(900)
     ok(drawer._name in t.tv.locator(".tvdr-head").inner_text(), "draw: whose turn to draw")
     shot(t.screens, "dr-01-pick")
+    before = {pg._name: page_text(pg) for pg in t.screens}
     drawer.get_by_role("button", name=re.compile(L("简单", "Easy"))).click()
     ok(t.wait_phase("draw"), "draw: drawing")
     w = view(drawer)["word"]
@@ -1383,14 +1390,14 @@ def t_draw(t):
     guessers[0].get_by_placeholder(L("猜是什么", "Your guess")).fill(L("完全不对", "nothing like it"))
     guessers[0].get_by_role("button", name=L("猜", "Guess"), exact=True).click()
     ok(until(lambda: L("完全不对", "nothing like it") in t.tv.locator(".tvdr-guesses").inner_text(), 3000), "draw: a wrong guess shows as it comes in")
-    no_secrets(t, secret, "draw: drawing")
+    no_secrets(t, secret, "draw: drawing", before)
     t.tv.wait_for_timeout(600)
     shot(t.screens, "dr-02-draw")
     guessers[1].get_by_placeholder(L("猜是什么", "Your guess")).fill(w["zh"] if ZH else w["en"])
     guessers[1].get_by_role("button", name=L("猜", "Guess"), exact=True).click()
     ok(until(lambda: t.tv.locator(".tvdr-guesses li.is-ok").count() == 1, 3000), "draw: a right guess says who, not what")
     ok(t.tv.locator(".tvdr-solved .tvx-face-in").count() == 1, "draw: who has it")
-    no_secrets(t, secret, "draw: after a right guess")
+    no_secrets(t, secret, "draw: after a right guess", before)
     t.tv.wait_for_timeout(500)
     shot([t.tv, t.watcher], "dr-03-solved")
     t.watcher.set_viewport_size({"width": 390, "height": 844})

@@ -114,6 +114,13 @@ source reads today's page from KV and parses it like a fetched one; only for a p
 does it fetch, and its `note` says so. One page a request, as one page is one step: the free plan's
 10 ms. The code for both ends is `src/handoff.ts`.
 
+GitHub starts the job hours late most days, so a page that comes after the run went past its library
+(table `runs`: published, or its cursor beyond that source) is read when it comes (`src/arrival.ts`):
+the same step, through the same loopback binding, a request of its own; its `note` ends `read when it
+came`. After the library's last page the list is published again, unless the run is still going (it
+publishes itself); after 07:00 it's published either way. A page that comes before the run started,
+or before it got to that library, is left for the run. The answer to the job says which (`read`).
+
 The job signs in with GitHub Actions' own OIDC token (`src/oidc.ts`), so no secret is set anywhere.
 It asks the runner for a token with the audience `changle-events-handoff` (the workflow has
 `permissions: id-token: write`), one for each library, just before handing its pages over. The Worker
@@ -136,8 +143,11 @@ A key (`EVENTS_HANDOFF_KEY`) still works when the Worker has one, for runs outsi
 script sends it instead of a token when it's set.
 
 What decides what's published (`src/publish.ts`): in the window, not cancelled, live, not a merged
-duplicate, and seen at its source today, or its source failed today (then yesterday's stand). If a
-run has under half of yesterday's events, yesterday's stay up and the log says so.
+duplicate, and seen at its source today, or its source wasn't read to the end today (then what it
+listed before stands). A source is read to the end once its last page is read and every page
+before it was (`sources.last_ok_run`, set by the step of its last page, `src/run.ts`): when page 3
+of 12 fails, the events of pages 3 to 12 stay up from yesterday, not just pages 1 and 2. If a run
+has under half of yesterday's events, yesterday's stay up and the log says so.
 
 ## The API
 
