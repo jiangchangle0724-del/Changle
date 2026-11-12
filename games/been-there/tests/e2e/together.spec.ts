@@ -125,13 +125,14 @@ test("同一掷，三块屏一起走：大屏推近跟走、出发牌翻城市�
   await stamp(thrower.page, { land: ".stage .ride-land.on" });
   await stamp(other.page, { land: ".stage .other-stamp.on" });
   // Does the big screen's camera move the middle of the board with it (the globe, the centre card)?
+  // (how much bigger than at rest: the board leans back there, its middle drawn at its own size)
   await tv.page.evaluate(() => {
     const w = window as unknown as { pushed: number };
+    const scale = () => Number(document.querySelector<HTMLElement>(".tv-board .board-cam")?.style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? 1);
+    const rest = scale();
     w.pushed = 0;
     const look = () => {
-      const t = document.querySelector<HTMLElement>(".tv-board .board-cam")?.style.transform ?? "";
-      const z = Number(t.match(/scale\(([\d.]+)\)/)?.[1] ?? 1);
-      w.pushed = Math.max(w.pushed, z);
+      w.pushed = Math.max(w.pushed, scale() / rest);
       requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
@@ -282,10 +283,12 @@ test("减少动态（WCAG 2.3.3）：大屏不推镜头，桑巴老师站着不�
   await tv.page.evaluate(() => {
     const w = window as unknown as { moved: string[] };
     w.moved = [];
+    // (the camera as the board rests, leaning back on the big screen: moving is any change from it)
+    const cam = () => `${document.querySelector<HTMLElement>(".tv-board .board-cam")?.style.transform} ${document.querySelector<HTMLElement>(".tv-board .board-view")?.style.transform}`;
+    const rest = cam();
     const look = () => {
-      const t = document.querySelector<HTMLElement>(".tv-board .board-cam")?.style.transform;
-      const v = document.querySelector<HTMLElement>(".tv-board .board-view")?.style.transform;
-      if (t || v) w.moved.push(`${t} ${v}`);
+      const now = cam();
+      if (now !== rest && w.moved[w.moved.length - 1] !== now) w.moved.push(now);
       requestAnimationFrame(look);
     };
     requestAnimationFrame(look);

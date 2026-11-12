@@ -10,6 +10,10 @@
   --board-ink-2: #b4ad9b;
   --board-line: #303a5a;
   --board-rim: #0a0d19;
+  /* The board is a thing on the table: its edge under its face (lit at the top), and the lamp over it. */
+  --board-edge: #05070f;
+  --board-edge-hi: #222a49;
+  --lamp: #ffe9c4;
   --map-sea: #16203a;
   --map-land: #3c4669;
   --map-line: #27314f;
@@ -1293,4 +1297,26 @@
 }
 .passport-page:last-child .pageno {
   right: 10px;
+}
+
+/* ---------- the board as a thing on the table (art/RoundBoard.tsx BoardDefs) ----------
+   Its shadow on the table and its edge under its face show below it (more when it leans back: ui/Board.tsx
+   boardLean); the lamp's light falls on it from the top left, and the colour bands round its edge are
+   lacquered. None of it takes a tap. */
+.roundboard .board-shadow,
+.roundboard .board-edge,
+.roundboard .board-gloss,
+.roundboard .board-lamp {
+  pointer-events: none;
+}
+/* What stands on the board casts a shadow on it: a building at its foot, an owner's chip under it. */
+.roundboard .bldg .b-ground,
+.roundboard .om-shadow {
+  fill: var(--night-shade);
+  opacity: 0.45;
+  pointer-events: none;
+}
+/* (a token walking round hops on its way: its own hop on the spot waits) */
+.roundboard [data-walking] .token.now > .hop {
+  animation: none;
 }

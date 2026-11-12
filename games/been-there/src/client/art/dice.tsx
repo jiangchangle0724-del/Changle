@@ -1,6 +1,8 @@
 // Dice that tumble and land on the roll: each die is a CSS 3D cube of six faces, so the browser does
 // the turning. As on Chinese dice, the one and the four are red. The tumble lives in styles.css
-// (.dice3d); it lands on the face given here, so every screen shows the same roll.
+// (.dice3d); it lands on the face given here, so every screen shows the same roll. A die comes to rest
+// as one does on a table seen from a chair: the roll on its top face, two of its sides showing, its
+// shadow under it on the table (the shadow stays on the table while the die is in the air).
 
 /** Pips on a 3×3 grid, numbered 1-9 row by row. */
 const PIPS: Record<number, number[]> = {
@@ -46,14 +48,17 @@ function Die({ n, seed, i }: { n: number; seed: number; i: number }) {
   };
   return (
     <span class="die3d" style={style}>
-      <span class="cube">
-        {[1, 2, 3, 4, 5, 6].map((f) => (
-          <span key={f} class={`face f${f}`} style={{ transform: FACE[f] }}>
-            {PIPS[f].map((p) => (
-              <i key={p} style={{ gridArea: `${Math.ceil(p / 3)} / ${((p - 1) % 3) + 1}` }} />
-            ))}
-          </span>
-        ))}
+      <span class="die-shadow" />
+      <span class="die-air">
+        <span class="cube">
+          {[1, 2, 3, 4, 5, 6].map((f) => (
+            <span key={f} class={`face f${f}`} style={{ transform: FACE[f] }}>
+              {PIPS[f].map((p) => (
+                <i key={p} style={{ gridArea: `${Math.ceil(p / 3)} / ${((p - 1) % 3) + 1}` }} />
+              ))}
+            </span>
+          ))}
+        </span>
       </span>
     </span>
   );

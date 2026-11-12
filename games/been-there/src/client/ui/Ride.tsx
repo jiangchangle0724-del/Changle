@@ -55,25 +55,98 @@ export interface Cam {
   tx: number;
   ty: number;
   rot: number;
+  /** The lean back (degrees). */
   tilt: number;
+  /** How much bigger the leaning board is drawn than its box (about the camera's point). */
+  g: number;
+  /** How far into the first-person ride: the far side fading into the sky, the sky itself (0 to 1). */
+  fade: number;
 }
-const rest = (rot: number): Cam => ({ z: 1, tx: 0, ty: 0, rot, tilt: 0 });
-const ridePose = (rot: number): Cam => ({ z: CAM.z, tx: CAM.ax + CAM.z * TOKEN_R, ty: CAM.ay, rot, tilt: CAM.tilt });
-const mix = (a: Cam, b: Cam, p: number): Cam => ({ z: lerp(a.z, b.z, p), tx: lerp(a.tx, b.tx, p), ty: lerp(a.ty, b.ty, p), rot: lerp(a.rot, b.rot, p), tilt: lerp(a.tilt, b.tilt, p) });
-/** At rest, the board as a phone's map shows it: zoom `z` round (cx, cy) (ui/mapView.ts); 1 is the whole board. */
-const home = (rot: number, z: number, cx: number, cy: number): Cam => (z > 1.0005 ? { ...mapCam(z, cx, cy), rot, tilt: 0 } : rest(rot));
+
+/**
+ * The whole board at rest, leaning back `lean` degrees as a board on a table does (the big screen, a
+ * laptop showing all of it: ui/Board.tsx boardLean), drawn as big as fits its box and in the middle of
+ * it: how much bigger (g) and how far down (ty, board units), worked out once for each lean. The board
+ * reaches 0.52 of its box from the middle, its edge and its shadow on the table under it included.
+ */
+const FIT_R = 0.52;
+const fits = new Map<number, { g: number; ty: number }>();
+export function leanFit(lean: number): { g: number; ty: number } {
+  const known = fits.get(lean);
+  if (known) return known;
+  const th = (lean * Math.PI) / 180;
+  const oy = (CAM.ay + 500) / 1000;
+  // Where the board's edge shows (box widths), drawn g bigger and moved ty down (box widths).
+  const extent = (g: number, ty: number) => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * 2 * Math.PI;
+      const dx = FIT_R * Math.sin(a) * g;
+      const dy = (0.5 - FIT_R * Math.cos(a) + ty - oy) * g;
+      const w = CAM.lens / (CAM.lens - dy * Math.sin(th));
+      x0 = Math.min(x0, 0.5 + dx * w);
+      x1 = Math.max(x1, 0.5 + dx * w);
+      y0 = Math.min(y0, oy + dy * Math.cos(th) * w);
+      y1 = Math.max(y1, oy + dy * Math.cos(th) * w);
+    }
+    return { x0, x1, y0, y1 };
+  };
+  // (for a size, the shift that puts it in the middle; then the biggest size that fits)
+  const centred = (g: number) => {
+    let ty = 0;
+    for (let i = 0; i < 24; i++) {
+      const e = extent(g, ty);
+      ty -= ((e.y0 + e.y1) / 2 - 0.5) / Math.max(0.2, g * Math.cos(th));
+    }
+    return ty;
+  };
+  let lo = 0.5;
+  let hi = 1.6;
+  for (let i = 0; i < 30; i++) {
+    const g = (lo + hi) / 2;
+    const e = extent(g, centred(g));
+    if (e.x0 >= 0 && e.x1 <= 1 && e.y0 >= 0 && e.y1 <= 1) lo = g;
+    else hi = g;
+  }
+  const out = { g: lo, ty: centred(lo) * 1000 };
+  fits.set(lean, out);
+  return out;
+}
+
+/** The board at rest: flat, or leaning back `lean` degrees, all of it in its box. */
+export const rest = (rot: number, lean = 0): Cam => {
+  if (lean < 0.05) return { z: 1, tx: 0, ty: 0, rot, tilt: 0, g: 1, fade: 0 };
+  const f = leanFit(lean);
+  return { z: 1, tx: 0, ty: f.ty, rot, tilt: lean, g: f.g, fade: 0 };
+};
+const ridePose = (rot: number): Cam => ({ z: CAM.z, tx: CAM.ax + CAM.z * TOKEN_R, ty: CAM.ay, rot, tilt: CAM.tilt, g: CAM.grow, fade: 1 });
+const mix = (a: Cam, b: Cam, p: number): Cam => ({
+  z: lerp(a.z, b.z, p),
+  tx: lerp(a.tx, b.tx, p),
+  ty: lerp(a.ty, b.ty, p),
+  rot: lerp(a.rot, b.rot, p),
+  tilt: lerp(a.tilt, b.tilt, p),
+  g: lerp(a.g, b.g, p),
+  fade: lerp(a.fade, b.fade, p),
+});
+/** At rest, the board as a phone's map shows it: zoom `z` round (cx, cy) (ui/mapView.ts), flat; 1 is the
+ * whole board, leaning back `lean` degrees if it does. */
+const home = (rot: number, z: number, cx: number, cy: number, lean = 0): Cam =>
+  z > 1.0005 ? { ...mapCam(z, cx, cy), rot, tilt: 0, g: 1, fade: 0 } : rest(rot, lean);
 /** Where the token on ring position `pos` (in spaces) stands on screen, the board turned to `rot`. */
 const onScreen = (pos: number, rot: number): [number, number] => {
   const [x, y] = xy(angleOf(pos), TOKEN_R);
   const a = (rot * Math.PI) / 180;
   return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
 };
-function tvPose(pos: number, rot: number): Cam {
+/** The big screen's push in, after the token: on the board as it rests (leaning back, `lean`). */
+function tvPose(pos: number, rot: number, lean = 0): Cam {
   const [bx, by] = xy(angleOf(pos), TOKEN_R);
   const a = (rot * Math.PI) / 180;
   const rx = bx * Math.cos(a) - by * Math.sin(a);
   const ry = bx * Math.sin(a) + by * Math.cos(a);
-  return { z: TV.z, tx: -rx * TV.z * TV.pan, ty: -ry * TV.z * TV.pan, rot, tilt: 0 };
+  const base = rest(rot, lean);
+  return { ...base, z: TV.z, tx: -rx * TV.z * TV.pan, ty: base.ty - ry * TV.z * TV.pan };
 }
 
 /** Where a point of the board (board units, before the table turns) shows on screen, in px from the
@@ -90,13 +163,34 @@ export function project(bx: number, by: number, c: Cam, size: number) {
   const ox = size / 2;
   const oy = (CAM.ay + 500) * k;
   const th = (c.tilt * Math.PI) / 180;
-  const g = lerp(1, CAM.grow, c.tilt / CAM.tilt);
-  const dx = (px - ox) * g;
-  const dy = (py - oy) * g;
+  const dx = (px - ox) * c.g;
+  const dy = (py - oy) * c.g;
   const z = dy * Math.sin(th);
   const lens = CAM.lens * size;
   const w = lens / (lens - z);
-  return { x: ox + dx * w, y: oy + dy * Math.cos(th) * w, s: w * g * c.z * k };
+  return { x: ox + dx * w, y: oy + dy * Math.cos(th) * w, s: w * c.g * c.z * k };
+}
+
+/**
+ * Where what stands over the middle of the board goes as the camera moves (the big screen's globe
+ * and its centre card, `.board-cam`): over the middle of the board as it shows, as big as the board
+ * is drawn there, upright. On a leaning board the globe is a ball in the hole of the ring, which shows
+ * shorter than it is wide: it's drawn as tall as the hole shows, so it never covers the far side.
+ */
+export function camLayerTransform(c: Cam, size: number, ball: boolean): string {
+  const k = size / 1000;
+  if (c.tilt < 0.05) return c.z === 1 && !c.tx && !c.ty ? "" : `translate(${(c.tx * k).toFixed(1)}px, ${(c.ty * k).toFixed(1)}px) scale(${c.z.toFixed(4)})`;
+  const mid = project(0, 0, c, size);
+  const s = (mid.s / k) * (ball ? Math.cos((c.tilt * Math.PI) / 180) : 1);
+  return `translate(${(mid.x - size / 2).toFixed(1)}px, ${(mid.y - size / 2).toFixed(1)}px) scale(${s.toFixed(4)})`;
+}
+
+/** Put the big screen's middle layers (`.board-cam`) where the board's middle is, for camera `c`. */
+export function placeCamLayers(layers: HTMLElement[], c: Cam, size: number) {
+  for (const layer of layers) {
+    const tf = camLayerTransform(c, size, layer.classList.contains("board-under"));
+    if (layer.style.transform !== tf) layer.style.transform = tf;
+  }
 }
 
 /**
@@ -108,19 +202,20 @@ export function viewBoard(svg: HTMLElement | SVGElement, c: Cam, drawn: number, 
   const k = size / 1000;
   const turn = c.rot - drawn;
   const still = c.tilt < 0.05 && c.z === 1 && !c.tx && !c.ty && Math.abs(turn) < 0.01;
-  const p = c.tilt / CAM.tilt;
+  const p = c.fade;
   // (about a line across the board at the camera's point; the zoom and the turn about its middle)
   const ay = CAM.ay * k;
   const tf = still
     ? ""
-    : `${c.tilt >= 0.05 ? `perspective(${Math.round(CAM.lens * size)}px) rotateX(${c.tilt.toFixed(2)}deg) scale(${lerp(1, CAM.grow, p).toFixed(4)}) ` : ""}` +
+    : `${c.tilt >= 0.05 ? `perspective(${Math.round(CAM.lens * size)}px) rotateX(${c.tilt.toFixed(2)}deg) scale(${c.g.toFixed(4)}) ` : ""}` +
       `translate(${(c.tx * k).toFixed(1)}px, ${(c.ty * k - ay).toFixed(1)}px) scale(${c.z.toFixed(4)}) rotate(${turn.toFixed(2)}deg) translate(0px, ${ay.toFixed(1)}px)`;
   if (svg.style.transform !== tf) {
     svg.style.transformOrigin = `50% ${(CAM.ay + 500) / 10}%`;
     svg.style.transform = tf;
   }
-  // The far side of the leaning board fades into the sky instead of ending at an edge.
-  const mask = c.tilt < 0.05 ? "" : `linear-gradient(to bottom, transparent ${(4 * p).toFixed(1)}%, #000 ${(34 * p).toFixed(1)}%)`;
+  // The far side of the board leaning back on a ride fades into the sky instead of ending at an edge
+  // (at rest the whole board shows, the far side too).
+  const mask = p < 0.005 ? "" : `linear-gradient(to bottom, transparent ${(4 * p).toFixed(1)}%, #000 ${(34 * p).toFixed(1)}%)`;
   if (svg.dataset.mask !== mask) {
     svg.dataset.mask = mask;
     if (mask) {
@@ -280,6 +375,8 @@ export function Ride({
     const view = wrapEl?.querySelector<HTMLElement>(".board-view") ?? null;
     // (on the big screen the globe and the middle of the board move with the camera too)
     const camLayers = mode === "tv" ? Array.from(wrapEl?.querySelectorAll<HTMLElement>(".board-cam") ?? []) : [];
+    // (how far the board leans back at rest, the whole of it showing: ui/Board.tsx boardLean)
+    const lean = rig.current?.lean ?? 0;
     const T = plan.t;
     const startPerf = performance.now() + (plan.start - serverNow());
     // (when this screen will stamp the landing, on its own clock: every screen's should agree)
@@ -307,7 +404,7 @@ export function Ride({
     let handed = false;
     const endAt = plan.jail ? 10 : landAt;
     // (shown at once, as the map was: the first frame is a moment away)
-    if (begin && rig.current) viewBoard(view ?? rig.current.svg, home(rig.current.rotation(), z0, c0[0], c0[1]), rig.current.rotation(), box.board);
+    if (begin && rig.current) viewBoard(view ?? rig.current.svg, home(rig.current.rotation(), z0, c0[0], c0[1], lean), rig.current.rotation(), box.board);
     let shift = 0;
     let skipTo: number | null = null;
     let flatCut = mode !== "fp";
@@ -365,8 +462,8 @@ export function Ride({
       const goal = r.focusRotation();
       // (the drawing takes the angle the camera left it at, everything upright, and stands still)
       r.turn(Math.abs(goal - at) < 1.5 ? goal : at);
-      viewBoard(view ?? r.svg, rest(r.rotation()), r.rotation(), box.board);
-      for (const layer of camLayers) layer.style.transform = "";
+      viewBoard(view ?? r.svg, rest(r.rotation(), lean), r.rotation(), box.board);
+      placeCamLayers(camLayers, rest(r.rotation(), lean), box.board);
       // (the map takes the view back at its size over where the token is, as the camera left it)
       if (hand && !handed) {
         handed = true;
@@ -516,14 +613,14 @@ export function Ride({
       if (cam === "fp") {
         if (t < T.dice) {
           turnToward(near(yaw, anchorRot(plan.legs[0].from)), dt);
-          c = home(yaw, z0, c0[0], c0[1]);
+          c = home(yaw, z0, c0[0], c0[1], lean);
         } else if (t < T.walk) {
           once("push", () => {
             yaw = near(yaw!, anchorRot(plan.legs[0].from));
             vel = 0;
             sfx.whoosh(1);
           });
-          c = mix(home(yaw, z0, c0[0], c0[1]), ridePose(yaw), ease((t - T.dice) / Math.max(1, T.walk - T.dice)));
+          c = mix(home(yaw, z0, c0[0], c0[1], lean), ridePose(yaw), ease((t - T.dice) / Math.max(1, T.walk - T.dice)));
         } else if (t < T.ready) {
           turnToward(near(yaw, anchorRot(lin)), dt);
           c = ridePose(yaw);
@@ -536,13 +633,13 @@ export function Ride({
             drawn = yaw!;
           });
           const [ex, ey] = onScreen(pos, yaw);
-          c = mix(ridePose(yaw), home(yaw, Z, ex, ey), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
+          c = mix(ridePose(yaw), home(yaw, Z, ex, ey, lean), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
         }
       } else if (cam === "tv" && plan.legs[0].steps && !reduced) {
-        if (t < T.dice) c = rest(yaw);
-        else if (t < T.walk) c = mix(rest(yaw), tvPose(plan.legs[0].from, yaw), ease((t - T.dice) / Math.max(1, T.walk - T.dice)));
-        else if (t < T.ready) c = tvPose(lin, yaw);
-        else c = mix(tvPose(lin, yaw), rest(yaw), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
+        if (t < T.dice) c = rest(yaw, lean);
+        else if (t < T.walk) c = mix(rest(yaw, lean), tvPose(plan.legs[0].from, yaw, lean), ease((t - T.dice) / Math.max(1, T.walk - T.dice)));
+        else if (t < T.ready) c = tvPose(lin, yaw, lean);
+        else c = mix(tvPose(lin, yaw, lean), rest(yaw, lean), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
       } else if (Z > 1.0005 || z0 > 1.0005) {
         // Flat, on a phone's bigger map: the view goes along with the token as it walks (with reduced
         // motion it holds still, and is over where the token landed once it's there).
@@ -554,23 +651,19 @@ export function Ride({
         flat[0] += (gx - flat[0]) * k;
         flat[1] += (gy - flat[1]) * k;
         flat[2] += (gz - flat[2]) * k;
-        c = home(yaw, flat[2], flat[0], flat[1]);
-      } else c = rest(yaw);
+        c = home(yaw, flat[2], flat[0], flat[1], lean);
+      } else c = rest(yaw, lean);
       const size = box.board;
       viewBoard(view ?? r.svg, c, drawn, size);
-      if (camLayers.length) {
-        const k = size / 1000;
-        const tf = c.z === 1 && !c.tx && !c.ty ? "" : `translate(${(c.tx * k).toFixed(1)}px, ${(c.ty * k).toFixed(1)}px) scale(${c.z.toFixed(4)})`;
-        for (const layer of camLayers) if (layer.style.transform !== tf) layer.style.transform = tf;
-      }
+      if (camLayers.length) placeCamLayers(camLayers, c, size);
       // Close behind the token the camera sees a few spaces either side: the names there stand up as
       // the table turns under them (the rest turn with the table until the camera pulls out).
-      if (c.tilt > 1 && c.rot !== lastUp && Math.abs(c.rot - drawn) > 0.01) {
+      if (c.fade > 0.02 && c.rot !== lastUp && Math.abs(c.rot - drawn) > 0.01) {
         lastUp = c.rot;
         r.upright(c.rot, NEAR);
       }
       if (sky) {
-        const o = (c.tilt / CAM.tilt).toFixed(3);
+        const o = c.fade.toFixed(3);
         if (sky.style.opacity !== o) sky.style.opacity = o;
       }
 
