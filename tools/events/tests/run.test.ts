@@ -109,8 +109,8 @@ describe("a morning run", () => {
       { source: "rpl", part: 1, ...direct, http_status: 200, found: 0, error: null },
       // Burnaby: 113 programs still to come, 27 of them in the window
       { source: "bpl", part: 0, http_status: 200, found: 113, in_window: 27, added: 27, error: null },
-      // UBC: 30 in its answer, 6 anyone can walk into (5 in the window), then an empty answer
-      { source: "ubc", part: 0, http_status: 200, found: 6, in_window: 5, added: 5, error: null },
+      // UBC: 30 in its answer, 6 anyone can walk into (all 6 overlap the window), then an empty answer
+      { source: "ubc", part: 0, http_status: 200, found: 6, in_window: 6, added: 6, error: null },
       { source: "ubc", part: 1, http_status: 200, found: 0, error: null },
       { source: "ticketmaster", error: "skipped: TICKETMASTER_KEY is not set" },
       { source: "publish", error: null },
@@ -119,7 +119,7 @@ describe("a morning run", () => {
     expect((log[0] as { in_window: number }).in_window).toBe(5);
     expect(await env.CACHE.get("raw:2026-10-31:luma-vancouver:0")).toContain("BEGIN:VCALENDAR");
     const pub = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
-    expect(pub.count).toBe(102);
+    expect(pub.count).toBe(103);
     expect(pub.from).toBe("2026-10-31");
     expect(pub.to).toBe("2026-11-13");
     const bios = pub.events.find((e) => e.title.startsWith("BIOS SPHERE"))!;
@@ -153,7 +153,7 @@ describe("a morning run", () => {
     const run = (await env.DB.prepare("SELECT next_source, steps, triggers, published_at FROM runs WHERE run_id = '2026-10-31'").first())!;
     expect(run).toMatchObject({ next_source: null, steps: 9, triggers: 6 });
     expect(run.published_at).toBeTruthy();
-    expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.count).toBe(102);
+    expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.count).toBe(103);
   });
 
   it("the morning's last trigger publishes what it has; the sources not reached keep yesterday's", async () => {
@@ -249,10 +249,10 @@ describe("the libraries' hand-over (src/handoff.ts)", () => {
       { source: "rpl", part: 1, ...handed, found: 0 },
     ]);
     for (const row of libraryRows(log)) expect(row.note).toMatch(/^handed over at \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-0[78]:00$/);
-    // the same raw answers kept, and the same 102 events published, field for field
+    // the same raw answers kept, and the same 103 events published, field for field
     expect(await env.CACHE.get("raw:2026-10-31:rpl:0")).toBe(rpl);
     const fromHandoff = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
-    expect(fromHandoff.count).toBe(102);
+    expect(fromHandoff.count).toBe(103);
     expect(published(fromHandoff)).toEqual(published(direct));
     // /go/api/status says how each step got its answer
     const status = await api("/go/api/status");
