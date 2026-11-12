@@ -11,6 +11,9 @@ import { UI } from "../i18n";
 
 type Phase = "idle" | "revealed" | "pick" | "group-loser";
 
+/** How long the bottom button ignores taps after it changed what it does (a quick double tap is ~120–250ms apart). */
+const SETTLE_MS = 450;
+
 type Kept = { cards: number[]; card: Card | null; phase: Phase; holders: Partial<Record<Rank, Player>>; reshuffled: boolean; turn: number };
 
 export function Rogue13({ onBack }: { onBack: () => void }) {
@@ -52,9 +55,19 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // the card's words: drinking, or the penalty set in settings
   const words = rule ? ruleWords(rule, custom) : null;
 
+  // The bottom button changes what it does as the screen moves on (抽牌 → 记住了 → 抽牌) without
+  // moving from under the thumb, so the second half of a quick double tap lands on the new button.
+  // A tap in the first moments after the change is that same tap, not the next step.
+  const changedAt = useRef(0);
+  const moveOn = () => {
+    changedAt.current = performance.now();
+  };
+  const tooSoon = () => performance.now() - changedAt.current < SETTLE_MS;
+
   const draw = () => {
     // one card at a time: a double tap on the deck lands on the card still turning over
-    if (card) return;
+    if (card || tooSoon()) return;
+    moveOn();
     setPlayed(true);
     const { card: c, reshuffled: r } = deck.current.draw();
     setReshuffled(r);
@@ -71,13 +84,15 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   };
 
   const endTurn = () => {
+    moveOn();
     setCard(null);
     setPhase("idle");
     turn.next();
   };
 
   const resolve = () => {
-    if (!rule || !card || !words) return;
+    if (!rule || !card || !words || tooSoon()) return;
+    moveOn();
     const me = turn.current;
     switch (rule.kind) {
       case "pick":

@@ -7,10 +7,13 @@ The TV opens a table for the game; Amy (Chinese, hosting), Ben (English), 小林
 sit down and play a whole game, four rounds. At every step it checks: the real meaning is on the
 honest phone only (and only while it is held), never on the TV or any other phone before the
 reveal; a bluffer's phone has the seeds; every phone and the TV get the reveal; the master bluffer
-picks; the end shows the board and the words. No phone scrolls sideways, no page logs an error.
+picks; the end shows the board and the words. The cards: Dan's phone has played every card but
+one, so that one comes up first (the table's played cards go last); every screen learns which card
+it was at the reveal, the host's phone counts each round once, every phone can flag the card (Ben
+flags one) and remembers the cards played. No phone scrolls sideways, no page logs an error.
 Screenshots go to local-shots/straightface-net/.
 """
-import json, os, re, sys, time
+import base64, json, os, re, sys, time
 from playwright.sync_api import sync_playwright
 
 BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1:5173/")
@@ -48,6 +51,9 @@ def page(browser, name, lang, viewport, scale=2, mobile=True):
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.on("console", lambda m: errs.append("console: " + m.text) if m.type == "error" else None)
     pg._errs, pg._name, pg._lang = errs, name, lang
+    # what this phone tells the server about cards: a round's outcome, a flagged card
+    pg._sf = []
+    pg.on("request", lambda r: pg._sf.append((r.url.split("/api")[-1], json.loads(r.post_data or "{}"))) if "/api/sf/" in r.url and r.method == "POST" else None)
     return pg
 
 
@@ -178,6 +184,13 @@ def main():
         ok(until(lambda: len(room(host)["seats"]) == 5), "five seated, one only watching")
         ok(room(host)["host"] == me(host), "Amy hosts")
 
+        # Dan's phone has played every card but one before: the table's first card is that one
+        bank = re.findall(r'^    id: "([^"]+)"', open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "data", "straightface.ts"), encoding="utf-8").read(), re.M)
+        fresh = "haboob"  # 冷知识, a pack every table starts with
+        dan = phones[3]
+        dan.evaluate("(ids) => localStorage.setItem('changle.sf.seen', JSON.stringify(ids))", [c for c in bank if c != fresh][-300:])
+        played = []
+
         host.locator(".lobby-actions .btn-primary").click()
         ok(all(until(lambda g=g: (view(g) or {}).get("id") == "straightface") for g in phones), "every phone is in the game")
         ok(until(lambda: (view(host) or {}).get("setup", {}).get("packs")), "the host's phone put in its packs")
@@ -282,6 +295,29 @@ def main():
             host.wait_for_timeout(5200)
             ok(all(definition[g._lang] in text(g) for g in phones), f"[round {rounds}] every phone shows the real meaning now")
             ok(definition[tv._lang] in text(tv), f"[round {rounds}] so does the TV")
+            card = view(host).get("cardId")
+            played.append(card)
+            ok(card and all(view(g).get("cardId") == card for g in phones + [tv]), f"[round {rounds}] every screen knows which card it was ({card})")
+            if rounds == 1:
+                ok(card == fresh, f"[round 1] the one card nobody at the table has played came up ({card})")
+            sent = [(g._name, x[1]) for g in phones for x in g._sf if x[0] == "/sf/round"]
+            ok(len(sent) == rounds and all(n == host._name for n, _ in sent) and sent[-1][1].get("card") == card and sent[-1][1].get("players") == 4, f"[round {rounds}] the host's phone counted the round, once ({[(n, b.get('card')) for n, b in sent]})")
+            ok(all(g.locator(".sf-report-link").count() == 1 for g in phones), f"[round {rounds}] every phone can flag the card")
+            if rounds == 2:
+                bg = phones[1]
+                clear_stamps(phones + [tv, eve])
+                press(bg, bg.locator(".sf-report-link"))
+                ok(until(lambda: bg.locator(".sf-report").count() == 1), "[round 2] Ben opens the flag sheet")
+                bg.wait_for_timeout(700)  # let the sheet finish rising before tapping in it
+                press(bg, bg.locator(".sf-reason").nth(0))
+                bg.locator(".sf-report textarea").fill("net check")
+                shot(bg, "08-report")
+                press(bg, bg.locator(".sf-report .btn-primary"))
+                ok(until(lambda: "Got it" in bg.locator(".sf-report").inner_text()), "[round 2] sent: thanks")
+                reports = [x[1] for x in bg._sf if x[0] == "/sf/report"]
+                ok(len(reports) == 1 and reports[0].get("card") == card and reports[0].get("reason") == "wrong" and reports[0].get("lang") == "en", f"[round 2] the flag went out for this card ({reports})")
+                press(bg, bg.locator(".sf-report .btn-primary"))
+                bg.wait_for_timeout(400)
             if rounds <= 2:
                 for g in (by_id[honest], phones[1]):
                     shot(g, f"08-reveal-r{rounds}")
@@ -322,6 +358,29 @@ def main():
         shot(tv, "11-finished")
         v = view(host)
         ok(len(v.get("learned") or []) == 4, "the end lists the four words")
+        for g in phones:
+            seen = g.evaluate("JSON.parse(localStorage.getItem('changle.sf.seen') || '[]')")
+            ok(all(c in seen for c in played), f"{g._name}'s phone remembers the four cards played ({len(seen)} in all)")
+        # tonight's titles on every phone (the same everywhere), and Ben's phone draws the picture to share
+        ok(all(g.locator(".sf-titles li").count() >= 1 for g in phones), "every phone shows tonight's titles")
+        ok(len({g.locator(".sf-titles strong").first.inner_text() for g in phones}) == 1, "the same names on every phone (the table's names, not 'you')")
+        bg = phones[1]
+        clear_stamps(phones + [tv])
+        bg.locator(".sf-titles").scroll_into_view_if_needed()
+        shot(bg, "11-titles")
+        played_all = [l["term"]["zh"] for l in v.get("learned") or []]
+        ok(len(set(played_all)) == len(played_all), f"no word twice in one game, though Dan's phone had played every card ({played_all})")
+        bg.locator(".sf-share-btn").scroll_into_view_if_needed()
+        press(bg, bg.locator(".sf-share-btn"))
+        ok(until(lambda: bg.locator(".sf-share-img").count() == 1 and bg.evaluate("document.querySelector('.sf-share-img').naturalWidth") == 1080, 15000), "Ben's phone draws tonight's picture")
+        size = bg.evaluate("[document.querySelector('.sf-share-img').naturalWidth, document.querySelector('.sf-share-img').naturalHeight]")
+        ok(size[0] == 1080 and size[1] >= 1440, f"the picture: 1080 wide, at least 3:4 ({size})")
+        data = bg.evaluate("document.querySelector('.sf-share-img').src")
+        with open(os.path.join(OUT, "picture-net-en.png"), "wb") as f:
+            f.write(base64.b64decode(data.split(",", 1)[1]))
+        bg.wait_for_timeout(500)
+        shot(bg, "12-share")
+        bg.keyboard.press("Escape")
         for g in phones:
             ok(no_sideways(g), f"{g._name}: no sideways scroll")
         for g in phones + [tv, eve]:

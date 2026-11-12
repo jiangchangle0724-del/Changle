@@ -816,3 +816,178 @@
     animation: none;
   }
 }
+
+/* ---------- the card's numbers, and flagging a card ---------- */
+.sf-numbers {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.sf-report-link {
+  align-self: center;
+  min-height: var(--tap);
+  font-size: var(--text-sm);
+}
+.sf-report {
+  gap: var(--space-4);
+}
+.sf-reasons {
+  display: grid;
+  gap: var(--space-2);
+}
+.sf-reason {
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-sheet);
+  box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: left;
+}
+.sf-reason.is-on {
+  box-shadow: inset 0 0 0 2px var(--gel);
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-sheet));
+}
+.sf-report-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sf-report-note .field {
+  align-items: stretch;
+}
+.sf-report-note textarea {
+  width: 100%;
+  resize: vertical;
+}
+.sf-report-fail {
+  color: var(--color-danger);
+}
+
+/* ---------- the end: tonight's titles, and the picture to share (share.tsx) ---------- */
+.sf-titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sf-titles li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: var(--space-3);
+  align-items: center;
+  line-height: var(--leading-tight);
+}
+.sf-titles img {
+  grid-row: 1 / 4;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--gel);
+}
+.sf-title-label {
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.sf-titles strong {
+  font-size: var(--text-md);
+}
+.sf-share-btn {
+  gap: var(--space-2);
+}
+.sf-share-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-flat);
+  -webkit-touch-callout: default;
+  user-select: auto;
+}
+.sf-share-actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.sf-share-actions .btn {
+  flex: 1 1 0;
+  gap: var(--space-2);
+}
+
+/* ---------- 自己出题: a player's own word (own.tsx) ---------- */
+.sf-own-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.sf-own-title svg {
+  color: var(--gel);
+}
+.sf-own-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sf-own-field .field {
+  align-items: stretch;
+}
+.sf-own-field input,
+.sf-own-field textarea {
+  width: 100%;
+}
+.sf-own-field textarea {
+  resize: vertical;
+}
+.sf-own-actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.sf-own-actions .btn {
+  flex: 1 1 0;
+}
+.sf-own-done p {
+  margin: 0;
+  line-height: var(--leading);
+}
+.sf-own-badge {
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--night);
+}
+.sf-part-wrote {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: color-mix(in oklab, var(--gel) 18%, transparent);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.sf-own-first {
+  margin-bottom: var(--space-4);
+}
+
+/* ---------- the audience: at the table, not in this game ---------- */
+.sf-crowd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sf-crowd p {
+  margin: 0;
+  line-height: var(--leading);
+}
+.sf-crowd-line {
+  margin: var(--space-2) 0 0;
+}

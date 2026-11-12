@@ -11,17 +11,21 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
+import { Floor3D } from "./Floor3D";
 import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePadEvents } from "./deck/TvDeck";
 import { LocalPanel } from "./local/LocalPanel";
 import { FloorGrid, NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
+import { SharedPhone } from "./SharedPhone";
 import { useBooth } from "./useBooth";
+import { takePrimed } from "../../lib/primeAudio";
 import { primeVoice, useAnnounce } from "./announce";
 import { useWakeLock } from "../sensors";
 import { Coach } from "./Coach";
 import { TubePlayer } from "./TubePlayer";
 import { danceShare } from "../../shared/dj/dance";
 import "../../styles/dj.css";
+import { useDjNames } from "./names";
 
 /**
  * 打碟 · DJ Booth on the big screen, which is also the speaker: the one device the music comes
@@ -29,9 +33,10 @@ import "../../styles/dj.css";
  * follow the kick, everyone at the table dances on the beat, and every 🔥 shows whose it was.
  */
 export default function TvDj({ v }: { v: DjView }) {
-  const { room, code, g, now, nameOf } = useRoom();
+  const { room, code, g, now } = useRoom();
   const { lang, sound } = useStore();
   const zh = lang === "zh";
+  const nameOf = useDjNames(zh);
   // at one of the owner's tables this screen may stream Lyria (the private test)
   const sid = room?.you ?? "";
   const lyria = useMemo(() => (v.lab && sid ? { url: lyriaUrl(code, sid), key: `${code}:${sid}` } : null), [v.lab, sid, code]);
@@ -84,6 +89,29 @@ export default function TvDj({ v }: { v: DjView }) {
   // the beginner deck: every pad pressed at the table plays here, on the next beat
   const chips = usePadEvents(booth.pad);
 
+  // opened from the game's card as the shared phone (Steve on Nov 11: "直接开始播放音乐"): the
+  // card's tap woke the sound, so the music starts with no tap here, and the songs play one after
+  // another (点歌模式: nobody needs to be at the table to build up and drop)
+  const shared = useRef<"no" | "asked" | "done">("no");
+  useEffect(() => {
+    const ctx = takePrimed();
+    if (!ctx) return;
+    if (v.phase !== "wait" || booth.speaker) {
+      void ctx.close().catch(() => {});
+      return;
+    }
+    shared.current = "asked";
+    primeVoice();
+    booth.start(ctx);
+    // (once, on the page's first look)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (shared.current !== "asked" || booth.status !== "on" || v.phase === "wait" || v.phase === "end") return;
+    shared.current = "done";
+    if (!v.juke) g("juke", { on: true });
+  }, [booth.status, v.phase, v.juke, g]);
+
   // the music starts here: the room's set begins when this screen says it's playing (said again
   // every few seconds until the room has heard it: a message can be lost on a dropping connection)
   useEffect(() => {
@@ -116,6 +144,8 @@ export default function TvDj({ v }: { v: DjView }) {
   }, [speaker, booth.source, booth.driver, dj]);
 
   const fires = useRef(new Map<string, number>());
+  // the floor in 3D: trying, dancing, or the drawn floor instead
+  const [floor3d, setFloor3d] = useState<"try" | "on" | "off">("try");
   const [flames, setFlames] = useState<Flame[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
@@ -231,7 +261,23 @@ export default function TvDj({ v }: { v: DjView }) {
       {v.deck && <DeckBoard v={v} clip={booth.clipOn} />}
       <JoinCard code={code} big={!seats.length} />
 
-      <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />
+      {/* the floor: the robots once they're dancing (a graphics chip that keeps up), the drawn one till then or instead */}
+      {floor3d !== "on" && <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />}
+      {floor3d !== "off" && (
+        <Floor3D
+          seats={dancers}
+          flames={flames}
+          host={room?.host}
+          dance={dancing.floor}
+          clock={clock}
+          level={ENERGY[stage].density}
+          singing={!!v.deck?.song}
+          fires={fires}
+          shown={floor3d === "on"}
+          onReady={() => setFloor3d("on")}
+          onFail={() => setFloor3d("off")}
+        />
+      )}
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} />}
       {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
@@ -295,6 +341,8 @@ export default function TvDj({ v }: { v: DjView }) {
           }}
         />
       )}
+      {/* the big screen's own 点歌 (the shared phone), and a phone held upright asked to turn sideways */}
+      <SharedPhone v={v} />
       {live && booth.stopped && (
         <button
           type="button"

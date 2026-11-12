@@ -52,6 +52,7 @@ jobs:
       - run: npx tsx tests/tokens.test.ts
       - run: npx tsx tests/routes.test.ts
       - run: npx tsx tests/duration.test.ts
+      - run: npx tsx tests/tools.test.ts
       - run: npm run build
       - run: npx tsx scripts/budget.ts
 

@@ -1,9 +1,10 @@
 // The songs: a song as a show (its teaching, the video's intro, the count-in, the dance on its
-// beats), a room playing one (the songbook's first beat, the speaker moving the beat to where the
-// video really is), and the songbook's checks of a speaker's taps. Run: npm test
+// beats), a room playing one (the songbook's first beat, 找拍子 for a song nobody has danced yet,
+// the speaker moving the beat to where the video really is), and the songbook's checks of a
+// speaker's taps. Run: npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { LEAD_IN_MS, SONG_SYNC_MS, Session, type From } from "../src/server/session";
+import { LEAD_IN_MS, SONG_SYNC_MS, Session, TAP_GAP_MS, type From } from "../src/server/session";
 import { checkTapped, MIN_TAPS } from "../src/server/tapped";
 import { anchorsOf, buildShow, danceStart, planRun } from "../src/shared/show";
 import { SONGS, songById, songMoveAt, songMoves } from "../src/shared/songs";
@@ -95,13 +96,71 @@ describe("a room playing a song", () => {
     assert.equal(s.d.state.routineStartAt, 7_000 + LEAD_IN_MS + SONG.firstBeatMs + 40);
   });
 
-  it("a song nobody has tapped along to yet can't be danced", () => {
-    const { s } = ready();
+  it("a song nobody has danced yet: everyone taps along to it first (找拍子), then it starts as any song does", () => {
+    const { s, advance } = ready();
+    const bob: From = { role: "player", playerId: "bob-000002" };
+    s.connect(bob, "Bob");
     s.songbook = {};
     s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: SONG.id, mode: "dance" } });
-    assert.equal(s.d.state.phase, "lobby");
+    assert.equal(s.d.state.phase, "learning");
+    assert.equal(s.d.routine!.tapIn, true);
+    assert.equal(s.d.routine!.introMs, SONG.firstBeatMs, "the catalogue's guess until then");
+    s.flush();
+    // anyone's taps go on to the speaker, not faster than a beat could be
+    s.handle(bob, { t: "tap", at: 9_000 });
+    s.handle(bob, { t: "tap", at: 9_050 });
+    advance(TAP_GAP_MS);
+    s.handle(ANN, { t: "tap", at: 9_400 });
+    s.handle({ role: "player", playerId: "zed-000009" }, { t: "tap", at: 9_500 });
+    const taps = s.flush().out.flatMap((o) => ("msg" in o && o.msg.t === "tap" ? [{ to: o.to, ...o.msg }] : []));
+    assert.deepEqual(taps, [
+      { to: "speaker", t: "tap", at: 9_000, playerId: "bob-000002" },
+      { to: "speaker", t: "tap", at: 9_400, playerId: "ann-000001" },
+    ]);
+    // the song waits for the beat: the video ready isn't enough, and the host can't skip to the dance
+    s.handle(SPEAKER, { t: "songReady" });
+    assert.equal(s.d.routine!.leadStartAt, null);
+    s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
+    assert.equal(s.d.state.phase, "learning");
     const err = s.flush().out.find((o) => "msg" in o && o.msg.t === "error");
-    assert.ok(err && "msg" in err && err.msg.t === "error" && err.msg.code === "song_untapped");
+    assert.ok(err && "msg" in err && err.msg.t === "error" && err.msg.code === "song_tapping");
+    // only the speaker's beat counts, and only one that passes the songbook's check
+    s.handle(ANN, { t: "songTapped", firstBeatMs: 7_300, taps: 16, spreadMs: 20, durationMs: null });
+    assert.equal(s.d.routine!.tapIn, true);
+    s.handle(SPEAKER, { t: "songTapped", firstBeatMs: 7_300, taps: 3, spreadMs: 20, durationMs: null });
+    assert.equal(s.d.routine!.tapIn, true);
+    const bad = s.flush().out.find((o) => "msg" in o && o.msg.t === "error");
+    assert.ok(bad && "to" in bad && bad.to === "speaker" && "msg" in bad && bad.msg.t === "error" && bad.msg.code === "bad_taps");
+    s.handle(SPEAKER, { t: "songTapped", firstBeatMs: 7_300.4, taps: 18, spreadMs: 22, durationMs: 250_000 });
+    assert.equal(s.d.routine!.tapIn, undefined);
+    assert.equal(s.d.routine!.introMs, 7_300);
+    assert.equal(s.songbook[SONG.id], 7_300);
+    const out = s.flush().out;
+    const kept = out.find((o) => "songbook" in o);
+    assert.ok(kept && "songbook" in kept && kept.songbook.songId === SONG.id && kept.songbook.tapped.firstBeatMs === 7_300 && kept.songbook.tapped.taps === 18);
+    assert.ok(out.some((o) => "msg" in o && o.msg.t === "state"), "every page hears of it");
+    // taps are for 找拍子 only
+    s.handle(ANN, { t: "tap", at: 12_000 });
+    assert.ok(!s.flush().out.some((o) => "msg" in o && o.msg.t === "tap"));
+    // and the song starts as any song does
+    s.handle(SPEAKER, { t: "songReady" });
+    assert.ok(s.d.routine!.leadStartAt !== null);
+    advance(LEAD_IN_MS);
+    s.tick();
+    assert.equal(s.d.state.phase, "dancing");
+    assert.equal(s.d.state.routineStartAt, s.d.routine!.leadStartAt! + 7_300);
+  });
+
+  it("nobody found the beat in time: back to the lobby, and everyone is told", () => {
+    const { s } = ready();
+    s.songbook = {};
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: SONG.id, mode: "learn" } });
+    s.flush();
+    s.handle(SPEAKER, { t: "songFailed", why: "notap" });
+    assert.equal(s.d.state.phase, "lobby");
+    assert.equal(s.d.routine!.tapIn, undefined);
+    const err = s.flush().out.find((o) => "msg" in o && o.msg.t === "error");
+    assert.ok(err && "msg" in err && err.msg.t === "error" && err.msg.code === "song_notap");
   });
 
   it("YouTube won't play it here: back to the lobby, and everyone is told", () => {

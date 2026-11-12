@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// C1 content checks and replays. The game's own simulation (src/physics) is bundled, never patched.
+// C1/C7 content checks and replays. The game's own simulation (src/physics) is bundled, never patched.
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
@@ -13,6 +13,23 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const levelsDir = join(root, 'levels');
 const docsDir = resolve(root, '../../docs/levels');
 const ids = Array.from({ length: 12 }, (_, i) => `${i < 6 ? 'table' : 'van'}-${String(i + 1).padStart(2, '0')}`);
+// C1 identities are player-facing content and must survive layout revisions unchanged.
+const identities = {
+  'table-01': {"name":{"zh":"茶布起步","en":"Tea Cloth Crawl"},"teaches":"crawl"},
+  'table-02': {"name":{"zh":"碗沿小缝","en":"Between the Bowls"},"teaches":"gap"},
+  'table-03': {"name":{"zh":"筷子桥","en":"Chopstick Bridge"},"teaches":"swing"},
+  'table-04': {"name":{"zh":"蒸笼叠叠高","en":"Steamer Stack"},"teaches":"climb"},
+  'table-05': {"name":{"zh":"面条过火锅","en":"Noodle over the Hotpot"},"teaches":"rope"},
+  'table-06': {"name":{"zh":"一串汤圆过大锅","en":"Dumpling Chain"},"teaches":"chain"},
+  'van-07': {"name":{"zh":"天车门把手","en":"SkyTrain Handles"},"teaches":"door"},
+  'van-08': {"name":{"zh":"图腾向上","en":"Totem Ascent"},"teaches":"climb"},
+  'van-09': {"name":{"zh":"摇摇浮筒","en":"Wobbling Pontoons"},"teaches":"balance"},
+  'van-10': {"name":{"zh":"狮门抛接力","en":"Lions Gate Toss"},"teaches":"throw"},
+  'van-11': {"name":{"zh":"雨中快抓","en":"Rain Grip"},"teaches":"ice"},
+  'van-12': {"name":{"zh":"从夜市到海湾","en":"Night Market to Harbour"},"teaches":"combine"},
+};
+const contains = (r, p) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+const inside = (level, p) => p.x >= 0 && p.x <= level.w && p.y >= 0 && p.y <= level.h;
 const materials = new Set(['cloth', 'wood', 'ceramic', 'metal', 'noodle', 'ice']);
 const temporary = await mkdtemp(join(tmpdir(), 'hang-on-levels-'));
 const readJSON = async (path) => JSON.parse(await readFile(path, 'utf8'));
@@ -30,7 +47,21 @@ function validate(level, replay, id) {
   assert.equal(level.world, id.startsWith('table') ? 'table' : 'van');
   assert(level.name?.zh && level.name.en && level.teaches, 'missing bilingual name / lesson');
   assert(finite(level.w) && level.w > 0 && finite(level.h) && level.h > 0);
+  assert.deepEqual(level.name, identities[id].name, id + ': C1 name changed');
+  assert.equal(level.teaches, identities[id].teaches, id + ': C1 lesson changed');
+  const vertical = id === 'table-04' || id === 'van-08';
+  if (vertical) {
+    assert(level.h >= 1400 && level.h <= 2200, id + ': climb height must be 1400–2200');
+    assert(level.spawn.y - (level.goal.y + level.goal.h) >= 720, id + ': climb route must rise at least one screen');
+  } else assert(level.w >= 2400 && level.w <= 3600, id + ': width must be 2400–3600');
+  assert(level.w <= 3600 && level.h <= 2200, id + ': at most three screens per axis');
+  assert(level.goal.x >= level.w - 480 && level.goal.w <= 400 && level.goal.x + level.goal.w >= level.w - 160, id + ': goal must use the extended level');
+  assert(level.spawn.x <= 600, id + ': spawn must retain the first-screen lesson');
+  const moving = (level.ropes ?? []).reduce((sum, r) => sum + r.segments, 0) + (level.seesaws?.length ?? 0) + (level.crates?.length ?? 0);
+  assert(moving <= 40, id + ': moving objects exceed 40 (rope links + seesaws + crates)');
+  assert(level.rects.length + (level.fading?.length ?? 0) + (level.springs?.length ?? 0) <= 60, id + ': platforms exceed 60');
   point(level.spawn);
+  assert(inside(level, level.spawn), id + ': spawn outside level');
   rectangle(level.goal);
   assert(finite(level.deathY) && level.deathY > level.spawn.y);
   assert(level.par.seconds >= 60 && level.par.seconds <= 180, 'par must be 1–3 minutes');
@@ -49,6 +80,7 @@ function validate(level, replay, id) {
     assert(materials.has(saw.material));
     boxes.push({ x: saw.pivot.x - saw.w / 2, y: saw.pivot.y - (saw.h ?? 14) / 2, w: saw.w, h: saw.h ?? 14, material: saw.material });
   }
+  assert(boxes.length <= 60, id + ': platforms exceed 60 including crates and seesaws');
   for (const box of boxes) {
     rectangle(box);
     assert(materials.has(box.material), `unknown material ${box.material}`);
@@ -60,7 +92,21 @@ function validate(level, replay, id) {
     point(rope.anchor);
     assert(Number.isInteger(rope.segments) && rope.segments > 0 && finite(rope.segLen) && rope.segLen > 0);
   }
-  for (const cp of level.checkpoints ?? []) point(cp);
+  const cps = level.checkpoints ?? [];
+  assert(cps.length > 0, id + ': missing checkpoints');
+  for (const [index, cp] of cps.entries()) {
+    point(cp);
+    assert(inside(level, cp), id + ': checkpoint outside level');
+    // Respawns use cp.x + player * 30. All four bodies (radius 24) need permanent footing.
+    for (let player = 0; player < 4; player++) assert(level.rects.some(r =>
+      cp.x + player * 30 - 24 >= r.x && cp.x + player * 30 + 24 <= r.x + r.w &&
+      r.y - cp.y >= 24 && r.y - cp.y <= 80 && r.w >= 48), id + ': checkpoint ' + index + ' lacks permanent footing within 80px for P' + (player + 1));
+    if (index) assert(cp.x > cps[index - 1].x && Math.hypot(cp.x - cps[index - 1].x, cp.y - cps[index - 1].y) >= 120, id + ': checkpoints must follow the route');
+  }
+  // These routes go right, including the two stair routes that turn upward. Each occupied
+  // horizontal screen needs a flag; climbing levels also need at least one flag per vertical view.
+  for (let screen = 0; screen < Math.ceil(level.w / 1280); screen++) assert(cps.some(cp => Math.floor(cp.x / 1280) === screen), id + ': screen ' + (screen + 1) + ' lacks checkpoint');
+  if (vertical) for (let screen = 0; screen < Math.ceil(level.h / 720); screen++) assert(cps.some(cp => Math.floor(cp.y / 720) === screen), id + ': vertical screen ' + (screen + 1) + ' lacks checkpoint');
   if (id === 'van-11') assert(level.rects.every((r) => r.material === 'ice'));
   assert.equal(replay.level, id);
   assert.equal(replay.players, 4, 'every replay must exercise all four players');
@@ -84,7 +130,7 @@ function validate(level, replay, id) {
 async function inspect(createSim, runReplay, level, replay) {
   const sim = await createSim(level, 4);
   const step = sim.step.bind(sim);
-  const evidence = { chainSeconds: 0, throws: 0, ropeGrabs: 0, propGrabs: 0, maxTilt: 0 };
+  const evidence = { chainSeconds: 0, throws: 0, ropeGrabs: 0, propGrabs: 0, maxTilt: 0, checkpointTimes: [], cookieGrabs: (level.fading ?? []).map(() => 0), springBounces: (level.springs ?? []).map(() => 0), iceGrabs: 0 };
   sim.step = (dt) => {
     const before = sim.players.map((p) => p.arms.map((a) => a.grip && ({ kind: a.grip.kind, player: a.grip.player })));
     const velocities = sim.players.map((p) => ({ ...p.body }));
@@ -100,7 +146,15 @@ async function inspect(createSim, runReplay, level, replay) {
         if (v.x > level.spawn.x + 50 && v.vx > 150 && v.vy < -100) evidence.throws++;
       }
     }));
-    for (const e of sim.events) if (e.type === 'grab') {
+    for (const e of sim.events) {
+      if (e.type === 'checkpoint') {
+        assert.equal(e.index, evidence.checkpointTimes.length, level.id + ': skipped or reordered checkpoint');
+        evidence.checkpointTimes.push(sim.time);
+      }
+      if (e.type === 'bounce') evidence.springBounces[e.spring]++;
+      if (e.type !== 'grab') continue;
+      (level.fading ?? []).forEach((r, i) => { if (e.kind === 'terrain' && contains(r, e)) evidence.cookieGrabs[i]++; });
+      if (e.kind === 'terrain' && level.rects.some(r => r.material === 'ice' && contains(r, e))) evidence.iceGrabs++;
       if (e.kind === 'rope') evidence.ropeGrabs++;
       if (e.kind === 'prop') evidence.propGrabs++;
     }
@@ -218,24 +272,35 @@ try {
   await build({ stdin: { contents: "export {createSim} from './src/physics/world'; export {runReplay} from './src/physics/replay';", resolveDir: root }, bundle: true, platform: 'node', format: 'esm', outfile: entry, logLevel: 'silent' });
   const { createSim, runReplay } = await import(pathToFileURL(entry).href);
   const entries = [];
-  console.log('| Level | Seconds | P1 deaths | P2 deaths | P3 deaths | P4 deaths | All reached | Par ratio |');
-  console.log('| --- | ---: | ---: | ---: | ---: | ---: | :---: | ---: |');
+  console.log('| Level | Seconds | P1 deaths | P2 deaths | P3 deaths | P4 deaths | All reached | Par ratio | Size | Checkpoint segments (s) | Cookie grabs / Candle bounces |');
+  console.log('| --- | ---: | ---: | ---: | ---: | ---: | :---: | ---: | --- | --- | --- |');
   for (const id of ids) {
     const level = await readJSON(join(levelsDir, `${id}.json`));
     const replay = await readJSON(join(levelsDir, 'replays', `${id}.json`));
     validate(level, replay, id);
     const { result, evidence } = await inspect(createSim, runReplay, level, replay);
     const ratio = result.seconds / level.par.seconds;
-    console.log(`| ${id} | ${result.seconds.toFixed(2)} | ${result.deaths.join(' | ')} | ${result.won ? 'YES' : 'NO'} | ${ratio.toFixed(3)} |`);
+    const times = [0, ...evidence.checkpointTimes, result.seconds];
+    const segments = times.slice(1).map((t, i) => t - times[i]);
+    console.log(`| ${id} | ${result.seconds.toFixed(2)} | ${result.deaths.join(' | ')} | ${result.won ? 'YES' : 'NO'} | ${ratio.toFixed(3)} | ${level.w}×${level.h} | ${segments.map(t => t.toFixed(2)).join(' / ')} | ${evidence.cookieGrabs.join(',') || '—'} / ${evidence.springBounces.join(',') || '—'} |`);
+    assert(evidence.cookieGrabs.every(n => n > 0), id + ': cookie was bypassed (needs terrain grab point inside every cookie)');
+    assert(evidence.springBounces.every(n => n > 0), id + ': candle was bypassed (needs bounce from every candle)');
+    assert.equal(evidence.checkpointTimes.length, level.checkpoints.length, id + ': replay missed checkpoint');
+    assert(segments.every(t => t >= 15 && t <= 60), id + ': checkpoint segment outside 15–60s: ' + segments.map(t => t.toFixed(2)).join('/'));
+    if (id === 'van-12') assert([evidence.ropeGrabs > 0, evidence.propGrabs > 0 && evidence.maxTilt > 0.05, evidence.iceGrabs > 0, evidence.cookieGrabs.length > 0 && evidence.cookieGrabs.every(n => n > 0), evidence.springBounces.length > 0 && evidence.springBounces.every(n => n > 0)].filter(Boolean).length >= 4, id + ': use at least four recap mechanics');
     assert(result.won, `${id}: replay did not reach the goal: ${JSON.stringify(result.final)}`);
     assert(ratio >= 0.5 && ratio <= 2, `${id}: time outside par × [0.5, 2]`);
     assert(result.deaths.every((d) => d <= level.par.deathsPerPlayer * 4), `${id}: too many deaths`);
+    assert(result.deaths.reduce((sum, d) => sum + d, 0) <= level.par.deathsPerPlayer * 4, `${id}: team deaths exceed budget`);
     if (id === 'table-06') assert(evidence.chainSeconds >= 0.25, 'level 6 must actually hang as a chain');
     if (id === 'van-10') assert(evidence.throws >= 2, 'level 10 must release flying teammates');
     if (id === 'table-05' || id === 'van-12') assert(evidence.ropeGrabs > 0, `${id}: rope was bypassed`);
     if (id === 'van-09' || id === 'van-12') assert(evidence.propGrabs > 0 && evidence.maxTilt > 0.05, `${id}: seesaw was bypassed`);
     entries.push({ level, replay, result, evidence });
   }
+  assert(entries.filter(e => e.level.fading?.length).length >= 4, 'at least four levels need cookies');
+  assert(entries.filter(e => e.level.springs?.length).length >= 4, 'at least four levels need candles');
+  assert(entries.filter(e => e.level.fading?.length && e.level.springs?.length).length >= 2, 'at least two levels need both cookies and candles');
   for (const { level, replay, evidence } of entries.filter((e) => ['table-06', 'van-10'].includes(e.level.id))) {
     // Replay each recorded controller alone, without moving spawn or injecting state.
     for (let player = 0; player < 4; player++) {
@@ -252,7 +317,7 @@ try {
     assert.equal(png.readUInt32BE(20), 720);
   }
   if (process.argv.includes('--screenshots') || process.argv.includes('--serve')) await serve(entries, process.argv.includes('--screenshots'));
-  console.log('levels: 12/12 PASS; geometry, materials, four pads/frame, par, deaths, mechanics and solo controls PASS');
+  console.log('levels: 12/12 PASS; geometry, materials, four pads/frame, par, deaths, mechanics, sizes, checkpoint segments, cookies/candles, object budgets and solo controls PASS');
 } catch (error) {
   console.error(`levels: FAIL — ${error.message}`);
   process.exitCode = 1;

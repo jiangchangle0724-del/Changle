@@ -1,6 +1,6 @@
 import { CARDS, PACKS } from "../../../data/straightface";
-import { createGame, DEFAULT_OPTIONS, foolCounts, GameError, MAX_PLAYERS, MIN_PLAYERS, nextJudge, privateView, publicView, reduce, removePlayer, type Deps } from "../../straightface/engine";
-import type { GameEvent, GameState, Level, NetSetup, PublicView, StraightFaceView } from "../../straightface/types";
+import { awards, cardOf, cleanOwn, createGame, DEFAULT_OPTIONS, foolCounts, GameError, MAX_PLAYERS, MIN_PLAYERS, nextJudge, OWN_LIMITS, OWN_PREFIX, privateView, publicView, reduce, removePlayer, type Deps } from "../../straightface/engine";
+import type { CrowdView, GameEvent, GameState, Level, NetSetup, OwnDraft, PublicView, StraightFaceView } from "../../straightface/types";
 import { intIn, t, type Api, type GameDef } from "../api";
 
 /**
@@ -21,7 +21,18 @@ type S = {
   stepAt: number;
   /** this round's master bluffer has picked: whom (once per round) */
   picked: { round: number; target: string } | null;
+  /** cards the table has played before (every phone hands in its own): the deal takes others first */
+  seen: string[];
+  /** 自己出题: each player's word, written before the deal; only its writer's phone ever sees it */
+  own: Record<string, OwnDraft>;
+  /** the audience's bets this round (keyed by the round's number and word), and their tally over the game */
+  crowd?: { round: string; bets: Record<string, string>; right: Record<string, number> };
 };
+
+/** Which round the audience's bets are for: its number and its word (a round dealt again after someone left gets a new word). */
+const roundKey = (g: GameState) => (g.current ? `${g.current.index}:${g.current.cardId}` : "");
+/** The phases the audience may bet in: from the first explanation until the verdict. */
+const CROWD_OPEN: GameState["phase"][] = ["explain", "bets", "accuse"];
 
 const deps: Deps = { cards: CARDS };
 
@@ -35,6 +46,16 @@ const NOTE = {
 const VERDICT_DELAY = 4200;
 
 const LEVELS: Level[] = [1, 2, 3];
+const CARD_IDS = new Set(CARDS.map((c) => c.id));
+/** How many played cards a table remembers (the phones each send their most recent 300). */
+const SEEN_MAX = 900;
+
+/** Cards added to what the table has seen, the newest kept. */
+function remember(seen: string[], ids: unknown[]): string[] {
+  const add = ids.filter((x): x is string => typeof x === "string" && CARD_IDS.has(x));
+  const keep = seen.filter((x) => !add.includes(x));
+  return [...keep, ...new Set(add)].slice(-SEEN_MAX);
+}
 
 /** One event through the rules; false when they refuse it (a late tap, a double tap, out of turn). */
 function step(s: S, ev: GameEvent, api: Api): boolean {
@@ -66,12 +87,26 @@ function tableView(g: GameState): PublicView {
   return v.reveal ? { ...v, reveal: { ...v.reveal, result: { ...v.reveal.result, preLines: [], lines: [], penalties: [] } } } : v;
 }
 
+/** The audience as one phone sees it: the count, its own bet; whom the others backed only from the verdict. */
+function crowdView(s: S, g: GameState, pid: string): CrowdView {
+  const live = s.crowd?.round === roundKey(g) ? s.crowd.bets : {};
+  const inGame = g.players.some((p) => p.id === pid);
+  const revealed = g.phase === "reveal" || g.phase === "between" || g.phase === "finished";
+  return {
+    count: Object.keys(live).length,
+    mine: inGame ? null : (live[pid] ?? null),
+    canBet: !inGame && CROWD_OPEN.includes(g.phase) && !live[pid],
+    bets: revealed ? live : null,
+    right: s.crowd?.right ?? {},
+  };
+}
+
 export const straightface: GameDef<S> = {
   id: "straightface",
   min: MIN_PLAYERS,
 
   init(api) {
-    return { setup: { packs: null, level: 2, seeds: true, bets: true }, g: null, stepAt: api.now, picked: null };
+    return { setup: { packs: null, level: 2, seeds: true, bets: true, own: false }, g: null, stepAt: api.now, picked: null, seen: [], own: {} };
   },
 
   act(s, pid, a, api) {
@@ -94,11 +129,33 @@ export const straightface: GameDef<S> = {
         }
         if (typeof a.seeds === "boolean") s.setup.seeds = a.seeds;
         if (typeof a.bets === "boolean") s.setup.bets = a.bets;
+        if (typeof a.own === "boolean") s.setup.own = a.own;
         return;
       }
+      case "write": {
+        // 自己出题: a player at the table writes (or rewrites, or takes back) their word before the deal
+        if (g || !s.setup.own || !api.ids().includes(pid)) return refuse();
+        const term = cleanOwn(a.term, OWN_LIMITS.term);
+        const definition = cleanOwn(a.definition, OWN_LIMITS.definition);
+        if (!term) {
+          s.own ??= {};
+          delete s.own[pid];
+          return;
+        }
+        if (!definition) return refuse();
+        s.own = { ...(s.own ?? {}), [pid]: { term, definition, fact: cleanOwn(a.fact, OWN_LIMITS.fact) } };
+        return;
+      }
+      case "seen": {
+        // a phone hands in the cards it has played; nobody else hears of it until the deal
+        if (g || !Array.isArray(a.ids)) return refuse();
+        s.seen = remember(s.seen ?? [], a.ids.slice(0, 400));
+        return refuse();
+      }
       case "deal": {
-        const ids = api.ids();
-        if (!host || g || ids.length < MIN_PLAYERS || ids.length > MAX_PLAYERS) return refuse();
+        // the first nine to sit down play; anyone after them is the audience
+        const ids = api.ids().slice(0, MAX_PLAYERS);
+        if (!host || g || ids.length < MIN_PLAYERS) return refuse();
         const packs = s.setup.packs ?? [];
         const all = PACKS.every((p) => packs.includes(p));
         const game = createGame(
@@ -106,8 +163,11 @@ export const straightface: GameDef<S> = {
           { ...DEFAULT_OPTIONS, mode: "online", bluffSeeds: s.setup.seeds, sideBets: s.setup.bets, penalties: true, packs: all ? [] : packs },
           api.int(0x7fffffff) + 1,
         );
+        // 自己出题: the words of the players sitting at the deal
+        const own = s.setup.own ? ids.filter((id) => s.own?.[id]).map((id) => ({ id: OWN_PREFIX + id, authorId: id, ...s.own[id] })) : [];
         try {
-          s.g = reduce(game, { type: "START_ROUND", level: s.setup.level }, deps);
+          // cards this table has played before come last (the engine falls back to them when a pack runs dry)
+          s.g = reduce({ ...game, usedCardIds: [...(s.seen ?? [])], ownCards: own }, { type: "START_ROUND", level: s.setup.level }, deps);
         } catch (e) {
           if (e instanceof GameError) return refuse();
           throw e;
@@ -148,8 +208,25 @@ export const straightface: GameDef<S> = {
         if (!g || !judge || (pid !== judge && !host) || !step(s, { type: "CLOSE_BETS", byPlayerId: judge }, api)) return refuse();
         return;
       }
+      case "guess": {
+        // the audience backs someone as the honest one: once a round, for their own board only
+        const target = String(a.target ?? "");
+        if (!g || !r || !s.setup.bets || !CROWD_OPEN.includes(g.phase) || playing || !api.has(pid) || !r.speakOrder.includes(target)) return refuse();
+        const key = roundKey(g);
+        const crowd = s.crowd?.round === key ? s.crowd : { round: key, bets: {}, right: s.crowd?.right ?? {} };
+        if (crowd.bets[pid]) return refuse();
+        s.crowd = { ...crowd, bets: { ...crowd.bets, [pid]: target } };
+        return;
+      }
       case "accuse": {
+        const key = g ? roundKey(g) : "";
         if (!g || !step(s, { type: "ACCUSE", byPlayerId: pid, targetId: String(a.target ?? "") }, api)) return refuse();
+        // the verdict: the audience's bets count on their board
+        if (s.crowd?.round === key && r) {
+          const right = { ...s.crowd.right };
+          for (const [who, target] of Object.entries(s.crowd.bets)) if (target === r.honestId) right[who] = (right[who] ?? 0) + 1;
+          s.crowd = { ...s.crowd, right };
+        }
         const res = s.g?.current?.result;
         for (const p of res?.penalties ?? []) {
           if (p.why === "fooled") api.penalty([p.playerId], "sip", NOTE.fooled, { delay: VERDICT_DELAY });
@@ -180,6 +257,10 @@ export const straightface: GameDef<S> = {
       }
       case "again": {
         if (!host || !g || g.phase !== "finished") return refuse();
+        s.seen = remember(s.seen ?? [], g.rounds.map((r) => r.cardId));
+        // a new game, new words, a new audience
+        s.own = {};
+        s.crowd = undefined;
         s.g = null;
         s.picked = null;
         s.stepAt = api.now;
@@ -190,7 +271,11 @@ export const straightface: GameDef<S> = {
   },
 
   leave(s, pid, api) {
-    if (!s.g) return;
+    // before the deal, a word goes with the one who wrote it
+    if (!s.g) {
+      if (s.own?.[pid]) delete s.own[pid];
+      return;
+    }
     const before = s.g;
     s.g = removePlayer(before, pid);
     if (s.g !== before && (s.g.phase !== before.phase || s.g.current?.speakerIdx !== before.current?.speakerIdx)) s.stepAt = api.now;
@@ -210,6 +295,7 @@ export const straightface: GameDef<S> = {
       me: g && g.players.some((p) => p.id === pid) ? privateView(g, pid, deps) : null,
       stepAt: s.stepAt,
       nextJudge: g && (g.phase === "between" || g.phase === "lobby") ? nextJudge(g) : null,
+      cardId: revealed && r ? r.cardId : null,
       facts: revealed && r && r.accusedId ? { judgeId: r.judgeId, honestId: r.honestId, accusedId: r.accusedId, suspectId: r.suspectId, bets: r.bets, level: r.level } : null,
       master: masterOf(s),
       picked: g && r && s.picked?.round === r.index && revealed ? s.picked.target : null,
@@ -217,10 +303,13 @@ export const straightface: GameDef<S> = {
       learned:
         g?.phase === "finished"
           ? g.rounds.flatMap((rd) => {
-              const c = CARDS.find((x) => x.id === rd.cardId);
+              const c = cardOf(g, deps, rd.cardId, rd.level);
               return c ? [{ term: c.term, definition: c.definition }] : [];
             })
           : null,
+      awards: g?.phase === "finished" ? awards(g) : null,
+      writing: !g && s.setup.own ? { written: Object.keys(s.own ?? {}), mine: s.own?.[pid] ?? null } : null,
+      crowd: g && s.setup.bets ? crowdView(s, g, pid) : null,
     };
   },
 };

@@ -1,7 +1,7 @@
 // One person who doesn't know what to eat: a few taps (mood, which side of the menu, budget, how
-// far, diet card) become a short list of places, each with the reasons it was picked.
-import { RANGES, distanceMeters, travelMinutes } from "./clock";
-import { eligible, nudge, score } from "./pick";
+// far, diet card) become a ranked list of every place open in range and budget, the ones that fit
+// the mood and the side first, each with the reasons it is where it is.
+import { eligible, rank, reasonsFor, type Reason } from "./pick";
 import type { Center, CuisineId, Limits, Place, RangeId } from "./types";
 
 export type SoloMood = "warm" | "bold" | "light" | "sweet" | "any";
@@ -15,7 +15,7 @@ export interface SoloAnswers {
 export const SOLO_MOODS: SoloMood[] = ["warm", "bold", "light", "sweet", "any"];
 export const SOLO_SIDES: SoloSide[] = ["chinese", "jk", "asia", "west", "any"];
 
-/** Cuisines that fit each mood. A place matching the mood gets a boost, not a guarantee. */
+/** Cuisines that fit each mood. A place matching the mood moves up, nothing more. */
 export const MOOD_CUISINES: Record<Exclude<SoloMood, "any">, CuisineId[]> = {
   warm: ["hotpot", "ramen", "vietnamese", "chinese", "cantonese", "korean", "taiwanese", "hk_cafe"],
   bold: ["sichuan", "hotpot", "korean", "thai", "indian", "mexican", "western", "sea"],
@@ -23,7 +23,7 @@ export const MOOD_CUISINES: Record<Exclude<SoloMood, "any">, CuisineId[]> = {
   sweet: ["brunch", "hk_cafe", "taiwanese"],
 };
 
-/** Which side of the menu: these are kept when there are enough of them nearby. */
+/** Which side of the menu. Its places move up; the others stay on the list below them. */
 export const SIDE_CUISINES: Record<Exclude<SoloSide, "any">, CuisineId[]> = {
   chinese: ["cantonese", "hk_cafe", "sichuan", "hotpot", "taiwanese", "chinese"],
   jk: ["japanese", "ramen", "korean"],
@@ -31,26 +31,12 @@ export const SIDE_CUISINES: Record<Exclude<SoloSide, "any">, CuisineId[]> = {
   west: ["italian", "mexican", "western", "middle_eastern", "seafood", "brunch", "vegetarian"],
 };
 
-export type SoloReason = "mood" | "side" | "budget" | "near" | "list" | "pick" | "fans" | "topRated";
-
-/** Shown in batches of this many; each further batch is behind "show me others" and fetched then. */
-export const SOLO_BATCH = 3;
-export const SOLO_COUNT = 12;
-/** Below this many places on the chosen side, the side is relaxed and the rest come back. */
-const SIDE_MIN = 3;
+/** The top of one person's list: full cards with photos, each a different cuisine. */
+export const SOLO_TOP = 3;
 /** How much a mood match counts, in "people who liked it in round 1" (see pick.ts WEIGHTS.likes). */
 const MOOD_BOOST = 1.5;
-/**
- * A place with hardly any Google ratings is an unknown, not an average place: one person on their
- * own has no table to vote it down, so it gives way to places people have rated.
- */
-const FEW_RATINGS = 20;
-const UNKNOWN_PENALTY = 0.4;
-/**
- * A place this person was shown in the last two weeks gives way to ones they haven't seen: it drops
- * by about two-thirds of a Google star, so it still comes back when nothing unseen comes close.
- */
-export const SEEN_PENALTY = 0.45;
+/** The side of the menu asked for, in score points: about a Google star and a half. */
+export const SIDE_BOOST = 1;
 
 export function cleanAnswers(x: unknown): SoloAnswers {
   const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
@@ -59,23 +45,12 @@ export function cleanAnswers(x: unknown): SoloAnswers {
   return { mood, side };
 }
 
-const moodFits = (a: SoloAnswers, c: CuisineId) => a.mood !== "any" && MOOD_CUISINES[a.mood].includes(c);
-const sideFits = (a: SoloAnswers, c: CuisineId) => a.side !== "any" && SIDE_CUISINES[a.side].includes(c);
+export const moodFits = (a: SoloAnswers, c: CuisineId) => a.mood !== "any" && MOOD_CUISINES[a.mood].includes(c);
+export const sideFits = (a: SoloAnswers, c: CuisineId) => a.side !== "any" && SIDE_CUISINES[a.side].includes(c);
 
-/** Why a place made the list, best reasons first, at most three. */
-export function soloReasons(p: Place, a: SoloAnswers, limits: Limits, center: Center, range: RangeId): SoloReason[] {
-  const out: SoloReason[] = [];
-  if (p.recommend) out.push("pick");
-  if (p.badges?.length) out.push("list");
-  if (moodFits(a, p.cuisine)) out.push("mood");
-  if (sideFits(a, p.cuisine)) out.push("side");
-  const o = p.ours;
-  const total = o ? o.up + o.mid + o.down : 0;
-  if (o && total >= 3 && o.up / total >= 0.7) out.push("fans");
-  if ((p.rating ?? 0) >= 4.5 && (p.ratings ?? 0) >= 200) out.push("topRated");
-  if (limits.budget > 0 && p.price !== undefined && p.price <= limits.budget) out.push("budget");
-  if (travelMinutes(distanceMeters(center, p), RANGES[range].drive) <= 10) out.push("near");
-  return out.slice(0, 3);
+/** Why a place is where it is on one person's list, best reasons first, at most three. */
+export function soloReasons(p: Place, a: SoloAnswers, limits: Limits, center: Center, range: RangeId): Reason[] {
+  return reasonsFor(p, { limits, center, range, mood: moodFits(a, p.cuisine), side: sideFits(a, p.cuisine) });
 }
 
 export interface SoloInput {
@@ -85,64 +60,31 @@ export interface SoloInput {
   center: Center;
   range: RangeId;
   now: number;
-  count?: number;
-  /** Google ids of places this person was shown lately (see SEEN_PENALTY). */
-  seen?: readonly string[];
-  /** For the nudge (see JITTER in pick.ts); without it the order is fixed, as in tests. */
-  random?: () => number;
+  /** A planned meal; now when absent. */
+  at?: number;
 }
 
 /**
- * The places for one person: open now, inside their diet card and budget, on the side of the menu
- * they asked for when there are enough of those, scored like the table's cards with the mood
- * standing in for round 1's thumbs-up, places they were shown lately further down, and a small
- * random nudge so near-equal places take turns. Each batch of three tries to show three different
- * cuisines. `relaxed` is true when the chosen side had too few places and others were let in.
+ * Every place open now and within the budget, best first: scored like a table's list, with the mood
+ * standing in for round 1's thumbs-up and the side of the menu moving its places up. Someone's diet
+ * moves places down the same way as at a table. The top three are three different cuisines.
  */
-export function soloPick(input: SoloInput): { ids: string[]; relaxed: boolean } {
-  const count = input.count ?? SOLO_COUNT;
+export function soloRank(input: SoloInput): string[] {
   const { answers: a } = input;
-  let pool = eligible(input.places, input.limits, input.now);
-  let relaxed = false;
-  if (a.side !== "any") {
-    const onSide = pool.filter((p) => sideFits(a, p.cuisine));
-    if (onSide.length >= SIDE_MIN) pool = onSide;
-    else relaxed = pool.length > onSide.length;
-  }
   const likes: Partial<Record<CuisineId, number>> = {};
   if (a.mood !== "any") for (const c of MOOD_CUISINES[a.mood]) likes[c] = MOOD_BOOST;
-  const ctx = { likes, members: 1, center: input.center, range: input.range, now: input.now };
-  const seen = new Set(input.seen ?? []);
-  const ranked = pool
-    .map((p) => ({
-      p,
-      s:
-        score(p, ctx) +
-        (p.recommend ? 0.25 : 0) +
-        (p.badges?.length ? 0.15 : 0) -
-        ((p.ratings ?? 0) < FEW_RATINGS && !p.recommend ? UNKNOWN_PENALTY : 0) -
-        (seen.has(p.id) ? SEEN_PENALTY : 0) +
-        nudge(input.random),
-    }))
-    .sort((x, y) => y.s - x.s || x.p.id.localeCompare(y.p.id))
-    .map((x) => x.p);
-  const ids: string[] = [];
-  // Batch by batch: first a different cuisine for each slot, then whatever scores best.
-  while (ids.length < count && ids.length < ranked.length) {
-    const batch: Place[] = [];
-    const used = new Set<CuisineId>();
-    for (const p of ranked) {
-      if (batch.length >= SOLO_BATCH) break;
-      if (ids.includes(p.id) || used.has(p.cuisine)) continue;
-      batch.push(p);
-      used.add(p.cuisine);
-    }
-    for (const p of ranked) {
-      if (batch.length >= SOLO_BATCH) break;
-      if (!ids.includes(p.id) && !batch.includes(p)) batch.push(p);
-    }
-    if (!batch.length) break;
-    ids.push(...batch.map((p) => p.id));
-  }
-  return { ids: ids.slice(0, count), relaxed };
+  return rank({
+    places: eligible(input.places, input.limits, input.now, input.at),
+    limits: input.limits,
+    bans: {},
+    likes,
+    members: 1,
+    center: input.center,
+    range: input.range,
+    now: input.now,
+    at: input.at,
+    boost: (p) => (sideFits(a, p.cuisine) ? SIDE_BOOST : 0),
+    top: SOLO_TOP,
+    perCuisine: 1,
+  });
 }

@@ -10,8 +10,12 @@
 // Apple's search API allows about twenty calls a minute, so a full run takes a couple of hours.
 // It is safe to stop and start again: every call is cached in songcache/.
 //
+// Apple dates a song by the album it's on (a best-of reads as new): after adding songs, run
+// scripts/fix-songs.mjs, which moves their years back to the first release MusicBrainz knows of.
+//
 //     node scripts/build-songs.mjs            # everything
 //     node scripts/build-songs.mjs ko ja      # only some languages (or: world, charts)
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -364,19 +368,9 @@ ${lines.map((r) => "  " + r + ",").join("\n")}
 `;
   fs.writeFileSync(OUT, ts);
 
-  // The setup screen offers only the categories a language has songs in. It can't load the big list
-  // to find out, so the list's shape goes in a small file of its own.
-  const CATS_ORDER = Object.keys(CAT_BIT);
-  const MIN = 20;
-  const count = (langs, cat) => rows.filter((s) => langs.includes(s.l) && ((s.k ? s.k & CAT_BIT[cat] : cat === "pop" || (cat === "oldies" && s.y > 0 && s.y < 2003)))).length;
-  const pools = {};
-  for (const [key, langs] of [["mix", [0, 1]], ["zh", [0]], ["en", [1]], ["yue", [2]], ["ko", [3]], ["ja", [4]], ["vi", [5]]]) {
-    pools[key] = CATS_ORDER.filter((c) => count(langs, c) >= MIN);
-  }
-  fs.writeFileSync(
-    path.join(SITE, "src", "data", "songPools.ts"),
-    `/** The categories each language's songs come in (at least ${MIN} songs each), from the song list built on ${stamp}. Written by scripts/build-songs.mjs. */\nexport const POOL_CATS: Record<string, string[]> = ${JSON.stringify(pools)};\n`,
-  );
+  // The setup screen offers only the categories and decades a language has songs in, and the singer
+  // specials. It can't load the big list to find out, so the list's shape goes in a small file of its own.
+  execFileSync("npx", ["tsx", path.join(HERE, "song-pools.ts")], { cwd: SITE, stdio: "inherit" });
   fs.writeFileSync(path.join(CACHE, "missing.txt"), missing.join("\n"));
   log("wrote", OUT, fs.statSync(OUT).size, "bytes;", "artists with nothing usable:", missing.length);
   log("DONE");

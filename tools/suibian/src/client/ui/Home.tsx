@@ -5,6 +5,7 @@ import { api } from "../net";
 import { identity, inWeChat, prefs } from "../prefs";
 import { update, useApp } from "../store";
 import { Btn, DemoBanner, LangToggle } from "./common";
+import { WhenPicker } from "./WhenPicker";
 import { WhereFields, useWhere } from "./Where";
 
 export function Home({ go }: { go: (path: string) => void }) {
@@ -14,6 +15,7 @@ export function Home({ go }: { go: (path: string) => void }) {
   const where = useWhere(setErr);
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
+  const [at, setAt] = useState<number | null>(null);
 
   const create = async () => {
     const c = where.center();
@@ -21,7 +23,7 @@ export function Home({ go }: { go: (path: string) => void }) {
     const range = where.range;
     setBusy(true);
     prefs.start = { center: c, range };
-    const res = await api<{ code?: string; error?: string }>("/api/rooms", { method: "POST", body: JSON.stringify({ cid: identity().cid, center: c, range, lang: prefs.lang }) });
+    const res = await api<{ code?: string; error?: string }>("/api/rooms", { method: "POST", body: JSON.stringify({ cid: identity().cid, center: c, range, lang: prefs.lang, at }) });
     setBusy(false);
     if (res.ok && res.data.code) return go(`/r/${res.data.code}`);
     setErr(res.data.error === "quota" ? t("quota") : res.data.error === "login" ? t("loginWhy") : t("offline"));
@@ -71,6 +73,10 @@ export function Home({ go }: { go: (path: string) => void }) {
           </>
         ) : (
           <>
+            <div class="field">
+              <span>{t("when")}</span>
+              <WhenPicker value={at} onChange={setAt} />
+            </div>
             <WhereFields w={where} />
             <Btn kind="primary" wide disabled={busy || where.waiting} onClick={() => void create()}>
               {t("startTable")}

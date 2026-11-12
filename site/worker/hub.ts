@@ -7,6 +7,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
+import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
 /** The tables (Room objects), reached by code: the hub asks one to let someone go, or to close. */
 type RoomRpc = { adminKick(pid: string, ban: boolean): Promise<boolean>; pauseAll(keepUid: string): Promise<void> };
@@ -166,6 +167,8 @@ export class Hub extends DurableObject<HubEnv> {
       level TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'new', created_at INTEGER NOT NULL, decided_at INTEGER)`);
     q(`CREATE INDEX IF NOT EXISTS scenes_status ON scenes (status, id)`);
     q(`CREATE INDEX IF NOT EXISTS scenes_user ON scenes (user_id, id)`);
+    // 一本正经: how each card plays, and the cards players flag (worker/straightface.ts)
+    sfSchema(q);
     // the figure lifted off its backdrop, for the games' stages, and a version that changes with it
     const fcols = this.sql.exec(`PRAGMA table_info(figures)`).toArray().map((c) => String(c.name));
     if (!fcols.includes("cut")) q(`ALTER TABLE figures ADD COLUMN cut BLOB`);
@@ -301,6 +304,10 @@ export class Hub extends DurableObject<HubEnv> {
 
     // ---- 戏精大赏's public library: approved scenes, in the table's language ----
     if (path === "/scenes" && m === "GET") return ok({ scenes: this.liveScenes(String(b.lang ?? ""), Number(b.n ?? 12)) });
+
+    // ---- 一本正经: a round played, the cards' numbers, a card flagged (worker/straightface.ts) ----
+    const sf = sfPublic(path, m, b, { sql: this.sql, allow: (k, n, w) => this.allow(k, n, w), device: c.device, ip: c.ip, uid: me?.id ?? null });
+    if (sf) return sf;
 
     if (!me) return err(401, "signin");
     this.sql.exec(`UPDATE users SET last_seen = ? WHERE id = ?`, Date.now(), me.id);
@@ -859,6 +866,7 @@ export class Hub extends DurableObject<HubEnv> {
       `DELETE FROM blocks WHERE user_id = ? OR blocked = ?`,
       `UPDATE wishes SET user_id = NULL WHERE user_id = ?`,
       `DELETE FROM scenes WHERE user_id = ?`,
+      `UPDATE sf_reports SET user_id = NULL WHERE user_id = ?`,
       `DELETE FROM users WHERE id = ?`,
     ]) {
       const n = (s.match(/\?/g) ?? []).length;
@@ -1174,6 +1182,10 @@ export class Hub extends DurableObject<HubEnv> {
       this.sql.exec(`UPDATE scenes SET status = ?, decided_at = ? WHERE id = ?`, st, now, Number(sm[1]));
       return ok({ ok: true });
     }
+
+    // 一本正经: the cards players flagged, and how every card plays (worker/straightface.ts)
+    const sfa = sfAdmin(path, m, b, this.sql);
+    if (sfa) return sfa;
 
     if (path === "/admin/pause" && m === "POST") {
       const on = b.on === true;

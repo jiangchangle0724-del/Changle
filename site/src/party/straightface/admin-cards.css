@@ -1,0 +1,106 @@
+/* The back office's 一本正经 desk (AdminCards.tsx): flagged cards, the cards to fix, the numbers.
+   The cards themselves borrow the scenes desk's look (.adm-scene in styles/admin.css). */
+.sfa-h {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+}
+.sfa-lead {
+  margin: 0;
+  line-height: var(--leading);
+}
+.sfa-text {
+  display: grid;
+  gap: var(--space-1);
+}
+.sfa-reports {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+.sfa-reports li {
+  line-height: var(--leading);
+}
+.sfa-reports q {
+  display: block;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
+  background: var(--dusk-3);
+  quotes: none;
+}
+.sfa-decided li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--dusk-2);
+}
+.sfa-decided q {
+  flex: 1 0 100%;
+}
+.sfa-decided .btn {
+  margin-left: auto;
+}
+
+/* the numbers: two narrow tables that scroll sideways on a small phone rather than squash */
+.sfa-scroll {
+  overflow-x: auto;
+  border-radius: var(--r-field);
+  background: var(--dusk-2);
+  box-shadow: var(--shadow-flat);
+}
+.sfa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+}
+.sfa-table caption {
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  text-align: start;
+  color: var(--haze);
+}
+.sfa-table th,
+.sfa-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  vertical-align: top;
+  border-top: 1px solid var(--color-line-soft);
+}
+.sfa-table thead th {
+  border-top: 0;
+  color: var(--haze);
+  font-weight: 600;
+}
+.sfa-table tbody th {
+  font-weight: 600;
+}
+.sfa-table tbody th .hint {
+  display: block;
+  font-weight: 400;
+}
+.sfa-table td.tabular {
+  white-space: nowrap;
+}
+.sfa-table tr.is-easy td:last-child {
+  color: var(--color-warning);
+  font-weight: 700;
+}
+.sfa-verdict {
+  display: block;
+  color: var(--haze);
+}
+.sfa-verdict.is-ok {
+  color: var(--color-success);
+}
+.sfa-verdict.is-high,
+.sfa-verdict.is-low {
+  color: var(--color-warning);
+}
