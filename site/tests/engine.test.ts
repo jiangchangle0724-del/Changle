@@ -3371,6 +3371,85 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   ok(dv("p1").deck.now?.id === dead!.id && dv("p1").deck.song === null, "it lands as the DJ's remix alone: no whole song to wait for");
 });
 
+test("dj: 点歌模式 (the jukebox): the host's switch; no build-up, DROP or picks; the songs asked for one after another, the DJ a few seconds between them; the video over the whole TV on anyone's word", () => {
+  const e = new RoomEngine(freshRoom("DJJK", clock), host);
+  e.screenHello("tv-jk", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-jk", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(dv("p2").juke === false && dv("p2").full === false, "off to start with: the deck as it was, the video in its corner");
+  ok(nothing(g("p2", "juke", { on: true })), "only the host switches to 点歌模式");
+  ok(!nothing(g("p1", "juke", { on: true })) && dv("p3").juke === true, "the host does, and every phone reads it");
+  ok(nothing(g("p1", "juke", { on: true })), "switched on again: nothing more to do");
+  ok(nothing(g("p2", "charge", { n: 8 })), "no build-up in 点歌模式");
+  ok(nothing(g("p3", "vote", { style: "techno" })), "nor picks");
+  // a song asked for, nothing else playing: it starts a few seconds on, with no countdown to press
+  g("p2", "req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] });
+  ok(dv("p1").deck.up?.by === "p2", "Ben's song is up next");
+  advance(DECK.jukeWaitMs + 10);
+  const sw = dv("p1").deck.drop;
+  ok(!!sw && sw.quiet === true && sw.auto === true, "a moment later the switch into it is on its way, without the DJ's deck having the style yet (the song plays whole)");
+  const beat = 60_000 / 125;
+  ok(!!sw && sw.at - clock >= (DECK.jukeBeats - 0.01) * beat && sw.at - clock <= (DECK.jukeBeats + 4) * beat, `on the first bar ${DECK.jukeBeats} beats on (${Math.round(sw!.at - clock)} ms)`);
+  ok(dv("p1").deck.charge === 0, "the build-up stays empty");
+  clock = sw!.cue + 10;
+  ok(nothing(g("p3", "drop", { c: clock })), "DROP doesn't count on it");
+  advance(sw!.at - clock + 5);
+  const song = dv("p1").deck.song;
+  ok(song?.by === "p2" && song.yt === "kJQP7kiw5Fk" && dv("p1").deck.last?.quiet === true && dv("p1").deck.last?.hits.length === 0, "on its bar the song plays whole, a quiet switch (no boom, no party)");
+  // the next one, asked for while it plays, follows a few seconds after it ends
+  g("p3", "req", { yt: ["abcdefghijk", "Another", "Chan"] });
+  ok(dv("p1").deck.up?.by === "p3" && dv("p1").deck.drop === null, "Cat's is up next, waiting for Ben's to end");
+  advance(30_000);
+  ok(dv("p1").deck.drop === null && dv("p1").deck.song?.by === "p2", "nothing cuts Ben's song short");
+  ok(sc("songdone", { id: song!.id }) && dv("p1").deck.song === null, "it ends: the DJ comes back");
+  advance(DECK.jukeGapMs + 10);
+  const sw2 = dv("p1").deck.drop;
+  ok(!!sw2 && sw2.quiet === true, "a second later the switch into Cat's is on its way");
+  advance(sw2!.at - clock + 5);
+  ok(dv("p1").deck.song?.by === "p3", "and it plays");
+  // the video over the whole TV: anyone's word, back in its corner the same way
+  ok(!nothing(g("p2", "full", { on: true })) && dv("p1").full === true && dv("p3").full === true, "Ben puts the video over the whole TV");
+  ok(nothing(g("p3", "full", { on: true })), "asked again: nothing more to do");
+  ok(!nothing(g("p3", "full", { on: false })) && dv("p1").full === false, "Cat puts it back in its corner");
+  // back to the deck as it was: a song up next waits for the table's drop again
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }) && dv("p1").deck.song === null, "Cat's ends, nothing else asked for: the DJ plays on");
+  advance(DECK.jukeGapMs + 10);
+  ok(dv("p1").deck.drop === null, "and no switch is on its way");
+  ok(!nothing(g("p1", "juke", { on: false })) && dv("p2").juke === false, "the host switches back");
+  g("p2", "req", { yt: ["zyxwvutsrqp", "Third", "Chan"] });
+  advance(DECK.jukeWaitMs + 10);
+  ok(dv("p1").deck.up?.by === "p2" && dv("p1").deck.drop === null, "a song up next waits for the table's build-up and DROP again");
+  ok(!nothing(g("p2", "charge", { n: 8 })), "and the build-up takes taps again");
+  // a new set keeps the host's choice
+  g("p1", "juke", { on: true });
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p2").juke === true && dv("p2").full === false, "another set: still 点歌模式, the video back in its corner");
+});
+
 test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随机 or 按顺序; after a whole song the DJ plays a minute before the next", () => {
   const room = (code: string) => {
     const e = new RoomEngine(freshRoom(code, clock), host);

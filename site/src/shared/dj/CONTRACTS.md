@@ -156,6 +156,8 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `songskip` | the song's player, or the host | 真歌时间 over: the whole song stops, the DJ comes back. |
 | `voice` `{ on }` | the host | 报幕 on the big screen, on (the default) or off: `voice` in the view (below). |
 | `shuffle` `{ on }` | the host | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
+| `juke` `{ on }` | the host | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), or the deck as it was (the default): `juke` in the view, below. Another set keeps it. |
+| `full` `{ on }` | anyone | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
 | `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
 | `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
 | `nosong` `{ id }` | the speaker | The video of the song up next won't play here (YouTube said so while the TV got it ready): it comes off that song (`ytNo`), whose drop plays the DJ's remix alone. Only the song up next with a video; said again, nothing more. |
@@ -466,8 +468,9 @@ soon as one is asked for.
   through the pads' own way out (`overSong`). A drop on its way that nobody has pressed in time yet
   rolls the video muted just before its bar anyway (`expect`): a press that reaches the TV a moment
   before the bar (as they do) still starts it right on the bar; no press, it's held at its start
-  again 0.7 s after the bar. The player comes to the middle once the song is heard (or the room says
-  it plays); the drop's celebration goes up top, clear of it, with no style named.
+  again 0.7 s after the bar. The player stays in its corner once the song is heard (or the room
+  says it plays), over the whole TV while `full` is on; the drop's celebration goes up top, with no
+  style named.
 - **What a browser allows:** Chrome lets it start with sound after the speaker's start tap. Safari,
   and every browser on an iPhone or iPad, wants one tap on the video itself first (`tapFirst`):
   ready in its corner, the note asks for it (it plays a moment, then is held at its start again);
@@ -490,7 +493,19 @@ style carrying on; its player or the host can skip it from their phone (`songski
 most (the timer `song`). Then the DJ has its turn (Steve: "歌和 DJ 轮流"): the next song on the 歌单, up
 next already, waits at least a minute (`DECK.songGapMs`) before the DJ drops into it by itself; the
 table can build up and drop sooner. A big screen opened again mid-song picks the song up where the
-room is. The speaker's clip player (`clip/clip.ts`, a clip on the drop's bar over the deck's drums)
+room is. The video plays in the same corner it waited in (Steve on Nov 5: the floor and the coach in
+sight), over the whole TV while `full` is on (anyone's switch on their phone: `full`).
+
+**点歌模式** (`juke`, the host's switch, Nov 5): no build-up, no DROP and no picks (the room turns
+`charge`, `vote` and DROP on its switch away; the phones and the big screen show the mode instead).
+A song asked for goes up next as always, and `DECK.jukeWaitMs` later (a moment for the big screen to
+get it ready) the DJ's switch into it is set on the first bar `DECK.jukeBeats` beats on: an auto drop
+with `quiet` (no countdown, no boom, no build-up on the speaker, no celebration; `last.quiet` when
+it lands), into the deck off the air without waiting for the DJ to have the song's style (it plays
+whole, the DJ quiet under it). A song asked for while one plays waits for it to end; then the DJ
+comes back for `DECK.jukeGapMs` and the switch into the next is set the same way (about 5 seconds of
+DJ between two songs at 125 BPM). With none waiting the DJ plays on. A song with no video (the DJ's
+remix) still waits for the DJ's deck to have its style. The speaker's clip player (`clip/clip.ts`, a clip on the drop's bar over the deck's drums)
 has no source now: Apple's previews are gone.
 
 ## A night of the host's songs (`local`, Nov 2)
