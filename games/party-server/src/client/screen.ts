@@ -1,23 +1,27 @@
 // The speaker page, /party/screen: the room's clock, its sound, its coach. It runs on a Mac or an
 // iPad mirrored to the TV (AirPlay), so the room hears it a little late: the calibration measures how
 // late. It opens the room, shows the code and the QR code, and reports its clock to the room every
-// second, so the phones can set theirs by it. When a dance plays it plays the beat (synth.ts) or a
-// song's video (tube.ts: YouTube's own player, in sight in the corner; it tells the room where the
-// song's beat really is), the 3D coach dancing on it, the words, the floor together and everyone's
-// little dancer; then the results. In the lobby: 歌曲对拍, tapping along to a song once so its dance
-// knows where its beat is (the songbook).
+// second, so the phones can set theirs by it. When a dance plays it plays its tune (tunes.ts, on
+// synth.ts's instruments; the plain beat for a dance without one) or a song's video (tube.ts:
+// YouTube's own player, in sight in the corner; it tells the room where the song's beat really
+// is), the 3D coach dancing on it, the words, the floor together and everyone's little dancer;
+// then the results. A song nobody has danced yet starts with 找拍子: its video plays
+// and everyone taps along on their phones until this page has the beat, kept in the songbook for
+// every room; then the song starts from its start. In the lobby: 歌曲对拍, tapping along to a song
+// on this page alone (to do one again).
 import qrcode from "qrcode-generator";
 import { calibrateFromTaps, type CalibrationResult, type RoomState } from "../../../party-base/src/index";
 import { COMBO_FULL, SONG_SYNC_MS, type Floor, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, introOf, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
 import { SONGS, songById, type Song } from "../shared/songs";
-import { TAPS_WANTED, tapAlong } from "../shared/tapalong";
+import { TAPS_WANTED, tapAlong, tapIn } from "../shared/tapalong";
 import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tapTime, tr, wsUrl } from "./common";
 import { anyGl, canCoach, doingAt, glowOf } from "./coach/index";
 import { Crowd, PLAYER_COLORS, type Dancer } from "./coach/crowd";
 import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
 import { Tube } from "./tube";
+import { tuneFor } from "./tunes";
 import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, moveHow, moveName, moveOther, routineName, songArtist, songTitle, stageHint, stageName } from "./words";
 
 /** Calibration: 8 clicks, 1.2 s apart (so a tap up to 400 ms late still pairs with the right click). */
@@ -98,7 +102,10 @@ const tubeBox = el("div", "tube-box");
 const tubeCaption = el("p", "tube-caption");
 tubeBox.append(tube.box, tubeCaption);
 document.body.append(tubeBox);
-tube.onChange = () => renderTube();
+tube.onChange = () => {
+  renderTube();
+  renderFind();
+};
 /** Each song's first beat as tapped along to (the songbook, /party/api/songs). */
 let songbook: Record<string, { firstBeatMs: number }> = {};
 /** What this page has told the room about the song starting (once per start). */
@@ -111,6 +118,15 @@ let tapSong: Song | null = null;
 let tapTaps: number[] = [];
 let tapResult = "";
 let tapPosting = false;
+/**
+ * 找拍子: the song being found (its run's key), everyone's taps so far (speaker time, and whose), the
+ * video's start they go by, whether the beat went to the room, and what the TV says about it.
+ */
+let finding: { key: string; taps: { at: number; who: string }[]; zero: number | null; goAt: number | null; sent: boolean; note: string } | null = null;
+/** 找拍子 gives up when the video is this far in with no beat found (ms). */
+const FIND_GIVE_UP_MS = 90_000;
+/** 找拍子 goes by the latest taps: this many at most (earlier ones may have been people finding the beat). */
+const FIND_KEEP = 32;
 
 async function loadSongbook() {
   try {
@@ -147,6 +163,10 @@ function songTick() {
   tube.load(cur.song.videoId);
   const st = state!;
   const r = routine!;
+  if (st.phase === "learning" && r.leadStartAt === null && r.tapIn) {
+    findTick(cur.song, `${r.routineId}|${r.mode}|${st.updatedAt ?? ""}`);
+    return;
+  }
   if (st.phase === "learning" && r.leadStartAt === null) {
     // the room waits for the video: held ready, or won't play here
     const key = `${r.routineId}|${r.mode}|${st.updatedAt ?? ""}`;
@@ -178,6 +198,70 @@ function songTick() {
       }
     }
   }
+}
+
+/**
+ * 找拍子, every 25 ms: the video from its start (Safari: once someone has tapped it), everyone's taps
+ * against it; with enough of them that agree, the song's first beat goes to the room (songTapped).
+ */
+function findTick(song: Song, key: string) {
+  if (finding?.key !== key) {
+    finding = { key, taps: [], zero: null, goAt: null, sent: false, note: "" };
+    render();
+  }
+  const f = finding;
+  if (tube.status === "bad" || tube.status === "offline") {
+    if (songFailedSent !== key) {
+      sock?.send({ t: "songFailed", why: tube.status });
+      songFailedSent = key;
+    }
+    return;
+  }
+  // (asked once, for one moment: asked again and again for "now", it would never start)
+  if (tube.ready) tube.playAt((f.goAt ??= pageClock() + 400));
+  if (!tube.playing || f.sent) return;
+  const z = tube.zero();
+  if (z === null) return;
+  // (the video stalled or jumped: taps from before go by another start)
+  if (f.zero !== null && Math.abs(z - f.zero) > 60) {
+    f.taps = [];
+    f.note = tr("歌卡了一下，接着点", "The song stalled: keep tapping");
+    renderFind();
+  }
+  f.zero = z;
+  const into = pageClock() - z;
+  if (into > FIND_GIVE_UP_MS && songFailedSent !== key) {
+    sock?.send({ t: "songFailed", why: "notap" });
+    songFailedSent = key;
+  }
+}
+
+/** A tap for 找拍子 (speaker time): from a phone, or this page's own button. */
+function findTap(at: number, who: string) {
+  const f = finding;
+  if (!f || f.sent || !tube.playing || state?.phase !== "learning" || !routine?.tapIn) return;
+  f.taps.push({ at, who });
+  if (f.taps.length > FIND_KEEP) f.taps.splice(0, f.taps.length - FIND_KEEP);
+  if (who !== "speaker") heres.set(who, performance.now() + 250);
+  const song = currentSong()?.song;
+  if (song && f.zero !== null && f.taps.length >= TAPS_WANTED) {
+    const off = state.audioOffsetMs ?? 0;
+    const beatMs = 60000 / song.bpm;
+    const r = tapIn(
+      f.taps.map((t) => t.at - off - f.zero!).filter((t) => t >= 0),
+      beatMs,
+    );
+    if (r.ok) {
+      // (the dance has to be over before the video is: a beat found late moves back whole 8-counts)
+      const duration = tube.durationMs();
+      let first = r.firstBeatMs;
+      while (duration !== null && first + song.beats * beatMs > duration - 1000 && first - 8 * beatMs >= 0) first -= 8 * beatMs;
+      sock?.send({ t: "songTapped", firstBeatMs: Math.round(first), taps: r.taps, spreadMs: r.spreadMs, durationMs: duration });
+      f.sent = true;
+      f.note = tr("找到拍子了！从头开始放", "Found the beat! From the top");
+    } else f.note = r.why === "few" ? "" : tr("还没对齐：听鼓点，一拍点一下", "Not together yet: listen for the drums, one tap a beat");
+  }
+  renderFind();
 }
 
 /** The line under the video: what it's doing, or what it needs. */
@@ -241,6 +325,7 @@ function onMsg(m: ServerMsg) {
   switch (m.t) {
     case "state": {
       const before = state?.phase;
+      const wasTapIn = !!routine?.tapIn && before === "learning";
       state = m.state;
       routine = m.routine;
       results = m.results;
@@ -248,8 +333,10 @@ function onMsg(m: ServerMsg) {
       if (state.phase !== "dancing") floor = null;
       if (state.phase === "results" && before === "dancing") synth.fanfare();
       if (state.phase === "lobby") pulses.clear();
-      // a song starting (again): its video from its start
-      if (routine?.routineId.startsWith("song-") && ((state.phase === "learning" && before !== "learning") || (state.phase === "dancing" && before === "results"))) tube.stop();
+      // a song starting (again), or 找拍子 done: its video from its start
+      const found = wasTapIn && !routine?.tapIn && state.phase === "learning";
+      if (routine?.routineId.startsWith("song-") && ((state.phase === "learning" && before !== "learning") || (state.phase === "dancing" && before === "results") || found)) tube.stop();
+      if (!routine?.tapIn || state.phase !== "learning") finding = null;
       plan();
       if (state.phase === "calibrating" && before !== "calibrating") startCalibration(1);
       if (state.phase !== "calibrating") stopCalibration();
@@ -278,6 +365,7 @@ function onMsg(m: ServerMsg) {
       return;
     case "tap":
       if (cal && !cal.result) cal.taps.push(m.at);
+      else if (finding) findTap(m.at, m.playerId);
       renderStatus();
       return;
     case "here":
@@ -373,7 +461,7 @@ function schedule() {
     if (b.count === 1 && b.stage !== "countdown" && prev) p.phrase++;
     // (a song's own music plays from its intro on: the synth only teaches its moves)
     const song = p.show.kind === "song" && (b.stage === "intro" || b.stage === "countdown" || b.stage === "dance");
-    if (b.t >= now - 5 && !song) playBeat(synth, b, prev, p.phrase, p.show.kind === "metronome");
+    if (b.t >= now - 5 && !song) playBeat(synth, b, prev, p.phrase, p.show.kind === "metronome", tuneFor(p.show.routine?.id));
     p.next++;
   }
 }
@@ -408,6 +496,8 @@ const parts: {
   progress?: HTMLElement;
   floorBar?: HTMLElement;
   floorText?: HTMLElement;
+  findCount?: HTMLElement;
+  findNote?: HTMLElement;
 } = {};
 /** What the coach shows, so a frame only touches the page when it changes. */
 let shown = "";
@@ -448,6 +538,7 @@ function render() {
   main.append(joinCard(run));
   const stage = el("section", "stage");
   if (run) stage.append(coach());
+  else if (state?.phase === "learning" && routine?.tapIn) stage.append(findPanel());
   else if (tapPanel && state?.phase === "lobby") stage.append(tapAlongPanel());
   else {
     stage.append(el("h2", "phase", phaseTitle()));
@@ -457,7 +548,7 @@ function render() {
     stage.append(parts.count);
     if (state?.phase === "results" && results) stage.append(resultsCard(results));
     if (state?.phase === "lobby") {
-      const b = el("button", "btn quiet", tr("歌曲对拍：第一次跳一首歌前，在这里跟着歌点一次", "Tap along to a song: once, before its first dance"));
+      const b = el("button", "btn quiet", tr("歌曲对拍：一首歌的拍子不准时，在这里重新点一次", "Tap along to a song: when a song's beat is off, tap it again here"));
       b.onclick = () => {
         tapPanel = true;
         void loadSongbook();
@@ -609,6 +700,35 @@ function coach(): HTMLElement {
 }
 
 /**
+ * 找拍子 on the TV: what to do, everyone's taps so far (their names light up on each), and a button
+ * for whoever holds this device. The video plays in the corner.
+ */
+function findPanel(): HTMLElement {
+  const box = el("section", "tapalong find");
+  const song = currentSong()?.song;
+  box.append(el("h2", "phase", tr("第一次跳这首：先找拍子", "A new song: find the beat first")));
+  if (song) box.append(el("p", "coach-dance", `${songTitle(song)} · ${songArtist(song)}`));
+  box.append(el("p", "lead", tr("听歌，鼓点一进来，大家就在手机的大按钮上跟着点，一拍一下。点齐了就从头开始跳，以后这首不用再找。", "Listen, and once the drums come in, everyone taps the big button on their phone, once a beat. When the taps agree, the song starts from the top, and it never needs finding again.")));
+  parts.findCount = el("div", "count find-count");
+  box.append(parts.findCount);
+  parts.findNote = el("p", "lead find-note");
+  box.append(parts.findNote);
+  const pad = el("button", "btn tap-pad", tr("这台设备也能点", "Tap here too"));
+  pad.addEventListener("pointerdown", (e) => findTap(PAGE_ORIGIN + tapTime(e), "speaker"));
+  box.append(pad);
+  requestAnimationFrame(renderFind);
+  return box;
+}
+
+/** 找拍子's count and line, as taps come in. */
+function renderFind() {
+  if (!finding || !parts.findCount || !parts.findNote) return;
+  parts.findCount.textContent = `${Math.min(finding.taps.length, TAPS_WANTED)} / ${TAPS_WANTED}`;
+  parts.findNote.textContent = finding.note || (tube.playing ? tr("听到鼓点就点", "Tap when you hear the drums") : tr("歌马上开始", "The song is about to play"));
+  renderStatus();
+}
+
+/**
  * 歌曲对拍 (the lobby): pick a song, play it, and from its first strong beat tap along 16 times (the
  * big button here, or the space bar). The taps go by the video's clock, with the TV's delay taken
  * out; the song's first beat goes to the songbook, for every room from then on.
@@ -616,7 +736,7 @@ function coach(): HTMLElement {
 function tapAlongPanel(): HTMLElement {
   const box = el("section", "tapalong");
   box.append(el("h2", "phase", tr("歌曲对拍", "Tap along to a song")));
-  box.append(el("p", "lead", tr("每首歌第一次跳之前做一次：放歌，等鼓点进来，从第一下重拍开始，跟着拍子点 16 下。", "Once per song, before its first dance: play it, wait for the beat to come in, and from the first strong beat tap along 16 times.")));
+  box.append(el("p", "lead", tr("一首歌跳起来拍子不准时，在这里重新对一次：放歌，等鼓点进来，从第一下重拍开始，跟着拍子点 16 下。（第一次跳的歌不用：大家会在手机上一起找拍子。）", "When a song's dance is off its beat, tap it again here: play it, wait for the beat to come in, and from the first strong beat tap along 16 times. (A new song needs none of this: everyone finds its beat together on their phones.)")));
   if (!state?.audioOffsetMs) box.append(el("p", "notice", tr("先校准电视延迟（主人手机上「校准电视延迟」），对拍才准。", "Calibrate the TV delay first (the host's phone: Calibrate the TV delay), so the taps come out right.")));
   const list = el("ul", "tap-songs");
   for (const song of SONGS) {
@@ -718,9 +838,15 @@ function tapAlongTap(at: number) {
     });
 }
 
-// (the space bar taps along too)
+// (the space bar taps along too, and in 找拍子)
 document.addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || e.repeat || !tapPanel || !tapSong) return;
+  if (e.code !== "Space" || e.repeat) return;
+  if (finding) {
+    e.preventDefault();
+    findTap(PAGE_ORIGIN + tapTime(e), "speaker");
+    return;
+  }
+  if (!tapPanel || !tapSong) return;
   e.preventDefault();
   tapAlongTap(PAGE_ORIGIN + tapTime(e));
 });
@@ -937,6 +1063,7 @@ Object.assign(window, {
     pulses: () => Object.fromEntries(pulses),
     tube: () => ({ status: tube.status, zero: tube.zero() }),
     songbook: () => songbook,
+    finding: () => finding && { taps: finding.taps.length, sent: finding.sent, note: finding.note, zero: finding.zero },
   },
 });
 
