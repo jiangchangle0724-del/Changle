@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, guessCuisine, mentionsQueue, searchPlan, type Center, type Lang, type Place, type RangeId, type SoloSide } from "../engine";
+import { RANGES, dishesFor, guessCuisine, mentionsQueue, searchPlan, type Center, type Lang, type Place, type RangeId, type SoloSide } from "../engine";
 import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
@@ -21,14 +21,21 @@ const SEARCH_FIELDS = [
   "places.reservable",
   "places.servesVegetarianFood",
   "places.editorialSummary",
-  // Essentials-tier field: no extra cost next to the others. Tells branches of one name apart.
+  // Google bills a search at the dearest field asked for, and the ones above already make it the
+  // dearest (Enterprise + Atmosphere), so these cost nothing more. Every place on the list gets its
+  // phone, map link and Google's AI summary (English only in Canada, often missing in Chinese).
+  "places.generativeSummary",
+  "places.nationalPhoneNumber",
+  "places.googleMapsUri",
+  // Tells branches of one name apart.
   "places.shortFormattedAddress",
 ].join(",");
 
-// editorialSummary rides along at no extra cost (reviews already bill this request at the Atmosphere
-// tier). Details are asked in English: Google has its one-line descriptions mostly in English, the
-// review we quote keeps its original language, and nothing else here depends on the language.
-const DETAIL_FIELDS = ["nationalPhoneNumber", "googleMapsUri", "photos", "reviews", "editorialSummary"].join(",");
+// Only for the top of the list: photos and reviews (billed per place). Details are asked in English:
+// Google has its descriptions and AI summaries mostly or only in English, the review we quote keeps
+// its original language, and nothing else here depends on the language. The summaries ride along
+// at no extra cost (reviews already bill this request at the Atmosphere tier).
+const DETAIL_FIELDS = ["photos", "reviews", "editorialSummary", "generativeSummary"].join(",");
 
 /** Names and reviews in the host's language where Google has them. */
 const languageCode = (lang: Lang) => (lang === "zh" ? "zh-CN" : "en");
@@ -51,13 +58,32 @@ interface GPlace {
   rating?: number;
   userRatingCount?: number;
   priceLevel?: string;
-  priceRange?: { startPrice?: { units?: string; currencyCode?: string } };
+  priceRange?: { startPrice?: { units?: string; currencyCode?: string }; endPrice?: { units?: string; currencyCode?: string } };
   currentOpeningHours?: { openNow?: boolean; nextCloseTime?: string };
   businessStatus?: string;
   reservable?: boolean;
   servesVegetarianFood?: boolean;
   editorialSummary?: { text?: string };
+  generativeSummary?: GSummary;
+  nationalPhoneNumber?: string;
+  googleMapsUri?: string;
   shortFormattedAddress?: string;
+}
+
+/** Google's AI summary. Its docs spell the disclosure both ways. */
+interface GSummary {
+  overview?: { text?: string };
+  overviewFlagContentUri?: string;
+  disclosureText?: { text?: string };
+  disclaimerText?: { text?: string };
+}
+
+/** Google's AI summary as a card shows it: never without its disclosure ("Summarized with Gemini"). */
+export function summaryFrom(g: GSummary | undefined): Place["summary"] {
+  const text = g?.overview?.text?.trim();
+  if (!text) return undefined;
+  const disclosure = (g!.disclosureText?.text ?? g!.disclaimerText?.text ?? "").trim() || "Summarized with Gemini";
+  return { text: text.length > 300 ? `${text.slice(0, 298)}…` : text, disclosure, flag: g!.overviewFlagContentUri };
 }
 
 /** Hotels and the like that Google also tags as restaurants (their restaurant is inside). */
@@ -70,28 +96,37 @@ export function fromGoogle(g: GPlace): Place | null {
   const name = g.displayName.text;
   const level = g.priceLevel ? LEVEL_PRICE[g.priceLevel] : undefined;
   const start = g.priceRange?.startPrice?.units ? Number(g.priceRange.startPrice.units) : undefined;
+  const end = g.priceRange?.endPrice?.units ? Number(g.priceRange.endPrice.units) : undefined;
+  const cuisine = guessCuisine(name, g.primaryType, g.types);
   const close = g.currentOpeningHours?.nextCloseTime ? Date.parse(g.currentOpeningHours.nextCloseTime) : NaN;
   const halalText = `${name} ${g.editorialSummary?.text ?? ""}`;
   return {
     id: g.id,
     name,
-    cuisine: guessCuisine(name, g.primaryType, g.types),
+    cuisine,
     lat: g.location.latitude,
     lng: g.location.longitude,
     rating: g.rating,
     ratings: g.userRatingCount,
     price: start ?? level?.[0],
+    priceTo: start !== undefined ? end : undefined,
     priceLabel: level?.[1],
+    dishes: orNone(dishesFor(name, g.types ?? (g.primaryType ? [g.primaryType] : []), cuisine)),
     openNow: g.currentOpeningHours?.openNow,
     closesAt: Number.isFinite(close) ? close : undefined,
     reservable: g.reservable,
     veg: g.servesVegetarianFood,
     halal: /halal|清真|حلال/i.test(halalText) ? "yes" : undefined,
     about: g.editorialSummary?.text?.trim().slice(0, 160) || undefined,
+    summary: summaryFrom(g.generativeSummary),
+    phone: g.nationalPhoneNumber,
+    mapsUrl: g.googleMapsUri,
     address: g.shortFormattedAddress,
     ...curatedFor(name, g.shortFormattedAddress),
   };
 }
+
+const orNone = <T>(xs: T[]) => (xs.length ? xs : undefined);
 
 async function google(key: string, url: string, init: RequestInit & { fields: string }): Promise<unknown> {
   const res = await fetch(url, {
@@ -150,20 +185,21 @@ export async function searchGoogle(key: string, center: Center, range: RangeId, 
 }
 
 interface GDetails {
-  nationalPhoneNumber?: string;
-  googleMapsUri?: string;
   photos?: { name: string; authorAttributions?: { displayName?: string; uri?: string }[] }[];
   reviews?: { text?: { text?: string }; originalText?: { text?: string }; authorAttribution?: { displayName?: string } }[];
   editorialSummary?: { text?: string };
+  generativeSummary?: GSummary;
 }
 
-/** Phone, map link, one photo and any review that mentions queueing, for one card. */
+/** One photo, any review that mentions queueing, and Google's descriptions in English, for one card. */
 export async function detailsGoogle(key: string, id: string): Promise<Partial<Place>> {
   const d = (await google(key, `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=en`, { fields: DETAIL_FIELDS })) as GDetails;
-  const out: Partial<Place> = { phone: d.nationalPhoneNumber, mapsUrl: d.googleMapsUri };
-  // Only used when the search (in the table's language) had no description: see keepAbout().
+  const out: Partial<Place> = {};
+  // Only used when the search (in the table's language) had none: see keepAbout().
   const about = d.editorialSummary?.text?.trim().slice(0, 160);
   if (about) out.about = about;
+  const summary = summaryFrom(d.generativeSummary);
+  if (summary) out.summary = summary;
   for (const r of d.reviews ?? []) {
     const text = r.originalText?.text ?? r.text?.text ?? "";
     if (mentionsQueue(text)) {
@@ -254,10 +290,17 @@ const DEMO_EXTRA: Record<number, Partial<Place>> = {
     about: "Demo: rich tonkotsu ramen at a quick counter",
     badges: [{ source: "demo", label: { zh: "示例榜单 · 必吃拉面", en: "Demo list · must-try ramen" }, year: 2026 }],
   },
-  8: { about: "Demo: pho and banh mi, open late" },
+  8: {
+    about: "Demo: pho and banh mi, open late",
+    // Where Google's AI summary would be; made up like everything here, and labelled so.
+    summary: { text: "Demo: a made-up summary in the place of Google's AI one, which comes in English.", disclosure: "Demo, not from Google" },
+  },
 };
 
-/** Details never replace a description the search already gave in the table's own language. */
+/** Details never replace a description or summary the search already gave in the table's own language. */
 export function keepAbout(p: Place, details: Partial<Place>): Partial<Place> {
-  return p.about ? { ...details, about: p.about } : details;
+  const out = { ...details };
+  if (p.about) out.about = p.about;
+  if (p.summary) out.summary = p.summary;
+  return out;
 }

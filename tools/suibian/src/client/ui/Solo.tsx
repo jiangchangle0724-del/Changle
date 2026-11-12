@@ -1,9 +1,9 @@
 // One person who doesn't know what to eat: five quick questions (mood, side of the menu, budget,
-// where and how far, diet card), then three places at a time with the reasons they were picked.
+// where and how far, diet card), then every place in range and budget, ranked, with the reasons.
 import { useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { BUDGETS, NO_LIMITS, SOLO_MOODS, SOLO_SIDES, type Budget, type Limits, type SoloMood, type SoloSide } from "../../engine";
-import type { SoloCard, SoloResponse } from "../../room/protocol";
+import { BUDGETS, NO_LIMITS, SOLO_MOODS, SOLO_SIDES, SOLO_TOP, type Budget, type Limits, type SoloMood, type SoloSide } from "../../engine";
+import type { CardView, SoloResponse } from "../../room/protocol";
 import { t, type Key } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
@@ -11,6 +11,7 @@ import { toast, update, useApp } from "../store";
 import { Btn, DemoBanner, LangToggle } from "./common";
 import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
+import { RankedList } from "./RankedList";
 import { WhereFields, useWhere } from "./Where";
 
 const MOOD_EMOJI: Record<SoloMood, string> = { warm: "🍲", bold: "🌶️", light: "🥗", sweet: "🍰", any: "🎲" };
@@ -20,9 +21,8 @@ const STEPS = 5;
 type Stage =
   | { k: "ask"; step: number }
   | { k: "finding" }
-  /** `more`: the server has further places for "show me others"; their details are fetched then. */
-  | { k: "picks"; cards: SoloCard[]; relaxed: boolean; batch: number; more: boolean; loading?: boolean; run?: string }
-  | { k: "chosen"; card: SoloCard };
+  | { k: "picks"; cards: CardView[] }
+  | { k: "chosen"; card: CardView };
 
 export function Solo({ home }: { home: () => void }) {
   const { me } = useApp();
@@ -56,35 +56,21 @@ export function Solo({ home }: { home: () => void }) {
       body: JSON.stringify({ center, range: where.range, answers: { mood: mood ?? "any", side: side ?? "any" }, limits, lang: prefs.lang }),
     });
     const d = res.data ?? {};
-    if (res.ok && d.cards?.length) return setStage({ k: "picks", cards: d.cards, relaxed: !!d.relaxed, batch: 0, more: !!d.more, run: d.run });
+    if (res.ok && d.cards?.length) return setStage({ k: "picks", cards: d.cards });
     const why = d.error === "quota" ? "quota" : d.error === "login" ? "soloLogin" : d.error === "nothingNearby" || d.error === "nothingFits" || d.error === "searchFailed" ? d.error : "offline";
     setErr(t(why as Key));
     setStage({ k: "ask", step: 3 });
   };
 
-  /** "Show me others": the next three, from what's loaded or fetched now. */
-  const others = async () => {
-    if (stage.k !== "picks" || stage.loading) return;
-    const batch = stage.batch + 1;
-    if (stage.cards.length > batch * 3) return setStage({ ...stage, batch });
-    setStage({ ...stage, loading: true });
-    const res = await api<SoloResponse>("/api/solo/more", { method: "POST", body: JSON.stringify(stage.run ? { run: stage.run } : {}) });
-    const d = res.data ?? {};
-    if (res.ok && d.cards?.length) return setStage({ ...stage, cards: [...stage.cards, ...d.cards], batch, more: !!d.more, loading: false });
-    setStage({ ...stage, more: false, loading: false });
-    if (d.error === "expired") toast(t("soloExpired"));
-    else if (!res.ok) toast(t("offline"));
-  };
-
   /** Remember the pick on the account, so the home page asks how it was (and it can be rated). */
-  const choose = (c: SoloCard) => {
+  const choose = (c: CardView) => {
     setStage({ k: "chosen", card: c });
     if (!me?.user) return;
     void api("/api/me/last", { method: "POST", body: JSON.stringify({ place: c.place.id, name: c.place.name }) });
     update({ me: { ...me, last: { place: c.place.id, name: c.place.name, at: Date.now() } } });
   };
 
-  const share = async (c: SoloCard) => {
+  const share = async (c: CardView) => {
     const text = t("soloShareText", { name: c.place.name, map: c.place.mapsUrl ?? "" });
     try {
       if (navigator.share) return await navigator.share({ text });
@@ -176,36 +162,27 @@ export function Solo({ home }: { home: () => void }) {
       {stage.k === "picks" && (
         <>
           <h2 class="question">{t("soloResults")}</h2>
-          {stage.relaxed && <p class="warn small">{t("soloRelaxed")}</p>}
-          <section class="places">
-            {stage.cards.slice(stage.batch * 3, stage.batch * 3 + 3).map((c) => (
-              <PlaceCard key={c.place.id} c={c} reasons={c.reasons}>
-                <Btn kind="primary" wide onClick={() => choose(c)}>
-                  {t("soloThis")}
-                </Btn>
-              </PlaceCard>
-            ))}
-          </section>
-          <p class="muted small center">{t("google")}</p>
-          <div class="row">
-            {stage.cards.length > (stage.batch + 1) * 3 || stage.more ? (
-              <Btn wide disabled={stage.loading} onClick={() => void others()}>
-                {t("soloMore")}
+          <RankedList
+            cards={stage.cards}
+            top={SOLO_TOP}
+            action={(c, full) => (
+              <Btn kind={full ? "primary" : undefined} wide onClick={() => choose(c)}>
+                {t("soloThis")}
               </Btn>
-            ) : (
-              <p class="muted small center">{t(where.range === "any" ? "soloNoMoreAny" : "soloNoMore")}</p>
             )}
-            <Btn kind="quiet" wide onClick={() => ask(0)}>
-              {t("soloRestart")}
-            </Btn>
-          </div>
+            end={<p class="muted small center">{t(where.range === "any" ? "soloNoMoreAny" : "soloNoMore")}</p>}
+          />
+          <p class="muted small center">{t("google")}</p>
+          <Btn kind="quiet" wide onClick={() => ask(0)}>
+            {t("soloRestart")}
+          </Btn>
         </>
       )}
 
       {stage.k === "chosen" && (
         <>
           <h2 class="question center">{t("soloChosen")}</h2>
-          <PlaceCard c={stage.card} reasons={stage.card.reasons} />
+          <PlaceCard c={stage.card} />
           <p class="muted small center">{t("tellServer")}</p>
           <Btn kind="primary" wide onClick={() => void share(stage.card)}>
             {t("soloShare")}

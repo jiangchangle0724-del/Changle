@@ -63,7 +63,9 @@ test("three phones pick a restaurant", async ({ browser }) => {
   // Round 1.
   await host.page.getByRole("button", { name: "开始！" }).click();
   for (const p of [host, a, b]) await expect(p.page.locator(".moods")).toBeVisible();
-  // Severe peanut: no Thai chip for anyone.
+  // Severe peanut: the cuisines that use it a lot come after the others in round 1 (twelve fit), so no
+  // Thai chip here; round 2 still lists the Thai place, at the bottom.
+  await expect(host.page.locator(".mood")).toHaveCount(12);
   await expect(host.page.locator("[data-cuisine=thai]")).toHaveCount(0);
   await host.page.locator("[data-cuisine=ramen]").click(); // 👍
   await a.page.locator("[data-cuisine=ramen]").click();
@@ -71,11 +73,24 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await b.page.locator("[data-cuisine=italian]").click(); // 🚫
   for (const p of [host, a, b]) await p.page.getByRole("button", { name: "好了" }).click();
 
-  // Round 2.
+  // Round 2: every place, ranked. The top six are full cards, then shorter ones that open.
   for (const p of [host, a, b]) await expect(p.page.locator(".place").first()).toBeVisible();
-  await expect(host.page.getByText("Nonna's Pasta")).toHaveCount(0);
+  await expect(host.page.locator(".place:not(.compact)")).toHaveCount(6);
+  await expect(host.page.locator(".place .rank").first()).toHaveText("1");
+  await expect(host.page.locator(".place .facts").first()).toContainText("🚗 约");
+  // b said no to Italian: Nonna's is still there, further down, saying why.
+  const nonna = host.page.locator(".place", { hasText: "Nonna's Pasta" });
+  await expect(nonna).toHaveClass(/compact/);
+  await expect(nonna.locator(".note")).toHaveText("有人第 1 轮不想吃这类，排在后面。");
+  // a's severe peanut allergy: Thai is at the bottom with a warning, not gone.
+  await host.page.getByRole("button", { name: /^再看 \d+ 家$/ }).click();
+  await expect(host.page.locator(".place", { hasText: "Bangkok Basil" }).locator(".note.severe")).toContainText("有人对花生严重过敏");
+  // A shorter card opens for the rest: phone, map, ordering in.
+  await nonna.getByRole("button", { name: /更多/ }).click();
+  await expect(nonna.getByRole("link", { name: "📞 打电话" })).toBeVisible();
   const ramen = host.page.locator(".place", { hasText: "Ramen Hinoki" });
   await expect(ramen).toBeVisible();
+  await expect(ramen.locator(".reason", { hasText: "2 人想吃这类" })).toBeVisible();
   for (const p of [host, a, b]) await p.page.locator(".place", { hasText: "Ramen Hinoki" }).locator(".approve").click();
   // b vetoes another card; the veto button on the others then says it's used.
   await b.page.locator(".place").filter({ hasNotText: "Ramen Hinoki" }).first().locator(".veto").click();
@@ -138,7 +153,7 @@ test("guests can't start a table, or pick alone, when login is on", async ({ req
   expect(solo.status()).toBe(401);
 });
 
-test("one person picks alone: five questions, three places with reasons, another three, choose one", async ({ browser }) => {
+test("one person picks alone: five questions, every place ranked with reasons, choose one", async ({ browser }) => {
   const me = await phone(browser, "solo");
   const page = me.page;
   await page.goto("/eat/");
@@ -168,20 +183,26 @@ test("one person picks alone: five questions, three places with reasons, another
   await expect(page.getByRole("heading", { name: "有什么不吃的吗？" })).toBeVisible();
   await page.locator(".diet .btn.primary").click();
 
-  await expect(page.getByRole("heading", { name: "给你挑了这几家" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "按你的口味排好了" })).toBeVisible();
   const cards = page.locator(".place");
-  await expect(cards).toHaveCount(3);
+  // Three full cards, then ten shorter ones; the rest behind "show more". Over the $35 budget, two are left out.
+  await expect(page.locator(".place:not(.compact)")).toHaveCount(3);
+  await expect(cards).toHaveCount(13);
+  await expect(page.getByText("共 16 家，都在范围和预算以内")).toBeVisible();
   await expect(page.locator(".reason").first()).toBeVisible();
+  // Chinese first (the side asked for), every card with its rank, distance, walk and drive.
+  await expect(cards.first().locator(".intro")).toContainText("粤菜 · 点心");
+  await expect(cards.first().locator(".facts")).toContainText("📍");
+  await expect(cards.first().locator(".facts")).toContainText("🚶");
   // The made-up pick and description show in demo mode, so every part of a card is exercised.
   await expect(page.getByText("示例推荐：虾饺皮薄，周末早点去")).toBeVisible();
   await expect(page.getByText("示例：推车点心，周末一早就满座")).toBeVisible();
-  const first = await cards.locator("h3").allTextContents();
-  const shownIds = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-id")!));
-  await page.getByRole("button", { name: "换一批" }).click();
-  await expect(cards).toHaveCount(2);
-  const second = await cards.locator("h3").allTextContents();
-  expect(second.some((n) => first.includes(n))).toBe(false);
+  await page.getByRole("button", { name: "再看 3 家" }).click();
+  await expect(cards).toHaveCount(16);
+  // The short intro says what a place mainly serves when its name does.
+  await expect(page.locator(".place", { hasText: "台北牛肉面" }).locator(".intro")).toContainText("主打牛肉面");
   await expect(page.getByText("附近就这些了")).toBeVisible();
+  const shownIds = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-id")!));
 
   const chosen = (await cards.first().locator("h3").textContent())!;
   await cards.first().getByRole("button", { name: "就它了" }).click();
@@ -261,27 +282,4 @@ test("the privacy and terms pages are public and linked from the home page", asy
   await expect(page).toHaveURL(/\/eat\/terms$/);
   await page.getByRole("link", { name: /随便 · Whatever's Fine/ }).click();
   await expect(page).toHaveURL(/\/eat\/$/);
-});
-
-test("picking alone again: places shown last time step back, so new ones come first", async ({ browser }) => {
-  const me = await phone(browser, "again");
-  const page = me.page;
-  expect((await page.request.post("/eat/api/test/login", { data: { sub: `again-${Date.now()}`, name: "小林" } })).ok()).toBeTruthy();
-  await page.goto("/eat/");
-  // Western side, Richmond, 25 minutes' drive: six demo places, three of them shown each time.
-  const search = () =>
-    page.evaluate(() =>
-      fetch("/eat/api/solo", {
-        method: "POST",
-        body: JSON.stringify({ center: { lat: 49.1724, lng: -123.1366 }, range: "drive25", answers: { mood: "any", side: "west" }, limits: {}, lang: "zh" }),
-      })
-        .then((r) => r.json() as Promise<{ cards: { place: { id: string } }[] }>)
-        .then((r) => r.cards.map((c) => c.place.id)),
-    );
-  const first = await search();
-  const second = await search();
-  expect(first).toHaveLength(3);
-  expect(second).toHaveLength(3);
-  expect(first).not.toContain(second[0]);
-  expect(me.errors).toEqual([]);
 });

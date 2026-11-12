@@ -1,7 +1,7 @@
 // One table on a phone: lobby → round 1 (mood) → round 2 (cards) → spinner → result.
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { CUISINES, type Limits, type MoodPick, type RangeId } from "../../engine";
+import { CUISINES, TOP_COUNT, type Limits, type MoodPick, type RangeId } from "../../engine";
 import type { RoomView } from "../../room/protocol";
 import { t, tx } from "../i18n";
 import { api } from "../net";
@@ -11,6 +11,7 @@ import { Btn, Countdown, DemoBanner, LangToggle, Qr, TableLimits, memberName } f
 import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
 import { RangePicker } from "./RangePicker";
+import { RankedList } from "./RankedList";
 
 export function Table({ home }: { home: () => void }) {
   const { view: v, status, fatal, me } = useApp();
@@ -24,8 +25,8 @@ export function Table({ home }: { home: () => void }) {
   }
   if (!v) return <main class="page center muted">{t("connecting")}</main>;
   // Without a diet card, that comes first, in any round before the result: someone who joins late
-  // (or was still filling it in when the host started) can still rule out what they can't eat. The
-  // card stays on screen across phase changes, so nothing typed is lost.
+  // (or was still filling it in when the host started) still gets notes on the cards for what they
+  // can't eat, and their budget. The card stays on screen across phase changes, so nothing typed is lost.
   const showDiet = !v.you.limits && v.phase !== "spin" && v.phase !== "result";
   return (
     <main class={`page phase-${v.phase}`}>
@@ -247,49 +248,49 @@ function Cards({ v }: { v: RoomView }) {
     <>
       <h2>{t("round2")}</h2>
       <p class="muted small">{t("round2Hint")}</p>
-      <div class="places">
-        {v.cards.map((c) => {
+      <RankedList
+        cards={v.cards}
+        top={TOP_COUNT}
+        action={(c) => {
           const id = c.place.id;
           const yes = approve.includes(id);
           const no = veto === id;
           return (
-            <PlaceCard key={id} c={c}>
-              <div class="vote">
-                <Btn
-                  kind={yes ? "primary" : undefined}
-                  pressed={yes}
-                  disabled={done}
-                  class="approve"
-                  onClick={() => {
-                    const a = yes ? approve.filter((x) => x !== id) : [...approve, id];
-                    const x = no ? null : veto;
-                    setApprove(a);
-                    setVeto(x);
-                    push(a, x, false);
-                  }}
-                >
-                  ✓ {t("approve")}
-                </Btn>
-                <Btn
-                  kind={no ? "danger" : "quiet"}
-                  pressed={no}
-                  disabled={done || (veto !== null && !no)}
-                  class="veto"
-                  onClick={() => {
-                    const x = no ? null : id;
-                    const a = approve.filter((y) => y !== id);
-                    setVeto(x);
-                    setApprove(a);
-                    push(a, x, false);
-                  }}
-                >
-                  🚫 {veto !== null && !no ? t("vetoUsed") : t("veto")}
-                </Btn>
-              </div>
-            </PlaceCard>
+            <div class="vote">
+              <Btn
+                kind={yes ? "primary" : undefined}
+                pressed={yes}
+                disabled={done}
+                class="approve"
+                onClick={() => {
+                  const a = yes ? approve.filter((x) => x !== id) : [...approve, id];
+                  const x = no ? null : veto;
+                  setApprove(a);
+                  setVeto(x);
+                  push(a, x, false);
+                }}
+              >
+                ✓ {t("approve")}
+              </Btn>
+              <Btn
+                kind={no ? "danger" : "quiet"}
+                pressed={no}
+                disabled={done || (veto !== null && !no)}
+                class="veto"
+                onClick={() => {
+                  const x = no ? null : id;
+                  const a = approve.filter((y) => y !== id);
+                  setVeto(x);
+                  setApprove(a);
+                  push(a, x, false);
+                }}
+              >
+                🚫 {veto !== null && !no ? t("vetoUsed") : t("veto")}
+              </Btn>
+            </div>
           );
-        })}
-      </div>
+        }}
+      />
       <p class="google muted small">{t("google")}</p>
       <Btn kind="primary" wide disabled={done} onClick={() => push(approve, veto, true)}>
         {t("done")}
@@ -349,7 +350,7 @@ function Result({ v }: { v: RoomView }) {
       <PlaceCard c={win}>
         <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
       </PlaceCard>
-      {v.winner?.unsafe && <p class="error">{t("winnerUnsafe")}</p>}
+      {v.winner?.unsafe && <p class="error">{t(v.winner.unsafe === "budget" ? "winnerOverBudget" : "winnerUnsafe")}</p>}
       {needsServer(v) && (
         <>
           <TableLimits l={v.table} />
