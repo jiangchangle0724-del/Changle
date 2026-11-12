@@ -6,19 +6,28 @@
     "en": "Rain Grip"
   },
   "teaches": "ice",
-  "w": 1280,
+  "w": 2560,
   "h": 720,
   "spawn": {
     "x": 100,
     "y": 536
   },
   "goal": {
-    "x": 980,
-    "y": 400,
-    "w": 260,
+    "x": 2400,
+    "y": 160,
+    "w": 120,
     "h": 160
   },
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 536
+    },
+    {
+      "x": 2310,
+      "y": 296
+    }
+  ],
   "rects": [
     {
       "kind": "ground",
@@ -48,16 +57,40 @@
       "kind": "ground",
       "x": 960,
       "y": 560,
-      "w": 280,
+      "w": 480,
       "h": 160,
       "material": "ice"
     },
     {
       "kind": "ground",
-      "x": 1240,
+      "x": 1700,
+      "y": 480,
+      "w": 210,
+      "h": 240,
+      "material": "ice"
+    },
+    {
+      "kind": "ground",
+      "x": 2000,
       "y": 400,
-      "w": 40,
+      "w": 170,
       "h": 320,
+      "material": "ice"
+    },
+    {
+      "kind": "ground",
+      "x": 2270,
+      "y": 320,
+      "w": 250,
+      "h": 400,
+      "material": "ice"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 140,
+      "w": 40,
+      "h": 580,
       "material": "ice"
     }
   ],
@@ -66,8 +99,22 @@
   "crates": [],
   "deathY": 790,
   "par": {
-    "seconds": 60,
+    "seconds": 80,
     "deathsPerPlayer": 2
   },
-  "replay": "replays/van-11.json"
+  "replay": "replays/van-11.json",
+  "fading": [
+    {
+      "kind": "ground",
+      "x": 1510,
+      "y": 540,
+      "w": 150,
+      "h": 24,
+      "material": "ice",
+      "on": 3.6,
+      "off": 2,
+      "phase": 0.6
+    }
+  ],
+  "springs": []
 }

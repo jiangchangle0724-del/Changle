@@ -179,3 +179,19 @@ describe('召唤和落地', () => {
     sim.destroy();
   });
 });
+
+describe('过关', () => {
+  test('win 只报一次；赢了以后再走，事件是空的', async () => {
+    const lv = level({});
+    const sim = await createSim(lv, 2);
+    const g = lv.goal;
+    sim.teleport(0, g.x + g.w / 2 - 20, g.y + g.h / 2);
+    sim.teleport(1, g.x + g.w / 2 + 20, g.y + g.h / 2);
+    const events = run(sim, 0.5);
+    expect(sim.won).toBe(true);
+    expect(events.filter((e) => e.type === 'win')).toHaveLength(1);
+    sim.step(dt);
+    expect(sim.events).toEqual([]);
+    sim.destroy();
+  });
+});

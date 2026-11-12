@@ -173,6 +173,30 @@ export const S = {
   shareRetry: t("再试一次", "Try again"),
   picWords: t("今晚学到的 {n} 个词", "{n} words we learned tonight"),
   picScan: t("扫码一起玩", "Scan to play"),
+
+  // 自己出题: everyone writes one word they know before the game
+  ownOn: t("自己出题", "Write your own words"),
+  ownHint: t("开局前每人写一个自己懂、别人多半不懂的词，先玩大家写的，再玩词库。", "Before the game, everyone writes one word they know and the others probably don't. Yours come first, then the bank's."),
+  ownTitle: t("写一个你懂的词", "Write a word you know"),
+  ownLead: t("家乡话、行业黑话、你们家的暗号都行。它会在某一轮出现，那轮的老实人照着你写的意思解释；那轮你不当裁判，也不押注。", "A word from home, work jargon, a family saying. It comes up in one round, where the honest one explains it from what you write; you won't judge that round, and you sit out its bets."),
+  ownTerm: t("词", "The word"),
+  ownTermHint: t("比如：搞掂", "e.g. gobbledygook"),
+  ownMeaning: t("真意思", "What it really means"),
+  ownMeaningHint: t("一两句话，老实人会照着说", "A sentence or two. The honest one goes by it"),
+  ownFact: t("出处或者小故事（可以不写）", "Where it comes from (optional)"),
+  ownSave: t("写好了", "Done"),
+  ownSkip: t("这次不写", "Skip"),
+  ownChange: t("改一下", "Change it"),
+  ownTakeBack: t("不写了", "Take it back"),
+  ownKeep: t("不改了", "Keep it"),
+  ownHanded: t("交好了：{term}", "Handed in: {term}"),
+  ownWritten: t("{n}/{m} 人写好了", "{n} of {m} have written"),
+  ownWaitOthers: t("还有人在写。也可以直接发牌，没写的人那轮用词库的词。", "Some are still writing. You can deal anyway: rounds without a word use the bank."),
+  ownCurtain: t("轮到你出题，写的时候别让人看见", "Your turn to write a word. Keep it to yourself"),
+  ownPack: t("玩家出的题", "A player's word"),
+  ownBy: t("这个词是 {name} 出的", "{name} wrote this one"),
+  ownYours: t("这是你出的词：你知道它的意思，这轮不押注。", "This is your word: you know what it means, so you sit out the bets."),
+  ownNoSeeds: t("这是玩家出的题，没有掰料，自己编。", "A player wrote this one. No hints: make it up."),
 } as const;
 
 export type SKey = keyof typeof S;

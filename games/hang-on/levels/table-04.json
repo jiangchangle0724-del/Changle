@@ -6,29 +6,33 @@
     "en": "Steamer Stack"
   },
   "teaches": "climb",
-  "w": 1280,
-  "h": 720,
+  "w": 2560,
+  "h": 1440,
   "spawn": {
     "x": 100,
-    "y": 536
+    "y": 1256
   },
   "goal": {
-    "x": 950,
-    "y": 80,
-    "w": 290,
+    "x": 2400,
+    "y": 180,
+    "w": 120,
     "h": 160
   },
   "checkpoints": [
     {
-      "x": 730,
-      "y": 296
+      "x": 1210,
+      "y": 936
+    },
+    {
+      "x": 2224,
+      "y": 396
     }
   ],
   "rects": [
     {
       "kind": "ground",
       "x": 0,
-      "y": 560,
+      "y": 1280,
       "w": 350,
       "h": 160,
       "material": "cloth"
@@ -36,7 +40,7 @@
     {
       "kind": "ground",
       "x": 350,
-      "y": 480,
+      "y": 1200,
       "w": 160,
       "h": 240,
       "material": "wood"
@@ -44,7 +48,7 @@
     {
       "kind": "ground",
       "x": 510,
-      "y": 400,
+      "y": 1120,
       "w": 160,
       "h": 320,
       "material": "wood"
@@ -52,7 +56,7 @@
     {
       "kind": "ground",
       "x": 670,
-      "y": 320,
+      "y": 1040,
       "w": 160,
       "h": 400,
       "material": "wood"
@@ -60,27 +64,93 @@
     {
       "kind": "ground",
       "x": 830,
-      "y": 240,
-      "w": 410,
+      "y": 960,
+      "w": 510,
       "h": 480,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 1240,
-      "y": 80,
+      "x": 1480,
+      "y": 820,
+      "w": 160,
+      "h": 620,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1640,
+      "y": 740,
+      "w": 140,
+      "h": 700,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1780,
+      "y": 660,
+      "w": 140,
+      "h": 780,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1920,
+      "y": 580,
+      "w": 140,
+      "h": 860,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2060,
+      "y": 500,
+      "w": 140,
+      "h": 940,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2200,
+      "y": 420,
+      "w": 140,
+      "h": 1020,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2340,
+      "y": 340,
+      "w": 180,
+      "h": 1100,
+      "material": "wood"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 160,
       "w": 40,
-      "h": 640,
+      "h": 1280,
       "material": "wood"
     }
   ],
   "ropes": [],
   "seesaws": [],
   "crates": [],
-  "deathY": 790,
+  "deathY": 1510,
   "par": {
-    "seconds": 60,
+    "seconds": 110,
     "deathsPerPlayer": 2
   },
-  "replay": "replays/table-04.json"
+  "replay": "replays/table-04.json",
+  "fading": [],
+  "springs": [
+    {
+      "x": 1340,
+      "y": 1000,
+      "w": 90,
+      "h": 440,
+      "power": 1
+    }
+  ]
 }

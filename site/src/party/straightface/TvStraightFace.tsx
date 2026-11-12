@@ -1,4 +1,4 @@
-import { EyeOff, Gavel, Mic, Vote } from "lucide-react";
+import { EyeOff, Gavel, Mic, PenLine, Vote } from "lucide-react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
 import { PACK_NAMES, PACKS, type Pack } from "../../data/straightfacePacks";
@@ -88,8 +88,16 @@ function WordCard({ t, small = false, lead, children }: { t: PublicView; small?:
             {zh ? PACK_NAMES[t.pack].zh : PACK_NAMES[t.pack].en}
           </span>
         )}
+        {t.own && (
+          <span className="tvsf-pack is-own">
+            <span className="tvsf-own-badge" aria-hidden="true">
+              <PenLine size={26} />
+            </span>
+            {zh ? "玩家出的题" : "A player's word"}
+          </span>
+        )}
         {lead && <span className="tvsf-lead">{lead}</span>}
-        {t.level && <Dots level={t.level} />}
+        {t.level && !t.own && <Dots level={t.level} />}
       </div>
       <p className="tvsf-word" lang={/^[\x20-\x7e]+$/.test(w.main) ? "en" : undefined}>
         {w.main}
@@ -118,6 +126,11 @@ function useGame(ids: string[]) {
 
 /* ------------------------------------------------------------------ before the deal */
 
+/** 自己出题: how many of the seated players have written their word. */
+function written(v: StraightFaceView, players: SeatView[]) {
+  return (v.writing?.written ?? []).filter((id) => players.some((p) => p.id === id)).length;
+}
+
 function Setup({ v }: { v: StraightFaceView }) {
   const { zh } = useLang();
   const { players } = useSeats();
@@ -139,8 +152,24 @@ function Setup({ v }: { v: StraightFaceView }) {
         ))}
       </ul>
       <p className="tvsf-sub">
-        {short > 0 ? (zh ? `至少 3 个人，还差 ${short} 个` : `Needs 3 players: ${short} more`) : zh ? "主人在手机上选词包，然后发牌" : "The host picks the packs on their phone, then deals"}
-        {v.setup.packs && <span className="tvsf-count tabular">{zh ? `${v.setup.packs.length} 个词包` : `${v.setup.packs.length} packs`}</span>}
+        {short > 0
+          ? zh
+            ? `至少 3 个人，还差 ${short} 个`
+            : `Needs 3 players: ${short} more`
+          : v.writing
+            ? zh
+              ? "每人在手机上写一个自己懂的词"
+              : "Everyone writes a word they know, on their phone"
+            : zh
+              ? "主人在手机上选词包，然后发牌"
+              : "The host picks the packs on their phone, then deals"}
+        {v.writing ? (
+          <span className="tvsf-count tabular">
+            <PenLine size={28} aria-hidden="true" /> {zh ? `${written(v, players)}/${players.length} 写好了` : `${written(v, players)} of ${players.length} written`}
+          </span>
+        ) : (
+          v.setup.packs && <span className="tvsf-count tabular">{zh ? `${v.setup.packs.length} 个词包` : `${v.setup.packs.length} packs`}</span>
+        )}
       </p>
       <TvLineup people={players.map((s) => ({ seat: s }))} big={190} />
     </div>
@@ -350,10 +379,17 @@ function Reveal({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bo
         <WordCard t={t} lead={zh ? "真释义" : "The real meaning"}>
           <p className={`tvsf-def ${tr(rv.definition).length > 100 ? "is-wordy" : ""}`}>{tr(rv.definition)}</p>
         </WordCard>
-        <p className={`tvsf-fact ${tr(rv.funFact).length > 110 ? "is-wordy" : ""}`}>
-          <b>{zh ? "冷知识" : "Fun fact"}</b>
-          {tr(rv.funFact)}
-        </p>
+        {t.own ? (
+          <p className={`tvsf-fact ${tr(rv.funFact).length > 110 ? "is-wordy" : ""}`}>
+            <b>{zh ? `这个词是 ${seat(t.authorId)?.name ?? ""} 出的` : `${seat(t.authorId)?.name ?? ""} wrote this one`}</b>
+            {tr(rv.funFact)}
+          </p>
+        ) : (
+          <p className={`tvsf-fact ${tr(rv.funFact).length > 110 ? "is-wordy" : ""}`}>
+            <b>{zh ? "冷知识" : "Fun fact"}</b>
+            {tr(rv.funFact)}
+          </p>
+        )}
       </div>
       <div className="tvsf-verdict">
         <div className="tvsf-honest">
