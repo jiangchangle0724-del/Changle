@@ -210,8 +210,14 @@ export function inPool(s: Song, pool: SongPool): boolean {
   return !p.cats.length || p.cats.some((c) => inCat(s, c));
 }
 
-/** How many songs a pool has (a singer special's game is no longer than that). */
-export const poolSize = (all: Song[], pool: SongPool) => all.reduce((n, s) => n + (inPool(s, pool) ? 1 : 0), 0);
+/** A title as a game tells two apart: case, spaces and punctuation don't count. */
+const titleKey = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+
+/**
+ * How many songs a pool has, by title (a song can be in the list twice, credited two ways or released
+ * twice, and a game plays a title once): a game is no longer than that.
+ */
+export const poolSize = (all: Song[], pool: SongPool) => new Set(all.filter((s) => inPool(s, pool)).map((s) => titleKey(s.t))).size;
 
 /**
  * How a song feels, from its title, categories and language, for the stage: sad songs bring tears,
@@ -301,22 +307,26 @@ export function cleanTitle(name: string, lang: number): string {
 }
 
 /**
- * Pick the next song: never one played this game, preferably none anyone at the table has
- * heard lately. A pool with several languages lets them take turns at random, so a small
- * language is heard as often as a big one. Chart songs and newer ones come up a little more often.
+ * Pick the next song: never a title this game has played (`game`), preferably none played at the table
+ * before (`played`) or heard lately on its phones (`avoid`). A pool with several languages lets them
+ * take turns at random, so a small language is heard as often as a big one. Chart songs and newer ones
+ * come up a little more often. Null when the pool has no title left for this game.
  */
-export function pickSong(all: Song[], pool: SongPool, avoid: Set<number>, played: Set<number>, rand: () => number, lang?: number): Song | null {
+export function pickSong(all: Song[], pool: SongPool, avoid: Set<number>, played: Set<number>, rand: () => number, lang?: number, game: Set<number> = played): Song | null {
   const fit = all.filter((s) => inPool(s, pool));
   if (!fit.length) return null;
-  const present = [...new Set(fit.map((s) => s.l))];
+  const gone = new Set(fit.filter((s) => game.has(s.id)).map((s) => titleKey(s.t)));
+  const left = fit.filter((s) => !game.has(s.id) && !gone.has(titleKey(s.t)));
+  if (!left.length) return null;
+  const present = [...new Set(left.map((s) => s.l))];
   const wantLang = lang !== undefined && present.includes(lang) ? lang : present[Math.floor(rand() * present.length)];
   const tiers = [
-    fit.filter((s) => s.l === wantLang && !avoid.has(s.id) && !played.has(s.id)),
-    fit.filter((s) => !avoid.has(s.id) && !played.has(s.id)),
-    fit.filter((s) => s.l === wantLang && !played.has(s.id)),
-    fit.filter((s) => !played.has(s.id)),
-    // a big pool can play a song again before the game runs dry; one singer's game ends instead
-    specialOf(pool) ? [] : fit,
+    left.filter((s) => s.l === wantLang && !avoid.has(s.id) && !played.has(s.id)),
+    left.filter((s) => !avoid.has(s.id) && !played.has(s.id)),
+    left.filter((s) => s.l === wantLang && !played.has(s.id)),
+    left.filter((s) => !played.has(s.id)),
+    // (all played at this table before: a game can bring back an earlier game's songs)
+    left,
   ];
   const list = tiers.find((x) => x.length) ?? [];
   if (!list.length) return null;

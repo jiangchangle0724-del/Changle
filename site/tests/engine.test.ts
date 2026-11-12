@@ -1644,6 +1644,53 @@ tuneTest("tune: decades, and a singer special that plays only their songs, then 
   ok(v.phase === "end" && heard.length === few[4] && new Set(heard).size === few[4], `all ${few[4]} of their songs, each once, then the final scores (${heard.length})`);
 });
 
+tuneTest("tune: a small pool plays each title once a game, game after game, and a mode change undoes the cap", () => {
+  const all = SONG_ROWS.map(fromRow);
+  const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const play = (t: ReturnType<typeof setup>) => {
+    const ids: number[] = [];
+    t.g("p0", "go");
+    for (let n = 1; n <= 25 && t.view<V<"tune">>("p0").phase !== "end"; n++) {
+      ids.push((t.eng.d.game!.s as { song: { id: number } }).song.id);
+      t.advance(2600 + 20_000);
+      t.advance(10_000);
+    }
+    return ids;
+  };
+  const titles = (ids: number[]) => ids.map((id) => norm(all.find((x) => x.id === id)!.t));
+  // 伍佰 has 挪威的森林 twice (credited two ways): a game plays it once
+  const wubai = SPECIALS.find((x) => x[0] === "伍佰")!;
+  ok(!!wubai && poolSize(all, "@伍佰") === wubai[4] && all.filter((x) => singersOf(x.a).includes("伍佰")).length > wubai[4], `伍佰's special counts titles (${wubai[4]}), not rows`);
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p0", "pool", { pool: "@伍佰" });
+  t.g("p0", "total", { n: 20 });
+  t.g("p0", "quiz", { on: true });
+  const one = play(t);
+  ok(one.length === wubai[4] && new Set(titles(one)).size === one.length, `game 1: every title once (${one.length})`);
+  t.g("p0", "again");
+  const two = play(t);
+  ok(two.length === wubai[4] && new Set(titles(two)).size === two.length && t.view<V<"tune">>("p0").phase === "end", `game 2 at the same table: all of them again, each once (${two.length}), then the scores`);
+  t.g("p0", "again");
+  t.g("p0", "total", { n: 8 });
+  const three = play(t);
+  ok(three.length === 8 && new Set(titles(three)).size === 8, "game 3, set to 8: 8 titles");
+  // a decade in one category can be tiny: the game is as long as it is
+  const tiny = "zh:pop:80s";
+  const size = poolSize(all, tiny);
+  t.g("p0", "again");
+  t.g("p0", "pool", { pool: tiny });
+  t.g("p0", "total", { n: 8 });
+  const small = play(t);
+  ok(size < 8 && small.length === size && new Set(titles(small)).size === size, `${tiny} has ${size} titles: the game plays each once and ends (${small.length})`);
+  // the cap is for real songs only: the melodies play the game the host picked
+  t.g("p0", "again");
+  t.g("p0", "mode", { mode: "melody" });
+  t.g("p0", "total", { n: 20 });
+  t.g("p0", "go");
+  ok(t.view<V<"tune">>("p0").total === 20, "melodies after a small pool: 20 songs, as picked");
+});
+
 test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a penalty", () => {
   type V = V<"drama">;
   const t = setup(6);

@@ -54,7 +54,7 @@ for (const s of songs) {
   const all = singersOf(s.a);
   for (const k of all) {
     const w = by.get(k) ?? { songs: 0, titles: new Set(), solo: 0, names: new Map(), en: new Map(), langs: [0, 0, 0, 0, 0, 0, 0, 0] };
-    // (every song they sing is in their special, a world classic too: the count is the pool's)
+    // (every song they sing is in their special, a world classic too)
     w.songs++;
     w.titles.add(norm(s.t));
     if (s.l !== 6) w.langs[s.l]++;
@@ -76,7 +76,8 @@ for (const [k, w] of by) {
   const zh = most(w.names);
   const ae = most(w.en);
   const en = EN[k] ?? (latin(zh) ? zh : latin(ae) ? ae : zh);
-  specials.push([k, zh, en === zh ? "" : en, l, w.songs]);
+  // (a game plays a title once, so the count is the titles: poolSize in src/shared/songs.ts)
+  specials.push([k, zh, en === zh ? "" : en, l, w.titles.size]);
 }
 specials.sort((a, b) => a[3] - b[3] || b[4] - a[4] || a[1].localeCompare(b[1]));
 
@@ -99,7 +100,7 @@ export const POOL_ERAS: Record<string, string[]> = ${JSON.stringify(eras)};
  * their own: ${specials.length} in all.
  * ${perLang.join(", ")}.
  * [the name as singersOf folds it (the pool is "@" and this), the name shown, the English one
- * ("" = the same), language, how many songs the pool has]
+ * ("" = the same), language, how many different songs the pool has]
  */
 export const SPECIALS: [string, string, string, number, number][] = [
 ${specials.map((s) => "  " + JSON.stringify(s) + ",").join("\n")}

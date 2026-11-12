@@ -256,9 +256,9 @@ function SongRounds({
   useEffect(() => {
     loadSongbook().then(setBook, () => setFailed(true));
   }, []);
-  /** a singer special: as many songs as the game is set to, or all that singer has if fewer */
+  /** as many songs as the game is set to, or all the pool has if fewer (one singer, a small decade) */
   const special = specialOf(pool);
-  const size = useMemo(() => (book && special ? poolSize(book, pool) : 0), [book, pool, special]);
+  const size = useMemo(() => (book ? poolSize(book, pool) : 0), [book, pool]);
   const rounds = size ? Math.min(total, size) : total;
   useLayoutEffect(() => onTotal(rounds), [rounds, onTotal]);
 

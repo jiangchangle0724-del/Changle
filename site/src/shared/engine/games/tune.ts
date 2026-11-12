@@ -16,7 +16,8 @@ import { range, t, type Api, type GameDef } from "../api";
  * One second (snap): every phone plays one second of the song, then three, then the rest, each from
  * the same spot (the hook the host's phone found in the preview); the points go 3, 2, 1 with them.
  * A singer special (pool "@<singer>"): only that singer's songs, the four titles all theirs (so no
- * singer on them), and a game no longer than the songs they have.
+ * singer on them). A game never plays a title twice, so a game of a small pool (one singer, a decade
+ * in one category) is no longer than the songs it has.
  */
 
 type Mode = TuneView["mode"];
@@ -24,7 +25,7 @@ type Mode = TuneView["mode"];
 type S = {
   mode: Mode;
   pool: SongPool;
-  /** a singer special: how many songs that singer has here (the game is no longer); 0 otherwise */
+  /** how many songs (by title) the pool has: a game of real songs is no longer than that */
   size?: number;
   /** everyone answers at once from four titles (no buzzer) */
   quiz: boolean;
@@ -64,6 +65,8 @@ type S = {
   revealPos: number;
   /** played at this table, and heard lately on the phones here: both kept off the playlist */
   played: number[];
+  /** this game's songs: a game never plays one twice (missing in rooms from before) */
+  game?: number[];
   heard: number[];
   /** today's chart songs, handed in by the host's phone with the first song */
   extra: Song[];
@@ -96,12 +99,13 @@ const songsOf = (s: S) => (s.extra.length ? CATALOG.concat(s.extra) : CATALOG);
 
 function pick(s: S, api: Api, exclude: number[] = []) {
   const played = new Set([...s.played, ...exclude]);
-  return pickSong(songsOf(s), s.pool, new Set(s.heard), played, () => api.rand());
+  const game = new Set([...(s.game ?? []), ...exclude]);
+  return pickSong(songsOf(s), s.pool, new Set(s.heard), played, () => api.rand(), undefined, game);
 }
 
-/** the songs a game plays: as many as the host picked, or all a singer special's singer has */
-const roundsOf = (s: S) => (s.size ? Math.min(s.total, s.size) : s.total);
-const sizeOf = (s: S) => (specialOf(s.pool) ? poolSize(songsOf(s), s.pool) : 0);
+/** the songs a game plays: as many as the host picked, or all the pool has if fewer (one singer, a small decade) */
+const roundsOf = (s: S) => (s.mode === "songs" && s.size ? Math.min(s.total, s.size) : s.total);
+const sizeOf = (s: S) => poolSize(songsOf(s), s.pool);
 
 /**
  * One second, before the first song: pick it already, so every phone loads it while the table sets
@@ -125,9 +129,10 @@ function go(s: S, api: Api) {
   s.right = [];
   s.phase = "listen";
   if (s.mode === "songs") {
-    const song = s.next && !s.played.includes(s.next.id) ? s.next : pick(s, api);
-    // a singer special that has played all their songs: that's the game
-    if (!song && s.size && s.round > 1) {
+    if (s.round === 1) s.game = [];
+    const song = s.next && !s.played.includes(s.next.id) && !(s.game ?? []).includes(s.next.id) ? s.next : pick(s, api);
+    // a pool with no song left for this game: that's the game
+    if (!song && s.round > 1) {
       s.round -= 1;
       return finish(s, api);
     }
@@ -142,6 +147,7 @@ function go(s: S, api: Api) {
     s.song = song;
     s.played.push(song.id);
     if (s.played.length > PLAYED_MAX) s.played = s.played.slice(-PLAYED_MAX);
+    s.game = [...(s.game ?? []), song.id];
     s.next = pick(s, api);
     s.choices = api.shuffle([song, ...decoysFor(song, songsOf(s), () => api.rand(), !!s.hard, s.pool)]);
     s.options = null;
