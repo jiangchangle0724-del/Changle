@@ -20,6 +20,7 @@ import { STYLE_NAMES } from "../parts";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
+import { useDjNames } from "../names";
 
 const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
 
@@ -30,9 +31,10 @@ const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
  * on the count, a song to ask for by name, and the pick for what plays next.
  */
 export function DeckPad({ v }: { v: DjView }) {
-  const { g, me, now, nameOf } = useRoom();
+  const { g, me, now } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
+  const nameOf = useDjNames(zh);
   const d = v.deck;
   // (while a whole song plays on the TV, the deck waits, all but the pads that are a sound of their own)
   const playingNow = v.phase !== "wait" && v.phase !== "end";
@@ -112,11 +114,11 @@ export function DeckPad({ v }: { v: DjView }) {
 /**
  * 点歌模式, the host's switch (Steve on Nov 5: "关闭 drop ... 当成一个点歌器"): no build-up, no DROP and
  * no picks, the songs asked for one after another, the DJ between them. The others read it on the
- * line under it.
+ * line under it. `boss`: the shared phone's (the big screen itself, SharedPhone.tsx).
  */
-function JukeSwitch({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
+export function JukeSwitch({ v, g, zh, boss = false }: { v: DjView; g: G; zh: boolean; boss?: boolean }) {
   const { isHost } = useRoom();
-  if (!isHost || v.phase === "end") return null;
+  if ((!isHost && !boss) || v.phase === "end") return null;
   return (
     <div className="seg djk-juke" role="group" aria-label={zh ? "歌怎么放" : "How the songs play"}>
       <button type="button" aria-pressed={!v.juke} onClick={() => g("juke", { on: false })}>
@@ -131,15 +133,18 @@ function JukeSwitch({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
   );
 }
 
-type G = (x: string, data?: Record<string, unknown>) => void;
+export type G = (x: string, data?: Record<string, unknown>) => void;
 
-/** 真歌时间: a whole song from YouTube plays on the TV; the deck waits. Its player and the host can skip it. */
-function SongTime({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; zh: boolean; nameOf: (pid: string) => string }) {
+/**
+ * 真歌时间: a whole song from YouTube plays on the TV; the deck waits. Its player and the host can
+ * skip it (`boss`: the shared phone, whoever's it is).
+ */
+export function SongTime({ v, me, g, zh, nameOf, boss = false }: { v: DjView; me: string; g: G; zh: boolean; nameOf: (pid: string) => string; boss?: boolean }) {
   const { isHost } = useRoom();
   const s = v.deck.song!;
   const req = v.deck.now?.id === s.id ? v.deck.now : null;
   const name = req ? songName(req, zh) : null;
-  const can = s.by === me || isHost;
+  const can = s.by === me || isHost || boss;
   return (
     <div className="djk-song" role="status">
       <span className="djk-song-title">
@@ -470,9 +475,12 @@ const ytReq = (h: YtHit) => [h.id, h.t, h.a];
  * next). Songs and the DJ take turns: a song, the DJ a while, the next. Whoever asked for one, and
  * the host, can take it out; the host switches 按顺序 and 随机.
  */
-function Playlist({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
+export function Playlist({ v, me, g, zh, boss = false }: { v: DjView; me: string; g: G; zh: boolean; boss?: boolean }) {
   const d = v.deck;
-  const { isHost, nameOf, now } = useRoom();
+  const { now, isHost: host } = useRoom();
+  // (the shared phone switches 随机 too: the big screen itself, `boss`; it takes out only its own)
+  const isHost = host || boss;
+  const nameOf = useDjNames(zh);
   const waiting = v.shuffle ? d.reqs : reqOrder(d.reqs, d.reqOn ?? {}, now());
   const rows = [...(d.up ? [{ r: d.up, up: true }] : []), ...waiting.map((r) => ({ r, up: false }))];
   if (!rows.length && !isHost) return null;
@@ -514,7 +522,7 @@ function Playlist({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
                   <span className="djk-list-t">{name ?? (r.yt ? (zh ? "一首 YouTube 上的歌" : "A song from YouTube") : zh ? "一首歌" : "A song")}</span>
                   <span className="djk-list-by">{theirs ? (zh ? "你点的" : "Yours") : zh ? `${nameOf(r.by)} 点的` : `${nameOf(r.by)}'s`}</span>
                 </span>
-                {(theirs || isHost) && (
+                {(theirs || host) && (
                   <button type="button" className="djk-list-out" aria-label={zh ? "从歌单拿掉" : "Take it off the playlist"} onClick={() => g("unreq", { id: r.id })}>
                     <X size={18} aria-hidden="true" />
                   </button>
@@ -545,7 +553,7 @@ type Need = { song?: number; text: string; artist?: string; why: NoTube };
  * the remix, not the song): a button opens YouTube's own search for it, the link copied there is
  * pasted back, or it goes in as the DJ's remix alone. On a night of the host's songs: those, whole.
  */
-function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }) {
+export function Requests({ v, me, g, zh, each = DECK.reqEach }: { v: DjView; me: string; g: G; zh: boolean; each?: number }) {
   const d = v.deck;
   const { code, now } = useRoom();
   const [q, setQ] = useState("");
@@ -611,7 +619,7 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
   // (the one up next or waiting first; one of theirs can be on the air while the next waits)
   const mine: { r: ReqView; at: "now" | "up" | "wait"; ahead: number } | null =
     d.up?.by === me ? { r: d.up, at: "up", ahead: 0 } : waitAt >= 0 ? { r: order[waitAt], at: "wait", ahead: waitAt + (d.up ? 1 : 0) } : d.now?.by === me ? { r: d.now, at: "now", ahead: 0 } : null;
-  const enough = mineN >= DECK.reqEach;
+  const enough = mineN >= each;
   const full = d.reqs.length >= DECK.reqMax;
   const ended = v.phase === "end";
 
@@ -746,8 +754,8 @@ function Requests({ v, me, g, zh }: { v: DjView; me: string; g: G; zh: boolean }
         <span className="djk-req-note">
           {enough
             ? zh
-              ? `你在歌单里有 ${DECK.reqEach} 首了，放掉一首再点`
-              : `You have ${DECK.reqEach} on the playlist. Ask again once one has played`
+              ? `你在歌单里有 ${each} 首了，放掉一首再点`
+              : `You have ${each} on the playlist. Ask again once one has played`
             : mine?.at === "now"
               ? mine.r.local || mine.r.yt
                 ? zh

@@ -16,13 +16,16 @@ import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePad
 import { LocalPanel } from "./local/LocalPanel";
 import { FloorGrid, NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
+import { SharedPhone } from "./SharedPhone";
 import { useBooth } from "./useBooth";
+import { takePrimed } from "../../lib/primeAudio";
 import { primeVoice, useAnnounce } from "./announce";
 import { useWakeLock } from "../sensors";
 import { Coach } from "./Coach";
 import { TubePlayer } from "./TubePlayer";
 import { danceShare } from "../../shared/dj/dance";
 import "../../styles/dj.css";
+import { useDjNames } from "./names";
 
 /**
  * 打碟 · DJ Booth on the big screen, which is also the speaker: the one device the music comes
@@ -30,9 +33,10 @@ import "../../styles/dj.css";
  * follow the kick, everyone at the table dances on the beat, and every 🔥 shows whose it was.
  */
 export default function TvDj({ v }: { v: DjView }) {
-  const { room, code, g, now, nameOf } = useRoom();
+  const { room, code, g, now } = useRoom();
   const { lang, sound } = useStore();
   const zh = lang === "zh";
+  const nameOf = useDjNames(zh);
   // at one of the owner's tables this screen may stream Lyria (the private test)
   const sid = room?.you ?? "";
   const lyria = useMemo(() => (v.lab && sid ? { url: lyriaUrl(code, sid), key: `${code}:${sid}` } : null), [v.lab, sid, code]);
@@ -84,6 +88,29 @@ export default function TvDj({ v }: { v: DjView }) {
   const { speaker, dj } = booth;
   // the beginner deck: every pad pressed at the table plays here, on the next beat
   const chips = usePadEvents(booth.pad);
+
+  // opened from the game's card as the shared phone (Steve on Nov 11: "直接开始播放音乐"): the
+  // card's tap woke the sound, so the music starts with no tap here, and the songs play one after
+  // another (点歌模式: nobody needs to be at the table to build up and drop)
+  const shared = useRef<"no" | "asked" | "done">("no");
+  useEffect(() => {
+    const ctx = takePrimed();
+    if (!ctx) return;
+    if (v.phase !== "wait" || booth.speaker) {
+      void ctx.close().catch(() => {});
+      return;
+    }
+    shared.current = "asked";
+    primeVoice();
+    booth.start(ctx);
+    // (once, on the page's first look)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (shared.current !== "asked" || booth.status !== "on" || v.phase === "wait" || v.phase === "end") return;
+    shared.current = "done";
+    if (!v.juke) g("juke", { on: true });
+  }, [booth.status, v.phase, v.juke, g]);
 
   // the music starts here: the room's set begins when this screen says it's playing (said again
   // every few seconds until the room has heard it: a message can be lost on a dropping connection)
@@ -314,6 +341,8 @@ export default function TvDj({ v }: { v: DjView }) {
           }}
         />
       )}
+      {/* the big screen's own 点歌 (the shared phone), and a phone held upright asked to turn sideways */}
+      <SharedPhone v={v} />
       {live && booth.stopped && (
         <button
           type="button"

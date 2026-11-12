@@ -153,14 +153,15 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `live` `{ source }`, `stats` `{ stalls, resets, seconds }` | the speaker | As above. |
 | `src` `{ source }` | the speaker | Its music changed hands mid-set (Lyria took over, or the stand-in came back): `source` follows, so every phone shows which DJ plays. Only while music plays, only a real change, at most once a second; the speaker says it again every 3 seconds until the room has it. |
 | `mine` `{ on }` | the host, or the speaker | The night on the host's songs, or back to the stand-in (below): `mine` in the view; the speaker switches once it has songs. |
-| `songskip` | the song's player, or the host | 真歌时间 over: the whole song stops, the DJ comes back. |
+| `songskip` | the song's player, the host, or the speaker | 真歌时间 over: the whole song stops, the DJ comes back. |
 | `voice` `{ on }` | the host | 报幕 on the big screen, on (the default) or off: `voice` in the view (below). |
-| `shuffle` `{ on }` | the host | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
-| `juke` `{ on }` | the host | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), or the deck as it was (the default): `juke` in the view, below. Another set keeps it. |
-| `full` `{ on }` | anyone | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
+| `shuffle` `{ on }` | the host, or the speaker | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
+| `juke` `{ on }` | the host, or the speaker | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), or the deck as it was (the default): `juke` in the view, below. Another set keeps it. |
+| `full` `{ on }` | anyone, or the speaker | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
 | `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
 | `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
 | `nosong` `{ id }` | the speaker | The video of the song up next won't play here (YouTube said so while the TV got it ready): it comes off that song (`ytNo`), whose drop plays the DJ's remix alone. Only the song up next with a video; said again, nothing more. |
+| `req` `{ text, song?, yt? }`, `unreq` `{ id }` | the speaker | The shared phone's own 点歌 (below): a song asked for as the table's (`SHARED_BY`), up to the table's 30 (not three); only its own taken back. |
 
 - **Nothing a player types reaches anyone else unchecked.** In a phone's or screen's view, a song's
   `ask` is null for everyone but its player and the host until it has passed the text check
@@ -508,6 +509,24 @@ DJ between two songs at 125 BPM). With none waiting the DJ plays on. A song with
 remix) still waits for the DJ's deck to have its style. The speaker's clip player (`clip/clip.ts`, a clip on the drop's bar over the deck's drums)
 has no source now: Apple's previews are gone.
 
+**The shared phone** (公用手机, Steve on Nov 11: "公用手机（投屏电视）另外进入这个页面之后手机自动旋转屏幕到
+横屏，直接开始播放音乐，并且这个手机是可以在YouTube上点歌的"): one phone everyone shares, its screen
+mirrored to the TV, is the speaker. On a phone, the game's card offers it first (`home/GameSheet.tsx`:
+公用手机（投屏电视）; on a computer, 这台电脑当音箱). Its one tap wakes the sound (`lib/primeAudio.ts`: an
+iPhone lets a page make sound only inside a tap; the speaker takes that context), asks for full
+screen and sideways where a page may (Android; an iPhone can't be turned by a page) and opens the
+booth, which starts the music with no other tap and switches to 点歌模式 (nobody needs to be at the
+table). The booth opened at its own address still asks for its tap (开始派对). On any speaker, a 点歌
+button at the right edge, in the page's own pixels (`SharedPhone.tsx`), opens a sheet with the phones'
+own song box, playlist, whole song and 点歌模式 switch (`SharedSongs.tsx`, `phone/DeckPad.tsx`): the
+room takes them from the speaker only (another screen with the code can't) as the table's,
+`SHARED_BY` (`~shared`), named 公用手机 / Shared phone wherever the booth says who asked
+(`names.ts`): up to the table's 30, its own taken back, any song playing skipped, 随机 and 点歌模式
+switched, the video over the whole TV. Everyone reads its songs' names (they were typed on the
+screen everyone watches). A phone held upright on the booth is asked to turn sideways (the TV shows
+the phone as it's held): how, for an iPhone (Portrait Orientation Lock) or not (Auto-rotate), or
+keep it upright.
+
 ## A night of the host's songs (`local`, Nov 2)
 
 Steve's ask: "can I connect Apple Music, like rekordbox does". Apple only lets the DJ apps it has
@@ -756,6 +775,13 @@ and is back if they can't be.
   in two rows on the beat; a TV drawing WebGL in software keeping the drawn floor (three.js never
   downloaded), one slowed down on purpose going back to it, and with reduced motion the robots
   standing easy.
+- `python3 scripts/dj_shared_check.py`: the shared phone in browsers, a phone held sideways, two
+  phones scanned in, a computer: the card's first button on a phone (公用手机（投屏电视）), its one tap
+  opening the booth full screen with the music on and 点歌模式, no other tap; the 点歌 sheet (a pasted
+  link in as the shared phone's, the badge, the TV and the phones naming it 公用手机, only the host
+  taking it out; the song skipped, its own taken back, 随机, back to the build-up); held upright, the
+  ask to turn sideways; a computer's 这台电脑当音箱 the same way; the booth's own address still asking
+  for 开始派对.
 - `python3 scripts/dj_turntable_check.py [chromium|webkit]`: the phone as a DJ controller, in
   browsers, a TV and two phones: the four club sounds rendered offline in the TV's browser and
   measured (the record's pops over its hiss for two bars, the boom's low pitch, the reverse cymbal
