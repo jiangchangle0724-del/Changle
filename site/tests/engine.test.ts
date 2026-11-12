@@ -5124,5 +5124,58 @@ test("rogue: the garden's judge can name the one who just finished, not only the
   ok(t.pens().slice(-1)[0].who[0] === sp, "no name given: the one speaking");
 });
 
+test("rogue: sevens never starts on a seven; a phone that is away sits out the grab and the nose", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { deck: number[]; holders: Record<string, string> };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  s.deck.push(6); // the seven of spades
+  const drawer = rv().turn;
+  t.g(drawer, "draw");
+  for (const n of [7, 14, 17]) {
+    t.g(drawer, "sevens", { start: n });
+    ok(rv().phase === "sevens-start", `can't start on ${n}`);
+  }
+  t.g(drawer, "sevens", { start: 16 });
+  ok(rv().phase === "sevens" && rv().sevens!.n === 17, "16 starts, and 17 is next (a 过)");
+  t.act("p0", { a: "end" });
+
+  // the grab: p3's phone is away; the last one in the race is the last one here
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "rogue" });
+  const us = u.eng.d.game!.s as { deck: number[]; holders: Record<string, string> };
+  const uv = () => u.view<Extract<GameView, { id: "rogue" }>>("p0");
+  u.eng.setOnline("p3", false);
+  u.eng.flush();
+  us.deck.push(3); // the four of spades
+  const d = uv().turn;
+  u.g(d, "draw");
+  const free = u.ids.filter((id) => id !== d && id !== "p3");
+  const before = u.pens().length;
+  u.g(free[0], "grab", { n: 2 });
+  u.advance(1000);
+  const last = u.pens().slice(before)[0];
+  ok(uv().phase === "done" && last && last.who.join() === free[1], `with p3 away the race is over once one of the two here has grabbed: the other is the last one, not p3 (${last?.who})`);
+  u.g(uv().drawer ?? uv().turn, "next");
+  // the nose: p3 away, the two here touch theirs: done, nobody missed
+  us.holders.nose = d;
+  u.g(d, "nose");
+  for (const id of free) {
+    u.g(id, "tap");
+    clock += 80;
+  }
+  const n2 = u.pens().slice(-1)[0];
+  ok(uv().interrupt === null && n2 && n2.who[0] === free[1] && n2.note?.zh === "摸鼻子：最慢", `the nose ends when everyone here has touched; the slowest of them pays (${n2?.who}, ${n2?.note?.zh})`);
+  // p3 comes back: in the next race and the next nose as usual
+  u.eng.setOnline("p3", true);
+  u.eng.flush();
+  u.g(d, "nose");
+  u.g(free[0], "tap");
+  u.g(free[1], "tap");
+  ok(uv().interrupt?.kind === "nose", "with p3 back, the nose waits for p3");
+  u.advance(6500);
+  ok(u.pens().slice(-1)[0].who[0] === "p3" && u.pens().slice(-1)[0].note?.zh === "摸鼻子：没摸", "and p3 pays for not touching");
+});
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);

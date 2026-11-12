@@ -239,7 +239,8 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
           </p>
           <div className="num-grid">
             {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
-              <button key={n} type="button" className="num-btn tabular" onClick={() => g("sevens", { start: n })}>
+              // (not a seven: the first number is said out loud, and those are a 过)
+              <button key={n} type="button" className="num-btn tabular" disabled={n % 7 === 0 || String(n).includes("7")} onClick={() => g("sevens", { start: n })}>
                 {n}
               </button>
             ))}
@@ -411,17 +412,13 @@ function Powers({ v }: { v: RogueView }) {
         {wcAsk && !myWc && (
           <motion.div key="wc" className="wc-ask" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <span>
-              {pen.isCustom
-                ? lang === "zh"
-                  ? v.holders.wc
-                    ? `WC 票在 ${nameOf(v.holders.wc)} 手上，先受罚再去？`
-                    : "没人有 WC 票，先受罚再去？"
-                  : "No pass for you. Penalty first, then go?"
-                : lang === "zh"
-                  ? v.holders.wc
-                    ? `WC 票在 ${nameOf(v.holders.wc)} 手上，先喝一口再去？`
-                    : "没人有 WC 票，先喝一口再去？"
-                  : "No pass for you. Drink first, then go?"}
+              {(() => {
+                // the pass: nobody's, someone else's, or your own and used up
+                const first = pen.isCustom ? (lang === "zh" ? "先受罚再去？" : "Penalty first, then go?") : lang === "zh" ? "先喝一口再去？" : "Drink first, then go?";
+                if (!v.holders.wc) return lang === "zh" ? `没人有 WC 票，${first}` : `No pass at the table. ${first}`;
+                if (v.holders.wc === me) return lang === "zh" ? `你的 WC 票用过了，${first}` : `Your pass is used up. ${first}`;
+                return lang === "zh" ? `WC 票在 ${nameOf(v.holders.wc)} 手上，${first}` : `${nameOf(v.holders.wc)} holds the pass. ${first}`;
+              })()}
             </span>
             <div className="row" style={{ gap: 8 }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setWcAsk(false)}>

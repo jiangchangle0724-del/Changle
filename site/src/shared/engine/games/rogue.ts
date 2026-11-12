@@ -53,8 +53,15 @@ function endSub(s: S, api: Api) {
   api.clear("sevens");
 }
 
+/** The players still to grab a number: a phone that is away right now is left out of the race and its penalty. */
 function remainingGrab(s: S, api: Api) {
-  return api.ids().filter((id) => s.grab && s.grab.claimed[id] === undefined);
+  return api.ids().filter((id) => s.grab && s.grab.claimed[id] === undefined && api.online(id));
+}
+
+/** The players who must touch their nose: everyone but the caller whose phone is here right now. */
+function noseOthers(s: S, api: Api) {
+  const it = s.interrupt;
+  return it ? api.ids().filter((id) => id !== it.by && api.online(id)) : [];
 }
 
 function startGrab(s: S, api: Api, drawer: string) {
@@ -71,8 +78,7 @@ function startGrab(s: S, api: Api, drawer: string) {
 function resolveNose(s: S, api: Api, timedOut: boolean) {
   const it = s.interrupt;
   if (!it || it.kind !== "nose") return;
-  const others = api.ids().filter((id) => id !== it.by);
-  const missing = others.filter((id) => it.taps[id] === undefined);
+  const missing = noseOthers(s, api).filter((id) => it.taps[id] === undefined);
   s.interrupt = null;
   api.clear("nose");
   if (missing.length && timedOut) {
@@ -249,7 +255,8 @@ export const rogue: GameDef<S> = {
       /* 7: sevens */
       case "sevens": {
         const start = intIn(g.start, 1, 20);
-        if (s.phase !== "sevens-start" || start === null || (pid !== s.drawer && !host) || !s.drawer) return;
+        // (the drawer says the first number out loud: not one that has to be a 过)
+        if (s.phase !== "sevens-start" || start === null || isSeven(start) || (pid !== s.drawer && !host) || !s.drawer) return;
         s.sevens = { n: start + 1, speaker: api.next(s.drawer), endsAt: api.now + 6000, streak: 0, log: [{ pid: s.drawer, n: start, pass: false }] };
         s.phase = "sevens";
         api.timer("sevens", s.sevens.endsAt);
@@ -306,8 +313,7 @@ export const rogue: GameDef<S> = {
         const it = s.interrupt;
         if (!it || it.kind !== "nose" || pid === it.by || it.taps[pid] !== undefined || !api.has(pid)) return;
         it.taps[pid] = api.now;
-        const others = api.ids().filter((id) => id !== it.by);
-        if (others.every((id) => it.taps[id] !== undefined)) resolveNose(s, api, false);
+        if (noseOthers(s, api).every((id) => it.taps[id] !== undefined)) resolveNose(s, api, false);
         return;
       }
       case "trouble": {

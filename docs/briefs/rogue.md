@@ -31,13 +31,13 @@
 - 联机照相机的「谁动了」有 20 秒时限（2026-11-11）：定格 3.5 秒后持牌人 20 秒内不点，算没人动，全桌照常。每部手机上都有倒计时。时间都写在 `rogue13.ts` 的 `ROGUE_MS` 里，单机、联机共用。
 - 联机逛三园、抢数字、逢七过进行中，照相机和摸鼻子按不了（2026-11-11）：规则里不接，按钮也变灰。等这张牌打完再按。选园子、选起点的时候可以按，那两步没有倒计时。
 - 联机逛三园的判罚（2026-11-11）：抽牌人（或主人）看到两个按钮，「X 刚才重复了或说错了」（刚按过说完了的人，红的）和「Y 重复了或说错了」（正在说的人，灰的）。因为话说出口之后才判，说的人常常已经按了说完了。第一个人说的时候只有一个按钮。
+- 联机小修（2026-11-11）：WC 票用过的持票人再点上厕所，提示写「你的 WC 票用过了」；逢七过不能从 7、14、17 起头（起点是说出口的，那几个得说过），数字格子里灰掉；手机不在线（锁屏、切走）的人不参加抢数字和摸鼻子，不被罚最后一个、没摸到，回来了照常。
 - 每个技能一个专属音效，合成的：陪酒是碰杯加一小段号角，照相机是对焦两声加快门加过片，摸鼻子是捏两下橡皮鼻子加一个弹簧，WC 票是冲水加水泡，神经病是滑哨上去下来加布谷鸟。抽到那张牌时响一次，用的时候再响。联机和大屏用同一套，原来借用的自行车喇叭和木鱼不用了。
 
 ## 还剩什么
 
-按顺序修，每条一个 PR：
-
-- 联机小修：WC 票用过后持票人再点上厕所，提示写「WC 票在（他自己）手上」；逢七过能从 7、14、17 起头；手机离线的人在抢数字和摸鼻子里会被罚；摸鼻子和照相机没有冷却，两个人玩时可以连按连罚（加冷却算改玩法，Steve 定）。
+- 摸鼻子和照相机没有冷却，两个人玩时持牌人可以连按连罚。加冷却算改玩法，等 Steve 定要不要。
+- 五个音效 Steve 还没听过（WAV 在 2026-11-11 的对话里）。他要改哪个，改 `rogueSounds.ts` 里那一段就行。
 
 ## 交给别的对话
 
@@ -48,6 +48,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-11 Rogue Thirteen online: the used pass says so, sevens never starts on a seven, a phone that is away sits out the grab and the nose
 - 2026-11-11 Rogue Thirteen online: the garden's judge can name the one who just finished, not only the one speaking
 - 2026-11-11 Rogue Thirteen online: the camera and the nose wait while a timed round is on
 - 2026-11-11 Rogue Thirteen online: the camera's judgement has a deadline, so a holder who walks away can't freeze the table
@@ -63,4 +64,4 @@
 
 - 2026-11-02 建档案。
 - 2026-11-04 查了一遍：游戏壳迁移（#139）做完了，这里的「还剩什么」就此清空；查出上面那一串联机问题和单机点两下连走两步，都是现有测试没盖到的。
-- 2026-11-11 Steve 说开修，另加两条：单机也要能用技能，每个技能一个专属音效。先修单机点两下，再做单机技能和音效。共用文件动了这几行：protocol.ts 的 Fx 加了 trouble、buddy；room.ts 的 buddy 发一个 fx；useTableSounds.ts 和 tv/moments.tsx 里 camera、nose、wc 三行改成新音效，加了 trouble、buddy 两行。
+- 2026-11-11 Steve 说开修，另加两条：单机也要能用技能，每个技能一个专属音效。先修单机点两下，再做单机技能和音效，然后联机的四个 PR（照相机时限、小游戏中不许按技能、逛三园判罚、小修）。六个 PR 一个接一个叠着，按顺序合。共用文件动了这几行：protocol.ts 的 Fx 加了 trouble、buddy；room.ts 的 buddy 发一个 fx；useTableSounds.ts 和 tv/moments.tsx 里 camera、nose、wc 三行改成新音效，加了 trouble、buddy 两行。
