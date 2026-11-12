@@ -418,14 +418,14 @@
 
 /* ---------- leaving without using it ---------- */
 .mk-leave-back {
-  position: var(--color-scrim);
-  inset: var(--color-scrim);
-  z-index: var(--color-scrim);
-  display: var(--color-scrim);
-  align-items: var(--color-scrim);
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
   background: var(--color-scrim);
-  backdrop-filter: var(--color-scrim);
-  -webkit-backdrop-filter: var(--color-scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .mk-leave {
   width: 100%;
