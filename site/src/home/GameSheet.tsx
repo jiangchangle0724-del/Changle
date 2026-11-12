@@ -82,7 +82,7 @@ export function GameSheet({
                 <Tv size={22} />
                 <span>
                   <strong>{zh ? "电视或电脑当舞台" : "A TV or computer is the stage"}</strong>
-                  <small>{zh ? "老师在那里教，大家拿着手机跟着跳" : "The coach teaches there. Everyone dances with their phone."}</small>
+                  <small>{g.stage.note ? tr(g.stage.note) : zh ? "老师在那里教，大家拿着手机跟着跳" : "The coach teaches there. Everyone dances with their phone."}</small>
                 </span>
               </button>
               {tvHelp && (
