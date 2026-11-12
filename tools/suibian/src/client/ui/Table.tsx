@@ -12,6 +12,8 @@ import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
 import { RangePicker } from "./RangePicker";
 import { RankedList } from "./RankedList";
+import { WhenPicker } from "./WhenPicker";
+import { whenLabel } from "../when";
 
 export function Table({ home }: { home: () => void }) {
   const { view: v, status, fatal, me } = useApp();
@@ -89,6 +91,8 @@ function Lobby({ v }: { v: RoomView }) {
   }, [me?.user?.name]);
   const [editing, setEditing] = useState(false);
   const [range, setRange] = useState<RangeId>(v.range);
+  const [when, setWhen] = useState<number | null>(null);
+  const [editingWhen, setEditingWhen] = useState(false);
   const host = v.you.host || !v.members.find((m) => m.host)?.online;
   const ready = v.members.filter((m) => m.ready).length;
   if (editing) return <DietCard initial={v.you.limits} onDone={(l: Limits) => (send({ t: "limits", limits: l }), setEditing(false))} />;
@@ -109,6 +113,37 @@ function Lobby({ v }: { v: RoomView }) {
             {copied ? t("copied") : t("copyLink")}
           </Btn>
         </div>
+      </section>
+
+      <section class="card">
+        <p class="whenrow">🕒 {t("lobbyWhen", { when: whenLabel(v.at) })}</p>
+        {host &&
+          (editingWhen ? (
+            <>
+              <WhenPicker value={when} onChange={setWhen} />
+              <Btn
+                kind="primary"
+                wide
+                onClick={() => {
+                  send({ t: "when", at: when });
+                  setEditingWhen(false);
+                }}
+              >
+                {t("done")}
+              </Btn>
+            </>
+          ) : (
+            <Btn
+              kind="quiet"
+              class="change-when"
+              onClick={() => {
+                setWhen(v.at);
+                setEditingWhen(true);
+              }}
+            >
+              {t("changeWhen")}
+            </Btn>
+          ))}
       </section>
 
       <label class="field">
@@ -248,6 +283,7 @@ function Cards({ v }: { v: RoomView }) {
     <>
       <h2>{t("round2")}</h2>
       <p class="muted small">{t("round2Hint")}</p>
+      {v.at && <p class="planned small">{t("plannedFor", { when: whenLabel(v.at) })}</p>}
       <RankedList
         cards={v.cards}
         top={TOP_COUNT}
@@ -332,7 +368,8 @@ function Result({ v }: { v: RoomView }) {
   const rateUrl = `${location.origin}${BASE}/r/${v.code}/rate`;
   const map = win.place.mapsUrl ?? "";
   const share = async () => {
-    const text = t("shareText", { name: win.place.name, map, rate: rateUrl });
+    const vars = { name: win.place.name, map, rate: rateUrl };
+    const text = v.at ? t("shareTextAt", { ...vars, when: whenLabel(v.at) }) : t("shareText", vars);
     if (navigator.share) {
       try {
         await navigator.share({ text });
@@ -346,7 +383,7 @@ function Result({ v }: { v: RoomView }) {
   };
   return (
     <>
-      <h2 class="center">{t("winner")}</h2>
+      <h2 class="center">{v.at ? t("winnerAt", { when: whenLabel(v.at) }) : t("winner")}</h2>
       <PlaceCard c={win}>
         <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
       </PlaceCard>

@@ -60,6 +60,8 @@ export interface SoloInput {
   center: Center;
   range: RangeId;
   now: number;
+  /** A planned meal; now when absent. */
+  at?: number;
 }
 
 /**
@@ -72,7 +74,7 @@ export function soloRank(input: SoloInput): string[] {
   const likes: Partial<Record<CuisineId, number>> = {};
   if (a.mood !== "any") for (const c of MOOD_CUISINES[a.mood]) likes[c] = MOOD_BOOST;
   return rank({
-    places: eligible(input.places, input.limits, input.now),
+    places: eligible(input.places, input.limits, input.now, input.at),
     limits: input.limits,
     bans: {},
     likes,
@@ -80,6 +82,7 @@ export function soloRank(input: SoloInput): string[] {
     center: input.center,
     range: input.range,
     now: input.now,
+    at: input.at,
     boost: (p) => (sideFits(a, p.cuisine) ? SIDE_BOOST : 0),
     top: SOLO_TOP,
     perCuisine: 1,

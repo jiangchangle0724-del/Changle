@@ -2,6 +2,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  PLANNED_FROM,
+  cleanAt,
+  closingTime,
+  isOpen,
+  mealSlots,
+  mealTime,
+  vancouverClock,
+  vancouverDay,
+  vancouverMs,
   ALLERGENS,
   AVOID_GENERIC,
   AVOID_TIPS,
@@ -483,3 +492,58 @@ test("solo: a place nobody has rated gives way to rated ones, unless it is a pic
   const picked = { ...unknown, recommend: { note: { zh: "好吃", en: "Good" }, links: [] } };
   assert.equal(soloRank({ places: [picked, rated], answers: { mood: "warm", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW })[0], picked.id);
 });
+
+// ---- planning ahead ----
+
+test("Vancouver wall-clock times both ways, across the clock change", () => {
+  for (const [day, minutes] of [[{ y: 2026, m: 3, d: 8 }, 12 * 60], [{ y: 2026, m: 7, d: 1 }, 18 * 60 + 30], [{ y: 2026, m: 11, d: 12 }, 18 * 60 + 30], [{ y: 2026, m: 12, d: 31 }, 23 * 60 + 30]] as const) {
+    const ms = vancouverMs(day, minutes);
+    assert.equal(vancouverClock(ms).minutes, minutes, JSON.stringify(day));
+    assert.deepEqual(vancouverDay(ms), day);
+  }
+  // The day after, across a month's end.
+  assert.deepEqual(vancouverDay(vancouverMs({ y: 2026, m: 10, d: 31 }, 20 * 60), 1), { y: 2026, m: 11, d: 1 });
+});
+
+test("a planned time from a phone: at least a quarter hour ahead and within the week Google has hours for", () => {
+  assert.equal(cleanAt(NOW + 5 * 60_000, NOW), null, "that's now");
+  assert.equal(cleanAt(NOW - 3600_000, NOW), null);
+  assert.equal(cleanAt(NOW + 9 * 24 * 3600_000, NOW), null, "beyond Google's week");
+  assert.equal(cleanAt("tomorrow", NOW), null);
+  assert.equal(cleanAt(NOW + 3600_000 + 1234, NOW), NOW + 3600_000);
+  // A plan whose time has come is now.
+  assert.equal(mealTime(NOW + PLANNED_FROM - 1, NOW), NOW);
+  assert.equal(mealTime(NOW + 2 * 3600_000, NOW), NOW + 2 * 3600_000);
+  assert.equal(mealTime(null, NOW), NOW);
+});
+
+test("the quick choices are the lunches and dinners still ahead", () => {
+  // NOW is Thursday 7 pm in Vancouver: tonight's dinner has started, tomorrow's lunch and dinner are ahead.
+  assert.deepEqual(mealSlots(NOW).map((s) => s.id), ["lunch1", "dinner1"]);
+  const morning = vancouverMs(vancouverDay(NOW), 9 * 60);
+  assert.deepEqual(mealSlots(morning).map((s) => s.id), ["lunch0", "dinner0", "lunch1", "dinner1"]);
+  assert.equal(vancouverClock(mealSlots(morning)[1].at).minutes, 18 * 60 + 30);
+});
+
+test("planned: open by its hours that day, now by Google's 'open now'", () => {
+  const tomorrow = vancouverDay(NOW, 1);
+  const lunchOnly = place({ openNow: true, closesAt: NOW + 2 * 3600_000, hours: [[vancouverMs(tomorrow, 11 * 60), vancouverMs(tomorrow, 15 * 60)]] });
+  const dinner = place({ openNow: false, hours: [[vancouverMs(tomorrow, 17 * 60), vancouverMs(tomorrow, 22 * 60)]] });
+  const noHours = place({ openNow: true });
+  const lunch = vancouverMs(tomorrow, 12 * 60);
+  const tea = vancouverMs(tomorrow, 14 * 60 + 30);
+  assert.equal(isOpen(lunchOnly, NOW, lunch), true);
+  assert.equal(isOpen(dinner, NOW, lunch), false);
+  assert.equal(isOpen(noHours, NOW, lunch), undefined, "no hours: can't tell");
+  assert.equal(isOpen(dinner, NOW), false, "now: Google's open-now");
+  assert.equal(closingTime(lunchOnly, NOW, lunch), vancouverMs(tomorrow, 15 * 60));
+  // Tomorrow's lunch: the lunch place and the one we can't tell about; not the dinner one. At 14:30
+  // the lunch place closes too soon.
+  assert.deepEqual(eligible([lunchOnly, dinner, noHours], none, NOW, lunch).map((p) => p.id), [lunchOnly.id, noHours.id]);
+  assert.deepEqual(eligible([lunchOnly, dinner, noHours], none, NOW, tea).map((p) => p.id), [noHours.id]);
+  // And now, as before: Google's open-now.
+  assert.deepEqual(eligible([lunchOnly, dinner, noHours], none, NOW).map((p) => p.id), [lunchOnly.id, noHours.id]);
+  // A place we have hours for comes before one we don't.
+  assert.deepEqual(ranked([noHours, lunchOnly], { at: lunch }), [lunchOnly.id, noHours.id]);
+});
+

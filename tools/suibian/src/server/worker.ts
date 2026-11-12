@@ -5,10 +5,10 @@
 //   PUT  /api/me/card            ← Limits           save my diet card (logged in)
 //   POST /api/me/last            ← { code, name } or { place, name }   remember my last table or solo pick, to ask how it was
 //   POST /api/places/:id/rate    ← { overall, liked, wait }   rate my last solo pick (logged in, once)
-//   POST /api/solo               ← { center, range, answers, limits, lang } → { cards }   one person picking, every place ranked (logged in, counts toward 10 a day)
+//   POST /api/solo               ← { center, range, answers, limits, lang, at } → { cards, at }   one person picking, every place ranked (logged in, counts toward 10 a day)
 //   DELETE /api/me               → 204              forget everything about me
 //   GET  /auth/google, /auth/callback, POST /auth/logout
-//   POST /api/rooms              ← { cid, center, range } → { code }   (logged in, 10 a day)
+//   POST /api/rooms              ← { cid, center, range, at } → { code }   (logged in, 10 a day; `at`: a planned meal, or none for now)
 //   GET  /api/rooms/:code        → { exists, phase }
 //   GET  /api/rooms/:code/ws     → WebSocket (cid, key, name, lang in the query)
 //   POST /api/rooms/:code/rate   ← { cid, overall, liked, wait }
@@ -19,7 +19,7 @@
 // can spend API money). Without them the server runs on made-up demo restaurants.
 import { DurableObject } from "cloudflare:workers";
 import { BASE } from "../base";
-import { NEIGHBOURHOODS, SOLO_TOP, cleanAnswers, cleanLimits, isRange, soloRank, soloReasons, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating } from "../engine";
+import { NEIGHBOURHOODS, SOLO_TOP, cleanAnswers, cleanAt, cleanLimits, isRange, soloRank, soloReasons, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating } from "../engine";
 import { cardView, type CardView, type ClientMsg, type SoloResponse, type WireView } from "../room/protocol";
 import { Room, cleanRating, type RoomEnv, type RoomState, type Want } from "../room/room";
 import { currentUser, finishLogin, loginEnabled, logout, startLogin, testSession } from "./auth";
@@ -121,7 +121,7 @@ export default {
     }
 
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
-      const body = (await req.json().catch(() => ({}))) as { cid?: string; center?: unknown; range?: string; lang?: string };
+      const body = (await req.json().catch(() => ({}))) as { cid?: string; center?: unknown; range?: string; lang?: string; at?: unknown };
       const center = cleanCenter(body.center);
       const range: RangeId = isRange(body.range) ? body.range : "walk20";
       if (!center) return json({ error: "badPlace" }, 400);
@@ -130,7 +130,7 @@ export default {
       if (denied) return denied;
       for (let i = 0; i < 40; i++) {
         const code = roomCode();
-        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, { host: body.cid!, center, range, demo: !usesGoogle(env), lang: body.lang === "en" ? "en" : "zh" })) return json({ code });
+        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, { host: body.cid!, center, range, demo: !usesGoogle(env), lang: body.lang === "en" ? "en" : "zh", at: cleanAt(body.at, Date.now()) })) return json({ code });
       }
       return json({ error: "busy" }, 503);
     }
@@ -186,7 +186,7 @@ async function takeUse(env: Env, me: { sub: string } | null): Promise<Response |
  * what the search gave, phone and map included.
  */
 async function solo(req: Request, env: Env, me: { sub: string } | null): Promise<Response> {
-  const body = (await req.json().catch(() => ({}))) as { center?: unknown; range?: unknown; answers?: unknown; limits?: unknown; lang?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { center?: unknown; range?: unknown; answers?: unknown; limits?: unknown; lang?: unknown; at?: unknown };
   const center = cleanCenter(body.center);
   if (!center) return json({ error: "badPlace" } satisfies SoloResponse, 400);
   const range: RangeId = isRange(body.range) ? body.range : "walk20";
@@ -198,6 +198,8 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
   const google = usesGoogle(env);
   const key = env.GOOGLE_PLACES_KEY!;
   const now = Date.now();
+  // A planned meal: places are checked against their opening hours then.
+  const at = cleanAt(body.at, now) ?? undefined;
   let places: Place[];
   try {
     places = google ? await searchGoogle(key, center, range, lang, { side: answers.side, random: randomUnit }) : demoPlaces(center, range, now);
@@ -207,18 +209,18 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
   }
   if (!places.length) return json({ error: "nothingNearby", demo: !google } satisfies SoloResponse);
   if (google) await Promise.all(places.map(async (p) => (p.ours = (await env.PLACES.get(env.PLACES.idFromName(p.id)).get()) ?? undefined)));
-  const ids = soloRank({ places, answers, limits, center, range, now });
+  const ids = soloRank({ places, answers, limits, center, range, now, at });
   if (!ids.length) return json({ error: "nothingFits", demo: !google } satisfies SoloResponse);
   const ranked = ids.map((id) => ({ ...places.find((p) => p.id === id)! }));
   if (google) {
     const got = await Promise.allSettled(ranked.slice(0, SOLO_TOP).map((p) => detailsGoogle(key, p.id)));
     got.forEach((g, i) => g.status === "fulfilled" && Object.assign(ranked[i], keepAbout(ranked[i], g.value)));
   }
-  const ctx = { center, range, limits, now };
+  const ctx = { center, range, limits, now, at };
   const cards: CardView[] = ranked.map((p, i) => cardView(p, i + 1, ctx, { reasons: soloReasons(p, answers, limits, center, range) }));
   // Only a place this search showed can become the pick to rate (/api/me/last).
   if (me) await user(env, me.sub).setSolo(ids);
-  return json({ cards, demo: !google } satisfies SoloResponse);
+  return json({ cards, at, demo: !google } satisfies SoloResponse);
 }
 
 interface Attachment {

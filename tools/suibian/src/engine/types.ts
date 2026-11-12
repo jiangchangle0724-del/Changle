@@ -80,6 +80,8 @@ export interface Place {
   openNow?: boolean;
   /** When it next closes (ms since epoch). */
   closesAt?: number;
+  /** When it's open in the coming week, as [opens, closes] in ms since epoch (Google's dated hours). */
+  hours?: [number, number][];
   reservable?: boolean;
   /** Google's servesVegetarianFood; undefined when Google doesn't say. */
   veg?: boolean;

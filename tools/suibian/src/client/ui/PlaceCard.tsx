@@ -8,6 +8,7 @@ import { CUISINES, DISHES, avoidTip, type Place } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
 import { serverNow } from "../store";
+import { timeLabel } from "../when";
 import { allergenWord } from "./common";
 import { Delivery } from "./Delivery";
 
@@ -66,7 +67,9 @@ export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranke
   const total = o ? o.up + o.mid + o.down : 0;
   const walk = c.walkMin > 60 ? t("walkFar") : t("walkMin", { n: c.walkMin });
   const drive = t("driveMin", { n: c.driveMin });
-  const last = c.lastOrderAt === undefined ? undefined : Math.round((c.lastOrderAt - serverNow()) / 60_000);
+  // Now: minutes until last orders. Planned: when it closes then.
+  const last = c.at === undefined && c.lastOrderAt !== undefined ? Math.round((c.lastOrderAt - serverNow()) / 60_000) : undefined;
+  const until = c.at !== undefined ? c.closesAt : undefined;
   const lines = notes(c);
   return (
     <article class={`place${compact ? " compact" : ""}`} data-id={p.id} data-rank={c.rank}>
@@ -184,13 +187,14 @@ export function PlaceCard({ c, ranked, compact, children }: { c: CardView; ranke
                 )}
               </div>
             )}
-            {(last !== undefined || p.reservable) && (
+            {(last !== undefined || until !== undefined || p.reservable) && (
               <p class="meta">
                 {last !== undefined && <span>{last > 180 ? t("closesLate") : t("lastOrder", { n: Math.max(0, last) })}</span>}
+                {until !== undefined && <span>{t("openUntil", { time: timeLabel(until) })}</span>}
                 {p.reservable && <span>{t("reservable")}</span>}
               </p>
             )}
-            {p.openNow === undefined && <p class="warn small">{t("hoursUnknown")}</p>}
+            {c.open === undefined && <p class="warn small">{t(c.at !== undefined ? "hoursUnknownThen" : "hoursUnknown")}</p>}
             {c.warnings
               .filter((w) => w.k !== "allergy" && w.k !== "custom")
               .map((w, i) => (
