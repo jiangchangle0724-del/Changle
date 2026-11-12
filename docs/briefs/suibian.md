@@ -32,7 +32,7 @@
 
 ## 还剩什么
 
-- #313（所有店排名、忌口往后排并写还能点什么、距离和走路开车时间、每家一句介绍）和 #316（什么时候吃，建在 #313 上，先合 #313）等 CI 和 Steve 合并。合并后请 Steve 在本拿比挑一次看看排名和说明顺不顺。
+- #313（所有店排名、忌口往后排并写还能点什么、距离和走路开车时间、每家一句介绍）和 #316（什么时候吃）11-11 合并上线。请 Steve 在本拿比挑一次，看排名和说明顺不顺。
 - 过敏表（#313 起叫 `COMMON_IN`，`src/engine/limits.ts`）：2026-11-05 整理成一页 Claude 文档「随便 · 严重过敏规则（请帮忙看）」，Steve 说可以，建议加的都在代码里（#284）。从 #313 起它只决定哪些菜系往后排、写什么提示（`src/engine/tips.ts`）。文档里的问题还开着：蚝油（虾蟹贝要不要算上其他中餐、茶餐厅、台湾菜）、花生要不要算上其他中餐、芥末要不要加成过敏原。
 - 「还能点什么」是按菜系写的（Google 不给菜单），不是按每家店的菜单。「主打」只看店名和 Google 类型。Google 的 AI 介绍只有英文，中文模式下大多只在前几张卡上有。
 - `src/data/picks.json`（Steve 的推荐）还空着，等 Steve 的探店链接（格式见上）。
@@ -51,8 +51,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-11 随便: "什么时候吃？" first — now, the next lunch or dinner, or a day and time this week（#316，等合并）
-- 2026-11-11 随便: every place in range and budget, ranked; diets move places down with a note instead of taking them off（#313，等合并）
+- 2026-11-11 随便: "什么时候吃？" first — now, the next lunch or dinner, or a day and time this week (#316)
+- 2026-11-11 随便: every place in range and budget, ranked; diets move places down with a note instead of taking them off (#313)
 - 2026-11-05 随便: severe allergies rule out the cuisines the review added (approved 2026-11-05) (#284)
 - 2026-11-05 随便: order delivery from the card (Uber Eats, DoorDash, 饭团, Skip) (#282)
 - 2026-11-05 随便: more of the area each pick, and the same few places stop coming back (#275)
@@ -71,3 +71,4 @@
 - 2026-11-05 Steve 同意 Google 费用，#275 和 #277 合并，Cloudflare 部署成功。合并后 main 上「一个人挑」的测试在 WebKit 失败过一次（选完马上读账号，比保存快），#282 里改成等保存好再读。Steve 同意做外卖按钮（#282），同意过敏表，建议加的进代码。
 - 2026-11-05 #282、#284 合并，Cloudflare 部署成功，main 上的检查（含 WebKit）全过。
 - 2026-11-11 Steve 说店不全，要能选时间，卡上要有距离和走路开车时间，不吃辣不该把川菜去掉而是往后排并写还能吃什么，每家要有一句介绍，按评价排名。问了他两件事：搜索次数保持 4 次（不加钱），严重过敏也只往后排。做了 #313（排名表）和 #316（选时间）。顺手修了兰州拉面被当成日式拉面、台北没算台湾菜。去掉了随机打乱和「最近两周看过的往后排」，账号里那份记录下次挑时删掉。
+- 2026-11-11 Steve 说全部合并。#313、#316 合并，Cloudflare 部署成功，main 上的检查（含 WebKit）全过，线上 changle.ca/eat 已是新版。Steve 说以后不用读 ABOUT ME 文件夹。
