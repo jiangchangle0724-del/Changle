@@ -122,7 +122,8 @@ export function LeanGauge({ lean, target, hold, band, warn, note }: { lean: numb
   };
   const shown = Math.max(0.5, Math.min(90, lean));
   const over = band === undefined ? lean >= target : Math.abs(lean - target) <= band;
-  const [tx, ty] = pt(target, r + 14);
+  // the target's label sits clear of the arc (16 wide), whichever way the fill or the zone runs under it
+  const [tx, ty] = pt(target, r + 22);
   const [nx, ny] = pt(shown, r - 26);
   const { lang } = useStore();
   return (
