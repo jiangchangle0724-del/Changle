@@ -34,9 +34,9 @@
 
 ## 还剩什么
 
-- #339（第 1 轮先选、想吃的排最前、什么场景、去掉一个人挑）和 #342（榜单标签）CI 绿了，等 Steve 说可以合并。合并后在本拿比开一桌、选火锅，看火锅是不是都在最前面。
+- #339（第 1 轮先选、想吃的排最前、什么场景、去掉一个人挑）和 #342（榜单标签）11-11 合并上线。请 Steve 在本拿比开一桌、选火锅，看火锅是不是都在最前面，标签对不对。
 - 第 1 轮里有 5 个菜系 Google 没有类型（川湘菜、上海江浙菜、东北西北菜、中式烧烤、港式茶餐厅），用 Text Search 按字搜，每桌最多 2 次。Text Search 有自己的每日上限，还没设：可以在 Google Cloud 控制台 Places API (New) 的配额里设每天 100 左右（不设也行，每桌最多 2 次，每个账号每天最多 10 桌）。
-- 一个人挑留下的旧代码（`/eat/rate`、`POST /api/places/:id/rate`、`chooseSolo`、账号里的 `solo`）#339 上线 3 天后可以删。
+- 一个人挑留下的旧代码（`/eat/rate`、`POST /api/places/:id/rate`、`chooseSolo`、账号里的 `solo`）11-15 以后可以删（#339 上线 3 天后）。
 - 还可以加的榜：Georgia Straight Golden Plates（读者票选，分类多）、加拿大中餐大奖 2026 招牌菜奖、DoorDash 食客之选 2026（出了再加）。
 - 过敏表（#313 起叫 `COMMON_IN`，`src/engine/limits.ts`）：2026-11-05 整理成一页 Claude 文档「随便 · 严重过敏规则（请帮忙看）」，Steve 说可以，建议加的都在代码里（#284）。从 #313 起它只决定哪些菜系往后排、写什么提示（`src/engine/tips.ts`）。文档里的问题还开着：蚝油（虾蟹贝要不要算上其他中餐、茶餐厅、台湾菜）、花生要不要算上其他中餐、芥末要不要加成过敏原。
 - 「还能点什么」是按菜系写的（Google 不给菜单），不是按每家店的菜单。「主打」只看店名和 Google 类型。Google 的 AI 介绍只有英文，中文模式下大多只在前几张卡上有。
@@ -55,6 +55,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-11 随便: list badges from OpenTable, enRoute, Yelp and the Chinese Restaurant Awards' Elite 30 Canada (#342)
+- 2026-11-11 随便: round 1 first on the whole menu, liked cuisines first, what it's for; picking alone goes (#339)
 - 2026-11-11 随便: "什么时候吃？" first — now, the next lunch or dinner, or a day and time this week (#316)
 - 2026-11-11 随便: every place in range and budget, ranked; diets move places down with a note instead of taking them off (#313)
 - 2026-11-05 随便: severe allergies rule out the cuisines the review added (approved 2026-11-05) (#284)
@@ -77,3 +79,4 @@
 - 2026-11-11 Steve 说店不全，要能选时间，卡上要有距离和走路开车时间，不吃辣不该把川菜去掉而是往后排并写还能吃什么，每家要有一句介绍，按评价排名。问了他两件事：搜索次数保持 4 次（不加钱），严重过敏也只往后排。做了 #313（排名表）和 #316（选时间）。顺手修了兰州拉面被当成日式拉面、台北没算台湾菜。去掉了随机打乱和「最近两周看过的往后排」，账号里那份记录下次挑时删掉。
 - 2026-11-11 Steve 说全部合并。#313、#316 合并，Cloudflare 部署成功，main 上的检查（含 WebKit）全过，线上 changle.ca/eat 已是新版。
 - 2026-11-11 晚上 Steve 看了截图：选了火锅，JOEY（不是火锅）排第 3，火锅排第 7、8；第 1 轮选项太少；要搜饭团、Uber Eats、Yelp 等榜单加标签；开一桌加「什么场景」，去掉一个人挑。原因：想吃的只加分不分档，JOEY 评分高又被当成「其他」。做了 #339：想吃的菜系分档排最前，JOEY、Cactus Club、Earls 这类算美式，第 1 轮放到搜索前面、31 个菜系，场景九选一，一个人挑去掉。第 1 轮时间从 60 秒改成 90 秒（菜单长了）；搜索没找到店回大厅时保留大家第 1 轮选的。榜单查了：饭团、Uber Eats 没有公开榜，Yelp 最新的加拿大榜是 2024 年；加了 4 个榜 45 个标签（#342）。
+- 2026-11-11 Steve 说合并。#339、#342 合并，Cloudflare 部署成功，main 上的检查（含 WebKit）全过，线上 changle.ca/eat 已是新版，/eat/solo 回首页。Project 规矩改了：CI 绿了直接合并，花钱、删数据、改 Cloudflare 或 GitHub 设置和钥匙、仓库公开私有先问。
