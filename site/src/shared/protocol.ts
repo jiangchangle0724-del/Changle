@@ -144,6 +144,8 @@ export type RogueView = {
   holders: RogueHolders;
   wcUsed: boolean;
   reshuffled: boolean;
+  /** the camera and the nose rest a minute after each use: when each may go again (ms) */
+  cool?: { camera?: number; nose?: number };
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;

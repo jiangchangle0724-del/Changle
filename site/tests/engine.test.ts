@@ -4538,6 +4538,7 @@ test("rogue: the camera's judgement has a deadline, so a holder who walks away c
   // an answer in time: the deadline is forgotten
   t.g(rv().drawer ?? rv().turn, "next");
   ok(rv().phase === "draw", "on to the next draw");
+  t.advance(60000); // (the camera's minute of rest)
   t.g("p2", "camera");
   t.advance(3600);
   t.g("p2", "moved", { target: "p1" });
@@ -4645,12 +4646,46 @@ test("rogue: sevens never starts on a seven; a phone that is away sits out the g
   // p3 comes back: in the next race and the next nose as usual
   u.eng.setOnline("p3", true);
   u.eng.flush();
+  u.advance(60000); // (the nose's minute of rest)
   u.g(d, "nose");
   u.g(free[0], "tap");
   u.g(free[1], "tap");
   ok(uv().interrupt?.kind === "nose", "with p3 back, the nose waits for p3");
   u.advance(6500);
   ok(u.pens().slice(-1)[0].who[0] === "p3" && u.pens().slice(-1)[0].note?.zh === "摸鼻子：没摸", "and p3 pays for not touching");
+});
+
+test("rogue: the camera and the nose rest a minute after each use; a new holder starts fresh", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
+  s.holders.camera = "p1";
+  s.holders.nose = "p2";
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  t.g("p1", "camera");
+  ok(rv().interrupt?.kind === "camera" && (rv().cool?.camera ?? 0) > clock + 50000, "the camera goes, and rests for a minute");
+  t.advance(3600);
+  t.g("p1", "moved", {});
+  t.g("p1", "camera");
+  ok(rv().interrupt === null, "not again straight away");
+  t.g("p2", "nose");
+  ok(rv().interrupt?.kind === "nose", "the nose has a clock of its own");
+  t.advance(6500);
+  t.g("p2", "nose");
+  ok(rv().interrupt === null && (rv().cool?.nose ?? 0) > clock, "and rests too");
+  t.advance(55000);
+  t.g("p1", "camera");
+  ok(rv().interrupt?.kind === "camera", "a minute on, the camera goes again");
+  t.advance(3600);
+  t.g("p1", "moved", {});
+  // a new 5: its new holder is not held to the old one's minute
+  s.deck.push(4); // the five of spades
+  const d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.camera === d && rv().cool?.camera === undefined, "the card changes hands: no rest to serve");
+  t.g(rv().drawer ?? d, "next");
+  t.g(d, "camera");
+  ok(rv().interrupt?.kind === "camera", "and the new holder can use it at once");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
