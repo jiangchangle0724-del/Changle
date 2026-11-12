@@ -68,11 +68,22 @@ export function Play(props: {
   serverOffset: number;
   send: (message: ClientMsg) => void;
   onMenu: () => void;
-  fullscreen: { on: boolean; toggle: () => void };
+  /** full screen, or on an iPhone the Home Screen guide; null where neither helps (already from the Home Screen) */
+  fullscreen: { on: boolean; toggle: () => void } | null;
   children?: ComponentChildren;
 }) {
   const { view, game, send } = props;
   const [vector, setVector] = useState({ x: 0, y: 0 });
+  // Safari's pinch zoom, off during a round (two thumbs on the glass look like a pinch to it)
+  useEffect(() => {
+    const stop = (event: Event) => event.preventDefault();
+    document.addEventListener("gesturestart", stop, { passive: false } as AddEventListenerOptions);
+    document.addEventListener("gesturechange", stop, { passive: false } as AddEventListenerOptions);
+    return () => {
+      document.removeEventListener("gesturestart", stop);
+      document.removeEventListener("gesturechange", stop);
+    };
+  }, []);
   const remaining = useClock(game, props.receivedAt);
   const seconds = Math.ceil(remaining / 1_000);
   const latest = game.events[game.events.length - 1];
@@ -109,7 +120,9 @@ export function Play(props: {
             <b class="tabular">{meScore.score}</b>
           </div>
         )}
-        <IconButton icon={props.fullscreen.on ? "exitFull" : "full"} label={t(props.fullscreen.on ? "exitFullscreen" : "fullscreen")} onClick={props.fullscreen.toggle} class="hud-btn hud-full" />
+        {props.fullscreen && (
+          <IconButton icon={props.fullscreen.on ? "exitFull" : "full"} label={t(props.fullscreen.on ? "exitFullscreen" : "fullscreen")} onClick={props.fullscreen.toggle} class="hud-btn hud-full" />
+        )}
       </header>
       <div class="play-scores">
         <Scoreboard view={view} target={game.scoreToWin} compact />

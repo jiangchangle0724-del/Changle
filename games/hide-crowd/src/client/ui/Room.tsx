@@ -9,11 +9,13 @@ import { openRoomClient, type ConnectionState, type RoomConnection } from "../ne
 import { openPractice } from "../practice";
 import { identity, savedName } from "../prefs";
 import { IconButton, Rules, Sheet, TopBar } from "./chrome";
+import { HomeScreenGuide, useHomeGuide } from "./HomeScreen";
 import { Lobby } from "./Lobby";
 import { Menu } from "./Menu";
 import { PenaltyStamp } from "./Penalty";
 import { Play } from "./Play";
 import { Result } from "./Result";
+import { TurnSideways, useUpright } from "./Sideways";
 import { TvPage } from "./Tv";
 
 export interface Session {
@@ -73,10 +75,13 @@ export function usePracticeSession(lang: Lang): Session {
   return useSession((onMessage, onStatus) => openPractice(lang, savedName() || t("you"), onMessage, onStatus), "practice");
 }
 
-/** Full screen for the game (Android, iPads, computers); an iPhone gets told about the Home Screen. */
+/** Full screen for the game (Android, iPads, computers); an iPhone has none: it gets the Home Screen guide. */
 function useFullscreen() {
   const [on, setOn] = useState(false);
-  const [help, setHelp] = useState(false);
+  const [available] = useState(() => {
+    const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: unknown };
+    return typeof root.requestFullscreen === "function" || typeof root.webkitRequestFullscreen === "function";
+  });
   useEffect(() => {
     const update = () => {
       const doc = document as Document & { webkitFullscreenElement?: Element | null };
@@ -101,17 +106,17 @@ function useFullscreen() {
     }
     const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
     const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
-    if (!request) return setHelp(true);
+    if (!request) return;
     try {
       await request();
+      // (the game is played sideways: hold it there while full screen, where the phone allows)
       const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
       if (typeof orientation?.lock === "function") void orientation.lock("landscape").catch(() => undefined);
-      setHelp(false);
     } catch {
-      setHelp(true);
+      // not allowed just now: the button stays
     }
   };
-  return { on, help, toggle: () => void toggle() };
+  return { on, available, toggle: () => void toggle() };
 }
 
 /** Keep the screen awake while a round is on (and on a big screen, always). */
@@ -183,6 +188,10 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [stampSeen, setStampSeen] = useState(0);
   const fullscreen = useFullscreen();
+  const upright = useUpright();
+  // an iPhone: no full screen for a page, so the Home Screen guide (by itself once, in a lobby held sideways)
+  const home = useHomeGuide(view?.phase === "lobby" && !upright && !menu && !rules);
+  const full = home.wanted || fullscreen.available ? { on: fullscreen.on, toggle: home.wanted ? home.show : fullscreen.toggle } : null;
 
   // the host going back to the table takes everyone (after a question)
   const endsForEveryone = !props.practice && !!(view?.you.host && table && !view.ended);
@@ -223,7 +232,8 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
         onLang={props.onLang}
         reduced={props.reduced}
         onReduced={props.onReduced}
-        fullscreen={fullscreen}
+        fullscreen={fullscreen.available ? fullscreen : undefined}
+        homeScreen={home.wanted}
         screenHref={view && !props.practice ? screenUrl(view.code, table) : null}
         leave={
           view
@@ -240,6 +250,7 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
       <Sheet open={rules} title={t("rulesTitle")} onClose={() => setRules(false)}>
         <Rules custom={custom} />
       </Sheet>
+      <HomeScreenGuide guide={home} />
       <Sheet open={confirmEnd} title={t("endTitle")} onClose={() => setConfirmEnd(false)}>
         <p class="sheet-text">{t("endBody")}</p>
         <div class="sheet-actions">
@@ -254,9 +265,12 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
     </>
   );
 
+  // held upright: one screen asks to turn the phone; the room stays connected underneath
+  const turn = upright && <TurnSideways />;
   if (props.fatalText || !view)
     return (
-      <main class="page">
+      <>
+      <main class="page" inert={upright}>
         {top}
         <div class="page-body notice-body">
           {!props.fatalText && <span class="spinner" aria-hidden="true" />}
@@ -271,27 +285,33 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
         </div>
         {sheets}
       </main>
+      {turn}
+      </>
     );
 
   if (view.phase === "lobby" || !view.game)
     return (
-      <main class="page has-dock">
+      <>
+      <main class="page has-dock" inert={upright}>
         {top}
         {session.status === "offline" && (
           <p class="conn-banner" role="status">
             {t("reconnecting")}
           </p>
         )}
-        <Lobby view={view} table={table} send={send} />
+        <Lobby view={view} table={table} send={send} onHomeGuide={home.wanted ? home.show : undefined} />
         {sheets}
       </main>
+      {turn}
+      </>
     );
 
   const result = view.result;
   const stamp = view.phase === "over" && result?.penalty && stampSeen !== result.round;
   return (
-    <main class="room-play">
-      <Play view={view} game={view.game} receivedAt={session.receivedAt} serverOffset={session.offset} send={send} onMenu={() => setMenu(true)} fullscreen={fullscreen}>
+    <>
+    <main class="room-play" inert={upright}>
+      <Play view={view} game={view.game} receivedAt={session.receivedAt} serverOffset={session.offset} send={send} onMenu={() => setMenu(true)} fullscreen={full}>
         {session.status === "offline" && (
           <p class="conn-banner is-floating" role="status">
             {t("reconnecting")}
@@ -302,5 +322,7 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
       {stamp && result?.penalty && <PenaltyStamp penalty={result.penalty} custom={custom} onDone={() => setStampSeen(result.round)} />}
       {sheets}
     </main>
+    {turn}
+    </>
   );
 }

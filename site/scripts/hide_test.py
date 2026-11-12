@@ -44,6 +44,10 @@ def t_hide_online(browser):
         g.wait_for_url(GAME, timeout=10000)
     num = GAME.search(host.url).group(1)
     ok(num in mia.url, f"both phones went to room {num}")
+    # the game is played sideways: held upright (as at the table), it asks; then the phones turn
+    ok(until(lambda: host.locator(".turn-layer").count() == 1), "held upright, the game asks to turn the phone")
+    for g in (host, mia):
+        g.set_viewport_size({"width": 844, "height": 390})
     tv.wait_for_url(re.compile(r"/hide/tv/" + num + r"\?table=" + code), timeout=10000)
     ok(True, "the big screen followed to the game's big screen")
     # (full screen, as in 到此一游; once he hosts the table, NetHide's own button to it)
@@ -93,6 +97,7 @@ def t_hide_single(browser):
     pg = phone(browser, "solo", players=[{"id": "p0", "name": "Steve"}])
     pg.goto(BASE + "g/hide-in-the-crowd/play", wait_until="networkidle")
     pg.wait_for_url(re.compile(r"/hide/practice"), timeout=10000)
+    pg.set_viewport_size({"width": 844, "height": 390})
     ok(until(lambda: pg.locator(".play").count() == 1, 10000), "one phone: the practice crowd")
     errors([pg])
     pg.context.close()
