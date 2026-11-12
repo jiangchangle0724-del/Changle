@@ -88,6 +88,16 @@ test("两人同时出价不出错", async ({ browser, request, contextOptions })
   const bid = (p: Phone) => p.page.locator(".decide.auction .btn.primary").first();
   await expect(bid(x)).toBeEnabled();
   await expect(bid(y)).toBeEnabled();
+  // (the stamps each board puts on a space for a moment, Board.tsx useBoardFx: written down as they come)
+  for (const p of phones)
+    await p.page.evaluate(() => {
+      const w = window as unknown as { __stamps: string[] };
+      w.__stamps = [];
+      new MutationObserver((list) => {
+        for (const m of list)
+          for (const n of m.addedNodes) if (n instanceof Element) for (const g of [n, ...n.querySelectorAll(".fx-stamp")]) if (g.matches(".fx-stamp")) w.__stamps.push(g.textContent ?? "");
+      }).observe(document.body, { subtree: true, childList: true });
+    });
   // Both press "出 $10" in the same millisecond, before either screen can show the other's bid.
   // What the server says to the two phones waits until both have pressed: on a slow browser one
   // phone can otherwise start a moment late, find the other's bid already up, and press "出 $20".
@@ -124,8 +134,9 @@ test("两人同时出价不出错", async ({ browser, request, contextOptions })
   for (const p of phones) expect(await p.page.locator(".touchdown").count()).toBe(0);
   const texts = await Promise.all(leads.map((l) => l.innerText()));
   expect(texts.filter((s) => s.includes("你们出价最高"))).toHaveLength(1);
-  // The auction closes after the countdown and the city goes to the leader.
+  // The auction closes after the countdown and the city goes to the leader: every board stamps it 成交.
   await expect(x.page.locator(".decide.auction")).toHaveCount(0, { timeout: 20_000 });
+  for (const p of phones) await expect.poll(() => p.page.evaluate(() => (window as unknown as { __stamps: string[] }).__stamps)).toEqual(["成交"]);
   await x.page.getByRole("button", { name: "记录" }).click();
   await expect(x.page.locator(".p-log .feed")).toContainText("以 $10 拍得");
   expect(errorsOf(phones)).toEqual([]);

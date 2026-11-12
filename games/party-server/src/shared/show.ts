@@ -9,12 +9,14 @@
 // phone run the same code on the same anchors, so they agree on each beat with nothing sent.
 import { buildTimeline, restartSection, type TimelineEntry } from "../../../dance/src/session-flow";
 import type { Difficulty, RoomPhase } from "../../../party-base/src/index";
-import { METRONOME_ID, MOVES, routineById, type Move, type Routine } from "./catalog";
+import { METRONOME_ID, MOVES, moveById, routineById, type Move, type Routine } from "./catalog";
 import type { RoutineInfo } from "./protocol";
+import { songBeat, songById, songMoves, type Song } from "./songs";
 
 /** learn: warm-up, teaching, dance, cool-down. dance: the same without the teaching. */
 export type Mode = "learn" | "dance";
-export type Stage = "warmup" | "watch" | "follow" | "countdown" | "dance" | "cooldown";
+/** intro: a song's beats before the count-in (it plays from its start; the dance begins after its intro). */
+export type Stage = "warmup" | "watch" | "follow" | "intro" | "countdown" | "dance" | "cooldown";
 
 export interface ShowBeat {
   stage: Stage;
@@ -33,8 +35,11 @@ export interface ShowBeat {
 
 export interface Show {
   id: string;
-  /** null: the metronome */
+  kind: "routine" | "song" | "metronome";
+  /** the library's dance (null for a song and the metronome) */
   routine: Routine | null;
+  /** the song (null for the others) */
+  song: Song | null;
   mode: Mode | null;
   difficulty: Difficulty;
   /** the dance's tempo (the teaching runs at 70% of it, warm-up and cool-down at their move's own) */
@@ -45,6 +50,11 @@ export interface Show {
   leadMs: number;
   /** beats counted in before the dance (4; the metronome: 8) */
   countIn: number;
+  /**
+   * From the lead's end to the dance's first beat (ms): the count-in; for a song, its intro (the
+   * video starts as the lead ends). A room's RoutineInfo.introMs overrides it (a song tapped along to).
+   */
+  introMs: number;
   dance: ShowBeat[];
   danceMs: number;
   /** the cool-down, `at` from the dance's beat 0 like the dance's */
@@ -63,7 +73,7 @@ export const cachedShows = () => cache.size;
 /** The show for a routine id (null: no such routine). The metronome has no modes. */
 export function buildShow(id: string, mode: Mode | null): Show | null {
   // (only the shows there are get kept: a made-up id from a phone is not)
-  if (id !== METRONOME_ID && !routineById(id)) return null;
+  if (id !== METRONOME_ID && !routineById(id) && !songById(id)) return null;
   const key = `${id}:${id === METRONOME_ID ? "" : (mode ?? "learn")}`;
   if (!cache.has(key)) cache.set(key, make(id, mode ?? "learn"));
   return cache.get(key) ?? null;
@@ -73,8 +83,10 @@ function make(id: string, mode: Mode): Show | null {
   if (id === METRONOME_ID) {
     const beatMs = 60000 / METRONOME_BPM;
     const dance: ShowBeat[] = Array.from({ length: METRONOME_BEATS }, (_, b) => ({ stage: "dance", move: null, count: (b % 8) + 1, at: b * beatMs, ms: beatMs, score: true, danceBeat: b }));
-    return { id, routine: null, mode: null, difficulty: "easy", bpm: METRONOME_BPM, beatMs, lead: [], leadMs: 0, countIn: METRONOME_COUNT_IN, dance, danceMs: METRONOME_BEATS * beatMs, tail: [], tailMs: 0 };
+    return { id, kind: "metronome", routine: null, song: null, mode: null, difficulty: "easy", bpm: METRONOME_BPM, beatMs, lead: [], leadMs: 0, countIn: METRONOME_COUNT_IN, introMs: METRONOME_COUNT_IN * beatMs, dance, danceMs: METRONOME_BEATS * beatMs, tail: [], tailMs: 0 };
   }
+  const song = songById(id);
+  if (song) return makeSong(song, mode);
   const routine = routineById(id);
   if (!routine) return null;
   const timeline = buildTimeline(routine, MOVES, { mode });
@@ -91,20 +103,74 @@ function make(id: string, mode: Mode): Show | null {
   const coolAt = timeline[firstCool]!.atMs;
   const tail = timeline.slice(firstCool).map((e) => beat(e, danceMs + (e.atMs - coolAt)));
   const last = timeline[timeline.length - 1]!;
+  const countIn = firstDance - firstCount;
   return {
     id,
+    kind: "routine",
     routine,
+    song: null,
     mode,
     difficulty: routine.difficulty,
     bpm: routine.bpm,
     beatMs,
     lead,
     leadMs: timeline[firstCount]!.atMs,
-    countIn: firstDance - firstCount,
+    countIn,
+    introMs: countIn * beatMs,
     dance,
     danceMs,
     tail,
     tailMs: last.atMs + last.durationMs - coolAt,
+  };
+}
+
+/** The teaching of a song runs at this share of its tempo (as the library's dances' does). */
+const SONG_TEACH = 0.7;
+const SONG_COUNT_IN = 4;
+
+/**
+ * A song as a show: in learn mode, each of its moves taught once (8 beats to watch, 8 to follow, at
+ * 70% of its tempo, on the synth); then the video from its start, its intro, a count-in on its
+ * last 4 beats, and the dance on the song's beats to the end of its pattern. No cool-down: the
+ * song plays out.
+ */
+function makeSong(song: Song, mode: Mode): Show {
+  const beatMs = 60000 / song.bpm;
+  const lead: ShowBeat[] = [];
+  if (mode === "learn") {
+    const teachMs = 60000 / (song.bpm * SONG_TEACH);
+    let at = 0;
+    for (const id of songMoves(song)) {
+      const move = moveById(id);
+      for (const stage of ["watch", "follow"] as const)
+        for (let k = 0; k < 8; k++) {
+          lead.push({ stage, move, count: k + 1, at, ms: teachMs, score: stage === "follow", danceBeat: null });
+          at += teachMs;
+        }
+    }
+  }
+  const leadMs = lead.length ? lead[lead.length - 1]!.at + lead[lead.length - 1]!.ms : 0;
+  const dance: ShowBeat[] = Array.from({ length: song.beats }, (_, b) => {
+    const { move, count } = songBeat(song, b);
+    return { stage: "dance", move: moveById(move), count, at: b * beatMs, ms: beatMs, score: true, danceBeat: b };
+  });
+  return {
+    id: song.id,
+    kind: "song",
+    routine: null,
+    song,
+    mode,
+    difficulty: song.difficulty,
+    bpm: song.bpm,
+    beatMs,
+    lead,
+    leadMs,
+    countIn: SONG_COUNT_IN,
+    introMs: song.firstBeatMs,
+    dance,
+    danceMs: song.beats * beatMs,
+    tail: [],
+    tailMs: 0,
   };
 }
 
@@ -115,6 +181,8 @@ export interface Anchors {
   /** RoomState.routineStartAt: the dance's beat `fromBeat`; null while the lead plays */
   danceStartAt: number | null;
   fromBeat: number;
+  /** the room's RoutineInfo.introMs (a song tapped along to), else null: the show's own */
+  introMs?: number | null;
 }
 
 /** A beat of a show at its time: speaker time, or the time the room hears it (see planRun). */
@@ -127,8 +195,9 @@ export interface RunBeat extends ShowBeat {
  * plays (the lobby, calibrating, the results).
  */
 export function anchorsOf(phase: RoomPhase, routineStartAt: number | null, routine: RoutineInfo | null): Anchors | null {
-  if (!routine || (phase !== "learning" && phase !== "dancing")) return null;
-  return { leadStartAt: routine.leadStartAt, danceStartAt: phase === "dancing" ? routineStartAt : null, fromBeat: routine.fromBeat };
+  // (paused: nothing plays until 继续 moves the run on)
+  if (!routine || (phase !== "learning" && phase !== "dancing") || routine.pausedAt !== undefined) return null;
+  return { leadStartAt: routine.leadStartAt, danceStartAt: phase === "dancing" ? routineStartAt : null, fromBeat: routine.fromBeat, introMs: routine.introMs ?? null };
 }
 
 /**
@@ -143,8 +212,24 @@ export function runKey(show: Show, a: Anchors): string {
 /** When the dance's beat `fromBeat` is: where the room put it, or where the lead runs into it. */
 export function danceStart(show: Show, a: Anchors): number | null {
   if (a.danceStartAt !== null) return a.danceStartAt;
-  if (a.leadStartAt !== null) return a.leadStartAt + show.leadMs + show.countIn * show.beatMs;
+  if (a.leadStartAt !== null) return a.leadStartAt + show.leadMs + introOf(show, a);
   return null;
+}
+
+/** From the lead's end to the dance's first beat: the room's (a song tapped along to), or the show's. */
+export const introOf = (show: Show, a: Anchors): number => a.introMs ?? show.introMs;
+
+/**
+ * Where a song's dance starts in its video, given a beat people tapped along to (找拍子 or 歌曲对拍:
+ * any beat of the song's grid). A song whose dance is laid along its sections (`Song.aligned`: its
+ * first beat known from the song's own timing, to within half a beat) starts on the tapped grid's
+ * beat nearest that; any other song starts on the tapped beat itself.
+ */
+export function songStart(show: Show, tappedMs: number): number {
+  const song = show.song;
+  if (!song?.aligned) return tappedMs;
+  const n = Math.round((song.firstBeatMs - tappedMs) / show.beatMs);
+  return tappedMs + n * show.beatMs;
 }
 
 /**
@@ -167,8 +252,17 @@ export function planRun(show: Show, a: Anchors, shiftMs = 0): RunBeat[] {
       out.push({ ...b, ms: Math.min(b.ms, countStart - t), t: t + shiftMs });
     }
   }
-  for (let k = 0; k < show.countIn; k++) out.push({ stage: "countdown", move: null, count: show.countIn - k, at: (k - show.countIn) * show.beatMs, ms: show.beatMs, score: false, danceBeat: null, t: countStart + k * show.beatMs + shiftMs });
   const zero = start - from * show.beatMs;
+  // a song's intro: its beats from where the video starts (the lead's end) to the count-in
+  if (show.kind === "song" && from === 0) {
+    const videoStart = start - introOf(show, a);
+    for (let k = Math.floor((start - videoStart) / show.beatMs); k > show.countIn; k--) {
+      const t = start - k * show.beatMs;
+      if (t < videoStart - 0.5) continue;
+      out.push({ stage: "intro", move: null, count: (((-k % 8) + 8) % 8) + 1, at: -k * show.beatMs, ms: show.beatMs, score: false, danceBeat: null, t: t + shiftMs });
+    }
+  }
+  for (let k = 0; k < show.countIn; k++) out.push({ stage: "countdown", move: null, count: show.countIn - k, at: (k - show.countIn) * show.beatMs, ms: show.beatMs, score: false, danceBeat: null, t: countStart + k * show.beatMs + shiftMs });
   for (let b = from; b < show.dance.length; b++) out.push({ ...show.dance[b]!, t: zero + b * show.beatMs + shiftMs });
   for (const b of show.tail) out.push({ ...b, t: zero + b.at + shiftMs });
   return out;

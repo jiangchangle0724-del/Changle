@@ -31,6 +31,8 @@ export type SpeakerOptions = {
   resume?: number;
   /** the ring buffer's size in seconds */
   seconds?: number;
+  /** a context a tap already woke (the game's card opening the shared phone: lib/primeAudio.ts) */
+  ctx?: AudioContext;
 };
 
 /** how far the music dips while the TV speaks (报幕) */
@@ -39,7 +41,7 @@ const DUCK = 0.4;
 export class Speaker {
   readonly ctx: AudioContext;
   readonly rate: number;
-  private opts: Required<SpeakerOptions>;
+  private opts: Required<Omit<SpeakerOptions, "ctx">>;
   private node: AudioWorkletNode | null = null;
   private master: GainNode;
   /** under everything, after the ceiling: the music dips while the TV speaks (报幕) */
@@ -76,12 +78,14 @@ export class Speaker {
     this.rate = this.opts.rate;
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     let ctx: AudioContext;
-    try {
-      ctx = new AC({ sampleRate: this.rate, latencyHint: "playback" });
-    } catch {
-      // an older Safari picks its own rate: the player resamples
-      ctx = new AC();
-    }
+    if (opts.ctx) ctx = opts.ctx;
+    else
+      try {
+        ctx = new AC({ sampleRate: this.rate, latencyHint: "playback" });
+      } catch {
+        // an older Safari picks its own rate: the player resamples
+        ctx = new AC();
+      }
     this.ctx = ctx;
     void ctx.resume().catch(() => {});
     try {

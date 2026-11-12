@@ -2,3 +2,5 @@ node_modules/
 dist/
 .wrangler/
 worker-configuration.d.ts
+# (scripts/motion-check.cjs's pictures, when it's run with no folder for them)
+/motion-*.png

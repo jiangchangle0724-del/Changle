@@ -52,9 +52,10 @@ export type PreviewHandle = { stop: (fade?: number) => void };
 
 /**
  * Play a decoded preview from `offset` seconds, now or at a moment on the performance clock.
- * Starting late skips ahead, so a phone that loaded slowly joins at the right spot.
+ * Starting late skips ahead, so a phone that loaded slowly joins at the right spot. With `seconds`
+ * it fades out over the last `fadeOut` seconds (0.8 by default; a one-second snippet wants less).
  */
-export function playPreview(buf: AudioBuffer, opts: { startPerf?: number; offset?: number; seconds?: number; volume?: number; fadeIn?: number } = {}): PreviewHandle | null {
+export function playPreview(buf: AudioBuffer, opts: { startPerf?: number; offset?: number; seconds?: number; volume?: number; fadeIn?: number; fadeOut?: number } = {}): PreviewHandle | null {
   const b = bus();
   if (!b) return null;
   const c = b.c;
@@ -80,7 +81,7 @@ export function playPreview(buf: AudioBuffer, opts: { startPerf?: number; offset
     g.gain.setValueAtTime(0, at);
     g.gain.linearRampToValueAtTime(vol, at + fade);
     if (Number.isFinite(end)) {
-      g.gain.setValueAtTime(vol, at + Math.max(fade, end - 0.8));
+      g.gain.setValueAtTime(vol, at + Math.max(fade, end - (opts.fadeOut ?? 0.8)));
       g.gain.linearRampToValueAtTime(0, at + end);
     }
     src.start(at, offset);

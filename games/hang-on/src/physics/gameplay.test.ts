@@ -179,3 +179,80 @@ describe('召唤和落地', () => {
     sim.destroy();
   });
 });
+
+describe('过关', () => {
+  test('win 只报一次；赢了以后再走，事件是空的', async () => {
+    const lv = level({});
+    const sim = await createSim(lv, 2);
+    const g = lv.goal;
+    sim.teleport(0, g.x + g.w / 2 - 20, g.y + g.h / 2);
+    sim.teleport(1, g.x + g.w / 2 + 20, g.y + g.h / 2);
+    const events = run(sim, 0.5);
+    expect(sim.won).toBe(true);
+    expect(events.filter((e) => e.type === 'win')).toHaveLength(1);
+    sim.step(dt);
+    expect(sim.events).toEqual([]);
+    sim.destroy();
+  });
+});
+
+describe('复活不叠人', () => {
+  const cpLevel = (extra: Partial<Level> = {}): Level =>
+    level({ checkpoints: [{ x: 500, y: 516 }], rects: [{ x: 300, y: 540, w: 600, h: 200, kind: 'ground', material: 'wood' }], ...extra });
+  const dieAndWait = (sim: Sim, who: number[]): SimEvent[] => {
+    for (const i of who) sim.teleport(i, 1200, sim.level.deathY + 10);
+    return run(sim, CFG.respawnDelay + 0.2);
+  };
+  const minGap = (sim: Sim): number => {
+    let m = Infinity;
+    for (const a of sim.players) for (const b of sim.players) if (a.id < b.id) m = Math.min(m, Math.hypot(a.body.x - b.body.x, a.body.y - b.body.y));
+    return m;
+  };
+
+  test('没人挡着就照常在检查点右边错开 30 px', async () => {
+    const sim = await createSim(cpLevel(), 2);
+    sim.teleport(0, 500, 516);
+    run(sim, 0.1);
+    expect(sim.checkpoint).toBe(0);
+    sim.teleport(0, 800, 516);
+    const events = dieAndWait(sim, [1]);
+    const at = events.filter((e) => e.type === 'respawn');
+    expect(at).toHaveLength(1);
+    expect(sim.players[1]!.body.x).toBeCloseTo(530, 0);
+    sim.destroy();
+  });
+
+  test('两个人同时复活、第三个人站在检查点上，三个身体都不叠', async () => {
+    const sim = await createSim(cpLevel(), 3);
+    sim.teleport(0, 500, 516);
+    run(sim, 0.1);
+    dieAndWait(sim, [1, 2]);
+    expect(sim.players.every((p) => !p.dead)).toBe(true);
+    expect(minGap(sim)).toBeGreaterThanOrEqual(CFG.bodyR * 2);
+    sim.destroy();
+  });
+
+  test('平台上实在挤不下，宁可挨着队友，也不挪到饼干、蜡烛上', async () => {
+    // 检查点那块只有 110 宽（左边是墙），右边紧挨着饼干和蜡烛：离队友够远的位置只在饼干上
+    const sim = await createSim(
+      cpLevel({
+        rects: [
+          { x: 470, y: 540, w: 110, h: 200, kind: 'ground', material: 'wood' },
+          { x: 400, y: 300, w: 70, h: 440, kind: 'wall', material: 'wood' },
+        ],
+        fading: [{ x: 580, y: 540, w: 120, h: 30, on: 99, off: 1 }],
+        springs: [{ x: 700, y: 500, w: 40, h: 240 }],
+      }),
+      2,
+    );
+    sim.teleport(0, 520, 516);
+    run(sim, 0.1);
+    expect(sim.checkpoint).toBe(0);
+    dieAndWait(sim, [1]);
+    const b = sim.players[1]!.body;
+    expect(sim.players[1]!.dead).toBe(false);
+    expect(b.x - CFG.bodyR).toBeGreaterThanOrEqual(470 - 1);
+    expect(b.x + CFG.bodyR).toBeLessThanOrEqual(580 + 1);
+    sim.destroy();
+  });
+});

@@ -1,5 +1,6 @@
 // The whole game is one plain JSON object, so the server can save it and send it around.
 import type { GameConfig } from "./config";
+import type { WorldId } from "./world";
 
 export interface Player {
   name: string;
@@ -126,6 +127,8 @@ export type GameEvent =
   | { t: "stamp"; p: number; city: string }
   | { t: "passport"; p: number; amount: number }
   | { t: "buy"; p: number; at: number; price: number }
+  /** Not bought, with auctions off: the city stays unsold. */
+  | { t: "pass"; p: number; at: number }
   | { t: "auction"; at: number; winner: number | null; price: number }
   | { t: "rent"; p: number; to: number; at: number; amount: number }
   | { t: "pay"; p: number; to: number; amount: number }
@@ -140,6 +143,12 @@ export type GameEvent =
   /** Money taken by the bank outside the rules of the board (a wrong answer in the waiting teams' quiz). */
   | { t: "fine"; p: number; amount: number; why: string }
   | { t: "news"; id: string; on: boolean }
+  /**
+   * A world event (world.ts) comes (`on`) or its two rounds are over. `at`: the city a meteor hit or the
+   * one locked down; `lost`: what the crisis took from each seat; `gift`: what the AI earned each team;
+   * a meteor's `houses` gone from `owner`'s city, and its insurance's `refund`.
+   */
+  | { t: "world"; id: WorldId; on: boolean; at?: number; lost?: number[]; gift?: number; houses?: number; owner?: number; refund?: number }
   | { t: "over"; reason: string; winner: number | null };
 
 export interface GameState {
@@ -158,6 +167,14 @@ export interface GameState {
   /** Travel news in force (news.ts) until `turns` reaches `until`, and the ones already told. */
   news: { id: string; until: number } | null;
   newsSeen: string[];
+  /**
+   * The world event in force (world.ts) until `turns` reaches `until`, with the city it struck, and
+   * the ones that have come (each once before any comes round again). Missing in games from before them.
+   */
+  world?: { id: WorldId; at: number | null; until: number } | null;
+  worldSeen?: WorldId[];
+  /** Cities a meteor has wrecked this game: their sets may be built back up from uneven (rules.ts evenAfter). */
+  struck?: number[];
   turns: number;
   pending: Pending | null;
   stack: StackItem[];

@@ -1,0 +1,14 @@
+{
+  "bpm": 125,
+  "theme": {
+    "stereo": "theme.mp3",
+    "mono": "theme-mono.mp3",
+    "loopStart": 1,
+    "loopEnd": 123.88,
+    "length": 124.88
+  },
+  "finale": {
+    "file": "finale.mp3",
+    "length": 11.28
+  }
+}

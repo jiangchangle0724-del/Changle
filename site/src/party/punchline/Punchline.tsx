@@ -11,7 +11,7 @@ import { Deck, shuffle } from "../../lib/random";
 import { holdBackground } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import type { PunchMatch, PunchView } from "../../shared/protocol";
-import { finalPoints, headToHeadPoints, MAX_WRITERS, presentMs, ROUNDS } from "../../shared/punchline";
+import { countWriters, finalPoints, headToHeadPoints, MAX_WRITERS, nextWriters, presentMs, ROUNDS } from "../../shared/punchline";
 import { usePenaltyText, useStore, type Player } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { useWakeLock } from "../sensors";
@@ -41,7 +41,7 @@ type Phase =
   | { k: "end"; at: number; winners: string[]; last: string[] };
 type Draft = { texts: Record<number, string>; safe: Record<number, boolean> };
 type Pending = { call: PenaltyCall; ms: number };
-type Kept = { round: number; order: Player[]; matches: LMatch[]; phase: Phase; scores: Record<string, number>; before: Record<string, number>; tally: number[]; drafts: Record<string, Draft>; cards: number[]; finals: number[]; quips: number[]; pending: Pending | null; advancing: boolean };
+type Kept = { round: number; order: Player[]; matches: LMatch[]; phase: Phase; scores: Record<string, number>; before: Record<string, number>; tally: number[]; drafts: Record<string, Draft>; cards: number[]; finals: number[]; quips: number[]; pending: Pending | null; advancing: boolean; writers?: string[]; written?: Record<string, number> };
 
 const SIDE = ["#e765f0", "#31b9ff"];
 const FINAL_COLORS = ["#e765f0", "#31b9ff", "#ffb82e", "#4be38f", "#ff6b5e", "#8c86ff", "#2ed3d9", "#f5df3b"];
@@ -71,9 +71,22 @@ function PunchGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const deck = useRef(firstDecks.deck);
   const finals = useRef(firstDecks.finals);
   const quips = useRef(firstDecks.quips);
-  // up to eight write; anyone else at the table is the audience and votes
-  const writers = useMemo(() => players.slice(0, MAX_WRITERS), [players]);
-  const audience = useMemo(() => players.slice(MAX_WRITERS), [players]);
+  // up to eight write; anyone else at the table is the audience, votes, and writes first next game
+  // (before the first game, simply the first eight of the list, which can still change)
+  const [writerIds, setWriterIds] = useState<string[] | null>(() => saved?.writers ?? saved?.order.map((p) => p.id) ?? null);
+  const [written, setWritten] = useState<Record<string, number>>(saved?.written ?? {});
+  const writers = useMemo(() => {
+    const picked = writerIds ? players.filter((p) => writerIds.includes(p.id)) : [];
+    return picked.length ? picked : players.slice(0, MAX_WRITERS);
+  }, [players, writerIds]);
+  const audience = useMemo(() => players.filter((p) => !writers.includes(p)), [players, writers]);
+  /** A game starts with these writers (in list order), counted for who writes the one after. */
+  const deal = (ids: string[], before: Record<string, number>) => {
+    setWriterIds(ids);
+    setWritten(countWriters(before, ids));
+    setScores({});
+    startRound(1, {}, players.filter((p) => ids.includes(p.id)));
+  };
   const [round, setRound] = useState(saved?.round ?? 1);
   const [order, setOrder] = useState<Player[]>(saved?.order ?? writers);
   const [roundAt, setRoundAt] = useState(() => saved ? Date.now() : 0);
@@ -103,9 +116,9 @@ function PunchGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     [name],
   );
 
-  const startRound = (r: number, from: Record<string, number>) => {
+  const startRound = (r: number, from: Record<string, number>, who: Player[] = writers) => {
     setDrafts({});
-    const ord = shuffle(writers);
+    const ord = shuffle(who);
     const n = ord.length;
     const blank = (prompt: T, authors: string[]): LMatch => ({
       prompt,
@@ -330,10 +343,7 @@ function PunchGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       <button
         type="button"
         className="btn btn-primary btn-lg"
-        onClick={() => {
-          setScores({});
-          startRound(1, {});
-        }}
+        onClick={() => deal(nextWriters(players.map((p) => p.id), null, {}), {})}
       >
         {zh ? "开始" : "Start"}
       </button>
@@ -366,10 +376,7 @@ function PunchGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         type="button"
         className="btn btn-primary btn-lg"
         onClick={() => {
-          const again = () => {
-            setScores({});
-            startRound(1, {});
-          };
+          const again = () => deal(nextWriters(players.map((p) => p.id), writers.map((p) => p.id), written), written);
           if (!stampFirst(again)) again();
         }}
       >
@@ -380,7 +387,7 @@ function PunchGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // Drafts are kept on every edit. Private writing returns behind its writer's curtain;
   // show clocks restart from the beginning of their step, with the answers and votes intact.
   const keptPhase: Phase = phase.k === "write" ? { k: "pass", i: phase.i } : "at" in phase ? { ...phase, at: 0 } : phase;
-  useKeepProgress<Kept>({ round, order, matches, phase: keptPhase, scores, before, tally, drafts, cards: deck.current.keep(), finals: finals.current.keep(), quips: quips.current.keep(), pending, advancing }, phase.k !== "setup" && phase.k !== "end");
+  useKeepProgress<Kept>({ round, order, matches, phase: keptPhase, scores, before, tally, drafts, cards: deck.current.keep(), finals: finals.current.keep(), quips: quips.current.keep(), pending, advancing, writers: writers.map((p) => p.id), written }, phase.k !== "setup" && phase.k !== "end");
   return (
     <PunchActionHost.Provider value={actionHost}>
       <GameShell
@@ -404,7 +411,7 @@ function PunchGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               </p>
               {audience.length > 0 && (
                 <p className="hint" style={{ textAlign: "center" }}>
-                  {zh ? `超过 8 个人：${audience.map((p) => p.name).join("、")} 这局当观众，只投票。` : `More than eight: ${audience.map((p) => p.name).join(", ")} watch this one and vote.`}
+                  {zh ? `超过 8 个人：${audience.map((p) => p.name).join("、")} 这局当观众，只投票，下一局先写。` : `More than eight: ${audience.map((p) => p.name).join(", ")} watch this one and vote, and write first next game.`}
                 </p>
               )}
             </div>

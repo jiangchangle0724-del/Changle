@@ -181,23 +181,32 @@ export function WorldClock() {
   );
 }
 
+/** How far the ruler can be dragged or stepped from now, in minutes (two days either way). */
+const REACH = 48 * 60;
+
 /** Drag left or right to move every clock; snaps to quarter hours. */
 function Scrubber({ offsetMin: off, lang, onChange, onDrag }: { offsetMin: number; lang: "zh" | "en"; onChange: (mins: number) => void; onDrag: (d: boolean) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; start: number } | null>(null);
   const PX_PER_HOUR = 26;
   const shown = off;
-  const move = (e: React.PointerEvent) => {
-    if (!drag.current) return;
-    const dx = drag.current.x - e.clientX;
-    const mins = Math.round((drag.current.start + (dx / PX_PER_HOUR) * 60) / 15) * 15;
-    const clamped = Math.max(-48 * 60, Math.min(48 * 60, mins));
+  // a time set in a city's sheet can lie beyond the drag's reach; from there the ruler only comes back
+  const limit = Math.max(REACH, Math.abs(off));
+  const step = (mins: number) => {
+    const clamped = Math.max(-limit, Math.min(limit, Math.round(mins / 15) * 15));
     if (clamped !== off) {
       if (clamped % 60 === 0) sfx.tick(0.7);
       onChange(clamped);
     }
   };
-  const ticks = useMemo(() => Array.from({ length: 121 }, (_, i) => i - 60), []);
+  const move = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    const dx = drag.current.x - e.clientX;
+    step(drag.current.start + (dx / PX_PER_HOUR) * 60);
+  };
+  // the ruler always runs past what it shows, however far that is
+  const span = Math.max(60, Math.ceil(Math.abs(shown) / 60) + 12);
+  const ticks = useMemo(() => Array.from({ length: span * 2 + 1 }, (_, i) => i - span), [span]);
   return (
     <div className="scrubber">
       <div
@@ -206,13 +215,17 @@ function Scrubber({ offsetMin: off, lang, onChange, onDrag }: { offsetMin: numbe
         role="slider"
         tabIndex={0}
         aria-label={lang === "zh" ? "拖动调整时间" : "Drag to shift the time"}
-        aria-valuemin={-2880}
-        aria-valuemax={2880}
+        aria-valuemin={-limit}
+        aria-valuemax={limit}
         aria-valuenow={off}
         aria-valuetext={signed(off)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowRight") onChange(off + 15);
-          if (e.key === "ArrowLeft") onChange(off - 15);
+          const by = ({ ArrowRight: 15, ArrowUp: 15, ArrowLeft: -15, ArrowDown: -15, PageUp: 60, PageDown: -60 } as Record<string, number | undefined>)[e.key];
+          if (by) step(off + by);
+          else if (e.key === "Home") step(-REACH);
+          else if (e.key === "End") step(REACH);
+          else return;
+          e.preventDefault();
         }}
         onPointerDown={(e) => {
           drag.current = { x: e.clientX, start: off };

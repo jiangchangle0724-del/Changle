@@ -105,10 +105,13 @@ const EN_IN_SENTENCE: Record<AllergenId, string> = {
   gluten: "gluten (wheat)",
 };
 
+/** An allergen as it reads in the middle of a sentence, in the reader's language. */
+export const allergenWord = (a: AllergenId) => (getLang() === "en" ? EN_IN_SENTENCE[a] : tx(ALLERGENS[a]));
+
 /** "This table: someone doesn't eat peanuts · halal · up to $35" — no names. */
 export function TableLimits({ l }: { l: Limits }) {
   const items: string[] = [];
-  for (const [a, level] of Object.entries(l.allergies) as [AllergenId, string][]) items.push(t(level === "severe" ? "someoneSevere" : "someoneAvoids", { what: getLang() === "en" ? EN_IN_SENTENCE[a] : tx(ALLERGENS[a]) }));
+  for (const [a, level] of Object.entries(l.allergies) as [AllergenId, string][]) items.push(t(level === "severe" ? "someoneSevere" : "someoneAvoids", { what: allergenWord(a) }));
   const custom = new Map<string, string>();
   for (const c of l.custom) {
     const name = customName(c.name);

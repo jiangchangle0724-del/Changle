@@ -1,3 +1,4 @@
+import { playPower } from "../games/rogueSounds";
 import { haptic, sfx } from "../lib/sfx";
 import { useRoom, useRoomEvent } from "./RoomContext";
 
@@ -48,17 +49,24 @@ export function useTableSounds() {
       case "shuffle":
         sfx.shuffle();
         return;
+      // Rogue Thirteen's powers, each with its own sound (games/rogueSounds.ts)
       case "camera":
-        sfx.shutter();
+        playPower("camera");
         haptic(30);
         return;
       case "nose":
-        sfx.honk();
+        playPower("nose");
         if (!mine) haptic([20, 40, 20]);
         return;
       case "wc":
-        sfx.woodblock(0.8, 0.8);
-        window.setTimeout(() => sfx.safe(), 120);
+        playPower("wc");
+        return;
+      case "trouble":
+        playPower("trouble", mine ? 1 : 0.8);
+        return;
+      case "buddy":
+        // after the stamp has landed on the one who called
+        window.setTimeout(() => playPower("buddy"), 1400);
         return;
       case "dice": {
         sfx.dice(0.95, mine ? 1 : 0.8);

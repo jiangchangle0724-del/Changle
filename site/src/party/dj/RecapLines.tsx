@@ -3,6 +3,7 @@ import type { DjView } from "../../shared/protocol";
 import { reqLine } from "./deck/words";
 import { STYLE_NAMES } from "./parts";
 import { recapOf } from "./recap";
+import { useDjNames } from "./names";
 
 /** How many songs the recap names (the rest are counted). */
 const SONGS_NAMED = 4;
@@ -13,7 +14,8 @@ const SONGS_NAMED = 4;
  * asked for one.
  */
 export function RecapLines({ v, zh, line, note }: { v: DjView; zh: boolean; line: string; note: string }) {
-  const { now, nameOf } = useRoom();
+  const { now } = useRoom();
+  const nameOf = useDjNames(zh);
   const r = recapOf(v, now());
   const styleName = (s: (typeof r.styles)[number]["style"]) => (s === "mine" ? (zh ? "主人的歌" : "The host's songs") : zh ? STYLE_NAMES[s].zh : STYLE_NAMES[s].en);
   const sep = zh ? "、" : ", ";

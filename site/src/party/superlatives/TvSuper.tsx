@@ -6,6 +6,7 @@ import { SeatFace } from "../../online/People";
 import type { SeatView, SuperView } from "../../shared/protocol";
 import { Bi, DoneBadge, RoundTag, TvClock, TvLineup, TvPodium, TvShow, useArrivals, useBeat, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
+import { useSeatMemory } from "./seats";
 import "../../styles/tv-superlatives.css";
 
 const VOTE_MS = 45_000;
@@ -98,7 +99,8 @@ function Plaque({ v, sound }: { v: SuperView; sound: boolean }) {
 
 function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
   const { zh, tr } = useLang();
-  const { seat } = useSeats();
+  // (a winner who left the table mid-award is still the winner, with their own name and face)
+  const { seat } = useSeatMemory();
   const root = useRef<HTMLDivElement>(null);
   const burst = useConfetti();
   const winners = v.winners.map((id) => seat(id)).filter((s): s is SeatView => !!s);
@@ -175,7 +177,8 @@ function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
 
 function Ceremony({ v, sound }: { v: SuperView; sound: boolean }) {
   const { zh, tr } = useLang();
-  const { players, seat } = useSeats();
+  const { players } = useSeats();
+  const { seat } = useSeatMemory();
   // everyone who sat at the table tonight with a trophy, plus everyone still here
   const ids = [...new Set([...players.map((s) => s.id), ...Object.keys(v.awards)])];
   const people = ids.map((id) => seat(id)).filter((s): s is SeatView => !!s);

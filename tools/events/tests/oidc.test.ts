@@ -343,7 +343,7 @@ describe("POST /go/api/handoff, signed in by GitHub", () => {
     expect((env as Env).EVENTS_HANDOFF_KEY).toBeUndefined();
     const res = await post(await token(claims()));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, source: "vpl", date: today(), part: 0, bytes: vpl.length });
+    expect(await res.json()).toEqual({ ok: true, source: "vpl", date: today(), part: 0, bytes: vpl.length, read: false });
     expect((await takeHandoff(env.CACHE, today(), "vpl", 0))?.raw).toBe(vpl);
   });
 

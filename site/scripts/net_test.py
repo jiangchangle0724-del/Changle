@@ -10,7 +10,7 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/net")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 
 fails = []
@@ -453,7 +453,8 @@ def t_rogue(host, everyone):
                 sp.get_by_role("button", name=re.compile("我说完了")).click()
                 time.sleep(0.4)
             shot(drawer, "rogue-garden")
-            drawer.get_by_role("button", name=re.compile("重复了")).click()
+            # (two buttons now: the one who just finished, red, and the one speaking)
+            drawer.get_by_role("button", name=re.compile("重复了")).first.click()
             ok(until(lambda: stamps_up(everyone), 3000), "[rogue] 3: a repeat earns the stamp")
         elif phase == "grab":
             shot(everyone[1], "rogue-grab")
