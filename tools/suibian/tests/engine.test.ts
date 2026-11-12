@@ -248,6 +248,30 @@ test("severe chili rules out the spicy cuisines; 'don't eat chili' only warns", 
   assert.deepEqual(check(place({ cuisine: "sichuan" }), avoid), { ok: true, warnings: [{ k: "allergy", allergen: "chili", level: "avoid" }] });
 });
 
+test("the reviewed table (2026-11-05): every allergen rules out the cuisines built on it, 'don't eat' still only warns", () => {
+  const severe = (a: AllergenId) => ({ ...cleanLimits({}), allergies: { [a]: "severe" as const } });
+  const out = (a: AllergenId, c: CuisineId) => !check(place({ cuisine: c }), severe(a)).ok;
+  // Added on review, one per reason on the page.
+  for (const c of ["hotpot", "hk_cafe", "taiwanese"] as const) assert.ok(out("peanut", c), `peanut ${c}`);
+  for (const c of ["vegetarian", "brunch"] as const) assert.ok(out("treenut", c), `tree nuts ${c}`);
+  for (const c of ["korean", "hotpot"] as const) assert.ok(out("shellfish", c), `shellfish ${c}`);
+  for (const c of ["ramen", "hotpot"] as const) assert.ok(out("fish", c), `fish ${c}`);
+  for (const c of ["ramen", "western"] as const) assert.ok(out("sesame", c), `sesame ${c}`);
+  for (const c of ["vegetarian", "sea"] as const) assert.ok(out("soy", c), `soy ${c}`);
+  assert.ok(out("egg", "brunch"));
+  for (const c of ["brunch", "italian", "indian"] as const) assert.ok(out("dairy", c), `dairy ${c}`);
+  for (const c of ["ramen", "italian"] as const) assert.ok(out("gluten", c), `gluten ${c}`);
+  // Still open on the page, so not ruled out yet: oyster sauce, and other Chinese for peanut.
+  for (const c of ["chinese", "hk_cafe", "taiwanese"] as const) assert.ok(!out("shellfish", c), `shellfish ${c} is still a question`);
+  assert.ok(!out("peanut", "chinese"));
+  // Every allergen on the card now has a list; "don't eat" never rules anything out.
+  for (const a of Object.keys(ALLERGENS) as AllergenId[]) {
+    assert.ok(SEVERE_RULES_OUT[a]?.length, `${a} has cuisines`);
+    const avoid = { ...cleanLimits({}), allergies: { [a]: "avoid" as const } };
+    for (const c of SEVERE_RULES_OUT[a]!) assert.ok(check(place({ cuisine: c }), avoid).ok, `${a} avoid ${c}`);
+  }
+});
+
 test("typed items: cleaned, merged without duplicates, and only ever warn", () => {
   const a = cleanLimits({ custom: [{ name: "  香菜 ", level: "avoid" }, { name: "Pork", level: "severe" }, { name: "" }, { name: "香菜" }, 42] });
   assert.deepEqual(a.custom, [
@@ -376,4 +400,41 @@ test("solo: a place nobody has rated gives way to rated ones, unless it is a pic
   assert.deepEqual(ids, [rated.id, unknown.id]);
   const picked = { ...unknown, recommend: { note: { zh: "好吃", en: "Good" }, links: [] } };
   assert.equal(soloPick({ places: [picked, rated], answers: { mood: "warm", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW, count: 2 }).ids[0], picked.id);
+});
+
+// ---- not the same few every time ----
+
+test("solo: places shown in the last two weeks give way to ones not seen yet", () => {
+  const here = { lat: center.lat, lng: center.lng };
+  const a = place({ ...here, cuisine: "hotpot", rating: 4.6, ratings: 900 });
+  const b = place({ ...here, cuisine: "ramen", rating: 4.5, ratings: 900 });
+  const c = place({ ...here, cuisine: "korean", rating: 4.4, ratings: 900 });
+  const d = place({ ...here, cuisine: "thai", rating: 4.3, ratings: 900 });
+  const base = { places: [a, b, c, d], answers: { mood: "any", side: "any" } as const, limits: noLimits, center, range: "walk20" as const, now: NOW, count: 2 };
+  const first = soloPick(base).ids;
+  assert.deepEqual([...first].sort(), [a.id, b.id].sort());
+  assert.deepEqual([...soloPick({ ...base, seen: first }).ids].sort(), [c.id, d.id].sort(), "the two shown last time step back");
+  // A seen place still comes back when nothing unseen comes close.
+  const weak = place({ ...here, cuisine: "thai", rating: 3.6, ratings: 900 });
+  assert.equal(soloPick({ ...base, places: [a, weak], count: 1, seen: [a.id] }).ids[0], a.id);
+});
+
+test("solo and cards: a small random nudge lets near-equal places take turns, never a clearly weaker one", () => {
+  const here = { lat: center.lat, lng: center.lng };
+  const twins = [place({ ...here, cuisine: "korean" }), place({ ...here, cuisine: "italian" })];
+  const weaker = place({ ...here, cuisine: "thai", rating: 3.7 });
+  const places = [...twins, weaker];
+  const firsts = new Set<string>();
+  for (let seed = 1; seed <= 40; seed++) {
+    const random = rng(seed);
+    const solo = soloPick({ places, answers: { mood: "any", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW, count: 1, random }).ids[0];
+    const card = pick({ places, likes: {}, bans: {}, members: 2, center, range: "walk20", now: NOW, count: 1, random }).ids[0];
+    assert.notEqual(solo, weaker.id);
+    assert.notEqual(card, weaker.id);
+    firsts.add(solo).add(card);
+  }
+  assert.deepEqual([...firsts].sort(), twins.map((p) => p.id).sort(), "each twin comes first sometimes");
+  // Without a random source the order is fixed, as every other test here relies on.
+  const fixed = () => soloPick({ places, answers: { mood: "any", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW }).ids;
+  assert.deepEqual(fixed(), fixed());
 });

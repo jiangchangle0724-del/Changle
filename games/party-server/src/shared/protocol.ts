@@ -3,6 +3,7 @@
 // common.ts pageClock, games/party-base/CONTRACTS.md), except `serverAt`, the room's own clock.
 import type { Difficulty, RoomState } from "../../../party-base/src/index";
 import type { Mode } from "./show";
+import type { Verdict } from "./taps";
 
 /** Host actions a phone may ask for. The room stamps `at` and fills in what's its to decide. */
 export type HostAction =
@@ -43,7 +44,22 @@ export type ClientMsg =
    * the room heard it, in ms (negative: early); null: no move near it. The phone scores (party-base's
    * scoreBeats); the room keeps the beats and works out the floor and the results.
    */
-  | { t: "beats"; from: number; offs: (number | null)[] };
+  | { t: "beats"; from: number; offs: (number | null)[] }
+  /**
+   * A phone while a dance plays, a few times a second: how much its player is moving (0 to 1), and
+   * with the first one after a beat is judged, that beat's verdict. Passed on to the speaker (each
+   * player's little dancer on the TV) and not kept: the beats above are what counts.
+   */
+  | { t: "pulse"; e: number; v?: Verdict | null }
+  /**
+   * The speaker, while a song plays from YouTube: when the dance's first beat is (speaker time), as
+   * its video is really playing. The room moves the beat there if it's off.
+   */
+  | { t: "songAt"; startAt: number }
+  /** The speaker: the song picked is loaded and held at its start; the room starts it (after the lead-in). */
+  | { t: "songReady" }
+  /** The speaker: YouTube won't play the song here (bad), or can't be reached (offline). Back to the lobby. */
+  | { t: "songFailed"; why: "bad" | "offline" };
 
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
@@ -52,6 +68,8 @@ export type ServerMsg =
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }
   | { t: "here"; playerId: string }
+  /** To the speaker: a phone's pulse (its player's movement now, a beat's verdict). */
+  | { t: "pulse"; playerId: string; e: number; v: Verdict | null }
   /** To the speaker, each time a phone's beats come in: the floor so far. */
   | ({ t: "floor" } & Floor)
   | { t: "error"; code: string; message: string }
@@ -74,6 +92,11 @@ export interface RoutineInfo {
   leadStartAt: number | null;
   /** The dance beat RoomState.routineStartAt is: 0, or the 8-count a restart went back to. */
   fromBeat: number;
+  /**
+   * From the end of the part before the dance to its first beat (ms): the count-in, or for a song
+   * its intro, as the songbook has it when the room picks the song (the show's own when absent).
+   */
+  introMs?: number;
 }
 
 /** The floor together, from the beats the phones have sent. */
@@ -119,6 +142,9 @@ export interface Results {
   /** the share of beats moved, over everyone who danced, 0 to 100 */
   together: number;
 }
+
+/** A song's beat moves to where the speaker measured it when it's this far off (ms). */
+export const SONG_SYNC_MS = 20;
 
 /** A floor's run this long fills the bar: fireworks, and the bar starts again. */
 export const COMBO_FULL = 32;

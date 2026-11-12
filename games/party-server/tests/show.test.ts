@@ -119,8 +119,9 @@ describe("the beats a page plans", () => {
 
   it("the anchors from a room's state: nothing in the lobby or the results", () => {
     const info = { routineId: "square-easy", bpm: 96, beatsPerBar: 4, totalBeats: 192, mode: "learn" as const, leadStartAt: 10_000, fromBeat: 0 };
-    assert.deepEqual(anchorsOf("learning", null, info), lead);
-    assert.deepEqual(anchorsOf("dancing", 40_000, info), { leadStartAt: 10_000, danceStartAt: 40_000, fromBeat: 0 });
+    assert.deepEqual(anchorsOf("learning", null, info), { ...lead, introMs: null });
+    assert.deepEqual(anchorsOf("dancing", 40_000, info), { leadStartAt: 10_000, danceStartAt: 40_000, fromBeat: 0, introMs: null });
+    assert.deepEqual(anchorsOf("learning", null, { ...info, introMs: 2500 }), { ...lead, introMs: 2500 });
     assert.equal(anchorsOf("results", null, info), null);
     assert.equal(anchorsOf("lobby", null, info), null);
     assert.equal(anchorsOf("learning", null, null), null);

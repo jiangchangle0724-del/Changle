@@ -113,6 +113,12 @@ const S = {
   reservable: ["可订位", "Takes bookings"],
   call: ["📞 打电话", "📞 Call"],
   map: ["🗺️ 地图", "🗺️ Map"],
+  delivery: ["🛵 点外卖", "🛵 Order delivery"],
+  deliveryHint: [
+    "不一定每家都有外卖。Uber Eats 和 DoorDash 会直接搜这家；Skip 和饭团点了先复制店名，打开后粘贴到搜索框。",
+    "Not every place delivers. Uber Eats and DoorDash open a search for it; Skip and Fantuan copy the name first, to paste into their search.",
+  ],
+  nameCopied: ["已复制店名", "Name copied"],
   relaxed: ["有人第 1 轮不太想吃这个，但附近选择不多", "Someone wasn't keen on this in round 1, but there isn't much else nearby"],
   warn_unknownCuisine: ["不确定这家是什么菜，过敏的人请先确认", "Cuisine unclear: check before ordering if you have an allergy"],
   warn_halalCheck: ["清真需要跟店家确认", "Check with the restaurant that it's halal"],

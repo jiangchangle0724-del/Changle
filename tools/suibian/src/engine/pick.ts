@@ -71,6 +71,16 @@ export function score(p: Place, ctx: ScoreContext): number {
   return s;
 }
 
+/**
+ * A random nudge, up to this much either way, so places that score about the same take turns
+ * instead of the same one always winning. Small next to a real difference: a place more than 0.24
+ * behind (about a third of a Google star) never jumps ahead.
+ */
+export const JITTER = 0.12;
+
+/** One place's nudge: between -JITTER and +JITTER, or none without a random source. */
+export const nudge = (random?: () => number): number => (random ? (random() * 2 - 1) * JITTER : 0);
+
 export const CARD_COUNT = 6;
 export const MAX_PER_CUISINE = 2;
 
@@ -80,6 +90,8 @@ export interface PickInput extends ScoreContext {
   /** How many people banned each cuisine in round 1. */
   bans: Partial<Record<CuisineId, number>>;
   count?: number;
+  /** For the nudge (see JITTER); without it the order is fixed, as in tests. */
+  random?: () => number;
 }
 
 /**
@@ -89,7 +101,7 @@ export interface PickInput extends ScoreContext {
  */
 export function pick(input: PickInput): { ids: string[]; relaxed: string[] } {
   const count = input.count ?? CARD_COUNT;
-  const scored = input.places.map((p) => ({ p, s: score(p, input) })).sort((a, b) => b.s - a.s || a.p.id.localeCompare(b.p.id));
+  const scored = input.places.map((p) => ({ p, s: score(p, input) + nudge(input.random) })).sort((a, b) => b.s - a.s || a.p.id.localeCompare(b.p.id));
   const banned = (p: Place) => (input.bans[p.cuisine] ?? 0) > 0;
   let pool = scored.filter((x) => !banned(x.p));
   const relaxed: string[] = [];

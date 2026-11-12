@@ -15,6 +15,7 @@ import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
 import { MAX_SEATS, STATUS_MS, type FatalKey, type Phase, type RoomView } from '../net/protocol';
 import { drawLook } from '../pad/look-preview';
+import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -25,7 +26,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 
 applyStatic();
 const canvas = $<HTMLCanvasElement>('stage');
-const stage = await Stage.create(canvas);
+const stage = await Stage.create(canvas, { plates: PLATES });
 const params = new URLSearchParams(location.search);
 let levelIndex = Math.max(0, LEVELS.findIndex((l) => l.id === params.get('level')));
 let level: Level = LEVELS[levelIndex] as Level;
@@ -135,6 +136,9 @@ function onPhase(next: Phase): void {
   $('countdown').hidden = next !== 'countdown';
   $('results').hidden = next !== 'results';
   $('lobbyBtn').hidden = next === 'lobby';
+  // 顶栏压在遮罩上面；大厅卡片里已经有大房间码，用时和摔死只在玩的时候有意思
+  $('codeChip').hidden = next === 'lobby';
+  $('clockChip').hidden = $('deathChip').hidden = next !== 'countdown' && next !== 'playing';
   // 底下那条说明只在大厅里有用，玩的时候别挡着画面
   $('note').hidden = next !== 'lobby';
   if (next === 'lobby') void resetSim();
@@ -408,6 +412,8 @@ function renderLatency(): void {
     row.append(dot, nm, ms, tag);
     box.append(row);
   }
+  // 没人连进来时只剩一行标题，大厅里看着像落下的字
+  (box.querySelector('.title') as HTMLElement).hidden = !box.querySelector('.row');
 }
 setInterval(renderLatency, 500);
 

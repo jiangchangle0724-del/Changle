@@ -15,7 +15,7 @@ import { createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX
 import type { GameEvent, GameState, Level, PenaltyWhy } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace, PassCurtain } from "../common";
-import { Deltas, HoldToPeek, Lines, OrderStrip, PackPicker, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useSay, type RevealItem } from "./parts";
+import { Deltas, HoldToPeek, Lines, MasterArt, OrderStrip, PackPicker, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
 import { S } from "./text";
 import "../../styles/party.css";
 import "./straightface.css";
@@ -170,9 +170,13 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     penalty.show({ who: [nameOf(target)], kind: "sip", note: say(S.penMaster, { name: by }) });
   };
 
+  const { burst, layer } = useConfetti();
   const nextRound = () => {
     const next = act({ type: "NEXT_ROUND" });
-    if (next?.phase === "finished") cue.finale();
+    if (next?.phase === "finished") {
+      cue.finale();
+      window.setTimeout(() => burst({ y: 0.3, count: 220 }), 300);
+    }
   };
 
   const levelLabel = (l: Level) => say(l === 1 ? S.level1 : l === 2 ? S.level2 : S.level3);
@@ -250,7 +254,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     turn = judgeId ?? undefined;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} lead={say(S.termUp)} big />
+        <TermCard term={pub.term!} pack={pub.pack} level={pub.level} lead={say(S.termUp)} big deal />
         <div className="sf-judge-line">
           <RoleArt role="judge" size={64} />
           <p className="hint">
@@ -400,14 +404,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
       { key: "pre", node: <Lines lines={res.preLines} className="sf-pre" /> },
       {
         key: "honest",
-        node: (
-          <div className="sf-honest">
-            <RoleArt role="honest" size={96} />
-            <span className="hint">{say(S.honestWas)}</span>
-            <NameFace name={nameOf(rv.honestId)} size={64} />
-            <strong>{nameOf(rv.honestId)}</strong>
-          </div>
-        ),
+        node: <Verdict face={<NameFace name={nameOf(rv.honestId)} size={56} />} name={nameOf(rv.honestId)} right={res.outcome === "judge_right"} onRight={() => burst({ x: 0.7, y: 0.55 })} />,
       },
       {
         key: "points",
@@ -500,7 +497,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
           />
           {revealShown && masterFor && (
             <div className="panel sf-panel sf-master">
-              <RoleArt role="bluffer" size={80} className="sf-master-art" />
+              <MasterArt size={88} />
               <p className="sup-ask">{say(S.masterPicks, { name: nameOf(masterFor), penalty: pen.isCustom ? say(S.penaltyWord) : say(S.drinkWord) })}</p>
               <PickOne people={players.filter((p) => p.id !== masterFor).map((p) => ({ id: p.id, name: p.name }))} onPick={masterPick} size={50} />
             </div>
@@ -522,7 +519,10 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     <GameShell title={GAME_BY_ID.straightface.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} status={status} roster={{ turn }} actions={actions}>
       <div className="sf">
         <div className="sf-backdrop" aria-hidden="true" style={{ backgroundImage: `url(${BACKDROP})` }} />
-        {body}
+        <div className="sf-phase" key={`${pub?.phase ?? "setup"}-${r?.index ?? 0}-${curtainFor ?? ""}-${termSeen ? 1 : 0}`}>
+          {body}
+        </div>
+        {layer}
       </div>
     </GameShell>
   );

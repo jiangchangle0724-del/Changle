@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { METRONOME_ID } from "../src/shared/catalog";
 import type { ServerMsg } from "../src/shared/protocol";
 import { buildShow, cachedShows, danceStart } from "../src/shared/show";
-import { COUNT_LEAD_MS, IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, validPlayerId, type From, type Out } from "../src/server/session";
+import { COUNT_LEAD_MS, IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, PULSE_GAP_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, validPlayerId, type From, type Out } from "../src/server/session";
 
 const SPEAKER: From = { role: "speaker", playerId: null };
 const ANN: From = { role: "player", playerId: "ann-000001" };
@@ -140,7 +140,7 @@ describe("the host's actions", () => {
     s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: METRONOME_ID } });
     assert.equal(s.d.state.phase, "learning");
     assert.equal(s.d.state.bpm, 120, "the routine's tempo");
-    assert.deepEqual(last(s.flush().out, "state")?.routine, { routineId: METRONOME_ID, bpm: 120, beatsPerBar: 4, totalBeats: 240, mode: null, leadStartAt: null, fromBeat: 0 });
+    assert.deepEqual(last(s.flush().out, "state")?.routine, { routineId: METRONOME_ID, bpm: 120, beatsPerBar: 4, totalBeats: 240, mode: null, leadStartAt: null, fromBeat: 0, introMs: 8 * 500 });
     // (no warm-up: it waits for the host)
     assert.equal(s.d.danceAt, null);
     clock.advance(60_000);
@@ -196,6 +196,35 @@ describe("the host's actions", () => {
     s.handle(BOB, { t: "here" });
     assert.deepEqual(s.flush().out, [{ to: "all", msg: { t: "here", playerId: "bob-000002" } }]);
   });
+
+  it("a phone's pulse goes to the speaker while a dance plays, tidied, not too often, and isn't kept", () => {
+    const { s, clock } = ready();
+    s.handle(BOB, { t: "pulse", e: 0.5 });
+    assert.deepEqual(s.flush().out, [], "not in the lobby");
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    s.flush();
+    s.handle(BOB, { t: "pulse", e: 1.7, v: "hit" });
+    let { out, changed } = s.flush();
+    assert.deepEqual(out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 1, v: "hit" } }]);
+    assert.equal(changed, false, "nothing stored");
+    // movement only: one every PULSE_GAP_MS; a verdict always
+    clock.advance(PULSE_GAP_MS - 10);
+    s.handle(BOB, { t: "pulse", e: 0.333 });
+    assert.deepEqual(s.flush().out, []);
+    s.handle(BOB, { t: "pulse", e: 0.2, v: "miss" });
+    assert.deepEqual(s.flush().out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 0.2, v: "miss" } }]);
+    clock.advance(PULSE_GAP_MS);
+    s.handle(BOB, { t: "pulse", e: 0.333, v: "nonsense" as never });
+    ({ out } = s.flush());
+    assert.deepEqual(out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 0.33, v: null } }]);
+    // not from the speaker, a stranger, or without a number
+    clock.advance(PULSE_GAP_MS);
+    s.handle(SPEAKER, { t: "pulse", e: 0.5 });
+    s.handle({ role: "player", playerId: "cat-000003" }, { t: "pulse", e: 0.5 });
+    s.handle(ANN, { t: "pulse", e: Number.NaN });
+    s.handle(ANN, { t: "pulse", e: "1" as never });
+    assert.deepEqual(s.flush().out, []);
+  });
 });
 
 /** A room dancing square-easy (96 BPM, 192 beats) from its first beat: the host skipped the warm-up. */
@@ -219,7 +248,7 @@ describe("a dance", () => {
     assert.equal(s.d.state.phase, "learning");
     assert.equal(s.d.state.difficulty, "easy", "the dance's own difficulty");
     assert.equal(s.d.state.bpm, 96);
-    assert.deepEqual(s.d.routine, { routineId: "square-easy", bpm: 96, beatsPerBar: 4, totalBeats: 192, mode: "learn", leadStartAt: at + LEAD_IN_MS, fromBeat: 0 });
+    assert.deepEqual(s.d.routine, { routineId: "square-easy", bpm: 96, beatsPerBar: 4, totalBeats: 192, mode: "learn", leadStartAt: at + LEAD_IN_MS, fromBeat: 0, introMs: 4 * 625 });
     const lead = { leadStartAt: at + LEAD_IN_MS, danceStartAt: null, fromBeat: 0 };
     assert.equal(s.d.danceAt, at + LEAD_IN_MS + show.leadMs, "the lead runs out where the count-in begins");
     assert.equal(s.nextWake(), s.d.danceAt! + 995_000);

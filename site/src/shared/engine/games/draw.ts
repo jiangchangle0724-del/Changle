@@ -1,6 +1,6 @@
 import { DRAW_WORDS } from "../../../data/drawGuess";
 import { toSimplified } from "../../../data/t2s";
-import { DRAW_GUESS_MAX, type DrawView } from "../../protocol";
+import { DRAW_GUESS_MAX, DRAW_ROUND_MS, type DrawView } from "../../protocol";
 import { clean, intIn, range, t, type Api, type GameDef } from "../api";
 
 type D = 1 | 2 | 3;
@@ -19,9 +19,11 @@ type S = {
   order?: string[];
   /** The drawer who left before their round was over; `drawer` already holds who draws next. */
   left?: string | null;
+  /** Guesses the drawer counted as right this round (时钟 for 钟表): typed again, they're right too. */
+  close?: string[];
 };
 
-const ROUND_MS = 80_000;
+const ROUND_MS = DRAW_ROUND_MS;
 const NOBODY = (w: { zh: string; en: string }) => t(`你画我猜：没人猜中「${w.zh}」`, `Draw & Guess: nobody got "${w.en}"`);
 
 /** Case, width, spaces and punctuation aside, with Traditional characters read as Simplified (汽車 is 汽车). */
@@ -44,14 +46,30 @@ function plural(a: string, b: string) {
   return /[^aeiou]y$/.test(one) && many === `${one.slice(0, -1)}ies`;
 }
 
+/** The same answer, however it's typed: case, width, spaces, punctuation, Traditional, a/an/the or a plural aside. */
+function same(a: string, b: string) {
+  const x = norm(a);
+  if (!x) return false;
+  if (x === norm(b)) return true;
+  const p = bare(a);
+  const q = bare(b);
+  return p === q || plural(p, q);
+}
+
 /** Does a guess name the word, in either language? */
 export function drawMatches(text: string, w: { zh: string; en: string }) {
-  const g = norm(text);
-  if (!g) return false;
-  if (g === norm(w.zh) || g === norm(w.en)) return true;
-  const guess = bare(text);
-  const word = bare(w.en);
-  return guess === word || plural(guess, word);
+  return same(text, w.zh) || same(text, w.en);
+}
+
+/** `pid` got it: the first one scores twice the round's points, the drawer scores with every one. */
+function solve(s: S, pid: string, api: Api) {
+  s.solved.push(pid);
+  const first = s.solved.length === 1;
+  s.scores[pid] = (s.scores[pid] ?? 0) + (first ? 2 * s.d : s.d);
+  s.scores[s.drawer] = (s.scores[s.drawer] ?? 0) + (first ? s.d : 1);
+  api.fx("correct", pid);
+  const guessers = api.ids().filter((id) => id !== s.drawer);
+  if (guessers.every((id) => s.solved.includes(id))) endRound(s, api, false);
 }
 
 function deckOf(d: D, api: Api) {
@@ -77,6 +95,7 @@ function nextRound(s: S, drawer: string, api: Api) {
   s.guesses = [];
   s.solved = [];
   s.left = null;
+  s.close = [];
   api.resetStrokes();
 }
 
@@ -122,6 +141,7 @@ export const draw: GameDef<S> = {
         s.guesses = [];
         s.solved = [];
         s.left = null;
+        s.close = [];
         api.resetStrokes();
         api.timer("draw", s.endsAt);
         return;
@@ -132,19 +152,36 @@ export const draw: GameDef<S> = {
         const text = clean(g.text, DRAW_GUESS_MAX);
         if (!text) return;
         const w = DRAW_WORDS[s.word];
-        if (drawMatches(text, w)) {
-          s.solved.push(pid);
-          const first = s.solved.length === 1;
-          s.scores[pid] = (s.scores[pid] ?? 0) + (first ? 2 * s.d : s.d);
-          s.scores[s.drawer] = (s.scores[s.drawer] ?? 0) + (first ? s.d : 1);
+        if (drawMatches(text, w) || (s.close ?? []).some((c) => same(text, c))) {
+          // (a right guess says who, never what)
           s.guesses.push({ pid, text: "", ok: true });
-          api.fx("correct", pid);
-          const guessers = api.ids().filter((id) => id !== s.drawer);
-          if (guessers.every((id) => s.solved.includes(id))) endRound(s, api, false);
+          solve(s, pid, api);
         } else {
           s.guesses.push({ pid, text, ok: false });
         }
         if (s.guesses.length > 40) s.guesses = s.guesses.slice(-40);
+        return;
+      }
+      case "accept": {
+        // the drawer counts a guess that's close enough (时钟 for 钟表, plane for Airplane): everyone who
+        // typed it got it, in the order they typed it, and so does anyone who types it from now on
+        if (s.phase !== "draw" || pid !== s.drawer) return;
+        const text = clean(g.text, DRAW_GUESS_MAX);
+        if (!text || !s.guesses.some((x) => !x.ok && x.text === text)) return;
+        s.close = [...(s.close ?? []), text];
+        const now: string[] = [];
+        const kept: S["guesses"] = [];
+        for (const x of s.guesses) {
+          if (x.ok || !same(x.text, text)) kept.push(x);
+          // (it's now a right answer, so it no longer shows: typed again by someone who has it, or by
+          // someone who has left or is just watching, it goes)
+          else if (x.pid !== s.drawer && api.has(x.pid) && !s.solved.includes(x.pid) && !now.includes(x.pid)) {
+            kept.push({ pid: x.pid, text: "", ok: true });
+            now.push(x.pid);
+          }
+        }
+        s.guesses = kept;
+        for (const who of now) if (s.phase === "draw") solve(s, who, api);
         return;
       }
       case "giveup": {

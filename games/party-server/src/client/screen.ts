@@ -1,18 +1,24 @@
-// The speaker page, /party/screen: the room's clock, its sound and, for now, its coach. It runs on a
-// Mac or an iPad mirrored to the TV (AirPlay), so the room hears it a little late: the calibration
-// measures how late. It opens the room, shows the code and the QR code, and reports its clock to the
-// room every second, so the phones can set theirs by it. When a dance plays it plays the beat
-// (synth.ts: a groove until the dances have songs) and shows the stage, the move, the 8-count, the
-// next move and the floor together; then the results. The real screen is task C3
-// (docs/codex-tasks/dance-C3-speaker-screen.md): this page keeps the timing and leaves the look to it.
+// The speaker page, /party/screen: the room's clock, its sound, its coach. It runs on a Mac or an
+// iPad mirrored to the TV (AirPlay), so the room hears it a little late: the calibration measures how
+// late. It opens the room, shows the code and the QR code, and reports its clock to the room every
+// second, so the phones can set theirs by it. When a dance plays it plays the beat (synth.ts) or a
+// song's video (tube.ts: YouTube's own player, in sight in the corner; it tells the room where the
+// song's beat really is), the 3D coach dancing on it, the words, the floor together and everyone's
+// little dancer; then the results. In the lobby: 歌曲对拍, tapping along to a song once so its dance
+// knows where its beat is (the songbook).
 import qrcode from "qrcode-generator";
 import { calibrateFromTaps, type CalibrationResult, type RoomState } from "../../../party-base/src/index";
-import { routineById } from "../shared/catalog";
-import { COMBO_FULL, type Floor, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
-import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
-import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tr, wsUrl } from "./common";
+import { COMBO_FULL, SONG_SYNC_MS, type Floor, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
+import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, introOf, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
+import { SONGS, songById, type Song } from "../shared/songs";
+import { TAPS_WANTED, tapAlong } from "../shared/tapalong";
+import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tapTime, tr, wsUrl } from "./common";
+import { anyGl, canCoach, doingAt, glowOf } from "./coach/index";
+import { Crowd, PLAYER_COLORS, type Dancer } from "./coach/crowd";
+import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
-import { awardName, awardWhy, bodyHint, clockOf, difficultyName, moveName, moveOther, routineName, stageHint, stageName } from "./words";
+import { Tube } from "./tube";
+import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, moveHow, moveName, moveOther, routineName, songArtist, songTitle, stageHint, stageName } from "./words";
 
 /** Calibration: 8 clicks, 1.2 s apart (so a tap up to 400 ms late still pairs with the right click). */
 const CAL_CLICKS = 8;
@@ -59,14 +65,147 @@ let playing: Playing = { key: "", show: null, run: [], zero: null, next: 0, phra
 /** How many times the beats were planned (the checks: the lead running into the dance plans nothing new). */
 let plans = 0;
 let fireworksUntil = 0;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** Everyone's little dancer along the bottom of the TV (2D: every device draws it), and their pulses. */
+const crowd = new Crowd(reducedMotion);
+const pulses = new Map<string, { e: number; at: number; hitAt: number; shown: number; shownAt: number }>();
+/** How slowly a little dancer calms down between its player's moves (ms): it shouldn't flicker beat by beat. */
+const CALM_MS = 700;
+/** The last hit's pop, and how many in a row (each a note higher) */
+let popAt = 0;
+let popStep = 0;
+/** The 3D coach: undefined until first needed, null when this device can't draw it (the coach in words). */
+let coach3d: CoachStage | null | undefined;
+
+function coachStage(): CoachStage | null {
+  if (coach3d === undefined) {
+    try {
+      coach3d = canCoach() ? new CoachStage(reducedMotion) : null;
+    } catch {
+      coach3d = null;
+    }
+  }
+  return coach3d;
+}
 
 const app = document.getElementById("app")!;
+
+// ---------- songs: YouTube's player lives outside #app, which the page redraws (an iframe moved or
+// redrawn would load its video again); shown in the top left corner while a song is on
+
+const tube = new Tube();
+const tubeBox = el("div", "tube-box");
+const tubeCaption = el("p", "tube-caption");
+tubeBox.append(tube.box, tubeCaption);
+document.body.append(tubeBox);
+tube.onChange = () => renderTube();
+/** Each song's first beat as tapped along to (the songbook, /party/api/songs). */
+let songbook: Record<string, { firstBeatMs: number }> = {};
+/** What this page has told the room about the song starting (once per start). */
+let songReadySent = "";
+let songFailedSent = "";
+let songAtSent = 0;
+/** 歌曲对拍: the panel open, the song being tapped along to, its taps (speaker time), how it came out. */
+let tapPanel = false;
+let tapSong: Song | null = null;
+let tapTaps: number[] = [];
+let tapResult = "";
+let tapPosting = false;
+
+async function loadSongbook() {
+  try {
+    const res = await fetch("/party/api/songs", { cache: "no-store" });
+    if (res.ok) songbook = (await res.json()) as typeof songbook;
+  } catch {
+    // (no songbook just now: the songs show as not tapped)
+  }
+  if (tapPanel) render();
+}
+
+/** The song the room is on (learning, dancing, or its results), as a show. */
+function currentSong(): { show: Show; song: Song } | null {
+  if (!state || !routine || (state.phase !== "learning" && state.phase !== "dancing" && state.phase !== "results")) return null;
+  const sh = buildShow(routine.routineId, routine.mode);
+  return sh && sh.song ? { show: sh, song: sh.song } : null;
+}
+
+/**
+ * Every 25 ms: the song's video. Ready (held at its start) while the room waits for it, then played
+ * so its first beat lands where the room has the dance's; while it plays, where its beat really is
+ * goes to the room when that's off.
+ */
+function songTick() {
+  tube.tick();
+  const tapping = tapPanel && tapSong !== null && state?.phase === "lobby";
+  const cur = tapping ? null : currentSong();
+  document.body.classList.toggle("has-tube", tapping || !!cur);
+  if (tapping) return;
+  if (!cur) {
+    if (tube.status !== "idle") tube.unload();
+    return;
+  }
+  tube.load(cur.song.videoId);
+  const st = state!;
+  const r = routine!;
+  if (st.phase === "learning" && r.leadStartAt === null) {
+    // the room waits for the video: held ready, or won't play here
+    const key = `${r.routineId}|${r.mode}|${st.updatedAt ?? ""}`;
+    // (Safari: not before someone has tapped the video once, or it would start without its sound)
+    if (tube.ready && tube.armed && songReadySent !== key) {
+      sock?.send({ t: "songReady" });
+      songReadySent = key;
+    }
+    if ((tube.status === "bad" || tube.status === "offline") && songFailedSent !== key) {
+      sock?.send({ t: "songFailed", why: tube.status });
+      songFailedSent = key;
+    }
+    return;
+  }
+  if (st.phase === "results") return;
+  const a = anchorsOf(st.phase, st.routineStartAt, r);
+  if (!a) return;
+  const start = danceStart(cur.show, a);
+  if (start === null) return;
+  tube.playAt(start - introOf(cur.show, a));
+  if (st.phase === "dancing" && st.routineStartAt !== null && tube.playing) {
+    const z = tube.zero();
+    const local = performance.now();
+    if (z !== null && local - songAtSent > 1500) {
+      const measured = z + introOf(cur.show, a);
+      if (Math.abs(measured - st.routineStartAt) >= SONG_SYNC_MS) {
+        sock?.send({ t: "songAt", startAt: measured });
+        songAtSent = local;
+      }
+    }
+  }
+}
+
+/** The line under the video: what it's doing, or what it needs. */
+function renderTube() {
+  const song = tapPanel && tapSong ? tapSong : currentSong()?.song;
+  const name = song ? `${songTitle(song)} · ${songArtist(song)}` : "";
+  const text: Record<Tube["status"], string> = {
+    idle: "",
+    loading: tr("正在打开 YouTube……", "Opening YouTube…"),
+    buffering: tr("正在准备歌（可能先静音放一段广告）", "Getting the song ready (there may be a muted ad first)"),
+    ready: tr(`准备好了：${name}`, `Ready: ${name}`),
+    starting: name,
+    playing: name,
+    tap: tr("在这台设备上点一下视频，歌才能出声", "Tap the video on this device so the song can play with sound"),
+    offline: tr("连不上 YouTube", "Can't reach YouTube"),
+    bad: tr("这个视频不让在别的网站放", "This video can't be played outside YouTube"),
+  };
+  const waiting = tube.status === "ready" && !tube.armed && !!currentSong();
+  tubeCaption.textContent = waiting ? tr("第一次放歌：在这台设备上点一下视频，让它能出声", "The first song: tap the video on this device so it can play with sound") : text[tube.status];
+  tubeCaption.classList.toggle("is-warn", waiting || tube.status === "tap" || tube.status === "bad" || tube.status === "offline");
+}
 
 // ---------- the room
 
 async function begin() {
   synth.start();
   void awake.on();
+  void loadSongbook();
   const hash = location.hash.replace("#", "").toUpperCase();
   if (/^[A-HJ-NP-Z2-9]{4}$/.test(hash)) {
     rejoining = true;
@@ -107,6 +246,10 @@ function onMsg(m: ServerMsg) {
       results = m.results;
       rejoining = false;
       if (state.phase !== "dancing") floor = null;
+      if (state.phase === "results" && before === "dancing") synth.fanfare();
+      if (state.phase === "lobby") pulses.clear();
+      // a song starting (again): its video from its start
+      if (routine?.routineId.startsWith("song-") && ((state.phase === "learning" && before !== "learning") || (state.phase === "dancing" && before === "results"))) tube.stop();
       plan();
       if (state.phase === "calibrating" && before !== "calibrating") startCalibration(1);
       if (state.phase !== "calibrating") stopCalibration();
@@ -115,7 +258,11 @@ function onMsg(m: ServerMsg) {
     }
     case "floor": {
       const { t: _t, ...f } = m;
-      if (floor && f.bursts > floor.bursts) fireworksUntil = pageClock() + FIREWORKS_MS;
+      if (floor && f.bursts > floor.bursts) {
+        fireworksUntil = pageClock() + FIREWORKS_MS;
+        coach3d?.burst(pageClock());
+        synth.boom();
+      } else if (floor && f.streak > floor.streak && Math.floor(f.streak / 8) > Math.floor(floor.streak / 8)) synth.sparkle();
       floor = f;
       renderStatus();
       return;
@@ -136,6 +283,18 @@ function onMsg(m: ServerMsg) {
     case "here":
       heres.set(m.playerId, performance.now() + 1500);
       return;
+    case "pulse": {
+      const local = performance.now();
+      const was = pulses.get(m.playerId);
+      const hit = m.v === "hit";
+      pulses.set(m.playerId, { e: m.e, at: local, hitAt: hit ? local : (was?.hitAt ?? 0), shown: was?.shown ?? 0, shownAt: was?.shownAt ?? local });
+      if (hit && local - popAt > 90) {
+        popStep = local - popAt < 700 ? popStep + 1 : 0;
+        popAt = local;
+        synth.pop(popStep);
+      }
+      return;
+    }
     case "fatal":
       // a reload of a room that's gone: open a new one
       if (rejoining && (m.key === "noRoom" || m.key === "ended")) {
@@ -212,11 +371,16 @@ function schedule() {
     const b = p.run[p.next]!;
     const prev = p.next > 0 ? p.run[p.next - 1]! : null;
     if (b.count === 1 && b.stage !== "countdown" && prev) p.phrase++;
-    if (b.t >= now - 5) playBeat(synth, b, prev, p.phrase, p.show.routine === null);
+    // (a song's own music plays from its intro on: the synth only teaches its moves)
+    const song = p.show.kind === "song" && (b.stage === "intro" || b.stage === "countdown" || b.stage === "dance");
+    if (b.t >= now - 5 && !song) playBeat(synth, b, prev, p.phrase, p.show.kind === "metronome");
     p.next++;
   }
 }
-setInterval(schedule, 25);
+setInterval(() => {
+  schedule();
+  songTick();
+}, 25);
 
 /** The dance's grid (its beat 0, its tempo), for the timing check. */
 function danceGrid() {
@@ -238,6 +402,7 @@ const parts: {
   hint?: HTMLElement;
   move?: HTMLElement;
   other?: HTMLElement;
+  how?: HTMLElement;
   body?: HTMLElement;
   next?: HTMLElement;
   progress?: HTMLElement;
@@ -283,6 +448,7 @@ function render() {
   main.append(joinCard(run));
   const stage = el("section", "stage");
   if (run) stage.append(coach());
+  else if (tapPanel && state?.phase === "lobby") stage.append(tapAlongPanel());
   else {
     stage.append(el("h2", "phase", phaseTitle()));
     const sub = phaseText();
@@ -290,11 +456,27 @@ function render() {
     parts.count = el("div", "count");
     stage.append(parts.count);
     if (state?.phase === "results" && results) stage.append(resultsCard(results));
+    if (state?.phase === "lobby") {
+      const b = el("button", "btn quiet", tr("歌曲对拍：第一次跳一首歌前，在这里跟着歌点一次", "Tap along to a song: once, before its first dance"));
+      b.onclick = () => {
+        tapPanel = true;
+        void loadSongbook();
+        render();
+      };
+      stage.append(b);
+    }
+  }
+  if (run) {
+    // everyone's little dancer, along the bottom
+    const host = el("div", "crowd");
+    stage.append(host);
+    requestAnimationFrame(() => crowd.attach(host));
+  } else {
+    parts.players = el("ul", "players");
   }
   parts.status = el("p", "status");
   stage.append(parts.status);
-  parts.players = el("ul", "players");
-  stage.append(parts.players);
+  if (parts.players) stage.append(parts.players);
   main.append(stage);
   app.append(main);
   if (measure) {
@@ -302,6 +484,7 @@ function render() {
     app.append(parts.clock);
   }
   renderStatus();
+  renderTube();
 }
 
 function topBar(): HTMLElement {
@@ -378,42 +561,177 @@ function phaseText(): string {
   return "";
 }
 
-/** The coach while a dance plays (for now in words: the 3D coach is task A4). Filled in every frame. */
+/**
+ * The coach while a dance plays: the 3D coach dancing each move on the beat (coach/), with the words
+ * beside it: the stage, the move in both languages and how to do it, the count, what's next. Without
+ * a graphics chip for it, the words alone. Filled in every frame.
+ */
 function coach(): HTMLElement {
-  const box = el("div", "coach");
+  const stage3d = coachStage();
+  const box = el("div", stage3d ? "coach has-3d" : "coach");
   const r = playing.show?.routine;
+  const song = playing.show?.song;
   const top = el("div", "coach-top");
-  top.append(el("p", "coach-dance", r ? `${routineName(r)} · ${difficultyName(r.difficulty)}` : tr("120 拍节拍器", "120 BPM metronome")));
+  top.append(el("p", "coach-dance", song ? `${songTitle(song)} · ${songArtist(song)}` : r ? `${routineName(r)} · ${difficultyName(r.difficulty)}` : tr("120 拍节拍器", "120 BPM metronome")));
   parts.progress = el("p", "coach-progress");
   top.append(parts.progress);
-  // the words on the left, the count big beside them: the whole coach fits a TV without scrolling
+  // the words beside the count (or beside the 3D coach): the whole coach fits a TV without scrolling
   const main = el("div", "coach-main");
   const words = el("div", "coach-words");
   parts.stage = el("h2", "phase");
   parts.hint = el("p", "lead");
   parts.move = el("p", "coach-move");
   parts.other = el("p", "coach-other");
+  parts.how = el("p", "coach-how");
   parts.body = el("p", "coach-body");
-  words.append(parts.stage, parts.hint, parts.move, parts.other, parts.body);
   parts.count = el("div", "count");
-  main.append(words, parts.count);
   parts.next = el("p", "coach-next");
+  if (stage3d) {
+    const host = el("div", "coach-3d");
+    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.body);
+    const side = el("div", "coach-side");
+    side.append(words, parts.count, parts.next);
+    main.append(host, side);
+    // (after the box is on the page: the canvas takes the host's size)
+    requestAnimationFrame(() => stage3d.attach(host));
+  } else {
+    words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.body);
+    main.append(words, parts.count);
+  }
   const fl = el("div", "floor");
   parts.floorBar = el("div", "floor-bar");
   parts.floorBar.append(el("i"));
   parts.floorText = el("span", "floor-text");
   fl.append(parts.floorBar, parts.floorText);
-  box.append(top, main, parts.next, fl);
+  if (stage3d) box.append(top, main, fl);
+  else box.append(top, main, parts.next, fl);
   return box;
 }
 
+/**
+ * 歌曲对拍 (the lobby): pick a song, play it, and from its first strong beat tap along 16 times (the
+ * big button here, or the space bar). The taps go by the video's clock, with the TV's delay taken
+ * out; the song's first beat goes to the songbook, for every room from then on.
+ */
+function tapAlongPanel(): HTMLElement {
+  const box = el("section", "tapalong");
+  box.append(el("h2", "phase", tr("歌曲对拍", "Tap along to a song")));
+  box.append(el("p", "lead", tr("每首歌第一次跳之前做一次：放歌，等鼓点进来，从第一下重拍开始，跟着拍子点 16 下。", "Once per song, before its first dance: play it, wait for the beat to come in, and from the first strong beat tap along 16 times.")));
+  if (!state?.audioOffsetMs) box.append(el("p", "notice", tr("先校准电视延迟（主人手机上「校准电视延迟」），对拍才准。", "Calibrate the TV delay first (the host's phone: Calibrate the TV delay), so the taps come out right.")));
+  const list = el("ul", "tap-songs");
+  for (const song of SONGS) {
+    const li = el("li");
+    const b = el("button", song === tapSong ? "pick is-on" : "pick");
+    b.append(el("span", "pick-name", `${songTitle(song)} · ${songArtist(song)}`), el("span", "pick-meta", songbook[song.id] ? tr("已对拍", "Tapped") : tr("没对拍", "Not tapped yet")));
+    b.onclick = () => {
+      tapSong = song;
+      tapTaps = [];
+      tapResult = "";
+      tube.load(song.videoId);
+      render();
+    };
+    li.append(b);
+    list.append(li);
+  }
+  box.append(list);
+  if (tapSong) {
+    const ctl = el("div", "tap-ctl");
+    const play = el("button", "btn", tube.playing ? tr("从头再放", "Play from the start") : tr("放歌", "Play the song"));
+    play.onclick = () => {
+      tapTaps = [];
+      tapResult = "";
+      tube.stop();
+      tube.playAt(pageClock() + 400);
+      render();
+    };
+    const stop = el("button", "btn quiet", tr("停", "Stop"));
+    stop.onclick = () => {
+      tube.stop();
+      tapTaps = [];
+      render();
+    };
+    ctl.append(play, stop);
+    box.append(ctl);
+    const pad = el("button", "btn tap-pad", `${tr("跟着拍子点", "Tap on the beat")}\n${tapTaps.length} / ${TAPS_WANTED}`);
+    // (the tap's moment on this page's clock, as speaker time)
+    pad.addEventListener("pointerdown", (e) => tapAlongTap(PAGE_ORIGIN + tapTime(e)));
+    box.append(pad);
+    if (tapResult) box.append(el("p", "lead", tapResult));
+  }
+  const close = el("button", "btn quiet", tr("关掉", "Close"));
+  close.onclick = () => {
+    tapPanel = false;
+    tapSong = null;
+    tube.unload();
+    render();
+  };
+  box.append(close);
+  return box;
+}
+
+/** One tap of 对拍 (speaker time); the 16th works the song's first beat out and keeps it. */
+function tapAlongTap(at: number) {
+  if (!tapSong || !tube.playing || tapPosting) return;
+  tapTaps.push(at);
+  if (tapTaps.length < TAPS_WANTED) {
+    render();
+    return;
+  }
+  const song = tapSong;
+  const zero = tube.zero();
+  if (zero === null) {
+    tapTaps = [];
+    tapResult = tr("歌还没放稳，再点一次 16 下", "The song hadn't settled yet: tap 16 more");
+    render();
+    return;
+  }
+  const off = state?.audioOffsetMs ?? 0;
+  const r = tapAlong(
+    tapTaps.map((t) => t - off - zero),
+    60000 / song.bpm,
+  );
+  tapTaps = [];
+  if (!r.ok) {
+    tapResult = r.why === "uneven" ? tr("没跟上拍子，一拍点一下，再来一次", "Those weren't on a steady beat: one tap a beat, again") : r.why === "spread" ? tr("点得不太齐，再来一次", "The taps were too spread out: again") : tr("点得太少，再来一次", "Too few taps: again");
+    render();
+    return;
+  }
+  tapPosting = true;
+  tapResult = tr("正在存……", "Saving…");
+  render();
+  void fetch(`/party/api/songs/${song.id}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ firstBeatMs: r.firstBeatMs, taps: r.taps, spreadMs: r.spreadMs, durationMs: tube.durationMs() }),
+  })
+    .then(async (res) => {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      tapResult = res.ok ? tr(`对好了：第一拍在 ${clockOf(r.firstBeatMs)}，点得很齐（平均差 ${r.spreadMs} 毫秒）。`, `Done: the first beat is at ${clockOf(r.firstBeatMs)}, the taps ${r.spreadMs} ms apart on average.`) : tr(`没存上：${body.error ?? res.status}`, `Not saved: ${body.error ?? res.status}`);
+    })
+    .catch(() => {
+      tapResult = tr("没存上：连不上服务器", "Not saved: no connection");
+    })
+    .finally(() => {
+      tapPosting = false;
+      void loadSongbook();
+      render();
+    });
+}
+
+// (the space bar taps along too)
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || e.repeat || !tapPanel || !tapSong) return;
+  e.preventDefault();
+  tapAlongTap(PAGE_ORIGIN + tapTime(e));
+});
+
 function resultsCard(r: Results): HTMLElement {
   const box = el("div", "results");
-  const danced = routineById(r.routineId);
   const name = (id: string | null) => (id ? (r.players.find((p) => p.id === id)?.name ?? "") : "");
-  if (danced) box.append(el("p", "coach-dance", `${routineName(danced)} · ${difficultyName(r.difficulty)}`));
+  const dn = danceName(r.routineId);
+  if (dn) box.append(el("p", "coach-dance", `${dn} · ${difficultyName(r.difficulty)}`));
   if (!r.players.length) {
-    box.append(el("p", "lead", tr("这一首没有人点手机。下一首每一拍点一下，就能上榜。", "Nobody tapped along this time. Tap your phone on every beat next time to get on the board.")));
+    box.append(el("p", "lead", tr("这一首没有人跟着动手机。下一首拿着手机跳，或者每一拍点一下，就能上榜。", "No phone moved this time. Dance with your phone in hand, or tap it on every beat, to get on the board.")));
     return box;
   }
   const awards = el("ul", "awards");
@@ -474,7 +792,7 @@ function renderStatus() {
     const fill = parts.floorBar.firstElementChild as HTMLElement | null;
     const share = f && f.streak ? (f.streak % COMBO_FULL === 0 ? 1 : (f.streak % COMBO_FULL) / COMBO_FULL) : 0;
     if (fill) fill.style.width = `${Math.round(share * 100)}%`;
-    parts.floorText.textContent = f && f.dancers ? tr(`全场连击 ${f.streak} · ${f.dancers} 人在跳`, `Floor streak ${f.streak} · ${f.dancers} dancing`) : tr("每一拍点一下手机，全场一起涨连击", "Tap your phone on every beat: the whole floor builds the streak");
+    parts.floorText.textContent = f && f.dancers ? tr(`全场连击 ${f.streak} · ${f.dancers} 人在跳`, `Floor streak ${f.streak} · ${f.dancers} dancing`) : tr("拿着手机跳，或者每一拍点一下：全场一起涨连击", "Dance with your phone, or tap it on every beat: the whole floor builds the streak");
   }
 }
 
@@ -487,7 +805,7 @@ function frameCoach(now: number) {
   const b = spot ? p.run[spot.i]! : null;
   const nx = spot ? nextChange(p.run, spot.i, spot.frac) : null;
   const preview = nx && nx.beats <= PREVIEW_BEATS ? nx.beat : null;
-  const metronome = show.routine === null;
+  const metronome = show.kind === "metronome";
   const into = b?.stage === "dance" && p.zero !== null ? Math.min(show.danceMs, Math.max(0, now - p.zero)) : null;
   const key = `${spot?.i ?? -1}|${preview ? `${preview.stage}${preview.move?.id}` : ""}|${getLang()}|${into === null ? "" : Math.floor(into / 1000)}`;
   if (key === shown) return;
@@ -497,23 +815,83 @@ function frameCoach(now: number) {
     // before the first beat, or after the last
     parts.stage.textContent = p.run.length && now < p.run[0]!.t ? tr("马上开始", "Starting in a moment") : tr("跳完了", "That's the song");
     parts.hint!.textContent = "";
-    parts.move!.textContent = parts.other!.textContent = parts.body!.textContent = parts.count!.textContent = parts.next!.textContent = parts.progress!.textContent = "";
+    parts.move!.textContent = parts.other!.textContent = parts.how!.textContent = parts.body!.textContent = parts.count!.textContent = parts.next!.textContent = parts.progress!.textContent = "";
     return;
   }
   parts.stage.textContent = stageName(b.stage);
   parts.hint!.textContent = stageHint(b.stage, metronome);
   parts.move!.textContent = b.move ? moveName(b.move) : metronome && b.stage !== "countdown" ? tr("跟着拍子", "With the beat") : "";
   parts.other!.textContent = b.move ? moveOther(b.move) : "";
+  parts.how!.textContent = b.move ? moveHow(b.move) : "";
   parts.body!.textContent = b.move ? bodyHint(b.move) : "";
   parts.count!.textContent = String(b.count);
   parts.next!.textContent = preview ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}${preview.stage !== b.stage && preview.move ? ` · ${stageName(preview.stage)}` : ""}` : "";
   parts.progress!.textContent = into === null ? "" : `${clockOf(into)} / ${clockOf(show.danceMs)}`;
 }
 
+/** The 3D coach's first frames, timed: too slow on this device, and it gives way to the words. */
+const watch3d = { gaps: [] as number[], last: 0 };
+const WATCH_FRAMES = 90;
+const SLOW_FRAME_MS = 50;
+
+/** The 3D coach this frame: the move on the beat the speaker plays now, or standing by. */
+function frame3d(now: number) {
+  const c = coach3d;
+  if (!c) return;
+  if (watch3d.gaps.length < WATCH_FRAMES && !anyGl()) {
+    const t = performance.now();
+    if (watch3d.last && t - watch3d.last < 1000) watch3d.gaps.push(t - watch3d.last);
+    watch3d.last = t;
+    if (watch3d.gaps.length === WATCH_FRAMES) {
+      const mid = [...watch3d.gaps].sort((a, b) => a - b)[WATCH_FRAMES >> 1]!;
+      if (mid > SLOW_FRAME_MS) {
+        c.dispose();
+        coach3d = null;
+        render();
+        return;
+      }
+    }
+  }
+  const p = playing;
+  const spot = spotAt(p.run, now);
+  const f = floor;
+  const hype = f && f.streak ? (f.streak % COMBO_FULL) / COMBO_FULL : 0;
+  if (!spot) {
+    c.frame({ doing: { kind: "idle" }, p: 0, beat: 0, now, glow: { hands: 0, feet: 0 }, hype: 0 });
+    return;
+  }
+  const b = p.run[spot.i]!;
+  const { doing, p: pos } = doingAt(b, spot.frac);
+  c.frame({ doing, p: pos, beat: spot.i + spot.frac, now, glow: glowOf(b.move), hype });
+}
+
+/** Everyone's little dancer: the coach's move now, as hard as each of them is moving. */
+function frameCrowd(now: number) {
+  if (!state) return;
+  const spot = spotAt(playing.run, now);
+  const b = spot ? playing.run[spot.i]! : null;
+  const { doing, p: pos } = b && spot ? doingAt(b, spot.frac) : { doing: { kind: "idle" } as const, p: 0 };
+  const local = performance.now();
+  const list: Dancer[] = state.players.map((pl, i) => {
+    const pu = pulses.get(pl.id);
+    // up at once, down slowly
+    if (pu) {
+      pu.shown = Math.max(pu.e, pu.shown * Math.exp(-Math.max(0, local - pu.shownAt) / CALM_MS));
+      pu.shownAt = local;
+    }
+    return { id: pl.id, name: pl.name, color: PLAYER_COLORS[i % PLAYER_COLORS.length]!, e: pu?.shown ?? 0, at: pu?.at ?? -1e9, hitAt: pu?.hitAt ?? 0 };
+  });
+  crowd.frame(doing, pos, now / 1000, local, list);
+}
+
 /** Every frame: the coach, the big count, the "I'm here" lights, the timing readout. */
 function frame() {
   const now = pageClock();
-  if (running()) frameCoach(now);
+  if (running()) {
+    frameCoach(now);
+    frame3d(now);
+    frameCrowd(now);
+  }
   else if (parts.count) {
     // (the metronome before its start: nothing to count)
     if (parts.count.textContent) parts.count.textContent = "";
@@ -556,6 +934,9 @@ Object.assign(window, {
     origin: () => PAGE_ORIGIN,
     sync: () => sync.estimate(),
     state: () => state,
+    pulses: () => Object.fromEntries(pulses),
+    tube: () => ({ status: tube.status, zero: tube.zero() }),
+    songbook: () => songbook,
   },
 });
 

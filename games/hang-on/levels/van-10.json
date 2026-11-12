@@ -1,0 +1,58 @@
+{
+  "id": "van-10",
+  "world": "van",
+  "name": {
+    "zh": "狮门抛接力",
+    "en": "Lions Gate Toss"
+  },
+  "teaches": "throw",
+  "w": 1580,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 536
+  },
+  "goal": {
+    "x": 1350,
+    "y": 320,
+    "w": 190,
+    "h": 160
+  },
+  "checkpoints": [],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 520,
+      "h": 160,
+      "material": "metal",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 680,
+      "y": 480,
+      "w": 860,
+      "h": 240,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 1540,
+      "y": 300,
+      "w": 40,
+      "h": 420,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-10.json"
+}
