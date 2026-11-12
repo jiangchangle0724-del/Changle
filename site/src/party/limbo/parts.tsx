@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap, reduced } from "../../lib/anim";
-import { FOLLOW_DEG, LOST_MS, MOVE_LEAD_MS, barAngleAt, classicBar, type LimboMode } from "../../shared/engine/games/limbo";
+import { CATCH_MS, FOLLOW_DEG, LOST_MS, MOVE_LEAD_MS, barAngleAt, classicBar, type LimboMode } from "../../shared/engine/games/limbo";
 import type { LimboBar, LimboKind } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { degreesApart, leanAndSide, leanOf, upOf, useTilt } from "../sensors";
@@ -261,8 +261,10 @@ export function usePose(on: boolean, ask: PoseAsk, onPass: (deg: number) => void
 
 /**
  * Moving bar (跟着动的杆) while `on`: keep your lean within FOLLOW_DEG of the bar as it sways. Away
- * from it for longer than LOST_MS (once it has started moving) and `onEnd(false)`; still with it
- * when it stops, `onEnd(true)`. Both get the deepest the bar went while you were with it. `startAt`
+ * from it for longer than LOST_MS and `onEnd(false)`; still with it when it stops, `onEnd(true)`.
+ * The grace clock only runs once you've caught the bar (someone still leaning from the count-in
+ * gets to come up to it first), or from CATCH_MS in if you never do. Both get the deepest the bar
+ * went while you were with it. `startAt`
  * is on `clock` (online, the server's clock), so every phone judges against the bar every screen
  * shows. Returns where the bar is, the live lean, how close you are to losing it (0 to 1), and the
  * deepest you followed it.
@@ -279,6 +281,7 @@ export function useFollow(on: boolean, angle: number, bar: LimboBar, startAt: nu
     if (!on) return;
     const b: LimboBar = { ...classicBar(), kind: "moving", swing, period, moveMs };
     let lostAt: number | null = null;
+    let caught = false;
     let best = 0;
     let over = false;
     const tick = () => {
@@ -292,11 +295,13 @@ export function useFollow(on: boolean, angle: number, bar: LimboBar, startAt: nu
         cb.current(true, Math.round(best));
         return;
       }
-      if (Math.abs(lean - at) <= FOLLOW_DEG) {
+      // (no reading yet is not a lean of 0°: it can't catch the bar)
+      if (r && Math.abs(lean - at) <= FOLLOW_DEG) {
         lostAt = null;
+        caught = true;
         best = Math.max(best, at);
-      } else if (ms >= MOVE_LEAD_MS) {
-        // it waits at its top first: time to get there doesn't count
+      } else if (ms >= MOVE_LEAD_MS && (caught || ms >= CATCH_MS)) {
+        // it waits at its top first, and the time to catch it doesn't count
         lostAt ??= ms;
         if (ms - lostAt > LOST_MS) {
           over = true;
@@ -415,7 +420,7 @@ export function variantLine(m: LimboKind | "party", zh: boolean) {
     case "steady":
       return zh ? "仰到横杆的角度以后一动不动撑住，一晃就重来。每杆要撑得更久。" : "Reach the bar's angle, then hold dead still. Any wobble starts the hold again, and each bar is longer.";
     case "moving":
-      return zh ? "横杆上下浮动，跟着它仰下去又回来。跟丢超过 1 秒就出局。" : "The bar floats up and down: follow it down and back up. Lose it for over a second and you're out.";
+      return zh ? "横杆上下浮动，跟着它仰下去又回来。跟丢超过 2 秒就出局。" : "The bar floats up and down: follow it down and back up. Lose it for over two seconds and you're out.";
     case "tilt":
       return zh ? "往后仰的同时往左或往右歪到指定角度，每杆方向随机。" : "Lean back and tilt left or right to the angle shown. The side is random each bar.";
     case "party":
@@ -431,7 +436,7 @@ export function variantSteps(m: Exclude<LimboKind, "classic"> | "party", zh: boo
     case "steady":
       return zh ? ["仰到横杆的角度，然后一动不动", "一晃就重来，每杆要撑得更久"] : ["Lean back to the bar's angle, then keep dead still", "Any wobble starts the hold again. Each bar is longer."];
     case "moving":
-      return zh ? ["横杆上下浮动，跟着它仰下去又回来", "跟丢超过 1 秒就出局"] : ["The bar floats up and down: follow it down and back up", "Lose it for over a second and you're out"];
+      return zh ? ["横杆上下浮动，跟着它仰下去又回来", "跟丢超过 2 秒就出局"] : ["The bar floats up and down: follow it down and back up", "Lose it for over two seconds and you're out"];
     case "tilt":
       return zh ? ["往后仰到横杆的角度，同时往左或往右歪", "每杆方向随机，看清箭头"] : ["Lean back to the bar's angle and tilt left or right too", "The side is random each bar: watch the arrow"];
     case "party":
@@ -460,7 +465,7 @@ export const holdLine = (zh: boolean) => (zh ? "手机竖着贴在胸前，屏�
 export function heardLine(kind: LimboKind, zh: boolean) {
   switch (kind) {
     case "moving":
-      return zh ? "听声音：两个音往下掉就再往后仰，往上走就回来一点，嗒嗒声就是跟住了。" : "Listen: two notes falling, lean back more; rising, come up a bit; a tick means you're with it.";
+      return zh ? "听声音：两个音往下掉就再往后仰，往上走就回来一点（小声是刚要偏，大声是已经偏了），嗒嗒声就是跟住了。" : "Listen: two notes falling, lean back more; rising, come up a bit (quiet means you're drifting, loud means you're off); a tick means you're with it.";
     case "steady":
       return zh ? "听声音：两个音往下掉就再往后仰；嗒嗒声是到位了，别动，嗡声升到头就过；低低一响是晃了，重来。" : "Listen: two notes falling, lean back more; a tick means you're there, so hold still while the hum climbs; a low buzz means you moved, start again.";
     case "tilt":
@@ -482,7 +487,7 @@ export function barHow(bar: LimboBar, angle: number, zh: boolean, heard = true) 
     case "steady":
       return phone + (zh ? `仰到 ${angle}° 以后一动不动撑住 ${secs(bar.hold)} 秒，一晃就重来。` : `Lean back to ${angle}°, then hold dead still for ${secs(bar.hold)} seconds. Any wobble starts it again.`) + ear;
     case "moving":
-      return phone + (zh ? `横杆在 ${angle - bar.swing}° 到 ${angle}° 之间上下浮动，跟着它。跟丢超过 1 秒就出局。` : `The bar floats between ${angle - bar.swing}° and ${angle}°: follow it. Lose it for over a second and you're out.`) + ear;
+      return phone + (zh ? `横杆在 ${angle - bar.swing}° 到 ${angle}° 之间上下浮动，跟着它。跟丢超过 2 秒就出局。` : `The bar floats between ${angle - bar.swing}° and ${angle}°: follow it. Lose it for over two seconds and you're out.`) + ear;
     case "tilt":
       return phone + (zh ? `往后仰到 ${angle}°，同时往${dir}歪 ${Math.abs(bar.side)}°。` : `Lean back to ${angle}° and tilt ${dir} ${Math.abs(bar.side)}° at the same time.`) + ear;
     default:

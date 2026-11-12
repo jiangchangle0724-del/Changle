@@ -11,7 +11,8 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "limbo-coach", "limbo-band", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
+# the lobby's games in order (ONLINE_GAMES in shared/protocol.ts): a game's index is its tile
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 
@@ -116,7 +117,7 @@ def seat_table(browser, names, lang="zh"):
 
 def start_game(host, everyone, gid):
     if room(host)["front"] != GAME_INDEX[gid]:
-        host.locator(f'.lobby .tile[data-tile="{GAME_INDEX[gid]}"]').click()
+        host.locator(f'.lobby [data-tile="{GAME_INDEX[gid]}"]').click()
         until(lambda: room(host)["front"] == GAME_INDEX[gid])
         host.wait_for_timeout(300)
     host.locator(".lobby-actions .btn-primary").click()
@@ -725,14 +726,29 @@ def t_limbo_moving_single(browser):
     shot(pg, "lb-moving-try")
     ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 16000), "it stops after two sways")
     ok("跟住了" in pg.locator(".lb-verdict").inner_text(), "Steve kept up with it")
+    # Mia is still leaning from the count-in when the bar opens at its top: the grace clock waits until she has caught it
+    tilt_to(pg, 32, 0)
+    pg.get_by_role("button", name=re.compile("下一个")).click()
+    pg.get_by_role("button", name="准备好了").click()
+    pg.wait_for_selector(".lb .gauge[data-band]", timeout=6000)
+    pg.wait_for_timeout(3300)
+    ok(pg.locator(".lb-verdict").count() == 0, "3.3 s at 32° with the bar near its top, never yet caught: not out")
+    auto(pg)
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 16000) and "跟住了" in pg.locator(".lb-verdict").inner_text(), "she comes up to it in time and keeps up: through")
+    pg.get_by_role("button", name="这一杆结束").click()
+    pg.wait_for_timeout(600)
+    clear_stamps([pg])
+    ok("跟着动的杆" in pg.locator(".lb-level").inner_text() and "10° 到 30°" in pg.locator(".pass-curtain").inner_text(), "bar 2 floats between 10 and 30 degrees")
+    pg.get_by_role("button", name="准备好了").click()
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 16000) and "跟住了" in pg.locator(".lb-verdict").inner_text(), "Steve keeps up with bar 2")
     pg.evaluate("() => { window.__auto = false; }")
     pg.get_by_role("button", name=re.compile("下一个")).click()
     pg.get_by_role("button", name="准备好了").click()
     pg.wait_for_selector(".lb .gauge[data-band]", timeout=6000)
     t0 = time.time()
-    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 8000), "Mia stands still: she loses it")
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 9000), "Mia stands still: she loses it")
     took = time.time() - t0
-    ok("跟丢了" in pg.locator(".lb-verdict").inner_text() and took < 6, f"lost it a second after the bar left her ({took:.1f}s in)")
+    ok("跟丢了" in pg.locator(".lb-verdict").inner_text() and 3.5 < took < 6.5, f"caught it at its top, then two seconds after it left her, out ({took:.1f}s in)")
     pg.get_by_role("button", name="这一杆结束").click()
     pg.wait_for_timeout(600)
     clear_stamps([pg])
@@ -875,14 +891,20 @@ def solo_limbo_heard(browser, tag, mode):
 
 def t_limbo_coach_moving(browser):
     pg = solo_limbo_heard(browser, "coach-moving", "跟着动的杆")
-    lean_to(pg, 0)
+    lean_to(pg, 4)
     c = listen(pg, 1200)
-    ok(c["tick"] >= 2 and c["down"] == 0 and c["up"] == 0, f"the bar waits at 8°, upright is within 10° of it: ticks on the beat {c}")
+    ok(c["tick"] >= 2 and c["down"] == 0 and c["up"] == 0, f"the bar waits at 8°, 4° is in the middle of the band: ticks on the beat {c}")
     auto(pg)
     until(lambda: gauge_target(pg) > 15, 6000)
     tilt_to(pg, 0, 0)
     c = listen(pg, 800)
     ok(c["down"] >= 2 and c["up"] == 0 and c["tick"] == 0, f"upright with the bar near 20°: falling blips, lean back more {c}")
+    auto(pg)
+    pg.wait_for_timeout(700)
+    until(lambda: gauge_target(pg) > 18, 6000)
+    tilt_to(pg, 9, 0)
+    c = listen(pg, 900)
+    ok(1 <= c["down"] <= 2 and c["up"] == 0 and c["tick"] == 0, f"at 9° with the bar near 20°, still in the band but drifting: the quiet warning, on the beat {c}")
     auto(pg)
     pg.wait_for_timeout(700)
     tilt_to(pg, 54, 0)
@@ -1004,7 +1026,7 @@ def t_limbo_moving_online(browser):
     ok(until(lambda: all(g.locator(".gauge[data-band]").count() for g in everyone), 6000), "both phones follow it")
     mia = me(guests[0])
     guests[0].evaluate("() => { window.__auto = false; }")
-    ok(until(lambda: mia in view(host)["failed"], 6000), "Mia stops following: she lost it")
+    ok(until(lambda: mia in view(host)["failed"], 9000), "Mia stops following: two seconds after the bar leaves her, she lost it")
     ok(view(host)["best"].get(mia, 0) >= 8, f"how deep she followed it counts ({view(host)['best'].get(mia)})")
     still_moving = time.time() * 1000 < v["startAt"] + v["bar"]["moveMs"] - 1000
     ok(not still_moving or me(host) not in view(host)["passed"], "nobody has kept up while it still moves")
