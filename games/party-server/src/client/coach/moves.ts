@@ -6,6 +6,7 @@
 // The moves are mirrored for the room (pose.ts): "step to the screen's left" is the players' left.
 import { AKIMBO, APART, AT_SHOULDERS, CLAP, DOWN, GUARD, OPEN_LOW, OPEN_MID, P, UP, add, both, elbows, palms, type MoveAnim } from "./kit";
 import { BASE, groove, keys, over, type Part, type Pose, type V3 } from "./pose";
+import { PARTY_ANIMS } from "./partymoves";
 import { SONG_ANIMS } from "./songmoves";
 
 const A: Record<string, MoveAnim> = {};
@@ -316,7 +317,7 @@ const CHEER: MoveAnim = {
   ]),
 };
 
-export const moveAnim = (id: string): MoveAnim | null => A[id] ?? SONG_ANIMS[id] ?? null;
+export const moveAnim = (id: string): MoveAnim | null => A[id] ?? SONG_ANIMS[id] ?? PARTY_ANIMS[id] ?? null;
 /** The library's moves the coach dances (the songs' are in songmoves.ts). */
 export const animatedMoves = () => Object.keys(A);
 export type { MoveAnim } from "./kit";
