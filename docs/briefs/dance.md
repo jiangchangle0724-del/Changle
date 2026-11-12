@@ -28,7 +28,7 @@
 
 ## 测试
 
-- `games/party-base`：`npm test`（44 个）；`games/party-server`：`npm run typecheck`、`npm test`（112 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
+- `games/party-base`：`npm test`（44 个）；`games/party-server`：`npm run typecheck`、`npm test`（113 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
 - 浏览器里把一支舞从头跳到结算：`games/party-server/scripts/song-check.cjs`（Worker 要带 `--var ALLOW_TEST_SETTINGS:1` 跑，见 README），约两分半；中间会让一台手机断网 2.5 秒
 - 对时：`games/party-server/scripts/timing-check.cjs`（本地，或 `BASE=https://changle.ca` 测线上）
 - 体感和电视小人：`scripts/motion-check.cjs`（一台手机用假手跳）；热歌：`scripts/song-yt-check.cjs`（假的 YouTube 播放器：云端的浏览器里真 YouTube 不让放，错误 150；也跑一遍找拍子，本地 Worker 要用新的存储 `--persist-to` 一个新文件夹，歌本里有的歌不找拍子）。都要本地 Worker 带 `ALLOW_TEST_SETTINGS`。
@@ -83,7 +83,7 @@
 - 11-11 深夜 Steve 说「合并，这几首全要」：合并 #347、#360 上线；没原版舞的 4 首（Happy、Dance Monkey、Despacito、24K Magic）换成候选的 8 首全部（Cha Cha Slide、Cupid Shuffle、Watch Me、海草舞、极乐净土、The Ketchup Song、Gee、Y.M.C.A.）。
 - 11-12 Steve 测了江南Style 说：做得很好，但动作要更细，抖臀和一些小动作被忽略了；要学别人视频里的具体动作；除了老师跳，还要文字一步一步教，给零基础的人看，越具体越好；音乐还在放，老师已经停了。别的舞照这个逻辑修。这样做：
   - 音乐和老师脱节：他那次视频比舞慢了一分多钟（舞该在视频 3:38 跳完，结果视频才到 2:37），房间最多只肯往后挪 60 秒去对齐视频，超过就不跟了。改成：视频该放没放（卡住、广告、要人点一下）超过 1.2 秒，音箱端告诉房间（`songStall`），整支舞停下等（`heldAt`，老师和手机都停，电视说为什么，什么都不会结束）；视频一动，量 0.6 秒，从视频的位置接上，慢多久都跟（`BEAT_MOVED` 上限改成 15 分钟）。舞跳完视频 2.5 秒淡出停下，歌不会在老师停了以后接着放。
-  - 文字教学：歌的每个原版动作有一步一步的说明（`words.ts` 的 `STEPS`：准备姿势、每一拍做什么、一句要点，中英文），电视上放在老师旁边，正在跳的那一拍亮起来；手机当舞台时只显示当前那一行；动作页也有全文。
+  - 文字教学：歌的每个原版动作有一步一步的说明（`src/shared/steps.ts`：准备姿势、每一拍做什么、一句要点，中英文），电视上放在老师旁边，正在跳的那一拍亮起来；手机当舞台时只显示当前那一行；动作页也有全文。
   - 学别人的视频：在 Steve 电脑的浏览器里把官方 MV 按拍子一帧帧抽出来，拼成一张张图看（`youtube-nocookie` 的 robots.txt 页里放同源的嵌入视频，画到 canvas 上；不下载）。江南Style 照 MV 重排：副歌是骑马（骑马场）、甩绳（地铁）、骑马、甩绳、「Eh~ Sexy Lady」叉腰抖臀（双手叉腰，胯一拍往右一拍往左，另一边膝盖往里扣，下巴抬高）、大巴上的蹦迪指天（左手往左上指天，右手往下指地，再双手 V 字摇）、叉腰抖臀、骑马（「op op op op」）；主歌换成 MV 里小 PSY 的律动（拳头放胸前，弹、顶胯）；推高的那段是大巴蹦迪；桥段是舞池里的嘚瑟走（右手贴胸口，左右迈步点地）再骑马；最后一段副歌少三个，收尾造型。原来的弓步扭胯、挺胸 MV 里没有，拿掉。
 - 11-12 起 AGENTS.md 改了：CI 绿了这个对话自己合并，然后告诉 Steve 上线了什么；只有花钱、删数据、改 Cloudflare 或 GitHub 设置和钥匙、改仓库公开与否才先问他。
 
@@ -105,7 +105,7 @@
 
 ## 还剩什么
 
-- 另外 5 首原版舞（APT.、爱你、最炫民族风、科目三、Macarena）照江南Style 的做法修：看视频抽帧把动作做细，加一步一步的文字。
+- 另外 5 首原版舞（APT.、爱你、最炫民族风、科目三、Macarena）的一步一步文字写好了（第二个 PR）。动作本身还没照视频抽帧细看：科目三的歌视频是一张图（DJ 版），最炫民族风是唱片公司的音频，都没有舞，要另找教学视频看（YouTube 上能嵌入的）；爱你的 MV 副歌是一排女生手拉手跳，不是正面的舞。
 - 换上的 8 首：视频和拍子都在 Steve 电脑上量好了（11-12，同样的静音量法），下一步看视频抽帧找动作、写文字、做老师的关键帧：
   - Watch Me (Whip/Nae Nae)：`vjW8wmF5VWc`（Silentó 官方），70 拍（歌是 140，按半速跳），第 0 拍 150 毫秒，很稳；歌词时间 lrclib 14234967（202 秒，和视频一样长），舞跟着歌里喊的做（whip、nae nae、stanky leg、bop、break your legs、yule、superman）。
   - Cha-Cha Slide：`wZv62ShoStY`（Mr C 官方），131 拍，第 0 拍 402 毫秒，第 64 拍（29.7 秒）以前是视频的开场不在拍子上。lrclib 7709202 和视频一样长但时间点不准；5471624（222 秒的唱片版）准，视频比它晚约 27.5 到 28.7 秒，喊「Freeze」那下音乐停在视频第 326 到 327 拍，可以用来对准。

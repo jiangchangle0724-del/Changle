@@ -54,7 +54,7 @@ instead, `site/src/party/dj/`.)
   Chrome goes full screen and sideways after 开始). It's never a player. While a dance plays: its tune (below), the 3D coach dancing each move on
   the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
   the 8-count, the next move 2 beats ahead, the floor. A song's own move is taught step by step
-  there for someone who has never danced (`STEPS` in `src/client/words.ts`: how to stand, what to
+  there for someone who has never danced (`src/shared/steps.ts`: how to stand, what to
   do on each count, a tip), the count being danced lit up; on a phone as the stage, only that line. Along the bottom, everyone's little dancer
   (`src/client/coach/crowd.ts`): a neon stick figure in their colour doing the coach's move as hard
   as they are moving, from their phone's `pulse` (8 a second at most: the sensor's energy, or their
