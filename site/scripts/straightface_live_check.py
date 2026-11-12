@@ -12,7 +12,7 @@ A test game is not a real one: what the phones would send for the cards' numbers
 outcome, a flagged card) is answered by the check itself and never reaches the server, so the live
 numbers stay real; the check still sees that the host's phone sent each round once.
 """
-import os, re, sys, time
+import base64, os, re, sys, time
 from playwright.sync_api import sync_playwright
 from straightface_net_check import L, clear_stamps, ok, page, press, text, until, fails
 
@@ -152,6 +152,18 @@ def main():
         tv.wait_for_timeout(3000)
         shot(host, "05-finished")
         shot(tv, "05-finished")
+        # tonight's titles, and the picture (Ben's phone draws it; the address on it is the live one)
+        ok(all(g.locator(".sf-titles li").count() >= 1 for g in phones), "every phone shows tonight's titles")
+        ben = phones[1]
+        clear_stamps(phones + [tv])
+        ben.locator(".sf-share-btn").scroll_into_view_if_needed()
+        press(ben, ben.locator(".sf-share-btn"))
+        ok(until(lambda: ben.locator(".sf-share-img").count() == 1 and ben.evaluate("document.querySelector('.sf-share-img').naturalWidth") == 1080, 20000), "Ben's phone draws tonight's picture")
+        data = ben.evaluate("document.querySelector('.sf-share-img') ? document.querySelector('.sf-share-img').src : ''")
+        if data.startswith("data:image/png;base64,"):
+            with open(os.path.join(OUT, "picture.png"), "wb") as f:
+                f.write(base64.b64decode(data.split(",", 1)[1]))
+        shot(ben, "06-share")
         for g in phones + [tv]:
             real = [e for e in g._errs if "favicon" not in e and "ResizeObserver" not in e]
             ok(not real, f"{g._name}: no errors ({real[:2]})")

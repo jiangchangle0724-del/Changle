@@ -920,3 +920,60 @@
   flex: 1 1 0;
   gap: var(--space-2);
 }
+
+/* ---------- 自己出题: a player's own word (own.tsx) ---------- */
+.sf-own-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.sf-own-title svg {
+  color: var(--gel);
+}
+.sf-own-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sf-own-field .field {
+  align-items: stretch;
+}
+.sf-own-field input,
+.sf-own-field textarea {
+  width: 100%;
+}
+.sf-own-field textarea {
+  resize: vertical;
+}
+.sf-own-actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.sf-own-actions .btn {
+  flex: 1 1 0;
+}
+.sf-own-done p {
+  margin: 0;
+  line-height: var(--leading);
+}
+.sf-own-badge {
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--night);
+}
+.sf-part-wrote {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: color-mix(in oklab, var(--gel) 18%, transparent);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.sf-own-first {
+  margin-bottom: var(--space-4);
+}
