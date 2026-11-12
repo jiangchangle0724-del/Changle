@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { LEAD_IN_MS, SONG_SYNC_MS, Session, TAP_GAP_MS, type From } from "../src/server/session";
 import { checkTapped, MIN_TAPS } from "../src/server/tapped";
-import { anchorsOf, buildShow, danceStart, planRun } from "../src/shared/show";
+import { anchorsOf, buildShow, danceStart, planRun, songStart, type Show } from "../src/shared/show";
 import { SONGS, songById, songMoveAt, songMoves } from "../src/shared/songs";
 
 const SPEAKER: From = { role: "speaker", playerId: null };
@@ -20,6 +20,9 @@ function ready() {
   s.connect(SPEAKER);
   s.handle(SPEAKER, { t: "clock", offsetMs: -995_000, rttMs: 20 });
   s.connect(ANN, "Ann");
+  // (the TV's delay measured: the song starts at once, and a beat found here is for every room)
+  s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
+  s.handle(SPEAKER, { t: "calibrated", audioOffsetMs: 0 });
   s.flush();
   return { s, advance: (ms: number) => (now += ms) };
 }
@@ -138,6 +141,7 @@ describe("a room playing a song", () => {
     const out = s.flush().out;
     const kept = out.find((o) => "songbook" in o);
     assert.ok(kept && "songbook" in kept && kept.songbook.songId === SONG.id && kept.songbook.tapped.firstBeatMs === 7_300 && kept.songbook.tapped.taps === 18);
+    assert.ok(kept && "songbook" in kept && kept.songbook.tapped.calibrated === true, "found where the TV's delay was measured");
     assert.ok(out.some((o) => "msg" in o && o.msg.t === "state"), "every page hears of it");
     // taps are for 找拍子 only
     s.handle(ANN, { t: "tap", at: 12_000 });
@@ -149,6 +153,35 @@ describe("a room playing a song", () => {
     s.tick();
     assert.equal(s.d.state.phase, "dancing");
     assert.equal(s.d.state.routineStartAt, s.d.routine!.leadStartAt! + 7_300);
+  });
+
+  it("a room that skipped measuring its TV: the beat it finds is used there, not kept for every room", () => {
+    let now = 1_000_000;
+    const s = new Session(Session.create("ABCD", now, 5_000), () => now);
+    s.connect(SPEAKER);
+    s.handle(SPEAKER, { t: "clock", offsetMs: -995_000, rttMs: 20 });
+    s.connect(ANN, "Ann");
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: SONG.id, mode: "dance" } });
+    assert.equal(s.d.state.phase, "calibrating", "the TV's delay first");
+    s.handle(ANN, { t: "act", action: { type: "SKIP_CALIBRATION" } });
+    assert.equal(s.d.state.phase, "learning");
+    assert.equal(s.d.routine!.tapIn, true);
+    now += 30_000;
+    s.flush();
+    s.handle(SPEAKER, { t: "songTapped", firstBeatMs: 7_300, taps: 18, spreadMs: 22, durationMs: 250_000 });
+    assert.equal(s.d.routine!.tapIn, undefined);
+    assert.equal(s.d.routine!.introMs, 7_300);
+    assert.equal(s.songbook[SONG.id], 7_300, "this room dances it again without 找拍子");
+    assert.ok(!s.flush().out.some((o) => "songbook" in o), "late by the TV's delay: not for other rooms");
+  });
+
+  it("a song whose dance is set to the song's own parts: the tapped beat moves its first beat onto the grid, by less than a beat", () => {
+    const fake = { beatMs: 500, song: { aligned: true, firstBeatMs: 10_000 } } as unknown as Show;
+    assert.equal(songStart(fake, 10_120), 10_120, "near: the tapped beat");
+    assert.equal(songStart(fake, 1_620), 10_120, "a few beats before: the same grid, at the song's part");
+    assert.equal(songStart(fake, 17_380), 9_880);
+    const loose = { beatMs: 500, song: { firstBeatMs: 10_000 } } as unknown as Show;
+    assert.equal(songStart(loose, 1_620), 1_620, "a song without parts starts where it was tapped");
   });
 
   it("nobody found the beat in time: back to the lobby, and everyone is told", () => {

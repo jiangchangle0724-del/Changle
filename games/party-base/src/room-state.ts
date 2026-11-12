@@ -143,6 +143,14 @@ export function reduce(state: RoomState, ev: RoomEvent): RoomState {
       }
       return touch({ ...state, routineStartAt: ev.routineStartAt }, ev.at);
 
+    case 'RESUMED':
+      requireHost(state, ev.byPlayerId);
+      requirePhase(state, ['dancing'], ev.type);
+      if (!Number.isFinite(ev.routineStartAt) || state.routineStartAt === null || ev.routineStartAt < state.routineStartAt) {
+        throw new RoomError('bad_start', 'a pause only moves the beat later');
+      }
+      return touch({ ...state, routineStartAt: ev.routineStartAt }, ev.at);
+
     case 'RESTART_SECTION':
       requireHost(state, ev.byPlayerId);
       requirePhase(state, ['dancing', 'learning'], ev.type);

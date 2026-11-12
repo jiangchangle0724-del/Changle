@@ -28,7 +28,7 @@
 
 ## 测试
 
-- `games/party-base`：`npm test`（43 个）；`games/party-server`：`npm run typecheck`、`npm test`（99 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
+- `games/party-base`：`npm test`（44 个）；`games/party-server`：`npm run typecheck`、`npm test`（107 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
 - 浏览器里把一支舞从头跳到结算：`games/party-server/scripts/song-check.cjs`（Worker 要带 `--var ALLOW_TEST_SETTINGS:1` 跑，见 README），约两分半；中间会让一台手机断网 2.5 秒
 - 对时：`games/party-server/scripts/timing-check.cjs`（本地，或 `BASE=https://changle.ca` 测线上）
 - 体感和电视小人：`scripts/motion-check.cjs`（一台手机用假手跳）；热歌：`scripts/song-yt-check.cjs`（假的 YouTube 播放器：云端的浏览器里真 YouTube 不让放，错误 150；也跑一遍找拍子，本地 Worker 要用新的存储 `--persist-to` 一个新文件夹，歌本里有的歌不找拍子）。都要本地 Worker 带 `ALLOW_TEST_SETTINGS`。
@@ -67,6 +67,10 @@
   - 找拍子：没跳过的歌也能直接选。第一次跳时电视从头放歌，大家跟着鼓点在手机大按钮上点，一拍一下；音箱端从大家的点里找出拍子（16 下对齐了就行，点歪的不算），存进歌本，然后从头开始跳。以后这首不用再找。90 秒还没找到就回大厅。找拍子的时候主人不能跳过。电视上「歌曲对拍」留着，给拍子不准的歌重新对一次。
   - 六首原创曲：广场初体验 D 大调 96 拍（笛子、古筝一样的拨弦）；坐着也能嗨 F 大调 100 拍（口哨、电钢琴、拍手）；秧歌扭起来 G 大调 112 拍（唢呐、笙，锣鼓经：大鼓、镲、大锣、小锣）；流行踏步派对 A 小调 120 拍（迪斯科 house）；广场摇摆串烧 E 小调 132 拍（广场舞舞曲）；全身节拍挑战 F 小调 128 拍（电子舞曲）。热身和收尾轻，教的时候中等，跳的时候全开；每 4 个 8 拍有加花，第二遍加和声。六首各声部调到差不多响。
   - 最炫民族风原来的视频不让别的网站放（在 Steve 电脑上试，错误 150），换成唱片公司的 Topic 视频 `S0wHttDxEW0`。16 首在他电脑上都能嵌入。
+- 11-11 晚上 Steve 测了说：教的舞和歌的拍子完全对不上，也不是原版的舞，要照官方教程教原版（江南Style 这样），别的歌同样修；跳舞时手机上要有暂停；首页「电视或电脑当舞台」改成「这台手机/电脑投屏电视」，进去以后手机自动横屏，给旁边的人看最好，这台手机不参与游玩。问了他两件事：先做有固定舞的 6 首（江南Style、科目三、Macarena、爱你、最炫民族风、APT.），他测完再做别的；没有原版舞的歌（Happy、Dance Monkey、Despacito、24K Magic）换成有固定舞的热歌，候选给他挑（Cha Cha Slide、Cupid Shuffle、Watch Me、海草舞、极乐净土、The Ketchup Song、Gee、Y.M.C.A.，挑 4 首，还没回）。这样做：
+  - 拍子对不上的主要原因：找拍子时大家是听电视点的，电视（AirPlay 投屏）比音箱端晚，没校准的房间点出来的拍子就晚了那么多，存进歌本以后所有房间都晚。改成：一个房间第一支舞（节拍器除外）先自动量电视延迟（10 秒，主人点 8 下），量完自己开始；主人可以跳过，跳过的房间不再问。只有量过延迟的房间找到的拍子才存给所有房间，没量过的只在自己房间用；电视上的「歌曲对拍」也要先校准。线上歌本里 11-11 Steve 测试时没校准存下的三首（江南Style、APT.、最炫民族风）以后不用，下次在校准过的房间重新找。
+  - 暂停：主人在教或跳的时候点「暂停」，电视和手机都停（视频停在原地，什么都不会结束）；点「继续」，从暂停前 1.5 秒接着放，拍子跟着往后挪。
+  - 手机当舞台：横着的时候整页排在一屏里（歌的视频在左上角，YouTube 要求至少 200 像素高，下面是动作和拍子，老师在右边）；竖着拿会提示横过来（iPhone 的网页没法自己转，要关掉竖屏方向锁定；安卓的 Chrome 点开始后会全屏横过来）。这台只当舞台，不是玩家。首页卡片的字归首页对话，写进「交给别的对话」。
 
 ## 现在
 
@@ -80,10 +84,12 @@
   - 合并前的检查都过了：测试、typecheck、build；本地 song-check、timing-check、motion-check（假手跳，每拍都算踩准，平均差 11 毫秒）、song-yt-check（假 YouTube 晚 300 毫秒开始，房间把拍子挪到视频的拍子上，差 4 毫秒；对拍算出的第一拍差 1 毫秒）。老师的样子在云端用软件画法截图、拍了视频给 Steve 看过。
   - 上线后在正式站上查过（一次性的脚本，没进仓库，不往歌本里写）：歌本的接口在（空的）；动作页画出老师；大厅有「歌曲对拍」；没对拍的歌开不了，手机上说「还没对拍」；「广场初体验」教的时候电视上是 3D 老师，下面有手机的小人；房间结束；页面没有报错。
 - 11-11 晚上 Steve 点头，合并上线：#317（找拍子、六首原创曲、最炫民族风换视频）。上线后在正式站上查过（一次性的脚本，没进仓库，不往歌本里写）：「秧歌扭起来」直接跳，音箱端放它自己的曲子；选江南Style，手机和电视都出「先找拍子」；没点就停下、结束房间；歌本还是空的；页面没有报错。
-- 歌本现在是空的：每首歌第一次跳时大家一起找拍子，找到就存下来。
+- 线上歌本里有三首（11-11 Steve 测试时存的，没校准）；新版上线后不再用，下次在校准过的房间重新找拍子。
 
 ## 还剩什么
 
+- 6 首歌换成原版舞（做着）：先找了 5 个代理去网上查每首的原版动作（只有文字，看不了视频）：江南Style 副歌按 LondonKPopDance 的教程（骑马、甩绳、hip flick……）比较清楚；Macarena 大家都知道；科目三有一份 10 步的分解；最炫民族风有一份 9 个动作的旧分解，但 2015 年体育总局的那套查不到动作；爱你只知道核心的叉腰勾脚踢踏、转圈、比心眨眼；APT. 没有官方编舞，大家跳的是「아파트」叠手和 TikTok 上的一段。拍子要准到哪一拍是 1，在 Steve 电脑的浏览器里静音放了 6 个视频，量每一拍的鼓点（只记时间，不录音）。新动作要给老师写关键帧，加中英文的名字和做法。
+- 没有原版舞的 4 首换歌：等 Steve 从候选里挑。
 - 真机测试（要 Steve）：Mac 或 iPad 投到 Apple TV，iPhone 扫码。
   - 老师在电视上流不流畅（没显卡或者太慢会自动换回文字）。
   - 体感：手机拿在手里跳，看手机说「踩准了」准不准。阈值 2.2 m/s² 是按经验定的，不准就调 `src/shared/peaks.ts`。iPhone 第一次要点「开体感」允许。
@@ -96,6 +102,7 @@
 
 ## 交给别的对话
 
+- 平台 · 首页与上线：一起跳卡片（`site/src/home/GameSheet.tsx` 里 `g.stage` 那一段）的字按 Steve 11-11 说的改：第一个按钮「电视或电脑当舞台 / A TV or computer is the stage」改成「这台手机/电脑投屏电视 / Mirror this phone or computer to the TV」，小字改成「投到电视上当舞台，这台不参与游玩；大家用自己的手机跳 / It's the stage on the TV, not a player; everyone dances with their own phone」；点开以后的说明改成「把这台手机或电脑投屏到电视（iPhone、iPad、Mac 用 AirPlay），手机横过来，再点下面的按钮。电视上会出二维码，大家用自己的手机扫码加入。/ Mirror this phone or computer to the TV (AirPlay from an iPhone, iPad or Mac), turn a phone sideways, then tap the button below. A QR code comes up on the TV; everyone scans it with their own phone.」，按钮「就用这台设备当舞台」改成「开始当舞台 / Start the stage」。舞台页自己会处理横屏（这边已经做了），卡片只改字。
 - 游戏 · 打碟：知会一下，不用做什么。一起跳也用 YouTube 在电视上放歌（自己的 `games/party-server/src/client/tube.ts`，照打碟的规矩：一直露着、不下载、Safari 先点一下视频）。它跳舞要对准拍子，所以每 4 毫秒读一次视频的时钟，取最早的那个，误差几毫秒；打碟想更准可以参考。一起跳的 3D 老师是代码画的（`src/client/coach/`），打碟想换掉机器人也可以引。一起跳没有和打碟共用底座：打碟的「跟着跳」是主站里的另一套（10 个动作，每拍看手的加速度够不够 2.5 m/s²）；一起跳是 20 个动作、party-base 的打分。以后打碟想用一起跳的动作库或打分，`games/dance/` 和 `games/party-base/src/scoring.ts` 都是纯 TypeScript，可以直接引。一起跳接传感器（A2）时会参考打碟的 `site/src/party/dj/phone/DancePad.tsx`（iPhone 授权、去掉重力）。
 
 ## 最近的改动
