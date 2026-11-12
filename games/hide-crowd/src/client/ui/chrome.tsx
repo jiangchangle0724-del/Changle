@@ -16,7 +16,11 @@ const ICONS = {
   close: "M6 6l12 12M18 6L6 18",
   people: "M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7zM2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.3a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.7.8 2.8 2.6 3 5.2",
   eye: "M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6z",
-  play: "M8 5.5v13l10.5-6.5z"
+  play: "M8 5.5v13l10.5-6.5z",
+  // (as iOS draws them: Share, Add to Home Screen)
+  share: "M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5H6v10h12v-10h-2.5",
+  addSquare: "M5 5h14v14H5zM12 8.5v7M8.5 12h7",
+  phone: "M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM11 18h2"
 } as const;
 export type IconName = keyof typeof ICONS;
 

@@ -1,10 +1,12 @@
-// The ⋯ sheet: language, reduced motion, full screen, this device as the big screen, the way back
-// (during a round too), the rules and where the art comes from.
+// The ⋯ sheet: language, reduced motion, full screen (on an iPhone, how to add it to the Home
+// Screen instead), this device as the big screen, the way back (during a round too), the rules and
+// where the art comes from.
 import { useEffect, useState } from "preact/hooks";
 import type { Lang } from "../../room/protocol";
 import { t } from "../i18n";
 import { Rules, Sheet, Switch } from "./chrome";
 import { CreditsText } from "./Credits";
+import { HomeGuideBody } from "./HomeScreen";
 
 export interface MenuProps {
   open: boolean;
@@ -14,7 +16,9 @@ export interface MenuProps {
   reduced: boolean;
   onReduced: (on: boolean) => void;
   /** full screen, where the page may ask for it */
-  fullscreen?: { on: boolean; toggle: () => void; help: boolean };
+  fullscreen?: { on: boolean; toggle: () => void };
+  /** an iPhone that would get the whole screen from its Home Screen: the guide, inside this sheet */
+  homeScreen?: boolean;
   /** this game's big screen, to open on this device */
   screenHref?: string | null;
   /** the way out: back to the table (or the game's card); `ask` first when it ends the game for everyone (the host) */
@@ -25,10 +29,12 @@ export interface MenuProps {
 export function Menu(props: MenuProps) {
   const [credits, setCredits] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [home, setHome] = useState(false);
   useEffect(() => {
     if (props.open) return;
     setCredits(false);
     setAsking(false);
+    setHome(false);
   }, [props.open]);
   // (the question is asked here, not in a sheet of its own: one sheet closing as another opens would trip over the back button)
   if (asking && props.leave)
@@ -43,6 +49,12 @@ export function Menu(props: MenuProps) {
             {t("endYes")}
           </button>
         </div>
+      </Sheet>
+    );
+  if (home)
+    return (
+      <Sheet open={props.open} title={t("homeTitle")} onClose={props.onClose} wide>
+        <HomeGuideBody onDone={() => setHome(false)} doneLabel={t("back")} />
       </Sheet>
     );
   const leave = props.leave;
@@ -67,17 +79,16 @@ export function Menu(props: MenuProps) {
               </button>
             </div>
             <Switch label={t("reduceMotion")} on={props.reduced} onChange={props.onReduced} />
-            {props.fullscreen && (
-              <>
+            {props.homeScreen ? (
+              <button type="button" class="btn btn-quiet btn-block" onClick={() => setHome(true)}>
+                {t("homeTitle")}
+              </button>
+            ) : (
+              props.fullscreen && (
                 <button type="button" class="btn btn-quiet btn-block" onClick={props.fullscreen.toggle}>
                   {t(props.fullscreen.on ? "exitFullscreen" : "fullscreen")}
                 </button>
-                {props.fullscreen.help && (
-                  <p class="hint" role="status">
-                    {t("fullscreenHelp")}
-                  </p>
-                )}
-              </>
+              )
             )}
             {props.screenHref && (
               <a class="btn btn-quiet btn-block" href={props.screenHref}>

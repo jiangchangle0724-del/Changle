@@ -7,6 +7,7 @@ import { BASE, screenUrl } from "../base";
 import { t } from "../i18n";
 import { preloadArena } from "./Arena";
 import { Icon, Switch } from "./chrome";
+import { HomeTip } from "./HomeScreen";
 
 export const ARENA_THUMBS: Record<ArenaId, string> = {
   plaza: `${BASE}/art/thumb-plaza.webp`,
@@ -77,7 +78,7 @@ export function penaltyLine(view: RoomView): string {
   return view.settings.custom ? t("penaltyOnCustom", { text: view.settings.custom }) : t("penaltyOn");
 }
 
-export function Lobby(props: { view: RoomView; table: string | null; send: (message: ClientMsg) => void }) {
+export function Lobby(props: { view: RoomView; table: string | null; send: (message: ClientMsg) => void; onHomeGuide?: () => void }) {
   const { view, table, send } = props;
   useEffect(() => {
     if (!location.search.includes("flat=1")) void preloadArena().catch(() => undefined);
@@ -91,6 +92,7 @@ export function Lobby(props: { view: RoomView; table: string | null; send: (mess
           <span>{t(table ? "table" : "room")}</span>
           <b class="code">{table ?? view.code}</b>
         </p>
+        {props.onHomeGuide && <HomeTip onShow={props.onHomeGuide} />}
         <ArenaVote view={view} onVote={(arena) => send({ t: "vote", arena })} />
         <section class="panel">
           <h2 class="section-title">

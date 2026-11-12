@@ -12,10 +12,11 @@ export const INITIAL_RENDER_QUALITY: RenderQualityState = {
   fastWindows: 0
 };
 
+// (a phone's own density is 3: 1.65 drew the crowd soft, so the top tier is nearer the screen's own)
 const PIXEL_RATIO_CAP: Record<RenderQuality, number> = {
-  high: 1.65,
-  balanced: 1.35,
-  efficient: 1.05
+  high: 2.25,
+  balanced: 1.6,
+  efficient: 1.15
 };
 
 export function percentile95(samples: readonly number[]): number {

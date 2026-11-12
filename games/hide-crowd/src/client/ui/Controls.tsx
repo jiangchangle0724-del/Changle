@@ -1,5 +1,8 @@
 // The phone in your hand: a stick under the left thumb, Punch and Blend in under the right. Also the
 // keyboard (arrows or WASD, Space, Shift) and a gamepad (left stick, A, X).
+// Thumbs tap fast: nothing here may zoom, scroll, select or pop a menu. A button waiting for its
+// move to come back stays a live target (aria-disabled, not disabled), so a quick second tap still
+// lands on it and is kept from the browser, instead of falling through as a double tap that zooms.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { SIMULATION_STEP_MS } from "../../engine";
 import type { ClientMsg, MeView } from "../../room/protocol";
@@ -13,6 +16,7 @@ const quantize = (v: Vec): Vec => ({ x: Math.round(v.x * 20) / 20, y: Math.round
 
 export function Controls(props: { me: MeView; now: number; send: (message: ClientMsg) => void; onVector: (value: Vec) => void }) {
   const [vector, setVector] = useState<Vec>(ZERO);
+  const root = useRef<HTMLDivElement>(null);
   const vectorRef = useRef(vector);
   const lastSent = useRef<{ v: Vec; at: number }>({ v: ZERO, at: 0 });
   const heldKeys = useRef(new Set<string>());
@@ -109,6 +113,22 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [send]);
 
+  // the browser's own gestures, off while thumbs are on the controls: a touch that starts on them is
+  // never a scroll, a double-tap zoom, a text selection or a long-press menu (pointer events still come)
+  useEffect(() => {
+    const element = root.current;
+    if (!element) return;
+    const hold = (event: TouchEvent) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    element.addEventListener("touchstart", hold, { passive: false });
+    element.addEventListener("touchend", hold, { passive: false });
+    return () => {
+      element.removeEventListener("touchstart", hold);
+      element.removeEventListener("touchend", hold);
+    };
+  }, []);
+
   useEffect(() => {
     if (!navigator.getGamepads) return;
     const deadzone = 0.18;
@@ -149,7 +169,7 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
   const punchReady = props.now >= props.me.punchReadyAt;
   const blendReady = props.now >= props.me.blendReadyAt;
   return (
-    <div class="controls">
+    <div class="controls" ref={root}>
       <div
         class="stick"
         role="group"
@@ -171,30 +191,31 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
       <div class="moves">
         <button
           type="button"
-          class="move-btn move-blend"
-          disabled={!blendReady}
+          class={`move-btn move-blend${blendReady ? "" : " is-waiting"}`}
+          aria-disabled={!blendReady}
           onPointerDown={(event) => {
             event.preventDefault();
-            send({ t: "blend" });
+            if (blendReady) send({ t: "blend" });
           }}
           onClick={(event) => {
-            if (event.detail === 0) send({ t: "blend" });
+            if (event.detail === 0 && blendReady) send({ t: "blend" });
           }}
         >
           {t(blendReady ? "blend" : "wait")}
         </button>
         <button
           type="button"
-          class="move-btn move-punch"
-          disabled={!punchReady}
+          class={`move-btn move-punch${punchReady ? "" : " is-waiting"}`}
+          aria-disabled={!punchReady}
           aria-label={t("punch")}
           onPointerDown={(event) => {
             event.preventDefault();
+            if (!punchReady) return;
             send({ t: "punch" });
             navigator.vibrate?.(24);
           }}
           onClick={(event) => {
-            if (event.detail === 0) send({ t: "punch" });
+            if (event.detail === 0 && punchReady) send({ t: "punch" });
           }}
         >
           {t(punchReady ? "punch" : "wait")}

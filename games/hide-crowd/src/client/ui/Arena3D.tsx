@@ -3,9 +3,9 @@ import type { ComponentChildren } from "preact";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
-import { verticalFovForWidth } from "../camera";
+import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
+import { ARENA, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
 import type { ArenaId, Pose } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
 import { BASE } from "../base";
@@ -45,6 +45,18 @@ interface Palette {
   accent: string;
   warn: string;
   danger: string;
+  /** the floors, in daylight: lawn, the station's tiles, the courtyard's flagstones, and what lies on them */
+  lawn: string;
+  lawn2: string;
+  lawnLight: string;
+  tile: string;
+  tile2: string;
+  inlay: string;
+  stone: string;
+  stone2: string;
+  petal: string;
+  daisy: string;
+  sea: string;
   /** the "you" marker: the game's gel, night-colored text */
   me: string;
   onMe: string;
@@ -52,11 +64,30 @@ interface Palette {
 }
 
 const MAX_CHARACTERS = 26;
-export const ARENA_PANORAMAS: Record<ArenaId, string> = {
-  plaza: `${BASE}/art/plaza-seawall.webp`,
-  metro: `${BASE}/art/metro-station.webp`,
-  gallery: `${BASE}/art/gallery-courtyard.webp`
+/** the rules' floor (100 x 58) in scene units: the same scale both ways, so a step looks as long across as it does deep */
+const SCENE_PER_WORLD = 17.5 / ARENA.width;
+const sceneX = (x: number) => (x - ARENA.width / 2) * SCENE_PER_WORLD;
+const sceneZ = (y: number) => (y - ARENA.height / 2) * SCENE_PER_WORLD;
+/** where anyone can stand (the rules keep everyone inside the margins), and how tall a person stands */
+const FLOOR_BOX: FloorBox = {
+  halfWidth: sceneX(ARENA.width - ARENA.marginX) + 0.95,
+  near: sceneZ(ARENA.height - ARENA.marginY),
+  far: sceneZ(ARENA.marginY),
+  // (the top of the "you" marker over a head: the back row's has to be on screen too)
+  height: 3.1
 };
+const MARKER_Y = 2.82;
+/** the floor reaches past every edge of the screen (the camera sees about 12 units behind the crowd on a big screen) */
+const GROUND_SIZE = { x: 48, z: 36, centerZ: -4 };
+/** the seawall's stone edge, just beyond the set's railing; the sea lies past it */
+const SEAWALL_Z = -7.85;
+/** the courtyard's set sits this much further back, so the front row stands before the stage, not in it */
+const SET_OFFSET_Z: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: -0.65 };
+/** one repeat of the floor's pattern, in scene units */
+const GROUND_TILE = 12;
+/** the screen kept clear of the crowd: the top bar, the bottom edge, the sides */
+const PHONE_MARGINS: ScreenMargins = { top: 0.12, bottom: 0.07, side: 0.02 };
+const TV_MARGINS: ScreenMargins = { top: 0.15, bottom: 0.1, side: 0.04 };
 const ARENA_DRESSING: Record<ArenaId, string> = {
   plaza: `${BASE}/art/seawall-dressing.glb`,
   metro: `${BASE}/art/transit-dressing.glb`,
@@ -69,11 +100,6 @@ const SPRITE_ATLAS_PITCH = 200;
 const SPRITE_ATLAS_INSET = 4;
 const SPRITE_ATLAS_WIDTH = SPRITE_ATLAS_COLUMNS * SPRITE_ATLAS_PITCH;
 const SPRITE_ATLAS_HEIGHT = SPRITE_DIRECTIONS * SPRITE_ATLAS_PITCH;
-
-function backgroundIntensity(palette: Palette): number {
-  const color = new THREE.Color(palette.bg);
-  return color.r + color.g + color.b < 1.2 ? 0.46 : 0.94;
-}
 
 function disposeTree(root: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>();
@@ -118,6 +144,17 @@ function readPalette(): Palette {
     accent: read("--arena-accent", "#ff8a6b"),
     warn: read("--arena-warn", "#ffb36b"),
     danger: read("--arena-danger", "#ff8a7f"),
+    lawn: read("--arena-lawn", "#6aaf45"),
+    lawn2: read("--arena-lawn-2", "#4f9135"),
+    lawnLight: read("--arena-lawn-light", "#8fca5c"),
+    tile: read("--arena-tile", "#d3c8b8"),
+    tile2: read("--arena-tile-2", "#b9aa94"),
+    inlay: read("--arena-inlay", "#b8694b"),
+    stone: read("--arena-stone", "#d9c19c"),
+    stone2: read("--arena-stone-2", "#c0a37a"),
+    petal: read("--arena-petal", "#ee9fb6"),
+    daisy: read("--arena-daisy", "#fbf4e2"),
+    sea: read("--arena-sea", "#3b8db5"),
     me: read("--gel", "#7be55c"),
     onMe: read("--night", "#0e0c22"),
     font: read("--font-display", "sans-serif")
@@ -154,88 +191,157 @@ function makeCylinder(scene: THREE.Scene, radius: number, height: number, positi
   return mesh;
 }
 
-function paintGroundTexture(texture: THREE.CanvasTexture, arena: ArenaId, palette: Palette): void {
-  const canvas = texture.image as HTMLCanvasElement;
-  const context = canvas.getContext("2d");
-  if (!context) return;
-  const rgba = (value: string, alpha: number) => {
-    const color = new THREE.Color(value);
-    return "rgba(" + Math.round(color.r * 255) + "," + Math.round(color.g * 255) + "," + Math.round(color.b * 255) + "," + alpha + ")";
+/** A fixed sequence of numbers between 0 and 1, so the floor is drawn the same on every screen. */
+function seeded(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
-  const base = arena === "plaza" ? palette.foliage : arena === "gallery" ? palette.land : palette.surface;
-  const mid = arena === "plaza" ? palette.land : arena === "gallery" ? palette.surface2 : palette.surface2;
-  const seam = arena === "metro" ? palette.line : palette.ink;
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = base;
-  context.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+const FLOOR_PX = 1024;
+
+/**
+ * The three floors, in daylight like the places in the pictures, drawn once on a canvas that repeats
+ * every GROUND_TILE units: the seawall's mown lawn, the transit hall's stone tiles, the courtyard's
+ * flagstones with a few blossom petals.
+ */
+function paintFloor(context: CanvasRenderingContext2D, arena: ArenaId, palette: Palette): void {
+  const random = seeded(arena === "plaza" ? 11 : arena === "metro" ? 23 : 37);
+  const size = FLOOR_PX;
+  const mix = (a: string, b: string, amount: number) => "#" + new THREE.Color(a).lerp(new THREE.Color(b), amount).getHexString();
+  const tint = (value: string, alpha: number) => {
+    const color = new THREE.Color(value);
+    return `rgba(${Math.round(color.r * 255)},${Math.round(color.g * 255)},${Math.round(color.b * 255)},${alpha})`;
+  };
+  // a small mark drawn again across the edges it touches, so the floor repeats without a seam
+  const wrapped = (x: number, y: number, reach: number, draw: (x: number, y: number) => void) => {
+    const xs = x < reach ? [x, x + size] : x > size - reach ? [x, x - size] : [x];
+    const ys = y < reach ? [y, y + size] : y > size - reach ? [y, y - size] : [y];
+    for (const px of xs) for (const py of ys) draw(px, py);
+  };
 
   if (arena === "plaza") {
-    for (let index = 0; index < 420; index++) {
-      const x = (index * 73) % 512;
-      const y = (index * 137) % 512;
-      const radius = 2 + index % 7;
-      context.fillStyle = rgba(index % 3 === 0 ? palette.surface : mid, 0.10 + (index % 4) * 0.025);
-      context.beginPath();
-      context.ellipse(x, y, radius * 1.5, radius, (index % 9) * 0.2, 0, Math.PI * 2);
-      context.fill();
+    context.fillStyle = palette.lawn;
+    context.fillRect(0, 0, size, size);
+    // mown stripes, as a park's lawn has
+    const stripe = size / 8;
+    for (let band = 0; band < 8; band++) {
+      context.fillStyle = band % 2 === 0 ? tint(palette.lawnLight, 0.32) : tint(palette.lawn2, 0.22);
+      context.fillRect(band * stripe, 0, stripe, size);
     }
-    context.strokeStyle = rgba(palette.surface, 0.2);
-    context.lineWidth = 1;
-    for (let index = 0; index < 260; index++) {
-      const x = (index * 97) % 512;
-      const y = (index * 151) % 512;
-      context.beginPath();
-      context.moveTo(x, y);
-      context.lineTo(x + ((index % 5) + 2), y - 3 - index % 4);
-      context.stroke();
-    }
-  } else if (arena === "gallery") {
-    for (let y = 0; y < 512; y += 36) {
-      context.fillStyle = rgba(seam, 0.18);
-      context.fillRect(0, y, 512, 2);
-      const offset = (Math.floor(y / 36) % 2) * 42;
-      for (let x = offset; x < 512; x += 84) context.fillRect(x, y, 1, 36);
-      context.strokeStyle = rgba(palette.surface, 0.18);
-      context.lineWidth = 1;
-      for (let grain = 0; grain < 3; grain++) {
-        const x = (Math.floor(y / 36) * 61 + grain * 103) % 512;
+    // blades: short strokes, darker and lighter
+    context.lineWidth = 1.4;
+    context.lineCap = "round";
+    for (let blade = 0; blade < 14_000; blade++) {
+      const x = random() * size;
+      const y = random() * size;
+      const length = 3 + random() * 6;
+      const lean = (random() - 0.5) * 0.9;
+      context.strokeStyle = random() < 0.55 ? tint(palette.lawn2, 0.32 + random() * 0.3) : tint(palette.lawnLight, 0.24 + random() * 0.28);
+      wrapped(x, y, 10, (px, py) => {
         context.beginPath();
-        context.moveTo(x, y + 9 + grain * 7);
-        context.bezierCurveTo(x + 22, y + 7 + grain * 7, x + 34, y + 11 + grain * 7, x + 55, y + 8 + grain * 7);
+        context.moveTo(px, py);
+        context.lineTo(px + lean * length, py - length);
         context.stroke();
+      });
+    }
+    // clover and daisies, here and there
+    for (let flower = 0; flower < 90; flower++) {
+      const x = random() * size;
+      const y = random() * size;
+      context.fillStyle = flower % 5 === 0 ? tint(palette.petal, 0.85) : tint(palette.daisy, 0.8);
+      wrapped(x, y, 4, (px, py) => {
+        context.beginPath();
+        context.arc(px, py, 1.6 + random() * 1.2, 0, Math.PI * 2);
+        context.fill();
+      });
+    }
+    return;
+  }
+
+  if (arena === "metro") {
+    // large stone tiles with thin grout, each a shade apart, flecked like terrazzo
+    context.fillStyle = mix(palette.tile2, palette.bg, 0.22);
+    context.fillRect(0, 0, size, size);
+    const tiles = 8;
+    const step = size / tiles;
+    for (let row = 0; row < tiles; row++) {
+      for (let column = 0; column < tiles; column++) {
+        const x = column * step;
+        const y = row * step;
+        context.fillStyle = mix(palette.tile, palette.tile2, random() * 0.45);
+        context.fillRect(x + 2, y + 2, step - 4, step - 4);
+        for (let fleck = 0; fleck < 70; fleck++) {
+          context.fillStyle = random() < 0.5 ? tint(palette.tile2, 0.5) : tint(palette.daisy, 0.45);
+          context.fillRect(x + 4 + random() * (step - 10), y + 4 + random() * (step - 10), 1.5 + random() * 1.5, 1.5 + random() * 1.5);
+        }
       }
     }
-  } else {
-    for (let x = 0; x <= 512; x += 64) {
-      context.fillStyle = rgba(seam, x % 128 === 0 ? 0.24 : 0.16);
-      context.fillRect(x, 0, 2, 512);
+    // a terracotta inlay line every four tiles, as the station's floor has
+    context.fillStyle = palette.inlay;
+    for (const y of [0, size / 2]) {
+      context.fillRect(0, y + step * 2 - 7, size, 14);
     }
-    for (let y = 0; y <= 512; y += 64) {
-      context.fillStyle = rgba(seam, y % 128 === 0 ? 0.24 : 0.16);
-      context.fillRect(0, y, 512, 2);
-    }
-    for (let index = 0; index < 120; index++) {
-      const x = (index * 89) % 512;
-      const y = (index * 157) % 512;
-      context.fillStyle = rgba(palette.surface, 0.28);
-      context.fillRect(x, y, 9 + index % 12, 1);
+    return;
+  }
+
+  // the courtyard: flagstones in rows, a few petals from the blossom trees
+  context.fillStyle = mix(palette.stone2, palette.bg, 0.24);
+  context.fillRect(0, 0, size, size);
+  const rows = 8;
+  const height = size / rows;
+  for (let row = 0; row < rows; row++) {
+    let x = random() * 96;
+    const end = x + size;
+    while (x < end) {
+      const width = [96, 128, 160, 192][Math.floor(random() * 4)];
+      const fill = mix(palette.stone, palette.stone2, random() * 0.55);
+      const top = row * height;
+      for (const offset of [0, -size]) {
+        context.fillStyle = fill;
+        context.fillRect(x + offset + 3, top + 3, Math.min(width, end - x) - 6, height - 6);
+        context.fillStyle = tint(palette.daisy, 0.16);
+        context.fillRect(x + offset + 3, top + 3, Math.min(width, end - x) - 6, 3);
+      }
+      x += width;
     }
   }
-  texture.needsUpdate = true;
+  for (let speck = 0; speck < 2_600; speck++) {
+    context.fillStyle = random() < 0.5 ? tint(palette.stone2, 0.35) : tint(palette.daisy, 0.25);
+    context.fillRect(random() * size, random() * size, 1.5, 1.5);
+  }
+  for (let petal = 0; petal < 46; petal++) {
+    const x = random() * size;
+    const y = random() * size;
+    const turn = random() * Math.PI;
+    context.fillStyle = tint(palette.petal, 0.85);
+    wrapped(x, y, 8, (px, py) => {
+      context.beginPath();
+      context.ellipse(px, py, 4.5, 2.6, turn, 0, Math.PI * 2);
+      context.fill();
+    });
+  }
 }
 
 function createGroundTexture(arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = FLOOR_PX;
+  canvas.height = FLOOR_PX;
+  const context = canvas.getContext("2d");
+  if (context) paintFloor(context, arena, palette);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(2, 2);
-  texture.anisotropy = Math.min(4, maxAnisotropy);
+  texture.anisotropy = Math.min(8, maxAnisotropy);
   texture.generateMipmaps = true;
-  paintGroundTexture(texture, arena, palette);
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   return texture;
 }
 
@@ -263,8 +369,143 @@ function createSoftShadowTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
-  const floor = makeMaterial(palette.surface, 0.9, "surface");
+/**
+ * The floor everyone walks on. It stays when the Blender set arrives (the sets have no floor of their
+ * own), and it reaches past every edge of the screen, so no part of the screen is left without one.
+ */
+function addGround(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
+  // (white: the floor's colors are the drawn ones)
+  const groundMaterial = makeMaterial("#ffffff", arena === "metro" ? 0.62 : 0.95);
+  const groundTexture = createGroundTexture(arena, palette, maxAnisotropy);
+  groundTexture.repeat.set(GROUND_SIZE.x / GROUND_TILE, GROUND_SIZE.z / GROUND_TILE);
+  groundMaterial.map = groundTexture;
+  groundMaterial.bumpMap = groundTexture;
+  groundMaterial.bumpScale = arena === "plaza" ? 0.004 : arena === "gallery" ? 0.02 : 0.012;
+  groundMaterial.needsUpdate = true;
+  const ground = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE.x, 0.35, GROUND_SIZE.z), groundMaterial);
+  ground.name = "floor";
+  ground.position.set(0, -0.19, GROUND_SIZE.centerZ);
+  scene.add(ground);
+  return groundTexture;
+}
+
+/** A soft-edged patch (a canvas of white fading out at its rim), for the spotlight's pool of light. */
+function createSoftRectTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const fade = context.createLinearGradient(0, 0, 256, 0);
+    fade.addColorStop(0, "rgba(255,255,255,0)");
+    fade.addColorStop(0.3, "rgba(255,255,255,1)");
+    fade.addColorStop(0.7, "rgba(255,255,255,1)");
+    fade.addColorStop(1, "rgba(255,255,255,0)");
+    context.fillStyle = fade;
+    context.fillRect(0, 0, 256, 256);
+    context.globalCompositeOperation = "destination-in";
+    const down = context.createLinearGradient(0, 0, 0, 256);
+    down.addColorStop(0, "rgba(255,255,255,0)");
+    down.addColorStop(0.3, "rgba(255,255,255,1)");
+    down.addColorStop(0.7, "rgba(255,255,255,1)");
+    down.addColorStop(1, "rgba(255,255,255,0)");
+    context.fillStyle = down;
+    context.fillRect(0, 0, 256, 256);
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+/** The moving walkway's belt: dark ridged rubber, drawn once and slid along as the walkway runs. */
+function createBeltTexture(palette: Palette): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = "#" + new THREE.Color(palette.surface2).lerp(new THREE.Color(palette.tile2), 0.18).getHexString();
+    context.fillRect(0, 0, 256, 256);
+    for (let x = 0; x < 256; x += 16) {
+      context.fillStyle = palette.line;
+      context.fillRect(x, 0, 5, 256);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
+/** How far a walkway's belt has slid, so the frame loop can move it with the room's drift. */
+interface RuleMarks {
+  belt: THREE.CanvasTexture | null;
+  /** scene units of the belt's pattern per repeat */
+  beltRepeat: number;
+  dispose: () => void;
+}
+
+/**
+ * What each place's rule looks like, kept whichever set is showing: the transit hall's moving
+ * walkways under the whole crowd (the room carries everyone along; they slide the same way), the
+ * courtyard's spotlight where the rules make you faster, and the sea beyond the seawall's railing.
+ */
+function addRuleMarks(scene: THREE.Scene, arena: ArenaId, palette: Palette): RuleMarks {
+  const owned: { dispose: () => void }[] = [];
+  const keep = <T extends { dispose: () => void }>(value: T): T => {
+    owned.push(value);
+    return value;
+  };
+  const marks: RuleMarks = { belt: null, beltRepeat: 1, dispose: () => owned.forEach((value) => value.dispose()) };
+  if (arena === "metro") {
+    // four walkways side by side, edge to edge with the crowd's floor
+    const lanes = 4;
+    const depth = FLOOR_BOX.near - FLOOR_BOX.far + 0.6;
+    const laneDepth = depth / lanes;
+    const width = 2 * (FLOOR_BOX.halfWidth + 0.9);
+    const belt = keep(createBeltTexture(palette));
+    marks.belt = belt;
+    marks.beltRepeat = 1.2;
+    belt.repeat.set(width / marks.beltRepeat, 1);
+    const beltMaterial = keep(new THREE.MeshStandardMaterial({ color: "#ffffff", map: belt, roughness: 0.7, metalness: 0.05 }));
+    const railMaterial = keep(new THREE.MeshStandardMaterial({ color: palette.muted, roughness: 0.35, metalness: 0.6 }));
+    const laneGeometry = keep(new THREE.PlaneGeometry(width, laneDepth - 0.16));
+    const railGeometry = keep(new THREE.BoxGeometry(width + 0.3, 0.06, 0.14));
+    for (let lane = 0; lane < lanes; lane++) {
+      const z = FLOOR_BOX.far - 0.3 + laneDepth * (lane + 0.5);
+      const mesh = new THREE.Mesh(laneGeometry, beltMaterial);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(0, 0.012, z);
+      scene.add(mesh);
+      for (const edge of [-1, 1]) {
+        const rail = new THREE.Mesh(railGeometry, railMaterial);
+        rail.position.set(0, 0.03, z + edge * (laneDepth / 2 - 0.04));
+        scene.add(rail);
+      }
+    }
+  } else if (arena === "gallery") {
+    // the rules' spotlight: 28 x 34 of the floor's 100 x 58, in the middle
+    const glow = keep(createSoftRectTexture());
+    const pool = new THREE.Mesh(
+      keep(new THREE.PlaneGeometry(28 * SCENE_PER_WORLD + 2.2, 34 * SCENE_PER_WORLD + 2.2)),
+      keep(new THREE.MeshBasicMaterial({ color: palette.warn, alphaMap: glow, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }))
+    );
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.02;
+    scene.add(pool);
+  } else {
+    // the sea beyond the railing, and the seawall's stone edge
+    const sea = new THREE.Mesh(keep(new THREE.PlaneGeometry(GROUND_SIZE.x, 16)), keep(new THREE.MeshStandardMaterial({ color: palette.sea, roughness: 0.28, metalness: 0.1 })));
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.set(0, 0.03, SEAWALL_Z - 8.15);
+    scene.add(sea);
+    const edge = new THREE.Mesh(keep(new THREE.BoxGeometry(GROUND_SIZE.x, 0.2, 0.42)), keep(new THREE.MeshStandardMaterial({ color: palette.tile, roughness: 0.9 })));
+    edge.position.set(0, 0.06, SEAWALL_Z);
+    scene.add(edge);
+  }
+  return marks;
+}
+
+function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
   const detail = makeMaterial(palette.surface2, 0.86, "surface2");
   const accent = makeMaterial(palette.accent, 0.78, "accent");
   const muted = makeMaterial(palette.muted, 0.86, "muted");
@@ -274,17 +515,6 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAniso
   const water = makeMaterial(palette.sky, 0.52, "sky");
   const wood = makeMaterial(palette.land, 0.9, "land");
   const dark = makeMaterial(darkTint(palette), 0.9);
-  const groundSourceMaterial = arena === "plaza" ? grass : arena === "gallery" ? wood : floor;
-  const groundMaterial = groundSourceMaterial.clone();
-  groundMaterial.userData = { ...groundSourceMaterial.userData };
-  const groundTexture = createGroundTexture(arena, palette, maxAnisotropy);
-  groundMaterial.map = groundTexture;
-  groundMaterial.bumpMap = groundTexture;
-  groundMaterial.bumpScale = arena === "plaza" ? 0.035 : arena === "gallery" ? 0.022 : 0.012;
-  groundMaterial.needsUpdate = true;
-  const ground = new THREE.Mesh(new THREE.BoxGeometry(25, 0.35, 17), groundMaterial);
-  ground.position.y = -0.19;
-  scene.add(ground);
 
   if (arena === "plaza") {
     // Vancouver seawall park: lawn, water, a mountain horizon, cedar-like trees and a boardwalk.
@@ -371,7 +601,7 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAniso
     center.rotation.x = -Math.PI / 2;
     center.position.y = 0.015;
     scene.add(center);
-    return groundTexture;
+    return;
   }
 
   if (arena === "metro") {
@@ -390,17 +620,13 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAniso
       makeBox(scene, [2.46, 0.05, 0.11], [x, 2.15, -5.44], trim);
       makeBox(scene, [0.05, 1.57, 0.11], [x, 2.15, -5.44], trim);
     }
-    for (const z of [-2.85, 2.85]) {
-      makeBox(scene, [17.5, 0.08, 0.92], [0, 0.04, z], detail);
-      makeBox(scene, [17.5, 0.035, 0.1], [0, 0.105, z - 0.42], warm);
-      for (let x = -8; x <= 8; x += 1.8) makeBox(scene, [0.06, 0.025, 0.92], [x, 0.1, z], accent);
-    }
+    // (the walkways are the rule's marks: addRuleMarks)
     for (const x of [-7.6, -5.2, 5.2, 7.6]) {
       makeBox(scene, [1.1, 0.56, 1.6], [x, 0.3, 0], detail);
       makeBox(scene, [1.12, 0.1, 1.66], [x, 0.62, 0], accent);
     }
     for (const x of [-6, -2, 2, 6]) makeBox(scene, [0.85, 0.06, 0.52], [x, 3.48, -5.22], warm);
-    return groundTexture;
+    return;
   }
 
   // Chinese courtyard theatre: tiled timber stage, lattice panels, lanterns and red curtains.
@@ -442,20 +668,14 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAniso
     rays.setMatrixAt(i, rayDummy.matrix);
   }
   scene.add(rays);
-  const spotlight = new THREE.Mesh(new THREE.CircleGeometry(2.45, 40), Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.24, depthWrite: false, userData: { paletteToken: "warn" } }), { userData: { paletteToken: "warn" } }));
-  spotlight.rotation.x = -Math.PI / 2;
-  spotlight.position.set(0, 0.04, 0);
-  scene.add(spotlight);
-  const beam = new THREE.Mesh(new THREE.ConeGeometry(2.6, 5.4, 20, 1, true), Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, userData: { paletteToken: "warn" } }), { userData: { paletteToken: "warn" } }));
-  beam.position.set(0, 3.25, -1.3);
-  scene.add(beam);
+  // (the spotlight is the rule's mark: addRuleMarks)
   for (const z of [5.05, 5.7]) {
     for (let x = -7.8; x <= 7.8; x += 2.6) {
       makeBox(scene, [1.6, 0.48, 0.46], [x, 0.25, z], dark);
       makeBox(scene, [1.64, 0.08, 0.5], [x, 0.5, z], accent);
     }
   }
-  return groundTexture;
+  return;
 }
 function writeInstance(mesh: THREE.InstancedMesh, index: number, dummy: THREE.Object3D, x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number, tilt = 0, roll = 0): void {
   dummy.position.set(x, y, z);
@@ -510,29 +730,19 @@ export function Arena3D(props: Props) {
     const palette = readPalette();
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(palette.bg);
-    scene.backgroundIntensity = backgroundIntensity(palette);
-    scene.fog = new THREE.Fog(palette.bg, 34, 58);
+    scene.fog = new THREE.Fog(palette.bg, 42, 80);
     let disposed = false;
-    const panorama = new THREE.TextureLoader().load(ARENA_PANORAMAS[props.arena], () => {
-      if (disposed) return;
-      scene.background = panorama;
-      scene.backgroundIntensity = backgroundIntensity(palette);
-    });
-    panorama.colorSpace = THREE.SRGBColorSpace;
-    panorama.mapping = THREE.EquirectangularReflectionMapping;
-    panorama.generateMipmaps = true;
-    panorama.minFilter = THREE.LinearMipmapLinearFilter;
-    panorama.magFilter = THREE.LinearFilter;
-    panorama.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
     const crowdAtlas = new THREE.TextureLoader().load(CROWD_ATLAS);
     crowdAtlas.colorSpace = THREE.SRGBColorSpace;
     crowdAtlas.generateMipmaps = true;
     crowdAtlas.minFilter = THREE.LinearMipmapLinearFilter;
     crowdAtlas.magFilter = THREE.LinearFilter;
     crowdAtlas.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());
-    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
-    camera.position.set(0, 17, 18);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(24, 1, 0.5, 120);
+    const eye = new THREE.Vector3(0, 19, 15);
+    const look = new THREE.Vector3(0, 0, -1);
+    camera.position.copy(eye);
+    camera.lookAt(look);
     const ambient = new THREE.HemisphereLight(lightTint(palette), palette.bg, 2.6);
     scene.add(ambient);
     const key = new THREE.DirectionalLight(lightTint(palette), 3.1);
@@ -542,8 +752,10 @@ export function Arena3D(props: Props) {
     fill.position.set(8, 9, -11);
     scene.add(fill);
 
+    const groundTexture = addGround(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
+    const ruleMarks = addRuleMarks(scene, props.arena, palette);
     const environmentStart = new Set(scene.children);
-    const groundTexture = addVenue(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
+    addVenue(scene, props.arena, palette);
     addEnvironmentalLandmarks(scene, props.arena, palette);
     const fallbackVenue = new THREE.Group();
     fallbackVenue.name = "procedural venue fallback";
@@ -553,6 +765,7 @@ export function Arena3D(props: Props) {
         fallbackVenue.add(object);
       }
     }
+    fallbackVenue.position.z = SET_OFFSET_Z[props.arena];
     scene.add(fallbackVenue);
     let loadedVenue: THREE.Object3D | null = null;
     const venueLoader = new GLTFLoader();
@@ -571,6 +784,7 @@ export function Arena3D(props: Props) {
           object.frustumCulled = true;
         }
       });
+      loadedVenue.position.z += SET_OFFSET_Z[props.arena];
       scene.remove(fallbackVenue);
       disposeTree(fallbackVenue);
       scene.add(loadedVenue);
@@ -658,8 +872,13 @@ export function Arena3D(props: Props) {
       if (width < 1 || height < 1) return;
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
-      // the arena's width across the screen; an upright phone frames just the floor, so the crowd isn't tiny
-      camera.fov = verticalFovForWidth(camera.aspect < 1.4 ? 19 : 24.5, camera.aspect, Math.hypot(17, 18));
+      // the whole floor as big as the screen allows, clear of the bars over it
+      const framing = frameFloor(camera.aspect, FLOOR_BOX, document.documentElement.classList.contains("is-tv") ? TV_MARGINS : PHONE_MARGINS);
+      camera.fov = framing.fov;
+      eye.set(...framing.position);
+      look.set(...framing.target);
+      camera.position.copy(eye);
+      camera.lookAt(look);
       camera.updateProjectionMatrix();
     };
     resizeObserver = new ResizeObserver(resize);
@@ -733,6 +952,7 @@ export function Arena3D(props: Props) {
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
       const reduced = reducedNow();
       const ease = reduced ? 1 : 1 - Math.exp(-delta / 46);
+      if (ruleMarks.belt) ruleMarks.belt.offset.x -= (drift.current.x * SCENE_PER_WORLD * delta) / 1000 / ruleMarks.beltRepeat;
       const snapshot = targets.current;
       for (const batch of activeSpriteBatches) batch.mesh.count = 0;
       activeSpriteBatches.length = 0;
@@ -763,10 +983,10 @@ export function Arena3D(props: Props) {
           velocityX = predicted.x;
           velocityY = predicted.y;
         }
-        worldX = Math.max(5, Math.min(95, worldX));
-        worldY = Math.max(6, Math.min(52, worldY));
-        const targetX = (worldX / 100 - 0.5) * 17.5;
-        const targetZ = (worldY / 58 - 0.5) * 9.1;
+        worldX = Math.max(ARENA.marginX, Math.min(ARENA.width - ARENA.marginX, worldX));
+        worldY = Math.max(ARENA.marginY, Math.min(ARENA.height - ARENA.marginY, worldY));
+        const targetX = sceneX(worldX);
+        const targetZ = sceneZ(worldY);
         const targetSpeed = Math.hypot(velocityX, velocityY);
         const visual = visuals[index] ?? (visuals[index] = {
           x: targetX,
@@ -824,14 +1044,13 @@ export function Arena3D(props: Props) {
       shadows.instanceMatrix.needsUpdate = true;
       for (const batch of activeSpriteBatches) batch.mesh.instanceMatrix.needsUpdate = true;
       if (localVisual) {
-        marker.position.set(localVisual.x, 3.05, localVisual.z);
+        marker.position.set(localVisual.x, MARKER_Y, localVisual.z);
         marker.visible = true;
       } else marker.visible = false;
       const impactAge = time - shakeAt;
       const shake = shakeAt && impactAge < 280 && !reduced ? Math.sin(impactAge * 0.095) * (1 - impactAge / 280) * shakeStrength : 0;
-      camera.position.x = shake;
-      camera.position.y = 17 + Math.abs(shake) * 0.34;
-      camera.lookAt(shake, -shake * 0.22, 0);
+      camera.position.set(eye.x + shake, eye.y + Math.abs(shake) * 0.34, eye.z);
+      camera.lookAt(look.x + shake, look.y - shake * 0.22, look.z);
       renderer.render(scene, camera);
     };
     frame = requestAnimationFrame(animate);
@@ -850,8 +1069,8 @@ export function Arena3D(props: Props) {
       marker.material.dispose();
       markerTexture.dispose();
       groundTexture.dispose();
+      ruleMarks.dispose();
       shadowTexture.dispose();
-      panorama.dispose();
       crowdAtlas.dispose();
       renderer.dispose();
     };

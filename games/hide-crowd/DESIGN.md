@@ -27,15 +27,16 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 
 | Screen | What it shows |
 | --- | --- |
-| Phone, lobby | The table's code; the arena vote (three rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round, sideways | How it's meant to be played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. |
-| Phone, a round, upright | The same, stacked: bar, arena, scores, "turn sideways for a bigger view", controls. |
+| Phone, lobby | The table's code; on an iPhone in Safari, a line about adding changle.ca to the Home Screen; the arena vote (three rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. |
+| Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
+| Phone, the Home Screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen, so the game shows how to put changle.ca on the Home Screen (`ui/HomeScreen.tsx`): once by itself in the first lobby, then from the lobby's line, the menu and the full-screen button. A little iPhone acts out the four taps (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
 | Phone, end of a round | The penalty stamp first (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the host's Play again and Pick another arena, and Back to the table. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the three arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host". |
 | Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom. |
 | Big screen, end of a round | The penalty stamp for seven seconds, then the result card. |
-| Phone, the menu (⋯) | Language, reduced motion, full screen, this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
+| Phone, the menu (⋯) | Language, reduced motion, full screen (on an iPhone: the Home Screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
 | Credits (`/hide/credits`, and the menu) | Where every picture and model comes from. |
 
@@ -44,6 +45,35 @@ so a 720p TV shows exactly the same picture, smaller; its type is half as large 
 phone's (`html.is-tv`), to read from across a room. The arena underneath is drawn at the screen's
 own size, not scaled. `tests/e2e/tv.spec.ts` checks that nothing leaves the screen at 1920 x 1080
 and 1280 x 720.
+
+## The arena: floor, camera, the rules' marks
+
+How a round looks in 3D (`ui/Arena3D.tsx`, `camera.ts`). Steve's report of 2026-11-04 (half the
+screen empty and out of reach, a blurry background, a double tap that zoomed) was fixed on 2026-11-11:
+
+* **A real floor, always.** The floor is drawn by the game's code on a canvas: the seawall's mown
+  lawn, the transit hall's stone tiles with terracotta lines, the courtyard's flagstones with a few
+  blossom petals, in daylight colours (`--arena-lawn` … `--arena-sea` in the game's block). It stays
+  when the Blender set arrives (the sets have no floor of their own) and reaches past every edge of
+  the screen. Until 2026-11-11 the set's arrival removed the stand-in venue floor and all, and the crowd
+  walked on the backdrop.
+* **No stretched backdrop.** The three AI pictures (1536 x 768) used to be wrapped round the scene as a
+  360° panorama: about six times their size on a phone, so blurry, and their painted lawn looked like
+  floor that nobody could reach. The arena doesn't draw them any more; the lobby's thumbnails are crops
+  of them.
+* **The camera frames the floor** (`frameFloor` in `camera.ts`): a fixed tilt (50°) and field of view
+  (24°), moved back just as far as it needs so the front row's feet sit on the bottom margin, everyone
+  is inside the sides, and the back row's "you" marker is under the top bar; whatever room is left goes
+  to the top, where the far side of the place shows (the railing and the sea, the train, the stage).
+  The rules' 100 x 58 floor is drawn at the same scale both ways (0.175 a unit), so a step looks as long
+  across as it does deep. Phones and big screens have their own margins (the big screen's overlays).
+  `tests/camera.test.ts` checks it at phone and TV shapes.
+* **The rules' marks are always drawn**, whichever set is up: the transit hall's moving walkways under
+  the whole crowd, sliding the way the room carries everyone; the courtyard's spotlight over the rules'
+  28 x 34 zone where you move faster; the sea beyond the seawall's railing. The courtyard's set sits
+  0.65 further back, so the front of the stage is behind the back row, not under it.
+* **Sharp on a phone.** The frame-rate budget starts at up to 2.25 times the screen's pixels (it was
+  1.65, which drew the 3D view soft on a phone whose screen has 3), then lowers it if frames run slow.
 
 ## Nobody is marked
 
@@ -91,34 +121,32 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/chrome.tsx` | Top bar, bilingual title, icon buttons and line icons, the switch, the sheet, the rules. |
 | `src/client/ui/Lobby.tsx`, `Play.tsx`, `Controls.tsx`, `Result.tsx`, `Penalty.tsx`, `Menu.tsx` | The phone's screens. |
 | `src/client/ui/Tv.tsx` | The big screen. |
-| `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene, the stand-in venue drawn in code, and the flat arena without WebGL. |
-| `src/client/spriteAtlas.ts`, `camera.ts`, `renderQuality.ts` | Which picture of a person to draw, the camera's framing, the frame-rate budget. |
+| `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
+| `src/client/spriteAtlas.ts`, `camera.ts`, `renderQuality.ts` | Which picture of a person to draw, the camera's framing (`frameFloor`), the frame-rate budget. |
+| `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's Home Screen guide, and what kind of phone this is. |
 | `src/client/i18n.ts` | Every word, in Chinese and English (`tests/strings.test.ts` checks both exist, no em dashes, no curly quotes). |
 
 ## The art: where it comes from
 
 | File | Size | What | Where it comes from | Licence |
 | --- | --- | --- | --- | --- |
-| `plaza-seawall.webp` | 159 KB | Vancouver Seawall Park backdrop, 1536 x 768 | **AI-made**: drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 | OpenAI's terms assign the output to the user; no third-party art in it |
-| `metro-station.webp` | 137 KB | Vancouver Transit Hall backdrop, 1536 x 768 | **AI-made**, the same way | the same |
-| `gallery-courtyard.webp` | 218 KB | Courtyard Theatre backdrop, 1536 x 768 | **AI-made**, the same way | the same |
-| `thumb-*.webp` | 12 to 17 KB each | The lobby's pictures of the three arenas, 320 x 180 | Cropped from the backdrops above (**AI-made**) | the same |
+| `thumb-*.webp` | 12 to 17 KB each | The lobby's pictures of the three arenas, 320 x 180 | **AI-made**: cropped from three panoramas drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 (the panoramas themselves were dropped on 2026-11-11: the arena doesn't draw them) | OpenAI's terms assign the output to the user; no third-party art in it |
 | `crowd-atlas.webp` | 303 KB | The crowd: three people, four directions, four poses (idle, two steps, punch), one 2400 x 800 sheet | **AI-made**: drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 | the same |
 | `seawall-dressing.glb` | 390 KB | The seawall's 3D set: cedars, benches, railing, lamps, signs | Made from scratch by `tools/blender/generate_arena_dressing.py` (Blender 5.2), no outside models or textures | ours |
 | `transit-dressing.glb` | 262 KB | The transit hall's 3D set: carriage, canopy, platform edge | The same script | ours |
 | `courtyard-dressing.glb` | 354 KB | The courtyard's 3D set: stage, pavilion, curtains, lanterns | The same script | ours |
 | `fonts/unbounded.woff2`, `fonts/figtree.woff2` | 30 KB, 23 KB | Unbounded and Figtree, Latin subsets | Google Fonts, via `games/been-there` | SIL Open Font License 1.1 |
 
-There are no sound files. The code libraries (Preact, three.js, qrcode-generator, all MIT) are
+The floors, the walkways, the spotlight and the sea are drawn by the game's own code. There are no
+sound files. The code libraries (Preact, three.js, qrcode-generator, all MIT) are
 listed with their licences in `dist/client/hide/licences.txt`, which the build writes and the
 credits page links to.
 
 The pictures' original PNG and JPEG files (3.6 MB together) are in PR #5's branch; here they are
-WebP: the backdrops at quality 80 (870 KB to 513 KB), the sheet at quality 85 with lossless
-transparency, its faint haze below the renderer's cut-off cleared and the figures' colours bled
-outward so the edges stay clean when it is scaled down (1.85 MB to 303 KB). The art is 1.86 MB in
-all (it was 3.63 MB); `tests/arenaAssets.test.ts` holds every file to a budget and checks that each
-one is credited here and on the credits page.
+WebP: the sheet at quality 85 with lossless transparency, its faint haze below the renderer's cut-off
+cleared and the figures' colours bled outward so the edges stay clean when it is scaled down (1.85 MB
+to 303 KB). `tests/arenaAssets.test.ts` holds every file to a budget and checks that each one is
+credited here and on the credits page.
 
 **The 3D sets** are rebuilt with Blender 5.2 or newer from the game's folder:
 `blender --background --python tools/blender/generate_arena_dressing.py` (it writes the three GLBs,
@@ -134,10 +162,10 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 * **The first download is small.** `app.js` (23 KB gzipped) and a shared chunk (16 KB) draw the
   lobby; three.js and the 3D arena (`Arena3D-*.js`, 174 KB gzipped) are a file of their own, fetched
   while the lobby is up, so a round starts at once. The stylesheet is 11 KB gzipped.
-* **A round fetches about 0.7 MB of art**: the sheet of people, one backdrop and one 3D set (only
-  the arena being played). The lobby's three pictures are 42 KB.
+* **A round fetches about 0.6 MB of art**: the sheet of people and one 3D set (only the arena being
+  played); the floor is drawn on the phone. The lobby's three pictures are 42 KB.
 * **The frame-rate budget** (`renderQuality.ts`) measures every second and lowers the pixel density
-  (1.65, 1.35, 1.05) when frames run slow; real-time shadows are off; the crowd is drawn in a few
+  (2.25, 1.6, 1.15) when frames run slow; real-time shadows are off; the crowd is drawn in a few
   instanced batches. `?fps=1` on a room's address shows the meter on a real phone.
 * **Without WebGL** (an old phone, a lost GPU context) the flat arena draws the same crowd from
   above with plain elements. `?flat=1` asks for it on purpose (the browser tests use it).
@@ -147,15 +175,23 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 ## What a design change has to keep
 
 1. **Nothing marks a player** on the big screen or in any phone's data (above).
-2. **A phone never scrolls sideways**, upright (390 x 844) or sideways (844 x 390), every
-   button is at least 44 px, and the penalty stamp fits either way (`tests/e2e/phone.spec.ts`).
-3. **Nothing leaves the big screen** at 1920 x 1080 and 1280 x 720 (`tests/e2e/tv.spec.ts`).
-4. **Night colours only**, from the tokens; the gel carries night-coloured text.
-5. **Both languages**, switchable in the menu at any time; no em dashes or curly quotes.
-6. **Reduced motion**: the phone's setting or the menu's switch stops the stamp's slam and shake,
-   the camera shake and the walk's bounce; the crowd still moves (that is the game).
-7. **The penalty follows the table**: the table's own penalty replaces every drink word.
-8. **The art stays credited and within budget** (`tests/arenaAssets.test.ts`).
+2. **It's played sideways** (844 x 390): nothing scrolls sideways, every button is at least 44 px, the
+   penalty stamp fits; held upright, the turn screen covers it and the round carries on underneath
+   (`tests/e2e/phone.spec.ts`).
+3. **Thumbs never zoom.** In a round the arena and the controls are `touch-action: none` and a touch
+   on the controls is kept from the browser; a button waiting for its move stays a live target
+   (`aria-disabled`, not `disabled`), so a quick second tap lands on it instead of falling through as a
+   double tap; Safari's pinch is off during a round.
+4. **The floor fills the screen** and stays under the Blender set; the rules' marks are drawn whatever
+   set is up (above).
+5. **Nothing leaves the big screen** at 1920 x 1080 and 1280 x 720 (`tests/e2e/tv.spec.ts`).
+6. **Night colours only**, from the tokens; the gel carries night-coloured text.
+7. **Both languages**, switchable in the menu at any time; no em dashes or curly quotes.
+8. **Reduced motion**: the phone's setting or the menu's switch stops the stamp's slam and shake,
+   the camera shake and the walk's bounce, and holds the turn screen's phone and the guide's little
+   iPhone still; the crowd still moves (that is the game).
+9. **The penalty follows the table**: the table's own penalty replaces every drink word.
+10. **The art stays credited and within budget** (`tests/arenaAssets.test.ts`).
 
 Then run `npm run typecheck`, `npm test` and `npm run test:e2e`. GitHub runs them on every push,
 in Chromium and WebKit.
