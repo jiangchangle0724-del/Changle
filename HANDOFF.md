@@ -206,8 +206,8 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
   `docs/codex-tasks/dj/` (C1 presets is done).
 
 * 一本正经 · In All Seriousness (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
-  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 300
-  cards in 17 packs (nine for Chinese tables, five for English tables, three for any table; a table
+  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 400
+  cards in 21 packs (eleven for Chinese tables, six for English tables, four for any table; a table
   starts with its own language's packs), pictures drawn with ChatGPT (pack icons, the three parts, the
   room) and synthesised sound cues, on the board since 2026-11-05. One phone passed round, or online
   with every phone its own and a big-screen view (A3: the rules on the rooms server in
@@ -219,7 +219,6 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
   `picture.ts`). 自己出题: each player can write a word of their own before the game (`own.tsx`; the
   engine deals them first, never to their writer's round). Online, more than nine at the table or late
   arrivals are the audience: they back the honest one from their phones, on a board of their own.
-  Next: 400 cards.
 
 * 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
   and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the
