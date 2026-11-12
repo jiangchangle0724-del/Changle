@@ -53,10 +53,14 @@ export interface Song {
  */
 export type Step = readonly [move: string, beats: number, from?: number];
 
-const GANGNAM_CHORUS: Step[] = [["horse-ride", 8], ["horse-lasso", 8], ["horse-ride", 8], ["horse-lasso", 8], ["sexy-lady", 8], ["horse-ride", 8], ["gangnam-lunge", 8], ["chest-pop", 8]];
+// 江南Style as its official video dances it (looked at frame by frame, 2026-11-12): the chorus is the
+// horse ride and the lasso (the riding hall, the subway), "Eh~ Sexy Lady" the hands-on-hips hip
+// shake, the line between them the tour bus's disco point, "op op op op" the horse again; the
+// verses little PSY's groove, the build the bus's disco, the bridge the strut across the disco.
+const GANGNAM_CHORUS: Step[] = [["horse-ride", 8], ["horse-lasso", 8], ["horse-ride", 8], ["horse-lasso", 8], ["sexy-lady", 8], ["disco-point", 8], ["sexy-lady", 8], ["horse-ride", 8]];
 const GANGNAM_VERSE: Step[] = [["gangnam-bounce", 24], ["horse-ride", 8], ["gangnam-bounce", 24], ["horse-ride", 8]];
 /** the build ("지금부터 갈 데까지 가볼까"), then the "Oppan" pickup: half a phrase, counted 5 to 8 */
-const GANGNAM_BUILD: Step[] = [["gangnam-bounce", 16], ["horse-ride", 4, 5]];
+const GANGNAM_BUILD: Step[] = [["disco-point", 16], ["horse-ride", 4, 5]];
 
 const KEMUSAN: Step[] = [["kms-swing", 8], ["kms-roll-throw", 8], ["kms-guai", 8], ["kms-open-up", 8], ["kms-guai", 8], ["kms-open-guai", 8], ["kms-cross", 8], ["kms-xiao", 8], ["kms-slow-xiao", 8]];
 
@@ -94,14 +98,14 @@ export const SONGS: readonly Song[] = [
       ["hey-point", 32],
       ...GANGNAM_BUILD,
       ...GANGNAM_CHORUS,
-      // bridge, the last chorus, the end
-      ["horse-lasso", 16],
+      // bridge (the strut across the disco, then riding into the last chorus), the last chorus, the end
+      ["gangnam-strut", 16],
       ["horse-ride", 16],
       ["horse-ride", 8],
+      ["horse-lasso", 8],
       ["sexy-lady", 8],
+      ["disco-point", 8],
       ["horse-ride", 8],
-      ["gangnam-lunge", 8],
-      ["chest-pop", 8],
       ["gangnam-pose", 8],
     ],
     difficulty: "easy",

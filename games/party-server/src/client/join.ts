@@ -437,6 +437,7 @@ function phaseTitle(): string {
       return host ? tr("准备好了就点「开始跳」", "Tap Dance when everyone's ready") : tr("准备", "Get ready");
     case "dancing":
       if (routine?.pausedAt !== undefined) return host ? tr("暂停了，点「继续」接着跳", "Paused: tap Carry on to go on") : tr("暂停了，等主人继续", "Paused: the host will carry on");
+      if (routine?.heldAt !== undefined) return tr("等电视上的视频：它一动就接着跳", "Waiting for the video on the TV: the dance picks up when it plays");
       return tr("跟着闪光的节奏动起来", "Move with the flashes");
     case "results":
       return tr("跳完了", "That's the song");

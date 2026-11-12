@@ -727,6 +727,17 @@ body.fireworks {
   justify-content: center;
   gap: 6px;
 }
+/* a song's own move: its steps under its name; the stage grows to hold them */
+.moves-stage:has(.coach-steps) {
+  height: auto;
+  min-height: min(72vh, 640px);
+}
+.moves-stage:has(.coach-steps) .coach-3d {
+  height: min(72vh, 640px);
+}
+.moves-side:has(.coach-steps) .coach-move {
+  font-size: clamp(1.8rem, 3.6vw, 3.2rem);
+}
 .coach-how {
   margin: 4px 0 0;
   font-size: clamp(1.1rem, 2vw, 1.8rem);
@@ -735,6 +746,56 @@ body.fireworks {
 }
 .coach-how:empty {
   display: none;
+}
+/* a song's own move step by step: how to stand, each count (the one being danced lit up), a tip */
+.coach-steps {
+  margin: 4px 0 0;
+  display: grid;
+  gap: 6px;
+  font-size: clamp(0.95rem, min(1.6vw, 2.8vh), 1.5rem);
+  line-height: 1.45;
+}
+.coach-steps p {
+  margin: 0;
+  color: var(--muted);
+}
+.coach-steps ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.coach-steps li {
+  display: grid;
+  grid-template-columns: 2.4em minmax(0, 1fr);
+  gap: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: var(--muted);
+}
+.coach-steps li b {
+  color: var(--beat);
+  font-variant-numeric: tabular-nums;
+}
+.coach-steps li.is-now {
+  background: var(--panel);
+  box-shadow: inset 3px 0 0 var(--beat);
+  color: var(--ink);
+  font-weight: 700;
+}
+/* (the steps say it in full: the one-line gist above them goes, and so does the body hint; the
+   name and the count make room for them, so the whole coach still fits the TV) */
+.coach-words:has(.coach-steps) :is(.coach-how, .coach-body),
+.moves-side:has(.coach-steps) .coach-how {
+  display: none;
+}
+.coach.has-3d .coach-words:has(.coach-steps) .coach-move {
+  font-size: clamp(1.6rem, min(3.6vw, 5.4vh), 3.8rem);
+}
+.coach.has-3d .coach-side:has(.coach-steps) .count {
+  font-size: clamp(2.4rem, 8vh, 6.5rem);
+  line-height: 1;
 }
 /* the TV with the 3D coach: one screen, no scrolling. The coach big on the left, the words and
    the count beside it; the floor and everyone's little dancers under them */
@@ -1147,6 +1208,13 @@ body.has-tube .screen > .join-card {
   }
   body.is-screen.has-tube .coach.has-3d :is(.phase, .coach-other, .coach-how) {
     display: none;
+  }
+  /* (a phone as the stage: only the count being danced) */
+  body.is-screen.has-tube .coach.has-3d .coach-steps :is(.steps-ready, .steps-tip, li:not(.is-now)) {
+    display: none;
+  }
+  body.is-screen.has-tube .coach.has-3d .coach-steps {
+    font-size: 0.95rem;
   }
   body.is-screen.has-tube .coach.has-3d .coach-move {
     margin: 0;

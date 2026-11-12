@@ -74,14 +74,16 @@ describe("a song as a show", () => {
   });
 
   it("江南Style: the build's half phrase counted 5 to 8, then the chorus from 1 on the song's beat 156", () => {
-    assert.deepEqual(songBeat(GANGNAM, 143), { move: "gangnam-bounce", count: 8 });
+    assert.deepEqual(songBeat(GANGNAM, 143), { move: "disco-point", count: 8 });
     assert.deepEqual(songBeat(GANGNAM, 144), { move: "horse-ride", count: 5 });
     assert.deepEqual(songBeat(GANGNAM, 147), { move: "horse-ride", count: 8 });
     assert.deepEqual(songBeat(GANGNAM, 148), { move: "horse-ride", count: 1 });
     assert.deepEqual(songBeat(GANGNAM, 156), { move: "horse-lasso", count: 1 });
     // the dance starts on the video's beat 8 (its grid: beat 0 at 373 ms, 132 BPM)
     assert.ok(Math.abs(GANGNAM.firstBeatMs + 148 * (60000 / 132) - (373 + 156 * (60000 / 132))) < 1);
-    assert.deepEqual(songMoves(GANGNAM), ["gangnam-bounce", "horse-ride", "hey-point", "horse-lasso", "sexy-lady", "gangnam-lunge", "chest-pop", "gangnam-pose"]);
+    assert.deepEqual(songMoves(GANGNAM), ["gangnam-bounce", "horse-ride", "hey-point", "disco-point", "horse-lasso", "sexy-lady", "gangnam-strut", "gangnam-pose"]);
+    // the chorus as the video dances it: "Eh~ Sexy Lady" is the hip shake, the line after it the bus's disco
+    assert.deepEqual([156, 164, 172, 180, 188, 196, 204, 212].map((b) => songBeat(GANGNAM, b - 8).move), ["horse-ride", "horse-lasso", "horse-ride", "horse-lasso", "sexy-lady", "disco-point", "sexy-lady", "horse-ride"]);
     const show = buildShow(GANGNAM.id, "dance")!;
     assert.equal(show.dance[148]!.move!.id, "horse-ride");
     assert.equal(show.dance[148]!.count, 1);
@@ -284,8 +286,66 @@ describe("a room playing a song", () => {
     assert.equal(s.d.state.routineStartAt, was + 180);
     const st = s.flush().out.find((o) => "msg" in o && o.msg.t === "state");
     assert.ok(st, "every page hears of it");
+    // (a video a minute and more late, an ad or stopped till someone tapped it: the dance follows it)
     s.handle(SPEAKER, { t: "songAt", startAt: was + 90_000 });
-    assert.equal(s.d.state.routineStartAt, was + 180, "a minute at most");
+    assert.equal(s.d.state.routineStartAt, was + 90_000, "however late");
+  });
+
+  it("the video stops: the dance waits for it (the coach and the phones too), then picks up where the video is", () => {
+    const { s, advance } = ready();
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: GANGNAM.id, mode: "dance" } });
+    s.handle(SPEAKER, { t: "songReady" });
+    advance(LEAD_IN_MS);
+    s.tick();
+    s.flush();
+    const was = s.d.state.routineStartAt!;
+    const r = s.d.routine!;
+    assert.ok(anchorsOf(s.d.state.phase, was, r), "playing");
+    // only the speaker says the video stopped
+    s.handle(ANN, { t: "songStall" });
+    assert.equal(s.d.routine!.heldAt, undefined);
+    advance(20_000);
+    s.handle(SPEAKER, { t: "songStall" });
+    const heldAt = s.d.routine!.heldAt!;
+    assert.ok(heldAt > 0);
+    assert.ok(s.flush().out.some((o) => "msg" in o && o.msg.t === "state" && o.msg.routine?.heldAt === heldAt), "every page hears of it");
+    assert.equal(anchorsOf(s.d.state.phase, s.d.state.routineStartAt, s.d.routine), null, "nothing plays while held");
+    s.handle(SPEAKER, { t: "songStall" });
+    assert.equal(s.d.routine!.heldAt, heldAt, "held once");
+    // the dance's end waits: long past where it would have been over, it isn't
+    advance(GANGNAM.beats * (60000 / GANGNAM.bpm) + 60_000);
+    s.tick();
+    assert.equal(s.d.state.phase, "dancing");
+    // the video plays again, a long way behind: the dance picks up from where the video is
+    const late = s.d.state.routineStartAt! + 70_000;
+    s.handle(SPEAKER, { t: "songAt", startAt: late });
+    assert.equal(s.d.routine!.heldAt, undefined);
+    assert.equal(s.d.state.routineStartAt, late);
+    assert.ok(anchorsOf(s.d.state.phase, s.d.state.routineStartAt, s.d.routine), "playing again");
+    assert.ok(s.flush().out.some((o) => "msg" in o && o.msg.t === "state" && o.msg.routine?.heldAt === undefined));
+    // and it ends with the song
+    advance(late - was + GANGNAM.beats * (60000 / GANGNAM.bpm) + 5_000);
+    s.tick();
+    assert.equal(s.d.state.phase, "results");
+  });
+
+  it("paused while the video was stuck: 继续 tells the video to play again (and a phone can't hold a dance)", () => {
+    const { s, advance } = ready();
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: GANGNAM.id, mode: "dance" } });
+    s.handle(SPEAKER, { t: "songReady" });
+    advance(LEAD_IN_MS);
+    s.tick();
+    advance(10_000);
+    s.handle(SPEAKER, { t: "songStall" });
+    s.handle(ANN, { t: "act", action: { type: "PAUSE" } });
+    assert.ok(s.d.routine!.pausedAt !== undefined && s.d.routine!.heldAt !== undefined);
+    // (paused: what the video says waits for 继续)
+    s.handle(SPEAKER, { t: "songAt", startAt: s.d.state.routineStartAt! + 5_000 });
+    assert.ok(s.d.routine!.heldAt !== undefined);
+    advance(3_000);
+    s.handle(ANN, { t: "act", action: { type: "RESUME" } });
+    assert.equal(s.d.routine!.pausedAt, undefined);
+    assert.equal(s.d.routine!.heldAt, undefined);
   });
 
   it("no going back a phrase in a song; the library's dances ignore the speaker's song clock", () => {

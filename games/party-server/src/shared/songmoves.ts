@@ -19,13 +19,13 @@ const m = (id: string, name_zh: string, name_en: string, body: Move["body"], nat
 
 export const SONG_MOVES: readonly Move[] = [
   // 江南Style
+  m("gangnam-bounce", "小PSY律动", "Little PSY groove", "full", 132),
   m("horse-ride", "骑马舞", "Horse ride", "full", 132),
-  m("horse-lasso", "甩绳", "Lasso", "full", 132),
-  m("sexy-lady", "叉腰甩腿", "Sexy lady", "full", 132),
-  m("gangnam-lunge", "弓步扭胯", "Lunge and roll", "full", 132),
-  m("chest-pop", "挺胸律动", "Chest pops", "arms", 132),
-  m("gangnam-bounce", "律动弹跳", "Bounce groove", "arms+steps", 132),
   m("hey-point", "嘿！指一下", "Point on hey", "arms+steps", 132),
+  m("disco-point", "蹦迪指天", "Disco point", "full", 132),
+  m("horse-lasso", "甩绳", "Lasso", "full", 132),
+  m("sexy-lady", "叉腰抖臀", "Sexy lady hip shake", "full", 132),
+  m("gangnam-strut", "嘚瑟走", "Strut", "full", 132),
   m("gangnam-pose", "收尾造型", "Final pose", "full", 132),
   // Macarena
   m("macarena-arms", "玛卡蕾娜手", "Macarena arms", "arms", 103),
