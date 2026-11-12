@@ -2,6 +2,9 @@
 import { CITIES, GROUPS } from "./data";
 
 export const START_CASH = 1500;
+/** The host's choices for the starting cash (更多规则); "normal" is the step-3 game. */
+export type CashChoice = "low" | "normal" | "high";
+export const START_CASH_CHOICES: Record<CashChoice, number> = { low: 1000, normal: START_CASH, high: 2000 };
 export const SALARY = 200;
 export const IMMIGRATION_FEE = 50;
 export const ROUTE_PRICE = 200;
@@ -81,6 +84,21 @@ export interface GameConfig {
   seatBonus: number[];
   /** Travel news (news.ts): off unless the room switches it on. */
   news?: boolean;
+  /** False: a city its visitor doesn't buy stays unsold instead of going to auction. */
+  auctions?: boolean;
+}
+
+/**
+ * The game's config with the host's starting cash: in a game to the target, the target moves with it,
+ * so the distance from the start to the target stays the step-3 game's.
+ */
+export function withStartCash(cfg: GameConfig, cash: number): GameConfig {
+  const diff = cash - cfg.startCash;
+  return {
+    ...cfg,
+    startCash: cash,
+    end: cfg.end.kind === "target" ? { kind: "target", amount: cfg.end.amount + diff } : cfg.end,
+  };
 }
 
 export function defaultConfig(teams = 4): GameConfig {

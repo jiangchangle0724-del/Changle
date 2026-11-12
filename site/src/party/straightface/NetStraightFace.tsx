@@ -21,7 +21,7 @@ import type { Level, StraightFaceView } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard } from "../common";
 import { BACKDROP } from "./art";
-import { Deltas, HoldPart, Lines, OrderStrip, PackPicker, PackStrip, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useSay, type RevealItem } from "./parts";
+import { Deltas, HoldPart, Lines, MasterArt, OrderStrip, PackPicker, PackStrip, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
 import { cue } from "./sounds";
 import { S } from "./text";
 import "../../styles/party.css";
@@ -73,7 +73,11 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
     cue.termUp();
   });
   useCue(phase === "reveal", () => cue.accuse());
-  useCue(phase === "finished", () => cue.finale());
+  const { burst, layer } = useConfetti();
+  useCue(phase === "finished", () => {
+    cue.finale();
+    window.setTimeout(() => burst({ y: 0.3, count: 220 }), 300);
+  });
   const iSpeak = phase === "explain" && !!t?.speakerId && t.speakerId === me;
   useYourTurn(iSpeak);
   useYourTurn(!!mine?.canBet);
@@ -173,7 +177,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
     const reading = !!mine && mine.role !== "judge" && mine.mayPeekNow;
     body = (
       <div className="stack sf-stage">
-        <TermCard term={t.term} pack={t.pack} level={t.level} lead={say(S.termUp)} big />
+        <TermCard term={t.term} pack={t.pack} level={t.level} lead={say(S.termUp)} big deal />
         {mine && mine.role && mine.role !== "judge" ? (
           <HoldPart view={mine} onFirst={() => setLooked(true)} />
         ) : (
@@ -390,14 +394,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
       { key: "pre", node: <Lines lines={said.preLines} className="sf-pre" /> },
       {
         key: "honest",
-        node: (
-          <div className="sf-honest">
-            <RoleArt role="honest" size={96} />
-            <span className="hint">{say(S.honestWas)}</span>
-            {face(rv.honestId, 64)}
-            <strong>{who(rv.honestId)}</strong>
-          </div>
-        ),
+        node: <Verdict face={face(rv.honestId, 56)} name={who(rv.honestId)} right={right} onRight={() => burst({ x: 0.7, y: 0.55 })} />,
       },
       {
         key: "points",
@@ -424,7 +421,7 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
         />
         {shown && v.master === me && (
           <div className="panel sf-panel sf-master">
-            <RoleArt role="bluffer" size={80} className="sf-master-art" />
+            <MasterArt size={88} />
             <p className="sup-ask">{say(S.youMaster, { penalty: penaltyWord })}</p>
             <PickOne people={v.players.filter((id) => id !== me).map((id) => ({ id, name: nameOf(id) }))} face={face} size={50} onPick={(id) => g("pick", { target: id })} />
           </div>
@@ -513,9 +510,12 @@ export default function NetStraightFace({ v, onLeave }: { v: StraightFaceView; o
         {t && phase !== "setup" && phase !== "finished" && (
           <p className="sf-net-round hint tabular">{say(S.round, { n: Math.max(1, phase === "between" || phase === "lobby" ? round + 1 : round) })} / {t.roundsPlanned}</p>
         )}
-        {body}
+        <div className="sf-phase" key={`${phase}-${round}`}>
+          {body}
+        </div>
         {actions && <div className="sf-net-actions">{actions}</div>}
         <HostRow>{host}</HostRow>
+        {layer}
       </div>
     </NetFrame>
   );

@@ -131,6 +131,21 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
             <small>{t("muteHint")}</small>
           </span>
         </label>
+        <label class={`radio${prefs.muted ? " off" : ""}`}>
+          <input
+            type="checkbox"
+            checked={prefs.music && !prefs.muted}
+            disabled={prefs.muted}
+            onChange={(e) => {
+              prefs.music = (e.target as HTMLInputElement).checked;
+              refresh();
+            }}
+          />
+          <span>
+            <b>{t("musicSetting")}</b>
+            <small>{t("musicHint")}</small>
+          </span>
+        </label>
         {fs.offer === "toggle" && (
           <label class="radio">
             <input type="checkbox" checked={fs.on} onChange={() => void toggleFullscreen()} />

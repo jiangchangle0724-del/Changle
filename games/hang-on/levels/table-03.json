@@ -1,0 +1,73 @@
+{
+  "id": "table-03",
+  "world": "table",
+  "name": {
+    "zh": "筷子桥",
+    "en": "Chopstick Bridge"
+  },
+  "teaches": "swing",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 950,
+    "y": 370,
+    "w": 290,
+    "h": 160
+  },
+  "checkpoints": [],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 330,
+      "h": 160,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 380,
+      "y": 530,
+      "w": 180,
+      "h": 22,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 610,
+      "y": 500,
+      "w": 180,
+      "h": 22,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 840,
+      "y": 530,
+      "w": 400,
+      "h": 190,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 370,
+      "w": 40,
+      "h": 350,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-03.json"
+}

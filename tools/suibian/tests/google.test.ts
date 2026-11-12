@@ -43,7 +43,7 @@ const golden = {
   reservable: true,
 };
 
-test("search: two Nearby Search calls, the right headers and body, results merged", async () => {
+test("search: a short walk is two Nearby Search calls, the right headers and body, results merged", async () => {
   mockFetch([
     [
       /places:searchNearby$/,
@@ -54,7 +54,7 @@ test("search: two Nearby Search calls, the right headers and body, results merge
       },
     ],
   ]);
-  const places = await searchGoogle("KEY", center, "drive15", "en");
+  const places = await searchGoogle("KEY", center, "walk10", "en");
   assert.equal(calls.length, 2);
   for (const c of calls) {
     const h = new Headers(c.init?.headers);
@@ -64,7 +64,7 @@ test("search: two Nearby Search calls, the right headers and body, results merge
     assert.deepEqual(body.includedTypes, ["restaurant"]);
     assert.equal(body.maxResultCount, 20);
     assert.equal(body.languageCode, "en");
-    assert.deepEqual(body.locationRestriction.circle, { center: { latitude: center.lat, longitude: center.lng }, radius: 6000 });
+    assert.deepEqual(body.locationRestriction.circle, { center: { latitude: center.lat, longitude: center.lng }, radius: 800 });
   }
   assert.deepEqual(
     calls.map((c) => JSON.parse(String(c.init?.body)).rankPreference).sort(),
@@ -91,6 +91,55 @@ test("search: Chinese names when the host uses Chinese", async () => {
 test("search: a Google error (bad key, API not enabled) is thrown, for the room to report", async () => {
   mockFetch([[/searchNearby/, () => json({ error: { code: 403, message: "Places API (New) has not been used in project" } }, 403)]]);
   await assert.rejects(searchGoogle("KEY", center, "walk10", "zh"), /google 403/);
+});
+
+test("search: a drive asks the whole area and three parts of it, so more than the same 40 come in", async () => {
+  mockFetch([
+    [
+      /searchNearby/,
+      (c) => {
+        // Each search finds its own place, as different corners of a big area would.
+        const { latitude, longitude } = JSON.parse(String(c.init?.body)).locationRestriction.circle.center;
+        return json({ places: [{ ...golden, id: `ChIJ${latitude.toFixed(5)}_${longitude.toFixed(5)}`, location: { latitude, longitude } }] });
+      },
+    ],
+  ]);
+  const places = await searchGoogle("KEY", center, "drive15", "en", { random: () => 0.25 });
+  assert.equal(calls.length, 4);
+  const bodies = calls.map((c) => JSON.parse(String(c.init?.body)));
+  assert.deepEqual(bodies[0].locationRestriction.circle, { center: { latitude: center.lat, longitude: center.lng }, radius: 6000 });
+  for (const b of bodies.slice(1)) {
+    assert.equal(b.rankPreference, "POPULARITY");
+    assert.equal(b.locationRestriction.circle.radius, 3300);
+  }
+  assert.equal(places.length, 4);
+});
+
+test("search: one person's side of the menu adds a search for that side's restaurants", async () => {
+  mockFetch([[/searchNearby/, () => json({ places: [golden] })]]);
+  const places = await searchGoogle("KEY", center, "walk10", "zh", { side: "chinese" });
+  assert.equal(calls.length, 3);
+  const side = JSON.parse(String(calls[2].init?.body));
+  assert.ok(side.includedTypes.includes("dim_sum_restaurant"));
+  assert.equal(side.rankPreference, "POPULARITY");
+  assert.equal(places.length, 1, "the same place from three searches, once");
+});
+
+test("search: one search failing (a daily cap running out) keeps what the others found", async () => {
+  mockFetch([
+    [
+      /searchNearby/,
+      (c) => (JSON.parse(String(c.init?.body)).rankPreference === "DISTANCE" ? json({ error: { code: 429 } }, 429) : json({ places: [golden] })),
+    ],
+  ]);
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    const places = await searchGoogle("KEY", center, "walk10", "en");
+    assert.deepEqual(places.map((p) => p.id), [golden.id]);
+  } finally {
+    console.error = quiet;
+  }
 });
 
 test("place from Google: missing fields stay missing, halal from the name or description", () => {

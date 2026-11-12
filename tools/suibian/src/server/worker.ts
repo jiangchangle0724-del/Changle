@@ -200,16 +200,18 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
   const google = usesGoogle(env);
   const key = env.GOOGLE_PLACES_KEY!;
   const now = Date.now();
+  // Places this person was shown lately give way to new ones (read while Google searches).
+  const seenLately = (me ? user(env, me.sub).recent() : Promise.resolve([] as string[])).catch(() => [] as string[]);
   let places: Place[];
   try {
-    places = google ? await searchGoogle(key, center, range, lang) : demoPlaces(center, range, now);
+    places = google ? await searchGoogle(key, center, range, lang, { side: answers.side, random: randomUnit }) : demoPlaces(center, range, now);
   } catch (e) {
     console.error("places", String(e));
     return json({ error: "searchFailed" } satisfies SoloResponse, 502);
   }
   if (!places.length) return json({ error: "nothingNearby", demo: !google } satisfies SoloResponse);
   if (google) await Promise.all(places.map(async (p) => (p.ours = (await env.PLACES.get(env.PLACES.idFromName(p.id)).get()) ?? undefined)));
-  const { ids, relaxed } = soloPick({ places, answers, limits, center, range, now });
+  const { ids, relaxed } = soloPick({ places, answers, limits, center, range, now, seen: await seenLately, random: randomUnit });
   if (!ids.length) return json({ error: "nothingFits", demo: !google } satisfies SoloResponse);
   const run: SoloRun = { places: ids.map((id) => places.find((p) => p.id === id)!), center, range, limits, answers, google };
   const cards = await soloCards(env, run, 0);
@@ -217,7 +219,7 @@ async function solo(req: Request, env: Env, me: { sub: string } | null): Promise
   // The rest wait for "show me others"; only places shown can become the pick to rate (/api/me/last).
   // Without sign-in (no accounts on this deployment) they wait under a one-off token instead.
   let token: string | undefined;
-  if (me) await user(env, me.sub).setSolo(ids, cards.length, run);
+  if (me) await user(env, me.sub).setSolo(ids, cards.length, run, true);
   else if (more) {
     token = crypto.randomUUID();
     await user(env, soloKey(token)).setSolo(ids, cards.length, run);
@@ -267,7 +269,7 @@ async function soloMore(req: Request, env: Env, me: { sub: string } | null): Pro
   const s = await u.solo();
   if (!s?.run || Date.now() - s.at > SOLO_RUN_MS) return json({ error: "expired" } satisfies SoloResponse, 410);
   const cards = await soloCards(env, s.run, s.shown);
-  await u.showMore(cards.length);
+  await u.showMore(cards.length, !!me);
   return json({ cards, more: s.shown + cards.length < s.ids.length, demo: !s.run.google } satisfies SoloResponse);
 }
 
@@ -389,7 +391,7 @@ export class RoomDO extends DurableObject<Env> {
     const key = room.st.demo ? undefined : this.env.GOOGLE_PLACES_KEY;
     try {
       if (want.k === "search") {
-        const places = key ? await searchGoogle(key, want.center, want.range, want.lang) : demoPlaces(want.center, want.range, Date.now());
+        const places = key ? await searchGoogle(key, want.center, want.range, want.lang, { random: randomUnit }) : demoPlaces(want.center, want.range, Date.now());
         // Our own numbers, for real places only (demo ones are made up).
         if (key) await Promise.all(places.map(async (p: Place) => (p.ours = (await this.env.PLACES.get(this.env.PLACES.idFromName(p.id)).get()) ?? undefined)));
         if (this.room === room) room.found(places);
@@ -439,6 +441,11 @@ type Last = { code?: string; place?: string; name: string; at: number; rated?: b
  * rated, and (for "show me others") what it needs to make the next cards. Replaced by the next search.
  */
 type Solo = { ids: string[]; shown: number; rated?: boolean; at: number; run?: SoloRun };
+/** Places shown to this person lately, newest first: [Google place id, when]. */
+type Seen = [string, number][];
+/** How long a shown place stays "seen", and how many are kept. */
+const SEEN_MS = 14 * 24 * 3600_000;
+const SEEN_MAX = 60;
 
 /** One logged-in person: their diet card, last table or pick, and today's count. */
 export class UserDO extends DurableObject<Env> {
@@ -471,9 +478,13 @@ export class UserDO extends DurableObject<Env> {
     await this.ctx.storage.put("last", last);
   }
 
-  /** A new solo search: the places it ranked, how many the first answer showed, and what the rest need. */
-  async setSolo(ids: string[], shown: number, run: SoloRun) {
+  /**
+   * A new solo search: the places it ranked, how many the first answer showed, and what the rest need.
+   * `remember`: an account (not a one-off token), so the places shown count as seen (see recent()).
+   */
+  async setSolo(ids: string[], shown: number, run: SoloRun, remember = false) {
     await this.ctx.storage.put("solo", { ids, shown, at: Date.now(), run } satisfies Solo);
+    if (remember) await this.remember(ids.slice(0, shown));
   }
 
   async solo(): Promise<Solo | null> {
@@ -481,9 +492,24 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** "Show me others" showed `n` more. */
-  async showMore(n: number) {
+  async showMore(n: number, remember = false) {
     const s = await this.ctx.storage.get<Solo>("solo");
-    if (s) await this.ctx.storage.put("solo", { ...s, shown: Math.min(s.ids.length, s.shown + n) });
+    if (!s) return;
+    await this.ctx.storage.put("solo", { ...s, shown: Math.min(s.ids.length, s.shown + n) });
+    if (remember) await this.remember(s.ids.slice(s.shown, s.shown + n));
+  }
+
+  /** Google ids of the places this person was shown in the last two weeks, so a new search shows others first. */
+  async recent(): Promise<string[]> {
+    const now = Date.now();
+    return ((await this.ctx.storage.get<Seen>("seen")) ?? []).filter(([, at]) => now - at < SEEN_MS).map(([id]) => id);
+  }
+
+  private async remember(ids: string[]) {
+    if (!ids.length) return;
+    const now = Date.now();
+    const kept = ((await this.ctx.storage.get<Seen>("seen")) ?? []).filter(([id, at]) => now - at < SEEN_MS && !ids.includes(id));
+    await this.ctx.storage.put("seen", [...ids.map((id): [string, number] => [id, now]), ...kept].slice(0, SEEN_MAX));
   }
 
   /** "就它了": becomes the pick to ask about, if the last solo search showed it. Choosing it again keeps it as it was (rated or not). */

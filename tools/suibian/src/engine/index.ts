@@ -6,3 +6,4 @@ export * from "./wait";
 export * from "./pick";
 export * from "./vote";
 export * from "./solo";
+export * from "./search";

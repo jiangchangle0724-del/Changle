@@ -44,6 +44,17 @@ like a table's rating.
 any distance (Google's widest circle, 50 km, which covers Greater Vancouver from anywhere in the
 city; places are then picked by popularity and distance).
 
+**Where the places come from** (`src/engine/search.ts`). Google returns at most 20 restaurants per
+search, so asking one circle for its most popular and its nearest gave the same 40 places every
+time, and in a big area like Burnaby most restaurants never came up. Each table or solo pick now
+runs up to four searches: the whole circle's most popular; walking, also the nearest; for one person
+who chose a side of the menu, that side's restaurants alone; and with what's left, smaller circles
+inside the area (walk 15 minutes and up, every drive), turned a different way each time, or for any
+distance, other neighbourhoods picked at random. A search that fails doesn't lose the others. Then a
+small random nudge lets places that score about the same take turns, and for someone signed in,
+places their solo picks showed them in the last two weeks step back (about two-thirds of a Google
+star), so the next pick shows others first.
+
 ## Cards: descriptions, lists and picks
 
 Each card can carry more than Google's numbers, all from free sources:
@@ -58,6 +69,11 @@ Each card can carry more than Google's numbers, all from free sources:
 * **Steve's pick**: a line of why, in Chinese and English, and links to food-blogger posts (小红书,
   抖音, TikTok, Instagram, YouTube, blogs), from `src/data/picks.json`.
 * **Our users' rating**: thumbs-up share from the post-meal ratings, once three people have rated.
+* **Order delivery** (`src/client/delivery.ts`): a fold under call and map with Uber Eats, DoorDash,
+  饭团 Fantuan and Skip. Uber Eats (`ubereats.com/search?q=`) and DoorDash
+  (`doordash.com/en-CA/search/store/…`) open a search for the place, by the English part of its
+  name when Google gives both. Skip and Fantuan have no search link (both ask for an address
+  first), so the tap copies the name and opens their site. The links send no referrer.
 
 There is deliberately no combined score: Google's terms don't let us turn its ratings into a rating
 of our own, and TikTok and Instagram have no API that can search posts by restaurant (scraping them
@@ -102,7 +118,7 @@ street number ("150-8888 River Rd") still match.
 | Folder | What it is |
 | --- | --- |
 | `src/base.ts` | `BASE = "/eat"`: where the tool lives on changle.ca. |
-| `src/engine` | The rules: cuisines, diet limits (with the draft severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
+| `src/engine` | The rules: cuisines, diet limits (with the severe-allergy table in `limits.ts`), wait estimates, picking cards, counting votes. No network. |
 | `src/room` | One table from lobby to result. No network inside, so it's easy to test. |
 | `src/server` | The Cloudflare Worker: rooms (one Durable Object each), Google Places, Google sign-in, users' diet cards, our per-restaurant ratings. |
 | `src/client` | The phone pages (Preact), Chinese and English: home, a table, rating, picking alone (`ui/Solo.tsx`), and the privacy and terms pages (`privacy.html`, `terms.html`, plain HTML at `/eat/privacy` and `/eat/terms`). |
@@ -179,8 +195,8 @@ in the browser; joining a table works in WeChat as before.
    server, never sent to phones).
 4. Billing → Budgets & alerts: a monthly budget (e.g. CA$20) with email alerts at 50% and 90%.
 5. APIs & Services → Places API (New) → Quotas: cap requests per day, e.g. Nearby Search 200,
-   Place Details 600, Place Photos 600. That is about 100 tables a day; past it, searches fail
-   until tomorrow instead of costing more.
+   Place Details 600, Place Photos 600. Each table or solo pick runs up to four searches, so that
+   is about 50 a day; past it, searches fail until tomorrow instead of costing more.
 6. Cloudflare: add Secret `GOOGLE_PLACES_KEY`.
 
 Check: open changle.ca/eat; the yellow "示例数据" banner is gone. Start a table where you are: round 1
@@ -201,7 +217,8 @@ be sure.
   the table: `TIMING` in `src/room/protocol.ts`. People per table, searches per table and
   ratings per table: `MAX_MEMBERS`, `MAX_SEARCHES` and `RATING_SLACK` there.
 * Score weights, cards per table, max per cuisine: `src/engine/pick.ts`.
-* Severe-allergy table (**draft, please review**): `SEVERE_RULES_OUT` in `src/engine/limits.ts`.
+* Severe-allergy table: `SEVERE_RULES_OUT` in `src/engine/limits.ts` (reviewed with the owner on
+  2026-11-05; every allergen now rules out the cuisines built on it, with the reason beside it).
 * Wait-estimate rules (peak hours, popularity): `src/engine/wait.ts`.
 * Uses per account per day (tables and solo picks together): `ROOMS_PER_DAY` in `src/server/worker.ts`.
 * How far each range reaches: `RANGES` and the tabs' `RANGE_MODES` in `src/engine/clock.ts`.

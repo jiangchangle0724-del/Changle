@@ -75,6 +75,8 @@ export const S = {
   truth: t("真释义", "The real meaning"),
   funFact: t("冷知识", "Fun fact"),
   honestWas: t("老实人是", "The honest one was"),
+  sawThrough: t("看穿了！", "Spot on!"),
+  wasFooled: t("被骗了！", "Fooled!"),
   skip: t("直接看完", "Show everything"),
   nextRound: t("下一轮", "Next round"),
   seeResult: t("看结果", "See the result"),

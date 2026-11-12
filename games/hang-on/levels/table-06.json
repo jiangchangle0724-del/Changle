@@ -1,0 +1,66 @@
+{
+  "id": "table-06",
+  "world": "table",
+  "name": {
+    "zh": "一串汤圆过大锅",
+    "en": "Dumpling Chain"
+  },
+  "teaches": "chain",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 536
+  },
+  "goal": {
+    "x": 1050,
+    "y": 220,
+    "w": 190,
+    "h": 160
+  },
+  "checkpoints": [],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 520,
+      "h": 160,
+      "material": "cloth",
+      "grab": false
+    },
+    {
+      "kind": "peg",
+      "x": 260,
+      "y": 340,
+      "w": 470,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 800,
+      "y": 380,
+      "w": 440,
+      "h": 340,
+      "material": "ceramic"
+    },
+    {
+      "kind": "wall",
+      "x": 1240,
+      "y": 200,
+      "w": 40,
+      "h": 520,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-06.json"
+}

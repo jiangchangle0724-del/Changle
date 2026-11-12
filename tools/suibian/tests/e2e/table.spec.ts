@@ -187,8 +187,18 @@ test("one person picks alone: five questions, three places with reasons, another
   await cards.first().getByRole("button", { name: "就它了" }).click();
   await expect(page.getByRole("heading", { name: "就吃这家！" })).toBeVisible();
   await expect(page.getByRole("button", { name: "发给朋友" })).toBeVisible();
-  // The diet card is saved for next time, but not this search's budget.
-  const saved = (await page.evaluate(() => fetch("/eat/api/me").then((r) => r.json()))) as { card: { budget: number }; last: { place: string } };
+  // Or order it in: the fold on the card opens the delivery apps, without our address as the referrer.
+  const delivery = page.locator(".delivery");
+  await delivery.getByText("🛵 点外卖").click();
+  await expect(delivery.locator("[data-app=ubereats]")).toHaveAttribute("href", /^https:\/\/www\.ubereats\.com\/search\?q=.+/);
+  await expect(delivery.locator("[data-app=doordash]")).toHaveAttribute("href", /^https:\/\/www\.doordash\.com\/en-CA\/search\/store\/.+/);
+  await expect(delivery.locator("[data-app=fantuan]")).toHaveText("饭团");
+  for (const app of ["ubereats", "doordash", "fantuan", "skip"]) await expect(delivery.locator(`[data-app=${app}]`)).toHaveAttribute("rel", "noopener noreferrer");
+  // The pick is saved in the background: wait until the account has it. The diet card is saved for
+  // next time, but not this search's budget.
+  const account = () => page.evaluate(() => fetch("/eat/api/me").then((r) => r.json() as Promise<{ card: { budget: number }; last: { place: string } | null }>));
+  await expect.poll(async () => (await account()).last?.place ?? null).not.toBeNull();
+  const saved = (await account()) as { card: { budget: number }; last: { place: string } };
   expect(saved.card.budget).toBe(0);
 
   // Only your own last pick can be rated: any other place is refused.
@@ -251,4 +261,27 @@ test("the privacy and terms pages are public and linked from the home page", asy
   await expect(page).toHaveURL(/\/eat\/terms$/);
   await page.getByRole("link", { name: /随便 · Whatever's Fine/ }).click();
   await expect(page).toHaveURL(/\/eat\/$/);
+});
+
+test("picking alone again: places shown last time step back, so new ones come first", async ({ browser }) => {
+  const me = await phone(browser, "again");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `again-${Date.now()}`, name: "小林" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  // Western side, Richmond, 25 minutes' drive: six demo places, three of them shown each time.
+  const search = () =>
+    page.evaluate(() =>
+      fetch("/eat/api/solo", {
+        method: "POST",
+        body: JSON.stringify({ center: { lat: 49.1724, lng: -123.1366 }, range: "drive25", answers: { mood: "any", side: "west" }, limits: {}, lang: "zh" }),
+      })
+        .then((r) => r.json() as Promise<{ cards: { place: { id: string } }[] }>)
+        .then((r) => r.cards.map((c) => c.place.id)),
+    );
+  const first = await search();
+  const second = await search();
+  expect(first).toHaveLength(3);
+  expect(second).toHaveLength(3);
+  expect(first).not.toContain(second[0]);
+  expect(me.errors).toEqual([]);
 });

@@ -18,7 +18,9 @@ import { gzipSync } from "node:zlib";
 // KB, gzip. JS was 150 until A6 step 2 took GSAP out (147.7 → 115.7). 118 → 119 with 最后一张 (2026-11-05):
 // main stood at 117.96 and a new game's card (its words in two languages, its icon, its lazy route) adds
 // about 0.6, so no new game fitted any more; the game itself still loads only when it starts.
-const BUDGET = { js: 119, css: 22 };
+// 119 → 120 with 一起跳 going live (2026-11-05): main stood at 118.9 and its card (two languages, the
+// stage and join buttons) adds 0.3; the game is another Worker, so nothing of it loads here at all.
+const BUDGET = { js: 120, css: 22 };
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const html = readFileSync(join(dist, "index.html"), "utf8");

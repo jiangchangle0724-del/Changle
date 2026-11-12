@@ -1,0 +1,94 @@
+{
+  "id": "van-08",
+  "world": "van",
+  "name": {
+    "zh": "图腾向上",
+    "en": "Totem Ascent"
+  },
+  "teaches": "climb",
+  "w": 1280,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 950,
+    "y": 0,
+    "w": 290,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 760,
+      "y": 216
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 350,
+      "h": 160,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 350,
+      "y": 480,
+      "w": 120,
+      "h": 240,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 470,
+      "y": 400,
+      "w": 120,
+      "h": 320,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 590,
+      "y": 320,
+      "w": 120,
+      "h": 400,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 710,
+      "y": 240,
+      "w": 120,
+      "h": 480,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 830,
+      "y": 160,
+      "w": 410,
+      "h": 560,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 0,
+      "w": 40,
+      "h": 720,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-08.json"
+}

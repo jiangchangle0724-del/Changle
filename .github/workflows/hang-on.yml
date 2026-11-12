@@ -1,5 +1,5 @@
 # 抓紧了 · Hang On：物理的 20 条手感检查和附加检查、房间逻辑、类型检查、页面构建、法律线
-# （docs/ 之外不出现原版的名字），以及联机检查（一台主机页加两个手柄页对着本地的房间服务：
+# （docs/ 之外不出现原版的名字）、12 关回放，以及联机检查（一台主机页加两个手柄页对着本地的房间服务：
 # 直连、绕路、掐线 5 秒内回来）。只在 games/hang-on 变动时跑。
 name: hang-on
 
@@ -35,6 +35,8 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run ip-check
+      # 12 关的回放：全员到终点、用时在 par 的 0.5 到 2 倍、第 6 关真成链、第 10 关真丢人（scripts/run-levels.mjs）
+      - run: npm run levels
 
   link:
     runs-on: ubuntu-latest

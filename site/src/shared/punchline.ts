@@ -8,6 +8,32 @@
 export const MAX_WRITERS = 8;
 export const ROUNDS = 3;
 
+/**
+ * Who writes a game, in seat order: everyone, up to eight. Past eight, playing again gives the pen
+ * first to whoever only watched the last game (`last` is who wrote it), then to those who have
+ * written the fewest games (`written`), then by seat; the rest watch and vote. With at most 15 at a
+ * table, everyone who watched writes the next game.
+ */
+export function nextWriters(ids: string[], last: string[] | null, written: Record<string, number>): string[] {
+  if (ids.length <= MAX_WRITERS || !last) return ids.slice(0, MAX_WRITERS);
+  const wrote = new Set(last);
+  const seat = new Map(ids.map((id, i) => [id, i]));
+  const pick = new Set(
+    ids
+      .slice()
+      .sort((a, b) => Number(wrote.has(a)) - Number(wrote.has(b)) || (written[a] ?? 0) - (written[b] ?? 0) || seat.get(a)! - seat.get(b)!)
+      .slice(0, MAX_WRITERS),
+  );
+  return ids.filter((id) => pick.has(id));
+}
+
+/** Games written so far, counting a new game's writers. */
+export function countWriters(written: Record<string, number>, writers: string[]): Record<string, number> {
+  const next = { ...written };
+  for (const id of writers) next[id] = (next[id] ?? 0) + 1;
+  return next;
+}
+
 export const WRITE_MS = 90_000;
 export const FINAL_WRITE_MS = 75_000;
 export const VOTE_MS = 20_000;

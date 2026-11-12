@@ -26,6 +26,9 @@ import judge from "./art/roles/judge.webp";
 import honest from "./art/roles/honest.webp";
 import bluffer from "./art/roles/bluffer.webp";
 import backdrop from "./art/backdrop.webp";
+import right from "./art/verdict/right.webp";
+import fooled from "./art/verdict/fooled.webp";
+import master from "./art/verdict/master.webp";
 
 export const PACK_ART: Record<Pack, string> = {
   zi, fangyan, chengyu, caiming, xiehouyu, zhongyao, diming, laowujian, wangluo,
@@ -39,3 +42,6 @@ export const ALL_PACKS_ART = all;
 export const ROLE_ART = { judge, honest, bluffer } as const;
 
 export const BACKDROP = backdrop;
+
+/** The reveal's verdict: the judge saw through it, the judge was fooled, the bluffer who fooled them celebrating. */
+export const VERDICT_ART = { right, fooled, master } as const;

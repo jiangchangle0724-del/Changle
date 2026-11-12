@@ -43,19 +43,58 @@ instead, `site/src/party/dj/`.)
   screen on), the room code and QR code, the players (a phone's 我在 lights its name),
   calibration (8 clicks 1.2 s apart, the host's taps in speaker time, `calibrateFromTaps()`; three
   tries). While a dance plays: the beat (`src/client/synth.ts`: made with Web Audio, a
-  four-on-the-floor groove until the dances have songs, task A5), and the coach in words: the stage,
-  the move in both languages, the 8-count, the next move 2 beats ahead, the floor, each dancer's
-  meter. Then the results.
+  four-on-the-floor groove until the dances have songs, task A5), the 3D coach dancing each move on
+  the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
+  the 8-count, the next move 2 beats ahead, the floor. Along the bottom, everyone's little dancer
+  (`src/client/coach/crowd.ts`): a neon stick figure in their colour doing the coach's move as hard
+  as they are moving, from their phone's `pulse` (8 a second at most: the sensor's energy, or their
+  taps, and each beat's verdict; the room passes it to the speaker and keeps nothing), sparking on
+  each beat they hit. Sounds for the room (`synth.ts`): a pop for a hit (a note higher for each in
+  a row), bells every 8 beats of the floor's streak, a boom with the fireworks, a fanfare for the
+  results. Then the results.
+- **The 3D coach** (`src/client/coach/`): a cartoon dance teacher built in three.js from rounded
+  shapes (no model file, nothing to license), on a skeleton named like Mixamo's. Each move of the
+  library is a loop of key frames on the beat (`moves.ts`: hands and feet as positions, the way a
+  teacher says it; `pose.ts`: the pose, blending, the bounce on every beat); the arms and legs reach
+  them by two-bone IK (`rig.ts`). It's everyone's mirror: what it does on the screen's left, the
+  players do on their left. The stage (`stage.ts`): lights, a floor ring on the beat, trails behind
+  the hands, footprints where the feet land, fireworks with the floor's. It draws only with a
+  graphics chip (`index.ts`); in software, or when its first 90 frames run slower than 20 a second,
+  the page keeps the coach in words. Reduced motion: it still dances (that's the lesson), the
+  flashes and swinging lights stop.
+- **Songs** (`src/shared/songs.ts`): famous songs played on the TV from YouTube's own player
+  (`src/client/tube.ts`: in sight in the top left corner, never covered, never downloaded; the
+  same rules as 打碟's player), each danced with a few of the library's easiest moves, two
+  8-counts each, round and round (fast songs at half their tempo). The host picks one like a
+  dance. The room waits for the speaker to have the video held at its start (`songReady`; on
+  Safari not before someone has tapped the video once, so it can play with sound), then the video
+  plays from its start: its intro, a count-in on its last 4 beats, the dance. While it plays, the
+  speaker reads the video's clock every 4 ms and tells the room where the song's first beat really
+  is (`songAt`); more than 20 ms off, the room moves the dance's beat there (party-base's
+  `BEAT_MOVED`) and every page follows. YouTube refusing the video (`songFailed`): back to the
+  lobby, and the phones say why. No 这一段再来 in a song.
+- **歌曲对拍 / the songbook**: where a song's beat starts in its video can't be guessed well enough,
+  so each song is tapped along to once on the speaker page (the lobby's 歌曲对拍): play it, and from
+  its first strong beat tap 16 times (a tap a beat, or a tap every half beat for the fast ones).
+  `src/shared/tapalong.ts` works out the first beat (the TV's calibrated delay taken out);
+  `POST /party/api/songs/ID` keeps it in the songbook (`src/server/songbook.ts`, one Durable Object
+  for the whole site; `src/server/tapped.ts` checks it), for every room from then on. A song
+  nobody has tapped along to can't be started (`song_untapped`); the host's list says so.
+- **`/party/moves`** (`src/client/moves.ts`): the 20 moves, each danced by the coach at its own
+  tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
+  `?still=<beat>` stops it there, `?gl=any` draws it in a browser without a graphics chip (the
+  checks' Chromium); `window.coachShow(id, beat)` and `coachTick(id, beat, count, ms)` are for
+  photographing it.
 - **`/party/join`**, a phone (`src/client/join.ts`): code and name, clock sync, a flash on every
-  beat the room hears, 我在; while a dance plays, the move, the count, what's next and the big
-  button; the player's own results. For the host: calibrate, pick a dance, steer it, the 120 BPM
+  beat the room hears, 我在, the motion sensor's switch (开体感); while a dance plays, the move, the
+  count, what's next, the big button and how hard you're moving; the player's own results. For the host: calibrate, pick a dance, steer it, the 120 BPM
   metronome (the timing test in `docs/field-notes/2026-11-01.md`), end the room.
 - **测量 / Timing** on both pages: the speaker's clock in big digits, for the field test (a photo
   of the two screens side by side shows the error).
 
-These pages are plain on purpose: the real speaker screen and phone screen are Codex's cards C3
-and C4 (`docs/codex-tasks/dance-C3-speaker-screen.md`, `dance-C4-phone-screen.md`). The words
-both pages show are in `src/client/words.ts`.
+The pages are still plain around the coach: the real speaker screen and phone screen are cards C3
+and C4 (`docs/codex-tasks/dance-C3-speaker-screen.md`, `dance-C4-phone-screen.md`), to be rewritten
+around the coach. The words the pages show are in `src/client/words.ts`.
 
 ## Run it
 
@@ -80,13 +119,27 @@ results, the same dance again with 这一段再来 in the middle while Bob's con
 when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so run the Worker as
 `npm run build && npx wrangler dev --var ALLOW_TEST_SETTINGS:1`. About two and a half minutes.
 
+`scripts/song-yt-check.cjs` (the same Worker) dances a song from YouTube with a pretend YouTube
+player (real YouTube won't play in a data centre's browser: error 150). It starts 300 ms late and
+its clock answers four times a second, like the real one's. Checked: the songbook API, the room
+waiting for the video, the beat moved to the video's (within 25 ms), Ann tapping on the video's
+real beats on the beat, the video gone in the lobby, and 歌曲对拍 finding another song's first beat
+(within 20 ms). About a minute.
+
+`scripts/motion-check.cjs` (the same Worker) dances the short test dance with the motion sensor:
+Ann's phone gets a pretend hand (a bump of acceleration on every beat she hears), Bob taps late,
+Cat stands still; the speaker page draws the 3D coach in software (`?gl=any`). Checked: the pulses
+reach the TV, Ann's moves count on the beat, Cat is in no results. It saves screenshots of the TV
+in the folder given. About a minute and a half.
+
 ## Live
 
 Connected to Cloudflare on 1 November 2026: like 随便, merging into `main` deploys it. The Worker
 `party` (Workers Builds; the name must match `name` in `wrangler.jsonc`): root directory
-`/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy`, build
-watch paths `games/party-server/*` and `games/party-base/*` (and, since the pages and the room read
-the move library, `games/dance/*`: to add in the Cloudflare settings), API token "suibian build
+`/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy` (it
+also makes the songbook's Durable Object, migration `v2`, the first time), build
+watch paths `games/party-server/*`, `games/party-base/*` and `games/dance/*` (the pages and the room
+read the move library; `games/dance/*` added on 6 November), API token "suibian build
 token". Builds for preview branches are off (`wrangler preview` needs a `previews` block, and the
 Durable Object isn't in previews), so PRs get no failed Cloudflare check. No secrets, no database
 (the Durable Object comes with the deploy). `changle.ca/party/screen` and `changle.ca/party/join`

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { UI } from "../../i18n";
-import { DRAW_GUESS_MAX, type DrawView } from "../../shared/protocol";
+import { DRAW_GUESS_MAX, DRAW_ROUND_MS, type DrawView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { NetPlate } from "../NetPlate";
@@ -11,8 +11,9 @@ import { useRoom } from "../RoomContext";
 import { usePlayers, useWatching } from "../players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "./common";
 import { hintBlanks, hintSay } from "./drawHint";
+import "../../styles/draw.css";
 
-const ROUND_S = 80;
+const ROUND_S = DRAW_ROUND_MS / 1000;
 
 export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   const { me, isHost, g, nameOf, offset, room } = useRoom();
@@ -48,8 +49,8 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   const rules = (
     <p>
       {lang === "zh"
-        ? `轮到的人选难度，只有他的手机能看到词，然后在画板上画，八十秒。他画的每一笔都实时出现在大家的手机上。其他人在自己手机上打字猜，第一个猜中的得分最多，画的人也得分。没人猜中，画的人${custom ? "受罚" : "喝"}。`
-        : `The drawer picks a difficulty; only their phone shows the word. They draw on the board for eighty seconds and every stroke appears live on every phone. Everyone else types guesses on their own phone. The first right guess scores most, and the drawer scores too. Nobody gets it? The drawer ${custom ? "takes the penalty" : "drinks"}.`}
+        ? `轮到的人选难度，只有他的手机能看到词，然后在画板上画，一分钟。他画的每一笔都实时出现在大家的手机上。其他人在自己手机上打字猜，第一个猜中的得分最多，画的人也得分。猜得差不多（时钟猜钟表），画的人点一下那条就算对。没人猜中，画的人${custom ? "受罚" : "喝"}。`
+        : `The drawer picks a difficulty; only their phone shows the word. They draw on the board for a minute and every stroke appears live on every phone. Everyone else types guesses on their own phone. The first right guess scores most, and the drawer scores too. Close enough (plane for airplane)? The drawer taps that guess to count it. Nobody gets it? The drawer ${custom ? "takes the penalty" : "drinks"}.`}
     </p>
   );
 
@@ -147,14 +148,31 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
               </form>
             )}
 
+            {drawer && v.guesses.some((x) => !x.ok) && (
+              <p className="hint guess-take-hint">{lang === "zh" ? "猜得差不多？点一下那条就算对" : "Close enough? Tap a guess to count it"}</p>
+            )}
             {v.guesses.length > 0 && (
               <ul className="guess-list" ref={feed} aria-live="polite">
-                {v.guesses.map((x, i) => (
-                  <li key={i} className={x.ok ? "is-ok" : ""}>
-                    <span className="guess-who">{x.pid === me ? ui("you") : nameOf(x.pid)}</span>
-                    <span>{x.ok ? (lang === "zh" ? "猜中了" : "got it") : x.text}</span>
-                  </li>
-                ))}
+                {v.guesses.map((x, i) =>
+                  drawer && !x.ok ? (
+                    // the drawer counts a guess that's close enough (时钟 for 钟表)
+                    <li key={i} className="is-take">
+                      <button type="button" className="guess-take" onClick={() => g("accept", { text: x.text })}>
+                        <span className="guess-who">{nameOf(x.pid)}</span>
+                        <span className="guess-text">{x.text}</span>
+                        <span className="guess-take-mark">
+                          <Check size={16} strokeWidth={3} aria-hidden="true" />
+                          {lang === "zh" ? "算对" : "Count it"}
+                        </span>
+                      </button>
+                    </li>
+                  ) : (
+                    <li key={i} className={x.ok ? "is-ok" : ""}>
+                      <span className="guess-who">{x.pid === me ? ui("you") : nameOf(x.pid)}</span>
+                      <span>{x.ok ? (lang === "zh" ? "猜中了" : "got it") : x.text}</span>
+                    </li>
+                  ),
+                )}
               </ul>
             )}
           </motion.div>

@@ -7,6 +7,7 @@ import { LEVELS, levelById } from '../levels';
 import { CFG } from '../physics/config';
 import type { Replay } from '../physics/replay';
 import { createSim, type PadInput, type Sim } from '../physics/world';
+import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 import { sfx } from '../audio/sfx';
 
@@ -19,7 +20,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const canvas = $<HTMLCanvasElement>('stage');
 const query = new URLSearchParams(location.search);
 const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
-const stage = await Stage.create(canvas);
+const stage = await Stage.create(canvas, { plates: PLATES });
 stage.setLevel(level);
 let nPlayers = Math.max(1, Math.min(4, Number(query.get('players')) || 1));
 let sim: Sim = await createSim(level, nPlayers);
