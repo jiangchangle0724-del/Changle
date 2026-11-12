@@ -815,6 +815,10 @@ test("superlatives: secret votes, award, ceremony", () => {
 });
 
 test("superlatives: a skipped title is a new ballot; the winner who leaves still won", () => {
+  // Every test draws on the one seed and clock above, in order; this block came in between
+  // others (#340) and a later test counts on the sequence it had ("dj: a night of the host's
+  // songs"), so it leaves both as it found them.
+  const was = { seed, clock };
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
   const ballot = t.view<V<"superlatives">>("p0").ballot;
@@ -837,6 +841,7 @@ test("superlatives: a skipped title is a new ballot; the winner who leaves still
   ok(!t.pens().length, "no stamp for a winner who left");
   t.g("p0", "next");
   ok(t.view<V<"superlatives">>("p0").phase === "vote", "and the host moves on");
+  ({ seed, clock } = was);
 });
 
 test("punchline: writers and audience, the show's phases, sweep, safety, final picks", () => {
