@@ -128,6 +128,24 @@ def main():
         tv.wait_for_timeout(700)
         shot(tv, "02-lobby-seated")
 
+        # a phone held upright, opening the same table as a big screen (to mirror it to a TV): the
+        # stage fits its width, small, and a word below says to turn it sideways; sideways, and on
+        # the TV itself, there is no such word
+        up = phone(browser, "upright", LANG)
+        up.goto(BASE.rstrip("/") + f"/tv/{code}", wait_until="networkidle")
+        ok(until(lambda: up.locator(".tv-code").count() == 1, 8000), "an upright phone shows the table as a big screen too")
+        ok(until(lambda: up.locator(".tv-turn").is_visible(), 3000), "held upright, it says to turn the phone sideways")
+        word, stage = up.locator(".tv-turn").bounding_box(), up.locator(".tv-canvas").bounding_box()
+        ok(word and stage and word["y"] >= stage["y"] + stage["height"], "the word sits below the stage, not on it")
+        ok(until(lambda: room(host)["screens"] == 2, 4000), "the phones count it as a second big screen")
+        shot(up, "02b-upright")
+        up.set_viewport_size({"width": 844, "height": 390})
+        ok(until(lambda: not up.locator(".tv-turn").is_visible(), 3000), "turned sideways, the word goes")
+        shot(up, "02c-sideways")
+        ok(not tv.locator(".tv-turn").is_visible(), "the TV never says it")
+        up.context.close()
+        ok(until(lambda: room(host)["screens"] == 1, 6000), "the phone closed: one big screen again")
+
         host.locator(".lobby-actions .btn-primary").click()
         ok(until(lambda: (view(tv) or {}).get("id") == "punchline"), "Punchline starts on the TV")
         tv.wait_for_timeout(1200)
