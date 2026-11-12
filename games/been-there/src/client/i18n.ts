@@ -111,6 +111,11 @@ const S = {
   reportSaveHint: ["长按图片存到相册，或者分享给朋友", "Press and hold the picture to save it, or share it"],
   reportShare: ["分享", "Share"],
   reportDownload: ["下载图片", "Download"],
+  reportSaveIPhone: ["存到相册或分享", "Save to Photos or share"],
+  reportSaveHintIPhone: [
+    "点按钮后选「存储图像」存进相册，也能发给朋友；长按图片也能存",
+    "Tap the button and choose Save Image to put it in Photos, or send it to a friend. Or press and hold the picture",
+  ],
   reactOpen: ["表情", "Reactions"],
   reactSend: ["发表情：{word}", "React: {word}"],
   react_happy: ["好耶！", "Yay!"],

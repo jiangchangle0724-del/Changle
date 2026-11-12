@@ -1,6 +1,8 @@
 // The finale's report card (战报, ui/ReportCard.tsx): on a phone under the standings, with the awards and
-// the dice against the long run, saved as a picture; on the big screen in turn with the standings,
-// and nothing runs off the screen.
+// the dice against the long run, saved as a picture (downloaded where the phone can't share; on an
+// iPhone that can, one button for the share sheet); on the big screen in turn with the standings, and
+// nothing runs off the screen.
+import { readFile } from "node:fs/promises";
 import { devices, expect, test, type Page } from "@playwright/test";
 import { closeAll, createRoom, fits, joinWithTeam, newPhone, playUntil, quizOff } from "./phones";
 
@@ -59,12 +61,39 @@ test("战报：结局里手机看到奖项和骰子图，能存成图片；大�
   expect(await card.locator(".awards .award-row").count()).toBeGreaterThanOrEqual(1);
   await fits(a, "结局，战报");
 
+  // Where the phone can't share: the picture, and a download that downloads it (a blob address: a
+  // data one downloaded nothing on an iPhone).
+  await a.page.evaluate(() => Object.defineProperty(navigator, "canShare", { value: undefined, configurable: true }));
   await card.getByRole("button", { name: "存成图片" }).click();
-  const pic = a.page.locator(".sheet img.report-pic");
+  const sheet = a.page.locator(".sheet");
+  const pic = sheet.locator("img.report-pic");
   await expect(pic).toBeVisible({ timeout: 10_000 });
   await expect.poll(() => pic.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(1080);
   expect(await pic.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
-  await expect(a.page.locator(".sheet").getByText("长按图片存到相册")).toBeVisible();
+  await expect(sheet.getByText("长按图片存到相册")).toBeVisible();
+  const link = sheet.getByRole("link", { name: "下载图片" });
+  expect(await link.getAttribute("href")).toMatch(/^blob:/);
+  const [download] = await Promise.all([a.page.waitForEvent("download"), link.click()]);
+  expect(download.suggestedFilename()).toBe("trip-report.png");
+  // (a PNG: its first eight bytes)
+  expect((await readFile(await download.path())).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  await sheet.getByRole("button", { name: "关上" }).click();
+
+  // An iPhone that can share: one button, the share sheet (whose 存储图像 puts it in Photos), no download.
+  await a.page.evaluate(() => {
+    const w = window as unknown as { shared?: string[] };
+    Object.defineProperty(navigator, "canShare", { value: () => true, configurable: true });
+    Object.defineProperty(navigator, "share", {
+      value: async (d: ShareData) => void (w.shared = (d.files ?? []).map((f) => `${f.name} ${f.type}`)),
+      configurable: true,
+    });
+  });
+  await card.getByRole("button", { name: "存成图片" }).click();
+  await expect(sheet.getByText("存储图像")).toBeVisible({ timeout: 10_000 });
+  await expect(sheet.getByRole("link", { name: "下载图片" })).toHaveCount(0);
+  await sheet.getByRole("button", { name: "存到相册或分享" }).click();
+  await expect.poll(() => a.page.evaluate(() => (window as unknown as { shared?: string[] }).shared)).toEqual(["trip-report.png image/png"]);
+  await sheet.getByRole("button", { name: "关上" }).click();
 
   // The big screen: the standings first, then the report card in their place, beside the winners; the
   // way back to the table in the corner, clear of the exit stamp.
