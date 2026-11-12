@@ -808,10 +808,9 @@ test("punchline: final picks toggle, up to three, never your own", () => {
 
 test("punchline: 再来一局 deals on from the same piles, so a table doesn't get its prompts again", () => {
   type PV = V<"punchline">;
-  for (const [players, games] of [
-    [8, 6],
-    [5, 9],
-  ] as const) {
+  for (const players of [8, 5]) {
+    // two games past the end of the pile, however big the pile grows
+    const games = Math.floor(PUNCH_PROMPTS.length / (2 * players)) + 2;
     const t = setup(players);
     t.act("p0", { a: "start", game: "punchline" });
     const played: { h2h: string[]; final: string }[] = [];
