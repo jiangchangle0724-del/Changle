@@ -3,15 +3,42 @@
  * house filling up, the orchestra tuning. During a scene, the set sounds like itself: rain and
  * thunder at the old mansion, a guzheng in the palace, a dinner table, a love song's piano, an
  * office humming, a studio audience; a duel gets a held breath and a heartbeat; a famous scene,
- * the cinema: the projector and a film score.
+ * the cinema: the projector and a film score. A reading gets the room its kind belongs in: the
+ * ballad piano under a love letter, the palace under a memorial, the newsroom under a broadcast, the
+ * cameras clicking at an apology, and for a straight face, a hushed room where someone coughs.
  *
  * Every event comes from a seed and the moment the scene started, so all the phones at a table
  * (and the big screen) play the same thunder at the same second.
  */
-import type { DramaKind } from "../../data/drama";
+import { KINDS, type DramaKind } from "../../data/drama";
+import type { ReadKind } from "../../data/dramaReadings";
 import { burst, bus, ctxTimeAt, kick, midiHz, note, strike, tone, type Bus } from "../../lib/audio/engine";
+import type { DramaView } from "../../shared/protocol";
 
-export type Scape = DramaKind | "pk" | "foyer" | "classic";
+export type Scape = DramaKind | "pk" | "foyer" | "classic" | "hush" | "press";
+
+/** The room each kind of reading is read in. */
+const READ_SCAPE: Record<ReadKind, Scape> = {
+  cry: "love",
+  breakup: "love",
+  melodrama: "classic",
+  voice: "classic",
+  court: "palace",
+  anchor: "office",
+  rant: "pk",
+  sell: "show",
+  sorry: "press",
+  deadpan: "hush",
+};
+
+/** What plays while the act is on: the scene's set, the duel, the cinema, or the reading's room. */
+export function actScape(v: Pick<DramaView, "mode" | "scene" | "read">): Scape | null {
+  if (v.mode === "pk") return "pk";
+  if (v.mode === "classic") return "classic";
+  if (v.mode === "read") return v.read ? READ_SCAPE[v.read.kind] : "hush";
+  const k = v.scene?.kind;
+  return KINDS.some((x) => x.key === k) ? (k as DramaKind) : null;
+}
 export type Ambience = { stop: (fade?: number) => void };
 
 type Rand = () => number;
@@ -283,6 +310,37 @@ const SCAPES: Record<Scape, Layer[]> = {
         tone(b, { ...at, at: at.at + 1.2, f: top * 0.94, f2: top, glide: 1.4, type: "sawtooth", peak: 0.004 + r() * 0.002, attack: 1.4, decay: 4, wet: 0.7 });
         // and a timpani on the downbeat, every other chord
         if (k % 2 === 0) burst(b, { ...at, dur: 1.4, attack: 0.01, type: "lowpass", f: 130, f2: 55, q: 0.9, peak: 0.05, wet: 0.5 });
+      },
+    },
+  ],
+
+  /** A hushed room for a straight face: the air, a chair creaking, someone trying not to cough. */
+  hush: [
+    bed(3, { type: "bandpass", f: 420, spread: 80, q: 0.6, peak: 0.012, wet: 0.2 }),
+    {
+      gap: [9, 16],
+      first: 6,
+      play: (b, at, r) =>
+        r() < 0.6
+          ? burst(b, { ...at, dur: 0.12, attack: 0.01, decay: 0.08, type: "bandpass", f: 700 + r() * 300, q: 2, peak: 0.02, wet: 0.5 })
+          : tone(b, { ...at, f: 180 + r() * 60, f2: 150 + r() * 40, glide: 0.35, type: "sawtooth", peak: 0.004, attack: 0.05, decay: 0.35, wet: 0.3 }),
+    },
+  ],
+
+  /** The press conference for an apology: a quiet room, and the cameras going off. */
+  press: [
+    bed(2.5, { type: "bandpass", f: 900, spread: 150, q: 0.5, peak: 0.016, wet: 0.15 }),
+    {
+      gap: [1.2, 4.5],
+      first: 0.8,
+      play: (b, at, r) => {
+        // one camera, or a few at once
+        const n = r() < 0.25 ? 3 + Math.floor(r() * 4) : 1;
+        for (let i = 0; i < n; i++) {
+          const t = at.at + i * (0.09 + r() * 0.12);
+          burst(b, { ...at, at: t, dur: 0.002, decay: 0.018, type: "highpass", f: 2600 + r() * 1600, q: 1, peak: 0.022 + r() * 0.012, wet: 0.2 });
+          burst(b, { ...at, at: t + 0.05, dur: 0.002, decay: 0.03, type: "bandpass", f: 900 + r() * 400, q: 1.5, peak: 0.018, wet: 0.2 });
+        }
       },
     },
   ],
