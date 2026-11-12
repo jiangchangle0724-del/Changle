@@ -5,6 +5,7 @@ import { MOVES, moveById, type Move } from "../shared/catalog";
 import { el, getLang, pageClock, setLang, tr } from "./common";
 import { canCoach, glowOf } from "./coach/index";
 import { CoachStage } from "./coach/stage";
+import { songOfMove } from "./coach/style";
 import { Synth } from "./synth";
 import { SONGS, songMoves } from "../shared/songs";
 import { bodyHint, difficultyName, litCount, moveHow, moveName, moveOther, songTitle, stepsList } from "./words";
@@ -139,6 +140,7 @@ function drawAt(pos: number, beat: number, now: number) {
     parts.count.textContent = String(count);
     litCount(parts.steps, count);
   }
+  coach?.dress(songOfMove(move.id));
   coach?.frame({ doing: { kind: "move", id: move.id }, p: pos, beat, now, glow: glowOf(move), hype: 0.3 });
 }
 

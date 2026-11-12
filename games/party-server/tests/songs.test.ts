@@ -8,6 +8,8 @@ import { LEAD_IN_MS, SONG_SYNC_MS, Session, TAP_GAP_MS, type From } from "../src
 import { checkTapped, MIN_TAPS } from "../src/server/tapped";
 import { anchorsOf, buildShow, danceStart, planRun, songStart, type Show } from "../src/shared/show";
 import { moveAnim } from "../src/client/coach/moves";
+import { BASE, exaggerate, over } from "../src/client/coach/pose";
+import { PLAIN, faceMoves, faceOf, songOfMove, styleOf } from "../src/client/coach/style";
 import { moveById } from "../src/shared/catalog";
 import { SONGS, songBeat, songById, songMoves } from "../src/shared/songs";
 import { STEPS } from "../src/shared/steps";
@@ -448,5 +450,33 @@ describe("the songbook's check of a speaker's taps", () => {
     assert.equal(typeof checkTapped(SONG.id, { firstBeatMs: -5, taps: 16, spreadMs: 10 }, 0), "string");
     assert.equal(typeof checkTapped(SONG.id, { firstBeatMs: "7300", taps: 16, spreadMs: 10 }, 0), "string");
     assert.equal(typeof checkTapped(SONG.id, null, 0), "string");
+  });
+
+  it("each song dresses the coach its own way, and its moves' faces are its own", () => {
+    for (const song of SONGS) {
+      const style = styleOf(song.id);
+      assert.notEqual(style, PLAIN, `${song.id} has an outfit`);
+      assert.ok(style.big >= 1 && style.big <= 1.5, `${song.id}: big ${style.big}`);
+      if (song.aligned) for (const id of songMoves(song)) assert.equal(songOfMove(id), song.id, `${id} belongs to ${song.id}`);
+    }
+    assert.equal(styleOf(null), PLAIN);
+    const own = new Set(SONGS.flatMap((s) => songMoves(s)));
+    for (const id of faceMoves()) {
+      assert.ok(own.has(id), `${id}'s face: a song's move`);
+      for (let p = 0; p < 8; p++) assert.ok(faceOf(id, p), `${id} at ${p}`);
+    }
+  });
+
+  it("dancing bigger keeps the pose a pose: the rest stays put, a clap still meets, an arm reaches no further than straight", () => {
+    const rest = exaggerate(BASE, 1.4);
+    assert.deepEqual(rest.hR, BASE.hR);
+    assert.deepEqual(rest.fL, BASE.fL);
+    assert.equal(rest.py, 0);
+    const clap = exaggerate(over(BASE, { hR: [0.03, -0.05, 0.3], hL: [-0.03, -0.05, 0.3] }), 1.4);
+    assert.ok(clap.hR[0] >= 0 && clap.hL[0] <= 0, `hands met at ${clap.hR[0]}, ${clap.hL[0]}`);
+    const up = exaggerate(over(BASE, { hR: [0.4, 0.5, 0.1] }), 1.4);
+    assert.ok(Math.hypot(up.hR[0] - 0.19, up.hR[1], up.hR[2]) <= 0.5501);
+    const bounce = exaggerate(over(BASE, { py: -0.1, roll: 0.1 }), 1.4);
+    assert.ok(Math.abs(bounce.py + 0.14) < 1e-9 && Math.abs(bounce.roll - 0.14) < 1e-9);
   });
 });

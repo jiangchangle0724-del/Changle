@@ -12,7 +12,7 @@ const S: Record<string, MoveAnim> = {};
 // ---------- 江南Style: the horse dance
 
 /** wide and low, as if on a horse */
-const SADDLE: Part = { fR: { x: 0.23, yaw: 0.3 }, fL: { x: -0.23, yaw: -0.3 }, py: -0.08, cPitch: 0.05 };
+const SADDLE: Part = { fR: { x: 0.26, yaw: 0.42 }, fL: { x: -0.26, yaw: -0.42 }, py: -0.12, cPitch: 0.08, pitch: 0.04 };
 /** the reins: wrists crossed in front of the chest, right over left, fists */
 const REINS: Part = { hR: [-0.035, -0.07, 0.4], hL: [0.035, -0.1, 0.38], pR: [0, -0.7, 0.7], pL: [0, -0.7, 0.7], eR: [0.8, -0.5, -0.2], eL: [-0.8, -0.5, -0.2] };
 /** which foot gallops on each count: R L R R, L R L L */
@@ -23,12 +23,16 @@ function gallop(p: number, o: Pose) {
   const side = GALLOP[(i + 1) % 8]!;
   const up = f > 0.4 ? Math.sin((Math.PI * (f - 0.4)) / 0.6) : 0;
   const foot = footOf(o, side);
-  foot.lift += 0.09 * up;
-  foot.z += 0.03 * up;
-  foot.pitch -= 0.2 * up;
-  o.py += 0.025 * up;
-  o.px += 0.02 * side * up;
-  o.cYaw += 0.06 * side * up;
+  foot.lift += 0.13 * up;
+  foot.z += 0.05 * up;
+  foot.pitch -= 0.3 * up;
+  o.py += 0.045 * up;
+  o.px += 0.03 * side * up;
+  o.cYaw += 0.09 * side * up;
+  // the whole rider bobbing: the head nodding, the shoulders hopping with each stride
+  o.hPitch -= 0.1 * up;
+  o.sR = [o.sR[0] + 0.035 * up, o.sR[1]];
+  o.sL = [o.sL[0] + 0.035 * up, o.sL[1]];
 }
 
 S["horse-ride"] = {
@@ -36,7 +40,7 @@ S["horse-ride"] = {
   groove: 0.9,
   // the reins pumped down on every beat
   pose: keys(BASE, 1, [
-    [0, P(SADDLE, REINS, { hR: [-0.035, -0.13, 0.39], hL: [0.035, -0.16, 0.37] }), "hit"],
+    [0, P(SADDLE, REINS, { hR: [-0.035, -0.17, 0.39], hL: [0.035, -0.2, 0.37] }), "hit"],
     [0.5, P(SADDLE, REINS)],
   ]),
   extra: gallop,
@@ -48,9 +52,11 @@ S["horse-lasso"] = {
   pose: keys(BASE, 1, [[0, P(SADDLE, { hL: [0.06, -0.1, 0.27], pL: [0, -1, 0.2], eL: [-1, -0.1, 0], eR: [1, 0.5, 0], pR: [0, -1, 0.2], hYaw: 0.08, hPitch: -0.06 })]]),
   extra: (p, o) => {
     gallop(p, o);
-    // the right hand circles over the head, once a count
+    // the right hand swings the lasso round over the head, once a count, the body turning with it
     const a = TAU * p;
-    o.hR = [0.13 + 0.1 * Math.cos(a), 0.52, 0.07 + 0.1 * Math.sin(a)];
+    o.hR = [0.14 + 0.15 * Math.cos(a), 0.54 + 0.03 * Math.sin(2 * a), 0.07 + 0.15 * Math.sin(a)];
+    o.cYaw += 0.08 * Math.cos(a);
+    o.hYaw += 0.1 * Math.cos(a);
   },
 };
 
@@ -59,7 +65,7 @@ S["horse-lasso"] = {
  * bending in, the chin up and the head tipping away (the riding hall and the subway in the video).
  */
 const shake = (side: 1 | -1): Part =>
-  P(AKIMBO, feet(0.22), { py: -0.06, px: 0.13 * side, roll: 0.16 * side, cRoll: -0.1 * side, hRoll: 0.09 * side, hPitch: -0.15 }, side > 0 ? { fL: { x: -0.17, yaw: 0.4, pitch: -0.45, lift: 0.025 } } : { fR: { x: 0.17, yaw: -0.4, pitch: -0.45, lift: 0.025 } });
+  P(AKIMBO, feet(0.22), { py: -0.07, px: 0.16 * side, roll: 0.2 * side, cRoll: -0.12 * side, hRoll: 0.12 * side, hPitch: -0.18 }, side > 0 ? { fL: { x: -0.17, yaw: 0.4, pitch: -0.45, lift: 0.025 } } : { fR: { x: 0.17, yaw: -0.4, pitch: -0.45, lift: 0.025 } });
 S["sexy-lady"] = {
   len: 8,
   groove: 0.4,
