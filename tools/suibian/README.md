@@ -91,8 +91,13 @@ Each card can carry more than Google's numbers, all from free sources:
   English details for the top cards. It costs nothing more: the search and details already bill at
   the tier it's in.
 * **List badges** (🏅 Michelin, Vancouver Magazine Restaurant Awards, Canada's 100 Best, the
-  Chinese Restaurant Awards…): from `src/data/lists.json`, kept by hand. Facts only: which list,
-  which award, which year, and the page that says so; nothing copied from the source's write-ups.
+  Chinese Restaurant Awards incl. their Elite 30 Canada, OpenTable's Top 100 in Canada, enRoute's
+  Best New Restaurants, Yelp's Top 100 Places to Eat in Canada): from `src/data/lists.json`, kept
+  by hand. Facts only: which list, which award, which year, and the page that says so; nothing
+  copied from the source's write-ups. A card shows up to four, newest first, one from each list
+  before a second from the same list. Not there because they publish no list: 饭团 Fantuan (its
+  rankings are inside the app only) and Uber Eats (its yearly Cravings Report names dishes and
+  cities, not restaurants); Yelp's latest Canada list is 2024's.
 * **Steve's pick**: a line of why, in Chinese and English, and links to food-blogger posts (小红书,
   抖音, TikTok, Instagram, YouTube, blogs), from `src/data/picks.json`.
 * **Our users' rating**: thumbs-up share from the post-meal ratings, once three people have rated.
