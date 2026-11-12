@@ -8,7 +8,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { Button } from "./Button";
-import { labels } from "./labels";
+import { gameLabels as labels } from "./gameLabels";
 import type { GameHeaderProps } from "./types";
 import "./GameHeader.css";
 

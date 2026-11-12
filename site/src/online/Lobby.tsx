@@ -1,7 +1,7 @@
 import { Crown, Dices, Play, UserPlus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { GAME_BY_ID } from "../games/registry";
-import { Tile } from "../home/Tile";
+import { GAME_BY_ID, isNewGame } from "../games/registry";
+import { Tile } from "../ui/Tile";
 import { setLight, reduced } from "../lib/motion";
 import { haptic, sfx } from "../lib/sfx";
 import { runSweep } from "../lib/sweep";
@@ -159,20 +159,31 @@ function LobbyBoard() {
       <div className="board-head">
         <h2 className="section-title">{isHost ? ui("pickGame") : ui("waitHost", { name: host })}</h2>
       </div>
+      {/* the home page's tiles: colored by kind (docs/DESIGN.md); the room light is the game that's up */}
       <div className={`board ${sweeping ? "is-spinning" : ""}`}>
-        {onBoard.map((i) => (
-          <Tile
-            key={ONLINE_GAMES[i]}
-            g={GAME_BY_ID[ONLINE_GAMES[i]].hidden ? { ...GAME_BY_ID[ONLINE_GAMES[i]], ready: true } : GAME_BY_ID[ONLINE_GAMES[i]]}
-            i={i}
-            lang={lang}
-            lit={i === shown}
-            disabled={!isHost || sweeping}
-            onOpen={() => {
-              if (i !== front) act({ a: "spin", scope: "lobby", index: i, delta: 0, duration: 0.2 });
-            }}
-          />
-        ))}
+        {onBoard.map((i) => {
+          const g = GAME_BY_ID[ONLINE_GAMES[i]];
+          return (
+            <div key={g.id} className="board-cell" data-tile={i}>
+              <Tile
+                name={g.name}
+                lang={lang}
+                icon={g.icon}
+                category={g.category}
+                players={{ min: ONLINE_MIN[ONLINE_GAMES[i]], max: g.maxPlayers }}
+                minutes={g.minutes}
+                drinking={g.drinking}
+                isNew={isNewGame(g)}
+                lit={i === shown}
+                pressed={i === shown}
+                disabled={!isHost || sweeping}
+                onOpen={() => {
+                  if (i !== front) act({ a: "spin", scope: "lobby", index: i, delta: 0, duration: 0.2 });
+                }}
+              />
+            </div>
+          );
+        })}
       </div>
 
       <div className="lobby-dock" style={{ ["--gel" as string]: game.gel }}>
