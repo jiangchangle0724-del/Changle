@@ -1,4 +1,4 @@
-import { fullDeck, ROGUE_NOTES as N, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
+import { fullDeck, ROGUE_MS, ROGUE_NOTES as N, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
 import type { RogueHolders, RoguePhase, RogueView } from "../../protocol";
 import { byPenalty, intIn, range, type Api, type GameDef } from "../api";
 
@@ -273,9 +273,9 @@ export const rogue: GameDef<S> = {
       /* standing powers */
       case "camera": {
         if (pid !== s.holders.camera || s.interrupt) return;
-        s.interrupt = { kind: "camera", by: pid, phase: "freeze", endsAt: api.now + 3500 };
+        s.interrupt = { kind: "camera", by: pid, phase: "freeze", endsAt: api.now + ROGUE_MS.freeze };
         api.fx("camera", pid);
-        api.timer("camera", api.now + 3500);
+        api.timer("camera", s.interrupt.endsAt);
         return;
       }
       case "moved": {
@@ -283,14 +283,15 @@ export const rogue: GameDef<S> = {
         if (!it || it.kind !== "camera" || it.phase !== "judge" || pid !== it.by) return;
         const target = g.target ? String(g.target) : null;
         s.interrupt = null;
+        api.clear("camera");
         if (target && api.has(target) && target !== pid) pen(s, api, [target], "sip", N.camera);
         return;
       }
       case "nose": {
         if (pid !== s.holders.nose || s.interrupt) return;
-        s.interrupt = { kind: "nose", by: pid, endsAt: api.now + 6000, taps: {} };
+        s.interrupt = { kind: "nose", by: pid, endsAt: api.now + ROGUE_MS.nose, taps: {} };
         api.fx("nose", pid);
-        api.timer("nose", api.now + 6000);
+        api.timer("nose", s.interrupt.endsAt);
         return;
       }
       case "tap": {
@@ -332,7 +333,13 @@ export const rogue: GameDef<S> = {
       pen(s, api, [s.sevens.speaker], "sip", N.sevensSlow);
       endSub(s, api);
     } else if (key === "camera" && s.interrupt?.kind === "camera") {
-      s.interrupt.phase = "judge";
+      if (s.interrupt.phase === "freeze") {
+        // the holder looks at the photo; with no answer by the deadline, nobody moved (the table
+        // was stuck behind "X is checking the photo" when the holder's phone went away)
+        s.interrupt.phase = "judge";
+        s.interrupt.endsAt = api.now + ROGUE_MS.judge;
+        api.timer("camera", s.interrupt.endsAt);
+      } else s.interrupt = null;
     } else if (key === "nose" && s.interrupt?.kind === "nose") {
       resolveNose(s, api, true);
     }

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { usePenaltyText, useStore, type Player } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
-import { fullDeck, ROGUE_NOTES, RULES, RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Power, type Rank } from "../data/rogue13";
+import { fullDeck, ROGUE_MS, ROGUE_NOTES, RULES, RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Power, type Rank } from "../data/rogue13";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { Resume, useKeepProgress } from "./Resume";
 import { playPower } from "./rogueSounds";
@@ -18,9 +18,6 @@ type Phase = "idle" | "revealed" | "pick" | "group-loser";
 
 /** How long the bottom button ignores taps after it changed what it does (a quick double tap is ~120–250ms apart). */
 const SETTLE_MS = 450;
-
-/** How long everyone holds still after the camera goes off, before the holder says who moved. */
-const FREEZE_S = 3.5;
 
 /**
  * A power being used on the one phone: the camera's freeze and then its judgement, the nose's
@@ -408,7 +405,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                   <Camera size={44} />
                   <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "定格" : "Freeze"}</p>
                   <p className="interrupt-sub">{zh ? `${camera.name} 拍照了，别动` : `${camera.name} took a photo. Don't move.`}</p>
-                  <TimerArc seconds={FREEZE_S} running size={72} ticking={false} onEnd={() => setUsing((u) => (u?.power === "camera" ? { power: "camera", step: "judge" } : u))} />
+                  <TimerArc seconds={ROGUE_MS.freeze / 1000} running size={72} ticking={false} onEnd={() => setUsing((u) => (u?.power === "camera" ? { power: "camera", step: "judge" } : u))} />
                 </div>
               ) : (
                 <div className="interrupt-stage">

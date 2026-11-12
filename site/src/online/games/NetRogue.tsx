@@ -2,7 +2,7 @@ import { Camera, DoorOpen, Hand, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
-import { RULES, RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
+import { ROGUE_MS, RULES, RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
 import { PlayingCard } from "../../games/Rogue13";
 import { playPower } from "../../games/rogueSounds";
 import { UI, type T } from "../../i18n";
@@ -466,14 +466,14 @@ function Interrupts({ v }: { v: RogueView }) {
       </AnimatePresence>
       <AnimatePresence>
         {it && (
-          <motion.div key={`${it.kind}-${it.endsAt}`} className="interrupt-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div key={it.kind === "camera" ? `camera-${it.by}` : `nose-${it.endsAt}`} className="interrupt-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {it.kind === "camera" ? (
               it.phase === "freeze" && !freezeOver ? (
                 <div className="interrupt-stage">
                   <Camera size={44} />
                   <p className={`interrupt-big ${lang === "zh" ? "zh-display" : "en-display"}`}>{lang === "zh" ? "定格" : "Freeze"}</p>
                   <p className="interrupt-sub">{it.by === me ? (lang === "zh" ? "看清楚谁在动" : "Watch who moves") : lang === "zh" ? `${nameOf(it.by)} 拍照了，别动` : `${nameOf(it.by)} took a photo. Don't move.`}</p>
-                  <TimerArc seconds={3.5} running endsAt={it.endsAt} offset={offset} size={72} ticking={false} />
+                  <TimerArc seconds={ROGUE_MS.freeze / 1000} running endsAt={it.endsAt} offset={offset} size={72} ticking={false} />
                 </div>
               ) : it.by === me ? (
                 <div className="interrupt-stage">
@@ -482,11 +482,19 @@ function Interrupts({ v }: { v: RogueView }) {
                   <button type="button" className="btn btn-ghost" onClick={() => g("moved", {})}>
                     {lang === "zh" ? "没人动" : "Nobody moved"}
                   </button>
+                  {/* no answer by the deadline: nobody moved, and the table goes on without the holder */}
+                  {it.phase === "judge" && <TimerArc seconds={ROGUE_MS.judge / 1000} running endsAt={it.endsAt} offset={offset} size={56} ticking={false} />}
                 </div>
               ) : (
                 <div className="interrupt-stage">
                   <Camera size={36} />
                   <p className="interrupt-sub">{lang === "zh" ? `${nameOf(it.by)} 在看照片，谁动了谁${pen.isCustom ? "受罚" : "喝"}` : `${nameOf(it.by)} is checking the photo`}</p>
+                  {it.phase === "judge" && (
+                    <>
+                      <TimerArc seconds={ROGUE_MS.judge / 1000} running endsAt={it.endsAt} offset={offset} size={56} ticking={false} />
+                      <p className="hint">{lang === "zh" ? "到点没判，算没人动" : "No call by then: nobody moved"}</p>
+                    </>
+                  )}
                 </div>
               )
             ) : it.by === me ? (
@@ -496,7 +504,7 @@ function Interrupts({ v }: { v: RogueView }) {
                 <p className="interrupt-sub tabular">
                   {pen.line(t(`已经摸到 ${it.tapped.length} 个，最慢的喝`, `${it.tapped.length} touched. The slowest drinks.`), t(`已经摸到 ${it.tapped.length} 个，最慢的受罚`, `${it.tapped.length} touched. The slowest takes the penalty.`))}
                 </p>
-                <TimerArc seconds={6} running endsAt={it.endsAt} offset={offset} size={72} />
+                <TimerArc seconds={ROGUE_MS.nose / 1000} running endsAt={it.endsAt} offset={offset} size={72} />
               </div>
             ) : (
               <div className="interrupt-stage">
@@ -521,7 +529,7 @@ function Interrupts({ v }: { v: RogueView }) {
                     <span>{lang === "zh" ? "摸鼻子" : "Touch"}</span>
                   </motion.button>
                 )}
-                <TimerArc seconds={6} running endsAt={it.endsAt} offset={offset} size={64} />
+                <TimerArc seconds={ROGUE_MS.nose / 1000} running endsAt={it.endsAt} offset={offset} size={64} />
               </div>
             )}
           </motion.div>

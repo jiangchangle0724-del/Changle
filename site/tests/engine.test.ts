@@ -5038,5 +5038,38 @@ test("rogue: each power's use is an effect of its own, for its sound", () => {
   ok(ROGUE_RULES.filter((r) => r.kind === "hold").every((r) => r.power) && ROGUE_RULES.filter((r) => r.kind !== "hold").every((r) => !r.power), "every hold card names its power, no other card does");
 });
 
+test("rogue: the camera's judgement has a deadline, so a holder who walks away can't freeze the table", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string> };
+  s.holders.camera = "p2";
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  t.g("p2", "camera");
+  t.advance(3600);
+  const it = rv().interrupt;
+  ok(it?.kind === "camera" && it.phase === "judge" && it.endsAt > clock + 15000, "after the freeze the holder gets a while to say who moved");
+  t.g(rv().turn, "draw");
+  ok(rv().card === null, "meanwhile nobody draws");
+  const before = t.pens().length;
+  t.advance(19000);
+  ok(rv().interrupt?.kind === "camera", "still waiting with a second to go");
+  t.advance(1500);
+  ok(rv().interrupt === null && t.pens().length === before, "the deadline passes: nobody moved, no penalty");
+  (t.eng.d.game!.s as { deck: number[] }).deck.push(8); // the nine of spades: a card that is done at once (not a 5, which would move the camera)
+  t.g(rv().turn, "draw");
+  ok(rv().card !== null, "and the table draws again");
+  t.advance(1500);
+  // an answer in time: the deadline is forgotten
+  t.g(rv().drawer ?? rv().turn, "next");
+  ok(rv().phase === "draw", "on to the next draw");
+  t.g("p2", "camera");
+  t.advance(3600);
+  t.g("p2", "moved", { target: "p1" });
+  ok(rv().interrupt === null && t.pens().slice(-1)[0].who[0] === "p1", "the holder names p1");
+  t.advance(25000);
+  ok(rv().interrupt === null && t.pens().slice(-1)[0].who[0] === "p1", "and the old deadline does nothing later");
+  ok(rv().interrupt === null, "nothing left over");
+});
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);

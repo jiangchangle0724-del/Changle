@@ -35,6 +35,9 @@ export type Rule = {
   custom?: { title?: T; rule: T; badge?: T };
 };
 
+/** The powers' clocks, in ms: the camera's freeze, then how long its holder has to say who moved (after that nobody did), and the nose's window. */
+export const ROGUE_MS = { freeze: 3500, judge: 20000, nose: 6000 };
+
 /** The line under a penalty a power or a round handed out (the same words on one phone and online). */
 export const ROGUE_NOTES = {
   garden: { zh: "逛三园：说不出或重复", en: "Three Gardens: stalled or repeated" },
