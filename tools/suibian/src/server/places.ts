@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, dishesFor, guessCuisine, mentionsQueue, searchPlan, type Center, type Lang, type Place, type RangeId, type SoloSide } from "../engine";
+import { RANGES, dishesFor, guessCuisine, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type Lang, type Place, type RangeId, type SoloSide } from "../engine";
 import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
@@ -59,7 +59,7 @@ interface GPlace {
   userRatingCount?: number;
   priceLevel?: string;
   priceRange?: { startPrice?: { units?: string; currencyCode?: string }; endPrice?: { units?: string; currencyCode?: string } };
-  currentOpeningHours?: { openNow?: boolean; nextCloseTime?: string };
+  currentOpeningHours?: { openNow?: boolean; nextCloseTime?: string; periods?: GPeriod[] };
   businessStatus?: string;
   reservable?: boolean;
   servesVegetarianFood?: boolean;
@@ -68,6 +68,42 @@ interface GPlace {
   nationalPhoneNumber?: string;
   googleMapsUri?: string;
   shortFormattedAddress?: string;
+}
+
+/** A stretch of opening hours. In `currentOpeningHours` each point has its date, for the coming week. */
+interface GPeriod {
+  open?: GPoint;
+  close?: GPoint;
+}
+interface GPoint {
+  date?: { year: number; month: number; day: number };
+  /** Day of the week, 0 = Sunday. */
+  day?: number;
+  hour?: number;
+  minute?: number;
+}
+
+/** A week, in ms: how long "open around the clock" lasts here. */
+const WEEK = 7 * 24 * 3600_000;
+
+/** The coming week's opening hours as [opens, closes] in ms since epoch, from Google's dated periods. */
+export function hoursFrom(periods: GPeriod[] | undefined): Place["hours"] {
+  const at = (p: GPoint) => (p.date ? vancouverMs({ y: p.date.year, m: p.date.month, d: p.date.day }, (p.hour ?? 0) * 60 + (p.minute ?? 0)) : NaN);
+  const out: [number, number][] = [];
+  for (const x of periods ?? []) {
+    if (!x.open) continue;
+    // Open around the clock: Google gives one period that opens at midnight and never closes.
+    if (!x.close) {
+      if (!x.open.date && !x.open.hour && !x.open.minute) return [[0, Number.MAX_SAFE_INTEGER]];
+      const a = at(x.open);
+      if (Number.isFinite(a)) out.push([a, a + WEEK]);
+      continue;
+    }
+    const a = at(x.open);
+    const b = at(x.close);
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a) out.push([a, b]);
+  }
+  return out.length ? out.sort((p, q) => p[0] - q[0]) : undefined;
 }
 
 /** Google's AI summary. Its docs spell the disclosure both ways. */
@@ -114,6 +150,7 @@ export function fromGoogle(g: GPlace): Place | null {
     dishes: orNone(dishesFor(name, g.types ?? (g.primaryType ? [g.primaryType] : []), cuisine)),
     openNow: g.currentOpeningHours?.openNow,
     closesAt: Number.isFinite(close) ? close : undefined,
+    hours: hoursFrom(g.currentOpeningHours?.periods),
     reservable: g.reservable,
     veg: g.servesVegetarianFood,
     halal: /halal|清真|حلال/i.test(halalText) ? "yes" : undefined,
@@ -253,6 +290,23 @@ const DEMO: [string, string, number, number, string, boolean?][] = [
   ["Demo · Burger Lab", "hamburger_restaurant", 4.0, 1100, "PRICE_LEVEL_INEXPENSIVE"],
 ];
 
+/**
+ * Made-up opening hours for the coming week, so planning ahead works in demo mode too: most places
+ * 11:00–22:00; the dim sum place 9:00–15:00 and 17:00–22:00; every fourth place shut on Mondays.
+ */
+function demoHours(i: number, now: number): GPeriod[] {
+  const out: GPeriod[] = [];
+  for (let k = 0; k < 7; k++) {
+    const day = vancouverDay(now, k);
+    const date = { year: day.y, month: day.m, day: day.d };
+    const dow = new Date(Date.UTC(day.y, day.m - 1, day.d)).getUTCDay();
+    if (i % 4 === 3 && dow === 1) continue;
+    const spans: [number, number][] = i === 0 ? [[9, 15], [17, 22]] : [[11, 22]];
+    for (const [a, b] of spans) out.push({ open: { date, hour: a, minute: 0 }, close: { date, hour: b, minute: 0 } });
+  }
+  return out;
+}
+
 /** Made-up restaurants scattered around the starting point, always open for the next few hours. */
 export function demoPlaces(center: Center, range: RangeId, now: number): Place[] {
   const r = RANGES[range].meters;
@@ -267,7 +321,7 @@ export function demoPlaces(center: Center, range: RangeId, now: number): Place[]
       rating,
       userRatingCount: count,
       priceLevel: level,
-      currentOpeningHours: { openNow: true, nextCloseTime: new Date(now + (2 + (i % 4)) * 3600_000).toISOString() },
+      currentOpeningHours: { openNow: true, nextCloseTime: new Date(now + (2 + (i % 4)) * 3600_000).toISOString(), periods: demoHours(i, now) },
       reservable: reservable ?? false,
       servesVegetarianFood: type === "vegan_restaurant" || type === "indian_restaurant" || type === "italian_restaurant" ? true : undefined,
     })!;

@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { finishLogin, sign, startLogin, verify } from "../src/server/auth";
-import { detailsGoogle, fromGoogle, keepAbout, searchGoogle } from "../src/server/places";
+import { vancouverClock } from "../src/engine";
+import { detailsGoogle, fromGoogle, hoursFrom, keepAbout, searchGoogle } from "../src/server/places";
 
 type Call = { url: string; init?: RequestInit };
 const realFetch = globalThis.fetch;
@@ -318,3 +319,22 @@ test("sign-in: 'back' can't send you to another site, or out of /eat", async () 
     assert.equal(res.headers.get("location"), "/eat/", back);
   }
 });
+
+test("opening hours: Google's dated periods for the coming week, past midnight and around the clock", () => {
+  const d = (day: number) => ({ year: 2026, month: 11, day });
+  const hours = hoursFrom([
+    { open: { date: d(13), hour: 17, minute: 30 }, close: { date: d(14), hour: 1, minute: 0 } },
+    { open: { date: d(12), hour: 11, minute: 0 }, close: { date: d(12), hour: 14, minute: 30 } },
+    { open: { hour: 9 } },
+  ])!;
+  assert.equal(hours.length, 2, "a period with no date and no close that isn't midnight is skipped");
+  assert.ok(hours[0][0] < hours[1][0], "in order");
+  assert.equal(vancouverClock(hours[0][0]).minutes, 11 * 60);
+  assert.equal(vancouverClock(hours[0][1]).minutes, 14 * 60 + 30);
+  assert.equal(hours[1][1] - hours[1][0], 7.5 * 3600_000, "past midnight");
+  assert.deepEqual(hoursFrom([{ open: { day: 0, hour: 0, minute: 0 } }]), [[0, Number.MAX_SAFE_INTEGER]]);
+  assert.equal(hoursFrom(undefined), undefined);
+  const p = fromGoogle({ ...golden, currentOpeningHours: { openNow: true, periods: [{ open: { date: d(12), hour: 11, minute: 0 }, close: { date: d(12), hour: 22, minute: 0 } }] } })!;
+  assert.equal(p.hours?.length, 1);
+});
+

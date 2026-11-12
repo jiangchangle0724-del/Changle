@@ -1,7 +1,7 @@
 // One table from lobby to rating, with no network: the same Room the server runs.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { COMMON_IN, TOP_COUNT, type Place } from "../src/engine";
+import { COMMON_IN, TOP_COUNT, vancouverClock, vancouverDay, vancouverMs, type Place } from "../src/engine";
 import { MAX_MEMBERS, MAX_SEARCHES, RATING_SLACK, TIMING } from "../src/room/protocol";
 import { Room } from "../src/room/room";
 import { demoPlaces } from "../src/server/places";
@@ -305,3 +305,46 @@ test("a returning phone needs its key", () => {
   assert.equal(room.join(ids[0], "wrong-key-but-long-enough", { lang: "zh" }), false);
   assert.equal(room.join(ids[0], `${ids[0]}-key-long-enough`, { lang: "zh" }), true);
 });
+
+test("planning ahead: the host sets when in the lobby; the list is what's open then, each card saying until when", () => {
+  const { room, ids, places, env } = setup();
+  const now = env.now();
+  const tomorrow = vancouverDay(now, 1);
+  const lunch = vancouverMs(tomorrow, 12 * 60);
+  room.handle(ids[1], { t: "when", at: lunch }); // not the host: ignored
+  assert.equal(room.view(ids[0]).at, null);
+  room.handle(ids[0], { t: "when", at: lunch });
+  assert.equal(room.view(ids[1]).at, lunch);
+  room.handle(ids[0], { t: "start" });
+  // The demo dim sum place (demo-0) closes 15:00–17:00; the rest are open 11:00–22:00, a quarter of them not on Mondays.
+  room.found(places());
+  room.handle(ids[0], { t: "next" });
+  const cards = room.view(ids[0]).cards;
+  assert.ok(cards.length > 0);
+  for (const c of cards) {
+    assert.equal(c.at, lunch);
+    assert.equal(c.open, true);
+    assert.ok(c.closesAt! > lunch);
+    assert.equal(vancouverClock(c.closesAt!).minutes % 60, 0);
+    assert.equal("hours" in c.place, false, "the week's hours stay on the server");
+  }
+  // Tea time: the dim sum place is shut.
+  const t = setup();
+  t.room.handle(t.ids[0], { t: "when", at: vancouverMs(tomorrow, 16 * 60) });
+  t.room.handle(t.ids[0], { t: "start" });
+  t.room.found(t.places());
+  t.room.handle(t.ids[0], { t: "next" });
+  assert.ok(!t.room.view(t.ids[0]).cards.some((c) => c.place.id === "demo-0"));
+  // Once the game is under way the time can't change.
+  room.handle(ids[0], { t: "when", at: null });
+  assert.equal(room.view(ids[0]).at, lunch);
+});
+
+test("a planned time that has come is now", () => {
+  const { room, ids, env, advance } = setup();
+  room.handle(ids[0], { t: "when", at: env.now() + 3600_000 });
+  assert.ok(room.view(ids[0]).at);
+  advance(3600_000 - 10 * 60_000);
+  assert.equal(room.view(ids[0]).at, null);
+});
+

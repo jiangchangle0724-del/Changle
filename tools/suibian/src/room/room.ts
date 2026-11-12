@@ -43,6 +43,8 @@ export interface RoomState {
   hostId: string;
   center: E.Center;
   range: E.RangeId;
+  /** When the table eats (ms since epoch), or null/absent for now: places are checked against their hours then. */
+  at?: number | null;
   /** The host's language: restaurant names and reviews come in it where Google has them. */
   lang?: Lang;
   demo: boolean;
@@ -88,7 +90,7 @@ export class Room {
     private env: RoomEnv,
   ) {}
 
-  static create(code: string, env: RoomEnv, o: { host: string; center: E.Center; range: E.RangeId; demo: boolean; lang?: Lang }): Room {
+  static create(code: string, env: RoomEnv, o: { host: string; center: E.Center; range: E.RangeId; demo: boolean; lang?: Lang; at?: number | null }): Room {
     const now = env.now();
     return new Room(
       {
@@ -99,6 +101,7 @@ export class Room {
         hostId: o.host,
         center: o.center,
         range: o.range,
+        at: E.cleanAt(o.at, now),
         lang: o.lang ?? "zh",
         demo: o.demo,
         phase: "lobby",
@@ -200,6 +203,10 @@ export class Room {
         break;
       case "limits":
         m.limits = E.cleanLimits(msg.limits);
+        break;
+      case "when":
+        if (ph !== "lobby" || !this.isHost(id)) return;
+        this.st.at = E.cleanAt(msg.at, this.env.now());
         break;
       case "start":
         if (ph !== "lobby" || !this.isHost(id)) return;
@@ -333,8 +340,14 @@ export class Room {
     return E.mergeLimits(Object.values(this.st.members).map((m) => m.limits ?? E.NO_LIMITS));
   }
 
+  /** When the table eats: the planned time while it's still ahead, otherwise now. */
+  private when(now = this.env.now()): number {
+    return E.mealTime(this.st.at, now);
+  }
+
   private eligible(): E.Place[] {
-    return E.eligible(this.st.places, this.table(), this.env.now());
+    const now = this.env.now();
+    return E.eligible(this.st.places, this.table(), now, this.when(now));
   }
 
   private moodCounts() {
@@ -362,6 +375,7 @@ export class Room {
       center: this.st.center,
       range: this.st.range,
       now: this.env.now(),
+      at: this.when(),
     });
     if (!ids.length) return this.fail("nothingFits");
     this.st.cards = ids;
@@ -455,10 +469,11 @@ export class Room {
   /** The list as everyone sees it, and its fingerprint: the same for every phone, so made once. */
   private cardList(table: E.Limits, now: number): { rev: string; cards: CardView[] } {
     const st = this.st;
-    const rev = `${st.cardsVersion ?? 0}.${fingerprint(JSON.stringify(table))}.${Math.floor(now / CARDS_REFRESH)}`;
+    const at = this.when(now);
+    const rev = `${st.cardsVersion ?? 0}.${fingerprint(JSON.stringify(table))}.${Math.floor(now / CARDS_REFRESH)}.${at === now ? "now" : at}`;
     if (this.cache?.rev === rev) return this.cache;
     const { likes, bans } = this.moodCounts();
-    const ctx = { center: st.center, range: st.range, limits: table, now };
+    const ctx = { center: st.center, range: st.range, limits: table, now, at };
     const cards = this.liveCards().map((cid, i) => {
       const p = st.places.find((x) => x.id === cid)!;
       return cardView(p, i + 1, ctx, { likes: likes[p.cuisine] ?? 0, bans: bans[p.cuisine] ?? 0 });
@@ -471,7 +486,7 @@ export class Room {
   private winnerCard(won: E.Place, table: E.Limits, now: number): NonNullable<RoomView["winner"]> {
     const st = this.st;
     const { likes, bans } = this.moodCounts();
-    const card = cardView(won, st.cards.indexOf(won.id) + 1, { center: st.center, range: st.range, limits: table, now }, { likes: likes[won.cuisine] ?? 0, bans: bans[won.cuisine] ?? 0 });
+    const card = cardView(won, st.cards.indexOf(won.id) + 1, { center: st.center, range: st.range, limits: table, now, at: this.when(now) }, { likes: likes[won.cuisine] ?? 0, bans: bans[won.cuisine] ?? 0 });
     const v = E.check(won, table);
     const severe = v.concerns.some((c) => c.k === "allergy" && c.level === "severe");
     return { ...card, unsafe: !v.ok ? "budget" : severe ? "severe" : false };
@@ -507,6 +522,8 @@ export class Room {
         .sort((a, b) => a.joinedAt - b.joinedAt)
         .map((m) => ({ id: m.id, name: m.name, online: this.present(m), host: m.id === st.hostId, ready: m.limits !== null, done: phaseDone(m) })),
       range: st.range,
+      // Planned and still ahead; a time that has come (or passed) is "now".
+      at: this.when(now) === now ? null : this.when(now),
       table: st.phase === "result" || st.phase === "spin" ? table : E.NO_LIMITS,
       chips: st.phase === "mood" || st.phase === "cards" || st.phase === "spin" || st.phase === "result" ? E.chips(this.eligible(), this.table()).map((c) => ({ ...c, likes: showCounts ? (counts.likes[c.cuisine] ?? 0) : 0, bans: showCounts ? (counts.bans[c.cuisine] ?? 0) : 0 })) : [],
       cards: list.cards,

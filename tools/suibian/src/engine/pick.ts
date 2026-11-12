@@ -3,29 +3,49 @@
 // call, 2026-11-11: everything in range and budget is on the list). Someone's diet and round 1's
 // "no" move a place down, with a line on its card saying why and what can still be ordered.
 import { CUISINES } from "./cuisines";
-import { LAST_ORDER_BEFORE_CLOSE, MIN_MINUTES_BEFORE_CLOSE, RANGES, distanceMeters, travelMinutes, vancouverClock } from "./clock";
+import { LAST_ORDER_BEFORE_CLOSE, MIN_MINUTES_BEFORE_CLOSE, PLANNED_FROM, RANGES, distanceMeters, travelMinutes, vancouverClock } from "./clock";
 import { check, type Concern } from "./limits";
 import { NO_LIMITS, type Center, type CuisineId, type Limits, type Place, type RangeId } from "./types";
 import { estimateWait } from "./wait";
 
-/** Places the table can go to now: open, not closing soon, within everyone's budget. */
-export function eligible(places: Place[], limits: Limits, now: number): Place[] {
+/** The stretch of its opening hours that `at` falls in, if any. */
+const openSpan = (p: Place, at: number) => p.hours?.find(([a, b]) => a <= at && at < b);
+
+/**
+ * Is it open at `at` (now unless a meal is planned)? Now: Google's own "open now". Planned: its
+ * hours for that day. Undefined when we can't tell.
+ */
+export function isOpen(p: Place, now: number, at = now): boolean | undefined {
+  if (at - now < PLANNED_FROM) return p.openNow;
+  return p.hours ? !!openSpan(p, at) : undefined;
+}
+
+/** When it closes after `at`, if we know. */
+export function closingTime(p: Place, now: number, at = now): number | undefined {
+  if (at - now < PLANNED_FROM) return p.closesAt;
+  return openSpan(p, at)?.[1];
+}
+
+/** Places the table can go to at `at` (now unless planned): open, not closing soon, within everyone's budget. */
+export function eligible(places: Place[], limits: Limits, now: number, at = now): Place[] {
   return places.filter((p) => {
-    if (p.openNow === false) return false;
-    if (p.closesAt !== undefined && p.closesAt - now < MIN_MINUTES_BEFORE_CLOSE * 60_000) return false;
+    if (isOpen(p, now, at) === false) return false;
+    const close = closingTime(p, now, at);
+    if (close !== undefined && close - Math.max(at, now) < MIN_MINUTES_BEFORE_CLOSE * 60_000) return false;
     return check(p, limits).ok;
   });
 }
 
 /** When the kitchen likely stops taking orders (ms since epoch), if we know when it closes. */
-export function lastOrderAt(p: Place): number | undefined {
-  return p.closesAt === undefined ? undefined : p.closesAt - LAST_ORDER_BEFORE_CLOSE * 60_000;
+export function lastOrderAt(p: Place, now: number, at = now): number | undefined {
+  const close = closingTime(p, now, at);
+  return close === undefined ? undefined : close - LAST_ORDER_BEFORE_CLOSE * 60_000;
 }
 
-/** Minutes until the kitchen likely stops taking orders, if we know when it closes. */
-export function minutesToLastOrder(p: Place, now: number): number | undefined {
-  const at = lastOrderAt(p);
-  return at === undefined ? undefined : Math.round((at - now) / 60_000);
+/** Minutes from `at` until the kitchen likely stops taking orders, if we know when it closes. */
+export function minutesToLastOrder(p: Place, now: number, at = now): number | undefined {
+  const last = lastOrderAt(p, now, at);
+  return last === undefined ? undefined : Math.round((last - Math.max(at, now)) / 60_000);
 }
 
 export const MAX_CHIPS = 12;
@@ -72,6 +92,8 @@ export interface ScoreContext {
   center: Center;
   range: RangeId;
   now: number;
+  /** A planned meal (ms since epoch); now when absent. */
+  at?: number;
 }
 
 /** How good a place looks for this table, before anyone's diet or round 1's "no". */
@@ -84,10 +106,11 @@ export function score(p: Place, ctx: ScoreContext): number {
   if (o && total) s += WEIGHTS.ours * Math.min(1, total / 4) * ((o.up + 0.5 * o.mid) / total - 0.5);
   s += WEIGHTS.likes * ((ctx.likes[p.cuisine] ?? 0) / Math.max(1, ctx.members));
   s -= WEIGHTS.distance * Math.min(1.5, distanceMeters(ctx.center, p) / RANGES[ctx.range].meters);
-  s -= WEIGHTS.wait * estimateWait(p, vancouverClock(ctx.now)).level;
-  const last = minutesToLastOrder(p, ctx.now);
+  const at = ctx.at ?? ctx.now;
+  s -= WEIGHTS.wait * estimateWait(p, vancouverClock(at)).level;
+  const last = minutesToLastOrder(p, ctx.now, at);
   if (last !== undefined && last < 60) s -= WEIGHTS.closingSoon;
-  if (p.openNow === undefined) s -= WEIGHTS.unknownHours;
+  if (isOpen(p, ctx.now, at) === undefined) s -= WEIGHTS.unknownHours;
   if (p.recommend) s += WEIGHTS.recommend;
   if (p.badges?.length) s += WEIGHTS.badges;
   if (n < FEW_RATINGS && !p.recommend) s -= WEIGHTS.fewRatings;

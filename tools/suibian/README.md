@@ -51,6 +51,17 @@ Once you choose one, the home page asks how it was for the next three days (or o
 `changle.ca/eat/rate`): three taps, once per pick, counted in that place's "our users" numbers
 like a table's rating.
 
+**When** comes first, at a table (on the home page, and the host can change it in the lobby) and
+picking alone: now, today's or tomorrow's lunch (12:00) or dinner (18:30) while they're still
+ahead, or any half hour in the coming week. A planned meal checks each place against its opening
+hours then (Google's `currentOpeningHours` periods, which come with the search and cover today and
+the next six days, so that's as far ahead as it goes); places Google has no hours for stay on the
+list, lower, with "call before you go". Cards then say until when a place is open that day instead
+of minutes to last orders, the wait estimate is for that day and hour, and the result and the
+message for the group chat carry the time. A plan whose time has come (less than 15 minutes ahead)
+is just "now". Voting is still live; the asynchronous planned rooms in DESIGN.md (decision 2) are
+not built.
+
 **How far** is three tabs: walk (5, 10, 15, 20 or 30 minutes), drive (5, 10, 15, 25 or 40) and
 any distance (Google's widest circle, 50 km, which covers Greater Vancouver from anywhere in the
 city; places are then picked by popularity and distance).

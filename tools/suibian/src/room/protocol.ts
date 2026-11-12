@@ -1,5 +1,5 @@
 // What phones and the server say to each other.
-import { RANGES, check, distanceMeters, estimateWait, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
+import { PLANNED_FROM, RANGES, check, closingTime, distanceMeters, estimateWait, isOpen, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
 import type { Ballot, Center, Concern, CuisineId, Lang, Limits, MoodPick, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
 
 export type { Lang };
@@ -45,6 +45,8 @@ export type ClientMsg =
   | { t: "next"; phase?: Phase }
   /** Host: back to the lobby for a new search (wider range, someone new). */
   | { t: "again"; range?: RangeId }
+  /** Host, in the lobby: when the table eats (ms since epoch), or null for now. */
+  | { t: "when"; at: number | null }
   | { t: "ping" };
 
 export type ServerMsg =
@@ -76,7 +78,12 @@ export interface CardView {
   /** The table chose a driving range (or any distance), so the drive comes first. */
   drive: boolean;
   wait: WaitEstimate;
-  /** When the kitchen likely stops taking orders (ms since epoch), if we know when it closes. */
+  /** A planned meal (ms since epoch): the card is about then. Absent for now. */
+  at?: number;
+  /** Open then: false never reaches a card; undefined when Google has no hours for it. */
+  open?: boolean;
+  /** When it closes after then, and when the kitchen likely stops taking orders (ms since epoch). */
+  closesAt?: number;
   lastOrderAt?: number;
   warnings: Warning[];
   /** Why it is further down the list for this table; each comes with a note (tips.ts). */
@@ -88,6 +95,8 @@ export interface CardView {
   reasons: Reason[];
 }
 
+const soon = (t: number | undefined, from: number) => (t !== undefined && t - from < 24 * 3600_000 ? t : undefined);
+
 /** Distances a card shows: never so exact that the starting point could be worked out from them. */
 export const roundMeters = (m: number) => (m < 1000 ? Math.max(50, Math.round(m / 50) * 50) : Math.round(m / 100) * 100);
 
@@ -97,6 +106,8 @@ export interface CardContext {
   /** The table's merged limits (one person's own, picking alone). */
   limits: Limits;
   now: number;
+  /** A planned meal; now when absent. */
+  at?: number;
 }
 
 /** A place as a card at `rank` on the list, seen from the starting point, for the people whose limits are `limits`. */
@@ -104,15 +115,22 @@ export function cardView(p: Place, rank: number, ctx: CardContext, extra: { like
   const meters = distanceMeters(ctx.center, p);
   const v = check(p, ctx.limits);
   const likes = extra.likes ?? 0;
+  const at = ctx.at !== undefined && ctx.at - ctx.now >= PLANNED_FROM ? ctx.at : undefined;
+  // The week's opening hours stay on the server: the card says what they mean for this meal.
+  const { hours: _hours, ...place } = p;
   return {
-    place: p,
+    place,
     rank,
     meters: roundMeters(meters),
     walkMin: travelMinutes(meters, false),
     driveMin: travelMinutes(meters, true),
     drive: RANGES[ctx.range].drive,
-    wait: estimateWait(p, vancouverClock(ctx.now)),
-    lastOrderAt: lastOrderAt(p),
+    wait: estimateWait(p, vancouverClock(at ?? ctx.now)),
+    at,
+    open: isOpen(p, ctx.now, at),
+    // A closing time a day or more away means open around the clock: nothing to say.
+    closesAt: soon(closingTime(p, ctx.now, at), at ?? ctx.now),
+    lastOrderAt: soon(lastOrderAt(p, ctx.now, at), at ?? ctx.now),
     warnings: v.warnings,
     concerns: v.concerns,
     likes,
@@ -125,6 +143,8 @@ export function cardView(p: Place, rank: number, ctx: CardContext, extra: { like
 export interface SoloResponse {
   /** Best first; the first SOLO_TOP come with a photo and Google's details. */
   cards?: CardView[];
+  /** The planned time the list is for; absent for now. */
+  at?: number;
   demo?: boolean;
   error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace";
 }
@@ -147,6 +167,8 @@ export interface RoomView {
   };
   members: MemberView[];
   range: RangeId;
+  /** When the table eats (ms since epoch), or null for now. */
+  at: number | null;
   /**
    * Everyone's limits merged, with no names, sent only with the result: shown live, a line appearing
    * as one person saves their card would give away whose it is.
