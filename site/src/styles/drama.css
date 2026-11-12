@@ -696,9 +696,6 @@ li.is-ready .dm-roster-state {
   width: 100%;
   height: auto;
 }
-.dm-card.is-culprit .dm-card-watermark {
-  opacity: 0.3;
-}
 .dm-card-label {
   display: flex;
   align-items: center;
@@ -737,16 +734,6 @@ li.is-ready .dm-roster-state {
   margin: 0;
   font-size: 16px;
   line-height: var(--leading);
-}
-.dm-card-secret.is-culprit {
-  background: linear-gradient(160deg, #0b0816, #1c0f22);
-  box-shadow:
-    inset 0 0 0 1.5px var(--gel),
-    0 0 28px -6px color-mix(in oklab, var(--gel) 60%, transparent);
-}
-.dm-card-secret.is-culprit .dm-card-label {
-  color: var(--gel);
-  font-size: 14px;
 }
 /* a duel card: a long style name steps down a size, the example reads as an aside, tonight's line
    is the thing to remember, and the link to videos sits under the card */

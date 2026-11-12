@@ -43,13 +43,13 @@ const READ_STAGE: Record<ReadKind, DramaKind | "classic" | null> = {
   deadpan: null,
 };
 
-/** What the stage shows for the act on now: a scene's kind and group, the duel, a famous scene, a reading's set. */
-export function stageOf(v: Pick<DramaView, "mode" | "scene" | "read">): { kind?: string; pk?: boolean; classic?: boolean; group?: string } {
+/** What the stage shows for the act on now: a scene's own picture, kind and group, the duel, a famous scene, a reading's set. */
+export function stageOf(v: Pick<DramaView, "mode" | "scene" | "read">): { scene?: string; kind?: string; pk?: boolean; classic?: boolean; group?: string } {
   if (v.mode === "read" && v.read) {
     const at = READ_STAGE[v.read.kind];
     return at === "classic" ? { classic: true } : at ? { kind: at } : {};
   }
-  return { kind: v.scene?.kind, pk: v.mode === "pk", classic: v.mode === "classic", group: v.scene?.group };
+  return { scene: v.mode === "show" ? v.scene?.id : undefined, kind: v.scene?.kind, pk: v.mode === "pk", classic: v.mode === "classic", group: v.scene?.group };
 }
 
 /* ------------------------------------------------------------------ the stage */
@@ -58,13 +58,14 @@ export function stageOf(v: Pick<DramaView, "mode" | "scene" | "read">): { kind?:
  * The set: the scene's backdrop (a family dining room, a palace hall...), slowly drifting while a
  * scene plays, with the cast standing along the front and the curtain in front of it all.
  *
- * A scene set in one community's everyday life has a picture of its own (`group-cn`...), and a
- * famous scene the film set (`classic`), once drawn (`DRAWN_ART`); until then, or if one won't
- * load, the scene's kind, then the empty stage.
+ * A built-in scene has a picture of its own (`scene-<id>`), a scene set in one community's everyday
+ * life one for that community (`group-cn`...), and a famous scene the film set (`classic`), each
+ * once drawn (`DRAWN_ART`); until then, or if one won't load, the next: the community's, the
+ * scene's kind, the empty stage.
  */
-export function Backdrop({ kind, pk, classic, group, live, children, tall }: { kind?: string; pk?: boolean; classic?: boolean; group?: string; live?: boolean; children?: ReactNode; tall?: boolean }) {
-  const names = (pk ? ["pk"] : classic ? ["classic", "stage"] : [`group-${group}`, ...(isKind(kind) ? [`kind-${kind}`] : []), "stage"]).filter(
-    (n) => !(n === "classic" || n.startsWith("group-")) || DRAWN_ART.has(n),
+export function Backdrop({ scene, kind, pk, classic, group, live, children, tall }: { scene?: string; kind?: string; pk?: boolean; classic?: boolean; group?: string; live?: boolean; children?: ReactNode; tall?: boolean }) {
+  const names = (pk ? ["pk"] : classic ? ["classic", "stage"] : [`scene-${scene}`, `group-${group}`, ...(isKind(kind) ? [`kind-${kind}`] : []), "stage"]).filter(
+    (n) => !(n === "classic" || n.startsWith("group-") || n.startsWith("scene-")) || DRAWN_ART.has(n),
   );
   const key = names.join("|");
   const [tries, setTries] = useState(0);
@@ -549,8 +550,10 @@ function StyleHelp({ st, line }: { st: PkStyle | undefined; line?: T | null }) {
 }
 
 /**
- * An actor's private card: dealt face down, flipped with a tap. The culprit's side is marked
- * with the mask; everyone also has a secret task. In a duel it explains the style instead
+ * An actor's private card: dealt face down, flipped with a tap. Every card looks and sounds the
+ * same when it turns over (the phone goes round the table, and the person next to you sees the
+ * colours and hears the sound): only the words say who the culprit is. Everyone also has a secret
+ * task. In a duel it explains the style instead
  * (`line` is the line both actors say), and once it's turned over, a link under it goes to
  * videos of people doing that style. In a famous scene (`first`, its opening line, and `see`, the
  * original) there's nothing secret: the part, how to play it, the line, and a link to the original.
@@ -570,13 +573,12 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
     setFlipped(true);
     sfx.flip();
     haptic(12);
-    if (card.culprit) window.setTimeout(() => dramaSfx.sting(0.7), 380);
     if (inner.current && !reduced()) gsap.fromTo(inner.current, { rotateY: 0 }, { rotateY: 180, duration: 0.7, ease: "back.out(1.4)" });
   };
   const tx = (x: T) => (zh ? x.zh : x.en);
   return (
     <div className="dm-cardwrap">
-      <div className={`dm-card ${flipped ? "is-flipped" : ""} ${card.culprit ? "is-culprit" : ""}`}>
+      <div className={`dm-card ${flipped ? "is-flipped" : ""}`}>
         <div className="dm-card-inner" ref={inner} style={reduced() && flipped ? { transform: "rotateY(180deg)" } : undefined}>
           <button type="button" className="dm-card-back" onClick={flip} aria-label={zh ? "翻开身份牌" : "Turn your card over"}>
             {backOk ? <img src={art("card-back")} alt="" onError={() => setBackOk(false)} /> : <DramaIcon size={64} strokeWidth={1.6} />}
@@ -585,7 +587,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
           <div className="dm-card-front">
             {!pk && !classic && (
               <span className="dm-card-watermark" aria-hidden="true">
-                <MaskArt culprit={card.culprit} />
+                <MaskArt culprit={false} />
               </span>
             )}
             <p className="dm-card-label">{pk ? (zh ? "你的演法" : "Your style") : zh ? "你的角色" : "Your role"}</p>
@@ -598,9 +600,9 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
               </p>
             )}
             {!pk && !classic && (
-              <div className={`dm-card-secret ${card.culprit ? "is-culprit" : ""}`}>
+              <div className="dm-card-secret">
                 <p className="dm-card-label">
-                  <MiniMask culprit={card.culprit} />
+                  <MiniMask culprit={false} />
                   {card.culprit ? (zh ? `你就是「${culprit ? culprit.zh : ""}」` : `You are ${culprit ? culprit.en.replace(/^The /, "the ") : ""}`) : zh ? "你的小秘密" : "Your little secret"}
                 </p>
                 <p>{tx(card.secret)}</p>

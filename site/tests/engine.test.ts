@@ -14,12 +14,14 @@ import { PUNCH_FINAL, PUNCH_PROMPTS } from "../src/data/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
-import { GROUPS as DRAMA_GROUPS, PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
+import { GROUPS as DRAMA_GROUPS, PK_LINES as DRAMA_PK_LINES, PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
 import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dramaSizes } from "../src/shared/engine/games/drama";
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { CLASSICS as DRAMA_CLASSICS, CLASSIC_TIPS as DRAMA_CLASSIC_TIPS, CSET_NAME as DRAMA_CSET_NAME } from "../src/data/dramaClassics";
 import { DRAWN_ART as DRAMA_DRAWN_ART } from "../src/data/dramaArt";
 import { READ_KINDS as DRAMA_READ_KINDS, READ_PASS as DRAMA_READ_PASS, READ_TIPS as DRAMA_READ_TIPS, READINGS as DRAMA_READINGS, RSET_NAME as DRAMA_RSET_NAME } from "../src/data/dramaReadings";
+import { CLASSIC_MOOD as DRAMA_CLASSIC_MOOD, MOODS as DRAMA_MOODS, READ_MOOD as DRAMA_READ_MOOD, SCENE_MOOD as DRAMA_SCENE_MOOD } from "../src/data/dramaMusic";
+import { actPiece as dramaActPiece, compose as dramaCompose, seedOf as dramaSeedOf, THEME as DRAMA_THEME } from "../src/party/drama/compose";
 import type { DramaReadKind, DramaReadSet } from "../src/shared/protocol";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -2338,8 +2340,9 @@ test("drama: whose stories: the host's groups come first, everyone's fill in, ot
 
 test("drama: every picture the backdrops ask for is there", () => {
   const dir = fileURLToPath(new URL("../public/drama/", import.meta.url));
-  const known = /^(classic|group-(cn|ca|sa|ph|kr|jp|ir|eu))$/;
-  for (const name of DRAMA_DRAWN_ART) ok(known.test(name) && existsSync(`${dir}${name}.webp`), `${name}: a name the backdrop uses, with its file`);
+  // a scene's own picture is named for a built-in scene
+  const known = (name: string) => /^(classic|group-(cn|ca|sa|ph|kr|jp|ir|eu))$/.test(name) || (name.startsWith("scene-") && DRAMA_SCENES.some((s) => `scene-${s.id}` === name));
+  for (const name of DRAMA_DRAWN_ART) ok(known(name) && existsSync(`${dir}${name}.webp`), `${name}: a name the backdrop uses, with its file`);
   for (const k of ["family", "love", "office", "crime", "palace", "show"]) ok(existsSync(`${dir}kind-${k}.webp`), `kind-${k}: the first set's picture`);
   ok(existsSync(`${dir}stage.webp`) && existsSync(`${dir}pk.webp`), "the empty stage and the duel");
 });
@@ -2560,6 +2563,34 @@ test("drama: read aloud: ten kinds in three sets, three or more of each, every p
   }
   for (const set of ["zh", "en", "both"] as const)
     for (const k of kinds) ok(DRAMA_READINGS.filter((r) => r.set === set && r.kind === k && r.level === "all").length >= 3, `${set}: three or more ${k} pieces for all ages`);
+});
+
+test("drama: music: the theme off stage, and on stage a piece of its own for every scene, famous scene, reading and duel", () => {
+  const moods = new Set(DRAMA_MOODS);
+  for (const id of Object.keys(DRAMA_SCENE_MOOD)) ok(DRAMA_SCENES.some((s) => s.id === id) && moods.has(DRAMA_SCENE_MOOD[id]), `${id}: a scene that exists, in a mood that does`);
+  for (const id of Object.keys(DRAMA_CLASSIC_MOOD)) ok(DRAMA_CLASSICS.some((c) => c.id === id), `${id}: a famous scene that exists`);
+  ok(DRAMA_CLASSICS.every((c) => moods.has(DRAMA_CLASSIC_MOOD[c.id])), "every famous scene has its mood");
+  ok(DRAMA_READ_KINDS.every((k) => moods.has(DRAMA_READ_MOOD[k.key])), "every kind of reading has its mood");
+  // a piece a phone can play: two times through four phrases of four bars, every hit inside its bar
+  const playable = (name: string, p: ReturnType<typeof dramaCompose>) => {
+    const bad = p.bars.flat().filter((h) => !(h.s >= 0 && h.s < p.steps && h.v > 0 && h.v <= 1 && (h.m === undefined || (h.m >= 28 && h.m <= 100)) && (h.d === undefined || h.d > 0)));
+    ok(p.bars.length === 32 && (p.steps === 16 || p.steps === 12) && p.bpm >= 56 && p.bpm <= 140 && p.gain > 0 && !bad.length, `${name}: a piece that plays (${bad.length} bad hits)`);
+  };
+  playable("the theme", DRAMA_THEME);
+  const tunes = new Map<string, string>();
+  const own = (name: string, p: ReturnType<typeof dramaCompose>) => {
+    playable(name, p);
+    const tune = `${p.bpm}|` + p.bars.slice(0, 16).map((bar) => bar.map((h) => `${h.i}${h.s}:${h.m ?? ""}`).join(",")).join("|");
+    ok(!tunes.has(tune), `${name}: music of its own (not ${tunes.get(tune)}'s)`);
+    tunes.set(tune, name);
+  };
+  for (const s of DRAMA_SCENES) own(s.id, dramaActPiece({ mode: "show", scene: { id: s.id, kind: s.kind } as never, classic: null, read: null, pk: null }));
+  for (const c of DRAMA_CLASSICS) own(c.id, dramaActPiece({ mode: "classic", scene: null, classic: { id: c.id } as never, read: null, pk: null }));
+  for (const r of DRAMA_READINGS) own(r.id, dramaActPiece({ mode: "read", scene: null, classic: null, read: { id: r.id, kind: r.kind } as never, pk: null }));
+  for (const line of DRAMA_PK_LINES) own(`duel: ${line.en}`, dramaActPiece({ mode: "pk", scene: null, classic: null, read: null, pk: { line, styles: {} } }));
+  // a scene written at the table sounds like its kind; every phone composes the same piece
+  for (const m of DRAMA_MOODS) for (let k = 0; k < 12; k++) playable(`${m} #${k}`, dramaCompose(m, dramaSeedOf(`${m}${k}`)));
+  ok(JSON.stringify(dramaCompose("noir", 7)) === JSON.stringify(dramaCompose("noir", 7)), "the same seed, the same piece");
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {

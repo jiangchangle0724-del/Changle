@@ -166,6 +166,16 @@ export function GameSheet({
                   </span>
                 </button>
               )}
+              {/* 戏精大赏: this phone, cast to the TV, is the theatre (the whole show and its music), and doesn't play */}
+              {g.id === "drama" && (
+                <button type="button" className="mode-btn" onClick={() => go({ kind: "tv", game: g.id }, true)}>
+                  <Tv size={22} />
+                  <span>
+                    <strong>{zh ? "这台手机投屏到电视" : "Cast this phone to the TV"}</strong>
+                    <small>{zh ? "横过来投屏，电视放整场戏和配乐，这台手机不参加" : "Turn it sideways and cast it: the TV shows the whole show with its music. This phone doesn't play."}</small>
+                  </span>
+                </button>
+              )}
               {tvHelp && (
                 <p className="mode-help">
                   {zh ? `在电视或电脑的浏览器里打开 ${where}，屏幕上会出现二维码，大家扫码入座。` : `On the TV or computer, open ${where} in the browser. A QR code comes up; everyone scans it to sit down.`}

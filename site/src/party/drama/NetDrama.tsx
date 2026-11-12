@@ -8,10 +8,9 @@ import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
-import { BRIEF_MS } from "../../shared/engine/games/drama";
 import type { DramaView } from "../../shared/protocol";
-import { perfAt, useWakeLock } from "../sensors";
-import { actScape, seedOf, startAmbience, type Scape } from "./ambience";
+import { useWakeLock } from "../sensors";
+import { useDramaMusic, useHeld } from "./score";
 import { loadLibrary, SceneWriter, TableScenes } from "./writer";
 import { useStore } from "../../store";
 import { readKind } from "../../data/dramaReadings";
@@ -22,7 +21,7 @@ import { dramaSfx } from "./sound";
 
 export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) {
   const { room, me, isHost, g, nameOf, now } = useRoom();
-  const { lang } = useStore();
+  const { lang, sound } = useStore();
   const zh = lang === "zh";
   const seats = room?.seats ?? [];
   const [writing, setWriting] = useState(false);
@@ -81,16 +80,10 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
     dramaSfx.chimes();
     dramaSfx.deal();
   });
-  // the house before the curtain, then the set itself; every phone in step
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? actScape(v) : null;
-  useEffect(() => {
-    if (!scape) return;
-    const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? v.read?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
-    return () => a?.stop(0.8);
-    // once per scene and phase
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scape, v.round]);
+  // the game's theme off stage, the scene's own music on it, every phone on the same beat; with a
+  // big screen at the table, the music plays there instead
+  const screen = useHeld((room?.screens ?? 0) > 0, 5000);
+  useDramaMusic(v, sound && !screen, now);
   useCue(v.phase === "act", () => {
     setSlate(true);
     setPeek(false);

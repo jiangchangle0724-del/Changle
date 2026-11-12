@@ -13,8 +13,8 @@ import { NameFace, PassCurtain } from "../common";
 import { useWakeLock } from "../sensors";
 import { DramaActionHost, useSettle } from "./ShellActions";
 import { StageCall } from "./StageCall";
-import { actScape, seedOf, startAmbience, type Scape } from "./ambience";
 import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
+import { useDramaMusic } from "./score";
 import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
 import { readKind } from "../../data/dramaReadings";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
@@ -96,7 +96,7 @@ export function Drama({ onBack }: { onBack: () => void }) {
 }
 
 function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
-  const { players, lang, tr } = useStore();
+  const { players, lang, tr, sound } = useStore();
   const zh = lang === "zh";
   const penalty = usePenalty();
   const ids = useMemo(() => players.map((p) => p.id), [players]);
@@ -196,16 +196,8 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   // the buttons all sit in one spot at the bottom: a double tap's second tap would press the next
   // screen's (the next actor's card, the vote before the scene, the next act before the reveal)
   const settle = useSettle(`${v.round}|${v.phase}|${step.k}|${"i" in step ? step.i : ""}|${v.ready.length}|${v.voted.length}|${v.cast.map((c) => c.pid).join(",")}`);
-  // the house before the curtain, then the set itself
-  const scape: Scape | null = v.phase === "brief" ? "foyer" : v.phase === "act" ? actScape(v) : null;
-  useEffect(() => {
-    if (!scape) return;
-    const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: performance.now() - (Date.now() - from), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? v.read?.id ?? ""}|${scape}`) });
-    return () => a?.stop(0.8);
-    // once per scene and phase
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scape, v.round]);
+  // the game's theme off stage, the scene's own music on it
+  useDramaMusic(v, sound);
 
   const face: Face = (pid, size) => <NameFace name={nameOf(pid)} size={size} />;
   // a face on a little body, in the colour the player's face has everywhere else
