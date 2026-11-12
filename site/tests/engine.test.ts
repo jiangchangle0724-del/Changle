@@ -5071,5 +5071,28 @@ test("rogue: the camera's judgement has a deadline, so a holder who walks away c
   ok(rv().interrupt === null, "nothing left over");
 });
 
+test("rogue: the camera and the nose wait while a timed round is on", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
+  s.holders.camera = "p2";
+  s.holders.nose = "p3";
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  s.deck.push(3); // the four of spades: grab the number
+  t.g(rv().turn, "draw");
+  ok(rv().phase === "grab", "a grab round is on");
+  t.g("p2", "camera");
+  t.g("p3", "nose");
+  ok(rv().interrupt === null, "neither the camera nor the nose goes off during it");
+  t.advance(16000);
+  ok(rv().phase === "done", "the round ends on its own clock");
+  t.g("p2", "camera");
+  ok(rv().interrupt?.kind === "camera", "now the camera works");
+  t.advance(3600);
+  t.g("p2", "moved", {});
+  t.g("p3", "nose");
+  ok(rv().interrupt?.kind === "nose", "and the nose");
+});
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);

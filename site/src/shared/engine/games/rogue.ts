@@ -31,6 +31,9 @@ const COLLIDE_MS = 400;
 
 const isSeven = (n: number) => n % 7 === 0 || String(n).includes("7");
 
+/** A timed round of a card is on: the camera and the nose wait (their screen would cover the round's buttons while its clock ran on). */
+const inRound = (s: S) => s.phase === "garden" || s.phase === "grab" || s.phase === "sevens";
+
 /** The card's title, in the words of the table's penalty. */
 function noteFor(s: S, api: Api) {
   return s.card !== null ? ruleWords(RULE_BY_RANK[DECK[s.card].rank], api.customPenalty).title : undefined;
@@ -272,7 +275,7 @@ export const rogue: GameDef<S> = {
 
       /* standing powers */
       case "camera": {
-        if (pid !== s.holders.camera || s.interrupt) return;
+        if (pid !== s.holders.camera || s.interrupt || inRound(s)) return;
         s.interrupt = { kind: "camera", by: pid, phase: "freeze", endsAt: api.now + ROGUE_MS.freeze };
         api.fx("camera", pid);
         api.timer("camera", s.interrupt.endsAt);
@@ -288,7 +291,7 @@ export const rogue: GameDef<S> = {
         return;
       }
       case "nose": {
-        if (pid !== s.holders.nose || s.interrupt) return;
+        if (pid !== s.holders.nose || s.interrupt || inRound(s)) return;
         s.interrupt = { kind: "nose", by: pid, endsAt: api.now + ROGUE_MS.nose, taps: {} };
         api.fx("nose", pid);
         api.timer("nose", s.interrupt.endsAt);
