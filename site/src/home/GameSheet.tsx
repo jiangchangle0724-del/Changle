@@ -2,6 +2,7 @@ import { RadioTower, Smartphone, Sparkles, Tv, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import type { GameId, GameMeta } from "../games/registry";
+import { primeAudio } from "../lib/primeAudio";
 import { go } from "../router";
 import { ONLINE_GAMES } from "../shared/protocol";
 import { usePenaltyText, useStore } from "../store";
@@ -39,6 +40,20 @@ export function GameSheet({
     if (wide && g?.stage) window.location.assign(g.stage.screen);
     else if (wide && g) go({ kind: "tv", game: g.id }, true);
     else setTvHelp((x) => !x);
+  };
+  // the DJ booth: this device is the speaker at once (Steve on Nov 11: a phone everyone shares,
+  // mirrored to the TV, "直接开始播放音乐"). The tap wakes the sound (an iPhone allows it only in a
+  // tap), and a phone goes full screen and sideways where the browser lets a page (Android)
+  const phoneHere = !window.matchMedia("(min-width: 900px) and (hover: hover)").matches;
+  const speakHere = () => {
+    if (!g) return;
+    primeAudio();
+    if (phoneHere)
+      void document.documentElement
+        .requestFullscreen?.({ navigationUI: "hide" })
+        .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.("landscape"))
+        .catch(() => {});
+    go({ kind: "tv", game: g.id }, true);
   };
   const where = g?.stage ? `${window.location.host}${g.stage.screen}` : g?.speaker ? `${window.location.host}${g.speaker}` : `${window.location.host}/tv`;
   return (
@@ -87,23 +102,24 @@ export function GameSheet({
               </button>
             </div>
           ) : g.ready && g.speaker ? (
-            // played from a big screen (the DJ booth): that screen first, then everyone's phone
+            // played from a big screen (the DJ booth): this device as the speaker, the music on at
+            // once (a phone everyone shares, its screen on the TV; or a computer); or everyone's phone
             <div className="game-card-modes">
-              <button type="button" className="mode-btn mode-primary" onClick={bigScreen} aria-expanded={tvHelp}>
-                <Tv size={22} />
+              <button type="button" className="mode-btn mode-primary" onClick={speakHere}>
+                {phoneHere ? <Smartphone size={22} /> : <Tv size={22} />}
                 <span>
-                  <strong>{zh ? "电视或电脑当音箱" : "A TV or computer is the speaker"}</strong>
-                  <small>{zh ? "音乐从那里放，大家用手机打碟" : "The music plays there. Everyone DJs from their phone."}</small>
+                  <strong>{phoneHere ? (zh ? "公用手机（投屏电视）" : "A shared phone (on the TV)") : zh ? "这台电脑当音箱" : "This computer is the speaker"}</strong>
+                  <small>
+                    {phoneHere
+                      ? zh
+                        ? "横过来投到电视上，音乐马上开始，在上面点歌"
+                        : "Sideways, mirrored to the TV: the music starts, and songs are picked on it"
+                      : zh
+                        ? "接上电视或音响，音乐马上开始"
+                        : "Hook it up to the TV: the music starts at once"}
+                  </small>
                 </span>
               </button>
-              {tvHelp && (
-                <div className="mode-help">
-                  <p>{zh ? `在电视或电脑的浏览器里打开 ${where}，点「开始派对」。屏幕上有二维码，大家扫码进舞池。` : `On the TV or computer, open ${where} in the browser and press Start the party. A QR code comes up; everyone scans it to get on the floor.`}</p>
-                  <button type="button" className="btn btn-ghost btn-block" onClick={() => go({ kind: "tv", game: g.id }, true)}>
-                    {zh ? "就用这台设备当音箱" : "Use this device as the speaker"}
-                  </button>
-                </div>
-              )}
               <button type="button" className="mode-btn" onClick={() => onOnline(g.id)}>
                 <RadioTower size={22} />
                 <span>

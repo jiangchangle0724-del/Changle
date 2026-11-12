@@ -231,6 +231,14 @@ export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: 
  * video's title from YouTube, only they and the host read (the others see that they asked for a
  * song): nothing a player sends reaches the big screen unchecked.
  */
+/**
+ * Who asked for a song picked on the big screen itself (Steve on Nov 11: "公用手机（投屏电视）...
+ * 这个手机是可以在YouTube上点歌的": one phone everyone shares, its screen on the TV): the table's,
+ * nobody's seat. Its songs count against the table's `reqMax` only, and everyone reads their names
+ * (they were typed on the screen everyone watches).
+ */
+export const SHARED_BY = "~shared";
+
 export type SongReq = {
   id: string;
   /** who asked for it */

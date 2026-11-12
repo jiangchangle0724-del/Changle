@@ -3,7 +3,7 @@ import { countdown, cued, loaded, pressBy, reqOrder } from "../src/shared/dj/dec
 import { ENERGY, FAKE_MIX, heatLean, LEAN, mixFor } from "../src/shared/dj/curve";
 import { recapOf } from "../src/party/dj/recap";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
-import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
+import { DECK, MIX_FX, MIXER, SHARED_BY } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, nextWriters, presentMs } from "../src/shared/punchline";
@@ -3448,6 +3448,75 @@ test("dj: 点歌模式 (the jukebox): the host's switch; no build-up, DROP or pi
   g("p1", "phase", { phase: "end" });
   g("p1", "again");
   ok(dv("p2").juke === true && dv("p2").full === false, "another set: still 点歌模式, the video back in its corner");
+});
+
+test("dj: the shared phone (公用手机): the big screen itself asks for songs as the table's, takes its own back, skips the song playing, switches 点歌模式, 随机 and the video, with nobody seated; another screen can't", () => {
+  const e = new RoomEngine(freshRoom("DJSP", clock), host);
+  e.screenHello("tv-sp", true, "dj");
+  e.screenHello("tv-other", true, "dj");
+  e.flush();
+  const events: RoomEvent[] = [];
+  const sc = (x: string, rest: Record<string, unknown> = {}, sid = "tv-sp") => {
+    const took = e.screenAct(sid, { x, ...rest });
+    events.push(...e.flush().events);
+    return took;
+  };
+  const tv = () => e.view("tv-sp").game as V<"dj">;
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const mine = () => tv().deck.reqs.filter((r) => r.by === SHARED_BY).length + (tv().deck.up?.by === SHARED_BY ? 1 : 0);
+  ok(sc("live", { source: "fake" }) && tv().phase !== "wait", "nobody seated: the shared phone starts the night");
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(!sc("req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] }, "tv-other"), "another screen with the code can't ask for a song");
+  ok(sc("req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] }), "the shared phone asks for one");
+  ok(tv().deck.up?.by === SHARED_BY && tv().deck.up?.text === "Despacito", "up next, the table's, its name read on the screen");
+  ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === SHARED_BY), "the room says the shared phone asked for a song");
+  ok(!sc("req", { yt: ["abcdefghijk", "Two", "Chan"] }), "not again within a few seconds");
+  // more than a player's three: the table's thirty only
+  for (const id of ["abcdefghij1", "abcdefghij2", "abcdefghij3", "abcdefghij4"]) {
+    advance(DECK.reqGapMs + 10);
+    ok(sc("req", { yt: [id, `Song ${id.slice(-1)}`, "Chan"] }), `the shared phone's song ${id.slice(-1)}`);
+  }
+  ok(mine() === 5, `five of its own, more than a player's three (${mine()})`);
+  // phones at the table read the shared phone's songs by name; only the host can take them out
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  e.flush();
+  const pv = (pid: string) => e.view(pid).game as V<"dj">;
+  ok(pv("p2").deck.reqs.filter((r) => r.by === SHARED_BY).every((r) => (r.text ?? "").startsWith("Song")), "a phone reads the shared phone's songs by name");
+  const n0 = tv().deck.reqs.length;
+  e.act("p2", { a: "g", g: { x: "unreq", id: tv().deck.reqs[0].id } });
+  e.flush();
+  ok(tv().deck.reqs.length === n0, "Ben can't take them out");
+  // its own taken back; a player's isn't its to take
+  const first = tv().deck.reqs[0].id;
+  ok(sc("unreq", { id: first }) && !tv().deck.reqs.some((r) => r.id === first), "the shared phone takes one of its own back");
+  e.act("p2", { a: "g", g: { x: "req", yt: ["zyxwvutsrqp", "Ben's", "Chan"] } });
+  e.flush();
+  const bens = tv().deck.reqs.find((r) => r.by === "p2");
+  ok(!!bens && !sc("unreq", { id: bens.id }), "Ben's song isn't the shared phone's to take back");
+  // 点歌模式 from the shared phone (no host phone needed): its song up next starts a few seconds on
+  ok(!sc("juke", { on: true }, "tv-other"), "another screen can't switch 点歌模式");
+  ok(sc("juke", { on: true }) && tv().juke === true && pv("p2").juke === true, "the shared phone switches to 点歌模式, every phone reads it");
+  ok(!sc("juke", { on: true }), "again: nothing to do");
+  advance(DECK.jukeWaitMs + 10);
+  const sw = tv().deck.drop;
+  ok(!!sw && sw.quiet === true, "the switch into its song is on its way");
+  advance(sw!.at - clock + 5);
+  ok(tv().deck.song?.by === SHARED_BY && tv().deck.song?.yt === "kJQP7kiw5Fk", "and it plays whole");
+  ok(!sc("songskip", {}, "tv-other"), "another screen can't skip it");
+  ok(sc("full", { on: true }) && tv().full === true && pv("p1").full === true, "the shared phone puts the video over the whole TV");
+  ok(!sc("full", { on: true }), "asked again: nothing to do");
+  ok(sc("full", { on: false }) && tv().full === false, "and back in its corner");
+  ok(sc("songskip") && tv().deck.song === null, "the shared phone skips it: the DJ comes back");
+  ok(!sc("songskip"), "no song playing: nothing to skip");
+  ok(sc("juke", { on: false }) && tv().juke === false, "and switches back to the build-up and DROP");
+  ok(!sc("shuffle", { on: true }, "tv-other"), "another screen can't switch the playlist to 随机");
+  ok(sc("shuffle", { on: true }) && tv().shuffle === true && !sc("shuffle", { on: true }), "the shared phone does (once)");
+  ok(sc("shuffle", { on: false }) && tv().shuffle === false, "and back to 按顺序");
 });
 
 test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随机 or 按顺序; after a whole song the DJ plays a minute before the next", () => {

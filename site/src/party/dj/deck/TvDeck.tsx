@@ -12,6 +12,7 @@ import { CLIP_CREDIT, hintText, jukeText, KNOBS, MIX_EFFECTS, mixSaid, nowLine, 
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
+import { useDjNames } from "../names";
 
 const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
 
@@ -23,9 +24,10 @@ const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
  */
 /** `clip`: the song asked for that's on the air is playing its clip here (not only its remix). */
 export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
-  const { now, nameOf } = useRoom();
+  const { now } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
+  const nameOf = useDjNames(zh);
   const d = v.deck;
   const live = v.phase !== "wait" && v.phase !== "end";
   const t = now();
@@ -208,9 +210,9 @@ function MixStrip({ m, zh }: { m: MixerState; zh: boolean }) {
 
 /** Who pressed which pad (the pad itself played on the speaker) or asked for a song, for a moment. */
 export function usePadEvents(play: (pad: PadId) => void) {
-  const { nameOf } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
+  const nameOf = useDjNames(zh);
   const [chips, setChips] = useState<Chip[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
