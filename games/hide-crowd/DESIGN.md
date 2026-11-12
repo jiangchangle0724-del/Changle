@@ -18,10 +18,10 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   are lit in it, your marker in the crowd is drawn in it, and it spills down from the top of the
   screen as the room light. The site's registry has the same value (`tests/design.test.ts` checks).
   On the home page its card is in the online kind (aqua), like 到此一游 and 神回复.
-* **The arenas and the crowd keep their own art** (below): three bright daytime places and three
-  kinds of people, inside the night frame. Their colours are not the site's; they are listed as
-  the game's own art colours at the top of `styles.css` (`--arena-*`, `--look-*`), as the design
-  rules allow for a game's props.
+* **The arenas and the crowd keep their own art** (below): three bright daytime places and a crowd
+  of real 3D people in six looks, inside the night frame. Their colours are not the site's; they are
+  listed as the game's own art colours (`--arena-*` and `--look-*` at the top of `styles.css`, the
+  looks' full outfits in `src/client/people.ts`), as the design rules allow for a game's props.
 
 ## Screens
 
@@ -75,6 +75,37 @@ screen empty and out of reach, a blurry background, a double tap that zoomed) wa
 * **Sharp on a phone.** The frame-rate budget starts at up to 2.25 times the screen's pixels (it was
   1.65, which drew the 3D view soft on a phone whose screen has 3), then lowers it if frames run slow.
 
+## The people
+
+Steve's report of 2026-11-04 also said the people moved crudely ("粗糙"): they were a sheet of flat
+pictures, four directions and four poses, that swapped as they walked. Since 2026-11-12 they are 3D
+bodies on a skeleton (`src/client/people.ts`), moved the way big animated games move theirs:
+
+* **Two bodies, six looks.** A man's and a woman's (Quaternius's CC0 mannequins, rebuilt for the game
+  by `tools/blender/build_crowd_people.py`: fingers merged, about 2,600 faces each, 23 bones). Each
+  face knows which part of the clothes it is, and each look paints the parts from a 16-colour strip:
+  skin, top, sleeves, trousers or shorts, shoes, hair, a bag. Hair (short, a bun, a ponytail, a cap),
+  backpacks and satchels are simple shapes made in the same script, on the head's and the back's
+  bones. A person is drawn 2.15 units tall with a head a fifth bigger than life, so the crowd reads
+  from above on a phone; tops are bright enough to tell apart on the darkest floor (the transit
+  hall's walkways). The flat arena's `--look-*` colours are the looks' tops (`tests/people.test.ts`
+  checks).
+* **Clips blended by what the body does.** Standing (three ways: arms down, arms folded, on the
+  phone), walking (two ways), a slow jog at a player's top speed, all on one stride clock that
+  follows the body's real speed, so planted feet keep still at the crowd's pace (the test walks a
+  body and measures it). A body leans into a start and into its turns, and a glancing body (a player
+  blending in, a passer-by looking around) turns its head.
+* **The moments that matter.** A punch's fist is out when the rules land it (the clip is timed to
+  the wind-up); a tagged body turns to the blow, is knocked off its feet and is up again by the time
+  the rules let go (1.15 s, then they slip into the crowd); a puncher who hit a passer-by recoils
+  without falling. Every one-off move crossfades in and out over the legs, never snaps.
+* **The same for everyone.** Every body is made and moved the same way whoever steers it: what gives
+  a player away is what they do. With reduced motion the bodies still walk (that's how the crowd moves),
+  but nobody leans, and the camera doesn't shake.
+
+Until the people's file arrives (it is fetched with the arena's code, while the lobby is up) the
+crowd is simple stand-ins in each look's colours, and the flat arena (no WebGL) draws them as before.
+
 ## Nobody is marked
 
 The game is about not being found, so nothing a screen is sent may tell a player from a
@@ -84,7 +115,7 @@ passer-by (`Room.view` in `src/room/room.ts`, tested in `tests/room.test.ts` and
 * Every body is sent the same fields (position, facing, speed, pose) and nothing else: no ids, no
   names, no "player" or "passer-by", no top speed.
 * The crowd's order is shuffled when a round starts (`createMatch`). Every screen draws by that
-  order (each place keeps one of the three looks), so players are spread among the looks and the
+  order (each place keeps one of the six looks), so players are spread among the looks and the
   places in the list like everyone else.
 * A phone's own body is marked (`me`) on that phone only; the big screen gets no `me` at all.
 * What gives a player away is what they do: running, punching, being knocked down. That is the
@@ -122,7 +153,8 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/Lobby.tsx`, `Play.tsx`, `Controls.tsx`, `Result.tsx`, `Penalty.tsx`, `Menu.tsx` | The phone's screens. |
 | `src/client/ui/Tv.tsx` | The big screen. |
 | `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
-| `src/client/spriteAtlas.ts`, `camera.ts`, `renderQuality.ts` | Which picture of a person to draw, the camera's framing (`frameFloor`), the frame-rate budget. |
+| `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
+| `tools/blender/` | The scripts that build the 3D sets and the people's files. |
 | `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's Home Screen guide, and what kind of phone this is. |
 | `src/client/i18n.ts` | Every word, in Chinese and English (`tests/strings.test.ts` checks both exist, no em dashes, no curly quotes). |
 
@@ -131,7 +163,8 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | File | Size | What | Where it comes from | Licence |
 | --- | --- | --- | --- | --- |
 | `thumb-*.webp` | 12 to 17 KB each | The lobby's pictures of the three arenas, 320 x 180 | **AI-made**: cropped from three panoramas drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 (the panoramas themselves were dropped on 2026-11-11: the arena doesn't draw them) | OpenAI's terms assign the output to the user; no third-party art in it |
-| `crowd-atlas.webp` | 303 KB | The crowd: three people, four directions, four poses (idle, two steps, punch), one 2400 x 800 sheet | **AI-made**: drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 | the same |
+| `crowd-people.glb` | 189 KB | The crowd's man: his body on a 23-bone skeleton, the hair, caps and bags, and the ten clips everyone moves with (three ways of standing, two walks, a jog, a punch, a fall, a get-up, a recoil) | Quaternius's Universal Animation Library 1 and 2 (the mannequin and the clips), rebuilt by `tools/blender/build_crowd_people.py`; the hair, caps and bags made from scratch in the same script | CC0 1.0 (public domain); the gear ours |
+| `crowd-people-f.glb` | 92 KB | The crowd's woman: her body, her hair, caps and bags | Quaternius's Universal Animation Library 2 (the female mannequin), the same script | CC0 1.0; the gear ours |
 | `seawall-dressing.glb` | 390 KB | The seawall's 3D set: cedars, benches, railing, lamps, signs | Made from scratch by `tools/blender/generate_arena_dressing.py` (Blender 5.2), no outside models or textures | ours |
 | `transit-dressing.glb` | 262 KB | The transit hall's 3D set: carriage, canopy, platform edge | The same script | ours |
 | `courtyard-dressing.glb` | 354 KB | The courtyard's 3D set: stage, pavilion, curtains, lanterns | The same script | ours |
@@ -142,16 +175,20 @@ sound files. The code libraries (Preact, three.js, qrcode-generator, all MIT) ar
 listed with their licences in `dist/client/hide/licences.txt`, which the build writes and the
 credits page links to.
 
-The pictures' original PNG and JPEG files (3.6 MB together) are in PR #5's branch; here they are
-WebP: the sheet at quality 85 with lossless transparency, its faint haze below the renderer's cut-off
-cleared and the figures' colours bled outward so the edges stay clean when it is scaled down (1.85 MB
-to 303 KB). `tests/arenaAssets.test.ts` holds every file to a budget and checks that each one is
-credited here and on the credits page.
+The thumbnails' original files are in PR #5's branch (with the AI-drawn sheet of people the crowd
+used until 2026-11-12). `tests/arenaAssets.test.ts` holds every file to a budget and checks that each
+one is credited here and on the credits page.
 
 **The 3D sets** are rebuilt with Blender 5.2 or newer from the game's folder:
 `blender --background --python tools/blender/generate_arena_dressing.py` (it writes the three GLBs,
 mesh groups joined per material, meshopt-compressed, and a preview of each under
 `dist/blender-previews/`).
+
+**The people** are rebuilt the same way from Quaternius's two packs (free, CC0; where to get them and
+the command are at the top of `tools/blender/build_crowd_people.py`). The script picks and trims the
+clips, thins the bodies, paints the parts, makes the gear, and writes both files small: turns as
+16-bit numbers, normals as 8-bit (`KHR_mesh_quantization`, which three.js reads). After a rebuild,
+`npm test` checks the clips, the walk's feet, the punch, the fall and the recoil.
 
 **Adding art.** Record where it comes from and its licence (here and in `ui/Credits.tsx`), say
 plainly when it is AI-made and by what, leave out anything with someone else's character, logo or
@@ -159,14 +196,16 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 
 ## Speed on a phone
 
-* **The first download is small.** `app.js` (23 KB gzipped) and a shared chunk (16 KB) draw the
-  lobby; three.js and the 3D arena (`Arena3D-*.js`, 174 KB gzipped) are a file of their own, fetched
-  while the lobby is up, so a round starts at once. The stylesheet is 11 KB gzipped.
-* **A round fetches about 0.6 MB of art**: the sheet of people and one 3D set (only the arena being
+* **The first download is small.** `app.js` (25 KB gzipped) and a shared chunk (17 KB) draw the
+  lobby; three.js and the 3D arena (`Arena3D-*.js`, 182 KB gzipped) are a file of their own, fetched
+  while the lobby is up with the people's two files (281 KB, 123 KB gzipped), so a round starts at
+  once. The stylesheet is 13 KB gzipped.
+* **A round fetches about 0.6 MB of art**: the people (once) and one 3D set (only the arena being
   played); the floor is drawn on the phone. The lobby's three pictures are 42 KB.
 * **The frame-rate budget** (`renderQuality.ts`) measures every second and lowers the pixel density
-  (2.25, 1.6, 1.15) when frames run slow; real-time shadows are off; the crowd is drawn in a few
-  instanced batches. `?fps=1` on a room's address shows the meter on a real phone.
+  (2.25, 1.6, 1.15) when frames run slow; real-time shadows are off. Each person is one skinned body
+  (about 2,600 faces, 23 bones, skinned on the graphics chip) and their hair and bag: about 80 draws for
+  26 people. `?fps=1` on a room's address shows the meter on a real phone.
 * **Without WebGL** (an old phone, a lost GPU context) the flat arena draws the same crowd from
   above with plain elements. `?flat=1` asks for it on purpose (the browser tests use it).
 * **The server sends each phone a small frame 20 times a second** (positions rounded to

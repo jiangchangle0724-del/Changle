@@ -34,10 +34,13 @@
   --arena-petal: #ee9fb6;
   --arena-daisy: #fbf4e2;
   --arena-sea: #3b8db5;
-  /* the three looks in the crowd, for the flat arena (the same coats as the sprite sheet) */
+  /* the six looks in the crowd, for the flat arena (the same tops as the 3D people, src/client/people.ts) */
   --look-0: #d9962a;
   --look-1: #5cc79b;
-  --look-2: #2e6f73;
+  --look-2: #3f8f94;
+  --look-3: #c8402f;
+  --look-4: #44599a;
+  --look-5: #f0c419;
   --look-skin: #e8b48c;
   --look-ink: #1b1d2e;
   /* the penalty glass */
@@ -1829,6 +1832,15 @@ html.is-tv body::before {
 }
 .flat-avatar.look-2 {
   --look: var(--look-2);
+}
+.flat-avatar.look-3 {
+  --look: var(--look-3);
+}
+.flat-avatar.look-4 {
+  --look: var(--look-4);
+}
+.flat-avatar.look-5 {
+  --look: var(--look-5);
 }
 .flat-avatar__shadow {
   position: absolute;
