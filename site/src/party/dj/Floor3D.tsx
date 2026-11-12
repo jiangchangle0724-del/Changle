@@ -453,12 +453,12 @@ export function Floor3D({
           for (const s of list) {
             const bot = bots.get(s.id);
             if (!bot) continue;
-            // away from the table: sits down where they are
             // the microphone rises in front of each of them as a song starts, and goes as it ends
             const want = sing && s.on ? 1 : 0;
             bot.micK = calm || Math.abs(want - bot.micK) < 0.01 ? want : bot.micK + (want - bot.micK) * Math.min(1, dt * 9);
             bot.mic.visible = bot.micK > 0;
             bot.mic.scale.setScalar(Math.max(0.001, bot.micK));
+            // away from the table: sits down where they are, greyed
             if (!s.on) {
               if (!bot.away) {
                 bot.away = true;
