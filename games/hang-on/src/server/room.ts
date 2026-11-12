@@ -48,7 +48,8 @@ export type Out = { to: 'all' | 'host' | { seat: string }; msg: ServerMsg } | { 
 const ACTIONS = new Set(['START', 'PLAY', 'FINISH', 'LOBBY', 'END', 'KICK']);
 /** 每个阶段允许的主机动作和去向。 */
 const MOVES: Record<string, Partial<Record<Phase, Phase>>> = {
-  START: { lobby: 'countdown' },
+  // 结算页的「下一关」「再来一次」直接开倒数，不绕回大厅
+  START: { lobby: 'countdown', results: 'countdown' },
   PLAY: { countdown: 'playing' },
   FINISH: { playing: 'results' },
   LOBBY: { countdown: 'lobby', playing: 'lobby', results: 'lobby' },

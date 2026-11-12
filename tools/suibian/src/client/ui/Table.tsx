@@ -1,7 +1,7 @@
 // One table on a phone: lobby → round 1 (mood) → round 2 (cards) → spinner → result.
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { CUISINES, type Limits, type MoodPick, type RangeId } from "../../engine";
+import { CUISINES, TOP_COUNT, type Limits, type MoodPick, type RangeId } from "../../engine";
 import type { RoomView } from "../../room/protocol";
 import { t, tx } from "../i18n";
 import { api } from "../net";
@@ -11,6 +11,9 @@ import { Btn, Countdown, DemoBanner, LangToggle, Qr, TableLimits, memberName } f
 import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
 import { RangePicker } from "./RangePicker";
+import { RankedList } from "./RankedList";
+import { WhenPicker } from "./WhenPicker";
+import { whenLabel } from "../when";
 
 export function Table({ home }: { home: () => void }) {
   const { view: v, status, fatal, me } = useApp();
@@ -24,8 +27,8 @@ export function Table({ home }: { home: () => void }) {
   }
   if (!v) return <main class="page center muted">{t("connecting")}</main>;
   // Without a diet card, that comes first, in any round before the result: someone who joins late
-  // (or was still filling it in when the host started) can still rule out what they can't eat. The
-  // card stays on screen across phase changes, so nothing typed is lost.
+  // (or was still filling it in when the host started) still gets notes on the cards for what they
+  // can't eat, and their budget. The card stays on screen across phase changes, so nothing typed is lost.
   const showDiet = !v.you.limits && v.phase !== "spin" && v.phase !== "result";
   return (
     <main class={`page phase-${v.phase}`}>
@@ -88,6 +91,8 @@ function Lobby({ v }: { v: RoomView }) {
   }, [me?.user?.name]);
   const [editing, setEditing] = useState(false);
   const [range, setRange] = useState<RangeId>(v.range);
+  const [when, setWhen] = useState<number | null>(null);
+  const [editingWhen, setEditingWhen] = useState(false);
   const host = v.you.host || !v.members.find((m) => m.host)?.online;
   const ready = v.members.filter((m) => m.ready).length;
   if (editing) return <DietCard initial={v.you.limits} onDone={(l: Limits) => (send({ t: "limits", limits: l }), setEditing(false))} />;
@@ -108,6 +113,37 @@ function Lobby({ v }: { v: RoomView }) {
             {copied ? t("copied") : t("copyLink")}
           </Btn>
         </div>
+      </section>
+
+      <section class="card">
+        <p class="whenrow">🕒 {t("lobbyWhen", { when: whenLabel(v.at) })}</p>
+        {host &&
+          (editingWhen ? (
+            <>
+              <WhenPicker value={when} onChange={setWhen} />
+              <Btn
+                kind="primary"
+                wide
+                onClick={() => {
+                  send({ t: "when", at: when });
+                  setEditingWhen(false);
+                }}
+              >
+                {t("done")}
+              </Btn>
+            </>
+          ) : (
+            <Btn
+              kind="quiet"
+              class="change-when"
+              onClick={() => {
+                setWhen(v.at);
+                setEditingWhen(true);
+              }}
+            >
+              {t("changeWhen")}
+            </Btn>
+          ))}
       </section>
 
       <label class="field">
@@ -247,49 +283,50 @@ function Cards({ v }: { v: RoomView }) {
     <>
       <h2>{t("round2")}</h2>
       <p class="muted small">{t("round2Hint")}</p>
-      <div class="places">
-        {v.cards.map((c) => {
+      {v.at && <p class="planned small">{t("plannedFor", { when: whenLabel(v.at) })}</p>}
+      <RankedList
+        cards={v.cards}
+        top={TOP_COUNT}
+        action={(c) => {
           const id = c.place.id;
           const yes = approve.includes(id);
           const no = veto === id;
           return (
-            <PlaceCard key={id} c={c}>
-              <div class="vote">
-                <Btn
-                  kind={yes ? "primary" : undefined}
-                  pressed={yes}
-                  disabled={done}
-                  class="approve"
-                  onClick={() => {
-                    const a = yes ? approve.filter((x) => x !== id) : [...approve, id];
-                    const x = no ? null : veto;
-                    setApprove(a);
-                    setVeto(x);
-                    push(a, x, false);
-                  }}
-                >
-                  ✓ {t("approve")}
-                </Btn>
-                <Btn
-                  kind={no ? "danger" : "quiet"}
-                  pressed={no}
-                  disabled={done || (veto !== null && !no)}
-                  class="veto"
-                  onClick={() => {
-                    const x = no ? null : id;
-                    const a = approve.filter((y) => y !== id);
-                    setVeto(x);
-                    setApprove(a);
-                    push(a, x, false);
-                  }}
-                >
-                  🚫 {veto !== null && !no ? t("vetoUsed") : t("veto")}
-                </Btn>
-              </div>
-            </PlaceCard>
+            <div class="vote">
+              <Btn
+                kind={yes ? "primary" : undefined}
+                pressed={yes}
+                disabled={done}
+                class="approve"
+                onClick={() => {
+                  const a = yes ? approve.filter((x) => x !== id) : [...approve, id];
+                  const x = no ? null : veto;
+                  setApprove(a);
+                  setVeto(x);
+                  push(a, x, false);
+                }}
+              >
+                ✓ {t("approve")}
+              </Btn>
+              <Btn
+                kind={no ? "danger" : "quiet"}
+                pressed={no}
+                disabled={done || (veto !== null && !no)}
+                class="veto"
+                onClick={() => {
+                  const x = no ? null : id;
+                  const a = approve.filter((y) => y !== id);
+                  setVeto(x);
+                  setApprove(a);
+                  push(a, x, false);
+                }}
+              >
+                🚫 {veto !== null && !no ? t("vetoUsed") : t("veto")}
+              </Btn>
+            </div>
           );
-        })}
-      </div>
+        }}
+      />
       <p class="google muted small">{t("google")}</p>
       <Btn kind="primary" wide disabled={done} onClick={() => push(approve, veto, true)}>
         {t("done")}
@@ -331,7 +368,8 @@ function Result({ v }: { v: RoomView }) {
   const rateUrl = `${location.origin}${BASE}/r/${v.code}/rate`;
   const map = win.place.mapsUrl ?? "";
   const share = async () => {
-    const text = t("shareText", { name: win.place.name, map, rate: rateUrl });
+    const vars = { name: win.place.name, map, rate: rateUrl };
+    const text = v.at ? t("shareTextAt", { ...vars, when: whenLabel(v.at) }) : t("shareText", vars);
     if (navigator.share) {
       try {
         await navigator.share({ text });
@@ -345,11 +383,11 @@ function Result({ v }: { v: RoomView }) {
   };
   return (
     <>
-      <h2 class="center">{t("winner")}</h2>
+      <h2 class="center">{v.at ? t("winnerAt", { when: whenLabel(v.at) }) : t("winner")}</h2>
       <PlaceCard c={win}>
         <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
       </PlaceCard>
-      {v.winner?.unsafe && <p class="error">{t("winnerUnsafe")}</p>}
+      {v.winner?.unsafe && <p class="error">{t(v.winner.unsafe === "budget" ? "winnerOverBudget" : "winnerUnsafe")}</p>}
       {needsServer(v) && (
         <>
           <TableLimits l={v.table} />

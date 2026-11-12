@@ -1,5 +1,7 @@
 /**
- * 房间的 WebSocket：断了自己回来（退避 0.4、0.8、1.6…最多 5 秒），房间说结束就不再试。
+ * 房间的 WebSocket：断了自己回来（退避 0.4、0.8、1.6、最多 2 秒），房间说结束就不再试。
+ * 手机网络回来（浏览器的 online 事件）就马上重连，不等退避：关 Wi-Fi 再开要 5 秒内回来，
+ * 断网 4 秒时退避已经排到几秒以后，光等它会超时。
  */
 import type { ClientMsg, ServerMsg } from './protocol';
 
@@ -21,8 +23,25 @@ export class RoomSocket {
     private readonly onMsg: (m: ServerMsg) => void,
     private readonly onStatus: (open: boolean) => void,
   ) {
+    if (typeof globalThis.addEventListener === 'function') globalThis.addEventListener('online', this.onOnline);
     this.open();
   }
+
+  private readonly onOnline = (): void => {
+    if (this.stopped || this.ws?.readyState === WebSocket.OPEN) return;
+    // 断网时开的那条可能卡在连接中，扔掉重开
+    const stale = this.ws;
+    this.ws = null;
+    try {
+      stale?.close();
+    } catch {
+      // 已经关了
+    }
+    this.tries = 0;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.open();
+  };
 
   private open(): void {
     if (this.stopped) return;
@@ -61,7 +80,7 @@ export class RoomSocket {
 
   private retry(): void {
     if (this.stopped || this.timer) return;
-    const wait = Math.min(5000, 400 * 2 ** this.tries++);
+    const wait = Math.min(2000, 400 * 2 ** this.tries++);
     this.timer = setTimeout(() => {
       this.timer = null;
       this.open();
@@ -100,6 +119,7 @@ export class RoomSocket {
 
   close(): void {
     this.stopped = true;
+    if (typeof globalThis.removeEventListener === 'function') globalThis.removeEventListener('online', this.onOnline);
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     const ws = this.ws;

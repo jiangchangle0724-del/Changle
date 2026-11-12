@@ -6,19 +6,28 @@
     "en": "Wobbling Pontoons"
   },
   "teaches": "balance",
-  "w": 1280,
+  "w": 2560,
   "h": 720,
   "spawn": {
     "x": 100,
     "y": 536
   },
   "goal": {
-    "x": 890,
-    "y": 400,
-    "w": 350,
+    "x": 2400,
+    "y": 380,
+    "w": 120,
     "h": 160
   },
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 536
+    },
+    {
+      "x": 2150,
+      "y": 516
+    }
+  ],
   "rects": [
     {
       "kind": "ground",
@@ -32,16 +41,24 @@
       "kind": "ground",
       "x": 890,
       "y": 560,
-      "w": 350,
+      "w": 550,
       "h": 160,
       "material": "metal"
     },
     {
       "kind": "ground",
-      "x": 1240,
-      "y": 400,
+      "x": 2020,
+      "y": 540,
+      "w": 500,
+      "h": 180,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 360,
       "w": 40,
-      "h": 320,
+      "h": 360,
       "material": "metal"
     }
   ],
@@ -50,9 +67,18 @@
     {
       "pivot": {
         "x": 640,
-        "y": 500
+        "y": 530
       },
       "w": 600,
+      "h": 18,
+      "material": "metal"
+    },
+    {
+      "pivot": {
+        "x": 1730,
+        "y": 530
+      },
+      "w": 640,
       "h": 18,
       "material": "metal"
     }
@@ -60,8 +86,10 @@
   "crates": [],
   "deathY": 790,
   "par": {
-    "seconds": 60,
+    "seconds": 100,
     "deathsPerPlayer": 2
   },
-  "replay": "replays/van-09.json"
+  "replay": "replays/van-09.json",
+  "fading": [],
+  "springs": []
 }

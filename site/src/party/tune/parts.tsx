@@ -1,15 +1,17 @@
 import { ExternalLink, Lock, Music } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { POOL_CATS } from "../../data/songPools";
+import { POOL_CATS, POOL_ERAS } from "../../data/songPools";
 import { clipOf, TUNES, type Tune } from "../../data/tunes";
 import { gsap, reduced } from "../../lib/anim";
 import { playMelody, type TuneHandle } from "../../lib/music";
 import { loadPreview, playElement, playPreview, type PreviewHandle } from "../../lib/preview";
 import { curveAt, type BeatMap } from "../../lib/beats";
 import { isSfxEnabled } from "../../lib/sfx";
-import { CATS, DEFAULT_HOOK_MS, DEFAULT_POOL, HOOK_MAX_MS, parsePool, poolOf, SNAP_SECONDS, SOURCES, type CatKey, type SongPool, type SourceKey } from "../../shared/songs";
+import { CATS, DEFAULT_HOOK_MS, DEFAULT_POOL, ERAS, HOOK_MAX_MS, parsePool, poolOf, SNAP_SECONDS, SOURCES, specialOf, type CatKey, type EraKey, type SongPool, type SourceKey } from "../../shared/songs";
 import { useStore } from "../../store";
 import { perfAt } from "../sensors";
+import { SingerSheet } from "./SingerSheet";
+import { specialBy, specialName } from "./specials";
 
 /** A tune by its place in the list, or the notes themselves (online, the server sends only the notes). */
 type Playable = number | Tune;
@@ -255,18 +257,28 @@ export function SnapPicker({ snap, onPick, disabled }: { snap: boolean; onPick: 
 }
 
 /**
- * What to listen to: any number of languages (plus the world classics and today's charts), and any
- * number of categories, or none for all of them. Only categories that a picked language has songs
- * in are offered (no rock in Korean, say); one that no longer fits is dropped.
+ * What to listen to: any number of languages (plus the world classics and today's charts), any number
+ * of categories and decades, or none for all of them. Only categories and decades that a picked
+ * language has songs in are offered (no rock in Korean, say); one that no longer fits is dropped.
+ * Or a singer special (歌手专场): one singer's songs, picked from a sheet.
+ *
+ * `total`: how many songs the game is set to, for a singer with fewer.
  */
-export function PoolPicker({ pool, onPick, disabled }: { pool: string; onPick: (p: SongPool) => void; disabled?: boolean }) {
+export function PoolPicker({ pool, onPick, disabled, total }: { pool: string; onPick: (p: SongPool) => void; disabled?: boolean; total?: number }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const cur = parsePool(pool) ?? parsePool(DEFAULT_POOL)!;
+  const singer = specialOf(pool);
+  const [sheet, setSheet] = useState(false);
+  /** the languages to go back to from a singer special */
+  const byLang = useRef(singer ? DEFAULT_POOL : pool);
+  if (!singer && parsePool(pool)) byLang.current = pool;
+  const cur = parsePool(byLang.current) ?? parsePool(DEFAULT_POOL)!;
   const withCats = cur.srcs.filter((k) => SOURCES.find((x) => x.key === k)?.cats);
   const offered = CATS.filter((c) => withCats.some((k) => !POOL_CATS[k] || POOL_CATS[k].includes(c.key)));
   const keep = cur.cats.filter((c) => offered.some((o) => o.key === c));
-  const fix = withCats.length && keep.length !== cur.cats.length ? poolOf(cur.srcs, keep) : "";
+  const decades = ERAS.filter((e) => withCats.some((k) => !POOL_ERAS[k] || POOL_ERAS[k].includes(e.key)));
+  const keepEras = cur.eras.filter((e) => decades.some((o) => o.key === e));
+  const fix = !singer && withCats.length && (keep.length !== cur.cats.length || keepEras.length !== cur.eras.length) ? poolOf(cur.srcs, keep, keepEras) : "";
   const pick = useRef(onPick);
   pick.current = onPick;
   useEffect(() => {
@@ -276,34 +288,79 @@ export function PoolPicker({ pool, onPick, disabled }: { pool: string; onPick: (
   const toggleSrc = (k: string) => {
     const on = cur.srcs.includes(k as SourceKey);
     if (on && cur.srcs.length === 1) return; // something always plays
-    onPick(poolOf(on ? cur.srcs.filter((x) => x !== k) : [...cur.srcs, k], cur.cats));
+    onPick(poolOf(on ? cur.srcs.filter((x) => x !== k) : [...cur.srcs, k], cur.cats, cur.eras));
   };
-  const toggleCat = (c: string) => onPick(poolOf(cur.srcs, cur.cats.includes(c as CatKey) ? cur.cats.filter((x) => x !== c) : [...cur.cats, c]));
+  const toggleCat = (c: string) => onPick(poolOf(cur.srcs, cur.cats.includes(c as CatKey) ? cur.cats.filter((x) => x !== c) : [...cur.cats, c], cur.eras));
+  const toggleEra = (e: string) => onPick(poolOf(cur.srcs, cur.cats, cur.eras.includes(e as EraKey) ? cur.eras.filter((x) => x !== e) : [...cur.eras, e]));
+  const special = singer ? specialBy(singer) : null;
+  const name = special ? specialName(special, zh) : singer;
+  const few = special && total && special[4] < total ? special[4] : 0;
   return (
     <div className="tn-pool" role="group" aria-label={zh ? "歌单" : "Songs"}>
-      <div className="tn-pool-row">
-        {SOURCES.map((x) => (
-          <button key={x.key} type="button" className="chip" aria-pressed={cur.srcs.includes(x.key)} disabled={disabled} onClick={() => toggleSrc(x.key)}>
-            {zh ? x.zh : x.en}
-          </button>
-        ))}
-        <button type="button" className="chip chip-all" aria-pressed={everything} disabled={disabled} onClick={() => onPick(everything ? DEFAULT_POOL : poolOf(SOURCES.map((x) => x.key), cur.cats))}>
-          {zh ? "全选" : "All"}
+      <div className="seg seg-sm" role="group" aria-label={zh ? "怎么选歌" : "Which songs"}>
+        <button type="button" aria-pressed={!singer} disabled={disabled} onClick={() => singer && onPick(byLang.current)}>
+          {zh ? "按语言" : "By language"}
+        </button>
+        <button type="button" aria-pressed={!!singer} disabled={disabled} onClick={() => setSheet(true)}>
+          {zh ? "歌手专场" : "One singer"}
         </button>
       </div>
-      {withCats.length > 0 && (
-        <div className="tn-pool-row tn-pool-cats" role="group" aria-label={zh ? "类别" : "Category"}>
-          <button type="button" className="chip" aria-pressed={keep.length === 0} disabled={disabled} onClick={() => onPick(poolOf(cur.srcs, []))}>
-            {zh ? "不限" : "Any"}
-          </button>
-          {offered.map((c) => (
-            <button key={c.key} type="button" className="chip" aria-pressed={keep.includes(c.key)} disabled={disabled} onClick={() => toggleCat(c.key)}>
-              {zh ? c.zh : c.en}
+      {singer ? (
+        <>
+          <div className="tn-pool-singer">
+            <strong>{name}</strong>
+            {special && <small className="tabular">{zh ? `${special[4]} 首` : `${special[4]} songs`}</small>}
+            {!disabled && (
+              <button type="button" className="chip chip-sm" onClick={() => setSheet(true)}>
+                {zh ? "换一位" : "Change"}
+              </button>
+            )}
+          </div>
+          <p className="tn-pool-hint">
+            {zh ? `只放${name}的歌，四个选项也全是${name}的歌` : `Only ${name}'s songs, and all four titles are theirs.`}
+            {few > 0 && (zh ? `。${few} 首放完就结束` : ` The game ends after their ${few}.`)}
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="tn-pool-row">
+            {SOURCES.map((x) => (
+              <button key={x.key} type="button" className="chip" aria-pressed={cur.srcs.includes(x.key)} disabled={disabled} onClick={() => toggleSrc(x.key)}>
+                {zh ? x.zh : x.en}
+              </button>
+            ))}
+            <button type="button" className="chip chip-all" aria-pressed={everything} disabled={disabled} onClick={() => onPick(everything ? DEFAULT_POOL : poolOf(SOURCES.map((x) => x.key), cur.cats, cur.eras))}>
+              {zh ? "全选" : "All"}
             </button>
-          ))}
-        </div>
+          </div>
+          {withCats.length > 0 && (
+            <div className="tn-pool-row tn-pool-cats" role="group" aria-label={zh ? "类别" : "Category"}>
+              <button type="button" className="chip" aria-pressed={keep.length === 0} disabled={disabled} onClick={() => onPick(poolOf(cur.srcs, [], cur.eras))}>
+                {zh ? "不限" : "Any"}
+              </button>
+              {offered.map((c) => (
+                <button key={c.key} type="button" className="chip" aria-pressed={keep.includes(c.key)} disabled={disabled} onClick={() => toggleCat(c.key)}>
+                  {zh ? c.zh : c.en}
+                </button>
+              ))}
+            </div>
+          )}
+          {withCats.length > 0 && decades.length > 0 && (
+            <div className="tn-pool-row tn-pool-cats" role="group" aria-label={zh ? "年代" : "Decade"}>
+              <button type="button" className="chip" aria-pressed={keepEras.length === 0} disabled={disabled} onClick={() => onPick(poolOf(cur.srcs, cur.cats, []))}>
+                {zh ? "所有年代" : "Any decade"}
+              </button>
+              {decades.map((e) => (
+                <button key={e.key} type="button" className="chip" aria-pressed={keepEras.includes(e.key)} disabled={disabled} onClick={() => toggleEra(e.key)}>
+                  {zh ? e.zh : e.en}
+                </button>
+              ))}
+            </div>
+          )}
+          {!disabled && <p className="tn-pool-hint">{zh ? "语言、类别和年代都能多选，点一下选上，再点一下取消" : "Pick as many languages, categories and decades as you like. Tap again to drop one."}</p>}
+        </>
       )}
-      {!disabled && <p className="tn-pool-hint">{zh ? "语言和类别都能多选，点一下选上，再点一下取消" : "Pick as many languages and categories as you like. Tap again to drop one."}</p>}
+      {!disabled && <SingerSheet open={sheet} onClose={() => setSheet(false)} current={singer} onPick={(who) => onPick(`@${who}`)} />}
     </div>
   );
 }

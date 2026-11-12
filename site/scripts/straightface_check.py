@@ -5,7 +5,7 @@ step, and the rules the screen must keep (nothing private before the holder says
 usage: python3 scripts/straightface_check.py [base_url] [out_dir]
 The site must be running (npm run dev -- --port 5173); the rooms server is not needed.
 """
-import json, os, re, sys, time
+import base64, json, os, re, sys, time
 from playwright.sync_api import sync_playwright
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:5173"
@@ -297,6 +297,27 @@ def run(lang):
         seen = pg.evaluate("JSON.parse(localStorage.getItem('changle.sf.seen') || '[]')")
         check(len(seen) == 4, f"this phone remembers the four cards it played ({len(seen)})")
         snap(pg, "final")
+
+        # tonight's titles, and the picture to share
+        titles = pg.locator(".sf-titles li")
+        check(titles.count() >= 1 and ("冠军" if zh else "Top score") in pg.locator(".sf-titles").inner_text(), f"tonight's titles on the end screen ({titles.count()})")
+        pg.locator(".sf-titles").scroll_into_view_if_needed()
+        pg.locator(".sf-titles").locator("xpath=..").screenshot(path=os.path.join(OUT, f"titles-{lang}.png"))
+        pg.locator(".sf-share-btn").scroll_into_view_if_needed()
+        pg.locator(".sf-share-btn").click()
+        pg.wait_for_selector(".sf-share-img", timeout=15000)
+        pg.wait_for_function("document.querySelector('.sf-share-img').naturalWidth > 0")
+        w, h = pg.evaluate("[document.querySelector('.sf-share-img').naturalWidth, document.querySelector('.sf-share-img').naturalHeight]")
+        check(w == 1080 and h >= 1440, f"the picture: 1080 wide, at least 3:4 ({w}x{h})")
+        save = pg.locator(".sf-share-actions a[download]")
+        check(save.count() == 1 and save.get_attribute("download").endswith(".png"), "a way to save it as a png")
+        data = pg.evaluate("document.querySelector('.sf-share-img').src")
+        with open(os.path.join(OUT, f"picture-{lang}.png"), "wb") as f:
+            f.write(base64.b64decode(data.split(",", 1)[1]))
+        pg.wait_for_timeout(500)
+        snap(pg, "share-sheet")
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(500)
         pg.get_by_role("button", name="再来一局" if zh else "Play again").click()
         pg.wait_for_timeout(400)
         check(pg.locator(".setup-panel").count() == 1, "play again goes back to the setup")

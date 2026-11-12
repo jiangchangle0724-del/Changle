@@ -8,7 +8,7 @@
  *     whose time zone tables are older would show Vancouver at UTC−8 and Calgary at UTC−7 all
  *     winter; the clock corrects that, and believes the browser everywhere else.
  */
-import { capDigits, cleanAmount, convert, sizeClass } from "../src/tools/money";
+import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, DEFAULT_CODES, isCode, sizeClass } from "../src/tools/money";
 import { dayDiff, offsetMin, partsIn, PERMANENT_TIME, permanentOffset, zonedToUtc } from "../src/tools/tz";
 import { comparePacks, PACK_MASS, PACK_VOLUME, perBase } from "../src/tools/units";
 
@@ -47,6 +47,15 @@ eq(sizeClass("1,500,000"), "", "9 characters stay full size");
 eq(sizeClass("7,015,816,750.00"), "is-longer", "16 characters step down twice");
 eq(sizeClass("1299.99", [6, 8]), "is-long", "the narrower price field steps down at 7 characters");
 eq(sizeClass("129999.99", [6, 8]), "is-longer", "and twice at 9");
+
+// 2a. the currency list
+eq(new Set(CURRENCIES.map((c) => c.code)).size, CURRENCIES.length, "every code once");
+ok(DEFAULT_CODES.every((c) => isCode(c)) && DEFAULT_CODES.length === 4, "the four default rows are real currencies");
+ok(CURRENCIES.every((c) => c.zh && c.en && c.symbol && (c.decimals === 0 || c.decimals === 2)), "every currency has both names, a symbol and 0 or 2 decimals");
+eq(CURRENCY_BY_CODE.JPY.decimals, 0, "yen without cents");
+eq(CURRENCY_BY_CODE.KRW.decimals, 0, "won without cents");
+ok(!isCode("EUR ") && !isCode("eur") && !isCode(42) && isCode("EUR"), "isCode is exact");
+ok(Math.abs(convert({ USD: 1, CAD: 1.4, JPY: 155 }, 100, "CAD", "JPY") - 11071.43) < 0.01, "100 CAD → 11,071 JPY at 1.4 and 155");
 
 // 2b. two packs, which is the better buy
 const near = (got: number | null, want: number, msg: string) => ok(got !== null && Math.abs(got - want) < 0.005, `${msg} → ${got}`);

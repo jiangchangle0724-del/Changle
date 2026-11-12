@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { CARDS, defaultPacks, PACK_AUDIENCE, PACKS } from "../src/data/straightface";
 import { lintDeck, pickCard, validateCard, validateDeck } from "../src/shared/straightface/cards";
-import { createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
+import { awards, createGame, currentSpeaker, DEFAULT_OPTIONS, GameError, HONEST_CATCHUP_WEIGHT, leaderboard, privateView, publicView, reduce, roleOf, type Deps } from "../src/shared/straightface/engine";
 import { mulberry32 } from "../src/shared/straightface/rng";
 import type { Card, GameState, Player, RoundState, StraightFaceView } from "../src/shared/straightface/types";
 import { roundLines } from "../src/shared/straightface/scoring";
@@ -166,6 +166,14 @@ test("straightface: pickCard prefers the asked level, avoids used cards, falls b
     used.push(c.id);
   }
   ok(pickCard(cards, { level: 2, packs: [], used, allowAdult: true }, rng) !== null, "a used-up deck still deals (reuse) instead of null");
+  // every card seen before: tonight's never come back while another is left, at any level
+  const trivia = cards.filter((c) => c.pack === "trivia").map((c) => c.id);
+  const keep = trivia[trivia.length - 1];
+  for (let i = 0; i < 30; i++) {
+    const c = pickCard(cards, { level: 1, packs: ["trivia"], used: trivia, tonight: trivia.filter((id) => id !== keep), allowAdult: true }, rng)!;
+    ok(c.id === keep, `seen before beats dealt tonight (${c.id})`);
+  }
+  ok(pickCard(cards, { level: 2, packs: ["trivia"], used: trivia, tonight: trivia, allowAdult: true }, rng) !== null, "fewer cards than rounds: tonight's come back rather than nothing");
   ok(pickCard(cards, { level: 2, packs: ["nope"], used: [], allowAdult: true }, rng) === null, "an empty pack deals nothing");
   const deck: Card[] = [
     { ...cards[1], id: "spicy", adult: true, level: 1 },
@@ -492,6 +500,31 @@ test("straightface: the leaderboard breaks ties by who fooled the judge more, th
   ok(board[0].fooled === 1, "the tie-break counted");
 });
 
+test("straightface: tonight's titles: top score, best bluffer, best bets; shared when tied, empty when unearned", () => {
+  const g = createGame(mk(4), {}, 32);
+  const [a, b, c, d] = g.players.map((p) => p.id);
+  const bet = (r: RoundState, bets: Record<string, string>): RoundState => ({ ...r, bets });
+  // judge, honest one, accused: a fooled two judges and b one; c bet on the honest one twice, a, b and d once each
+  const rounds = [
+    bet(fakeRound(0, c, d, a), { [b]: d, [a]: b }),
+    bet(fakeRound(1, d, c, a), { [b]: a, [a]: c }),
+    bet(fakeRound(2, a, d, b), { [c]: d, [d]: c }),
+    bet(fakeRound(3, b, a, a), { [c]: a, [d]: a }),
+  ];
+  const s: GameState = { ...g, phase: "finished", scores: { [a]: 5, [b]: 5, [c]: 3, [d]: 1 }, rounds };
+  const w = awards(s);
+  ok(w.top.join() === a, `top: one on top after the tie-break (${w.top})`);
+  ok(w.bluffer.join() === a && w.fooled[a] === 2 && w.fooled[b] === 1, `best bluffer: a, twice (${w.bluffer} ${JSON.stringify(w.fooled)})`);
+  ok(w.bettor.join() === c && w.rightBets[c] === 2 && w.rightBets[a] === 1 && w.rightBets[b] === 1 && w.rightBets[d] === 1, `best bets: c, twice (${w.bettor} ${JSON.stringify(w.rightBets)})`);
+  const tied = awards({ ...s, scores: { [a]: 4, [b]: 4, [c]: 0, [d]: 0 }, rounds: [fakeRound(0, c, d, a), fakeRound(1, d, c, b)] });
+  ok(tied.top.join() === [a, b].join() && tied.bluffer.join() === [a, b].join(), `shared when tied (${tied.top} / ${tied.bluffer})`);
+  ok(tied.bettor.length === 0, "no bets tonight: nobody gets the bets title");
+  const none = awards({ ...s, scores: { [a]: 0, [b]: 0, [c]: 0, [d]: 0 }, rounds: [fakeRound(0, c, d, d)] });
+  ok(none.top.length === 0 && none.bluffer.length === 0, "nobody scored, nobody fooled a judge: no titles");
+  const gone = awards({ ...s, players: s.players.filter((p) => p.id !== a) });
+  ok(!gone.top.includes(a) && !gone.bluffer.includes(a) && gone.bluffer.join() === b, `someone who left takes no title (${gone.bluffer})`);
+});
+
 /* ---------- online: the same engine behind the rooms server (src/shared/engine/games/straightface.ts) ---------- */
 
 let clock = 1_000_000;
@@ -804,6 +837,7 @@ test("straightface online: cards the table has played come last; which card it w
   ok(t.view("p1").cardId === fresh.id && t.view("tv").cardId === fresh.id && t.view(p.judge).cardId === fresh.id, "the verdict: every screen knows the card (for its numbers and the flag)");
   t.g("p0", "round");
   ok(t.view("p1").cardId === fresh.id, "and still between rounds");
+  ok(t.view("p1").awards === null, "no titles before the end");
   t.g("p0", "start");
   ok(t.view("p1").phase === "peek" && !!t.view("p1").table?.term && t.view("p1").cardId === null, "every card played: the deal falls back on the played ones, and the new card is hidden again");
   for (let i = 0; i < 6 && t.view("p0").phase !== "finished"; i++) {
@@ -812,7 +846,10 @@ test("straightface online: cards the table has played come last; which card it w
     if (t.view("p0").phase === "between") t.g("p0", "start");
   }
   ok(t.view("p0").phase === "finished", "four rounds, then the end");
+  const w = t.view("p2").awards;
+  ok(!!w && w.top.length > 0 && JSON.stringify(t.view("tv").awards) === JSON.stringify(w), `the end: tonight's titles, the same on every screen (${JSON.stringify(w?.top)})`);
   const played = s().g!.rounds.map((r) => r.cardId);
+  ok(new Set(played).size === played.length, `every card was played before, yet none twice in one game (${played.join()})`);
   t.g("p0", "again");
   const tonight = new Set(played);
   ok(s().g === null && s().seen.slice(-tonight.size).every((id) => tonight.has(id)), "again: tonight's cards are remembered for the next game, newest last");

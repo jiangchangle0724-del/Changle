@@ -8,12 +8,13 @@ import { sfx } from "../../lib/sfx";
 import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
 import type { SeatView, TuneView } from "../../shared/protocol";
-import { CATS, parsePool, SOURCES } from "../../shared/songs";
+import { CATS, ERAS, parsePool, SOURCES } from "../../shared/songs";
 import { Bi, FacesIn, RoundTag, TvBoard, TvClock, TvPodium, TvShow, useArrivals, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
 import { perfAt } from "../sensors";
 import { tuneCrew, type Mate, type MateState } from "./crew";
 import { clipSeconds, CoverLabel, playClip, playSnippets, stageNow, startSong, tuneChoice, useSnippetOn, useSongAudio, Vinyl, type QuizChoice } from "./parts";
+import { specialBy, specialName } from "./specials";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
 import "../../styles/party.css";
 import "../../styles/tv-tune.css";
@@ -248,6 +249,9 @@ function Ready({ v }: { v: TuneView }) {
   const pool = parsePool(v.pool);
   const langs = pool ? SOURCES.filter((x) => pool.srcs.includes(x.key)).map((x) => (zh ? x.zh : x.en)) : [];
   const cats = pool ? CATS.filter((c) => pool.cats.includes(c.key)).map((c) => (zh ? c.zh : c.en)) : [];
+  const eras = pool ? ERAS.filter((e) => pool.eras.includes(e.key)).map((e) => (zh ? e.zh : e.en)) : [];
+  const special = pool?.singer ? specialBy(pool.singer) : null;
+  const singer = pool?.singer ? (special ? specialName(special, zh) : pool.singer) : "";
   const Icon = v.mode === "songs" ? Radio : v.mode === "melody" ? Music : Disc3;
   return (
     <div className="tvt-ready">
@@ -257,10 +261,12 @@ function Ready({ v }: { v: TuneView }) {
           <Icon size={28} strokeWidth={2.4} />
           {v.mode === "songs" ? (zh ? "真歌" : "Real songs") : v.mode === "melody" ? (zh ? "旋律" : "Melodies") : "DJ"}
         </li>
-        {v.mode === "songs" && langs.length > 0 && <li>{langs.join(zh ? "、" : ", ")}</li>}
-        {v.mode === "songs" && <li>{cats.length ? cats.join(zh ? "、" : ", ") : zh ? "所有类别" : "Every kind"}</li>}
+        {v.mode === "songs" && singer && <li>{zh ? `歌手专场：${singer}` : `One singer: ${singer}`}</li>}
+        {v.mode === "songs" && !singer && langs.length > 0 && <li>{langs.join(zh ? "、" : ", ")}</li>}
+        {v.mode === "songs" && !singer && <li>{cats.length ? cats.join(zh ? "、" : ", ") : zh ? "所有类别" : "Every kind"}</li>}
+        {v.mode === "songs" && !singer && eras.length > 0 && <li>{eras.join(zh ? "、" : ", ")}</li>}
         {v.mode !== "dj" && <li>{v.quiz ? (zh ? "选择题" : "Multiple choice") : zh ? "抢答" : "Buzz in"}</li>}
-        {v.mode === "songs" && v.hard && <li>{zh ? "难：只写歌名" : "Hard: titles only"}</li>}
+        {v.mode === "songs" && v.hard && !singer && <li>{zh ? "难：只写歌名" : "Hard: titles only"}</li>}
         {v.mode === "songs" && v.snap && <li>{zh ? "一秒猜歌" : "One second"}</li>}
         <li className="tabular">{zh ? `${v.total} 首` : `${v.total} songs`}</li>
       </ul>

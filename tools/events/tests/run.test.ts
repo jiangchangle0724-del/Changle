@@ -7,13 +7,15 @@ import rpl from "./fixtures/bibliocommons/rpl-2026-11-01-p1.json?raw";
 import ubc from "./fixtures/ical/ubc-2026-10-31.ics?raw";
 import bpl from "./fixtures/bpl/events-2026-11-01.json?raw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useArrival } from "../src/arrival";
 import { keepHandoff } from "../src/handoff";
 import { LIVE_KEY, publish } from "../src/publish";
 import { fetchStep, runDay, type StepRunner } from "../src/run";
+import { vanParts } from "../src/time";
 import worker from "../src/worker";
 import type { Published } from "../src/types";
 
-const steps: StepRunner = { fetchSource: (a) => fetchStep(env, a), publish: (a) => publish(env, a.runId) };
+const steps: StepRunner = { fetchSource: (a) => fetchStep(env, a), publish: (a) => publish(env, a.runId, a.note ?? null) };
 
 /** A library's next page once the events run out: the first page with no events on it. */
 function emptyAfter(page: string): string {
@@ -22,11 +24,29 @@ function emptyAfter(page: string): string {
   return JSON.stringify(empty);
 }
 
+/** A library's second page: the first one's events again, as other events (other ids, "(page 2)" titles). */
+function secondPage(page: string): string {
+  const p = JSON.parse(page);
+  const ids: string[] = p.events.results;
+  p.entities.events = Object.fromEntries(
+    ids.map((id) => {
+      const ev = structuredClone(p.entities.events[id]);
+      ev.id = `${id}-2`;
+      ev.definition.title = `${ev.definition.title} (page 2)`;
+      return [ev.id, ev];
+    }),
+  );
+  p.events.results = ids.map((id) => `${id}-2`);
+  p.events.pagination.page = 2;
+  return JSON.stringify(p);
+}
+
 /**
  * The sources, as they answered: Luma's feed; each library's first page, then nothing; UBC's first
  * two days, then nothing. `librariesRefuse`: BiblioCommons answers the Worker 403, as since 2 November.
+ * `vplSecond`: Vancouver's library lists a second page of events ("listed"), or that page fails ("fails").
  */
-function sources(opts: { lumaDown?: boolean; librariesRefuse?: boolean } = {}) {
+function sources(opts: { lumaDown?: boolean; librariesRefuse?: boolean; vplSecond?: "listed" | "fails" } = {}) {
   const calls: string[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input instanceof Request ? input.url : input);
@@ -43,6 +63,8 @@ function sources(opts: { lumaDown?: boolean; librariesRefuse?: boolean } = {}) {
       const page = lib === "vpl" ? vpl : lib === "yourlibrary" ? rpl : null;
       if (!page) return new Response("not found", { status: 404 });
       if (url.includes("page=1")) return new Response(page, { headers: { "content-type": "application/json" } });
+      if (lib === "vpl" && url.endsWith("page=2") && opts.vplSecond === "fails") return new Response("oops", { status: 500 });
+      if (lib === "vpl" && url.endsWith("page=2") && opts.vplSecond) return new Response(secondPage(page), { headers: { "content-type": "application/json" } });
       return new Response(emptyAfter(page), { headers: { "content-type": "application/json" } });
     }
     return new Response("not found", { status: 404 });
@@ -164,6 +186,36 @@ describe("a morning run", () => {
     expect(r).toMatchObject({ kept: true, count: 0 });
     expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.runId).toBe("2026-11-01");
   });
+
+  it("a source that fails part-way keeps what it listed on the pages it couldn't read; read to the end, it drops what it stopped listing", async () => {
+    const vancouver = (p: Published) => p.events.filter((e) => e.sourceName === "Vancouver Public Library");
+    const onPage2 = (p: Published) => vancouver(p).filter((e) => e.title.endsWith("(page 2)")).length;
+    // 31 October: Vancouver's library has two pages of events
+    sources({ vplSecond: "listed" });
+    await runDay(steps, env.DB, "2026-10-31");
+    expect(onPage2((await env.CACHE.get<Published>(LIVE_KEY, "json"))!)).toBe(40);
+    // 1 November: its first page reads, the second fails
+    sources({ vplSecond: "fails" });
+    await runDay(steps, env.DB, "2026-11-01");
+    expect((await logOf("2026-11-01")).filter((l) => l.source === "vpl")).toMatchObject([
+      { part: 0, found: 40, error: null },
+      { part: 1, http_status: 500, error: "HTTP 500" },
+    ]);
+    // the second page's events still to come stay up (they were there yesterday), with today's first page
+    const { n: upcoming } = (await env.DB.prepare("SELECT count(*) AS n FROM events WHERE source = 'vpl' AND title LIKE '%(page 2)' AND end_utc >= ?1").bind(Date.parse("2026-11-01T07:00:00Z")).first<{ n: number }>())!;
+    expect(upcoming).toBeGreaterThan(0);
+    const failedPartWay = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(failedPartWay.runId).toBe("2026-11-01");
+    expect(onPage2(failedPartWay)).toBe(upcoming);
+    expect(vancouver(failedPartWay).length).toBeGreaterThan(upcoming);
+    // 2 November: read to the end, and the second page is gone from the library: so are its events
+    sources();
+    await runDay(steps, env.DB, "2026-11-02");
+    const readToTheEnd = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(readToTheEnd.runId).toBe("2026-11-02");
+    expect(onPage2(readToTheEnd)).toBe(0);
+    expect(vancouver(readToTheEnd).length).toBeGreaterThan(0);
+  });
 });
 
 describe("the libraries' hand-over (src/handoff.ts)", () => {
@@ -232,6 +284,103 @@ describe("the libraries' hand-over (src/handoff.ts)", () => {
     const pub = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
     expect(pub.events.some((e) => e.sourceName === "Vancouver Public Library")).toBe(true);
     expect(pub.events.some((e) => e.sourceName === "Richmond Public Library")).toBe(false);
+  });
+});
+
+describe("pages handed over after the run went past their library (src/arrival.ts)", () => {
+  const RUN = "2026-10-31";
+  /** Vancouver time that day: the morning's run going on at 06:10, GitHub's job at 12:53. */
+  const at = (hhmm: string) => Date.parse(`${RUN}T${hhmm}:00-07:00`);
+  const arrives = (part: number, now: number) => useArrival(steps, env.DB, { runId: RUN, source: "vpl", part }, now);
+  const vancouver = (p: Published) => p.events.filter((e) => e.sourceName === "Vancouver Public Library");
+
+  it("are read as they come, and after the library's last page the list is published again", async () => {
+    // 06:00: the libraries refuse the Worker and nothing was handed over yet: published without them
+    sources({ librariesRefuse: true });
+    await runDay(steps, env.DB, RUN);
+    const morning = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(vancouver(morning)).toEqual([]);
+    // 12:53: the job hands Vancouver's pages over, one by one
+    await keepHandoff(env.CACHE, RUN, "vpl", 0, vpl);
+    expect(await arrives(0, at("12:53"))).toEqual({ read: true, found: 40, inWindow: 40, added: 40, updated: 0, error: null, published: null });
+    expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.count).toBe(morning.count);
+    await keepHandoff(env.CACHE, RUN, "vpl", 1, emptyAfter(vpl));
+    expect(await arrives(1, at("12:53"))).toEqual({ read: true, found: 0, inWindow: 0, added: 0, updated: 0, error: null, published: { count: morning.count + 40, kept: false } });
+    const later = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(later.runId).toBe(RUN);
+    expect(vancouver(later)).toHaveLength(40);
+    // the log: the morning's refusal; the two pages, read as they came; the list published again
+    const log = (await logOf(RUN)).filter((l) => l.source === "vpl" || l.source === "publish");
+    expect(log).toMatchObject([
+      { source: "vpl", part: 0, via: "fetch", http_status: 403, error: "HTTP 403" },
+      { source: "publish", error: null, note: null },
+      { source: "vpl", part: 0, via: "handoff", found: 40, added: 40, error: null },
+      { source: "vpl", part: 1, via: "handoff", found: 0, error: null },
+      { source: "publish", error: null, note: "again, with Vancouver Public Library's pages as they came" },
+    ]);
+    for (const row of log.filter((l) => l.via === "handoff")) expect(row.note).toMatch(/^handed over at .+, read when it came$/);
+    // Vancouver is read to the end today: tomorrow, what it stops listing goes
+    const vplRow = (await env.DB.prepare("SELECT last_ok_run FROM sources WHERE id = 'vpl'").first<{ last_ok_run: string }>())!;
+    expect(vplRow.last_ok_run).toBe(RUN);
+  });
+
+  it("come before the run gets to their library: left for the run, which reads them", async () => {
+    sources({ librariesRefuse: true });
+    // before 06:00: no run yet
+    await keepHandoff(env.CACHE, RUN, "vpl", 0, vpl);
+    await keepHandoff(env.CACHE, RUN, "vpl", 1, emptyAfter(vpl));
+    expect(await arrives(0, at("05:52"))).toEqual({ read: false });
+    // 06:00, its first step only (Luma): the run hasn't got to Vancouver yet
+    await runDay(steps, env.DB, RUN, { maxSteps: 1 });
+    expect(await arrives(0, at("06:01"))).toEqual({ read: false });
+    expect((await logOf(RUN)).filter((l) => l.source === "vpl")).toEqual([]);
+    // the run reads them when it gets there, as it always did
+    await runDay(steps, env.DB, RUN);
+    expect((await logOf(RUN)).filter((l) => l.source === "vpl")).toMatchObject([
+      { part: 0, via: "handoff", found: 40, error: null },
+      { part: 1, via: "handoff", found: 0, error: null },
+    ]);
+    expect(vancouver((await env.CACHE.get<Published>(LIVE_KEY, "json"))!)).toHaveLength(40);
+  });
+
+  it("come while the run is still going, past their library: read at once; the run's own publish has them", async () => {
+    sources({ librariesRefuse: true });
+    // 06:00, three steps: Luma, Vancouver (refused), Richmond (refused); not published yet
+    await runDay(steps, env.DB, RUN, { maxSteps: 3 });
+    expect(await env.CACHE.get(LIVE_KEY)).toBeNull();
+    await keepHandoff(env.CACHE, RUN, "vpl", 0, vpl);
+    await keepHandoff(env.CACHE, RUN, "vpl", 1, emptyAfter(vpl));
+    expect(await arrives(0, at("06:10"))).toMatchObject({ read: true, added: 40, published: null });
+    expect(await arrives(1, at("06:10"))).toMatchObject({ read: true, error: null, published: null });
+    expect(await env.CACHE.get(LIVE_KEY)).toBeNull();
+    // 06:20: the run goes on, and publishes with Vancouver in
+    await runDay(steps, env.DB, RUN);
+    expect(vancouver((await env.CACHE.get<Published>(LIVE_KEY, "json"))!)).toHaveLength(40);
+    // a run whose last trigger never published: after 07:00 a library's last page publishes it
+    await env.DB.prepare("UPDATE runs SET published_at = NULL WHERE run_id = ?1").bind(RUN).run();
+    expect(await arrives(1, at("07:05"))).toMatchObject({ read: true, published: { kept: false } });
+  });
+
+  it("through POST /go/api/handoff: the answer says the page was read, and the list published again", async () => {
+    const KEY = "test-only-stand-in-key";
+    const keyed: Env = { ...env, EVENTS_HANDOFF_KEY: KEY };
+    const today = vanParts(Date.now()).date;
+    // today's run, done and published (the libraries refused it)
+    sources({ librariesRefuse: true });
+    await runDay(steps, env.DB, today);
+    vi.restoreAllMocks();
+    const handOver = async (part: number, page: string) => {
+      const res = await worker.fetch(
+        new Request(`https://changle-events.jiangchangle0724.workers.dev/go/api/handoff?source=vpl&date=${today}&part=${part}`, { method: "POST", headers: { authorization: `Bearer ${KEY}` }, body: page }) as Request<unknown, IncomingRequestCfProperties>,
+        keyed,
+      );
+      expect(res.status).toBe(200);
+      return (await res.json()) as Record<string, unknown>;
+    };
+    expect(await handOver(0, vpl)).toMatchObject({ ok: true, source: "vpl", date: today, part: 0, read: true, found: 40, error: null, published: null });
+    expect(await handOver(1, emptyAfter(vpl))).toMatchObject({ ok: true, part: 1, read: true, found: 0, error: null, published: { kept: false } });
+    const publishes = (await logOf(today)).filter((l) => l.source === "publish");
+    expect(publishes.map((p) => p.note)).toEqual([null, "again, with Vancouver Public Library's pages as they came"]);
   });
 });
 

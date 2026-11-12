@@ -11,6 +11,7 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
+import { Floor3D } from "./Floor3D";
 import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePadEvents } from "./deck/TvDeck";
 import { LocalPanel } from "./local/LocalPanel";
 import { FloorGrid, NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
@@ -116,6 +117,8 @@ export default function TvDj({ v }: { v: DjView }) {
   }, [speaker, booth.source, booth.driver, dj]);
 
   const fires = useRef(new Map<string, number>());
+  // the floor in 3D: trying, dancing, or the drawn floor instead
+  const [floor3d, setFloor3d] = useState<"try" | "on" | "off">("try");
   const [flames, setFlames] = useState<Flame[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
@@ -231,7 +234,23 @@ export default function TvDj({ v }: { v: DjView }) {
       {v.deck && <DeckBoard v={v} clip={booth.clipOn} />}
       <JoinCard code={code} big={!seats.length} />
 
-      <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />
+      {/* the floor: the robots once they're dancing (a graphics chip that keeps up), the drawn one till then or instead */}
+      {floor3d !== "on" && <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />}
+      {floor3d !== "off" && (
+        <Floor3D
+          seats={dancers}
+          flames={flames}
+          host={room?.host}
+          dance={dancing.floor}
+          clock={clock}
+          level={ENERGY[stage].density}
+          singing={!!v.deck?.song}
+          fires={fires}
+          shown={floor3d === "on"}
+          onReady={() => setFloor3d("on")}
+          onFail={() => setFloor3d("off")}
+        />
+      )}
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} />}
       {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
