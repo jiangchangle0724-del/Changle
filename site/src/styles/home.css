@@ -298,14 +298,16 @@
   display: grid;
   gap: var(--space-3);
 }
-.tab-loading i {
-  display: block;
+/* a pill where the tab's first row goes and a card under it, pulsing until the tab arrives */
+.tab-loading::before,
+.tab-loading::after {
+  content: "";
   height: calc(var(--tap) * 3);
   border-radius: var(--r-tile);
   background: var(--color-surface);
   animation: tab-loading calc(var(--dur-emphasis) * 3) var(--ease-out) infinite alternate;
 }
-.tab-loading i:first-of-type {
+.tab-loading::before {
   width: 70%;
   height: var(--tap);
   border-radius: var(--r-pill);
@@ -316,7 +318,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tab-loading i {
+  .tab-loading::before,
+  .tab-loading::after {
     animation: none;
   }
 }

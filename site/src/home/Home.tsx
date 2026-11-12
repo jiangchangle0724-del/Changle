@@ -5,6 +5,7 @@ import { SettingsSheet } from "../components/SettingsSheet";
 import type { GameId } from "../games/registry";
 import { EASE, LIGHTS, play, reduced, setLight } from "../lib/motion";
 import { useStore } from "../store";
+import { labels } from "../ui/labels";
 import { PartyTab } from "./PartyTab";
 import { TipButton } from "./Tip";
 // the tools and wishlist tabs aren't on the first screen: they load when opened, or once the home
@@ -78,10 +79,7 @@ export function Home({
         <Suspense
           fallback={
             <div className="tab-loading" aria-busy="true">
-              <span className="ui-visually-hidden">{lang === "zh" ? "加载中" : "Loading"}</span>
-              <i />
-              <i />
-              <i />
+              <span className="ui-visually-hidden">{labels.loading[lang]}</span>
             </div>
           }
         >
