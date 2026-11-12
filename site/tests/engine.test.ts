@@ -4181,9 +4181,9 @@ test("dj: a night of the host's songs: their names from the speaker, a song on e
   ok(nothing(g("p1", "vote", { style: "techno" })), "no styles to pick");
   ok(nothing(g("p2", "req", { text: "something else" })) && nothing(g("p2", "req", { local: "nope" })), "a name typed in, or a song that isn't there, isn't asked for");
 
-  // asked for by name: it goes on the deck off the air
-  const s3on = d.songs.a === "s3" || d.songs.b === "s3";
-  const want = s3on ? "s5" : "s3";
+  // asked for by name: it goes on the deck off the air (one on neither deck: which two the night
+  // starts on is random, and changes with the clock the tests before this one leave)
+  const want = ["s3", "s5", "s1", "s2", "s4"].find((id) => id !== d.songs.a && id !== d.songs.b)!;
   g("p2", "req", { local: want });
   d = deck();
   ok(d.up?.local === want && d.up?.by === "p2" && d.songs.b === want, `Ben asks for ${want}: up next, on deck B`);
@@ -5150,6 +5150,204 @@ test("lastcard: random rounds at every size: every card kept, every hand private
   ok(!bad, bad || `${rounds} rounds, ${moves} moves`);
   ok(rounds === 18, `every round ends with someone out (${rounds} of 18)`);
   seed = s0;
+});
+
+// (last: the tests share one seeded random, and the ones before draw their numbers as before)
+test("rogue: each power's use is an effect of its own, for its sound", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; wcUsed: boolean };
+  s.holders = { buddy: "p2", camera: "p0", nose: "p1", wc: "p0", trouble: "p1" };
+  const fxs = () => t.events.filter((e) => e.k === "fx").map((e) => (e as { fx: string; pid?: string }).fx + ":" + (e as { pid?: string }).pid);
+  t.g("p0", "camera");
+  ok(fxs().includes("camera:p0"), "the camera");
+  t.advance(4000);
+  t.g("p0", "moved", {});
+  t.g("p1", "nose");
+  ok(fxs().includes("nose:p1"), "the nose");
+  t.advance(7000);
+  t.g("p0", "wc");
+  ok(fxs().includes("wc:p0") && t.view<Extract<GameView, { id: "rogue" }>>("p0").wcUsed, "the pass, used by its holder");
+  const before = t.pens().length;
+  t.g("p1", "trouble", { target: "p0" });
+  ok(fxs().includes("trouble:p1") && t.pens().length === before + 1, "the troublemaker's call, and the penalty with it");
+  t.act("p0", { a: "buddy", pen: t.pens().slice(-1)[0].id });
+  ok(fxs().includes("buddy:p2") && t.pens().slice(-1)[0].who[0] === "p2", "the buddy's call, and the buddy's penalty");
+  ok(ROGUE_RULES.filter((r) => r.kind === "hold").every((r) => r.power) && ROGUE_RULES.filter((r) => r.kind !== "hold").every((r) => !r.power), "every hold card names its power, no other card does");
+});
+
+test("rogue: the camera's judgement has a deadline, so a holder who walks away can't freeze the table", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string> };
+  s.holders.camera = "p2";
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  t.g("p2", "camera");
+  t.advance(3600);
+  const it = rv().interrupt;
+  ok(it?.kind === "camera" && it.phase === "judge" && it.endsAt > clock + 15000, "after the freeze the holder gets a while to say who moved");
+  t.g(rv().turn, "draw");
+  ok(rv().card === null, "meanwhile nobody draws");
+  const before = t.pens().length;
+  t.advance(19000);
+  ok(rv().interrupt?.kind === "camera", "still waiting with a second to go");
+  t.advance(1500);
+  ok(rv().interrupt === null && t.pens().length === before, "the deadline passes: nobody moved, no penalty");
+  (t.eng.d.game!.s as { deck: number[] }).deck.push(8); // the nine of spades: a card that is done at once (not a 5, which would move the camera)
+  t.g(rv().turn, "draw");
+  ok(rv().card !== null, "and the table draws again");
+  t.advance(1500);
+  // an answer in time: the deadline is forgotten
+  t.g(rv().drawer ?? rv().turn, "next");
+  ok(rv().phase === "draw", "on to the next draw");
+  t.advance(60000); // (the camera's minute of rest)
+  t.g("p2", "camera");
+  t.advance(3600);
+  t.g("p2", "moved", { target: "p1" });
+  ok(rv().interrupt === null && t.pens().slice(-1)[0].who[0] === "p1", "the holder names p1");
+  t.advance(25000);
+  ok(rv().interrupt === null && t.pens().slice(-1)[0].who[0] === "p1", "and the old deadline does nothing later");
+  ok(rv().interrupt === null, "nothing left over");
+});
+
+test("rogue: the camera and the nose wait while a timed round is on", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
+  s.holders.camera = "p2";
+  s.holders.nose = "p3";
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  s.deck.push(3); // the four of spades: grab the number
+  t.g(rv().turn, "draw");
+  ok(rv().phase === "grab", "a grab round is on");
+  t.g("p2", "camera");
+  t.g("p3", "nose");
+  ok(rv().interrupt === null, "neither the camera nor the nose goes off during it");
+  t.advance(16000);
+  ok(rv().phase === "done", "the round ends on its own clock");
+  t.g("p2", "camera");
+  ok(rv().interrupt?.kind === "camera", "now the camera works");
+  t.advance(3600);
+  t.g("p2", "moved", {});
+  t.g("p3", "nose");
+  ok(rv().interrupt?.kind === "nose", "and the nose");
+});
+
+test("rogue: the garden's judge can name the one who just finished, not only the one speaking", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { deck: number[] };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  s.deck.push(2); // the three of spades
+  const drawer = rv().turn;
+  t.g(drawer, "draw");
+  t.g(drawer, "garden", { kind: 0 });
+  const first = rv().garden!.speaker;
+  ok(rv().garden!.last === undefined, "nobody has finished yet");
+  t.g(first, "said");
+  const second = rv().garden!.speaker;
+  ok(rv().garden!.last === first && second !== first, "the first speaker is remembered once the next one is up");
+  const before = t.pens().length;
+  t.g(drawer, "repeat", { who: "nobody" });
+  ok(t.pens().length === before && rv().phase === "garden", "someone else can't be named");
+  t.g(drawer, "repeat", { who: first });
+  ok(t.pens().length === before + 1 && t.pens().slice(-1)[0].who[0] === first && rv().phase === "done", "the one who just finished takes the penalty");
+  // without a name, as before: the one speaking
+  t.g(rv().drawer ?? rv().turn, "next");
+  s.deck.push(15); // the three of hearts
+  const d2 = rv().turn;
+  t.g(d2, "draw");
+  t.g(d2, "garden", { kind: 1 });
+  const sp = rv().garden!.speaker;
+  t.g(d2, "repeat");
+  ok(t.pens().slice(-1)[0].who[0] === sp, "no name given: the one speaking");
+});
+
+test("rogue: sevens never starts on a seven; a phone that is away sits out the grab and the nose", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { deck: number[]; holders: Record<string, string> };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  s.deck.push(6); // the seven of spades
+  const drawer = rv().turn;
+  t.g(drawer, "draw");
+  for (const n of [7, 14, 17]) {
+    t.g(drawer, "sevens", { start: n });
+    ok(rv().phase === "sevens-start", `can't start on ${n}`);
+  }
+  t.g(drawer, "sevens", { start: 16 });
+  ok(rv().phase === "sevens" && rv().sevens!.n === 17, "16 starts, and 17 is next (a 过)");
+  t.act("p0", { a: "end" });
+
+  // the grab: p3's phone is away; the last one in the race is the last one here
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "rogue" });
+  const us = u.eng.d.game!.s as { deck: number[]; holders: Record<string, string> };
+  const uv = () => u.view<Extract<GameView, { id: "rogue" }>>("p0");
+  u.eng.setOnline("p3", false);
+  u.eng.flush();
+  us.deck.push(3); // the four of spades
+  const d = uv().turn;
+  u.g(d, "draw");
+  const free = u.ids.filter((id) => id !== d && id !== "p3");
+  const before = u.pens().length;
+  u.g(free[0], "grab", { n: 2 });
+  u.advance(1000);
+  const last = u.pens().slice(before)[0];
+  ok(uv().phase === "done" && last && last.who.join() === free[1], `with p3 away the race is over once one of the two here has grabbed: the other is the last one, not p3 (${last?.who})`);
+  u.g(uv().drawer ?? uv().turn, "next");
+  // the nose: p3 away, the two here touch theirs: done, nobody missed
+  us.holders.nose = d;
+  u.g(d, "nose");
+  for (const id of free) {
+    u.g(id, "tap");
+    clock += 80;
+  }
+  const n2 = u.pens().slice(-1)[0];
+  ok(uv().interrupt === null && n2 && n2.who[0] === free[1] && n2.note?.zh === "摸鼻子：最慢", `the nose ends when everyone here has touched; the slowest of them pays (${n2?.who}, ${n2?.note?.zh})`);
+  // p3 comes back: in the next race and the next nose as usual
+  u.eng.setOnline("p3", true);
+  u.eng.flush();
+  u.advance(60000); // (the nose's minute of rest)
+  u.g(d, "nose");
+  u.g(free[0], "tap");
+  u.g(free[1], "tap");
+  ok(uv().interrupt?.kind === "nose", "with p3 back, the nose waits for p3");
+  u.advance(6500);
+  ok(u.pens().slice(-1)[0].who[0] === "p3" && u.pens().slice(-1)[0].note?.zh === "摸鼻子：没摸", "and p3 pays for not touching");
+});
+
+test("rogue: the camera and the nose rest a minute after each use; a new holder starts fresh", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
+  s.holders.camera = "p1";
+  s.holders.nose = "p2";
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  t.g("p1", "camera");
+  ok(rv().interrupt?.kind === "camera" && (rv().cool?.camera ?? 0) > clock + 50000, "the camera goes, and rests for a minute");
+  t.advance(3600);
+  t.g("p1", "moved", {});
+  t.g("p1", "camera");
+  ok(rv().interrupt === null, "not again straight away");
+  t.g("p2", "nose");
+  ok(rv().interrupt?.kind === "nose", "the nose has a clock of its own");
+  t.advance(6500);
+  t.g("p2", "nose");
+  ok(rv().interrupt === null && (rv().cool?.nose ?? 0) > clock, "and rests too");
+  t.advance(55000);
+  t.g("p1", "camera");
+  ok(rv().interrupt?.kind === "camera", "a minute on, the camera goes again");
+  t.advance(3600);
+  t.g("p1", "moved", {});
+  // a new 5: its new holder is not held to the old one's minute
+  s.deck.push(4); // the five of spades
+  const d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.camera === d && rv().cool?.camera === undefined, "the card changes hands: no rest to serve");
+  t.g(rv().drawer ?? d, "next");
+  t.g(d, "camera");
+  ok(rv().interrupt?.kind === "camera", "and the new holder can use it at once");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

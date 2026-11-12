@@ -453,7 +453,8 @@ def t_rogue(host, everyone):
                 sp.get_by_role("button", name=re.compile("我说完了")).click()
                 time.sleep(0.4)
             shot(drawer, "rogue-garden")
-            drawer.get_by_role("button", name=re.compile("重复了")).click()
+            # (two buttons now: the one who just finished, red, and the one speaking)
+            drawer.get_by_role("button", name=re.compile("重复了")).first.click()
             ok(until(lambda: stamps_up(everyone), 3000), "[rogue] 3: a repeat earns the stamp")
         elif phase == "grab":
             shot(everyone[1], "rogue-grab")

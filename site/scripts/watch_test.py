@@ -975,7 +975,7 @@ def t_rogue(t):
             shot(t.screens if "garden" not in seen else [t.tv], "rg-03-garden")
             seen.add("garden")
             try:
-                drawer.get_by_role("button", name=re.compile(L("重复了", "repeated"))).click(timeout=3000)
+                drawer.get_by_role("button", name=re.compile(L("重复了", "repeated"))).first.click(timeout=3000)
             except Exception:
                 pass
         elif phase == "grab":
