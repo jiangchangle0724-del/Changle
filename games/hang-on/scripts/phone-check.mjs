@@ -20,7 +20,8 @@ const failures = [];
 const errors = [];
 let shot = 0;
 let host;
-const PHONE = { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, locale: 'zh-CN' };
+// 手机的样子：横着的 844 × 390。像素密度默认 1：CI 的机器没显卡，画得太细手机 1 一秒只画两三帧，输入也跟着慢（看截图时 RENDER=1 用 2）
+const PHONE = { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: RENDER ? 2 : 1, locale: 'zh-CN' };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function check(name, ok, detail = '') {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` (${detail})` : ''}`);
@@ -150,8 +151,17 @@ try {
   // （身体走不走看抓到了什么：三个人挤在起点，常常抓的是旁边的人，所以这里不量身体）
   const me1 = await pads[0].page.evaluate(() => hangOnPad.view.me);
   await pads[0].page.evaluate(() => hangOnPad.set({ ax: 1, ay: 0.2, gl: true, gr: true }));
-  const aimed = await until(() => pads[0].page.evaluate((me) => { const p = hangOnPad.view.sim.players[me]; return p.aim.x > 0.9 && p.arms.some((a) => a.grip); }, me1), 4000);
-  check('手机 1 的输入转一圈回到自己的画面上（胳膊指过去、手抓上）', aimed >= 0, `${aimed.toFixed(0)} ms`);
+  const seen = (me) => {
+    const p = hangOnPad.view.sim.players[me];
+    return { aim: p.aim.x, grips: p.arms.filter((a) => a.grip).length };
+  };
+  const aimed = await until(() => pads[0].page.evaluate((me) => hangOnPad.view.sim.players[me].aim.x > 0.9, me1), 6000);
+  const fps = await pads[0].page.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => (++n, performance.now() - t0 < 1000 ? requestAnimationFrame(f) : res(n)); requestAnimationFrame(f); }));
+  check('手机 1 推摇杆，转一圈回到自己的画面上（胳膊指过去）', aimed >= 0, `${aimed.toFixed(0)} ms, ${JSON.stringify(await pads[0].page.evaluate(seen, me1))}, 手机 1 每秒 ${fps} 帧`);
+  // 手抓没抓上看手边有什么；要的是两边一样：房主那边抓着几只，手机上就画几只
+  const hostGrips = await host.evaluate((me) => hangOn.sim.players[me].arms.filter((a) => a.grip).length, me1);
+  const sameGrips = await until(() => pads[0].page.evaluate(({ me, n }) => hangOnPad.view.sim.players[me].arms.filter((a) => a.grip).length === n, { me: me1, n: hostGrips }), 3000);
+  check('手机 1 画的手和房主那边抓着的一样', sameGrips >= 0, `房主那边抓着 ${hostGrips} 只`);
   await pads[0].page.evaluate(() => hangOnPad.set({ ax: 0, ay: 0, gl: false, gr: false }));
   await screenshot(host, 'host-playing');
   await screenshot(pads[0].page, 'pad1-playing');
