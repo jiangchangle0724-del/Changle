@@ -3,6 +3,8 @@ import { countdown, cued, loaded, pressBy, reqOrder } from "../src/shared/dj/dec
 import { ENERGY, FAKE_MIX, heatLean, LEAN, mixFor } from "../src/shared/dj/curve";
 import { recapOf } from "../src/party/dj/recap";
 import { coaching } from "../src/party/limbo/coach";
+import { limboLift, limboStyle } from "../src/party/limbo/music";
+import { GROOVES } from "../src/lib/music";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK, MIX_FX, MIXER, SHARED_BY } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
@@ -1526,6 +1528,19 @@ test("limbo coach: what the phone says to someone who can't see it", () => {
   ok(coaching("tilt", { lean: 25, target: 20, side: -10, want: -15 }).say === "side", "not tilted left enough: tilt further");
   ok(coaching("tilt", { lean: 25, target: 20, side: -16, want: -15, hold: 0.2 }).say === "on", "tilted enough: there");
   ok(coaching("tilt", { lean: 10, target: 20, side: 20, want: 15 }).say === "down", "not back enough comes first");
+});
+
+test("limbo band: a gear up every bar, the calypso itself untouched", () => {
+  const first = GROOVES.calypso.lead!.bars[0].find((n) => n != null)!;
+  const bpms = [0, 1, 2, 3, 4, 5, 6, 9].map((l) => limboStyle(l).bpm);
+  ok(bpms[0] === 112 && bpms.every((b, i) => i === 0 || b >= bpms[i - 1]) && bpms[5] === bpms[6] && bpms[6] === bpms[7], `quicker every bar up to bar 6, then the same (${bpms.join(" ")})`);
+  ok(bpms[5] >= 140 && bpms[5] <= 150, "about a third quicker at the top");
+  ok([0, 1, 2].every((l) => limboLift(l) === 0) && limboLift(3) === 1 && limboLift(7) === 5 && limboLift(12) === 5, "a key higher a bar from bar 4, five at most");
+  const s3 = limboStyle(3);
+  ok(s3.lead!.bars[0].find((n) => n != null) === first + 1 && s3.bass![0].find((n) => n != null) === GROOVES.calypso.bass![0].find((n) => n != null)! + 1 && s3.chords!.prog[0][0] === GROOVES.calypso.chords!.prog[0][0] + 1, "bar 4's lead, bass and chords are all a semitone up");
+  ok(!limboStyle(0).hat && !!limboStyle(1).hat && !limboStyle(1).clap && !!limboStyle(2).clap, "hats come in at bar 2, the backbeat at bar 3");
+  ok(limboStyle(2).kick === GROOVES.calypso.kick && limboStyle(3).kick !== GROOVES.calypso.kick && !!limboStyle(4).ohat && limboStyle(5).shaker!.every((x) => x === 1), "the kick drives from bar 4, open hats from bar 5, everything from bar 6");
+  ok(GROOVES.calypso.bpm === 112 && GROOVES.calypso.lead!.bars[0].find((n) => n != null) === first && !GROOVES.calypso.hat, "the shared calypso is as it was");
 });
 
 /**

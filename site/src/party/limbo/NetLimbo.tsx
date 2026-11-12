@@ -1,7 +1,7 @@
 import { Check, Crown, Play, Smartphone, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { GAME_BY_ID } from "../../games/registry";
-import { holdBackground, startGroove, type GrooveHandle } from "../../lib/music";
+import { holdBackground } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
@@ -13,7 +13,8 @@ import { usePenaltyText, useStore } from "../../store";
 import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useSensorStatus, useWakeLock } from "../sensors";
 import { LIMBO_MODES, blindError, classicBar } from "../../shared/engine/games/limbo";
-import { QUIET, coaching, useCoach, type Grid } from "./coach";
+import { QUIET, coaching, useCoach } from "./coach";
+import { barDrops, crowdFor, riser, useLimboMusic } from "./music";
 import {
   BlindMeter,
   FollowMeter,
@@ -70,17 +71,15 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
     if (!watching && sensors === "on" && !v.sensors.includes(me)) g("sensor", { on: true });
   }, [watching, sensors, v.sensors, me, g]);
 
-  // the calypso keeps playing level after level, on the same beat on every phone
+  // the calypso keeps playing level after level, a gear up each bar, on the same grid on every phone
   const playing = v.musicAt > 0 && (v.phase === "go" || v.phase === "result");
-  /** the music's grid, so the coach's cues land on it */
-  const grid = useRef<Grid | null>(null);
+  const grid = useLimboMusic(playing, v.level, () => perfAt(v.musicAt, now()));
+  // the bar coming down a notch (the level moves on as the result settles)
+  const lastLevel = useRef(v.level);
   useEffect(() => {
-    if (!playing) return;
-    const h: GrooveHandle | null = startGroove("calypso", { startPerf: perfAt(v.musicAt, now()) });
-    grid.current = h ? { originPerf: h.startedPerf, beatMs: h.beatMs } : null;
-    return () => h?.stop(0.4);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, v.musicAt]);
+    if (v.level > lastLevel.current && (v.phase === "result" || v.phase === "go")) barDrops();
+    lastLevel.current = v.level;
+  }, [v.level, v.phase]);
 
   // count in
   const lastCount = useRef(0);
@@ -90,12 +89,14 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
       sfx.countdown(countdown);
     }
   }, [countdown, open, v.phase]);
+  useCue(v.phase === "go" && !open, () => riser(3.2, v.level));
   useCue(v.phase === "go" && open, () => {
     sfx.gong("small", 0.7);
     haptic(20);
   });
   useCue(passed, () => {
     sfx.correct();
+    crowdFor(v.level);
     haptic([12, 30, 12]);
   });
   useCue(failed, () => sfx.sadTrombone(0.7));
