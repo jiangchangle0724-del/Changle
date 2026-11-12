@@ -5,8 +5,10 @@ usage: python3 scripts/straightface_live_check.py [base_url]   (default https://
 
 Checks that the rooms server knows the game, that every non-judge phone holds a part (one honest,
 the rest bluffing), that the part shows only while held, that the TV never shows a part, that the
-reveal reaches every phone and the TV, and that four rounds end the game. Screenshots go to
-local-shots/straightface-live/. Helpers come from straightface_net_check.py.
+reveal reaches every phone and the TV, and that four rounds end the game. Two phones write words of
+their own first (自己出题) and the TV says who wrote each; a fifth phone sits down after the deal and
+is the audience: it backs someone in round 1, and its phone and the TV say how that went.
+Screenshots go to local-shots/straightface-live/. Helpers come from straightface_net_check.py.
 
 A test game is not a real one: what the phones would send for the cards' numbers (a round's
 outcome, a flagged card) is answered by the check itself and never reaches the server, so the live
@@ -97,6 +99,14 @@ def main():
         press(host, host.get_by_role("button", name=L["deal"]["zh"], exact=True))
         own_words = {"搞掂": "Amy", "Gobbledygook": "Ben"}
         played_own = []
+        # someone sits down after the deal: the audience
+        eve = page(browser, "Eve", "zh", {"width": 390, "height": 844})
+        eve.route(re.compile(r".*/api/sf/(round|report)$"), lambda route: route.fulfill(status=200, content_type="application/json", body='{"ok":true}', headers={"access-control-allow-origin": "*"}))
+        eve.goto(BASE + f"#/r/{code}", wait_until="networkidle")
+        eve.wait_for_timeout(500)
+        eve.locator(".join-card input").fill("Eve")
+        eve.locator(".join-card button[type=submit]").click()
+        ok(until(lambda: "你这局是观众" in text(eve), 15000), "a late arrival is the audience")
 
         rounds = 0
         while rounds < 6:
@@ -123,6 +133,10 @@ def main():
             # the judge starts; whoever is up says done
             ok(until(lambda: judge.get_by_role("button", name=L["startSpeaking"][judge._lang]).count() > 0, 10000), f"[round {rounds}] explaining: the judge starts it")
             press(judge, judge.get_by_role("button", name=L["startSpeaking"][judge._lang], exact=True))
+            if rounds == 1:
+                ok(until(lambda: eve.locator(".sf-crowd .ballot .nominee:not([disabled])").count() > 0, 10000), "[round 1] the audience can bet once explaining starts")
+                press(eve, eve.locator(".sf-crowd .ballot .nominee:not([disabled])"))
+                ok(until(lambda: "你押了" in text(eve), 6000), "[round 1] the audience backed someone")
             for _ in range(3):
                 sp = until(lambda: next((g for g in phones if has(g, "speak")), None), 10000)
                 if not sp:
@@ -145,6 +159,9 @@ def main():
             if word:
                 played_own.append(word)
                 ok(until(lambda: f"这个词是 {own_words[word]} 出的" in text(tv), 6000), f"[round {rounds}] a player's word ({word}): the TV says who wrote it")
+            if rounds == 1:
+                ok(until(lambda: re.search(r"观众 [01]/1 押对了", text(tv)) is not None, 8000), "[round 1] the TV says how the audience did")
+                ok(until(lambda: "你押对了" in text(eve) or "这次没押中" in text(eve), 8000), "[round 1] the audience's phone says right or wrong")
             host.wait_for_timeout(5200)
             if rounds == 1:
                 shot(phones[1], "04-reveal")
@@ -183,7 +200,7 @@ def main():
             with open(os.path.join(OUT, "picture.png"), "wb") as f:
                 f.write(base64.b64decode(data.split(",", 1)[1]))
         shot(ben, "06-share")
-        for g in phones + [tv]:
+        for g in phones + [tv, eve]:
             real = [e for e in g._errs if "favicon" not in e and "ResizeObserver" not in e]
             ok(not real, f"{g._name}: no errors ({real[:2]})")
         browser.close()
