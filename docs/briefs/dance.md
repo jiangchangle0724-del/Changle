@@ -28,7 +28,7 @@
 
 ## 测试
 
-- `games/party-base`：`npm test`（44 个）；`games/party-server`：`npm run typecheck`、`npm test`（112 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
+- `games/party-base`：`npm test`（44 个）；`games/party-server`：`npm run typecheck`、`npm test`（113 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
 - 浏览器里把一支舞从头跳到结算：`games/party-server/scripts/song-check.cjs`（Worker 要带 `--var ALLOW_TEST_SETTINGS:1` 跑，见 README），约两分半；中间会让一台手机断网 2.5 秒
 - 对时：`games/party-server/scripts/timing-check.cjs`（本地，或 `BASE=https://changle.ca` 测线上）
 - 体感和电视小人：`scripts/motion-check.cjs`（一台手机用假手跳）；热歌：`scripts/song-yt-check.cjs`（假的 YouTube 播放器：云端的浏览器里真 YouTube 不让放，错误 150；也跑一遍找拍子，本地 Worker 要用新的存储 `--persist-to` 一个新文件夹，歌本里有的歌不找拍子）。都要本地 Worker 带 `ALLOW_TEST_SETTINGS`。
@@ -105,7 +105,7 @@
 
 ## 还剩什么
 
-- 另外 5 首原版舞（APT.、爱你、最炫民族风、科目三、Macarena）照江南Style 的做法修：看视频抽帧把动作做细，加一步一步的文字。
+- 另外 5 首原版舞（APT.、爱你、最炫民族风、科目三、Macarena）的一步一步文字写好了（第二个 PR）。动作本身还没照视频抽帧细看：科目三的歌视频是一张图（DJ 版），最炫民族风是唱片公司的音频，都没有舞，要另找教学视频看（YouTube 上能嵌入的）；爱你的 MV 副歌是一排女生手拉手跳，不是正面的舞。
 - 换上的 8 首：视频和拍子都在 Steve 电脑上量好了（11-12，同样的静音量法），下一步看视频抽帧找动作、写文字、做老师的关键帧：
   - Watch Me (Whip/Nae Nae)：`vjW8wmF5VWc`（Silentó 官方），70 拍（歌是 140，按半速跳），第 0 拍 150 毫秒，很稳；歌词时间 lrclib 14234967（202 秒，和视频一样长），舞跟着歌里喊的做（whip、nae nae、stanky leg、bop、break your legs、yule、superman）。
   - Cha-Cha Slide：`wZv62ShoStY`（Mr C 官方），131 拍，第 0 拍 402 毫秒，第 64 拍（29.7 秒）以前是视频的开场不在拍子上。lrclib 7709202 和视频一样长但时间点不准；5471624（222 秒的唱片版）准，视频比它晚约 27.5 到 28.7 秒，喊「Freeze」那下音乐停在视频第 326 到 327 拍，可以用来对准。
