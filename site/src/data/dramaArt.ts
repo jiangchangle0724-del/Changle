@@ -8,6 +8,7 @@
  * - `classic`: the film set, for a famous scene
  * - `group-cn`, `group-ca`, `group-sa`, `group-ph`, `group-kr`, `group-jp`, `group-ir`, `group-eu`:
  *   a scene set in that community's everyday life
+ * - `scene-<id>`: one built-in scene's own set (cards C2 to C7), shown before its community's or kind's
  */
 export const DRAWN_ART: ReadonlySet<string> = new Set<string>([
   "classic",

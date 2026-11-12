@@ -1,4 +1,4 @@
-import { RadioTower, Smartphone, Sparkles, Tv, UserPlus } from "lucide-react";
+import { Cast, RadioTower, Smartphone, Sparkles, Tv, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import type { GameId, GameMeta } from "../games/registry";
@@ -147,6 +147,16 @@ export function GameSheet({
                   <span>
                     <strong>{zh ? "电视当大屏幕" : "On a big screen"}</strong>
                     <small>{zh ? "电视或电脑放整场演出，大家用手机写和投票" : "A TV or computer runs the show. Phones write and vote."}</small>
+                  </span>
+                </button>
+              )}
+              {/* 戏精大赏: this phone, cast to the TV, is the theatre (the whole show and its music), and doesn't play */}
+              {g.id === "drama" && (
+                <button type="button" className="mode-btn" onClick={() => go({ kind: "tv", game: g.id }, true)}>
+                  <Cast size={22} />
+                  <span>
+                    <strong>{zh ? "这台手机投屏到电视" : "Cast this phone to the TV"}</strong>
+                    <small>{zh ? "横过来投屏，电视放整场戏和配乐，这台手机不参加" : "Turn it sideways and cast it: the TV shows the whole show with its music. This phone doesn't play."}</small>
                   </span>
                 </button>
               )}

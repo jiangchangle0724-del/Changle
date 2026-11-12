@@ -1966,8 +1966,9 @@ test("drama: whose stories: the host's groups come first, everyone's fill in, ot
 
 test("drama: every picture the backdrops ask for is there", () => {
   const dir = fileURLToPath(new URL("../public/drama/", import.meta.url));
-  const known = /^(classic|group-(cn|ca|sa|ph|kr|jp|ir|eu))$/;
-  for (const name of DRAMA_DRAWN_ART) ok(known.test(name) && existsSync(`${dir}${name}.webp`), `${name}: a name the backdrop uses, with its file`);
+  // a scene's own picture is named for a built-in scene
+  const known = (name: string) => /^(classic|group-(cn|ca|sa|ph|kr|jp|ir|eu))$/.test(name) || (name.startsWith("scene-") && DRAMA_SCENES.some((s) => `scene-${s.id}` === name));
+  for (const name of DRAMA_DRAWN_ART) ok(known(name) && existsSync(`${dir}${name}.webp`), `${name}: a name the backdrop uses, with its file`);
   for (const k of ["family", "love", "office", "crime", "palace", "show"]) ok(existsSync(`${dir}kind-${k}.webp`), `kind-${k}: the first set's picture`);
   ok(existsSync(`${dir}stage.webp`) && existsSync(`${dir}pk.webp`), "the empty stage and the duel");
 });

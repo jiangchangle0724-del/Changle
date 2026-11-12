@@ -43,13 +43,13 @@ const READ_STAGE: Record<ReadKind, DramaKind | "classic" | null> = {
   deadpan: null,
 };
 
-/** What the stage shows for the act on now: a scene's kind and group, the duel, a famous scene, a reading's set. */
-export function stageOf(v: Pick<DramaView, "mode" | "scene" | "read">): { kind?: string; pk?: boolean; classic?: boolean; group?: string } {
+/** What the stage shows for the act on now: a scene's own picture, kind and group, the duel, a famous scene, a reading's set. */
+export function stageOf(v: Pick<DramaView, "mode" | "scene" | "read">): { scene?: string; kind?: string; pk?: boolean; classic?: boolean; group?: string } {
   if (v.mode === "read" && v.read) {
     const at = READ_STAGE[v.read.kind];
     return at === "classic" ? { classic: true } : at ? { kind: at } : {};
   }
-  return { kind: v.scene?.kind, pk: v.mode === "pk", classic: v.mode === "classic", group: v.scene?.group };
+  return { scene: v.mode === "show" ? v.scene?.id : undefined, kind: v.scene?.kind, pk: v.mode === "pk", classic: v.mode === "classic", group: v.scene?.group };
 }
 
 /* ------------------------------------------------------------------ the stage */
@@ -58,13 +58,14 @@ export function stageOf(v: Pick<DramaView, "mode" | "scene" | "read">): { kind?:
  * The set: the scene's backdrop (a family dining room, a palace hall...), slowly drifting while a
  * scene plays, with the cast standing along the front and the curtain in front of it all.
  *
- * A scene set in one community's everyday life has a picture of its own (`group-cn`...), and a
- * famous scene the film set (`classic`), once drawn (`DRAWN_ART`); until then, or if one won't
- * load, the scene's kind, then the empty stage.
+ * A built-in scene has a picture of its own (`scene-<id>`), a scene set in one community's everyday
+ * life one for that community (`group-cn`...), and a famous scene the film set (`classic`), each
+ * once drawn (`DRAWN_ART`); until then, or if one won't load, the next: the community's, the
+ * scene's kind, the empty stage.
  */
-export function Backdrop({ kind, pk, classic, group, live, children, tall }: { kind?: string; pk?: boolean; classic?: boolean; group?: string; live?: boolean; children?: ReactNode; tall?: boolean }) {
-  const names = (pk ? ["pk"] : classic ? ["classic", "stage"] : [`group-${group}`, ...(isKind(kind) ? [`kind-${kind}`] : []), "stage"]).filter(
-    (n) => !(n === "classic" || n.startsWith("group-")) || DRAWN_ART.has(n),
+export function Backdrop({ scene, kind, pk, classic, group, live, children, tall }: { scene?: string; kind?: string; pk?: boolean; classic?: boolean; group?: string; live?: boolean; children?: ReactNode; tall?: boolean }) {
+  const names = (pk ? ["pk"] : classic ? ["classic", "stage"] : [`scene-${scene}`, `group-${group}`, ...(isKind(kind) ? [`kind-${kind}`] : []), "stage"]).filter(
+    (n) => !(n === "classic" || n.startsWith("group-") || n.startsWith("scene-")) || DRAWN_ART.has(n),
   );
   const key = names.join("|");
   const [tries, setTries] = useState(0);
