@@ -15,7 +15,8 @@ import { createGame, DEFAULT_OPTIONS, GameError, JUDGE_PROMPTS, leaderboard, MAX
 import type { GameEvent, GameState, Level, PenaltyWhy } from "../../shared/straightface/types";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace, PassCurtain } from "../common";
-import { Deltas, HoldToPeek, Lines, MasterArt, OrderStrip, PackPicker, PickOne, RevealSequence, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
+import { CardNumbers, Deltas, HoldToPeek, Lines, MasterArt, OrderStrip, PackPicker, PickOne, RevealSequence, ReportCard, RoleArt, RoleCast, SpeakerRing, TermCard, useConfetti, useSay, Verdict, type RevealItem } from "./parts";
+import { cardStats, markSeen, seenCards, sendRound } from "./feedback";
 import { S } from "./text";
 import "../../styles/party.css";
 import "./straightface.css";
@@ -73,13 +74,20 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
     }
   };
 
+  // how each card has played on changle, for the reveal
+  const [stats, setStats] = useState<Record<string, [number, number]>>({});
+  useEffect(() => {
+    void cardStats().then(setStats);
+  }, []);
+
   const start = () => {
     if (n < MIN_PLAYERS || n > MAX_PLAYERS) return;
     const g = createGame(
       players.map((p, i) => ({ id: p.id, name: p.name, seat: i })),
       { ...DEFAULT_OPTIONS, mode: "pass", bluffSeeds: seeds, sideBets: bets, packs: packs.length === PACKS.length ? [] : packs },
     );
-    setGame(reduce(g, { type: "START_ROUND", level }, deps));
+    // cards this phone has played before come last
+    setGame(reduce({ ...g, usedCardIds: seenCards() }, { type: "START_ROUND", level }, deps));
     setTermSeen(false);
     setCurtainFor(null);
     setRevealShown(false);
@@ -144,7 +152,14 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
   const accuse = (target: string) => {
     if (!judgeId) return;
     const next = act({ type: "ACCUSE", byPlayerId: judgeId, targetId: target });
-    if (next) cue.accuse();
+    if (!next) return;
+    cue.accuse();
+    // the card's numbers, and this phone won't deal it first again
+    const done = next.current;
+    if (done?.result) {
+      sendRound(done.cardId, done.result.outcome === "judge_wrong", next.players.length);
+      markSeen(done.cardId);
+    }
   };
 
   // penalties land one stamp after another; the master bluffer's is a pick first
@@ -398,6 +413,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
           <div className="panel sf-panel sf-fact">
             <span className="field-label">{say(S.funFact)}</span>
             <p>{lang === "zh" ? rv.funFact.zh : rv.funFact.en}</p>
+            <CardNumbers stats={stats[r.cardId]} />
           </div>
         ),
       },
@@ -495,6 +511,7 @@ export function StraightFace({ onBack }: { onBack: () => void }) {
               else if (key !== "truth") sfx.tap();
             }}
           />
+          {revealShown && <ReportCard card={r.cardId} term={pub.term!} />}
           {revealShown && masterFor && (
             <div className="panel sf-panel sf-master">
               <MasterArt size={88} />

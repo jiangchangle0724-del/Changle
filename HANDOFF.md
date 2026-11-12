@@ -212,8 +212,10 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
   room) and synthesised sound cues, on the board since 2026-11-05. One phone passed round, or online
   with every phone its own and a big-screen view (A3: the rules on the rooms server in
   `site/src/shared/engine/games/straightface.ts`, the screens `NetStraightFace.tsx` and
-  `TvStraightFace.tsx` in `site/src/party/straightface/`). Next: more animation, then stats and
-  card reports.
+  `TvStraightFace.tsx` in `site/src/party/straightface/`). Each card's numbers and the cards players
+  flag live in the users' hub (`site/worker/straightface.ts`, three tables, hooked into `hub.ts` with
+  one line each); the owner reads and decides them in the back office (`AdminCards.tsx`). Next: real
+  phones round a table.
 
 * 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
   and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the
