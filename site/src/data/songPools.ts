@@ -7,7 +7,7 @@
 export const POOL_CATS: Record<string, string[]> = {"mix":["oldies","pop","rock","folk","rap","dance","rnb","ost"],"zh":["oldies","pop","rock","folk","rap","dance","ost"],"en":["oldies","pop","rock","folk","rap","dance","rnb","ost"],"yue":["oldies","pop","rock","folk","rap"],"ko":["oldies","pop","folk","rap","dance"],"ja":["oldies","pop","rock","folk","rap","dance"],"vi":["oldies","pop","folk","rap","dance"]};
 
 /** the decades each language has at least 20 songs from */
-export const POOL_ERAS: Record<string, string[]> = {"mix":["pre80","80s","90s","00s","10s","20s"],"zh":["80s","90s","00s","10s","20s"],"en":["pre80","80s","90s","00s","10s","20s"],"yue":["80s","90s","00s","10s","20s"],"ko":["80s","90s","00s","10s","20s"],"ja":["pre80","80s","90s","00s","10s","20s"],"vi":["80s","90s","00s","10s","20s"]};
+export const POOL_ERAS: Record<string, string[]> = {"mix":["pre80","80s","90s","00s","10s","20s"],"zh":["80s","90s","00s","10s","20s"],"en":["pre80","80s","90s","00s","10s","20s"],"yue":["pre80","80s","90s","00s","10s","20s"],"ko":["80s","90s","00s","10s","20s"],"ja":["pre80","80s","90s","00s","10s","20s"],"vi":["80s","90s","00s","10s","20s"]};
 
 /**
  * Singer specials (歌手专场): singers with at least 15 different songs in the list, 10 of them
