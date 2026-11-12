@@ -34,8 +34,11 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   degrees on a laptop (a board 480 px across or more) and 30 on the big screen (`boardLean` in
   `ui/Board.tsx`). A phone's board stays flat: it zooms and drags the map instead. The lean is the
   ride's camera at rest (`rest` in `ui/Ride.tsx`, one CSS transform on `.board-view`); `leanFit` finds
-  how much bigger and lower to draw it so the leaned ring fills the box it had flat. Going between
-  the two (a ride, a size picked) takes 0.6 s; with reduced motion it simply changes. The board is a
+  how much bigger and lower to draw it so the leaned ring fills the box it had flat. A new lean (a
+  size picked, a window made narrower) eases over 0.6 s (`.easing`), with reduced motion at once; a
+  move's camera writes every frame and hands the board back at rest at once, even cut short. (Eased
+  back instead, a pushed-in big screen's board ran 512 px off the screen for a moment, no longer
+  inside the ride's clipped box: `tests/e2e/tv.spec.ts` caught it on WebKit.) The board is a
   thing too (`BoardDefs` in `art/RoundBoard.tsx`): its edge under its face (more of it shows as it
   leans), its soft shadow on the table, a lamp's light from the top left with its pool on the table
   behind, and lacquer on the colour bands. **What stands on it stands up**: the tokens, the buildings

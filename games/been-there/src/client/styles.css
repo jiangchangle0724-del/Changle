@@ -4253,12 +4253,12 @@ h2.departures {
 }
 /* The board's frame: what a move's camera zooms, pans, turns and leans (ui/Ride.tsx viewBoard), and
    how it rests between moves: on the big screen and a laptop's whole board, leaning back as a board on
-   a table does (ui/Board.tsx boardLean). Between moves it eases to a new rest (a map made bigger lies
-   flat); on a move the camera writes it frame by frame. */
+   a table does (ui/Board.tsx boardLean). A new lean eases over (`.easing`: a map made bigger lies
+   flat); on a move the camera writes it frame by frame, and gives it back at rest at once. */
 .board-view {
   position: relative;
 }
-.boardwrap:not(.on-ride) .board-view {
+.boardwrap:not(.on-ride) .board-view.easing {
   transition: transform 0.6s var(--ease-out);
 }
 /* The lamp's pool of light on the table under the board, round it as it lies (it leans with it). */
@@ -4275,11 +4275,11 @@ h2.departures {
     transparent
   );
 }
-:root[data-reduced="1"] .boardwrap .board-view {
+:root[data-reduced="1"] .boardwrap .board-view.easing {
   transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .boardwrap .board-view {
+  .boardwrap .board-view.easing {
     transition: none;
   }
 }
