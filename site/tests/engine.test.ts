@@ -774,24 +774,67 @@ test("superlatives: secret votes, award, ceremony", () => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners[0] === "p2" && v.counts?.p2 === 3, "everyone voted: p2 wins with 3");
   ok(v.awards.p2?.length === 1, "p2 holds the award");
-  t.advance(3000);
-  ok(t.pens().some((p) => p.who.includes("p2")), "the winner drinks");
+  ok(v.stampAt === clock + 2600, "the view says when the winner's stamp lands");
+  // the host can't move on under the stamp: a quick "next" waits until it has landed
+  t.advance(1000);
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "reveal" && !t.pens().length, "next 1 s into the reveal: still the reveal, no stamp yet");
+  t.advance(2000);
+  ok(t.pens().some((p) => p.who.includes("p2") && p.kind === "sip"), "the winner drinks, 2.6 s in");
+  ok(t.view<V<"superlatives">>("p0").stampAt === 0, "landed: nothing pending in the view");
   // tie round, then fast-forward to the ceremony
   t.g("p0", "next");
-  t.g("p0", "vote", { target: "p1" });
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "vote" && v.round === 2 && v.ballot === 2, "next after the stamp: round 2, ballot 2");
+  // a vote for the ballot before (a phone that came back and still showed the last award) is dropped
+  t.g("p0", "vote", { target: "p1", ballot: 1 });
+  ok(t.view<V<"superlatives">>("p0").myVote === null, "a vote on an older ballot doesn't count");
+  t.g("p0", "vote", { target: "p1", ballot: 2 });
   t.g("p1", "vote", { target: "p0" });
   t.advance(46_000);
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners.length === 2, "timer reveals a tie with two winners");
   const s = t.eng.d.game!.s as { round: number; total: number };
   s.round = s.total;
+  t.advance(2700);
   t.g("p0", "next");
   ok(t.view<V<"superlatives">>("p0").phase === "ceremony", "after the last round: the ceremony");
+  const before = t.pens().length;
+  t.g("p0", "more");
+  ok(t.view<V<"superlatives">>("p0").phase === "ceremony", "more awards 0 s into the ceremony: the toast hasn't landed, still the ceremony");
+  t.advance(3300);
+  ok(t.pens().length === before + 1 && t.pens()[before].kind === "everyone" && t.pens()[before].who.length === 4, "3.2 s in: the whole table's toast");
   t.g("p0", "more");
   ok(t.view<V<"superlatives">>("p0").phase === "vote", "a few more rounds after the ceremony");
   t.g("p0", "custom", { text: "最会点歌" });
   v = t.view<V<"superlatives">>("p0");
   ok(v.custom && v.title.zh === "最会点歌", "the host can write a title");
+  ok(v.ballot === 4, "a title the host wrote is a new ballot");
+});
+
+test("superlatives: a skipped title is a new ballot; the winner who leaves still won", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "superlatives" });
+  const ballot = t.view<V<"superlatives">>("p0").ballot;
+  t.g("p1", "vote", { target: "p2", ballot });
+  t.g("p0", "skip");
+  let v = t.view<V<"superlatives">>("p1");
+  ok(v.ballot === ballot + 1 && v.voted.length === 0 && v.myVote === null, "the host swapped the title: a fresh ballot, votes cleared");
+  t.g("p1", "vote", { target: "p2", ballot });
+  ok(t.view<V<"superlatives">>("p1").myVote === null, "a vote on the swapped title's ballot is dropped");
+  t.g("p0", "vote", { target: "p2" });
+  t.g("p1", "vote", { target: "p2" });
+  t.g("p2", "vote", { target: "p0" });
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "reveal" && v.winners[0] === "p2", "p2 takes the award");
+  // the winner leaves the table during the reveal: the award stays theirs, and nobody else drinks for it
+  t.act("p2", { a: "leave" });
+  t.advance(2700);
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "reveal" && v.winners[0] === "p2" && v.awards.p2?.length === 1, "gone, but still the winner on the reveal and in the awards");
+  ok(!t.pens().length, "no stamp for a winner who left");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "vote", "and the host moves on");
 });
 
 test("punchline: writers and audience, the show's phases, sweep, safety, final picks", () => {
@@ -4208,6 +4251,7 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   su.act("p0", { a: "start", game: "superlatives" });
   for (const [a, b] of [["p0", "p2"], ["p1", "p2"], ["p2", "p3"], ["p3", "p2"]]) su.g(a, "vote", { target: b });
   (su.eng.d.game!.s as { round: number; total: number }).round = (su.eng.d.game!.s as { total: number }).total;
+  su.advance(2700); // (the host moves on once the winner's stamp has landed)
   su.g("p0", "next");
   su.advance(3500);
   last = su.pens().slice(-1)[0];
@@ -4388,6 +4432,7 @@ test("just watching: the players are the ring and every list; a watcher is never
   ok(sv.phase === "reveal" && sv.winners.join() === "p0" && !("p2" in (sv.counts ?? {})), "superlatives: revealed once the three players voted");
   // the host sits down to watch: their buttons still work, their vote doesn't count
   t.act("p0", { a: "watch", on: true });
+  t.advance(2700); // (the host moves on once the winner's stamp has landed)
   t.g("p0", "next");
   sv = t.view<V<"superlatives">>("p1");
   ok(sv.phase === "vote" && sv.round === 2, "a watching host still moves the game on");

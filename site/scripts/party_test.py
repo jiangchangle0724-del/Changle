@@ -144,7 +144,11 @@ def t_superlatives_single(browser):
     pg.wait_for_selector(".award-card")
     pg.wait_for_timeout(800)
     shot(pg, "sup-setup")
-    pg.get_by_role("button", name="开始颁奖").click()
+    pg.locator(".setup-panel .seg").nth(1).get_by_role("button", name="5", exact=True).click()
+    # a quick double tap on Start: the second tap lands where "I'm Steve" now is, and must not open his ballot
+    double_tap(pg, pg.get_by_role("button", name="开始颁奖"), gap=200)
+    pg.wait_for_timeout(400)
+    ok(pg.locator(".pass-curtain").count() == 1 and pg.locator(".ballot").count() == 0, "one phone: a double tap on Start stops at the hand-over")
     for i, p in enumerate(PLAYERS[:4]):
         pg.wait_for_selector(".pass-curtain")
         if i == 0:
@@ -163,12 +167,62 @@ def t_superlatives_single(browser):
     ok("Mia" in pg.locator(".winners").inner_text(), "one phone: Mia takes the award with three votes")
     pg.wait_for_timeout(800)
     clear_stamps([pg])
+    # four more awards, then the ceremony
+    for r in range(4):
+        pg.get_by_role("button", name="下一个奖").click()
+        for p in PLAYERS[:4]:
+            pg.wait_for_selector(".pass-curtain")
+            pg.get_by_role("button", name=f"我是 {p['name']}").click()
+            pg.wait_for_selector(".ballot .nominee")
+            pg.locator(".ballot .nominee", has_text="Kev" if p["name"] != "Kev" else "Jay").click()
+        pg.wait_for_selector(".award-reveal")
+        pg.wait_for_timeout(3300)
+        clear_stamps([pg])
+    pg.get_by_role("button", name="开颁奖典礼").click()
+    pg.wait_for_selector(".ceremony")
+    pg.wait_for_timeout(1500)
+    ok(pg.locator(".stamp-layer").count() == 0, "one phone: the ceremony comes up first")
+    ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 3000), "one phone: then the whole table's toast, as online")
+    ok("全场" in pg.locator(".stamp-layer").inner_text(), "one phone: the toast is for everyone")
+    clear_stamps([pg])
+    pg.get_by_role("button", name="再来五个奖").click()
+    ok(until(lambda: pg.locator(".pass-curtain").count() == 1, 3000) and "第 6 个奖" in pg.locator(".award-count").inner_text(), "one phone: five more awards")
+    errors([pg])
+    pg.context.close()
+
+
+def t_superlatives_scroll(browser):
+    """A small phone and eight people: the last voter scrolls the ballot to its end, and the reveal still opens at the top."""
+    eight = PLAYERS[:4] + [{"id": f"p{i}", "name": n} for i, n in enumerate(["Lily", "Tom", "Ann", "Bo"], start=4)]
+    pg = phone(browser, "small", players=eight, w=360, h=640)
+    pg.goto(BASE + "#/g/superlatives", wait_until="networkidle")
+    pg.wait_for_selector(".award-card")
+    pg.wait_for_timeout(500)
+    pg.get_by_role("button", name="开始颁奖").click()
+    for p in eight:
+        pg.wait_for_selector(".pass-curtain")
+        pg.get_by_role("button", name=f"我是 {p['name']}").click()
+        pg.wait_for_selector(".ballot .nominee")
+        if p is eight[-1]:
+            pg.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
+            pg.wait_for_timeout(150)
+            scrolled = pg.evaluate("() => scrollY")
+        pg.locator(".ballot .nominee", has_text="Bo" if p["name"] != "Bo" else "Ann").click()
+    pg.wait_for_selector(".award-reveal")
+    top = pg.evaluate("() => scrollY")
+    pg.wait_for_timeout(2600)
+    winner = pg.locator(".winner").bounding_box()
+    bar = pg.locator(".ui-game-header").bounding_box()
+    ok(scrolled > 0 and top == 0 and winner["y"] > bar["y"] + bar["height"], f"eight on a small phone: the last voter scrolled {scrolled}px, the reveal opens at the top and the winner sits under the top bar (y={winner['y']:.0f})")
+    shot(pg, "sup-small-reveal")
+    pg.wait_for_timeout(700)
+    clear_stamps([pg])
     errors([pg])
     pg.context.close()
 
 
 def t_superlatives_online(browser):
-    host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay"])
+    host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
     everyone = [host] + guests
     start_game(host, everyone, "superlatives")
     shot(host, "sup-net-vote")
@@ -179,11 +233,22 @@ def t_superlatives_online(browser):
         target = "Mia" if me(g) == jay else "Jay"
         g.locator(".ballot .nominee", has_text=target).click()
     ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "reveal") for g in everyone), "votes in: reveal on every phone")
+    nxt = host.get_by_role("button", name=re.compile("下一个奖|开颁奖典礼"))
+    ok(nxt.is_disabled(), "the host can't move on before the winner's stamp (2.6 s)")
     host.wait_for_timeout(2700)
     shot(host, "sup-net-reveal")
     v = view(host)
-    ok(v["winners"] == [jay] and v["counts"][jay] == 2, "Jay wins 2 to 1")
+    ok(v["winners"] == [jay] and v["counts"][jay] == 3, "Jay wins 3 to 1")
+    ok(until(lambda: nxt.is_enabled(), 2000), "the stamp landed: the host can move on")
     clear_stamps(everyone)
+    # the winner leaves the table during the reveal: still the winner, by name, on the others' phones
+    guests[1].locator(".topbar .icon-btn").first.click()
+    guests[1].wait_for_timeout(400)
+    guests[1].get_by_role("button", name="离开这桌").last.click()
+    ok(until(lambda: len(room(host)["seats"]) == 3, 6000), "Jay left the table")
+    host.wait_for_timeout(500)
+    ok(host.locator(".winner strong").all_inner_texts() == ["Jay"] and "?" not in host.locator(".award-reveal").inner_text(), "the reveal still names Jay, no question marks")
+    everyone = [host, guests[0], guests[2]]
     # jump to the ceremony
     for _ in range(9):
         if (view(host) or {}).get("phase") == "ceremony":
@@ -203,11 +268,16 @@ def t_superlatives_online(browser):
         until(lambda: view(host)["phase"] != "vote", 5000)
         clear_stamps(everyone, wait=False)
     ok(until(lambda: view(host)["phase"] == "ceremony", 5000), "eight awards, then the ceremony")
-    host.wait_for_timeout(1200)
+    more = host.get_by_role("button", name="再来五个奖")
+    ok(more.is_disabled(), "the host can't go on before the table's toast (3.2 s)")
+    shelves = host.evaluate("() => [...document.querySelectorAll('.shelf')].map((s) => s.querySelector('strong').firstChild.textContent + ':' + s.querySelectorAll('.award-chip').length)")
+    ok("Jay:1" in shelves, f"the ceremony keeps Jay's award though he left {shelves}")
+    ok(until(lambda: all(g.locator(".stamp-layer").count() for g in everyone), 4000), "the whole table's toast on every phone")
+    ok(until(lambda: more.is_enabled(), 2000), "then the host can go on")
     clear_stamps(everyone)
     shot(host, "sup-net-ceremony")
     errors(everyone)
-    for g in everyone:
+    for g in [host] + guests:
         g.context.close()
 
 
@@ -1923,7 +1993,7 @@ def t_drama_groups(browser):
 
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
-    "superlatives": [t_superlatives_single, t_superlatives_online],
+    "superlatives": [t_superlatives_single, t_superlatives_scroll, t_superlatives_online],
     "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],

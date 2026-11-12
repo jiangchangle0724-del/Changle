@@ -274,7 +274,11 @@ export type SuperView = {
   title: T;
   /** written by the host rather than drawn from the deck */
   custom: boolean;
+  /** this ballot's number: a vote names it (`g: { x: "vote", target, ballot }`), and one for an older ballot is dropped */
+  ballot: number;
   endsAt: number;
+  /** when the winner's stamp (or the ceremony's toast) lands, on the room's clock; 0 once it has: the host moves on only after */
+  stampAt: number;
   voted: string[];
   myVote: string | null;
   counts: Record<string, number> | null;
