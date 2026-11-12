@@ -104,7 +104,6 @@ export const S = {
   deal: t("发牌开始", "Deal"),
   waitDeal: t("等主人 {name} 开始", "Waiting for {name}, the host, to start"),
   seatedOnline: t("{n} 人在玩，每人当一次裁判，大约 {m} 分钟。", "{n} playing, each judges once: about {m} minutes."),
-  tooManyOnline: t("最多 9 人。多的人可以在「这一桌」里选「只看」。", "Nine at most. Anyone extra can pick Just watch at the table."),
   needThree: t("至少 3 人才能玩，还差 {n} 个。", "Needs 3 players: {n} more."),
   hostPicked: t("主人选的", "The host's picks"),
   youJudge: t("这一轮你是裁判", "You judge this round"),
@@ -197,6 +196,19 @@ export const S = {
   ownBy: t("这个词是 {name} 出的", "{name} wrote this one"),
   ownYours: t("这是你出的词：你知道它的意思，这轮不押注。", "This is your word: you know what it means, so you sit out the bets."),
   ownNoSeeds: t("这是玩家出的题，没有掰料，自己编。", "A player wrote this one. No hints: make it up."),
+
+  // the audience: at the table, not in this game
+  crowdOverflow: t("先坐下的 9 人上场，其余 {k} 人当观众，用手机押谁是老实人。", "The first nine to sit down play. The other {k} are the audience and bet from their phones."),
+  crowdOverflowQuiet: t("先坐下的 9 人上场，其余 {k} 人这局在旁边看。", "The first nine to sit down play. The other {k} watch this game."),
+  crowdYou: t("你这局是观众：从第一个人解释起，就可以押谁是老实人，押对了上观众榜。", "You're in the audience: from the first explanation, back the one you think is honest. Right ones go on the audience board."),
+  crowdLater: t("下一局发牌时，没坐满 9 人就带上你。", "Next game, you're dealt in if there's a seat among the nine."),
+  crowdWait: t("等第一个人开始解释，就能押了。", "You can bet once the first explanation starts."),
+  crowdDone: t("你押了 {name}，等裁判揭晓。", "You backed {name}. Wait for the verdict."),
+  crowdCount: t("观众已押 {n} 人", "{n} in the audience have bet"),
+  crowdRight: t("你押对了！", "You backed the honest one!"),
+  crowdWrong: t("这次没押中。", "Not this time."),
+  crowdResult: t("观众 {n}/{m} 押对了", "Audience: {n} of {m} backed the honest one"),
+  awardCrowd: t("最准的观众", "Sharpest in the audience"),
 } as const;
 
 export type SKey = keyof typeof S;

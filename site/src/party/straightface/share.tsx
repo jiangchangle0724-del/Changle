@@ -23,9 +23,11 @@ export type Tonight = {
   awards: Awards;
   name: (id: string) => string;
   score: (id: string) => number;
+  /** online: the audience's board (right bets over the game), when there was an audience */
+  crowd?: Record<string, number>;
 };
 
-type Title = { key: "top" | "bluffer" | "bettor"; art: string; label: string; names: string; note: string };
+type Title = { key: "top" | "bluffer" | "bettor" | "crowd"; art: string; label: string; names: string; note: string };
 
 /** Tonight's titles as the screen and the picture word them; a title nobody earned is left out. */
 function useTitles(tonight: Tonight): Title[] {
@@ -42,6 +44,12 @@ function useTitles(tonight: Tonight): Title[] {
   if (a.bluffer.length) {
     const n = a.fooled[a.bluffer[0]] ?? 0;
     out.push({ key: "bluffer", art: ROLE_ART.bluffer, label: say(S.awardBluffer), names: names(a.bluffer), note: n === 1 ? say(S.fooledOnce) : say(S.fooledTimes, { n }) });
+  }
+  // the audience's best: who backed the honest one most often (at least once)
+  const crowd = Object.entries(tonight.crowd ?? {});
+  const best = Math.max(0, ...crowd.map(([, n]) => n));
+  if (best > 0) {
+    out.push({ key: "crowd", art: ROLE_ART.honest, label: say(S.awardCrowd), names: names(crowd.filter(([, n]) => n === best).map(([id]) => id)), note: best === 1 ? say(S.rightBetOnce) : say(S.rightBets, { n: best }) });
   }
   return out;
 }

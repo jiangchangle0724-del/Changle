@@ -655,3 +655,19 @@
   background: var(--gel);
   color: var(--night);
 }
+
+/* the audience: how they did at the verdict, and their best at the end (under the podium) */
+.tvsf-crowd {
+  margin: 0;
+  color: var(--haze);
+  font-size: 24px;
+  font-weight: 700;
+}
+.tvsf-crowd-best {
+  position: absolute;
+  left: 40px;
+  width: 960px;
+  bottom: 52px;
+  color: var(--gel);
+  text-align: center;
+}

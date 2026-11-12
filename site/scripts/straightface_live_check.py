@@ -83,7 +83,20 @@ def main():
         press(host, host.locator(".lobby-actions .btn-primary"))
         ok(until(lambda: host.get_by_role("button", name=L["deal"]["zh"]).count() > 0, 15000), "the rooms server runs the game: the host can deal")
         shot(host, "01-setup")
+        # 自己出题: the host turns it on, Amy and Ben write a word, the other two don't
+        own_row = host.locator(".settings-row", has_text="自己出题").locator("button")
+        if own_row.count():
+            press(host, own_row)
+            for g, (term, meaning) in [(phones[0], ("搞掂", "粤语，事情办妥了。")), (phones[1], ("Gobbledygook", "Pompous, unintelligible jargon."))]:
+                until(lambda g=g: g.locator(".sf-own").count() == 1, 8000)
+                g.locator(".sf-own input").fill(term)
+                g.locator(".sf-own textarea").nth(0).fill(meaning)
+                press(g, g.locator(".sf-own button[type=submit]"))
+            ok(until(lambda: "2/4 写好了" in text(tv), 8000), "自己出题: two of four wrote a word; the TV counts them, shows none")
+            ok(not any(w in text(tv) for w in ("搞掂", "Gobbledygook")) and "Gobbledygook" not in text(phones[2]), "nobody else's screen shows a word before it's played")
         press(host, host.get_by_role("button", name=L["deal"]["zh"], exact=True))
+        own_words = {"搞掂": "Amy", "Gobbledygook": "Ben"}
+        played_own = []
 
         rounds = 0
         while rounds < 6:
@@ -128,6 +141,10 @@ def main():
             tap_nominee(judge)
             ok(until(lambda: all(has(g, "truth") for g in phones), 15000), f"[round {rounds}] the reveal on every phone")
             ok(until(lambda: W["truth"]["zh"] in text(tv), 10000), f"[round {rounds}] and on the TV")
+            word = next((w for w in own_words if w in tv.locator(".tvsf-word").first.inner_text()), None) if tv.locator(".tvsf-word").count() else None
+            if word:
+                played_own.append(word)
+                ok(until(lambda: f"这个词是 {own_words[word]} 出的" in text(tv), 6000), f"[round {rounds}] a player's word ({word}): the TV says who wrote it")
             host.wait_for_timeout(5200)
             if rounds == 1:
                 shot(phones[1], "04-reveal")
@@ -147,8 +164,10 @@ def main():
             press(host, host.locator(".sf-net-actions .btn-primary"))
 
         ok(all(until(lambda g=g: has(g, "over"), 10000) for g in phones) and rounds == 4, f"four rounds, then the end ({rounds})")
+        ok(sorted(played_own) == sorted(own_words), f"自己出题: both words were played ({played_own})")
         sent = [(g._name, x[1]) for g in phones for x in g._sf if x[0] == "/sf/round"]
-        ok(len(sent) == 4 and all(n == host._name for n, _ in sent), f"the host's phone would have counted each round once (answered by the check): {[(n, b.get('card')) for n, b in sent]}")
+        bank_rounds = 4 - len(played_own)
+        ok(len(sent) == bank_rounds and all(n == host._name for n, _ in sent), f"the host's phone would have counted each bank round once, never a player's word (answered by the check): {[(n, b.get('card')) for n, b in sent]}")
         tv.wait_for_timeout(3000)
         shot(host, "05-finished")
         shot(tv, "05-finished")

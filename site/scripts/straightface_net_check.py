@@ -308,6 +308,7 @@ def main():
                 clear_stamps(phones + [tv, eve])
                 press(bg, bg.locator(".sf-report-link"))
                 ok(until(lambda: bg.locator(".sf-report").count() == 1), "[round 2] Ben opens the flag sheet")
+                bg.wait_for_timeout(700)  # let the sheet finish rising before tapping in it
                 press(bg, bg.locator(".sf-reason").nth(0))
                 bg.locator(".sf-report textarea").fill("net check")
                 shot(bg, "08-report")

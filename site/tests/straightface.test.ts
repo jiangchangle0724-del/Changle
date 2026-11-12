@@ -601,7 +601,7 @@ test("straightface: tonight's titles: top score, best bluffer, best bets; shared
 let clock = 1_000_000;
 let roomSeed = 11;
 const roomHost = { now: () => clock, rand: () => ((roomSeed = (roomSeed * 16807) % 2147483647) / 2147483647) };
-const NAMES = ["Amy", "Ben", "Cat", "Dan", "Eve", "Fay", "Gus", "Hal", "Ivy", "Jo"];
+const NAMES = ["Amy", "Ben", "Cat", "Dan", "Eve", "Fay", "Gus", "Hal", "Ivy", "Jo", "Kim"];
 
 /** A table of n phones at one room, the first one hosting. */
 function table(n: number) {
@@ -973,6 +973,59 @@ test("straightface online: 自己出题: each phone writes its word before the d
   t.g("p0", "again");
   ok(Object.keys(S().own).length === 0 && t.view("p1").writing!.written.length === 0, "again: a new game, new words");
   ok(!S().g && (t.eng.d.game!.s as { seen: string[] }).seen.every((id) => !isOwn(id)), "the players' words are not remembered as played cards");
+});
+
+test("straightface online: the audience: the first nine play, the rest back someone from their phones; nobody sees whom until the verdict", () => {
+  const t = table(11);
+  const S = () => t.eng.d.game!.s as { g: GameState | null; crowd?: { right: Record<string, number> } };
+  t.act("p0", { a: "start", game: "straightface" });
+  t.g("p0", "deal");
+  const players = t.view("p0").players;
+  ok(players.length === 9 && !players.includes("p9") && !players.includes("p10"), `eleven at the table: the first nine play (${players.length})`);
+  ok(t.view("p9").me === null && t.view("p9").crowd?.canBet === false, "the other two are the audience: no part, no bets yet while the parts are read");
+  t.g("p9", "guess", { target: t.view("p0").table!.speakOrder[0] ?? "p1" });
+  ok(t.view("p0").crowd?.count === 0, "no bets while the parts are read");
+  peekAll(t);
+  const r = S().g!.current!;
+  const honest = r.honestId;
+  const bluffer = r.speakOrder.find((id) => id !== honest)!;
+  ok(t.view("p9").crowd?.canBet === true && t.view(r.judgeId).crowd?.canBet === false, "explaining: the audience may bet, the players may not");
+  t.g("p9", "guess", { target: honest });
+  t.g("p10", "guess", { target: bluffer });
+  t.g("p10", "guess", { target: honest });
+  t.g(r.judgeId, "guess", { target: honest });
+  t.g("p9", "guess", { target: "nobody" });
+  const v9 = t.view("p9").crowd!;
+  ok(v9.mine === honest && !v9.canBet && v9.count === 2, `the audience's bets: one each, theirs only (${JSON.stringify(v9)})`);
+  ok(t.view(r.judgeId).crowd!.bets === null && t.view("tv").crowd!.bets === null && t.view("p10").crowd!.mine === bluffer, "whom the audience backed stays hidden until the verdict (the judge, the TV)");
+  ok(!JSON.stringify(t.view(r.judgeId).crowd).includes(honest) || honest === r.judgeId, "nothing in the judge's view points at the honest one");
+  speakOnline(t);
+  if (t.view(r.judgeId).phase === "bets") for (const id of t.view(r.judgeId).table!.speakOrder) t.g(id, "bet", { target: id === honest ? bluffer : honest });
+  t.g(r.judgeId, "accuse", { target: honest });
+  const tv = t.view("tv").crowd!;
+  ok(tv.bets?.p9 === honest && tv.bets?.p10 === bluffer && tv.right.p9 === 1 && !tv.right.p10, `the verdict: whom each backed, and the right one counts (${JSON.stringify(tv)})`);
+  t.g("p9", "guess", { target: honest });
+  ok(t.view("tv").crowd!.bets?.p9 === honest && t.view("tv").crowd!.count === 2, "no bets after the verdict");
+  t.g("p0", "round");
+  t.g("p0", "start");
+  peekAll(t);
+  ok(t.view("p9").crowd!.count === 0 && t.view("p9").crowd!.canBet && t.view("p9").crowd!.right.p9 === 1, "the next round: new bets, the board stays");
+  t.g("p0", "config", { bets: false });
+  ok(t.view("p9").crowd !== null, "the host can't turn the bets off mid-game");
+  for (let i = 0; i < 12 && t.view("p0").phase !== "finished"; i++) {
+    if (t.view("p0").phase === "peek") peekAll(t);
+    if (t.view("p0").phase === "explain") playRound(t);
+    t.g("p0", "round");
+    if (t.view("p0").phase === "between") t.g("p0", "start");
+  }
+  ok(t.view("p0").phase === "finished" && t.view("p9").crowd!.right.p9 >= 1, "the end: the audience's board is still there");
+  t.g("p0", "again");
+  ok(t.view("p9").crowd === null && !S().crowd, "again: a new audience");
+  t.g("p0", "config", { bets: false });
+  t.g("p0", "deal");
+  peekAll(t);
+  t.g("p9", "guess", { target: t.view("p0").table!.speakOrder[0] });
+  ok(t.view("p9").crowd === null && !S().crowd, "bets off: no audience bets either");
 });
 
 /* ---------- the server's side (worker/straightface.ts) on a real SQLite ---------- */
