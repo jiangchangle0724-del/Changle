@@ -16,9 +16,9 @@ Always:
 | --- | --- | --- |
 | [drama-C1](C1-art.md) | Nine backdrops: the film set for famous scenes, and one for each community's stories (done, #271) | `site/public/drama/`, `site/src/data/dramaArt.ts` |
 | [drama-C2](C2-scenes-crime-palace.md) | A set of its own for each of the 33 crime and palace scenes (done, #388) | `site/public/drama/scene-*.webp`, `site/src/data/dramaArt.ts` |
-| [drama-C3](C3-scenes-family-1.md) | The same for the first 17 family scenes | the same |
-| [drama-C4](C4-scenes-family-2.md) | The same for the other 16 family scenes | the same |
-| [drama-C5](C5-scenes-love.md) | The same for the 20 love scenes | the same |
+| [drama-C3](C3-scenes-family-1.md) | The same for the first 17 family scenes (done, #390) | the same |
+| [drama-C4](C4-scenes-family-2.md) | The same for the other 16 family scenes (done, #393) | the same |
+| [drama-C5](C5-scenes-love.md) | The same for the 20 love scenes (done, #395) | the same |
 | [drama-C6](C6-scenes-office.md) | The same for the 23 office scenes | the same |
 | [drama-C7](C7-scenes-show.md) | The same for the 22 show scenes | the same |
 
