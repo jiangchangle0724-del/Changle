@@ -134,14 +134,34 @@ test("search: a drive asks the whole area and three parts of it, so more than th
   assert.equal(places.length, 4);
 });
 
-test("search: one person's side of the menu adds a search for that side's restaurants", async () => {
-  mockFetch([[/searchNearby/, () => json({ places: [golden] })]]);
-  const places = await searchGoogle("KEY", center, "walk10", "zh", { side: "chinese" });
-  assert.equal(calls.length, 3);
-  const side = JSON.parse(String(calls[2].init?.body));
-  assert.ok(side.includedTypes.includes("dim_sum_restaurant"));
-  assert.equal(side.rankPreference, "POPULARITY");
-  assert.equal(places.length, 1, "the same place from three searches, once");
+test("search: round 1's liked cuisines get their own searches: by Google's type, or by words where it has none", async () => {
+  // A 川菜 place whose name doesn't say so, one just outside the circle, and one found twice.
+  const tony = { ...golden, id: "ChIJtony", displayName: { text: "Chef Tony" }, location: { latitude: center.lat + 0.004, longitude: center.lng } };
+  const far = { ...golden, id: "ChIJfar", displayName: { text: "Corner Spot" }, location: { latitude: center.lat + 0.0071, longitude: center.lng + 0.0105 } };
+  const pot = { ...golden, id: "ChIJpot", displayName: { text: "Liuyishou" }, types: ["chinese_restaurant", "hot_pot_restaurant", "restaurant"] };
+  mockFetch([
+    [/places:searchText$/, () => json({ places: [tony, far, golden] })],
+    [/places:searchNearby$/, (c) => json({ places: JSON.parse(String(c.init?.body)).includedTypes[0] === "hot_pot_restaurant" ? [pot] : [golden] })],
+  ]);
+  const places = await searchGoogle("KEY", center, "walk10", "zh", { liked: ["sichuan", "hotpot"] });
+  assert.equal(calls.length, 4);
+  const text = calls.find((c) => /searchText$/.test(c.url))!;
+  const body = JSON.parse(String(text.init?.body));
+  assert.equal(body.textQuery, "Sichuan restaurant");
+  assert.equal(body.pageSize, 20);
+  assert.equal(body.languageCode, "zh-CN");
+  // A Text Search takes only a rectangle: the square around the circle.
+  const { low, high } = body.locationRestriction.rectangle;
+  assert.ok(low.latitude < center.lat && high.latitude > center.lat && low.longitude < center.lng && high.longitude > center.lng);
+  assert.ok(Math.abs(high.latitude - low.latitude - (2 * 800) / 111_320) < 1e-9);
+  assert.equal(new Headers(text.init?.headers).get("X-Goog-FieldMask"), new Headers(calls[0].init?.headers).get("X-Goog-FieldMask"), "the same fields, the same price tier");
+  const nearby = calls.filter((c) => /searchNearby$/.test(c.url)).map((c) => JSON.parse(String(c.init?.body)));
+  assert.deepEqual(nearby.map((b) => b.includedTypes), [["restaurant"], ["hot_pot_restaurant"], ["restaurant"]]);
+  assert.deepEqual(places.map((p) => p.id).sort(), ["ChIJgolden", "ChIJpot", "ChIJtony"], "outside the circle dropped, the same place once");
+  const by = (id: string) => places.find((p) => p.id === id)!;
+  assert.equal(by("ChIJtony").cuisine, "sichuan", "found by the Sichuan search, its name doesn't say otherwise");
+  assert.equal(by("ChIJgolden").cuisine, "cantonese", "its name says Cantonese");
+  assert.equal(by("ChIJpot").cuisine, "hotpot", "Google's other types say hot pot");
 });
 
 test("search: one search failing (a daily cap running out) keeps what the others found", async () => {
@@ -168,6 +188,16 @@ test("place from Google: missing fields stay missing, halal from the name or des
   assert.equal(p.price, undefined);
   assert.equal(p.closesAt, undefined);
   assert.equal(fromGoogle({ id: "y", location: { latitude: 1, longitude: 1 } }), null);
+});
+
+test("place from Google: what it says about groups, kids, drinks and the kind of place, for the occasion; halal from its type", () => {
+  const base = { location: { latitude: 49.28, longitude: -123.12 }, displayName: { text: "Some Place" } };
+  const p = fromGoogle({ ...base, id: "a", types: ["restaurant", "bar", "halal_restaurant"], goodForGroups: true, goodForChildren: false, servesWine: true, servesCocktails: true })!;
+  assert.deepEqual(p.traits, { groups: true, kids: false, wine: true, cocktails: true, bar: true });
+  assert.equal(p.halal, "yes");
+  assert.deepEqual(fromGoogle({ ...base, id: "b", types: ["fast_food_restaurant", "restaurant"] })!.traits, { fastFood: true });
+  assert.deepEqual(fromGoogle({ ...base, id: "c", types: ["fine_dining_restaurant", "restaurant"] })!.traits, { fineDining: true });
+  assert.equal(fromGoogle({ ...base, id: "d" })!.traits, undefined, "nothing said, nothing guessed");
 });
 
 test("place from Google: hotels that Google also calls restaurants are left out", () => {

@@ -1,20 +1,28 @@
 // One table from lobby to rating, with no network: the same Room the server runs.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { COMMON_IN, TOP_COUNT, vancouverClock, vancouverDay, vancouverMs, type Place } from "../src/engine";
+import { COMMON_IN, MENU, TOP_COUNT, vancouverClock, vancouverDay, vancouverMs, type CuisineId, type MoodPick, type OccasionId, type Place } from "../src/engine";
 import { MAX_MEMBERS, MAX_SEARCHES, RATING_SLACK, TIMING } from "../src/room/protocol";
 import { Room } from "../src/room/room";
 import { demoPlaces } from "../src/server/places";
 
 const center = { lat: 49.2827, lng: -123.1207 };
 
-function setup() {
+function setup(o: { occasion?: OccasionId } = {}) {
   let now = Date.parse("2026-10-23T02:00:00Z");
   const env = { now: () => now, random: () => 0 };
-  const room = Room.create("1234", env, { host: "aaaaaaaa", center, range: "walk20", demo: true });
+  const room = Room.create("1234", env, { host: "aaaaaaaa", center, range: "walk20", demo: true, occasion: o.occasion });
   const ids = ["aaaaaaaa", "bbbbbbbb", "cccccccc"];
   for (const id of ids) assert.ok(room.join(id, `${id}-key-long-enough`, { name: id[0], lang: "zh" }));
   return { room, ids, env, advance: (ms: number) => (now += ms), places: () => demoPlaces(center, "walk20", now) };
+}
+
+/** Start, the host skips round 1, the search comes back: round 2's cards. */
+function toCards(s: ReturnType<typeof setup>, places = s.places()) {
+  s.room.handle(s.ids[0], { t: "start" });
+  s.room.handle(s.ids[0], { t: "next", phase: "mood" });
+  assert.equal(s.room.st.phase, "finding");
+  s.room.found(places);
 }
 
 test("a whole table: diet cards, start, mood, cards, result, rating", () => {
@@ -23,17 +31,13 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   room.handle(ids[1], { t: "start" }); // not the host: ignored
   assert.equal(room.st.phase, "lobby");
   room.handle(ids[0], { t: "start" });
-  assert.equal(room.st.phase, "finding");
-  const want = room.flush().want;
-  assert.equal(want?.k, "search");
-  room.found(places());
+  // Round 1 first: the whole menu, nothing searched yet.
   assert.equal(room.st.phase, "mood");
+  assert.equal(room.flush().want, null);
 
   const v = room.view(ids[2]);
-  // Severe peanut: the cuisines that use it a lot come last among the twelve chips. The view doesn't say who.
-  const peanutChip = v.chips.map((c) => COMMON_IN.peanut!.includes(c.cuisine));
-  assert.equal(v.chips.length, 12);
-  assert.ok(peanutChip.indexOf(true) === -1 || peanutChip.slice(peanutChip.indexOf(true)).every(Boolean), String(peanutChip));
+  assert.deepEqual(v.chips.map((c) => c.cuisine), MENU);
+  assert.ok(v.chips.every((c) => c.count === undefined));
   // The merged summary only comes with the result (see below), and nothing says who.
   assert.deepEqual(v.table.allergies, {});
   assert.ok(!JSON.stringify(v).includes("peanut"));
@@ -42,7 +46,15 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
   assert.ok(room.view(ids[1]).chips.every((c) => c.likes === 0 && c.bans === 0));
   room.handle(ids[1], { t: "mood", picks: { ramen: "like" }, done: true });
   room.handle(ids[2], { t: "mood", picks: {}, done: true });
+  // Everyone's done: the search, for what they liked.
+  assert.equal(room.st.phase, "finding");
+  assert.deepEqual(room.flush().want, { k: "search", center, range: "walk20", lang: "zh", liked: ["ramen"] });
+  room.found(places());
   assert.equal(room.st.phase, "cards");
+  const shown = room.view(ids[0]).chips;
+  assert.equal(shown.find((c) => c.cuisine === "ramen")!.likes, 2);
+  assert.equal(shown.find((c) => c.cuisine === "italian")!.bans, 1);
+  assert.ok(shown.every((c) => typeof c.count === "number"));
   // Every place is on the list; details (photos, reviews) only for the top of it.
   assert.equal(room.st.cards.length, places().length);
   assert.deepEqual(room.flush().want, { k: "details", ids: room.st.cards.slice(0, TOP_COUNT) });
@@ -78,9 +90,9 @@ test("a whole table: diet cards, start, mood, cards, result, rating", () => {
 });
 
 test("details fill in a card's description only when the search had none", () => {
-  const { room, ids, places } = setup();
-  room.handle(ids[0], { t: "start" });
-  room.found(places().map((p, i) => ({ ...p, about: i % 2 ? undefined : `搜索里的介绍 ${i}` })));
+  const s = setup();
+  const { room } = s;
+  toCards(s, s.places().map((p, i) => ({ ...p, about: i % 2 ? undefined : `搜索里的介绍 ${i}` })));
   const [a, b] = room.st.places;
   room.enrich({ [a.id]: { phone: "(604) 111-1111", about: "From details" }, [b.id]: { about: "From details" } });
   assert.equal(a.about, "搜索里的介绍 0");
@@ -91,10 +103,12 @@ test("details fill in a card's description only when the search had none", () =>
 test("rounds end on the clock for people who don't finish", () => {
   const { room, ids, places, advance } = setup();
   room.handle(ids[0], { t: "start" });
-  room.found(places());
   room.handle(ids[0], { t: "mood", picks: { ramen: "like" }, done: false });
   advance(TIMING.mood);
   room.tick();
+  assert.equal(room.st.phase, "finding");
+  assert.deepEqual((room.flush().want as { liked: CuisineId[] }).liked, ["ramen"], "a pick counts even if not finished");
+  room.found(places());
   assert.equal(room.st.phase, "cards");
   advance(TIMING.cards);
   room.tick();
@@ -106,10 +120,9 @@ test("rounds end on the clock for people who don't finish", () => {
 });
 
 test("someone who joins late: a severe allergy only adds notes, a lower budget takes places over it off", () => {
-  const { room, ids, places } = setup();
-  room.handle(ids[0], { t: "start" });
-  room.found(places());
-  room.handle(ids[0], { t: "next" });
+  const s = setup();
+  const { room, ids } = s;
+  toCards(s);
   assert.equal(room.st.phase, "cards");
   const before = room.view(ids[0]).cards;
   assert.ok(before.some((c) => COMMON_IN.shellfish!.includes(c.place.cuisine)));
@@ -126,10 +139,9 @@ test("someone who joins late: a severe allergy only adds notes, a lower budget t
 });
 
 test("the cards' fingerprint: the same while nothing changes, new when the list or anyone's limits do", () => {
-  const { room, ids, places } = setup();
-  room.handle(ids[0], { t: "start" });
-  room.found(places());
-  room.handle(ids[0], { t: "next" });
+  const s = setup();
+  const { room, ids } = s;
+  toCards(s);
   const a = room.view(ids[0]);
   assert.equal(room.view(ids[1]).cardsRev, a.cardsRev, "the same for everyone");
   room.handle(ids[1], { t: "ballot", approve: [a.cards[0].place.id], veto: null, done: false });
@@ -143,17 +155,16 @@ test("the cards' fingerprint: the same while nothing changes, new when the list 
 });
 
 test("nothing fits: back to the lobby with a reason, host can widen the range", () => {
-  const { room, ids } = setup();
-  room.handle(ids[0], { t: "start" });
-  room.found([]);
+  const s = setup();
+  const { room, ids } = s;
+  toCards(s, []);
   assert.equal(room.st.phase, "lobby");
   assert.equal(room.st.error, "nothingNearby");
   room.handle(ids[0], { t: "again", range: "drive15" });
   assert.equal(room.st.range, "drive15");
   assert.equal(room.st.error, null);
-  room.handle(ids[0], { t: "start" });
   const closed: Place[] = [{ id: "x", name: "x", cuisine: "thai", lat: center.lat, lng: center.lng, openNow: false }];
-  room.found(closed);
+  toCards(s, closed);
   assert.equal(room.st.error, "nothingFits");
 });
 
@@ -164,15 +175,15 @@ test("when the host's phone is gone, anyone can move the table along (after a mi
   assert.equal(room.st.phase, "lobby");
   advance(TIMING.awayGrace);
   room.handle(ids[1], { t: "start" });
-  assert.equal(room.st.phase, "finding");
+  assert.equal(room.st.phase, "mood");
 });
 
-/** Start, find, everyone done in round 1, everyone approves the first card: a result. */
+/** Start, everyone done in round 1, the search, everyone approves the first card: a result. */
 function toResult(s: ReturnType<typeof setup>) {
   const { room, ids, places } = s;
   room.handle(ids[0], { t: "start" });
-  room.found(places());
   for (const id of ids) room.handle(id, { t: "mood", picks: {}, done: true });
+  room.found(places());
   const first = room.view(ids[0]).cards[0].place.id;
   for (const id of ids) room.handle(id, { t: "ballot", approve: [first], veto: null, done: true });
   assert.equal(room.st.phase, "result");
@@ -182,8 +193,13 @@ function toResult(s: ReturnType<typeof setup>) {
 test("a late or second 'next' doesn't skip round 2", () => {
   const { room, ids, places } = setup();
   room.handle(ids[0], { t: "start" });
-  room.found(places());
   room.handle(ids[0], { t: "next", phase: "mood" });
+  assert.equal(room.st.phase, "finding");
+  room.handle(ids[0], { t: "next", phase: "mood" });
+  room.handle(ids[0], { t: "next" });
+  assert.equal(room.st.phase, "finding", "nothing to skip while searching");
+  assert.equal(room.st.searches, 1, "one search, however many taps");
+  room.found(places());
   assert.equal(room.st.phase, "cards");
   room.handle(ids[0], { t: "next", phase: "mood" });
   assert.equal(room.st.phase, "cards");
@@ -194,7 +210,6 @@ test("a late or second 'next' doesn't skip round 2", () => {
 test("a phone that drops off to look at a map doesn't end the round without it", () => {
   const { room, ids, places, advance } = setup();
   room.handle(ids[0], { t: "start" });
-  room.found(places());
   room.handle(ids[0], { t: "mood", picks: {}, done: true });
   room.handle(ids[1], { t: "mood", picks: {}, done: true });
   room.leave(ids[2]);
@@ -203,6 +218,8 @@ test("a phone that drops off to look at a map doesn't end the round without it",
   // Back in time: it carries on.
   assert.ok(room.join(ids[2], `${ids[2]}-key-long-enough`, { lang: "zh" }));
   room.handle(ids[2], { t: "mood", picks: {}, done: true });
+  assert.equal(room.st.phase, "finding");
+  room.found(places());
   assert.equal(room.st.phase, "cards");
   // Gone for good: after the grace, the others don't wait for it.
   room.leave(ids[2]);
@@ -236,11 +253,11 @@ test("ratings: about one per person over the table's life; the meal before 'star
 });
 
 test("a table runs at most MAX_SEARCHES searches, then says to start a new one", () => {
-  const { room, ids } = setup();
+  const s = setup();
+  const { room, ids } = s;
   for (let i = 0; i < MAX_SEARCHES; i++) {
-    room.handle(ids[0], { t: "start" });
-    assert.equal(room.st.phase, "finding", `search ${i + 1}`);
-    room.found([]);
+    toCards(s, []);
+    assert.equal(room.st.searches, i + 1);
     room.handle(ids[0], { t: "again" });
   }
   room.flush();
@@ -261,7 +278,7 @@ test("when a phone's grace minute runs out, the room wakes up and tells everyone
   assert.equal(room.flush().changed, true);
   assert.equal(room.view(ids[1]).members.find((m) => m.host)!.online, false);
   room.handle(ids[1], { t: "start" });
-  assert.equal(room.st.phase, "finding");
+  assert.equal(room.st.phase, "mood");
 });
 
 test("the merged diet summary goes out only with the result", () => {
@@ -307,7 +324,8 @@ test("a returning phone needs its key", () => {
 });
 
 test("planning ahead: the host sets when in the lobby; the list is what's open then, each card saying until when", () => {
-  const { room, ids, places, env } = setup();
+  const s = setup();
+  const { room, ids, env } = s;
   const now = env.now();
   const tomorrow = vancouverDay(now, 1);
   const lunch = vancouverMs(tomorrow, 12 * 60);
@@ -315,10 +333,8 @@ test("planning ahead: the host sets when in the lobby; the list is what's open t
   assert.equal(room.view(ids[0]).at, null);
   room.handle(ids[0], { t: "when", at: lunch });
   assert.equal(room.view(ids[1]).at, lunch);
-  room.handle(ids[0], { t: "start" });
   // The demo dim sum place (demo-0) closes 15:00–17:00; the rest are open 11:00–22:00, a quarter of them not on Mondays.
-  room.found(places());
-  room.handle(ids[0], { t: "next" });
+  toCards(s);
   const cards = room.view(ids[0]).cards;
   assert.ok(cards.length > 0);
   for (const c of cards) {
@@ -331,9 +347,7 @@ test("planning ahead: the host sets when in the lobby; the list is what's open t
   // Tea time: the dim sum place is shut.
   const t = setup();
   t.room.handle(t.ids[0], { t: "when", at: vancouverMs(tomorrow, 16 * 60) });
-  t.room.handle(t.ids[0], { t: "start" });
-  t.room.found(t.places());
-  t.room.handle(t.ids[0], { t: "next" });
+  toCards(t);
   assert.ok(!t.room.view(t.ids[0]).cards.some((c) => c.place.id === "demo-0"));
   // Once the game is under way the time can't change.
   room.handle(ids[0], { t: "when", at: null });
@@ -348,3 +362,74 @@ test("a planned time that has come is now", () => {
   assert.equal(room.view(ids[0]).at, null);
 });
 
+
+test("the search is for what more people liked than refused, most liked first", () => {
+  const { room, ids, places } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: { hotpot: "like", sichuan: "like", italian: "ban" }, done: true });
+  room.handle(ids[1], { t: "mood", picks: { hotpot: "like", sichuan: "ban", bogus: "like", other: "like" } as Record<string, MoodPick>, done: true });
+  room.handle(ids[2], { t: "mood", picks: { kbbq: "like", ramen: "like" }, done: true });
+  const want = room.flush().want;
+  // Sichuan: one yes, one no. Ramen and Korean BBQ tie: the menu's order. "Other" isn't on the menu.
+  assert.deepEqual(want, { k: "search", center, range: "walk20", lang: "zh", liked: ["hotpot", "ramen", "kbbq"] });
+  // A server that restarts mid-search runs the same one again.
+  assert.deepEqual(room.searchWant(), want);
+  room.found(places());
+  // Every liked place first, the best liked cuisine's at the top.
+  const cards = room.view(ids[0]).cards;
+  const liked = cards.filter((c) => ["hotpot", "ramen", "kbbq"].includes(c.place.cuisine));
+  assert.deepEqual(liked.map((c) => c.rank), liked.map((_, i) => i + 1));
+  assert.equal(cards[0].place.cuisine, "hotpot");
+  assert.equal(cards.at(-1)!.place.cuisine, "italian");
+});
+
+test("the host says in the lobby what the meal is for; places that suit it move up and say so", () => {
+  const s = setup();
+  const { room, ids } = s;
+  assert.equal(room.view(ids[0]).occasion, "casual");
+  room.handle(ids[1], { t: "occasion", occasion: "date" }); // not the host: ignored
+  assert.equal(room.view(ids[0]).occasion, "casual");
+  room.handle(ids[0], { t: "occasion", occasion: "nonsense" as OccasionId });
+  assert.equal(room.view(ids[0]).occasion, "casual");
+  room.handle(ids[0], { t: "occasion", occasion: "date" });
+  assert.equal(room.view(ids[1]).occasion, "date");
+  toCards(s);
+  // Once the game is under way it can't change.
+  room.handle(ids[0], { t: "occasion", occasion: "colleagues" });
+  assert.equal(room.view(ids[0]).occasion, "date");
+  const date = room.view(ids[0]).cards;
+  // The French bistro: booked ahead, wine and cocktails, not cheap.
+  const bistro = date.find((c) => c.place.id === "demo-26")!;
+  assert.ok(bistro.reasons.includes("fits"), String(bistro.reasons));
+  assert.ok(!date.find((c) => c.place.id === "demo-17")!.reasons.includes("fits"), "not the burger place");
+
+  const c = setup();
+  toCards(c);
+  const casual = c.room.view(c.ids[0]).cards;
+  assert.ok(casual.every((x) => !x.reasons.includes("fits")));
+  assert.ok(bistro.rank < casual.find((x) => x.place.id === "demo-26")!.rank);
+  // A new table can start with it.
+  assert.equal(setup({ occasion: "birthday" }).room.view("aaaaaaaa").occasion, "birthday");
+});
+
+test("a search that finds nothing goes back to the lobby keeping round 1's picks; starting over clears them", () => {
+  const s = setup();
+  const { room, ids } = s;
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[1], { t: "mood", picks: { hotpot: "like" }, done: true });
+  room.handle(ids[0], { t: "next", phase: "mood" });
+  room.found([]);
+  assert.equal(room.st.error, "nothingNearby");
+  room.handle(ids[0], { t: "again", range: "drive15" });
+  room.handle(ids[0], { t: "start" });
+  assert.equal(room.st.phase, "mood");
+  assert.deepEqual(room.view(ids[1]).you.mood, { hotpot: "like" }, "still there to change or keep");
+  assert.equal(room.view(ids[0]).members.find((m) => m.id === ids[1])!.done, false, "but not done yet");
+  room.handle(ids[0], { t: "next", phase: "mood" });
+  assert.deepEqual((room.flush().want as { liked: CuisineId[] }).liked, ["hotpot"]);
+  room.found(s.places());
+  for (const id of ids) room.handle(id, { t: "ballot", approve: [room.st.cards[0]], veto: null, done: true });
+  assert.equal(room.st.phase, "result");
+  room.handle(ids[0], { t: "again" });
+  assert.deepEqual(room.view(ids[1]).you.mood, {}, "a new meal starts fresh");
+});

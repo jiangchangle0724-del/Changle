@@ -114,8 +114,8 @@ export class Tube {
   private making = false;
   private live = false;
   private video = "";
-  /** where it is in getting ready: none, cue, buffer, hold, ready, start, on */
-  private step: "none" | "cue" | "buffer" | "hold" | "ready" | "start" | "on" = "none";
+  /** where it is in getting ready: none, cue, buffer, hold, ready, start, on; paused mid-song */
+  private step: "none" | "cue" | "buffer" | "hold" | "ready" | "start" | "on" | "paused" = "none";
   private stepAt = 0;
   /** when the video's 0:00 should be (speaker time); null: not asked to play */
   private goAt: number | null = null;
@@ -196,6 +196,19 @@ export class Tube {
     this.p.pauseVideo();
     this.p.seekTo(0, true);
     this.go("hold", "buffering");
+  }
+
+  /**
+   * 暂停: held where it is, sound on. playAt starts it again: for a moment gone by, from as far into
+   * the song as that moment is.
+   */
+  pause() {
+    if (!this.p || !this.live || !this.video || (this.step !== "on" && this.step !== "start")) return;
+    this.p.pauseVideo();
+    this.clearTimer();
+    this.goAt = null;
+    this.seen = [];
+    this.go("paused", "ready");
   }
 
   /** Stop and forget the video (back to the lobby). */
@@ -280,6 +293,10 @@ export class Tube {
           this.armed = true;
           this.go("on", "playing");
         } else if (local - this.stepAt > TAP_AFTER_MS && this.status !== "tap") this.set("tap");
+        break;
+      case "paused":
+        // (someone tapped the paused video: it waits for 继续)
+        if (st === PLAYING) p.pauseVideo();
         break;
       case "on":
         if (st === PLAYING) this.measure();

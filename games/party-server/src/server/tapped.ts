@@ -10,6 +10,11 @@ export interface Tapped {
   spreadMs: number;
   /** when it was tapped (ms, Unix) */
   at: number;
+  /**
+   * tapped in a room whose TV delay was measured: only those are for every room (without the
+   * delay taken out, the beat is late by it)
+   */
+  calibrated?: boolean;
 }
 
 /** At least this many taps, at most a fifth of a beat apart on average. */
@@ -31,5 +36,5 @@ export function checkTapped(songId: string, body: unknown, now: number): Tapped 
   if (typeof spread !== "number" || !Number.isFinite(spread) || spread < 0 || spread > MAX_SPREAD_SHARE * beatMs) return "the taps were too spread out";
   // (the video's length as its player gave it: the dance has to be over before the video is)
   if (typeof duration === "number" && Number.isFinite(duration) && duration > 0 && first + song.beats * beatMs > duration) return "the dance would run past the end of the video";
-  return { firstBeatMs: Math.round(first), taps, spreadMs: Math.round(spread), at: now };
+  return { firstBeatMs: Math.round(first), taps, spreadMs: Math.round(spread), at: now, ...(b.calibrated === true ? { calibrated: true } : {}) };
 }

@@ -1,6 +1,6 @@
 {
   "about": "Greater Vancouver restaurant lists and awards, as facts only: which list, which award, which year, and the page that says so. No reviews or descriptions copied from the sources. Compiled by hand (or by Codex); see README.md, 'Cards: descriptions, lists and picks'.",
-  "updated": "2026-10-31",
+  "updated": "2026-11-11",
   "sources": {
     "michelin": {
       "zh": "米其林指南",
@@ -21,6 +21,21 @@
       "zh": "温哥华中餐大奖",
       "en": "Chinese Restaurant Awards",
       "url": "https://chineserestaurantawards.com/award-winners/"
+    },
+    "opentable": {
+      "zh": "OpenTable 加拿大 Top 100",
+      "en": "OpenTable Top 100 in Canada",
+      "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
+    },
+    "enroute": {
+      "zh": "enRoute 加拿大最佳新餐厅",
+      "en": "Air Canada enRoute Canada's Best New Restaurants",
+      "url": "https://enroute.aircanada.com/best-new-restaurants/"
+    },
+    "yelp": {
+      "zh": "Yelp 加拿大必吃 Top 100",
+      "en": "Yelp Top 100 Places to Eat in Canada",
+      "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
     }
   },
   "places": [
@@ -109,6 +124,15 @@
           },
           "year": 2026,
           "url": "https://canadas100best.com/list/2026/annalena-2026/"
+        },
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
         }
       ]
     },
@@ -143,6 +167,15 @@
           },
           "year": 2026,
           "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/ask-for-luigi"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
         }
       ]
     },
@@ -324,6 +357,15 @@
           },
           "year": 2026,
           "url": "https://canadas100best.com/list/2026/botanist-2026/"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
         }
       ]
     },
@@ -387,6 +429,15 @@
           },
           "year": 2026,
           "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/bravo-1214855"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
         }
       ]
     },
@@ -462,6 +513,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 7 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #7"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -671,6 +731,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 18 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #18"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -692,6 +761,15 @@
           },
           "year": 2026,
           "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-chinese-restaurants-in-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 3 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #3"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -983,6 +1061,15 @@
           },
           "year": 2026,
           "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/iden-quanjude-beijing-duck-house"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 12 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #12"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -1036,6 +1123,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 15 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #15"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -1209,6 +1305,15 @@
           },
           "year": 2026,
           "url": "https://canadas100best.com/list/2026/kavita-2026/"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
         }
       ]
     },
@@ -1381,6 +1486,15 @@
           },
           "year": 2026,
           "url": "https://canadas100best.com/list/2026/le-crocodile-2026/"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
         }
       ]
     },
@@ -1419,6 +1533,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 21 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #21"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -1672,6 +1795,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 1 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #1"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -1743,6 +1875,15 @@
           },
           "year": 2026,
           "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-informal-contemporary-restaurants-in-vancouver/"
+        },
+        {
+          "source": "enroute",
+          "label": {
+            "zh": "enRoute 最佳新餐厅 第 6 名",
+            "en": "enRoute Best New Restaurants #6"
+          },
+          "year": 2025,
+          "url": "https://dailyhive.com/vancouver/vancouver-air-canada-best-new-restaurants-2025"
         }
       ]
     },
@@ -1790,6 +1931,15 @@
           },
           "year": 2026,
           "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-informal-contemporary-restaurants-in-vancouver/"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
         }
       ]
     },
@@ -1807,6 +1957,15 @@
           },
           "year": 2026,
           "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/niwa"
+        },
+        {
+          "source": "enroute",
+          "label": {
+            "zh": "enRoute 最佳新餐厅 第 10 名",
+            "en": "enRoute Best New Restaurants #10"
+          },
+          "year": 2025,
+          "url": "https://dailyhive.com/vancouver/vancouver-air-canada-best-new-restaurants-2025"
         }
       ]
     },
@@ -1909,6 +2068,15 @@
           },
           "year": 2026,
           "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-casual-restaurants-in-vancouver/"
+        },
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
         }
       ]
     },
@@ -2031,6 +2199,15 @@
           },
           "year": 2026,
           "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-italian-restaurants-in-vancouver/"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
         }
       ]
     },
@@ -2171,6 +2348,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 9 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #9"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -2400,6 +2586,24 @@
           },
           "year": 2026,
           "url": "https://canadas100best.com/list/2026/sumibiyaki-arashi-2026/"
+        },
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
+        },
+        {
+          "source": "enroute",
+          "label": {
+            "zh": "enRoute 最佳新餐厅 第 8 名",
+            "en": "enRoute Best New Restaurants #8"
+          },
+          "year": 2025,
+          "url": "https://dailyhive.com/vancouver/vancouver-air-canada-best-new-restaurants-2025"
         }
       ]
     },
@@ -2469,6 +2673,15 @@
           },
           "year": 2026,
           "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-omakase-in-vancouver/"
+        },
+        {
+          "source": "enroute",
+          "label": {
+            "zh": "enRoute 最佳新餐厅 第 4 名",
+            "en": "enRoute Best New Restaurants #4"
+          },
+          "year": 2025,
+          "url": "https://dailyhive.com/vancouver/vancouver-air-canada-best-new-restaurants-2025"
         }
       ]
     },
@@ -2486,6 +2699,15 @@
           },
           "year": 2026,
           "url": "https://guide.michelin.com/ca/en/british-columbia/ca-vancouver/restaurant/sushi-jin"
+        },
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
         }
       ]
     },
@@ -2613,6 +2835,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 10 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #10"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -2734,6 +2965,15 @@
           },
           "year": 2025,
           "url": "https://chineserestaurantawards.com/critics-choice-signature-dish-awards-2025-vancouver/"
+        },
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 28 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #28"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     },
@@ -2811,6 +3051,343 @@
           },
           "year": 2026,
           "url": "https://vanmag.com/restaurant-awards/2026/restaurant-awards-2026-the-best-korean-restaurants-in-vancouver/"
+        }
+      ]
+    },
+    {
+      "name": "Dovetail",
+      "aliases": [],
+      "address": "1079 Mainland St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
+        }
+      ]
+    },
+    {
+      "name": "Nomo Nomo",
+      "aliases": [
+        "Bar Nomo"
+      ],
+      "address": "1268 Commercial Dr",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "opentable",
+          "label": {
+            "zh": "OpenTable 加拿大 Top 100",
+            "en": "OpenTable Top 100 Canada"
+          },
+          "year": 2026,
+          "url": "https://www.opentable.ca/c/en/top-restaurants/top-100/"
+        }
+      ]
+    },
+    {
+      "name": "Manoush'eh",
+      "aliases": [],
+      "address": "620 Davie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Number E Food",
+      "aliases": [],
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Tom Sushi",
+      "aliases": [],
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Pawans Indian Kitchen",
+      "aliases": [],
+      "city": "North Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Lamajoun",
+      "aliases": [],
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Workshop Vegetarian Cafe",
+      "aliases": [],
+      "city": "North Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Absinthe Bistro",
+      "aliases": [],
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Mazahr Lebanese Kitchen",
+      "aliases": [],
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Happy Noodle House",
+      "aliases": [],
+      "address": "630 Davie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "The Red Accordion",
+      "aliases": [],
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Anar Persian Cuisine",
+      "aliases": [],
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Tour De Feast",
+      "aliases": [],
+      "city": "North Vancouver",
+      "awards": [
+        {
+          "source": "yelp",
+          "label": {
+            "zh": "Yelp 加拿大必吃 Top 100",
+            "en": "Yelp Top 100 in Canada"
+          },
+          "year": 2024,
+          "url": "https://www.yelp.com/collection/UgLw7zwVWcpkgObICNjWLw/Top-100-Places-to-Eat-in-Canada-2024"
+        }
+      ]
+    },
+    {
+      "name": "Landmark Hotpot House",
+      "aliases": [],
+      "address": "4023 Cambie St",
+      "city": "Vancouver",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 5 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #5"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Bamboo Grove",
+      "aliases": [],
+      "address": "6920 No. 3 Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 6 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #6"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Golden Paramount Seafood Restaurant",
+      "aliases": [
+        "金百樂海鮮酒家",
+        "金百乐海鲜酒家"
+      ],
+      "address": "8111 Anderson Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 16 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #16"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Lanxuan",
+      "aliases": [
+        "Lanxuan Restaurant"
+      ],
+      "address": "3631 No. 3 Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 22 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #22"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
+        }
+      ]
+    },
+    {
+      "name": "Max Noodle House",
+      "aliases": [],
+      "address": "8291 Alexandra Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 27 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #27"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
+        }
+      ]
+    },
+    {
+      "name": "HK BBQ Master",
+      "aliases": [],
+      "address": "4651 No. 3 Rd",
+      "city": "Richmond",
+      "awards": [
+        {
+          "source": "cra",
+          "label": {
+            "zh": "加拿大中餐 Elite 30 第 30 名",
+            "en": "Chinese Restaurant Awards Elite 30 Canada #30"
+          },
+          "year": 2026,
+          "url": "https://chineserestaurantawards.com/list-2026/elite-30-canada-2026/"
         }
       ]
     }

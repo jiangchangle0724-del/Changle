@@ -140,8 +140,8 @@ describe('C4 生死边界', () => {
     expect(sim.events.filter(e => e.type === 'death')).toHaveLength(1);
   });
 
-  // BUG: spawnPoint 在检查点只错开 30 px，两个半径 24 px 的身体重叠；玩家之间不碰撞，无法自行分开。
-  it.fails('检查点复活不和站在旁边的队友身体重叠', async () => {
+  // C4 found respawns 30 px from a teammate standing on the checkpoint; respawnPoint now slides to clear footing.
+  it('检查点复活不和站在旁边的队友身体重叠', async () => {
     const sim = await setup({ checkpoints: [{ x: 500, y: 500 }],
       rects: [{ x: 300, y: 524, w: 600, h: 100, kind: 'ground' }] });
     sim.teleport(0, 500, 500);

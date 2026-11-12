@@ -16,6 +16,11 @@ function nextLine(v: DramaView, zh: boolean, players: number): string {
     if (!n.ok) return zh ? "演技 PK 要两个人上台：至少两个人选「我要上台」或「都行」。" : "A duel needs two on stage: at least two people have to pick “I'll act” or “Either way”.";
     return zh ? "演技 PK 每次两个人上台，报名的先上。" : "A duel puts two on stage; volunteers go first.";
   }
+  if (v.mode === "read") {
+    if (!n.ok) return zh ? "朗读要一个人上台：至少一个人选「我要上台」或「都行」。" : "A reading needs someone on stage: at least one person has to pick “I'll act” or “Either way”.";
+    if (n.auto) return zh ? "还没人报名：从「都行」的人里抽一个上台朗读，读得少的先上。" : "No volunteers yet: one of the “Either way” crowd reads, whoever has read least first.";
+    return zh ? "每一幕一个人上台朗读。报名的轮流来，读得少的先上。" : "One person reads each act. Volunteers take turns, whoever has read least first.";
+  }
   if (!n.ok) return zh ? "大家都只想看：至少要有一个人选「我要上台」或「都行」，才能开演。" : "Everyone's just watching. Someone has to pick “I'll act” or “Either way” before the curtain can go up.";
   if (n.auto) {
     const k = n.lo === n.hi ? `${n.hi}` : zh ? `${n.lo} 到 ${n.hi}` : `${n.lo} to ${n.hi}`;

@@ -11,7 +11,7 @@ import { buildTimeline, restartSection, type TimelineEntry } from "../../../danc
 import type { Difficulty, RoomPhase } from "../../../party-base/src/index";
 import { METRONOME_ID, MOVES, moveById, routineById, type Move, type Routine } from "./catalog";
 import type { RoutineInfo } from "./protocol";
-import { songById, songMoveAt, songMoves, type Song } from "./songs";
+import { songBeat, songById, songMoves, type Song } from "./songs";
 
 /** learn: warm-up, teaching, dance, cool-down. dance: the same without the teaching. */
 export type Mode = "learn" | "dance";
@@ -150,7 +150,10 @@ function makeSong(song: Song, mode: Mode): Show {
     }
   }
   const leadMs = lead.length ? lead[lead.length - 1]!.at + lead[lead.length - 1]!.ms : 0;
-  const dance: ShowBeat[] = Array.from({ length: song.beats }, (_, b) => ({ stage: "dance", move: moveById(songMoveAt(song, Math.floor(b / 8))), count: (b % 8) + 1, at: b * beatMs, ms: beatMs, score: true, danceBeat: b }));
+  const dance: ShowBeat[] = Array.from({ length: song.beats }, (_, b) => {
+    const { move, count } = songBeat(song, b);
+    return { stage: "dance", move: moveById(move), count, at: b * beatMs, ms: beatMs, score: true, danceBeat: b };
+  });
   return {
     id: song.id,
     kind: "song",
@@ -192,7 +195,8 @@ export interface RunBeat extends ShowBeat {
  * plays (the lobby, calibrating, the results).
  */
 export function anchorsOf(phase: RoomPhase, routineStartAt: number | null, routine: RoutineInfo | null): Anchors | null {
-  if (!routine || (phase !== "learning" && phase !== "dancing")) return null;
+  // (paused: nothing plays until 继续 moves the run on)
+  if (!routine || (phase !== "learning" && phase !== "dancing") || routine.pausedAt !== undefined) return null;
   return { leadStartAt: routine.leadStartAt, danceStartAt: phase === "dancing" ? routineStartAt : null, fromBeat: routine.fromBeat, introMs: routine.introMs ?? null };
 }
 
@@ -214,6 +218,19 @@ export function danceStart(show: Show, a: Anchors): number | null {
 
 /** From the lead's end to the dance's first beat: the room's (a song tapped along to), or the show's. */
 export const introOf = (show: Show, a: Anchors): number => a.introMs ?? show.introMs;
+
+/**
+ * Where a song's dance starts in its video, given a beat people tapped along to (找拍子 or 歌曲对拍:
+ * any beat of the song's grid). A song whose dance is laid along its sections (`Song.aligned`: its
+ * first beat known from the song's own timing, to within half a beat) starts on the tapped grid's
+ * beat nearest that; any other song starts on the tapped beat itself.
+ */
+export function songStart(show: Show, tappedMs: number): number {
+  const song = show.song;
+  if (!song?.aligned) return tappedMs;
+  const n = Math.round((song.firstBeatMs - tappedMs) / show.beatMs);
+  return tappedMs + n * show.beatMs;
+}
 
 /**
  * Every beat still to come from these anchors, in order: what is left of the lead, the count-in,

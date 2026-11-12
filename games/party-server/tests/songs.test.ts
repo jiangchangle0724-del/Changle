@@ -1,17 +1,33 @@
 // The songs: a song as a show (its teaching, the video's intro, the count-in, the dance on its
-// beats), a room playing one (the songbook's first beat, 找拍子 for a song nobody has danced yet,
-// the speaker moving the beat to where the video really is), and the songbook's checks of a
-// speaker's taps. Run: npm test
+// beats), the six with their own dance laid along their parts, a room playing one (the songbook's
+// first beat, 找拍子 for a song nobody has danced yet, none for a measured one, the speaker moving
+// the beat to where the video really is), and the songbook's checks of a speaker's taps. Run: npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { LEAD_IN_MS, SONG_SYNC_MS, Session, TAP_GAP_MS, type From } from "../src/server/session";
 import { checkTapped, MIN_TAPS } from "../src/server/tapped";
-import { anchorsOf, buildShow, danceStart, planRun } from "../src/shared/show";
-import { SONGS, songById, songMoveAt, songMoves } from "../src/shared/songs";
+import { anchorsOf, buildShow, danceStart, planRun, songStart, type Show } from "../src/shared/show";
+import { moveAnim } from "../src/client/coach/moves";
+import { moveById } from "../src/shared/catalog";
+import { SONGS, songBeat, songById, songMoves } from "../src/shared/songs";
 
 const SPEAKER: From = { role: "speaker", playerId: null };
 const ANN: From = { role: "player", playerId: "ann-000001" };
-const SONG = SONGS[0]!;
+/** a song without its own dance (its beat found by 找拍子) */
+const SONG = SONGS.find((s) => !s.aligned)!;
+const GANGNAM = songById("song-gangnam-style")!;
+/**
+ * the videos' lengths (ms), as their players gave them (2026-11-11): each dance is over before its
+ * video (江南Style's: where its song ends in the video, 218.6 s; the video goes on to 252 s off the beat)
+ */
+const VIDEO_MS: Record<string, number> = {
+  "song-gangnam-style": 218_700,
+  "song-apt": 173_401,
+  "song-ai-ni": 220_081,
+  "song-zui-xuan-min-zu-feng": 284_001,
+  "song-yi-xiao-jiang-hu": 230_861,
+  "song-macarena": 222_101,
+};
 
 function ready() {
   let now = 1_000_000;
@@ -20,21 +36,55 @@ function ready() {
   s.connect(SPEAKER);
   s.handle(SPEAKER, { t: "clock", offsetMs: -995_000, rttMs: 20 });
   s.connect(ANN, "Ann");
+  // (the TV's delay measured: the song starts at once, and a beat found here is for every room)
+  s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
+  s.handle(SPEAKER, { t: "calibrated", audioOffsetMs: 0 });
   s.flush();
   return { s, advance: (ms: number) => (now += ms) };
 }
 
 describe("a song as a show", () => {
-  it("every song is in order: its moves are the library's, its dance whole 8-counts", () => {
+  it("every song is in order: its moves are known and the coach dances them, its dance whole 8-counts", () => {
     for (const song of SONGS) {
       const show = buildShow(song.id, "dance")!;
       assert.equal(show.kind, "song", song.id);
       assert.equal(song.beats % 8, 0, song.id);
       assert.equal(show.dance.length, song.beats);
-      assert.ok(show.dance.every((b) => b.move !== null && b.score), song.id);
+      assert.ok(show.dance.every((b) => b.move !== null && b.score && b.count >= 1 && b.count <= 8), song.id);
+      assert.ok(show.dance.every((b) => moveAnim(b.move!.id) !== null), `${song.id}: every move animated`);
       assert.ok(song.bpm >= 60 && song.bpm <= 200);
       assert.equal(songById(song.id), song);
+      assert.ok(!!song.dance !== !!song.pattern, `${song.id}: its own dance or a pattern`);
     }
+  });
+
+  it("the six with their own dance: measured, laid along the song, over before the video is", () => {
+    const own = SONGS.filter((s) => s.aligned);
+    assert.deepEqual(own.map((s) => s.id).sort(), Object.keys(VIDEO_MS).sort());
+    for (const song of own) {
+      const steps = song.dance!;
+      assert.equal(steps.reduce((n, [, k]) => n + k, 0), song.beats, song.id);
+      for (const [move, n, from = 1] of steps) {
+        assert.ok(moveById(move), `${song.id}: ${move}`);
+        // whole 8-counts, or half of one counted 5 to 8
+        assert.ok((n % 8 === 0 && from === 1) || (n === 4 && from === 5), `${song.id}: ${move} ${n} from ${from}`);
+      }
+      assert.ok(song.firstBeatMs + song.beats * (60000 / song.bpm) < VIDEO_MS[song.id]!, `${song.id} ends in time`);
+    }
+  });
+
+  it("江南Style: the build's half phrase counted 5 to 8, then the chorus from 1 on the song's beat 156", () => {
+    assert.deepEqual(songBeat(GANGNAM, 143), { move: "gangnam-bounce", count: 8 });
+    assert.deepEqual(songBeat(GANGNAM, 144), { move: "horse-ride", count: 5 });
+    assert.deepEqual(songBeat(GANGNAM, 147), { move: "horse-ride", count: 8 });
+    assert.deepEqual(songBeat(GANGNAM, 148), { move: "horse-ride", count: 1 });
+    assert.deepEqual(songBeat(GANGNAM, 156), { move: "horse-lasso", count: 1 });
+    // the dance starts on the video's beat 8 (its grid: beat 0 at 373 ms, 132 BPM)
+    assert.ok(Math.abs(GANGNAM.firstBeatMs + 148 * (60000 / 132) - (373 + 156 * (60000 / 132))) < 1);
+    assert.deepEqual(songMoves(GANGNAM), ["gangnam-bounce", "horse-ride", "hey-point", "horse-lasso", "sexy-lady", "gangnam-lunge", "chest-pop", "gangnam-pose"]);
+    const show = buildShow(GANGNAM.id, "dance")!;
+    assert.equal(show.dance[148]!.move!.id, "horse-ride");
+    assert.equal(show.dance[148]!.count, 1);
   });
 
   it("just dance: no teaching; the video's intro, a count-in on its last 4 beats, the dance on its beats", () => {
@@ -43,7 +93,8 @@ describe("a song as a show", () => {
     assert.equal(show.introMs, SONG.firstBeatMs);
     assert.equal(show.tail.length, 0);
     // the pattern round and round, a move for its 8-counts
-    show.dance.forEach((b, i) => assert.equal(b.move!.id, songMoveAt(SONG, Math.floor(i / 8))));
+    show.dance.forEach((b, i) => assert.equal(b.move!.id, songBeat(SONG, i).move));
+    assert.ok(show.dance.every((b, i) => b.count === (i % 8) + 1));
     const lead = 10_000;
     const a = anchorsOf("learning", null, { routineId: SONG.id, bpm: SONG.bpm, beatsPerBar: 4, totalBeats: SONG.beats, mode: "dance", leadStartAt: lead, fromBeat: 0, introMs: SONG.firstBeatMs })!;
     const start = danceStart(show, a)!;
@@ -138,6 +189,7 @@ describe("a room playing a song", () => {
     const out = s.flush().out;
     const kept = out.find((o) => "songbook" in o);
     assert.ok(kept && "songbook" in kept && kept.songbook.songId === SONG.id && kept.songbook.tapped.firstBeatMs === 7_300 && kept.songbook.tapped.taps === 18);
+    assert.ok(kept && "songbook" in kept && kept.songbook.tapped.calibrated === true, "found where the TV's delay was measured");
     assert.ok(out.some((o) => "msg" in o && o.msg.t === "state"), "every page hears of it");
     // taps are for 找拍子 only
     s.handle(ANN, { t: "tap", at: 12_000 });
@@ -149,6 +201,49 @@ describe("a room playing a song", () => {
     s.tick();
     assert.equal(s.d.state.phase, "dancing");
     assert.equal(s.d.state.routineStartAt, s.d.routine!.leadStartAt! + 7_300);
+  });
+
+  it("a room that skipped measuring its TV: the beat it finds is used there, not kept for every room", () => {
+    let now = 1_000_000;
+    const s = new Session(Session.create("ABCD", now, 5_000), () => now);
+    s.connect(SPEAKER);
+    s.handle(SPEAKER, { t: "clock", offsetMs: -995_000, rttMs: 20 });
+    s.connect(ANN, "Ann");
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: SONG.id, mode: "dance" } });
+    assert.equal(s.d.state.phase, "calibrating", "the TV's delay first");
+    s.handle(ANN, { t: "act", action: { type: "SKIP_CALIBRATION" } });
+    assert.equal(s.d.state.phase, "learning");
+    assert.equal(s.d.routine!.tapIn, true);
+    now += 30_000;
+    s.flush();
+    s.handle(SPEAKER, { t: "songTapped", firstBeatMs: 7_300, taps: 18, spreadMs: 22, durationMs: 250_000 });
+    assert.equal(s.d.routine!.tapIn, undefined);
+    assert.equal(s.d.routine!.introMs, 7_300);
+    assert.equal(s.songbook[SONG.id], 7_300, "this room dances it again without 找拍子");
+    assert.ok(!s.flush().out.some((o) => "songbook" in o), "late by the TV's delay: not for other rooms");
+  });
+
+  it("a song whose dance is set to the song's own parts: the tapped beat moves its first beat onto the grid, by less than a beat", () => {
+    const fake = { beatMs: 500, song: { aligned: true, firstBeatMs: 10_000 } } as unknown as Show;
+    assert.equal(songStart(fake, 10_120), 10_120, "near: the tapped beat");
+    assert.equal(songStart(fake, 1_620), 10_120, "a few beats before: the same grid, at the song's part");
+    assert.equal(songStart(fake, 17_380), 9_880);
+    const loose = { beatMs: 500, song: { firstBeatMs: 10_000 } } as unknown as Show;
+    assert.equal(songStart(loose, 1_620), 1_620, "a song without parts starts where it was tapped");
+  });
+
+  it("a song with its own dance needs no 找拍子: it starts on its measured beat", () => {
+    const { s, advance } = ready();
+    s.songbook = {};
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: GANGNAM.id, mode: "dance" } });
+    assert.equal(s.d.state.phase, "learning");
+    assert.equal(s.d.routine!.tapIn, undefined);
+    assert.equal(s.d.routine!.introMs, GANGNAM.firstBeatMs);
+    s.handle(SPEAKER, { t: "songReady" });
+    advance(LEAD_IN_MS);
+    s.tick();
+    assert.equal(s.d.state.phase, "dancing");
+    assert.equal(s.d.state.routineStartAt, s.d.routine!.leadStartAt! + GANGNAM.firstBeatMs);
   });
 
   it("nobody found the beat in time: back to the lobby, and everyone is told", () => {

@@ -1,13 +1,13 @@
 // What phones and the server say to each other.
 import { PLANNED_FROM, RANGES, check, closingTime, distanceMeters, estimateWait, isOpen, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
-import type { Ballot, Center, Concern, CuisineId, Lang, Limits, MoodPick, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
+import type { Ballot, Center, Concern, CuisineId, Lang, Limits, MoodPick, OccasionId, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
 
 export type { Lang };
 
 /** Room timings in milliseconds. */
 export const TIMING = {
   /** Round 1: people who haven't finished by then keep what they tapped. */
-  mood: 60_000,
+  mood: 90_000,
   /** Round 2. */
   cards: 120_000,
   /** The tie-break spinner. */
@@ -47,6 +47,8 @@ export type ClientMsg =
   | { t: "again"; range?: RangeId }
   /** Host, in the lobby: when the table eats (ms since epoch), or null for now. */
   | { t: "when"; at: number | null }
+  /** Host, in the lobby: what the meal is for. */
+  | { t: "occasion"; occasion: OccasionId }
   | { t: "ping" };
 
 export type ServerMsg =
@@ -103,11 +105,13 @@ export const roundMeters = (m: number) => (m < 1000 ? Math.max(50, Math.round(m 
 export interface CardContext {
   center: Center;
   range: RangeId;
-  /** The table's merged limits (one person's own, picking alone). */
+  /** The table's merged limits. */
   limits: Limits;
   now: number;
   /** A planned meal; now when absent. */
   at?: number;
+  /** What the meal is for: a card says when a place suits it. */
+  occasion?: OccasionId;
 }
 
 /** A place as a card at `rank` on the list, seen from the starting point, for the people whose limits are `limits`. */
@@ -135,18 +139,8 @@ export function cardView(p: Place, rank: number, ctx: CardContext, extra: { like
     concerns: v.concerns,
     likes,
     bans: extra.bans ?? 0,
-    reasons: extra.reasons ?? reasonsFor(p, { limits: ctx.limits, center: ctx.center, range: ctx.range, liked: likes > 0 }),
+    reasons: extra.reasons ?? reasonsFor(p, { limits: ctx.limits, center: ctx.center, range: ctx.range, liked: likes > 0, occasion: ctx.occasion, now: ctx.now, at }),
   };
-}
-
-/** One person's pick (POST /eat/api/solo): every place found, ranked. */
-export interface SoloResponse {
-  /** Best first; the first SOLO_TOP come with a photo and Google's details. */
-  cards?: CardView[];
-  /** The planned time the list is for; absent for now. */
-  at?: number;
-  demo?: boolean;
-  error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace";
 }
 
 export interface RoomView {
@@ -169,12 +163,18 @@ export interface RoomView {
   range: RangeId;
   /** When the table eats (ms since epoch), or null for now. */
   at: number | null;
+  /** What the meal is for. */
+  occasion: OccasionId;
   /**
    * Everyone's limits merged, with no names, sent only with the result: shown live, a line appearing
    * as one person saves their card would give away whose it is.
    */
   table: Limits;
-  chips: { cuisine: CuisineId; count: number; likes: number; bans: number }[];
+  /**
+   * Round 1's menu: every cuisine, with how many liked it and said no to it (hidden while people
+   * choose) and, once the search has run, how many of its places are on the list.
+   */
+  chips: { cuisine: CuisineId; count?: number; likes: number; bans: number }[];
   /** Round 2's list, best first: every place in range and budget. */
   cards: CardView[];
   /** Changes whenever `cards` would: a phone that has this one already is sent `cards: null`. */

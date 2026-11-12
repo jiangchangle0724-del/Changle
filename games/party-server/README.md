@@ -42,7 +42,16 @@ instead, `site/src/party/dj/`.)
 - **`/party/screen`**, the speaker (`src/client/screen.ts`): Start (starts the audio and keeps the
   screen on), the room code and QR code, the players (a phone's 我在 lights its name),
   calibration (8 clicks 1.2 s apart, the host's taps in speaker time, `calibrateFromTaps()`; three
-  tries). While a dance plays: its tune (below), the 3D coach dancing each move on
+  tries). A room's first dance (not the metronome) measures the TV's delay first and then starts
+  by itself (`SessionData.pending`); the host can skip it, and then the room doesn't ask again.
+  暂停 / 继续 (the host, while the lead or the dance plays): `RoutineInfo.pausedAt`; nothing plays
+  on the pages while it's set (`anchorsOf` gives none), the song's video holds where it is, and
+  nothing ends; 继续 moves everything later by the pause plus 1.5 s (`RESUME_LEAD_MS`), so the
+  last moments before it play again first (party-base's `RESUMED` for the dance's beat 0).
+  A phone can be the stage, mirrored to the TV: sideways it lays everything out on one short
+  screen (the song's video at 356×200, YouTube's 200 px at least, the move and count under it, the
+  coach beside); held upright it asks to be turned (an iPhone's page can't turn itself; Android's
+  Chrome goes full screen and sideways after 开始). It's never a player. While a dance plays: its tune (below), the 3D coach dancing each move on
   the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
   the 8-count, the next move 2 beats ahead, the floor. Along the bottom, everyone's little dancer
   (`src/client/coach/crowd.ts`): a neon stick figure in their colour doing the coach's move as hard
@@ -75,17 +84,23 @@ instead, `site/src/party/dj/`.)
   every tune).
 - **Songs** (`src/shared/songs.ts`): famous songs played on the TV from YouTube's own player
   (`src/client/tube.ts`: in sight in the top left corner, never covered, never downloaded; the
-  same rules as 打碟's player), each danced with a few of the library's easiest moves, two
-  8-counts each, round and round (fast songs at half their tempo). The host picks one like a
-  dance. The room waits for the speaker to have the video held at its start (`songReady`; on
+  same rules as 打碟's player). Six are danced to their own famous dance, laid along the song
+  (`Song.dance`, `aligned`): 江南Style's horse dance, Macarena, 科目三, 最炫民族风, 爱你, APT.;
+  their moves are `src/shared/songmoves.ts` (the coach's key frames: `src/client/coach/songmoves.ts`).
+  Their beat was measured in each video (the video played silently in a browser, its onsets fitted
+  to a grid: the tempo, and beat 0 to within ~10 ms) and their parts placed from the songs' timed
+  lyrics, so they need no 找拍子. The others are danced with a few of the library's easiest moves,
+  two 8-counts each, round and round (`pattern`). Fast songs at half their tempo. The host picks one
+  like a dance (the six with their own dance first). The room waits for the speaker to have the video held at its start (`songReady`; on
   Safari not before someone has tapped the video once, so it can play with sound), then the video
   plays from its start: its intro, a count-in on its last 4 beats, the dance. While it plays, the
   speaker reads the video's clock every 4 ms and tells the room where the song's first beat really
   is (`songAt`); more than 20 ms off, the room moves the dance's beat there (party-base's
   `BEAT_MOVED`) and every page follows. YouTube refusing the video (`songFailed`): back to the
   lobby, and the phones say why. No 这一段再来 in a song.
-- **找拍子 / the songbook**: where a song's beat starts in its video can't be guessed well enough.
-  The first time a room dances a song (`RoutineInfo.tapIn`), its video plays from the start and
+- **找拍子 / the songbook**: where a song's beat starts in its video can't be guessed well enough
+  (unless it was measured: the six above). The first time a room dances such a song
+  (`RoutineInfo.tapIn`), its video plays from the start and
   everyone taps along on their phones, a tap a beat, from when the drums come in (the TV shows
   the count and lights each name as it taps; whoever holds the speaker can tap on it too). The
   phones' taps go to the speaker (`tap`, at most one every 150 ms a phone); from 16 that agree,
@@ -95,11 +110,15 @@ instead, `site/src/party/dj/`.)
   run past the video's end; the TV's calibrated delay taken out). The speaker sends it
   (`songTapped`); the room checks it (`src/server/tapped.ts`), keeps it in the songbook
   (`src/server/songbook.ts`, one Durable Object for the whole site) for every room from then on,
-  and the song starts from its start as any song does. No beat after 90 s of video: back to the
+  and the song starts from its start as any song does. Only a room that measured its TV's delay
+  keeps it for every room (`calibrated`; without it the beat is late by the delay): a room that
+  skipped it uses the beat itself, and the songbook gives rooms only calibrated beats. No beat after 90 s of video: back to the
   lobby (`song_notap`). The host can't skip ahead during 找拍子. 歌曲对拍 on the speaker page (the
   lobby) does it again by one person: play a song, and from its first strong beat tap 16 times
-  (`tapAlong()`; `POST /party/api/songs/ID`), for a song whose dance has come out off its beat.
-- **`/party/moves`** (`src/client/moves.ts`): the 20 moves, each danced by the coach at its own
+  (`tapAlong()`; `POST /party/api/songs/ID`, refused unless the room is calibrated), for a song
+  whose dance has come out off its beat.
+- **`/party/moves`** (`src/client/moves.ts`): the 20 moves (and under them the songs' own, song by
+  song), each danced by the coach at its own
   tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
   `?still=<beat>` stops it there, `?gl=any` draws it in a browser without a graphics chip (the
   checks' Chromium); `window.coachShow(id, beat)` and `coachTick(id, beat, count, ms)` are for
@@ -121,7 +140,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 99 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 110 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```
@@ -140,11 +159,15 @@ when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so ru
 
 `scripts/song-yt-check.cjs` (the same Worker) dances a song from YouTube with a pretend YouTube
 player (real YouTube won't play in a data centre's browser: error 150). It starts 300 ms late and
-its clock answers four times a second, like the real one's. Checked: the songbook API, the room
-waiting for the video, the beat moved to the video's (within 25 ms), Ann tapping on the video's
-real beats on the beat, the video gone in the lobby; 找拍子 on a song nobody has danced (Ann and
-Bob tapping along on their phones, the first beat found within 25 ms and kept, then the song from
-its start on the video's beat); and 歌曲对拍 finding another song's first beat (within 20 ms).
+its clock answers four times a second, like the real one's; the pretend TV plays everything
+150 ms late. Checked: the songbook API (taps from an uncalibrated room refused), the room's first
+dance measuring the TV first, the room waiting for the video, the beat moved to the video's
+(within 25 ms), Ann tapping on the video's real beats on the beat, 暂停 holding the video and 继续
+picking it up 1.5 s before where it stopped (the beat with the video again), the video gone in the
+lobby; 找拍子 on a song nobody has danced (Ann and Bob tapping along on their phones as the TV plays
+it, the first beat found within 25 ms and kept, then the song from its start on the video's
+beat); a song with its own dance starting with no 找拍子 on its measured beat (within 25 ms); and
+歌曲对拍 finding another song's first beat (within 20 ms).
 About two minutes. Run the Worker with fresh storage (`--persist-to` a new folder): a song
 already in the songbook skips 找拍子.
 

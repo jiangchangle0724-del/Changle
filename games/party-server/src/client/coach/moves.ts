@@ -4,36 +4,9 @@
 // on it (claps, punches, arms flung up), "snap" ones get there early and hold.
 //
 // The moves are mirrored for the room (pose.ts): "step to the screen's left" is the players' left.
+import { AKIMBO, APART, AT_SHOULDERS, CLAP, DOWN, GUARD, OPEN_LOW, OPEN_MID, P, UP, add, both, elbows, palms, type MoveAnim } from "./kit";
 import { BASE, groove, keys, over, type Part, type Pose, type V3 } from "./pose";
-
-/** Both hands, the screen-left one mirrored. */
-const both = (x: number, y: number, z: number): Part => ({ hR: [x, y, z], hL: [-x, y, z] });
-const palms = (x: number, y: number, z: number): Part => ({ pR: [x, y, z], pL: [-x, y, z] });
-const elbows = (x: number, y: number, z: number): Part => ({ eR: [x, y, z], eL: [-x, y, z] });
-const P = (...parts: Part[]): Part => Object.assign({}, ...parts) as Part;
-
-// hands
-const CLAP = P(both(0.034, -0.1, 0.3), palms(-1, 0, 0), elbows(0.7, -0.7, -0.3));
-const APART = P(both(0.17, -0.11, 0.3), palms(-1, 0, 0.2), elbows(0.7, -0.7, -0.3));
-const OPEN_LOW = P(both(0.5, -0.24, 0.14), palms(0, 0.3, 1), elbows(1, -0.5, -0.4));
-const OPEN_MID = P(both(0.27, -0.16, 0.22), palms(-0.4, 0, 1), elbows(0.8, -0.8, -0.3));
-const UP = P(both(0.21, 0.54, 0.08), palms(-0.3, 0, 1), elbows(1, 0, -0.3));
-const AT_SHOULDERS = P(both(0.25, -0.03, 0.12), palms(0, 0.2, 1), elbows(0.5, -1, -0.2));
-const DOWN = P(both(0.23, -0.48, 0.08), palms(-1, 0, 0.2), elbows(0.5, -0.3, -1));
-const AKIMBO = P(both(0.215, -0.4, -0.01), palms(-1, 0, -0.3), elbows(1, 0, -0.25));
-const GUARD = P(both(0.12, -0.13, 0.24), palms(-1, 0, 0), elbows(0.6, -1, -0.2));
-
-export interface MoveAnim {
-  /** beats per loop of its key frames */
-  len: number;
-  pose: (p: number) => Pose;
-  /** how much of the beat's bounce goes on top (0 to 1) */
-  groove: number;
-  /** what else moves between the key frames (twirls, rolls, a marching foot) */
-  extra?: (p: number, pose: Pose) => void;
-}
-
-const add = (v: V3, x: number, y: number, z: number): V3 => [v[0] + x, v[1] + y, v[2] + z];
+import { SONG_ANIMS } from "./songmoves";
 
 const A: Record<string, MoveAnim> = {};
 
@@ -343,8 +316,10 @@ const CHEER: MoveAnim = {
   ]),
 };
 
-export const moveAnim = (id: string): MoveAnim | null => A[id] ?? null;
+export const moveAnim = (id: string): MoveAnim | null => A[id] ?? SONG_ANIMS[id] ?? null;
+/** The library's moves the coach dances (the songs' are in songmoves.ts). */
 export const animatedMoves = () => Object.keys(A);
+export type { MoveAnim } from "./kit";
 
 export type Doing = { kind: "move"; id: string } | { kind: "clap" } | { kind: "cheer" } | { kind: "idle" };
 
@@ -354,7 +329,7 @@ export type Doing = { kind: "move"; id: string } | { kind: "clap" } | { kind: "c
  */
 export function poseOf(doing: Doing, p: number, secs: number): Pose {
   if (doing.kind === "idle") return idle(secs);
-  const anim = doing.kind === "move" ? (A[doing.id] ?? CLAPPING) : doing.kind === "cheer" ? CHEER : CLAPPING;
+  const anim = doing.kind === "move" ? (moveAnim(doing.id) ?? CLAPPING) : doing.kind === "cheer" ? CHEER : CLAPPING;
   const o = anim.pose(p);
   anim.extra?.(p, o);
   return groove(o, p - Math.floor(p), anim.groove);

@@ -1,5 +1,5 @@
-// "How far": walk, drive or any distance, then the minutes. Used on the home page, by a host
-// searching again, and by one person picking alone.
+// "How far": walk, drive or any distance, then the minutes. Used on the home page and by a host
+// searching again.
 import { RANGES, RANGE_MODES, type RangeId, type RangeMode } from "../../engine";
 import { t, tx, type Key } from "../i18n";
 

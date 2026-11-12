@@ -14,11 +14,15 @@ import { PUNCH_FINAL, PUNCH_PROMPTS } from "../src/data/punchline";
 import { ONLINE_GAMES, timesOf, type Action, type GameView, type PenaltyEvent, type RoomEvent } from "../src/shared/protocol";
 import { potStep } from "../src/shared/engine/games/dice";
 import { PARTY_KINDS, TILT_SIDES, barAngleAt, steadyMs } from "../src/shared/engine/games/limbo";
-import { GROUPS as DRAMA_GROUPS, PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
+import { GROUPS as DRAMA_GROUPS, PK_LINES as DRAMA_PK_LINES, PK_STYLES as DRAMA_STYLES, SCENES as DRAMA_SCENES, pkSeeUrl, pkStyle } from "../src/data/drama";
 import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dramaSizes } from "../src/shared/engine/games/drama";
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { CLASSICS as DRAMA_CLASSICS, CLASSIC_TIPS as DRAMA_CLASSIC_TIPS, CSET_NAME as DRAMA_CSET_NAME } from "../src/data/dramaClassics";
 import { DRAWN_ART as DRAMA_DRAWN_ART } from "../src/data/dramaArt";
+import { READ_KINDS as DRAMA_READ_KINDS, READ_PASS as DRAMA_READ_PASS, READ_TIPS as DRAMA_READ_TIPS, READINGS as DRAMA_READINGS, RSET_NAME as DRAMA_RSET_NAME } from "../src/data/dramaReadings";
+import { CLASSIC_MOOD as DRAMA_CLASSIC_MOOD, MOODS as DRAMA_MOODS, READ_MOOD as DRAMA_READ_MOOD, SCENE_MOOD as DRAMA_SCENE_MOOD } from "../src/data/dramaMusic";
+import { actPiece as dramaActPiece, compose as dramaCompose, seedOf as dramaSeedOf, THEME as DRAMA_THEME } from "../src/party/drama/compose";
+import type { DramaReadKind, DramaReadSet } from "../src/shared/protocol";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
@@ -2336,8 +2340,9 @@ test("drama: whose stories: the host's groups come first, everyone's fill in, ot
 
 test("drama: every picture the backdrops ask for is there", () => {
   const dir = fileURLToPath(new URL("../public/drama/", import.meta.url));
-  const known = /^(classic|group-(cn|ca|sa|ph|kr|jp|ir|eu))$/;
-  for (const name of DRAMA_DRAWN_ART) ok(known.test(name) && existsSync(`${dir}${name}.webp`), `${name}: a name the backdrop uses, with its file`);
+  // a scene's own picture is named for a built-in scene
+  const known = (name: string) => /^(classic|group-(cn|ca|sa|ph|kr|jp|ir|eu))$/.test(name) || (name.startsWith("scene-") && DRAMA_SCENES.some((s) => `scene-${s.id}` === name));
+  for (const name of DRAMA_DRAWN_ART) ok(known(name) && existsSync(`${dir}${name}.webp`), `${name}: a name the backdrop uses, with its file`);
   for (const k of ["family", "love", "office", "crime", "palace", "show"]) ok(existsSync(`${dir}kind-${k}.webp`), `kind-${k}: the first set's picture`);
   ok(existsSync(`${dir}stage.webp`) && existsSync(`${dir}pk.webp`), "the empty stage and the duel");
 });
@@ -2453,6 +2458,139 @@ test("drama: every famous scene in both languages, with its parts, its steps and
   t.g("p0", "start");
   const v = t.view<V>("p1");
   ok(v.cast.length === 4 && !!v.peer === false, "four on stage, two watch and vote");
+});
+
+test("drama: read aloud: one reader, the host's set and kinds, the words for everyone once the reading starts, under three stars pays", () => {
+  type V = V<"drama">;
+  const t = setup(5);
+  const st = () => t.eng.d.game!.s as { cast: string[]; read: number | null; culprit: string | null };
+  t.act("p0", { a: "start", game: "drama" });
+  ok(t.view<V>("p1").rset === "zh" && t.view<V>("p1").rkinds?.length === 0, "Chinese internet and every kind until the host says otherwise");
+  t.g("p0", "config", { mode: "read", rset: "en", rkinds: ["deadpan", "cry", "nonsense"], total: 3 });
+  t.g("p1", "config", { rset: "zh", rkinds: [] });
+  let v = t.view<V>("p1");
+  ok(v.mode === "read" && v.rset === "en" && v.rkinds?.join() === "cry,deadpan", "the host picks the English set and two kinds (in order, nothing made up); a guest can't change them");
+  ok(v.next?.ok && v.next.auto && v.next.lo === 1 && v.next.hi === 1, "nobody has said: one of them reads");
+  t.g("p2", "want", { want: "act" });
+  t.g("p0", "start");
+  v = t.view<V>("p1");
+  const piece = DRAMA_READINGS[st().read!];
+  ok(v.phase === "brief" && st().cast.join() === "p2" && v.cast.length === 1 && v.cast[0].pid === "p2", "the volunteer reads, alone");
+  ok(piece.set === "en" && ["cry", "deadpan"].includes(piece.kind) && v.read?.id === piece.id && v.read.kind === piece.kind, "a piece from the host's set and kinds");
+  ok(!v.scene && !v.pk && !v.classic && !v.options && st().culprit === null, "no culprit, no duel, no famous scene");
+  const kind = DRAMA_READ_KINDS.find((k) => k.key === piece.kind)!;
+  ok(v.read!.title.zh === piece.title.zh && v.read!.how.en === piece.how.en && v.cast[0].role.zh === kind.name.zh && v.cast[0].brief.zh === piece.how.zh, "everyone sees the title, the kind and how to read it");
+  ok(v.read!.lines.length === 0 && t.view<V>("p2").read!.lines.length === piece.lines.length, "the words: only the reader has them while reading it over");
+  const me = t.view<V>("p2").me;
+  ok(!!me && !me.culprit && !me.secret.zh && !me.task.zh, "nothing secret on the reader's card");
+  t.g("p1", "ready");
+  ok(t.view<V>("p1").phase === "brief", "only the reader says they're ready");
+  t.g("p2", "ready");
+  v = t.view<V>("p1");
+  ok(v.phase === "act" && v.actMs === 90_000 && !v.twistAt && v.read!.lines.length === piece.lines.length, "a minute and a half, no twist, and every phone can follow along");
+  t.g("p2", "cut");
+  ok(t.view<V>("p1").phase === "vote", "the reader says when they're done");
+  t.g("p1", "vote", { guess: "p2", stars: { p2: 2 } });
+  ok(t.view<V>("p1").myVote?.guess === null, "nobody to guess: only the stars count");
+  t.g("p2", "vote", { stars: { p2: 5 } });
+  ok(!t.view<V>("p2").myVote, "the reader doesn't rate themselves");
+  for (const a of ["p0", "p3"]) t.g(a, "vote", { stars: { p2: 2 } });
+  ok(t.view<V>("p1").phase === "vote", "still waiting on one");
+  t.g("p4", "vote", { stars: { p2: 3 } });
+  v = t.view<V>("p1");
+  ok(v.phase === "reveal" && v.result!.stars.p2 === 2.3 && v.result!.losers.join() === "p2" && !v.result!.best.length, `under ${DRAMA_READ_PASS} stars on average: the reader pays`);
+  ok(v.scores.p2 === 2, "and scores their stars");
+  t.advance(6000);
+  const pen = t.pens().at(-1);
+  ok(!!pen && pen.who.join() === "p2" && pen.note?.en === piece.title.en, "the penalty names the piece");
+
+  // the next act: another volunteer goes first, with the other kind
+  t.g("p3", "want", { want: "act" });
+  t.g("p0", "next");
+  v = t.view<V>("p1");
+  const second = DRAMA_READINGS[st().read!];
+  ok(st().cast.join() === "p3", "two volunteers: whoever has read least goes first");
+  ok(second.id !== piece.id && second.set === "en" && second.kind !== piece.kind && ["cry", "deadpan"].includes(second.kind), "another piece, and the kinds take turns");
+  t.g("p3", "ready");
+  t.advance(90_000 + 1000);
+  ok(t.view<V>("p1").phase === "vote", "time's up: the vote");
+  for (const a of ["p0", "p1", "p2", "p4"]) t.g(a, "vote", { stars: { p3: 5 } });
+  v = t.view<V>("p1");
+  ok(v.result!.stars.p3 === 5 && v.result!.best.join() === "p3" && !v.result!.losers.length && v.awards.p3 === 1, "five stars from everyone takes the trophy, and nobody pays");
+
+  // exactly three passes; a skip brings another piece for the same reader
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p0", "config", { mode: "read", rset: "both" });
+  u.g("p0", "start");
+  const ust = () => u.eng.d.game!.s as { cast: string[]; read: number | null };
+  const firstPiece = DRAMA_READINGS[ust().read!];
+  ok(firstPiece.set === "both" && ust().cast.length === 1, "nobody volunteered: one of them reads a piece that works for both");
+  u.g("p1", "want", { want: "act" });
+  u.g("p0", "skip");
+  const reader = "p1";
+  ok(ust().cast.join() === reader && DRAMA_READINGS[ust().read!].id !== firstPiece.id, "another piece, and now the volunteer reads it");
+  u.g(reader, "ready");
+  u.g(reader, "cut");
+  for (const a of u.ids.filter((id) => id !== reader)) u.g(a, "vote", { stars: { [reader]: 3 } });
+  const r = u.view<V>("p0").result!;
+  ok(r.stars[reader] === 3 && !r.losers.length && !r.best.length, "exactly three stars passes");
+});
+
+test("drama: read aloud: ten kinds in three sets, three or more of each, every piece in both languages", () => {
+  const bi = (x: { zh: string; en: string }) => !!x.zh.trim() && !!x.en.trim();
+  const cjk = /[一-鿿]/;
+  const kinds = DRAMA_READ_KINDS.map((k) => k.key);
+  // the protocol and the data name the same kinds and sets
+  const protoKinds: Record<DramaReadKind, true> = { cry: true, deadpan: true, breakup: true, court: true, anchor: true, rant: true, melodrama: true, sell: true, sorry: true, voice: true };
+  const protoSets: Record<DramaReadSet, true> = { zh: true, en: true, both: true };
+  ok(kinds.length === 10 && new Set(kinds).size === 10 && kinds.every((k) => protoKinds[k]) && Object.keys(protoKinds).length === kinds.length, "ten kinds, the same in the protocol");
+  ok(DRAMA_READ_KINDS.every((k) => bi(k.name) && bi(k.how) && bi(k.ask)), "every kind: its name, how to read it and what the stars are for, in both languages");
+  ok(Object.keys(DRAMA_RSET_NAME).every((s) => protoSets[s as DramaReadSet]) && Object.values(DRAMA_RSET_NAME).every(bi), "three sets, named in both languages");
+  ok(DRAMA_READ_TIPS.length === 5 && DRAMA_READ_TIPS.every(bi), "five tips for a first-time reader");
+  const ids = new Set<string>();
+  for (const r of DRAMA_READINGS) {
+    ok(!ids.has(r.id) && r.id.startsWith(`${r.set}-`), `${r.id}: one id, named for its set`);
+    ids.add(r.id);
+    ok(bi(r.title) && bi(r.how) && r.lines.length >= 5 && r.lines.length <= 10 && r.lines.every(bi), `${r.id}: the title, how to read it and five to ten lines, in both languages`);
+    ok(cjk.test(r.title.zh) && cjk.test(r.how.zh) && r.lines.every((l) => cjk.test(l.zh)), `${r.id}: the Chinese is Chinese`);
+    ok(!cjk.test(r.title.en) && !cjk.test(r.how.en) && r.lines.every((l) => !cjk.test(l.en)), `${r.id}: the English has no Chinese in it`);
+    // a minute or so out loud, and it fits on a phone
+    const zh = r.lines.map((l) => l.zh).join("").length;
+    const en = r.lines.map((l) => l.en).join(" ").split(/\s+/).length;
+    ok(zh >= 60 && zh <= 260 && en >= 45 && en <= 140, `${r.id}: a minute or so to read (${zh} characters, ${en} words)`);
+    ok(r.level === "all" || r.level === "spicy", `${r.id}: a spice level`);
+  }
+  for (const set of ["zh", "en", "both"] as const)
+    for (const k of kinds) ok(DRAMA_READINGS.filter((r) => r.set === set && r.kind === k && r.level === "all").length >= 3, `${set}: three or more ${k} pieces for all ages`);
+});
+
+test("drama: music: the theme off stage, and on stage a piece of its own for every scene, famous scene, reading and duel", () => {
+  const moods = new Set(DRAMA_MOODS);
+  for (const id of Object.keys(DRAMA_SCENE_MOOD)) ok(DRAMA_SCENES.some((s) => s.id === id) && moods.has(DRAMA_SCENE_MOOD[id]), `${id}: a scene that exists, in a mood that does`);
+  for (const id of Object.keys(DRAMA_CLASSIC_MOOD)) ok(DRAMA_CLASSICS.some((c) => c.id === id), `${id}: a famous scene that exists`);
+  ok(DRAMA_CLASSICS.every((c) => moods.has(DRAMA_CLASSIC_MOOD[c.id])), "every famous scene has its mood");
+  ok(DRAMA_READ_KINDS.every((k) => moods.has(DRAMA_READ_MOOD[k.key])), "every kind of reading has its mood");
+  // a piece a phone can play: two times through four phrases of four bars, every hit inside its bar
+  const playable = (name: string, p: ReturnType<typeof dramaCompose>) => {
+    const bad = p.bars.flat().filter((h) => !(h.s >= 0 && h.s < p.steps && h.v > 0 && h.v <= 1 && (h.m === undefined || (h.m >= 28 && h.m <= 100)) && (h.d === undefined || h.d > 0)));
+    ok(p.bars.length === 32 && (p.steps === 16 || p.steps === 12) && p.bpm >= 56 && p.bpm <= 140 && p.gain > 0 && !bad.length, `${name}: a piece that plays (${bad.length} bad hits)`);
+  };
+  playable("the theme", DRAMA_THEME);
+  const tunes = new Map<string, string>();
+  const own = (name: string, p: ReturnType<typeof dramaCompose>) => {
+    playable(name, p);
+    const tune = `${p.bpm}|` + p.bars.slice(0, 16).map((bar) => bar.map((h) => `${h.i}${h.s}:${h.m ?? ""}`).join(",")).join("|");
+    ok(!tunes.has(tune), `${name}: music of its own (not ${tunes.get(tune)}'s)`);
+    tunes.set(tune, name);
+  };
+  for (const s of DRAMA_SCENES) own(s.id, dramaActPiece({ mode: "show", scene: { id: s.id, kind: s.kind } as never, classic: null, read: null, pk: null }));
+  for (const c of DRAMA_CLASSICS) own(c.id, dramaActPiece({ mode: "classic", scene: null, classic: { id: c.id } as never, read: null, pk: null }));
+  for (const r of DRAMA_READINGS) own(r.id, dramaActPiece({ mode: "read", scene: null, classic: null, read: { id: r.id, kind: r.kind } as never, pk: null }));
+  for (const line of DRAMA_PK_LINES) own(`duel: ${line.en}`, dramaActPiece({ mode: "pk", scene: null, classic: null, read: null, pk: { line, styles: {} } }));
+  // a scene written at the table sounds like its kind; every phone composes the same piece
+  for (const m of DRAMA_MOODS) for (let k = 0; k < 12; k++) playable(`${m} #${k}`, dramaCompose(m, dramaSeedOf(`${m}${k}`)));
+  ok(JSON.stringify(dramaCompose("noir", 7)) === JSON.stringify(dramaCompose("noir", 7)), "the same seed, the same piece");
 });
 
 test("euchre: bots fill seats, legal play, hands score", () => {
