@@ -808,6 +808,39 @@ export function Arena3D(props: Props) {
       mesh.frustumCulled = false;
       scene.add(mesh);
     }
+    // sparks where a punch lands, dust where a body hits the floor: little bits that fly, fall and shrink
+    const BITS = 72;
+    const bitMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.1, 0), new THREE.MeshBasicMaterial({ toneMapped: false }), BITS);
+    bitMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    bitMesh.count = 0;
+    bitMesh.frustumCulled = false;
+    scene.add(bitMesh);
+    interface Bit { x: number; y: number; z: number; vx: number; vy: number; vz: number; born: number; life: number; size: number; spin: number; fall: number; color: THREE.Color }
+    const bits: Bit[] = [];
+    const sparkColors = [new THREE.Color(palette.warn), new THREE.Color(palette.me), new THREE.Color(palette.ink)];
+    const dustColors = [new THREE.Color(palette.stone), new THREE.Color(palette.tile), new THREE.Color(palette.stone2)];
+    const burst = (x: number, z: number, now: number, kind: "spark" | "dust") => {
+      const count = kind === "spark" ? 16 : 10;
+      for (let index = 0; index < count && bits.length < BITS; index++) {
+        const angle = Math.random() * Math.PI * 2;
+        const out = kind === "spark" ? 2.4 + Math.random() * 2.6 : 0.9 + Math.random() * 1.3;
+        const colors = kind === "spark" ? sparkColors : dustColors;
+        bits.push({
+          x,
+          y: kind === "spark" ? 1.45 : 0.12,
+          z,
+          vx: Math.cos(angle) * out,
+          vy: kind === "spark" ? 1.6 + Math.random() * 3 : 0.4 + Math.random() * 0.8,
+          vz: Math.sin(angle) * out,
+          born: now,
+          life: kind === "spark" ? 420 + Math.random() * 260 : 520 + Math.random() * 360,
+          size: kind === "spark" ? 0.8 + Math.random() * 0.9 : 1.6 + Math.random() * 1.4,
+          spin: (Math.random() - 0.5) * 18,
+          fall: kind === "spark" ? 9 : 0.6,
+          color: colors[index % colors.length]
+        });
+      }
+    };
     let kit: PeopleKit | null = null;
     const people: Person[] = [];
     peopleKit()
@@ -891,6 +924,10 @@ export function Arena3D(props: Props) {
     let shakeAt = 0;
     let shakeStrength = 0;
     let lastImpact = props.impactId;
+    /** a beat of stillness when a punch lands (a hit-stop), the camera's kick toward it, the last blow in slow motion */
+    let freezeUntil = 0;
+    let kickAt = 0;
+    let slowUntil = 0;
     const animate = (time: number) => {
       frame = requestAnimationFrame(animate);
       if (lost) return;
@@ -940,10 +977,22 @@ export function Arena3D(props: Props) {
         lastImpact = impact.current;
         shakeAt = time;
         shakeStrength = impactType.current === "tag" ? 0.28 : impactType.current === "foul" ? 0.16 : impactType.current === "swing" ? 0.08 : impactType.current === "hide" ? 0 : 0.12;
+        if (impactType.current === "tag" || impactType.current === "foul") {
+          freezeUntil = time + (impactType.current === "tag" ? 95 : 60);
+          kickAt = time;
+        }
+        if (impactType.current === "over") {
+          // (the round's last blow comes with the end: the kick, then slow motion while it lands)
+          kickAt = time;
+          slowUntil = time + 1_400;
+        }
       }
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
       const reduced = reducedNow();
-      const ease = reduced ? 1 : 1 - Math.exp(-delta / 46);
+      // the hit-stop holds every body for a beat; the round's last blow plays at a third of the speed
+      const frozen = !reduced && time < freezeUntil;
+      const pace = frozen ? 0 : !reduced && time < slowUntil ? 0.35 : 1;
+      const ease = reduced ? 1 : frozen ? 0 : 1 - Math.exp(-(delta * pace) / 46);
       if (ruleMarks.belt) ruleMarks.belt.offset.x -= (drift.current.x * SCENE_PER_WORLD * delta) / 1000 / ruleMarks.beltRepeat;
       const snapshot = targets.current;
       shadows.count = snapshot.length;
@@ -999,6 +1048,8 @@ export function Arena3D(props: Props) {
         visual.x += aheadX * ease;
         visual.z += aheadZ * ease;
         if (visual.pose !== avatar.p) {
+          // (the stand-ins have no fall of their own: a burst where they were hit)
+          if (avatar.p === "stunned" && !kit && !reduced) burst(visual.x, visual.z, time, "spark");
           visual.pose = avatar.p;
           visual.poseStartedAt = time;
         }
@@ -1025,7 +1076,15 @@ export function Arena3D(props: Props) {
           person.root.visible = true;
           person.root.position.set(visual.x, 0, visual.z);
           person.root.rotation.set(visual.lean, visual.facing, visual.roll, "YXZ");
-          person.update(delta / 1000, time, visual.speed, avatar.p, impactType.current);
+          person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current);
+          if (person.hitFx) {
+            person.hitFx = false;
+            if (!reduced) burst(visual.x, visual.z, time, "spark");
+          }
+          if (person.landAt !== null && time >= person.landAt) {
+            person.landAt = null;
+            if (!reduced) burst(visual.x, visual.z, time, "dust");
+          }
         } else {
           writeInstance(standInBodies, index, dummy, visual.x, 0.82 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1, visual.lean, visual.roll);
           writeInstance(standInHeads, index, dummy, visual.x, 1.62 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1);
@@ -1044,9 +1103,40 @@ export function Arena3D(props: Props) {
         marker.position.set(localVisual.x, MARKER_Y, localVisual.z);
         marker.visible = true;
       } else marker.visible = false;
+      // the bits fly, fall and shrink
+      let liveBits = 0;
+      for (let index = 0; index < bits.length; index++) {
+        const bit = bits[index];
+        const age = time - bit.born;
+        if (age >= bit.life) continue;
+        const step = (delta * pace) / 1000;
+        bit.vy -= bit.fall * step;
+        bit.x += bit.vx * step;
+        bit.y = Math.max(0.04, bit.y + bit.vy * step);
+        bit.z += bit.vz * step;
+        bit.vx *= 1 - Math.min(1, step * 1.6);
+        bit.vz *= 1 - Math.min(1, step * 1.6);
+        const size = bit.size * (1 - age / bit.life);
+        dummy.position.set(bit.x, bit.y, bit.z);
+        dummy.rotation.set(age * 0.001 * bit.spin, age * 0.0013 * bit.spin, 0);
+        dummy.scale.setScalar(size);
+        dummy.updateMatrix();
+        bitMesh.setMatrixAt(liveBits, dummy.matrix);
+        bitMesh.setColorAt(liveBits, bit.color);
+        bits[liveBits++] = bit;
+      }
+      bits.length = liveBits;
+      bitMesh.count = liveBits;
+      if (liveBits > 0) {
+        bitMesh.instanceMatrix.needsUpdate = true;
+        if (bitMesh.instanceColor) bitMesh.instanceColor.needsUpdate = true;
+      }
       const impactAge = time - shakeAt;
       const shake = shakeAt && impactAge < 280 && !reduced ? Math.sin(impactAge * 0.095) * (1 - impactAge / 280) * shakeStrength : 0;
-      camera.position.set(eye.x + shake, eye.y + Math.abs(shake) * 0.34, eye.z);
+      // the kick: in toward the floor and back, in a third of a second
+      const kickAge = time - kickAt;
+      const kick = kickAt && kickAge < 340 && !reduced ? Math.sin(Math.min(1, kickAge / 70) * (Math.PI / 2)) * (1 - kickAge / 340) * 0.045 : 0;
+      camera.position.set(eye.x + shake + (look.x - eye.x) * kick, eye.y + Math.abs(shake) * 0.34 + (look.y - eye.y) * kick, eye.z + (look.z - eye.z) * kick);
       camera.lookAt(look.x + shake, look.y - shake * 0.22, look.z);
       renderer.render(scene, camera);
     };

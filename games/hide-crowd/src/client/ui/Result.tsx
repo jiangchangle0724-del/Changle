@@ -2,6 +2,7 @@
 // host's Play again. (The penalty stamp comes first, see Room.tsx.)
 import type { ClientMsg, RoomView } from "../../room/protocol";
 import { t } from "../i18n";
+import { Awards } from "./roundFx";
 
 export function resultTitle(view: RoomView): string {
   const result = view.result;
@@ -44,34 +45,39 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
   const online = view.players.filter((player) => player.online).length;
   return (
     <div class="result-layer">
-      <section class="result" aria-labelledby="result-title">
-        <p class="result-round">{t(props.practice ? "practiceOver" : "roundOver", { n: result.round })}</p>
-        <h2 id="result-title" class="result-title">
-          {resultTitle(view)}
-        </h2>
-        <ResultTable view={view} />
-        <div class="result-actions">
-          {view.you.host ? (
-            <>
-              <button type="button" class="btn btn-primary btn-lg btn-block" disabled={online < 2} onClick={() => send({ t: "start" })}>
-                {t("again")}
-              </button>
-              {!props.practice && (
-                <button type="button" class="btn btn-quiet btn-block" onClick={() => send({ t: "lobby" })}>
-                  {t("otherArena")}
+      <section class={`result${(result.awards ?? []).length ? " has-awards" : ""}`} aria-labelledby="result-title">
+        <div class="result-main">
+          <p class="result-round">{t(props.practice ? "practiceOver" : "roundOver", { n: result.round })}</p>
+          <h2 id="result-title" class="result-title">
+            {resultTitle(view)}
+          </h2>
+          <ResultTable view={view} />
+        </div>
+        <div class="result-side">
+          <Awards awards={result.awards ?? []} />
+          <div class="result-actions">
+            {view.you.host ? (
+              <>
+                <button type="button" class="btn btn-primary btn-lg btn-block" disabled={online < 2} onClick={() => send({ t: "start" })}>
+                  {t("again")}
                 </button>
-              )}
-            </>
-          ) : (
-            <p class="dock-wait" role="status">
-              {t("waitNext")}
-            </p>
-          )}
-          {props.onTable && (
-            <button type="button" class="btn btn-ghost btn-block" onClick={props.onTable}>
-              {t("backToTable")}
-            </button>
-          )}
+                {!props.practice && (
+                  <button type="button" class="btn btn-quiet btn-block" onClick={() => send({ t: "lobby" })}>
+                    {t("otherArena")}
+                  </button>
+                )}
+              </>
+            ) : (
+              <p class="dock-wait" role="status">
+                {t("waitNext")}
+              </p>
+            )}
+            {props.onTable && (
+              <button type="button" class="btn btn-ghost btn-block" onClick={props.onTable}>
+                {t("backToTable")}
+              </button>
+            )}
+          </div>
         </div>
       </section>
     </div>

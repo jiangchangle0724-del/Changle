@@ -1,19 +1,26 @@
 // One phone on its own (changle.ca/hide/practice, the game card's one-phone button): the same room
 // as online, run in the page, with three computer rivals hidden in the crowd. They walk the way the
-// passers-by walk, go after anyone who gives themselves away (running, punching), and sometimes get
+// passers-by walk (the same plans, crowdStep in the rules), stop for the ferry horn or the gong a beat
+// after it like everyone, go after anyone who gives themselves away (punching, walking on through the
+// horn or the gong, running on and on: passers-by run too, but only for a moment), and sometimes get
 // it wrong. No server, no penalty.
-import { ARENA, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, type Character, type Vector } from "../engine";
+import { crowdMoment, crowdStep, NPC_SPEED, reactionDelay, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, type Character, type MatchState, type Plan, type Vector } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
 import { Room } from "../room/room";
 import type { ConnectionState, RoomConnection } from "./net";
 
 const ME = "practice-you";
 const RIVALS = 3;
+/** a passer-by's run lasts a second or so; a body that keeps running longer looks like a player */
+const LONG_RUN_MS = 1_800;
+/** how often a rival takes a swing at whoever is in front of it, with nothing to go on */
+const WILD_SWING = 0.12;
 
 interface Brain {
   id: string;
-  offset: number;
   style: number;
+  /** what it's up to, the way a passer-by plans it */
+  plan: Plan | null;
   nextLook: number;
   /** the body it is after (a place in the crowd), and until when */
   chasing: number | null;
@@ -26,18 +33,12 @@ const angleDiff = (a: number, b: number) => {
   return d;
 };
 
-/** A walk like a passer-by's: stop and go on the same beat, turning every few steps. */
-function stroll(brain: Brain, body: Character, now: number): Vector {
-  const beat = Math.floor(((now + brain.offset) % 6_800) / 850);
-  if (beat === 2 || beat === 5) return { x: 0, y: 0 };
-  const route = (Math.floor(brain.offset / 379) + brain.style * 2) % 8;
-  const angle = route * (Math.PI / 4) + Math.floor(beat / 3) * (Math.PI / 2);
-  let x = Math.cos(angle);
-  let y = Math.sin(angle);
-  if ((body.x <= ARENA.marginX + 2 && x < 0) || (body.x >= ARENA.width - ARENA.marginX - 2 && x > 0)) x *= -1;
-  if ((body.y <= ARENA.marginY + 2 && y < 0) || (body.y >= ARENA.height - ARENA.marginY - 2 && y > 0)) y *= -1;
-  const pace = NPC_SPEED / PLAYER_SPEED;
-  return { x: x * pace, y: y * pace };
+/** A walk like a passer-by's: the same plans (stop, look, follow, now and then a run), steered with the stick. */
+function stroll(brain: Brain, body: Character, game: MatchState, now: number): Vector {
+  const step = crowdStep({ ...body, npcStyle: brain.style, plan: brain.plan ?? body.plan }, game.characters, game, now);
+  brain.plan = step.plan;
+  const scale = (step.pace * NPC_SPEED) / PLAYER_SPEED;
+  return { x: step.heading.x * scale, y: step.heading.y * scale };
 }
 
 export function openPractice(lang: Lang, name: string, onMessage: (message: ServerMsg) => void, onStatus: (status: ConnectionState) => void): RoomConnection {
@@ -49,19 +50,27 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
   for (let index = 0; index < RIVALS; index++) {
     const id = `practice-computer-${index + 1}`;
     room.join(id, lang === "zh" ? `电脑 ${index + 1}` : `Computer ${index + 1}`, lang, "player", start + index + 1);
-    brains.push({ id, offset: Math.floor(Math.random() * 4_600), style: index % 3, nextLook: start + 1_500 + index * 400, chasing: null, chaseUntil: 0 });
+    brains.push({ id, style: index % 3, plan: null, nextLook: start + 1_500 + index * 400, chasing: null, chaseUntil: 0 });
   }
   room.claimHost(start);
   room.handle(ME, { t: "start" }, start);
   // how long each place in the crowd has looked like a player lately (fast, or a punch)
   const suspicion = new Map<number, number>();
+  /** how long each body has been running without a break (ms) */
+  const runningFor = new Map<number, number>();
 
   const think = (now: number) => {
     const game = room.st.game;
     if (!game || game.phase !== "playing") return;
+    // walking on while the crowd stops for the horn or the gong gives a body away: by 1.3 s in, every
+    // passer-by has stopped (the slowest turns 0.64 s in, then slows down)
+    const moment = crowdMoment(game.arena, game.startedAt, now);
+    const watching = !!moment && now - moment.startsAt > 1_300;
     game.characters.forEach((body, at) => {
       const speed = Math.hypot(body.velocity.x, body.velocity.y);
-      const tell = speed > NPC_SPEED + 1.2 ? 1 : body.pose === "windup" || body.pose === "punch" ? 4 : 0;
+      const running = speed > NPC_SPEED + 1.2 ? (runningFor.get(at) ?? 0) + SIMULATION_STEP_MS : 0;
+      runningFor.set(at, running);
+      const tell = body.pose === "windup" || body.pose === "punch" ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
       suspicion.set(at, Math.max(0, (suspicion.get(at) ?? 0) * 0.985 + tell));
     });
     for (const brain of brains) {
@@ -79,13 +88,18 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
           bestScore = score;
         }
       });
-      if (best >= 0 && (brain.chasing === null || now > brain.chaseUntil)) {
+      if (best >= 0 && (brain.chasing === null || now > brain.chaseUntil) && !moment) {
         brain.chasing = best;
         brain.chaseUntil = now + 4_000;
       }
-      let input = stroll(brain, body, now);
+      let input = stroll(brain, body, game, now);
       const target = brain.chasing !== null ? game.characters[brain.chasing] : undefined;
-      if (target && now <= brain.chaseUntil) {
+      if (moment && now >= moment.startsAt + reactionDelay(brain.id)) {
+        // it stops for the horn too, a beat after the sound like everyone, and turns to look with a light nudge
+        const look = moment.look;
+        const want = Math.atan2(look.y - body.y, look.x - body.x);
+        input = angleDiff(body.facing, want) > 0.35 ? { x: Math.cos(want) * 0.07, y: Math.sin(want) * 0.07 } : { x: 0, y: 0 };
+      } else if (target && now <= brain.chaseUntil) {
         const dx = target.x - body.x;
         const dy = target.y - body.y;
         const distance = Math.hypot(dx, dy);
@@ -106,7 +120,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
           const dy = other.y - body.y;
           return Math.hypot(dx, dy) <= PUNCH_RANGE * 0.8 && angleDiff(Math.atan2(dy, dx), body.facing) <= PUNCH_ARC / 2;
         });
-        if (front && Math.random() < 0.18) room.handle(brain.id, { t: "punch" }, now);
+        if (front && Math.random() < WILD_SWING) room.handle(brain.id, { t: "punch" }, now);
       }
       room.setInput(brain.id, input, now);
     }
@@ -129,6 +143,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       const now = Date.now();
       if (message.t === "start" && room.st.game?.phase === "over") {
         suspicion.clear();
+        runningFor.clear();
         room.handle(ME, { t: "lobby" }, now);
         room.handle(ME, { t: "start" }, now);
       } else room.handle(ME, message, now);

@@ -147,6 +147,12 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   assert.equal(view.result?.winner, "Ari");
   assert.equal(view.result?.youWon, true);
   assert.deepEqual(view.result?.penalty, { kind: "sip", who: ["Bo"], times: 3 });
+  // the titles: the hunter's sharp eye, the one never spotted
+  const titles = Object.fromEntries(view.result!.awards.map((item) => [item.name, item.award]));
+  assert.equal(titles.Ari, "eagleEye");
+  assert.equal(titles.Bo, "punchingBag");
+  assert.equal(titles.Cy, "ghost");
+  assert.equal(view.result!.awards.find((item) => item.name === "Ari")?.you, true);
   assert.equal(view.players.find((player) => player.name === "Bo")?.tagged, 3);
   const events = room.st.game!.events.map((event) => event.t);
   assert.ok(events.includes("hide"), "the tagged player slipped away");

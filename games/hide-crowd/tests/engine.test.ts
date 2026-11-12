@@ -6,13 +6,16 @@ import {
   MATCH_MS,
   CHARACTER_COLLISION_DIAMETER,
   NPC_COUNT,
+  NPC_SPEED,
   PLAYER_SPEED,
+  crowdMoment,
   crowdSeparationVelocity,
   SCORE_TO_WIN,
   STUN_MS,
   advanceMatch,
   createMatch,
   normalizeVector,
+  roundAwards,
   roundPenalty,
   startBlend,
   startPunch,
@@ -198,6 +201,11 @@ test("hitting a passer-by causes a short stun and does not award a tag", () => {
   assert.equal(result.characters.find((character) => character.ownerId === "player-one")?.score, 0);
   assert.ok((result.characters.find((character) => character.ownerId === "player-one")?.stunnedUntil ?? 0) > 160);
   assert.equal(result.events.at(-1)?.t, "foul");
+  // the passer-by goes down (everyone sees who was punched), and gets up again
+  const punched = result.characters.find((character) => character.id === npc.id)!;
+  assert.equal(punched.pose, "stunned");
+  assert.equal(punched.stunnedUntil, 160 + STUN_MS);
+  assert.equal(result.characters.find((character) => character.ownerId === "player-one")?.fouls, 1);
 });
 
 test("blending has a timed cooldown and does not alter score", () => {
@@ -269,6 +277,78 @@ test("a tagged player gets up in a passer-by's body far away, and nothing on scr
   assert.equal(match.events.at(-1)?.t, "hide");
   assert.equal(body.tagged, 1, "the count goes with the player");
   assert.equal(body.hideAt, null);
+});
+
+test("passers-by wander like people: their own pace, stops, a look at someone, tagging along, now and then a run", () => {
+  let match = createMatch(players, 0, 2024, "metro");
+  const npcIds = match.characters.filter((character) => character.kind === "npc").map((character) => character.id);
+  const stops = new Map<string, number>();
+  const moving = new Map<string, boolean>();
+  const modes = new Set<string>();
+  let fastest = 0;
+  const speeds = new Set<number>();
+  for (let now = 50; now <= 60_000; now += 50) {
+    match = advanceMatch(match, now, {});
+    // (the metro's walkways stand still in these windows: the passers-by's own feet only)
+    const still = (now % 12_000 >= 2_600 && now % 12_000 < 6_000) || now % 12_000 >= 8_600;
+    for (const character of match.characters) {
+      if (character.kind !== "npc") continue;
+      assert.ok(character.x >= ARENA.marginX && character.x <= ARENA.width - ARENA.marginX && character.y >= ARENA.marginY && character.y <= ARENA.height - ARENA.marginY);
+      const speed = Math.hypot(character.velocity.x, character.velocity.y);
+      if (still) fastest = Math.max(fastest, speed);
+      if (still && speed > 1) speeds.add(Math.round(speed * 2) / 2);
+      if (moving.get(character.id) && speed < 0.3) stops.set(character.id, (stops.get(character.id) ?? 0) + 1);
+      moving.set(character.id, speed > 0.65);
+      modes.add(character.plan.mode);
+    }
+  }
+  assert.ok(npcIds.every((id) => (stops.get(id) ?? 0) >= 3), "every passer-by stops now and then");
+  assert.deepEqual([...modes].sort(), ["follow", "wait", "walk"], "they walk, stand and tag along");
+  assert.ok(fastest > NPC_SPEED * 1.4, `someone breaks into a run (fastest ${fastest.toFixed(1)})`);
+  // (never faster than a player can go: a bump in the crowd may add a little, for a moment)
+  assert.ok(fastest <= PLAYER_SPEED * 1.2, `but never much faster than a player can go (${fastest.toFixed(1)})`);
+  assert.ok(match.characters.every((character) => character.plan.pace <= PLAYER_SPEED / NPC_SPEED + 1e-9));
+  assert.ok(speeds.size > 6, "everyone walks at their own pace");
+  // and the same round always plays the same
+  let again = createMatch(players, 0, 2024, "metro");
+  for (let now = 50; now <= 60_000; now += 50) again = advanceMatch(again, now, {});
+  assert.deepEqual(again, match);
+});
+
+test("the ferry horn stops the passers-by and turns them to the sea; the gong turns them to the stage", () => {
+  for (const arena of ["plaza", "gallery"] as const) {
+    let match = createMatch(players, 0, 77, arena);
+    let first = 0;
+    for (let now = 50; now <= 20_000; now += 50) {
+      match = advanceMatch(match, now, {});
+      const moment = crowdMoment(arena, 0, now);
+      if (!moment) continue;
+      first ||= now;
+      assert.equal(moment.kind, arena === "plaza" ? "horn" : "gong");
+      // (everyone has reacted, and turned, a second and a half in)
+      if (now - moment.startsAt < 1_500) continue;
+      for (const character of match.characters.filter((item) => item.kind === "npc" && now >= item.stunnedUntil)) {
+        assert.ok(Math.hypot(character.velocity.x, character.velocity.y) < 0.6, `${arena}: ${character.id} stops`);
+        const want = Math.atan2(moment.look.y - character.y, moment.look.x - character.x);
+        assert.ok(Math.abs(Math.atan2(Math.sin(character.facing - want), Math.cos(character.facing - want))) < 0.4, `${arena}: ${character.id} looks`);
+      }
+    }
+    assert.ok(first > 0 && first < 13_000, `${arena}: the first moment comes early in the round`);
+    // a player is never made to stop: that's the test
+    assert.ok(!crowdMoment("metro", 0, first), "the transit hall has its walkways instead");
+  }
+});
+
+test("the round's titles: the sharpest eye, the ones never spotted, the most passers-by punched, the most air, the most spotted", () => {
+  const match = createMatch([...players, { id: "player-three", name: "Three" }, { id: "player-four", name: "Four" }], 0, 5);
+  const owner = (id: string) => match.characters.find((character) => character.ownerId === id)!;
+  owner("player-one").score = 3;
+  owner("player-two").tagged = 2;
+  owner("player-two").fouls = 1;
+  owner("player-three").swings = 4;
+  owner("player-three").tagged = 1;
+  const titles = Object.fromEntries(roundAwards(match).map((item) => [item.owner, item.award]));
+  assert.deepEqual(titles, { "player-one": "eagleEye", "player-two": "friendlyFire", "player-three": "airPunch", "player-four": "ghost" });
 });
 
 test("the round's penalty lands on whoever was spotted most, or on everyone when nobody was", () => {

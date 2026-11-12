@@ -33,7 +33,7 @@ test("both bodies load with the clips, the bones and the gear the crowd uses", a
       else if (object instanceof THREE.Mesh) meshes.push(object.name);
     });
     assert.equal(bones, 23);
-    for (const gear of ["hair_short", "hair_bun", "hair_tail", "cap", "cap_peak", "backpack", "straps", "satchel"]) assert.ok(meshes.includes(gear), gear);
+    for (const gear of ["hair_short", "hair_bun", "hair_tail", "cap", "cap_peak", "backpack", "straps", "satchel", "eyes"]) assert.ok(meshes.includes(gear), gear);
     const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
     assert.ok(size.y > 1.75 && size.y < 1.95, `stands ${size.y.toFixed(2)} m tall`);
   }

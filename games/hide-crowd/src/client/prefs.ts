@@ -1,6 +1,6 @@
 // What this phone remembers, in its own storage. changle.ca is the same site, so the table writes
 // the player's name and language here before sending the phone in (site/src/party/hide/link.ts
-// writes the same keys): hc.name, hc.lang, hc.cid. Nothing breaks without storage (private mode):
+// writes the same keys): hc.name, hc.lang, hc.cid, and hc.sound (sound.ts). Nothing breaks without storage (private mode):
 // the game asks again.
 
 import type { Lang } from "../room/protocol";

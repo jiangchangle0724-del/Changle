@@ -52,6 +52,8 @@ test("two phones join, vote and play a round: a tag scores, the most spotted tak
   await steve.getByRole("button", { name: "继续" }).click();
   await expect(steve.locator(".result")).toBeVisible();
   await expect(steve.locator(".result-title")).toHaveText("你赢了！");
+  // the round's titles: the hunter's sharp eye on their own phone, in its language
+  await expect(steve.locator(".award.is-you .award-title")).toHaveText("火眼金睛");
   await expect(mia.locator("dialog.stamp")).toBeVisible();
   await mia.getByRole("button", { name: "Continue" }).click();
   await expect(mia.locator(".result-title")).toHaveText("Steve wins!");

@@ -1,9 +1,10 @@
-// The ⋯ sheet: language, reduced motion, full screen (on an iPhone, how to add it to the Home
+// The ⋯ sheet: language, sound, reduced motion, full screen (on an iPhone, how to add it to the Home
 // Screen instead), this device as the big screen, the way back (during a round too), the rules and
 // where the art comes from.
 import { useEffect, useState } from "preact/hooks";
 import type { Lang } from "../../room/protocol";
 import { t } from "../i18n";
+import { setSound, soundOn } from "../sound";
 import { Rules, Sheet, Switch } from "./chrome";
 import { CreditsText } from "./Credits";
 import { HomeGuideBody } from "./HomeScreen";
@@ -28,6 +29,7 @@ export interface MenuProps {
 
 export function Menu(props: MenuProps) {
   const [credits, setCredits] = useState(false);
+  const [sound, setSoundOn] = useState(soundOn);
   const [asking, setAsking] = useState(false);
   const [home, setHome] = useState(false);
   useEffect(() => {
@@ -78,6 +80,15 @@ export function Menu(props: MenuProps) {
                 English
               </button>
             </div>
+            <Switch
+              label={t("sound")}
+              hint={t("soundHint")}
+              on={sound}
+              onChange={(value) => {
+                setSound(value);
+                setSoundOn(value);
+              }}
+            />
             <Switch label={t("reduceMotion")} on={props.reduced} onChange={props.onReduced} />
             {props.homeScreen ? (
               <button type="button" class="btn btn-quiet btn-block" onClick={() => setHome(true)}>

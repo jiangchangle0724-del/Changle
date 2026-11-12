@@ -1204,6 +1204,20 @@ button.arena-option:active {
     max-width: 560px;
     padding-top: var(--space-4);
   }
+  /* sideways, the titles and the buttons sit beside the table, so Play again is in reach without scrolling */
+  .result.has-awards {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-6);
+    max-width: 800px;
+  }
+  .result.has-awards .result-table {
+    margin-bottom: 0;
+  }
+  .result.has-awards .award-why {
+    display: none;
+  }
   .result-actions {
     grid-template-columns: 1fr 1fr;
   }
@@ -2408,4 +2422,121 @@ html.is-tv body::before {
     grid-template-columns: 1fr;
     justify-items: center;
   }
+}
+
+/* ---------- the crowd's moments, the round's titles, the big screen's sound ---------- */
+/* the ferry horn, the gong: the whole crowd stops (low in the middle, between the thumbs) */
+.moment-banner {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + var(--space-4));
+  left: 50%;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100% - 2 * var(--gutter));
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  animation: moment-in var(--dur-emphasis) var(--ease-pop) both;
+}
+.moment-banner .icon {
+  flex: none;
+}
+@keyframes moment-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--motion-shift)) scale(0.92);
+  }
+}
+.moment-banner.is-tv {
+  bottom: 40px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-8);
+  font-size: var(--text-xl);
+}
+/* upright, the controls sit under the arena: the banner goes on top instead */
+@media (orientation: portrait) and (max-width: 719px) {
+  .moment-banner:not(.is-tv) {
+    top: calc(var(--safe-top) + 112px);
+    bottom: auto;
+  }
+}
+
+/* the round's titles: 火眼金睛, 隐身大师... */
+.awards {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  text-align: start;
+}
+.award {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name title" "why why";
+  column-gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.award.is-you {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.award-name {
+  grid-area: name;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.award-title {
+  grid-area: title;
+  color: var(--gel);
+  font-weight: 800;
+}
+.award-why {
+  grid-area: why;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.tv-result .awards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  font-size: var(--text-lg);
+}
+.tv-result .award-why {
+  font-size: var(--text-md);
+}
+
+/* a big screen plays sound only after a click on it */
+.tv-sound {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .moment-banner {
+    animation: none;
+  }
+}
+:root[data-reduced="1"] .moment-banner {
+  animation: none;
 }
