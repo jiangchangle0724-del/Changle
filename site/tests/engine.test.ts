@@ -2,6 +2,7 @@
 import { countdown, cued, loaded, pressBy, reqOrder } from "../src/shared/dj/deck";
 import { ENERGY, FAKE_MIX, heatLean, LEAN, mixFor } from "../src/shared/dj/curve";
 import { recapOf } from "../src/party/dj/recap";
+import { coaching } from "../src/party/limbo/coach";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
@@ -1459,6 +1460,27 @@ test("limbo party: a random variant each bar, never the same twice running, neve
   u.act("p0", { a: "start", game: "limbo" });
   u.g("p0", "mode", { mode: "upside-down" });
   ok(u.view<V<"limbo">>("p0").mode === "classic", "a mode the game doesn't know is classic");
+});
+
+test("limbo coach: what the phone says to someone who can't see it", () => {
+  // a moving bar: with it, below it, above it; the grace second running out makes it urgent
+  ok(coaching("moving", { lean: 14, target: 18 }).say === "on", "within the band: a tick");
+  ok(coaching("moving", { lean: 2, target: 18 }).say === "down", "short of a moving bar: lean back more");
+  const up = coaching("moving", { lean: 54, target: 12, lost: 0.7 });
+  ok(up.say === "up" && up.urgency >= 0.7, "past a moving bar: come up, and urgently once the second is running out");
+  ok(coaching("moving", { lean: 30, target: 18, lost: 0 }).urgency < 0.5, "just off it, with time: not urgent yet");
+  // classic and hold steady: short, then there (the hold is heard)
+  const short = coaching("classic", { lean: 5, target: 20, hold: 0 });
+  ok(short.say === "down" && short.hold === 0, "short of the bar: lean back more");
+  const there = coaching("classic", { lean: 24, target: 20, hold: 0.4 });
+  ok(there.say === "on" && there.hold === 0.4, "past the bar: a tick, and the hold's hum");
+  ok(coaching("steady", { lean: 24, target: 20, hold: 0, wobbleAt: 1234 }).wobbleAt === 1234, "a wobble is passed on (the buzz)");
+  ok(coaching("classic", { lean: 60, target: 20 }).say === "on", "a classic bar never says come up");
+  // tilt through: back enough but not tilted enough, to either side
+  ok(coaching("tilt", { lean: 25, target: 20, side: 3, want: 15 }).say === "side", "not tilted right enough: tilt further");
+  ok(coaching("tilt", { lean: 25, target: 20, side: -10, want: -15 }).say === "side", "not tilted left enough: tilt further");
+  ok(coaching("tilt", { lean: 25, target: 20, side: -16, want: -15, hold: 0.2 }).say === "on", "tilted enough: there");
+  ok(coaching("tilt", { lean: 10, target: 20, side: 20, want: 15 }).say === "down", "not back enough comes first");
 });
 
 test("tune: synced clips, buzz, wrong locks out, points by speed", () => {

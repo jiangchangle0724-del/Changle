@@ -11,7 +11,7 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "limbo-coach", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 
@@ -24,10 +24,10 @@ def ok(cond, msg):
         fails.append(msg)
 
 
-def phone(browser, name, lang="zh", players=None, w=390, h=844):
+def phone(browser, name, lang="zh", players=None, w=390, h=844, sound=False):
     ctx = browser.new_context(viewport={"width": w, "height": h}, device_scale_factor=2, has_touch=True, is_mobile=True)
     pg = ctx.new_page()
-    settings = {"lang": lang, "sound": False, "music": False, "customPenalty": "", "players": players or []}
+    settings = {"lang": lang, "sound": sound, "music": sound, "customPenalty": "", "players": players or []}
     pg.add_init_script("localStorage.setItem('lazysusan.settings.v1', %s);" % json.dumps(json.dumps(settings)))
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -732,6 +732,135 @@ def t_limbo_party_single(browser):
             pg.get_by_role("button", name=re.compile("下一个|这一杆结束")).click()
         pg.wait_for_timeout(400)
     ok(all(k in ("classic", "steady", "moving", "tilt") for k in kinds) and all(kinds[i] != kinds[i - 1] for i in range(1, 3)), f"a different one each bar ({kinds})")
+    errors([pg])
+    pg.context.close()
+
+
+# Limbo's coach (party/limbo/coach.ts) is heard, not seen: with sound on, every oscillator the page
+# starts is logged (its first frequency, its wave, when it plays), and the counts say what the phone
+# said. Headless Chromium runs Web Audio without a speaker, so this is the one place the sounds are
+# checked at all.
+EAR = """() => {
+  const create = AudioContext.prototype.createOscillator;
+  AudioContext.prototype.createOscillator = function () {
+    const o = create.call(this);
+    const sv = o.frequency.setValueAtTime.bind(o.frequency);
+    o.frequency.setValueAtTime = (v, t) => { if (o.__f === undefined) o.__f = v; return sv(v, t); };
+    return o;
+  };
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function (when) {
+    (window.__osc ||= []).push({ f: Math.round((this.__f ?? this.frequency.value) * 10) / 10, type: this.type, at: when ?? this.context.currentTime });
+    return start.call(this, when);
+  };
+}"""
+
+
+def heard(pg):
+    """What the coach said since the last call: down and up blips, ticks, clicks, buzzes, hums (the music's notes are left out)."""
+    oscs = pg.evaluate("() => { const o = window.__osc || []; window.__osc = []; return o.sort((a, b) => a.at - b.at); }")
+    c = {"down": 0, "up": 0, "tick": 0, "click": 0, "buzz": 0, "hum": 0}
+    blips = [o for o in oscs if o["type"] == "triangle" and o["f"] in (440, 659.3)]
+    i = 0
+    while i + 1 < len(blips):
+        # a blip is two notes 90 ms apart: falling (659 then 440) says lean back, rising says come up
+        if abs(blips[i + 1]["at"] - blips[i]["at"] - 0.09) < 0.02:
+            c["down" if blips[i]["f"] == 659.3 else "up"] += 1
+            i += 2
+        else:
+            i += 1
+    for o in oscs:
+        if o["type"] == "sine" and o["f"] == 1960:
+            c["tick"] += 1
+        elif o["type"] == "sine" and o["f"] == 3552.5:
+            c["click"] += 1
+        elif o["type"] == "square" and o["f"] == 98:
+            c["buzz"] += 1
+        elif o["type"] == "sine" and o["f"] == 330:
+            c["hum"] += 1
+    return c
+
+
+def listen(pg, ms):
+    heard(pg)
+    pg.wait_for_timeout(ms)
+    return heard(pg)
+
+
+def solo_limbo_heard(browser, tag, mode):
+    """One phone with sound on and an ear on it, this way to play, through the count-in to the gauge."""
+    pg = phone(browser, tag, players=PLAYERS[:2], sound=True)
+    pg.add_init_script(f"({EAR})()")
+    pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
+    pg.wait_for_selector(".limbo-scene")
+    fake_sensor(pg)
+    pg.get_by_role("button", name=mode, exact=True).click()
+    pg.get_by_role("button", name="放音乐，开始").click()
+    pg.wait_for_selector(".pass-curtain", timeout=6000)
+    ok("屏幕朝外" in pg.locator(".pass-curtain").inner_text() and "听声音" in pg.locator(".pass-curtain").inner_text(), f"[{mode}] the pass-the-phone screen says screen out, and what to listen for")
+    pg.get_by_role("button", name="准备好了").click()
+    pg.wait_for_selector(".lb .gauge", timeout=6000)
+    return pg
+
+
+def t_limbo_coach_moving(browser):
+    pg = solo_limbo_heard(browser, "coach-moving", "跟着动的杆")
+    lean_to(pg, 0)
+    c = listen(pg, 1200)
+    ok(c["tick"] >= 2 and c["down"] == 0 and c["up"] == 0, f"the bar waits at 8°, upright is within 10° of it: ticks on the beat {c}")
+    auto(pg)
+    until(lambda: gauge_target(pg) > 15, 6000)
+    tilt_to(pg, 0, 0)
+    c = listen(pg, 800)
+    ok(c["down"] >= 2 and c["up"] == 0 and c["tick"] == 0, f"upright with the bar near 20°: falling blips, lean back more {c}")
+    auto(pg)
+    pg.wait_for_timeout(700)
+    tilt_to(pg, 54, 0)
+    c = listen(pg, 800)
+    ok(c["up"] >= 2 and c["down"] == 0, f"at 54°: rising blips, come up {c}")
+    auto(pg)
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 16000) and "跟住了" in pg.locator(".lb-verdict").inner_text(), "back with it to the end: kept up")
+    c = listen(pg, 900)
+    ok(sum(c.values()) == 0, f"after the verdict the coach is quiet {c}")
+    errors([pg])
+    pg.context.close()
+
+
+def t_limbo_coach_holds(browser):
+    pg = solo_limbo_heard(browser, "coach-classic", "经典")
+    lean_to(pg, 5)
+    c = listen(pg, 1100)
+    ok(c["down"] >= 3 and c["tick"] == 0, f"short of a classic bar: falling blips every eighth {c}")
+    lean_to(pg, 24)
+    c = listen(pg, 1000)
+    ok(c["tick"] >= 1 and c["hum"] == 1 and c["down"] == 0, f"past it: ticks and the hold's hum {c}")
+    ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 3000), "and through")
+    errors([pg])
+    pg.context.close()
+
+    pg = solo_limbo_heard(browser, "coach-steady", "稳住")
+    lean_to(pg, 24)
+    pg.wait_for_timeout(900)
+    heard(pg)
+    lean_to(pg, 34)
+    pg.wait_for_timeout(300)
+    lean_to(pg, 24)
+    pg.wait_for_timeout(400)
+    c = heard(pg)
+    ok(c["buzz"] == 1, f"a wobble: one low buzz {c}")
+    ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 6000), "held still again: through")
+    errors([pg])
+    pg.context.close()
+
+    pg = solo_limbo_heard(browser, "coach-tilt", "歪着过")
+    want = int(pg.locator(".lb-side").get_attribute("data-want"))
+    tilt_to(pg, 25, 0)
+    c = listen(pg, 1300)
+    ok(c["click"] >= 3 and c["click"] % 3 == 0 and c["down"] == 0, f"back enough, not tilted: three quick clicks on the beat {c}")
+    tilt_to(pg, 25, want + 4 * (1 if want > 0 else -1))
+    c = listen(pg, 900)
+    ok(c["tick"] >= 1 and c["hum"] == 1 and c["click"] == 0, f"tilted too: ticks and the hum {c}")
+    ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 3000), "and through")
     errors([pg])
     pg.context.close()
 
@@ -1801,6 +1930,7 @@ TESTS = {
     "freeze": [t_freeze_single, t_freeze_online],
     "limbo": [t_limbo_single, t_limbo_online, t_limbo_blind_single, t_limbo_blind_online],
     "limbo-variants": [t_limbo_steady_single, t_limbo_moving_single, t_limbo_moving_nosensor_single, t_limbo_tilt_single, t_limbo_party_single, t_limbo_steady_online, t_limbo_moving_online, t_limbo_tilt_online, t_limbo_party_online],
+    "limbo-coach": [t_limbo_coach_moving, t_limbo_coach_holds],
     "tune": [t_tune_single, t_tune_songs_online, t_tune_online],
     "euchre": [t_euchre_single, t_euchre_online],
 }

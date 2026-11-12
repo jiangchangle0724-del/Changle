@@ -1,7 +1,7 @@
 import { Check, Crown, Play, Smartphone, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { GAME_BY_ID } from "../../games/registry";
-import { holdBackground, startGroove } from "../../lib/music";
+import { holdBackground, startGroove, type GrooveHandle } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
@@ -13,6 +13,7 @@ import { usePenaltyText, useStore } from "../../store";
 import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useSensorStatus, useWakeLock } from "../sensors";
 import { LIMBO_MODES, blindError, classicBar } from "../../shared/engine/games/limbo";
+import { QUIET, coaching, useCoach, type Grid } from "./coach";
 import {
   BlindMeter,
   FollowMeter,
@@ -25,6 +26,7 @@ import {
   barHow,
   barTag,
   blindLine,
+  heardShort,
   modeName,
   useBlindLock,
   useFollow,
@@ -70,9 +72,12 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
 
   // the calypso keeps playing level after level, on the same beat on every phone
   const playing = v.musicAt > 0 && (v.phase === "go" || v.phase === "result");
+  /** the music's grid, so the coach's cues land on it */
+  const grid = useRef<Grid | null>(null);
   useEffect(() => {
     if (!playing) return;
-    const h = startGroove("calypso", { startPerf: perfAt(v.musicAt, now()) });
+    const h: GrooveHandle | null = startGroove("calypso", { startPerf: perfAt(v.musicAt, now()) });
+    grid.current = h ? { originPerf: h.startedPerf, beatMs: h.beatMs } : null;
     return () => h?.stop(0.4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, v.musicAt]);
@@ -102,6 +107,18 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   const pose = usePose(trying && (kind === "steady" || kind === "tilt"), { target: v.angle, side: kind === "tilt" ? bar.side : 0, holdMs: kind === "steady" ? bar.hold : HOLD_MS, still: kind === "steady" }, pass);
   const follow = useFollow(trying && moving, v.angle, bar, v.startAt, now, (kept, deg) => g(kept ? "pass" : "fail", { deg }));
   const best = kind === "classic" ? classic.best : moving ? follow.best : pose.best;
+  // the phone is on their chest: it says what the gauge shows
+  useCoach(
+    trying,
+    !trying
+      ? QUIET
+      : kind === "classic"
+        ? coaching("classic", { lean: classic.lean, target: v.angle, hold: classic.hold })
+        : moving
+          ? coaching("moving", { lean: follow.lean, target: follow.at, lost: follow.lost })
+          : coaching(kind, { lean: pose.lean, target: v.angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt }),
+    grid,
+  );
   const lastSent = useRef(0);
 
   // blind lean: the phone locks the angle once you hold still, and never shows it before the round ends
@@ -132,8 +149,13 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
     <>
       <p>
         {zh
-          ? `林波舞，手机当裁判。把手机竖着贴在胸口，屏幕对着自己，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局${drink}，最后剩下的人赢。没有动作感应的手机由主人判，或者自己说过没过。`
-          : `Limbo, with the phone as judge. Hold it upright against your chest, screen facing you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (${drink}). Last one standing wins. Phones without motion sensing are judged by the host, or by their owner's honesty.`}
+          ? `林波舞，手机当裁判。把手机竖着贴在胸前，屏幕朝外，背面贴着胸口，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局${drink}，最后剩下的人赢。没有动作感应的手机由主人判，或者自己说过没过。`
+          : `Limbo, with the phone as judge. Hold it upright against your chest, screen facing out and its back against you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (${drink}). Last one standing wins. Phones without motion sensing are judged by the host, or by their owner's honesty.`}
+      </p>
+      <p>
+        {zh
+          ? "手机在胸前看不见屏幕，靠听：两个音往下掉是再往后仰，往上走是回来一点，嗒嗒声是到位了（跟着动的杆：跟住了），连着三下短响是再往旁边歪，撑住的时候嗡声往上升，升到头就过，低低一响是晃了。你离横杆远的时候音乐也会变小。盲仰什么都不提示。"
+          : "The phone is on your chest, so you play by ear: two notes falling mean lean back more, rising means come up a bit, a tick means you're there (with a moving bar: with it), three quick clicks mean tilt further, and while you hold, a hum climbs until you're through; a low buzz means you moved. The music drops while you're off the bar. Blind lean says nothing."}
       </p>
       <p>
         {zh
@@ -197,23 +219,25 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
             )}
             {v.mode === "blind" ? (
               <ol className="lb-steps">
-                <li>{zh ? "手机竖着贴在胸口，屏幕朝自己" : "Phone upright against your chest, screen facing you"}</li>
+                <li>{zh ? "手机竖着贴在胸前，屏幕朝外，背面贴着胸口" : "Phone upright against your chest, screen facing out, its back against you"}</li>
                 <li>{zh ? "每轮给一个目标角度，看不到自己仰了多少" : "Each round gives a target angle; you can't see your own"}</li>
                 <li>{zh ? "凭感觉仰到位，停住不动一秒半就锁定" : "Lean to what feels right and hold still for a second and a half"}</li>
                 <li>{zh ? `离目标最远的出局${custom ? "受罚" : "喝一口"}` : `Furthest from the target is out and ${custom ? "takes the penalty" : "drinks"}`}</li>
               </ol>
             ) : v.mode === "classic" ? (
               <ol className="lb-steps">
-                <li>{zh ? "手机竖着贴在胸口，屏幕朝自己" : "Phone upright against your chest, screen facing you"}</li>
+                <li>{zh ? "手机竖着贴在胸前，屏幕朝外，背面贴着胸口" : "Phone upright against your chest, screen facing out, its back against you"}</li>
                 <li>{zh ? "音乐一响，往后仰到要求的角度" : "When the music starts, lean back to the angle"}</li>
                 <li>{zh ? "坚持一秒多就算过，杆子会越来越低" : "Hold it for a second to pass. The bar keeps dropping."}</li>
+                <li>{heardShort(zh)}</li>
               </ol>
             ) : (
               <ol className="lb-steps">
-                <li>{zh ? "手机竖着贴在胸口，屏幕朝自己" : "Phone upright against your chest, screen facing you"}</li>
+                <li>{zh ? "手机竖着贴在胸前，屏幕朝外，背面贴着胸口" : "Phone upright against your chest, screen facing out, its back against you"}</li>
                 {variantSteps(v.mode, zh).map((s) => (
                   <li key={s}>{s}</li>
                 ))}
+                <li>{heardShort(zh)}</li>
               </ol>
             )}
             {watching ? null : sensors !== "on" ? (
@@ -247,7 +271,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
           <>
             <p className="lb-count tabular">{countdown}</p>
             {/* what this bar asks, while there's a moment to read it */}
-            {!blind && alive && kind !== "classic" && <p className="hint" style={{ textAlign: "center" }}>{barHow(bar, v.angle, zh)}</p>}
+            {!blind && alive && kind !== "classic" && <p className="hint" style={{ textAlign: "center" }}>{barHow(bar, v.angle, zh, sensors === "on")}</p>}
           </>
         )}
 
@@ -271,7 +295,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
               )
             ) : (
               <>
-                {kind !== "classic" && <p className="hint" style={{ textAlign: "center" }}>{barHow(bar, v.angle, zh)}</p>}
+                {kind !== "classic" && <p className="hint" style={{ textAlign: "center" }}>{barHow(bar, v.angle, zh, false)}</p>}
                 <div className="row" style={{ gap: 10 }}>
                   <button type="button" className="btn btn-ghost btn-lg btn-block" onClick={() => g("fail")}>
                     <X size={18} />

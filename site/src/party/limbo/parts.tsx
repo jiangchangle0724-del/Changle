@@ -452,19 +452,40 @@ export function barTag(bar: LimboBar, zh: boolean, party: boolean) {
   }
 }
 
-/** How to clear this bar, in a sentence or two. */
-export function barHow(bar: LimboBar, angle: number, zh: boolean) {
-  const phone = zh ? "手机竖着贴在胸口，屏幕朝自己。" : "Phone upright on your chest, screen facing you. ";
+/** How to hold the phone: upright on the chest, screen out. That is the way the sensor reads a lean, and it means nobody sees the screen: the coach (coach.ts) says what it shows. */
+export const holdLine = (zh: boolean) => (zh ? "手机竖着贴在胸前，屏幕朝外，背面贴着胸口。" : "Phone upright on your chest, screen facing out, its back against you. ");
+
+/** What the coach's sounds mean at this kind of bar. */
+export function heardLine(kind: LimboKind, zh: boolean) {
+  switch (kind) {
+    case "moving":
+      return zh ? "听声音：两个音往下掉就再往后仰，往上走就回来一点，嗒嗒声就是跟住了。" : "Listen: two notes falling, lean back more; rising, come up a bit; a tick means you're with it.";
+    case "steady":
+      return zh ? "听声音：两个音往下掉就再往后仰；嗒嗒声是到位了，别动，嗡声升到头就过；低低一响是晃了，重来。" : "Listen: two notes falling, lean back more; a tick means you're there, so hold still while the hum climbs; a low buzz means you moved, start again.";
+    case "tilt":
+      return zh ? "听声音：两个音往下掉就再往后仰，连着三下短响就再往旁边歪一点，嗒嗒声是到位了，撑住。" : "Listen: two notes falling, lean back more; three quick clicks, tilt further; a tick means you're there, hold it.";
+    default:
+      return zh ? "听声音：两个音往下掉就再往后仰，嗒嗒声是到位了，撑住到叮一声。" : "Listen: two notes falling, lean back more; a tick means you're there, hold it till the chime.";
+  }
+}
+
+/** The coach in one line, for the steps before a game (whatever kind of bar comes). */
+export const heardShort = (zh: boolean) => (zh ? "看不见屏幕就听声音：两个音往下掉就再往后仰，往上走就回来一点，嗒嗒声就是到位了" : "Play by ear: two notes falling, lean back more; rising, come up a bit; a tick means you're there");
+
+/** How to clear this bar, in a sentence or two; with `heard`, what this phone will say while you do (it measures and coaches). */
+export function barHow(bar: LimboBar, angle: number, zh: boolean, heard = true) {
+  const phone = holdLine(zh);
+  const ear = heard ? (zh ? "" : " ") + heardLine(bar.kind, zh) : "";
   const dir = bar.side > 0 ? (zh ? "右" : "right") : zh ? "左" : "left";
   switch (bar.kind) {
     case "steady":
-      return phone + (zh ? `仰到 ${angle}° 以后一动不动撑住 ${secs(bar.hold)} 秒，一晃就重来。` : `Lean back to ${angle}°, then hold dead still for ${secs(bar.hold)} seconds. Any wobble starts it again.`);
+      return phone + (zh ? `仰到 ${angle}° 以后一动不动撑住 ${secs(bar.hold)} 秒，一晃就重来。` : `Lean back to ${angle}°, then hold dead still for ${secs(bar.hold)} seconds. Any wobble starts it again.`) + ear;
     case "moving":
-      return phone + (zh ? `横杆在 ${angle - bar.swing}° 到 ${angle}° 之间上下浮动，跟着它。跟丢超过 1 秒就出局。` : `The bar floats between ${angle - bar.swing}° and ${angle}°: follow it. Lose it for over a second and you're out.`);
+      return phone + (zh ? `横杆在 ${angle - bar.swing}° 到 ${angle}° 之间上下浮动，跟着它。跟丢超过 1 秒就出局。` : `The bar floats between ${angle - bar.swing}° and ${angle}°: follow it. Lose it for over a second and you're out.`) + ear;
     case "tilt":
-      return phone + (zh ? `往后仰到 ${angle}°，同时往${dir}歪 ${Math.abs(bar.side)}°。` : `Lean back to ${angle}° and tilt ${dir} ${Math.abs(bar.side)}° at the same time.`);
+      return phone + (zh ? `往后仰到 ${angle}°，同时往${dir}歪 ${Math.abs(bar.side)}°。` : `Lean back to ${angle}° and tilt ${dir} ${Math.abs(bar.side)}° at the same time.`) + ear;
     default:
-      return zh ? `手机竖着贴在胸口，屏幕朝自己，往后仰到 ${angle}°` : `Phone upright on your chest, screen facing you. Lean back to ${angle}°.`;
+      return phone + (zh ? `往后仰到 ${angle}°。` : `Lean back to ${angle}°.`) + ear;
   }
 }
 
