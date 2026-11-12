@@ -8,7 +8,8 @@
 import { Application, Container, FillGradient, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Level, Pt } from '../physics/level';
-import type { Sim, SimEvent } from '../physics/world';
+import type { SimEvent } from '../physics/world';
+import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
 import { CONFETTI, hex, OUTLINE, PALETTES, textures, type Palette, type Textures, type WorldId } from './art';
 import { Backdrop } from './backdrop';
@@ -76,6 +77,8 @@ export class Stage {
     app: Application,
     reduced: boolean,
     private readonly plates: Partial<Record<WorldId, string>>,
+    /** 手机屏幕：镜头拉近一点，糯米团别小得看不清。 */
+    private readonly compact: boolean,
   ) {
     this.app = app;
     this.reduced = reduced;
@@ -91,8 +94,11 @@ export class Stage {
     app.stage.addChild(this.root);
   }
 
-  /** 建画面：Pixi 要异步初始化。plates：每个世界的远景画地址（主机页和开发页给 `src/render/plates.ts` 的）。 */
-  static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>> } = {}): Promise<Stage> {
+  /**
+   * 建画面：Pixi 要异步初始化。plates：每个世界的远景画地址（主机页和开发页给 `src/render/plates.ts` 的）；
+   * compact：画在手机上（手机局），镜头近一些。
+   */
+  static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>>; compact?: boolean } = {}): Promise<Stage> {
     const init = {
       canvas,
       width: innerWidth,
@@ -115,7 +121,7 @@ export class Stage {
     }
     app.ticker.stop();
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const stage = new Stage(app, reduced, opts.plates ?? {});
+    const stage = new Stage(app, reduced, opts.plates ?? {}, !!opts.compact);
     stage.resize();
     return stage;
   }
@@ -172,7 +178,7 @@ export class Stage {
   }
 
   /** 玩家数量跟着 sim 走；样子（名字、颜色、帽子）另外给。 */
-  syncPlayers(sim: Sim): void {
+  syncPlayers(sim: SimView): void {
     while (this.dumplings.length < sim.players.length) {
       const i = this.dumplings.length;
       const st = this.styles[i] ?? { name: `P${i + 1}`, color: sim.players[i]?.color ?? '#fff', look: DEFAULT_LOOK };
@@ -207,7 +213,7 @@ export class Stage {
 
   // ---------------------------------------------------------------- 事件 → 动效
 
-  handleEvents(sim: Sim, events: readonly SimEvent[]): void {
+  handleEvents(sim: SimView, events: readonly SimEvent[]): void {
     for (const ev of events) {
       switch (ev.type) {
         case 'grab': {
@@ -293,7 +299,7 @@ export class Stage {
 
   // ---------------------------------------------------------------- 镜头
 
-  updateCamera(sim: Sim, dt: number): void {
+  updateCamera(sim: SimView, dt: number): void {
     const cam = this.cam;
     const level = sim.level;
     const alive = sim.players.filter((p) => !p.dead);
@@ -320,8 +326,8 @@ export class Stage {
     }
     const W = this.W;
     const H = this.H;
-    // 缩放：基础按屏幕大小，人分散了再缩到都能看见
-    const base = Math.max(0.6, Math.min(1.25, Math.min(W / 1000, H / 640)));
+    // 缩放：基础按屏幕大小，人分散了再缩到都能看见；手机屏幕小，基础近一些
+    const base = this.compact ? Math.max(0.55, Math.min(1.1, Math.min(W / 820, H / 500))) : Math.max(0.6, Math.min(1.25, Math.min(W / 1000, H / 640)));
     const fit = Math.min(W / (bw + 420), H / (bh + 360));
     const zt = Math.max(0.45, Math.min(base, fit));
     cam.z += (zt - cam.z) * Math.min(1, dt * 2.5);
@@ -343,7 +349,7 @@ export class Stage {
 
   // ---------------------------------------------------------------- 每帧
 
-  draw(sim: Sim, dt: number): void {
+  draw(sim: SimView, dt: number): void {
     this.t += dt;
     // 慢动作：摔死后 0.3 秒 0.25 倍，再 0.25 秒回到 1
     if (this.slow > 0) {
@@ -374,7 +380,7 @@ export class Stage {
     this.app.renderer.render(this.app.stage);
   }
 
-  private drawProps(sim: Sim): void {
+  private drawProps(sim: SimView): void {
     const g = this.propsG.clear();
     const table = this.world_ === 'table';
     for (const prop of sim.props) {
@@ -424,7 +430,7 @@ export class Stage {
     }
   }
 
-  private drawRopes(sim: Sim): void {
+  private drawRopes(sim: SimView): void {
     const g = this.ropesG.clear();
     const table = this.world_ === 'table';
     for (const rope of sim.ropes) {
@@ -464,7 +470,7 @@ export class Stage {
     }
   }
 
-  private drawTrails(sim: Sim): void {
+  private drawTrails(sim: SimView): void {
     const g = this.trailsG.clear();
     if (this.reduced) return;
     sim.players.forEach((p, i) => {
@@ -490,7 +496,7 @@ export class Stage {
   }
 
   /** 汤面 / 水面：一条会动的波浪，盖在人前面；表面冒泡、冒蒸汽。 */
-  private drawAbyss(sim: Sim, dt: number): void {
+  private drawAbyss(sim: SimView, dt: number): void {
     const level = sim.level;
     const g = this.abyssTop.clear();
     const y = level.deathY - 8;

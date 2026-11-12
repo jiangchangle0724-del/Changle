@@ -187,3 +187,25 @@ describe('杂', () => {
     expect(makeCode('AB', () => 1)).toBe('BBBB');
   });
 });
+
+describe('手机局', () => {
+  test('房主自己也玩：手柄从 1 号颜色排起，最多 3 个，房间告诉大家这是手机局', () => {
+    const now = 1_000_000;
+    const r = new Room(Room.create('ABCD', now, { hostPlays: true }), () => now);
+    expect(r.connect(HOST)).toBeNull();
+    for (let i = 1; i <= 3; i++) expect(r.connect(pad(i), `P${i}`)).toBeNull();
+    expect(r.connect(pad(4), 'P4')).toBe('full');
+    const view = r.view();
+    expect(view.hostPlays).toBe(true);
+    expect(view.seats.map((s) => s.color)).toEqual([1, 2, 3]);
+  });
+
+  test('电视局照旧：4 个手柄，颜色从 0 排，房间里没有 hostPlays', () => {
+    const { r } = room();
+    r.connect(HOST);
+    for (let i = 1; i <= 4; i++) expect(r.connect(pad(i), `P${i}`)).toBeNull();
+    const view = r.view();
+    expect(view.hostPlays).toBeUndefined();
+    expect(view.seats.map((s) => s.color)).toEqual([0, 1, 2, 3]);
+  });
+});

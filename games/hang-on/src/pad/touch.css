@@ -1,0 +1,94 @@
+/*
+ * 压在画面上的摇杆和抓键：手机局里房主那部手机（主机页的 #touch），和别的手机看画面时（手柄页的 #pad.touch）。
+ * 左边整块是摇杆区（看不见，按下去才出圈），右下角两个抓键挨着放，一个拇指压在中间能同时抓两只手。
+ * 都半透明，画面要看得见。controls.ts 引这个文件，两个页面都带上。
+ */
+.touch .zones {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 0;
+  padding: 0;
+  min-height: 0;
+  height: 100%;
+}
+.touch .stickzone {
+  position: relative;
+  align-self: stretch;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  touch-action: none;
+}
+.touch .stickzone .hint {
+  position: absolute;
+  inset: auto auto calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  display: block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(16, 20, 40, 0.55);
+  color: var(--ink, #fff6e9);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  transition: opacity 0.2s;
+}
+.touch .stickzone .hint br { display: none; }
+.touch .stickzone .hint br + span::before { content: ' '; }
+.touch .stickzone:has(.stick:not([hidden])) .hint { opacity: 0; }
+.touch .stick {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  margin: -70px 0 0 -70px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(16, 20, 40, 0.22);
+  pointer-events: none;
+}
+.touch .stick .knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 62px;
+  height: 62px;
+  margin: -31px 0 0 -31px;
+  border-radius: 50%;
+  background: rgba(255, 246, 233, 0.85);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+.touch .grabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: min(36vw, 216px);
+  height: min(42vh, 164px);
+  margin: 0 max(14px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) 0;
+}
+.touch .grab {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  border-radius: 20px;
+  border: 3px solid var(--glove-l, #63b3ed);
+  background: rgba(99, 179, 237, 0.26);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  color: var(--ink, #fff6e9);
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: 19px;
+  line-height: 1.1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.touch .grab small { display: none; }
+.touch .grab.r { border-color: var(--glove-r, #f6ad55); background: rgba(246, 173, 85, 0.26); }
+.touch .grab.down { background: var(--glove-l, #63b3ed); color: var(--card-ink, #2a1f3a); text-shadow: none; }
+.touch .grab.r.down { background: var(--glove-r, #f6ad55); }
+@media (prefers-reduced-motion: reduce) {
+  .touch .stickzone .hint { transition: none; }
+}

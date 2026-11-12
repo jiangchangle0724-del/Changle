@@ -1,6 +1,6 @@
 // 抓紧了 · Hang On 的房间服务（changle.ca/hang-on）。Cloudflare 只做三件事：发房间码、交换 WebRTC
 // 信令、直连失败时中转输入。一个 Durable Object 一个房间，逻辑在 src/server/room.ts（纯，有测试）。
-//   POST /hang-on/api/rooms                 开房：{} -> { code }
+//   POST /hang-on/api/rooms                 开房：{} 或 { hostPlays: true }（手机局）-> { code }
 //   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host | ?role=pad&id=…&name=… | ?role=watch
 //   GET  /hang-on/r/CODE                    二维码的链接：手柄页，房间码填好
 //   /hang-on/、/hang-on/pad/                页面（dist/hang-on，vite build）
@@ -25,10 +25,10 @@ export class HangOnRoom extends DurableObject<Env> {
   }
 
   /** 用这个码开房。码正被别的房用着就返回 false。 */
-  async open(code: string): Promise<boolean> {
+  async open(code: string, hostPlays = false): Promise<boolean> {
     if (this.room && !this.room.expired()) return false;
     for (const ws of this.ctx.getWebSockets()) ws.close(4000, 'ended');
-    this.room = new Room(Room.create(code, Date.now()), () => Date.now());
+    this.room = new Room(Room.create(code, Date.now(), { hostPlays }), () => Date.now());
     await this.ctx.storage.put('r', this.room.d);
     await this.wake();
     return true;
@@ -186,9 +186,17 @@ export default {
     const path = url.pathname;
     if (path === '/hang-on/api/rooms') {
       if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+      // 手机局：{ "hostPlays": true }（房主自己也玩）；读不出来就当电视局
+      let hostPlays = false;
+      try {
+        const body = (await req.json()) as { hostPlays?: unknown } | null;
+        hostPlays = body?.hostPlays === true;
+      } catch {
+        // 空的或不是 JSON
+      }
       for (let i = 0; i < 20; i++) {
         const code = makeCode(CODE_ALPHABET, randomInt);
-        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).open(code)) return json({ code });
+        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).open(code, hostPlays)) return json({ code });
       }
       return json({ error: 'busy' }, 503);
     }

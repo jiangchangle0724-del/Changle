@@ -2,21 +2,28 @@
  * 主机页（接电视的那台电脑）：开房、显示房间码和二维码、选关、大厅里看每个人的样子、收手柄的输入跑物理、
  * Pixi 画画面（A3）、音效、左上角延迟表、每 250 ms 给每个手柄发一个小包、结算页（摔死排行、背叛榜）。
  * 主机是唯一跑物理的地方（铁律 1）。玩家看到的字中英都有（右上角切换）。
+ *
+ * 手机局（没有电视、没有电脑）：在手机上打开就是手机局（`?phone=1` 强开，`?phone=0` 强关）。
+ * 这部手机照样开房、跑物理、画画面，房主自己用屏幕上的摇杆和抓键玩（0 号颜色，最多再进 3 部手机），
+ * 每 50 ms（绕路 100 ms）给每部手机发一张画面快照，大家都在自己手机上看（src/net/snap.ts）。
  */
 import qrcode from 'qrcode-generator';
-import { sfx } from '../audio/sfx';
+import { heardBy, sfx } from '../audio/sfx';
 import { applyStatic, langButton, onLang, tr } from '../i18n';
 import { LEVELS, levelTitle, teachLabel } from '../levels';
-import { DEFAULT_LOOK, randomLook, type Look } from '../look';
+import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
 import { CFG, PLAYER_COLORS } from '../physics/config';
 import type { Level } from '../physics/level';
-import { createSim, type PadInput, type Sim } from '../physics/world';
+import { createSim, type PadInput, type Sim, type SimEvent } from '../physics/world';
 import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
-import { MAX_SEATS, STATUS_MS, type FatalKey, type Phase, type RoomView } from '../net/protocol';
+import { CAST_MS, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Phase, type RoomView } from '../net/protocol';
+import { encodeSnap, EventWindow } from '../net/snap';
+import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
+import { renderResults, resultsOf, type ResultsDom } from '../results';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -25,9 +32,14 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 applyStatic();
-const canvas = $<HTMLCanvasElement>('stage');
-const stage = await Stage.create(canvas, { plates: PLATES });
 const params = new URLSearchParams(location.search);
+/** 手机局：手机上打开（触屏、短边不到 600）就是；`?phone=1` / `?phone=0` 强开强关。 */
+const phoneMode =
+  params.get('phone') === '1' || (params.get('phone') !== '0' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600);
+document.body.classList.toggle('phone', phoneMode);
+document.body.dataset.phase = 'lobby';
+const canvas = $<HTMLCanvasElement>('stage');
+const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
 let levelIndex = Math.max(0, LEVELS.findIndex((l) => l.id === params.get('level')));
 let level: Level = LEVELS[levelIndex] as Level;
 let stageLevel = '';
@@ -36,7 +48,7 @@ syncStageLevel();
 let link: HostLink | null = null;
 let phase: Phase = 'lobby';
 let room: RoomView | null = null;
-/** 座位顺序 → 玩家下标；键盘的人永远排最后。 */
+/** 座位顺序 → 玩家下标；这台设备上自己玩的那个人（键盘的，或手机局的房主）永远排最后。 */
 let seatOrder: string[] = [];
 let keyboard = false;
 let forceRelay = params.get('relay') === '1';
@@ -44,7 +56,30 @@ let forceRelay = params.get('relay') === '1';
 const renderOn = params.get('render') !== '0';
 const KB_COLOR = 3;
 const kbLook: Look = randomLook();
+/** 手机局的房主：0 号颜色；名字和样子用这部手机当手柄时记下的（没有就叫「房主」、随机一个样子）。 */
+const HOST_COLOR = 0;
+let hostLook: Look = stored('hang-on:look', (v) => cleanLook(JSON.parse(v))) ?? randomLook();
+const hostName = (): string => stored('hang-on:name', (v) => v.trim().slice(0, 12)) || tr('房主', 'Host');
+/** 手机局：样子名单要不要马上补发（有人进出、换样子、换阶段）。 */
+let castDirty = true;
 let lastFatal: FatalKey | null = null;
+
+function stored<T>(key: string, read: (v: string) => T): T | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? null : read(v);
+  } catch {
+    return null;
+  }
+}
+
+/** 这台设备上有没有自己玩的人、他的颜色、名字、样子。 */
+const localOn = (): boolean => phoneMode || keyboard;
+const localColor = (): number => (phoneMode ? HOST_COLOR : KB_COLOR);
+const localName = (): string => (phoneMode ? hostName() : tr('键盘', 'Keyboard'));
+const localLook = (): Look => (phoneMode ? hostLook : kbLook);
+/** 自己那个人是第几个（没有是 -1）。 */
+const localIndex = (): number => (localOn() ? seatOrder.length : -1);
 
 sfx.attach(document);
 sfx.panOf = (x, y) => Math.max(-1, Math.min(1, (stage.toScreen({ x, y }).x / innerWidth) * 2 - 1)) * 0.6;
@@ -53,10 +88,12 @@ langButton($<HTMLButtonElement>('langBtn'));
 // ---------- 房间 ----------
 async function start(): Promise<void> {
   $('fatal').hidden = true;
+  document.body.dataset.phase = phase;
   link?.close();
-  const code = await openRoom();
+  const code = await openRoom(location.origin, { hostPlays: phoneMode });
   $('code').textContent = code;
   $('codeBig').textContent = code;
+  $('codeSide').textContent = code;
   const joinUrl = `${location.origin}/hang-on/r/${code}`;
   $('joinUrl').textContent = joinUrl.replace(/^https?:\/\//, '');
   $('padUrl').textContent = `${location.host}/hang-on/pad`;
@@ -73,6 +110,8 @@ async function start(): Promise<void> {
       renderLatency();
     },
     onPeers: () => {
+      // 手机局：有人（重新）连上或换了路，马上补一份样子名单，别等下一个 2 秒
+      castDirty = true;
       renderLobby();
       renderLatency();
     },
@@ -94,12 +133,16 @@ async function start(): Promise<void> {
 
 let socketDown = false;
 function renderNote(): void {
+  // 手机局屏幕小：底下那条只在断线时出来
+  $('note').classList.toggle('quiet', phoneMode && !socketDown);
   $('note').innerHTML = socketDown
     ? tr('和房间的连接断了，正在重连……', 'Lost the room connection. Reconnecting…')
-    : tr(
-        '主机页只在一台电脑上开，接电视。<kbd>键盘加入</kbd> 后 <kbd>W A S D</kbd> 指方向、<kbd>Q</kbd> <kbd>E</kbd> 抓、<kbd>R</kbd> 召唤，自己一个人也能试。',
-        'Open this page on one computer only, the one on the TV. After <kbd>Keyboard join</kbd>, <kbd>W A S D</kbd> aims, <kbd>Q</kbd> <kbd>E</kbd> grab, <kbd>R</kbd> summons. You can try it alone.',
-      );
+    : phoneMode
+      ? ''
+      : tr(
+          '主机页只在一台电脑上开，接电视。<kbd>键盘加入</kbd> 后 <kbd>W A S D</kbd> 指方向、<kbd>Q</kbd> <kbd>E</kbd> 抓、<kbd>R</kbd> 召唤，自己一个人也能试。',
+          'Open this page on one computer only, the one on the TV. After <kbd>Keyboard join</kbd>, <kbd>W A S D</kbd> aims, <kbd>Q</kbd> <kbd>E</kbd> grab, <kbd>R</kbd> summons. You can try it alone.',
+        );
 }
 
 function fatalLine(key: FatalKey): string {
@@ -126,6 +169,8 @@ function fatal(key: FatalKey): void {
   $('lobby').hidden = true;
   $('countdown').hidden = true;
   $('results').hidden = true;
+  $('touch').hidden = true;
+  document.body.dataset.phase = 'ended';
 }
 $('reopenBtn').addEventListener('click', () => void start());
 
@@ -142,6 +187,10 @@ function onPhase(next: Phase): void {
   $('clockChip').hidden = $('deathChip').hidden = next !== 'countdown' && next !== 'playing';
   // 底下那条说明只在大厅里有用，玩的时候别挡着画面
   $('note').hidden = next !== 'lobby';
+  // 手机局：倒数和玩的时候房主的摇杆、抓键压在画面上；页面的样式（横过来的提示）按阶段走
+  $('touch').hidden = !phoneMode || (next !== 'countdown' && next !== 'playing');
+  document.body.dataset.phase = next;
+  castDirty = true;
   if (next === 'lobby') void resetSim();
   // 从结算页直接开下一关（或再来一次）：大厅那步的重置没走，在这里换上新的一局
   if (next === 'countdown' && prev === 'results') void resetSim();
@@ -173,52 +222,24 @@ function name(i: number): string {
   return playerNames()[i] || `P${i + 1}`;
 }
 
+const resultsDom: ResultsDom = {
+  time: $('winTime'),
+  par: $('winPar'),
+  deaths: $('deathList'),
+  betrayTitle: $('betrayTitle'),
+  betrayList: $('betrayList'),
+  betrayNone: $('betrayNone'),
+};
 function showResults(): void {
-  $('winTime').textContent = `${sim.time.toFixed(1)} s`;
-  const par = level.par?.seconds;
-  $('winPar').textContent = par ? (sim.time <= par ? tr(`比标准的 ${par} 秒快`, `Faster than par (${par} s)`) : tr(`标准 ${par} 秒`, `Par ${par} s`)) : '';
-  // 摔死排行：摔得最多的是今晚的汤圆
-  const rank = sim.players.map((p, i) => ({ i, deaths: p.deaths, grabs: p.grabs })).sort((a, b) => b.deaths - a.deaths);
-  const list = $('deathList');
-  list.innerHTML = '';
-  rank.forEach((r, k) => {
-    const li = document.createElement('li');
-    const dot = document.createElement('span');
-    dot.className = 'dot';
-    dot.style.background = sim.players[r.i]?.color ?? '#fff';
-    const who = document.createElement('span');
-    who.className = 'who';
-    who.textContent = name(r.i);
-    const n = document.createElement('span');
-    n.className = 'n';
-    n.textContent = tr(`摔了 ${r.deaths} 次 · 抓了 ${r.grabs} 下`, `${r.deaths} falls · ${r.grabs} grabs`);
-    li.append(dot, who, n);
-    if (k === 0 && r.deaths > 0 && sim.players.length > 1) {
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = tr('今晚的汤圆', "Tonight's dumpling");
-      li.append(tag);
-    }
-    list.append(li);
-  });
-  // 背叛榜
-  const counts = new Map<string, number>();
-  for (const b of sim.betrayals) counts.set(`${b.by}>${b.victim}`, (counts.get(`${b.by}>${b.victim}`) ?? 0) + 1);
-  const bl = $('betrayList');
-  bl.innerHTML = '';
-  const rows = [...counts].sort((a, b) => b[1] - a[1]);
-  $('betrayTitle').hidden = rows.length === 0;
-  for (const [key, n] of rows) {
-    const [by, victim] = key.split('>').map(Number) as [number, number];
-    const li = document.createElement('li');
-    li.textContent = tr(`${name(by)} 松开过 ${name(victim)} ${n} 次`, `${name(by)} let go of ${name(victim)} ${n === 1 ? 'once' : `${n} times`}`);
-    bl.append(li);
-  }
-  $('betrayNone').hidden = rows.length > 0;
+  renderResults(resultsDom, resultsOf(sim), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
   $<HTMLButtonElement>('nextBtn').hidden = levelIndex >= LEVELS.length - 1;
 }
 
-$('startBtn').addEventListener('click', () => link?.act({ type: 'START' }));
+$('startBtn').addEventListener('click', () => {
+  // 手机局：这一下点击正好用来全屏、横过来、不让屏幕睡着（浏览器只在点击里给）
+  if (phoneMode) void phoneScreen();
+  link?.act({ type: 'START' });
+});
 // 结算页：再来一次、下一关都直接倒数开局；要换人、换关走顶栏的「回大厅」
 $('againBtn').addEventListener('click', () => link?.act({ type: 'START' }));
 $('nextBtn').addEventListener('click', () => {
@@ -241,10 +262,24 @@ $('muteBtn').addEventListener('click', () => {
   sfx.muted = !sfx.muted;
   renderButtons();
 });
+// 触屏设备上可以在两种局之间换（猜错了的时候，比如平板）：换了就重新开房
+const modeBtn = $<HTMLButtonElement>('modeBtn');
+modeBtn.hidden = !matchMedia('(pointer: coarse)').matches;
+modeBtn.addEventListener('click', () => {
+  const q = new URLSearchParams(location.search);
+  q.set('phone', phoneMode ? '0' : '1');
+  location.search = q.toString();
+});
 function renderButtons(): void {
+  modeBtn.textContent = phoneMode ? tr('改成电视局', 'Use a TV instead') : tr('改成手机局', 'Phones only');
+  modeBtn.title = phoneMode
+    ? tr('这台设备接电视当大屏，大家的手机当手柄', 'This device goes on the TV as the big screen; phones are controllers')
+    : tr('没有电视：这部手机开房、自己也玩，大家都在自己手机上看', 'No TV: this phone hosts and plays, and everyone watches on their own phone');
   $('kbBtn').textContent = keyboard ? tr('− 键盘退出', '− Keyboard leave') : tr('+ 键盘加入', '+ Keyboard join');
   $('relayBtn').textContent = forceRelay ? tr('绕路模式：开', 'Relay mode: on') : tr('绕路模式：关', 'Relay mode: off');
-  $('muteBtn').textContent = sfx.muted ? tr('🔇 静音', '🔇 Muted') : tr('🔊 声音', '🔊 Sound');
+  // 手机上顶栏挤：只留图标
+  $('muteBtn').textContent = phoneMode ? (sfx.muted ? '🔇' : '🔊') : sfx.muted ? tr('🔇 静音', '🔇 Muted') : tr('🔊 声音', '🔊 Sound');
+  $('muteBtn').setAttribute('aria-label', tr('声音', 'Sound'));
   $('muteBtn').setAttribute('aria-pressed', String(sfx.muted));
 }
 
@@ -277,12 +312,17 @@ function syncStageLevel(): void {
 
 // ---------- 玩家 ----------
 function playerCount(): number {
-  return seatOrder.length + (keyboard ? 1 : 0);
+  return seatOrder.length + (localOn() ? 1 : 0);
 }
 function playerNames(): string[] {
   const names = seatOrder.map((id) => link?.peers.get(id)?.name ?? '');
-  if (keyboard) names.push(tr('键盘', 'Keyboard'));
+  if (localOn()) names.push(localName());
   return names;
+}
+function playerLook(i: number): Look {
+  if (i === localIndex()) return localLook();
+  const id = seatOrder[i];
+  return (id && link?.peers.get(id)?.look) || DEFAULT_LOOK;
 }
 /** 大厅里座位变了就重排玩家；玩的时候只跟着座位的来去增减，颜色跟座位走。 */
 function syncPlayers(): void {
@@ -301,15 +341,16 @@ function syncPlayers(): void {
     stage.setPlayerStyle(i, { name: peer.name, color: p.color, look });
     sfx.setVoice(i, look.voice);
   });
-  if (keyboard) {
+  if (localOn()) {
     const i = sim.players.length - 1;
     const p = sim.players[i];
     if (p) {
-      p.color = PLAYER_COLORS[KB_COLOR] ?? p.color;
-      stage.setPlayerStyle(i, { name: tr('键盘', 'Keyboard'), color: p.color, look: kbLook });
-      sfx.setVoice(i, kbLook.voice);
+      p.color = PLAYER_COLORS[localColor()] ?? p.color;
+      stage.setPlayerStyle(i, { name: localName(), color: p.color, look: localLook() });
+      sfx.setVoice(i, localLook().voice);
     }
   }
+  castDirty = true;
 }
 async function resetSim(): Promise<void> {
   const old = sim;
@@ -361,8 +402,30 @@ function renderLobby(): void {
     const sub = !s.connected ? tr('掉线', 'Offline') : peer?.direct ? tr('直连', 'Direct') : peer?.relayed ? tr('绕路', 'Relayed') : tr('连接中', 'Connecting');
     box.append(seatCard(s.name, PLAYER_COLORS[s.color] ?? '#fff', peer?.look ?? DEFAULT_LOOK, sub, !s.connected));
   }
-  if (keyboard) box.append(seatCard(tr('键盘', 'Keyboard'), PLAYER_COLORS[KB_COLOR] ?? '#fff', kbLook, tr('这台电脑', 'This computer'), false));
-  for (let i = seats.length + (keyboard ? 1 : 0); i < MAX_SEATS; i++) {
+  if (localOn()) {
+    const card = seatCard(localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false);
+    // 手机局：点自己那张卡换个样子（随机），这部手机以后当手柄也用这个
+    if (phoneMode) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'seat me';
+      b.setAttribute('aria-label', tr('换个样子', 'New look'));
+      b.append(...card.childNodes);
+      b.addEventListener('click', () => {
+        hostLook = randomLook();
+        try {
+          localStorage.setItem('hang-on:look', JSON.stringify(hostLook));
+        } catch {
+          // 记不住就记不住
+        }
+        sfx.tick();
+        syncPlayers();
+        renderLobby();
+      });
+      box.append(b);
+    } else box.append(card);
+  }
+  for (let i = seats.length + (localOn() ? 1 : 0); i < MAX_SEATS; i++) {
     const el = document.createElement('div');
     el.className = 'seat empty';
     const ph = document.createElement('span');
@@ -458,6 +521,56 @@ function keyboardInput(): PadInput {
   return input;
 }
 
+// ---------- 手机局：房主的触屏手柄、全屏、不睡 ----------
+const touch = bindControls($('touch'));
+let summonTap = false;
+const touchSummon = $<HTMLButtonElement>('touchSummon');
+touchSummon.addEventListener('click', () => {
+  summonTap = true;
+});
+function touchInput(): PadInput {
+  const input: PadInput = { ax: touch.aim.x, ay: touch.aim.y, gl: touch.grab.l, gr: touch.grab.r };
+  // 键盘也能玩（调试、接了键盘的平板）
+  const kb = keyboardInput();
+  if (!input.ax && !input.ay) {
+    input.ax = kb.ax;
+    input.ay = kb.ay;
+  }
+  input.gl ||= kb.gl;
+  input.gr ||= kb.gr;
+  if (summonTap || kb.act) input.act = 'summon';
+  summonTap = false;
+  return input;
+}
+function localInput(): PadInput {
+  return phoneMode ? touchInput() : keyboardInput();
+}
+
+async function phoneScreen(): Promise<void> {
+  try {
+    if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+    const so = screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> };
+    await so.lock?.('landscape');
+  } catch {
+    // iPhone 的 Safari 不给全屏，锁不了方向就提示横过来
+  }
+  void keepAwake();
+}
+let wakeAsked = false;
+async function keepAwake(): Promise<void> {
+  const wl = (navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<unknown> } }).wakeLock;
+  try {
+    await wl?.request('screen');
+  } catch {
+    // 不给就算了
+  }
+  if (wakeAsked) return;
+  wakeAsked = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void wl?.request('screen').catch(() => undefined);
+  });
+}
+
 // ---------- 主循环 ----------
 const DT = CFG.step;
 let last = performance.now();
@@ -474,12 +587,17 @@ function feedInputs(): void {
     const stale = !peer.connected || performance.now() - peer.lastInputAt > 500;
     sim.setInput(i, stale ? { ax: 0, ay: 0, gl: input.gl, gr: input.gr } : input);
   });
-  if (keyboard) sim.setInput(sim.players.length - 1, keyboardInput());
+  if (localOn()) sim.setInput(sim.players.length - 1, localInput());
 }
 
 function sendStatus(): void {
-  if (!link) return;
   const dead = sim.players.filter((p) => p.dead).length;
+  if (phoneMode) {
+    // 房主的「召唤」键：有队友摔下去还没回来才亮
+    const me = sim.players[localIndex()];
+    touchSummon.disabled = !(phase === 'playing' && dead - (me?.dead ? 1 : 0) > 0);
+  }
+  if (!link) return;
   seatOrder.forEach((id, i) => {
     const p = sim.players[i];
     const peer = link!.peers.get(id);
@@ -515,6 +633,49 @@ function onEvents(): void {
   }
 }
 
+// ---------- 手机局：给每部手机发画面快照和样子名单 ----------
+let snapSeq = 1;
+const snapAt = new Map<string, number>();
+const recent = new EventWindow();
+let castAt = 0;
+
+function castFor(seat: string): Cast {
+  const names = playerNames();
+  return {
+    me: seatOrder.indexOf(seat),
+    players: sim.players.map((p, i) => ({ name: names[i] || `P${i + 1}`, color: p.color, look: playerLook(i) })),
+    ...(phase === 'results' ? { results: resultsOf(sim) } : {}),
+  };
+}
+
+function broadcast(now: number): void {
+  if (!phoneMode || !link) return;
+  const castNow = castDirty || now - castAt >= CAST_MS;
+  if (castNow) {
+    castDirty = false;
+    castAt = now;
+  }
+  const ev = recent.take();
+  let sent = false;
+  for (const p of link.peers.values()) {
+    if (!p.connected) continue;
+    if (castNow) link.cast(p.seat, castFor(p.seat));
+    // 直连每 50 ms 一张；绕路走房间，100 ms 一张
+    if (now - (snapAt.get(p.seat) ?? 0) < (p.direct ? SNAP_MS : SNAP_RELAY_MS)) continue;
+    snapAt.set(p.seat, now);
+    link.snap(p.seat, encodeSnap(sim, snapSeq++, ev));
+    sent = true;
+  }
+  if (sent) recent.sent();
+}
+
+/** 这台设备放哪些声音：电视局全放；手机局只放房主自己那个人的和大家共有的。 */
+function heard(events: readonly SimEvent[]): readonly SimEvent[] {
+  if (!phoneMode) return events;
+  const me = localIndex();
+  return events.filter((e) => heardBy(e, me));
+}
+
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -524,13 +685,15 @@ function frame(now: number): void {
     while (acc >= DT) {
       sim.step(DT);
       stage.handleEvents(sim, sim.events);
-      sfx.handleEvents(sim, sim.events);
+      sfx.handleEvents(sim, heard(sim.events));
+      if (phoneMode) recent.push(sim.events);
       onEvents();
       acc -= DT;
     }
   } else {
     acc = 0;
   }
+  broadcast(now);
   if (renderOn) {
     stage.updateCamera(sim, dt);
     stage.draw(sim, dt);
@@ -568,6 +731,14 @@ requestAnimationFrame(frame);
   sfx,
   CFG,
   LEVELS,
+  phoneMode,
+  /** 手机局房主的触屏输入（检查脚本直接改它，像在屏幕上按）。 */
+  touch,
+  /** 手机局：最近的事件（跟着快照发出去的那一段）。 */
+  recent,
+  get localIndex() {
+    return localIndex();
+  },
 };
 
 void start();
