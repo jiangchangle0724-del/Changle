@@ -35,10 +35,12 @@ export function GameSheet({
   // a computer (or a TV browser) can become the big screen right here; a phone gets told where to go
   const bigScreen = () => {
     const wide = window.matchMedia("(min-width: 900px) and (hover: hover)").matches;
-    if (wide && g) go({ kind: "tv", game: g.id }, true);
+    // a stage on its own Worker (一起跳) is a real page load, not a page of this site
+    if (wide && g?.stage) window.location.assign(g.stage.screen);
+    else if (wide && g) go({ kind: "tv", game: g.id }, true);
     else setTvHelp((x) => !x);
   };
-  const where = g?.speaker ? `${window.location.host}${g.speaker}` : `${window.location.host}/tv`;
+  const where = g?.stage ? `${window.location.host}${g.stage.screen}` : g?.speaker ? `${window.location.host}${g.speaker}` : `${window.location.host}/tv`;
   return (
     // the card's own address (/g/<slug>) is its history entry, so the sheet adds none
     <Sheet open={!!g} onClose={onClose} gel={g?.gel} history={false} label={g ? (lang === "zh" ? g.name.zh : g.name.en) : undefined}>
@@ -58,7 +60,33 @@ export function GameSheet({
             {g.minPlayers === g.maxPlayers ? ui("playersExactly", { n: g.minPlayers }) : ui("playersRange", { min: g.minPlayers, max: g.maxPlayers })}
           </p>
 
-          {g.ready && g.speaker ? (
+          {g.ready && g.stage ? (
+            // on its own Worker (一起跳): a TV or computer is the stage, phones join it there
+            <div className="game-card-modes">
+              <button type="button" className="mode-btn mode-primary" onClick={bigScreen} aria-expanded={tvHelp}>
+                <Tv size={22} />
+                <span>
+                  <strong>{zh ? "电视或电脑当舞台" : "A TV or computer is the stage"}</strong>
+                  <small>{zh ? "老师在那里教，大家拿着手机跟着跳" : "The coach teaches there. Everyone dances with their phone."}</small>
+                </span>
+              </button>
+              {tvHelp && (
+                <div className="mode-help">
+                  <p>{zh ? `在电视或电脑的浏览器里打开 ${where}，点「开始」。屏幕上有二维码，大家扫码进来。` : `On the TV or computer, open ${where} in the browser and press Start. A QR code comes up; everyone scans it to join.`}</p>
+                  <button type="button" className="btn btn-ghost btn-block" onClick={() => window.location.assign(g.stage!.screen)}>
+                    {zh ? "就用这台设备当舞台" : "Use this device as the stage"}
+                  </button>
+                </div>
+              )}
+              <button type="button" className="mode-btn" onClick={() => window.location.assign(g.stage!.join)}>
+                <Smartphone size={22} />
+                <span>
+                  <strong>{zh ? "用手机加入" : "Join from your phone"}</strong>
+                  <small>{zh ? "舞台已经开了：扫码，或者输大屏上的 4 位房间码" : "The stage is up: scan in, or type the 4-character code on it"}</small>
+                </span>
+              </button>
+            </div>
+          ) : g.ready && g.speaker ? (
             // played from a big screen (the DJ booth): that screen first, then everyone's phone
             <div className="game-card-modes">
               <button type="button" className="mode-btn mode-primary" onClick={bigScreen} aria-expanded={tvHelp}>

@@ -234,20 +234,25 @@ export function tuneChoice(o: number, zh: boolean): QuizChoice {
 /**
  * Four titles for everyone. Before the reveal a tap is the player's pick (one only); at the reveal
  * the right one lights up and a wrong pick is marked.
+ *
+ * One phone for the whole table (`tried`): the table guesses until it gets it, so a wrong title is
+ * marked and locked, and the others can still be tapped.
  */
-export function QuizChoices({ choices, mine, answer, onPick, disabled }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean }) {
+export function QuizChoices({ choices, mine, answer, onPick, disabled, tried = [] }: { choices: QuizChoice[]; mine: number | null; answer: number | null; onPick?: (id: number) => void; disabled?: boolean; tried?: number[] }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const done = answer !== null;
   return (
     <div className="tn-quiz" role="group" aria-label={zh ? "四个歌名" : "Four titles"}>
       {choices.map((c) => {
-        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", done && mine === c.id && c.id !== answer ? "is-wrong" : ""].join(" ");
+        const missed = tried.includes(c.id) && c.id !== answer;
+        const cls = ["tn-option", mine === c.id ? "is-mine" : "", done && c.id === answer ? "is-right" : "", missed || (done && mine === c.id && c.id !== answer) ? "is-wrong" : ""].join(" ");
         return (
-          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
+          <button key={c.id} type="button" className={cls} disabled={disabled || done || mine !== null || missed} aria-pressed={mine === c.id} onClick={() => onPick?.(c.id)}>
             <strong>{c.t}</strong>
             <small>{zh ? c.a : c.ae}</small>
             {mine === c.id && !done && <span className="tn-pick">{zh ? "你的答案" : "Your pick"}</span>}
+            {missed && !done && <span className="tn-pick tn-pick-miss">{zh ? "不是这首" : "Not this one"}</span>}
           </button>
         );
       })}

@@ -1,5 +1,8 @@
 # C1: the card bank to 300
 
+**Done 2026-11-05:** 300 cards, every pack 17 or more (written by Claude's helpers with sources,
+PR after the online one). Kept for the rules: the next cards follow the same ones.
+
 **Files:** `site/src/data/straightface.ts` only (the `CARDS` array; `PACKS`, `PACK_NAMES` and
 `PACK_AUDIENCE` stay). A new pack also needs a picture in `site/src/party/straightface/art/packs/`
 (ask Steve; see `art/README.md`), so new cards go into the packs that exist.

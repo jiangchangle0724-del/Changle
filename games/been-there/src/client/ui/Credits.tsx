@@ -29,6 +29,8 @@ export const SATELLITE: { name: { zh: string; en: string }; who: string; url: st
 ];
 /** NASA's terms for its pictures. */
 export const NASA_TERMS = "https://www.nasa.gov/nasa-brand-center/images-and-media/";
+/** The instruments the game's music was played with (scripts/music.mjs): its maker's page, as he asks. */
+export const GENERALUSER = "https://www.schristiancollins.com/generaluser";
 
 const PARTS: [Key, Item[]][] = [
   [
@@ -128,6 +130,16 @@ export function Credits() {
       <MediaList of={PHOTOS} />
       <h3>{t("creditsSound")}</h3>
       <p>{t("creditsSoundText")}</p>
+      <h3>{t("creditsMusic")}</h3>
+      <p class="muted">{t("creditsMusicText")}</p>
+      <ul>
+        <li>
+          <a href={GENERALUSER} target="_blank" rel="noopener noreferrer">
+            GeneralUser GS v2.0.3 · S. Christian Collins
+          </a>{" "}
+          <small class="muted">{t("creditsMusicLicence")}</small>
+        </li>
+      </ul>
       <h3>{t("creditsRecordings")}</h3>
       <p class="muted">{t("creditsRecordingsText")}</p>
       <MediaList of={RECORDINGS} />
@@ -136,6 +148,8 @@ export function Credits() {
       <SongList />
       <h3>{t("creditsRates")}</h3>
       <p class="muted">{t("creditsRatesText", { date: dateText(RATES_DATE) })}</p>
+      <h3>{t("creditsReports")}</h3>
+      <p class="muted">{t("creditsReportsText")}</p>
       <Licences />
     </div>
   );

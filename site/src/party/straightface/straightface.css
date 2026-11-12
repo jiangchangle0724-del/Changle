@@ -535,24 +535,6 @@
   color: var(--color-text-2);
   font-size: var(--text-sm);
 }
-.sf-honest {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--r-panel);
-  background:
-    radial-gradient(80% 80% at 50% 0%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 70%),
-    var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--color-line-soft);
-}
-.sf-honest strong {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  line-height: var(--leading-tight);
-}
 .sf-deltas {
   display: flex;
   flex-wrap: wrap;
@@ -691,4 +673,146 @@
 }
 .sf-judge-line .timer-arc {
   flex: none;
+}
+
+/* ---------- motion: the reveal's verdict, the points, the floor, the stamp (reduced motion: still) ---------- */
+.sf-verdict {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--r-panel);
+  background:
+    radial-gradient(80% 80% at 25% 0%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 70%),
+    var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line-soft);
+}
+.sf-verdict.is-fooled {
+  background:
+    radial-gradient(80% 80% at 25% 0%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 70%),
+    radial-gradient(70% 80% at 85% 100%, color-mix(in oklab, var(--color-danger) 20%, transparent), transparent 70%),
+    var(--color-surface);
+}
+.sf-verdict-who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  text-align: center;
+}
+.sf-verdict-who strong {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+.sf-verdict-judge {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.sf-verdict-art {
+  border-radius: var(--r-tile);
+}
+.sf-verdict-stamp {
+  position: absolute;
+  bottom: calc(var(--space-2) * -1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-small);
+  box-shadow: inset 0 0 0 3px currentColor;
+  background: color-mix(in oklab, var(--color-surface) 85%, transparent);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  white-space: nowrap;
+  rotate: -7deg;
+}
+.sf-verdict.is-right .sf-verdict-stamp {
+  color: var(--color-success);
+}
+.sf-verdict.is-fooled .sf-verdict-stamp {
+  color: var(--color-danger);
+}
+.sf-master-art {
+  align-self: center;
+  border-radius: var(--r-tile);
+  animation: sf-pop var(--dur-emphasis) var(--ease-pop) both;
+}
+.sf-confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.sf-delta {
+  animation: sf-pop var(--dur-emphasis) var(--ease-pop) both;
+  animation-delay: calc(var(--i, 0) * var(--dur-exit) / 2);
+}
+.sf-speaker-who,
+.sf-part,
+.sf-phase {
+  animation: sf-in var(--dur-emphasis) var(--ease-out) both;
+}
+.sf-part {
+  animation-duration: var(--dur-enter);
+}
+.sf-order li.is-now .sf-order-face {
+  animation: sf-pulse calc(var(--dur-emphasis) * 4) var(--ease-out) infinite;
+}
+.sf-mark {
+  animation: sf-stamp var(--dur-emphasis) var(--ease-pop) both;
+}
+.sf-judge-line .sf-role-art {
+  animation: sf-bob calc(var(--dur-emphasis) * 5) ease-in-out infinite alternate;
+}
+.sf-final {
+  animation: sf-drop calc(var(--dur-emphasis) * 1.5) var(--ease-pop) both;
+}
+.sf-phase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+@keyframes sf-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes sf-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--gel);
+  }
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in oklab, var(--gel) 30%, transparent);
+  }
+}
+@keyframes sf-stamp {
+  from {
+    opacity: 0;
+    transform: scale(2.4) rotate(-18deg);
+  }
+}
+@keyframes sf-bob {
+  to {
+    transform: translateY(calc(var(--motion-shift) * -0.5)) rotate(-3deg);
+  }
+}
+@keyframes sf-drop {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-shift) * -4)) scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf-order li.is-now .sf-order-face,
+  .sf-judge-line .sf-role-art {
+    animation: none;
+  }
 }

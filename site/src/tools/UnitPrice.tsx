@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
-import { cleanAmount, convert, CURRENCIES, type Code, type FxState } from "./fx";
+import { capDigits, cleanAmount, convert, CURRENCIES, sizeClass, type Code, type FxState } from "./fx";
 import { RateStatus } from "./RateStatus";
 
 type Unit = { id: string; zh: string; en: string; size: number };
@@ -51,6 +51,15 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   const nf = useMemo(() => new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), [lang]);
   const rate = fx.rates ? convert(fx.rates, 1, state.cur, state.alt) : NaN;
   const set = (patch: Partial<typeof state>) => setState((s) => ({ ...s, ...patch }));
+  const rows = units
+    .filter((u) => u.id !== from.id)
+    .map((u) => {
+      const v = perBase * u.size;
+      return { u, main: `${SYMBOL[state.cur]}${nf.format(v)}`, alt: state.alt !== state.cur && Number.isFinite(rate) ? `≈ ${SYMBOL[state.alt]}${nf.format(v * rate)}` : "" };
+    });
+  // the longest figure sets the size of all of them; past that, one box per line
+  const longest = Math.max(...rows.map((r) => r.main.length));
+  const listClass = longest > 12 ? "is-single" : longest > 9 ? "is-long" : "";
 
   return (
     <section className="tool" id="tool-price" aria-labelledby="price-title">
@@ -79,11 +88,11 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
           ))}
         </select>
         <input
-          className="price-amount tabular"
+          className={`price-amount tabular ${sizeClass(state.text, [6, 8])}`}
           inputMode="decimal"
           enterKeyHint="done"
           value={state.text}
-          onChange={(e) => set({ text: cleanAmount(e.target.value).slice(0, 10) })}
+          onChange={(e) => set({ text: capDigits(cleanAmount(e.target.value), 9) })}
           onFocus={(e) => {
             const el = e.currentTarget;
             window.setTimeout(() => el.select(), 0);
@@ -100,28 +109,16 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
         ))}
       </div>
 
-      <ul className="price-list">
-        {units
-          .filter((u) => u.id !== from.id)
-          .map((u) => {
-            const v = perBase * u.size;
-            return (
-              <li key={u.id}>
-                <span className="price-unit">/{lang === "zh" ? u.zh : u.en}</span>
-                <span className="price-main tabular">
-                  {SYMBOL[state.cur]}
-                  {nf.format(v)}
-                </span>
-                {state.alt !== state.cur && Number.isFinite(rate) && (
-                  <span className="price-alt tabular">
-                    ≈ {SYMBOL[state.alt]}
-                    {nf.format(v * rate)}
-                  </span>
-                )}
-              </li>
-            );
-          })}
+      <ul className={`price-list ${listClass}`}>
+        {rows.map(({ u, main, alt }) => (
+          <li key={u.id}>
+            <span className="price-unit">/{lang === "zh" ? u.zh : u.en}</span>
+            <span className="price-main tabular">{main}</span>
+            {alt && <span className="price-alt tabular">{alt}</span>}
+          </li>
+        ))}
       </ul>
+      {state.kind === "mass" && <p className="price-note">{lang === "zh" ? "1 斤按中国大陆的 500 克算。" : "1 jīn 斤 is counted as mainland China's 500 g."}</p>}
       <label className="price-also">
         <span>{lang === "zh" ? "同时显示" : "Also show in"}</span>
         <select value={state.alt} onChange={(e) => set({ alt: e.target.value as Code })}>

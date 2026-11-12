@@ -111,11 +111,15 @@ test("straightface: validateCard requires funFact and source, refuses a brackete
   ok(lintDeck([base]).length === 0, "lint passes the plain term");
 });
 
+test("straightface: the bank holds 300 cards", () => {
+  ok(cards.length >= 300, `${cards.length} cards`);
+});
+
 test("straightface: every pack has its table, its picture and enough cards; Chinese packs show the word with its reading, English packs the word itself", () => {
   for (const p of PACKS) {
     const deck = cards.filter((c) => c.pack === p);
-    // ten is enough to play a whole game of nine from one pack without a repeat
-    ok(deck.length >= 10, `${p}: ${deck.length} cards`);
+    // fifteen: a game of nine from one pack never repeats a card, and every level has a few
+    ok(deck.length >= 15, `${p}: ${deck.length} cards`);
     ok(["zh", "en", "both"].includes(PACK_AUDIENCE[p]), `${p} says which table it is for`);
     const art = join(here, "src/party/straightface/art/packs", `${p}.webp`);
     ok(existsSync(art) && statSync(art).size < 40_000, `${p} has a picture under 40 KB`);
@@ -130,6 +134,10 @@ test("straightface: every pack has its table, its picture and enough cards; Chin
   }
   for (const r of ["judge", "honest", "bluffer"]) ok(existsSync(join(here, "src/party/straightface/art/roles", `${r}.webp`)), `the ${r} is drawn`);
   ok(existsSync(join(here, "src/party/straightface/art/backdrop.webp")), "the room behind the game is drawn");
+  for (const v of ["right", "fooled", "master"]) {
+    const f = join(here, "src/party/straightface/art/verdict", `${v}.webp`);
+    ok(existsSync(f) && statSync(f).size < 40_000, `the verdict picture ${v} is drawn, under 40 KB`);
+  }
   const base = cards[0];
   const idiom: Card = { ...base, id: "idiom", term: { zh: "七月流火", en: "七月流火 qī yuè liú huǒ" }, definition: { zh: "七月流火说的是天要转凉。", en: "The heat is ending." } };
   ok(lintDeck([idiom]).length === 0, "a Chinese original may quote itself in its definition");

@@ -9,9 +9,9 @@ import { SeatFace } from "../../online/People";
 import type { SeatView } from "../../shared/protocol";
 import { roundLines } from "../../shared/straightface/scoring";
 import type { Level, PublicView, StraightFaceView } from "../../shared/straightface/types";
-import { Bi, FacesIn, RoundTag, Stamp, stampIn, TvBoard, TvClock, TvLineup, TvPodium, TvShow, useBeat, useConfetti, useLang, useSeats, type Person } from "../../tv/show";
+import { Bi, FacesIn, RoundTag, Stamp, stampIn, TvBoard, TvClock, TvLineup, TvPodium, TvShow, useArrivals, useBeat, useConfetti, useLang, useSeats, type Person } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
-import { PACK_ART, ROLE_ART } from "./art";
+import { PACK_ART, ROLE_ART, VERDICT_ART } from "./art";
 import { cue } from "./sounds";
 import "./tv-straightface.css";
 
@@ -45,7 +45,7 @@ export default function TvStraightFace({ v, sound }: TvViewProps<StraightFaceVie
       {phase === "setup" && <Setup v={v} />}
       {t && phase === "peek" && <Peek v={v} t={t} sound={sound} />}
       {t && phase === "explain" && <Explain t={t} sound={sound} />}
-      {t && phase === "bets" && <Bets v={v} t={t} />}
+      {t && phase === "bets" && <Bets v={v} t={t} sound={sound} />}
       {t && phase === "accuse" && <Accuse t={t} />}
       {t && phase === "reveal" && <Reveal v={v} t={t} sound={sound} />}
       {t && (phase === "between" || phase === "lobby") && <Between v={v} t={t} />}
@@ -60,6 +60,9 @@ function Shelves() {
 }
 
 const isPack = (p: string | null | undefined): p is Pack => !!p && (PACKS as readonly string[]).includes(p);
+
+/** A count as a list of names for useArrivals (the table's view says how many, never who). */
+const counted = (n: number) => Array.from({ length: n }, (_, i) => String(i));
 
 /** The word, as the phones show it: a Chinese original keeps its characters, with the reading under them. */
 function wordOf(term: T, zh: boolean) {
@@ -150,6 +153,7 @@ function Peek({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bool
   const { zh } = useLang();
   const people = useGame(v.players);
   const root = useRef<HTMLDivElement>(null);
+  useArrivals(counted(t.peekedCount), sound);
   useBeat(
     (tl, q) => {
       if (sound) tl.call(() => cue.deal(), [], 0);
@@ -168,7 +172,7 @@ function Peek({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bool
         <EyeOff size={40} strokeWidth={2.4} />
         {zh ? "每个人在偷偷看自己的身份：只有一个老实人知道它的意思" : "Everyone is reading their part in secret: only one honest one knows what it means"}
         <span className="tvsf-count tabular">
-          <b>{t.peekedCount}</b>/{t.peekTotal}
+          <b key={t.peekedCount}>{t.peekedCount}</b>/{t.peekTotal}
           <small>{zh ? " 看好了" : " ready"}</small>
         </span>
       </p>
@@ -263,9 +267,10 @@ function Explain({ t, sound }: { t: PublicView; sound: boolean }) {
 
 /* ------------------------------------------------------------------ the bets */
 
-function Bets({ v, t }: { v: StraightFaceView; t: PublicView }) {
+function Bets({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: boolean }) {
   const { zh } = useLang();
   const people = useGame(v.players);
+  useArrivals(counted(t.betsPlaced), sound);
   return (
     <div className="tvsf-peek">
       <WordCard t={t} small />
@@ -273,7 +278,7 @@ function Bets({ v, t }: { v: StraightFaceView; t: PublicView }) {
         <Vote size={40} strokeWidth={2.4} />
         {zh ? "在手机上押：谁是老实人？押中 +1" : "Bet on your phone: who is the honest one? A right bet: +1"}
         <span className="tvsf-count tabular">
-          <b>{t.betsPlaced}</b>/{t.betsExpected}
+          <b key={t.betsPlaced}>{t.betsPlaced}</b>/{t.betsExpected}
           <small>{zh ? " 押了" : " in"}</small>
         </span>
       </p>
@@ -326,6 +331,8 @@ function Reveal({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bo
       if (sound) tl.call(() => sfx.drumroll(1.0), [], 1.8);
       tl.fromTo(q(".tvsf-honest-fig"), { opacity: 0, y: 70, scale: 0.85 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "back.out(1.6)" }, 2.7);
       stampIn(tl, q(".tvsf-honest .tvx-stamp"), 3.0);
+      tl.fromTo(q(".tvsf-verdict-art"), { scale: 0.4, opacity: 0, rotate: right ? -12 : 12 }, { scale: 1, opacity: 1, rotate: 0, duration: 0.5, ease: "back.out(1.6)" }, 3.0);
+      if (!right) tl.fromTo(q(".tvsf-verdict-art"), { x: -14 }, { x: 0, duration: 0.7, ease: "elastic.out(1.4, 0.2)" }, 3.5);
       if (sound) tl.call(() => cue.verdict(right), [], 3.0);
       if (right) tl.call(() => burst({ x: 0.22, y: 0.6, count: 180, spread: 90, power: 22 }), [], 3.1);
       tl.fromTo(q(".tvsf-points li, .tvsf-deltas > span"), { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.08 }, 3.6);
@@ -350,11 +357,14 @@ function Reveal({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bo
       </div>
       <div className="tvsf-verdict">
         <div className="tvsf-honest">
-          {honest && (
-            <span className="tvsf-honest-fig">
-              <Figure seat={honest} />
-            </span>
-          )}
+          <div className="tvsf-honest-row">
+            {honest && (
+              <span className="tvsf-honest-fig">
+                <Figure seat={honest} />
+              </span>
+            )}
+            <img className="tvsf-verdict-art" src={VERDICT_ART[right ? "right" : "fooled"]} alt="" width={170} height={170} />
+          </div>
           <span className="tvsf-honest-stamp">
             <Stamp tone={right ? "go" : "stop"} held>
               {zh ? `老实人：${honest?.name ?? ""}` : `Honest: ${honest?.name ?? ""}`}
@@ -382,7 +392,12 @@ function Reveal({ v, t, sound }: { v: StraightFaceView; t: PublicView; sound: bo
               ))}
             </p>
           )}
-          {master && <p className="tvsf-master">{zh ? `大忽悠 ${master.name} 在手机上指定一个人` : `${master.name}, the master bluffer, is picking someone`}</p>}
+          {master && (
+            <p className="tvsf-master">
+              <img src={VERDICT_ART.master} alt="" width={56} height={56} />
+              {zh ? `大忽悠 ${master.name} 在手机上指定一个人` : `${master.name}, the master bluffer, is picking someone`}
+            </p>
+          )}
           {picked && f && <p className="tvsf-master">{zh ? `${name(f.accusedId)} 指定了 ${picked.name}` : `${name(f.accusedId)} picked ${picked.name}`}</p>}
         </div>
       </div>
