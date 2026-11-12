@@ -1,5 +1,5 @@
 import { Check, Shuffle, PenLine } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { GAME_BY_ID } from "../../games/registry";
 import { haptic, sfx } from "../../lib/sfx";
@@ -10,24 +10,47 @@ import { usePlayers, useWatching } from "../../online/players";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { SuperView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
+import { useFreshTapGuard, useTopOfMoment } from "./moment";
 import { AwardCard, AwardReveal, Ceremony } from "./parts";
+import { useSeatMemory } from "./seats";
 import "../../styles/party.css";
 import { Moment } from "../../components/Figure";
 
 export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) {
-  const { room, me, isHost, g, nameOf, offset } = useRoom();
+  const { me, isHost, g, offset, now } = useRoom();
   const { lang } = useStore();
   const ownPenalty = usePenaltyText().isCustom;
   const zh = lang === "zh";
-  const seats = room?.seats ?? [];
   // who votes and who can win: the players (someone just watching does neither)
   const players = usePlayers();
   const watching = useWatching();
-  const seat = (id: string) => seats.find((s) => s.id === id);
+  // (a seat that left mid-award keeps its name and face: the room alone would say "?")
+  const { seat, name, gone } = useSeatMemory();
   const face = (id: string) => (size: number) => <SeatFace seat={seat(id)} size={size} />;
   const [writing, setWriting] = useState(false);
   const [custom, setCustom] = useState("");
   useCue(v.phase === "vote", () => sfx.pop());
+  const body = useRef<HTMLDivElement>(null);
+  const moment = `${v.phase}:${v.ballot}`;
+  useTopOfMoment(moment, body);
+  // (the ballot's tiles take the place of the host's "next award" button: a quick second tap on it
+  // must not cast a vote)
+  const { fresh, guard } = useFreshTapGuard(moment);
+
+  // The host moves on once the moment's stamp has landed (the winner's sip 2.6 s into the reveal,
+  // the table's toast 3.2 s into the ceremony): the rooms server turns an earlier tap away, and the
+  // button waits for it so the stamp never lands on the next award's ballot.
+  const [stampDue, setStampDue] = useState(false);
+  useEffect(() => {
+    const left = v.stampAt ? v.stampAt - now() : 0;
+    if (left <= 0) {
+      setStampDue(false);
+      return;
+    }
+    setStampDue(true);
+    const timer = window.setTimeout(() => setStampDue(false), left + 150);
+    return () => window.clearTimeout(timer);
+  }, [v.stampAt, now]);
 
   const rules = (
     <p>
@@ -44,7 +67,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
   const voters = players.length;
   return (
     <NetFrame title={GAME_BY_ID.superlatives.name} rules={rules} onLeave={onLeave}>
-      <div className="sup">
+      <div className="sup" ref={body}>
         {v.phase !== "ceremony" && <AwardCard title={v.title} round={v.round} total={v.total} custom={v.custom} />}
 
         {v.phase === "vote" && (
@@ -65,7 +88,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
                 ))}
               </span>
             </div>
-            <p className="sup-ask">{v.myVote ? (zh ? `投给了 ${nameOf(v.myVote)}，揭晓前还能改` : `You voted for ${nameOf(v.myVote)}. You can change it until the reveal.`) : zh ? "这个奖该给谁？" : "Who deserves it?"}</p>
+            <p className="sup-ask">{v.myVote ? (zh ? `投给了 ${name(v.myVote)}，揭晓前还能改` : `You voted for ${name(v.myVote)}. You can change it until the reveal.`) : zh ? "这个奖该给谁？" : "Who deserves it?"}</p>
             <div className="ballot">
               {players.map((s) => {
                 const self = s.id === me;
@@ -76,12 +99,14 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
                     type="button"
                     className={`nominee ${on ? "is-on" : ""}`}
                     disabled={self || watching}
+                    aria-disabled={fresh}
                     aria-pressed={on}
-                    onClick={() => {
-                      g("vote", { target: s.id });
+                    onClick={guard(() => {
+                      // (the ballot's number goes with it: a vote on an older ballot is dropped)
+                      g("vote", { target: s.id, ballot: v.ballot });
                       sfx.tap();
                       haptic(8);
-                    }}
+                    })}
                   >
                     <span className="nominee-face">
                       <SeatFace seat={s} size={58} />
@@ -139,11 +164,11 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
             )}
             <AwardReveal
               title={v.title}
-              winners={v.winners.map((id) => ({ id, name: nameOf(id), face: face(id), count: v.counts![id] ?? 0 }))}
-              nominees={Object.keys(v.counts).map((id) => ({ id, name: nameOf(id), face: face(id), count: v.counts![id] }))}
+              winners={v.winners.map((id) => ({ id, name: name(id), face: face(id), count: v.counts![id] ?? 0 }))}
+              nominees={Object.keys(v.counts).map((id) => ({ id, name: name(id), face: face(id), count: v.counts![id] }))}
             />
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("next")}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={stampDue} onClick={() => g("next")}>
                 {v.round >= v.total ? (zh ? "开颁奖典礼" : "On to the awards") : zh ? "下一个奖" : "Next award"}
               </button>
             ) : (
@@ -154,9 +179,17 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
 
         {v.phase === "ceremony" && (
           <>
-            <Ceremony shelves={players.map((s) => ({ id: s.id, name: s.id === me ? (zh ? "你" : "You") : s.name, face: face(s.id), awards: v.awards[s.id] ?? [] }))} />
+            {/* everyone at the table, and whoever left with a trophy */}
+            <Ceremony
+              shelves={[...players.map((s) => s.id), ...gone(Object.keys(v.awards).filter((id) => v.awards[id].length > 0))].map((id) => ({
+                id,
+                name: id === me ? (zh ? "你" : "You") : name(id),
+                face: face(id),
+                awards: v.awards[id] ?? [],
+              }))}
+            />
             {isHost && (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("more")}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={stampDue} onClick={() => g("more")}>
                 {zh ? "再来五个奖" : "Five more awards"}
               </button>
             )}

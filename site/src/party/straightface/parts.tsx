@@ -3,18 +3,21 @@
  * a slice of one), never the GameState: the one-phone screen and the online screens render the
  * same parts from what the engine's two view functions allow them to see.
  */
-import { Check, Tag } from "lucide-react";
+import { Check, PenLine, Tag } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Sheet } from "../../components/Sheet";
 import { TimerArc } from "../../components/TimerArc";
 import type { T } from "../../i18n";
 import { gsap, reduced } from "../../lib/anim";
 import { confetti, type ConfettiOpts } from "../../lib/confetti";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
+import { OWN_PACK } from "../../shared/straightface/engine";
 import type { Level, PrivateView, RoundResult } from "../../shared/straightface/types";
 import { NameFace } from "../common";
 import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightfacePacks";
 import { PACK_ART, ROLE_ART, VERDICT_ART } from "./art";
+import { REASONS, sendReport, type Reason } from "./feedback";
 import { S } from "./text";
 
 const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
@@ -102,11 +105,25 @@ export function TermCard({
           <span>{lang === "zh" ? PACK_NAMES[pack].zh : PACK_NAMES[pack].en}</span>
         </span>
       )}
+      {pack === OWN_PACK && <OwnPack />}
       {lead && <p className="sf-term-lead">{lead}</p>}
       <Bi t={term} className="sf-term-word" />
-      {level && <LevelDots level={level} />}
+      {level && pack !== OWN_PACK && <LevelDots level={level} />}
       {children}
     </div>
+  );
+}
+
+/** The pack line of a player's own word (自己出题): a pen where a pack's picture would be. */
+export function OwnPack({ size = 28 }: { size?: number }) {
+  const say = useSay();
+  return (
+    <span className="sf-term-pack is-own">
+      <span className="sf-own-badge" style={{ width: size, height: size }} aria-hidden="true">
+        <PenLine size={Math.round(size * 0.6)} />
+      </span>
+      <span>{say(S.ownPack)}</span>
+    </span>
   );
 }
 
@@ -204,6 +221,8 @@ export function PartCard({ view }: { view: PrivateView }) {
       {view.term && <p className="sf-part-term">{lang === "zh" ? view.term.zh : view.term.en}</p>}
       {honest && view.definition && <p className="sf-part-def">{lang === "zh" ? view.definition.zh : view.definition.en}</p>}
       <p className="sf-part-hint">{say(honest ? S.honestHint : S.blufferHint)}</p>
+      {view.wrote && <p className="sf-part-wrote">{say(S.ownYours)}</p>}
+      {!honest && view.bluffSeeds && view.bluffSeeds.length === 0 && <p className="sf-part-hint">{say(S.ownNoSeeds)}</p>}
       {!honest && view.bluffSeeds && view.bluffSeeds.length > 0 && (
         <div className="sf-seeds">
           <span>{say(S.seedsLead)}</span>
@@ -608,5 +627,73 @@ export function PackStrip({ packs }: { packs: string[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+const REASON_TEXT: Record<Reason, T> = { wrong: S.reasonWrong, easy: S.reasonEasy, unfit: S.reasonUnfit, other: S.reasonOther };
+
+/** How the card has played on changle, once it has a few rounds behind it. */
+export function CardNumbers({ stats }: { stats: [number, number] | undefined }) {
+  const say = useSay();
+  if (!stats || stats[0] < 3) return null;
+  return <p className="sf-numbers">{say(S.cardNumbers, { n: stats[0], m: stats[1] })}</p>;
+}
+
+/** "Something off with this card?": a reason, a note if they like, sent to the owner's desk; then thanks. */
+export function ReportCard({ card, term }: { card: string; term: T }) {
+  const say = useSay();
+  const { lang } = useStore();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<Reason | null>(null);
+  const [note, setNote] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const word = term.zh.trim() !== "" && term.en.startsWith(term.zh) ? term.zh : lang === "zh" ? term.zh : term.en;
+  const close = () => setOpen(false);
+  const send = async () => {
+    if (!reason || state === "sending") return;
+    setState("sending");
+    setState((await sendReport(card, reason, note.trim(), lang)) ? "sent" : "failed");
+  };
+  return (
+    <>
+      <button type="button" className="link-btn sf-report-link" onClick={() => setOpen(true)} disabled={state === "sent"}>
+        {say(state === "sent" ? S.reportThanks : S.reportLink)}
+      </button>
+      <Sheet open={open} onClose={close} title={say(S.reportTitle)}>
+        {state === "sent" ? (
+          <div className="stack sf-report">
+            <p>{say(S.reportThanks)}</p>
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={close}>
+              {say(S.reportClose)}
+            </button>
+          </div>
+        ) : (
+          <div className="stack sf-report">
+            <p className="hint">{say(S.reportFor, { term: word })}</p>
+            <div className="sf-reasons" role="radiogroup" aria-label={say(S.reportTitle)}>
+              {REASONS.map((r) => (
+                <button key={r} type="button" role="radio" aria-checked={reason === r} className={`sf-reason ${reason === r ? "is-on" : ""}`} onClick={() => setReason(r)}>
+                  {say(REASON_TEXT[r])}
+                </button>
+              ))}
+            </div>
+            <label className="sf-report-note">
+              <span className="field-label">{say(S.reportNote)}</span>
+              <span className="field">
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={3} placeholder={say(S.reportNoteHint)} />
+              </span>
+            </label>
+            {state === "failed" && (
+              <p className="hint sf-report-fail" role="alert">
+                {say(S.reportFailed)}
+              </p>
+            )}
+            <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!reason || state === "sending"} onClick={send}>
+              {say(S.reportSend)}
+            </button>
+          </div>
+        )}
+      </Sheet>
+    </>
   );
 }

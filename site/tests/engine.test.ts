@@ -2,8 +2,11 @@
 import { countdown, cued, loaded, pressBy, reqOrder } from "../src/shared/dj/deck";
 import { ENERGY, FAKE_MIX, heatLean, LEAN, mixFor } from "../src/shared/dj/curve";
 import { recapOf } from "../src/party/dj/recap";
+import { coaching } from "../src/party/limbo/coach";
+import { limboLift, limboStyle } from "../src/party/limbo/music";
+import { GROOVES } from "../src/lib/music";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
-import { DECK, MIX_FX, MIXER } from "../src/shared/dj/types";
+import { DECK, MIX_FX, MIXER, SHARED_BY } from "../src/shared/dj/types";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, nextWriters, presentMs } from "../src/shared/punchline";
@@ -27,13 +30,15 @@ import { DARES, promptText } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
-import { CAT_BIT, fromRow, inPool, moodOf, pickSong } from "../src/shared/songs";
+import { CAT_BIT, decoysFor, DEFAULT_POOL, fromRow, inPool, moodOf, pickSong, poolSize, samePool, singersOf } from "../src/shared/songs";
+import { SPECIALS } from "../src/data/songPools";
+import { challengeCode, challengeScore, challengeUrl, readChallenge, seeded } from "../src/party/tune/challenge";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
 import { drawMatches } from "../src/shared/engine/games/draw";
-import { DRAW_GUESS_MAX } from "../src/shared/protocol";
-import { hintBlanks, hintSay } from "../src/online/games/drawHint";
+import { DRAW_GUESS_MAX, DRAW_ROUND_MS } from "../src/shared/protocol";
+import { hintBlanks, hintSay, hintZh } from "../src/online/games/drawHint";
 
 let clock = 1_000_000;
 let seed = 7;
@@ -457,7 +462,7 @@ test("draw: guesses as people type them: Traditional characters, a or the, a plu
   ok(v.solved.join() === "p1,p2" && v.phase === "result", "the longest English answer counts in full, and the round is over");
 });
 
-test("draw: the English hint shows each word's blanks, and hyphens", () => {
+test("draw: the hint: in English each word's blanks, and hyphens; in Chinese the characters, and any letters", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "draw" });
   t.g("p0", "pick", { d: 3 });
@@ -475,6 +480,11 @@ test("draw: the English hint shows each word's blanks, and hyphens", () => {
   ok(shown.split(" ").every((w) => /^_(?: _)*$/.test(w)), "and each word's blanks together");
   ok(hintSay(pay.en) === "4 words: 6, 8, 2 and 8 letters" && hintSay("___") === "3 letters", `what a screen reader says (${hintSay(pay.en)})`);
   ok(hintSay(hintOf("熬夜").en) === "10 letters", "a hyphenated word is one word");
+  // in Chinese: how many characters, and the letters as letters (深夜emo is not five characters)
+  ok(pay.latin === 0 && hintZh(pay) === "3 个字", `月光族: three characters (${hintZh(pay)})`);
+  const emo = hintOf("深夜emo");
+  ok(emo.zh === 2 && emo.latin === 3 && hintZh(emo) === "2 个字加 3 个字母", `深夜emo: two characters and three letters (${hintZh(emo)})`);
+  ok(hintZh({ zh: 5 }) === "5 个字", "from a rooms server that doesn't count the letters yet: characters only");
 });
 
 test("draw: a drawer who leaves: no penalty for anyone else, the word goes up, the turn goes on round the table", () => {
@@ -613,6 +623,64 @@ function closeEnough() {
   ok(!u.view<V>("p0").solved.length, "a new round starts with nothing counted");
 }
 
+test("draw: nobody left to guess: the round ends, and the drawer doesn't drink for it", () => {
+  // (hands back the random numbers it uses, as the test above does)
+  const keep = seed;
+  try {
+    nobodyLeft();
+  } finally {
+    seed = keep;
+  }
+});
+
+function nobodyLeft() {
+  type V = Extract<GameView, { id: "draw" }>;
+  // two at the table, and the one guessing leaves mid-round
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "draw" });
+  t.g("p0", "pick", { d: 2 });
+  t.act("p1", { a: "leave" });
+  let v = t.view<V>("p0");
+  ok(v.phase === "result" && v.alone && !!v.word && !v.solved.length && v.left === null, "the round is over at once: the word goes up, and it says nobody was left to guess");
+  t.advance(DRAW_ROUND_MS + 1000);
+  t.advance(1000);
+  ok(!t.pens().length, "nobody drinks for it, then or when the minute would have run out");
+  t.g("p0", "next");
+  v = t.view<V>("p0");
+  ok(v.phase === "pick" && v.drawer === "p0" && !v.alone, "a new round, without the last one's 'nobody left'");
+  // drawing with nobody to guess: the minute runs out, or the drawer ends it, and nobody drinks
+  t.g("p0", "pick", { d: 1 });
+  t.advance(DRAW_ROUND_MS + 1000);
+  t.advance(1000);
+  v = t.view<V>("p0");
+  ok(v.phase === "result" && v.alone && !t.pens().length, "the minute runs out: no penalty");
+  t.g("p0", "next");
+  t.g("p0", "pick", { d: 1 });
+  t.g("p0", "giveup");
+  t.advance(1000);
+  ok(t.view<V>("p0").alone && !t.pens().length, "the drawer ends it: no penalty");
+
+  // three at the table: one guesser leaves, one is still guessing, so the round goes on; nobody
+  // gets it in the minute, and the drawer drinks as ever
+  const u = setup(3);
+  u.act("p0", { a: "start", game: "draw" });
+  u.g("p0", "pick", { d: 1 });
+  u.act("p2", { a: "leave" });
+  ok(u.view<V>("p0").phase === "draw", "p1 is still guessing");
+  u.advance(DRAW_ROUND_MS + 1000);
+  u.advance(1000);
+  const uv = u.view<V>("p0");
+  ok(uv.phase === "result" && !uv.alone && u.pens().some((p) => p.who.includes("p0")), "nobody got it: the drawer drinks");
+
+  // the one guessing sits out to watch: the same as leaving
+  const w = setup(2);
+  w.act("p0", { a: "start", game: "draw" });
+  w.g("p0", "pick", { d: 1 });
+  w.act("p1", { a: "watch", on: true });
+  w.advance(DRAW_ROUND_MS + 2000);
+  ok(w.view<V>("p0").alone && !w.pens().length, "a guesser who sits out to watch leaves nobody to guess: no penalty");
+}
+
 test("king: private tokens, crown, called numbers", () => {
   const t = setup(5);
   t.act("p0", { a: "start", game: "king" });
@@ -710,24 +778,67 @@ test("superlatives: secret votes, award, ceremony", () => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners[0] === "p2" && v.counts?.p2 === 3, "everyone voted: p2 wins with 3");
   ok(v.awards.p2?.length === 1, "p2 holds the award");
-  t.advance(3000);
-  ok(t.pens().some((p) => p.who.includes("p2")), "the winner drinks");
+  ok(v.stampAt === clock + 2600, "the view says when the winner's stamp lands");
+  // the host can't move on under the stamp: a quick "next" waits until it has landed
+  t.advance(1000);
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "reveal" && !t.pens().length, "next 1 s into the reveal: still the reveal, no stamp yet");
+  t.advance(2000);
+  ok(t.pens().some((p) => p.who.includes("p2") && p.kind === "sip"), "the winner drinks, 2.6 s in");
+  ok(t.view<V<"superlatives">>("p0").stampAt === 0, "landed: nothing pending in the view");
   // tie round, then fast-forward to the ceremony
   t.g("p0", "next");
-  t.g("p0", "vote", { target: "p1" });
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "vote" && v.round === 2 && v.ballot === 2, "next after the stamp: round 2, ballot 2");
+  // a vote for the ballot before (a phone that came back and still showed the last award) is dropped
+  t.g("p0", "vote", { target: "p1", ballot: 1 });
+  ok(t.view<V<"superlatives">>("p0").myVote === null, "a vote on an older ballot doesn't count");
+  t.g("p0", "vote", { target: "p1", ballot: 2 });
   t.g("p1", "vote", { target: "p0" });
   t.advance(46_000);
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners.length === 2, "timer reveals a tie with two winners");
   const s = t.eng.d.game!.s as { round: number; total: number };
   s.round = s.total;
+  t.advance(2700);
   t.g("p0", "next");
   ok(t.view<V<"superlatives">>("p0").phase === "ceremony", "after the last round: the ceremony");
+  const before = t.pens().length;
+  t.g("p0", "more");
+  ok(t.view<V<"superlatives">>("p0").phase === "ceremony", "more awards 0 s into the ceremony: the toast hasn't landed, still the ceremony");
+  t.advance(3300);
+  ok(t.pens().length === before + 1 && t.pens()[before].kind === "everyone" && t.pens()[before].who.length === 4, "3.2 s in: the whole table's toast");
   t.g("p0", "more");
   ok(t.view<V<"superlatives">>("p0").phase === "vote", "a few more rounds after the ceremony");
   t.g("p0", "custom", { text: "最会点歌" });
   v = t.view<V<"superlatives">>("p0");
   ok(v.custom && v.title.zh === "最会点歌", "the host can write a title");
+  ok(v.ballot === 4, "a title the host wrote is a new ballot");
+});
+
+test("superlatives: a skipped title is a new ballot; the winner who leaves still won", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "superlatives" });
+  const ballot = t.view<V<"superlatives">>("p0").ballot;
+  t.g("p1", "vote", { target: "p2", ballot });
+  t.g("p0", "skip");
+  let v = t.view<V<"superlatives">>("p1");
+  ok(v.ballot === ballot + 1 && v.voted.length === 0 && v.myVote === null, "the host swapped the title: a fresh ballot, votes cleared");
+  t.g("p1", "vote", { target: "p2", ballot });
+  ok(t.view<V<"superlatives">>("p1").myVote === null, "a vote on the swapped title's ballot is dropped");
+  t.g("p0", "vote", { target: "p2" });
+  t.g("p1", "vote", { target: "p2" });
+  t.g("p2", "vote", { target: "p0" });
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "reveal" && v.winners[0] === "p2", "p2 takes the award");
+  // the winner leaves the table during the reveal: the award stays theirs, and nobody else drinks for it
+  t.act("p2", { a: "leave" });
+  t.advance(2700);
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "reveal" && v.winners[0] === "p2" && v.awards.p2?.length === 1, "gone, but still the winner on the reveal and in the awards");
+  ok(!t.pens().length, "no stamp for a winner who left");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "vote", "and the host moves on");
 });
 
 test("punchline: writers and audience, the show's phases, sweep, safety, final picks", () => {
@@ -810,10 +921,9 @@ test("punchline: final picks toggle, up to three, never your own", () => {
 
 test("punchline: 再来一局 deals on from the same piles, so a table doesn't get its prompts again", () => {
   type PV = V<"punchline">;
-  for (const [players, games] of [
-    [8, 6],
-    [5, 9],
-  ] as const) {
+  for (const players of [8, 5]) {
+    // two games past the end of the pile, however big the pile grows
+    const games = Math.floor(PUNCH_PROMPTS.length / (2 * players)) + 2;
     const t = setup(players);
     t.act("p0", { a: "start", game: "punchline" });
     const played: { h2h: string[]; final: string }[] = [];
@@ -1401,7 +1511,57 @@ test("limbo party: a random variant each bar, never the same twice running, neve
   ok(u.view<V<"limbo">>("p0").mode === "classic", "a mode the game doesn't know is classic");
 });
 
-test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
+test("limbo coach: what the phone says to someone who can't see it", () => {
+  // a moving bar: with it, below it, above it; the grace second running out makes it urgent
+  ok(coaching("moving", { lean: 14, target: 18 }).say === "on", "within the band: a tick");
+  ok(coaching("moving", { lean: 2, target: 18 }).say === "down", "short of a moving bar: lean back more");
+  const up = coaching("moving", { lean: 54, target: 12, lost: 0.7 });
+  ok(up.say === "up" && up.urgency >= 0.7, "past a moving bar: come up, and urgently once the second is running out");
+  ok(coaching("moving", { lean: 30, target: 18, lost: 0 }).urgency < 0.5, "just off it, with time: not urgent yet");
+  // classic and hold steady: short, then there (the hold is heard)
+  const short = coaching("classic", { lean: 5, target: 20, hold: 0 });
+  ok(short.say === "down" && short.hold === 0, "short of the bar: lean back more");
+  const there = coaching("classic", { lean: 24, target: 20, hold: 0.4 });
+  ok(there.say === "on" && there.hold === 0.4, "past the bar: a tick, and the hold's hum");
+  ok(coaching("steady", { lean: 24, target: 20, hold: 0, wobbleAt: 1234 }).wobbleAt === 1234, "a wobble is passed on (the buzz)");
+  ok(coaching("classic", { lean: 60, target: 20 }).say === "on", "a classic bar never says come up");
+  // tilt through: back enough but not tilted enough, to either side
+  ok(coaching("tilt", { lean: 25, target: 20, side: 3, want: 15 }).say === "side", "not tilted right enough: tilt further");
+  ok(coaching("tilt", { lean: 25, target: 20, side: -10, want: -15 }).say === "side", "not tilted left enough: tilt further");
+  ok(coaching("tilt", { lean: 25, target: 20, side: -16, want: -15, hold: 0.2 }).say === "on", "tilted enough: there");
+  ok(coaching("tilt", { lean: 10, target: 20, side: 20, want: 15 }).say === "down", "not back enough comes first");
+});
+
+test("limbo band: a gear up every bar, the calypso itself untouched", () => {
+  const first = GROOVES.calypso.lead!.bars[0].find((n) => n != null)!;
+  const bpms = [0, 1, 2, 3, 4, 5, 6, 9].map((l) => limboStyle(l).bpm);
+  ok(bpms[0] === 112 && bpms.every((b, i) => i === 0 || b >= bpms[i - 1]) && bpms[5] === bpms[6] && bpms[6] === bpms[7], `quicker every bar up to bar 6, then the same (${bpms.join(" ")})`);
+  ok(bpms[5] >= 140 && bpms[5] <= 150, "about a third quicker at the top");
+  ok([0, 1, 2].every((l) => limboLift(l) === 0) && limboLift(3) === 1 && limboLift(7) === 5 && limboLift(12) === 5, "a key higher a bar from bar 4, five at most");
+  const s3 = limboStyle(3);
+  ok(s3.lead!.bars[0].find((n) => n != null) === first + 1 && s3.bass![0].find((n) => n != null) === GROOVES.calypso.bass![0].find((n) => n != null)! + 1 && s3.chords!.prog[0][0] === GROOVES.calypso.chords!.prog[0][0] + 1, "bar 4's lead, bass and chords are all a semitone up");
+  ok(!limboStyle(0).hat && !!limboStyle(1).hat && !limboStyle(1).clap && !!limboStyle(2).clap, "hats come in at bar 2, the backbeat at bar 3");
+  ok(limboStyle(2).kick === GROOVES.calypso.kick && limboStyle(3).kick !== GROOVES.calypso.kick && !!limboStyle(4).ohat && limboStyle(5).shaker!.every((x) => x === 1), "the kick drives from bar 4, open hats from bar 5, everything from bar 6");
+  ok(GROOVES.calypso.bpm === 112 && GROOVES.calypso.lead!.bars[0].find((n) => n != null) === first && !GROOVES.calypso.hat, "the shared calypso is as it was");
+});
+
+/**
+ * Name That Tune's tests put the shared dice and clock back as they found them: how many draws one
+ * takes depends on the song list (which songs come up, how many wrong titles there are to shuffle),
+ * and the tests after them are tuned to the draws they get.
+ */
+const tuneTest = (name: string, fn: () => void) =>
+  test(name, () => {
+    const seedWas = seed, clockWas = clock;
+    try {
+      fn();
+    } finally {
+      seed = seedWas;
+      clock = clockWas;
+    }
+  });
+
+tuneTest("tune: synced clips, buzz, wrong locks out, points by speed", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
   t.g("p0", "mode", { mode: "melody" });
@@ -1442,7 +1602,7 @@ test("tune: synced clips, buzz, wrong locks out, points by speed", () => {
   ok(t.view<V<"tune">>("p0").scores.p2 === 4, "DJ said yes: a point");
 });
 
-test("tune: real songs play in sync, never twice, and the reveal names the song", () => {
+tuneTest("tune: real songs play in sync, never twice, and the reveal names the song", () => {
   type SongS = { song: { id: number; l: number; a: string }; next: { id: number } | null; choices: { id: number; l: number }[]; played: number[]; extra: { id: number }[] };
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
@@ -1512,7 +1672,7 @@ test("tune: real songs play in sync, never twice, and the reveal names the song"
   ok(t.view<V<"tune">>("p0").phase === "end", "after five songs: the end");
 });
 
-test("tune: the host's phone brings today's charts, and only good rows get in", () => {
+tuneTest("tune: the host's phone brings today's charts, and only good rows get in", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "tune" });
   t.g("p0", "pool", { pool: "en:any" });
@@ -1528,7 +1688,7 @@ test("tune: the host's phone brings today's charts, and only good rows get in", 
   ok(s.extra.length === 2 && s.extra.some((x) => x.id === 9_000_000_001) && s.extra.some((x) => x.id === 9_000_000_004), "the good rows are in (old and new shapes), the rest are dropped");
 });
 
-test("tune: pools by language and category, and the quiz where everyone answers", () => {
+tuneTest("tune: pools by language and category, and the quiz where everyone answers", () => {
   type SongS = { song: { id: number; l: number; y: number; k: number }; choices: { id: number }[]; answers: Record<string, { c: number }> };
   const t = setup(3);
   t.act("p0", { a: "start", game: "tune" });
@@ -1565,7 +1725,100 @@ test("tune: pools by language and category, and the quiz where everyone answers"
   ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").right.length === 0, "nobody answered in time: the reveal, nobody scores");
 });
 
-test("tune: a pool of several languages and categories", () => {
+tuneTest("tune: hard titles: no singers on them, and the wrong ones by the same singer", () => {
+  type Row = { id: number; t: string; a: string; l: number };
+  const all = SONG_ROWS.map(fromRow);
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const sameSinger = (a: string, b: string) => singersOf(a).some((n) => singersOf(b).includes(n));
+  ok(singersOf("周杰伦 & 五月天 阿信").join("|") === "周杰伦|五月天 阿信" && singersOf("JENNIE (from BLACKPINK)").join() === "jennie" && singersOf("Ed Sheeran feat. Travis Scott").join("|") === "ed sheeran|travis scott", "who sings a song: one name each");
+  ok(singersOf("Coldplay X BTS").join("|") === "coldplay|bts" && singersOf(`梅艳芳${String.fromCharCode(0x2028)}`).join() === "梅艳芳", "collaborations split, invisible characters dropped");
+  const sunny = all.find((x) => x.t === "晴天" && x.a === "周杰伦")!;
+  const easy = decoysFor(sunny, all, rand);
+  const hard = decoysFor(sunny, all, rand, true);
+  ok(easy.length === 3 && easy.every((x) => !sameSinger(x.a, sunny.a)) && new Set(easy.map((x) => x.a)).size === 3, "easy: three other singers");
+  ok(hard.length === 3 && hard.every((x) => sameSinger(x.a, sunny.a) && x.l === sunny.l) && new Set(hard.map((x) => norm(x.t))).size === 3, "hard: three more of 周杰伦's own songs, all different titles");
+  // a singer with just one or two other songs: those, and the rest from other singers
+  const few = all.find((x) => {
+    const own = new Set(all.filter((y) => y.l === x.l && y.id !== x.id && sameSinger(y.a, x.a) && norm(y.t) !== norm(x.t)).map((y) => norm(y.t)));
+    return own.size === 1;
+  })!;
+  const mixed = decoysFor(few, all, rand, true);
+  ok(mixed.length === 3 && mixed.filter((x) => sameSinger(x.a, few.a)).length === 1, "a singer with one other song: that one, then two by others");
+
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "hard", { on: true });
+  ok(!t.view<V<"tune">>("p0").hard, "only the host makes it hard");
+  t.g("p0", "pool", { pool: "zh:any" });
+  t.g("p0", "quiz", { on: true });
+  t.g("p0", "hard", { on: true });
+  ok(t.view<V<"tune">>("p1").hard, "the host makes it hard: every phone knows");
+  t.g("p0", "go");
+  const s = t.eng.d.game!.s as { song: Row; choices: Row[] };
+  const v = t.view<V<"tune">>("p1");
+  ok(v.choices?.length === 4 && v.choices.every((c) => c.a === "" && c.ae === ""), "titles only: no singer on any of the four");
+  const avail = new Set(all.filter((x) => x.l === s.song.l && x.id !== s.song.id && sameSinger(x.a, s.song.a) && norm(x.t) !== norm(s.song.t)).map((x) => norm(x.t))).size;
+  const own = s.choices.filter((c) => c.id !== s.song.id && sameSinger(c.a, s.song.a)).length;
+  ok(own === Math.min(3, avail), `the wrong ones by the same singer as far as there are any (${own} of ${Math.min(3, avail)})`);
+  t.advance(2600 + 20_000);
+  ok(t.view<V<"tune">>("p0").phase === "reveal" && t.view<V<"tune">>("p0").song?.a === s.song.a, "the reveal still says who sings it");
+});
+
+tuneTest("tune: one second: snippets from the spot the host's phone found, 3 2 1 points, a buzz pauses a snippet", () => {
+  type S = { song: { id: number }; stageAt: number[]; choices: { id: number }[] };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "snap", { on: true });
+  ok(!t.view<V<"tune">>("p0").snap, "only the host turns it on");
+  t.g("p0", "snap", { on: true });
+  t.g("p0", "total", { n: 5 });
+  let v = t.view<V<"tune">>("p1");
+  ok(v.phase === "ready" && !!v.pre && v.audio === null, "one second: the first song is picked already, so every phone loads it during the setup");
+  t.g("p0", "hook", { p: v.pre, at: 3300 });
+  t.g("p0", "go");
+  let s = t.eng.d.game!.s as S;
+  v = t.view<V<"tune">>("p1");
+  ok(v.snap && v.hook === 3300, "the first song starts from the spot the host's phone found during the setup");
+  t.g("p0", "hook", { p: v.audio, at: 1000 });
+  ok(v.stageAt[1] - v.stageAt[0] === 6000 && v.stageAt[2] - v.stageAt[0] === 13_000 && v.endsAt - v.stageAt[0] === 25_000, "one second, three seconds at 6 s, the rest from 13 s; 25 s in all");
+  t.g("p1", "hook", { p: v.audio, at: 4200 });
+  ok(t.view<V<"tune">>("p0").hook === 1000, "only the host's phone says where the snippets start (and it can still change its mind before the song starts)");
+  t.g("p0", "hook", { p: v.audio, at: 4200 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "the host's phone says where, before the song starts: every phone plays from there");
+  t.g("p0", "hook", { p: v.audio, at: 99_999 });
+  t.g("p0", "hook", { p: "https://audio-ssl.itunes.apple.com/itunes-assets/x.m4a", at: 3000 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "a spot past the preview, or for a song that isn't up, is turned away");
+  t.g("p0", "hook", { p: v.pre, at: 2500 });
+  t.advance(2600);
+  t.g("p0", "hook", { p: v.audio, at: 8000 });
+  ok(t.view<V<"tune">>("p1").hook === 4200, "once the song has started, its spot stays put");
+  t.g("p1", "buzz");
+  ok(t.view<V<"tune">>("p0").phase === "answer", "a buzz after the first second");
+  t.g("p1", "answer", { choice: s.song.id });
+  v = t.view<V<"tune">>("p0");
+  ok(v.phase === "reveal" && v.scores.p1 === 3 && v.revealPos === 4200, "3 points in the first stage, and the reveal plays from the spot");
+  t.advance(10_000);
+  s = t.eng.d.game!.s as S;
+  v = t.view<V<"tune">>("p0");
+  ok(v.round === 2 && v.hook === 2500, "the next song: the spot the host's phone found while the last one played");
+  t.advance(2600 + 6500);
+  const before = s.stageAt.slice();
+  t.g("p2", "buzz");
+  t.advance(4000);
+  t.g("p2", "answer", { choice: s.choices.find((c) => c.id !== s.song.id)!.id });
+  const after = (t.eng.d.game!.s as S).stageAt;
+  ok(after[0] === before[0] && after[1] - before[1] === 4000 && after[2] - before[2] === 4000, "a wrong answer: the snippet that was playing carries on, the next one moves on by the pause");
+  t.g("p1", "buzz");
+  t.g("p1", "answer", { choice: s.song.id });
+  ok(t.view<V<"tune">>("p0").scores.p1 === 5, "right in the three-second stage: 2 more points");
+  t.g("p0", "snap", { on: false });
+  t.advance(10_000);
+  v = t.view<V<"tune">>("p0");
+  ok(!v.snap && v.hook === 0 && v.stageAt[1] - v.stageAt[0] === 8000, "turned off between songs: the next one plays whole");
+});
+
+tuneTest("tune: a pool of several languages and categories", () => {
   const all = SONG_ROWS.map(fromRow);
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const pick = (pool: string, n: number) => Array.from({ length: n }, () => pickSong(all, pool, new Set(), new Set(), rand)!);
@@ -1576,6 +1829,127 @@ test("tune: a pool of several languages and categories", () => {
   const wg = pick("world+global:any", 40);
   ok(wg.every((x) => x.l === 6 || x.c === 1) && wg.some((x) => x.l === 6), "world classics and today's charts");
   ok(moodOf({ t: "后来的我们哭了" }) === "sad" && moodOf({ t: "Dance Monkey" }) === "hype" && moodOf({ t: "月亮代表我的心" }) === "love" && moodOf({ t: "稻香" }) === "", "a song's mood from its title");
+});
+
+tuneTest("tune: decades, and a singer special that plays only their songs, then ends", () => {
+  const all = SONG_ROWS.map(fromRow);
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  ok(samePool("mix:any") === "zh+en:any" && samePool("en+zh:pop:90s+80s") === "zh+en:pop:80s+90s" && samePool("zh:any:any") === "zh:any", "decades come last and in order, only when there are some (the pools from before read as they did)");
+  ok(samePool("world+global:any:90s") === "world+global:any" && samePool("zh:any:70s") === null, "the world classics and the charts have no decades; a decade that isn't one is turned away");
+  ok(samePool("@周杰伦") === "@周杰伦" && samePool("@taylor swift") === "@taylor swift" && [samePool("@Taylor Swift"), samePool("@周杰伦 & 五月天"), samePool("@"), samePool("@" + "x".repeat(61))].every((x) => x === null), "a singer special is one singer's folded name, nothing else");
+  const nineties = Array.from({ length: 40 }, () => pickSong(all, "zh+yue:any:90s", new Set(), new Set(), rand)!);
+  ok(nineties.every((x) => (x.l === 0 || x.l === 2) && x.y >= 1990 && x.y <= 1999) && new Set(nineties.map((x) => x.l)).size === 2, "90s Mandarin and Cantonese: every one from the 90s, both languages");
+  const old = Array.from({ length: 30 }, () => pickSong(all, "en:rock:pre80+80s", new Set(), new Set(), rand)!);
+  ok(old.every((x) => x.l === 1 && x.y < 1990 && (x.k & CAT_BIT.rock) !== 0), "English rock from before 1990");
+  // one singer's songs: all of them, and the wrong titles theirs too
+  const jay = all.filter((x) => singersOf(x.a).includes("周杰伦"));
+  ok(poolSize(all, "@周杰伦") === jay.length && jay.length >= 20 && all.every((x) => inPool(x, "@周杰伦") === jay.includes(x)), `周杰伦's special: his ${jay.length} songs, nobody else's`);
+  const sunny = jay.find((x) => x.t === "晴天")!;
+  const dec = decoysFor(sunny, all, rand, false, "@周杰伦");
+  ok(dec.length === 3 && dec.every((x) => singersOf(x.a).includes("周杰伦")) && new Set([sunny, ...dec].map((x) => norm(x.t))).size === 4, "the wrong titles: three more of his, all different");
+  ok(SPECIALS.every((x) => x[4] >= 15 && poolSize(all, `@${x[0]}`) === x[4] && samePool(`@${x[0]}`) === `@${x[0]}`), `every special on the list (${SPECIALS.length}) has the songs it says`);
+
+  // a singer with fewer songs than the game: it plays every one of them once, then the final scores
+  const few = SPECIALS.find((x) => x[4] < 20)!;
+  const pool = `@${few[0]}`;
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p1", "pool", { pool });
+  ok(t.view<V<"tune">>("p0").pool === DEFAULT_POOL, "only the host picks a singer");
+  t.g("p0", "pool", { pool });
+  t.g("p0", "total", { n: 20 });
+  t.g("p0", "quiz", { on: true });
+  ok(t.view<V<"tune">>("p1").pool === pool && t.view<V<"tune">>("p1").total === 20, "the setup shows the host's picks");
+  t.g("p0", "go");
+  let v = t.view<V<"tune">>("p1");
+  ok(v.total === few[4], `the game is as long as their songs (${few[4]})`);
+  ok(v.choices?.length === 4 && v.choices.every((c) => c.a === "" && c.ae === ""), "no singer on the four titles: they're all the same one");
+  const heard: number[] = [];
+  for (let n = 1; n <= 25 && t.view<V<"tune">>("p0").phase !== "end"; n++) {
+    const s = t.eng.d.game!.s as { song: { id: number; a: string }; choices: { a: string }[] };
+    heard.push(s.song.id);
+    ok(singersOf(s.song.a).includes(few[0]) && s.choices.every((c) => singersOf(c.a).includes(few[0])), `song ${n}: theirs, and so are the four titles`);
+    t.advance(2600 + 20_000);
+    t.advance(10_000);
+  }
+  v = t.view<V<"tune">>("p0");
+  ok(v.phase === "end" && heard.length === few[4] && new Set(heard).size === few[4], `all ${few[4]} of their songs, each once, then the final scores (${heard.length})`);
+});
+
+tuneTest("tune: a small pool plays each title once a game, game after game, and a mode change undoes the cap", () => {
+  const all = SONG_ROWS.map(fromRow);
+  const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const play = (t: ReturnType<typeof setup>) => {
+    const ids: number[] = [];
+    t.g("p0", "go");
+    for (let n = 1; n <= 25 && t.view<V<"tune">>("p0").phase !== "end"; n++) {
+      ids.push((t.eng.d.game!.s as { song: { id: number } }).song.id);
+      t.advance(2600 + 20_000);
+      t.advance(10_000);
+    }
+    return ids;
+  };
+  const titles = (ids: number[]) => ids.map((id) => norm(all.find((x) => x.id === id)!.t));
+  // 伍佰 has 挪威的森林 twice (credited two ways): a game plays it once
+  const wubai = SPECIALS.find((x) => x[0] === "伍佰")!;
+  ok(!!wubai && poolSize(all, "@伍佰") === wubai[4] && all.filter((x) => singersOf(x.a).includes("伍佰")).length > wubai[4], `伍佰's special counts titles (${wubai[4]}), not rows`);
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p0", "pool", { pool: "@伍佰" });
+  t.g("p0", "total", { n: 20 });
+  t.g("p0", "quiz", { on: true });
+  const one = play(t);
+  ok(one.length === wubai[4] && new Set(titles(one)).size === one.length, `game 1: every title once (${one.length})`);
+  t.g("p0", "again");
+  const two = play(t);
+  ok(two.length === wubai[4] && new Set(titles(two)).size === two.length && t.view<V<"tune">>("p0").phase === "end", `game 2 at the same table: all of them again, each once (${two.length}), then the scores`);
+  t.g("p0", "again");
+  t.g("p0", "total", { n: 8 });
+  const three = play(t);
+  ok(three.length === 8 && new Set(titles(three)).size === 8, "game 3, set to 8: 8 titles");
+  // a decade in one category can be tiny: the game is as long as it is
+  const tiny = "zh:pop:80s";
+  const size = poolSize(all, tiny);
+  t.g("p0", "again");
+  t.g("p0", "pool", { pool: tiny });
+  t.g("p0", "total", { n: 8 });
+  const small = play(t);
+  ok(size < 8 && small.length === size && new Set(titles(small)).size === size, `${tiny} has ${size} titles: the game plays each once and ends (${small.length})`);
+  // the cap is for real songs only: the melodies play the game the host picked
+  t.g("p0", "again");
+  t.g("p0", "mode", { mode: "melody" });
+  t.g("p0", "total", { n: 20 });
+  t.g("p0", "go");
+  ok(t.view<V<"tune">>("p0").total === 20, "melodies after a small pool: 20 songs, as picked");
+});
+
+tuneTest("tune: a challenge link carries the songs, the way they play and the score, and nothing else gets in", () => {
+  const all = SONG_ROWS.map(fromRow);
+  const ids = all.filter((x) => x.l === 0).slice(0, 8).map((x) => x.id);
+  const c = { pool: "zh+en:any:90s", quiz: true, hard: false, snap: true, seed: 0xdeadbeef, name: "王小明|Steve\n", pts: [3, 0, 2, 1, 0, 3, 3, 0], ids };
+  const code = challengeCode(c);
+  const back = readChallenge(code);
+  ok(/^[A-Za-z0-9_-]+$/.test(code) && code.length < 200, `the link is short and plain (${code.length} characters for 8 songs)`);
+  ok(!!back && back.pool === c.pool && back.quiz && !back.hard && back.snap && back.seed === c.seed && back.ids.join() === ids.join() && back.pts.join() === c.pts.join(), "it reads back the same: songs in order, the way they play, the seed, the points");
+  ok(back?.name === "王小明Steve" && challengeScore(back!) === 12, "the name without separators or control characters; 12 points");
+  ok(challengeUrl(back!, "https://changle.ca") === `https://changle.ca/g/name-that-tune/play?c=${code}`, "it's played at the game's own address");
+  // (made-up links with a good check, so each is turned away for what it says)
+  const at = (text: string) => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+    const full = `${text}|${(h % 46656).toString(36).padStart(3, "0")}`;
+    return btoa(String.fromCharCode(...new TextEncoder().encode(full))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  };
+  ok(readChallenge(at("1|zh:any|q|1|x|3|1"))?.ids.join() === "1", "a made-up link that is one reads");
+  const bad = [code.slice(0, -6), code.slice(0, -1) + (code.endsWith("A") ? "B" : "A"), "!!", at("2|zh:any||1|x|3|1"), at("1|zh:any|x|1|x|3|1"), at("1|nowhere|q|1|x|3|1"), at("1|zh:any|q|1|x|34|1"), at("1|zh:any|q|1|x|33|1.1"), at("1|zh:any|q|1|x|4|1"), at("1|zh:any|q|1|x|3|-1"), at(`1|zh:any|q|1|x|${"3".repeat(21)}|${Array.from({ length: 21 }, (_, i) => (i + 1).toString(36)).join(".")}`)];
+  ok(bad.every((x) => readChallenge(x) === null), "cut short, mistyped, not ours, a pool or flag that isn't one, points and songs that don't match, the same song twice, too many songs: all turned away");
+  // the same game seed and song give the same four titles on any phone
+  const song = all.find((x) => x.t === "晴天" && x.a === "周杰伦")!;
+  const one = decoysFor(song, all, seeded(42, song.id), false, "zh:any");
+  const two = decoysFor(song, all, seeded(42, song.id), false, "zh:any");
+  const other = decoysFor(song, all, seeded(43, song.id), false, "zh:any");
+  ok(one.map((x) => x.id).join() === two.map((x) => x.id).join() && one.map((x) => x.id).join() !== other.map((x) => x.id).join(), "the same seed: the same wrong titles; another seed: others");
 });
 
 test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a penalty", () => {
@@ -3184,6 +3558,154 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   ok(dv("p1").deck.now?.id === dead!.id && dv("p1").deck.song === null, "it lands as the DJ's remix alone: no whole song to wait for");
 });
 
+test("dj: 点歌模式 (the jukebox): the host's switch; no build-up, DROP or picks; the songs asked for one after another, the DJ a few seconds between them; the video over the whole TV on anyone's word", () => {
+  const e = new RoomEngine(freshRoom("DJJK", clock), host);
+  e.screenHello("tv-jk", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-jk", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(dv("p2").juke === false && dv("p2").full === false, "off to start with: the deck as it was, the video in its corner");
+  ok(nothing(g("p2", "juke", { on: true })), "only the host switches to 点歌模式");
+  ok(!nothing(g("p1", "juke", { on: true })) && dv("p3").juke === true, "the host does, and every phone reads it");
+  ok(nothing(g("p1", "juke", { on: true })), "switched on again: nothing more to do");
+  ok(nothing(g("p2", "charge", { n: 8 })), "no build-up in 点歌模式");
+  ok(nothing(g("p3", "vote", { style: "techno" })), "nor picks");
+  // a song asked for, nothing else playing: it starts a few seconds on, with no countdown to press
+  g("p2", "req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] });
+  ok(dv("p1").deck.up?.by === "p2", "Ben's song is up next");
+  advance(DECK.jukeWaitMs + 10);
+  const sw = dv("p1").deck.drop;
+  ok(!!sw && sw.quiet === true && sw.auto === true, "a moment later the switch into it is on its way, without the DJ's deck having the style yet (the song plays whole)");
+  const beat = 60_000 / 125;
+  ok(!!sw && sw.at - clock >= (DECK.jukeBeats - 0.01) * beat && sw.at - clock <= (DECK.jukeBeats + 4) * beat, `on the first bar ${DECK.jukeBeats} beats on (${Math.round(sw!.at - clock)} ms)`);
+  ok(dv("p1").deck.charge === 0, "the build-up stays empty");
+  clock = sw!.cue + 10;
+  ok(nothing(g("p3", "drop", { c: clock })), "DROP doesn't count on it");
+  advance(sw!.at - clock + 5);
+  const song = dv("p1").deck.song;
+  ok(song?.by === "p2" && song.yt === "kJQP7kiw5Fk" && dv("p1").deck.last?.quiet === true && dv("p1").deck.last?.hits.length === 0, "on its bar the song plays whole, a quiet switch (no boom, no party)");
+  // the next one, asked for while it plays, follows a few seconds after it ends
+  g("p3", "req", { yt: ["abcdefghijk", "Another", "Chan"] });
+  ok(dv("p1").deck.up?.by === "p3" && dv("p1").deck.drop === null, "Cat's is up next, waiting for Ben's to end");
+  advance(30_000);
+  ok(dv("p1").deck.drop === null && dv("p1").deck.song?.by === "p2", "nothing cuts Ben's song short");
+  ok(sc("songdone", { id: song!.id }) && dv("p1").deck.song === null, "it ends: the DJ comes back");
+  advance(DECK.jukeGapMs + 10);
+  const sw2 = dv("p1").deck.drop;
+  ok(!!sw2 && sw2.quiet === true, "a second later the switch into Cat's is on its way");
+  advance(sw2!.at - clock + 5);
+  ok(dv("p1").deck.song?.by === "p3", "and it plays");
+  // the video over the whole TV: anyone's word, back in its corner the same way
+  ok(!nothing(g("p2", "full", { on: true })) && dv("p1").full === true && dv("p3").full === true, "Ben puts the video over the whole TV");
+  ok(nothing(g("p3", "full", { on: true })), "asked again: nothing more to do");
+  ok(!nothing(g("p3", "full", { on: false })) && dv("p1").full === false, "Cat puts it back in its corner");
+  // back to the deck as it was: a song up next waits for the table's drop again
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }) && dv("p1").deck.song === null, "Cat's ends, nothing else asked for: the DJ plays on");
+  advance(DECK.jukeGapMs + 10);
+  ok(dv("p1").deck.drop === null, "and no switch is on its way");
+  ok(!nothing(g("p1", "juke", { on: false })) && dv("p2").juke === false, "the host switches back");
+  g("p2", "req", { yt: ["zyxwvutsrqp", "Third", "Chan"] });
+  advance(DECK.jukeWaitMs + 10);
+  ok(dv("p1").deck.up?.by === "p2" && dv("p1").deck.drop === null, "a song up next waits for the table's build-up and DROP again");
+  ok(!nothing(g("p2", "charge", { n: 8 })), "and the build-up takes taps again");
+  // a new set keeps the host's choice
+  g("p1", "juke", { on: true });
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p2").juke === true && dv("p2").full === false, "another set: still 点歌模式, the video back in its corner");
+});
+
+test("dj: the shared phone (公用手机): the big screen itself asks for songs as the table's, takes its own back, skips the song playing, switches 点歌模式, 随机 and the video, with nobody seated; another screen can't", () => {
+  const e = new RoomEngine(freshRoom("DJSP", clock), host);
+  e.screenHello("tv-sp", true, "dj");
+  e.screenHello("tv-other", true, "dj");
+  e.flush();
+  const events: RoomEvent[] = [];
+  const sc = (x: string, rest: Record<string, unknown> = {}, sid = "tv-sp") => {
+    const took = e.screenAct(sid, { x, ...rest });
+    events.push(...e.flush().events);
+    return took;
+  };
+  const tv = () => e.view("tv-sp").game as V<"dj">;
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const mine = () => tv().deck.reqs.filter((r) => r.by === SHARED_BY).length + (tv().deck.up?.by === SHARED_BY ? 1 : 0);
+  ok(sc("live", { source: "fake" }) && tv().phase !== "wait", "nobody seated: the shared phone starts the night");
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ok(!sc("req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] }, "tv-other"), "another screen with the code can't ask for a song");
+  ok(sc("req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] }), "the shared phone asks for one");
+  ok(tv().deck.up?.by === SHARED_BY && tv().deck.up?.text === "Despacito", "up next, the table's, its name read on the screen");
+  ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === SHARED_BY), "the room says the shared phone asked for a song");
+  ok(!sc("req", { yt: ["abcdefghijk", "Two", "Chan"] }), "not again within a few seconds");
+  // more than a player's three: the table's thirty only
+  for (const id of ["abcdefghij1", "abcdefghij2", "abcdefghij3", "abcdefghij4"]) {
+    advance(DECK.reqGapMs + 10);
+    ok(sc("req", { yt: [id, `Song ${id.slice(-1)}`, "Chan"] }), `the shared phone's song ${id.slice(-1)}`);
+  }
+  ok(mine() === 5, `five of its own, more than a player's three (${mine()})`);
+  // phones at the table read the shared phone's songs by name; only the host can take them out
+  e.hello("p1", "Amy", false);
+  e.hello("p2", "Ben", false);
+  e.flush();
+  const pv = (pid: string) => e.view(pid).game as V<"dj">;
+  ok(pv("p2").deck.reqs.filter((r) => r.by === SHARED_BY).every((r) => (r.text ?? "").startsWith("Song")), "a phone reads the shared phone's songs by name");
+  const n0 = tv().deck.reqs.length;
+  e.act("p2", { a: "g", g: { x: "unreq", id: tv().deck.reqs[0].id } });
+  e.flush();
+  ok(tv().deck.reqs.length === n0, "Ben can't take them out");
+  // its own taken back; a player's isn't its to take
+  const first = tv().deck.reqs[0].id;
+  ok(sc("unreq", { id: first }) && !tv().deck.reqs.some((r) => r.id === first), "the shared phone takes one of its own back");
+  e.act("p2", { a: "g", g: { x: "req", yt: ["zyxwvutsrqp", "Ben's", "Chan"] } });
+  e.flush();
+  const bens = tv().deck.reqs.find((r) => r.by === "p2");
+  ok(!!bens && !sc("unreq", { id: bens.id }), "Ben's song isn't the shared phone's to take back");
+  // 点歌模式 from the shared phone (no host phone needed): its song up next starts a few seconds on
+  ok(!sc("juke", { on: true }, "tv-other"), "another screen can't switch 点歌模式");
+  ok(sc("juke", { on: true }) && tv().juke === true && pv("p2").juke === true, "the shared phone switches to 点歌模式, every phone reads it");
+  ok(!sc("juke", { on: true }), "again: nothing to do");
+  advance(DECK.jukeWaitMs + 10);
+  const sw = tv().deck.drop;
+  ok(!!sw && sw.quiet === true, "the switch into its song is on its way");
+  advance(sw!.at - clock + 5);
+  ok(tv().deck.song?.by === SHARED_BY && tv().deck.song?.yt === "kJQP7kiw5Fk", "and it plays whole");
+  ok(!sc("songskip", {}, "tv-other"), "another screen can't skip it");
+  ok(sc("full", { on: true }) && tv().full === true && pv("p1").full === true, "the shared phone puts the video over the whole TV");
+  ok(!sc("full", { on: true }), "asked again: nothing to do");
+  ok(sc("full", { on: false }) && tv().full === false, "and back in its corner");
+  ok(sc("songskip") && tv().deck.song === null, "the shared phone skips it: the DJ comes back");
+  ok(!sc("songskip"), "no song playing: nothing to skip");
+  ok(sc("juke", { on: false }) && tv().juke === false, "and switches back to the build-up and DROP");
+  ok(!sc("shuffle", { on: true }, "tv-other"), "another screen can't switch the playlist to 随机");
+  ok(sc("shuffle", { on: true }) && tv().shuffle === true && !sc("shuffle", { on: true }), "the shared phone does (once)");
+  ok(sc("shuffle", { on: false }) && tv().shuffle === false, "and back to 按顺序");
+});
+
 test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随机 or 按顺序; after a whole song the DJ plays a minute before the next", () => {
   const room = (code: string) => {
     const e = new RoomEngine(freshRoom(code, clock), host);
@@ -3851,6 +4373,7 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   su.act("p0", { a: "start", game: "superlatives" });
   for (const [a, b] of [["p0", "p2"], ["p1", "p2"], ["p2", "p3"], ["p3", "p2"]]) su.g(a, "vote", { target: b });
   (su.eng.d.game!.s as { round: number; total: number }).round = (su.eng.d.game!.s as { total: number }).total;
+  su.advance(2700); // (the host moves on once the winner's stamp has landed)
   su.g("p0", "next");
   su.advance(3500);
   last = su.pens().slice(-1)[0];
@@ -4031,6 +4554,7 @@ test("just watching: the players are the ring and every list; a watcher is never
   ok(sv.phase === "reveal" && sv.winners.join() === "p0" && !("p2" in (sv.counts ?? {})), "superlatives: revealed once the three players voted");
   // the host sits down to watch: their buttons still work, their vote doesn't count
   t.act("p0", { a: "watch", on: true });
+  t.advance(2700); // (the host moves on once the winner's stamp has landed)
   t.g("p0", "next");
   sv = t.view<V<"superlatives">>("p1");
   ok(sv.phase === "vote" && sv.round === 2, "a watching host still moves the game on");

@@ -5,13 +5,15 @@ step, and the rules the screen must keep (nothing private before the holder says
 usage: python3 scripts/straightface_check.py [base_url] [out_dir]
 The site must be running (npm run dev -- --port 5173); the rooms server is not needed.
 """
-import json, os, sys, time
+import base64, json, os, re, sys, time
 from playwright.sync_api import sync_playwright
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:5173"
 OUT = sys.argv[2] if len(sys.argv) > 2 else "local-shots/straightface"
 os.makedirs(OUT, exist_ok=True)
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "小雨", "Kevin", "阿强"])]
+# every card's id, read off the card bank (for the faked numbers)
+CARD_IDS = re.findall(r'^    id: "([^"]+)"', open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "data", "straightface.ts"), encoding="utf-8").read(), re.M)
 fails = []
 shot_n = 0
 
@@ -55,6 +57,18 @@ def run(lang):
         pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
         zh = lang == "zh"
+        # what the game tells the server: a round's outcome, a flagged card; and the cards' numbers,
+        # the real ones plus 12 rounds (5 judges fooled) for every card, so the reveal shows them
+        sent = []
+        pg.on("request", lambda r: sent.append((r.url.split("/api")[-1], json.loads(r.post_data or "{}"))) if "/api/sf/" in r.url and r.method == "POST" else None)
+
+        def numbers(route):
+            real = route.fetch()
+            body = real.json() if real.ok else {"cards": {}}
+            body["cards"] = {**{cid: [12, 5] for cid in CARD_IDS}, **body.get("cards", {})}
+            route.fulfill(response=real, body=json.dumps(body), content_type="application/json")
+
+        pg.route("**/api/sf/stats", numbers)
 
         pg.goto(BASE + "/g/in-all-seriousness/play", wait_until="networkidle")
         pg.wait_for_timeout(800)
@@ -192,6 +206,35 @@ def run(lang):
             if btn.count() and btn.is_enabled():
                 break
             pg.wait_for_timeout(300)
+        # the card's numbers on changle, and "something off with this card?"
+        nums = pg.locator(".sf-numbers")
+        check(nums.count() == 1 and any(ch.isdigit() for ch in nums.inner_text()), "the card's numbers show at the reveal")
+        rounds_sent = [x for x in sent if x[0] == "/sf/round"]
+        check(len(rounds_sent) == 1 and rounds_sent[0][1].get("players") == 4 and isinstance(rounds_sent[0][1].get("fooled"), bool), f"the round counted once, for four players ({rounds_sent})")
+        link = pg.locator(".sf-report-link")
+        check(link.count() == 1, "a way to flag the card")
+        link.scroll_into_view_if_needed()
+        link.click()
+        pg.wait_for_selector(".sf-report", timeout=5000)
+        pg.wait_for_timeout(500)
+        snap(pg, "report")
+        send = pg.locator(".sf-report .btn-primary")
+        check(send.is_disabled(), "nothing to send before a reason")
+        pg.locator(".sf-reason").nth(1).click()
+        pg.locator(".sf-report textarea").fill("测试：大家都知道" if zh else "test: everyone knew it")
+        check(send.is_enabled(), "a reason picked: it can be sent")
+        snap(pg, "report-filled")
+        send.click()
+        pg.wait_for_timeout(800)
+        thanks = "收到了" if zh else "Got it"
+        check(thanks in pg.locator(".sf-report").inner_text(), "thanks once it is in")
+        snap(pg, "report-sent")
+        reports = [x[1] for x in sent if x[0] == "/sf/report"]
+        note = reports[0].get("note", "") if reports else ""
+        check(len(reports) == 1 and reports[0].get("reason") == "easy" and ("test" in note or "测试" in note), f"the flag reached the server ({reports})")
+        pg.locator(".sf-report .btn-primary").click()
+        pg.wait_for_timeout(500)
+        check(pg.locator(".sf-report-link").is_disabled() and thanks in pg.locator(".sf-report-link").inner_text(), "flagged once: the link says thanks")
         btn = pg.get_by_role("button", name="下一轮" if zh else "Next round")
         check(btn.count() == 1 and btn.is_enabled(), "the next-round button is ready once the penalties are done")
         btn.click()
@@ -250,7 +293,31 @@ def run(lang):
             pg.wait_for_timeout(600)
         check(pg.locator(".sf-final").count() == 1, "the game ends with a result")
         check(pg.locator(".sf-learned li").count() == 4, "four words learned tonight")
+        check(len([x for x in sent if x[0] == "/sf/round"]) == 4, "every round counted, once")
+        seen = pg.evaluate("JSON.parse(localStorage.getItem('changle.sf.seen') || '[]')")
+        check(len(seen) == 4, f"this phone remembers the four cards it played ({len(seen)})")
         snap(pg, "final")
+
+        # tonight's titles, and the picture to share
+        titles = pg.locator(".sf-titles li")
+        check(titles.count() >= 1 and ("冠军" if zh else "Top score") in pg.locator(".sf-titles").inner_text(), f"tonight's titles on the end screen ({titles.count()})")
+        pg.locator(".sf-titles").scroll_into_view_if_needed()
+        pg.locator(".sf-titles").locator("xpath=..").screenshot(path=os.path.join(OUT, f"titles-{lang}.png"))
+        pg.locator(".sf-share-btn").scroll_into_view_if_needed()
+        pg.locator(".sf-share-btn").click()
+        pg.wait_for_selector(".sf-share-img", timeout=15000)
+        pg.wait_for_function("document.querySelector('.sf-share-img').naturalWidth > 0")
+        w, h = pg.evaluate("[document.querySelector('.sf-share-img').naturalWidth, document.querySelector('.sf-share-img').naturalHeight]")
+        check(w == 1080 and h >= 1440, f"the picture: 1080 wide, at least 3:4 ({w}x{h})")
+        save = pg.locator(".sf-share-actions a[download]")
+        check(save.count() == 1 and save.get_attribute("download").endswith(".png"), "a way to save it as a png")
+        data = pg.evaluate("document.querySelector('.sf-share-img').src")
+        with open(os.path.join(OUT, f"picture-{lang}.png"), "wb") as f:
+            f.write(base64.b64decode(data.split(",", 1)[1]))
+        pg.wait_for_timeout(500)
+        snap(pg, "share-sheet")
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(500)
         pg.get_by_role("button", name="再来一局" if zh else "Play again").click()
         pg.wait_for_timeout(400)
         check(pg.locator(".setup-panel").count() == 1, "play again goes back to the setup")

@@ -6,34 +6,59 @@
     "en": "Tea Cloth Crawl"
   },
   "teaches": "crawl",
-  "w": 1280,
+  "w": 2560,
   "h": 720,
   "spawn": {
     "x": 100,
     "y": 536
   },
   "goal": {
-    "x": 950,
-    "y": 400,
-    "w": 290,
+    "x": 2400,
+    "y": 240,
+    "w": 120,
     "h": 160
   },
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 536
+    },
+    {
+      "x": 2250,
+      "y": 376
+    }
+  ],
   "rects": [
     {
       "kind": "ground",
       "x": 0,
       "y": 560,
-      "w": 1240,
+      "w": 1800,
       "h": 160,
       "material": "cloth"
     },
     {
       "kind": "ground",
-      "x": 1240,
+      "x": 1800,
+      "y": 480,
+      "w": 400,
+      "h": 240,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 2200,
       "y": 400,
-      "w": 40,
+      "w": 320,
       "h": 320,
+      "material": "cloth"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 220,
+      "w": 40,
+      "h": 500,
       "material": "wood"
     }
   ],
@@ -42,8 +67,10 @@
   "crates": [],
   "deathY": 790,
   "par": {
-    "seconds": 60,
+    "seconds": 110,
     "deathsPerPlayer": 2
   },
-  "replay": "replays/table-01.json"
+  "replay": "replays/table-01.json",
+  "fading": [],
+  "springs": []
 }

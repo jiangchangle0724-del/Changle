@@ -69,14 +69,30 @@ export const CATS: { key: CatKey; bit: number; zh: string; en: string }[] = [
 export const CAT_BIT: Record<CatKey, number> = { oldies: 1, pop: 2, rock: 4, folk: 8, rap: 16, dance: 32, rnb: 64, ost: 128 };
 /** world classics carry this instead of a category */
 export const CLASSIC_BIT = 256;
+
+/** The decades a table can listen to, by the year a song first came out (scripts/fix-songs.mjs). */
+export type EraKey = "pre80" | "80s" | "90s" | "00s" | "10s" | "20s";
+export const ERAS: { key: EraKey; from: number; to: number; zh: string; en: string }[] = [
+  { key: "pre80", from: 1900, to: 1979, zh: "80 年代以前", en: "Before 1980" },
+  { key: "80s", from: 1980, to: 1989, zh: "80 年代", en: "1980s" },
+  { key: "90s", from: 1990, to: 1999, zh: "90 年代", en: "1990s" },
+  { key: "00s", from: 2000, to: 2009, zh: "00 年代", en: "2000s" },
+  { key: "10s", from: 2010, to: 2019, zh: "10 年代", en: "2010s" },
+  { key: "20s", from: 2020, to: 2099, zh: "20 年代", en: "2020s" },
+];
+export const eraOf = (y: number): EraKey | null => ERAS.find((e) => y >= e.from && y <= e.to)?.key ?? null;
 /** "old" by year alone, when a song carries no categories (rows from the first list) */
 export const OLD_BEFORE: Record<number, number> = { 0: 2003, 1: 2000, 2: 2003, 3: 2006, 4: 2006, 5: 2009 };
 
 /**
  * What the table listens to: one or more sources (languages, the world classics, today's charts
- * everywhere) and one or more categories, or any. Written with "+" between the picks:
- * "zh+yue:oldies+rock", "en:any", "global:any". The first list's words still read: "mix" is
- * Chinese and English, "all" is every source.
+ * everywhere), one or more categories or any, and one or more decades or any. Written with "+"
+ * between the picks and the decades last, only when there are some: "zh+yue:oldies+rock",
+ * "en:any:80s+90s", "global:any". The first list's words still read: "mix" is Chinese and English,
+ * "all" is every source.
+ *
+ * Or one singer's songs, a singer special (歌手专场): "@" and the singer's name as singersOf folds it,
+ * "@周杰伦", "@taylor swift" (the list the setup screen offers is SPECIALS in src/data/songPools.ts).
  */
 export type SourceKey = Exclude<LangKey, "other"> | "global";
 export type SongPool = string;
@@ -91,7 +107,8 @@ export const SOURCES: { key: SourceKey; zh: string; en: string; cats: boolean }[
   { key: "global", zh: "全球热曲", en: "Global hits", cats: false },
 ];
 export const DEFAULT_POOL: SongPool = "zh+en:any";
-export type ParsedPool = { srcs: SourceKey[]; cats: CatKey[] };
+/** a singer special has no sources, categories or decades, only its `singer` ("" otherwise) */
+export type ParsedPool = { srcs: SourceKey[]; cats: CatKey[]; eras: EraKey[]; singer: string };
 
 const parsed = new Map<string, ParsedPool | null>();
 export function parsePool(p: unknown): ParsedPool | null {
@@ -104,8 +121,14 @@ export function parsePool(p: unknown): ParsedPool | null {
   return out;
 }
 function parseOnce(p: string): ParsedPool | null {
+  if (p.startsWith("@")) {
+    // a singer special: the name exactly as singersOf writes it, one singer
+    const who = p.slice(1);
+    const one = singersOf(who);
+    return who.length <= 60 && one.length === 1 && one[0] === who ? { srcs: [], cats: [], eras: [], singer: who } : null;
+  }
   const parts = p.split(":");
-  if (parts.length !== 2) return null;
+  if (parts.length !== 2 && parts.length !== 3) return null;
   const want = new Set<string>();
   for (const w of parts[0].split("+")) {
     if (w === "mix") ["zh", "en"].forEach((x) => want.add(x));
@@ -122,20 +145,33 @@ function parseOnce(p: string): ParsedPool | null {
       cw.add(c);
     }
   }
-  const cats = srcs.some((k) => SOURCES.find((x) => x.key === k)!.cats) ? CATS.filter((c) => cw.has(c.key)).map((c) => c.key) : [];
-  return { srcs, cats };
+  const ew = new Set<string>();
+  if (parts.length === 3 && parts[2] !== "any") {
+    for (const e of parts[2].split("+")) {
+      if (!ERAS.some((x) => x.key === e)) return null;
+      ew.add(e);
+    }
+  }
+  // (categories and decades sort the languages' songs: the world classics and the charts have neither)
+  const sorted = srcs.some((k) => SOURCES.find((x) => x.key === k)!.cats);
+  const cats = sorted ? CATS.filter((c) => cw.has(c.key)).map((c) => c.key) : [];
+  const eras = sorted ? ERAS.filter((e) => ew.has(e.key)).map((e) => e.key) : [];
+  return { srcs, cats, eras, singer: "" };
 }
 export const isPool = (p: unknown): p is SongPool => parsePool(p) !== null;
 /** The one way to write a pool, whatever order the picks came in. */
-export function poolOf(srcs: readonly string[], cats: readonly string[]): SongPool {
+export function poolOf(srcs: readonly string[], cats: readonly string[], eras: readonly string[] = []): SongPool {
   const s = SOURCES.filter((x) => srcs.includes(x.key)).map((x) => x.key);
   const c = CATS.filter((x) => cats.includes(x.key)).map((x) => x.key);
-  return `${s.length ? s.join("+") : "zh+en"}:${c.length ? c.join("+") : "any"}`;
+  const e = ERAS.filter((x) => eras.includes(x.key)).map((x) => x.key);
+  return `${s.length ? s.join("+") : "zh+en"}:${c.length ? c.join("+") : "any"}${e.length ? ":" + e.join("+") : ""}`;
 }
 export function samePool(a: unknown) {
   const p = parsePool(a);
-  return p ? poolOf(p.srcs, p.cats) : null;
+  return p ? (p.singer ? `@${p.singer}` : poolOf(p.srcs, p.cats, p.eras)) : null;
 }
+/** The singer of a singer special ("" for any other pool). */
+export const specialOf = (pool: unknown) => parsePool(pool)?.singer ?? "";
 
 /** Which language a chart song is in, from its title and singer (Apple's charts don't say). */
 export function guessLang(title: string, artist: string, store: string): number {
@@ -160,16 +196,28 @@ export function inCat(s: Song, cat: CatKey | "any"): boolean {
 }
 
 /** A song is in a pool when it's on today's charts and the charts are picked, or when its language
- *  is picked and it belongs to any picked category (the world classics have none: always in). */
+ *  is picked, it belongs to any picked category and it came out in any picked decade (the world
+ *  classics have neither: always in). A singer special: when that singer sings it. */
 export function inPool(s: Song, pool: SongPool): boolean {
   const p = parsePool(pool);
   if (!p) return false;
+  if (p.singer) return singersIn(s.a).includes(p.singer);
   if (s.c === 1 && p.srcs.includes("global")) return true;
   const key = LANGS[s.l]?.key;
   if (!key || key === "other" || !p.srcs.includes(key)) return false;
-  if (s.l === 6 || !p.cats.length) return true;
-  return p.cats.some((c) => inCat(s, c));
+  if (s.l === 6) return true;
+  if (p.eras.length && !p.eras.some((e) => e === eraOf(s.y))) return false;
+  return !p.cats.length || p.cats.some((c) => inCat(s, c));
 }
+
+/** A title as a game tells two apart: case, spaces and punctuation don't count. */
+const titleKey = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+
+/**
+ * How many songs a pool has, by title (a song can be in the list twice, credited two ways or released
+ * twice, and a game plays a title once): a game is no longer than that.
+ */
+export const poolSize = (all: Song[], pool: SongPool) => new Set(all.filter((s) => inPool(s, pool)).map((s) => titleKey(s.t))).size;
 
 /**
  * How a song feels, from its title, categories and language, for the stage: sad songs bring tears,
@@ -259,21 +307,26 @@ export function cleanTitle(name: string, lang: number): string {
 }
 
 /**
- * Pick the next song: never one played this game, preferably none anyone at the table has
- * heard lately. A pool with several languages lets them take turns at random, so a small
- * language is heard as often as a big one. Chart songs and newer ones come up a little more often.
+ * Pick the next song: never a title this game has played (`game`), preferably none played at the table
+ * before (`played`) or heard lately on its phones (`avoid`). A pool with several languages lets them
+ * take turns at random, so a small language is heard as often as a big one. Chart songs and newer ones
+ * come up a little more often. Null when the pool has no title left for this game.
  */
-export function pickSong(all: Song[], pool: SongPool, avoid: Set<number>, played: Set<number>, rand: () => number, lang?: number): Song | null {
+export function pickSong(all: Song[], pool: SongPool, avoid: Set<number>, played: Set<number>, rand: () => number, lang?: number, game: Set<number> = played): Song | null {
   const fit = all.filter((s) => inPool(s, pool));
   if (!fit.length) return null;
-  const present = [...new Set(fit.map((s) => s.l))];
+  const gone = new Set(fit.filter((s) => game.has(s.id)).map((s) => titleKey(s.t)));
+  const left = fit.filter((s) => !game.has(s.id) && !gone.has(titleKey(s.t)));
+  if (!left.length) return null;
+  const present = [...new Set(left.map((s) => s.l))];
   const wantLang = lang !== undefined && present.includes(lang) ? lang : present[Math.floor(rand() * present.length)];
   const tiers = [
-    fit.filter((s) => s.l === wantLang && !avoid.has(s.id) && !played.has(s.id)),
-    fit.filter((s) => !avoid.has(s.id) && !played.has(s.id)),
-    fit.filter((s) => s.l === wantLang && !played.has(s.id)),
-    fit.filter((s) => !played.has(s.id)),
-    fit,
+    left.filter((s) => s.l === wantLang && !avoid.has(s.id) && !played.has(s.id)),
+    left.filter((s) => !avoid.has(s.id) && !played.has(s.id)),
+    left.filter((s) => s.l === wantLang && !played.has(s.id)),
+    left.filter((s) => !played.has(s.id)),
+    // (all played at this table before: a game can bring back an earlier game's songs)
+    left,
   ];
   const list = tiers.find((x) => x.length) ?? [];
   if (!list.length) return null;
@@ -289,27 +342,95 @@ export function pickSong(all: Song[], pool: SongPool, avoid: Set<number>, played
 }
 
 /**
+ * Who sings a song, one name each: "周杰伦 & 五月天 阿信" is 周杰伦 and 五月天 阿信, "JENNIE (from
+ * BLACKPINK)" is JENNIE. Names are folded (case, spaces, the invisible characters some rows carry) so
+ * the same singer written two ways is one.
+ */
+export function singersOf(artist: string): string[] {
+  return artist
+    .replace(/[\u2028\u2029\u200b\ufeff]/g, "")
+    .replace(/\s*[(（](?:from|of)\s[^)）]*[)）]/gi, "")
+    .split(/\s*(?:,|，|、|&|＆|\bfeat\.?|\bft\.|\s[x×]\s|\swith\s)\s*/i)
+    .map((x) => x.toLowerCase().replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+/** singersOf, remembered: a pool and the wrong titles ask it of every song, many times a game */
+const singerMemo = new Map<string, string[]>();
+function singersIn(artist: string): string[] {
+  let v = singerMemo.get(artist);
+  if (!v) {
+    if (singerMemo.size > 30_000) singerMemo.clear();
+    v = singersOf(artist);
+    singerMemo.set(artist, v);
+  }
+  return v;
+}
+
+const sharesSinger = (a: string, b: string) => {
+  const mine = singersIn(a);
+  return singersIn(b).some((x) => mine.includes(x));
+};
+
+/**
  * Three wrong answers that look like they could be right: same language, other artists, close in
  * time, and sung by the same kind of voice when that is known (the singer on stage gives that away).
+ *
+ * `hard`: the titles show without their singers, and the wrong ones are the same singer's other
+ * songs as far as there are any (knowing the voice is no longer enough: you have to know the song).
+ * A singer special's are always that singer's (in the song's language first).
  */
-export function decoysFor(song: Song, all: Song[], rand: () => number): Song[] {
+export function decoysFor(song: Song, all: Song[], rand: () => number, hard = false, pool: SongPool = ""): Song[] {
   const norm = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const out: Song[] = [];
+  const titles = new Set<string>([norm(song.t)]);
+  const take = (list: Song[], distinctArtists: Set<string> | null) => {
+    const order = list.map((s) => ({ s, k: rand() })).sort((x, y) => x.k - y.k);
+    for (const { s } of order) {
+      if (out.length >= 3) break;
+      if (titles.has(norm(s.t)) || distinctArtists?.has(s.a)) continue;
+      distinctArtists?.add(s.a);
+      titles.add(norm(s.t));
+      out.push(s);
+    }
+  };
+  const singer = specialOf(pool);
+  if (singer) {
+    const theirs = all.filter((s) => s.id !== song.id && singersIn(s.a).includes(singer));
+    take(theirs.filter((s) => s.l === song.l), null);
+    take(theirs, null);
+    if (out.length >= 3) return out;
+  }
+  if (hard) {
+    take(all.filter((s) => s.l === song.l && s.id !== song.id && sharesSinger(s.a, song.a)), null);
+    if (out.length >= 3) return out;
+  }
   const same = all.filter((s) => s.l === song.l && s.id !== song.id && s.a !== song.a && norm(s.t) !== norm(song.t));
   const voice = song.g === 1 || song.g === 2 ? same.filter((s) => s.g === song.g) : [];
   const close = same.filter((s) => Math.abs(s.y - song.y) <= 8);
   const voiceClose = voice.filter((s) => Math.abs(s.y - song.y) <= 8);
-  const out: Song[] = [];
-  const taken = new Set<string>([song.a]);
-  const titles = new Set<string>([norm(song.t)]);
-  for (const list of [voiceClose, voice, close, same]) {
-    const order = list.map((s) => ({ s, k: rand() })).sort((x, y) => x.k - y.k);
-    for (const { s } of order) {
-      if (out.length >= 3) break;
-      if (taken.has(s.a) || titles.has(norm(s.t))) continue;
-      taken.add(s.a);
-      titles.add(norm(s.t));
-      out.push(s);
-    }
-  }
+  const taken = new Set<string>([song.a, ...out.map((s) => s.a)]);
+  for (const list of [voiceClose, voice, close, same]) take(list, taken);
   return out;
+}
+
+/* ---------- one second (一秒猜歌, like Soundle's Snap): a snippet first, longer ones after ---------- */
+
+/**
+ * One-second rounds: when each of the three snippets starts (ms after the first) and how long the
+ * first two last, in seconds (the third plays on to the end of the round). The points go 3, 2, 1
+ * with them, as with the whole preview. All three start at the same spot in the song (its "hook").
+ */
+export const SNAP_GAPS = [0, 6000, 13_000];
+export const SNAP_SECONDS = [1, 3];
+/** how long a one-second round listens: 25 s, or 20 with the four titles up from the start */
+export const SNAP_MS = 25_000;
+export const SNAP_QUIZ_MS = 20_000;
+/** where the snippets start when nobody has worked it out for this preview: just past Apple's fade-in */
+export const DEFAULT_HOOK_MS = 1000;
+export const HOOK_MAX_MS = 20_000;
+
+/** The four titles as a phone shows them: on the hard level, without who sings them. */
+export function shownChoices(choices: Song[], hard: boolean): { id: number; t: string; a: string; ae: string }[] {
+  return choices.map((c) => (hard ? { id: c.id, t: c.t, a: "", ae: "" } : { id: c.id, t: c.t, a: c.a, ae: c.ae }));
 }

@@ -68,6 +68,9 @@ for preview branches are off: `wrangler preview` (beta) would need a `previews` 
   in with GitHub's own sign-in token (OIDC, `src/oidc.ts`): the Worker checks it against GitHub's
   public keys and takes only this repository's `events-libraries` job on `main`. No secret to set on
   either side (below). The 06:00 run reads those pages, and fetches a page itself only when none came.
+  GitHub starts the job hours late most days (10:52 to 15:44 from 6 to 11 November), after the run
+  went past the libraries: such pages are read as they come, and once a library's last page is in,
+  the list is published again (`src/arrival.ts`). The job's log says which it was.
   `/go/api/status` shows each step's `via` (`handoff` or `fetch`) and a `note`. To see what the job
   would send, without sending it: `npm run libraries -- --dry-run`. A key (`EVENTS_HANDOFF_KEY`, on
   the Worker and where the script runs) is only for handing pages over from outside GitHub.
@@ -91,7 +94,9 @@ It runs on the free plan: nothing here costs money.
 - 绿色对勾：成了。点进去能看到两个图书馆各交了几页、多少活动。
 - 红叉：点进去看红字那一行，告诉 Claude。`HTTP 403 from gateway.bibliocommons.com`：GitHub 也被图书馆挡了。`GitHub token: ...`：网站没认这张凭证，后面写着哪一项不对。
 
-第二天早上打开 changle.ca/go/api/status：`vpl` 和 `rpl` 那几行写着 `"via": "handoff"` 就对了；写着 `"via": "fetch"` 的话，看同一行的 `note` 和 `error`。
+GitHub 常常拖到中午才跑这个任务，那时早上那一轮早就过去了：网站收到一页就读一页，一个图书馆最后一页到了就重新发布清单。任务日志里每个图书馆后面有一行，写着是「留给早上那一轮」还是「来了就读」、发布了多少个活动。
+
+打开 changle.ca/go/api/status：`vpl` 和 `rpl` 那几行写着 `"via": "handoff"` 就对了（来了就读的，`note` 结尾是 `read when it came`）；写着 `"via": "fetch"` 的话，看同一行的 `note` 和 `error`。早上那一轮直接去问图书馆，会被挡（403），那是正常的，等 GitHub 交过来就好。
 
 钥匙 `EVENTS_HANDOFF_KEY` 现在可有可无，只在 GitHub 以外跑 `npm run libraries` 时用（比如在电脑上交给本地的 `npm run dev`：同一把钥匙放进 `.dev.vars`，跑脚本时也设上）。GitHub 和 Cloudflare 上都不用加。
 

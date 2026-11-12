@@ -96,7 +96,7 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
       )}
       <div className="dj-coach-combo" role="meter" aria-valuemin={0} aria-valuemax={1} aria-valuenow={combo} aria-label={zh ? "全场一起跳" : "The whole floor together"}>
         <span className="dj-coach-combo-fill" style={{ width: `${Math.round(combo * 100)}%` }} />
-        <span className="dj-coach-combo-text">{dancers ? (zh ? `${dancers} 人在跳 · 全场一起跳` : `${dancers} dancing · the whole floor together`) : zh ? "手机握在手里跟着跳，就能上榜" : "Hold your phone and dance along to score"}</span>
+        <span className="dj-coach-combo-text">{dancers ? (zh ? `${dancers} 人在跳 · 全场一起跳` : `${dancers} dancing · the whole floor together`) : zh ? "手机握在手里跟着跳，就能上榜" : "Dance along with your phone to score"}</span>
       </div>
     </aside>
   );

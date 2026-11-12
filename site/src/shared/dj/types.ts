@@ -214,10 +214,13 @@ export type DropState = {
   hits: { pid: string; grade: DropGrade }[];
   /** the deck it lands on: the one off the air when the floor has loaded a new style there (a swap) */
   to: DeckSide;
+  /** 点歌模式 (the jukebox, Steve on Nov 5): the switch into the next song, on its bar all the same,
+   *  with no countdown, nothing to press and no boom */
+  quiet?: boolean;
 };
 
 /** A drop that landed: what the screens celebrate, and the night's record. */
-export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: DropGrade }[]; auto: boolean; to: DeckSide; style: StyleId };
+export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: DropGrade }[]; auto: boolean; to: DeckSide; style: StyleId; quiet?: boolean };
 
 /**
  * A song asked for by name on the beginner deck (Steve's ask on Nov 1). With its video on YouTube
@@ -228,6 +231,14 @@ export type LandedDrop = { at: number; bar: number; hits: { pid: string; grade: 
  * video's title from YouTube, only they and the host read (the others see that they asked for a
  * song): nothing a player sends reaches the big screen unchecked.
  */
+/**
+ * Who asked for a song picked on the big screen itself (Steve on Nov 11: "公用手机（投屏电视）...
+ * 这个手机是可以在YouTube上点歌的": one phone everyone shares, its screen on the TV): the table's,
+ * nobody's seat. Its songs count against the table's `reqMax` only, and everyone reads their names
+ * (they were typed on the screen everyone watches).
+ */
+export const SHARED_BY = "~shared";
+
 export type SongReq = {
   id: string;
   /** who asked for it */
@@ -440,6 +451,12 @@ export const DECK = {
   /** after a whole song, the DJ plays at least this long before it drops into the next one by
    *  itself (Steve: "歌和 DJ 轮流"); the table can build up and drop into it sooner */
   songGapMs: 60_000,
+  /** 点歌模式: a song up next starts this soon (a moment for the big screen to load it), after a
+   *  song the DJ comes back for `jukeGapMs`, and the switch lands on the first bar at least
+   *  `jukeBeats` beats on (about 5 seconds of DJ between two songs at 125 BPM) */
+  jukeWaitMs: 1500,
+  jukeGapMs: 1000,
+  jukeBeats: 8,
   /** a player whose song came on the air this recently waits behind the others' songs (alone, it
    *  still plays: nobody's turn is taken) */
   reqAgainMs: 600_000,
@@ -517,6 +534,10 @@ export type DjCommand =
   | { x: "mine"; on: boolean }
   | { x: "voice"; on: boolean }
   | { x: "shuffle"; on: boolean }
+  /** 点歌模式 (the host): no build-up and no DROP, the songs asked for one after another */
+  | { x: "juke"; on: boolean }
+  /** anyone at the table: the song's video over the whole TV, or back in its corner */
+  | { x: "full"; on: boolean }
   | { x: "dance"; bar: number; n: number; of: number }
   // the mixer (anyone at the table)
   /** a knob, -1 to 1 (0: as the music plays) */
@@ -585,6 +606,14 @@ export type RoomState = {
   /** the 歌单 in a random order (the host's switch, Steve on Nov 2: "可选择随机排序或按顺序"):
    *  the next song asked for is any of the waiting ones, else first come, first played */
   shuffle: boolean;
+  /**
+   * 点歌模式 (the host's switch, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就
+   * 自动播放"): no build-up, no DROP and no picks; the songs asked for play one after another, the DJ
+   * for a few seconds between them, and on its own when there are none
+   */
+  juke: boolean;
+  /** the song's video over the whole TV (anyone at the table, Steve on Nov 5), else in its corner */
+  full: boolean;
   /** 跟着跳 (shared/dj/dance.ts): each dancer's night, the bar the floor is being counted on, and the floor's combo (0 to 1) */
   dance: Record<string, Dancer>;
   danceBar: { bar: number; n: number; good: number };

@@ -21,6 +21,8 @@ type S = {
   left?: string | null;
   /** Guesses the drawer counted as right this round (时钟 for 钟表): typed again, they're right too. */
   close?: string[];
+  /** This round ended with nobody left to guess: nobody got it, and nobody is penalized for that. */
+  alone?: boolean;
 };
 
 const ROUND_MS = DRAW_ROUND_MS;
@@ -96,6 +98,7 @@ function nextRound(s: S, drawer: string, api: Api) {
   s.solved = [];
   s.left = null;
   s.close = [];
+  s.alone = false;
   api.resetStrokes();
 }
 
@@ -104,7 +107,16 @@ function endRound(s: S, api: Api, timedOut: boolean) {
   s.phase = "result";
   api.clear("draw");
   if (timedOut) api.fx("timeup");
-  if (!s.solved.length && s.word !== null) api.penalty([s.drawer], "sip", NOBODY(DRAW_WORDS[s.word]), { delay: 600 });
+  if (s.solved.length || s.word === null) return;
+  // nobody got it: the drawer drinks, unless nobody was left to guess (the others all left the table)
+  if (api.ids().some((id) => id !== s.drawer)) api.penalty([s.drawer], "sip", NOBODY(DRAW_WORDS[s.word]), { delay: 600 });
+  else s.alone = true;
+}
+
+/** How long the word is, in Chinese: its characters, and the letters among them (深夜emo: 2 and 3). */
+function zhLength(zh: string) {
+  const chars = [...zh];
+  return { zh: chars.filter((c) => /\p{Script=Han}/u.test(c)).length, latin: chars.filter((c) => /\p{Script=Latin}/u.test(c)).length };
 }
 
 export const draw: GameDef<S> = {
@@ -142,6 +154,7 @@ export const draw: GameDef<S> = {
         s.solved = [];
         s.left = null;
         s.close = [];
+        s.alone = false;
         api.resetStrokes();
         api.timer("draw", s.endsAt);
         return;
@@ -223,8 +236,9 @@ export const draw: GameDef<S> = {
         // choosing a word, or the one due to draw next after a drawer left: the turn passes on
         s.drawer = next;
       }
-    } else if (s.phase === "draw" && s.solved.length) {
-      // a guesser left: if everyone still guessing has got it, the round is done
+    } else if (s.phase === "draw") {
+      // a guesser left: if everyone still guessing has got it, or nobody is left to guess, the round
+      // is done (with nobody to guess, the drawer isn't penalized for nobody getting it)
       const guessers = api.ids().filter((id) => id !== s.drawer);
       if (guessers.every((id) => s.solved.includes(id))) endRound(s, api, false);
     }
@@ -244,14 +258,15 @@ export const draw: GameDef<S> = {
       drawer: s.drawer,
       d: s.d,
       endsAt: s.endsAt,
-      // a blank for each letter; spaces and hyphens show as they are ("___-_______" for All-nighter)
-      hint: w ? { zh: [...w.zh].length, en: w.en.replace(/[\p{L}\p{N}]/gu, "_") } : null,
+      // in English a blank for each letter; spaces and hyphens show as they are ("___-_______" for All-nighter)
+      hint: w ? { ...zhLength(w.zh), en: w.en.replace(/[\p{L}\p{N}]/gu, "_") } : null,
       word: showWord && w ? { zh: w.zh, en: w.en } : null,
       guesses: s.guesses,
       solved: s.solved,
       scores: s.scores,
       round: s.round,
       left: s.left ?? null,
+      alone: !!s.alone,
     };
   },
 };

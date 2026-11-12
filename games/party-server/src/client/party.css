@@ -932,3 +932,18 @@ body.has-tube .screen > .join-card {
   gap: 8px;
   flex-wrap: wrap;
 }
+/* 找拍子: a new song's beat, from everyone tapping along (the TV's panel, the phone's button) */
+.find {
+  display: grid;
+  gap: 12px;
+}
+.tapalong.find .tap-pad {
+  min-height: 0;
+  padding: 16px 24px;
+  font-size: 1.3rem;
+  justify-self: start;
+}
+.find-count {
+  font-size: clamp(3rem, 10vw, 6rem);
+  font-variant-numeric: tabular-nums;
+}

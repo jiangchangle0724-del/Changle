@@ -7,6 +7,12 @@ decoded song previews and Web Audio nodes still alive, GSAP tweens, and the tabs
 (also five times a second, for the peaks). The tabs' memory must hold steady too, not just the JS
 heap: the stage's lights once grew it by about 150 MB a song, with the heap flat all along. `stress` plays a table where a phone locks mid-song and
 wakes up, a player walks off and another sits down, and answers and "next" get double taps.
+`levels` checks the hard titles: no singer under any of the four, on one phone and on every phone
+at a table (multiple choice, and the four a buzzer picks from), and the reveal still names the singer.
+`snap` checks one-second rounds: what each phone plays (from where, for how long) on one phone (tap
+for more) and at a table (every phone the same spot, the one the host's phone found).
+`specials` checks the decades and the singer specials (the sheet, a game of one singer's titles, a table).
+`challenge` sends a game on as a link and plays it on a friend's phone: the same songs and four titles.
 
 Apple's previews are AAC, which the open-source Chromium can't decode, so each one is fetched
 and turned into MP3 on the fly (ffmpeg): the phone loads, decodes, analyses and plays it like a
@@ -14,7 +20,7 @@ real one. Today's charts are left out, so every song is in src/data/songs.ts and
 knows the right title. Works against the dev server (reads window.__room) or a production build
 (`vite preview`, read off the screens; `stress` needs the dev server).
 
-  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress ...]
+  python3 scripts/tune_quiz_check.py [base_url] [solo|online|stress|levels|snap|specials|challenge ...]
   (both local servers running; needs ffmpeg and pip's playwright, psutil and requests; ROUNDS=8
   for a shorter run; SHOTS=dir for screenshots and the audio cache; HTTPS_PROXY is passed to the
   browser when set)
@@ -611,6 +617,402 @@ def stress(browser):
             g.context.close()
 
 
+# every preview a page plays: from where (offset, s) and for how long (s), by its own audio clock
+WATCH_PLAYS = """
+(() => {
+  window.__plays = [];
+  const start = AudioBufferSourceNode.prototype.start;
+  const stop = AudioBufferSourceNode.prototype.stop;
+  AudioBufferSourceNode.prototype.start = function (when = 0, offset = 0, ...rest) {
+    if (this.buffer && this.buffer.duration > 5) {
+      this.__play = { when, offset, len: null, at: performance.now() };
+      window.__plays.push(this.__play);
+    }
+    return start.call(this, when, offset, ...rest);
+  };
+  AudioBufferSourceNode.prototype.stop = function (when = 0) {
+    if (this.__play && this.__play.len === null) this.__play.len = Math.max(0, when - this.__play.when);
+    return stop.call(this, when);
+  };
+})();
+"""
+
+
+def plays(pg):
+    return pg.evaluate("() => (window.__plays || []).map((p) => ({ offset: p.offset, len: p.len, at: p.at }))")
+
+
+def snap(browser):
+    """One second (dev server): one phone taps for more; a table plays the same spot on every phone."""
+    pg = phone(browser, "Steve", players=[{"id": "p0", "name": "Steve"}, {"id": "p1", "name": "Mia"}])
+    pg.add_init_script(WATCH_PLAYS)
+    pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+    pg.get_by_role("button", name="一秒猜歌", exact=True).click()
+    pg.get_by_role("button", name="5 首", exact=True).click()
+    pg.get_by_role("button", name="开始", exact=True).click()
+    ok(until(lambda: len(plays(pg)) >= 1, 20000) is not None, "[snap] one phone: the first snippet plays")
+    first = plays(pg)[0]
+    ok(first["len"] is not None and 0.9 <= first["len"] <= 1.3, f"[snap] one phone: one second of it ({first['len']})")
+    pg.wait_for_timeout(1500)
+    ok(pg.locator(".vinyl.is-spinning").count() == 0, "[snap] one phone: the record stops with the snippet")
+    shot(pg, "snap-solo-one")
+    pg.get_by_role("button", name="多放一点", exact=True).click()
+    ok(until(lambda: len(plays(pg)) >= 2, 4000) is not None, "[snap] one phone: more")
+    second = plays(pg)[-1]
+    ok(second["len"] is not None and 2.8 <= second["len"] <= 3.3 and abs(second["offset"] - first["offset"]) < 0.05, f"[snap] one phone: three seconds, from the same spot ({second['offset']:.2f} s, {second['len']})")
+    ok(pg.locator(".stage.is-now strong").inner_text() == "2", "[snap] one phone: now worth 2 points")
+    pg.get_by_role("button", name="多放一点", exact=True).click()
+    ok(until(lambda: len(plays(pg)) >= 3, 4000) is not None, "[snap] one phone: and the rest")
+    third = plays(pg)[-1]
+    ok((third["len"] or 0) > 10 and abs(third["offset"] - first["offset"]) < 0.05, f"[snap] one phone: the rest, from the same spot ({third['len']})")
+    ok(pg.locator("button", has_text=re.compile("^多放一点$")).count() == 0, "[snap] one phone: nothing more to play after that")
+    pg.get_by_role("button", name="揭晓歌名", exact=True).click()
+    ok(until(lambda: pg.locator(".sup-ask").count() > 0, 6000) is not None, "[snap] one phone: the reveal")
+    ok("+1" in pg.locator(".picker").inner_text(), "[snap] one phone: worth 1 point after the whole thing")
+    shot(pg, "snap-solo-reveal")
+    errs = errors_of([pg])
+    ok(not errs, f"[snap] one phone: no console or page errors {errs[:4]}")
+    pg.context.close()
+
+    host, guests = seat_table(browser, ["Steve", "Mia", "Jay"])
+    everyone = [host] + guests
+    for g in everyone:
+        g.add_init_script(WATCH_PLAYS)
+        g.reload(wait_until="networkidle")
+    ok(until(lambda: all(room(g) for g in everyone), 10000) is not None, "[snap] the table is back after the reloads")
+    # and a big screen, which plays along
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
+    tv = phone(browser, "TV")
+    tv.set_viewport_size({"width": 1280, "height": 720})
+    tv.add_init_script(WATCH_PLAYS)
+    tv.goto(BASE + f"tv/{code}", wait_until="networkidle")
+    ok(until(lambda: room(tv), 10000) is not None, "[snap] the big screen is at the table")
+    tv.keyboard.press("Shift")  # a big screen's sound waits for one click or key
+    start_tune(host, everyone)
+    host.get_by_role("button", name="一秒猜歌", exact=True).click()
+    host.get_by_role("button", name="5 首", exact=True).click()
+    ok(until(lambda: view(guests[0])["snap"]), "[snap] one second is on for the table")
+    # (a phone schedules a round's snippets all at once: count what each has played before each round)
+    ok(until(lambda: bool(view(host)["pre"]), 5000) is not None, "[snap] the first song is picked during the setup, for every phone to load")
+    host.wait_for_timeout(2500)
+    hearing = everyone + [tv]
+    base = [len(plays(g)) for g in hearing]
+    host.get_by_role("button", name="放第一首").click()
+    hooks = []
+    for n in (1, 2, 3):
+        ok(until(lambda: view(host)["phase"] == "listen" and view(host)["round"] == n, 20000) is not None, f"[snap] song {n} starts")
+        until(lambda: all(len(plays(g)) >= b + 2 for g, b in zip(hearing, base)), 14000)
+        v = view(host)
+        hooks.append(v["hook"])
+        if n == 1:
+            shot(tv, "snap-tv-listen")
+        for g, b in zip(hearing, base):
+            mine = plays(g)[b:]
+            ok(len(mine) >= 2, f"[snap] song {n}: {g._name} played the first two snippets ({len(mine)})")
+            if len(mine) >= 2:
+                ok(all(abs(x["offset"] - v["hook"] / 1000) < 0.06 for x in mine[:2]), f"[snap] song {n}: {g._name} plays from the table's spot ({[round(x['offset'], 2) for x in mine[:2]]} vs {v['hook'] / 1000})")
+                ok(0.9 <= (mine[0]["len"] or 0) <= 1.3 and 2.8 <= (mine[1]["len"] or 0) <= 3.3, f"[snap] song {n}: {g._name}: one second, then three ({mine[0]['len']}, {mine[1]['len']})")
+        if n == 2:
+            shot(guests[0], "snap-online-listen")
+        # Mia buzzes and gets it: 2 points (the three-second stage)
+        guests[0].locator(".buzz").dispatch_event("pointerdown")
+        if until(lambda: view(host)["phase"] == "answer", 3000):
+            right = right_choice(view(guests[0]))
+            ids = [c["id"] for c in view(guests[0])["choices"]]
+            try:
+                guests[0].locator(".tn-options .tn-option").nth(ids.index(right) if right in ids else 0).click(timeout=3000)
+            except Exception as e:  # noqa: BLE001
+                print("  (pick)", str(e)[:100], flush=True)
+        ok(until(lambda: view(host)["phase"] == "reveal", 30000) is not None, f"[snap] song {n}: the reveal")
+        clear_stamps(everyone)
+        host.wait_for_timeout(1500)
+        if n == 1:
+            shot(tv, "snap-tv-reveal")
+        base = [len(plays(g)) for g in hearing]
+        try:
+            host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=4000)
+        except Exception:
+            pass
+    ok(any(h != 1000 for h in hooks[1:]), f"[snap] after the first song, the spot is the one the host's phone found ({hooks})")
+    errs = errors_of(hearing)
+    ok(not errs, f"[snap] the table: no console or page errors {errs[:4]}")
+    for g in hearing:
+        g.context.close()
+
+
+def specials(browser):
+    """Decades and singer specials: the decade row; a sheet of singers, by language or by name; a game
+    of one singer's songs (all four titles theirs, no singer on them); a table where the host picks and
+    every phone and the big screen show it."""
+    pg = phone(browser, "Steve", players=[{"id": "p0", "name": "Steve"}, {"id": "p1", "name": "Mia"}])
+    pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+    pg.get_by_role("button", name="90 年代", exact=True).click()
+    ok(pg.get_by_role("button", name="90 年代", exact=True).get_attribute("aria-pressed") == "true", "[specials] one phone: a decade picked")
+    shot(pg, "specials-decade")
+    pg.get_by_role("button", name="歌手专场", exact=True).click()
+    sheet = pg.locator("dialog.ui-sheet[open]")
+    ok(until(lambda: sheet.count() > 0, 3000) is not None, "[specials] one phone: the singers' sheet opens")
+    pg.wait_for_timeout(500)
+    shot(pg, "specials-sheet")
+    ok(sheet.locator(".tn-singers .ui-pill").count() >= 20, f"[specials] one phone: Chinese singers to pick from ({sheet.locator('.tn-singers .ui-pill').count()})")
+    sheet.locator("input[type=search]").fill("周杰")
+    ok(until(lambda: sheet.locator(".tn-singers .ui-pill").count() == 1, 3000), "[specials] one phone: found by name")
+    sheet.locator(".tn-singers .ui-pill").first.click()
+    ok(until(lambda: pg.locator("dialog.ui-sheet[open]").count() == 0, 3000) is not None, "[specials] one phone: picking one closes the sheet")
+    ok("周杰伦" in pg.locator(".tn-pool-singer").inner_text(), "[specials] one phone: 周杰伦 is up")
+    pg.get_by_role("button", name="选择题", exact=True).click()
+    pg.get_by_role("button", name="5 首", exact=True).click()
+    ok(pg.get_by_role("button", name="简单", exact=True).count() == 0, "[specials] one phone: no easy or hard for one singer's titles")
+    pg.wait_for_timeout(300)
+    shot(pg, "specials-picked")
+    pg.get_by_role("button", name="开始", exact=True).click()
+    jay = {r[1] for r in ROWS if "周杰伦" in r[2]}
+    for n in (1, 2):
+        up = until(lambda: pg.locator(".tn-option:not([disabled])").count() == 4, 20000)
+        ok(up is not None, f"[specials] one phone: song {n}, four titles")
+        titles = [t.strip() for t in pg.locator(".tn-option strong").all_inner_texts()]
+        ok(len(titles) == 4 and all(t in jay for t in titles), f"[specials] one phone: song {n}, all four are 周杰伦's ({titles})")
+        ok(pg.locator(".tn-option small").count() == 0, f"[specials] one phone: song {n}, no singer under them")
+        if n == 1:
+            shot(pg, "specials-quiz")
+        pg.get_by_role("button", name="揭晓歌名").click()
+        ok(until(lambda: "周杰伦" in pg.locator(".song-reveal, .sup-ask").first.inner_text() or pg.locator("text=周杰伦").count() > 0, 6000) is not None, f"[specials] one phone: song {n}, the reveal")
+        pg.get_by_role("button", name="没人猜到").click()
+    errs = errors_of([pg])
+    ok(not errs, f"[specials] one phone: no console or page errors {errs[:4]}")
+    pg.context.close()
+
+    host, guests = seat_table(browser, ["Steve", "Mia"])
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
+    tv = phone(browser, "TV")
+    tv.set_viewport_size({"width": 1280, "height": 720})
+    tv.goto(BASE + f"tv/{code}", wait_until="networkidle")
+    everyone = [host] + guests
+    start_tune(host, everyone)
+    host.get_by_role("button", name="歌手专场", exact=True).click()
+    sheet = host.locator("dialog.ui-sheet[open]")
+    until(lambda: sheet.count() > 0, 3000)
+    sheet.locator(".tn-singer-langs .ui-pill", has_text="粤语").click()
+    pick = sheet.locator(".tn-singers .ui-pill").first
+    who = pick.inner_text().split("\n")[0].strip()
+    pick.click()
+    ok(until(lambda: (view(guests[0]) or {}).get("pool", "").startswith("@"), 5000) is not None, f"[specials] the table: the host picks {who}")
+    g = guests[0]
+    ok(until(lambda: who in g.locator(".tn-pool-singer").inner_text(), 3000) is not None and g.locator(".tn-pool .seg button[disabled]").count() == 2, "[specials] the table: a guest sees who, and can't change it")
+    ok(until(lambda: f"歌手专场：{who}" in tv.locator(".tvt-chips").inner_text(), 5000) is not None, "[specials] the big screen says whose songs")
+    shot(tv, "specials-tv-ready")
+    shot(g, "specials-guest-setup")
+    host.get_by_role("button", name="选择题", exact=True).click()
+    host.get_by_role("button", name="20 首", exact=True).click()
+    host.get_by_role("button", name="放第一首").click()
+    ok(until(lambda: view(g)["phase"] == "listen", 10000) is not None, "[specials] the table: the first song")
+    v = view(g)
+    theirs = [r for r in ROWS if v["pool"][1:] in [w.strip().lower() for w in re.split(r"\s*(?:,|，|、|&|＆|feat\.?|ft\.|\s[x×]\s|\swith\s)\s*", r[2])]]
+    ok(v["total"] == min(20, len(theirs)), f"[specials] the table: as many songs as they have, up to 20 ({v['total']} of {len(theirs)})")
+    ok(until(lambda: view(g)["choices"] and all(c["a"] == "" for c in view(g)["choices"]), 8000) is not None, "[specials] the table: no singer on the four titles")
+    shot(g, "specials-online-quiz")
+    errs = errors_of(everyone + [tv])
+    ok(not errs, f"[specials] the table: no console or page errors {errs[:4]}")
+    for x in everyone + [tv]:
+        x.context.close()
+
+
+# the phone's share sheet, stood in for: what a page shares lands in window.__shared
+SHARE_STUB = """
+(() => {
+  window.__shared = [];
+  Object.defineProperty(navigator, "share", { configurable: true, value: async (d) => { window.__shared.push(d); } });
+})();
+"""
+
+
+def challenge(browser):
+    """Challenge links: a game on one phone sent on as a link; a friend's phone with nobody set up opens
+    it, plays the same songs in the same order with the same four titles, and sees who did better."""
+    pg = phone(browser, "Steve", players=[{"id": "p0", "name": "Steve"}, {"id": "p1", "name": "Mia"}])
+    pg.add_init_script(SHARE_STUB)
+    pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+    pg.get_by_role("button", name="选择题", exact=True).click()
+    pg.get_by_role("button", name="5 首", exact=True).click()
+    pg.get_by_role("button", name="开始", exact=True).click()
+    played = []
+    for n in range(1, 6):
+        up = until(lambda: pg.locator(".tn-option:not([disabled])").count() == 4, 20000)
+        ok(up is not None, f"[challenge] Steve's table: song {n}, four titles")
+        four = [t.strip() for t in pg.locator(".tn-option strong").all_inner_texts()]
+        idx = right_option(pg)
+        pg.locator(".tn-option").nth(idx if idx is not None else 0).click()
+        if not until(lambda: pg.locator(".song-title").count() > 0, 3000):
+            pg.get_by_role("button", name="揭晓歌名").click()
+        until(lambda: pg.locator(".song-title").count() > 0, 6000)
+        played.append((pg.locator(".song-title").inner_text().strip(), four))
+        if n <= 3:
+            pg.locator(".picker .chip", has_text="Steve").click()
+        elif n == 4:
+            pg.locator(".picker .chip", has_text="Mia").click()
+        else:
+            pg.get_by_role("button", name="没人猜到").click()
+    ok(until(lambda: pg.locator(".pl-board-title").count() > 0, 8000) is not None, "[challenge] Steve's table: the final scores")
+    pg.get_by_role("button", name="发起挑战").click()
+    url = until(lambda: pg.evaluate("() => window.__shared[0] && window.__shared[0].url"), 3000)
+    ok(bool(url) and "/g/name-that-tune/play?c=" in url, f"[challenge] the phone's share sheet gets the link ({(url or '')[:70]}...)")
+    shared = pg.evaluate("() => window.__shared[0] && window.__shared[0].text") or ""
+    ok("9 分" in shared, f"[challenge] and a line to go with it ({shared})")
+    shot(pg, "challenge-end")
+    errs = errors_of([pg])
+    ok(not errs, f"[challenge] Steve's table: no console or page errors {errs[:4]}")
+    pg.context.close()
+    if not url:
+        return
+
+    friend = phone(browser, "Lin")
+    friend.add_init_script(SHARE_STUB)
+    friend.goto(url, wait_until="networkidle")
+    ok(until(lambda: "Steve向你发起挑战" in friend.locator(".tn-challenge").inner_text(), 8000) is not None, "[challenge] a friend with nobody set up: straight to Steve's challenge")
+    ok("9" in friend.locator(".tn-challenge-bar strong").inner_text() and "满分 15" in friend.locator(".tn-challenge-bar").inner_text(), "[challenge] the score to beat: 9 of 15")
+    ok("选择题" in friend.locator(".tn-challenge-how").inner_text() and "5 首" in friend.locator(".tn-challenge-how").inner_text(), "[challenge] how it plays: 5 songs, multiple choice")
+    ok("?c=" in friend.url, "[challenge] the link stays on the address")
+    shot(friend, "challenge-intro")
+    friend.get_by_role("button", name="接受挑战").click()
+    for n in range(1, 6):
+        up = until(lambda: friend.locator(".tn-option:not([disabled])").count() == 4, 20000)
+        ok(up is not None, f"[challenge] the friend: song {n}, four titles")
+        four = [t.strip() for t in friend.locator(".tn-option strong").all_inner_texts()]
+        ok(four == played[n - 1][1], f"[challenge] the friend: song {n}, the same four titles in the same order ({four})")
+        friend.get_by_role("button", name="揭晓歌名").click()
+        until(lambda: friend.locator(".song-title").count() > 0, 6000)
+        title = friend.locator(".song-title").inner_text().strip()
+        ok(title == played[n - 1][0], f"[challenge] the friend: song {n} is Steve's song {n} ({title})")
+        if n <= 4:
+            friend.locator(".picker .chip").first.click()
+        else:
+            friend.get_by_role("button", name="没人猜到").click()
+    ok(until(lambda: friend.locator(".tn-challenge-result").count() > 0, 8000) is not None, "[challenge] the friend: how it went")
+    res = friend.locator(".tn-challenge-result").inner_text()
+    ok("挑战成功" in res and "Steve" in res, f"[challenge] the friend beat it ({' '.join(res.split())})")
+    shot(friend, "challenge-result")
+    friend.get_by_role("button", name="发起挑战").click()
+    back = until(lambda: friend.evaluate("() => window.__shared[0] && window.__shared[0].url"), 3000)
+    ok(bool(back) and back != url, "[challenge] the friend sends it back with their own score")
+    # (nobody is set up on this phone: the game's card first, to add tonight's people, as for any game)
+    friend.get_by_role("button", name="自己开一局").click()
+    ok(until(lambda: "?c=" not in friend.url and friend.url.rstrip("/").endswith("/g/name-that-tune"), 4000) is not None, f"[challenge] 自己开一局: the link off the address, and with nobody set up, the game's card ({friend.url})")
+    # a link whose songs this list doesn't have (made up here): it says so, and offers a game of their own
+    gone = friend.evaluate("""async () => {
+      const m = await import('/src/party/tune/challenge.ts');
+      return m.challengeUrl({ pool: 'zh+en:any', quiz: true, hard: false, snap: false, seed: 7, name: 'Steve', pts: [3, 3], ids: [11, 12] });
+    }""")
+    friend.goto(gone, wait_until="networkidle")
+    ok(until(lambda: "不在歌单里" in friend.locator(".tn-challenge").inner_text(), 8000) is not None and friend.get_by_role("button", name="接受挑战").count() == 0, "[challenge] a link whose songs are gone: it says so, and there's nothing to take on")
+    errs = errors_of([friend])
+    ok(not errs, f"[challenge] the friend: no console or page errors {errs[:4]}")
+    friend.context.close()
+
+
+def start_tune(host, everyone):
+    tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']")
+    if tiles.count():
+        tiles.first.click()
+    host.wait_for_timeout(500)
+    host.locator(".lobby-actions .btn-primary").click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("id") == "tune") for g in everyone), "[levels] every phone is in Name That Tune")
+    host.wait_for_timeout(500)
+
+
+def levels(browser):
+    """Hard titles (dev server): one phone, then a table, multiple choice and buzz-in."""
+    pg = phone(browser, "Steve", players=[{"id": "p0", "name": "Steve"}, {"id": "p1", "name": "Mia"}])
+    pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+    pg.get_by_role("button", name="选择题", exact=True).click()
+    ok(pg.get_by_role("button", name="难", exact=True).count() == 1, "[levels] one phone: easy or hard, once it's multiple choice")
+    for hard in (False, True):
+        if hard:
+            pg.get_by_role("button", name="难", exact=True).click()
+        pg.get_by_role("button", name="5 首", exact=True).click()
+        pg.get_by_role("button", name="开始", exact=True).click()
+        ok(until(lambda: pg.locator(".tn-option:not([disabled])").count() == 4, 20000) is not None, f"[levels] one phone {'hard' if hard else 'easy'}: four titles")
+        smalls = pg.locator(".tn-option small").count()
+        ok(smalls == (0 if hard else 4), f"[levels] one phone {'hard' if hard else 'easy'}: {'no singer' if hard else 'a singer'} under each title ({smalls})")
+        shot(pg, f"levels-solo-{'hard' if hard else 'easy'}")
+        pg.get_by_role("button", name="揭晓歌名", exact=True).click()
+        ok(until(lambda: pg.locator(".song-reveal, .tune-title, .sup-ask").count() > 0, 6000) is not None, "[levels] one phone: the reveal")
+        # back to the setup for the other level: the tally's 再来一局 starts the game afresh
+        pg.goto(BASE + "g/name-that-tune/play", wait_until="networkidle")
+        if pg.get_by_role("button", name="重新开始").count():
+            pg.get_by_role("button", name="重新开始").click()
+        pg.get_by_role("button", name="选择题", exact=True).click()
+    errs = errors_of([pg])
+    ok(not errs, f"[levels] one phone: no console or page errors {errs[:4]}")
+    pg.context.close()
+
+    host, guests = seat_table(browser, ["Steve", "Mia", "Jay"])
+    everyone = [host] + guests
+    start_tune(host, everyone)
+    for quiz in (True, False):
+        host.get_by_role("button", name="选择题" if quiz else "抢答", exact=True).click()
+        host.get_by_role("button", name="难", exact=True).click()
+        host.get_by_role("button", name="5 首", exact=True).click()
+        ok(until(lambda: view(guests[0])["hard"] and view(guests[0])["quiz"] == quiz), f"[levels] the table: hard {'multiple choice' if quiz else 'buzz-in'} is on for everyone")
+        host.get_by_role("button", name="放第一首").click()
+        for n in (1, 2):
+            ok(until(lambda: view(host)["phase"] == "listen" and view(host)["round"] == n, 15000) is not None, f"[levels] song {n} starts")
+            if quiz:
+                ok(until(lambda: all(g.locator(".tn-option:not([disabled])").count() == 4 for g in everyone), 15000) is not None, f"[levels] song {n}: four titles on every phone")
+            else:
+                # the buzzer counts once the song is playing (the record spins)
+                ok(until(lambda: guests[0].locator(".buzz:not([disabled])").count() == 1 and guests[0].locator(".vinyl.is-spinning").count() > 0, 15000) is not None, f"[levels] song {n}: the song plays, the buzzer is live")
+                for _ in range(3):
+                    guests[0].locator(".buzz").dispatch_event("pointerdown")
+                    if until(lambda: view(host)["phase"] == "answer", 2500):
+                        break
+                ok(until(lambda: view(host)["phase"] == "answer" and guests[0].locator(".tn-options .tn-option:not([disabled])").count() == 4, 8000) is not None, f"[levels] song {n}: Mia buzzed and has four titles")
+            v = view(guests[0])
+            ok(v["choices"] and all(c["a"] == "" and c["ae"] == "" for c in v["choices"]), f"[levels] song {n}: the table is sent titles only")
+            ok(all(g.locator(".tn-option small").count() == 0 for g in everyone), f"[levels] song {n}: no singer under any title, on any phone")
+            if n == 1:
+                shot(guests[0], f"levels-online-{'quiz' if quiz else 'buzz'}")
+            right = right_choice(v)
+            ids = [c["id"] for c in v["choices"]]
+            pickers = everyone if quiz else [guests[0]]
+            for g in pickers:
+                try:
+                    g.locator(".tn-option:not([disabled])" if quiz else ".tn-options .tn-option").nth(ids.index(right) if right in ids else 0).click(timeout=3000)
+                except Exception as e:  # noqa: BLE001
+                    print("  (pick)", g._name, str(e)[:120], flush=True)
+            ok(until(lambda: view(host)["phase"] == "reveal", 25000) is not None, f"[levels] song {n}: the reveal")
+            ok(bool((view(host).get("song") or {}).get("a")), f"[levels] song {n}: the reveal names the singer")
+            clear_stamps(everyone)
+            host.wait_for_timeout(600)
+            try:
+                host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=4000)
+            except Exception:
+                pass
+        # the rest of the five: the host reveals each one at once, then on to the final scores
+        for _ in range(40):
+            ph = view(host)["phase"]
+            if ph == "end":
+                break
+            clear_stamps(everyone)
+            try:
+                if ph == "listen":
+                    host.locator(".tn button", has_text=re.compile("^揭晓答案$")).first.click(timeout=3000)
+                elif ph == "reveal":
+                    host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=3000)
+            except Exception:
+                pass
+            host.wait_for_timeout(700)
+        ok(until(lambda: view(host)["phase"] == "end", 15000) is not None, "[levels] the final scores")
+        clear_stamps(everyone)
+        host.wait_for_timeout(1500)
+        clear_stamps(everyone)
+        host.get_by_role("button", name="再来一局").click()
+        ok(until(lambda: view(host)["phase"] == "ready"), "[levels] back to the setup")
+    errs = errors_of(everyone)
+    ok(not errs, f"[levels] the table: no console or page errors {errs[:4]}")
+    for p in everyone:
+        p.context.close()
+
+
 def main():
     print(f"{BASE}  rounds {ROUNDS}  out {OUT}", flush=True)
     with sync_playwright() as p:
@@ -631,6 +1033,22 @@ def main():
         if "stress" in ONLY:
             b = browser_of(p)
             stress(b)
+            b.close()
+        if "levels" in ONLY:
+            b = browser_of(p)
+            levels(b)
+            b.close()
+        if "snap" in ONLY:
+            b = browser_of(p)
+            snap(b)
+            b.close()
+        if "specials" in ONLY:
+            b = browser_of(p)
+            specials(b)
+            b.close()
+        if "challenge" in ONLY:
+            b = browser_of(p)
+            challenge(b)
             b.close()
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed", flush=True)
     sys.exit(1 if fails else 0)
