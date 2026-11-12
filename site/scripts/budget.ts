@@ -23,7 +23,9 @@ import { gzipSync } from "node:zlib";
 // 120 → 121 (2026-11-11): main stood at 120.1, over it. The DJ booth's card took 0.4 with its shared
 // phone (#338: its words in two languages, and the few lines that wake the sound, which only work
 // inside the card's own tap, so they can't load later), and 最佳称号 and 林波舞 the rest since.
-const BUDGET = { js: 121, css: 22 };
+// 121 → 122 (2026-11-11): main stood at 121.0. 一起跳's card now says to mirror this phone or computer
+// to the TV (Steve's words, both languages, a `mirror` flag on its stage) and adds 0.2.
+const BUDGET = { js: 122, css: 22 };
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const html = readFileSync(join(dist, "index.html"), "utf8");

@@ -76,20 +76,29 @@ export function GameSheet({
           </p>
 
           {g.ready && g.stage ? (
-            // on its own Worker (一起跳): a TV or computer is the stage, phones join it there
+            // on its own Worker (一起跳, 抓紧了): a TV or computer is the stage, phones join it there; 一起跳's
+            // stage is this device mirrored to the TV (`mirror`)
             <div className="game-card-modes">
               <button type="button" className="mode-btn mode-primary" onClick={bigScreen} aria-expanded={tvHelp}>
                 <Tv size={22} />
                 <span>
-                  <strong>{zh ? "电视或电脑当舞台" : "A TV or computer is the stage"}</strong>
-                  <small>{g.stage.note ? tr(g.stage.note) : zh ? "老师在那里教，大家拿着手机跟着跳" : "The coach teaches there. Everyone dances with their phone."}</small>
+                  <strong>{g.stage.mirror ? (zh ? "这台手机/电脑投屏电视" : "Mirror this phone or computer to the TV") : zh ? "电视或电脑当舞台" : "A TV or computer is the stage"}</strong>
+                  {g.stage.note && <small>{tr(g.stage.note)}</small>}
                 </span>
               </button>
               {tvHelp && (
                 <div className="mode-help">
-                  <p>{zh ? `在电视或电脑的浏览器里打开 ${where}，点「开始」。屏幕上有二维码，大家扫码进来。` : `On the TV or computer, open ${where} in the browser and press Start. A QR code comes up; everyone scans it to join.`}</p>
+                  <p>
+                    {g.stage.mirror
+                      ? zh
+                        ? "把这台手机或电脑投屏到电视（iPhone、iPad、Mac 用 AirPlay），手机横过来，再点下面的按钮。电视上会出二维码，大家用自己的手机扫码加入。"
+                        : "Mirror this phone or computer to the TV (AirPlay from an iPhone, iPad or Mac), turn a phone sideways, then tap the button below. A QR code comes up on the TV; everyone scans it with their own phone."
+                      : zh
+                        ? `在电视或电脑的浏览器里打开 ${where}，点「开始」。屏幕上有二维码，大家扫码进来。`
+                        : `On the TV or computer, open ${where} in the browser and press Start. A QR code comes up; everyone scans it to join.`}
+                  </p>
                   <button type="button" className="btn btn-ghost btn-block" onClick={() => window.location.assign(g.stage!.screen)}>
-                    {zh ? "就用这台设备当舞台" : "Use this device as the stage"}
+                    {g.stage.mirror ? (zh ? "开始当舞台" : "Start the stage") : zh ? "就用这台设备当舞台" : "Use this device as the stage"}
                   </button>
                 </div>
               )}

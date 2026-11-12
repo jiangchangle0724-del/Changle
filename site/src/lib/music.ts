@@ -1,10 +1,10 @@
 /**
  * Music for the party: a small step sequencer that plays original grooves (dance games and the
- * quiet background loop), and a melody player for Name That Tune. Everything is scheduled on the
+ * background set, lib/nightset.ts), and a melody player for Name That Tune. Everything is scheduled on the
  * audio clock, and grooves can start on a shared wall-clock moment so every phone at an online
  * table lands on the same beat.
  */
-import { bus, clap, ctxTimeAt, hat, kick, midiHz, note, shaker, snare, tom, burst, type Bus, type Inst } from "./audio/engine";
+import { bus, clap, crash, ctxTimeAt, hat, kick, midiHz, note, shaker, snare, tom, burst, type Bus, type Inst } from "./audio/engine";
 
 type Hits = number[]; // 16 velocities (0 = silent)
 export const v = (s: string): Hits => s.split("").map((ch) => (ch === "." ? 0 : ch === "x" ? 1 : ch === "o" ? 0.55 : ch === "-" ? 0.3 : 0));
@@ -262,16 +262,130 @@ export function playStep(b: Bus, s: Style, step: number, t: number, stepS: numbe
   if (s.crackle && Math.random() < 0.5) burst(b, { ...o, at: t + Math.random() * stepS, dur: 0.001, decay: 0.004, type: "highpass", f: 3000 + Math.random() * 4000, q: 0.7, peak: 0.02 + Math.random() * 0.03, wet: 0 });
 }
 
-/* ---------------- background ---------------- */
+/* ---------------- background: the night's set ---------------- */
 
-let background: GrooveHandle | null = null;
+// The music around the site is a set of original songs in different styles (lib/nightset.ts),
+// livelier than the lofi loop it replaced (Steve 2026-11-05). Each visit shuffles them; each song
+// plays an intro, the groove, a break that rolls into the drop, and an outro that rolls into the
+// next song. The songs download when the music first starts, not with this file.
+type NightSet = typeof import("./nightset");
+let nightset: Promise<NightSet> | null = null;
+const loadSet = () => (nightset ??= import("./nightset"));
+
+type SetPlayer = { stop: (fade?: number) => void };
+let background: SetPlayer | null = null;
 let wanted = false;
 let holds = 0;
+/** this visit's order, and where in it we are, so the set goes on after a game had the speaker */
+let order: number[] = [];
+let at = -1;
+/** the set's level on the music bus: these songs are busier than the lofi loop (0.4 x 0.8) was */
+const SET_VOLUME = 0.42;
+
+function shuffled(n: number) {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** The last half bar before a drop or the next song: the drums give way to a snare roll. */
+function roll(b: Bus, i: number, t: number, dest: AudioNode) {
+  if (i < 8 || (i < 12 && i % 2 === 1)) return;
+  snare(b, { at: t, abs: true, dest, peak: 0.1 + 0.03 * (i - 8) });
+}
+
+const DRUMS = ["kick", "snare", "clap", "tom"] as const;
+
+/**
+ * The set's playhead: which song, section and step, and when the next step falls. `until` puts
+ * every step before `horizon` (audio-clock seconds) on the clock; `pick` chooses each next song
+ * (the visit's shuffled order; a test renders the songs in turn).
+ */
+export function setCursor(m: NightSet, b: Bus, dest: AudioNode, startAt: number, pick: () => number) {
+  let song = m.SONGS[0].style;
+  let stepS = 0;
+  let sec = 0;
+  let loop = 0;
+  let step = 0;
+  let style = song;
+  let fill = song;
+  const enter = () => {
+    style = m.sectionStyle(song, m.FORM[sec]);
+    fill = m.sectionStyle(style, { loops: 0, mute: [...DRUMS] });
+  };
+  const next = () => {
+    song = m.SONGS[pick()].style;
+    stepS = 60 / song.bpm / 4;
+    sec = 0;
+    loop = 0;
+    step = 0;
+    enter();
+  };
+  next();
+  let nextTime = startAt;
+  return {
+    until(horizon: number) {
+      while (nextTime < horizon) {
+        const section = m.FORM[sec];
+        const swing = step % 2 === 1 ? (song.swing ?? 0) * stepS : 0;
+        const t = nextTime + swing;
+        if (section.crash && loop === 0 && step === 0) crash(b, { at: t, abs: true, dest, peak: 0.1, decay: 1.2 });
+        if (section.fill && loop === section.loops - 1 && step >= 56) {
+          playStep(b, fill, step, t, stepS, dest);
+          roll(b, step % 16, t, dest);
+        } else playStep(b, style, step, t, stepS, dest);
+        nextTime += stepS;
+        if (++step === 64) {
+          step = 0;
+          if (++loop === section.loops) {
+            loop = 0;
+            if (++sec === m.FORM.length) next();
+            else enter();
+          }
+        }
+      }
+    },
+  };
+}
+
+function playSet(m: NightSet): SetPlayer | null {
+  const b = bus();
+  if (!b) return null;
+  if (order.length !== m.SONGS.length) order = shuffled(m.SONGS.length);
+  const out = b.c.createGain();
+  out.gain.value = SET_VOLUME;
+  out.connect(b.music);
+  const cursor = setCursor(m, b, out, b.c.currentTime + 0.08, () => order[(at = (at + 1) % order.length)]);
+  let dead = false;
+  const timer = window.setInterval(() => {
+    if (!dead) cursor.until(b.c.currentTime + 0.14);
+  }, 25);
+  return {
+    stop(fade = 0.02) {
+      if (dead) return;
+      dead = true;
+      window.clearInterval(timer);
+      const t = b.c.currentTime;
+      out.gain.cancelScheduledValues(t);
+      out.gain.setTargetAtTime(0, t, fade);
+      window.setTimeout(() => out.disconnect(), 2500);
+    },
+  };
+}
 
 export function startBackground() {
   wanted = true;
   if (background || holds > 0) return;
-  background = startGroove("lofi", { volume: 0.8 });
+  void loadSet()
+    .then((m) => {
+      if (wanted && !holds && !background) background = playSet(m);
+    })
+    .catch(() => {
+      nightset = null; // offline: the next start tries again
+    });
 }
 
 export function stopBackground() {
