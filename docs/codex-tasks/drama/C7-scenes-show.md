@@ -45,10 +45,15 @@ of this card.
   own, not a tourist poster. Nothing that makes fun of anyone.
 - Night colours: the site is dark. No big areas of white or pale sky; screens glow in deep colour,
   and a daytime scene is lit low and warm (late sun, lamps on, rain on the window).
-- Each set looks clearly different from the others on this card, from the first set and from the
-  community pictures: another place, palette or time of day. Where scenes share a kind of place
+- Each set looks clearly different from the others on this card, from the first set, from the
+  community pictures and from the scene pictures already drawn (the `scene-*.webp` in
+  `site/public/drama/`): another place, palette or time of day. Where scenes share a kind of place
   (six livestreams, five stages, two karaoke nights, two dating shows), the table gives each its own
-  room, palette or light; keep them apart.
+  room, palette or light; keep them apart. Keep the karaoke rooms apart from
+  `scene-love-ktv-dedication`, the awards ballroom apart from the ballrooms
+  (`scene-family-lipstick-collar`, `scene-solo-best-man-speech`), and the living rooms apart from
+  `scene-sa-cricket-final-password` and the community pictures. Paint the time of day the table
+  gives: a morning or afternoon scene has daylight at the window, kept low and warm.
 
 ## The pictures
 
@@ -69,7 +74,7 @@ of this card.
 | `scene-show-couple-account-single.webp` | A couple influencers' studio in dusty rose and sage under ring lights: a two-seat sofa with matching cushions and mugs, a camera on a tripod with its red light on, an editing desk with blank screens, and through an open door a rack of outfits. Plain dark floor below; live and in trouble. |
 | `scene-solo-weather-report.webp` | A TV news studio in the evening, deep blue: the weather wall glowing with a map of an invented coastline and cloud and sun symbols (no words or numbers), a studio camera on a pedestal, and the empty news desk off to one side. Plain dark floor below; calm, or is it. |
 | `scene-solo-live-workout.webp` | A home workout studio at seven in the morning, a big window with a dark blue dawn turning orange: yoga mats rolled out, dumbbells and a kettlebell, a ring light and a phone on a tripod (blank screen), and a water bottle and towel. Plain dark floor below; peppy. |
-| `scene-show-karaoke-skip.webp` | A private karaoke room on a birthday night in magenta and gold: a birthday cake on the table, balloons, a song-picking tablet with a blank screen, the big screen glowing blank, and tambourines on the sofa. Plain dark carpet below; a party with a grudge. |
+| `scene-show-karaoke-skip.webp` | A private karaoke room on a birthday night in amber and emerald green: a birthday cake on the table, balloons, a song-picking tablet with a blank screen, the big screen glowing blank, and tambourines on the sofa. Plain dark carpet below; a party with a grudge. |
 | `scene-show-final-envelope.webp` | The grand-final stage of a TV singing competition, an arena of LED panels in violet and silver and columns of light: a gold envelope on a pedestal at centre stage, the judges' desk with three red buttons, and confetti cannons waiting. Plain dark stage floor below; live-TV shock. |
 | `scene-show-wrap-party-leak.webp` | A film's wrap party in a dark-wood restaurant under string lights: a blank clapperboard on a long table, a cake shaped like a film reel, champagne glasses, a director's chair, and the double doors bolted shut. Plain dark floor below; locked-room glamour. |
 | `scene-cn-square-dance-speaker.webp` | A neighbourhood plaza at dusk, apartment blocks with lit windows all around and street lamps coming on: a rolling trolley speaker with coloured lights, red silk fans and handkerchiefs laid on a bench, a blank contest banner strung between lamp posts, and potted plants. Plain plaza tiles in shadow below; competitive and cheerful. |
