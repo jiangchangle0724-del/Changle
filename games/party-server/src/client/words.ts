@@ -221,7 +221,7 @@ const HOW: Record<string, [string, string]> = {
   "gee-sparkle": ["双手放在眼睛旁边一张一合地闪，头左右转", "Hands by your eyes flashing open and shut, head turning side to side"],
   "gee-surprise": ["小跳一下往后缩，双手捂嘴，两次", "A little jump back, hands to your mouth, twice"],
   "gee-shiver": ["双手抱住自己，肩膀快速地抖", "Hug yourself and let your shoulders shiver"],
-  "hc-seaweed": ["双手举过头顶左右摇，像海草；再放到身前像水波一样摆", "Arms over your head swaying like seaweed; then down in front, waving like water"],
+  "hc-seaweed": ["双手举到头边拧手腕、身体左右摇，像海草；再放到身前像水波一样摆", "Hands up by your head, wrists twisting, swaying like seaweed; then down in front, waving like water"],
   "hc-look": ["右手搭额头往右看，四拍后换左手往左看", "Right hand shading your eyes, look right; after four beats, the left hand, look left"],
   "hc-float": ["双手在身前低低地像水一样摆，膝盖一蹲一起", "Hands waving low in front like water, knees bobbing down and up"],
   "hc-dream": ["双手合起来贴在脸边像睡觉，左右摇", "Hands together by your cheek as if asleep, swaying side to side"],

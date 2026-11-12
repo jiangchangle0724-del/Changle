@@ -808,9 +808,9 @@ export const STEPS: Readonly<Record<string, Steps>> = {
   },
   // 海草舞
   "hc-seaweed": {
-    ready: ["双脚分开，双手举过头顶，掌心相对", "Feet apart, arms up over your head, palms facing"],
+    ready: ["双脚分开，双手举到头的两边，手肘往外张", "Feet apart, hands up either side of your head, elbows out"],
     counts: [
-      [1, 4, "「像一棵海草海草海草海草」：双手在头顶上往右、往左、往右、往左摇，身体像海草一样跟着摆", "'像一棵海草…': sway your arms over your head right, left, right, left, your body swaying after them like seaweed"],
+      [1, 4, "「像一棵海草海草海草海草」：手腕一拧一拧地转，像水里的海草；身体往右、往左、往右、往左摇", "'像一棵海草…': twist your wrists round and round like seaweed in the water, swaying right, left, right, left"],
       [5, 8, "「随波飘摇」：双手放到身前，手心朝下，像水波一样左右摆", "'随波飘摇': bring your hands down in front, palms down, waving side to side like water"],
     ],
     tip: ["手要软，像在水里漂", "Keep your arms soft, as if floating in water"],

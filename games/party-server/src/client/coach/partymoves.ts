@@ -725,8 +725,8 @@ S["gee-shy"] = {
 
 // ---------- 海草舞: the arms swaying overhead like seaweed
 
-/** both arms up overhead, bent with the current to one side, the body waving after them */
-const weed = (side: 1 | -1): Part => P(both(0.16, 0.52, 0.06), palms(0, 0, 1), elbows(1, 0.2, -0.3), { hR: [0.16 + 0.14 * side, 0.5, 0.06], hL: [-0.16 + 0.14 * side, 0.52, 0.06], px: -0.05 * side, roll: 0.06 * side, cRoll: -0.08 * side, hRoll: -0.05 * side }, feet(0.15));
+/** the hands up by the head, the elbows out, the body swaying with the current to one side (the video's dancers: the wrists twisting like seaweed) */
+const weed = (side: 1 | -1): Part => P(palms(0, 0, 1), elbows(1, -0.2, -0.3), { hR: [0.2 + 0.06 * side, 0.3, 0.1], hL: [-0.2 + 0.06 * side, 0.3, 0.1], px: -0.05 * side, roll: 0.06 * side, cRoll: -0.08 * side, hRoll: -0.05 * side }, feet(0.15));
 /** the hands waving like water in front, low */
 const waves = (side: 1 | -1): Part => P(feet(0.15), { hR: [0.34 + 0.14 * side, -0.16 + 0.05 * side, 0.3], hL: [-0.34 + 0.14 * side, -0.16 - 0.05 * side, 0.3], pR: [0, -1, 0.3], pL: [0, -1, 0.3], eR: [1, -0.3, -0.3], eL: [-1, -0.3, -0.3], px: 0.05 * side, py: -0.04, roll: -0.04 * side });
 S["hc-seaweed"] = {
@@ -743,8 +743,8 @@ S["hc-seaweed"] = {
     [7, waves(-1)],
   ]),
   extra: (p, o) => {
-    // the hands ripple as they sway
-    const w = 0.4 * Math.sin(TAU * p);
+    // the wrists twisting, the palms turning out and in twice a beat
+    const w = 0.9 * Math.sin(2 * TAU * p);
     o.pR = [o.pR[0] + w, o.pR[1], o.pR[2]];
     o.pL = [o.pL[0] - w, o.pL[1], o.pL[2]];
   },
