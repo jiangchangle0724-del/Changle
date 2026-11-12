@@ -1504,6 +1504,24 @@ button.pl-answer:disabled {
   width: 100%;
   max-height: 210px;
 }
+/* a short screen (an iPhone SE, a phone with a browser bar): the poles and the gauge give up some
+   height, so the whole gauge, and a tilt's level under it, fit without scrolling while the table
+   watches someone lean */
+@media (max-height: 740px) {
+  .lb .limbo-scene {
+    max-height: 150px;
+  }
+  .lb .limbo-stage {
+    width: min(100%, 210px);
+  }
+  .lb .gauge svg {
+    width: min(100%, 240px);
+  }
+  .lb .gauge-read {
+    margin-top: -28px;
+    font-size: 30px;
+  }
+}
 .limbo-ground {
   stroke: var(--line);
   stroke-width: 3;

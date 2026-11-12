@@ -546,15 +546,6 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           </div>
         )}
 
-        {!realBar && (phase.k === "ready" || phase.k === "count" || phase.k === "try" || phase.k === "verdict") && (
-          <div className="fz-alive">
-            {alive.map((id) => (
-              <span key={id} className={failed.includes(id) ? "fz-out" : ""} style={{ display: "inline-grid" }}>
-                <NameFace name={name[id]} size={28} />
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </GameShell>
   );
