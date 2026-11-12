@@ -1,8 +1,8 @@
 // Ticketmaster's Discovery API: concerts, games and theatre at Rogers Arena, BC Place, the Orpheum,
-// the Queen Elizabeth. A first version; task C3 hardens it (the full category table, every status,
-// price ranges, a saved response as the fixture). Its own classification decides the category.
+// the Queen Elizabeth. Only its own segment/genre labels decide the category (task C3).
 import { vanIso } from "../time";
 import type { Category, EventStatus, NormalizedEvent } from "../types";
+import { plainText } from "./ical";
 
 interface TmEvent {
   id: string;
@@ -32,20 +32,22 @@ const STATUS: Record<string, EventStatus> = { onsale: "scheduled", offsale: "sol
 /** Ticketmaster's segment and genre to one of the 8 categories. */
 export function tmCategory(segment?: string, genre?: string): Category | null {
   const g = (genre ?? "").toLowerCase();
-  // (a music festival is a concert: shows; fairs and festivals are festivals)
-  if (/festival/.test(g) && (segment ?? "").toLowerCase() !== "music") return "festivals";
-  if (/comedy|theatre|musical|magic|dance/.test(g)) return "shows";
-  if (/family|children/.test(g)) return "family";
-  if (/fine art|museum|film/.test(g)) return "arts";
   switch ((segment ?? "").toLowerCase()) {
     case "music":
       return "shows";
     case "sports":
       return "outdoors";
     case "arts & theatre":
+      if (g === "children's theatre" || g === "family" || g === "circus & specialty acts") return "family";
+      if (g === "fine art" || g === "film") return "arts";
       return "shows";
     case "film":
       return "arts";
+    case "miscellaneous":
+      if (g === "family") return "family";
+      if (g === "fairs & festivals") return "festivals";
+      if (g === "food & drink") return "food";
+      return null;
     default:
       return null;
   }
@@ -59,21 +61,30 @@ export function parseTicketmaster(page: TmPage, source: string): { events: Norma
     const timeless = !st.dateTime || st.timeTBA || st.noSpecificTime || st.dateTBD || st.dateTBA;
     const cls = ev.classifications?.[0];
     const venue = ev._embedded?.venues?.[0];
-    const prices = (ev.priceRanges ?? []).filter((p) => !p.currency || p.currency === "CAD");
-    const priceMin = prices.length ? Math.min(...prices.map((p) => p.min ?? Infinity)) : null;
-    const priceMax = prices.length ? Math.max(...prices.map((p) => p.max ?? 0)) : null;
-    const image = (ev.images ?? []).filter((i) => i.ratio === "16_9").sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0];
+    let priceMin: number | null = null;
+    let priceMax: number | null = null;
+    for (const p of ev.priceRanges ?? []) {
+      // Ticketmaster uses 0–0 for an unspecified price, not a free ticket.
+      if (p.currency !== "CAD" || (p.min === 0 && p.max === 0)) continue;
+      if (typeof p.min === "number" && Number.isFinite(p.min)) priceMin = Math.min(priceMin ?? Infinity, p.min);
+      if (typeof p.max === "number" && Number.isFinite(p.max)) priceMax = Math.max(priceMax ?? -Infinity, p.max);
+    }
+    let image: NonNullable<TmEvent["images"]>[number] | undefined;
+    for (const candidate of ev.images ?? []) {
+      if (candidate.ratio === "16_9" && (!image || (candidate.width ?? 0) > (image.width ?? 0))) image = candidate;
+    }
+    const status = (ev.dates?.status?.code ?? "onsale").toLowerCase();
     events.push({
       source,
       sourceEventId: ev.id,
       url: ev.url ?? `https://www.ticketmaster.ca/event/${ev.id}`,
-      title: ev.name.trim(),
-      description: [ev.info, ev.pleaseNote].filter(Boolean).join("\n").slice(0, 600) || null,
+      title: ev.name,
+      description: plainText([ev.info, ev.pleaseNote].filter(Boolean).join("\n")),
       start: timeless ? st.localDate : vanIso(Date.parse(st.dateTime!)),
       end: ev.dates?.end?.dateTime ? vanIso(Date.parse(ev.dates.end.dateTime)) : null,
       allDay: !!timeless,
       timeTBD: !!timeless,
-      status: STATUS[(ev.dates?.status?.code ?? "onsale").toLowerCase()] ?? "scheduled",
+      status: Object.hasOwn(STATUS, status) ? STATUS[status] : "scheduled",
       place: venue
         ? {
             name: venue.name ?? null,
@@ -84,12 +95,12 @@ export function parseTicketmaster(page: TmPage, source: string): { events: Norma
             lon: venue.location?.longitude ? Number(venue.location.longitude) : null,
           }
         : null,
-      priceMin: Number.isFinite(priceMin) ? priceMin : null,
-      priceMax: Number.isFinite(priceMax) && priceMax ? priceMax : null,
-      isFree: priceMax === 0 ? true : null,
+      priceMin,
+      priceMax,
+      isFree: null,
       category: tmCategory(cls?.segment?.name, cls?.genre?.name),
       sourceCategories: [cls?.segment?.name, cls?.genre?.name, cls?.subGenre?.name].filter((x): x is string => !!x && x !== "Undefined"),
-      tags: ["tickets", "indoor"].filter((t) => t !== "indoor" || !/park|stadium|field/i.test(venue?.name ?? "")) as NormalizedEvent["tags"],
+      tags: ["tickets"],
       lang: "en",
       imageUrl: image?.url ?? null,
       organizer: null,
