@@ -40,9 +40,11 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("saved JSON-LD pages", () => {
   for (const [file, answer] of Object.entries(expected.pages)) {
-    it(`matches the count and first event in ${file}`, async () => {
+    it(`matches the unique count and first event in ${file}`, async () => {
       const events = await parseJsonLd(pages[file], opts);
-      expect(events).toHaveLength(answer.events);
+      // expected.json counts raw entries. The listing repeats three complete events;
+      // the review requires each duplicate only once, without changing saved inputs.
+      expect(events).toHaveLength(answer.events - (file === "eventbrite-vancouver-listing.html" ? 3 : 0));
       const first = events[0];
       const dateOnly = answer.first.startDate.length === 10;
       const series = file === "ubc-event-graph.html";
@@ -83,6 +85,20 @@ describe("saved JSON-LD pages", () => {
     expect(e.organizer).toBe("Craftify AI");
     expect(e.imageUrl).toMatch(/^https:\/\/img.evbuc.com\//);
     expect((await parseJsonLd(mindset, opts))[0].imageUrl).toBe("https://secure-content.meetupstatic.com/images/classic-events/536876794/676x676.jpg");
+  });
+
+  it("keeps each of the listing's three repeated raw events only once", async () => {
+    expect(expected.pages["eventbrite-vancouver-listing.html"].events).toBe(32);
+    const events = await parseJsonLd(listing, opts);
+    expect(events).toHaveLength(29);
+    for (const name of [
+      "AFTER PARTY: Parade of Lost Souls 2026",
+      "COFFIN CLUB ~ Halloween @ The Red Room ~ TICKETS",
+      "Keithmas XVII - A Food Bank Fundrager",
+    ]) {
+      expect(listing.split(JSON.stringify(name))).toHaveLength(3);
+      expect(events.filter((e) => e.title === name)).toHaveLength(1);
+    }
   });
 });
 
@@ -165,7 +181,7 @@ describe("normalization", () => {
     for (const availability of ["SoldOut", "https://schema.org/SoldOut"]) {
       const offer = { availability };
       expect((await parse({ offers: offer }))[0].status).toBe("soldout");
-      expect((await parse({ offers: [{ availability: "InStock" }, offer] }))[0].status).toBe("soldout");
+      expect((await parse({ offers: [{ availability: "InStock" }, offer] }))[0].status).toBe("scheduled");
       expect((await parse({ eventStatus: "EventCancelled", offers: offer }))[0].status).toBe("cancelled");
     }
   });
@@ -193,10 +209,10 @@ describe("normalization", () => {
       .toMatchObject({ place: { name: "Hall", address: "123 Main St", city: "Burnaby", postalCode: "V5C 1A1", lat: 49.2, lon: -123.1 }, category: null, tags: [] });
   });
 
-  it("marks VirtualLocation or online attendance as online with no physical place", async () => {
+  it("marks online attendance and retains any explicitly supplied physical place", async () => {
     expect((await parse({ location: { "@type": ["Thing", "VirtualLocation"] } }))[0]).toMatchObject({ online: true, place: null });
     expect((await parse({ eventAttendanceMode: "OnlineEventAttendanceMode", location: { "@type": "Place", name: "Old hall" } }))[0])
-      .toMatchObject({ online: true, place: null, tags: [] });
+      .toMatchObject({ online: true, place: { name: "Old hall" }, tags: [] });
     expect((await parse())[0]).toMatchObject({ place: null, online: false });
   });
 
@@ -226,10 +242,145 @@ describe("normalization", () => {
   });
 });
 
+describe("PR #303 review regressions", () => {
+  it("gives repeated show URLs Vancouver date IDs and removes exact duplicates across scripts", async () => {
+    const first = event({ url: "https://example.test/show?campaign=1", startDate: "2026-11-06T02:00:00Z" });
+    const second = event({ url: "https://example.test/show?campaign=1", startDate: "2026-11-07T02:00:00Z" });
+    const html = script([first, second]) + script(first);
+    const events = await parseJsonLd(html, opts);
+    expect(events.map((e) => e.sourceEventId)).toEqual([
+      "https://example.test/show@2026-11-05", "https://example.test/show@2026-11-06",
+    ]);
+    expect(events.map((e) => e.start)).toEqual(["2026-11-05T19:00:00-07:00", "2026-11-06T19:00:00-07:00"]);
+    expect(await parseJsonLd(script(first) + script(first), opts)).toHaveLength(1);
+    expect((await parseJsonLd(script(first), opts))[0].sourceEventId).toBe("https://example.test/show");
+  });
+
+  it("gives URL-less events distinct dates under the page ID without renumbering on reorder", async () => {
+    const first = event({ name: "First", startDate: "2026-11-05" });
+    const second = event({ name: "Second", startDate: "2026-11-06" });
+    const events = await parseJsonLd(script([first, second, second]), opts);
+    expect(events.map((e) => e.sourceEventId)).toEqual([
+      "https://example.test/page@2026-11-05", "https://example.test/page@2026-11-06",
+    ]);
+    expect(await parseJsonLd(script([second, first]), opts)).toEqual([...events].reverse());
+  });
+
+  it("adds Vancouver wall-clock seconds only on days with multiple start times under one base ID", async () => {
+    const shows = [
+      event({ startDate: "2026-11-06T02:00:00Z" }),
+      event({ startDate: "2026-11-06T05:30:00Z" }),
+      event({ startDate: "2026-11-07T02:00:00Z" }),
+    ];
+    const events = await parseJsonLd(script([...shows, shows[0]]), opts);
+    expect(events.map((e) => e.sourceEventId)).toEqual([
+      "https://example.test/page@2026-11-05T19:00:00",
+      "https://example.test/page@2026-11-05T22:30:00",
+      "https://example.test/page@2026-11-06",
+    ]);
+    expect(new Set(events.map((e) => e.sourceEventId)).size).toBe(3);
+  });
+
+  it("reduces a timed end to its Vancouver date when the start has no time", async () => {
+    expect((await parse({ startDate: "2026-11-05", endDate: "2026-11-07T02:00:00Z" }))[0])
+      .toMatchObject({ start: "2026-11-05", end: "2026-11-06", allDay: true, timeTBD: true });
+  });
+
+  it("leaves a date-only end unknown when the start has a time", async () => {
+    expect((await parse({ startDate: "2026-11-05T19:00:00", endDate: "2026-11-06" }))[0])
+      .toMatchObject({ start: "2026-11-05T19:00:00-07:00", end: null, allDay: false, timeTBD: false });
+  });
+
+  it("caps each of 25 long descriptions before decoding entities", async () => {
+    const prefix = "Kept: " + "&nbsp;".repeat(799);
+    expect(prefix).toHaveLength(4800);
+    const description = prefix + "tail &amp; ".repeat(2520);
+    const events = await parseJsonLd(script(Array.from({ length: 25 }, (_, i) =>
+      event({ url: `https://example.test/long/${i}`, description }))), opts);
+    expect(events).toHaveLength(25);
+    expect(events.every((e) => e.description === "Kept:")).toBe(true);
+  });
+
+  it("does not label a mix of free and paid tickets as free", async () => {
+    for (const offers of [
+      [{ price: 0, priceCurrency: "CAD" }, { price: 25, priceCurrency: "CAD" }],
+      { lowPrice: "0", highPrice: "25", priceCurrency: "CAD" },
+    ]) expect((await parse({ offers }))[0]).toMatchObject({ priceMin: 0, priceMax: 25, isFree: false, tags: [] });
+    expect((await parse({ offers: [{ price: 0, priceCurrency: "CAD" }, { price: "0", priceCurrency: "CAD" }] }))[0])
+      .toMatchObject({ isFree: true, tags: ["free"] });
+  });
+
+  it("requires every offer to be sold out, including ordinary tickets and unknown availability", async () => {
+    const sold = { availability: "schema:SoldOut" };
+    expect((await parse({ offers: [sold, { availability: { "@id": "https://schema.org/SoldOut/" } }] }))[0].status).toBe("soldout");
+    expect((await parse({ offers: [sold, { availability: "InStock" }] }))[0].status).toBe("scheduled");
+    expect((await parse({ offers: [sold, {}] }))[0].status).toBe("scheduled");
+    expect((await parse({ offers: [] }))[0].status).toBe("scheduled");
+    expect((await parse({ eventStatus: "EventPostponed", offers: [sold, sold] }))[0].status).toBe("postponed");
+  });
+
+  it("keeps the physical venue for hybrid events in either location order", async () => {
+    const physical = { "@type": "Place", name: "Hall", address: { streetAddress: "123 Main St" } };
+    const virtual = { "@type": "VirtualLocation", url: "https://example.test/online" };
+    for (const location of [[physical, virtual], [virtual, physical]]) {
+      expect((await parse({ location }))[0]).toMatchObject({ online: true, place: { name: "Hall", address: "123 Main St" } });
+    }
+    expect((await parse({ location: [virtual] }))[0]).toMatchObject({ online: true, place: null });
+  });
+
+  it("parses text locations and text addresses with placeFromText", async () => {
+    const address = "Science World, 1455 Quebec St, Vancouver, BC V6A 3Z7, Canada";
+    expect((await parse({ location: address }))[0].place).toEqual({
+      name: "Science World", address: "1455 Quebec St, Vancouver, BC V6A 3Z7, Canada", city: "Vancouver", postalCode: "V6A 3Z7",
+    });
+    expect((await parse({ location: { "@type": "Place", name: "Hall", address, geo: { latitude: 49.27, longitude: -123.1 } } }))[0].place)
+      .toEqual({ name: "Hall", address: "1455 Quebec St, Vancouver, BC V6A 3Z7, Canada", city: "Vancouver", postalCode: "V6A 3Z7", lat: 49.27, lon: -123.1 });
+    expect((await parse({ location: { "@type": "Place", address } }))[0].place?.name).toBe("Science World");
+  });
+
+  it("decodes venue and organizer names, including names in text locations", async () => {
+    expect((await parse({ location: { name: "Donnellan&#8217;s &amp; Friends" }, organizer: { name: "Artists&#8217; &amp; Co" } }))[0])
+      .toMatchObject({ place: { name: "Donnellan’s & Friends" }, organizer: "Artists’ & Co" });
+    expect((await parse({ location: "Donnellan&#8217;s &amp; Friends, 123 Main St, Vancouver, BC V6A 1A1" }))[0].place?.name)
+      .toBe("Donnellan’s & Friends");
+  });
+
+  it.each([
+    "schema:EventCancelled", { "@id": "https://schema.org/EventCancelled" },
+    "https://schema.org/EventCancelled/", { "@id": "schema:EventCancelled/" },
+  ])("preserves cancellation for abbreviated/object/trailing-slash status %j", async (eventStatus) => {
+    expect((await parse({ eventStatus, offers: { availability: "InStock" } }))[0].status).toBe("cancelled");
+  });
+
+  it("also normalizes abbreviated postponed/rescheduled statuses", async () => {
+    expect((await parse({ eventStatus: "schema:EventPostponed" }))[0].status).toBe("postponed");
+    expect((await parse({ eventStatus: { "@id": "https://schema.org/EventRescheduled/" } }))[0].status).toBe("rescheduled");
+  });
+
+  it.each([
+    ["/events/show?campaign=1", "https://example.test/events/show?campaign=1"],
+    ["next", "https://example.test/next"],
+    ["//tickets.example.test/show", "https://tickets.example.test/show"],
+  ])("resolves event URL %s against pageUrl", async (url, resolved) => {
+    expect((await parse({ url }))[0]).toMatchObject({ url: resolved, sourceEventId: resolved.split("?")[0] });
+  });
+
+  it("trims BOM and whitespace before parsing each script", async () => {
+    const html = `<script type="application/ld+json">\ufeff \n${JSON.stringify(event())}\n </script>`;
+    expect(await parseJsonLd(html, opts)).toHaveLength(1);
+  });
+
+  it.each(["mainEntity", "event", "events"])("walks single events and event lists under %s", async (field) => {
+    const html = script({ "@type": "WebPage", [field]: event({ name: "Single" }) })
+      + script({ [field]: [event({ name: "Listed first" }), { "@graph": [event({ name: "Nested" })] }] });
+    expect((await parseJsonLd(html, opts)).map((e) => e.title)).toEqual(["Single", "Listed first", "Nested"]);
+  });
+});
+
 describe("warm parsing budget", () => {
   for (const [name, html, count] of [
     ["commodore-home.html", commodore, 25],
-    ["eventbrite-vancouver-listing.html (largest fixture)", listing, 32],
+    ["eventbrite-vancouver-listing.html (largest fixture)", listing, 29],
   ] as const) it(`measures ${name} over 100 warm parses`, async ({ annotate }) => {
     // workerd's performance.now() is request-frozen; the Node compatibility monotonic clock
     // measures real elapsed time, including the asynchronous HTMLRewriter transform.

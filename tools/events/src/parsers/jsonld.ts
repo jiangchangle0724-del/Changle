@@ -1,15 +1,20 @@
 // Facts from schema.org events embedded in a page. No fetching or source-specific selectors.
 import { fromVan, vanIso } from "../time";
 import type { EventStatus, NormalizedEvent, Place } from "../types";
-import { plainText } from "./ical";
+import { placeFromText, plainText } from "./ical";
 
 type ObjectValue = Record<string, unknown>;
 const object = (value: unknown): ObjectValue =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as ObjectValue : {};
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : value == null ? [] : [value];
 const string = (value: unknown): string | null => typeof value === "string" && value.trim() ? value : null;
-const term = (value: unknown): string => typeof value === "string" ? value.split(/[/#]/).at(-1)! : "";
+const term = (value: unknown): string =>
+  (string(value) ?? string(object(value)["@id"]) ?? "").trim().replace(/[/#]+$/, "").split(/[/#:]/).at(-1)!;
 const hasType = (value: ObjectValue, type: string): boolean => array(value["@type"]).some((t) => term(t) === type);
+const decodedString = (value: unknown): string | null => {
+  const text = string(value);
+  return text === null ? null : decodeEntities(text);
+};
 
 function number(value: unknown): number | null {
   if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
@@ -28,7 +33,8 @@ function eventsIn(roots: unknown[]): ObjectValue[] {
     }
     const node = object(value);
     if (array(node["@type"]).some((t) => /Event$/.test(term(t)) || term(t) === "Festival")) events.push(node);
-    const children = [node["@graph"], array(node.itemListElement).map((entry) => object(entry).item ?? entry), node.subEvent];
+    const children = [node["@graph"], array(node.itemListElement).map((entry) => object(entry).item ?? entry),
+      node.subEvent, node.mainEntity, node.event, node.events];
     for (let i = children.length - 1; i >= 0; i--) if (children[i] != null) pending.push(children[i]);
   }
   return events;
@@ -424,15 +430,18 @@ function date(value: unknown): { iso: string; dateOnly: boolean } | null {
   return Number.isFinite(ms) ? { iso: vanIso(ms), dateOnly: false } : null;
 }
 
-function place(location: ObjectValue): Place | null {
-  if (!Object.keys(location).length) return null;
+function place(value: unknown): Place | null {
+  if (typeof value === "string") return placeFromText(decodeEntities(value));
+  const location = object(value);
+  if (!Object.keys(location).length || hasType(location, "VirtualLocation")) return null;
   const address = object(location.address);
+  const parsed = placeFromText(decodedString(location.address));
   const geo = object(location.geo);
   return {
-    name: string(location.name),
-    address: string(address.streetAddress),
-    city: string(address.addressLocality),
-    postalCode: string(address.postalCode),
+    name: decodedString(location.name) ?? parsed?.name ?? null,
+    address: decodedString(address.streetAddress) ?? parsed?.address ?? null,
+    city: decodedString(address.addressLocality) ?? parsed?.city ?? null,
+    postalCode: decodedString(address.postalCode) ?? parsed?.postalCode ?? null,
     lat: number(geo.latitude),
     lon: number(geo.longitude),
   };
@@ -448,7 +457,8 @@ function prices(offers: ObjectValue[]): { priceMin: number | null; priceMax: num
     }
   }
   const priceMin = values.length ? Math.min(...values) : null;
-  return { priceMin, priceMax: values.length ? Math.max(...values) : null, isFree: priceMin === null ? null : priceMin === 0 };
+  const priceMax = values.length ? Math.max(...values) : null;
+  return { priceMin, priceMax, isFree: priceMax === null ? null : priceMax === 0 };
 }
 
 function status(value: unknown, offers: ObjectValue[]): EventStatus {
@@ -457,13 +467,45 @@ function status(value: unknown, offers: ObjectValue[]): EventStatus {
     case "EventCancelled": return "cancelled";
     case "EventPostponed": return "postponed";
     case "EventRescheduled": return "rescheduled";
-    default: return offers.some((o) => term(o.availability) === "SoldOut") ? "soldout" : "scheduled";
+    default: return offers.length > 0 && offers.every((o) => term(o.availability) === "SoldOut") ? "soldout" : "scheduled";
   }
 }
 
 function image(value: unknown): string | null {
   const first = Array.isArray(value) ? value[0] : value;
   return string(first) ?? string(object(first).url);
+}
+
+function eventUrl(value: unknown, pageUrl: string): string {
+  const ownUrl = string(value);
+  if (!ownUrl) return pageUrl;
+  try { return new URL(ownUrl, pageUrl).href; } catch { return pageUrl; }
+}
+
+function uniqueEvents(events: NormalizedEvent[]): NormalizedEvent[] {
+  const seen = new Set<string>();
+  const starts = new Map<string, Map<string, Set<string>>>();
+  const unique = events.filter((event) => {
+    const key = JSON.stringify(event);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    let dates = starts.get(event.sourceEventId);
+    if (!dates) starts.set(event.sourceEventId, dates = new Map());
+    const day = event.start.slice(0, 10);
+    let times = dates.get(day);
+    if (!times) dates.set(day, times = new Set());
+    times.add(event.start);
+    return true;
+  });
+  for (const event of unique) {
+    const dates = starts.get(event.sourceEventId)!;
+    const day = event.start.slice(0, 10);
+    const sameDayTimes = dates.get(day)!;
+    if (dates.size > 1 || sameDayTimes.size > 1) {
+      event.sourceEventId += `@${sameDayTimes.size > 1 ? event.start.slice(0, 19) : day}`;
+    }
+  }
+  return unique;
 }
 
 /** Read schema.org/Event (and its subtypes) from all JSON-LD scripts in a saved page. */
@@ -475,7 +517,7 @@ export async function parseJsonLd(html: string, opts: { source: string; pageUrl:
     text(chunk) {
       chunks.push(chunk.text);
       if (chunk.lastInTextNode) {
-        try { roots.push(JSON.parse(chunks.join(""))); } catch { /* One broken script must not hide the others. */ }
+        try { roots.push(JSON.parse(chunks.join("").trim())); } catch { /* One broken script must not hide the others. */ }
         chunks = [];
       }
     },
@@ -491,32 +533,32 @@ export async function parseJsonLd(html: string, opts: { source: string; pageUrl:
     const wholeDays = !start.dateOnly && !!end && !end.dateOnly
       && /T00:00:00[+-]/.test(start.iso) && /T23:59:(00|59)[+-]/.test(end.iso)
       && end.iso.slice(0, 10) >= start.iso.slice(0, 10);
-    const locations = array(node.location).map(object);
+    const locations = array(node.location);
     const online = term(node.eventAttendanceMode) === "OnlineEventAttendanceMode"
-      || locations.some((l) => hasType(l, "VirtualLocation"));
+      || locations.some((l) => hasType(object(l), "VirtualLocation"));
     const offers = array(node.offers).map(object);
     const price = prices(offers);
-    const url = string(node.url) ?? opts.pageUrl;
+    const url = eventUrl(node.url, opts.pageUrl);
     const description = string(node.description);
     events.push({
       source: opts.source,
       sourceEventId: url.replace(/\?[^#]*/, ""),
       url,
       title: decodeEntities(name),
-      description: description ? plainText(decodeEntities(description).replace(/&/g, "&amp;")) : null,
+      description: description ? plainText(decodeEntities(description.slice(0, 4800)).replace(/&/g, "&amp;")) : null,
       start: wholeDays ? start.iso.slice(0, 10) : start.iso,
-      end: end ? (wholeDays ? end.iso.slice(0, 10) : end.iso) : null,
+      end: end ? (start.dateOnly || wholeDays ? end.iso.slice(0, 10) : end.dateOnly ? null : end.iso) : null,
       allDay: start.dateOnly || wholeDays,
       timeTBD: start.dateOnly,
       status: status(node.eventStatus, offers),
-      place: online ? null : place(locations[0] ?? {}),
+      place: locations.map(place).find((p) => p !== null) ?? null,
       online,
       ...price,
       category: null,
       tags: price.isFree ? ["free"] : [],
       imageUrl: image(node.image),
-      organizer: string(object(array(node.organizer)[0]).name),
+      organizer: decodedString(object(array(node.organizer)[0]).name),
     });
   }
-  return events;
+  return uniqueEvents(events);
 }
