@@ -1,0 +1,132 @@
+{
+  "id": "van-07",
+  "world": "van",
+  "name": {
+    "zh": "天车门把手",
+    "en": "SkyTrain Handles"
+  },
+  "teaches": "door",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 2230,
+    "y": 330,
+    "w": 290,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 536
+    },
+    {
+      "x": 2330,
+      "y": 466
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 450,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 450,
+      "y": 480,
+      "w": 100,
+      "h": 240,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 630,
+      "y": 480,
+      "w": 100,
+      "h": 240,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 730,
+      "y": 560,
+      "w": 710,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 1440,
+      "y": 480,
+      "w": 120,
+      "h": 240,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 1650,
+      "y": 450,
+      "w": 110,
+      "h": 270,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1760,
+      "y": 530,
+      "w": 220,
+      "h": 190,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 1980,
+      "y": 450,
+      "w": 110,
+      "h": 270,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 2190,
+      "y": 410,
+      "w": 110,
+      "h": 310,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2300,
+      "y": 490,
+      "w": 220,
+      "h": 230,
+      "material": "metal"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 310,
+      "w": 40,
+      "h": 410,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-07.json",
+  "fading": [],
+  "springs": []
+}

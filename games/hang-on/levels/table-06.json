@@ -1,0 +1,101 @@
+{
+  "id": "table-06",
+  "world": "table",
+  "name": {
+    "zh": "一串汤圆过大锅",
+    "en": "Dumpling Chain"
+  },
+  "teaches": "chain",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 536
+  },
+  "goal": {
+    "x": 2400,
+    "y": 60,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1275,
+      "y": 356
+    },
+    {
+      "x": 2240,
+      "y": 196
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 520,
+      "h": 160,
+      "material": "cloth",
+      "grab": false
+    },
+    {
+      "kind": "peg",
+      "x": 260,
+      "y": 340,
+      "w": 470,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 800,
+      "y": 380,
+      "w": 630,
+      "h": 340,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1510,
+      "y": 320,
+      "w": 240,
+      "h": 400,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1830,
+      "y": 280,
+      "w": 250,
+      "h": 440,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2170,
+      "y": 220,
+      "w": 350,
+      "h": 500,
+      "material": "ceramic"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 40,
+      "w": 40,
+      "h": 680,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 80,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-06.json",
+  "fading": [],
+  "springs": []
+}

@@ -40,7 +40,7 @@
 ## 屏幕
 
 - 一台手机传着玩（已做，`site/src/party/straightface/`）：亮词（裁判）→ 传手机偷看（按住显示、松手即黑、15 秒到才显示「传给 ××」）→ 解释（手机在裁判手里：发言人、倒计时、下一位、贴疑点、提问模板）→ 押注按座位顺序再传一圈 → 指认 → 揭晓页朝向大家 → 比分和下一轮裁判。该谁拿手机看 `publicView.phoneHolderId`。
-- 联机（A3）：裁判手机有词条、顺序、计时、疑点、指认；老实人手机整轮按住显示真释义；瞎编的人显示词条加掰料；电视只显示 `publicView`。
+- 联机（A3，已做，2026-11-05）：裁判手机有词条、顺序、计时、疑点、指认；老实人手机整轮按住显示真释义；瞎编的人显示词条加掰料；电视只显示 `publicView`。规则在房间服务器上跑同一个引擎（`site/src/shared/engine/games/straightface.ts`，online 模式：大家同时看身份、同时押注），手机画面 `NetStraightFace.tsx`，电视画面 `TvStraightFace.tsx`。服务器只知道 id，揭晓的句子由每块屏幕用自己看到的名字拼（`roundLines`）。
 - 两条铁律：UI 只能渲染 `privateView(state, playerId)` 和 `publicView(state)` 返回的字段；改计分先改测试。
 
 ## 老手会多做的事
@@ -49,7 +49,7 @@
 
 ## 词库
 
-结构见 `site/src/shared/straightface/types.ts` 的 `Card`，校验见 `cards.ts`：中文释义 ≤ 60 字，英文 ≤ 160 字符，两条掰料 ≤ 40 字且不得泄露真释义，`funFact` 和 `source` 必填（没有合适链接写 `editorial`），词名只写原文或音译、不带括号注释（`lintDeck` 会提示中文词名和释义重复的）。已写 251 张（`site/src/data/straightface.ts`），17 个包，分三类（`PACK_AUDIENCE`）：中文局 9 个（生僻字、方言、成语典故、菜名来历、歇后语、中药名、地名由来、老物件、网络热词），英文局 5 个（Odd words、Idiom origins、Phobias、Canadian place names、Online slang），都能玩 3 个（冷知识、温村、吃喝）；开局默认选本桌语言的包。扩库时每包至少补到 15 张。图片（词包图标、三个角色、背景）是 ChatGPT 生的，见 `site/src/party/straightface/art/README.md`；声音是网站自己合成的。中文原词（生僻字、方言、成语、菜名）的 `term.en` 是同样的字加读音（拼音；粤语用粤拼，闽南语用台罗），卡面大字是原词、下面一行是读音。扩库管线：维基分类页和 Wiktionary 加拿大英语条目选词 → AI 只取事实自己造句并附来源 → 校验器和 lint → Codex 对来源核事实 → Steve 抽 10% → 上线后出场 10 次以上且命中率 80% 以上的卡降难度或下架。
+结构见 `site/src/shared/straightface/types.ts` 的 `Card`，校验见 `cards.ts`：中文释义 ≤ 60 字，英文 ≤ 160 字符，两条掰料 ≤ 40 字且不得泄露真释义，`funFact` 和 `source` 必填（没有合适链接写 `editorial`），词名只写原文或音译、不带括号注释（`lintDeck` 会提示中文词名和释义重复的）。已写 300 张（`site/src/data/straightface.ts`，2026-11-05 到 300，每包至少 15 张），17 个包，分三类（`PACK_AUDIENCE`）：中文局 9 个（生僻字、方言、成语典故、菜名来历、歇后语、中药名、地名由来、老物件、网络热词），英文局 5 个（Odd words、Idiom origins、Phobias、Canadian place names、Online slang），都能玩 3 个（冷知识、温村、吃喝）；开局默认选本桌语言的包。扩库时每包至少补到 15 张。图片（词包图标、三个角色、背景）是 ChatGPT 生的，见 `site/src/party/straightface/art/README.md`；声音是网站自己合成的。中文原词（生僻字、方言、成语、菜名）的 `term.en` 是同样的字加读音（拼音；粤语用粤拼，闽南语用台罗），卡面大字是原词、下面一行是读音。扩库管线：维基分类页和 Wiktionary 加拿大英语条目选词 → AI 只取事实自己造句并附来源 → 校验器和 lint → Codex 对来源核事实 → Steve 抽 10% → 上线后出场 10 次以上且命中率 80% 以上的卡降难度或下架。
 
 ## 分工
 

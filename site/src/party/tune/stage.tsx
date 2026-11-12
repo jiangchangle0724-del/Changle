@@ -22,6 +22,17 @@ export type StageCue = { kind: Cue; at: number };
 /** The drawing's box: the body fills it, arms and hair may reach outside (overflow is visible). */
 export const AVATAR_VIEWBOX = "44 10 112 286";
 
+/**
+ * The lights follow the music through two CSS variables: --beat (1 on a beat, fading to 0 before the
+ * next) and --voice (how much singing there is). They are written in steps of 1/20, only when the step
+ * changes, and only on the few elements that light up (the spots, the floor, the record, the crowd).
+ * Written every frame with every decimal on the whole stage, they had the browser re-style the two
+ * performers' hundreds of shapes 60 times a second, and a phone's page memory grew by about 150 MB a
+ * song (Chrome, 2026-11-05) until the page fell over.
+ */
+export const LIGHT_STEPS = 20;
+export const lightStep = (x: number) => String(Math.round(Math.max(0, Math.min(1, x)) * LIGHT_STEPS) / LIGHT_STEPS);
+
 type Live = { singer: number; playing: boolean; beats: BeatMap | null; timing: StageTiming | null; fallbackBpm: number; mood: string; songKey: string | number };
 
 export function TuneStage({
@@ -55,6 +66,9 @@ export function TuneStage({
   const right = useRef<SVGSVGElement>(null);
   const notes = useRef<SVGGElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const lights = useRef<HTMLDivElement>(null);
+  const floor = useRef<HTMLDivElement>(null);
+  const mid = useRef<HTMLDivElement>(null);
   const cast = useRef<{ m: Choreo; f: Choreo } | null>(null);
   const live = useRef<Live>({ singer, playing, beats, timing, fallbackBpm, mood, songKey });
   live.current = { singer, playing, beats, timing, fallbackBpm, mood, songKey };
@@ -70,6 +84,10 @@ export function TuneStage({
     let lastBeat = -1;
     let lastNote = 0;
     let lastT = performance.now();
+    // the lights: where the beat's flash has faded to, and the steps last written
+    let flash = 0;
+    let shownBeat = "";
+    let shownVoice = "";
     const tick = () => {
       const L = live.current;
       const now = performance.now();
@@ -87,12 +105,18 @@ export function TuneStage({
       }
       m.frame(dt, now, pos, idx, period, drum, voice);
       f.frame(dt, now, pos, idx, period, drum, voice);
-      const el = root.current;
-      if (el) {
-        if (idx !== lastBeat && idx > 0) el.style.setProperty("--beat", "1");
-        else el.style.setProperty("--beat", String(Math.max(0, Number(el.style.getPropertyValue("--beat") || 0) - dt / Math.min(0.5, period * 0.8))));
-        el.style.setProperty("--voice", voice.toFixed(2));
-        el.style.setProperty("--drum", drum.toFixed(2));
+      flash = idx !== lastBeat && idx > 0 ? 1 : Math.max(0, flash - dt / Math.min(0.5, period * 0.8));
+      const beatNow = lightStep(flash);
+      if (beatNow !== shownBeat) {
+        shownBeat = beatNow;
+        lights.current?.style.setProperty("--beat", beatNow);
+        floor.current?.style.setProperty("--beat", beatNow);
+        root.current?.querySelector<HTMLElement>(".tn-crew")?.style.setProperty("--beat", beatNow);
+      }
+      const voiceNow = lightStep(voice);
+      if (voiceNow !== shownVoice) {
+        shownVoice = voiceNow;
+        mid.current?.style.setProperty("--voice", voiceNow);
       }
       lastBeat = idx;
       // notes float up from whoever is singing out
@@ -148,10 +172,12 @@ export function TuneStage({
 
   return (
     <div className={`tn-stage ${playing ? "is-live" : ""} ${crew?.length ? "has-crew" : ""}`} ref={root} data-singer={singer} aria-hidden="true">
-      <div className="tn-stage-lights" />
-      <div className="tn-stage-floor" />
+      <div className="tn-stage-lights" ref={lights} />
+      <div className="tn-stage-floor" ref={floor} />
       <svg className="tn-avatar tn-avatar-m" viewBox={AVATAR_VIEWBOX} ref={left} />
-      <div className="tn-stage-mid">{children}</div>
+      <div className="tn-stage-mid" ref={mid}>
+        {children}
+      </div>
       <svg className="tn-avatar tn-avatar-f" viewBox={AVATAR_VIEWBOX} ref={right} />
       <svg className="tn-stage-notes" viewBox="0 0 400 60">
         <g ref={notes} />

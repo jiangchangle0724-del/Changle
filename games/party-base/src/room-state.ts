@@ -14,6 +14,8 @@ export class RoomError extends Error {
 
 export const MAX_PLAYERS = 15;
 export const DEFAULT_SESSION_MINUTES = 30;
+/** BEAT_MOVED moves the dance's beat 0 by at most this much (a video late to start, or stalled; not a new start). */
+export const MAX_BEAT_MOVE_MS = 60_000;
 
 export function createRoom(code: string, at: number): RoomState {
   return {
@@ -133,6 +135,21 @@ export function reduce(state: RoomState, ev: RoomEvent): RoomState {
       requirePhase(state, ['learning'], ev.type);
       if (!Number.isFinite(ev.routineStartAt)) throw new RoomError('bad_start', 'routineStartAt must be a time');
       return touch({ ...state, phase: 'dancing', routineStartAt: ev.routineStartAt }, ev.at);
+
+    case 'BEAT_MOVED':
+      requirePhase(state, ['dancing'], ev.type);
+      if (!Number.isFinite(ev.routineStartAt) || state.routineStartAt === null || Math.abs(ev.routineStartAt - state.routineStartAt) > MAX_BEAT_MOVE_MS) {
+        throw new RoomError('bad_start', 'the beat can only move by a minute at most');
+      }
+      return touch({ ...state, routineStartAt: ev.routineStartAt }, ev.at);
+
+    case 'RESUMED':
+      requireHost(state, ev.byPlayerId);
+      requirePhase(state, ['dancing'], ev.type);
+      if (!Number.isFinite(ev.routineStartAt) || state.routineStartAt === null || ev.routineStartAt < state.routineStartAt) {
+        throw new RoomError('bad_start', 'a pause only moves the beat later');
+      }
+      return touch({ ...state, routineStartAt: ev.routineStartAt }, ev.at);
 
     case 'RESTART_SECTION':
       requireHost(state, ev.byPlayerId);

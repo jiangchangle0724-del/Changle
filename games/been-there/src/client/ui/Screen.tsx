@@ -27,6 +27,8 @@ import { SambaLesson, useDanceClock } from "./Samba";
 import { Touchdown } from "./Touchdown";
 import { TriviaCard } from "./Trivia";
 import { IdleNote, useIdleWarn } from "./TurnClock";
+import { ReactBubbles } from "./Reactions";
+import { WorldBanner, WorldCard } from "./World";
 
 export function Screen({ v }: { v: RoomView }) {
   // (a TV left on the board shouldn't go dark between turns)
@@ -103,7 +105,13 @@ function TvGame({ v }: { v: RoomView }) {
           big
           globe
           center={TvCenter({ v, card, idle })}
-          over={<TvDice v={v} played={lastMove.current} />}
+          over={
+            <>
+              <TvDice v={v} played={lastMove.current} />
+              <ReactBubbles v={v} big />
+              <WorldCard v={v} big />
+            </>
+          }
           ride={move}
           rideMode="tv"
           onRideDone={done}
@@ -127,6 +135,7 @@ function TvGame({ v }: { v: RoomView }) {
             <TriviaCard v={v} big />
             <Departures v={v} move={move} />
             <Arrival v={v} big after={landAt} />
+            <WorldBanner v={v} big />
             <NewsBanner v={v} big />
           </FitColumn>
           <div class="tv-table">

@@ -82,6 +82,17 @@ describe('阶段', () => {
     }
   });
 
+  test('结算页可以直接 START 开下一局，不用先回大厅', () => {
+    const { r } = room();
+    r.connect(HOST);
+    r.connect(ANN);
+    r.flush();
+    for (const type of ['START', 'PLAY', 'FINISH'] as const) r.handle(HOST, { t: 'act', action: { type } });
+    expect(r.d.phase).toBe('results');
+    r.handle(HOST, { t: 'act', action: { type: 'START' } });
+    expect(lastRoom(r.flush().out)!.phase).toBe('countdown');
+  });
+
   test('手柄不能改阶段', () => {
     const { r } = room();
     r.connect(HOST);

@@ -55,7 +55,7 @@ type PadInput = {
 
 ## 房间契约
 
-沿用 party-base 的房间与阶段机：`lobby → countdown → playing → results → ended`。房间码 4 位、最多 4 个手柄 + 任意观众、主机断开 30 秒房间作废。信令走 Durable Object（和一起跳同一个），直连失败 3 秒后自动走中转并在主机屏幕角落提示。
+沿用 party-base 的房间与阶段机：`lobby → countdown → playing → results → ended`。结算页可以直接 `START` 回到 `countdown`（「下一关」「再来一次」不绕回大厅），`LOBBY` 从倒数、玩、结算都能回大厅。房间码 4 位、最多 4 个手柄 + 任意观众、主机断开 30 秒房间作废。信令走 Durable Object（和一起跳同一个），直连失败 3 秒后自动走中转并在主机屏幕角落提示。
 
 ## 关卡契约（Codex 做关时照这个）
 

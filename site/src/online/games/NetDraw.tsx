@@ -3,18 +3,20 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { UI } from "../../i18n";
-import type { DrawView } from "../../shared/protocol";
+import { DRAW_GUESS_MAX, DRAW_ROUND_MS, type DrawView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { NetPlate } from "../NetPlate";
 import { useRoom } from "../RoomContext";
 import { usePlayers, useWatching } from "../players";
 import { HostButton, HostRow, TurnLine, useYourTurn, Waiting } from "./common";
+import { hintBlanks, hintSay, hintZh } from "./drawHint";
+import "../../styles/draw.css";
 
-const ROUND_S = 80;
+const ROUND_S = DRAW_ROUND_MS / 1000;
 
 export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
-  const { me, isHost, g, nameOf, offset } = useRoom();
+  const { me, isHost, g, nameOf, offset, room } = useRoom();
   const { ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const drawer = v.drawer === me;
@@ -22,12 +24,20 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   const players = usePlayers();
   const watching = useWatching();
   useYourTurn(drawer && v.phase === "pick");
+  // names stay known after a seat is gone, so a drawer who walks off mid-round is still named
+  const names = useRef(new Map<string, string>());
+  useEffect(() => {
+    for (const s of room?.seats ?? []) names.current.set(s.id, s.name);
+  }, [room]);
+  const gone = v.left ? (names.current.get(v.left) ?? (lang === "zh" ? "画的人" : "The drawer")) : "";
 
   const ranked = useMemo(
     () => players.map((s) => ({ id: s.id, name: s.name, pts: v.scores[s.id] ?? 0 })).sort((a, b) => b.pts - a.pts),
     [players, v.scores],
   );
   const diffLabel = (d: 1 | 2 | 3) => (d === 1 ? (lang === "zh" ? "简单" : "Easy") : d === 2 ? (lang === "zh" ? "中等" : "Medium") : lang === "zh" ? "困难" : "Hard");
+  // what a right guess scores at least: the first one scores twice that, and the drawer scores with each
+  const worth = (d: 1 | 2 | 3) => (lang === "zh" ? `${d} 分起` : `${d}+ ${ui("score")}`);
 
   const [guess, setGuess] = useState("");
   const feed = useRef<HTMLUListElement>(null);
@@ -36,13 +46,13 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
   }, [v.guesses.length]);
   useEffect(() => setGuess(""), [v.round]);
 
-  const hint = v.hint ? (lang === "zh" ? `${v.hint.zh} 个字` : v.hint.en.split("").join(" ")) : "";
+  const hint = v.hint ? (lang === "zh" ? hintZh(v.hint) : hintBlanks(v.hint.en)) : "";
 
   const rules = (
     <p>
       {lang === "zh"
-        ? `轮到的人选难度，只有他的手机能看到词，然后在画板上画，八十秒。他画的每一笔都实时出现在大家的手机上。其他人在自己手机上打字猜，第一个猜中的得分最多，画的人也得分。没人猜中，画的人${custom ? "受罚" : "喝"}。`
-        : `The drawer picks a difficulty; only their phone shows the word. They draw on the board for eighty seconds and every stroke appears live on every phone. Everyone else types guesses on their own phone. The first right guess scores most, and the drawer scores too. Nobody gets it? The drawer ${custom ? "takes the penalty" : "drinks"}.`}
+        ? `轮到的人选难度，只有他的手机能看到词，然后在画板上画，一分钟。他画的每一笔都实时出现在大家的手机上。其他人在自己手机上打字猜。猜中得分：简单 1、中等 2、困难 3，第一个猜中的得两倍。画的人也得分：第一个人猜中时得 1、2、3 分，之后每多一个人猜中再加 1 分。猜得差不多（时钟猜钟表），画的人点一下那条就算对。没人猜中，画的人${custom ? "受罚" : "喝"}。`
+        : `The drawer picks a difficulty; only their phone shows the word. They draw on the board for a minute and every stroke appears live on every phone. Everyone else types guesses on their own phone. A right guess scores 1, 2 or 3 by difficulty, and the first one scores twice that. The drawer scores 1, 2 or 3 for the first right guess, and 1 more for each one after it. Close enough (plane for airplane)? The drawer taps that guess to count it. Nobody gets it? The drawer ${custom ? "takes the penalty" : "drinks"}.`}
     </p>
   );
 
@@ -60,7 +70,7 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                 <div className="stack" style={{ gap: 10 }}>
                   {([1, 2, 3] as const).map((d) => (
                     <button key={d} type="button" className={`btn btn-block ${d === 1 ? "btn-jade" : d === 2 ? "btn-gold" : "btn-porcelain"}`} onClick={() => g("pick", { d })}>
-                      {diffLabel(d)} · {d} {ui("score")}
+                      {diffLabel(d)} · {worth(d)}
                     </button>
                   ))}
                 </div>
@@ -85,9 +95,15 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                 </div>
               ) : (
                 <div className="draw-word">
-                  <span className="draw-hint tabular">{hint}</span>
+                  {lang === "zh" || !v.hint ? (
+                    <span className="draw-hint tabular">{hint}</span>
+                  ) : (
+                    <span className="draw-hint tabular" role="img" aria-label={hintSay(v.hint.en)}>
+                      {hint}
+                    </span>
+                  )}
                   <span className="hint">
-                    {nameOf(v.drawer)} · {diffLabel(v.d)} · {v.d} {ui("score")}
+                    {nameOf(v.drawer)} · {diffLabel(v.d)} · {worth(v.d)}
                   </span>
                 </div>
               )}
@@ -126,7 +142,7 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                   setGuess("");
                 }}
               >
-                <input value={guess} onChange={(e) => setGuess(e.target.value)} placeholder={lang === "zh" ? "猜是什么" : "Your guess"} maxLength={24} enterKeyHint="send" autoComplete="off" aria-label={lang === "zh" ? "猜是什么" : "Your guess"} />
+                <input value={guess} onChange={(e) => setGuess(e.target.value)} placeholder={lang === "zh" ? "猜是什么" : "Your guess"} maxLength={DRAW_GUESS_MAX} enterKeyHint="send" autoComplete="off" aria-label={lang === "zh" ? "猜是什么" : "Your guess"} />
                 <button type="submit" className="btn btn-gold btn-sm" disabled={!guess.trim()}>
                   <Send size={15} />
                   {lang === "zh" ? "猜" : "Guess"}
@@ -134,14 +150,31 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
               </form>
             )}
 
+            {drawer && v.guesses.some((x) => !x.ok) && (
+              <p className="hint guess-take-hint">{lang === "zh" ? "猜得差不多？点一下那条就算对" : "Close enough? Tap a guess to count it"}</p>
+            )}
             {v.guesses.length > 0 && (
               <ul className="guess-list" ref={feed} aria-live="polite">
-                {v.guesses.map((x, i) => (
-                  <li key={i} className={x.ok ? "is-ok" : ""}>
-                    <span className="guess-who">{x.pid === me ? ui("you") : nameOf(x.pid)}</span>
-                    <span>{x.ok ? (lang === "zh" ? "猜中了" : "got it") : x.text}</span>
-                  </li>
-                ))}
+                {v.guesses.map((x, i) =>
+                  drawer && !x.ok ? (
+                    // the drawer counts a guess that's close enough (时钟 for 钟表)
+                    <li key={i} className="is-take">
+                      <button type="button" className="guess-take" onClick={() => g("accept", { text: x.text })}>
+                        <span className="guess-who">{nameOf(x.pid)}</span>
+                        <span className="guess-text">{x.text}</span>
+                        <span className="guess-take-mark">
+                          <Check size={16} strokeWidth={3} aria-hidden="true" />
+                          {lang === "zh" ? "算对" : "Count it"}
+                        </span>
+                      </button>
+                    </li>
+                  ) : (
+                    <li key={i} className={x.ok ? "is-ok" : ""}>
+                      <span className="guess-who">{x.pid === me ? ui("you") : nameOf(x.pid)}</span>
+                      <span>{x.ok ? (lang === "zh" ? "猜中了" : "got it") : x.text}</span>
+                    </li>
+                  ),
+                )}
               </ul>
             )}
           </motion.div>
@@ -158,9 +191,17 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                   ? lang === "zh"
                     ? `猜中：${v.solved.map(nameOf).join("、")}`
                     : `Got it: ${v.solved.map(nameOf).join(", ")}`
-                  : lang === "zh"
-                    ? `没人猜中，${nameOf(v.drawer)} ${custom ? "受罚" : "喝"}`
-                    : `Nobody got it. ${nameOf(v.drawer)} ${custom ? "takes the penalty" : "drinks"}.`}
+                  : v.left
+                    ? lang === "zh"
+                      ? `${gone} 不画了，这轮不罚`
+                      : `${gone} stopped drawing. No penalty this round.`
+                    : v.alone
+                      ? lang === "zh"
+                        ? "没人猜了，这轮不罚"
+                        : "Nobody left to guess. No penalty this round."
+                      : lang === "zh"
+                      ? `没人猜中，${nameOf(v.drawer)} ${custom ? "受罚" : "喝"}`
+                      : `Nobody got it. ${nameOf(v.drawer)} ${custom ? "takes the penalty" : "drinks"}.`}
               </p>
             </div>
             <NetPlate canDraw={false} />

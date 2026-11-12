@@ -13,6 +13,10 @@
   "main": "src/worker.ts",
   // (ctx.exports, through which the day's run calls its own steps, is on by default since 2025-11-17)
   "compatibility_date": "2026-10-26",
+  // changle-events.<account>.workers.dev answers only POST /go/api/handoff (src/worker.ts): the
+  // libraries' GitHub job hands its pages over there, because changle.ca's bot protection challenges
+  // GitHub's machines (5 November 2026). Everything people use stays on changle.ca/go.
+  "workers_dev": true,
   "routes": [
     { "pattern": "changle.ca/go", "zone_name": "changle.ca" },
     { "pattern": "changle.ca/go/*", "zone_name": "changle.ca" }
