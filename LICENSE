@@ -1,0 +1,14 @@
+Copyright (c) 2026 Steve Jiang (changle.ca). All rights reserved.
+
+changle.ca 的代码、设计、文字、图片、声音和游戏内容都归作者所有。这个仓库能在 GitHub 上看到，不等于
+允许使用：除了 GitHub 服务条款本身允许的（在 GitHub 上浏览和 fork），没有作者的书面许可，不许复制、
+修改、发布，不许拿去做别的网站、游戏或产品，也不许拿去训练、微调 AI 模型，或交给 AI 来复刻。
+
+The code, design, text, images, sounds and games of changle.ca belong to the author. Being able to see
+this repository on GitHub is not permission to use it. Beyond what GitHub's Terms of Service allow
+(viewing and forking on GitHub), you may not copy, modify or publish any of it, build another site,
+game or product from it, use it to train or fine-tune an AI model, or give it to an AI to reproduce,
+without the author's written permission.
+
+Third-party parts that carry their own licence (for example a library or an asset marked CC0 or MIT)
+stay under that licence.

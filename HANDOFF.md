@@ -188,7 +188,9 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
 ## Working rules
 
 * Every change on its own branch with a PR. Never push to `main`. CI green before merging.
-* Ask the owner before merging, deploying, or anything that costs money or goes public.
+* Once CI is green, merge the PR yourself and tell the owner (Steve) what went live.
+* Ask the owner first only for: anything that costs money, deletes data, changes Cloudflare or GitHub
+  settings or keys, or makes the repository public or private.
 * No keys, secrets or tokens in code, commits, chat or screenshots: Cloudflare Secrets only.
 * Stuck? Stop and say what is needed instead of working around it.
 
