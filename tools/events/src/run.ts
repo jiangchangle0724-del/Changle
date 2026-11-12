@@ -28,6 +28,16 @@ export interface StepResult {
   log: FetchLog;
 }
 
+/** Every part of a source before `part` read today, as the log says (a step that failed ends its source for the day). */
+async function everyPartBefore(db: D1Database, runId: string, source: string, part: number): Promise<boolean> {
+  if (part === 0) return true;
+  const row = await db
+    .prepare("SELECT count(DISTINCT part) AS n FROM fetch_log WHERE run_id = ?1 AND source = ?2 AND part < ?3 AND error IS NULL")
+    .bind(runId, source, part)
+    .first<{ n: number }>();
+  return (row?.n ?? 0) === part;
+}
+
 async function writeLog(db: D1Database, l: FetchLog): Promise<void> {
   await db
     .prepare(
@@ -106,8 +116,16 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
       log.updated = stored.updated;
       next = nextPart(src, args.part, more);
     }
-    await env.DB.prepare("UPDATE sources SET last_ok_run = ?2, last_error = NULL, etag = coalesce(?3, etag), last_modified = coalesce(?4, last_modified) WHERE id = ?1")
-      .bind(src.id, args.runId, etag, lastModified)
+    // The source is done for today only once its last page is read, and every page before it was.
+    // Until then (a later page failed) publish keeps its events from before today (src/publish.ts):
+    // otherwise everything on the pages it couldn't read would drop off the list for the day.
+    const done = next === null && (await everyPartBefore(env.DB, args.runId, src.id, args.part));
+    await env.DB.prepare(
+      `UPDATE sources SET etag = coalesce(?3, etag), last_modified = coalesce(?4, last_modified),
+         last_ok_run = CASE WHEN ?5 THEN ?2 ELSE last_ok_run END, last_error = CASE WHEN ?5 THEN NULL ELSE last_error END
+       WHERE id = ?1`,
+    )
+      .bind(src.id, args.runId, etag, lastModified, done ? 1 : 0)
       .run();
   } catch (e) {
     log.error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
