@@ -4531,10 +4531,13 @@ test("rogue: the camera's judgement has a deadline, so a holder who walks away c
   ok(rv().interrupt?.kind === "camera", "still waiting with a second to go");
   t.advance(1500);
   ok(rv().interrupt === null && t.pens().length === before, "the deadline passes: nobody moved, no penalty");
+  (t.eng.d.game!.s as { deck: number[] }).deck.push(8); // the nine of spades: a card that is done at once (not a 5, which would move the camera)
   t.g(rv().turn, "draw");
   ok(rv().card !== null, "and the table draws again");
+  t.advance(1500);
   // an answer in time: the deadline is forgotten
   t.g(rv().drawer ?? rv().turn, "next");
+  ok(rv().phase === "draw", "on to the next draw");
   t.g("p2", "camera");
   t.advance(3600);
   t.g("p2", "moved", { target: "p1" });
