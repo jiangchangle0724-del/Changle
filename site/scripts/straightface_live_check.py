@@ -135,8 +135,12 @@ def main():
             press(judge, judge.get_by_role("button", name=L["startSpeaking"][judge._lang], exact=True))
             if rounds == 1:
                 ok(until(lambda: eve.locator(".sf-crowd .ballot .nominee:not([disabled])").count() > 0, 10000), "[round 1] the audience can bet once explaining starts")
-                press(eve, eve.locator(".sf-crowd .ballot .nominee:not([disabled])"))
-                ok(until(lambda: "你押了" in text(eve), 6000), "[round 1] the audience backed someone")
+                # bring the ballot to the middle first: at the bottom edge the reaction bar can sit over it
+                eve.locator(".sf-crowd .ballot").evaluate("el => el.scrollIntoView({ block: 'center' })")
+                pressed = press(eve, eve.locator(".sf-crowd .ballot .nominee:not([disabled])"))
+                backed = until(lambda: "你押了" in text(eve), 6000)
+                shot(eve, "03-audience")
+                ok(backed, f"[round 1] the audience backed someone (tap {'went through' if pressed else 'never landed'})")
             for _ in range(3):
                 sp = until(lambda: next((g for g in phones if has(g, "speak")), None), 10000)
                 if not sp:
