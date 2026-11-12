@@ -213,8 +213,14 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
           ) : (
             <Waiting>{lang === "zh" ? `轮到 ${nameOf(gd.speaker)} 说` : `${nameOf(gd.speaker)} is up`}</Waiting>
           )}
+          {/* the judge names who it was: the one who just finished (the word just heard), or the one speaking now */}
+          {drawerActs && gd.last && gd.last !== me && (
+            <button type="button" className="btn btn-penalty btn-block" onClick={() => g("repeat", { who: gd.last })}>
+              {lang === "zh" ? `${nameOf(gd.last)} 刚才重复了或说错了` : `${nameOf(gd.last)} repeated or fumbled`}
+            </button>
+          )}
           {drawerActs && !speaking && (
-            <button type="button" className="btn btn-penalty btn-block" onClick={() => g("repeat")}>
+            <button type="button" className={`btn btn-block ${gd.last && gd.last !== me ? "btn-ghost" : "btn-penalty"}`} onClick={() => g("repeat", { who: gd.speaker })}>
               {lang === "zh" ? `${nameOf(gd.speaker)} 重复了或说错了` : `${nameOf(gd.speaker)} repeated or fumbled`}
             </button>
           )}

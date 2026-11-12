@@ -17,7 +17,7 @@ type S = {
   holders: RogueHolders;
   wcUsed: boolean;
   reshuffled: boolean;
-  garden: { kind: number; speaker: string; endsAt: number; said: number } | null;
+  garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number; last: { n: number; pid: string; at: number } | null } | null;
   sevens: { n: number; speaker: string; endsAt: number; streak: number; log: { pid: string; n: number; pass: boolean }[] } | null;
   interrupt: Interrupt | null;
@@ -201,6 +201,7 @@ export const rogue: GameDef<S> = {
       }
       case "said": {
         if (s.phase !== "garden" || !s.garden || pid !== s.garden.speaker) return;
+        s.garden.last = pid;
         s.garden.speaker = api.next(s.garden.speaker);
         s.garden.said += 1;
         s.garden.endsAt = api.now + GARDEN_MS;
@@ -209,7 +210,11 @@ export const rogue: GameDef<S> = {
       }
       case "repeat": {
         if (s.phase !== "garden" || !s.garden || (pid !== s.drawer && !host)) return;
-        pen(s, api, [s.garden.speaker], "sip", N.garden);
+        // the judge names who it was: the one speaking, or the one who just finished (a word is
+        // judged after it is said, and the speaker may already have tapped 说完了)
+        const who = g.who ? String(g.who) : s.garden.speaker;
+        if (who !== s.garden.speaker && who !== s.garden.last) return;
+        pen(s, api, [who], "sip", N.garden);
         endSub(s, api);
         return;
       }
