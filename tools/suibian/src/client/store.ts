@@ -63,7 +63,13 @@ export function toast(text: string) {
 }
 
 export function onServer(msg: ServerMsg) {
-  if (msg.t === "view") update({ view: msg.view, offset: msg.view.now - Date.now() });
+  if (msg.t === "view") {
+    const w = msg.view;
+    // The list comes only when it changes (see cardsRev): otherwise it's the one this phone has.
+    const prev = state.view;
+    const cards = w.cards ?? (prev?.code === w.code ? prev.cards : []);
+    update({ view: { ...w, cards }, offset: w.now - Date.now() });
+  }
   else if (msg.t === "toast") toast(has(msg.key) ? t(msg.key, msg.vars) : msg.key);
   else if (msg.t === "fatal") update({ fatal: msg.key });
 }

@@ -198,7 +198,7 @@ const BOB_LATE = 90;
     "Bob late but moving": p1("Bob")?.participation === 100 && p1("Bob")?.meanAbsOffsetMs >= BOB_LATE - 30 && p1("Bob")?.meanAbsOffsetMs <= BOB_LATE + 30,
     "最稳 is Ann": results1.awards.steady === ids[0],
     "the TV names the award winners": tvAwards.length === 3 && tvAwards.includes("Ann") && tvAwards.includes("Bob"),
-    "each phone its own line": /100%/.test(annLine ?? "") && /100%/.test(bobLine ?? "") && /You moved/.test(bobLine ?? "") && /没有点手机/.test(catLine ?? ""),
+    "each phone its own line": /100%/.test(annLine ?? "") && /100%/.test(bobLine ?? "") && /You moved/.test(bobLine ?? "") && /没有动手机/.test(catLine ?? ""),
     "这一段再来 went back to beat 8": restartedFrom === 8,
     "again: Ann on every beat, all 16 in a row": p2("Ann")?.participation === 100 && p2("Ann")?.bestStreak === 16,
     "Bob's bar from while his connection was down got there": p2("Bob")?.participation === 100 && p2("Bob")?.bestStreak === 16,

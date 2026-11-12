@@ -535,24 +535,6 @@
   color: var(--color-text-2);
   font-size: var(--text-sm);
 }
-.sf-honest {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--r-panel);
-  background:
-    radial-gradient(80% 80% at 50% 0%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 70%),
-    var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--color-line-soft);
-}
-.sf-honest strong {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  line-height: var(--leading-tight);
-}
 .sf-deltas {
   display: flex;
   flex-wrap: wrap;
@@ -632,4 +614,380 @@
   .sf-hold {
     min-height: 340px;
   }
+}
+
+/* ---------- online: every phone its own ---------- */
+.sf-net-round {
+  margin: 0;
+  text-align: center;
+}
+.sf-net-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sf-net-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.sf-net-row .btn {
+  min-height: var(--tap-crowded);
+}
+/* my part, a press away all round: small until held */
+.sf-hold.is-compact {
+  min-height: var(--tap-crowded);
+  padding: var(--space-3) var(--space-4);
+}
+.sf-hold.is-compact .sf-hold-label {
+  flex-direction: row;
+  font-size: var(--text-md);
+}
+.sf-hold.is-compact.is-open {
+  padding: var(--pad-card);
+}
+/* the packs the host picked, for everyone else */
+.sf-pack-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sf-pack-strip li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--color-sheet);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.sf-pack-strip img {
+  width: calc(var(--space-6) + var(--space-1));
+  height: calc(var(--space-6) + var(--space-1));
+  border-radius: var(--r-pill);
+}
+.sf-judge-line .timer-arc {
+  flex: none;
+}
+
+/* ---------- motion: the reveal's verdict, the points, the floor, the stamp (reduced motion: still) ---------- */
+.sf-verdict {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--r-panel);
+  background:
+    radial-gradient(80% 80% at 25% 0%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 70%),
+    var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line-soft);
+}
+.sf-verdict.is-fooled {
+  background:
+    radial-gradient(80% 80% at 25% 0%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 70%),
+    radial-gradient(70% 80% at 85% 100%, color-mix(in oklab, var(--color-danger) 20%, transparent), transparent 70%),
+    var(--color-surface);
+}
+.sf-verdict-who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  text-align: center;
+}
+.sf-verdict-who strong {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+.sf-verdict-judge {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.sf-verdict-art {
+  border-radius: var(--r-tile);
+}
+.sf-verdict-stamp {
+  position: absolute;
+  bottom: calc(var(--space-2) * -1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-small);
+  box-shadow: inset 0 0 0 3px currentColor;
+  background: color-mix(in oklab, var(--color-surface) 85%, transparent);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  white-space: nowrap;
+  rotate: -7deg;
+}
+.sf-verdict.is-right .sf-verdict-stamp {
+  color: var(--color-success);
+}
+.sf-verdict.is-fooled .sf-verdict-stamp {
+  color: var(--color-danger);
+}
+.sf-master-art {
+  align-self: center;
+  border-radius: var(--r-tile);
+  animation: sf-pop var(--dur-emphasis) var(--ease-pop) both;
+}
+.sf-confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.sf-delta {
+  animation: sf-pop var(--dur-emphasis) var(--ease-pop) both;
+  animation-delay: calc(var(--i, 0) * var(--dur-exit) / 2);
+}
+.sf-speaker-who,
+.sf-part,
+.sf-phase {
+  animation: sf-in var(--dur-emphasis) var(--ease-out) both;
+}
+.sf-part {
+  animation-duration: var(--dur-enter);
+}
+.sf-order li.is-now .sf-order-face {
+  animation: sf-pulse calc(var(--dur-emphasis) * 4) var(--ease-out) infinite;
+}
+.sf-mark {
+  animation: sf-stamp var(--dur-emphasis) var(--ease-pop) both;
+}
+.sf-judge-line .sf-role-art {
+  animation: sf-bob calc(var(--dur-emphasis) * 5) ease-in-out infinite alternate;
+}
+.sf-final {
+  animation: sf-drop calc(var(--dur-emphasis) * 1.5) var(--ease-pop) both;
+}
+.sf-phase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+@keyframes sf-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes sf-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--gel);
+  }
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in oklab, var(--gel) 30%, transparent);
+  }
+}
+@keyframes sf-stamp {
+  from {
+    opacity: 0;
+    transform: scale(2.4) rotate(-18deg);
+  }
+}
+@keyframes sf-bob {
+  to {
+    transform: translateY(calc(var(--motion-shift) * -0.5)) rotate(-3deg);
+  }
+}
+@keyframes sf-drop {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-shift) * -4)) scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf-order li.is-now .sf-order-face,
+  .sf-judge-line .sf-role-art {
+    animation: none;
+  }
+}
+
+/* ---------- the card's numbers, and flagging a card ---------- */
+.sf-numbers {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.sf-report-link {
+  align-self: center;
+  min-height: var(--tap);
+  font-size: var(--text-sm);
+}
+.sf-report {
+  gap: var(--space-4);
+}
+.sf-reasons {
+  display: grid;
+  gap: var(--space-2);
+}
+.sf-reason {
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-sheet);
+  box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: left;
+}
+.sf-reason.is-on {
+  box-shadow: inset 0 0 0 2px var(--gel);
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-sheet));
+}
+.sf-report-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sf-report-note .field {
+  align-items: stretch;
+}
+.sf-report-note textarea {
+  width: 100%;
+  resize: vertical;
+}
+.sf-report-fail {
+  color: var(--color-danger);
+}
+
+/* ---------- the end: tonight's titles, and the picture to share (share.tsx) ---------- */
+.sf-titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sf-titles li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: var(--space-3);
+  align-items: center;
+  line-height: var(--leading-tight);
+}
+.sf-titles img {
+  grid-row: 1 / 4;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--gel);
+}
+.sf-title-label {
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.sf-titles strong {
+  font-size: var(--text-md);
+}
+.sf-share-btn {
+  gap: var(--space-2);
+}
+.sf-share-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-flat);
+  -webkit-touch-callout: default;
+  user-select: auto;
+}
+.sf-share-actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.sf-share-actions .btn {
+  flex: 1 1 0;
+  gap: var(--space-2);
+}
+
+/* ---------- 自己出题: a player's own word (own.tsx) ---------- */
+.sf-own-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.sf-own-title svg {
+  color: var(--gel);
+}
+.sf-own-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sf-own-field .field {
+  align-items: stretch;
+}
+.sf-own-field input,
+.sf-own-field textarea {
+  width: 100%;
+}
+.sf-own-field textarea {
+  resize: vertical;
+}
+.sf-own-actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.sf-own-actions .btn {
+  flex: 1 1 0;
+}
+.sf-own-done p {
+  margin: 0;
+  line-height: var(--leading);
+}
+.sf-own-badge {
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--night);
+}
+.sf-part-wrote {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: color-mix(in oklab, var(--gel) 18%, transparent);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.sf-own-first {
+  margin-bottom: var(--space-4);
+}
+
+/* ---------- the audience: at the table, not in this game ---------- */
+.sf-crowd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sf-crowd p {
+  margin: 0;
+  line-height: var(--leading);
+}
+.sf-crowd-line {
+  margin: var(--space-2) 0 0;
 }

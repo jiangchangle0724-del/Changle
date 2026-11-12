@@ -63,7 +63,9 @@ test("three phones pick a restaurant", async ({ browser }) => {
   // Round 1.
   await host.page.getByRole("button", { name: "开始！" }).click();
   for (const p of [host, a, b]) await expect(p.page.locator(".moods")).toBeVisible();
-  // Severe peanut: no Thai chip for anyone.
+  // Severe peanut: the cuisines that use it a lot come after the others in round 1 (twelve fit), so no
+  // Thai chip here; round 2 still lists the Thai place, at the bottom.
+  await expect(host.page.locator(".mood")).toHaveCount(12);
   await expect(host.page.locator("[data-cuisine=thai]")).toHaveCount(0);
   await host.page.locator("[data-cuisine=ramen]").click(); // 👍
   await a.page.locator("[data-cuisine=ramen]").click();
@@ -71,11 +73,24 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await b.page.locator("[data-cuisine=italian]").click(); // 🚫
   for (const p of [host, a, b]) await p.page.getByRole("button", { name: "好了" }).click();
 
-  // Round 2.
+  // Round 2: every place, ranked. The top six are full cards, then shorter ones that open.
   for (const p of [host, a, b]) await expect(p.page.locator(".place").first()).toBeVisible();
-  await expect(host.page.getByText("Nonna's Pasta")).toHaveCount(0);
+  await expect(host.page.locator(".place:not(.compact)")).toHaveCount(6);
+  await expect(host.page.locator(".place .rank").first()).toHaveText("1");
+  await expect(host.page.locator(".place .facts").first()).toContainText("🚗 约");
+  // b said no to Italian: Nonna's is still there, further down, saying why.
+  const nonna = host.page.locator(".place", { hasText: "Nonna's Pasta" });
+  await expect(nonna).toHaveClass(/compact/);
+  await expect(nonna.locator(".note")).toHaveText("有人第 1 轮不想吃这类，排在后面。");
+  // a's severe peanut allergy: Thai is at the bottom with a warning, not gone.
+  await host.page.getByRole("button", { name: /^再看 \d+ 家$/ }).click();
+  await expect(host.page.locator(".place", { hasText: "Bangkok Basil" }).locator(".note.severe")).toContainText("有人对花生严重过敏");
+  // A shorter card opens for the rest: phone, map, ordering in.
+  await nonna.getByRole("button", { name: /更多/ }).click();
+  await expect(nonna.getByRole("link", { name: "📞 打电话" })).toBeVisible();
   const ramen = host.page.locator(".place", { hasText: "Ramen Hinoki" });
   await expect(ramen).toBeVisible();
+  await expect(ramen.locator(".reason", { hasText: "2 人想吃这类" })).toBeVisible();
   for (const p of [host, a, b]) await p.page.locator(".place", { hasText: "Ramen Hinoki" }).locator(".approve").click();
   // b vetoes another card; the veto button on the others then says it's used.
   await b.page.locator(".place").filter({ hasNotText: "Ramen Hinoki" }).first().locator(".veto").click();
@@ -138,7 +153,7 @@ test("guests can't start a table, or pick alone, when login is on", async ({ req
   expect(solo.status()).toBe(401);
 });
 
-test("one person picks alone: five questions, three places with reasons, another three, choose one", async ({ browser }) => {
+test("one person picks alone: six questions, every place ranked with reasons, choose one", async ({ browser }) => {
   const me = await phone(browser, "solo");
   const page = me.page;
   await page.goto("/eat/");
@@ -149,7 +164,14 @@ test("one person picks alone: five questions, three places with reasons, another
   await page.getByRole("button", { name: "帮我挑" }).click();
   await expect(page).toHaveURL(/\/eat\/solo$/);
 
-  await expect(page.getByRole("heading", { name: "现在想吃点什么感觉的？" })).toBeVisible();
+  // First, when: now, a lunch or dinner ahead, or another day and time.
+  await expect(page.getByRole("heading", { name: "什么时候吃？" })).toBeVisible();
+  await page.getByRole("button", { name: "选个时间" }).click();
+  await expect(page.locator(".whenother select")).toHaveCount(2);
+  await page.getByRole("button", { name: "现在" }).click();
+  await expect(page.locator(".whenother")).toHaveCount(0);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByRole("heading", { name: "想吃点什么感觉的？" })).toBeVisible();
   await page.getByRole("button", { name: /热乎乎的/ }).click();
   await expect(page.getByRole("heading", { name: "想吃哪边的？" })).toBeVisible();
   await page.getByRole("button", { name: /^中餐/ }).click();
@@ -168,27 +190,45 @@ test("one person picks alone: five questions, three places with reasons, another
   await expect(page.getByRole("heading", { name: "有什么不吃的吗？" })).toBeVisible();
   await page.locator(".diet .btn.primary").click();
 
-  await expect(page.getByRole("heading", { name: "给你挑了这几家" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "按你的口味排好了" })).toBeVisible();
   const cards = page.locator(".place");
-  await expect(cards).toHaveCount(3);
+  // Now: no planned time on the list.
+  await expect(page.locator(".planned")).toHaveCount(0);
+  // Three full cards, then ten shorter ones; the rest behind "show more". Over the $35 budget, two are left out.
+  await expect(page.locator(".place:not(.compact)")).toHaveCount(3);
+  await expect(cards).toHaveCount(13);
+  await expect(page.getByText("共 16 家，都在范围和预算以内")).toBeVisible();
   await expect(page.locator(".reason").first()).toBeVisible();
+  // Chinese first (the side asked for), every card with its rank, distance, walk and drive.
+  await expect(cards.first().locator(".intro")).toContainText("粤菜 · 点心");
+  await expect(cards.first().locator(".facts")).toContainText("📍");
+  await expect(cards.first().locator(".facts")).toContainText("🚶");
   // The made-up pick and description show in demo mode, so every part of a card is exercised.
   await expect(page.getByText("示例推荐：虾饺皮薄，周末早点去")).toBeVisible();
   await expect(page.getByText("示例：推车点心，周末一早就满座")).toBeVisible();
-  const first = await cards.locator("h3").allTextContents();
-  const shownIds = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-id")!));
-  await page.getByRole("button", { name: "换一批" }).click();
-  await expect(cards).toHaveCount(2);
-  const second = await cards.locator("h3").allTextContents();
-  expect(second.some((n) => first.includes(n))).toBe(false);
+  await page.getByRole("button", { name: "再看 3 家" }).click();
+  await expect(cards).toHaveCount(16);
+  // The short intro says what a place mainly serves when its name does.
+  await expect(page.locator(".place", { hasText: "台北牛肉面" }).locator(".intro")).toContainText("主打牛肉面");
   await expect(page.getByText("附近就这些了")).toBeVisible();
+  const shownIds = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-id")!));
 
   const chosen = (await cards.first().locator("h3").textContent())!;
   await cards.first().getByRole("button", { name: "就它了" }).click();
   await expect(page.getByRole("heading", { name: "就吃这家！" })).toBeVisible();
   await expect(page.getByRole("button", { name: "发给朋友" })).toBeVisible();
-  // The diet card is saved for next time, but not this search's budget.
-  const saved = (await page.evaluate(() => fetch("/eat/api/me").then((r) => r.json()))) as { card: { budget: number }; last: { place: string } };
+  // Or order it in: the fold on the card opens the delivery apps, without our address as the referrer.
+  const delivery = page.locator(".delivery");
+  await delivery.getByText("🛵 点外卖").click();
+  await expect(delivery.locator("[data-app=ubereats]")).toHaveAttribute("href", /^https:\/\/www\.ubereats\.com\/search\?q=.+/);
+  await expect(delivery.locator("[data-app=doordash]")).toHaveAttribute("href", /^https:\/\/www\.doordash\.com\/en-CA\/search\/store\/.+/);
+  await expect(delivery.locator("[data-app=fantuan]")).toHaveText("饭团");
+  for (const app of ["ubereats", "doordash", "fantuan", "skip"]) await expect(delivery.locator(`[data-app=${app}]`)).toHaveAttribute("rel", "noopener noreferrer");
+  // The pick is saved in the background: wait until the account has it. The diet card is saved for
+  // next time, but not this search's budget.
+  const account = () => page.evaluate(() => fetch("/eat/api/me").then((r) => r.json() as Promise<{ card: { budget: number }; last: { place: string } | null }>));
+  await expect.poll(async () => (await account()).last?.place ?? null).not.toBeNull();
+  const saved = (await account()) as { card: { budget: number }; last: { place: string } };
   expect(saved.card.budget).toBe(0);
 
   // Only your own last pick can be rated: any other place is refused.
@@ -252,3 +292,38 @@ test("the privacy and terms pages are public and linked from the home page", asy
   await page.getByRole("link", { name: /随便 · Whatever's Fine/ }).click();
   await expect(page).toHaveURL(/\/eat\/$/);
 });
+
+test("planning ahead: tomorrow's dinner, alone and at a table", async ({ browser }) => {
+  const me = await phone(browser, "plan");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `plan-${Date.now()}`, name: "小周" } })).ok()).toBeTruthy();
+  await page.goto("/eat/solo");
+  await page.getByRole("button", { name: "明天晚饭" }).click();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: /都可以/ }).click();
+  await page.getByRole("button", { name: /^都行/ }).click();
+  await page.getByRole("button", { name: "不限" }).click();
+  await page.locator("select").selectOption("Burnaby Metrotown");
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.locator(".diet .btn.primary").click();
+  await expect(page.locator(".planned")).toHaveText("🕒 明天 18:30，按那时的营业时间排");
+  // Each full card says until when it's open then (demo hours: most close at 22:00).
+  await expect(page.locator(".place").first()).toContainText("那时营业到");
+  await page.locator(".place").first().getByRole("button", { name: "就它了" }).click();
+  await expect(page.getByRole("heading", { name: /^明天 18:30，就吃这家！$/ })).toBeVisible();
+
+  // A table for tomorrow's lunch: chosen on the home page, shown in the lobby, changed there by the host.
+  await page.goto("/eat/");
+  await page.getByRole("button", { name: "明天午饭" }).click();
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  await expect(page.locator(".whenrow")).toHaveText("🕒 什么时候吃：明天 12:00");
+  await page.getByRole("button", { name: "改时间" }).click();
+  await page.getByRole("button", { name: "明天晚饭" }).click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".whenrow")).toHaveText("🕒 什么时候吃：明天 18:30");
+  expect(me.errors).toEqual([]);
+});
+

@@ -1,14 +1,15 @@
-// What's On: the libraries' hand-over (src/handoff.ts). GitHub runs this every morning at 05:50
-// Vancouver time (.github/workflows/events-libraries.yml). It reads Vancouver's and Richmond's
-// library pages with exactly the requests the 06:00 run would make, and hands each page to the
-// Worker, which keeps it for the run. (BiblioCommons refuses requests from Cloudflare Workers.)
+// What's On: the libraries' hand-over (src/handoff.ts). GitHub runs this every morning, meant for
+// 05:50 Vancouver time (.github/workflows/events-libraries.yml), though GitHub often starts it hours
+// later. It reads Vancouver's and Richmond's library pages with exactly the requests the 06:00 run
+// would make, and hands each page to the Worker, which keeps it for the run, or reads it at once when
+// the run has gone past that library (src/arrival.ts). (BiblioCommons refuses Cloudflare Workers.)
 //   npm run libraries -- --dry-run   read the pages and print what came; nothing is sent, nothing needed
 //   npm run libraries                read, then hand over to EVENTS_HANDOFF_URL. On GitHub the job signs
 //                                    in with GitHub's own token (src/oidc.ts): nothing to set. Elsewhere,
 //                                    set EVENTS_HANDOFF_KEY, the same key as the Worker's.
 // Ends with an error (a red run on GitHub) when a library couldn't be read to the end or the Worker
 // refuses a page. The pages read before a library failed are still handed over.
-import { fetchPages, handOver, handoffCredential, HANDOFF_SOURCES, signInWith, type Page } from "../src/handoff";
+import { fetchPages, handOver, handoffCredential, HANDOFF_SOURCES, signInWith, whatCameOf, type Handed, type Page } from "../src/handoff";
 import { vanParts, windowOf } from "../src/time";
 
 const dry = process.argv.includes("--dry-run");
@@ -39,8 +40,10 @@ async function main(): Promise<void> {
     if (!dry && pages.length > 0) {
       // a fresh token for each library: GitHub's last minutes, and reading a library can take one
       const credential = await handoffCredential(process.env, fetch);
-      for (const p of pages) await handOver(fetch, endpoint, credential, src.id, date, p);
+      const answers: Handed[] = [];
+      for (const p of pages) answers.push(await handOver(fetch, endpoint, credential, src.id, date, p));
       console.log(`  handed over: ${pages.length} pages (${signIn === "key" ? "with the key" : "signed in by GitHub"})`);
+      console.log(`  ${whatCameOf(answers)}`);
     }
     if (error) fail(`${error}${pages.length > 0 && !dry ? ". The pages before it were handed over; the run will ask the library for the rest itself." : ""}`);
   }

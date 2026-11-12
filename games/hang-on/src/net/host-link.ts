@@ -64,6 +64,8 @@ export class HostLink {
   private readonly sock: RoomSocket;
   private pingId = 1;
   private readonly pending = new Map<string, Map<number, number>>();
+  /** 每条直连在 answer 装好之前收到的 ICE 候选；换了新连接旧的自然作废。 */
+  private readonly earlyIce = new WeakMap<RTCPeerConnection, RTCIceCandidateInit[]>();
   private pingTimer: ReturnType<typeof setInterval>;
   /** 测试用：true 时不发 offer，所有手柄都走中转。 */
   forceRelay = false;
@@ -158,11 +160,16 @@ export class HostLink {
         this.ev.onLook?.(p, p.look);
         return;
       case 'sdp':
-        if (data.sdp.type === 'answer' && p.pc) void p.pc.setRemoteDescription(data.sdp).catch(() => undefined);
+        if (data.sdp.type === 'answer' && p.pc) void this.acceptAnswer(p.pc, data.sdp);
         return;
-      case 'ice':
-        if (p.pc && data.ice) void p.pc.addIceCandidate(data.ice).catch(() => undefined);
+      case 'ice': {
+        const pc = p.pc;
+        if (!pc || !data.ice) return;
+        // answer 还没装好就先到的候选先存着（手柄那边也是这样），装好再补上
+        if (pc.remoteDescription) void pc.addIceCandidate(data.ice).catch(() => undefined);
+        else this.earlyIce.set(pc, [...(this.earlyIce.get(pc) ?? []), data.ice]);
         return;
+      }
       case 'pong': {
         const sent = this.pending.get(p.seat)?.get(data.id);
         if (sent !== undefined) {
@@ -185,6 +192,17 @@ export class HostLink {
       default:
         return;
     }
+  }
+
+  private async acceptAnswer(pc: RTCPeerConnection, sdp: RTCSessionDescriptionInit): Promise<void> {
+    try {
+      await pc.setRemoteDescription(sdp);
+    } catch {
+      return;
+    }
+    const early = this.earlyIce.get(pc) ?? [];
+    this.earlyIce.delete(pc);
+    for (const c of early) void pc.addIceCandidate(c).catch(() => undefined);
   }
 
   private async offer(p: PadPeer): Promise<void> {

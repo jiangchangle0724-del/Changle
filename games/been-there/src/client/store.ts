@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { ClientMsg, RoomView, ServerMsg } from "../room/protocol";
 import { has, t } from "./i18n";
 import type { Conn, Status } from "./net";
+import { showReaction } from "./reactions";
 
 export interface AppState {
   view: RoomView | null;
@@ -70,6 +71,7 @@ export function onServer(msg: ServerMsg) {
   else if (msg.t === "toast") toast(has(msg.key) ? t(msg.key, msg.vars) : msg.key);
   else if (msg.t === "saved") update({ saved: msg.code });
   else if (msg.t === "fatal") update({ fatal: msg.key });
+  else if (msg.t === "react") showReaction({ id: msg.id, team: msg.team, r: msg.r });
 }
 
 /** Server time now, in ms. */

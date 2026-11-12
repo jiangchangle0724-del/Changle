@@ -174,9 +174,9 @@ export function TubePlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, target?.at]);
 
-  // on the TV: in the middle once it's heard (or the room says it plays, or it wants a tap), in a
-  // corner while it's up next and as its drop comes (the move waits till the song is heard: nothing
-  // else for the page to do on the bar itself), out of sight between songs (paused, kept)
+  // on the TV, in its corner: playing once it's heard (or the room says it plays, or it wants a
+  // tap), ready while it's up next and as its drop comes; over the whole TV while it plays when
+  // someone asks from their phone; out of sight between songs (paused, kept)
   const heard = status === "playing" || status === "tap" || (status === "ad" && !!target);
   const mode = d.song || (target && heard) ? "on" : next || target ? "next" : "off";
   const who = target?.by ?? next?.by ?? null;
@@ -184,9 +184,9 @@ export function TubePlayer({
   const title = req?.text ?? null;
   const after = v.deck.up && v.deck.up.id !== target?.id ? v.deck.up : null;
   return (
-    <section className={`dj-tube is-${mode}${status === "offline" ? " is-offline" : ""}`} aria-hidden={mode === "off" ? true : undefined} aria-label={zh ? "整首歌" : "The whole song"}>
+    <section className={`dj-tube is-${mode}${mode === "on" && v.full ? " is-full" : ""}${status === "offline" ? " is-offline" : ""}`} aria-hidden={mode === "off" ? true : undefined} aria-label={zh ? "整首歌" : "The whole song"}>
       <header className="dj-tube-head">
-        <Music2 size={mode === "on" ? 26 : 20} aria-hidden="true" />
+        <Music2 size={20} aria-hidden="true" />
         <span>
           {mode === "next"
             ? zh

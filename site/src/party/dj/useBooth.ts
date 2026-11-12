@@ -279,12 +279,12 @@ export function useBooth({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fake]);
 
-  const start = useCallback(() => {
+  const start = useCallback((ctx?: AudioContext) => {
     if (booth.speaker || booth.starting) return;
     let sp: Speaker;
     try {
-      // made and woken inside the tap
-      sp = new Speaker();
+      // made and woken inside the tap (or in the game card's tap that opened this page: `ctx`)
+      sp = new Speaker(ctx ? { ctx } : {});
     } catch {
       booth.error = true;
       tell(booth);

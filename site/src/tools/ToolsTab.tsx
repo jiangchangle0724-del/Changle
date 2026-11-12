@@ -1,4 +1,5 @@
 import { Clock3, Coins, Scale, UtensilsCrossed } from "lucide-react";
+import { reduced } from "../lib/motion";
 import { useStore } from "../store";
 import { Currency } from "./Currency";
 import { useRates } from "./fx";
@@ -12,7 +13,8 @@ import "../styles/tools.css";
 export function ToolsTab() {
   const { lang } = useStore();
   const fx = useRates();
-  const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // the page glides to the tool, or jumps when the phone asks for less motion
+  const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" });
   return (
     <div className="tools">
       <nav className="tool-nav" aria-label={lang === "zh" ? "工具" : "Tools"}>

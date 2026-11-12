@@ -13,7 +13,11 @@
     "play": "vite --open /play.html",
     "record": "vite --open /play.html?record=1",
     "ip-check": "node scripts/ip-check.mjs",
+    "levels": "node scripts/run-levels.mjs",
     "link-check": "node scripts/link-check.mjs",
+    "lobby-check": "node scripts/lobby-check.mjs",
+    "perf": "node scripts/perf.mjs",
+    "test:coverage": "vitest run --coverage --coverage.provider=v8 --coverage.include=src/physics/** --coverage.reportsDirectory=node_modules/.cache/hang-on-coverage --coverage.reporter=text --coverage.reporter=html --coverage.reporter=json-summary --coverage.thresholds.lines=80",
     "deploy": "vite build && wrangler deploy"
   },
   "dependencies": {
@@ -22,6 +26,7 @@
     "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "5.1.0",
     "playwright": "^1.63.0",
     "typescript": "^5.6.0",
     "vite": "^7.3.2",

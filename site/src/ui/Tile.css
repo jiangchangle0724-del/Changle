@@ -18,6 +18,9 @@
   cursor: pointer;
   transition: transform var(--dur-enter) var(--ease-out);
 }
+.ui-tile:disabled {
+  cursor: default;
+}
 .ui-tile-watermark {
   position: absolute;
   z-index: -1;

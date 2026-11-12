@@ -3,16 +3,21 @@
  * a slice of one), never the GameState: the one-phone screen and the online screens render the
  * same parts from what the engine's two view functions allow them to see.
  */
-import { Check, Tag } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, PenLine, Tag } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Sheet } from "../../components/Sheet";
 import { TimerArc } from "../../components/TimerArc";
 import type { T } from "../../i18n";
+import { gsap, reduced } from "../../lib/anim";
+import { confetti, type ConfettiOpts } from "../../lib/confetti";
 import { haptic, sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
+import { OWN_PACK } from "../../shared/straightface/engine";
 import type { Level, PrivateView, RoundResult } from "../../shared/straightface/types";
 import { NameFace } from "../common";
-import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightface";
-import { PACK_ART, ROLE_ART } from "./art";
+import { PACK_AUDIENCE, PACK_NAMES, PACKS, type Audience, type Pack } from "../../data/straightfacePacks";
+import { PACK_ART, ROLE_ART, VERDICT_ART } from "./art";
+import { REASONS, sendReport, type Reason } from "./feedback";
 import { S } from "./text";
 
 const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
@@ -54,25 +59,71 @@ export function LevelDots({ level }: { level: Level }) {
 const isPack = (p: string | null | undefined): p is Pack => !!p && (PACKS as readonly string[]).includes(p);
 
 /** The word of the round, as big as the screen allows: the whole table reads it, under its pack's picture. */
-export function TermCard({ term, level, lead, big = false, pack, children }: { term: T; level: Level | null; lead?: string; big?: boolean; pack?: string | null; children?: ReactNode }) {
+export function TermCard({
+  term,
+  level,
+  lead,
+  big = false,
+  deal = false,
+  pack,
+  children,
+}: {
+  term: T;
+  level: Level | null;
+  lead?: string;
+  big?: boolean;
+  /** the moment the word goes up: it flips down off the deck and the level dots pop in */
+  deal?: boolean;
+  pack?: string | null;
+  children?: ReactNode;
+}) {
   const { lang } = useStore();
+  const ref = useRef<HTMLDivElement>(null);
+  const word = `${term.zh}|${term.en}`;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!deal || !el || reduced()) return;
+    const q = gsap.utils.selector(el);
+    const tl = gsap.timeline();
+    tl.fromTo(el, { rotateX: -70, y: 40, opacity: 0, transformPerspective: 800, transformOrigin: "50% 0%" }, { rotateX: 0, y: 0, opacity: 1, duration: 0.65, ease: "back.out(1.5)" }, 0);
+    tl.fromTo(q(".sf-term-word"), { scale: 0.86 }, { scale: 1, duration: 0.5, ease: "back.out(2)" }, 0.25);
+    tl.fromTo(q(".sf-dots i"), { scale: 0 }, { scale: 1, duration: 0.25, stagger: 0.09, ease: "back.out(3)" }, 0.45);
+    return () => {
+      tl.progress(1);
+      tl.kill();
+    };
+  }, [deal, word]);
   // a long word (Hippopotomonstrosesquipedaliophobia) gets smaller type instead of breaking mid-word
   const shown = term.zh.trim() !== "" && term.en.startsWith(term.zh) ? term.zh : lang === "zh" ? term.zh : term.en;
   const longest = Math.max(...shown.split(/\s+/).map((w) => [...w].length));
   const fit = longest >= 14 ? "is-xlong" : longest >= 10 ? "is-long" : "";
   return (
-    <div className={`sf-term panel ${big ? "is-big" : ""} ${fit}`}>
+    <div ref={ref} className={`sf-term panel ${big ? "is-big" : ""} ${fit}`}>
       {isPack(pack) && (
         <span className="sf-term-pack">
           <img src={PACK_ART[pack]} alt="" width={28} height={28} />
           <span>{lang === "zh" ? PACK_NAMES[pack].zh : PACK_NAMES[pack].en}</span>
         </span>
       )}
+      {pack === OWN_PACK && <OwnPack />}
       {lead && <p className="sf-term-lead">{lead}</p>}
       <Bi t={term} className="sf-term-word" />
-      {level && <LevelDots level={level} />}
+      {level && pack !== OWN_PACK && <LevelDots level={level} />}
       {children}
     </div>
+  );
+}
+
+/** The pack line of a player's own word (自己出题): a pen where a pack's picture would be. */
+export function OwnPack({ size = 28 }: { size?: number }) {
+  const say = useSay();
+  return (
+    <span className="sf-term-pack is-own">
+      <span className="sf-own-badge" style={{ width: size, height: size }} aria-hidden="true">
+        <PenLine size={Math.round(size * 0.6)} />
+      </span>
+      <span>{say(S.ownPack)}</span>
+    </span>
   );
 }
 
@@ -84,7 +135,6 @@ export function TermCard({ term, level, lead, big = false, pack, children }: { t
  */
 export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view: PrivateView; seconds: number; onDone: () => void }) {
   const say = useSay();
-  const { lang } = useStore();
   const [holding, setHolding] = useState(false);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [left, setLeft] = useState(seconds);
@@ -120,7 +170,6 @@ export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view
   };
   const up = () => setHolding(false);
 
-  const honest = view.role === "honest";
   return (
     <div className="sf-peek">
       <p className="sf-peek-name">{name}</p>
@@ -144,22 +193,7 @@ export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view
         aria-label={say(S.holdToSee)}
       >
         {holding ? (
-          <div className="sf-part" lang={lang === "zh" ? "zh-CN" : "en"}>
-            <p className={`sf-part-role ${honest ? "is-honest" : "is-bluffer"}`}>{say(honest ? S.youAreHonest : S.youAreBluffer)}</p>
-            {view.term && <p className="sf-part-term">{lang === "zh" ? view.term.zh : view.term.en}</p>}
-            {honest && view.definition && <p className="sf-part-def">{lang === "zh" ? view.definition.zh : view.definition.en}</p>}
-            <p className="sf-part-hint">{say(honest ? S.honestHint : S.blufferHint)}</p>
-            {!honest && view.bluffSeeds && view.bluffSeeds.length > 0 && (
-              <div className="sf-seeds">
-                <span>{say(S.seedsLead)}</span>
-                <ul>
-                  {view.bluffSeeds.map((s, i) => (
-                    <li key={i}>{lang === "zh" ? s.zh : s.en}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+          <PartCard view={view} />
         ) : (
           <span className="sf-hold-label">
             <span>{say(S.holdToSee)}</span>
@@ -176,15 +210,109 @@ export function HoldToPeek({ name, view, seconds, onDone }: { name: string; view
   );
 }
 
+/** One's own part: the honest one reads the real meaning, a bluffer the word and the seeds. */
+export function PartCard({ view }: { view: PrivateView }) {
+  const say = useSay();
+  const { lang } = useStore();
+  const honest = view.role === "honest";
+  return (
+    <div className="sf-part" lang={lang === "zh" ? "zh-CN" : "en"}>
+      <p className={`sf-part-role ${honest ? "is-honest" : "is-bluffer"}`}>{say(honest ? S.youAreHonest : S.youAreBluffer)}</p>
+      {view.term && <p className="sf-part-term">{lang === "zh" ? view.term.zh : view.term.en}</p>}
+      {honest && view.definition && <p className="sf-part-def">{lang === "zh" ? view.definition.zh : view.definition.en}</p>}
+      <p className="sf-part-hint">{say(honest ? S.honestHint : S.blufferHint)}</p>
+      {view.wrote && <p className="sf-part-wrote">{say(S.ownYours)}</p>}
+      {!honest && view.bluffSeeds && view.bluffSeeds.length === 0 && <p className="sf-part-hint">{say(S.ownNoSeeds)}</p>}
+      {!honest && view.bluffSeeds && view.bluffSeeds.length > 0 && (
+        <div className="sf-seeds">
+          <span>{say(S.seedsLead)}</span>
+          <ul>
+            {view.bluffSeeds.map((s, i) => (
+              <li key={i}>{lang === "zh" ? s.zh : s.en}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Online: hold to see your part, as often as you like this round. It shows only while the finger is
+ * down; the honest one's and a bluffer's look the same from across the table. `compact` is the small
+ * one that stays at the top of the screen once the round is under way.
+ */
+export function HoldPart({ view, compact = false, onFirst }: { view: PrivateView; compact?: boolean; onFirst?: () => void }) {
+  const say = useSay();
+  const [holding, setHolding] = useState(false);
+  const first = useRef(true);
+  const down = () => {
+    if (first.current) {
+      first.current = false;
+      sfx.flip();
+      onFirst?.();
+    }
+    haptic(6);
+    setHolding(true);
+  };
+  const up = () => setHolding(false);
+  return (
+    <button
+      type="button"
+      className={`sf-hold ${compact ? "is-compact" : ""} ${holding ? "is-open" : ""}`}
+      onPointerDown={down}
+      onPointerUp={up}
+      onPointerCancel={up}
+      onPointerLeave={up}
+      onKeyDown={(e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          down();
+        }
+      }}
+      onKeyUp={up}
+      onContextMenu={(e) => e.preventDefault()}
+      aria-pressed={holding}
+      aria-label={say(compact ? S.holdMine : S.holdToSee)}
+    >
+      {holding ? (
+        <PartCard view={view} />
+      ) : (
+        <span className="sf-hold-label">
+          <span>{say(compact ? S.holdMine : S.holdToSee)}</span>
+          {!compact && <small>{say(S.holdOnline)}</small>}
+        </span>
+      )}
+    </button>
+  );
+}
+
 /** Who is explaining, with their soft clock: when it runs out the ring flashes and nothing moves on. */
-export function SpeakerRing({ name, seconds, resetKey, index, total }: { name: string; seconds: number; resetKey: string | number; index: number; total: number }) {
+export function SpeakerRing({
+  name,
+  seconds,
+  resetKey,
+  index,
+  total,
+  endsAt,
+  offset,
+}: {
+  name: string;
+  seconds: number;
+  resetKey: string | number;
+  index: number;
+  total: number;
+  /** online: the server's clock (the step's start plus the seconds) and this phone's offset to it */
+  endsAt?: number;
+  offset?: number;
+}) {
   const say = useSay();
   const [over, setOver] = useState(false);
   useEffect(() => setOver(false), [resetKey]);
   return (
     <div className={`sf-speaker ${over ? "is-over" : ""}`}>
-      <TimerArc seconds={seconds} running={!over} resetKey={resetKey} size={132} onEnd={() => setOver(true)} />
-      <div className="sf-speaker-who">
+      <TimerArc seconds={seconds} running={!over} resetKey={resetKey} size={132} endsAt={endsAt} offset={offset} onEnd={() => setOver(true)} />
+      <div className="sf-speaker-who" key={resetKey}>
         <span className="hint">
           {say(S.nowSpeaking)} · <span className="tabular">{index + 1}</span>/<span className="tabular">{total}</span>
         </span>
@@ -201,6 +329,8 @@ export function PickOne({
   disabled = [],
   marks = {},
   size = 58,
+  face,
+  picked,
 }: {
   people: { id: string; name: string }[];
   onPick: (id: string) => void;
@@ -208,6 +338,10 @@ export function PickOne({
   /** a small word under a name ("tagged") */
   marks?: Record<string, string>;
   size?: number;
+  /** online: the seat's own face (an avatar) instead of the initial */
+  face?: (id: string, size: number) => ReactNode;
+  /** the one already picked (shown ticked) */
+  picked?: string | null;
 }) {
   return (
     <div className="ballot">
@@ -215,7 +349,8 @@ export function PickOne({
         <button
           key={p.id}
           type="button"
-          className="nominee"
+          className={`nominee ${picked === p.id ? "is-on" : ""}`}
+          aria-pressed={picked === p.id}
           disabled={disabled.includes(p.id)}
           onClick={() => {
             sfx.tap();
@@ -224,7 +359,12 @@ export function PickOne({
           }}
         >
           <span className="nominee-face">
-            <NameFace name={p.name} size={size} />
+            {face ? face(p.id, size) : <NameFace name={p.name} size={size} />}
+            {picked === p.id && (
+              <span className="nominee-check" aria-hidden="true">
+                <Check size={14} strokeWidth={3} />
+              </span>
+            )}
             {marks[p.id] && (
               <span className="sf-mark" aria-hidden="true">
                 <Tag size={12} strokeWidth={2.6} />
@@ -240,13 +380,13 @@ export function PickOne({
 }
 
 /** The faces in speaking order; the one up now is lit, the ones done are ticked. */
-export function OrderStrip({ order, names, current }: { order: string[]; names: Record<string, string>; current: number }) {
+export function OrderStrip({ order, names, current, face }: { order: string[]; names: Record<string, string>; current: number; face?: (id: string, size: number) => ReactNode }) {
   return (
     <ol className="sf-order">
       {order.map((id, i) => (
         <li key={id} className={i === current ? "is-now" : i < current ? "is-done" : ""}>
           <span className="sf-order-face">
-            <NameFace name={names[id] ?? "?"} size={36} />
+            {face ? face(id, 36) : <NameFace name={names[id] ?? "?"} size={36} />}
             {i < current && (
               <span className="sf-order-check" aria-hidden="true">
                 <Check size={11} strokeWidth={3} />
@@ -326,13 +466,68 @@ export function Deltas({ deltas, names }: { deltas: RoundResult["deltas"]; names
   if (!rows.length) return null;
   return (
     <div className="sf-deltas">
-      {rows.map(([id, d]) => (
-        <span key={id} className={`sf-delta ${d > 0 ? "is-up" : "is-down"}`}>
+      {rows.map(([id, d], i) => (
+        <span key={id} className={`sf-delta ${d > 0 ? "is-up" : "is-down"}`} style={{ ["--i" as string]: i } as React.CSSProperties}>
           {names[id]} <b className="tabular">{d > 0 ? `+${d}` : d}</b>
         </span>
       ))}
     </div>
   );
+}
+
+/**
+ * Who was honest, and the judge's fate stamped on beside them: saw through it, or fooled. The honest
+ * one pops in, the judge's picture follows, the stamp slams; a fooled judge's picture shakes, a
+ * right one gets confetti (`onRight`). With reduced motion it is simply there.
+ */
+export function Verdict({ face, name, right, onRight }: { face: ReactNode; name: string; right: boolean; onRight?: () => void }) {
+  const say = useSay();
+  const ref = useRef<HTMLDivElement>(null);
+  const cheer = useRef(onRight);
+  cheer.current = onRight;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || reduced()) return;
+    const q = gsap.utils.selector(el);
+    const tl = gsap.timeline();
+    tl.fromTo(q(".sf-verdict-who"), { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(1.8)" }, 0);
+    tl.fromTo(q(".sf-verdict-art"), { scale: 0.4, opacity: 0, rotate: right ? -12 : 12 }, { scale: 1, opacity: 1, rotate: 0, duration: 0.5, ease: "back.out(1.6)" }, 0.3);
+    tl.fromTo(q(".sf-verdict-stamp"), { scale: 2.6, rotate: -20, opacity: 0 }, { scale: 1, rotate: -7, opacity: 1, duration: 0.4, ease: "back.out(2.2)" }, 0.6);
+    if (right) tl.call(() => cheer.current?.(), [], 0.75);
+    else tl.fromTo(q(".sf-verdict-art"), { x: -12 }, { x: 0, duration: 0.7, ease: "elastic.out(1.4, 0.2)" }, 0.95);
+    return () => {
+      tl.progress(1);
+      tl.kill();
+    };
+  }, [right]);
+  return (
+    <div className={`sf-verdict ${right ? "is-right" : "is-fooled"}`} ref={ref}>
+      <div className="sf-verdict-who">
+        <RoleArt role="honest" size={64} />
+        <span className="hint">{say(S.honestWas)}</span>
+        {face}
+        <strong>{name}</strong>
+      </div>
+      <div className="sf-verdict-judge">
+        <img className="sf-verdict-art" src={VERDICT_ART[right ? "right" : "fooled"]} alt="" width={132} height={132} />
+        <span className="sf-verdict-stamp">{say(right ? S.sawThrough : S.wasFooled)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** The bluffer who fooled the judge, celebrating: the master's panel. */
+export function MasterArt({ size = 96 }: { size?: number }) {
+  return <img className="sf-master-art" src={VERDICT_ART.master} alt="" width={size} height={size} />;
+}
+
+/** A layer over the whole screen for a burst of confetti; nothing with reduced motion. */
+export function useConfetti() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const burst = (opts: ConfettiOpts = {}) => {
+    if (!reduced()) confetti(ref.current, { x: 0.5, y: 0.5, count: 170, spread: 110, power: 19, ...opts });
+  };
+  return { burst, layer: <canvas ref={ref} className="sf-confetti" aria-hidden="true" /> };
 }
 
 /** One of the three parts, drawn: only on screens the whole table may see. */
@@ -416,5 +611,89 @@ export function PackPicker({ picked, onChange }: { picked: Pack[]; onChange: (ne
         );
       })}
     </div>
+  );
+}
+
+/** The packs the host picked, as everyone else sees them before the deal. */
+export function PackStrip({ packs }: { packs: string[] }) {
+  const { lang } = useStore();
+  const shown = PACKS.filter((p) => packs.includes(p));
+  return (
+    <ul className="sf-pack-strip">
+      {shown.map((p) => (
+        <li key={p}>
+          <img src={PACK_ART[p]} alt="" width={28} height={28} loading="lazy" />
+          <span>{lang === "zh" ? PACK_NAMES[p].zh : PACK_NAMES[p].en}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const REASON_TEXT: Record<Reason, T> = { wrong: S.reasonWrong, easy: S.reasonEasy, unfit: S.reasonUnfit, other: S.reasonOther };
+
+/** How the card has played on changle, once it has a few rounds behind it. */
+export function CardNumbers({ stats }: { stats: [number, number] | undefined }) {
+  const say = useSay();
+  if (!stats || stats[0] < 3) return null;
+  return <p className="sf-numbers">{say(S.cardNumbers, { n: stats[0], m: stats[1] })}</p>;
+}
+
+/** "Something off with this card?": a reason, a note if they like, sent to the owner's desk; then thanks. */
+export function ReportCard({ card, term }: { card: string; term: T }) {
+  const say = useSay();
+  const { lang } = useStore();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<Reason | null>(null);
+  const [note, setNote] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const word = term.zh.trim() !== "" && term.en.startsWith(term.zh) ? term.zh : lang === "zh" ? term.zh : term.en;
+  const close = () => setOpen(false);
+  const send = async () => {
+    if (!reason || state === "sending") return;
+    setState("sending");
+    setState((await sendReport(card, reason, note.trim(), lang)) ? "sent" : "failed");
+  };
+  return (
+    <>
+      <button type="button" className="link-btn sf-report-link" onClick={() => setOpen(true)} disabled={state === "sent"}>
+        {say(state === "sent" ? S.reportThanks : S.reportLink)}
+      </button>
+      <Sheet open={open} onClose={close} title={say(S.reportTitle)}>
+        {state === "sent" ? (
+          <div className="stack sf-report">
+            <p>{say(S.reportThanks)}</p>
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={close}>
+              {say(S.reportClose)}
+            </button>
+          </div>
+        ) : (
+          <div className="stack sf-report">
+            <p className="hint">{say(S.reportFor, { term: word })}</p>
+            <div className="sf-reasons" role="radiogroup" aria-label={say(S.reportTitle)}>
+              {REASONS.map((r) => (
+                <button key={r} type="button" role="radio" aria-checked={reason === r} className={`sf-reason ${reason === r ? "is-on" : ""}`} onClick={() => setReason(r)}>
+                  {say(REASON_TEXT[r])}
+                </button>
+              ))}
+            </div>
+            <label className="sf-report-note">
+              <span className="field-label">{say(S.reportNote)}</span>
+              <span className="field">
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={3} placeholder={say(S.reportNoteHint)} />
+              </span>
+            </label>
+            {state === "failed" && (
+              <p className="hint sf-report-fail" role="alert">
+                {say(S.reportFailed)}
+              </p>
+            )}
+            <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!reason || state === "sending"} onClick={send}>
+              {say(S.reportSend)}
+            </button>
+          </div>
+        )}
+      </Sheet>
+    </>
   );
 }

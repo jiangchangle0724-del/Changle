@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, GalleryHorizontalEnd, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, GalleryHorizontalEnd, Grab, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import { UsersRound } from "lucide-react";
 import type { T } from "../i18n";
 import { LC_CALL, LC_NAME } from "../shared/lastcard/name";
@@ -26,7 +26,9 @@ export type GameId =
   | "trip"
   | "dj"
   | "hide"
-  | "lastcard";
+  | "lastcard"
+  | "dance"
+  | "hangon";
 
 export type GameMeta = {
   id: GameId;
@@ -56,6 +58,20 @@ export type GameMeta = {
    * table's spin never lands on it (it needs that screen first)
    */
   speaker?: string;
+  /**
+   * it runs on its own Worker, not in this site (一起跳 at changle.ca/party): `screen` is the big
+   * screen's page and `join` the phones' page. Both are whole-page loads. Its card sends a computer
+   * to `screen` and tells a phone where to go; /g/<slug>/play goes to `screen` too. There is no
+   * one-phone mode and no table game: a table's spin never lands on it (it isn't in ONLINE_GAMES).
+   */
+  stage?: {
+    screen: string;
+    join: string;
+    /** the stage button's second line */
+    note?: T;
+    /** the stage is this phone or computer, mirrored to the TV (一起跳, Steve 11-11): the button and its help say so */
+    mirror?: boolean;
+  };
   /**
    * its kind, which colors its card (decided 2026-11-01: cards by kind, not one color per game; the
    * stage gel above stays the game's own light): drink 喝酒局, brain 动脑, body 动身体, online 线上
@@ -203,8 +219,8 @@ export const GAMES: GameMeta[] = [
     slug: "limbo",
     name: t("林波舞", "Limbo"),
     blurb: t("音乐响起，横杆越来越低", "Music on, bar goes lower."),
-    how: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局喝一口。还有稳住、跟着动的杆、歪着过三种玩法，派对玩法每杆随机一种。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的喝。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (drink). Also hold steady, moving bar and tilt through; party mode picks one at random each bar. Blind lean: hit a target angle without seeing your own; furthest off drinks. Or use a real bar, and the phone does the music and the score."),
-    howCustom: t("手机贴在胸口往后仰，它测你仰了多少度，过了这一杆横杆再降。没过的出局受罚。还有稳住、跟着动的杆、歪着过三种玩法，派对玩法每杆随机一种。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的受罚。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest and lean back: it measures how far you go. Clear the bar and it drops again. Miss and you're out (penalty). Also hold steady, moving bar and tilt through; party mode picks one at random each bar. Blind lean: hit a target angle without seeing your own; furthest off takes the penalty. Or use a real bar, and the phone does the music and the score."),
+    how: t("手机屏幕朝外贴在胸口，往后仰，它测你仰了多少度，过了这一杆横杆再降。看不见屏幕也不怕，提示音告诉你该再仰还是回来。没过的出局喝一口。还有稳住、跟着动的杆、歪着过三种玩法，派对玩法每杆随机一种。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的喝。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest, screen out, and lean back: it measures how far you go, and its sounds tell you whether to go lower or come up. Clear the bar and it drops again. Miss and you're out (drink). Also hold steady, moving bar and tilt through; party mode picks one at random each bar. Blind lean: hit a target angle without seeing your own; furthest off drinks. Or use a real bar, and the phone does the music and the score."),
+    howCustom: t("手机屏幕朝外贴在胸口，往后仰，它测你仰了多少度，过了这一杆横杆再降。看不见屏幕也不怕，提示音告诉你该再仰还是回来。没过的出局受罚。还有稳住、跟着动的杆、歪着过三种玩法，派对玩法每杆随机一种。盲仰玩法：看不到自己的角度，凭感觉仰到目标，离得最远的受罚。也可以拉一根真杆子，手机放音乐记分。", "Hold the phone to your chest, screen out, and lean back: it measures how far you go, and its sounds tell you whether to go lower or come up. Clear the bar and it drops again. Miss and you're out (penalty). Also hold steady, moving bar and tilt through; party mode picks one at random each bar. Blind lean: hit a target angle without seeing your own; furthest off takes the penalty. Or use a real bar, and the phone does the music and the score."),
     minPlayers: 2,
     maxPlayers: 15,
     gel: "#b6e83a",
@@ -310,8 +326,8 @@ export const GAMES: GameMeta[] = [
     ready: true,
   },
   {
-    // 一本正经: new (2026-11-04), on the board since 2026-11-05. One phone only until the rooms server runs it (A3),
-    // so its card offers no online table (GameSheet shows that button only for ONLINE_GAMES)
+    // 一本正经: new (2026-11-04), on the board since 2026-11-05. One phone passed round, or online with every
+    // phone its own (rules on the rooms server: src/shared/engine/games/straightface.ts)
     id: "straightface",
     slug: "in-all-seriousness",
     name: t("一本正经", "In All Seriousness"),
@@ -391,8 +407,8 @@ export const GAMES: GameMeta[] = [
     name: t("打碟", "DJ Booth"),
     blurb: t("电视当音箱，大家用手机一起打碟", "The TV is the speaker. Everyone DJs from their phone."),
     how: t(
-      "电视或电脑打开 changle.ca/dj 当音箱，点「开始派对」放歌，大家扫码入座。每台手机都是打碟台：推子在两个碟之间混，效果键卡在拍子上，一起狂点蓄力，跟着倒数按 DROP，踩准了就是完美 Drop。新手也不会乱。",
-      "Open changle.ca/dj on a TV or computer: that's the speaker. Press Start the party and everyone scans in. Every phone is a deck: the crossfader mixes two decks, the pads land on the beat, everyone taps the build-up together and presses DROP on the count. Hit it right for a perfect drop. Nothing a beginner presses can go wrong.",
+      "公用手机投屏到电视当音箱（或者电视、电脑打开 changle.ca/dj），在上面点 YouTube 的歌。扫码进来，每台手机都是打碟台：推子在两个碟之间混，效果键卡在拍子上，一起狂点蓄力，跟着倒数按 DROP，踩准了就是完美 Drop。新手也不会乱。",
+      "A shared phone mirrored to the TV is the speaker (or open changle.ca/dj on a TV or computer), and songs from YouTube are picked on it. Scan in and every phone is a deck: the crossfader mixes two decks, the pads land on the beat, everyone taps the build-up together and presses DROP on the count. Hit it right for a perfect drop. Nothing a beginner presses can go wrong.",
     ),
     minPlayers: 1,
     maxPlayers: 15,
@@ -449,6 +465,58 @@ export const GAMES: GameMeta[] = [
     newUntil: "2026-12-20",
     solo: { min: 0, hint: t("只能联机", "Online only") },
   },
+  // its own Worker at changle.ca/party (games/party-server): a TV or computer is the stage, phones
+  // scan in. It went live 11-05 from "coming soon"; its card sits last so the board stays put
+  {
+    id: "dance",
+    slug: "dance-along",
+    name: t("一起跳", "Dance Along"),
+    blurb: t("跟着电视一起跳，手机听拍子", "Dance with the TV. Your phone keeps the beat."),
+    how: t(
+      "电视或电脑打开 changle.ca/party/screen 当舞台，大家扫码进来。电视上的 3D 老师先一段一段教，再跟着音乐一起跳，手里的手机知道你有没有踩在拍子上。6 支练习舞，还有一串热歌（江南Style、APT.、爱你……），零基础也能跳完一首。",
+      "Open changle.ca/party/screen on a TV or computer: that's the stage. Everyone scans in. A 3D coach on the TV teaches a few easy moves, then everyone dances to the music, and the phone in your hand knows if you're on the beat. Six practice dances and a set of hit songs (Gangnam Style, APT. and more). Anyone can finish a song.",
+    ),
+    minPlayers: 1,
+    maxPlayers: 15,
+    gel: "#8f7bff",
+    icon: Footprints,
+    category: "body",
+    minutes: 8,
+    ready: true,
+    stage: {
+      screen: "/party/screen",
+      join: "/party/join",
+      note: t("投到电视上当舞台，这台不参与游玩；大家用自己的手机跳", "It's the stage on the TV, not a player; everyone dances with their own phone"),
+      mirror: true,
+    },
+    newUntil: "2026-12-05",
+  },
+  // its own Worker at changle.ca/hang-on (games/hang-on): a TV or computer is the big screen, phones
+  // scan in as controllers. Went on the board 11-11 (before that only its address); it sits last so
+  // the board stays put
+  {
+    id: "hangon",
+    slug: "hang-on",
+    name: t("抓紧了", "Hang On"),
+    blurb: t("两只手轮流抓，全队一起爬到顶", "Grab with both hands and climb to the top together."),
+    how: t(
+      "电视或电脑打开 changle.ca/hang-on 当大屏，大家用手机扫码进来当手柄。每人是一个糯米团，不能跳，只有两只手：按住就抓，松开就放，摇杆管身体往哪边荡。1 到 4 个人合作，全队都到顶才算过关，摔下去会在存档点复活；可以拉着队友荡过去，也可以把队友丢过去。12 关，从年夜饭桌一路爬到温哥华海湾。",
+      "Open changle.ca/hang-on on a TV or computer as the big screen. Everyone scans in, and each phone becomes a controller. You're a rice dumpling with two arms and no jumping: hold a button to grab, let go to drop, and the stick swings your body. 1 to 4 players work together, and the whole team has to reach the top. Fall and you come back at the last checkpoint. Swing a teammate across, or throw one. 12 levels, from a family dinner table to Vancouver's harbour.",
+    ),
+    minPlayers: 1,
+    maxPlayers: 4,
+    gel: "#ff9f43",
+    icon: Grab,
+    category: "online",
+    minutes: 15,
+    ready: true,
+    stage: {
+      screen: "/hang-on/",
+      join: "/hang-on/pad/",
+      note: t("游戏在大屏上，大家的手机当手柄", "The game plays there. Everyone's phone is a controller."),
+    },
+    newUntil: "2026-12-11",
+  },
 ];
 
 export const GAME_BY_ID = Object.fromEntries(GAMES.map((g) => [g.id, g])) as Record<GameId, GameMeta>;
@@ -459,23 +527,7 @@ export const GAME_BY_ID = Object.fromEntries(GAMES.map((g) => [g.id, g])) as Rec
  */
 export type SoonMeta = Pick<GameMeta, "name" | "blurb" | "how" | "gel" | "icon" | "category" | "minutes" | "minPlayers" | "maxPlayers"> & { key: string };
 
-export const SOON: SoonMeta[] = [
-  {
-    key: "dance",
-    name: t("一起跳", "Dance Along"),
-    blurb: t("跟着电视一起跳，手机听拍子", "Dance with the TV. Your phone keeps the beat."),
-    how: t(
-      "电视上的舞者先一段一段教，然后大家手里握着手机跟着音乐跳，手机的传感器知道你有没有踩在拍子上。零基础也能跳完一首。",
-      "A dancer on the TV teaches a few easy moves, then everyone dances to the song holding their phone. The phone's sensors know if you're on the beat. Anyone can finish a song.",
-    ),
-    minPlayers: 1,
-    maxPlayers: 15,
-    gel: "#8f7bff",
-    icon: Footprints,
-    category: "body",
-    minutes: 5,
-  },
-];
+export const SOON: SoonMeta[] = [];
 
 export const isGameId = (s: string): s is GameId => s in GAME_BY_ID;
 

@@ -1,6 +1,6 @@
 import { Clock, Crown, X } from "lucide-react";
 import { Button } from "./Button";
-import { labels } from "./labels";
+import { gameLabels as labels } from "./gameLabels";
 import type { RosterChipProps } from "./types";
 import "./RosterChip.css";
 export function RosterChip({

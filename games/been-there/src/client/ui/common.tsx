@@ -72,6 +72,9 @@ export function GroupIcon({ group, size }: { group: number; size?: number }) {
 
 export const Money = ({ n }: { n: number }) => <span class="num">{money(n)}</span>;
 
+/** Money that may be another team's, hidden (更多规则: the server sends it as -1 until the end). */
+export const moneyOrHidden = (n: number) => (n < 0 ? t("cashHidden") : money(n));
+
 export function teamOf(v: RoomView, seat: number): TeamView | undefined {
   const id = v.game?.seats[seat];
   return v.teams.find((x) => x.id === id);
