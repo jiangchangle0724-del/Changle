@@ -136,8 +136,11 @@ A key (`EVENTS_HANDOFF_KEY`) still works when the Worker has one, for runs outsi
 script sends it instead of a token when it's set.
 
 What decides what's published (`src/publish.ts`): in the window, not cancelled, live, not a merged
-duplicate, and seen at its source today, or its source failed today (then yesterday's stand). If a
-run has under half of yesterday's events, yesterday's stay up and the log says so.
+duplicate, and seen at its source today, or its source wasn't read to the end today (then what it
+listed before stands). A source is read to the end once its last page is read and every page
+before it was (`sources.last_ok_run`, set by the step of its last page, `src/run.ts`): when page 3
+of 12 fails, the events of pages 3 to 12 stay up from yesterday, not just pages 1 and 2. If a run
+has under half of yesterday's events, yesterday's stay up and the log says so.
 
 ## The API
 

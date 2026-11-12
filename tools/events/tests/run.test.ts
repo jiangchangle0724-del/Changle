@@ -22,11 +22,29 @@ function emptyAfter(page: string): string {
   return JSON.stringify(empty);
 }
 
+/** A library's second page: the first one's events again, as other events (other ids, "(page 2)" titles). */
+function secondPage(page: string): string {
+  const p = JSON.parse(page);
+  const ids: string[] = p.events.results;
+  p.entities.events = Object.fromEntries(
+    ids.map((id) => {
+      const ev = structuredClone(p.entities.events[id]);
+      ev.id = `${id}-2`;
+      ev.definition.title = `${ev.definition.title} (page 2)`;
+      return [ev.id, ev];
+    }),
+  );
+  p.events.results = ids.map((id) => `${id}-2`);
+  p.events.pagination.page = 2;
+  return JSON.stringify(p);
+}
+
 /**
  * The sources, as they answered: Luma's feed; each library's first page, then nothing; UBC's first
  * two days, then nothing. `librariesRefuse`: BiblioCommons answers the Worker 403, as since 2 November.
+ * `vplSecond`: Vancouver's library lists a second page of events ("listed"), or that page fails ("fails").
  */
-function sources(opts: { lumaDown?: boolean; librariesRefuse?: boolean } = {}) {
+function sources(opts: { lumaDown?: boolean; librariesRefuse?: boolean; vplSecond?: "listed" | "fails" } = {}) {
   const calls: string[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input instanceof Request ? input.url : input);
@@ -43,6 +61,8 @@ function sources(opts: { lumaDown?: boolean; librariesRefuse?: boolean } = {}) {
       const page = lib === "vpl" ? vpl : lib === "yourlibrary" ? rpl : null;
       if (!page) return new Response("not found", { status: 404 });
       if (url.includes("page=1")) return new Response(page, { headers: { "content-type": "application/json" } });
+      if (lib === "vpl" && url.endsWith("page=2") && opts.vplSecond === "fails") return new Response("oops", { status: 500 });
+      if (lib === "vpl" && url.endsWith("page=2") && opts.vplSecond) return new Response(secondPage(page), { headers: { "content-type": "application/json" } });
       return new Response(emptyAfter(page), { headers: { "content-type": "application/json" } });
     }
     return new Response("not found", { status: 404 });
@@ -163,6 +183,36 @@ describe("a morning run", () => {
     const r = await publish(env, "2026-11-02");
     expect(r).toMatchObject({ kept: true, count: 0 });
     expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.runId).toBe("2026-11-01");
+  });
+
+  it("a source that fails part-way keeps what it listed on the pages it couldn't read; read to the end, it drops what it stopped listing", async () => {
+    const vancouver = (p: Published) => p.events.filter((e) => e.sourceName === "Vancouver Public Library");
+    const onPage2 = (p: Published) => vancouver(p).filter((e) => e.title.endsWith("(page 2)")).length;
+    // 31 October: Vancouver's library has two pages of events
+    sources({ vplSecond: "listed" });
+    await runDay(steps, env.DB, "2026-10-31");
+    expect(onPage2((await env.CACHE.get<Published>(LIVE_KEY, "json"))!)).toBe(40);
+    // 1 November: its first page reads, the second fails
+    sources({ vplSecond: "fails" });
+    await runDay(steps, env.DB, "2026-11-01");
+    expect((await logOf("2026-11-01")).filter((l) => l.source === "vpl")).toMatchObject([
+      { part: 0, found: 40, error: null },
+      { part: 1, http_status: 500, error: "HTTP 500" },
+    ]);
+    // the second page's events still to come stay up (they were there yesterday), with today's first page
+    const { n: upcoming } = (await env.DB.prepare("SELECT count(*) AS n FROM events WHERE source = 'vpl' AND title LIKE '%(page 2)' AND end_utc >= ?1").bind(Date.parse("2026-11-01T07:00:00Z")).first<{ n: number }>())!;
+    expect(upcoming).toBeGreaterThan(0);
+    const failedPartWay = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(failedPartWay.runId).toBe("2026-11-01");
+    expect(onPage2(failedPartWay)).toBe(upcoming);
+    expect(vancouver(failedPartWay).length).toBeGreaterThan(upcoming);
+    // 2 November: read to the end, and the second page is gone from the library: so are its events
+    sources();
+    await runDay(steps, env.DB, "2026-11-02");
+    const readToTheEnd = (await env.CACHE.get<Published>(LIVE_KEY, "json"))!;
+    expect(readToTheEnd.runId).toBe("2026-11-02");
+    expect(onPage2(readToTheEnd)).toBe(0);
+    expect(vancouver(readToTheEnd).length).toBeGreaterThan(0);
   });
 });
 

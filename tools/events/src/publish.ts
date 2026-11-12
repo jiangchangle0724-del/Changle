@@ -1,7 +1,9 @@
 // Publish: the next 14 days, from the database to one JSON in KV that the page and the API read.
 // Cancelled ones are left out, and so is anything its source stopped listing today. A source that
-// failed today keeps yesterday's events. A run that comes out with less than half of yesterday's
-// is not published: yesterday's stays up and the log says why. The page is never empty.
+// failed today, or didn't get to its last page, keeps its events from before today (its
+// sources.last_ok_run is today's run only once every page of it was read: src/run.ts). A run that
+// comes out with less than half of yesterday's is not published: yesterday's stays up and the log
+// says why. The page is never empty.
 import { ensureSchema } from "./schema";
 import { SOURCE_BY_ID } from "./sources";
 import { windowOf } from "./time";
