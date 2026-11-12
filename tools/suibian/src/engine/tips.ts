@@ -35,6 +35,14 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
       zh: "东南亚菜可以点海南鸡饭、沙爹串，炒粿条说不要辣，椰浆饭的辣酱可以分开放。",
       en: "Southeast Asian places have Hainanese chicken rice and satay. Ask for char kway teow without chili and the sambal on the side.",
     },
+    kbbq: {
+      zh: "韩国烤肉可以点原味的牛五花、排骨、猪颈肉，不蘸辣酱，泡菜和辣汤不点就行。",
+      en: "At Korean BBQ, order the plain brisket, short ribs or pork jowl, skip the chili paste, and leave out the kimchi and spicy stews.",
+    },
+    chinese_bbq: {
+      zh: "烤串可以说不要辣椒面，只放孜然和盐，也可以点烤馒头片、烤蔬菜。",
+      en: "Skewers can be done with just cumin and salt, no chili powder. Grilled buns and vegetables are mild too.",
+    },
   },
   shellfish: {
     seafood: { zh: "海鲜店一般也有鱼、牛排或者鸡。", en: "Seafood places usually have fish, steak or chicken too." },
@@ -62,6 +70,18 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
       zh: "韩国泡菜一般用虾酱腌，可以点烤肉、排骨汤，拌饭说不要泡菜。",
       en: "Korean kimchi is usually made with salted shrimp. Try barbecue or galbitang, and bibimbap without kimchi.",
     },
+    kbbq: {
+      zh: "韩国烤肉的泡菜一般用虾酱腌，肉可以放心点，小菜里的泡菜和海鲜饼别吃。",
+      en: "At Korean BBQ the kimchi is usually made with salted shrimp: the meat is fine, but skip the kimchi and seafood pancakes.",
+    },
+    izakaya: {
+      zh: "居酒屋可以点烤鸡串、炸鸡块、日式烤肉，刺身和海鲜小菜问一下有没有虾蟹贝。",
+      en: "At an izakaya, go for chicken skewers, karaage or grilled meat, and ask which small plates have shellfish.",
+    },
+    filipino: {
+      zh: "菲律宾菜常用虾酱（bagoong），可以点 adobo、烤猪肉串、lechon，问一下酱里有没有虾。",
+      en: "Filipino cooking often uses shrimp paste (bagoong). Try adobo, pork barbecue skewers or lechon, and ask about the sauces.",
+    },
     hotpot: {
       zh: "火锅可以点清汤或番茄锅底，涮肉和蔬菜，海鲜别下同一锅。",
       en: "At hot pot, have a clear or tomato broth with meat and vegetables, and keep seafood out of your pot.",
@@ -86,6 +106,12 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
       zh: "韩国菜可以点烤肉、炸鸡、拌饭，泡菜和汤底可能有鱼露。",
       en: "Korean places have barbecue, fried chicken and bibimbap. Kimchi and broths may contain fish sauce.",
     },
+    kbbq: { zh: "韩国烤肉的肉可以放心点，泡菜和蘸酱可能有鱼露，问一下。", en: "At Korean BBQ the meat is fine; kimchi and dipping sauces may contain fish sauce, so ask." },
+    izakaya: {
+      zh: "居酒屋可以点烤鸡串、炸鸡块、日式烤肉，汤和酱常用鲣鱼，问一下。",
+      en: "At an izakaya, go for chicken skewers, karaage or grilled meat. Broths and sauces often use bonito, so ask.",
+    },
+    filipino: { zh: "菲律宾菜常用鱼露（patis），可以点 adobo、lechon，问一下有没有放鱼露。", en: "Filipino cooking often uses fish sauce (patis). Try adobo or lechon and ask whether it has fish sauce." },
     ramen: {
       zh: "拉面汤底常用鲣鱼和小鱼干，可以问有没有只用猪骨或鸡的汤。",
       en: "Ramen broths often use bonito or dried sardines. Ask for a pork-bone or chicken-only broth.",
@@ -101,6 +127,7 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
       zh: "东南亚菜花生多（沙爹酱、椰浆饭），可以点海南鸡饭、炒粿条，说不要花生。",
       en: "Southeast Asian food uses peanuts a lot (satay sauce, nasi lemak). Try chicken rice or char kway teow, without peanuts.",
     },
+    filipino: { zh: "菲律宾菜的 kare-kare 用花生酱，可以点 adobo、sinigang、lechon。", en: "Filipino kare-kare is made with peanut sauce. Try adobo, sinigang or lechon." },
     vietnamese: { zh: "越南菜常撒花生碎，点米粉、沙拉时说不要花生。", en: "Vietnamese dishes are often topped with crushed peanuts. Ask for none on vermicelli or salads." },
     sichuan: {
       zh: "宫保鸡丁、担担面和凉菜常有花生，麻婆豆腐、回锅肉、鱼香肉丝一般没有，点之前问一下。",
@@ -125,6 +152,8 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
       zh: "中东菜的甜品和部分米饭有开心果、松子，可以点烤肉串、鹰嘴豆泥、沙拉。",
       en: "Middle Eastern sweets and some rice dishes have pistachios or pine nuts. Try kebabs, hummus or salads.",
     },
+    mediterranean: { zh: "希腊菜的甜品（baklava）和酱汁常有坚果，可以点烤肉串、希腊沙拉。", en: "Greek sweets (baklava) and some sauces have nuts. Try souvlaki or a Greek salad." },
+    cafe: { zh: "咖啡甜品店的蛋糕、可颂常用杏仁粉和坚果，问一下哪些不放。", en: "Cafés often use almond flour and nuts in cakes and pastries. Ask which ones are nut-free." },
     vegetarian: { zh: "素食店的素奶酪和奶油常用腰果做，问一下哪些菜不放坚果。", en: "Vegan cheese and cream are often made from cashews. Ask which dishes are nut-free." },
     brunch: {
       zh: "早午餐的烘焙常用杏仁粉，格兰诺拉有坚果，可以点蛋类、班尼迪克蛋、三明治。",
@@ -134,6 +163,7 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
   sesame: {
     korean: { zh: "韩国菜芝麻和芝麻油用得多（拌饭、小菜），可以点烤肉、汤，说不要芝麻。", en: "Korean food uses lots of sesame seeds and oil (bibimbap, side dishes). Try barbecue or soups and ask for no sesame." },
     middle_eastern: { zh: "鹰嘴豆泥和 tahini 酱是芝麻做的，可以点烤肉串、沙拉，不要 tahini。", en: "Hummus and tahini sauce are made from sesame. Have kebabs or salads without tahini." },
+    mediterranean: { zh: "鹰嘴豆泥和 tahini 酱是芝麻做的，可以点烤肉串、希腊沙拉，不要 tahini。", en: "Hummus and tahini are made from sesame. Have souvlaki or a Greek salad without tahini." },
     western: { zh: "汉堡面包上常有芝麻，可以换不带芝麻的面包，或者不要面包。", en: "Burger buns often have sesame seeds. Ask for a plain bun, or no bun." },
     ramen: { zh: "拉面常放芝麻和芝麻油（担担面更多），点的时候说不要。", en: "Ramen often comes with sesame seeds or oil (tantanmen especially). Ask for none." },
   },
@@ -142,9 +172,15 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
   },
   egg: {
     brunch: { zh: "早午餐蛋多，可以点燕麦、沙拉，三明治说不要蛋。", en: "Brunch is mostly eggs. Try oatmeal or a salad, or a sandwich without egg." },
+    cafe: { zh: "蛋糕和面包大多放蛋，可以点饮品，或者问有没有不放蛋的甜品。", en: "Most cakes and pastries have egg. Have a drink, or ask for an egg-free dessert." },
   },
   dairy: {
     brunch: { zh: "早午餐黄油和奶酪多，可以点沙拉、黑咖啡，煎蛋问一下用不用黄油。", en: "Brunch uses lots of butter and cheese. Try a salad or black coffee, and ask whether the eggs are cooked in butter." },
+    cafe: { zh: "咖啡可以换燕麦奶或豆奶，蛋糕大多有黄油奶油，问一下。", en: "Coffee can come with oat or soy milk; most cakes have butter or cream, so ask." },
+    french: {
+      zh: "法国菜黄油奶油多，可以点烤肉、海鲜、沙拉，酱汁问一下有没有奶。",
+      en: "French cooking uses a lot of butter and cream. Try grilled meat, seafood or salad, and ask about the sauces.",
+    },
     italian: {
       zh: "意大利菜奶酪奶油多，可以点番茄酱意面（不加芝士）、蒜香橄榄油意面、沙拉。",
       en: "Italian food has lots of cheese and cream. Try tomato-sauce pasta without parmesan, aglio e olio, or a salad.",
@@ -156,6 +192,8 @@ export const AVOID_TIPS: { [A in AllergenId]?: Partial<Record<CuisineId, Text>> 
   },
   gluten: {
     ramen: { zh: "拉面的面是小麦做的，酱油也含小麦，可以问有没有米饭类或者无麸质的面。", en: "Ramen noodles are wheat, and so is most soy sauce. Ask for a rice bowl or gluten-free noodles." },
+    noodles: { zh: "面和饺子皮都是小麦做的，可以问有没有米粉、米线或者米饭类。", en: "Noodles and dumpling wrappers are wheat. Ask for rice noodles or a rice dish." },
+    northern: { zh: "西北东北菜面食多，可以点烤肉、炒菜配米饭，馕和面就别点了。", en: "Northern Chinese food is mostly noodles and breads. Go for grilled meat or stir-fries with rice." },
     italian: {
       zh: "意面和披萨都是小麦做的，可以问有没有无麸质意面或饼底，或者点烤肉、沙拉、意式烩饭。",
       en: "Pasta and pizza are wheat. Ask for gluten-free pasta or crust, or have grilled meat, salad or risotto.",

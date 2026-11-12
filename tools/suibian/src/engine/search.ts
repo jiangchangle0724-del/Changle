@@ -1,12 +1,12 @@
 // Which Google searches one pick runs. Google gives at most 20 restaurants per search, so asking one
-// circle the same two ways (most popular, nearest) brought back the same 40 every time: in a big
-// area like Burnaby most restaurants never came up. Now a pick also asks smaller circles inside the
-// area, each for its own most popular, turned a different way each time; "any distance" asks around
-// other neighbourhoods; and one person who chose a side of the menu gets a search for that side's
-// restaurants alone. Never more than SEARCHES_PER_PICK searches.
+// circle the same two ways brought back the same 40 places every time. Round 1 now comes before the
+// search, so it knows what the table wants: after the whole circle's most popular, it spends its
+// other searches on the cuisines liked the most (by Google's place types, or by words where Google
+// has none, like Sichuan), then on more of the area: the nearest when walking, smaller circles
+// inside a drive, other neighbourhoods for "any distance". Never more than SEARCHES_PER_PICK.
+import { CUISINES } from "./cuisines";
 import { NEIGHBOURHOODS, RANGES, distanceMeters } from "./clock";
-import type { SoloSide } from "./solo";
-import type { RangeId } from "./types";
+import type { CuisineId, RangeId } from "./types";
 
 export interface Point {
   lat: number;
@@ -18,68 +18,20 @@ export interface SearchCall {
   /** Meters. */
   radius: number;
   rank: "POPULARITY" | "DISTANCE";
-  /** Google place types; only ones Google takes in a search (its "Table A"). */
-  types: string[];
+  /** A Nearby Search for these Google place types (only ones from its "Table A"); or */
+  types?: string[];
+  /** a Text Search for these words, for a cuisine Google has no type for. */
+  text?: string;
+  /** The cuisine round 1 liked that this search is for. */
+  cuisine?: CuisineId;
 }
 
-/** Google bills each search: this many at most for one pick (it was 2). */
+/** Google bills each search: this many at most for one pick (it was 2 until 2026-11-05). */
 export const SEARCHES_PER_PICK = 4;
-
-/**
- * Google's types for each side of the menu, all from its Table A (sichuan_restaurant and
- * singaporean_restaurant aren't: a search naming them is refused). Each one maps back to that side's
- * cuisines in cuisines.ts, so what this search brings stays on the side asked for.
- */
-export const SIDE_TYPES: Record<Exclude<SoloSide, "any">, string[]> = {
-  chinese: ["chinese_restaurant", "cantonese_restaurant", "dim_sum_restaurant", "hot_pot_restaurant", "taiwanese_restaurant", "chinese_noodle_restaurant", "dumpling_restaurant"],
-  jk: [
-    "japanese_restaurant",
-    "sushi_restaurant",
-    "ramen_restaurant",
-    "japanese_izakaya_restaurant",
-    "japanese_curry_restaurant",
-    "tonkatsu_restaurant",
-    "yakiniku_restaurant",
-    "yakitori_restaurant",
-    "korean_restaurant",
-    "korean_barbecue_restaurant",
-  ],
-  asia: [
-    "vietnamese_restaurant",
-    "thai_restaurant",
-    "indian_restaurant",
-    "north_indian_restaurant",
-    "south_indian_restaurant",
-    "pakistani_restaurant",
-    "indonesian_restaurant",
-    "malaysian_restaurant",
-    "filipino_restaurant",
-  ],
-  west: [
-    "italian_restaurant",
-    "pizza_restaurant",
-    "mexican_restaurant",
-    "latin_american_restaurant",
-    "taco_restaurant",
-    "american_restaurant",
-    "hamburger_restaurant",
-    "steak_house",
-    "french_restaurant",
-    "spanish_restaurant",
-    "barbecue_restaurant",
-    "seafood_restaurant",
-    "mediterranean_restaurant",
-    "middle_eastern_restaurant",
-    "greek_restaurant",
-    "lebanese_restaurant",
-    "turkish_restaurant",
-    "persian_restaurant",
-    "brunch_restaurant",
-    "breakfast_restaurant",
-    "vegetarian_restaurant",
-    "vegan_restaurant",
-  ],
-};
+/** Of those, at most this many Text Searches (a separate Google quota). */
+export const TEXT_SEARCHES_PER_PICK = 2;
+/** Google takes at most this many types in one search. */
+const MAX_TYPES = 50;
 
 /** Circles at least this wide (walk 15 and up, every drive) are also asked in parts. */
 export const SPLIT_FROM = 1200;
@@ -94,24 +46,40 @@ const RESTAURANT = ["restaurant"];
 /**
  * The searches for one pick:
  * - the whole circle's most popular;
- * - walking: also the nearest (driving, the parts below cover the area better);
- * - one person who chose a side of the menu: that side's most popular in the whole circle;
- * - the rest, up to SEARCHES_PER_PICK: parts of the circle (walk 15 and up, drives), at a random
- *   turn so each pick looks in different corners, or for "any distance" other neighbourhoods,
- *   picked at random.
+ * - each cuisine round 1 liked, most liked first: its most popular in the whole circle (Text
+ *   Searches, for cuisines Google has no type for, at most TEXT_SEARCHES_PER_PICK); cuisines past the
+ *   last search join the last typed one;
+ * - what's left, up to SEARCHES_PER_PICK: walking, the nearest; driving, parts of the circle at a
+ *   random turn; any distance, other neighbourhoods picked at random.
  */
-export function searchPlan(center: Point, range: RangeId, side: SoloSide = "any", random: () => number = Math.random): SearchCall[] {
+export function searchPlan(center: Point, range: RangeId, liked: readonly CuisineId[] = [], random: () => number = Math.random): SearchCall[] {
   const r = RANGES[range];
   const middle = { lat: center.lat, lng: center.lng };
   const calls: SearchCall[] = [{ center: middle, radius: r.meters, rank: "POPULARITY", types: RESTAURANT }];
-  if (r.mode === "walk") calls.push({ center: middle, radius: r.meters, rank: "DISTANCE", types: RESTAURANT });
-  if (side !== "any") calls.push({ center: middle, radius: r.meters, rank: "POPULARITY", types: SIDE_TYPES[side] });
+  let texts = 0;
+  for (const c of liked) {
+    const want = CUISINES[c]?.search;
+    if (!want) continue;
+    if (calls.length < SEARCHES_PER_PICK) {
+      if (want.types) calls.push({ center: middle, radius: r.meters, rank: "POPULARITY", types: [...want.types], cuisine: c });
+      else if (want.text && texts < TEXT_SEARCHES_PER_PICK) {
+        calls.push({ center: middle, radius: r.meters, rank: "POPULARITY", text: want.text, cuisine: c });
+        texts += 1;
+      }
+    } else if (want.types) {
+      // No search left for it: the last search for a liked cuisine by type asks for this one too.
+      const last = [...calls].reverse().find((x) => x.cuisine && x.types);
+      if (last?.types && last.types.length + want.types.length <= MAX_TYPES) last.types.push(...want.types);
+    }
+  }
+  if (r.mode === "walk" && calls.length < SEARCHES_PER_PICK) calls.push({ center: middle, radius: r.meters, rank: "DISTANCE", types: RESTAURANT });
   const left = SEARCHES_PER_PICK - calls.length;
+  if (left <= 0) return calls;
   if (range === "any") {
     // Other neighbourhoods inside the circle, not the one this pick starts from.
     const others = NEIGHBOURHOODS.filter((n) => distanceMeters(middle, n) > ANCHOR_RADIUS && distanceMeters(middle, n) + ANCHOR_RADIUS <= r.meters);
     for (const n of shuffled(others, random).slice(0, left)) calls.push({ center: { lat: n.lat, lng: n.lng }, radius: ANCHOR_RADIUS, rank: "POPULARITY", types: RESTAURANT });
-  } else if (r.meters >= SPLIT_FROM && left > 0) {
+  } else if (r.meters >= SPLIT_FROM) {
     const turn = random() * 2 * Math.PI;
     for (let i = 0; i < left; i++) {
       calls.push({ center: offset(middle, PART_OFFSET * r.meters, turn + (i * 2 * Math.PI) / left), radius: PART_RADIUS * r.meters, rank: "POPULARITY", types: RESTAURANT });

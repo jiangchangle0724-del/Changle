@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, dishesFor, guessCuisine, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type Lang, type Place, type RangeId, type SoloSide } from "../engine";
+import { RANGES, distanceMeters, dishesFor, guessCuisine, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type CuisineId, type Lang, type Place, type RangeId, type SearchCall, type Traits } from "../engine";
 import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
@@ -27,6 +27,16 @@ const SEARCH_FIELDS = [
   "places.generativeSummary",
   "places.nationalPhoneNumber",
   "places.googleMapsUri",
+  // For the occasion (a date, a birthday, the kids…): what Google says about each place.
+  "places.goodForGroups",
+  "places.goodForChildren",
+  "places.menuForChildren",
+  "places.servesWine",
+  "places.servesBeer",
+  "places.servesCocktails",
+  "places.servesDessert",
+  "places.liveMusic",
+  "places.outdoorSeating",
   // Tells branches of one name apart.
   "places.shortFormattedAddress",
 ].join(",");
@@ -68,6 +78,38 @@ interface GPlace {
   nationalPhoneNumber?: string;
   googleMapsUri?: string;
   shortFormattedAddress?: string;
+  goodForGroups?: boolean;
+  goodForChildren?: boolean;
+  menuForChildren?: boolean;
+  servesWine?: boolean;
+  servesBeer?: boolean;
+  servesCocktails?: boolean;
+  servesDessert?: boolean;
+  liveMusic?: boolean;
+  outdoorSeating?: boolean;
+}
+
+const BAR = /^(bar|pub|irish_pub|gastropub|sports_bar|cocktail_bar|lounge_bar|wine_bar|brewpub|beer_garden|hookah_bar)$/;
+
+/** What Google says about a place beyond its food, for the occasion. Only what it says: no guesses. */
+function traitsFrom(g: GPlace): Traits | undefined {
+  const types = g.types ?? [];
+  const t: Traits = {
+    groups: g.goodForGroups,
+    kids: g.goodForChildren,
+    kidsMenu: g.menuForChildren,
+    wine: g.servesWine,
+    beer: g.servesBeer,
+    cocktails: g.servesCocktails,
+    dessert: g.servesDessert,
+    music: g.liveMusic,
+    outdoor: g.outdoorSeating,
+    fastFood: types.includes("fast_food_restaurant") || undefined,
+    bar: types.some((x) => BAR.test(x)) || undefined,
+    fineDining: types.includes("fine_dining_restaurant") || undefined,
+  };
+  const known = Object.fromEntries(Object.entries(t).filter(([, v]) => v !== undefined)) as Traits;
+  return Object.keys(known).length ? known : undefined;
 }
 
 /** A stretch of opening hours. In `currentOpeningHours` each point has its date, for the coming week. */
@@ -152,8 +194,10 @@ export function fromGoogle(g: GPlace): Place | null {
     closesAt: Number.isFinite(close) ? close : undefined,
     hours: hoursFrom(g.currentOpeningHours?.periods),
     reservable: g.reservable,
+    traits: traitsFrom(g),
     veg: g.servesVegetarianFood,
-    halal: /halal|清真|حلال/i.test(halalText) ? "yes" : undefined,
+    // Its name or description says so, or Google calls it a halal restaurant.
+    halal: /halal|清真|حلال/i.test(halalText) || g.types?.includes("halal_restaurant") ? "yes" : undefined,
     about: g.editorialSummary?.text?.trim().slice(0, 160) || undefined,
     summary: summaryFrom(g.generativeSummary),
     phone: g.nationalPhoneNumber,
@@ -175,11 +219,47 @@ async function google(key: string, url: string, init: RequestInit & { fields: st
 }
 
 export interface SearchOptions {
-  /** One person's side of the menu: adds a search for that side's restaurants alone. */
-  side?: SoloSide;
+  /** The cuisines round 1 liked, most liked first: searches are spent on them (see searchPlan). */
+  liked?: CuisineId[];
   /** Turns the parts of the area each time (see searchPlan); fixed without it, as in tests. */
   random?: () => number;
 }
+
+/** A Text Search can't take a circle: the square around it, and what lands outside the circle is dropped. */
+function square(c: SearchCall) {
+  const dLat = c.radius / 111_320;
+  const dLng = c.radius / (111_320 * Math.cos((c.center.lat * Math.PI) / 180));
+  return { low: { latitude: c.center.lat - dLat, longitude: c.center.lng - dLng }, high: { latitude: c.center.lat + dLat, longitude: c.center.lng + dLng } };
+}
+
+/** One search: Nearby (by types) or Text (by words). */
+function call(key: string, c: SearchCall, lang: Lang): Promise<{ places?: GPlace[] }> {
+  const common = { languageCode: languageCode(lang), regionCode: "CA" };
+  if (c.text) {
+    return google(key, "https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      body: JSON.stringify({ textQuery: c.text, pageSize: 20, rankPreference: "RELEVANCE", locationRestriction: { rectangle: square(c) }, ...common }),
+      fields: SEARCH_FIELDS,
+    }) as Promise<{ places?: GPlace[] }>;
+  }
+  return google(key, "https://places.googleapis.com/v1/places:searchNearby", {
+    method: "POST",
+    body: JSON.stringify({
+      includedTypes: c.types,
+      maxResultCount: 20,
+      rankPreference: c.rank,
+      locationRestriction: { circle: { center: { latitude: c.center.lat, longitude: c.center.lng }, radius: Math.round(c.radius) } },
+      ...common,
+    }),
+    fields: SEARCH_FIELDS,
+  }) as Promise<{ places?: GPlace[] }>;
+}
+
+/**
+ * A Text Search for a cuisine Google has no type for ("Sichuan restaurant") answers with places of
+ * that cuisine; when the name doesn't tell (a 川菜 place called "Chef Tony"), it's that cuisine.
+ */
+const general = (c: CuisineId | undefined): CuisineId[] => (c === "hk_cafe" ? ["chinese", "other", "cafe"] : ["chinese", "other"]);
 
 /**
  * Restaurants for one pick: the searches searchPlan() lays out (at most four, Google returns 20 per
@@ -187,37 +267,26 @@ export interface SearchOptions {
  * all of them failing is thrown, for the room or the page to report.
  */
 export async function searchGoogle(key: string, center: Center, range: RangeId, lang: Lang, opts: SearchOptions = {}): Promise<Place[]> {
-  const url = "https://places.googleapis.com/v1/places:searchNearby";
-  const plan = searchPlan(center, range, opts.side, opts.random ?? (() => 0));
-  const got = await Promise.allSettled(
-    plan.map(
-      (c) =>
-        google(key, url, {
-          method: "POST",
-          body: JSON.stringify({
-            includedTypes: c.types,
-            maxResultCount: 20,
-            rankPreference: c.rank,
-            languageCode: languageCode(lang),
-            regionCode: "CA",
-            locationRestriction: { circle: { center: { latitude: c.center.lat, longitude: c.center.lng }, radius: Math.round(c.radius) } },
-          }),
-          fields: SEARCH_FIELDS,
-        }) as Promise<{ places?: GPlace[] }>,
-    ),
-  );
+  const plan = searchPlan(center, range, opts.liked ?? [], opts.random ?? (() => 0));
+  const got = await Promise.allSettled(plan.map((c) => call(key, c, lang)));
   const failed = got.flatMap((g) => (g.status === "rejected" ? [g.reason] : []));
   if (failed.length === got.length) throw failed[0];
   if (failed.length) console.error("places", `${failed.length} of ${got.length} searches failed`, String(failed[0]));
   const seen = new Map<string, Place>();
-  for (const g of got) {
-    if (g.status !== "fulfilled") continue;
+  got.forEach((g, i) => {
+    if (g.status !== "fulfilled") return;
+    const c = plan[i];
     for (const x of g.value.places ?? []) {
       if (seen.has(x.id)) continue;
       const p = fromGoogle(x);
-      if (p) seen.set(p.id, p);
+      if (!p) continue;
+      if (c.text) {
+        if (distanceMeters(c.center, p) > c.radius) continue;
+        if (c.cuisine && general(c.cuisine).includes(p.cuisine)) p.cuisine = c.cuisine;
+      }
+      seen.set(p.id, p);
     }
-  }
+  });
   return [...seen.values()];
 }
 
@@ -288,7 +357,33 @@ const DEMO: [string, string, number, number, string, boolean?][] = [
   ["Demo · Green Leaf Kitchen", "vegan_restaurant", 4.5, 390, "PRICE_LEVEL_MODERATE"],
   ["Demo · Laksa King", "malaysian_restaurant", 4.3, 520, "PRICE_LEVEL_INEXPENSIVE"],
   ["Demo · Burger Lab", "hamburger_restaurant", 4.0, 1100, "PRICE_LEVEL_INEXPENSIVE"],
+  ["示例 · 老上海小笼馆", "chinese_restaurant", 4.4, 860, "PRICE_LEVEL_MODERATE"],
+  ["示例 · 兰州牛肉面", "chinese_restaurant", 4.3, 1500, "PRICE_LEVEL_INEXPENSIVE"],
+  ["示例 · 老王面馆", "chinese_restaurant", 4.2, 380, "PRICE_LEVEL_INEXPENSIVE"],
+  ["示例 · 新疆烤串", "chinese_restaurant", 4.1, 520, "PRICE_LEVEL_MODERATE"],
+  ["Demo · Izakaya Tora", "japanese_izakaya_restaurant", 4.5, 940, "PRICE_LEVEL_MODERATE", true],
+  ["Demo · Gogi House Korean BBQ", "korean_barbecue_restaurant", 4.4, 1300, "PRICE_LEVEL_MODERATE", true],
+  ["Demo · Manila Lechon House", "filipino_restaurant", 4.3, 410, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Demo · Prime Cut Steakhouse", "steak_house", 4.6, 2200, "PRICE_LEVEL_EXPENSIVE", true],
+  ["Demo · Petit Bistro", "french_restaurant", 4.5, 620, "PRICE_LEVEL_EXPENSIVE", true],
+  ["Demo · Santorini Taverna", "greek_restaurant", 4.4, 790, "PRICE_LEVEL_MODERATE", true],
+  ["Demo · Sunrise Brunch Co.", "brunch_restaurant", 4.5, 1700, "PRICE_LEVEL_MODERATE"],
+  ["Demo · Moonlight Dessert Café", "dessert_restaurant", 4.3, 560, "PRICE_LEVEL_INEXPENSIVE"],
 ];
+
+/** Made-up "atmosphere" for a few demo places, so the occasion shows in demo mode too. */
+const DEMO_TRAITS: Record<number, Partial<GPlace>> = {
+  0: { goodForGroups: true, goodForChildren: true, menuForChildren: true },
+  3: { goodForGroups: true, servesBeer: true },
+  6: { servesWine: true, servesCocktails: true },
+  12: { servesWine: true, goodForChildren: true, menuForChildren: true, servesDessert: true },
+  14: { servesWine: true, servesCocktails: true, goodForGroups: true },
+  22: { goodForGroups: true, servesBeer: true, servesCocktails: true },
+  23: { goodForGroups: true, servesBeer: true },
+  25: { servesWine: true, servesCocktails: true, goodForGroups: true, servesDessert: true },
+  26: { servesWine: true, servesCocktails: true },
+  29: { servesDessert: true },
+};
 
 /**
  * Made-up opening hours for the coming week, so planning ahead works in demo mode too: most places
@@ -324,6 +419,7 @@ export function demoPlaces(center: Center, range: RangeId, now: number): Place[]
       currentOpeningHours: { openNow: true, nextCloseTime: new Date(now + (2 + (i % 4)) * 3600_000).toISOString(), periods: demoHours(i, now) },
       reservable: reservable ?? false,
       servesVegetarianFood: type === "vegan_restaurant" || type === "indian_restaurant" || type === "italian_restaurant" ? true : undefined,
+      ...DEMO_TRAITS[i],
     })!;
     return { ...p, demo: true, phone: "604-555-0" + String(100 + i), mapsUrl: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`, ...DEMO_EXTRA[i] };
   });
