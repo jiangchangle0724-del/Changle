@@ -78,23 +78,29 @@ export interface PickOptions {
   level: Level;
   /** empty = all */
   packs: string[];
+  /** seen before, this game or earlier ones (the phones and the table remember): dealt last */
   used: string[];
+  /** dealt this game: never again while any other card in scope is left */
+  tonight?: string[];
   allowAdult: boolean;
 }
 
 /**
  * Pick an unseen card at the requested level from the allowed packs.
- * Fallback order: other levels (nearest first) → then allow already-used cards. Returns null only on an empty deck.
- * The round records the level actually dealt (card.level); the UI shows that, not the level asked for.
+ * Fallback order: other levels (nearest first) → then cards seen in earlier games → then, only when
+ * the packs hold fewer cards than the game has rounds, tonight's again. Returns null only on an empty
+ * deck. The round records the level actually dealt (card.level); the UI shows that, not the level asked for.
  */
 export function pickCard(cards: Card[], opts: PickOptions, rng: Rng): Card | null {
   const inScope = cards.filter((c) => (opts.packs.length === 0 || opts.packs.includes(c.pack)) && (opts.allowAdult || !c.adult));
   if (inScope.length === 0) return null;
   const used = new Set(opts.used);
+  const tonight = new Set(opts.tonight ?? []);
   const levelsByDistance: Level[] = ([1, 2, 3] as Level[]).sort((a, b) => Math.abs(a - opts.level) - Math.abs(b - opts.level));
-  for (const allowUsed of [false, true]) {
+  const passes: ((c: Card) => boolean)[] = [(c) => !used.has(c.id) && !tonight.has(c.id), (c) => !tonight.has(c.id), () => true];
+  for (const allowed of passes) {
     for (const lvl of levelsByDistance) {
-      const pool = inScope.filter((c) => c.level === lvl && (allowUsed || !used.has(c.id)));
+      const pool = inScope.filter((c) => c.level === lvl && allowed(c));
       if (pool.length > 0) return rng.pick(pool);
     }
   }

@@ -8,6 +8,7 @@ import { createRoom, reduce, RoomError, type RoomEvent, type RoomState } from ".
 import { TEST_ROUTINE } from "../shared/catalog";
 import { MAX_BEATS_PER_MSG, SONG_SYNC_MS, type ClientMsg, type HostAction, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
 import { buildShow, introOf, phraseStart, type Anchors, type Show } from "../shared/show";
+import { checkTapped, type Tapped } from "./tapped";
 import { addBeats, clearFrom, emptyScores, floorOf, resultsOf, type Scores } from "./tally";
 
 /** A speaker page that drops gets this long to come back before the room goes back to the lobby. */
@@ -20,6 +21,8 @@ export const IDLE_MS = 12 * 3_600_000;
 export const LEAD_IN_MS = 3_000;
 /** The speaker gets a phone's movement at most this often (a little dancer on the TV needs no more). */
 export const PULSE_GAP_MS = 80;
+/** 找拍子: a phone's taps go on to the speaker at most this often (no song's beat is faster). */
+export const TAP_GAP_MS = 150;
 export { SONG_SYNC_MS };
 /**
  * 开始跳 and 这一段再来: the count-in's first beat comes this long after the tap, so the speaker
@@ -57,8 +60,11 @@ export interface From {
   role: Role;
   playerId: string | null;
 }
-/** A message for one player (by id), for the speaker, or for everyone; or a player's phone to close. */
-export type Out = { to: "all" | "speaker" | { player: string }; msg: ServerMsg } | { close: string };
+/**
+ * A message for one player (by id), for the speaker, or for everyone; a player's phone to close; or
+ * a song's beat found by 找拍子, for the songbook (the Durable Object keeps it for every room).
+ */
+export type Out = { to: "all" | "speaker" | { player: string }; msg: ServerMsg } | { close: string } | { songbook: { songId: string; tapped: Tapped } };
 
 /**
  * A phone's id: what its page makes (letters, digits, - and _), and never the name of something
@@ -158,10 +164,7 @@ export class Session {
         if (from.role === "player" && from.playerId) this.act(from, msg.action);
         return;
       case "tap":
-        // only the host's taps, only while calibrating, only to the speaker
-        if (from.role !== "player" || !from.playerId || !fin(msg.at) || this.d.state.phase !== "calibrating") return;
-        if (!this.isHost(from.playerId)) return;
-        this.out.push({ to: "speaker", msg: { t: "tap", at: msg.at, playerId: from.playerId } });
+        this.tap(from, msg.at);
         return;
       case "calibrated":
         if (from.role !== "speaker" || !fin(msg.audioOffsetMs)) return;
@@ -188,14 +191,59 @@ export class Session {
       case "songFailed":
         this.songFailed(from, msg.why);
         return;
+      case "songTapped":
+        this.songTapped(from, msg);
+        return;
     }
+  }
+
+  /** When each phone's last 找拍子 tap went on to the speaker. */
+  private readonly tappedAt = new Map<string, number>();
+
+  /**
+   * A tap, on to the speaker: the host's while calibrating; anyone's in the room while it finds a
+   * song's beat (找拍子), at most one every TAP_GAP_MS from a phone.
+   */
+  private tap(from: From, at: unknown): void {
+    const st = this.d.state;
+    if (from.role !== "player" || !from.playerId || !fin(at)) return;
+    if (st.phase === "calibrating") {
+      if (this.isHost(from.playerId)) this.out.push({ to: "speaker", msg: { t: "tap", at, playerId: from.playerId } });
+      return;
+    }
+    if (st.phase !== "learning" || !this.d.routine?.tapIn || !st.players.some((p) => p.id === from.playerId)) return;
+    const now = this.now();
+    const before = this.tappedAt.get(from.playerId);
+    if (before !== undefined && now - before < TAP_GAP_MS) return;
+    this.tappedAt.set(from.playerId, now);
+    this.out.push({ to: "speaker", msg: { t: "tap", at, playerId: from.playerId } });
+  }
+
+  /**
+   * The speaker found the song's beat (找拍子): checked as the songbook checks a tap-along, kept
+   * (the songbook, for every room), and the song starts as any song does: the speaker holds its
+   * video at its start again and says when it's ready (songReady).
+   */
+  private songTapped(from: From, body: unknown): void {
+    const r = this.d.routine;
+    const show = this.show();
+    if (from.role !== "speaker" || this.d.state.phase !== "learning" || !r?.tapIn || !show || show.kind !== "song") return;
+    const t = checkTapped(show.id, body, this.now());
+    if (typeof t === "string") return this.send(from, { t: "error", code: "bad_taps", message: t });
+    this.songbook[show.id] = t.firstBeatMs;
+    const { tapIn: _done, ...rest } = r;
+    this.d.routine = { ...rest, introMs: t.firstBeatMs };
+    this.changed = true;
+    this.tappedAt.clear();
+    this.out.push({ songbook: { songId: show.id, tapped: t } });
+    this.out.push({ to: "all", msg: this.stateMsg() });
   }
 
   /** The speaker has the song's video held at its start: the song starts (its teaching, or its video) after the lead-in. */
   private songReady(from: From): void {
     const r = this.d.routine;
     const show = this.show();
-    if (from.role !== "speaker" || this.d.state.phase !== "learning" || !r || !show || show.kind !== "song" || r.leadStartAt !== null) return;
+    if (from.role !== "speaker" || this.d.state.phase !== "learning" || !r || !show || show.kind !== "song" || r.leadStartAt !== null || r.tapIn) return;
     const leadStartAt = Math.round(this.speakerNow() + LEAD_IN_MS);
     this.d.routine = { ...r, leadStartAt };
     this.d.danceAt = leadStartAt + show.leadMs;
@@ -211,7 +259,8 @@ export class Session {
     const host = st.players.find((p) => p.isHost);
     if (!host) return;
     this.act({ role: "player", playerId: host.id }, { type: "BACK_TO_LOBBY" });
-    this.out.push({ to: "all", msg: { t: "error", code: why === "offline" ? "song_offline" : "song_blocked", message: "the song's video won't play here" } });
+    if (why === "notap") this.out.push({ to: "all", msg: { t: "error", code: "song_notap", message: "nobody found the song's beat" } });
+    else this.out.push({ to: "all", msg: { t: "error", code: why === "offline" ? "song_offline" : "song_blocked", message: "the song's video won't play here" } });
   }
 
   /**
@@ -295,14 +344,15 @@ export class Session {
         // it waits for the host's START_DANCING; a song waits for the speaker to have its video
         // ready, songReady)
         const leadStartAt = show.lead.length && show.kind !== "song" ? Math.round(at + LEAD_IN_MS) : null;
-        // a song's first beat is where someone tapped along to it once (the songbook): untapped,
-        // the dance would be off its beat, so it waits for that
+        // a song's first beat is where people tapped along to it once (the songbook): untapped,
+        // everyone taps along to its video first (找拍子) and the song waits for that
         const tapped = show.kind === "song" ? this.songbook[show.id] : undefined;
-        if (show.kind === "song" && (typeof tapped !== "number" || !Number.isFinite(tapped))) return this.send(from, { t: "error", code: "song_untapped", message: `tap along to ${show.id} on the speaker page first` });
-        const introMs = Math.round(typeof tapped === "number" ? tapped : show.introMs);
+        const known = typeof tapped === "number" && Number.isFinite(tapped);
+        const introMs = Math.round(typeof tapped === "number" && known ? tapped : show.introMs);
         // (set first: the state message that goes out with the change carries them)
         const results = this.d.results;
-        this.d.routine = { routineId: show.id, bpm: show.bpm, beatsPerBar: 4, totalBeats: show.dance.length, mode: show.mode, leadStartAt, fromBeat: 0, introMs };
+        this.d.routine = { routineId: show.id, bpm: show.bpm, beatsPerBar: 4, totalBeats: show.dance.length, mode: show.mode, leadStartAt, fromBeat: 0, introMs, ...(show.kind === "song" && !known ? { tapIn: true } : {}) };
+        this.tappedAt.clear();
         this.d.results = null;
         if (this.apply({ type: "START_LEARNING", at, byPlayerId: by, routineId: show.id, difficulty: show.difficulty, bpm: show.bpm }, from)) {
           this.d.danceAt = leadStartAt === null ? null : leadStartAt + show.leadMs;
@@ -318,6 +368,8 @@ export class Session {
       case "RESTART_SECTION": {
         const show = this.show();
         if (!show || !r) return this.send(from, { t: "error", code: "no_routine", message: "pick a routine first" });
+        // (找拍子 first: the dance would be off its beat)
+        if (r.tapIn && this.d.state.phase === "learning") return this.send(from, { t: "error", code: "song_tapping", message: "find the song's beat first" });
         // (a song plays on in its video: no going back a phrase in it)
         if (a.type === "RESTART_SECTION" && show.kind === "song") return this.send(from, { t: "error", code: "not_for_songs", message: "a song can't go back a phrase" });
         // 这一段再来 goes back to the start of the 8-count the room is hearing (the metronome, and a
@@ -362,7 +414,8 @@ export class Session {
       case "BACK_TO_LOBBY":
       case "END_ROOM": {
         const results = this.d.results;
-        this.d.routine = r ? { ...r, leadStartAt: null, fromBeat: 0 } : null;
+        const { tapIn: _stop, ...rest } = r ?? ({} as RoutineInfo);
+        this.d.routine = r ? { ...rest, leadStartAt: null, fromBeat: 0 } : null;
         this.d.results = null;
         if (this.apply({ type: a.type, at, byPlayerId: by }, from)) {
           this.d.danceAt = null;

@@ -3,7 +3,8 @@
 // most 31 of them (Cloudflare allows 32 Worker invocations per request): up to 30 steps, then
 // publish. The morning has three triggers (06:00, 06:20, 06:40), each going on where the last
 // stopped, so a run has room for 90 steps. The libraries that refuse the Worker's requests are read
-// by a GitHub job just before and handed over (src/handoff.ts): their steps read those pages.
+// by a GitHub job and handed over (src/handoff.ts): their steps read those pages when they're in
+// before the run gets to them; pages that come later are read as they come (src/arrival.ts).
 import { readCapped } from "./body";
 import { takeHandoff } from "./handoff";
 import { ensureSchema } from "./schema";
@@ -21,11 +22,23 @@ export interface StepArgs {
   runId: string;
   source: string;
   part: number;
+  /** A page handed over after the run went past its library, read when it came (src/arrival.ts). */
+  arrived?: boolean;
 }
 export interface StepResult {
   /** The next part to fetch, or null. */
   next: number | null;
   log: FetchLog;
+}
+
+/** Every part of a source before `part` read today, as the log says (a step that failed ends its source for the day). */
+async function everyPartBefore(db: D1Database, runId: string, source: string, part: number): Promise<boolean> {
+  if (part === 0) return true;
+  const row = await db
+    .prepare("SELECT count(DISTINCT part) AS n FROM fetch_log WHERE run_id = ?1 AND source = ?2 AND part < ?3 AND error IS NULL")
+    .bind(runId, source, part)
+    .first<{ n: number }>();
+  return (row?.n ?? 0) === part;
 }
 
 async function writeLog(db: D1Database, l: FetchLog): Promise<void> {
@@ -66,7 +79,7 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
     const handed = src.handoff ? await takeHandoff(env.CACHE, args.runId, src.id, args.part) : null;
     if (handed) {
       log.via = "handoff";
-      log.note = `handed over at ${handed.at ?? "an unknown time"}`;
+      log.note = `handed over at ${handed.at ?? "an unknown time"}${args.arrived ? ", read when it came" : ""}`;
       raw = handed.raw;
     } else {
       log.via = "fetch";
@@ -106,8 +119,16 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
       log.updated = stored.updated;
       next = nextPart(src, args.part, more);
     }
-    await env.DB.prepare("UPDATE sources SET last_ok_run = ?2, last_error = NULL, etag = coalesce(?3, etag), last_modified = coalesce(?4, last_modified) WHERE id = ?1")
-      .bind(src.id, args.runId, etag, lastModified)
+    // The source is done for today only once its last page is read, and every page before it was.
+    // Until then (a later page failed) publish keeps its events from before today (src/publish.ts):
+    // otherwise everything on the pages it couldn't read would drop off the list for the day.
+    const done = next === null && (await everyPartBefore(env.DB, args.runId, src.id, args.part));
+    await env.DB.prepare(
+      `UPDATE sources SET etag = coalesce(?3, etag), last_modified = coalesce(?4, last_modified),
+         last_ok_run = CASE WHEN ?5 THEN ?2 ELSE last_ok_run END, last_error = CASE WHEN ?5 THEN NULL ELSE last_error END
+       WHERE id = ?1`,
+    )
+      .bind(src.id, args.runId, etag, lastModified, done ? 1 : 0)
       .run();
   } catch (e) {
     log.error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
@@ -122,7 +143,8 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
 /** What a run calls for each step: the loopback binding in production, the functions in tests. */
 export interface StepRunner {
   fetchSource(args: StepArgs): Promise<StepResult>;
-  publish(args: { runId: string }): Promise<unknown>;
+  /** `note`: said in the log, for a publish that isn't the morning's own (src/arrival.ts). */
+  publish(args: { runId: string; note?: string }): Promise<unknown>;
 }
 
 export interface RunOptions {

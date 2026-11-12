@@ -5,7 +5,7 @@
 import { pickCard } from "./cards";
 import { mulberry32, type Rng } from "./rng";
 import { scoreRound } from "./scoring";
-import type { Card, GameEvent, GameOptions, GameState, Level, Player, PrivateView, PublicView, Role, RoundState } from "./types";
+import type { Awards, Card, GameEvent, GameOptions, GameState, Level, Player, PrivateView, PublicView, Role, RoundState } from "./types";
 
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 9;
@@ -119,7 +119,8 @@ function startRound(state: GameState, deps: Deps, level: Level | undefined): Gam
   const others = nonJudges(state, judgeId);
   const honestId = dealHonest(state, others, rng);
   const lvl: Level = level ?? 2;
-  const card = pickCard(deps.cards, { level: lvl, packs: state.options.packs, used: state.usedCardIds, allowAdult: state.options.allowAdult }, rng);
+  const tonight = state.rounds.map((r) => r.cardId);
+  const card = pickCard(deps.cards, { level: lvl, packs: state.options.packs, used: state.usedCardIds, tonight, allowAdult: state.options.allowAdult }, rng);
   if (!card) throw new GameError("no_cards", "no cards in the selected packs");
   const peekQueue = state.options.mode === "pass" ? passOrder(state, judgeId) : [...others];
   const round: RoundState = {
@@ -422,6 +423,25 @@ export function foolCounts(state: GameState): Record<string, number> {
     if (r.accusedId && r.accusedId !== r.honestId) out[r.accusedId] = (out[r.accusedId] ?? 0) + 1;
   }
   return out;
+}
+
+/**
+ * Tonight's titles, for the end screen and the picture the table shares: who topped the board, who
+ * fooled judges most, who bet best. Players who left are out of it; a title nobody earned is empty.
+ */
+export function awards(state: GameState): Awards {
+  const ids = state.players.map((p) => p.id);
+  const most = (counts: Record<string, number>) => {
+    const max = Math.max(0, ...ids.map((id) => counts[id] ?? 0));
+    return max > 0 ? ids.filter((id) => (counts[id] ?? 0) === max) : [];
+  };
+  const fooled = foolCounts(state);
+  const rightBets: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+  for (const r of state.rounds) {
+    for (const [who, target] of Object.entries(r.bets)) if (target === r.honestId && who in rightBets) rightBets[who] += 1;
+  }
+  const top = leaderboard(state).filter((b) => b.place === 1 && b.score > 0).map((b) => b.id);
+  return { top, bluffer: most(fooled), bettor: most(rightBets), fooled, rightBets };
 }
 
 /** Sorted by score; ties broken by who fooled the judge more often; still tied = shared place (they drink together). */

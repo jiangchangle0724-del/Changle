@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
-import { capDigits, cleanAmount, convert, CURRENCIES, sizeClass, type Code, type FxState } from "./fx";
+import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, isCode, sizeClass, type Code, type FxState } from "./fx";
 import { PackCompare } from "./PackCompare";
 import { RateStatus } from "./RateStatus";
 import { MASS, VOLUME } from "./units";
 
-const SYMBOL: Record<Code, string> = { CAD: "$", CNY: "¥", USD: "US$", HKD: "HK$" };
+const SYMBOL = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol])) as Record<Code, string>;
+
+/** Amounts in a currency's own number of decimals: yen and won are written without cents. */
+function moneyFormat(lang: "zh" | "en", code: Code) {
+  const d = CURRENCY_BY_CODE[code].decimals;
+  return new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
 
 /** Price per kg, lb, 斤, oz and per litre or gallon, with the same price in a second currency. */
 export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
@@ -13,7 +19,10 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   const [state, setState] = useState(() => {
     try {
       const raw = localStorage.getItem("changle.price");
-      if (raw) return JSON.parse(raw) as { kind: "mass" | "volume"; unit: string; text: string; cur: Code; alt: Code };
+      if (raw) {
+        const saved = JSON.parse(raw) as { kind: "mass" | "volume"; unit: string; text: string; cur: Code; alt: Code };
+        if (isCode(saved.cur) && isCode(saved.alt)) return saved;
+      }
     } catch {
       /* fine */
     }
@@ -31,14 +40,15 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   const from = units.find((u) => u.id === state.unit) ?? units[0];
   const price = Number(cleanAmount(state.text) || "0");
   const perBase = price / from.size;
-  const nf = useMemo(() => new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), [lang]);
+  const nf = useMemo(() => moneyFormat(lang, state.cur), [lang, state.cur]);
+  const nfAlt = useMemo(() => moneyFormat(lang, state.alt), [lang, state.alt]);
   const rate = fx.rates ? convert(fx.rates, 1, state.cur, state.alt) : NaN;
   const set = (patch: Partial<typeof state>) => setState((s) => ({ ...s, ...patch }));
   const rows = units
     .filter((u) => u.id !== from.id)
     .map((u) => {
       const v = perBase * u.size;
-      return { u, main: `${SYMBOL[state.cur]}${nf.format(v)}`, alt: state.alt !== state.cur && Number.isFinite(rate) ? `≈ ${SYMBOL[state.alt]}${nf.format(v * rate)}` : "" };
+      return { u, main: `${SYMBOL[state.cur]}${nf.format(v)}`, alt: state.alt !== state.cur && Number.isFinite(rate) ? `≈ ${SYMBOL[state.alt]}${nfAlt.format(v * rate)}` : "" };
     });
   // the longest figure sets the size of all of them; past that, one box per line
   const longest = Math.max(...rows.map((r) => r.main.length));

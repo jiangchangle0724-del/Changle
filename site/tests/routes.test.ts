@@ -67,6 +67,9 @@ const pages: Route[] = [
   { kind: "djtest" },
 ];
 for (const r of pages) ok(same(at(pathOf(r)), r), `${pathOf(r)} round-trips`);
+// a game's own link (猜歌名's challenges) keeps its ?c=, and only one that could be one
+ok(same(at("/g/name-that-tune/play?c=MXx6aC1lbg_x"), { kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) && pathOf({ kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) === "/g/name-that-tune/play?c=MXx6aC1lbg_x", "a game's link of its own (?c=) stays on the address");
+ok(same(at("/g/name-that-tune/play?c=%3Cscript%3E"), { kind: "game", id: "tune" }) && same(at("/g/name-that-tune?c=MXx6aC1lbg"), { kind: "home", tab: "party", game: "tune" }), "a ?c= that can't be one is dropped; a card has none");
 
 // addresses written another way land on the site's own spelling
 ok(pathOf(at("/g/truth")) === "/g/truth-or-dare", "/g/truth (an old id) becomes /g/truth-or-dare");
