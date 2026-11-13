@@ -51,6 +51,8 @@ export interface Item {
   unit: Unit;
   /** the smallest change in amount: 1000 for whole things, 500 for half pounds */
   step: number;
+  /** the least one order may take: a merchant who weighs by the half pound may still sell no less than a pound */
+  least: number;
   /** how much there is, or null for no limit */
   stock: number | null;
   /** the most one buyer may take, or null for no limit */
@@ -74,6 +76,8 @@ export interface DeliveryRule {
   /** cents of goods before delivery is offered */
   min: number;
   fee: number;
+  /** cents of goods from which delivery is free, or null when the fee always applies */
+  freeFrom: number | null;
   hours: string;
 }
 

@@ -3,7 +3,7 @@
 import { finalGoods, goodsOf, lineAmount, piecesOf, QTY_MAX } from "./money";
 import { phoneDigits, phoneKey } from "./phone";
 import { cleanLine, cleanLines } from "./text";
-import type { How, Item, OfferBook, Order, Unit } from "./types";
+import type { DeliveryRule, How, Item, OfferBook, Order, Unit } from "./types";
 
 export const NAME_MAX = 30;
 export const WECHAT_MAX = 40;
@@ -85,6 +85,12 @@ const refuse = (error: RefusalCode, more: Omit<Refused, "ok" | "error"> = {}): R
 /** Is the group buy taking orders at this moment? */
 export const isOpen = (book: Pick<OfferBook, "shop" | "offer">, now: number): boolean => book.shop.status === "live" && book.offer.status === "open" && now < book.offer.closesAt;
 
+/**
+ * What delivery costs for so much goods: the area's fee, or nothing from its free-delivery mark up.
+ * Settled when the order is placed (or changed), on the goods as ordered: weighing doesn't move it.
+ */
+export const deliveryFee = (rule: Pick<DeliveryRule, "fee" | "freeFrom">, goods: number): number => (rule.freeFrom !== null && goods >= rule.freeFrom ? 0 : rule.fee);
+
 /** How much of an item is left to order, or null when it has no limit. */
 export const leftOf = (item: Pick<Item, "stock" | "sold">): number | null => (item.stock === null ? null : Math.max(0, item.stock - item.sold));
 
@@ -121,6 +127,7 @@ export function takeOrder(input: unknown, book: OfferBook, now: number, had: Bef
     if (sum > QTY_MAX) return refuse("qty");
     wanted.set(itemId, sum);
   }
+  for (const [itemId, sum] of wanted) if (sum < byId.get(itemId)!.least) return refuse("qty");
   const want = (item: Item) => wanted.get(item.id) ?? 0;
   const ordered = book.items.filter((item) => wanted.has(item.id));
 
@@ -150,7 +157,8 @@ export function takeOrder(input: unknown, book: OfferBook, now: number, had: Bef
     const address = cleanLines(raw.address, ADDRESS_MAX);
     if (!address) return refuse("address");
     if (goods < rule.min) return refuse("min", { min: rule.min });
-    return { ...taken, how: "delivery", pickupId: null, ruleId: rule.id, address, fee: rule.fee, final: weighedGoods === null ? null : weighedGoods + rule.fee };
+    const fee = deliveryFee(rule, goods);
+    return { ...taken, how: "delivery", pickupId: null, ruleId: rule.id, address, fee, final: weighedGoods === null ? null : weighedGoods + fee };
   }
   return refuse("how");
 }

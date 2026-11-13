@@ -30,6 +30,7 @@ const itemOf = (r: Row): Item => ({
   price: num(r.price),
   unit: r.unit as Item["unit"],
   step: num(r.step),
+  least: num(r.least),
   stock: numOrNull(r.stock),
   perBuyer: numOrNull(r.per_buyer),
   sold: num(r.sold),
@@ -49,9 +50,9 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
         "SELECT f.id AS offer_id, f.title, f.note, f.status AS offer_status, f.closes_at, f.roster, s.id, s.slug, s.name, s.kind, s.about, s.contact, s.pay, s.permit, s.status FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ?",
       )
       .bind(offerId),
-    db.prepare("SELECT id, section, name, detail, photo, price, unit, step, stock, per_buyer, sold, allergens FROM items WHERE offer_id = ? ORDER BY pos").bind(offerId),
+    db.prepare("SELECT id, section, name, detail, photo, price, unit, step, least, stock, per_buyer, sold, allergens FROM items WHERE offer_id = ? ORDER BY pos").bind(offerId),
     db.prepare("SELECT id, name, address, hours FROM pickup_points WHERE offer_id = ? ORDER BY pos").bind(offerId),
-    db.prepare("SELECT id, label, min_total, fee, hours FROM delivery_rules WHERE offer_id = ? ORDER BY pos").bind(offerId),
+    db.prepare("SELECT id, label, min_total, fee, free_from, hours FROM delivery_rules WHERE offer_id = ? ORDER BY pos").bind(offerId),
   ]);
   const row = offers.results[0];
   if (!row) return null;
@@ -62,7 +63,7 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
     offer,
     items: items.results.map(itemOf),
     points: points.results.map((r): PickupPoint => ({ id: text(r.id), name: text(r.name), address: text(r.address), hours: text(r.hours) })),
-    rules: rules.results.map((r): DeliveryRule => ({ id: text(r.id), label: text(r.label), min: num(r.min_total), fee: num(r.fee), hours: text(r.hours) })),
+    rules: rules.results.map((r): DeliveryRule => ({ id: text(r.id), label: text(r.label), min: num(r.min_total), fee: num(r.fee), freeFrom: numOrNull(r.free_from), hours: text(r.hours) })),
   };
 }
 
@@ -309,9 +310,9 @@ export async function insertOffer(db: D1Database, shopId: string, offer: NewOffe
       db.prepare("INSERT INTO offers (id, shop_id, title, note, status, closes_at, roster, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(id, shopId, offer.title, offer.note, offer.open ? "open" : "draft", offer.closesAt, offer.roster, now),
       db
         .prepare(
-          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, stock, per_buyer, allergens)
+          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, allergens)
            SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.section'), json_extract(j.value, '$.name'), json_extract(j.value, '$.detail'), json_extract(j.value, '$.photo'),
-             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
+             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
            FROM json_each(?2) AS j`,
         )
         .bind(id, withIds(offer.items)),
@@ -320,7 +321,7 @@ export async function insertOffer(db: D1Database, shopId: string, offer: NewOffe
         .bind(id, withIds(offer.points)),
       db
         .prepare(
-          "INSERT INTO delivery_rules (id, offer_id, pos, label, min_total, fee, hours) SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.label'), json_extract(j.value, '$.min'), json_extract(j.value, '$.fee'), json_extract(j.value, '$.hours') FROM json_each(?2) AS j",
+          "INSERT INTO delivery_rules (id, offer_id, pos, label, min_total, fee, free_from, hours) SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.label'), json_extract(j.value, '$.min'), json_extract(j.value, '$.fee'), json_extract(j.value, '$.freeFrom'), json_extract(j.value, '$.hours') FROM json_each(?2) AS j",
         )
         .bind(id, withIds(offer.rules)),
     ]);

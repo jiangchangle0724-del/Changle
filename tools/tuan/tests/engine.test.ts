@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { makeCode, OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../src/engine/ids";
 import { amountText, dollars, finalGoods, goodsOf, lineAmount, piecesOf } from "../src/engine/money";
 import { readOffer } from "../src/engine/offer";
-import { buyerMayChange, isOpen, leftOf, ORDERS_PER_PHONE, takeOrder, without, type Taken } from "../src/engine/order";
+import { buyerMayChange, deliveryFee, isOpen, leftOf, ORDERS_PER_PHONE, takeOrder, without, type Taken } from "../src/engine/order";
 import { phoneDigits, phoneKey, tailOf } from "../src/engine/phone";
 import { readShop } from "../src/engine/shop";
 import { dueOf, summarize } from "../src/engine/summary";
@@ -165,11 +165,18 @@ describe("taking an order", () => {
     expect(refusal(sent({ how: "delivery", ruleId: "west", address: "x", lines }))).toBe("how");
   });
 
-  it("charges the area's delivery fee, on top of the goods", () => {
-    const b = book();
-    b.rules[2].fee = 500;
-    const got = taken(sent({ how: "delivery", ruleId: "rmd", address: "8888 No. 3 Rd", lines: [{ itemId: "rice", qty: 2000 }] }), b);
-    expect(got).toMatchObject({ goods: 7600, fee: 500, final: 8100 });
+  it("charges the area's delivery fee on top of the goods, until they reach its free-delivery mark", () => {
+    // Richmond: $5, free from $68
+    const small = taken(sent({ how: "delivery", ruleId: "rmd", address: "8888 No. 3 Rd", lines: [{ itemId: "rice", qty: 1000 }] }));
+    expect(small).toMatchObject({ goods: 3800, fee: 500, final: 4300 });
+    const large = taken(sent({ how: "delivery", ruleId: "rmd", address: "8888 No. 3 Rd", lines: [{ itemId: "rice", qty: 2000 }] }));
+    expect(large).toMatchObject({ goods: 7600, fee: 0, final: 7600 });
+    expect(deliveryFee({ fee: 500, freeFrom: 6800 }, 6799)).toBe(500);
+    expect(deliveryFee({ fee: 500, freeFrom: 6800 }, 6800)).toBe(0);
+    expect(deliveryFee({ fee: 500, freeFrom: null }, 99_999)).toBe(500);
+    // with something weighed in it, the fee is settled on the goods as ordered and the final amount waits
+    const lamb = taken(sent({ how: "delivery", ruleId: "rmd", address: "8888 No. 3 Rd", lines: [{ itemId: "lamb", qty: 1000 }] }));
+    expect(lamb).toMatchObject({ goods: 1699, fee: 500, final: null });
   });
 
   it("refuses what isn't an order", () => {
@@ -189,9 +196,12 @@ describe("taking an order", () => {
 
   it("refuses amounts that can't be ordered", () => {
     for (const qty of [0, -1000, 1500, 0.5, "2", 100_000]) expect(refusal(sent({ lines: [{ itemId: "rice", qty }] }))).toBe("qty");
-    // weight comes by the half pound here
-    expect(refusal(sent({ lines: [{ itemId: "lamb", qty: 250 }] }))).toBe("qty");
-    expect(refusal(sent({ lines: [{ itemId: "lamb", qty: 500 }] }))).toBe("taken");
+    // weight comes by the half pound here, and no less than a pound
+    expect(refusal(sent({ lines: [{ itemId: "lamb", qty: 1250 }] }))).toBe("qty");
+    expect(refusal(sent({ lines: [{ itemId: "lamb", qty: 500 }] }))).toBe("qty");
+    expect(refusal(sent({ lines: [{ itemId: "lamb", qty: 1000 }] }))).toBe("taken");
+    expect(refusal(sent({ lines: [{ itemId: "lamb", qty: 1500 }] }))).toBe("taken");
+    expect(refusal(sent({ lines: [{ itemId: "lamb", qty: 500 }, { itemId: "lamb", qty: 500 }] }))).toBe("taken"); // a pound, sent as two halves
     // 99 of one thing at most, however it's split up
     expect(refusal(sent({ lines: [{ itemId: "pearl", qty: 99_000 }] }))).toBe("taken");
     expect(refusal(sent({ lines: [{ itemId: "pearl", qty: 98_000 }, { itemId: "pearl", qty: 2000 }] }))).toBe("qty");
@@ -261,11 +271,11 @@ describe("starting a group buy", () => {
     if (!got.ok) throw new Error(got.error);
     expect(got.offer).toMatchObject({ title: "本周大米团 · 周五到货", roster: "names", open: true, closesAt: NOW + 86_400_000 });
     expect(got.offer.items).toHaveLength(5);
-    expect(got.offer.items[0]).toEqual({ section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, stock: 40_000, perBuyer: null, allergens: "" });
-    // weight comes by the half pound unless the merchant says otherwise
-    expect(got.offer.items[4]).toMatchObject({ unit: "lb", step: 500, stock: null });
+    expect(got.offer.items[0]).toEqual({ section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null, allergens: "" });
+    // weight comes by the half pound unless the merchant says otherwise; this merchant sells no less than a pound
+    expect(got.offer.items[4]).toMatchObject({ unit: "lb", step: 500, least: 1000, stock: null });
     expect(got.offer.points.map((p) => p.name)).toEqual(["温哥华西区", "大学区", "本拿比"]);
-    expect(got.offer.rules.map((r) => [r.label, r.min, r.fee])).toEqual([["温哥华（Downtown 除外）", 9800, 0], ["本拿比", 9800, 0], ["列治文", 6800, 0]]);
+    expect(got.offer.rules.map((r) => [r.label, r.min, r.fee, r.freeFrom])).toEqual([["温哥华（Downtown 除外）", 9800, 0, null], ["本拿比", 9800, 0, null], ["列治文", 0, 500, 6800]]);
   });
 
   it("can be kept as a draft, and lists who's in by name unless told otherwise", () => {
@@ -282,11 +292,15 @@ describe("starting a group buy", () => {
     expect(error(doc({ closesAt: NOW + 91 * 86_400_000 }))).toBe("closes");
     expect(error(doc({ closesAt: "tomorrow" }))).toBe("closes");
     expect(error(doc({ items: [] }))).toBe("items");
-    expect(error(doc({ items: Array.from({ length: 81 }, () => ({ name: "米", price: 100 })) }))).toBe("items");
+    expect(error(doc({ items: Array.from({ length: 201 }, () => ({ name: "米", price: 100 })) }))).toBe("items");
     expect(error(doc({ points: [], rules: [] }))).toBe("places");
     expect(error(doc({ points: undefined, rules: [{ label: "列治文" }] }))).toBe("ok");
     expect(error(doc({ points: [{ name: "" }] }))).toBe("place 0");
     expect(error(doc({ rules: [{ label: "列治文", min: -1 }] }))).toBe("place 3");
+    expect(error(doc({ rules: [{ label: "列治文", fee: 500, freeFrom: 0 }] }))).toBe("place 3");
+    // free delivery from so much means nothing where delivery is free anyway
+    const free = readOffer(doc({ rules: [{ label: "列治文", freeFrom: 6800 }] }), NOW);
+    expect(free.ok && free.offer.rules[0]).toEqual({ label: "列治文", min: 0, fee: 0, freeFrom: null, hours: "" });
   });
 
   it("refuses goods that can't be sold as written", () => {
@@ -301,6 +315,10 @@ describe("starting a group buy", () => {
     expect(item({ unit: "lb", step: 100 })).toBe("item 1");
     expect(item({ unit: "lb", stock: 1250 })).toBe("item 1"); // not a whole number of half pounds
     expect(item({ unit: "lb", stock: 1500 })).toBe("ok");
+    expect(item({ unit: "lb", least: 1000 })).toBe("ok"); // by the half pound, no less than a pound
+    expect(item({ unit: "lb", least: 750 })).toBe("item 1");
+    expect(item({ unit: "lb", least: 0 })).toBe("item 1");
+    expect(item({ unit: "lb", least: 2000, perBuyer: 1000 })).toBe("item 1"); // nobody could order it
     expect(item({ stock: 0 })).toBe("ok"); // listed, none to sell yet
     expect(item({ perBuyer: 0 })).toBe("item 1");
     expect(item({ perBuyer: 100_000 })).toBe("item 1");
@@ -398,7 +416,7 @@ describe("who is shown what", () => {
     b.items[0].sold = 38_000;
     const page = offerPage(b, [{ seq: 7, name: "王阿姨", pieces: 2 }], NOW);
     expect(page.offer).toEqual({ id: "aaaa2222", title: "本周大米团 · 周五到货", note: "", closesAt: NOW + 86_400_000, state: "open", roster: "names" });
-    expect(page.items[0]).toEqual({ id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, left: 2000, perBuyer: null, allergens: "" });
+    expect(page.items[0]).toEqual({ id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, left: 2000, perBuyer: null, allergens: "" });
     expect(page.items[1].left).toBeNull();
     expect(page.roster).toEqual([{ seq: 7, name: "王阿姨", pieces: 2 }]);
     expect(page.orders).toBe(1);

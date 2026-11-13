@@ -6,7 +6,7 @@ import { isUnit, weighed, type DeliveryRule, type Item, type PickupPoint, type R
 
 export const TITLE_MAX = 60;
 export const OFFER_NOTE_MAX = 2000;
-export const ITEMS_MAX = 80;
+export const ITEMS_MAX = 200;
 export const PLACES_MAX = 12;
 /** A group buy closes within this long of being made. */
 export const OPEN_FOR_MAX_MS = 90 * 86_400_000;
@@ -60,8 +60,11 @@ function readItem(input: unknown): NewItem | null {
   if (!whole(step, 1, MILLI) || (weighed(unit) ? !WEIGHED_STEPS.includes(step) : step !== MILLI)) return null;
   const stock = raw.stock ?? null;
   if (stock !== null && (!whole(stock, 0, STOCK_MAX) || stock % step !== 0)) return null;
+  // one step is the least anyone can order, unless the merchant sets the bar higher (no less than a pound, say)
+  const least = raw.least ?? step;
+  if (!whole(least, step, QTY_MAX) || least % step !== 0) return null;
   const perBuyer = raw.perBuyer ?? null;
-  if (perBuyer !== null && (!whole(perBuyer, step, QTY_MAX) || perBuyer % step !== 0)) return null;
+  if (perBuyer !== null && (!whole(perBuyer, least, QTY_MAX) || perBuyer % step !== 0)) return null;
   return {
     section: cleanLine(raw.section, 30) ?? "",
     name,
@@ -70,6 +73,7 @@ function readItem(input: unknown): NewItem | null {
     price: raw.price,
     unit,
     step,
+    least,
     stock,
     perBuyer,
     allergens: cleanLine(raw.allergens, 120) ?? "",
@@ -89,7 +93,10 @@ function readRule(input: unknown): NewRule | null {
   const min = raw.min ?? 0;
   const fee = raw.fee ?? 0;
   if (!whole(min, 0, MONEY_MAX) || !whole(fee, 0, MONEY_MAX)) return null;
-  return { label, min, fee, hours: cleanLine(raw.hours, 120) ?? "" };
+  // free delivery from so much: only means something where there is a fee
+  const freeFrom = raw.freeFrom ?? null;
+  if (freeFrom !== null && !whole(freeFrom, 1, MONEY_MAX)) return null;
+  return { label, min, fee, freeFrom: fee > 0 ? freeFrom : null, hours: cleanLine(raw.hours, 120) ?? "" };
 }
 
 /** Check a group buy as a merchant sent it. */

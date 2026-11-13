@@ -103,7 +103,7 @@ describe("a group buy from start to pickup", () => {
 
     const leo = await place(at, [["五常大米", 1000], ["东北珍珠米", 1000], ["黄小米", 2000]], { name: "Leo", phone: "778 555 0199", how: "delivery", ruleId: at.rule("列治文"), address: "8888 No. 3 Rd, Richmond" });
     expect(leo.data.order).toMatchObject({ seq: 2, how: "delivery", address: "8888 No. 3 Rd, Richmond", goods: 7810, fee: 0 });
-    expect(leo.data.rule).toMatchObject({ label: "列治文", min: 6800 });
+    expect(leo.data.rule).toMatchObject({ label: "列治文", fee: 500, freeFrom: 6800 });
     expect(leo.data.point).toBeNull();
 
     const chen = await place(at, [["手切羊肉片", 1500], ["土鸡蛋", 2000]], { name: "陈太", phone: "+1 (236) 555-0111", pickupId: at.point("大学区") });
@@ -221,7 +221,15 @@ describe("what an order may hold", () => {
     const vancouver = await place(at, lines, { how: "delivery", ruleId: at.rule("温哥华"), address: "2100 W 4th Ave" });
     expect(vancouver.status).toBe(400);
     expect(vancouver.data).toEqual({ error: "min", min: 9800 });
-    expect(said(await place(at, lines, { how: "delivery", ruleId: at.rule("列治文"), address: "8888 No. 3 Rd" }))).toBe("ok");
+    // Richmond has no minimum: $5 under $68 of goods, free from there
+    const richmond = await place(at, lines, { how: "delivery", ruleId: at.rule("列治文"), address: "8888 No. 3 Rd" });
+    expect(richmond.data.order).toMatchObject({ goods: 8950, fee: 0, final: 8950 });
+    const small = await place(at, [["五常大米", 1000]], { phone: "604-555-0177", how: "delivery", ruleId: at.rule("列治文"), address: "8888 No. 3 Rd" });
+    expect(small.data.order).toMatchObject({ goods: 3800, fee: 500, final: 4300 });
+    // a change is charged anew: two more bags take it past the mark
+    const more = await post<OrderPage>(`/orders/${small.data.order.code}`, order(at, [["五常大米", 3000]], { how: "delivery", ruleId: at.rule("列治文"), address: "8888 No. 3 Rd" }), { tail: "0177" });
+    expect(more.data.order).toMatchObject({ goods: 11400, fee: 0, final: 11400 });
+    expect((await sheets(at)).summary).toMatchObject({ goods: 8950 + 11400, fee: 0 });
     expect(said(await place(at, lines, { how: "delivery", ruleId: at.rule("列治文") }))).toBe("400 address");
     expect(said(await place(at, lines, { how: "delivery", ruleId: at.point("本拿比"), address: "x" }))).toBe("400 how");
   });
@@ -233,6 +241,7 @@ describe("what an order may hold", () => {
     expect(said(await place(at, [["五常大米", 1000]], { phone: "555-0134" }))).toBe("400 phone");
     expect(said(await place(at, []))).toBe("400 empty");
     expect(said(await place(at, [["五常大米", 1500]]))).toBe("400 qty");
+    expect(said(await place(at, [["手切羊肉片", 500]]))).toBe("400 qty"); // no less than a pound
     expect(said(await post(`/offers/${at.id}/orders`, { ...order(at, [["五常大米", 1000]]), lines: [{ itemId: "nothing", qty: 1000 }] }))).toBe("400 item");
     expect(said(await post(`/offers/${at.id}/orders`, "not json"))).toBe("400 bad");
     expect(said(await post(`/offers/${at.id}/orders`, JSON.stringify(order(at, [["五常大米", 1000]])), { type: "text/plain" }))).toBe("400 bad");
@@ -561,7 +570,7 @@ describe("the shelf under a crowd", () => {
   it("still agrees with the orders after a run of orders, changes and cancellations", async () => {
     const at = await start();
     const phones = ["604-555-0101", "604-555-0102", "604-555-0103", "604-555-0104", "604-555-0105", "604-555-0106"];
-    const placed = await Promise.all(phones.map((phone, n) => place(at, [["土鸡蛋", 1000 + (n % 2) * 1000], ["五常大米", 1000], ["手切羊肉片", 500 * (n + 1)]], { phone, name: `买家${n + 1}` })));
+    const placed = await Promise.all(phones.map((phone, n) => place(at, [["土鸡蛋", 1000 + (n % 2) * 1000], ["五常大米", 1000], ["手切羊肉片", 1000 + 500 * n]], { phone, name: `买家${n + 1}` })));
     expect(placed.map(said)).toEqual(phones.map(() => "ok"));
     const codes = placed.map((p) => p.data.order.code);
     expect(placed.map((p) => p.data.order.seq).sort()).toEqual([1, 2, 3, 4, 5, 6]);

@@ -50,6 +50,7 @@ CREATE TABLE items (
   price INTEGER NOT NULL CHECK (price >= 0),          -- cents for one unit
   unit TEXT NOT NULL DEFAULT 'each' CHECK (unit IN ('each', 'box', 'bag', 'pack', 'portion', 'lb')),
   step INTEGER NOT NULL DEFAULT 1000 CHECK (step > 0), -- the smallest change in amount (500 = half a pound)
+  least INTEGER NOT NULL DEFAULT 1000 CHECK (least > 0), -- the least one order may take (1000 = no less than a pound)
   stock INTEGER CHECK (stock IS NULL OR stock >= 0),   -- how much there is; NULL: no limit
   per_buyer INTEGER CHECK (per_buyer IS NULL OR per_buyer > 0),  -- the most one phone number may take; NULL: no limit
   sold INTEGER NOT NULL DEFAULT 0 CHECK (sold >= 0),   -- how much is in orders that stand
@@ -76,6 +77,7 @@ CREATE TABLE delivery_rules (
   label TEXT NOT NULL,                  -- where it applies, as the merchant wrote it
   min_total INTEGER NOT NULL DEFAULT 0 CHECK (min_total >= 0),  -- cents of goods before delivery is offered
   fee INTEGER NOT NULL DEFAULT 0 CHECK (fee >= 0),              -- cents
+  free_from INTEGER CHECK (free_from IS NULL OR free_from > 0), -- cents of goods from which delivery is free; NULL: the fee always applies
   hours TEXT NOT NULL DEFAULT ''        -- when it comes, as the merchant wrote it
 );
 CREATE INDEX delivery_rules_by_offer ON delivery_rules (offer_id, pos);
