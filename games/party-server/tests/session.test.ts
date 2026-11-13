@@ -495,54 +495,59 @@ describe("a dance", () => {
   });
 });
 
-describe("the TV's delay first, and 暂停", () => {
-  it("a room's first dance measures the TV's delay first, then starts by itself; the next ones start at once", () => {
+describe("the TV's delay, the TV's language, and 暂停", () => {
+  it("a room's first dance starts at once: measuring the TV's delay is the host's to choose, from the lobby", () => {
     const { s, clock } = fresh();
     s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
-    assert.equal(s.d.state.phase, "calibrating");
+    const at = clock.now - 995_000;
+    assert.equal(s.d.state.phase, "learning", "no measuring first");
+    assert.equal(s.d.routine?.leadStartAt, at + LEAD_IN_MS);
     assert.equal(last(s.flush().out, "state")?.calibrated, undefined);
+    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
+    s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
+    assert.equal(s.d.state.phase, "calibrating");
     clock.advance(12_000);
     s.handle(SPEAKER, { t: "calibrated", audioOffsetMs: 150 });
-    const at = clock.now - 995_000;
-    assert.equal(s.d.state.phase, "learning");
+    assert.equal(s.d.state.phase, "lobby", "measured: back in the lobby");
     assert.equal(s.d.state.audioOffsetMs, 150);
-    assert.equal(s.d.routine?.routineId, "square-easy");
-    assert.equal(s.d.routine?.mode, "learn");
-    assert.equal(s.d.routine?.leadStartAt, at + LEAD_IN_MS, "the warm-up a moment after the measuring");
     assert.equal(last(s.flush().out, "state")?.calibrated, true, "the pages hear the TV is measured");
-    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
     s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "pop-medium", mode: "dance" } });
-    assert.equal(s.d.state.phase, "learning", "once a party");
+    assert.equal(s.d.state.phase, "learning");
   });
 
-  it("the host can skip the measuring: the dance starts, and the room doesn't ask again", () => {
+  it("the host can skip the measuring, back to the lobby", () => {
     const { s } = fresh();
-    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "pop-medium", mode: "dance" } });
+    s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
     assert.equal(s.d.state.phase, "calibrating");
     s.handle(BOB, { t: "act", action: { type: "SKIP_CALIBRATION" } });
     assert.equal(s.d.state.phase, "calibrating", "only the host");
     s.handle(ANN, { t: "act", action: { type: "SKIP_CALIBRATION" } });
-    assert.equal(s.d.state.phase, "learning");
-    assert.equal(s.d.routine?.routineId, "pop-medium");
-    assert.equal(s.d.routine?.mode, "dance");
+    assert.equal(s.d.state.phase, "lobby");
     assert.equal(last(s.flush().out, "state")?.calibrated, undefined);
-    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
-    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
-    assert.equal(s.d.state.phase, "learning");
   });
 
-  it("the metronome starts at once (it's for measuring); stopping the measuring forgets the dance", () => {
-    const { s } = fresh();
-    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: METRONOME_ID } });
-    assert.equal(s.d.state.phase, "learning");
-    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
-    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
-    assert.equal(s.d.state.phase, "calibrating");
-    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
-    assert.equal(s.d.state.phase, "lobby");
-    s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
-    s.handle(SPEAKER, { t: "calibrated", audioOffsetMs: 90 });
-    assert.equal(s.d.state.phase, "lobby", "measured from the lobby: nothing waiting to start");
+  it("the TV speaks its host's language: the host's phone says it, the others' don't change it, the next host's when the host leaves", () => {
+    const { s, clock } = fresh();
+    const first = s.stateMsg();
+    assert.equal(first.t === "state" ? first.lang : null, undefined, "nothing said yet");
+    s.handle(BOB, { t: "lang", lang: "en" });
+    assert.deepEqual(s.flush().out, [], "Bob isn't the host: nothing for the TV");
+    s.handle(ANN, { t: "lang", lang: "zh" });
+    const out = s.flush().out;
+    assert.equal(out.length, 1);
+    assert.ok(out[0] && "to" in out[0] && out[0].to === "speaker");
+    assert.equal(last(out, "state")?.lang, "zh");
+    s.handle(ANN, { t: "lang", lang: "zh" });
+    assert.deepEqual(s.flush().out, [], "the same again: nothing new");
+    s.handle(ANN, { t: "lang", lang: "fr" as never });
+    s.handle(SPEAKER, { t: "lang", lang: "en" });
+    assert.deepEqual(s.flush().out, [], "only zh or en, only from a phone");
+    // Ann leaves: Bob is the host, and his language is the TV's
+    s.disconnect(ANN);
+    clock.advance(PLAYER_GRACE_MS);
+    s.tick();
+    assert.equal(last(s.flush().out, "state")?.lang, "en");
+    assert.equal(s.d.langs?.["ann-000001"], undefined, "a phone gone for good is forgotten");
   });
 
   it("暂停 in the dance: nothing ends while paused; 继续 moves beat 0 and the end later, the moments before the pause again first", () => {

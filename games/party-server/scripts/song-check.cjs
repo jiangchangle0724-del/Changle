@@ -26,7 +26,8 @@ const BOB_LATE = 90;
   const speaker = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: "zh-CN" })).newPage();
   watch(speaker, "speaker");
   await speaker.goto(`${BASE}/party/screen`);
-  await speaker.getByRole("button", { name: "开始" }).click();
+  // (the room opens by itself; a tap anywhere turns its sound on, where a browser wants one)
+  await speaker.locator(".bar").click();
   await speaker.waitForFunction(() => /^#[A-Z0-9]{4}$/.test(location.hash));
   const code = (await speaker.evaluate(() => location.hash)).slice(1);
 

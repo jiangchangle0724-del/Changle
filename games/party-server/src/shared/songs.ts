@@ -7,18 +7,17 @@
 // Shuffle's line dance, the Cha-Cha Slide's calls, Y.M.C.A.'s letters, Watch Me's whip and nae nae,
 // the Ketchup Song's hands, Gee's crab step, 海草舞's seaweed arms and 極楽浄土's kimono sleeves (the
 // moves: shared/songmoves.ts).
-// Their beat was measured in each video (2026-11-11 and 12, in a browser, the video played silently
-// and its onsets fitted to a grid: the tempo, beat 0 to within ~10 ms) and their parts placed from
-// the songs' timed lyrics, so they need no 找拍子. The others dance a few of the library's easiest
-// moves, two 8-counts each, round and round (`pattern`), on a beat found the first time a room dances
-// them: everyone taps along on their phones (找拍子) and the beat is kept for every room in the
-// songbook (server/songbook.ts); one person can do it again on the speaker page (歌曲对拍). Their
-// firstBeatMs here is only a rough guess, for the tests. A fast song is danced at half its tempo, on
-// every other beat (APT. at 74.5).
+// Their parts were placed from the songs' timed lyrics. The other six dance a few of the library's
+// easiest moves, two 8-counts each, round and round (`pattern`).
+// Every song's beat was measured in its video (2026-11-11 and 12, in a browser: the video played
+// silently and its onsets fitted to a grid, the tempo and beat 0 to within ~10 ms), so a song starts
+// as soon as a phone picks it: nobody taps along to find its beat (Steve, 2026-11-12: the players
+// pick any song on their phones and it plays; the TV is touched for nothing). A fast song is danced
+// at half its tempo, on every other beat (APT. at 74.5).
 //
 // The videos are the artists' or labels' own uploads (YouTube's "Topic" channels are the labels'
 // audio), but 海草舞's (there is none). Checked in a browser at home: all play embedded (the first
-// twelve 2026-11-11; the seven since, as their beats were measured). 最炫民族风's first one
+// twelve 2026-11-11; all of them again on the 12th, as their beats were measured). 最炫民族风's first one
 // (6eGj6ZC5R4E) wouldn't (error 150: its owner doesn't let other sites play it); the label's Topic
 // upload does. A data centre's address is refused most of them, so the cloud checks can't tell.
 // Left out: 小苹果 (its official video stops the song for sketches), 学猫叫 (no official upload).
@@ -35,11 +34,7 @@ export interface Song {
   /** the YouTube video */
   videoId: string;
   bpm: number;
-  /**
-   * when in the video the dance's first beat is (ms). For an aligned song (below) it's from the
-   * song's own timing, to within half a beat, and the room's tapped beat grid settles it exactly;
-   * for the others a rough guess until the songbook knows better.
-   */
+  /** when in the video the dance's first beat is (ms): a beat of the grid measured in the video */
   firstBeatMs: number;
   /** its dance is laid along the song's sections (the original dance), from firstBeatMs */
   aligned?: boolean;
@@ -468,9 +463,10 @@ export const SONGS: readonly Song[] = [
     artist_zh: "防弹少年团 BTS",
     artist_en: "BTS",
     videoId: "gdZLi9oWNZg",
+    // (114 BPM from 0.04 s; the video opens with a scene of its own, the song from its beat 48)
     bpm: 114,
-    firstBeatMs: 10000,
-    beats: 280,
+    firstBeatMs: 25303,
+    beats: 368,
     pattern: [["side-step-touch", 2], ["clap-2x", 2], ["alternating-reach", 2], ["raise-arms", 2]],
     difficulty: "easy",
   },
@@ -481,9 +477,11 @@ export const SONGS: readonly Song[] = [
     artist_zh: "PSY",
     artist_en: "PSY",
     videoId: "ASO_zypdnsQ",
+    // (126 BPM from 0.123 s, the dance from its beat 8 to the full stop at beat 400; the video's
+    // ending after it is off that grid)
     bpm: 126,
-    firstBeatMs: 12000,
-    beats: 312,
+    firstBeatMs: 3933,
+    beats: 392,
     pattern: [["march-clap", 2], ["forward-push", 2], ["side-wave", 2], ["clap-2x", 2]],
     difficulty: "easy",
   },
@@ -494,9 +492,11 @@ export const SONGS: readonly Song[] = [
     artist_zh: "Dua Lipa",
     artist_en: "Dua Lipa",
     videoId: "TUVcZfQe-Kw",
+    // (103 BPM from 0.559 s, the dance from its beat 8 to the stop at beat 344; the video's ending
+    // after it is off that grid)
     bpm: 103,
-    firstBeatMs: 10000,
-    beats: 256,
+    firstBeatMs: 5219,
+    beats: 336,
     pattern: [["side-wave", 2], ["side-step-touch", 2], ["alternating-reach", 2], ["clap-2x", 2]],
     difficulty: "easy",
   },
@@ -570,9 +570,10 @@ export const SONGS: readonly Song[] = [
     artist_zh: "夏奇拉 Shakira",
     artist_en: "Shakira",
     videoId: "pRpeEdMmmQ0",
+    // (127 BPM from 0.288 s, the dance from its beat 40, where the drums come in, to the fade)
     bpm: 127,
-    firstBeatMs: 10000,
-    beats: 312,
+    firstBeatMs: 19186,
+    beats: 392,
     pattern: [["side-step-touch", 2], ["clap-2x", 2], ["raise-arms", 2], ["side-wave", 2]],
     difficulty: "easy",
   },
@@ -583,9 +584,10 @@ export const SONGS: readonly Song[] = [
     artist_zh: "Mark Ronson, Bruno Mars",
     artist_en: "Mark Ronson ft. Bruno Mars",
     videoId: "OPf0YbXqDm0",
+    // (115 BPM from 0.28 s, the dance from the first verse, its beat 16, to the song's end)
     bpm: 115,
-    firstBeatMs: 10000,
-    beats: 280,
+    firstBeatMs: 8628,
+    beats: 496,
     pattern: [["march-clap", 2], ["side-step-touch", 2], ["forward-push", 2], ["clap-2x", 2]],
     difficulty: "easy",
   },
@@ -596,9 +598,11 @@ export const SONGS: readonly Song[] = [
     artist_zh: "贾斯汀 Justin Timberlake",
     artist_en: "Justin Timberlake",
     videoId: "ru0K8uYEZWw",
+    // (113 BPM from 0.432 s, the dance from its beat 16 to just before the stop at beat 446; the
+    // video's last part after it is off that grid)
     bpm: 113,
-    firstBeatMs: 10000,
-    beats: 280,
+    firstBeatMs: 8928,
+    beats: 424,
     pattern: [["clap-2x", 2], ["side-step-touch", 2], ["raise-arms", 2], ["alternating-reach", 2]],
     difficulty: "easy",
   },

@@ -16,7 +16,8 @@ const OUT = process.argv[2] || ".";
   speaker.on("pageerror", (e) => errs.push("speaker: " + e));
   speaker.on("console", (m) => m.type() === "error" && errs.push("speaker: " + m.text()));
   await speaker.goto(`${BASE}/party/screen?gl=any`);
-  await speaker.getByRole("button", { name: "开始" }).click();
+  // (the room opens by itself; a tap anywhere turns its sound on, where a browser wants one)
+  await speaker.locator(".bar").click();
   await speaker.waitForFunction(() => /^#[A-Z0-9]{4}$/.test(location.hash));
   const code = (await speaker.evaluate(() => location.hash)).slice(1);
   const phones = [];
