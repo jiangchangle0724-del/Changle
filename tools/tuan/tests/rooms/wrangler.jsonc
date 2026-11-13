@@ -1,0 +1,8 @@
+// The stand-in rooms server (worker.ts), under the real one's name, so this tool's bindings to
+// `changle-rooms` reach it in a local run: `npm run dev:alone`. Never published.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "changle-rooms",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-26"
+}

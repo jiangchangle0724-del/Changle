@@ -7,6 +7,19 @@
   "name": "tuan",
   "main": "src/server/worker.ts",
   "compatibility_date": "2026-10-26",
+  // The pages: one file for all of them, with its script, styles and fonts, built into
+  // dist/client/tuan by scripts/build.mjs (so they answer at /tuan/…). The page itself and the API
+  // go to the Worker first: it sets the page's headers and puts a group buy's name in its page's
+  // title. Scripts, styles and fonts (under /tuan/assets) are plain files; any other address isn't
+  // a file, so the Worker answers it too.
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/tuan", "/tuan/", "/tuan/api/*"]
+  },
+  // wrangler builds the pages before it runs or publishes the Worker.
+  "build": { "command": "node scripts/build.mjs" },
   // With routes set, wrangler leaves the workers.dev address off, so /tuan is its only address.
   "routes": [
     { "pattern": "changle.ca/tuan", "zone_name": "changle.ca" },

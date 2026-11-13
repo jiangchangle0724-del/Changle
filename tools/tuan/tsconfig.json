@@ -1,4 +1,6 @@
 {
+  // The server, the rules it shares with the pages, and their tests: the Workers runtime, no DOM.
+  // The pages have their own: tsconfig.client.json.
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
@@ -12,5 +14,6 @@
     "resolveJsonModule": true,
     "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types", "node"]
   },
-  "include": ["src", "tests", "vitest.config.ts", "worker-configuration.d.ts"]
+  "include": ["src", "tests", "vitest.config.ts", "worker-configuration.d.ts"],
+  "exclude": ["src/client", "tests/e2e"]
 }

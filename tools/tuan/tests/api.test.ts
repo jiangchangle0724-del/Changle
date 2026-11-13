@@ -1,5 +1,5 @@
 // The Worker itself, inside the Workers runtime with a local D1 (the tables are made by the Worker,
-// from migrations/). The rooms server it asks about sign-ins is a stand-in (tests/accounts.ts).
+// from migrations/). The rooms server it asks about sign-ins is a stand-in (tests/rooms/worker.ts).
 // Every test starts its own shop and group buy, and comes from a network of its own.
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -604,6 +604,85 @@ describe("the shelf under a crowd", () => {
   });
 });
 
+describe("the pages", () => {
+  /** A page as a phone asks for it: its status, its text, its headers. */
+  async function open(path: string, method = "GET") {
+    const res = await worker.fetch(new Request(`https://changle.ca${path}`, { method, headers: { "cf-connecting-ip": network } }), env);
+    return { status: res.status, html: await res.text(), headers: res.headers };
+  }
+  const titleOf = (html: string) => /<title>([^<]*)<\/title>/.exec(html)?.[1];
+  const cardOf = (html: string) => /<meta property="og:title" content="([^"]*)"/.exec(html)?.[1];
+
+  it("is one file for home, a group buy and an order: never kept, nothing foreign runs on it, no search engine lists it", async () => {
+    const at = await start();
+    for (const path of ["/tuan", "/tuan/", "/tuan/preview", `/tuan/t/${at.id}`, "/tuan/o/K7M2PQ", "/tuan/o/k7m2pq"]) {
+      const res = await open(path);
+      expect([path, res.status]).toEqual([path, 200]);
+      expect(res.headers.get("content-type")).toMatch(/^text\/html/);
+      expect(res.html).toContain('<div id="app"></div>');
+      expect(res.html).toMatch(/<script src="\/tuan\/assets\/app-[A-Z0-9]+\.js" defer><\/script>/);
+      expect(res.html).toMatch(/<link rel="stylesheet" href="\/tuan\/assets\/app-[A-Z0-9]+\.css" \/>/);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(res.headers.get("referrer-policy")).toBe("same-origin");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      const csp = res.headers.get("content-security-policy") ?? "";
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).not.toContain("unsafe");
+    }
+    // a page is only ever read
+    expect((await open("/tuan/", "POST")).status).toBe(405);
+    expect((await open(`/tuan/t/${at.id}`, "DELETE")).status).toBe(405);
+  });
+
+  it("names a group buy's page for the group buy and its shop, as text", async () => {
+    const at = await start();
+    const res = await open(`/tuan/t/${at.id}`);
+    expect(titleOf(res.html)).toBe("本周大米团 · 周五到货 · 大米团（测试） · 跟一单 Count Me In");
+    expect(cardOf(res.html)).toBe("本周大米团 · 周五到货 · 大米团（测试） · 跟一单 Count Me In");
+    // home keeps its own name
+    expect(titleOf((await open("/tuan/")).html)).toBe("跟一单 · Count Me In");
+
+    // whatever a merchant types is text on the page, never markup
+    const odd = await start({ title: `<script>alert(1)</script> "米" & 面` });
+    const page = await open(`/tuan/t/${odd.id}`);
+    expect(page.html).not.toContain("<script>alert(1)</script>");
+    expect(titleOf(page.html)).toBe("&lt;script&gt;alert(1)&lt;/script&gt; \"米\" &amp; 面 · 大米团（测试） · 跟一单 Count Me In");
+    expect(cardOf(page.html)).toBe("&lt;script&gt;alert(1)&lt;/script&gt; &quot;米&quot; &amp; 面 · 大米团（测试） · 跟一单 Count Me In");
+  });
+
+  it("says 404, with the page that says so, for a group buy that isn't there or isn't public yet", async () => {
+    const draft = await start({ open: false });
+    for (const path of ["/tuan/t/zzzz9999", `/tuan/t/${draft.id}`, "/tuan/t/short", "/tuan/nothing", "/tuan/o/bad", "/tuan/t", "/tuan/my"]) {
+      const res = await open(path);
+      expect([path, res.status]).toEqual([path, 404]);
+      expect(res.html).toContain('<div id="app"></div>');
+      expect(titleOf(res.html)).toBe("跟一单 · Count Me In");
+      expect(res.headers.get("cache-control")).toBe("no-store");
+    }
+    // once it's open, it has its page
+    await post(`/my/offers/${draft.id}`, { do: "open" }, { session: SESSION.leader });
+    expect((await open(`/tuan/t/${draft.id}`)).status).toBe(200);
+  });
+
+  it("opens an order's page the same way whether or not there is such an order", async () => {
+    const at = await start();
+    const mine = (await place(at, [["五常大米", 1000]])).data.order;
+    const real = await open(`/tuan/o/${mine.code}`);
+    const none = await open("/tuan/o/ZZZZZZ");
+    expect([real.status, none.status]).toEqual([200, 200]);
+    expect(real.html).toBe(none.html);
+    expect(real.html).not.toContain(mine.code);
+  });
+
+  it("has no page where a script, a style or a font is missing", async () => {
+    const res = await open("/tuan/assets/app-NOTHING.js");
+    expect([res.status, res.html]).toEqual([404, "not found"]);
+    expect(res.headers.get("content-type")).toMatch(/^text\/plain/);
+  });
+});
+
 describe("the way in", () => {
   it("answers its own pages and nobody else's", async () => {
     const at = await start();
@@ -629,7 +708,7 @@ describe("the way in", () => {
     expect(said(await get("/offers/NOT-AN-ID"))).toBe("404 notfound");
     expect(said(await call("PUT", "/offers/aaaa2222", { body: {} }))).toBe("404 notfound");
     expect(said(await get("/my/nothing", { session: SESSION.leader }))).toBe("404 notfound");
-    for (const path of ["/tuan", "/tuan/", "/tuan/preview", "/tuan/t/aaaa2222", "/tuanx/api/my", "/"]) {
+    for (const path of ["/tuanx/api/my", "/tuanx", "/"]) {
       const res = await worker.fetch(new Request(`https://changle.ca${path}`), env);
       expect([path, res.status, await res.text()]).toEqual([path, 404, "not found"]);
       expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
