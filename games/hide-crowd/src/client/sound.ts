@@ -1,33 +1,47 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
-// hitting the floor, the ferry horn and the opera gong, the last seconds' ticks, a whistle to start
-// and a little fanfare at the end; on the big screen (and in practice) a light loop for the place.
-// Phones only allow sound after a tap, so the first tap unlocks it. The menu's switch turns it off
-// (hc.sound), and the game plays the same without it.
+// hitting the floor, the ferry horn, the busker's riff and the opera gong, the last seconds' ticks, a
+// whistle to start and a little fanfare at the end; on the big screen (and in practice) a light loop
+// for the place. Phones only allow sound after a tap, so the first tap unlocks it. The menu's two
+// switches turn the sounds off (hc.sound) and the music (hc.music), and the game plays the same without.
 import type { ArenaId } from "../engine";
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let musicBus: GainNode | null = null;
-let on = readSound();
+let on = readFlag("hc.sound");
+let music = readFlag("hc.music");
+const MUSIC_LEVEL = 0.16;
 
-function readSound(): boolean {
+function readFlag(key: string): boolean {
   try {
-    return localStorage.getItem("hc.sound") !== "0";
+    return localStorage.getItem(key) !== "0";
   } catch {
     return true;
   }
 }
 
-export const soundOn = () => on;
-
-export function setSound(value: boolean): void {
-  on = value;
+function keepFlag(key: string, value: boolean): void {
   try {
-    localStorage.setItem("hc.sound", value ? "1" : "0");
+    localStorage.setItem(key, value ? "1" : "0");
   } catch {
     // private mode: forgotten next time
   }
+}
+
+export const soundOn = () => on;
+export const musicOn = () => music;
+
+export function setSound(value: boolean): void {
+  on = value;
+  keepFlag("hc.sound", value);
   if (master && ctx) master.gain.setTargetAtTime(value ? 0.9 : 0, ctx.currentTime, 0.03);
+  if (value) unlockAudio();
+}
+
+export function setMusic(value: boolean): void {
+  music = value;
+  keepFlag("hc.music", value);
+  if (musicBus && ctx) musicBus.gain.setTargetAtTime(value ? MUSIC_LEVEL : 0, ctx.currentTime, 0.05);
   if (value) unlockAudio();
 }
 
@@ -44,7 +58,7 @@ export function unlockAudio(): void {
     master.gain.value = on ? 0.9 : 0;
     master.connect(ctx.destination);
     musicBus = ctx.createGain();
-    musicBus.gain.value = 0.16;
+    musicBus.gain.value = music ? MUSIC_LEVEL : 0;
     musicBus.connect(master);
     // (a silent blip: iOS only opens the speaker for a sound started inside the tap)
     const blip = ctx.createBufferSource();
@@ -112,11 +126,13 @@ function hiss(start: number, length: number, level: number, from: number, to: nu
 
 /** The music dips under the big moments, and comes back. */
 function duck(start: number, length: number): void {
-  if (!musicBus || !ctx) return;
+  if (!musicBus || !ctx || !music) return;
   musicBus.gain.cancelScheduledValues(start);
   musicBus.gain.setTargetAtTime(0.05, start, 0.05);
-  musicBus.gain.setTargetAtTime(0.16, start + length, 0.4);
+  musicBus.gain.setTargetAtTime(MUSIC_LEVEL, start + length, 0.4);
 }
+
+const midi = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
 
 export const sfx = {
   /** a punch thrown */
@@ -201,6 +217,22 @@ export const sfx = {
     hiss(t, 0.09, 0.2, 3_000, 1_200, 0.9);
     duck(t, 2.4);
   },
+  /** the transit hall's busker strikes up: a bouncy plucked riff over a bass and claps, for the dance */
+  busker(): void {
+    const t = now();
+    if (t === null) return;
+    const eighth = 0.165;
+    const riff = [67, 71, 74, 71, 76, 74, 71, 69, 67, 71, 74, 79, 76, 74, 71, 67];
+    const bass = [43, 43, 48, 50];
+    riff.forEach((note, index) => {
+      const at = t + index * eighth;
+      voice("triangle", midi(note), midi(note), at, eighth * 1.6, 0.16, master!, 0.004);
+      voice("square", midi(note + 12), midi(note + 12), at, eighth * 0.6, 0.025, master!, 0.003);
+      if (index % 2 === 0) voice("triangle", midi(bass[Math.floor(index / 4)]), midi(bass[Math.floor(index / 4)]), at, eighth * 1.8, 0.2);
+      if (index % 4 === 2) hiss(at, 0.07, 0.2, 1_800, 1_200, 1.1);
+    });
+    duck(t, riff.length * eighth + 0.2);
+  },
   /** one of the last five seconds */
   tick(last = false): void {
     const t = now();
@@ -271,8 +303,6 @@ const GROOVES: Record<ArenaId, Groove> = {
   gallery: { bpm: 96, bass: [43, 43, 38, 40], scale: [67, 69, 71, 74, 76, 79], lead: "triangle", block: true }
 };
 
-const midi = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
-
 let loop: { timer: number; arena: ArenaId; step: number; at: number; seed: number } | null = null;
 
 export function startMusic(arena: ArenaId): void {
@@ -289,7 +319,7 @@ export function startMusic(arena: ArenaId): void {
   });
   const schedule = () => {
     const current = loop;
-    if (!current || !ctx || !musicBus || !on || ctx.state !== "running") return;
+    if (!current || !ctx || !musicBus || !on || !music || ctx.state !== "running") return;
     if (current.at < ctx.currentTime) current.at = ctx.currentTime + 0.05;
     while (current.at < ctx.currentTime + 0.25) {
       const step = current.step % 16;

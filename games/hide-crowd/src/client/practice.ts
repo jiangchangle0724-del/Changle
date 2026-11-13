@@ -1,10 +1,10 @@
 // One phone on its own (changle.ca/hide/practice, the game card's one-phone button): the same room
 // as online, run in the page, with three computer rivals hidden in the crowd. They walk the way the
-// passers-by walk (the same plans, crowdStep in the rules), stop for the ferry horn or the gong a beat
-// after it like everyone, go after anyone who gives themselves away (punching, walking on through the
-// horn or the gong, running on and on: passers-by run too, but only for a moment), and sometimes get
-// it wrong. No server, no penalty.
-import { crowdMoment, crowdStep, NPC_SPEED, reactionDelay, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, type Character, type MatchState, type Plan, type Vector } from "../engine";
+// passers-by walk (the same plans, crowdStep in the rules), stop for the ferry horn, the busker or the
+// gong a beat after it like everyone and turn to look at a knockdown near them, go after anyone who
+// gives themselves away (punching, walking on through the horn, the dance or the gong, running on and
+// on: passers-by run too, but only for a moment), and sometimes get it wrong. No server, no penalty.
+import { crowdMoment, crowdStep, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, type Character, type MatchState, type Plan, type Vector } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
 import { Room } from "../room/room";
 import type { ConnectionState, RoomConnection } from "./net";
@@ -33,10 +33,17 @@ const angleDiff = (a: number, b: number) => {
   return d;
 };
 
-/** A walk like a passer-by's: the same plans (stop, look, follow, now and then a run), steered with the stick. */
+/**
+ * A walk like a passer-by's, steered with the stick: the same plans (stop, look, follow, now and then a
+ * run), the same stops for the crowd's moments and the same stares at a knockdown. Standing, it turns
+ * to whatever a passer-by would be looking at with a light nudge, as a player would.
+ */
 function stroll(brain: Brain, body: Character, game: MatchState, now: number): Vector {
   const step = crowdStep({ ...body, npcStyle: brain.style, plan: brain.plan ?? body.plan }, game.characters, game, now);
   brain.plan = step.plan;
+  if (step.heading.x === 0 && step.heading.y === 0) {
+    return step.face !== null && angleDiff(body.facing, step.face) > 0.35 ? { x: Math.cos(step.face) * 0.07, y: Math.sin(step.face) * 0.07 } : { x: 0, y: 0 };
+  }
   const scale = (step.pace * NPC_SPEED) / PLAYER_SPEED;
   return { x: step.heading.x * scale, y: step.heading.y * scale };
 }
@@ -66,8 +73,10 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
     // passer-by has stopped (the slowest turns 0.64 s in, then slows down)
     const moment = crowdMoment(game.arena, game.startedAt, now);
     const watching = !!moment && now - moment.startsAt > 1_300;
+    // (a body's own speed: the transit hall's walkway carries everyone)
+    const drift = environmentalDrift(game.arena, game.startedAt, now);
     game.characters.forEach((body, at) => {
-      const speed = Math.hypot(body.velocity.x, body.velocity.y);
+      const speed = Math.hypot(body.velocity.x - drift.x, body.velocity.y - drift.y);
       const running = speed > NPC_SPEED + 1.2 ? (runningFor.get(at) ?? 0) + SIMULATION_STEP_MS : 0;
       runningFor.set(at, running);
       const tell = body.pose === "windup" || body.pose === "punch" ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
@@ -94,11 +103,9 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       }
       let input = stroll(brain, body, game, now);
       const target = brain.chasing !== null ? game.characters[brain.chasing] : undefined;
-      if (moment && now >= moment.startsAt + reactionDelay(brain.id)) {
-        // it stops for the horn too, a beat after the sound like everyone, and turns to look with a light nudge
-        const look = moment.look;
-        const want = Math.atan2(look.y - body.y, look.x - body.x);
-        input = angleDiff(body.facing, want) > 0.35 ? { x: Math.cos(want) * 0.07, y: Math.sin(want) * 0.07 } : { x: 0, y: 0 };
+      if (moment) {
+        // the horn, the busker or the gong: it does what the crowd does, a beat after the sound like
+        // everyone (stops and turns to look, or stands and dances: the stroll above), and chases nobody
       } else if (target && now <= brain.chaseUntil) {
         const dx = target.x - body.x;
         const dy = target.y - body.y;

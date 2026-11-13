@@ -28,15 +28,15 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Screen | What it shows |
 | --- | --- |
 | Phone, lobby | The table's code; on an iPhone in Safari, a line about adding changle.ca to the Home Screen; the arena vote (three rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. When the ferry horn or the gong sounds, a pill low in the middle says so while the crowd stands still. |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. When the ferry horn, the busker or the gong sounds, a pill low in the middle says so while the crowd stands still or dances. |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the Home Screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen, so the game shows how to put changle.ca on the Home Screen (`ui/HomeScreen.tsx`): once by itself in the first lobby, then from the lobby's line, the menu and the full-screen button. A little iPhone acts out the four taps (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
-| Phone, end of a round | The last blow lands first (1.4 s, in slow motion), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
+| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the three arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
-| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's or the gong's pill takes its place while it lasts). |
-| Big screen, end of a round | The last blow in slow motion, the penalty stamp for seven seconds, then the result card with the round's titles. |
-| Phone, the menu (⋯) | Language, sound, reduced motion, full screen (on an iPhone: the Home Screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
+| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's or the gong's pill takes its place while it lasts). |
+| Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the penalty stamp for seven seconds, then the result card with the round's titles. |
+| Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the Home Screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
 | Credits (`/hide/credits`, and the menu) | Where every picture and model comes from. |
 
@@ -86,7 +86,8 @@ bodies on a skeleton (`src/client/people.ts`), moved the way big animated games 
   face knows which part of the clothes it is, and each look paints the parts from a 16-colour strip:
   skin, top, sleeves, trousers or shorts, shoes, hair, a bag. Hair (short, a bun, a ponytail, a cap),
   backpacks, satchels and the eyes are simple shapes made in the same script, on the head's and the
-  back's bones. A person is drawn 2.15 units tall with a head a fifth bigger than life, so the crowd reads
+  back's bones; the game skins each look's parts into its body when the file loads, so a person is
+  one draw (`tests/people.test.ts` checks every part still sits where it did on its bone). A person is drawn 2.15 units tall with a head a fifth bigger than life, so the crowd reads
   from above on a phone; tops are bright enough to tell apart on the darkest floor (the transit
   hall's walkways). The flat arena's `--look-*` colours are the looks' tops (`tests/people.test.ts`
   checks).
@@ -94,7 +95,8 @@ bodies on a skeleton (`src/client/people.ts`), moved the way big animated games 
   phone), walking (two ways), a slow jog at a player's top speed, all on one stride clock that
   follows the body's real speed, so planted feet keep still at the crowd's pace (the test walks a
   body and measures it). A body leans into a start and into its turns, and a glancing body (a player
-  blending in, a passer-by looking around) turns its head.
+  blending in, a passer-by looking around) turns its head. When the busker plays, anyone standing
+  still dances (each a little out of step with the others), and so does the winner at the end.
 * **The moments that matter.** A punch's fist is out when the rules land it (the clip is timed to
   the wind-up); a tagged body turns to the blow, is knocked off its feet and is up again by the time
   the rules let go (1.15 s, then they slip into the crowd); a puncher who hit a passer-by recoils
@@ -123,10 +125,16 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
   every 15 s), at the theatre the opera gong (12 s in, then every 17 s). For 2.6 s every passer-by
   stops and turns to the sea or the stage, each a beat after the sound (0.1 to 0.6 s: people don't
   all turn at once). Players aren't made to stop: that's the test. A light nudge up turns a player to
-  the sea or the stage too. The transit hall keeps its walkways. The computer rivals in practice stop
+  the sea or the stage too. In the transit hall a busker strikes up (8.8 s in, then every 18 s, always
+  while the walkways rest) and for 2.7 s everyone standing still dances on the spot: players too, so
+  the way to blend in is to stop; whoever walks on stands out. The computer rivals in practice stop
   and turn with the crowd (a beat after the sound, like everyone), and grow suspicious of anyone who doesn't;
   running makes them suspicious only when it goes on longer than a passer-by's run (1.8 s). An
   idle player's practice round lasts about 50 s, as before (`tests/practice.test.ts` plays it out).
+* **A knockdown draws looks** (`commotionFor`): anyone knocked down, a player or a passer-by, makes
+  the passers-by within 15 units stop and turn to stare for a second or two, each a beat after the
+  fall. It's what people do, and a player walking past a fall without a glance is one more thing to
+  notice. The rivals in practice stare too.
 * **A punch that lands, felt** (`ui/Arena3D.tsx`, `people.ts`): a beat of stillness (a hit-stop, 95 ms
   for a tag), the camera's kick toward the floor, sparks where the blow lands, the body turning to the
   blow and flying off its feet, dust where its back hits the floor, then up again. A passer-by who is
@@ -135,18 +143,23 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
   stillness, kicks, sparks, dust or slow motion.
 * **Sound** (`src/client/sound.ts`, all made in the page, no files): a whoosh for a punch, a cartoon
   bonk when it lands, a thud on the floor, a sheepish two notes for a foul, a slide when you're
-  spotted, the ferry horn, the gong, ticks in the last five seconds, a whistle to start and a little
-  fanfare at the end. A phone plays only its own player's moments (and the horn, the gong, the clock),
+  spotted, the ferry horn, the busker's riff, the gong, ticks in the last five seconds, a whistle to
+  start and a little fanfare at the end. A phone plays only its own player's moments (and the horn,
+  the busker, the gong, the clock),
   so a table of phones doesn't become a din; the big screen plays the whole room and a light loop for
   the place (a stroll by the bay, a busy concourse, a woodblock at the theatre), as does a phone in
   practice. The menu's Sound switch turns it all off (it is remembered, and a phone sent in from a
-  table brings the site's own sound setting with it); the game plays the same without it. Being spotted also buzzes an Android phone.
+  table brings the site's own sound setting with it), and its Music switch the loop alone; the game
+  plays the same without them. Being spotted also buzzes an Android phone.
 * **Titles at the end** (`roundAwards`): each player gets one at most, the first that fits: 火眼金睛
   Eagle Eye (spotted the most), 隐身大师 Ghost (never spotted, never punched a passer-by), 误伤专业户
   Friendly Fire (punched the most passers-by), 空气拳手 Air Puncher (punched the most air, two or
   more), 人肉沙包 Punching Bag (spotted the most, two or more). They come only with the result, so
   nothing during the round tells who did what.
 * **Faces.** Every body has two dark eyes now, so the crowd reads where everyone is looking.
+* **Who was who, at the end** (`Room.view`): once a round is over, every screen gets each player's name
+  on the body they were (the next round shuffles the crowd again, so it gives nothing away), and the
+  winner's body dances. Everyone stops where they are.
 
 ## Nobody is marked
 
@@ -155,13 +168,15 @@ passer-by (`Room.view` in `src/room/room.ts`, tested in `tests/room.test.ts` and
 `tests/e2e/tv.spec.ts`):
 
 * Every body is sent the same fields (position, facing, speed, pose) and nothing else: no ids, no
-  names, no "player" or "passer-by", no top speed.
+  names, no "player" or "passer-by", no top speed. Only once the round is over does each player's
+  body get a name (and the winner's a mark): the next round shuffles the crowd again.
 * The crowd's order is shuffled when a round starts (`createMatch`). Every screen draws by that
   order (each place keeps one of the six looks), so players are spread among the looks and the
   places in the list like everyone else.
 * A phone's own body is marked (`me`) on that phone only; the big screen gets no `me` at all.
 * What gives a player away is what they do: punching, being knocked down, walking on through the
-  ferry horn, running when nobody else is. That is the game.
+  ferry horn or the busker's dance, running on and on, walking past a fall without a look. That is
+  the game.
 
 **A tagged player slips back into the crowd.** When they get up (after 1.15 s), they swap who
 they are with a passer-by at least 24 units from whoever tagged them; every body stays where it
@@ -205,7 +220,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | File | Size | What | Where it comes from | Licence |
 | --- | --- | --- | --- | --- |
 | `thumb-*.webp` | 12 to 17 KB each | The lobby's pictures of the three arenas, 320 x 180 | **AI-made**: cropped from three panoramas drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 (the panoramas themselves were dropped on 2026-11-11: the arena doesn't draw them) | OpenAI's terms assign the output to the user; no third-party art in it |
-| `crowd-people.glb` | 193 KB | The crowd's man: his body on a 23-bone skeleton, the hair, caps, bags and eyes, and the ten clips everyone moves with (three ways of standing, two walks, a jog, a punch, a fall, a get-up, a recoil) | Quaternius's Universal Animation Library 1 and 2 (the mannequin and the clips), rebuilt by `tools/blender/build_crowd_people.py`; the hair, caps and bags made from scratch in the same script | CC0 1.0 (public domain); the gear ours |
+| `crowd-people.glb` | 201 KB | The crowd's man: his body on a 23-bone skeleton, the hair, caps, bags and eyes, and the eleven clips everyone moves with (three ways of standing, two walks, a jog, a punch, a fall, a get-up, a recoil, a dance) | Quaternius's Universal Animation Library 1 and 2 (the mannequin and the clips), rebuilt by `tools/blender/build_crowd_people.py`; the hair, caps and bags made from scratch in the same script | CC0 1.0 (public domain); the gear ours |
 | `crowd-people-f.glb` | 96 KB | The crowd's woman: her body, her hair, caps, bags and eyes | Quaternius's Universal Animation Library 2 (the female mannequin), the same script | CC0 1.0; the gear ours |
 | `seawall-dressing.glb` | 390 KB | The seawall's 3D set: cedars, benches, railing, lamps, signs | Made from scratch by `tools/blender/generate_arena_dressing.py` (Blender 5.2), no outside models or textures | ours |
 | `transit-dressing.glb` | 262 KB | The transit hall's 3D set: carriage, canopy, platform edge | The same script | ours |
@@ -240,14 +255,17 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 
 * **The first download is small.** `app.js` (28 KB gzipped) and a shared chunk (19 KB) draw the
   lobby; three.js and the 3D arena (`Arena3D-*.js`, 182 KB gzipped) are a file of their own, fetched
-  while the lobby is up with the people's two files (289 KB, 126 KB gzipped), so a round starts at
+  while the lobby is up with the people's two files (297 KB, 128 KB gzipped), so a round starts at
   once. The stylesheet is 14 KB gzipped.
 * **A round fetches about 0.6 MB of art**: the people (once) and one 3D set (only the arena being
   played); the floor is drawn on the phone. The lobby's three pictures are 42 KB.
 * **The frame-rate budget** (`renderQuality.ts`) measures every second and lowers the pixel density
   (2.25, 1.6, 1.15) when frames run slow; real-time shadows are off. Each person is one skinned body
-  (about 2,600 faces, 23 bones, skinned on the graphics chip) and their hair and bag: about 80 draws for
-  26 people. `?fps=1` on a room's address shows the meter on a real phone.
+  (about 2,600 faces, 23 bones, skinned on the graphics chip) with their hair, bag and eyes in it: one
+  draw each, so a whole round is 33 to 47 draws (it was 101 to 115). `?fps=1` on a room's address shows
+  the meter on a real phone: frames a second, frame times, the quality, the draws, and how long the
+  page itself takes a frame (moving everyone and handing the picture over; the rest is the graphics
+  chip's).
 * **Without WebGL** (an old phone, a lost GPU context) the flat arena draws the same crowd from
   above with plain elements. `?flat=1` asks for it on purpose (the browser tests use it).
 * **The server sends each phone a small frame 20 times a second** (positions rounded to

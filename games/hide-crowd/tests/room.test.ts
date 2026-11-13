@@ -119,6 +119,7 @@ test("the big screen sees the crowd and the scores but never who is a player", (
   const tv = room.view(screen, "screen", 60);
   const phone = room.view(first, "player", 60);
   assert.equal(tv.game!.avatars.some((avatar) => avatar.me), false, "no body is marked on the big screen");
+  assert.equal([...tv.game!.avatars, ...phone.game!.avatars].some((avatar) => avatar.n !== undefined || avatar.w), false, "nobody is named while the round is on");
   assert.equal(tv.game!.me, null);
   assert.equal(phone.game!.avatars.filter((avatar) => avatar.me).length, 1, "a phone sees its own body");
   const text = JSON.stringify(tv);
@@ -154,6 +155,12 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   assert.equal(titles.Cy, "ghost");
   assert.equal(view.result!.awards.find((item) => item.name === "Ari")?.you, true);
   assert.equal(view.players.find((player) => player.name === "Bo")?.tagged, 3);
+  // the round is over: every screen finds out who was who (by name, nothing else), and the winner dances
+  const named = view.game!.avatars.filter((avatar) => avatar.n !== undefined);
+  assert.deepEqual(named.map((avatar) => avatar.n).sort(), ["Ari", "Bo", "Cy"]);
+  assert.equal(named.filter((avatar) => avatar.w).length, 1);
+  assert.deepEqual([named.find((avatar) => avatar.w)?.n, named.find((avatar) => avatar.w)?.p], ["Ari", "dance"]);
+  assert.equal(JSON.stringify(view.game).includes(second), false, "still no ids");
   const events = room.st.game!.events.map((event) => event.t);
   assert.ok(events.includes("hide"), "the tagged player slipped away");
   // the host can switch penalties off for the next round

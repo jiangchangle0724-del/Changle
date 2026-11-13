@@ -9,7 +9,7 @@ const S = {
   // rules
   rulesTitle: ["玩法", "How to play"],
   rule1: ["每人用自己的手机控制人群里的一个人。人群里还有 18 个电脑带着走的路人。", "Everyone steers one person in the crowd from their own phone. The other 18 are passers-by the computer walks around."],
-  rule2: ["走得像路人：他们走走停停、东张西望，有时跟着别人走，偶尔小跑几步。跟上他们的节奏，别人就认不出你。按「融入」会放慢脚步、东张西望几秒。", "Walk like them: they stop and go, look around, tag along behind someone and now and then break into a run. Keep to their rhythm and nobody can tell it's you. Blend in slows you down and looks around for a few seconds."],
+  rule2: ["走得像路人：他们走走停停、东张西望，有时跟着别人走，偶尔小跑几步，旁边有人被打倒会停下来看。跟上他们的节奏，别人就认不出你。按「融入」会放慢脚步、东张西望几秒。", "Walk like them: they stop and go, look around, tag along behind someone, now and then break into a run, and stop to stare when someone near them is knocked down. Keep to their rhythm and nobody can tell it's you. Blend in slows you down and looks around for a few seconds."],
   rule3: ["认出对手就出拳：打中玩家得 1 分，他爬起来后会换进人群里另一个身体，接着藏。打到路人，路人会摔倒，你也会愣一下，大家都看见了。", "Spot a rival, then punch: hitting a player scores a point, and once they get up they slip into another body in the crowd. Hit a passer-by and they go down, you're stunned for a moment, and everyone sees it."],
   rule4: ["先拿到 {n} 分的赢，或者 75 秒后分最多的赢。", "First to {n} tags wins, or the most tags after 75 seconds."],
   rulePenalty: ["每局结束，被认出来次数最多的人喝一口；谁都没被认出来，全桌一起喝。", "At the end of each round, whoever got spotted most takes a sip. If nobody got spotted, the whole table drinks."],
@@ -22,10 +22,11 @@ const S = {
   metro: ["温哥华交通站厅", "Vancouver Transit Hall"],
   gallery: ["中式庭院戏台", "Courtyard Theatre"],
   plazaRule: ["渡轮一鸣笛，路人都停下来看海。跟着停，往上轻推一下摇杆，你也在看海。", "When the ferry horn sounds, the passers-by stop and look out to sea. Stop with them: a light nudge up turns you to the sea too."],
-  metroRule: ["传送带每隔几秒换方向，人人都被带着走。", "The moving walkways switch direction every few seconds and carry everyone along."],
+  metroRule: ["传送带每隔几秒换方向，人人都被带着走。街头艺人一开唱，路人都原地跳舞：站着别动，你也会跟着跳。", "The moving walkways switch direction every few seconds and carry everyone along. When the busker strikes up, everyone dances on the spot: stand still and you dance too."],
   galleryRule: ["聚光灯里走得更快也更显眼。锣一响，路人都停下看戏台：跟着停，往上轻推一下。", "You move faster in the spotlight, and everyone can see you. When the gong sounds, the crowd stops to watch the stage: stop too, with a light nudge up."],
   momentHorn: ["渡轮鸣笛：路人都停下来看海", "Ferry horn: the crowd stops to look at the sea"],
   momentGong: ["锣响了：路人都停下看戏台", "The gong: the crowd stops to watch the stage"],
+  momentDance: ["街头艺人开唱：大家原地跳舞", "The busker strikes up: everyone dances on the spot"],
   awards: ["这局的称号", "This round's titles"],
   awardEagleEye: ["火眼金睛", "Eagle Eye"],
   awardEagleEyeWhy: ["认出的人最多", "Spotted the most rivals"],
@@ -38,7 +39,9 @@ const S = {
   awardPunchingBag: ["人肉沙包", "Punching Bag"],
   awardPunchingBagWhy: ["被认出最多次", "Spotted the most times"],
   sound: ["声音", "Sound"],
-  soundHint: ["出拳、鸣笛、锣声和倒计时；大屏上还有音乐", "Punches, the horn, the gong and the countdown; music on the big screen"],
+  soundHint: ["出拳、鸣笛、锣声、街头艺人和倒计时", "Punches, the horn, the gong, the busker and the countdown"],
+  music: ["音乐", "Music"],
+  musicHint: ["大屏和练习里每个场地的背景音乐", "Each place's background music, on the big screen and in practice"],
   tvSound: ["点一下开声音", "Click for sound"],
   // lobby
   pickArena: ["选场地", "Pick an arena"],
@@ -192,7 +195,7 @@ const S = {
   creditsCodeBody: ["Preact、three.js、qrcode-generator，都是 MIT 许可。全文在 licences.txt。", "Preact, three.js and qrcode-generator, all under the MIT licence. The full texts are in licences.txt."],
   licences: ["许可全文", "Licence texts"],
   // the frame meter (?fps=1 on a room's address), for measuring a real phone
-  fpsStats: ["FPS {fps} · 均 {avg}ms · P95 {p95}ms · 峰 {slow}ms · {quality} {dpr}×", "FPS {fps} · avg {avg}ms · P95 {p95}ms · max {slow}ms · {quality} {dpr}×"],
+  fpsStats: ["FPS {fps} · 均 {avg}ms · P95 {p95}ms · 峰 {slow}ms · {quality} {dpr}× · 绘制 {draws} · 脚本 {js}ms", "FPS {fps} · avg {avg}ms · P95 {p95}ms · max {slow}ms · {quality} {dpr}× · draws {draws} · js {js}ms"],
   qualityHigh: ["高", "High"],
   qualityBalanced: ["中", "Balanced"],
   qualityEfficient: ["省", "Efficient"]

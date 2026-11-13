@@ -1907,6 +1907,32 @@ html.is-tv body::before {
 .flat-avatar.pose-glance .flat-avatar__head {
   animation: flat-glance 520ms ease-in-out infinite alternate;
 }
+/* the busker plays (or the round is won): a bounce on the spot */
+.flat-avatar.pose-dance .flat-avatar__turn {
+  animation: flat-dance var(--dur-emphasis) var(--ease-out) infinite alternate;
+}
+@keyframes flat-dance {
+  from {
+    translate: 0 0;
+    rotate: -8deg;
+  }
+  to {
+    translate: 0 calc(-1 * var(--space-1));
+    rotate: 8deg;
+  }
+}
+.flat-avatar__you.is-name {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .flat-avatar.pose-dance .flat-avatar__turn {
+    animation: none;
+  }
+}
+[data-reduced="1"] .flat-avatar.pose-dance .flat-avatar__turn {
+  animation: none;
+}
 @keyframes flat-stagger {
   from {
     rotate: -14deg;

@@ -438,6 +438,15 @@ export class Room {
             p: character.pose
           };
           if (mine && character === mine) avatar.me = 1;
+          // the round is over: every screen finds out who was who (the next round shuffles the crowd
+          // again), and the winner dances
+          if (game.phase === "over" && character.kind === "player") {
+            avatar.n = nameOf(character.ownerId) ?? character.name;
+            if (character.ownerId === game.winnerId) {
+              avatar.w = 1;
+              avatar.p = "dance";
+            }
+          }
           return avatar;
         }),
         events: game.events.map((event) => ({

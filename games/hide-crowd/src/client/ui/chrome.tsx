@@ -24,7 +24,8 @@ const ICONS = {
   // the ferry (a hull, a cabin, its funnel) and the opera gong on its stand
   ship: "M3 15h18l-2.5 4.5h-13zM6 15v-4h10v4M9 11V7.5h3V11M10.5 5.5v2",
   gong: "M12 17a5 5 0 1 0 0-10a5 5 0 0 0 0 10zM4 4v17M20 4v17M4 4h16M12 4v3M11 12h2",
-  sound: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"
+  sound: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11",
+  note: "M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM19 16a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM9 10l10-2"
 } as const;
 export type IconName = keyof typeof ICONS;
 
