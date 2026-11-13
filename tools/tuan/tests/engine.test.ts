@@ -9,7 +9,7 @@ import { phoneDigits, phoneKey, tailOf } from "../src/engine/phone";
 import { readShop } from "../src/engine/shop";
 import { dueOf, summarize } from "../src/engine/summary";
 import { cleanLine, cleanLines } from "../src/engine/text";
-import { vancouverDay, vancouverTime } from "../src/engine/time";
+import { vancouverClock, vancouverDay, vancouverTime } from "../src/engine/time";
 import type { OfferBook, Order } from "../src/engine/types";
 import { buyerOrder, offerPage, orderPage, stateOf } from "../src/engine/view";
 import { offerDoc, sampleBook } from "./sample";
@@ -134,6 +134,10 @@ describe("codes, phone numbers, text and time", () => {
     expect(vancouverTime("2026-11-13", 18)).toBe(Date.UTC(2026, 10, 14, 1));
     expect(vancouverDay(Date.UTC(2026, 10, 14, 6, 59))).toBe("2026-11-13");
     expect(vancouverDay(Date.UTC(2026, 10, 14, 7, 0))).toBe("2026-11-14");
+    // the clock a merchant reads, and back again
+    expect(vancouverClock(Date.UTC(2026, 10, 14, 1, 26))).toBe("2026-11-13 18:26");
+    expect(vancouverClock(vancouverTime("2026-11-20", 20, 0))).toBe("2026-11-20 20:00");
+    expect(vancouverClock(vancouverTime("2027-07-01", 0, 5))).toBe("2027-07-01 00:05");
     expect(vancouverDay(vancouverTime("2027-01-15", 0))).toBe("2027-01-15");
   });
 });

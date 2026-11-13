@@ -8,10 +8,11 @@ directly (e-Transfer, WeChat, cash): the site carries the orders and never touch
 
 The plan is `docs/tuan.md`; where it stands and what's next is in `docs/briefs/tuan.md`.
 
-**The buyer's side is there; the merchant's pages come next.** This is the first stage (A1), in
-steps: the Worker, its database and the API; mail to the merchant; and now the pages a buyer sees
-(a group buy, the cart, checkout, the order). A merchant still has no pages: a group buy is started
-through the API. Nothing on changle.ca links here until the owner has tried it on a phone:
+**The first stage (A1) is built**: the Worker, its database and the API; mail to the merchant; the
+pages a buyer sees (a group buy, the cart, checkout, the order); and the pages a merchant sees
+(their group buys, a group buy's orders with their marks, the two sheets). There is no editor yet:
+a shop is set up and a group buy started by the site's owner, by hand, from a panel on the
+merchant's home. Nothing on changle.ca links here until the owner has tried it on a phone:
 `/tuan/preview` is home with a line saying so, and no search engine is let in.
 
 | Address | What |
@@ -19,6 +20,8 @@ through the API. Nothing on changle.ca links here until the owner has tried it o
 | `/tuan/`, `/tuan/preview` | Home: how it works, the orders placed from this phone, and opening an order by its code. |
 | `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
+| `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. The site's owner also gets the panel that sets a shop up and starts a group buy from a document. |
+| `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each. The new-order mail's button leads here. |
 | `/tuan/api/…` | The API (`src/server/worker.ts` lists it). |
 
 ## How it is made
@@ -36,9 +39,9 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 | `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`. |
 | `src/server/gate.ts` | The daily allowances. |
 | `src/server/schema.ts` | Applies `migrations/` (numbered files, each once, in order) when the Worker starts. Nothing to run by hand. |
-| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
+| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
 | `scripts/build.mjs` | Builds the pages into `dist/client/tuan` (esbuild). wrangler runs it before `wrangler dev` and `wrangler deploy`. |
-| `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts`). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
+| `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
 
 ### The pages
 
@@ -60,6 +63,20 @@ nothing run or load but the site's own files (and Cloudflare's visitor statistic
 - **Sheets and checkout close on the phone's back button.** Each adds its step to the history the
   moment it's on the page (a layout effect), so a quick tap or a quick back never finds one
   without the other.
+- **A merchant's pages** show nothing by themselves: the page is the same file for everyone, and
+  what it shows comes from the API once signed in. Signed in means the session the site keeps in
+  the phone's storage (`changle.session`): these pages are at the same address, so they read it
+  and send it as `Authorization: Bearer …` to this tool's own API and nowhere else. With no
+  session, or one the rooms server no longer knows, the page offers the site's sign-in
+  (`/login`) and looks again when the merchant comes back to it.
+- **A merchant's marks** go to the server one at a time and come back as the order now stands;
+  the sums on the page are then done again from the orders (`summarize`, the same rules as the
+  server), so the counts, what's to collect and the sheets never disagree with the list. What's
+  to collect counts a weighed order at what the scale said; "as ordered" is said where it's that.
+  The page reads again every minute while it's looked at, and whenever it's come back to.
+- **The sheets' text** (`ui/sheets.ts`): a pickup line carries the last four digits of the buyer's
+  phone number (such a list is often posted in the group), a delivery line the whole number and
+  the address. A spreadsheet file comes later (`docs/codex-tasks/tuan/T1-orders-csv.md`).
 - **Design**: `docs/DESIGN.md`. Colors, sizes, corners, shadows and timings come from the site's
   tokens (`src/client/tokens.css` is a copy; `tests/design.test.mjs` fails if it differs or if
   `styles.css` writes a color, a type size, a shadow or a duration out). A tool's color is amber.
@@ -170,8 +187,10 @@ npm run build -- --watch   # rebuild the pages as they change (wrangler dev relo
 ```
 
 `npm run dev:alone` is the quick way to see the pages: start it, then make a shop and a group buy
-through the API as the tests do (`tests/e2e/flow.spec.ts`, `start()`), with
-`Authorization: Bearer test-session-owner-0000000`. The browser tests start their own copy on
+through the API as the tests do (`tests/e2e/help.ts`, `start()`), with
+`Authorization: Bearer test-session-owner-0000000`; or sign in as the stand-in's owner in the
+browser's console (`localStorage.setItem("changle.session", "test-session-owner-0000000")`) and
+use the panel on `/tuan/my`. The browser tests start their own copy on
 port 8793 with an empty database (`playwright.config.ts`); on GitHub they run in Chromium and in
 WebKit, the engine inside iPhone Safari and WeChat on iOS.
 

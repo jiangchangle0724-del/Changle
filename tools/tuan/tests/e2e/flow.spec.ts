@@ -4,41 +4,11 @@
 // second phone needs the phone number's last four digits; something sells out while it sits in a
 // cart; and the pages keep to the site's rules for small screens. Each phone is its own browser
 // context, so each has its own storage.
-import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
-import type { Made, MyOfferPage, OfferPage, OrderPage } from "../../src/api";
+import { expect, test, type Page } from "@playwright/test";
+import type { OfferPage } from "../../src/api";
 import { SESSION } from "../accounts.ts";
 import { offerDoc } from "../sample.ts";
-
-const DAY = 86_400_000;
-const ORDER_URL = /\/tuan\/o\/[2-9A-HJKMNP-Z]{6}$/;
-const as = (session: string) => ({ authorization: `Bearer ${session}` });
-const word = () => Math.random().toString(36).slice(2, 10).replace(/[^a-z]/g, "x");
-
-/** A shop of its own and a group buy in it, open for a day: tests/sample.ts, with `more` on top. */
-async function start(request: APIRequestContext, more: Record<string, unknown> = {}): Promise<{ id: string; url: string }> {
-  const slug = `rice-${word()}`;
-  const shop = await request.post("/tuan/api/admin/shops", { headers: as(SESSION.owner), data: { slug, name: "大米团（测试）", about: "每周一团，周五到货。", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com\n备注里写订单号", members: ["leader@example.com"] } });
-  expect(shop.status(), await shop.text()).toBe(200);
-  const made = await request.post(`/tuan/api/my/shops/${slug}/offers`, { headers: as(SESSION.leader), data: { ...offerDoc(Date.now() + DAY), ...more } });
-  expect(made.status(), await made.text()).toBe(201);
-  const { id } = (await made.json()) as Made;
-  return { id, url: `/tuan/t/${id}` };
-}
-
-/** Everything the merchant sees of a group buy. */
-const sheets = async (request: APIRequestContext, id: string) => (await (await request.get(`/tuan/api/my/offers/${id}`, { headers: as(SESSION.leader) })).json()) as MyOfferPage;
-
-async function phone(browser: Browser, options: Parameters<Browser["newContext"]>[0] = {}): Promise<Page> {
-  const context = await browser.newContext(options);
-  return context.newPage();
-}
-
-/** Keep what this page copies where the test can read it. (Reading the real clipboard needs a permission only Chromium can grant.) */
-const catchCopies = (page: Page) =>
-  page.addInitScript(() => {
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => void ((window as unknown as { copied: string }).copied = text) } });
-  });
-const copied = (page: Page) => page.evaluate(() => (window as unknown as { copied?: string }).copied);
+import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, sheets, start, word } from "./help.ts";
 
 const add = (page: Page, name: string) => page.getByRole("button", { name: `加一份 ${name}` }).click();
 const more = (page: Page, name: string) => page.locator(".items").getByRole("button", { name: `增加 ${name}` }).click();
@@ -435,61 +405,33 @@ test("on a small phone: nothing runs off the side, and everything to tap is big 
   const { url } = await start(request, { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团", items: [...offerDoc(0).items, { section: "蛋肉", name: "手工挂面 Hand-pulled dried noodles 1kg 超长名字的商品", detail: "鸡蛋面，含麸质，名字和说明都很长的时候", price: 699, unit: "pack", stock: 3000, allergens: "小麦、蛋" }] });
   const page = await phone(browser, { viewport: { width: 320, height: 568 } });
 
-  /**
-   * Every button, link and field in sight is at least 44 by 44 (a choice's whole row counts for
-   * its radio), and nothing reaches past the screen's edges (but the section chips, which scroll
-   * sideways inside their own strip).
-   */
-  const fits = async (where: string) => {
-    const found = await page.evaluate(() => {
-      const name = (el: Element) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 20)}"`;
-      const small: string[] = [];
-      for (const el of document.querySelectorAll<HTMLElement>("a, button, input, textarea")) {
-        const target = el.matches('input[type="radio"]') ? (el.closest("label") ?? el) : el;
-        const box = target.getBoundingClientRect();
-        if (box.width === 0 && box.height === 0) continue;
-        if (box.width < 43.5 || box.height < 43.5) small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
-      }
-      const wide: string[] = [];
-      for (const el of document.querySelectorAll("#app *")) {
-        if (el.closest(".tabs") && !el.matches(".tabs")) continue;
-        const box = el.getBoundingClientRect();
-        if (box.left < -0.5 || box.right > window.innerWidth + 0.5) wide.push(`${name(el)} ${Math.round(box.left)}…${Math.round(box.right)}`);
-      }
-      return { small, wide, page: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth };
-    });
-    expect(found.small, `${where}: too small to tap`).toEqual([]);
-    expect(found.wide, `${where}: past the screen's edge`).toEqual([]);
-    expect(found.page, `${where}: the page is wider than the screen`).toBeLessThanOrEqual(0);
-  };
-
   await page.goto("/tuan/");
-  await fits("home");
+  await fits(page, "home");
   await page.goto(url);
   await expect(page.locator(".item")).toHaveCount(6);
   await add(page, "五常大米 10kg");
   await add(page, "手工挂面 Hand-pulled dried noodles 1kg 超长名字的商品");
   await page.getByRole("button", { name: "选重量：手切羊肉片" }).click();
-  await fits("the weight picker");
+  await fits(page, "the weight picker");
   await page.getByRole("button", { name: /^加入/ }).click();
-  await fits("a group buy");
+  await fits(page, "a group buy");
   await dock(page).locator(".dock-cart").click();
   await expect(page.locator(".cart-line")).toHaveCount(3);
-  await fits("the cart");
+  await fits(page, "the cart");
   await page.getByRole("button", { name: "关闭" }).click();
   await page.locator(".how-chip").click();
-  await fits("pickup and delivery");
+  await fits(page, "pickup and delivery");
   await page.getByRole("button", { name: "关闭" }).click();
   await toCheckout(page);
   await page.getByRole("button", { name: "送货" }).click();
-  await fits("checkout");
+  await fits(page, "checkout");
   await page.getByRole("button", { name: "自提" }).click();
   await choose(page, "温哥华西区");
   await page.fill('input[name="name"]', "一个名字特别特别长的买家");
   await page.fill('input[name="phone"]', "604 555 0188");
   await send(page);
   await expect(page).toHaveURL(ORDER_URL);
-  await fits("an order");
+  await fits(page, "an order");
   await page.getByRole("button", { name: "取消订单" }).click();
-  await fits("the cancel sheet");
+  await fits(page, "the cancel sheet");
 });

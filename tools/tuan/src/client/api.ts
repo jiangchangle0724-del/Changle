@@ -1,7 +1,7 @@
 // Talking to the server, and what this phone remembers: what's in the cart of each group buy, the
 // name and phone number last ordered with, and the orders placed from here (each with the last
 // four digits that open it). Nothing is kept anywhere else: a buyer has no account.
-import { TAIL_HEADER, type ApiError, type OfferPage, type OrderInput, type OrderPage } from "../api";
+import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferPage, type OfferMove, type OfferPage, type OrderInput, type OrderMove, type OrderPage } from "../api";
 import { BASE } from "../base";
 import type { How } from "../engine/types";
 
@@ -86,12 +86,30 @@ export class ApiFail extends Error {
   }
 }
 
-async function ask<T>(path: string, init: { method?: "GET" | "POST"; body?: unknown; tail?: string } = {}): Promise<T> {
+/**
+ * The sign-in the site keeps on this phone once someone has signed in at changle.ca
+ * (site/src/lib/api.ts). These pages are at the same address, so they share its storage: a
+ * merchant signed in on the site is signed in here. Empty when nobody is.
+ */
+export function session(): string {
+  try {
+    return localStorage.getItem("changle.session") ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function ask<T>(path: string, init: { method?: "GET" | "POST"; body?: unknown; tail?: string; signedIn?: boolean } = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${BASE}/api${path}`, {
       method: init.method ?? "GET",
-      headers: { ...(init.body === undefined ? {} : { "content-type": "application/json" }), ...(init.tail ? { [TAIL_HEADER]: init.tail } : {}) },
+      headers: {
+        ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+        ...(init.tail ? { [TAIL_HEADER]: init.tail } : {}),
+        // (a merchant's own pages only: a buyer's requests never carry it)
+        ...(init.signedIn ? { authorization: `Bearer ${session()}` } : {}),
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {
@@ -115,6 +133,17 @@ export const placeOrder = (offerId: string, order: OrderInput): Promise<OrderPag
 export const getOrder = (code: string, tail: string): Promise<OrderPage> => ask(`/orders/${code}`, { tail });
 export const changeOrder = (code: string, tail: string, order: OrderInput): Promise<OrderPage> => ask(`/orders/${code}`, { method: "POST", body: order, tail });
 export const cancelOrder = (code: string, tail: string): Promise<OrderPage> => ask(`/orders/${code}/cancel`, { method: "POST", body: {}, tail });
+
+// ---------- a merchant, signed in with their changle.ca account ----------
+
+export const getMy = (): Promise<MyHome> => ask("/my", { signedIn: true });
+export const getMyOffer = (offerId: string): Promise<MyOfferPage> => ask(`/my/offers/${offerId}`, { signedIn: true });
+export const moveOffer = (offerId: string, move: OfferMove): Promise<MyOfferPage> => ask(`/my/offers/${offerId}`, { method: "POST", body: move, signedIn: true });
+export const moveOrder = (code: string, move: OrderMove): Promise<Moved> => ask(`/my/orders/${code}`, { method: "POST", body: move, signedIn: true });
+/** Start a group buy in a shop from the document a merchant sends (src/engine/offer.ts says what's in it). */
+export const startOffer = (slug: string, offer: unknown): Promise<Made> => ask(`/my/shops/${slug}/offers`, { method: "POST", body: offer, signedIn: true });
+/** The site's owner only: set a shop up, or change one (src/engine/shop.ts). */
+export const saveShop = (shop: unknown): Promise<Made> => ask("/admin/shops", { method: "POST", body: shop, signedIn: true });
 
 /** Copy text; false when the phone won't (an old WeChat), so the page can show it to copy by hand. */
 export async function copyText(text: string): Promise<boolean> {

@@ -20,6 +20,11 @@ export function Home({ preview }: { preview: boolean }) {
         <h1>{t("brand")}</h1>
         <p>{t("homeLine")}</p>
         {preview && <p class="state state-shut">{t("previewNote")}</p>}
+        {preview && (
+          <a class="link-btn" href={`${BASE}/my`}>
+            {t("myLink")}
+          </a>
+        )}
       </section>
 
       <section class="panel">
