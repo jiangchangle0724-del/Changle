@@ -28,7 +28,7 @@ export function setSessionToken(t: string | null) {
 }
 
 /** JSON request to the changle API. Sends this phone's id, and the session if signed in. */
-export async function api<T>(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal; raw?: BodyInit; type?: string } = {}): Promise<T> {
+export async function api<T>(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal; raw?: BodyInit; type?: string; keepalive?: boolean } = {}): Promise<T> {
   const headers: Record<string, string> = { "X-Device": phoneId() };
   const tok = sessionToken();
   if (tok) headers.Authorization = `Bearer ${tok}`;
@@ -42,7 +42,8 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
   }
   // (signing in and out also sets the sign-in cookie, which only /api/auth ever sees)
   const credentials: RequestCredentials = path.startsWith("/auth/") ? "include" : "same-origin";
-  const res = await fetch(`${API}${path}`, { method: opts.method ?? (body ? "POST" : "GET"), headers, body, signal: opts.signal, cache: "no-store", credentials });
+  // (keepalive: a small request sent as the page goes away, which the browser finishes without it)
+  const res = await fetch(`${API}${path}`, { method: opts.method ?? (body ? "POST" : "GET"), headers, body, signal: opts.signal, cache: "no-store", credentials, keepalive: opts.keepalive });
   let data: unknown = null;
   try {
     data = await res.json();
