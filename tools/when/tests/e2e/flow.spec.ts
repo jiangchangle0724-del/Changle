@@ -2,55 +2,9 @@
 // sees the same counts without reloading, the host sets the time, every page then asks what's next,
 // and another phone takes over with the admin code. Each phone is its own browser context, so each
 // has its own storage.
-import { expect, test, type Browser, type Page } from "@playwright/test";
-
-const KEY = "x-when-key";
-
-async function phone(browser: Browser): Promise<Page> {
-  const context = await browser.newContext();
-  return context.newPage();
-}
-
-/** Make a gathering on the home page; ends on its page with the "it's ready" sheet open. */
-async function make(page: Page, title: string): Promise<{ url: string; code: string; adminCode: string }> {
-  await page.goto("/when/");
-  await page.fill('input[name="title"]', title);
-  await page.click('button[type="submit"]');
-  await expect(page.locator(".admin-code")).toBeVisible();
-  const adminCode = (await page.locator(".admin-code").innerText()).trim();
-  expect(adminCode).toMatch(/^\d{6}$/);
-  const url = page.url();
-  const code = url.split("/").pop()!;
-  expect(code).toMatch(/^[a-hjkmnp-z2-9]{8}$/);
-  await page.click(".sheet-foot .btn");
-  await expect(page.locator(".sheet")).toHaveCount(0);
-  return { url, code, adminCode };
-}
-
-async function join(page: Page, url: string, name: string): Promise<void> {
-  await page.goto(url);
-  await page.fill(".name-form input", name);
-  await page.click(".name-form .btn");
-  await expect(page.locator(".you")).toContainText(name);
-}
-
-/**
- * Keep what this page copies where the test can read it. (Reading the real clipboard needs a
- * permission only Chromium can grant.) Call it before the page opens anything.
- */
-const catchCopies = (page: Page) =>
-  page.addInitScript(() => {
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => void ((window as unknown as { copied: string }).copied = text) } });
-  });
-const copied = (page: Page) => page.evaluate(() => (window as unknown as { copied?: string }).copied);
-
-/** The phones in these tests say they are iPhones (playwright.config.ts). Two that don't: */
-const WECHAT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50(0x18003200) NetType/WIFI Language/zh_CN";
-const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
-const calendarFile = (code: string) => `/when/api/e/${code}/calendar.ics`;
-
-const saved = (page: Page) => expect(page.locator(".status")).toHaveAttribute("data-state", "saved");
-const cell = (page: Page, n: number) => page.locator(".grid .cell").nth(n);
+import { expect, test } from "@playwright/test";
+import { addDays, dayNoteText, vancouverDay } from "../../src/engine";
+import { ANDROID, KEY, WECHAT, calendarFile, catchCopies, cell, copied, join, make, phone, saved } from "./helpers";
 
 test("make, fill in on two phones, set the time", async ({ browser }) => {
   const host = await phone(browser);
@@ -167,6 +121,35 @@ test("a day more than a week away: 随便 opens for it that week, and reopening 
   await expect(host.locator(".set")).toHaveCount(0);
   await expect(host.locator(".after")).toHaveCount(0);
   expect((await host.request.get(calendarFile(code))).status(), "and the calendar file goes with it").toBe(404);
+});
+
+test("a holiday among the days is said above its day, in both languages", async ({ browser }) => {
+  // Which day depends on today: the first one the home page can reach (eight weeks) that has
+  // something to say, asked about together with the day before it. The dates themselves are
+  // checked in tests/holidays.test.ts and the words in tests/daynotes.test.ts.
+  const today = vancouverDay(Date.now());
+  const reach = Array.from({ length: 53 }, (_, i) => addDays(today, i + 2));
+  const noted = reach.find((day) => dayNoteText(day, [addDays(day, -1), day], "zh") !== "");
+  test.skip(!noted, "no holiday, festival or long weekend in the next eight weeks (holidays.ts runs to the end of 2028)");
+  const days = [addDays(noted!, -1), noted!];
+
+  const host = await phone(browser);
+  const { url } = await make(host, "过节聚一聚", days);
+  await join(host, url, "Steve");
+  const rows = host.locator(".grid-row:not(.grid-heads)");
+  await expect(rows).toHaveCount(2);
+  for (const lang of ["zh", "en"] as const) {
+    for (const [i, day] of days.entries()) {
+      const words = dayNoteText(day, days, lang);
+      if (words) await expect(rows.nth(i).locator(".grid-note"), `${day} in ${lang}`).toHaveText(words);
+      else await expect(rows.nth(i).locator(".grid-note"), `${day} in ${lang}`).toHaveCount(0);
+    }
+    // everyone's view is the same grid
+    await host.click(".seg button:nth-child(2)");
+    await expect(host.locator(".grid-note").first()).toBeVisible();
+    await host.click(".seg button:nth-child(1)");
+    if (lang === "zh") await host.click(".bar-lang");
+  }
 });
 
 test("inside WeChat the page says how to get out; an Android phone goes to Google Calendar", async ({ browser }) => {

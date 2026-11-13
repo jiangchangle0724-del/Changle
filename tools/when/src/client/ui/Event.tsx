@@ -4,8 +4,8 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { best, dateLabel, dayLabel, nextAnswer, partLabel, partsOf, reason, slotKey, slotLabel, tally, vancouverDay, weekday, weekdayLabel } from "../../engine";
-import type { Answers, EventState, Person, SlotKey } from "../../engine";
+import { best, dateLabel, dayLabel, dayNotes, nextAnswer, partLabel, partsOf, reason, slotKey, slotLabel, tally, vancouverDay, weekday, weekdayLabel } from "../../engine";
+import type { Answers, Day, EventState, Lang, Person, SlotKey } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
 import type { Snapshot } from "../../room/protocol";
@@ -27,6 +27,22 @@ const same = (a: Answers, b: Answers) => {
 };
 /** 0 to 4: how full a slot is, for its shade. Any one free person is at least 1. */
 const heat = (yes: number, total: number) => (yes === 0 || total === 0 ? 0 : Math.max(1, Math.ceil((yes / total) * 4)));
+
+/** Above a day in the grid: its holidays, its festivals and its long weekend, when it has any. */
+function DayNotes({ day, days, lang }: { day: Day; days: readonly Day[]; lang: Lang }) {
+  const notes = dayNotes(day, days, lang);
+  if (notes.length === 0) return null;
+  return (
+    <p class="grid-note">
+      {notes.map((note, i) => (
+        <span key={i} data-kind={note.kind}>
+          {i > 0 && " · "}
+          {note.text}
+        </span>
+      ))}
+    </p>
+  );
+}
 
 export function EventPage({ code }: { code: string }) {
   const lang = useLang();
@@ -293,6 +309,7 @@ export function EventPage({ code }: { code: string }) {
           )}
           {state.days.map((day) => (
             <div class="grid-row" key={day} data-weekend={weekday(day) % 6 === 0 ? "" : undefined}>
+              <DayNotes day={day} days={state.days} lang={lang} />
               <span class="grid-date">
                 <b>{weekdayLabel(day, lang)}</b>
                 <small>{dateLabel(day, lang)}</small>

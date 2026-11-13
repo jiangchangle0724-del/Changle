@@ -604,6 +604,18 @@ input {
   font-weight: 700;
   text-align: center;
 }
+/* a holiday, a festival, a long weekend: said above its day, across the whole row, and nearer to
+   that day than to the one before */
+.grid-note {
+  grid-column: 1 / -1;
+  margin-top: var(--space-2);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.grid-note [data-kind="stat"] {
+  color: var(--gel);
+}
 .grid-date {
   display: flex;
   flex-direction: column;
