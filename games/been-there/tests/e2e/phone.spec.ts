@@ -9,17 +9,28 @@ test.afterEach(closeAll);
 
 const { defaultBrowserType: _i, ...iphone } = devices["iPhone 13"];
 
-/** The board's box on the phone, the board as drawn in it (bigger on a bigger map), and the page's width. */
+/** The board's box on the phone, the board as drawn in it (bigger on a bigger map: the map's zoom over
+ * the board as it rests, leaning back), and the page's width. */
 async function board(page: Page) {
   return page.evaluate(() => {
     const wrap = document.querySelector<HTMLElement>(".stage .boardwrap")!;
     const w = wrap.getBoundingClientRect();
-    const b = document.querySelector(".stage .roundboard")!.getBoundingClientRect();
+    // (the ring of spaces as drawn: the drawing's own square reaches past it where the board leans)
+    const b = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, width: 0 };
+    for (const w of document.querySelectorAll(".stage .roundboard .wedge")) {
+      const r = w.getBoundingClientRect();
+      b.left = Math.min(b.left, r.left);
+      b.top = Math.min(b.top, r.top);
+      b.right = Math.max(b.right, r.right);
+      b.bottom = Math.max(b.bottom, r.bottom);
+    }
+    b.width = b.right - b.left;
+    const tf = getComputedStyle(document.querySelector(".stage .board-pan")!).transform;
     return {
       size: wrap.dataset.map,
       win: { left: w.left, top: w.top, right: w.right, bottom: w.bottom, width: w.width },
       board: { left: b.left, top: b.top, right: b.right, bottom: b.bottom, width: b.width },
-      zoom: b.width / w.width,
+      zoom: !tf || tf === "none" ? 1 : new DOMMatrix(tf).a,
       wider: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   });

@@ -1207,6 +1207,25 @@ button.banner {
   align-items: center;
   flex-wrap: wrap;
 }
+/* A city's buildings on its own patch of ground at the end of its row (art/RoundBoard.tsx Lot): the
+   board's models, bigger; one built comes up out of the ground right here, under the finger. */
+.assets .lot {
+  width: 84px;
+  height: 66px;
+  margin: -10px 0 -6px auto;
+  flex: none;
+  overflow: visible;
+  pointer-events: none;
+}
+.assets.compact .lot {
+  width: 62px;
+  height: 48px;
+  margin: -6px 0 -4px auto;
+}
+.lot .lot-ground {
+  fill: var(--surface-2);
+  opacity: 0.9;
+}
 .assets.compact li {
   padding: 8px;
 }
@@ -4849,6 +4868,21 @@ h2.departures {
   box-shadow:
     0 0 0 2px var(--coin-edge),
     0 3px 6px rgba(0, 0, 0, 0.25);
+  /* (spinning as it's flipped across, nearer as it goes over the top of its arc) */
+  animation: coin-spin 0.9s var(--delay) both;
+}
+@keyframes coin-spin {
+  0% {
+    transform: rotateY(0) scale(0.9);
+    animation-timing-function: ease-out;
+  }
+  45% {
+    transform: rotateY(400deg) scale(1.35);
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: rotateY(720deg) scale(1);
+  }
 }
 @keyframes coin-x {
   from {

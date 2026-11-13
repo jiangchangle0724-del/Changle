@@ -2,8 +2,8 @@
 //  - "fp", the throwing team's phone: the camera pushes in behind the token (without turning),
 //    follows it round the ring by turning only (60 degrees a second at most) and pulls back out
 //    (without turning). One camera move at a time, never a shake.
-//  - "flat", the same beats on the flat board: reduced motion, the menu's setting off, a throw that
-//    stays put, or a tap that skipped the ride.
+//  - "flat", the same beats on the board as it rests (leaning back as on a table, and no further):
+//    reduced motion, the menu's setting off, a throw that stays put, or a tap that skipped the ride.
 //  - "tv", the big screen: a small push in (1.4×) and a pan after the token, flat.
 // The token is drawn here, standing over the board; so are the dice, the departures board that
 // flips up the cities passed (a real split-flap module turns a flap every 0.1 s: two flaps a space;
@@ -61,6 +61,11 @@ export interface Cam {
   g: number;
   /** How far into the first-person ride: the far side fading into the sky, the sky itself (0 to 1). */
   fade: number;
+  /** A phone's bigger map over the board as it shows (ui/mapView.ts, the board leaning back): zoomed
+   * `mz` round the box's middle, then moved over (mx, my) (board units). None: 1, 0, 0. */
+  mz?: number;
+  mx?: number;
+  my?: number;
 }
 
 /**
@@ -128,14 +133,26 @@ const mix = (a: Cam, b: Cam, p: number): Cam => ({
   tilt: lerp(a.tilt, b.tilt, p),
   g: lerp(a.g, b.g, p),
   fade: lerp(a.fade, b.fade, p),
+  mz: lerp(a.mz ?? 1, b.mz ?? 1, p),
+  mx: lerp(a.mx ?? 0, b.mx ?? 0, p),
+  my: lerp(a.my ?? 0, b.my ?? 0, p),
 });
-/** At rest, the board as a phone's map shows it: zoom `z` round (cx, cy) (ui/mapView.ts), flat; 1 is the
- * whole board, leaning back `lean` degrees if it does. */
-const home = (rot: number, z: number, cx: number, cy: number, lean = 0): Cam =>
-  z > 1.0005 ? { ...mapCam(z, cx, cy), rot, tilt: 0, g: 1, fade: 0 } : rest(rot, lean);
-/** Where the token on ring position `pos` (in spaces) stands on screen, the board turned to `rot`. */
-const onScreen = (pos: number, rot: number): [number, number] => {
+/** At rest, the board as a phone's map shows it (ui/mapView.ts): zoomed `z` round (cx, cy), the board as
+ * it shows in its box, leaning back `lean` degrees (flat, the camera's own zoom and pan; leaning, the
+ * map's, over the board as it leans). 1 is the whole board. */
+const home = (rot: number, z: number, cx: number, cy: number, lean = 0): Cam => {
+  if (z <= 1.0005) return rest(rot, lean);
+  const m = mapCam(z, cx, cy);
+  return lean < 0.05 ? { ...m, rot, tilt: 0, g: 1, fade: 0 } : { ...rest(rot, lean), mz: z, mx: m.tx, my: m.ty };
+};
+/** Where the token on ring position `pos` (in spaces) shows in the board's box at rest (board units from
+ * its middle), the board turned to `rot` and leaning back `lean`: where the map looks to see it. */
+const onScreen = (pos: number, rot: number, lean = 0): [number, number] => {
   const [x, y] = xy(angleOf(pos), TOKEN_R);
+  if (lean >= 0.05) {
+    const p = project(x, y, rest(rot, lean), 1000);
+    return [p.x - 500, p.y - 500];
+  }
   const a = (rot * Math.PI) / 180;
   return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
 };
@@ -158,17 +175,24 @@ export function project(bx: number, by: number, c: Cam, size: number) {
   const k = size / 1000;
   const px = (c.z * rx + c.tx + 500) * k;
   const py = (c.z * ry + c.ty + 500) * k;
-  if (c.tilt < 0.05) return { x: px, y: py, s: c.z * k };
-  // The lean: about a line across the board through the camera's point (the transform origin).
-  const ox = size / 2;
-  const oy = (CAM.ay + 500) * k;
-  const th = (c.tilt * Math.PI) / 180;
-  const dx = (px - ox) * c.g;
-  const dy = (py - oy) * c.g;
-  const z = dy * Math.sin(th);
-  const lens = CAM.lens * size;
-  const w = lens / (lens - z);
-  return { x: ox + dx * w, y: oy + dy * Math.cos(th) * w, s: w * c.g * c.z * k };
+  let out = { x: px, y: py, s: c.z * k };
+  if (c.tilt >= 0.05) {
+    // The lean: about a line across the board through the camera's point (the transform origin).
+    const ox = size / 2;
+    const oy = (CAM.ay + 500) * k;
+    const th = (c.tilt * Math.PI) / 180;
+    const dx = (px - ox) * c.g;
+    const dy = (py - oy) * c.g;
+    const z = dy * Math.sin(th);
+    const lens = CAM.lens * size;
+    const w = lens / (lens - z);
+    out = { x: ox + dx * w, y: oy + dy * Math.cos(th) * w, s: w * c.g * c.z * k };
+  }
+  // A phone's bigger map, over the board as it shows (round the box's middle).
+  const mz = c.mz ?? 1;
+  if (mz === 1 && !c.mx && !c.my) return out;
+  const h = size / 2;
+  return { x: h + (c.mx ?? 0) * k + mz * (out.x - h), y: h + (c.my ?? 0) * k + mz * (out.y - h), s: out.s * mz };
 }
 
 /**
@@ -201,13 +225,17 @@ export function placeCamLayers(layers: HTMLElement[], c: Cam, size: number) {
 export function viewBoard(svg: HTMLElement | SVGElement, c: Cam, drawn: number, size: number) {
   const k = size / 1000;
   const turn = c.rot - drawn;
-  const still = c.tilt < 0.05 && c.z === 1 && !c.tx && !c.ty && Math.abs(turn) < 0.01;
+  const mz = c.mz ?? 1;
+  const mapped = Math.abs(mz - 1) > 0.0001 || !!c.mx || !!c.my;
+  const still = !mapped && c.tilt < 0.05 && c.z === 1 && !c.tx && !c.ty && Math.abs(turn) < 0.01;
   const p = c.fade;
-  // (about a line across the board at the camera's point; the zoom and the turn about its middle)
+  // (about a line across the board at the camera's point; the zoom and the turn about its middle; a
+  // phone's bigger map over all of it, as the board shows, round the box's middle)
   const ay = CAM.ay * k;
   const tf = still
     ? ""
-    : `${c.tilt >= 0.05 ? `perspective(${Math.round(CAM.lens * size)}px) rotateX(${c.tilt.toFixed(2)}deg) scale(${c.g.toFixed(4)}) ` : ""}` +
+    : `${mapped ? `translate(${((c.mx ?? 0) * k).toFixed(1)}px, ${(((c.my ?? 0) + (mz - 1) * CAM.ay) * k).toFixed(1)}px) scale(${mz.toFixed(4)}) ` : ""}` +
+      `${c.tilt >= 0.05 ? `perspective(${Math.round(CAM.lens * size)}px) rotateX(${c.tilt.toFixed(2)}deg) scale(${c.g.toFixed(4)}) ` : ""}` +
       `translate(${(c.tx * k).toFixed(1)}px, ${(c.ty * k - ay).toFixed(1)}px) scale(${c.z.toFixed(4)}) rotate(${turn.toFixed(2)}deg) translate(0px, ${ay.toFixed(1)}px)`;
   if (svg.style.transform !== tf) {
     svg.style.transformOrigin = `50% ${(CAM.ay + 500) / 10}%`;
@@ -467,7 +495,7 @@ export function Ride({
       // (the map takes the view back at its size over where the token is, as the camera left it)
       if (hand && !handed) {
         handed = true;
-        const [ex, ey] = onScreen(endAt, r.rotation());
+        const [ex, ey] = onScreen(endAt, r.rotation(), lean);
         hand.adopt(Z, keepIn(ex, Z), keepIn(ey, Z));
       }
     };
@@ -632,7 +660,7 @@ export function Ride({
             r.turn(yaw!);
             drawn = yaw!;
           });
-          const [ex, ey] = onScreen(pos, yaw);
+          const [ex, ey] = onScreen(pos, yaw, lean);
           c = mix(ridePose(yaw), home(yaw, Z, ex, ey, lean), ease(clamp((t - T.ready) / (T.end - T.ready), 0, 1)));
         }
       } else if (cam === "tv" && plan.legs[0].steps && !reduced) {
@@ -644,7 +672,7 @@ export function Ride({
         // Flat, on a phone's bigger map: the view goes along with the token as it walks (with reduced
         // motion it holds still, and is over where the token landed once it's there).
         const landed = t >= T.land;
-        const [gx, gy] = reduced ? (landed ? onScreen(pos, yaw) : c0) : t >= T.walk || landed ? onScreen(lin, yaw) : c0;
+        const [gx, gy] = reduced ? (landed ? onScreen(pos, yaw, lean) : c0) : t >= T.walk || landed ? onScreen(lin, yaw, lean) : c0;
         const gz = reduced && !landed ? z0 : Z;
         const k = reduced || snapFlat ? 1 : 1 - Math.exp(-dt / 0.2);
         snapFlat = false;

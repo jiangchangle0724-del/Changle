@@ -187,7 +187,8 @@ export const GAMES: GameMeta[] = [
       "每轮几个人上台演一段狗血剧情，其中一个人偷偷是小三或凶手。观众猜是谁，再给每个人的演技打星。被识破的、演得最差的受罚。",
       "Each round a few players act out a soap-opera scene, and one of them is secretly the culprit. The audience guesses who, then gives every actor stars. Get caught, or act worst, and you pay.",
     ),
-    minPlayers: 3,
+    // one person at a table can play (monologues and readings, the room guessing out loud); one phone passed round takes three
+    minPlayers: 1,
     maxPlayers: 15,
     gel: "#ffcf6b",
     icon: Drama,

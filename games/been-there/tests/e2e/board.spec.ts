@@ -2,7 +2,7 @@
 // a city's houses and its hotel stand up as little models (the hotel's sign carries the city's own
 // picture); each one built rises at once in a puff of its own while the ones already there stay
 // still, and a hotel rises floor by floor; between moves a token looks round or bobs and a hotel's
-// sign swings, one at a time; with reduced motion none of it moves.
+// sign swings, one at a time; with reduced motion none of it moves (a new building is simply there).
 import { devices, expect, test, type Page } from "@playwright/test";
 import { closeAll, newPhone } from "./phones";
 
@@ -111,8 +111,11 @@ test("减少动态：新盖的房子直接就在，棋子和招牌平时不动",
   const p = await newPhone(browser, "一台", { ...iphone, locale: "zh-CN", reducedMotion: "reduce" });
   await setUp(p.page);
   const capetown = await build(p.page, 3, 3);
-  expect(await rising(capetown)).toEqual(["none 0s"]);
-  expect(await capetown.locator(".b-dust").evaluateAll((els) => els.map((el) => getComputedStyle(el).display))).toEqual(["none"]);
+  // (nothing rises and nothing puffs: the new house is drawn as one already standing, the big one that
+  // comes up first on a laptop or the big screen isn't there, and neither is the list's)
+  expect(await rising(capetown)).toEqual([]);
+  await expect(capetown.locator(".b-dust")).toHaveCount(0);
+  await expect(p.page.locator(".roundboard .bfx, .lot .bfx, .lot .b-new")).toHaveCount(0);
   await p.page.waitForTimeout(6_000);
   expect(await life(p.page)).toEqual([]);
   expect(p.errors).toEqual([]);

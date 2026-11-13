@@ -618,6 +618,14 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
       sfx.stamp();
       buzz(BUZZ.buy);
     }
+    // (our own buildings coming up out of the ground, going back into it, a chip turned face down)
+    const managed = ev.flatMap((e) => (e.t === "manage" && mine(e.p) ? [e] : []));
+    const built = managed.filter((e) => e.k === "build");
+    if (built.length) {
+      sfx.build(built.some((e) => (g.s.deeds[e.at]?.houses ?? 0) >= 5));
+      buzz(BUZZ.buy);
+    } else if (managed.some((e) => e.k === "sell")) sfx.sink();
+    else if (managed.some((e) => e.k === "mortgage")) sfx.flip();
     // (on a ride these come as the token gets there)
     if (!ride && ev.some((e) => e.t === "card" && mine(e.p))) {
       sfx.card();
@@ -636,7 +644,7 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
     if (delta > 0) {
       sfx.coin();
       buzz(BUZZ.paid);
-    } else if (delta < 0 && !bought) {
+    } else if (delta < 0 && !bought && !built.length) {
       sfx.pay();
       buzz(BUZZ.pay);
     }

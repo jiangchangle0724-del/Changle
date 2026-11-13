@@ -305,9 +305,10 @@ function Writer({
 
 /**
  * On the setup screen (and between scenes): the scenes written at this table, a button to write
- * one, and how many from the public library are mixed in.
+ * one, and how many from the public library are mixed in. `few`: under three at the table, where
+ * every act is a monologue and a written scene waits for a third.
  */
-export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove, library }: { v: DramaView; me: string; isHost: boolean; nameOf: (pid: string) => string; onWrite: () => void; onRemove: (id: string) => void; library?: { loading: boolean; failed: boolean; retry: () => void } }) {
+export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove, library, few }: { v: DramaView; me: string; isHost: boolean; nameOf: (pid: string) => string; onWrite: () => void; onRemove: (id: string) => void; library?: { loading: boolean; failed: boolean; retry: () => void }; few?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const waiting = v.mine.filter((w) => !w.played);
@@ -334,8 +335,9 @@ export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove, library 
           ))}
         </ul>
       ) : (
-        <p className="hint">{zh ? "写好的剧本下一幕先演，编剧亲自上台。" : "A scene written here is played next, with its writer on stage."}</p>
+        !few && <p className="hint">{zh ? "写好的剧本下一幕先演，编剧亲自上台。" : "A scene written here is played next, with its writer on stage."}</p>
       )}
+      {few && <p className="hint">{zh ? "等桌上有三个人，写好的剧本才会上演。" : "Written scenes go on once three are at the table."}</p>}
       {v.lib > 0 && <p className="hint">{zh ? `还会混进 ${v.lib} 个大家投稿的剧本。` : `Plus ${v.lib} scenes from the public library, mixed in.`}</p>}
       {library?.loading && <Skeleton lang={lang} lines={3} slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} />}
       {library?.failed && <EmptyState tone="error" title={zh ? "没连上，检查一下网络" : "Couldn't connect. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: library.retry }} />}
