@@ -67,6 +67,60 @@ describe('手机局快照', () => {
     sim.destroy();
   });
 
+  test('道具（A9）：冻住的、撑荷叶的、垂下来的拉面都拼得出来；拉面断了就没了', async () => {
+    const level: Level = {
+      id: 'snap-items',
+      w: 1400,
+      h: 900,
+      spawn: { x: 100, y: 500 },
+      goal: { x: 1200, y: 100, w: 150, h: 150 },
+      rects: [
+        { x: 0, y: 540, w: 300, h: 200, kind: 'ground', material: 'wood' },
+        { x: 600, y: 300, w: 200, h: 440, kind: 'wall', material: 'wood' },
+      ],
+      deathY: 1000,
+    };
+    const sim = await createSim(level, 3);
+    sim.setItem(0, 'freeze');
+    sim.setItem(1, 'leaf');
+    sim.setItem(2, 'noodle');
+    sim.teleport(0, 400, 200);
+    sim.teleport(1, 450, 100);
+    sim.teleport(2, 588, 330, { hands: [null, { x: 604, y: 300 }] });
+    const hold = { ax: 0, ay: 0, gl: false, gr: true };
+    for (let i = 0; i < 20; i++) {
+      sim.setInput(2, hold);
+      sim.step(1 / 60);
+    }
+    sim.setInput(0, { ax: 0, ay: 0, gl: false, gr: false, act: 'item' });
+    sim.setInput(1, { ax: 0, ay: 0, gl: false, gr: false, act: 'item' });
+    sim.setInput(2, { ...hold, act: 'item' });
+    for (let i = 0; i < 30; i++) {
+      sim.setInput(2, hold);
+      sim.step(1 / 60);
+    }
+    expect(sim.players.map((p) => p.itemOn)).toEqual(['freeze', 'leaf', null]);
+    expect(sim.noodles).toHaveLength(1);
+    const view = new RemoteSim(() => level, level);
+    view.apply(encodeSnap(sim, 1), 1000);
+    view.advance(1000);
+    expect(view.players.map((p) => p.itemOn)).toEqual(['freeze', 'leaf', null]);
+    close(view.players[0]!.itemLeft ?? 0, sim.players[0]!.itemLeft, 0.01);
+    expect(view.noodles).toHaveLength(1);
+    expect(view.noodles[0]!.owner).toBe(2);
+    expect(view.noodles[0]!.pts).toHaveLength(sim.noodles[0]!.pts.length);
+    close(view.noodles[0]!.pts.at(-1)!.y, sim.noodles[0]!.handle.y);
+    // 拉面断了：下一张快照里没有了
+    for (let i = 0; i < 60 * 11; i++) {
+      sim.setInput(2, hold);
+      sim.step(1 / 60);
+    }
+    expect(sim.noodles).toHaveLength(0);
+    view.apply(encodeSnap(sim, 2), 2000);
+    expect(view.noodles).toHaveLength(0);
+    sim.destroy();
+  });
+
   test('一张快照有多大：四个人加机关，压成文字不到 2.5 KB', async () => {
     const level = pick((l) => !!l.ropes?.length && !!l.seesaws?.length);
     const sim = await played(level, 4, 1);

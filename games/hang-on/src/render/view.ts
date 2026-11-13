@@ -3,6 +3,7 @@
  * 手机局里别的手机没有物理，拿主机发来的快照拼一个（`src/net/snap.ts` 的 RemoteSim）。
  * 这里只放类型，不引物理：手机的画面包里不能带 Rapier。
  */
+import type { ItemId } from '../items';
 import type { Level, Pt } from '../physics/level';
 import type { Face, Rules } from '../physics/world';
 
@@ -28,12 +29,22 @@ export interface PlayerView {
   face: Face;
   /** 比谁先：到终点了（停在终点里）。 */
   done?: boolean;
+  /** 正在起作用的道具（A9：速冻、荷叶）和还剩几秒。 */
+  itemOn?: ItemId | null;
+  itemLeft?: number;
 }
 
 export interface RopeView {
   anchor: Pt;
   pts: Pt[];
   handle: Pt;
+}
+
+/** 道具拉面（A9）：谁放的、还剩几秒，点和绳子一样（第一个是锚）。 */
+export interface NoodleView {
+  owner: number;
+  left: number;
+  pts: Pt[];
 }
 
 export interface PropView {
@@ -80,4 +91,6 @@ export interface SimView {
   props: PropView[];
   fadings: FadingView[];
   springs: SpringView[];
+  /** 道具放下来的拉面（A9）。 */
+  noodles?: NoodleView[];
 }

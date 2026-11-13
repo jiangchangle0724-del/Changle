@@ -9,12 +9,16 @@
  */
 import { forPlayers, type Level, type Pt } from '../physics/level';
 import type { Face, Rules, SimEvent } from '../physics/world';
-import type { FadingView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
+import { ITEM_IDS, type ItemId } from '../items';
+import type { FadingView, NoodleView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
 import { SNAP_EVENT_SENDS, SNAP_EVENTS_MAX, type Snap } from './protocol';
 
 export const FACES: Face[] = ['idle', 'grab', 'fly', 'scream', 'win'];
-/** 一个人一行的长度：10 个标量 + 两条胳膊（各 8 个坐标 + 抓了几秒）。 */
-const PLAYER_LEN = 10 + 2 * 9;
+/** 一个人一行的长度：10 个标量 + 两条胳膊（各 8 个坐标 + 抓了几秒）+ 道具（A9：哪样、还剩几秒）。 */
+const PLAYER_LEN = 10 + 2 * 9 + 2;
+/** 快照里正在起作用的道具：0 没有，1 起是 ITEM_IDS 的下标加一。 */
+const itemCode = (id: ItemId | null | undefined): number => (id ? ITEM_IDS.indexOf(id) + 1 : 0);
+const itemOf = (code: number | undefined): ItemId | null => (code ? (ITEM_IDS[code - 1] ?? null) : null);
 /** 拿来匀的那排数里一个人占几个：身体、速度、摇杆 6 个 + 两条胳膊 16 个。 */
 const PACKED_PLAYER = 6 + 16;
 /** 两张快照之间挪了这么远（像素）就不匀，直接跳过去。 */
@@ -46,6 +50,7 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
       }
       row.push(arm.grip ? r2(arm.grip.t) : -1);
     }
+    row.push(itemCode(pl.itemOn), r2(pl.itemLeft ?? 0));
     return row;
   });
   const snap: Snap = {
@@ -61,6 +66,7 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
     f: sim.fadings.flatMap((f) => [f.on ? 1 : 0, r2(f.left)]),
     s: sim.springs.map((s) => (Number.isFinite(s.hit) ? r2(Math.min(s.hit, 99)) : -1)),
   };
+  if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
     snap.e = events.list.map(slim);
     snap.ek = events.k;
@@ -116,6 +122,7 @@ export class RemoteSim implements SimView {
   props: PropView[] = [];
   fadings: FadingView[] = [];
   springs: SpringView[] = [];
+  noodles: NoodleView[] = [];
   /** 收到过的最新序号。 */
   seq = -1;
   /** 关卡是按几个人摆的（快照的 np，没有就是人数）。 */
@@ -248,6 +255,11 @@ export class RemoteSim implements SimView {
       });
       changed = true;
     }
+    const nd = s.nd ?? [];
+    if (force || this.noodles.length !== nd.length || this.noodles.some((n, i) => n.pts.length * 2 + 2 !== (nd[i]?.length ?? 0) || n.owner !== nd[i]?.[0])) {
+      this.noodles = nd.map((row) => ({ owner: row[0] ?? 0, left: 0, pts: Array.from({ length: Math.max(0, row.length - 2) / 2 }, pt) }));
+      changed = true;
+    }
     const sd = this.level.springs ?? [];
     if (force || this.springs.length !== s.s.length) {
       this.springs = s.s.map((_, i) => {
@@ -268,6 +280,7 @@ export class RemoteSim implements SimView {
     }
     for (const flat of s.r) for (const v of flat) out.push(v);
     for (const o of s.o) out.push(o[0] ?? 0, o[1] ?? 0, o[2] ?? 0);
+    for (const row of s.nd ?? []) for (let i = 2; i < row.length; i++) out.push(row[i] ?? 0);
     // 时间也跟着匀：会动的平台按时间画，和匀过的人对得上（站在上面不抖）
     out.push(s.t);
     return out;
@@ -305,6 +318,12 @@ export class RemoteSim implements SimView {
       o.y = c[i++] as number;
       o.angle = c[i++] as number;
     }
+    for (const n of this.noodles) {
+      for (const q of n.pts) {
+        q.x = c[i++] as number;
+        q.y = c[i++] as number;
+      }
+    }
     this.time = c[i++] as number;
   }
 
@@ -324,6 +343,12 @@ export class RemoteSim implements SimView {
         const g = row[10 + a * 9 + 8] ?? -1;
         arm.grip = g >= 0 ? { t: g + since } : null;
       });
+      p.itemOn = itemOf(row[28]);
+      p.itemLeft = Math.max(0, (row[29] ?? 0) - since);
+    });
+    (s.nd ?? []).forEach((row, i) => {
+      const n = this.noodles[i];
+      if (n) n.left = Math.max(0, (row[1] ?? 0) - since);
     });
     this.fadings.forEach((f, i) => {
       f.on = s.f[i * 2] === 1;

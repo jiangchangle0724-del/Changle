@@ -132,6 +132,23 @@ export const CFG = {
   slipCooldown: 0.8,
   /** 定时塌的东西（until）提前几秒开始抖。 */
   crumbleWarn: 2,
+
+  // ---- 道具（A9）----
+  /** 速冻：冻住几秒；冷却从用的那一下算（冻 4 秒，再等 8 秒）。 */
+  freezeTime: 4,
+  freezeCd: 12,
+  /** 拉面：几节、每节多长（10 × 20 = 200 px，两个多身高）、留几秒、冷却；锚点离墙多远。 */
+  noodleSegs: 10,
+  noodleSegLen: 20,
+  noodleTime: 10,
+  noodleCd: 15,
+  noodleGap: 6,
+  /** 荷叶：撑几秒、冷却、往下掉最快多少 px/s（平时自由落体一秒就过 1000）、摇杆推着横着飘多快、多快到那个速度。 */
+  leafTime: 5,
+  leafCd: 12,
+  leafFall: 150,
+  leafDrift: 260,
+  leafAccel: 900,
 };
 
 export type Cfg = typeof CFG;
