@@ -9,13 +9,13 @@
  *                              { quota: true } once the key's searches for the day are used up)
  *   GET /api/yt/bpm?id=VIDEO       the video's song's tempo, for the big screen's dancers (Steve on Nov 12:
  *                              "机器人没有跟着音乐一起跳"): its title (oEmbed) looked up in Deezer's
- *                              catalogue (no key, free), { bpm } or { bpm: null }
+ *                              catalogue (no key, free), { bpm } or { bpm: null, why }
  *
  * A link's answer is cached at the edge for a day, a search's for a week (a song's videos hardly
  * change, and a search costs a hundredth of the key's daily allowance: the same song asked for again
  * costs nothing), a tempo's for a month (an hour when nothing was found).
  */
-import { hitsOf, songQuery, trackOf, unescape, YT_ID, type YtHit } from "../src/shared/dj/youtube";
+import { hitsOf, songQueries, tracksOf, unescape, YT_ID, type YtHit } from "../src/shared/dj/youtube";
 
 const clip = (s: unknown, n: number) => (typeof s === "string" ? unescape(s).replace(/\s+/g, " ").trim().slice(0, n) : "");
 
@@ -65,38 +65,66 @@ export async function youtube(path: string, url: URL, env: Env, ctx: ExecutionCo
   return res;
 }
 
-/** /yt/bpm: the video's song's tempo, or null (not found, not in the catalogue, or no tempo there). */
+/** Tracks /yt/bpm looks at, at most, for one video (the catalogue has no tempo for many). */
+const LOOKS = 5;
+
+/**
+ * /yt/bpm: the video's song's tempo, or null and why (`video`: no such video; `match`: no track in
+ * the catalogue is it; `tempo`: the ones that are have none). Looked up each way `songQueries` gives,
+ * the singer's own tracks first (the next one when one has no tempo), then anyone's of that name.
+ */
 async function bpmOf(url: URL, ctx: ExecutionContext): Promise<Response> {
   const id = url.searchParams.get("id") ?? "";
   const answer = (body: unknown, keep: number, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": keep ? `public, max-age=${keep}` : "no-store" } });
   if (!YT_ID.test(id)) return answer({ error: "id" }, 0, 400);
   const cache = (caches as unknown as { default: Cache }).default;
-  const key = new Request(`https://rooms.changle.ca/__yt/bpm?id=${id}`);
+  // (bpm2: the answers from before more ways to look a song up aren't kept)
+  const key = new Request(`https://rooms.changle.ca/__yt/bpm2?id=${id}`);
   const hit = await cache.match(key);
   if (hit) return hit;
-  const none = () => {
-    const res = answer({ bpm: null }, 3600);
+  const keep = (body: unknown, s: number) => {
+    const res = answer(body, s);
     ctx.waitUntil(cache.put(key, res.clone()));
     return res;
   };
   try {
     const o = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`);
-    if (!o.ok) return none();
+    if (!o.ok) return keep({ bpm: null, why: "video" }, 3600);
     const v = (await o.json()) as { title?: unknown; author_name?: unknown };
     const title = typeof v.title === "string" ? v.title : "";
-    const q = songQuery(title, typeof v.author_name === "string" ? v.author_name : "");
-    if (q.length < 2) return none();
-    const found = await fetch(`https://api.deezer.com/search?limit=8&q=${encodeURIComponent(q)}`);
-    if (!found.ok) return none();
-    const track = trackOf(await found.json(), title, typeof v.author_name === "string" ? v.author_name : "");
-    if (track === null) return none();
-    const t = await fetch(`https://api.deezer.com/track/${track}`);
-    if (!t.ok) return none();
-    const bpm = Number(((await t.json()) as { bpm?: unknown }).bpm);
-    if (!(bpm >= 40 && bpm <= 250)) return none();
-    const res = answer({ bpm: Math.round(bpm * 10) / 10 }, 30 * 86400);
-    ctx.waitUntil(cache.put(key, res.clone()));
-    return res;
+    const author = typeof v.author_name === "string" ? v.author_name : "";
+    const looked = new Set<number>();
+    const others: number[] = [];
+    let found = false;
+    const tempo = async (track: number) => {
+      looked.add(track);
+      const t = await fetch(`https://api.deezer.com/track/${track}`);
+      if (!t.ok) return 0;
+      const bpm = Number(((await t.json()) as { bpm?: unknown }).bpm);
+      return bpm >= 40 && bpm <= 250 ? Math.round(bpm * 10) / 10 : 0;
+    };
+    for (const q of songQueries(title, author)) {
+      if (looked.size >= LOOKS) break;
+      const r = await fetch(`https://api.deezer.com/search?limit=8&q=${encodeURIComponent(q)}`);
+      if (!r.ok) continue;
+      for (const c of tracksOf(await r.json(), title, author)) {
+        found = true;
+        if (looked.has(c.id) || others.includes(c.id)) continue;
+        if (!c.theirs) {
+          others.push(c.id);
+          continue;
+        }
+        if (looked.size >= LOOKS) break;
+        const bpm = await tempo(c.id);
+        if (bpm) return keep({ bpm }, 30 * 86400);
+      }
+    }
+    for (const c of others) {
+      if (looked.size >= LOOKS) break;
+      const bpm = await tempo(c);
+      if (bpm) return keep({ bpm }, 30 * 86400);
+    }
+    return keep({ bpm: null, why: found ? "tempo" : "match" }, 3600);
   } catch {
     return answer({ bpm: null }, 0);
   }

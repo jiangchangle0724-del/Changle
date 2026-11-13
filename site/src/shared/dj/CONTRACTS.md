@@ -726,8 +726,11 @@ changing every two bars, each robot starting at a different place in the list. A
 jump (its tag going up with it); someone away sits down, greyed. Over a whole song from YouTube,
 which the page can't hear, they dance to the song's own beat (Steve on Nov 12: "机器人没有跟着音乐一起
 跳"; before, they only stood at a microphone singing): its tempo from the rooms server
-(`/api/yt/bpm`: the video's title, from YouTube's oEmbed, looked up in Deezer's catalogue, no key;
-`songQuery`, `trackOf` and `danceBpm` in `shared/dj/youtube.ts`, the tempo folded into 70 to 140),
+(`/api/yt/bpm`: the video's title, from YouTube's oEmbed, looked up in Deezer's catalogue, no key, up
+to three ways (`songQueries` in `shared/dj/youtube.ts`: the title, then the singer and the song by
+one name each, "Jay Chou 晴天" for a title naming both in two scripts), the singer's own tracks
+first and the next when one has no tempo, then a cover's, five tracks at most (`tracksOf`); none:
+`{ bpm: null, why }`, `video`, `match` or `tempo`; `danceBpm` folds the tempo into 70 to 140),
 the DJ's until it's there or when there's none, counted from the song's start (`song.at`), whether
 or not the page's own sound is running, the lights kicking on its beats. A microphone on a stand
 rises in front of each, brows up as a line opens out and knitted on its long notes, notes in their
@@ -812,7 +815,10 @@ and is back if they can't be.
   back to the DJ's beat after it; nine at the table
   in two rows on the beat; a TV drawing WebGL in software keeping the drawn floor (three.js never
   downloaded), one slowed down on purpose going back to it, and with reduced motion the robots
-  standing easy.
+  standing easy. `tests/dj.test.ts` has the song's tempo: the ways to look a video up, the tracks
+  that could be it, and the rooms server's `/api/yt/bpm` against a stand-in YouTube and Deezer (the
+  next track when one has no tempo, the next way when one finds nothing, the singer's own before a
+  cover, five at most, why there's none).
 - `python3 scripts/dj_shared_check.py`: the shared phone in browsers, a phone held sideways, two
   phones scanned in, a computer: the card's first button on a phone (公用手机（投屏电视）), its one tap
   opening the booth full screen with the music on and 点歌模式, no other tap; the 点歌 sheet (the
