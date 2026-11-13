@@ -49,6 +49,17 @@ game mechanic is not protected; names, card texts and art are. So (2026-11-02, t
 * The sounds are the site's own synthesised ones (`site/src/lib/sfx.ts`, played through
   `party/straightface/sounds.ts`): no recordings, nothing to license.
 
+# 约时间 · When Works: the pictures
+
+The four pictures in `tools/when/src/client/art/` are **AI-made**, drawn with OpenAI's built-in
+image generation by Codex on 2026-11-13. The prompts describe only what to draw, with no other
+product's name or picture as a reference. The prompts' main points are recorded in
+`tools/when/src/client/art/README.md`.
+
+`tools/when/src/client/art/` 的四张图片由 Codex 于 2026-11-13 使用 OpenAI 内置图片生成工具绘制，
+属于 **AI 生成图片**。提示词只描述要画的东西，不使用其他产品的名称或图片作参考；提示词要点
+记录在 `tools/when/src/client/art/README.md`。
+
 # 打碟 · DJ Booth: two skills for the assistant (not the site)
 
 Instructions an AI assistant reads while it works on the booth's sound (Nov 5; Steve asked for DJ and
