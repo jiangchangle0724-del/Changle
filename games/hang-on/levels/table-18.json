@@ -1,0 +1,228 @@
+{
+  "id": "table-18",
+  "world": "table",
+  "name": {
+    "zh": "年夜忙不停",
+    "en": "Reunion Rush"
+  },
+  "teaches": "gauntlet",
+  "w": 3000,
+  "h": 720,
+  "spawn": {
+    "x": 180,
+    "y": 496
+  },
+  "goal": {
+    "x": 2860,
+    "y": 320,
+    "w": 100,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1200,
+      "y": 596
+    },
+    {
+      "x": 1980,
+      "y": 616
+    },
+    {
+      "x": 2764,
+      "y": 456
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 520,
+      "w": 400,
+      "h": 200,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 900,
+      "y": 620,
+      "w": 420,
+      "h": 100,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1660,
+      "y": 640,
+      "w": 440,
+      "h": 80,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2700,
+      "y": 480,
+      "w": 260,
+      "h": 240,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2960,
+      "y": 320,
+      "w": 40,
+      "h": 400,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 400,
+      "y": 700,
+      "w": 500,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1320,
+      "y": 700,
+      "w": 340,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2100,
+      "y": 700,
+      "w": 600,
+      "h": 20,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 420,
+      "y": 660,
+      "w": 400,
+      "h": 20,
+      "kind": "spike",
+      "dir": "up"
+    },
+    {
+      "x": 760,
+      "y": 240,
+      "w": 80,
+      "h": 20,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 1380,
+      "y": 680,
+      "w": 200,
+      "h": 20,
+      "kind": "zap",
+      "dir": "up"
+    },
+    {
+      "x": 2160,
+      "y": 660,
+      "w": 440,
+      "h": 20,
+      "kind": "hot",
+      "dir": "up"
+    }
+  ],
+  "movers": [
+    {
+      "x": 420,
+      "y": 420,
+      "w": 160,
+      "h": 22,
+      "path": [
+        {
+          "x": 600,
+          "y": 340
+        },
+        {
+          "x": 940,
+          "y": 420
+        }
+      ],
+      "speed": 36,
+      "wait": 2,
+      "material": "wood"
+    },
+    {
+      "x": 2060,
+      "y": 520,
+      "w": 160,
+      "h": 22,
+      "path": [
+        {
+          "x": 2420,
+          "y": 440
+        },
+        {
+          "x": 2740,
+          "y": 280
+        }
+      ],
+      "speed": 70,
+      "wait": 2,
+      "material": "wood"
+    },
+    {
+      "x": 980,
+      "y": 340,
+      "w": 24,
+      "h": 24,
+      "path": [
+        {
+          "x": 980,
+          "y": 500
+        }
+      ],
+      "speed": 90,
+      "wait": 2,
+      "material": "wood",
+      "deadly": true,
+      "hazard": "hot"
+    }
+  ],
+  "spinners": [
+    {
+      "pivot": {
+        "x": 1480,
+        "y": 420
+      },
+      "arms": 2,
+      "len": 200,
+      "h": 16,
+      "spin": 0.5,
+      "material": "wood"
+    },
+    {
+      "pivot": {
+        "x": 2350,
+        "y": 660
+      },
+      "arms": 2,
+      "len": 40,
+      "h": 16,
+      "spin": 1.2,
+      "material": "wood",
+      "deadly": true
+    }
+  ],
+  "deathY": 790,
+  "par": {
+    "seconds": 180,
+    "deathsPerPlayer": 8
+  },
+  "replay": "replays/table-18.json"
+}

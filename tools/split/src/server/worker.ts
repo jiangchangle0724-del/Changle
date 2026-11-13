@@ -117,11 +117,16 @@ export default {
 
 /** The room's store, in the Durable Object's own SQLite. Nothing is written for a ledger nobody made. */
 function sqlStore(sql: SqlStorage): Store {
+  // every change this ledger was sent, and whether it counted
+  const HEARD = "CREATE TABLE IF NOT EXISTS heard (id TEXT PRIMARY KEY, counted INTEGER NOT NULL) WITHOUT ROWID";
   let made = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'").toArray().length > 0;
+  // A ledger made on the server's first day has a table named `sent` with ids only. It gets the
+  // new table here and the old one is left as it is, not read.
+  if (made) sql.exec(HEARD);
   const ready = () => {
     if (made) return;
     sql.exec("CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY CHECK (id = 1), json TEXT NOT NULL, ledger TEXT NOT NULL)");
-    sql.exec("CREATE TABLE IF NOT EXISTS sent (id TEXT PRIMARY KEY) WITHOUT ROWID");
+    sql.exec(HEARD);
     sql.exec("CREATE TABLE IF NOT EXISTS log (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, json TEXT NOT NULL)");
     made = true;
   };
@@ -135,10 +140,14 @@ function sqlStore(sql: SqlStorage): Store {
       ready();
       sql.exec("INSERT INTO meta (id, json, ledger) VALUES (1, ?, ?) ON CONFLICT (id) DO UPDATE SET json = excluded.json, ledger = excluded.ledger", JSON.stringify(meta), JSON.stringify(ledger));
     },
-    seen: (id) => made && sql.exec("SELECT 1 FROM sent WHERE id = ?", id).toArray().length > 0,
+    seen(id) {
+      if (!made) return undefined;
+      const row = sql.exec("SELECT counted FROM heard WHERE id = ?", id).toArray()[0];
+      return row ? row.counted === 1 : undefined;
+    },
     keep(id, logged) {
       ready();
-      sql.exec("INSERT OR IGNORE INTO sent (id) VALUES (?)", id);
+      sql.exec("INSERT OR IGNORE INTO heard (id, counted) VALUES (?, ?)", id, logged ? 1 : 0);
       if (logged) sql.exec("INSERT INTO log (seq, at, json) VALUES (?, ?, ?)", logged.seq, logged.at, JSON.stringify(logged.sent));
     },
     since(seq, limit) {

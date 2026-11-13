@@ -1,7 +1,11 @@
 // 跟一单 · Count Me In: the server. One Worker at changle.ca/tuan, with its own D1 database.
-// The pages come next; for now it answers the API (the shapes are in src/api.ts).
 //
-// Anyone, no sign-in:
+// The pages (one file for all of them, src/client; what each shows is decided on the phone):
+//   /tuan/ and /tuan/preview                  home
+//   /tuan/t/<id>                              a group buy, with its name in the page's title
+//   /tuan/o/<code>                            an order
+//   /tuan/assets/…                            the script, the styles and the fonts: plain files
+// The API (the shapes are in src/api.ts). Anyone, no sign-in:
 //   GET  /tuan/api/offers/<id>                a group buy: the goods, what's left, who's in
 //   POST /tuan/api/offers/<id>/orders         place an order
 //   GET  /tuan/api/orders/<code>              the buyer's own order (the phone number's last four digits in the x-tail header)
@@ -29,7 +33,7 @@ import { offerPage, orderPage } from "../engine/view";
 import { bump, networkOf, used } from "./gate";
 import { flush, notify } from "./notify";
 import { ensureSchema } from "./schema";
-import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveShop, setOfferStatus, shopBySlug, shopsOf, weighOrder } from "./store";
+import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, offerHead, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveShop, setOfferStatus, shopBySlug, shopsOf, weighOrder } from "./store";
 import { tokenOf, whoIs, type Who } from "./who";
 
 /** The most an order's body may be, and a whole group buy's. */
@@ -343,6 +347,66 @@ async function makeShop(req: Request, db: D1Database, now: number): Promise<Resp
   return json({ id: read.shop.slug } satisfies Made);
 }
 
+// ---------- the pages ----------
+
+/**
+ * The page itself: never kept by a phone, and nothing on it may run but the site's own files and
+ * one thing of Cloudflare's: the visitor statistics it adds to every page of changle.ca (Web
+ * Analytics, from static.cloudflareinsights.com, reporting to this site's own /cdn-cgi/rum or to
+ * cloudflareinsights.com). An order's address holds its code, so no other site is told where a
+ * visitor came from. Not for search engines: a group buy is for the people its link was sent to.
+ */
+const PAGE_HEADERS: Record<string, string> = {
+  "cache-control": "no-store",
+  "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  "referrer-policy": "same-origin",
+  "x-content-type-options": "nosniff",
+  "x-robots-tag": "noindex, nofollow",
+};
+const plain = (text: string, status: number) => new Response(text, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-robots-tag": "noindex, nofollow" } });
+
+/** The one file every page is, under `status`; with `title`, named for what it shows (the tab, and the card a shared link becomes). */
+async function shell(env: Env, url: URL, title: string | null, status: number): Promise<Response> {
+  const file = await env.ASSETS.fetch(new URL(`${BASE}/`, url));
+  if (!file.ok) return plain("not found", 404);
+  const headers = new Headers(file.headers);
+  for (const [name, value] of Object.entries(PAGE_HEADERS)) headers.set(name, value);
+  const res = new Response(file.body, { status, headers });
+  if (!title) return res;
+  const named = `${title} · 跟一单 Count Me In`;
+  // A merchant wrote it: it goes in as text, never as markup. (Inside an attribute the rewriter
+  // sees to the quotes; the rest is done here, so the card says exactly what was typed.)
+  const inAttribute = named.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return new HTMLRewriter()
+    .on("title", { element: (el) => void el.setInnerContent(named) })
+    .on('meta[property="og:title"]', { element: (el) => void el.setAttribute("content", inAttribute) })
+    .transform(res);
+}
+
+/** Which page an address is. The page for an order is the same whether or not there is such an order. */
+async function page(req: Request, env: Env, url: URL, parts: string[]): Promise<Response> {
+  if (req.method !== "GET" && req.method !== "HEAD") return plain("method not allowed", 405);
+  // a script, a style or a font that isn't there (the ones that are never reach the Worker)
+  if (parts[0] === "assets") return plain("not found", 404);
+  const [a, b] = parts;
+  const n = parts.length;
+  if (n === 0 || (n === 1 && a === "preview")) return shell(env, url, null, 200);
+  if (n === 2 && a === "o" && ORDER_RE.test(tidyOrderCode(b))) return shell(env, url, null, 200);
+  if (n === 2 && a === "t" && OFFER_RE.test(b)) {
+    let head: { title: string; shop: string } | null;
+    try {
+      await ensureSchema(env.DB);
+      head = await offerHead(env.DB, b);
+    } catch (e) {
+      // the page still opens, and says what's wrong when it asks for the group buy itself
+      console.error("tuan page", url.pathname, e);
+      return shell(env, url, null, 200);
+    }
+    return head ? shell(env, url, `${head.title} · ${head.shop}`, 200) : shell(env, url, null, 404);
+  }
+  return shell(env, url, null, 404);
+}
+
 // ---------- the way in ----------
 
 async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, url: URL, parts: string[]): Promise<Response> {
@@ -390,9 +454,9 @@ export default {
   // (ctx is optional for the tests, which call fetch without one)
   async fetch(req: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
-    const parts = url.pathname === BASE || url.pathname.startsWith(`${BASE}/`) ? url.pathname.slice(BASE.length).split("/").filter(Boolean).map(unescaped) : [];
-    // the pages aren't built yet: nothing but the API answers
-    if (parts[0] !== "api") return new Response("not found", { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" } });
+    if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return plain("not found", 404);
+    const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean).map(unescaped);
+    if (parts[0] !== "api") return page(req, env, url, parts);
     try {
       return await api(req, env, ctx, url, parts.slice(1));
     } catch (e) {

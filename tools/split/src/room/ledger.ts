@@ -39,9 +39,9 @@ export type Snapshot = { seq: number; ledger: Ledger };
 export interface Store {
   load(): { meta: Meta; ledger: Ledger } | null;
   save(meta: Meta, ledger: Ledger): void;
-  /** Has this ledger been sent a change with this id? */
-  seen(id: string): boolean;
-  /** Remember a change's id, and the change itself when it counted. */
+  /** Has this ledger been sent a change with this id, and did it count? Undefined when it hasn't. */
+  seen(id: string): boolean | undefined;
+  /** Remember a change's id and whether it counted, and the change itself when it did. */
   keep(id: string, logged: Logged | null): void;
   /** The changes that counted after number `seq`, oldest first, at most `limit` of them. */
   since(seq: number, limit: number): Logged[];
@@ -125,17 +125,20 @@ export class LedgerRoom {
       if (!s) return fail("bad");
       sent.push(s);
     }
-    const fresh = new Set(sent.map((s) => s.id).filter((id) => !this.store.seen(id)));
+    const fresh = new Set(sent.map((s) => s.id).filter((id) => this.store.seen(id) === undefined));
     if (this.meta.sent + fresh.size > MAX_SENT) return fail("full");
 
     const meta = { ...this.meta };
     let ledger = this.ledger;
     const took: Took[] = [];
-    const seen = { has: (id: string) => this.store.seen(id), add: () => undefined };
+    // accept() asks whether a change was sent before and says whether this one counted; the
+    // store is told below, with the record of it when it did
+    const seen = { get: (id: string) => this.store.seen(id), set: () => undefined };
     for (const s of sent) {
+      const before = this.store.seen(s.id) !== undefined;
       const got = accept(ledger, seen, s);
       took.push(got.took);
-      if (got.took === "seen") continue;
+      if (before) continue;
       meta.sent += 1;
       ledger = got.ledger;
       this.store.keep(s.id, got.took === "new" ? { seq: ++meta.seq, at: now, sent: s } : null);
@@ -158,9 +161,9 @@ export class LedgerRoom {
 }
 
 /** A store that lives only as long as the test does. */
-export function memoryStore(): Store & { ids: Set<string>; log: Logged[] } {
+export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[] } {
   let kept: { meta: Meta; ledger: Ledger } | null = null;
-  const ids = new Set<string>();
+  const ids = new Map<string, boolean>();
   const log: Logged[] = [];
   return {
     ids,
@@ -169,9 +172,9 @@ export function memoryStore(): Store & { ids: Set<string>; log: Logged[] } {
     save(meta, ledger) {
       kept = structuredClone({ meta, ledger });
     },
-    seen: (id) => ids.has(id),
+    seen: (id) => ids.get(id),
     keep(id, logged) {
-      ids.add(id);
+      ids.set(id, logged !== null);
       if (logged) log.push(structuredClone(logged));
     },
     since: (seq, limit) => log.filter((l) => l.seq > seq).slice(0, limit),

@@ -110,7 +110,7 @@ test("a change that changes nothing is remembered, and is not in the record", ()
   assert.ok(got.ok);
   assert.deepEqual([got.took, got.seq, got.ledger.entries.length, store.log.length, store.load()?.meta.sent], [["nothing"], 0, 0, 0, 1]);
   const again = room.push("key", [unsound], NOW);
-  assert.ok(again.ok && again.took[0] === "seen" && store.load()?.meta.sent === 1);
+  assert.ok(again.ok && again.took[0] === "nothing" && store.load()?.meta.sent === 1, "sent again, it is told the same: it didn't stick");
 });
 
 test("a request with anything in it that isn't a change is turned away whole", () => {

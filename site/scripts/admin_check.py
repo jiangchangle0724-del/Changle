@@ -366,6 +366,8 @@ def main():
     real = [e for e in errors if "favicon" not in e]
     if real:
         print("\npage errors:\n  " + "\n  ".join(real[:10]))
+    # an error thrown in a page is a failure, not a footnote (a crash the "something went wrong" screen caught still counts)
+    check(not real, f"no error was thrown in any page ({len(real)})")
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed")
     sys.exit(1 if fails else 0)
 

@@ -26,7 +26,7 @@
 - `npx tsx tests/draw.test.ts`、`npx tsx tests/cutout.test.ts`：头像的提示词和抠图
 - 手机尺寸的浏览器（要房间服务器和网站都在跑，`site/README.md`「自己跑起来」）：`python3 scripts/account_check.py`（登录、资料、好友、聊天、一桌人的头像；加 `--solo` 连单机战绩一起）、`python3 scripts/admin_check.py`（后台：踢人、拉黑、暂停、每月头像、保持登录）、`python3 scripts/perk_check.py`（许愿的奖励）、`python3 scripts/stage_check.py`（头像上猜歌名的台）
 - `python3 scripts/mail_door_check.py`：代发信从头到尾（怎么跑在它开头）
-- 这几个脚本只在 `.broken`（「这里出了点问题」）挡住它们时才会发现页面报错；最好改成遇到页面报错就算失败（见「还剩什么」）。
+- 这四个浏览器脚本（account、admin、perk、stage）最后都有一条「页面里没有抛出错误」：页面报了错（哪怕被「这里出了点问题」接住了）就算失败。
 
 ## 定过的事
 
@@ -46,32 +46,37 @@
 
 ## 现在
 
-2026-11-13：账号这块都在线上。代发信的入口做好了（这次的 PR），等跟一单那边接上。
+2026-11-13：账号这块都在线上。代发信的入口上线了（#457），等跟一单那边接上。AI 头像编辑器崩页面的 bug 修了（下面「最近的改动」）。
 
-- 登录、个人页、照片或 AI 头像、好友、聊天、战绩、后台，都有，本地四个检查脚本过（11 月 4 日跑的：登录、后台到头像那一步前、许愿奖励、上台）。
+- 登录、个人页、照片或 AI 头像、好友、聊天、战绩、后台，都有。11 月 13 日本地四个检查脚本全过（admin 40 条、account 24 条、perk 10 条、stage 10 条）。
 - 代发信：本地从替身 Worker 经 Service Binding 调过，61 封里 60 封到了假 Resend，第 61 封回 full；拒绝的、被拉黑的、Resend 报错的都对；验证码邮件改走 `deliver()` 以后也发了一遍。线上还没有谁调过它。
 
 ## 还剩什么
 
-都是 11 月 4 日查出来、复现过的，代码还没改（11 月 13 日看 main 上还在）：
+11 月 4 日查出来、复现过的，还没改的：
 
-1. **AI 头像编辑器会把页面弄崩**：Chrome、Edge 150 起（2026 年 6 月底，含安卓），iPhone 不受影响。在编辑器里换过一次分类（发型、穿搭这些）再换一次或关掉，整页变成「这里出了点问题」；已经有头像的人打开编辑器再关也崩。画到一半的图没了，这个月 6 次里用掉的不退。原因：`site/src/account/avatar/Maker.tsx` 里 `useLayoutEffect(() => panel.current?.scrollTo({ top: 0 }), [tab])` 把 `scrollTo` 的返回值交给了 React 当清理函数，而这些浏览器的 `scrollTo` 现在返回一个 Promise（[scroll method promises](https://web-platform-dx.github.io/web-features-explorer/features/scroll-promises/)）。改成带大括号的函数体就好（在副本里改过，三种走法都过，后台检查全过）。同一个 PR 里顺便让检查脚本遇到页面报错就算失败。
-2. **单机游戏的战绩经常记不上**：只有点游戏里的返回键才记；直接关网页或跳到别的网址就没了（`App.tsx` 的 `useSoloHistory` 只在卸载时发，`pagehide` 时的 fetch 没带 keepalive）。代码在首页对话的地盘，见「交给别的对话」。
-3. **屏蔽了解不开**：没有解除的按钮，服务器也没有 `DELETE /blocks/<id>`。要不要做成一个「已屏蔽的人」名单，等 Steve 定。
-4. **未读数字消不掉**：有未读消息时被对方删好友，或自己把对方屏蔽，头像上的数字就一直挂着（`unread()` 不看好友关系）。
-5. 头像的第三种身形叫「中性」（Steve 当时写的是「双性别」），10-30 问过，没确认。
-6. 代发信：后台看不到今天发了几封（`mails` 表里有）；要的话在 /admin 加一行。
+1. **单机游戏的战绩经常记不上**：只有点游戏里的返回键才记；直接关网页或跳到别的网址就没了（`App.tsx` 的 `useSoloHistory` 只在卸载时发，`pagehide` 时的 fetch 没带 keepalive）。代码在首页对话的地盘，见「交给别的对话」。
+2. **屏蔽了解不开**：没有解除的按钮，服务器也没有 `DELETE /blocks/<id>`。要不要做成一个「已屏蔽的人」名单，等 Steve 定。
+3. 头像的第三种身形叫「中性」（Steve 当时写的是「双性别」），10-30 问过，没确认。
+4. 代发信：后台看不到今天发了几封（`mails` 表里有）；要的话在 /admin 加一行。
+
+修掉的（留着备查）：
+
+- 未读数字消不掉（11 月 13 日修）：`unread()` 只数还是好友的那些对话；删好友或屏蔽时两边的手机都收到 `friends` 和 `unread`，角标当场更新。account_check 里加了一步。
+- AI 头像编辑器在 Chrome、Edge 150 起（2026 年 6 月底，含安卓）会把整页变成「这里出了点问题」：换过一次分类再换或关掉就崩，已经有头像的人打开再关也崩，画到一半的图没了、这个月的次数不退。原因是 `Maker.tsx` 里 `useLayoutEffect(() => panel.current?.scrollTo({ top: 0 }), [tab])` 把 `scrollTo` 的返回值交给了 React 当清理函数，而这些浏览器的 `scrollTo` 现在返回 Promise（[scroll method promises](https://web-platform-dx.github.io/web-features-explorer/features/scroll-promises/)）；React 下次清理时调用它就抛错。改成带大括号的函数体，11 月 13 日修了。仓库里其它地方没有同样的写法（到此一游有一处 `useEffect(() => window.scrollTo(0, 0))`，但它用的是 Preact，Preact 只调用函数类型的清理，不会崩）。
 
 ## 交给别的对话
 
 - 「工具 · 跟一单」：代发信的入口有了（`site/worker/mail.ts`，合并上线即生效）。接法：`tools/tuan/wrangler.jsonc` 的 `services` 里加 `{ "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }`，调 `await env.MAIL.send({ app: "tuan", to: 商家登录邮箱, subject, text, link: "https://changle.ca/tuan/…", lang })`，回话和限制见上面「定过的事」。测试里的替身照 `site/scripts/mail_door/index.ts` 反过来写一个 `export class Mail extends WorkerEntrypoint { send() {} }` 就行。合并通知（每家店第一单马上发，之后最多半小时一封）在跟一单那边做。
-- 「平台 · 首页与上线」：`site/src/App.tsx` 的 `useSoloHistory` 在 `pagehide` 时发的请求要带 `keepalive`（或改用 `navigator.sendBeacon`），不然关网页就记不上单机战绩（上面第 2 条）。这个对话可以只改那几行，也可以由首页对话做。
+- 「平台 · 首页与上线」：`site/src/App.tsx` 的 `useSoloHistory` 在 `pagehide` 时发的请求要带 `keepalive`（或改用 `navigator.sendBeacon`），不然关网页就记不上单机战绩（「还剩什么」第 1 条）。这个对话可以只改那几行，也可以由首页对话做。
 
 ## 最近的改动
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-13 账号：房间服务器给内部 Worker 的发信入口（Mail 入口、notice.ts、假 Resend、检查脚本）
+- 2026-11-13 账号：未读角标只数还是好友的对话；删好友、屏蔽时两边当场更新
+- 2026-11-13 账号：AI 头像编辑器在 Chrome、Edge 150 起崩页面（scrollTo 的 Promise 被当成了清理函数）；四个检查脚本遇到页面报错就算失败；stage_check 认得新的桌面格子
+- 2026-11-13 账号：房间服务器给内部 Worker 的发信入口（Mail 入口） (#457)
 - 2026-11-05 一本正经：战绩和卡片反馈（升级 4）
 - 2026-11-05 fix(admin): show search and review failures (#219)
 - 2026-11-05 ui-C5 accounts：加载、空、失败与操作反馈 (#218)
@@ -90,3 +95,4 @@
 - 2026-11-02 从总对话的聊天记录查出漏掉的事，补进「还剩什么」。
 - 2026-11-04 开场盘点：读了档案、代码和四个检查脚本，本地跑了一遍，查出「还剩什么」的 1 到 4 条并逐条复现。那时仓库刚改名（changle-ca → Changle），这个对话推不了分支，没动代码，也没能更新档案；今天补上。
 - 2026-11-13 按跟一单档案的「交给别的对话」做了代发信的入口：`notice.ts`（规矩和信）、`mail.ts`（具名入口）、`hub.ts` 的 `notice()` 和 `mails` 表、`index.ts` 一行、假 Resend、替身 Worker、`tests/mail.test.ts`（CI）和 `scripts/mail_door_check.py`。本地三个进程一起跑，检查全过；验证码邮件也重跑了一遍。开工时看了 main 上 9 天的提交，账号这块只有别的对话加进来的几行（一本正经的表挂进 hub、加载和失败状态），没有碰 `mail`。
+- 2026-11-13 修头像编辑器崩页面的那一行。本地用生产构建在 Chromium 153 上把三种崩法各走一遍，都不再崩，图也存上了；四个检查脚本全过，admin_check 以前卡在头像那一步，现在 40 条走完。stage_check 点桌面格子的那一句过时了（格子改成 `src/ui/Tile` 以后没有 aria-label），顺手改了。

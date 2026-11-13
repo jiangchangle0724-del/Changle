@@ -67,6 +67,12 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
   };
 }
 
+/** A group buy's name and its shop's, for its page's title; null when there's none the public may see. */
+export async function offerHead(db: D1Database, offerId: string): Promise<{ title: string; shop: string } | null> {
+  const row = await db.prepare("SELECT f.title, s.name FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ? AND f.status != 'draft'").bind(offerId).first<Row>();
+  return row ? { title: text(row.title), shop: text(row.name) } : null;
+}
+
 // ---------- orders ----------
 
 const ORDER_COLS = "code, offer_id, seq, name, phone, wechat, how, pickup_id, rule_id, address, note, status, paid_at, picked_at, goods, fee, final, pieces, rev, created_at, updated_at";
