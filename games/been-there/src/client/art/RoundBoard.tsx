@@ -296,7 +296,7 @@ export function Lot({ at, n, from, gone, color }: { at: number; n: number; from:
   // (each drawing's foot on the ground line: a house row's is 12 under its middle, a hotel's 30)
   const foot = (hotel: boolean) => `translate(0 ${hotel ? -30 : -12})`;
   return (
-    <svg class="lot" viewBox="-46 -64 92 72" overflow="visible" aria-hidden="true">
+    <svg class="lot" data-at={at} viewBox="-46 -64 92 72" overflow="visible" aria-hidden="true">
       <ellipse class="lot-ground" rx="40" ry="6.5" cy="1.5" style={color ? { fill: color } : undefined} />
       {gone && (
         <g transform={foot(gone.was >= 5)}>
@@ -624,6 +624,51 @@ function BoardDefs() {
 /** A token walking round: how high it hops (board units) and how long it stays squashed as it lands (ms). */
 const HOP = { h: 22, land: 160 };
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/**
+ * A token steps onto space `at` of the board `svg`: the space lights up under it for a moment; where
+ * the move ends (`last`) it lights gold, sinks and comes back up, and a ring spreads out from under the
+ * token. By a ride's walk (ui/Ride.tsx), every space, and a hop's landing here; never with reduced
+ * motion. The light and the ring are drawn for the moment in the board's `.presses` layer and taken
+ * away after.
+ */
+export function pressSpace(svg: SVGSVGElement | null | undefined, at: number, last = false) {
+  const sp = svg?.querySelector<SVGGElement>(`.sp[data-at="${at}"]`);
+  const layer = svg?.querySelector<SVGGElement>(".presses");
+  if (!sp || !layer || typeof sp.animate !== "function" || !BOARD[at]) return;
+  // (the space itself sinks only where the move ends: moving it draws its city, its marks and its
+  // buildings again every frame, the light alone is cheap)
+  if (last)
+    sp.animate([{ transform: "none" }, { transform: "scale(0.9)", offset: 0.3 }, { transform: "none" }], {
+      duration: 460,
+      easing: "cubic-bezier(0.25, 0.8, 0.35, 1)",
+    });
+  const lit = document.createElementNS(SVG_NS, "path");
+  lit.setAttribute("d", wedge(at, CORNER[BOARD[at].k] ? RO + 6 : RO));
+  lit.setAttribute("class", last ? "step-lit last" : "step-lit");
+  layer.appendChild(lit);
+  lit.animate([{ opacity: 0 }, { opacity: last ? 0.62 : 0.42, offset: 0.2 }, { opacity: 0 }], { duration: last ? 700 : 420, easing: "ease-out" }).onfinish = () => lit.remove();
+  if (!last) return;
+  const [x, y] = xy(angleOf(at), RT);
+  const ring = document.createElementNS(SVG_NS, "circle");
+  ring.setAttribute("cx", x.toFixed(1));
+  ring.setAttribute("cy", y.toFixed(1));
+  ring.setAttribute("r", "26");
+  ring.setAttribute("class", "step-ring");
+  layer.appendChild(ring);
+  ring.animate([{ transform: "scale(0.6)", opacity: 0.75 }, { transform: "scale(3.4)", opacity: 0 }], { duration: 720, easing: "cubic-bezier(0.2, 0.7, 0.3, 1)" }).onfinish = () =>
+    ring.remove();
+}
+
+/** A team that has just made a full set: its spaces light up one after another in its colour. */
+export interface LitSet {
+  key: string;
+  color: string;
+  /** Its spaces, in the order they light up. */
+  spaces: number[];
+}
+
 /** The table turns 60 degrees a second at most (easing in and out); past this a fade is kinder. */
 const TURN_MAX = 60;
 const TURN_ACCEL = 300;
@@ -674,6 +719,7 @@ export function RoundBoard({
   worldMark,
   lean = 0,
   lang = "en",
+  lit,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -714,6 +760,8 @@ export function RoundBoard({
   lean?: number;
   /** The players' language: a city's space carries its Chinese name, or its airport code. */
   lang?: "zh" | "en";
+  /** Full sets just made (`LitSet`; not with reduced motion). */
+  lit?: LitSet[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const satRef = useRef<HTMLCanvasElement>(null);
@@ -843,7 +891,7 @@ export function RoundBoard({
   const posKey = tokens.map((t) => `${t.seat}:${t.at}`).join(",");
   useLayoutEffect(() => {
     const g = ref.current;
-    const moves: { seat: number; from: number; delta: number; el: SVGGElement; fan: number; ring: number; start: number; per: number }[] = [];
+    const moves: { seat: number; from: number; delta: number; el: SVGGElement; fan: number; ring: number; start: number; per: number; pressed: number }[] = [];
     for (const tk of tokens) {
       const from = shown.current.get(tk.seat);
       shown.current.set(tk.seat, tk.at);
@@ -857,7 +905,7 @@ export function RoundBoard({
       // (a beat we know of: the walk starts when the thrower's does, a space at its pace; otherwise now)
       const start = w && w.start > now - 4000 ? w.start : now;
       const per = w ? w.per : Math.min(1800, 220 + Math.abs(delta) * 120) / Math.max(1, Math.abs(delta));
-      moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT), start, per });
+      moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT), start, per, pressed: 0 });
     }
     if (!moves.length) return;
     // A hop to each space: up and stretched a little in the air, its shadow staying on the board and
@@ -901,6 +949,14 @@ export function RoundBoard({
         // (its own hop on the spot waits while it walks)
         if (e < dur + HOP.land) m.el.dataset.walking = "";
         else delete m.el.dataset.walking;
+        // The space it lands on gives under it (not if it landed a while ago, this screen joining late).
+        // Only the last: another team's hops come often on a phone, and each press draws the board
+        // again; a move's own walk presses every space (ui/Ride.tsx).
+        const steps = Math.abs(m.delta);
+        if (p >= 1 && !m.pressed) {
+          m.pressed = steps;
+          if (now - (m.start + steps * m.per) < 300) pressSpace(svgRef.current, (((m.from + m.delta) % BOARD.length) + BOARD.length) % BOARD.length, true);
+        }
       });
       if (going) raf = requestAnimationFrame(step);
     };
@@ -1013,7 +1069,7 @@ export function RoundBoard({
           const [mx, my] = xy(deg, RM);
           const [bx, by] = xy(deg, (RO + RB) / 2);
           return (
-            <g key={at} class={`sp k-${sp.k}${at === active ? " active" : ""}${mark?.mortgaged ? " mort" : ""}`} onClick={onPick ? () => onPick(at) : undefined}>
+            <g key={at} data-at={at} class={`sp k-${sp.k}${at === active ? " active" : ""}${mark?.mortgaged ? " mort" : ""}`} onClick={onPick ? () => onPick(at) : undefined}>
               <path d={wedge(at, corner ? RO + 6 : RO)} class={corner ? "wedge corner-w" : "wedge"} style={group ? { fill: TINT[group.id] } : undefined} />
               {group && <path d={band(at)} fill={group.color} />}
               {group && (
@@ -1101,6 +1157,17 @@ export function RoundBoard({
         })}
         {/* (the lacquer on the colour bands round the edge, catching the light) */}
         <path class="board-gloss" d={GLOSS_D} fill="url(#rb-gloss)" aria-hidden="true" />
+        {/* (a space a token steps on lights for a moment: pressSpace draws in here) */}
+        <g class="presses" aria-hidden="true" />
+        {/* (a full set just made: its spaces light up one after another, then together) */}
+        {!reduced &&
+          lit?.map((l) => (
+            <g key={l.key} class="set-lit" style={{ "--c": l.color }} aria-hidden="true">
+              {l.spaces.map((at, i) => (
+                <path key={at} d={wedge(at)} style={{ "--i": i }} />
+              ))}
+            </g>
+          ))}
         {/* (one list, keyed by seat: a token that moves to another space keeps its drawing, which walks) */}
         {[...bySpace.entries()].flatMap(([at, list]) => {
           const place = slots(list.length, tokenScale);

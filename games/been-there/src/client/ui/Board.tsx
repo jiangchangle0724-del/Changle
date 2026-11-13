@@ -11,6 +11,7 @@ import { MAP_SIZES, prefs, type MapSize } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
 import { ZOOM, useMapView } from "./mapView";
+import { litSets, useNewSets } from "./Sets";
 import { currentNews, newsTag } from "./News";
 import { reducedMotion } from "../motion";
 import { serverNow, update } from "../store";
@@ -261,6 +262,8 @@ export function Board({
     return () => ro.disconnect();
   }, []);
   const lean = boardLean(!!big);
+  // (a full set just made lights up its spaces: ui/Sets.tsx)
+  const sets = useNewSets(v);
   // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
   // show the globe) the board draws it flat, under the ring.
   const sat = !(globe && globeWanted());
@@ -285,6 +288,7 @@ export function Board({
       worldMark={worldMark}
       lean={lean}
       lang={getLang()}
+      lit={litSets(v, sets)}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same

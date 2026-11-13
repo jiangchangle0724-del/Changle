@@ -572,6 +572,29 @@ export const sfx = {
     burst(0.08, { type: "bandpass", freq: 1100, q: 1.3, vol: 0.07, at: 0.3 });
     tone(220, 0.1, { vol: 0.08, at: 0.34, slide: 160 });
   },
+  /** Doubles: the dice knock together, and a quick run up to a bright ring. */
+  doubles: () => {
+    burst(0.03, { type: "bandpass", freq: 2900, q: 3, vol: 0.12 });
+    [784, 1046.5, 1318.5, 1568].forEach((f, i) => tone(f, 0.16, { type: "triangle", vol: 0.065, at: 0.06 + i * 0.06 }));
+    bell(2093, { at: 0.3, vol: 0.04, dur: 0.7 });
+  },
+  /** Speeding: a police car's two notes, three times, not loud. */
+  siren: () => {
+    for (let k = 0; k < 3; k++) {
+      tone(940, 0.26, { type: "triangle", vol: 0.05, at: k * 0.52, slide: 720 });
+      tone(720, 0.26, { type: "triangle", vol: 0.05, at: k * 0.52 + 0.26, slide: 940 });
+    }
+  },
+  /**
+   * A full set: a short brass call, three notes up to a held chord with a bell on top (`mine`: this
+   * phone's team; another team's is the same call, quieter).
+   */
+  set: (mine = true) => {
+    const v = mine ? 1 : 0.55;
+    [392, 523.3, 659.3].forEach((f, i) => tone(f, 0.14, { type: "sawtooth", vol: 0.035 * v, at: i * 0.11 }));
+    chord([523.3, 659.3, 784, 1046.5], 0.95, { type: "triangle", vol: 0.055 * v, at: 0.34 });
+    bell(1568, { at: 0.36, vol: 0.045 * v, dur: 1.1 });
+  },
   /** Sent to Immigration: the gate comes down. */
   jail: () => {
     burst(0.08, { type: "bandpass", freq: 700, q: 2, vol: 0.2 });

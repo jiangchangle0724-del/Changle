@@ -117,6 +117,79 @@
 }
 .roundboard .sp {
   cursor: pointer;
+  /* (a token stepping on it presses it about its own middle: RoundBoard.tsx pressSpace) */
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/* A space a token steps on lights for a moment, the last of a move more, with a ring spreading out
+   from under the token (drawn by pressSpace, its timing there). */
+.roundboard .step-lit {
+  fill: var(--lamp);
+  opacity: 0;
+  pointer-events: none;
+}
+.roundboard .step-lit.last {
+  fill: var(--coin-hi);
+}
+.roundboard .step-ring {
+  fill: none;
+  stroke: var(--lamp);
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  pointer-events: none;
+}
+/* A full set just made: its spaces light up in the team's colour one after another (0.18 s apart, once
+   the owner's stamp is down), hold, then glow together twice and go out. */
+.roundboard .set-lit path {
+  fill: var(--c);
+  fill-opacity: 0;
+  stroke: var(--c);
+  stroke-width: 7;
+  stroke-opacity: 0;
+  stroke-linejoin: round;
+  pointer-events: none;
+  animation:
+    set-chain 0.6s ease-out calc(0.5s + var(--i) * 0.18s) both,
+    set-glow 1.5s ease-in-out 1.7s forwards;
+}
+@keyframes set-chain {
+  0% {
+    fill-opacity: 0;
+    stroke-opacity: 0;
+  }
+  30% {
+    fill-opacity: 0.6;
+    stroke-opacity: 1;
+  }
+  100% {
+    fill-opacity: 0.26;
+    stroke-opacity: 0.9;
+  }
+}
+@keyframes set-glow {
+  0% {
+    fill-opacity: 0.26;
+    stroke-opacity: 0.9;
+  }
+  22% {
+    fill-opacity: 0.62;
+    stroke-opacity: 1;
+  }
+  44% {
+    fill-opacity: 0.22;
+    stroke-opacity: 0.8;
+  }
+  66% {
+    fill-opacity: 0.62;
+    stroke-opacity: 1;
+  }
+  100% {
+    fill-opacity: 0;
+    stroke-opacity: 0;
+  }
 }
 /* On a dark board the tokens get the characters' paper edge (--face-edge, styles.css). */
 .roundboard .token .react {

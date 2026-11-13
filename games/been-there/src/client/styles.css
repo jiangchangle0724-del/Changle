@@ -4223,6 +4223,338 @@ h2.departures {
     opacity: 0;
   }
 }
+/* Doubles (ui/Doubles.tsx): as the dice settle they knock together and light up, and the call pops up
+   under them: "Doubles!" in gold and what they mean (throw again, out of Immigration free); the third
+   in a row in red (speeding), with the police lights. The phone's own throw and the big screen's: the
+   dice settle at about 1 s; a move's (.ride-doubles) are added as its dice settle (ui/Ride.tsx). */
+.knock .die3d:first-child {
+  animation: knock-l 0.46s cubic-bezier(0.3, 1.3, 0.5, 1) var(--knock-at, 0s) both;
+}
+.knock .die3d:last-child:not(:first-child) {
+  animation: knock-r 0.46s cubic-bezier(0.3, 1.3, 0.5, 1) var(--knock-at, 0s) both;
+}
+.knock .dice3d {
+  animation: dice-lit 0.9s ease-out var(--knock-at, 0s) both;
+}
+.roll-moment.knock,
+.tv-dice.knock {
+  --knock-at: 0.98s;
+  --dbl-at: 1.08s;
+}
+@keyframes knock-l {
+  0%,
+  100% {
+    transform: none;
+  }
+  32% {
+    transform: translateX(16%) rotate(4deg);
+  }
+  58% {
+    transform: translateX(-5%);
+  }
+}
+@keyframes knock-r {
+  0%,
+  100% {
+    transform: none;
+  }
+  32% {
+    transform: translateX(-16%) rotate(-4deg);
+  }
+  58% {
+    transform: translateX(5%);
+  }
+}
+@keyframes dice-lit {
+  0% {
+    filter: none;
+  }
+  25% {
+    filter: drop-shadow(0 0 14px var(--coin-hi)) brightness(1.15);
+  }
+  100% {
+    filter: none;
+  }
+}
+.doubles-call {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  pointer-events: none;
+  animation: dbl-pop 1.6s cubic-bezier(0.3, 1.5, 0.5, 1) var(--dbl-at, 0s) both;
+}
+.doubles-call b {
+  color: var(--coin-hi);
+  font: 900 2.4rem/1 var(--display);
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 3px 0 var(--coin-edge),
+    0 0 22px color-mix(in oklab, var(--coin-hi) 55%, transparent);
+  white-space: nowrap;
+}
+.doubles-call small {
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--board-paper);
+  color: var(--board-ink);
+  box-shadow: 0 0 0 2px var(--coin-hi);
+  font: 800 0.95rem/1.3 var(--font);
+  white-space: nowrap;
+}
+.doubles-call.dc-speeding b {
+  color: var(--stop);
+  text-shadow:
+    0 3px 0 var(--night),
+    0 0 22px color-mix(in oklab, var(--stop) 55%, transparent);
+}
+.doubles-call.dc-speeding small {
+  box-shadow: 0 0 0 2px var(--stop);
+}
+.tv-dice .doubles-call b {
+  font-size: clamp(2.6rem, 5vmin, 4rem);
+}
+.tv-dice .doubles-call small {
+  font-size: clamp(1rem, 2vmin, 1.5rem);
+}
+@keyframes dbl-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-6deg);
+  }
+  16% {
+    opacity: 1;
+    transform: scale(1.14) rotate(2deg);
+  }
+  30% {
+    transform: none;
+  }
+  82% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+/* A move's call: in the sky over the board's far side while the camera pushes in, clear of the
+   departures board (top left) and the dice (bottom right); the big screen's in the middle. */
+.ride-doubles {
+  position: absolute;
+  left: 66%;
+  top: 24%;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+}
+.ride-doubles:not(.on) .doubles-call {
+  visibility: hidden;
+  animation: none;
+}
+.ride-doubles.big {
+  left: 50%;
+  top: 30%;
+}
+.ride-doubles.big .doubles-call b {
+  font-size: clamp(3rem, 7vmin, 5rem);
+}
+.ride-doubles.big .doubles-call small {
+  font-size: clamp(1.1rem, 2.4vmin, 1.7rem);
+}
+/* The police lights: red at the left edge and blue at the right, taking turns 1.6 times a second for
+   1.6 s (well under three flashes a second); with reduced motion a still glow. */
+.police {
+  position: fixed;
+  inset: 0;
+  z-index: 56;
+  pointer-events: none;
+  opacity: 0;
+}
+.police.on {
+  animation: police-on 1.7s ease var(--police-at, 0s) both;
+}
+.police i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 42%;
+}
+.police .pl-red {
+  left: 0;
+  background: radial-gradient(ellipse 90% 70% at 0% 50%, color-mix(in oklab, var(--stop) 70%, transparent), transparent 70%);
+  animation: police-a 0.62s steps(1) infinite;
+}
+.police .pl-blue {
+  right: 0;
+  background: radial-gradient(ellipse 90% 70% at 100% 50%, color-mix(in oklab, var(--world-lock) 70%, transparent), transparent 70%);
+  animation: police-a 0.62s steps(1) -0.31s infinite;
+}
+@keyframes police-on {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  8%,
+  86% {
+    opacity: 1;
+  }
+}
+@keyframes police-a {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.18;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .knock .die3d,
+  .knock .dice3d,
+  .police i {
+    animation: none;
+  }
+  .doubles-call {
+    animation: moment-out 1.6s linear var(--dbl-at, 0s) both;
+  }
+}
+:root[data-reduced="1"] .knock .die3d,
+:root[data-reduced="1"] .knock .dice3d,
+:root[data-reduced="1"] .police i {
+  animation: none;
+}
+:root[data-reduced="1"] .doubles-call {
+  animation: moment-out 1.6s linear var(--dbl-at, 0s) both;
+}
+/* A full set just made (ui/Sets.tsx): a band over the board ringed in the group's colour, its shape,
+   the call and what it means. It pops in as the set's spaces start to light up (0.5 s) and goes by
+   3.3 s; the phone's own team's in gold and a size up. */
+.set-call {
+  position: fixed;
+  left: 50%;
+  top: 27%;
+  z-index: 55;
+  display: grid;
+  grid-template-columns: auto minmax(0, auto);
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px 10px 12px;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--night) 88%, transparent);
+  box-shadow:
+    0 0 0 2px var(--group),
+    0 0 30px -6px var(--group),
+    var(--lift);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: set-pop 2.8s cubic-bezier(0.3, 1.5, 0.5, 1) 0.5s both;
+}
+.set-call .set-shape {
+  grid-row: span 3;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--board-paper);
+  box-shadow: 0 0 0 2px var(--group);
+}
+.set-call b {
+  color: var(--moon);
+  font: 900 1.3rem/1.15 var(--display);
+  text-wrap: balance;
+}
+.set-call.mine b {
+  color: var(--coin-hi);
+  font-size: 1.6rem;
+}
+.set-call small {
+  color: var(--haze);
+  font: 700 0.9rem/1.3 var(--font);
+}
+/* (its cities light up one after another in the team's colour, as their spaces do on the board) */
+.set-call .set-cities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}
+.set-call .set-cities i {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--board-paper);
+  color: var(--board-ink-2);
+  box-shadow: 0 0 0 1.5px var(--line);
+  font: 700 0.85rem/1.4 var(--font);
+  font-style: normal;
+  animation: set-city 0.6s ease-out calc(0.5s + var(--i) * 0.18s) both;
+}
+.set-call.big .set-cities i {
+  font-size: clamp(1rem, 1.9vmin, 1.4rem);
+}
+@keyframes set-city {
+  0% {
+    background: var(--board-paper);
+    color: var(--board-ink-2);
+    box-shadow: 0 0 0 1.5px var(--line);
+  }
+  30% {
+    background: var(--team);
+    color: #fff;
+    box-shadow:
+      0 0 0 2px var(--team),
+      0 0 14px var(--team);
+  }
+  100% {
+    background: color-mix(in oklab, var(--team) 70%, var(--board-paper));
+    color: #fff;
+    box-shadow: 0 0 0 2px var(--team);
+  }
+}
+.set-call.big {
+  position: absolute;
+  top: 38%;
+  padding: 16px 30px 16px 18px;
+  border-radius: 24px;
+}
+.set-call.big .set-shape {
+  width: 68px;
+  height: 68px;
+}
+.set-call.big b {
+  font-size: clamp(2rem, 4.4vmin, 3.4rem);
+}
+.set-call.big small {
+  font-size: clamp(1.1rem, 2.2vmin, 1.7rem);
+}
+@keyframes set-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+  22%,
+  86% {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -60%) scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .set-call {
+    animation: moment-out 2.8s linear 0.5s both;
+  }
+}
+:root[data-reduced="1"] .set-call {
+  animation: moment-out 2.8s linear 0.5s both;
+}
 /* Your turn: the edge of the screen glows twice (on a phone that can't buzz, this is the call). */
 .turn-call {
   position: fixed;
@@ -4554,6 +4886,11 @@ h2.departures {
 .ride-jail.on .bars,
 .jail-fx .bars {
   animation: bars-drop 0.42s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+/* (after the third doubles: once their call and the police lights have come up, ui/Game.tsx JailFx) */
+.jail-fx.late,
+.jail-fx.late .bars {
+  animation-delay: 1.5s;
 }
 .ride-jail b,
 .jail-fx b {
@@ -4945,9 +5282,43 @@ h2.departures {
   }
 }
 
-/* Phone top bar: the cash counts to its new amount; the change floats off below it. */
+/* Phone top bar: the cash is the team's wallet. It counts to its new amount as the coins land in it or
+   leave it (ui/Moments.tsx), bumping up in gold as money comes in and dipping as it goes; the change
+   floats off below it. */
 .cash-tick {
   position: relative;
+  display: inline-block;
+}
+.cash-tick.gain {
+  animation: wallet-gain 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.cash-tick.spend {
+  animation: wallet-spend 0.5s ease both;
+}
+@keyframes wallet-gain {
+  0% {
+    transform: none;
+  }
+  28% {
+    color: var(--coin-hi);
+    text-shadow: 0 0 14px color-mix(in oklab, var(--coin-hi) 70%, transparent);
+    transform: scale(1.24);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes wallet-spend {
+  0% {
+    transform: none;
+  }
+  35% {
+    color: var(--danger);
+    transform: translateY(2px) scale(0.9);
+  }
+  100% {
+    transform: none;
+  }
 }
 .cash-delta {
   position: absolute;

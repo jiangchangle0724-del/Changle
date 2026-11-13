@@ -14,6 +14,8 @@ import { feedText } from "./feedText";
 import { ForfeitHold } from "./Forfeit";
 import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
 import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
+import { Police, doublesKind } from "./Doubles";
+import { SetCall } from "./Sets";
 import { NewsBanner } from "./News";
 import { ArrivalLocal, LocalSong, NowPlaying } from "./Local";
 import { ArrivalFrame } from "./Photo";
@@ -220,8 +222,10 @@ export function Game({ v }: { v: RoomView }) {
       {menu && <SettingsSheet v={v} onClose={() => setMenu(false)} />}
       {fsGuide && <FullscreenGuide onClose={() => setFsGuide(false)} />}
       {!ride && <RollMoment v={v} />}
+      <SetCall v={v} />
       {dancingHere && <SambaLesson v={v} size="full" />}
-      <CoinFx v={v} phone after={riding ? readyAt : 0} />
+      {/* (with the money: this team's ride's stamp, another team's token landing here) */}
+      <CoinFx v={v} phone after={holdUntil} />
       <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
@@ -277,12 +281,28 @@ function TurnCall({ myMove }: { myMove: boolean }) {
   return k ? <div class="turn-call" key={k} aria-hidden="true" /> : null;
 }
 
-/** Sent to Immigration without a ride (three doubles; a ride shows it itself): bars over the board. */
+/** Whether the team was sent to Immigration (feed id `jailId`) by its third doubles in a row, just thrown. */
+function speedingBefore(v: RoomView, jailId: number): boolean {
+  const i = v.feed.findIndex((f) => f.id === jailId);
+  for (let k = i - 1; k >= 0 && k >= i - 3; k--) {
+    const f = v.feed[k];
+    if (f.t === "game" && f.e.t === "roll") return doublesKind(f.e) === "speeding";
+  }
+  return false;
+}
+
+/** Sent to Immigration without a ride (three doubles; a ride shows it itself): bars over the board.
+ * After the third doubles, once their call and the police lights have come up (ui/Doubles.tsx). */
 function JailFx({ v, ride }: { v: RoomView; ride: RidePlan | null }) {
-  const hit = useFresh(v, (f: FeedItem) => (f.t === "game" && f.e.t === "jail" && v.you.seats.includes(f.e.p) ? f.e : null), 2000);
+  const sent = (f: FeedItem) => (f.t === "game" && f.e.t === "jail" && v.you.seats.includes(f.e.p) ? f.e : null);
+  const newest = latestOf(v, sent);
+  const speeding = !!newest && speedingBefore(v, newest.id);
+  const hit = useFresh(v, sent, speeding ? 3300 : 2000);
   if (!hit || ride) return null;
   return (
-    <div class="jail-fx" key={hit.id} aria-hidden="true">
+    <>
+      {speeding && <Police key={`p${hit.id}`} />}
+      <div class={`jail-fx${speeding ? " late" : ""}`} key={hit.id} aria-hidden="true">
       <svg viewBox="0 0 120 120" class="bars">
         {[14, 38, 62, 86, 110].map((x) => (
           <rect key={x} x={x - 4} y="0" width="8" height="120" rx="4" />
@@ -290,8 +310,18 @@ function JailFx({ v, ride }: { v: RoomView; ride: RidePlan | null }) {
         <rect x="0" y="16" width="120" height="8" rx="4" />
       </svg>
       <b>{t("sentToImmigration")}</b>
-    </div>
+      </div>
+    </>
   );
+}
+
+/** The newest feed item `pick` accepts, as useFresh finds it (to know how long it should stay). */
+function latestOf<T>(v: RoomView, pick: (f: FeedItem) => T | null): { id: number; x: T } | null {
+  for (let i = v.feed.length - 1; i >= 0; i--) {
+    const x = pick(v.feed[i]);
+    if (x) return { id: v.feed[i].id, x };
+  }
+  return null;
 }
 
 /** The card your team drew this turn, until the turn passes (spectators see the team on turn's). */
@@ -610,6 +640,14 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
     // (our own throw clacks and lands in the ride; another team's rattles here)
     const myRoll = ev.some((e) => e.t === "roll" && mine(e.p));
     if (ev.some((e) => e.t === "roll") && !(myRoll && ride)) sfx.dice();
+    // (our own doubles without a ride: their call as the dice settle, a ride plays its own)
+    const myDbl = ev.flatMap((e) => (e.t === "roll" && mine(e.p) ? [doublesKind(e)] : [])).find((k) => k);
+    if (myDbl && !ride && !reducedMotion())
+      window.setTimeout(() => {
+        if (myDbl === "speeding") sfx.siren();
+        else sfx.doubles();
+        buzz(BUZZ.doubles);
+      }, 1000);
     if (ev.some((e) => e.t === "news" && e.on)) sfx.news();
     // (with motion on, the touchdown plays the stamp in time with its own)
     if (reducedMotion() && ev.some((e) => e.t === "stamp" && mine(e.p))) sfx.stamp();
@@ -632,22 +670,20 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
       buzz(BUZZ.card);
     }
     if (!ride && ev.some((e) => e.t === "jail" && mine(e.p))) {
-      sfx.jail();
-      buzz(BUZZ.jail);
+      // (after the third doubles, the gate comes down once their call has: JailFx)
+      const gate = () => {
+        sfx.jail();
+        buzz(BUZZ.jail);
+      };
+      if (myDbl === "speeding" && !reducedMotion()) window.setTimeout(gate, 1600);
+      else gate();
     }
     if (ev.some((e) => e.t === "bankrupt" && mine(e.p))) buzz(BUZZ.alarm);
     if (offers > p.offers) {
       sfx.ask();
       buzz(BUZZ.offer);
     }
-    const delta = cash - p.cash;
-    if (delta > 0) {
-      sfx.coin();
-      buzz(BUZZ.paid);
-    } else if (delta < 0 && !bought && !built.length) {
-      sfx.pay();
-      buzz(BUZZ.pay);
-    }
+    // (money in and out: the wallet's till and pay sound, as the coins get there, ui/Moments.tsx Cash)
     prev.current = { myMove, feed: lastId(v) || p.feed, cash, ask, offers, auction: !!g.auction };
   });
 }

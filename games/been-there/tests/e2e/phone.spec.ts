@@ -229,7 +229,12 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
     if (size !== "m") await pickSize(a, label);
     await expect(a.page.locator(".stage .boardwrap")).toHaveAttribute("data-map", size);
     await a.page.waitForTimeout(1200);
+    // (measured standing: the hop on the spot of the team on turn lifts it toward the board's far
+    // side, which the lean draws a little smaller, and a token now and then bobs or looks round)
+    const still = await a.page.addStyleTag({ content: ".roundboard .token .hop, .roundboard .token .react { animation: none !important; }" });
+    await a.page.waitForTimeout(100);
     const list = await tokens(a.page);
+    await still.evaluate((el) => (el as HTMLElement).remove());
     await a.page.screenshot({ path: `test-results/tokens-shared-${size}.png` });
     const pairs = list.flatMap((p, i) => list.slice(i + 1).map((q) => overlap(p, q).toFixed(2)));
     console.log(`tokens at ${size}: heights ${list.map((t) => t.h.toFixed(1)).join(", ")} px; overlaps ${pairs.join(", ")}`);
