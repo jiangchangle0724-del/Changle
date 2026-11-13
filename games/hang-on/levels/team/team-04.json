@@ -1,0 +1,110 @@
+{
+  "id": "team-04",
+  "world": "van",
+  "name": {
+    "zh": "煤港压舷",
+    "en": "Coal Harbour Ballast"
+  },
+  "teaches": "counterweight",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 140,
+    "y": 416
+  },
+  "goal": {
+    "x": 2360,
+    "y": 40,
+    "w": 160,
+    "h": 200
+  },
+  "checkpoints": [
+    {
+      "x": 1120,
+      "y": 436
+    },
+    {
+      "x": 2070,
+      "y": 216
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 440,
+      "w": 460,
+      "h": 280,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 470,
+      "y": 640,
+      "w": 600,
+      "h": 80,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1080,
+      "y": 460,
+      "w": 300,
+      "h": 260,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1450,
+      "y": 400,
+      "w": 190,
+      "h": 320,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1710,
+      "y": 320,
+      "w": 220,
+      "h": 400,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2000,
+      "y": 240,
+      "w": 520,
+      "h": 480,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 60,
+      "w": 40,
+      "h": 660,
+      "material": "wood"
+    }
+  ],
+  "seesaws": [
+    {
+      "pivot": {
+        "x": 770,
+        "y": 550
+      },
+      "w": 600,
+      "h": 18,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-04.p4.json"
+}

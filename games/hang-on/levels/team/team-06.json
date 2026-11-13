@@ -1,0 +1,130 @@
+{
+  "id": "team-06",
+  "world": "van",
+  "name": {
+    "zh": "码头换班",
+    "en": "Quayside Hand-off"
+  },
+  "teaches": "combine",
+  "w": 3200,
+  "h": 720,
+  "spawn": {
+    "x": 340,
+    "y": 396
+  },
+  "goal": {
+    "x": 3000,
+    "y": 0,
+    "w": 160,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1260,
+      "y": 376
+    },
+    {
+      "x": 1895,
+      "y": 216
+    },
+    {
+      "x": 2850,
+      "y": 136
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 420,
+      "w": 660,
+      "h": 300,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 670,
+      "y": 630,
+      "w": 540,
+      "h": 90,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1220,
+      "y": 400,
+      "w": 330,
+      "h": 320,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1620,
+      "y": 320,
+      "w": 180,
+      "h": 400,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1870,
+      "y": 240,
+      "w": 210,
+      "h": 480,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2150,
+      "y": 300,
+      "w": 220,
+      "h": 420,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2440,
+      "y": 220,
+      "w": 270,
+      "h": 500,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2780,
+      "y": 160,
+      "w": 380,
+      "h": 560,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 3160,
+      "y": 0,
+      "w": 40,
+      "h": 720,
+      "material": "wood"
+    }
+  ],
+  "seesaws": [
+    {
+      "pivot": {
+        "x": 940,
+        "y": 540
+      },
+      "w": 540,
+      "h": 18,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-06.p4.json"
+}

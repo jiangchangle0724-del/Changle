@@ -1,0 +1,122 @@
+{
+  "id": "team-01",
+  "world": "table",
+  "name": {
+    "zh": "合力抬年糕",
+    "en": "Rice Cake Lift"
+  },
+  "teaches": "counterweight",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 180,
+    "y": 376
+  },
+  "goal": {
+    "x": 2360,
+    "y": 160,
+    "w": 160,
+    "h": 200
+  },
+  "checkpoints": [
+    {
+      "x": 1140,
+      "y": 376
+    },
+    {
+      "x": 2220,
+      "y": 336
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 400,
+      "w": 500,
+      "h": 320,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 510,
+      "y": 600,
+      "w": 580,
+      "h": 120,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1100,
+      "y": 400,
+      "w": 360,
+      "h": 320,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1530,
+      "y": 420,
+      "w": 220,
+      "h": 300,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1820,
+      "y": 360,
+      "w": 260,
+      "h": 360,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2150,
+      "y": 360,
+      "w": 370,
+      "h": 360,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 180,
+      "w": 40,
+      "h": 540,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1490,
+      "y": 420,
+      "w": 40,
+      "h": 300,
+      "material": "ceramic",
+      "players": [
+        4,
+        4
+      ]
+    }
+  ],
+  "seesaws": [
+    {
+      "pivot": {
+        "x": 800,
+        "y": 510
+      },
+      "w": 580,
+      "h": 18,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-01.p4.json"
+}
