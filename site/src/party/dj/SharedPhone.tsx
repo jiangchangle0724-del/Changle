@@ -1,5 +1,5 @@
 import { ListMusic, Smartphone } from "lucide-react";
-import { lazy, Suspense, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { GAMES } from "../../games/registry";
 import type { DjView } from "../../shared/protocol";
@@ -16,10 +16,10 @@ const GEL = GAMES.find((g) => g.id === "dj")?.gel;
  * The shared phone (Steve on Nov 11: "公用手机（投屏电视）……这个手机是可以在YouTube上点歌的"): the
  * speaker page on one phone everyone shares, its screen mirrored to the TV, and the big screen's
  * own controls on any speaker. A 点歌 button over the stage, in the page's own pixels (a phone's
- * stage is drawn at under half size), opens the song box, the playlist, the song playing (skipped,
- * its video over the whole TV) and 点歌模式, all as the table's (the room takes them from the speaker
- * only). Held upright, a phone is asked to turn sideways: the TV shows the phone as it's held, and
- * a page can't turn an iPhone (an Android phone turned when the game's card opened this).
+ * stage is drawn at under half size), opens the phones' player (暂停, 播放, 切歌, 上一曲, the video over
+ * the whole TV), the song box and the playlist, all as the table's (the room takes them from the
+ * speaker only). Held upright, a phone is asked to turn sideways: the TV shows the phone as it's
+ * held, and a page can't turn an iPhone (an Android phone turned when the game's card opened this).
  */
 export function SharedPhone({ v }: { v: DjView }) {
   const { lang } = useStore();
@@ -27,6 +27,12 @@ export function SharedPhone({ v }: { v: DjView }) {
   const [open, setOpen] = useState(false);
   const d = v.deck;
   const waiting = d.reqs.length + (d.up ? 1 : 0);
+  // its own YouTube player wants a tap on the video (an iPhone's, the night's first song): the sheet
+  // gets out of the way, so the tap lands on the video
+  const tap = !!d.tap;
+  useEffect(() => {
+    if (tap) setOpen(false);
+  }, [tap]);
   return createPortal(
     <>
       {v.phase !== "end" && (

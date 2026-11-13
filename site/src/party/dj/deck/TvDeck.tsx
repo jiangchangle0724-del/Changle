@@ -264,7 +264,7 @@ export function HintLine({ v }: { v: DjView }) {
     return (
       <p className="dk-hint">
         <ListMusic size={24} aria-hidden="true" />
-        {jukeText(!!d.song, !!d.up, zh)}
+        {jukeText(!!d.song, !!d.up, zh, !!d.paused)}
       </p>
     );
   const h = hintFor(d, now(), live, v.source === "lyria", heatLean(v.fires, v.colds, now()) <= COLD_LEAN);

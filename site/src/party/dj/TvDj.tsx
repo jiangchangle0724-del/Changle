@@ -90,9 +90,7 @@ export default function TvDj({ v }: { v: DjView }) {
   const chips = usePadEvents(booth.pad);
 
   // opened from the game's card as the shared phone (Steve on Nov 11: "直接开始播放音乐"): the
-  // card's tap woke the sound, so the music starts with no tap here, and the songs play one after
-  // another (点歌模式: nobody needs to be at the table to build up and drop)
-  const shared = useRef<"no" | "asked" | "done">("no");
+  // card's tap woke the sound, so the music starts with no tap here
   useEffect(() => {
     const ctx = takePrimed();
     if (!ctx) return;
@@ -100,17 +98,19 @@ export default function TvDj({ v }: { v: DjView }) {
       void ctx.close().catch(() => {});
       return;
     }
-    shared.current = "asked";
     primeVoice();
     booth.start(ctx);
     // (once, on the page's first look)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // 点歌模式 is the booth's only way (Steve on Nov 12: "不需要drop了"; the phones have no build-up
+  // or DROP): a room an older page switched back gets it again from the speaker
   useEffect(() => {
-    if (shared.current !== "asked" || booth.status !== "on" || v.phase === "wait" || v.phase === "end") return;
-    shared.current = "done";
-    if (!v.juke) g("juke", { on: true });
-  }, [booth.status, v.phase, v.juke, g]);
+    if (v.juke || booth.status !== "on") return;
+    g("juke", { on: true });
+    const id = window.setInterval(() => g("juke", { on: true }), 3000);
+    return () => window.clearInterval(id);
+  }, [v.juke, booth.status, g]);
 
   // the music starts here: the room's set begins when this screen says it's playing (said again
   // every few seconds until the room has heard it: a message can be lost on a dropping connection)
@@ -157,10 +157,13 @@ export default function TvDj({ v }: { v: DjView }) {
   });
 
   const root = useRef<HTMLDivElement>(null);
+  // (暂停 on a phone: the floor rests with the music)
+  const held = useRef(false);
+  held.current = !!v.deck?.paused;
   const clock = useMemo(
     () => ({
-      beat: () => (speaker && speaker.stats().state === "playing" ? dj.beat() : NaN),
-      energy: () => speaker?.energy() ?? 0,
+      beat: () => (!held.current && speaker && speaker.stats().state === "playing" ? dj.beat() : NaN),
+      energy: () => (held.current ? 0 : (speaker?.energy() ?? 0)),
     }),
     [speaker, dj],
   );
@@ -271,7 +274,7 @@ export default function TvDj({ v }: { v: DjView }) {
           dance={dancing.floor}
           clock={clock}
           level={ENERGY[stage].density}
-          singing={!!v.deck?.song}
+          singing={!!v.deck?.song && !v.deck.paused}
           fires={fires}
           shown={floor3d === "on"}
           onReady={() => setFloor3d("on")}
@@ -279,7 +282,7 @@ export default function TvDj({ v }: { v: DjView }) {
         />
       )}
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
-      {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} />}
+      {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} />}
       {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
