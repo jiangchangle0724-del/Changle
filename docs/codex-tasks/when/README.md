@@ -11,6 +11,13 @@ chat that owns this tool (工具 · 约时间) says when, and reviews every PR.
 Always:
 - Node 22, in `tools/when`: `npm ci`, then the card's command, then `npm run typecheck` and
   `npm test` (everything) before the PR. Paste the output into the PR.
+- No browser and no uploads: don't open a browser to try the tool, and don't attach pictures or
+  anything else to the PR (on another area's cards that left Codex waiting for hours on an approval
+  nobody was there to give). Pictures are files on the branch, where the reviewing chat looks at
+  them. In the PR, write results as text. Looking a fact up with Codex's own web search is fine
+  (C3 asks for it).
+- Each card works in its own folder and on its own branch (`git worktree`), so two cards running
+  at once never share a working copy.
 - Only the files the card names. Don't touch `wrangler.jsonc`, `package.json`, `src/room/`,
   `src/server/`, `site/`, or another card's files. If a card seems to need one of them, say so in
   the PR instead.
@@ -30,9 +37,18 @@ Always:
 | [C4](C4-copy.md) | The words people paste into the group chat: invitation, nudge, result; three tones, two languages | `tools/when/src/engine/copy.ts`, its test | at A3; the card is checked against the finished A2 first |
 | [C5](C5-browser-tests.md) | Phones in browsers: two to eight filling in at once, a dropped connection, WeChat, small and large screens | `tools/when/tests/e2e/` | at A3; the card is checked against the finished A2 first |
 
-What to send Codex, one card at a time:
+What to send Codex: a new conversation for each card (on Steve's computer, in Codex's local mode),
+with the card's own file and branch name in it. C1, C2 and C3 change different files and can run
+at the same time.
 
 ```
-按 docs/codex-tasks/when/C2-calendar.md 做。先读 docs/codex-tasks/when/README.md 和 tools/when/src/engine/types.ts。
-只改卡上写的文件和测试，跑卡上的命令通过后再开 PR，PR 描述里贴测试输出。
+先把本机的 Changle 仓库更新到最新的 main。这张卡用自己的文件夹和分支：用 git worktree 从 origin/main 开分支 codex/when-c2-calendar，只在那个文件夹里做，别动别的文件夹和分支。
+按 docs/codex-tasks/when/C2-calendar.md 做。先读 docs/codex-tasks/when/README.md 和 tools/when/src/engine/types.ts。只改卡上写的文件和测试，跑卡上的命令通过后再开 PR，PR 描述里用文字贴测试输出。不用开浏览器，也不要往 PR 里传图片。
+不要合并，不要推 main，不要部署；代码和提交里都不能出现任何密钥。
 ```
+
+The branches: `codex/when-c1-art`, `codex/when-c2-calendar`, `codex/when-c3-holidays`,
+`codex/when-c4-copy`, `codex/when-c5-browser-tests`. For C1 the middle line is: 按
+docs/codex-tasks/when/C1-art.md 做。先读 docs/codex-tasks/when/README.md。只加卡上写的文件，照卡上的检查做完再开
+PR，PR 描述里用文字写四个文件的尺寸和大小。不用开浏览器，也不要往 PR 里传图片。 For C3, after
+"用文字贴测试输出。": 卡上要查的日期用你自带的联网搜索去官方网页查，不要凭记忆写；不要往 PR 里传图片。
