@@ -20,13 +20,16 @@ test("every Chinese character in the game is in the heading font", () => {
   assert.equal([...missing].join(""), "", "run `npm run fonts` to add these characters");
 });
 
-test("the board's codes, owners' letters and news tags are all drawn as outlines", async () => {
+test("the board's codes, Chinese names, owners' letters and news tags are all drawn as outlines", async () => {
   // (scripts/board-type.mjs: text in the board's SVG would be laid out again on every frame of a move)
-  const { CODE_PATH, OWNER_PATH, NEWS_PATH } = await import("../src/client/art/boardType");
+  const { CODE_PATH, ZH_PATH, OWNER_PATH, NEWS_PATH } = await import("../src/client/art/boardType");
   const { CITIES, NEWS } = await import("../src/engine");
   const { newsTag } = await import("../src/client/ui/newsTag");
+  const { BOARD_ZH } = await import("../src/client/art/stamps");
   const missing = [
     ...CITIES.filter((c) => !CODE_PATH[c.id]).map((c) => c.id),
+    // (every city's Chinese name on the board, its lines making up its name)
+    ...CITIES.filter((c) => !ZH_PATH[c.id] || !BOARD_ZH[c.id] || !c.name.zh.startsWith(BOARD_ZH[c.id].join(""))).map((c) => `zh:${c.id}`),
     ...[..."ABCDEF"].filter((l) => !OWNER_PATH[l]),
     ...NEWS.map(newsTag).filter((t) => !NEWS_PATH[t]),
   ];

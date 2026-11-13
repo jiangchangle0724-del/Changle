@@ -96,6 +96,13 @@
 .roundboard .code {
   fill: var(--board-ink);
 }
+/* A city's Chinese name (ZCOOL QingKe HuangYou, a lighter face than the codes'): outlined in its own ink
+   to stand as boldly as the codes do. */
+.roundboard .code.zh {
+  stroke: var(--board-ink);
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+}
 .roundboard .owner {
   fill: #fff;
 }
@@ -288,86 +295,305 @@
 /* ---------- the buildings (art/RoundBoard.tsx Buildings): little models standing up on the board ----------
    A front, a side in shade and a roof; a hotel's sign carries the city's own picture. A new one rises
    from its foot (houses one after another, a hotel floor by floor) in a puff of dust. */
-.roundboard .bldg .b-front {
+:is(.roundboard, .lot) .bldg .b-front {
   fill: var(--house);
   stroke: var(--board-rim);
   stroke-width: 0.7;
 }
-.roundboard .bldg .b-side {
+:is(.roundboard, .lot) .bldg .b-side {
   fill: var(--house-side);
 }
-.roundboard .bldg .b-roof {
+:is(.roundboard, .lot) .bldg .b-roof {
   fill: var(--house-roof);
   stroke: var(--board-rim);
   stroke-width: 0.7;
 }
-.roundboard .bldg .b-roof-side {
+:is(.roundboard, .lot) .bldg .b-roof-side {
   fill: var(--house-roof-side);
 }
-.roundboard .bldg .b-door {
+:is(.roundboard, .lot) .bldg .b-door {
   fill: var(--board-paper);
 }
-.roundboard .bldg.hotel .b-front {
+:is(.roundboard, .lot) .bldg.hotel .b-front {
   fill: var(--hotel);
 }
-.roundboard .bldg.hotel .b-side {
+:is(.roundboard, .lot) .bldg.hotel .b-side {
   fill: var(--hotel-side);
 }
-.roundboard .bldg .b-top {
+:is(.roundboard, .lot) .bldg .b-top {
   fill: var(--hotel-top);
 }
-.roundboard .bldg .b-win {
+:is(.roundboard, .lot) .bldg .b-win {
   fill: var(--window);
 }
-.roundboard .bldg .b-sign rect {
+:is(.roundboard, .lot) .bldg .b-sign rect {
   fill: var(--print-paper);
   stroke: var(--board-rim);
   stroke-width: 1.2;
 }
-.roundboard .bldg .b-sign {
+:is(.roundboard, .lot) .bldg .b-sign {
   transform-box: fill-box;
   transform-origin: 50% 100%;
 }
-.roundboard .b-new {
+/* A new building comes up out of the ground (RoundBoard Built): the board opens under it (.b-pit), it
+   shoots up out of the hole stretched tall (only what's above ground shows: #rb-above), overshoots,
+   lands on its foot with a squash and settles; clods of the ground fly up round it and fall back, dust
+   blows out either side and a ring spreads where it landed. A hotel's floors above the ground one drop
+   onto it instead (--from above, fading in). Houses one after another, a hotel floor by floor, 0.16 s
+   apart (--i). The build's sound keeps the same time (sound.ts sfx.build). */
+:is(.roundboard, .lot) .b-new {
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  animation: b-rise 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--i, 0) * 0.16s) both;
+  animation: b-rise 0.8s linear calc(var(--i, 0) * 0.16s) both;
 }
 @keyframes b-rise {
   0% {
-    transform: scale(1, 0);
-    opacity: 0;
+    transform: translateY(var(--from, 17px)) scale(0.84, 1.18);
+    opacity: var(--o0, 1);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
   }
-  60% {
-    transform: scale(1, 1.14);
+  14% {
     opacity: 1;
+  }
+  40% {
+    transform: translateY(var(--over, -7px)) scale(0.9, 1.12);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.6);
+  }
+  56% {
+    transform: scale(1.16, 0.82);
+    animation-timing-function: ease-out;
+  }
+  74% {
+    transform: translateY(-1.5px) scale(0.96, 1.05);
+    animation-timing-function: ease-in-out;
+  }
+  88% {
+    transform: scale(1.02, 0.98);
   }
   100% {
     transform: none;
   }
 }
-.roundboard .b-dust ellipse {
+:is(.roundboard, .lot) .b-pit ellipse {
+  fill: var(--night-shade);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: b-pit 0.8s ease-out calc(var(--i, 0) * 0.16s) both;
+}
+@keyframes b-pit {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.15);
+  }
+  16% {
+    opacity: 0.85;
+    transform: scale(1.12);
+  }
+  55% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+:is(.roundboard, .lot) .b-dust > g {
+  --t: calc(var(--i, 0) * 0.16s);
+}
+:is(.roundboard, .lot) .b-dust .l,
+:is(.roundboard, .lot) .b-dust .r {
   fill: var(--board-ink-2);
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
-  animation: b-dust 0.7s ease-out 0.12s both;
+  animation: b-dust 0.8s ease-out calc(var(--t) + 0.16s) both;
 }
-.roundboard .b-dust .l {
-  --dx: -8px;
+:is(.roundboard, .lot) .b-dust .l {
+  --dx: -10px;
 }
-.roundboard .b-dust .r {
-  --dx: 8px;
+:is(.roundboard, .lot) .b-dust .r {
+  --dx: 10px;
+}
+:is(.roundboard, .lot) .b-dust .far {
+  --dy: -7px;
+  animation-delay: calc(var(--t) + 0.24s);
 }
 @keyframes b-dust {
   0% {
-    opacity: 0.6;
-    transform: scale(0.5);
+    opacity: 0.75;
+    transform: scale(0.4);
   }
   100% {
     opacity: 0;
-    transform: translateX(var(--dx)) scale(1.6);
+    transform: translate(var(--dx), var(--dy, -2px)) scale(1.9);
   }
+}
+:is(.roundboard, .lot) .b-dust .ring {
+  fill: none;
+  stroke: var(--board-ink);
+  stroke-width: 1.2;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: b-ring 0.6s ease-out calc(var(--t) + 0.42s) both;
+}
+@keyframes b-ring {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.3);
+  }
+}
+:is(.roundboard, .lot) .b-dust .clod {
+  fill: var(--board-ink-2);
+}
+:is(.roundboard, .lot) .b-dust .clod-x,
+:is(.roundboard, .lot) .b-dust .clod-y {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+:is(.roundboard, .lot) .b-dust .clod-x {
+  animation: clod-x 0.75s linear calc(var(--t) + 0.1s + var(--c) * 0.02s) both;
+}
+:is(.roundboard, .lot) .b-dust .clod-y {
+  animation: clod-y 0.75s calc(var(--t) + 0.1s + var(--c) * 0.02s) both;
+}
+@keyframes clod-x {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(var(--dx));
+  }
+}
+@keyframes clod-y {
+  0% {
+    opacity: 0;
+    transform: none;
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  8% {
+    opacity: 1;
+  }
+  45% {
+    transform: translateY(var(--up)) rotate(150deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(1px) rotate(320deg);
+  }
+}
+/* The moment of a build (RoundBoard BuildFx), drawn over everything on the board: the new building
+   comes up out of the ground --big times its size (the same rise, .b-up), in a burst as big, lands
+   with a jolt that shakes it (.bfx-shake), stands a moment, then settles to its own size on its spot
+   over the real one and fades into it (.bfx-zoom). A hotel lands floor by floor first, so it holds
+   longer. */
+:is(.roundboard, .lot) .b-up {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: b-rise 0.8s linear calc(var(--i, 0) * 0.16s) both;
+}
+:is(.roundboard, .lot) .bfx {
+  pointer-events: none;
+  --len: 2.1s;
+  --land: 0.44s;
+}
+:is(.roundboard, .lot) .bfx.hotel {
+  --len: 2.6s;
+  --land: 0.92s;
+}
+:is(.roundboard, .lot) .bfx-zoom {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  animation: bfx-zoom var(--len) linear calc(var(--i, 0) * 0.16s) both;
+}
+@keyframes bfx-zoom {
+  0% {
+    transform: scale(var(--big));
+    opacity: 1;
+  }
+  62% {
+    transform: scale(var(--big));
+    animation-timing-function: cubic-bezier(0.55, 0, 0.25, 1);
+  }
+  90% {
+    transform: none;
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 0;
+  }
+}
+:is(.roundboard, .lot) .bfx-shake {
+  animation: bfx-shake 0.32s linear var(--land) both;
+}
+@keyframes bfx-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: translate(1.8px, 0.5px);
+  }
+  40% {
+    transform: translate(-1.6px, -0.5px);
+  }
+  60% {
+    transform: translate(1.1px, 0.3px);
+  }
+  80% {
+    transform: translate(-0.5px, 0);
+  }
+}
+:is(.roundboard, .lot) .bfx .b-dust,
+:is(.roundboard, .lot) .bfx .b-pit {
+  animation: bfx-out var(--len) step-end both;
+}
+@keyframes bfx-out {
+  0% {
+    visibility: visible;
+  }
+  100% {
+    visibility: hidden;
+  }
+}
+/* A building sold goes back into the ground it came out of: a shudder, then down, in a little dust. */
+:is(.roundboard, .lot) .b-sink {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: b-sink 0.7s cubic-bezier(0.5, 0, 0.8, 0.4) both;
+}
+:is(.roundboard, .lot) .bldg.hotel .b-sink,
+:is(.roundboard, .lot) .bldg.gone .b-sink.tall {
+  --down: 46px;
+}
+@keyframes b-sink {
+  0% {
+    transform: none;
+  }
+  18% {
+    transform: translateY(-2px) scale(1.06, 0.94);
+  }
+  100% {
+    transform: translateY(var(--down, 24px)) scale(0.92, 1.06);
+  }
+}
+:is(.roundboard, .lot) .b-dust.sink .l,
+:is(.roundboard, .lot) .b-dust.sink .r {
+  animation-delay: 0.12s;
+}
+:is(.roundboard, .lot) .b-dust.sink .ring {
+  animation-delay: 0.05s;
 }
 /* Life between moves (RoundBoard's beat, one thing at a time): a hotel's sign swings and its windows
    blink; a city's owner mark gives a little bounce; a token looks round or bobs. */
@@ -982,7 +1208,7 @@
   .roundboard .pop,
   .roundboard .stamp-in,
   .roundboard .react,
-  .roundboard .b-new,
+  :is(.roundboard, .lot) .b-new,
   .roundboard .fx-stamp,
   .roundboard .world-tag,
   .roundboard .crater,
@@ -990,7 +1216,7 @@
     animation: none;
   }
   .roundboard .stamp-ring,
-  .roundboard .b-dust,
+  :is(.roundboard, .lot) .b-dust,
   .roundboard .burst {
     display: none;
   }
@@ -999,7 +1225,7 @@
   }
 }
 :root[data-reduced="1"] .roundboard .stamp-ring,
-:root[data-reduced="1"] .roundboard .b-dust,
+:root[data-reduced="1"] :is(.roundboard, .lot) .b-dust,
 :root[data-reduced="1"] .roundboard .burst {
   display: none;
 }
@@ -1310,7 +1536,7 @@
   pointer-events: none;
 }
 /* What stands on the board casts a shadow on it: a building at its foot, an owner's chip under it. */
-.roundboard .bldg .b-ground,
+:is(.roundboard, .lot) .bldg .b-ground,
 .roundboard .om-shadow {
   fill: var(--night-shade);
   opacity: 0.45;
@@ -1318,5 +1544,99 @@
 }
 /* (a token walking round hops on its way: its own hop on the spot waits) */
 .roundboard [data-walking] .token.now > .hop {
+  animation: none;
+}
+/* A chip just put down on a city bought: its shadow gathers under it as it comes down (stamp-in). */
+.roundboard .om-shadow.fresh {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: om-shadow-in 0.46s cubic-bezier(0.5, 0, 0.6, 1.5) both;
+}
+@keyframes om-shadow-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+  60% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0.45;
+    transform: none;
+  }
+}
+/* A city mortgaged: its owner's chip lies face down, as a deed card is turned over (its back in the
+   board's grey). Mortgaged since the board drew, it turns over: lifted, edge on, down again. */
+.roundboard .sp.mort .om circle {
+  fill: var(--board-ink-2);
+}
+.roundboard .sp.mort .om .owner {
+  fill: var(--board-paper);
+}
+.roundboard .om.flip {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: om-flip 0.7s ease-in-out both;
+}
+.roundboard .om.flip circle {
+  animation: om-flip-back 0.7s step-end both;
+}
+.roundboard .om.flip .owner {
+  animation: om-flip-ink 0.7s step-end both;
+}
+@keyframes om-flip {
+  0% {
+    transform: none;
+  }
+  50% {
+    transform: translateY(-7px) scaleX(0.04);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes om-flip-back {
+  0% {
+    fill: var(--team);
+  }
+  50%,
+  100% {
+    fill: var(--board-ink-2);
+  }
+}
+@keyframes om-flip-ink {
+  0% {
+    fill: #fff;
+  }
+  50%,
+  100% {
+    fill: var(--board-paper);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .roundboard .om-shadow.fresh,
+  .roundboard .om.flip,
+  .roundboard .om.flip circle,
+  .roundboard .om.flip .owner {
+    animation: none;
+  }
+  :is(.roundboard, .lot) .b-pit,
+  :is(.roundboard, .lot) .bldg.gone,
+  :is(.roundboard, .lot) .bfx {
+    display: none;
+  }
+}
+:root[data-reduced="1"] :is(.roundboard, .lot) .b-pit,
+:root[data-reduced="1"] :is(.roundboard, .lot) .bldg.gone,
+:root[data-reduced="1"] :is(.roundboard, .lot) .bfx {
+  display: none;
+}
+/* (the menu's reduced motion, as the phone's: what's built is simply there, a chip simply turns) */
+:root[data-reduced="1"] :is(.roundboard, .lot) :is(.b-new, .b-up),
+:root[data-reduced="1"] .roundboard .om-shadow.fresh,
+:root[data-reduced="1"] .roundboard .om.flip,
+:root[data-reduced="1"] .roundboard .om.flip circle,
+:root[data-reduced="1"] .roundboard .om.flip .owner {
   animation: none;
 }

@@ -101,7 +101,10 @@ npx tsx tests/tokens.test.ts        # 设计 token：和 global.css 同名的值
 npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的旧链接
 npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读出几秒，中英文说的时间一样
 npx tsx tests/hide.test.ts          # 藏在人群里在桌上的替身规则：主人开局、只开一次
+npx tsx tests/split.test.ts         # 两清的算账：尾差、净额、最少转账，1 万个随机账本
+npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、中英文、只用 token、还没有入口
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
+npx tsx scripts/split_check.ts      # 两清（只要 npm run dev 在跑）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字

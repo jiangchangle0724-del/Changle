@@ -1745,6 +1745,20 @@ li.is-ready .dm-roster-state {
 .dm-secret-results li.is-true strong {
   color: var(--gel);
 }
+/* nobody here can vote (one person on stage): the room's question, and the three secrets to shout */
+.dm-crowd {
+  display: grid;
+  gap: var(--space-3);
+}
+.dm-crowd-ask {
+  max-width: 34em;
+  margin: 0 auto;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading);
+  text-align: center;
+}
 .dm-peer-note {
   max-width: 34em;
   margin: 0;

@@ -537,6 +537,41 @@ export const sfx = {
     burst(0.07, { type: "highpass", freq: 2200, vol: 0.06 });
     burst(0.05, { type: "bandpass", freq: 900, q: 1.2, vol: 0.05, at: 0.06 });
   },
+  /**
+   * A building comes up out of the ground (art.css b-rise, in time with it): the ground gives with a
+   * rumble, the house shoots up out of it, lands on its foot with a wooden thunk, and a little chime.
+   * A hotel: its floors land one on another, 0.16 s apart, and a fanfare when its sign is up.
+   */
+  build: (hotel = false) => {
+    swell(0.5, { type: "lowpass", freq: 170, sweep: 80, vol: 0.14 });
+    burst(0.12, { type: "lowpass", freq: 380, vol: 0.16, at: 0.04 });
+    swell(0.32, { type: "bandpass", freq: 380, sweep: 2000, q: 1, vol: 0.06, at: 0.1 });
+    const lands = hotel ? [0, 1, 2, 3] : [0];
+    for (const i of lands) {
+      const at = 0.44 + i * 0.16;
+      tone(hotel ? 170 - i * 12 : 150, 0.15, { vol: 0.2, slide: 80, at });
+      burst(0.06, { type: "lowpass", freq: 650, vol: 0.13, at });
+      burst(0.03, { type: "bandpass", freq: 2200, q: 2.5, vol: 0.05, at: at + 0.06 });
+    }
+    const done = 0.5 + (lands.length - 1) * 0.16;
+    [1046.5, 1318.5, 1568].forEach((f, i) => tone(f, 0.32, { type: "triangle", vol: 0.05, at: done + i * 0.07 }));
+    if (hotel) {
+      chord([523.3, 659.3, 784], 0.9, { type: "triangle", vol: 0.06, at: done + 0.24 });
+      bell(1046.5, { at: done + 0.26, vol: 0.05, dur: 1.2 });
+    }
+  },
+  /** A building sold back: a creak, and it sinks back into the ground with a falling thud. */
+  sink: () => {
+    tone(330, 0.5, { type: "triangle", vol: 0.05, slide: 165 });
+    swell(0.6, { type: "lowpass", freq: 260, sweep: 90, vol: 0.12, at: 0.08 });
+    tone(110, 0.2, { vol: 0.14, slide: 60, at: 0.55 });
+  },
+  /** A city mortgaged: its chip turned face down, a card flipped onto the table. */
+  flip: () => {
+    burst(0.05, { type: "highpass", freq: 3000, vol: 0.05 });
+    burst(0.08, { type: "bandpass", freq: 1100, q: 1.3, vol: 0.07, at: 0.3 });
+    tone(220, 0.1, { vol: 0.08, at: 0.34, slide: 160 });
+  },
   /** Sent to Immigration: the gate comes down. */
   jail: () => {
     burst(0.08, { type: "bandpass", freq: 700, q: 2, vol: 0.2 });

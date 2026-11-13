@@ -42,7 +42,7 @@ export type GameId =
 export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
-  drama: 3,
+  drama: 1,
   rogue: 2,
   superlatives: 3,
   king: 3,
@@ -677,6 +677,8 @@ export type DramaView = {
     gained: Record<string, number>;
     /** a monologue: which of `options` was the actor's real secret */
     answer?: number | null;
+    /** no votes to count (nobody voted, or nobody at the table could): the truth only, no points */
+    quiet?: boolean;
   } | null;
   scores: Record<string, number>;
   /** best-actor awards so far */
@@ -693,6 +695,11 @@ export type DramaView = {
   next?: { lo: number; hi: number; ok: boolean; auto: boolean };
   /** nobody is watching: the actors vote on each other */
   peer?: boolean;
+  /**
+   * Nobody at the table can vote (one person, on stage): the room guesses out loud and the host
+   * reveals the answer; no points.
+   */
+  crowd?: boolean;
   /** a monologue: three secrets, one of them the actor's, for the audience to choose from */
   options?: T[] | null;
   /** 名场面: the set the host picked (Chinese film and TV, or English) */

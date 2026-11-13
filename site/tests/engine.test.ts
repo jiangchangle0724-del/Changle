@@ -2269,6 +2269,97 @@ test("drama: nobody watching: the actors vote on each other, never on themselves
   ok(v.result!.right.join() === innocents[0] && v.result!.best.join() === innocents[1], "one guessed right; most stars wins");
 });
 
+test("drama: one person can start: monologues and readings, the room guesses out loud, the host reveals, nobody scores", () => {
+  type V = V<"drama">;
+  const t = setup(1);
+  t.act("p0", { a: "start", game: "drama" });
+  ok(t.view<V>("p0")?.id === "drama", "one person can open the game");
+  // famous scenes and duels take two
+  t.g("p0", "config", { mode: "classic" });
+  ok(t.view<V>("p0").next?.ok === false, "no famous scene alone");
+  t.g("p0", "config", { mode: "pk" });
+  ok(t.view<V>("p0").next?.ok === false, "no duel alone");
+  t.g("p0", "start");
+  ok(t.view<V>("p0").phase === "setup", "the curtain stays down for them");
+
+  // a scene: always a monologue
+  t.g("p0", "config", { mode: "show", total: 2 });
+  t.g("p0", "start");
+  let v = t.view<V>("p0");
+  ok(v.phase === "brief" && v.cast.length === 1 && v.cast[0].pid === "p0" && v.options?.length === 3, "alone on stage: a monologue with three secrets");
+  ok(v.crowd === true && !v.peer, "nobody at the table can vote");
+  t.g("p0", "ready");
+  t.g("p0", "cut");
+  v = t.view<V>("p0");
+  ok(v.phase === "vote" && v.crowd === true, "the room's turn to guess, out loud");
+  t.g("p0", "vote", { guess: "0", stars: {} });
+  ok(t.view<V>("p0").voted.length === 0, "the actor can't vote on their own secret");
+  t.g("p0", "reveal");
+  v = t.view<V>("p0");
+  const r = v.result!;
+  ok(v.phase === "reveal" && r.quiet === true && typeof r.answer === "number" && r.answer >= 0 && r.answer < 3, "the host's tap reveals the real secret");
+  ok(!Object.keys(r.counts).length && !Object.keys(r.stars).length && !r.best.length && !r.losers.length && !r.right.length && !Object.keys(r.gained).length, "no votes, no stars, no best actor, nobody pays");
+  ok(!v.scores.p0 && !t.pens().length, "nobody scores, and no penalty");
+  ok(r.cards.p0?.secret !== undefined, "the card turns over");
+
+  // the next one runs out of time instead: the answer comes out anyway
+  t.g("p0", "next");
+  t.g("p0", "ready");
+  t.g("p0", "cut");
+  t.advance(50_000);
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.result?.quiet === true && typeof v.result.answer === "number", "the clock reveals it too");
+  t.g("p0", "next");
+  ok(t.view<V>("p0").phase === "end" && !t.pens().length, "the curtain call: nobody's last, nobody pays");
+
+  // a reading: nobody here to give stars, so it ends on the applause
+  const u = setup(1);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p0", "config", { mode: "read" });
+  u.g("p0", "start");
+  v = u.view<V>("p0");
+  ok(v.phase === "brief" && v.cast.length === 1 && !!v.read && v.crowd === true, "one person reads");
+  u.g("p0", "ready");
+  u.g("p0", "cut");
+  v = u.view<V>("p0");
+  ok(v.phase === "reveal" && v.result?.quiet === true && !Object.keys(v.result.stars).length && !v.result.losers.length, "done reading: straight to the applause, no stars, nobody pays");
+});
+
+test("drama: two at the table: one acts a monologue, the other guesses", () => {
+  type V = V<"drama">;
+  const t = setup(2);
+  t.act("p0", { a: "start", game: "drama" });
+  ok(t.view<V>("p0").next?.ok === true && t.view<V>("p0").next?.hi === 1, "nobody has said: one goes up");
+  for (const id of t.ids) t.g(id, "want", { want: "act" });
+  ok(t.view<V>("p0").next?.lo === 1 && t.view<V>("p0").next?.hi === 1, "both want to act: still one at a time (two voting on each other would always catch the culprit)");
+  t.g("p0", "start");
+  let v = t.view<V>("p0");
+  ok(v.cast.length === 1 && v.options?.length === 3 && !v.peer && !v.crowd, "a monologue, with someone to guess");
+  const actor = v.cast[0].pid;
+  const guesser = t.ids.find((x) => x !== actor)!;
+  t.g(actor, "ready");
+  t.g(actor, "cut");
+  const s = t.eng.d.game!.s as { order: number[] };
+  const answer = String(s.order.indexOf(0));
+  t.g(guesser, "vote", { guess: answer, stars: { [actor]: 4 } });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.result!.caught && v.result!.right.join() === guesser && !v.result!.quiet && v.scores[guesser] === 1, "the guess counts as usual");
+  // a scene written at the table waits for a third
+  t.g("p1", "write", { scene: { title: { zh: "两个人的戏", en: "A two-hander" }, setup: { zh: "这是一个两个人演的戏，有一个坏人。", en: "A scene for two, one of them the culprit." }, culprit: { zh: "坏人", en: "The culprit" }, culpritCard: { zh: "你干的", en: "You did it" }, ask: { zh: "谁干的？", en: "Who did it?" }, roles: [{ name: { zh: "甲", en: "A" }, brief: { zh: "你是甲", en: "You're A" } }, { name: { zh: "乙", en: "B" }, brief: { zh: "你是乙", en: "You're B" } }] } });
+  ok(t.view<V>("p0").next?.hi === 1, "two at the table: the written scene waits");
+  // a duel and a famous scene take the two of them
+  const u = setup(2);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p0", "config", { mode: "pk" });
+  ok(u.view<V>("p0").next?.ok === true && u.view<V>("p0").next?.hi === 2, "a duel for the two of them");
+  u.g("p0", "config", { mode: "classic" });
+  ok(u.view<V>("p0").next?.ok === true && u.view<V>("p0").next?.hi === 2, "a famous scene for the two of them");
+  u.g("p0", "config", { mode: "pk" });
+  u.g("p0", "start");
+  v = u.view<V>("p0");
+  ok(v.phase === "brief" && v.cast.length === 2 && v.peer === true && !v.crowd, "two on stage in a duel: they vote on each other, nobody shouts");
+});
+
 test("drama: a scene written for every number of actors, at every table", () => {
   type V = V<"drama">;
   const missing: string[] = [];

@@ -7,6 +7,7 @@
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
  *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
+ *   /split, /split/<id>   两清: the ledgers on this phone, and one of them (not on the Tools tab yet)
  *   /settings, /login open that sheet over home (the address then goes back to /)
  *
  * Links from before (changle.ca/#/g/truth, /#/r/ABCD, /#/tv/ABCD) are rewritten on arrival, so
@@ -31,6 +32,7 @@ export type Route =
   | { kind: "chat"; id: string }
   | { kind: "tv"; code?: string; game?: GameId }
   | { kind: "djtest" }
+  | { kind: "split"; id?: string }
   | { kind: "dev"; search: string };
 
 /** What the site keeps on each history entry. */
@@ -90,6 +92,8 @@ export function parse(pathname: string, search = ""): Route {
   // changle.ca/dj: a big screen with the DJ booth up (it's the speaker); /dj/test checks the sound alone
   if (p.toLowerCase() === "/dj") return { kind: "tv", game: "dj" };
   if (p.toLowerCase() === "/dj/test") return { kind: "djtest" };
+  // 两清: its own pages inside the site (only /split/api, later, is another Worker)
+  if ((m = /^\/split(?:\/([A-Za-z0-9_-]{6,64}))?$/.exec(p))) return m[1] ? { kind: "split", id: m[1] } : { kind: "split" };
   if (p === "/dev/show" && DEV) return { kind: "dev", search };
   // an address that isn't a page: home (and the address bar says so)
   return { kind: "home", tab: "party" };
@@ -116,6 +120,8 @@ export function pathOf(r: Route): string {
       return `/tv${r.code ? `/${r.code}` : ""}${r.game ? `?g=${GAME_BY_ID[r.game].slug}` : ""}`;
     case "djtest":
       return "/dj/test";
+    case "split":
+      return r.id ? `/split/${r.id}` : "/split";
     case "dev":
       return `/dev/show${r.search}`;
   }
@@ -167,6 +173,8 @@ export function titleOf(r: Route, lang: Lang): string {
       return r.game === "dj" ? named("打碟", "DJ Booth") : named("大屏幕", "Big screen");
     case "djtest":
       return named("打碟试音", "DJ Booth sound check");
+    case "split":
+      return named("两清", "All Square");
     case "me":
     case "admin":
       return named("我的", "Me");

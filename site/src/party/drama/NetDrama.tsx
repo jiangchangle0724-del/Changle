@@ -67,7 +67,9 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   // who's on stage next: each player says for themselves
   const stageCall = player && <StageCall v={v} ids={players.map((s) => s.id)} nameOf={nameOf} face={face} me={me} onWant={(want) => g("want", { want })} />;
   const blocked = v.next ? !v.next.ok : false;
-  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = false; setLibraryAttempt((n) => n + 1); } }} />;
+  // one person at the table: monologues and readings, the room guessing out loud
+  const alone = players.length === 1;
+  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = false; setLibraryAttempt((n) => n + 1); } }} few={players.length < 3} />;
 
   // the scene has its own sound: the lounge music waits
   useEffect(() => holdBackground(), []);
@@ -117,12 +119,29 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             {stageCall}
             {tableScenes}
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={players.length < 3 || blocked} onClick={settle(() => g("start"))}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={blocked} onClick={settle(() => g("start"))}>
                 <Play size={18} />
-                {players.length < 3 ? (zh ? "至少三个人才能开演" : "Needs at least three") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "开演" : "Curtain up"}
+                {blocked
+                  ? alone && (v.mode === "pk" || v.mode === "classic")
+                    ? zh
+                      ? "一个人只能演独角戏和朗读"
+                      : "On your own: monologues and readings"
+                    : zh
+                      ? "还没人上台"
+                      : "Nobody's on stage yet"
+                  : zh
+                    ? "开演"
+                    : "Curtain up"}
               </button>
             ) : (
               <Waiting>{zh ? "等主人选好剧本" : "Waiting for the host to pick the show"}</Waiting>
+            )}
+            {alone && (
+              <p className="dm-wait-note">
+                {zh
+                  ? "一个人也能演：独角戏或者朗读。屋里的人一起喊答案，你点揭晓，不计分。"
+                  : "On your own you can still play: monologues or readings. The room shouts its guesses, you reveal the answer, and nobody scores."}
+              </p>
             )}
           </>
         )}
@@ -216,7 +235,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             )}
             {(acting || isHost) && (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("cut"))}>
-                {acting ? (zh ? "读完了，开始打星" : "Done: on to the stars") : zh ? "读完了，开始打星" : "They're done: on to the stars"}
+                {v.crowd ? (zh ? "读完了" : "Done") : acting ? (zh ? "读完了，开始打星" : "Done: on to the stars") : zh ? "读完了，开始打星" : "They're done: on to the stars"}
               </button>
             )}
             {!acting && player && (
@@ -248,7 +267,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             )}
             {(acting || isHost) && (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("cut"))}>
-                {zh ? "演完了，开始投票" : "That's a wrap: vote"}
+                {v.crowd ? (zh ? "演完了，让大家猜" : "That's a wrap: let them guess") : zh ? "演完了，开始投票" : "That's a wrap: vote"}
               </button>
             )}
             {!acting && !isHost && player && (
@@ -273,7 +292,38 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
           </>
         )}
 
-        {v.phase === "vote" && (
+        {v.phase === "vote" && v.crowd && (
+          <>
+            {stage(false, false)}
+            {/* nobody here can vote: the room shouts its guess, the host reveals it */}
+            <div className="dm-crowd">
+              <p className="dm-crowd-ask">
+                {zh ? `屋里的人一起喊：${v.scene?.ask.zh ?? "是哪一个？"}` : `Everyone in the room, shout it out: ${v.scene?.ask.en ?? "which one?"}`}
+              </p>
+              {v.options && (
+                <ol className="dm-secret-results">
+                  {v.options.map((o, i) => (
+                    <li key={i}>
+                      <span className="dm-secret-mark" aria-hidden="true">
+                        {String.fromCharCode(65 + i)}
+                      </span>
+                      <span>{zh ? o.zh : o.en}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+            {isHost ? (
+              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={settle(() => g("reveal"))}>
+                {zh ? "猜好了，揭晓答案" : "Reveal the answer"}
+              </button>
+            ) : (
+              <Waiting>{zh ? "大家在猜，主人揭晓" : "The room is guessing. The host reveals it."}</Waiting>
+            )}
+          </>
+        )}
+
+        {v.phase === "vote" && !v.crowd && (
           <>
             {stage(false, false)}
             {voter ? (
