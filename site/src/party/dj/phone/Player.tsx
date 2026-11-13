@@ -1,7 +1,10 @@
 import { Hand, Maximize2, Minimize2, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { useRoom } from "../../../online/RoomContext";
+import { onAir, reqOrder } from "../../../shared/dj/deck";
 import type { DjView, ReqView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
 import { songName } from "../deck/words";
+import { mixLine } from "../parts";
 
 /** What a phone tells the room: the game action `{ x, ...data }`. */
 export type G = (x: string, data?: Record<string, unknown>) => void;
@@ -9,11 +12,13 @@ export type G = (x: string, data?: Record<string, unknown>) => void;
 /**
  * The player on every phone (Steve on Nov 12: "手机上点完歌后可以直接在玩家手机上一键播放，切歌，暂停，
  * 上一曲"): what the TV plays now and what comes next, then 上一曲, 暂停 or 播放, and 切歌, for anyone at
- * the table; the video over the whole TV; and a word when the TV wants a tap on its video (an
- * iPhone's YouTube player, the night's first song). The shared phone has it too (SharedSongs.tsx,
- * `me` its SHARED_BY): the room takes those from the speaker only.
+ * the table; the video over the whole TV; and a word when the TV wants a tap (its video: an iPhone's
+ * YouTube player, the night's first song; or its sound, stopped). The shared phone has it too
+ * (SharedSongs.tsx, `me` its SHARED_BY): the room takes those from the speaker only. 切歌 and 上一曲
+ * work while a song is coming on too (another goes in on its bar).
  */
 export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; zh: boolean; nameOf: (pid: string) => string }) {
+  const { now } = useRoom();
   const d = v.deck;
   const live = v.phase !== "wait" && v.phase !== "end";
   const paused = !!d.paused;
@@ -25,12 +30,18 @@ export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; 
   const nameIn = (r: ReqView | null) => (r ? (songName(r, zh) ?? (r.yt ? (zh ? "一首 YouTube 上的歌" : "A song from YouTube") : zh ? "一首歌" : "A song")) : null);
   const whose = (pid: string) => (pid === me ? (zh ? "你点的" : "Yours") : zh ? `${nameOf(pid)} 点的` : `${nameOf(pid)}'s`);
   const kicker = !live ? (v.phase === "end" ? (zh ? "这一场结束了" : "The set is over") : zh ? "还没开始" : "Not started") : paused ? (zh ? "暂停了" : "Paused") : song ? (zh ? "电视上在放" : "On the TV") : coming ? (zh ? "马上开始" : "Coming on") : zh ? "DJ 在放" : "The DJ plays";
-  const title = song ? (nameIn(cur) ?? (zh ? "一首 YouTube 上的歌" : "A song from YouTube")) : coming ? nameIn(coming) : live ? (zh ? "两首歌之间，DJ 接着放" : "Between songs, the DJ plays on") : v.phase === "end" ? (zh ? "主人可以再来一场" : "The host can start another set") : zh ? "电视上点「开始派对」就开场" : "Press Start the party on the TV";
+  // (the DJ playing: the host's song on the air, or its styles and tempo)
+  const onDeck = d.local ? v.onDecks?.[onAir(d)] : null;
+  const djPlays = onDeck ? `${onDeck.a ? `${onDeck.a} · ` : ""}${onDeck.t}` : mixLine(v.mix, zh);
+  const title = song ? (nameIn(cur) ?? (zh ? "一首 YouTube 上的歌" : "A song from YouTube")) : coming ? nameIn(coming) : live ? djPlays : v.phase === "end" ? (zh ? "主人可以再来一场" : "The host can start another set") : zh ? "电视上点「开始派对」就开场" : "Press Start the party on the TV";
   // a song before the one playing (none playing: the last one) to go back to
   const before = d.heard.length - (cur ? 1 : 0) > 0;
-  // (a switch on its way into the next song can't be taken back)
-  const moving = !!d.drop;
-  const next = d.up && d.up.id !== coming?.id ? d.up : null;
+  // (a switch with a countdown on its way can't be taken back; 点歌模式's quiet one takes another song)
+  const moving = !!d.drop && !d.drop.quiet;
+  // what comes after: the song up next, or (that one coming on now) the first one waiting
+  const line = reqOrder(d.reqs, d.reqOn, now());
+  const next = d.up && d.up.id !== coming?.id ? d.up : (line[0] ?? null);
+  const more = d.reqs.length - (next && next.id !== d.up?.id ? 1 : 0);
   const press = (x: "play" | "pause" | "next" | "prev") => {
     haptic(12);
     g(x);
@@ -59,15 +70,15 @@ export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; 
       {live && d.tap && (
         <p className="djk-player-tap" role="status">
           <Hand size={18} aria-hidden="true" />
-          {zh ? "电视上要点一下视频才出声（这个浏览器第一首歌要点一下，之后就自己放）" : "Tap the video on the TV for sound (this browser wants one tap for the first song, then it plays by itself)"}
+          {zh ? "电视要点一下才出声：点电视上的视频，或者「声音停了」那个按钮" : "The TV needs a tap for sound: its video, or its The sound stopped button"}
         </p>
       )}
       {live && (
         <p className="djk-player-next">
           {next
             ? zh
-              ? `下一首：${nameIn(next)} · ${whose(next.by)}${d.reqs.length ? ` · 歌单里还有 ${d.reqs.length} 首` : ""}`
-              : `Up next: ${nameIn(next)} · ${whose(next.by)}${d.reqs.length ? ` · ${d.reqs.length} more on the playlist` : ""}`
+              ? `下一首：${nameIn(next)} · ${whose(next.by)}${more ? ` · 歌单里还有 ${more} 首` : ""}`
+              : `Up next: ${nameIn(next)} · ${whose(next.by)}${more ? ` · ${more} more on the playlist` : ""}`
             : zh
               ? "歌单空着：在下面点歌，点的歌一首接一首放"
               : "The playlist is empty: ask for songs below, they play one after another"}

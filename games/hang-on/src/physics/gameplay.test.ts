@@ -196,6 +196,70 @@ describe('过关', () => {
   });
 });
 
+describe('互相抓着飞不上天', () => {
+  // 拉身体的力只加在身体上；两个人在半空互相抓着推摇杆往上，以前一秒一千多 px 一直往上飞（11-13 审大关时乱按探路撞出来的）
+  const wide = (): Level => level({ w: 3000, rects: [{ x: 0, y: 540, w: 3000, h: 200, kind: 'ground', material: 'wood' }] });
+  const holdAndPush = (sim: Sim, both: boolean, until = 4): number => {
+    let top = Infinity;
+    // 先伸手抓住对方，0.6 秒起一直推摇杆往上，到 until 秒松开摇杆（手还抓着）
+    run(sim, 6, (t) => {
+      const push = t >= 0.6 && t < until;
+      const reach = t < 0.6;
+      sim.setInput(0, input(reach ? 1 : 0, reach ? -0.2 : push ? -1 : 0, false, true));
+      sim.setInput(1, input(reach ? -1 : 0, reach ? -0.2 : push ? -1 : 0, both, false));
+      for (const p of sim.players) top = Math.min(top, p.body.y);
+    });
+    return 540 - top;
+  };
+
+  test('两个人互相抓着推摇杆往上：只能一起蹦，蹦不到 300 px，不推了就落回地上', async () => {
+    const sim = await createSim(wide(), 2);
+    sim.teleport(0, 1000, 540 - CFG.bodyR);
+    sim.teleport(1, 1044, 540 - CFG.bodyR);
+    const high = holdAndPush(sim, true);
+    expect(high).toBeGreaterThan(60); // 还是能一起蹦
+    expect(high).toBeLessThan(300);
+    expect(sim.players.every((p) => p.body.y > 540 - 4 * CFG.bodyR)).toBe(true);
+    sim.destroy();
+  });
+
+  test('两个人已经一起往上飞，半空里拽着队友再往上推，也不会多飞：只剩惯性', async () => {
+    // 乱按探路的两个人这样「你窜上去、我拽你、再换过来」翻过了 520 px 的电墙
+    const lv = level({ w: 3000, h: 3000, rects: [{ x: 0, y: 2900, w: 3000, h: 100, kind: 'ground', material: 'wood' }], deathY: 3200 });
+    const sim = await createSim(lv, 2);
+    sim.teleport(0, 1000, 2000);
+    sim.teleport(1, 1000, 2080, { hands: [null, { x: 1000, y: 2024 }] });
+    run(sim, 2 * dt, () => sim.setInput(1, input(0, 0, false, true)));
+    expect(sim.players[1]!.arms[1]!.grip?.kind).toBe('player');
+    // 两个人都往上 800 px/s（比 airPullRise 快）
+    for (const p of sim.players) {
+      p.rb.setLinvel({ x: 0, y: -800 }, true);
+      for (const a of p.arms) for (const rb of a.segs) rb.setLinvel({ x: 0, y: -800 }, true);
+    }
+    const y0 = sim.players[1]!.body.y;
+    let top = Infinity;
+    run(sim, 3, () => {
+      sim.setInput(1, input(0, -1, false, true));
+      for (const p of sim.players) top = Math.min(top, p.body.y);
+    });
+    // 只靠惯性能往上 800² / (2 × 1700) ≈ 188 px；以前拽着队友能再推到 396 px
+    expect(y0 - top).toBeLessThan(800 ** 2 / (2 * CFG.gravity) + 30);
+    sim.destroy();
+  });
+
+  test('一个人抓着站在地上的队友往上推，照旧撑到队友身上', async () => {
+    const sim = await createSim(wide(), 2);
+    sim.teleport(0, 1000, 540 - CFG.bodyR);
+    sim.teleport(1, 1044, 540 - CFG.bodyR);
+    const high = holdAndPush(sim, false, 6);
+    expect(high).toBeLessThan(300);
+    const [a, b] = sim.players;
+    expect(b!.ground).toBe(true);
+    expect(a!.body.y).toBeLessThan(b!.body.y - CFG.bodyR); // 在队友上面
+    sim.destroy();
+  });
+});
+
 describe('复活不叠人', () => {
   const cpLevel = (extra: Partial<Level> = {}): Level =>
     level({ checkpoints: [{ x: 500, y: 516 }], rects: [{ x: 300, y: 540, w: 600, h: 200, kind: 'ground', material: 'wood' }], ...extra });

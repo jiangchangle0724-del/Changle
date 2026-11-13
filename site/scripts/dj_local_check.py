@@ -127,7 +127,7 @@ with sync_playwright() as p:
     ok(until(lambda: (view(tv) or {}).get("source") == "local" and deck(tv).get("local"), 8000), "用我的歌放: the room plays the host's songs")
     ok(until(lambda: tv.evaluate("() => window.__djBooth.source") == "local", 15000), "the TV hands the speaker to the local DJ once the song on the air is ready")
     on_song = (view(tv) or {}).get("onDecks", {}).get("a") or {}
-    ok(until(lambda: on_song.get("t", "~") in amy.locator(".djp-now").inner_text(), 4000), f"the phones say which song is on ({on_song.get('t')})")
+    ok(until(lambda: on_song.get("t", "~") in amy.locator(".djk-player-title").inner_text(), 4000), f"the phones' player says which song is on ({on_song.get('t')})")
     tv.locator(".dj-local-x").click()
     ok(until(lambda: tv.evaluate("() => window.__djBooth.stats()")["state"] == "playing", 8000), "the music plays")
     tv.wait_for_timeout(1500)
@@ -183,7 +183,7 @@ with sync_playwright() as p:
     tv.locator(".dj-local-btn").click()
     tv.locator(".dj-local-go .tv-btn").first.click()
     ok(until(lambda: (view(tv) or {}).get("source") == "fake" and tv.evaluate("() => window.__djBooth.source") == "fake", 10000), "换回试音版 DJ: the stand-in plays again")
-    ok(until(lambda: "试音版" in amy.locator(".djp-now").inner_text(), 4000), f"and the phones say so ({amy.locator('.djp-now').inner_text()!r})")
+    ok(until(lambda: "BPM" in amy.locator(".djk-player-title").inner_text() and on_song.get("t", "~") not in amy.locator(".djk-player-title").inner_text(), 4000), f"and the phones' player says what it plays ({amy.locator('.djk-player-title').inner_text()!r})")
 
     bad = [e for e in errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not bad, f"no errors {bad[:3]}")

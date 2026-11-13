@@ -149,6 +149,17 @@ try {
   await host.locator('#lobbyBtn').click();
   check('回大厅按钮在倒数遮罩上可点击并回到大厅', await phase('lobby') >= 0 && await host.locator('#lobby').isVisible());
   await screenshot(host, 'back-to-lobby');
+  // 手机投屏到电视时用电视局：横着的手机只有 393 高，开始键不用滚就看得见、点得到，底下的键盘说明不出来
+  const tvPhone = await context({ viewport: { width: 852, height: 393 }, isMobile: true, hasTouch: true });
+  await tvPhone.page.goto(`${BASE}/hang-on/?render=0&lang=zh&phone=0`);
+  await tvPhone.page.waitForFunction(() => /^[A-Z2-9]{4}$/.test(document.getElementById('code')?.textContent ?? ''));
+  const startSpot = await tvPhone.page.evaluate(() => {
+    const r = document.getElementById('startBtn').getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { short: document.body.classList.contains('short'), bottom: Math.round(r.bottom), height: innerHeight, hit: hit?.id ?? '', note: getComputedStyle(document.getElementById('note')).display };
+  });
+  check('手机当电视（电视局）：开始键在屏幕里、没被挡住，键盘说明不出', startSpot.short && startSpot.bottom <= startSpot.height && startSpot.hit === 'startBtn' && startSpot.note === 'none', JSON.stringify(startSpot));
+  await screenshot(tvPhone.page, 'phone-as-tv-lobby');
   check('页面无脚本错误', errors.length === 0, errors.join(' | '));
 } catch (error) {
   check('大厅流程完成', false, error.stack ?? String(error));

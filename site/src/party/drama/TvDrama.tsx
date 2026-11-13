@@ -14,7 +14,7 @@ import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
 import { Bi, FacesIn, RoundTag, TvClock, TvPodium, TvShow, useArrivals, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
-import { Backdrop, Cast, Curtain, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
+import { Backdrop, Cast, clockText, Curtain, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
 import { useDramaMusic } from "./score";
 import { dramaSfx } from "./sound";
 import "../../styles/drama.css";
@@ -53,11 +53,13 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
     if (sound) sfx.applause(1.8, 0.7);
   });
 
+  // a scene runs five minutes or more: its clock reads 5:00, a size smaller to fit the ring, and
+  // just the seconds in the last minute
   const clock =
     v.phase === "brief" ? (
       <TvClock key={`b${v.round}`} endsAt={v.endsAt} total={BRIEF_MS} sound={sound} />
     ) : v.phase === "act" ? (
-      <TvClock key={`a${v.round}`} endsAt={v.endsAt} total={v.actMs} sound={sound} />
+      <TvClock key={`a${v.round}`} endsAt={v.endsAt} total={v.actMs} sound={sound} label={(secs) => (secs >= 60 ? <span className="tvd-clock-long">{clockText(secs)}</span> : secs)} />
     ) : v.phase === "vote" ? (
       <TvClock key={`v${v.round}`} endsAt={v.endsAt} total={VOTE_MS} sound={sound} />
     ) : null;

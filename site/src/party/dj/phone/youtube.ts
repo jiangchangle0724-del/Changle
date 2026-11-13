@@ -29,3 +29,24 @@ export async function ytSearch(q: string): Promise<YtHit[] | "nokey" | "quota"> 
   if (d.quota) return "quota";
   return Array.isArray(d.hits) ? d.hits : [];
 }
+
+const tempos = new Map<string, Promise<number | null>>();
+
+/**
+ * The tempo of a video's song, for the big screen's dancers (worker/youtube.ts looks it up by its
+ * title), or null; asked once a page. Never rejects.
+ */
+export function ytBpm(id: string): Promise<number | null> {
+  let p = tempos.get(id);
+  if (!p) {
+    p = fetch(`${base()}/api/yt/bpm?id=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ bpm?: unknown }>) : null))
+      .then((d) => (d && typeof d.bpm === "number" && d.bpm > 0 ? d.bpm : null))
+      .catch(() => {
+        tempos.delete(id);
+        return null;
+      });
+    tempos.set(id, p);
+  }
+  return p;
+}

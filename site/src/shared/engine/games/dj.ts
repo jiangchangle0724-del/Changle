@@ -270,19 +270,39 @@ function readRoom(s: RoomState, api: Api) {
 function nextReq(s: RoomState, api: Api) {
   const d = s.deck;
   if (d.up || d.drop || !playing(s.phase) || !d.reqs.length) return;
+  const r = takeNext(s, api);
+  if (r) putUp(s, r, api);
+}
+
+/** The song asked for whose turn it is, taken off the 歌单 (null: none can play now). */
+function takeNext(s: RoomState, api: Api): SongReq | null {
+  const d = s.deck;
   // a night of the host's songs plays the ones asked for from them (the others wait for the stand-in)
   const ok = (r: SongReq) => !d.local || (!!r.local && s.crate.some((x) => x.id === r.local));
   // first come, first played, but one player's two songs 10 minutes apart: the others' go first
   // (alone, it plays: nobody's turn is taken); the host's 随机: any of the waiting ones (of the
   // rested players', while there are some)
   const line = reqOrder(d.reqs, d.reqOn, api.now).filter(ok);
-  if (!line.length) return;
+  if (!line.length) return null;
   const fair = line.filter((r) => rested(d.reqOn, r.by, api.now));
   const from = fair.length ? fair : line;
   // (one 上一曲 put back comes first, 随机 or not)
   const first = line[0].back ? line[0] : s.shuffle ? from[api.int(from.length)] : line[0];
-  const i = d.reqs.indexOf(first);
-  putUp(s, d.reqs.splice(i, 1)[0], api);
+  return d.reqs.splice(d.reqs.indexOf(first), 1)[0];
+}
+
+/**
+ * Another song goes in on the switch already on its way (点歌模式's quiet one: the speaker keeps its
+ * bar), its style on that deck; none, the switch goes to the DJ.
+ */
+function retarget(s: RoomState, r: SongReq | null) {
+  const d = s.deck;
+  d.up = r;
+  if (!r || !d.drop) return;
+  if (d.local) d.songs[d.drop.to] = r.local!;
+  else if (d.drop.to === "b") d.b = r.style;
+  else d.a = r.style;
+  syncMix(s);
 }
 
 /** `r` is up next: its style (or the host's song) on the deck off the air, the picks waiting for it. */
@@ -489,9 +509,9 @@ function control(s: RoomState, what: unknown, api: Api): boolean {
   if (what === "pause") return hold(s, api);
   if (what === "play") return carryOn(s, api);
   if (what !== "next" && what !== "prev") return false;
-  // (a switch on its way can't be taken back: the speaker has it on its bar; and two phones
-  // pressing at once skip one song, not two)
-  if (d.drop || api.now - d.ctlAt < DECK.ctlGapMs) return false;
+  // (a switch on its way with a countdown can't be taken back; a quiet one (点歌模式) takes
+  // another song on its bar; and two phones pressing at once skip one song, not two)
+  if ((d.drop && !d.drop.quiet) || api.now - d.ctlAt < DECK.ctlGapMs) return false;
   if (!(what === "next" ? skip(s, api) : stepBack(s, api))) return false;
   d.ctlAt = api.now;
   return true;
@@ -520,9 +540,19 @@ function carryOn(s: RoomState, api: Api): boolean {
   return true;
 }
 
-/** 切歌: the song playing ends now, the next straight on (the DJ for a bar or so between); none playing, the one up next now. */
+/**
+ * 切歌: the song playing ends now, the next straight on (the DJ for a bar or so between); none
+ * playing, the one up next now; on its way in already, that one's skipped too and the one after it
+ * goes in on the same bar (none after it: the DJ plays on).
+ */
 function skip(s: RoomState, api: Api): boolean {
   const d = s.deck;
+  if (d.drop) {
+    if (!d.up) return false;
+    d.paused = 0;
+    retarget(s, takeNext(s, api));
+    return true;
+  }
   if (!d.song && !d.up) return false;
   d.paused = 0;
   if (d.song) songOver(s, api, true);
@@ -532,8 +562,9 @@ function skip(s: RoomState, api: Api): boolean {
 
 /**
  * 上一曲: the song before the one playing (none playing: the last one) plays again now. The one that
- * was playing and the one that was up next go back on the 歌单, first in line, so they come after it
- * as they did; the night's list of songs played steps back with them (each is on it once).
+ * was playing and the one that was up next (or on its way in) go back on the 歌单, first in line, so
+ * they come after it as they did; the night's list of songs played steps back with them (each is
+ * on it once).
  */
 function stepBack(s: RoomState, api: Api): boolean {
   const d = s.deck;
@@ -548,6 +579,11 @@ function stepBack(s: RoomState, api: Api): boolean {
   if (d.up) d.reqs.unshift({ ...d.up, back: true });
   if (cur) d.reqs.unshift({ ...cur, id: trackId(s, api), back: true });
   const { back: _back, ...again } = back;
+  // (a switch into the next one on its way already: it goes in on that bar instead)
+  if (d.drop) {
+    retarget(s, { ...again, id: trackId(s, api) });
+    return true;
+  }
   putUp(s, { ...again, id: trackId(s, api) }, api);
   if (d.song) songOver(s, api, true);
   else autoDrop(s, api, "req", DECK.ctlBeats);
@@ -1072,7 +1108,10 @@ export const dj: GameDef<RoomState> = {
         d.gridSetAt = api.now;
         d.speakerAt = api.now;
         const dr = d.drop;
-        if (dr) {
+        // (a quiet switch, 点歌模式's, keeps its moment: no countdown to start over, and bars that
+        // kept moving, as a speaker's whose sound had stopped, put it off for good; the speaker
+        // lands it on its own next bar)
+        if (dr && !dr.quiet) {
           // the same stream a little off (a drift, a stall): the same bar at its corrected time,
           // every press kept; moments before it lands, it stays where it is (the speaker lands it
           // on its own bar anyway)
