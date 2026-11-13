@@ -1,0 +1,209 @@
+{
+  "id": "table-14",
+  "world": "table",
+  "name": {
+    "zh": "转盘送席",
+    "en": "Serving Shuttle"
+  },
+  "teaches": "mover",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 280,
+    "y": 436
+  },
+  "goal": {
+    "x": 2420,
+    "y": 240,
+    "w": 100,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1192,
+      "y": 656
+    },
+    {
+      "x": 1980,
+      "y": 456
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 460,
+      "w": 500,
+      "h": 260,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 1000,
+      "y": 680,
+      "w": 400,
+      "h": 40,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1580,
+      "y": 560,
+      "w": 300,
+      "h": 160,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1880,
+      "y": 480,
+      "w": 320,
+      "h": 240,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2400,
+      "y": 400,
+      "w": 120,
+      "h": 320,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 240,
+      "w": 40,
+      "h": 480,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 500,
+      "y": 700,
+      "w": 500,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1400,
+      "y": 700,
+      "w": 180,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2200,
+      "y": 700,
+      "w": 200,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1420,
+      "y": 600,
+      "w": 100,
+      "h": 20,
+      "material": "wood",
+      "players": [
+        1,
+        2
+      ]
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 540,
+      "y": 660,
+      "w": 360,
+      "h": 20,
+      "kind": "hot",
+      "dir": "up"
+    },
+    {
+      "x": 740,
+      "y": 260,
+      "w": 80,
+      "h": 20,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 1540,
+      "y": 640,
+      "w": 40,
+      "h": 20,
+      "kind": "hot",
+      "dir": "up"
+    },
+    {
+      "x": 2240,
+      "y": 600,
+      "w": 120,
+      "h": 20,
+      "kind": "hot",
+      "dir": "up"
+    }
+  ],
+  "movers": [
+    {
+      "x": 520,
+      "y": 360,
+      "w": 180,
+      "h": 22,
+      "path": [
+        {
+          "x": 1040,
+          "y": 480
+        }
+      ],
+      "speed": 40,
+      "wait": 3,
+      "material": "wood"
+    },
+    {
+      "x": 1350,
+      "y": 300,
+      "w": 24,
+      "h": 24,
+      "path": [
+        {
+          "x": 1350,
+          "y": 500
+        }
+      ],
+      "speed": 90,
+      "wait": 2,
+      "material": "wood",
+      "deadly": true,
+      "hazard": "hot"
+    }
+  ],
+  "spinners": [
+    {
+      "pivot": {
+        "x": 2300,
+        "y": 320
+      },
+      "arms": 2,
+      "len": 160,
+      "h": 16,
+      "spin": 0.5,
+      "material": "wood"
+    }
+  ],
+  "deathY": 790,
+  "par": {
+    "seconds": 180,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-14.json"
+}
