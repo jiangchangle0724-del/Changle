@@ -14,10 +14,13 @@ import {
   rentAt,
   unmortgageCost,
 } from "../../engine";
+import { useRef } from "preact/hooks";
 import type { RoomView } from "../../room/protocol";
 import { PassportBook } from "../art/Passport";
+import { Lot, tint, type Gone } from "../art/RoundBoard";
 import { CityPoster } from "../art/posters";
 import { cardById, getLang, money, spaceName, t, tx } from "../i18n";
+import { reducedMotion } from "../motion";
 import { send } from "../store";
 import { Btn, GroupIcon } from "./common";
 
@@ -32,6 +35,23 @@ export function Assets({ v, seat, compact }: { v: RoomView; seat: number; compac
   const manage = (k: "build" | "sell" | "mortgage" | "unmortgage", at: number) => send({ t: "manage", k, at, seat });
   const order = (at: number) => (groupAt(at) ?? 9) * 100 + at;
   mine.sort((a, b) => order(a.at) - order(b.at));
+  // What stands on each city as this list last drew it: one built since comes up out of the ground in
+  // its row (where a phone builds, the board under the sheet), one sold sinks (art/RoundBoard.tsx Lot).
+  const lots = useRef<{ map: Map<number, { n: number; from: number; gone?: Gone }>; k: number } | null>(null);
+  lots.current ??= { map: new Map(mine.map(({ d, at }) => [at, { n: d!.houses, from: d!.houses }])), k: 0 };
+  const lot = lots.current;
+  // (with reduced motion a new building is simply there, and one sold simply gone)
+  const still = reducedMotion();
+  for (const { d, at } of mine) {
+    const was = lot.map.get(at) ?? { n: 0, from: 0 };
+    const n = d!.houses;
+    if (n === was.n) continue;
+    lot.map.set(at, {
+      n,
+      from: still ? n : n > was.n ? was.n : was.n >= 5 && n > 0 ? 0 : n,
+      gone: n < was.n && !still ? { was: was.n, n, key: ++lot.k } : undefined,
+    });
+  }
   return (
     <div class={`assets${compact ? " compact" : ""}`}>
       {!compact && <h3>{t("mine")}</h3>}
@@ -85,6 +105,15 @@ export function Assets({ v, seat, compact }: { v: RoomView; seat: number; compac
                         .filter(Boolean)
                         .join(" · ")}
                 </span>
+                {grp !== null && (set || d!.houses > 0 || lot.map.get(at)?.gone) && (
+                  <Lot
+                    at={at}
+                    n={d!.houses}
+                    from={lot.map.get(at)?.from ?? d!.houses}
+                    gone={lot.map.get(at)?.gone}
+                    color={tint(GROUPS.find((x) => x.id === grp)!.color, 0.45)}
+                  />
+                )}
               </div>
               {myTurn && buttons.length > 0 && <div class="choices">{buttons}</div>}
             </li>

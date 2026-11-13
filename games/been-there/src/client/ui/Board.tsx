@@ -6,7 +6,7 @@ import type { Mood } from "../art/characters";
 import { Dice } from "../art/dice";
 import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type BoardFx, type Rig, type SpaceMark, type TokenMark, type WorldMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
-import { colon, groupName, money, spaceName, t, tx, type Key } from "../i18n";
+import { colon, getLang, groupName, money, spaceName, t, tx, type Key } from "../i18n";
 import { MAP_SIZES, prefs, type MapSize } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
@@ -16,7 +16,7 @@ import { reducedMotion } from "../motion";
 import { serverNow, update } from "../store";
 import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
-import { LandStamp, Ride, placeCamLayers, rest, viewBoard } from "./Ride";
+import { LandStamp, Ride, placeCamLayers, project, rest, viewBoard } from "./Ride";
 import { moveInPlay, ridesOn, walkOf, type RidePlan } from "./ridePlan";
 import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
@@ -142,15 +142,12 @@ export function flightToFly(v: RoomView): Flight | null {
 }
 
 /**
- * How far the board leans back at rest (degrees), as a board on a table seen from a chair: on the big
- * screen, and where a laptop (or a tablet) shows all of it, big enough to read leaning. A phone's
- * board, and a bigger map dragged round, lie flat: a map is read from above (ui/mapView.ts).
+ * How far the board leans back at rest (degrees), as a board on a table seen from a chair: the big
+ * screen's a little more, a phone's or a laptop's at every size of its map (a bigger map is the same
+ * table seen closer, dragged round as it shows: ui/mapView.ts).
  */
-export const LEAN = { tv: 30, table: 26, minBoard: 480 };
-export function boardLean(big: boolean, size: MapSize, width: number): number {
-  if (big) return LEAN.tv;
-  return size === "s" && width >= LEAN.minBoard ? LEAN.table : 0;
-}
+export const LEAN = { tv: 30, table: 26 };
+export const boardLean = (big: boolean): number => (big ? LEAN.tv : LEAN.table);
 
 /**
  * Which space the table turns where. A phone with first-person moves keeps its own token at
@@ -263,7 +260,7 @@ export function Board({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const lean = boardLean(!!big, size, width);
+  const lean = boardLean(!!big);
   // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
   // show the globe) the board draws it flat, under the ring.
   const sat = !(globe && globeWanted());
@@ -287,6 +284,7 @@ export function Board({
       worldFx={moment && { id: moment.id, kind: moment.e.id, at: moment.e.at }}
       worldMark={worldMark}
       lean={lean}
+      lang={getLang()}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -304,6 +302,12 @@ export function Board({
     turnKey: `${g.startedAt}:${s.turns}`,
     moveKey: `${s.turn}:${s.ps[s.turn]?.pos}`,
     reduced: reducedMotion(),
+    look: zoomable ? builtHere(v) : null,
+    // (where a point of the board shows in the box, the board leaning back as it rests)
+    place: (x, y, rot) => {
+      const p = project(x, y, rest(rot, lean), 1000);
+      return [p.x - 500, p.y - 500];
+    },
   });
   const hint = useMapHint(zoomable && size !== "s" && !moving);
   // Between moves the board rests as it lies (a move's camera has it meanwhile: ui/Ride.tsx), and on
@@ -407,6 +411,16 @@ const nextSize = (size: MapSize): MapSize => MAP_SIZES[(MAP_SIZES.indexOf(size) 
  * The map's size, in the board's top right corner (clear of the round board at its smallest): a tap
  * makes it bigger, and from the largest back to the whole board. Its three marks say which size it is.
  */
+/** The city this device's own team built on a moment ago (its map looks at it as it comes up), or null. */
+function builtHere(v: RoomView): { at: number; key: string } | null {
+  for (let i = v.feed.length - 1; i >= 0; i--) {
+    const f = v.feed[i];
+    if (serverNow() - f.at > 3000) return null;
+    if (f.t === "game" && f.e.t === "manage" && f.e.k === "build" && v.you.seats.includes(f.e.p)) return { at: f.e.at, key: String(f.id) };
+  }
+  return null;
+}
+
 function MapSizeButton({ size, onPick }: { size: MapSize; onPick: (s: MapSize) => void }) {
   const now = t(`map_${size}` as Key);
   const label = size === "l" ? t("mapWhole", { size: now }) : t("mapBigger", { size: now });

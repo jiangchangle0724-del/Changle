@@ -13,9 +13,9 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { CITIES } from "../../engine";
 import { TRIVIA_PRIZE, TRIVIA_WRONG, type RoomView, type TriviaView } from "../../room/protocol";
 import { CityGlyph } from "../art/icons";
-import { CODE } from "../art/stamps";
+import { placeTag } from "../art/stamps";
 import { BUZZ, buzz } from "../controls";
-import { money, t, tx } from "../i18n";
+import { getLang, money, t, tx } from "../i18n";
 import { rememberTrivia } from "../prefs";
 import { send } from "../store";
 import { Countdown, SeatChip, hostOf, seatName } from "./common";
@@ -82,7 +82,7 @@ export function QuizPop({ v }: { v: RoomView }) {
     >
       <p class="pass-strip">
         <span>{t("stripTrivia")}</span>
-        <span>{CODE[q.city] ?? ""}</span>
+        <span>{placeTag(q.city, getLang())}</span>
       </p>
       <p class="trivia-about">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -140,7 +140,7 @@ export function TriviaCard({ v, big }: { v: RoomView; big?: boolean }) {
     <section class={`trivia${big ? " big" : " watch"}${q.open ? "" : " closed"}`} aria-live="polite" key={q.id}>
       <p class="pass-strip">
         <span>{t("stripTrivia")}</span>
-        <span>{CODE[q.city] ?? ""}</span>
+        <span>{placeTag(q.city, getLang())}</span>
       </p>
       <p class="trivia-about">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">

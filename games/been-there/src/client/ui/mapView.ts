@@ -12,7 +12,7 @@
 // eases toward where it's going; with reduced motion it is simply there.
 import type { RefObject } from "preact";
 import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
-import type { Rig } from "../art/RoundBoard";
+import { angleOf, xy, type Rig } from "../art/RoundBoard";
 import type { MapSize } from "../prefs";
 
 /** How much bigger than its box each size draws the board. */
@@ -28,6 +28,11 @@ const FRICTION = 5;
 /** How long the view keeps an eye on a token after it moves: the walk waits for the thrower's beat
  * (ridePlan.ts) and takes up to 1.8 s. */
 const WATCH_MS = 6000;
+/** How long the view stays on a city this phone builds on (it comes up out of the ground: 0.8 s, a
+ * hotel 1.3 s) before it goes back to the team on turn. */
+const LOOK_MS = 2600;
+/** Where on a city the view looks: between its buildings and its name (board units from the middle). */
+const LOOK_R = 385;
 
 /** The middle of the view, kept where the box stays on the board at zoom `z` (board units). */
 export const keepIn = (c: number, z: number) => {
@@ -49,6 +54,12 @@ export interface MapViewOptions {
   /** Changes when the followed token moves on: the view keeps up with it as it walks. */
   moveKey: string;
   reduced: boolean;
+  /** A city to look at for a moment (one this phone just built on), keyed so each build looks again. */
+  look?: { at: number; key: string } | null;
+  /** Where a point of the board (board units, before the table turns) shows in the box, the table
+   * turned to `rot`: board units from the box's middle (the board leaning back as it rests: the map
+   * is the board as it shows). None: the table only turns. */
+  place?: (x: number, y: number, rot: number) => [number, number];
 }
 
 /** How this phone's own move takes the view over, and gives it back (ui/Ride.tsx). */
@@ -84,6 +95,9 @@ interface View {
   vy: number;
   /** Keep watching the followed token until then (performance.now()). */
   until: number;
+  /** The city looked at (`look`) until then, or none. */
+  lookAt: number | null;
+  lookUntil: number;
   raf: number;
   last: number;
   shown: string;
@@ -92,7 +106,7 @@ interface View {
 export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLDivElement>, rig: RefObject<Rig | null>, o: MapViewOptions): MapView {
   const opts = useRef(o);
   opts.current = o;
-  const view = useRef<View>({ cx: 0, cy: 0, z: Math.max(1, o.zoom), held: false, ridden: false, w: 0, h: 0, vx: 0, vy: 0, until: 0, raf: 0, last: 0, shown: "" });
+  const view = useRef<View>({ cx: 0, cy: 0, z: Math.max(1, o.zoom), held: false, ridden: false, w: 0, h: 0, vx: 0, vy: 0, until: 0, lookAt: null, lookUntil: 0, raf: 0, last: 0, shown: "" });
   const kick = useRef<(watch?: number) => void>(() => {});
   const write = useRef<() => void>(() => {});
 
@@ -117,17 +131,28 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
         layer.style.transform = tf;
       }
     };
-    /** Where the followed token stands now, as the board is turned on screen, or null. */
+    /** Where a point of the board shows in the box (board units from its middle), as the table is turned. */
+    const shown = (x: number, y: number, r: Rig): [number, number] => {
+      const rot = r.rotation();
+      const place = opts.current.place;
+      if (place) return place(x, y, rot);
+      const a = (rot * Math.PI) / 180;
+      return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+    };
+    /** Where the followed token stands now (or the city looked at), as it shows in the box, or null. */
     const target = (): [number, number] | null => {
       const seat = opts.current.follow;
       const r = rig.current;
+      if (r && v.lookAt !== null && performance.now() < v.lookUntil) {
+        const [x, y] = xy(angleOf(v.lookAt), LOOK_R);
+        return shown(x, y, r);
+      }
       if (seat === null || !r) return null;
       const el = r.svg.querySelector<SVGGElement>(`[data-seat="${seat}"]`);
       const x = Number(el?.dataset.x);
       const y = Number(el?.dataset.y);
       if (!el || !Number.isFinite(x) || !Number.isFinite(y)) return null;
-      const a = (r.rotation() * Math.PI) / 180;
-      return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+      return shown(x, y, r);
     };
 
     const drag = { id: -1, x0: 0, y0: 0, x: 0, y: 0, t: 0, on: false, vx: 0, vy: 0 };
@@ -285,6 +310,16 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
   useEffect(() => {
     kick.current(WATCH_MS);
   }, [o.moveKey, o.follow, o.reduced]);
+  // A city built on: look at it for a moment (even after a drag), then back to the team on turn.
+  useEffect(() => {
+    const v = view.current;
+    if (!o.look) return;
+    v.lookAt = o.look.at;
+    v.lookUntil = performance.now() + LOOK_MS;
+    v.held = false;
+    v.vx = v.vy = 0;
+    kick.current(LOOK_MS + 1500);
+  }, [o.look?.key]);
 
   return {
     recentre: () => {

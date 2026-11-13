@@ -15,10 +15,10 @@ import {
   type Pending,
 } from "../../engine";
 import { TIMING, type RoomView } from "../../room/protocol";
-import { cardTitle, colon, money, spaceName, t, tx, type Key } from "../i18n";
+import { cardTitle, colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
 import { BUZZ, allowShake, buzz, onShake, shakeState } from "../controls";
 import { send } from "../store";
-import { CODE } from "../art/stamps";
+import { placeTag } from "../art/stamps";
 import { Assets } from "./Assets";
 import { Btn, Countdown, GroupIcon, HapticBtn, Money, SeatChip, moneyOrHidden, seatName, useCountdown } from "./common";
 import { sfx } from "../sound";
@@ -154,7 +154,7 @@ function Strip({ label, at }: { label: string; at?: number }) {
   return (
     <p class="pass-strip">
       <span>{label}</span>
-      {at !== undefined && <span>{city ? CODE[city.id] : spaceName(at)}</span>}
+      {at !== undefined && <span>{city ? placeTag(city.id, getLang()) : spaceName(at)}</span>}
     </p>
   );
 }

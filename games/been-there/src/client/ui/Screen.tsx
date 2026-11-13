@@ -284,6 +284,10 @@ function useScreenSounds(v: RoomView, move: RidePlan | null) {
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
     else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction" || f.e.t === "bonus"))) at(rideReady(move), sfx.coin);
+    else if (fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "build"))
+      sfx.build(fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "build" && (v.game?.s.deeds[f.e.at]?.houses ?? 0) >= 5));
+    else if (fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "sell")) sfx.sink();
+    else if (fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "mortgage")) sfx.flip();
     else if (reducedMotion() && fresh.some((f) => f.t === "game" && f.e.t === "stamp")) sfx.stamp();
   });
 }
