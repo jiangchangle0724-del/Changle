@@ -185,11 +185,20 @@ export function Qr({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** A short line that comes and goes at the bottom of the screen. */
-export function Toast({ text }: { text: string | null }) {
+/** A short line that comes and goes at the bottom of the screen; with `action`, it carries one thing to press. */
+export function Toast({ text, action }: { text: string | null; action?: { label: string; run: () => void } }) {
   return (
     <div class="toast-wrap" aria-live="polite">
-      {text && <div class="toast">{text}</div>}
+      {text && (
+        <div class="toast" data-action={action ? "" : undefined}>
+          <span>{text}</span>
+          {action && (
+            <button type="button" class="link-btn" onClick={action.run}>
+              {action.label}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
