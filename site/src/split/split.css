@@ -31,6 +31,8 @@
 }
 .split-bar-right {
   justify-content: flex-end;
+  /* never narrower than what it holds: on a narrow phone the title gives way, not the gap beside it */
+  min-width: min-content;
 }
 /* the bar reaches past the page's edge so an icon's glyph lines up with the text under it; something
    with a body of its own (the language switch) comes back in to the edge */
@@ -125,11 +127,88 @@
   height: var(--icon-sm);
   color: var(--color-text-2);
 }
+/* one more line on a ledger's card, only when something recorded here hasn't gone up or didn't stick */
+.split-ledger-text .split-ledger-flag {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.split-ledger-text .split-ledger-flag.is-loud {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.split-ledger-flag svg {
+  flex: none;
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
 .split-fine {
   margin: var(--space-6) 0 0;
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--leading);
+}
+
+/* ---------- in step with the server ---------- */
+/* Nothing is said while it is. One line when what was recorded here hasn't gone up: quiet when it
+   will by itself (no signal), in the page's strong voice with a mark when it can't. Never in the
+   light (that is for the one button and what is chosen) and never in red (nothing is lost). */
+.split-sync {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.split-sync svg {
+  flex: none;
+  width: var(--text-md);
+  height: var(--text-md);
+  /* level with the first line of the words, however many lines they run to */
+  margin-top: calc((var(--text-sm) * var(--leading) - var(--text-md)) / 2);
+}
+.split-sync.is-loud {
+  color: var(--color-text);
+  font-weight: 700;
+}
+/* a change that didn't stick: which one, why, what to do, and one button to say it has been read */
+.split-lost {
+  margin-top: var(--space-4);
+}
+.split-lost-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+.split-lost-head svg {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.split-lost ul {
+  display: grid;
+  /* (a change that runs to two lines still reads as one: the next begins a little further down) */
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.split-lost li {
+  line-height: var(--leading);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.split-lost .split-lost-why {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  /* even lines, not a line and a few words left over */
+  text-wrap: balance;
+}
+.split-lost .ui-button {
+  justify-self: start;
 }
 
 /* ---------- a ledger: where you stand, then what was paid ---------- */
@@ -545,6 +624,10 @@ label.split-field:focus-within {
 }
 .split-form .field input {
   caret-color: var(--gel);
+}
+/* at the top of the ⋯ sheet, where the ledger stands with the server is its first line */
+.split-form > .split-sync {
+  margin: 0;
 }
 .split-note {
   display: flex;

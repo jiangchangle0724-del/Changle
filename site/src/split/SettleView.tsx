@@ -10,18 +10,20 @@ import { sizeClass } from "../tools/money";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { Sheet } from "../ui/Sheet";
+import { useToast } from "../ui/Toast";
 import { expensesOf, type Ledger, type Settlement } from "./core";
 import { money } from "./format";
 import { paysLine } from "./lines";
-import { addTransfer, takeOut } from "./ops";
 import { copyText } from "./parts";
-import { change, newId } from "./store";
+import { newId } from "./store";
+import { record } from "./syncing";
 import { say, W } from "./words";
 
 /** One transfer on the screen: a step of the plan, or one already made that the plan no longer holds. */
 type Line = { from: string; to: string; amount: number; paid?: string };
 
 export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: string | undefined; lang: Lang; plan: Settlement }) {
+  const toast = useToast();
   const [open, setOpen] = useState<Line | null>(null);
   // the transfer the sheet shows, kept while the sheet slides away so it doesn't empty on its way out
   const last = useRef<Line | null>(null);
@@ -107,7 +109,7 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
               block
               onClick={() => {
                 const id = line.paid;
-                if (id) change(ledger.id, (l) => takeOut(l, id, Date.now()));
+                if (id) record(ledger.id, { do: "out", entry: id, at: Date.now() });
                 setOpen(null);
               }}
             >
@@ -119,8 +121,10 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
               block
               icon={Check}
               onClick={() => {
-                change(ledger.id, (l) => addTransfer(l, { id: newId(), at: Date.now(), from: line.from, to: line.to, amount: line.amount }));
+                const done = record(ledger.id, { do: "transfer", transfer: { id: newId(), at: Date.now(), from: line.from, to: line.to, amount: line.amount } });
                 setOpen(null);
+                // (the sheet is closing, so the page can say it)
+                if (!done) toast(say(lang, "notSaved"), { tone: "warning" });
               }}
             >
               {say(lang, "markPaid")}
