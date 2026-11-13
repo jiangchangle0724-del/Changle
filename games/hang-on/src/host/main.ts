@@ -310,6 +310,8 @@ function onPhase(next: Phase): void {
 let countTimer: ReturnType<typeof setInterval> | null = null;
 function countdown(): void {
   let n = 3;
+  // 开局镜头从终点扫回起点（A8）
+  stage.intro(2.6);
   $('countNum').textContent = String(n);
   $('countLevel').textContent = countLabel();
   sfx.countdown(n);

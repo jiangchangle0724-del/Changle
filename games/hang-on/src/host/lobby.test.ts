@@ -70,7 +70,7 @@ vi.mock('../i18n', () => ({ applyStatic() {}, langButton() {}, onLang() {},
 vi.mock('../audio/sfx', () => ({ sfx: { attach() {}, countdown() {}, tick() {}, setVoice() {}, muted: true }, heardBy: () => true }));
 vi.mock('../pad/look-preview', () => ({ drawLook() {} }));
 vi.mock('../render/stage', () => ({ Stage: { create: async () => ({
-  setLevel() {}, syncPlayers() {}, setPlayerStyle() {}, reset() {},
+  setLevel() {}, syncPlayers() {}, setPlayerStyle() {}, reset() {}, intro() {},
 }) } }));
 
 type Host = { phase: string; level: { id: string }; sim: Sim; phoneMode: boolean; localIndex: number; link: { room: { view(): RoomView } } };
