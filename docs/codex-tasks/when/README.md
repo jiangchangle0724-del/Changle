@@ -34,12 +34,12 @@ Always:
 | [C1](C1-art.md) | Four pictures: the home page, the empty state, the backgrounds of the invitation and the result | `tools/when/src/client/art/`, `LICENSES.md` | with A1, once the folder is on `main` |
 | [C2](C2-calendar.md) | Add to calendar: an .ics file and a Google Calendar link | `tools/when/src/engine/ics.ts`, its test | with A1, once the folder is on `main` |
 | [C3](C3-holidays.md) | B.C. statutory holidays, long weekends and festivals, November 2026 to 2028 | `tools/when/src/engine/holidays.ts`, its test | with A1, once the folder is on `main` |
-| [C4](C4-copy.md) | The words people paste into the group chat: invitation, nudge, result; three tones, two languages | `tools/when/src/engine/copy.ts`, its test | at A3; the card is checked against the finished A2 first |
-| [C5](C5-browser-tests.md) | Phones in browsers: two to eight filling in at once, a dropped connection, WeChat, small and large screens | `tools/when/tests/e2e/` | at A3; the card is checked against the finished A2 first |
+| [C4](C4-copy.md) | The words people paste into the group chat: invitation, nudge, result; three tones, two languages | `tools/when/src/engine/copy.ts`, its test | ready: checked against the finished A2 on 2026-11-13 |
+| [C5](C5-browser-tests.md) | Phones in browsers: two to eight filling in at once, a dropped connection, WeChat, small and large screens | `tools/when/tests/e2e/` | ready: checked against the finished A2 on 2026-11-13 |
 
 What to send Codex: a new conversation for each card (on Steve's computer, in Codex's local mode),
 with the card's own file and branch name in it. C1, C2 and C3 change different files and can run
-at the same time.
+at the same time; so can C4 and C5.
 
 ```
 本机的 Changle 仓库里别的对话正在干活，所以不要在原来的文件夹里切分支或改文件：只运行 git fetch origin，然后用 git worktree add 从 origin/main 开一个新文件夹和新分支 codex/when-c2-calendar，只在新文件夹里做。
