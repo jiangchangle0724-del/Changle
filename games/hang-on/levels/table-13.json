@@ -1,0 +1,166 @@
+{
+  "id": "table-13",
+  "world": "table",
+  "name": {
+    "zh": "竹签窄渡",
+    "en": "Skewer Narrows"
+  },
+  "teaches": "spike",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 536
+  },
+  "goal": {
+    "x": 2400,
+    "y": 240,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1275,
+      "y": 356
+    },
+    {
+      "x": 2140,
+      "y": 456
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 520,
+      "h": 160,
+      "material": "cloth",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 260,
+      "y": 340,
+      "w": 470,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 800,
+      "y": 380,
+      "w": 660,
+      "h": 340,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1960,
+      "y": 480,
+      "w": 300,
+      "h": 240,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2340,
+      "y": 400,
+      "w": 180,
+      "h": 320,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 240,
+      "w": 40,
+      "h": 480,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 520,
+      "y": 700,
+      "w": 280,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1460,
+      "y": 700,
+      "w": 500,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2260,
+      "y": 700,
+      "w": 80,
+      "h": 20,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 560,
+      "y": 600,
+      "w": 220,
+      "h": 24,
+      "kind": "spike"
+    },
+    {
+      "x": 1000,
+      "y": 250,
+      "w": 100,
+      "h": 24,
+      "kind": "spike",
+      "dir": "down"
+    },
+    {
+      "x": 1480,
+      "y": 600,
+      "w": 460,
+      "h": 24,
+      "kind": "spike"
+    },
+    {
+      "x": 2260,
+      "y": 560,
+      "w": 80,
+      "h": 24,
+      "kind": "spike"
+    }
+  ],
+  "movers": [
+    {
+      "x": 1480,
+      "y": 300,
+      "w": 260,
+      "h": 22,
+      "path": [
+        {
+          "x": 1980,
+          "y": 300
+        }
+      ],
+      "speed": 45,
+      "wait": 1,
+      "material": "wood"
+    }
+  ],
+  "spinners": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 4
+  },
+  "replay": "replays/table-13.json"
+}

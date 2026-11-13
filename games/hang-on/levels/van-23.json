@@ -1,0 +1,186 @@
+{
+  "id": "van-23",
+  "world": "van",
+  "name": {
+    "zh": "炙桥转轮",
+    "en": "Sizzling Bridge"
+  },
+  "teaches": "hot",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 536
+  },
+  "goal": {
+    "x": 2400,
+    "y": 240,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1275,
+      "y": 356
+    },
+    {
+      "x": 2140,
+      "y": 456
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 520,
+      "h": 160,
+      "material": "cloth",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 260,
+      "y": 340,
+      "w": 470,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 800,
+      "y": 380,
+      "w": 660,
+      "h": 340,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 520,
+      "y": 700,
+      "w": 280,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1460,
+      "y": 480,
+      "w": 800,
+      "h": 240,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2340,
+      "y": 400,
+      "w": 180,
+      "h": 320,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 240,
+      "w": 40,
+      "h": 480,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2260,
+      "y": 700,
+      "w": 80,
+      "h": 20,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 530,
+      "y": 650,
+      "w": 250,
+      "h": 24,
+      "kind": "hot",
+      "dir": "up"
+    },
+    {
+      "x": 1000,
+      "y": 250,
+      "w": 100,
+      "h": 24,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 1800,
+      "y": 300,
+      "w": 70,
+      "h": 24,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 2260,
+      "y": 560,
+      "w": 80,
+      "h": 24,
+      "kind": "hot"
+    }
+  ],
+  "movers": [
+    {
+      "x": 780,
+      "y": 270,
+      "w": 20,
+      "h": 40,
+      "path": [
+        {
+          "x": 780,
+          "y": 650
+        }
+      ],
+      "speed": 40,
+      "wait": 0.4,
+      "deadly": true,
+      "hazard": "hot"
+    }
+  ],
+  "spinners": [
+    {
+      "pivot": {
+        "x": 2300,
+        "y": 350
+      },
+      "arms": 2,
+      "len": 110,
+      "h": 16,
+      "spin": 0.55,
+      "phase": 0,
+      "material": "metal"
+    },
+    {
+      "pivot": {
+        "x": 1810,
+        "y": 620
+      },
+      "arms": 2,
+      "len": 100,
+      "h": 14,
+      "spin": -1.1,
+      "phase": 0.9,
+      "deadly": true
+    }
+  ],
+  "deathY": 790,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/van-23.json"
+}
